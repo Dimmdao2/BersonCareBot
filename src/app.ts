@@ -1,6 +1,8 @@
+
 import Fastify from 'fastify';
 import { env } from './config/env.js';
 import healthRoutes from './routes/health.js';
+import { telegramWebhookRoutes } from './routes/telegramWebhook.js';
 
 export function buildApp() {
   const app = Fastify({
@@ -9,5 +11,6 @@ export function buildApp() {
     },
   });
   app.register(healthRoutes);
+  app.register(telegramWebhookRoutes);
   return app;
 }
