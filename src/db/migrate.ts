@@ -23,7 +23,6 @@ async function applyMigration(db: Pool, version: string, sql: string) {
     await db.query(sql);
     await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [version]);
     await db.query('COMMIT');
-    // eslint-disable-next-line no-console
     console.log(`Applied migration: ${version}`);
   } catch (e) {
     await db.query('ROLLBACK');

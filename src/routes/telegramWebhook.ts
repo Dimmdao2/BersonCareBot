@@ -15,7 +15,25 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
     }
 
     // Обработка только message.text === '/start'
-    const body = request.body as any;
+    // Типизация body
+    interface TelegramWebhookBody {
+      message?: {
+        text?: string;
+        from?: {
+          id: number;
+          username?: string;
+          first_name?: string;
+          last_name?: string;
+          phone?: string;
+          language_code?: string;
+          is_bot?: boolean;
+        };
+        chat?: {
+          id: number;
+        };
+      };
+    }
+    const body = request.body as TelegramWebhookBody;
     if (body && body.message && body.message.text === '/start') {
       const user = body.message.from;
       if (user && user.id) {
@@ -29,7 +47,7 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
         });
         logger.info({
           user_id: upserted.id,
-          chat_id: body.message.chat.id,
+          chat_id: body.message && body.message.chat ? body.message.chat.id : undefined,
           username: upserted.username,
           first_name: upserted.first_name,
           last_name: upserted.last_name,

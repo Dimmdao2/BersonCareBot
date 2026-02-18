@@ -53,8 +53,8 @@ async function sendTelegramMessage(chatId: number, text: string) {
     if (res.ok) return true;
     const data = await res.json().catch(() => ({}));
     let errorMsg: string | undefined = undefined;
-    if (typeof data === 'object' && data && 'description' in data && typeof (data as any).description === 'string') {
-      errorMsg = (data as { description: string }).description;
+    if (typeof data === 'object' && data && 'description' in data && typeof (data as { description?: string }).description === 'string') {
+      errorMsg = (data as { description?: string }).description;
     }
     if (res.status === 403) throw new Error('blocked');
     if (attempt === MAX_RETRIES) throw new Error(errorMsg || 'send failed');
@@ -72,13 +72,22 @@ export async function runMailings() {
         await sendTelegramMessage(user.telegram_id, mailing.title);
         await logMailingResult(user.id, mailing.id, 'sent');
         logger.info({ user_id: user.id, mailing_id: mailing.id }, 'Mailing sent');
-      } catch (err: any) {
-        if (err.message === 'blocked') {
+      } catch (err: unknown) {
+        const message = typeof err === 'object' && err && 'message' in err && typeof (err as { message?: string }).message === 'string'
+          ? (err as { message?: string }).message
+          : undefined;
+        if (message === 'blocked') {
           await markUserInactive(user.id);
           logger.warn({ user_id: user.id }, 'User blocked bot, marked inactive');
         }
-        await logMailingResult(user.id, mailing.id, 'error', err.message);
-        logger.error({ user_id: user.id, mailing_id: mailing.id, error: err.message }, 'Mailing failed');
+        await logMailingResult(user.id, mailing.id, 'error', message);
+        logger.error({
+          user_id: user.id,
+          mailing_id: mailing.id,
+          error: typeof err === 'object' && err && 'message' in err && typeof (err as { message?: string }).message === 'string'
+            ? (err as { message?: string }).message
+            : undefined,
+        }, 'Mailing failed');
       }
       await new Promise(r => setTimeout(r, RATE_LIMIT_MS));
     }
