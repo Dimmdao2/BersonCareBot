@@ -2,7 +2,7 @@
 import { FastifyInstance } from 'fastify';
 import { env } from '../config/env.js';
 import { upsertUser } from '../db/usersRepo.js';
-import { logger } from '../logger.js';
+import { logger, getRequestLogger } from '../logger.js';
 
 export async function telegramWebhookRoutes(app: FastifyInstance) {
   app.post('/webhook/telegram', async (request, reply) => {
@@ -17,6 +17,7 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
     // Обработка только message.text === '/start'
     // Типизация body
     interface TelegramWebhookBody {
+      update_id?: number;
       message?: {
         text?: string;
         from?: {
@@ -34,6 +35,9 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
       };
     }
     const body = request.body as TelegramWebhookBody;
+    const requestId = body.update_id ? String(body.update_id) : undefined;
+    const reqLogger = requestId ? getRequestLogger(requestId) : logger;
+
     if (body && body.message && body.message.text === '/start') {
       const user = body.message.from;
       if (user && user.id) {
@@ -45,7 +49,9 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
           phone: user.phone,
           _language_code: user.language_code,
         });
-        logger.info({
+        reqLogger.info({
+          event: '/start',
+          update_id: body.update_id,
           user_id: upserted.id,
           chat_id: body.message && body.message.chat ? body.message.chat.id : undefined,
           username: upserted.username,

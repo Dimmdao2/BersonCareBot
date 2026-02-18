@@ -52,3 +52,18 @@ export const logger = pino({
     error: serializeError,
   },
 });
+
+export function getRequestLogger(requestId: string) {
+  return logger.child({ requestId });
+}
+
+export function getWorkerLogger(jobId?: string, mailingId?: string) {
+  const context: Record<string, string> = {};
+  if (jobId) context.jobId = jobId;
+  if (mailingId) context.mailingId = mailingId;
+  return logger.child(context);
+}
+
+export function getMigrationLogger(version: string) {
+  return logger.child({ migrationVersion: version });
+}
