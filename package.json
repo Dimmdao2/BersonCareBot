@@ -9,7 +9,8 @@
     "start": "node dist/main.js",
     "test": "vitest",
     "lint": "eslint .",
-    "format": "prettier -w ."
+    "format": "prettier -w .",
+    "migrate": "tsx src/db/migrate.ts"
   },
   "engines": {
     "node": ">=20"
