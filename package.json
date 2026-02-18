@@ -8,6 +8,9 @@
     "build": "tsc",
     "start": "node dist/main.js",
     "test": "vitest"
+    ,
+    "lint": "eslint .",
+    "format": "prettier -w ."
   },
   "engines": {
     "node": ">=20"
