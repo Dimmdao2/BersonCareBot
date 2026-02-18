@@ -2,7 +2,7 @@ import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { Pool } from 'pg';
 import { env } from '../config/env.js';
-import { logger, serializeError } from '../logger.js';
+import { logger } from '../logger.js';
 
 async function ensureMigrationsTable(db: Pool) {
   await db.query(`
@@ -53,6 +53,6 @@ async function migrate() {
 }
 
 migrate().catch((e) => {
-  logger.error({ err: serializeError(e) }, 'Migration failed');
+  logger.error({ err: e }, 'Migration failed');
   process.exit(1);
 });
