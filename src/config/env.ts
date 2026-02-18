@@ -13,6 +13,7 @@ const envSchema = z.object({
   INBOX_CHAT_ID: z.string().optional(),
   BOOKING_URL: z.string().optional(),
   DATABASE_URL: z.string().optional(),
+  TG_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const _env = envSchema.safeParse(process.env);
