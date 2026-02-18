@@ -2,6 +2,7 @@ import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { Pool } from 'pg';
 import { env } from '../config/env.js';
+import { logger, serializeError } from '../logger.js';
 
 async function ensureMigrationsTable(db: Pool) {
   await db.query(`
@@ -23,7 +24,7 @@ async function applyMigration(db: Pool, version: string, sql: string) {
     await db.query(sql);
     await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [version]);
     await db.query('COMMIT');
-    console.log(`Applied migration: ${version}`);
+    logger.info({ migration: version }, 'Applied migration');
   } catch (e) {
     await db.query('ROLLBACK');
     throw e;
@@ -52,6 +53,6 @@ async function migrate() {
 }
 
 migrate().catch((e) => {
-  console.error(e);
+  logger.error({ err: serializeError(e) }, 'Migration failed');
   process.exit(1);
 });
