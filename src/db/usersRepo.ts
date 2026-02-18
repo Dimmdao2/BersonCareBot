@@ -4,13 +4,13 @@ import { env } from '../config/env.js';
 
 const pool = new Pool({ connectionString: env.DATABASE_URL });
 
-export async function upsertUser({ telegram_id, username, first_name, last_name, phone, language_code }: {
+export async function upsertUser({ telegram_id, username, first_name, last_name, phone, _language_code }: {
   telegram_id: number;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  phone?: string;
-  language_code?: string;
+  username?: string | undefined;
+  first_name?: string | undefined;
+  last_name?: string | undefined;
+  phone?: string | undefined;
+  _language_code?: string | undefined;
 }) {
   const res = await pool.query(
     `INSERT INTO users (telegram_id, username, first_name, last_name, phone, created_at, updated_at)

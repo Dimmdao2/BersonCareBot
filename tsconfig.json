@@ -6,8 +6,10 @@
     "lib": ["ES2022"],
     "outDir": "dist",
     "rootDir": "src",
-    "strict": true,
-    "noImplicitAny": true,
+      "strict": true, // Keep existing strict option
+      "noImplicitAny": true, // Keep existing noImplicitAny option
+      "noUncheckedIndexedAccess": true, // Add new option
+      "exactOptionalPropertyTypes": true, // Add new option
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,

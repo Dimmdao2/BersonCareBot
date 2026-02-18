@@ -9,6 +9,9 @@
     "start": "node dist/main.js",
     "test": "vitest --run",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "audit": "pnpm audit --prod",
     "format": "prettier -w .",
     "migrate": "tsx src/db/migrate.ts"
   },
@@ -19,15 +22,22 @@
   "dependencies": {
     "dotenv": "^17.3.1",
     "fastify": "^5.7.4",
+    "node-fetch": "^3.3.2",
     "pg": "^8.18.0",
     "pino": "^10.3.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.2.3",
+    "@types/node-fetch": "^2.6.13",
     "@types/pg": "^8.16.0",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.56.0",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-no-secrets": "^2.2.2",
+    "globals": "^17.3.0",
     "prettier": "^3.8.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

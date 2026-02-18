@@ -44,6 +44,7 @@ async function migrate() {
     .sort();
   for (const file of files) {
     const version = file.split('_')[0];
+    if (version === undefined) continue;
     if (applied.has(version)) continue;
     const sql = await readFile(join(dir, file), 'utf8');
     await applyMigration(db, version, sql);
@@ -52,7 +53,6 @@ async function migrate() {
 }
 
 migrate().catch((e) => {
-  // eslint-disable-next-line no-console
   console.error(e);
   process.exit(1);
 });

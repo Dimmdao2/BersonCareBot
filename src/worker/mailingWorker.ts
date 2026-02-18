@@ -26,7 +26,7 @@ async function markUserInactive(userId: number) {
   await pool.query('UPDATE users SET is_active = false WHERE id = $1', [userId]);
 }
 
-async function logMailingResult(userId: number, mailingId: number, status: string, error?: string) {
+async function logMailingResult(userId: number, mailingId: number, status: string, error?: string | undefined) {
   await pool.query(
     `INSERT INTO mailing_logs (user_id, mailing_id, status, sent_at, error)
      VALUES ($1, $2, $3, NOW(), $4)
@@ -40,7 +40,7 @@ async function wasMailingSent(userId: number, mailingId: number) {
     'SELECT 1 FROM mailing_logs WHERE user_id = $1 AND mailing_id = $2 AND status = $3',
     [userId, mailingId, 'sent']
   );
-  return res.rowCount > 0;
+  return (res.rowCount ?? 0) > 0;
 }
 
 async function sendTelegramMessage(chatId: number, text: string) {
@@ -52,8 +52,12 @@ async function sendTelegramMessage(chatId: number, text: string) {
     });
     if (res.ok) return true;
     const data = await res.json().catch(() => ({}));
+    let errorMsg: string | undefined = undefined;
+    if (typeof data === 'object' && data && 'description' in data && typeof (data as any).description === 'string') {
+      errorMsg = (data as { description: string }).description;
+    }
     if (res.status === 403) throw new Error('blocked');
-    if (attempt === MAX_RETRIES) throw new Error(data.description || 'send failed');
+    if (attempt === MAX_RETRIES) throw new Error(errorMsg || 'send failed');
     await new Promise(r => setTimeout(r, 500 * attempt));
   }
 }

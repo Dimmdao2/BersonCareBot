@@ -24,8 +24,8 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
           username: user.username,
           first_name: user.first_name,
           last_name: user.last_name,
-          phone: undefined,
-          language_code: user.language_code,
+          phone: user.phone,
+          _language_code: user.language_code,
         });
         logger.info({
           user_id: upserted.id,
