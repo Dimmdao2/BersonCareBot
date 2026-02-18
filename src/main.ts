@@ -1,3 +1,11 @@
+
+import dotenv from 'dotenv';
+if (process.env.NODE_ENV === 'production') {
+  dotenv.config({ path: '/opt/tgcarebot/.env' });
+} else {
+  dotenv.config();
+}
+
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './logger.js';
