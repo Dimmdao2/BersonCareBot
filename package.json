@@ -1,0 +1,11 @@
+{
+  "name": "bersoncare-webhooks",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "ydb-sdk": "^5.11.1",
+    "telegraf": "^4.16.3",
+    "@aws-sdk/client-s3": "^3.0.0" 
+  }
+}
