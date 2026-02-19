@@ -1,0 +1,24 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && git pull --rebase'
+            sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm install --frozen-lockfile'
+            sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
+            sudo systemctl restart tgcarebot
+            sudo systemctl status tgcarebot --no-pager
