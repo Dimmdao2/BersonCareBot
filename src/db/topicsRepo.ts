@@ -1,33 +1,20 @@
 import { Pool } from "pg";
 
-export type MailingTopic = {
-  id: number;
-  key: string;
-  title: string;
-  is_active: boolean;
-  created_at: string;
-};
+export type Topic = { id: number; key: string; title: string; is_active?: boolean };
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-export async function getActiveTopics(): Promise<MailingTopic[]> {
+export async function listActiveTopics(): Promise<Topic[]> {
   const res = await pool.query(
-    `SELECT id, key, title, is_active, created_at FROM mailing_topics WHERE is_active = true ORDER BY id`
+    `SELECT id, key, title FROM mailing_topics WHERE is_active = true ORDER BY id`
   );
-  return res.rows as MailingTopic[];
+  return res.rows as Topic[];
 }
 
-export async function seedTopics(): Promise<void> {
-  const topics = [
-    { key: "news", title: "Новости" },
-    { key: "moscow", title: "Москва" },
-    { key: "spb", title: "Санкт-Петербург" },
-    { key: "online", title: "Онлайн" },
-  ];
-  for (const t of topics) {
-    await pool.query(
-      `INSERT INTO mailing_topics(key, title) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING`,
-      [t.key, t.title]
-    );
-  }
+export async function getTopicByKey(key: string): Promise<Topic | null> {
+  const res = await pool.query(
+    `SELECT id, key, title, is_active FROM mailing_topics WHERE key = $1`,
+    [key]
+  );
+  return res.rows[0] ? (res.rows[0] as Topic) : null;
 }
