@@ -11,13 +11,15 @@ export type Subscription = {
 
 export class SubscriptionService {
   // methods for subscription business logic
-  async listTopicsWithUserState(userId: number): Promise<Array<{topic: Topic; enabled: boolean}>> {
-    const topics = await listActiveTopics();
-    const userSubs = await getUserSubscriptions(userId);
-    return topics.map((topic: Topic) => ({ topic, enabled: userSubs.has(topic.id) }));
-  }
+export async function listTopicsWithUserState(
+  userId: number,
+): Promise<Array<{ topic: Topic; enabled: boolean }>> {
+  const topics = await listActiveTopics();
+  const enabled = await getUserSubscriptions(userId);
+  return topics.map((topic) => ({ topic, enabled: enabled.has(topic.id) }));
+}
 
-  async toggleTopic(userId: number, topicId: number): Promise<boolean> {
-    return await toggleUserSubscription(userId, topicId);
-  }
+export async function toggleTopic(userId: number, topicId: number): Promise<boolean> {
+  return toggleUserSubscription(userId, topicId);
+}
 }
