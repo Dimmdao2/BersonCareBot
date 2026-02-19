@@ -42,7 +42,18 @@ jobs:
             time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && CI=true pnpm install --frozen-lockfile --reporter=append-only'
             
             echo "=== step: pnpm build ==="
+
             time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
+
+            echo "=== step: migrate (uses /opt/tgcarebot/.env) ==="
+            time sudo -n -u tgcarebot bash -lc '
+              set -e
+              set -a
+              source /opt/tgcarebot/.env
+              set +a
+              cd /opt/tgcarebot/app
+              pnpm exec tsx src/db/migrate.ts
+            '
 
             echo "=== step: restart ==="
             sudo -n systemctl restart tgcarebot
