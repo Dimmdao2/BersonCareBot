@@ -15,6 +15,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          request_pty: true
           script: |
             set -e
             sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && git pull --rebase'
