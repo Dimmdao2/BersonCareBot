@@ -143,6 +143,18 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
 
       const body = request.body;
 
+      reqLogger.info(
+        {
+          update_id: body.update_id,
+          message_id: body.message?.message_id,
+          text: body.message?.text,
+          from_id: body.message?.from?.id ?? body.callback_query?.from?.id,
+          callback_id: body.callback_query?.id,
+          callback_data: body.callback_query?.data,
+        },
+        'tg_update',
+      );
+
       // --- Дедупликация апдейтов ---
       const updateId = typeof body.update_id === 'number' ? body.update_id : null;
       // Определяем telegramId (from.id):
