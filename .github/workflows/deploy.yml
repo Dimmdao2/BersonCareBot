@@ -4,50 +4,54 @@ name: Deploy
 
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    name: Deploy
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: 22
-          timeout: 120s
-          command_timeout: 30m
-          debug: true
-          script: |
-            set -euo pipefail
+    on:
+      push:
+        branches:
+          - main
+      workflow_dispatch:
 
-            echo "=== whoami/host/time ==="
-            whoami
-            hostname
-            date
+    jobs:
+      deploy:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Deploy via SSH
+            uses: appleboy/ssh-action@v1.0.3
+            with:
+              host: ${{ secrets.DEPLOY_HOST }}
+              username: ${{ secrets.DEPLOY_USER }}
+              key: ${{ secrets.DEPLOY_SSH_KEY }}
+              port: 22
+              timeout: 120s
+              command_timeout: 30m
+              debug: true
+              script: |
+                set -euo pipefail
 
-            echo "=== step: git sync ==="
-            time sudo -n -u tgcarebot bash -lc '
-              set -e
-              export GIT_TERMINAL_PROMPT=0
-              cd /opt/tgcarebot/app
-              git fetch --prune origin
-              git checkout -B main origin/main
-              git reset --hard origin/main
-            '
+                echo "=== whoami/host/time ==="
+                whoami
+                hostname
+                date
 
-            echo "=== step: pnpm install ==="
-            time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && CI=true pnpm install --frozen-lockfile --reporter=append-only'
+                echo "=== step: git sync ==="
+                time sudo -n -u tgcarebot bash -lc '
+                  set -e
+                  export GIT_TERMINAL_PROMPT=0
+                  cd /opt/tgcarebot/app
+                  git fetch --prune origin
+                  git checkout -B main origin/main
+                  git reset --hard origin/main
+                '
+
+                echo "=== step: pnpm install ==="
+                time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && CI=true pnpm install --frozen-lockfile --reporter=append-only'
             
-            echo "=== step: pnpm build ==="
-            time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
+                echo "=== step: pnpm build ==="
+                time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
 
-            echo "=== step: restart ==="
-            sudo -n systemctl restart tgcarebot
+                echo "=== step: restart ==="
+                sudo -n systemctl restart tgcarebot
 
-            echo "=== step: status ==="
-            sudo -n systemctl status tgcarebot --no-pager
+                echo "=== step: status ==="
+                sudo -n systemctl status tgcarebot --no-pager
