@@ -1,13 +1,21 @@
-import { db } from '../db/client.js';
+// src/db/telegramUsersRepo.ts
+import { db } from "../db/client.js";
+import type { TelegramUserFrom } from "../types/telegram.js";
 
-export async function upsertTelegramUser(from: any) {
-  if (!from || !from.id) return null;
+export type TelegramUserRow = {
+  id: string;
+  telegram_id: string;
+};
 
-  // Ensure telegram_id is string for bigint safety
-  const telegram_id = typeof from.id === 'bigint' ? from.id.toString() : String(from.id);
+export async function upsertTelegramUser(
+  from: TelegramUserFrom | null | undefined
+): Promise<TelegramUserRow | null> {
+  if (!from || typeof from.id !== "number") return null;
+
+  const telegramId = String(from.id);
   const username = from.username ?? null;
-  const first_name = from.first_name ?? null;
-  const last_name = from.last_name ?? null;
+  const firstName = from.first_name ?? null;
+  const lastName = from.last_name ?? null;
 
   const query = `
     INSERT INTO telegram_users (telegram_id, username, first_name, last_name, created_at)
@@ -17,15 +25,19 @@ export async function upsertTelegramUser(from: any) {
       username = EXCLUDED.username,
       first_name = EXCLUDED.first_name,
       last_name = EXCLUDED.last_name
-    RETURNING id, telegram_id;
+    RETURNING id::text AS id, telegram_id::text AS telegram_id;
   `;
 
   try {
-    const res = await db.query(query, [telegram_id, username, first_name, last_name]);
-    return res.rows[0];
+    const res = await db.query<TelegramUserRow>(query, [
+      telegramId,
+      username,
+      firstName,
+      lastName,
+    ]);
+    return res.rows[0] ?? null;
   } catch (err) {
-    // Log error, do not throw
-    console.error('upsertTelegramUser error:', err);
+    console.error("upsertTelegramUser error:", err);
     return null;
   }
 }
