@@ -16,5 +16,6 @@ export const env = z
     BOOKING_URL: z.string().min(1),
 
     DATABASE_URL: z.string().min(1),
+    TG_WEBHOOK_SECRET: z.string().optional(),
   })
   .parse(process.env);
