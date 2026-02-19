@@ -1,3 +1,5 @@
+# .github/workflows/deploy.yml  (замени файл целиком)
+
 name: Deploy
 
 on:
@@ -17,7 +19,6 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
-          request_pty: true
           timeout: 120s
           command_timeout: 30m
           debug: true
@@ -40,13 +41,13 @@ jobs:
             '
 
             echo "=== step: pnpm install ==="
-            time sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm install --frozen-lockfile --reporter=append-only'
+            time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm install --frozen-lockfile --reporter=append-only'
 
             echo "=== step: pnpm build ==="
-            time sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
+            time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
 
             echo "=== step: restart ==="
-            sudo systemctl restart tgcarebot
+            sudo -n systemctl restart tgcarebot
 
             echo "=== step: status ==="
-            sudo systemctl status tgcarebot --no-pager
+            sudo -n systemctl status tgcarebot --no-pager
