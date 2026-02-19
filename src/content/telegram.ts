@@ -17,18 +17,8 @@ export const telegramContent = {
     more: '⚙️ Меню',
   },
 
-  moreMenu: {
-    notifications: '🔔 Настройки уведомлений',
-    myBookings: '📄 Мои записи',
-    back: '⬅ Назад',
-  },
-
   mainMenuKeyboard: [
     [{ text: '📅 Запись на приём' }, { text: '❓ Задать вопрос' }, { text: '⚙️ Меню' }],
-  ],
-
-  moreMenuKeyboard: [
-    [{ text: '🔔 Настройки уведомлений' }, { text: '📄 Мои записи' }, { text: '⬅ Назад' }],
   ],
 
   moreMenuInline: {
@@ -64,8 +54,7 @@ export const telegramContent = {
     subtitle: 'Выберите интересующие вас категории:',
     spb: 'Петербург (приёмы)',
     msk: 'Москва (приёмы и акции)',
-    online: 'Онлайн-уроки и вебинары',
-    back: '◀ Назад',
+    online: 'Онлайн-уроки и вебинары'
   },
 
   buildNotificationKeyboard: (settings: NotificationSettings): InlineKeyboardMarkup => ({
@@ -88,7 +77,6 @@ export const telegramContent = {
           callback_data: 'notify_toggle_online',
         },
       ],
-      [{ text: '◀ Назад', callback_data: 'notify_back' }],
     ],
   }),
 } as const;

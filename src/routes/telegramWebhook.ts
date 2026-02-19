@@ -49,31 +49,6 @@ function sendMainMenu(chatId: number): Promise<unknown> {
   });
 }
 
-function sendMoreMenu(chatId: number): Promise<unknown> {
-  return tgCall('sendMessage', {
-    chat_id: chatId,
-    text: telegramContent.messages.chooseMenu,
-    reply_markup: {
-      keyboard: telegramContent.moreMenuKeyboard,
-      resize_keyboard: true,
-      one_time_keyboard: false,
-    },
-  });
-}
-
-async function showNotificationSettings(chatId: number, telegramId: number): Promise<void> {
-  let settings = await getNotificationSettings(telegramId);
-  if (!settings) settings = { notify_spb: false, notify_msk: false, notify_online: false };
-
-  const kb = telegramContent.buildNotificationKeyboard(settings);
-
-  await tgCall('sendMessage', {
-    chat_id: chatId,
-    text: `${telegramContent.notificationSettings.title}\n\n${telegramContent.notificationSettings.subtitle}`,
-    reply_markup: kb,
-  });
-}
-
 async function handleNotificationCallback(body: TelegramWebhookBody, reqId: string): Promise<void> {
   const reqLogger = getRequestLogger(reqId);
 
@@ -109,28 +84,6 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
     // читаем актуальные настройки
     let settings = await getNotificationSettings(telegramIdNum);
     if (!settings) settings = { notify_spb: false, notify_msk: false, notify_online: false };
-
-    if (cq.data === 'notify_back') {
-      // Возврат: редактируем текст сообщения и убираем inline, затем показываем reply-меню
-      try {
-        await tgCall('editMessageText', {
-          chat_id: chatId,
-          message_id: messageId,
-          text: telegramContent.messages.chooseMenu,
-          reply_markup: undefined,
-        });
-      } catch (err) {
-        reqLogger.error({ err }, 'editMessageText (notify_back) failed');
-      }
-
-      try {
-        await sendMoreMenu(chatId);
-      } catch (err) {
-        reqLogger.error({ err }, 'sendMoreMenu failed');
-      }
-
-      return;
-    }
 
     // toggle
     if (cq.data === 'notify_toggle_spb') {
@@ -437,17 +390,6 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         return reply.code(200).send({ ok: true });
       }
 
-      /* 
-      if (text === telegramContent.mainMenu.more) {
-        try {
-          await sendMoreMenu(msg.chat.id);
-        } catch (err) {
-          reqLogger.error({ err }, "sendMoreMenu failed");
-        }
-        return reply.code(200).send({ ok: true });
-      }
-        */
-
       if (text === telegramContent.mainMenu.more) {
         try {
           await tgCall('sendMessage', {
@@ -459,41 +401,6 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
           reqLogger.error({ err }, 'Telegram send inline moreMenu failed');
         }
 
-        return reply.code(200).send({ ok: true });
-      }
-
-      if (text === telegramContent.moreMenu.back) {
-        try {
-          await sendMainMenu(msg.chat.id);
-        } catch (err) {
-          reqLogger.error({ err }, 'sendMainMenu failed');
-        }
-        return reply.code(200).send({ ok: true });
-      }
-
-      if (text === telegramContent.moreMenu.notifications) {
-        try {
-          await showNotificationSettings(msg.chat.id, Number(telegramId));
-        } catch (err) {
-          reqLogger.error({ err }, 'showNotificationSettings failed');
-        }
-        return reply.code(200).send({ ok: true });
-      }
-
-      if (text === telegramContent.moreMenu.myBookings) {
-        try {
-          await tgCall('sendMessage', {
-            chat_id: msg.chat.id,
-            text: telegramContent.messages.bookingMy,
-            reply_markup: {
-              keyboard: telegramContent.moreMenuKeyboard,
-              resize_keyboard: true,
-              one_time_keyboard: false,
-            },
-          });
-        } catch (err) {
-          reqLogger.error({ err }, 'sendMessage (myBookings) failed');
-        }
         return reply.code(200).send({ ok: true });
       }
 
