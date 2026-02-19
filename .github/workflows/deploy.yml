@@ -9,7 +9,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -21,10 +20,26 @@ jobs:
           request_pty: true
           timeout: 120s
           command_timeout: 30m
+          debug: true
           script: |
-            set -e
-            sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && git pull --rebase'
-            sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm install --frozen-lockfile'
-            sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
+            set -euo pipefail
+
+            echo "=== whoami/host/time ==="
+            whoami
+            hostname
+            date
+
+            echo "=== step: git pull ==="
+            time sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && git status --porcelain && git pull --rebase'
+
+            echo "=== step: pnpm install ==="
+            time sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm install --frozen-lockfile --reporter=append-only'
+
+            echo "=== step: pnpm build ==="
+            time sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
+
+            echo "=== step: restart ==="
             sudo systemctl restart tgcarebot
+
+            echo "=== step: status ==="
             sudo systemctl status tgcarebot --no-pager
