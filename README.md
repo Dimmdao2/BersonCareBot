@@ -1,79 +1,199 @@
 # BersonCareBot
 
-## Database migrations workflow
+Telegram-бот для записи на приём, управления уведомлениями и интеграции с внутренней системой реабилитации.
 
-### Standard
+Проект ориентирован на:
 
-- All migrations are created in `/migrations`
-- Filename format: `00X_description.sql`
-- Number is sequential
-- Old migrations are never edited
-- Any DB schema change must be via a new migration
-
----
-
-### Local workflow
-
-#### Creating a migration
-
-Example:
-
-```bash
-touch migrations/003_add_phone_to_telegram_users.sql
-```
-
-Inside the file:
-
-```sql
-ALTER TABLE telegram_users
-ADD COLUMN IF NOT EXISTS phone text;
-```
-
-#### Applying locally
-
-```bash
-set -a
-source .env
-set +a
-
-pnpm run db:migrate
-```
-
-#### Checking
-
-```bash
-psql "$DATABASE_URL" -c "\dt"
-psql "$DATABASE_URL" -c "\d telegram_users"
-psql "$DATABASE_URL" -c "select * from schema_migrations order by version;"
-```
+- надёжную работу через Telegram Webhook
+- персистентную дедупликацию `update_id`
+- безопасный деплой на сервер с systemd
+- строгую типизацию (TypeScript, без `any`)
+- автоматические тесты (Vitest)
 
 ---
 
-### Production workflow
+## 🚀 Технологический стек
 
-Never do anything manually on the server.
-
-Process:
-
-1. `git add .`
-2. `git commit -m "feat: add phone column"`
-3. `git push`
-
-Deploy:
-
-- `pnpm install`
-- `pnpm build`
-- `pnpm exec tsx src/db/migrate.ts`
-- restart service
+- Node.js
+- TypeScript
+- Fastify
+- PostgreSQL
+- pnpm
+- Vitest
+- systemd (production)
+- GitHub Actions (deploy через SSH)
 
 ---
 
-### Important
+## 📦 Установка (локально)
 
-Copilot must NOT:
+```bash
+pnpm install
+cp .env.example .env
+pnpm run typecheck
+pnpm run lint
+pnpm run test
+pnpm run build
 
-- edit old migrations
-- run DROP TABLE
-- change existing versions
+Запуск:
 
-Only new files.
+pnpm run dev
+
+
+⸻
+
+⚙️ Переменные окружения
+
+Пример .env:
+
+PORT=3000
+
+DATABASE_URL=postgres://user:password@localhost:5432/dbname
+
+TG_BOT_TOKEN=your_telegram_bot_token
+TG_WEBHOOK_SECRET=your_secret
+
+В production используется файл:
+
+/opt/tgcarebot/.env
+
+
+⸻
+
+🗄 Миграции
+
+Запуск вручную:
+
+pnpm exec tsx src/db/migrate.ts
+
+Миграции хранятся в:
+
+/migrations
+
+Таблица контроля:
+
+schema_migrations
+
+
+⸻
+
+🧠 Дедупликация Telegram update_id
+ • В таблице telegram_users хранится last_update_id
+ • Обработка апдейта происходит только если update_id больше предыдущего
+ • Решение персистентное (не in-memory)
+ • Защищает от повторных webhook-запросов
+
+⸻
+
+🧪 Тесты
+
+pnpm test
+
+Покрывается:
+ • webhook
+ • секрет Telegram
+ • дедупликация update_id
+ • устойчивость к ошибкам tgCall
+
+⸻
+
+🖥 Production
+
+Структура сервера
+
+/opt/tgcarebot
+  ├── .env
+  ├── app
+  │     ├── src
+  │     ├── dist
+  │     ├── migrations
+
+systemd сервис
+
+/etc/systemd/system/tgcarebot.service
+
+Запуск:
+
+sudo systemctl restart tgcarebot
+sudo systemctl status tgcarebot
+
+Логи:
+
+journalctl -u tgcarebot -n 100 --no-pager
+
+
+⸻
+
+🔐 SSH и деплой
+
+Деплой выполняется пользователем deploy.
+
+GitHub подключается через SSH-ключ:
+
+/home/deploy/.ssh/bersoncarebot_deploy
+
+Проверка:
+
+sudo -u deploy ssh -T git@github.com
+
+
+⸻
+
+🔁 GitHub Actions Deploy
+
+Workflow:
+ • git sync
+ • pnpm install
+ • pnpm build
+ • migrate
+ • systemctl restart
+
+Все шаги выполняются под пользователем deploy.
+
+⸻
+
+📡 Webhook
+
+Route:
+
+POST /webhook/telegram
+
+Healthcheck:
+
+GET /health
+
+
+⸻
+
+🛡 Безопасность
+ • Webhook secret проверяется через header
+x-telegram-bot-api-secret-token
+ • Данные хранятся в PostgreSQL
+ • systemd запускает сервис от отдельного пользователя tgcarebot
+ • pnpm и git выполняются только от deploy
+
+⸻
+
+📌 Текущее состояние
+ • Дедупликация работает
+ • Меню inline стабильно
+ • Перезапуск сервиса корректный
+ • CI зелёный
+ • Production билд стабильный
+
+⸻
+
+🧭 Дальнейшее развитие
+ • Запрос номера телефона
+ • Запись на приём (очно / онлайн)
+ • Интеграция с Rubitime
+ • Напоминания
+ • Расширенная логика подписок
+
+⸻
+
+👤 Автор
+
+Dmitry Berson
+Rehabilitation & Digital Health Systems
+
