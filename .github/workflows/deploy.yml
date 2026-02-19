@@ -2,12 +2,14 @@ name: Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -15,7 +17,10 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
           request_pty: true
+          timeout: 120s
+          command_timeout: 30m
           script: |
             set -e
             sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && git pull --rebase'
