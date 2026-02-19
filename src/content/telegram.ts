@@ -88,7 +88,6 @@ export const telegramContent = {
           callback_data: 'notify_toggle_online',
         },
       ],
-      [{ text: '🔁 Все уведомления', callback_data: 'notify_toggle_all' }],
       [{ text: '◀ Назад', callback_data: 'notify_back' }],
     ],
   }),

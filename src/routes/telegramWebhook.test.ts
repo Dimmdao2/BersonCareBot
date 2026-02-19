@@ -52,6 +52,41 @@ beforeEach(() => {
 });
 
 describe("POST /webhook/telegram", () => {
+    it("deduplicates repeated update_id (persistent)", async () => {
+      fetchMock.mockClear();
+      const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
+
+      const body = {
+        update_id: 12345,
+        message: {
+          message_id: 10,
+          chat: { id: 42 },
+          from: { id: 42, is_bot: false, first_name: "Test" },
+          text: "/start",
+        },
+      } satisfies TelegramWebhookBody;
+
+      // Первый запрос
+      const res1 = await app.inject({
+        method: "POST",
+        url: "/webhook/telegram",
+        payload: body,
+      });
+      expect(res1.statusCode).toBe(200);
+      expect(res1.json()).toEqual({ ok: true });
+      expect(fetchMock).toHaveBeenCalled();
+      const callsAfterFirst = fetchMock.mock.calls.length;
+
+      // Второй запрос с тем же update_id
+      const res2 = await app.inject({
+        method: "POST",
+        url: "/webhook/telegram",
+        payload: body,
+      });
+      expect(res2.statusCode).toBe(200);
+      expect(res2.json()).toEqual({ ok: true });
+      expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
+    });
   it("returns 200 if no secret set", async () => {
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
 

@@ -9,6 +9,7 @@ import {
   getTelegramUserState,
   getNotificationSettings,
   updateNotificationSettings,
+  tryAdvanceLastUpdateId,
 } from '../db/telegramUsersRepo.js';
 import { getRequestLogger } from '../logger.js';
 import { telegramContent } from '../content/index.js';
@@ -189,6 +190,35 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
 
       const body = request.body;
 
+      // --- Дедупликация апдейтов ---
+      const updateId = typeof body.update_id === 'number' ? body.update_id : null;
+      // Определяем telegramId (from.id):
+      let telegramIdForDedup: number | null = null;
+      if (body.callback_query?.from?.id) {
+        telegramIdForDedup = body.callback_query.from.id;
+      } else if (body.message?.from?.id) {
+        telegramIdForDedup = body.message.from.id;
+      }
+
+      // upsert user (если есть from.id)
+      let userRow = null;
+      let telegramId: string | null = null;
+      if (body.message?.from) {
+        userRow = await upsertTelegramUser(body.message.from);
+        telegramId = body.message.from.id ? String(body.message.from.id) : null;
+      } else if (body.callback_query?.from) {
+        userRow = await upsertTelegramUser(body.callback_query.from);
+        telegramId = body.callback_query.from.id ? String(body.callback_query.from.id) : null;
+      }
+
+      // Если есть updateId и telegramIdForDedup, проверяем дедупликацию
+      if (updateId !== null && telegramIdForDedup !== null) {
+        const isNew = await tryAdvanceLastUpdateId(Number(telegramIdForDedup), updateId);
+        if (!isNew) {
+          return reply.code(200).send({ ok: true });
+        }
+      }
+
       // 1) callback_query (уведомления + inline-меню)
       if (body.callback_query) {
         const cq = body.callback_query;
@@ -309,9 +339,6 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         return reply.code(200).send({ ok: true });
       }
 
-      // upsert user
-      const userRow = await upsertTelegramUser(msg.from);
-      const telegramId = msg.from?.id ? String(msg.from.id) : null;
       if (!userRow || !telegramId) {
         return reply.code(200).send({ ok: true });
       }

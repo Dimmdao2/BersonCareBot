@@ -1,3 +1,25 @@
+/**
+ * Атомарно обновляет last_update_id для пользователя Telegram.
+ * Возвращает true, если update_id был новым (и обновлён), иначе false (дубликат/старый).
+ */
+export async function tryAdvanceLastUpdateId(
+  telegramId: number,
+  updateId: number
+): Promise<boolean> {
+  const query = `
+    UPDATE telegram_users
+    SET last_update_id = $2
+    WHERE telegram_id = $1
+      AND (last_update_id IS NULL OR last_update_id < $2)
+  `;
+  try {
+    const res = await db.query(query, [String(telegramId), updateId]);
+    return res.rowCount === 1;
+  } catch (err) {
+    logger.error({ err }, "tryAdvanceLastUpdateId error");
+    return false;
+  }
+}
 // src/db/telegramUsersRepo.ts
 import { db } from "../db/client.js";
 import { logger } from "../logger.js";
