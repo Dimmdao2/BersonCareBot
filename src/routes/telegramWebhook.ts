@@ -4,6 +4,7 @@ import fetch from "node-fetch";
 import { env } from "../config/env.js";
 import { upsertTelegramUser } from "../db/telegramUsersRepo.js";
 import { logger, getRequestLogger } from "../logger.js";
+import { content } from "../content/index.js";
 
 import type { TelegramWebhookBody } from "../types/telegram.js";
 
@@ -15,7 +16,13 @@ type ReplyKeyboardMarkup = {
 
 function buildReplyMenu(): ReplyKeyboardMarkup {
   return {
-    keyboard: [[{ text: "Подписки" }]],
+    keyboard: [
+      [
+        { text: content.menu.book },
+        { text: content.menu.notifications },
+        { text: content.menu.question }
+      ]
+    ],
     resize_keyboard: true,
     one_time_keyboard: false,
   };
@@ -84,27 +91,27 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         try {
           await tgCall("sendMessage", {
             chat_id: msg.chat.id,
-            text: "Готово.",
+            text: content.messages.ready,
             reply_markup: buildReplyMenu(),
           });
         } catch (err) {
           reqLogger.error({ err }, "Telegram sendMessage failed");
         }
-
         return reply.code(200).send({ ok: true });
       }
 
-      if (text === "Подписки") {
+      const menuButtons = [content.menu.book, content.menu.notifications, content.menu.question] as const;
+      type MenuButton = typeof menuButtons[number];
+      if (menuButtons.includes(text as MenuButton)) {
         try {
           await tgCall("sendMessage", {
             chat_id: msg.chat.id,
-            text: "Подписки:",
+            text: content.messages.notImplemented,
             reply_markup: buildReplyMenu(),
           });
         } catch (err) {
           reqLogger.error({ err }, "Telegram sendMessage failed");
         }
-
         return reply.code(200).send({ ok: true });
       }
     }

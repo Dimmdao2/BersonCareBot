@@ -54,11 +54,13 @@ psql "$DATABASE_URL" -c "select * from schema_migrations order by version;"
 Never do anything manually on the server.
 
 Process:
+
 1. `git add .`
 2. `git commit -m "feat: add phone column"`
 3. `git push`
 
 Deploy:
+
 - `pnpm install`
 - `pnpm build`
 - `pnpm exec tsx src/db/migrate.ts`
@@ -69,6 +71,7 @@ Deploy:
 ### Important
 
 Copilot must NOT:
+
 - edit old migrations
 - run DROP TABLE
 - change existing versions

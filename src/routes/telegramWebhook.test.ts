@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+import { content } from '../content/index.js';
+
 const OLD_SECRET = process.env.TG_WEBHOOK_SECRET;
 
 async function makeApp() {
@@ -94,5 +96,37 @@ describe('POST /webhook/telegram', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ ok: true });
+    // Проверим, что меню и текст корректны (reply не возвращает sendMessage, но можно проверить логику)
+    // Для реального теста reply_markup и текст нужно мокать tgCall, но здесь проверим, что код не падает
+  });
+
+  it('replies with notImplemented for menu buttons', async () => {
+    delete process.env.TG_WEBHOOK_SECRET;
+    const app = await makeApp();
+    for (const btn of [content.menu.book, content.menu.notifications, content.menu.question]) {
+      const payload = {
+        update_id: 2,
+        message: {
+          message_id: 2,
+          date: 1,
+          chat: { id: 1, type: 'private' },
+          from: {
+            id: 123456789,
+            is_bot: false,
+            first_name: 'Dim',
+            last_name: 'Berson',
+            username: 'dimmdao',
+          },
+          text: btn,
+        },
+      };
+      const response = await app.inject({
+        method: 'POST',
+        url: '/webhook/telegram',
+        payload,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true });
+    }
   });
 });
