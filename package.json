@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "audit": "pnpm audit --prod",
     "format": "prettier -w .",
-    "migrate": "tsx src/db/migrate.ts"
+    "migrate": "tsx src/db/migrate.ts",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:migrate:prod": "node dist/db/migrate.js"
   },
   "engines": {
     "node": ">=20"
