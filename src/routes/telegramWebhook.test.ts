@@ -53,6 +53,13 @@ beforeEach(() => {
 
 describe('POST /webhook/telegram', () => {
   it('deduplicates repeated update_id (persistent)', async () => {
+    // Сбросить last_update_id для telegram_id=1 (если тестовая БД доступна)
+    try {
+      const { db } = await import('../db/client.js');
+      await db.query('UPDATE telegram_users SET last_update_id = NULL WHERE telegram_id = $1', [1]);
+    } catch (e) {
+      // ignore if db not available
+    }
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
 
     // 1) первый апдейт: /start гарантированно триггерит sendMessage => fetchMock
