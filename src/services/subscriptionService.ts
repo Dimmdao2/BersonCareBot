@@ -9,8 +9,6 @@ export type Subscription = {
   is_active: boolean;
 };
 
-export class SubscriptionService {
-  // methods for subscription business logic
 export async function listTopicsWithUserState(
   userId: number,
 ): Promise<Array<{ topic: Topic; enabled: boolean }>> {
@@ -21,5 +19,4 @@ export async function listTopicsWithUserState(
 
 export async function toggleTopic(userId: number, topicId: number): Promise<boolean> {
   return toggleUserSubscription(userId, topicId);
-}
 }
