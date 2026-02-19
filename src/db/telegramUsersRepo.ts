@@ -8,8 +8,20 @@ export type TelegramUserRow = {
   telegram_id: string;
 };
 
+export type NotificationSettings = {
+  notify_spb: boolean;
+  notify_msk: boolean;
+  notify_online: boolean;
+};
+
+export type NotificationSettingsPatch = {
+  notify_spb?: boolean;
+  notify_msk?: boolean;
+  notify_online?: boolean;
+};
+
 export async function upsertTelegramUser(
-  from: TelegramUserFrom | null | undefined
+  from: TelegramUserFrom | null | undefined,
 ): Promise<TelegramUserRow | null> {
   if (!from || typeof from.id !== "number") return null;
 
@@ -43,7 +55,10 @@ export async function upsertTelegramUser(
   }
 }
 
-export async function setTelegramUserState(telegramId: string, state: string | null): Promise<void> {
+export async function setTelegramUserState(
+  telegramId: string,
+  state: string | null,
+): Promise<void> {
   const query = `
     UPDATE telegram_users
     SET state = $2
@@ -65,6 +80,74 @@ export async function getTelegramUserState(telegramId: string): Promise<string |
     return res.rows[0]?.state ?? null;
   } catch (err) {
     logger.error({ err }, "getTelegramUserState error");
+    return null;
+  }
+}
+
+// --- Notification Settings ---
+export async function updateNotificationSettings(
+  telegramId: number,
+  settings: NotificationSettingsPatch,
+): Promise<void> {
+  const fields: string[] = [];
+  const values: boolean[] = [];
+  let idx = 2;
+
+  if (typeof settings.notify_spb === "boolean") {
+    fields.push(`notify_spb = $${idx}`);
+    values.push(settings.notify_spb);
+    idx++;
+  }
+
+  if (typeof settings.notify_msk === "boolean") {
+    fields.push(`notify_msk = $${idx}`);
+    values.push(settings.notify_msk);
+    // idx++ удалён как неиспользуемый
+  }
+
+  if (typeof settings.notify_online === "boolean") {
+    fields.push(`notify_online = $${idx}`);
+    values.push(settings.notify_online);
+    // idx++ удалён как неиспользуемый
+  }
+
+  if (fields.length === 0) return;
+
+  const query = `UPDATE telegram_users SET ${fields.join(", ")} WHERE telegram_id = $1`;
+
+  try {
+    await db.query(query, [String(telegramId), ...values]);
+  } catch (err) {
+    logger.error({ err }, "updateNotificationSettings error");
+  }
+}
+
+export async function getNotificationSettings(
+  telegramId: number,
+): Promise<NotificationSettings | null> {
+  const query = `
+    SELECT notify_spb, notify_msk, notify_online
+    FROM telegram_users
+    WHERE telegram_id = $1
+  `;
+
+  try {
+    const res = await db.query<{
+      notify_spb: boolean | null;
+      notify_msk: boolean | null;
+      notify_online: boolean | null;
+    }>(query, [String(telegramId)]);
+
+    const row = res.rows[0];
+    if (!row) return null;
+
+    return {
+      notify_spb: Boolean(row.notify_spb),
+      notify_msk: Boolean(row.notify_msk),
+      notify_online: Boolean(row.notify_online),
+    };
+  } catch (err) {
+    logger.error({ err }, "getNotificationSettings error");
     return null;
   }
 }

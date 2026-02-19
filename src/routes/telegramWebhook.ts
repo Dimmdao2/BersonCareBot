@@ -2,30 +2,36 @@
 import type { FastifyInstance } from "fastify";
 import fetch from "node-fetch";
 import { env } from "../config/env.js";
-import { upsertTelegramUser, setTelegramUserState, getTelegramUserState } from "../db/telegramUsersRepo.js";
+import { upsertTelegramUser, setTelegramUserState, getTelegramUserState, getNotificationSettings, updateNotificationSettings } from "../db/telegramUsersRepo.js";
 import { logger, getRequestLogger } from "../logger.js";
 import { telegramContent } from "../content/index.js";
 
 import type { TelegramWebhookBody } from "../types/telegram.js";
 
-type ReplyKeyboardMarkup = {
-  keyboard: Array<Array<{ text: string }>>;
-  resize_keyboard: true;
-  one_time_keyboard: false;
-};
 
-function buildReplyMenu(): ReplyKeyboardMarkup {
-  return {
-    keyboard: [
-      [
-        { text: telegramContent.menu.book },
-        { text: telegramContent.menu.notifications },
-        { text: telegramContent.menu.question }
-      ]
-    ],
-    resize_keyboard: true,
-    one_time_keyboard: false,
-  };
+
+function sendMainMenu(chat_id: number | string) {
+  return tgCall("sendMessage", {
+    chat_id,
+    text: telegramContent.messages.chooseMenu,
+    reply_markup: {
+      keyboard: telegramContent.mainMenuKeyboard,
+      resize_keyboard: true,
+      one_time_keyboard: false,
+    },
+  });
+}
+
+function sendMoreMenu(chat_id: number | string) {
+  return tgCall("sendMessage", {
+    chat_id,
+    text: telegramContent.messages.chooseMenu,
+    reply_markup: {
+      keyboard: telegramContent.moreMenuKeyboard,
+      resize_keyboard: true,
+      one_time_keyboard: false,
+    },
+  });
 }
 
 const IS_TEST =
@@ -97,6 +103,7 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
 
       const text = msg.text ?? "";
 
+
       // 1. /start — приветствие и главное меню
       if (text === "/start") {
         try {
@@ -108,7 +115,11 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
           await tgCall("sendMessage", {
             chat_id: msg.chat.id,
             text: telegramContent.messages.welcome,
-            reply_markup: buildReplyMenu(),
+            reply_markup: {
+              keyboard: telegramContent.mainMenuKeyboard,
+              resize_keyboard: true,
+              one_time_keyboard: false,
+            },
           });
         } catch (err) {
           reqLogger.error({ err }, "Telegram sendMessage failed");
@@ -117,7 +128,7 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
       }
 
       // 4. "Задать вопрос" — выставить state, отправить инструкцию
-      if (text === telegramContent.menu.question) {
+      if (text === telegramContent.mainMenu.ask) {
         try {
           await setTelegramUserState(telegramId, "waiting_for_question");
         } catch (err) {
@@ -127,7 +138,11 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
           await tgCall("sendMessage", {
             chat_id: msg.chat.id,
             text: telegramContent.messages.describeQuestion,
-            reply_markup: buildReplyMenu(),
+            reply_markup: {
+              keyboard: telegramContent.mainMenuKeyboard,
+              resize_keyboard: true,
+              one_time_keyboard: false,
+            },
           });
         } catch (err) {
           reqLogger.error({ err }, "Telegram sendMessage failed");
@@ -161,7 +176,11 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
           await tgCall("sendMessage", {
             chat_id: msg.chat.id,
             text: telegramContent.messages.questionAccepted,
-            reply_markup: buildReplyMenu(),
+            reply_markup: {
+              keyboard: telegramContent.mainMenuKeyboard,
+              resize_keyboard: true,
+              one_time_keyboard: false,
+            },
           });
         } catch (err) {
           reqLogger.error({ err }, "Telegram sendMessage to user failed");
@@ -170,17 +189,121 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
       }
 
       // 2. "Запись на приём" — показать меню (reply, не inline)
-      if (text === telegramContent.menu.book) {
+      if (text === telegramContent.mainMenu.book) {
         try {
           await setTelegramUserState(telegramId, "idle");
         } catch (err) {
           reqLogger.error({ err }, "setTelegramUserState failed");
         }
         try {
+          await sendMainMenu(msg.chat.id);
+        } catch (err) {
+          reqLogger.error({ err }, "Telegram sendMainMenu failed");
+        }
+        return reply.code(200).send({ ok: true });
+      }
+
+
+      // 3. "⚙️ Меню" — открыть moreMenu
+      if (text === telegramContent.mainMenu.more) {
+        try {
+          await sendMoreMenu(msg.chat.id);
+        } catch (err) {
+          reqLogger.error({ err }, "Telegram sendMoreMenu failed");
+        }
+        return reply.code(200).send({ ok: true });
+      }
+
+      // --- Второе меню ---
+      // "⬅ Назад" — вернуться в главное меню
+      if (text === telegramContent.moreMenu.back) {
+        try {
+          await sendMainMenu(msg.chat.id);
+        } catch (err) {
+          reqLogger.error({ err }, "Telegram sendMainMenu failed");
+        }
+        return reply.code(200).send({ ok: true });
+      }
+      // "🔔 Настройки уведомлений" — полноценный экран
+      if (text === telegramContent.moreMenu.notifications) {
+        try {
+          const settings = await getNotificationSettings(Number(telegramId));
+          const kb = telegramContent.buildNotificationKeyboard(settings || { notify_spb: false, notify_msk: false, notify_online: false });
           await tgCall("sendMessage", {
             chat_id: msg.chat.id,
-            text: telegramContent.messages.chooseMenu,
-            reply_markup: buildReplyMenu(),
+            text: `${telegramContent.notificationSettings.title}\n\n${telegramContent.notificationSettings.subtitle}`,
+            reply_markup: kb,
+          });
+        } catch (err) {
+          reqLogger.error({ err }, "Telegram sendMessage failed");
+        }
+        return reply.code(200).send({ ok: true });
+      }
+          // --- Обработка callback_query для уведомлений ---
+          const cq = body.callback_query;
+          if (cq?.from && cq.id && cq.data && cq.message?.chat?.id && cq.message?.message_id) {
+            const telegramId = String(cq.from.id);
+            let settings = await getNotificationSettings(Number(telegramId));
+            if (!settings) settings = { notify_spb: false, notify_msk: false, notify_online: false };
+            let updated = false;
+            if (cq.data === "notify_toggle_spb") {
+              await updateNotificationSettings(Number(telegramId), { notify_spb: !settings.notify_spb });
+              updated = true;
+            } else if (cq.data === "notify_toggle_msk") {
+              await updateNotificationSettings(Number(telegramId), { notify_msk: !settings.notify_msk });
+              updated = true;
+            } else if (cq.data === "notify_toggle_online") {
+              await updateNotificationSettings(Number(telegramId), { notify_online: !settings.notify_online });
+              updated = true;
+            } else if (cq.data === "notify_toggle_all") {
+              await updateNotificationSettings(Number(telegramId), { notify_spb: true, notify_msk: true, notify_online: true });
+              updated = true;
+            } else if (cq.data === "notify_back") {
+              // Вернуть пользователя в moreMenu
+              try {
+                await tgCall("editMessageText", {
+                  chat_id: cq.message.chat.id,
+                  message_id: cq.message.message_id,
+                  text: telegramContent.messages.chooseMenu,
+                  reply_markup: {
+                    keyboard: telegramContent.moreMenuKeyboard,
+                    resize_keyboard: true,
+                    one_time_keyboard: false,
+                  },
+                });
+              } catch (err) {
+                reqLogger.error({ err }, "Telegram editMessageText (back to moreMenu) failed");
+              }
+              return reply.code(200).send({ ok: true });
+            }
+            if (updated) {
+              // Получить новые настройки и перерисовать клавиатуру
+              const newSettings = await getNotificationSettings(Number(telegramId));
+              const kb = telegramContent.buildNotificationKeyboard(newSettings || { notify_spb: false, notify_msk: false, notify_online: false });
+              try {
+                await tgCall("editMessageReplyMarkup", {
+                  chat_id: cq.message.chat.id,
+                  message_id: cq.message.message_id,
+                  reply_markup: kb,
+                });
+              } catch (err) {
+                reqLogger.error({ err }, "Telegram editMessageReplyMarkup failed");
+              }
+              return reply.code(200).send({ ok: true });
+            }
+          }
+      // "📄 Мои записи" — заглушка
+      if (text === telegramContent.moreMenu.myBookings) {
+        // TODO: добавить реальную логику, пока только заглушка
+        try {
+          await tgCall("sendMessage", {
+            chat_id: msg.chat.id,
+            text: telegramContent.messages.noBookings,
+            reply_markup: {
+              keyboard: telegramContent.moreMenuKeyboard,
+              resize_keyboard: true,
+              one_time_keyboard: false,
+            },
           });
         } catch (err) {
           reqLogger.error({ err }, "Telegram sendMessage failed");
@@ -188,35 +311,12 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         return reply.code(200).send({ ok: true });
       }
 
-      // 3. "Настройки уведомлений" — заглушка
-      if (text === telegramContent.menu.notifications) {
-        try {
-          await setTelegramUserState(telegramId, "idle");
-        } catch (err) {
-          reqLogger.error({ err }, "setTelegramUserState failed");
-        }
-        try {
-          await tgCall("sendMessage", {
-            chat_id: msg.chat.id,
-            text: telegramContent.messages.notImplemented,
-            reply_markup: buildReplyMenu(),
-          });
-        } catch (err) {
-          reqLogger.error({ err }, "Telegram sendMessage failed");
-        }
-        return reply.code(200).send({ ok: true });
-      }
-
-      // 6. Прочие тексты при state=idle — предложить выбрать действие
+      // 6. Прочие тексты при state=idle — предложить выбрать действие (главное меню)
       if (userState === "idle") {
         try {
-          await tgCall("sendMessage", {
-            chat_id: msg.chat.id,
-            text: telegramContent.messages.chooseMenu,
-            reply_markup: buildReplyMenu(),
-          });
+          await sendMainMenu(msg.chat.id);
         } catch (err) {
-          reqLogger.error({ err }, "Telegram sendMessage failed");
+          reqLogger.error({ err }, "Telegram sendMainMenu failed");
         }
         return reply.code(200).send({ ok: true });
       }
