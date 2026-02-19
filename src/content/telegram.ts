@@ -74,19 +74,19 @@ export const telegramContent = {
     inline_keyboard: [
       [
         {
-          text: `${settings.notify_spb ? "✅" : "⬜"} Петербург (приёмы)`,
+          text: `${settings.notify_spb ? "✅" : "❌"} Петербург (приёмы)` ,
           callback_data: "notify_toggle_spb",
         },
       ],
       [
         {
-          text: `${settings.notify_msk ? "✅" : "⬜"} Москва (приёмы и акции)`,
+          text: `${settings.notify_msk ? "✅" : "❌"} Москва (приёмы и акции)` ,
           callback_data: "notify_toggle_msk",
         },
       ],
       [
         {
-          text: `${settings.notify_online ? "✅" : "⬜"} Онлайн-уроки и вебинары`,
+          text: `${settings.notify_online ? "✅" : "❌"} Онлайн-уроки и вебинары` ,
           callback_data: "notify_toggle_online",
         },
       ],
