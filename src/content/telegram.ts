@@ -1,4 +1,4 @@
-export const ru = {
+export const telegramContent = {
   menu: {
     book: "📅 Запись на приём",
     notifications: "🔔 Настройки уведомлений",
@@ -7,16 +7,12 @@ export const ru = {
   messages: {
     welcome: "Добро пожаловать! Я помогу вам записаться на приём, настроить уведомления или задать вопрос.",
     chooseMenu: "Выберите действие в меню.",
-    chooseAction: "Выберите действие:",
     describeQuestion: "Опишите ваш вопрос.",
     questionAccepted: "Вопрос принят. Я отвечу вам в ближайшее время.",
     notImplemented: "Раздел в разработке.",
     bookingOffline: (url: string) => `Для очной записи перейдите по ссылке: ${url}`,
     bookingOnline: "Опишите причину обращения.",
     bookingMy: "Раздел 'Мои записи' в разработке."
-  },
-  buttons: {
-    back: "Назад"
   },
   inline: {
     booking: [
@@ -26,3 +22,5 @@ export const ru = {
     ]
   }
 } as const;
+
+export type TelegramContent = typeof telegramContent;

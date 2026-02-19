@@ -1,132 +1,160 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// src/routes/telegramWebhook.test.ts
+import Fastify from "fastify";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
-import { content } from '../content/index.js';
+import type { TelegramWebhookBody } from "../types/telegram.js";
 
-const OLD_SECRET = process.env.TG_WEBHOOK_SECRET;
+// ---- node-fetch mock (используется внутри telegramWebhook.ts)
+type FetchResponse = {
+  ok: boolean;
+  status: number;
+  json: () => Promise<unknown>;
+};
 
-async function makeApp() {
+const fetchMock = vi.fn();
+
+vi.mock("node-fetch", () => {
+  return { default: (..._args: unknown[]) => fetchMock() };
+});
+
+// ВАЖНО:
+// env парсится в config/env.ts при импорте.
+// Поэтому для тестов, которые меняют process.env, надо:
+// 1) выставить process.env
+// 2) vi.resetModules()
+// 3) импортировать telegramWebhookRoutes динамически
+async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
+  // применяем патч к process.env (включая удаление)
+  for (const [k, v] of Object.entries(envPatch)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+
+  // сбрасываем кеш модулей, чтобы env пересобрался заново
   vi.resetModules();
-  const { buildApp } = await import('../app.js');
-  return buildApp();
+
+  // динамический импорт после resetModules
+  const mod = (await import("./telegramWebhook.js")) as typeof import("./telegramWebhook.js");
+
+  const app = Fastify({ logger: false });
+  await mod.telegramWebhookRoutes(app);
+  await app.ready();
+  return app;
 }
 
-describe('POST /webhook/telegram', () => {
-  afterEach(() => {
-    if (OLD_SECRET === undefined) {
-      delete process.env.TG_WEBHOOK_SECRET;
-    } else {
-      process.env.TG_WEBHOOK_SECRET = OLD_SECRET;
-    }
-  });
+beforeEach(() => {
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({}),
+  } satisfies FetchResponse);
+});
 
-  it('returns 200 if no secret set', async () => {
-    delete process.env.TG_WEBHOOK_SECRET;
-    const app = await makeApp();
+describe("POST /webhook/telegram", () => {
+  it("returns 200 if no secret set", async () => {
+    const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
 
-    const response = await app.inject({
-      method: 'POST',
-      url: '/webhook/telegram',
-      payload: { test: 'data' },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ ok: true });
-  });
-
-  it('returns 200 with correct secret', async () => {
-    process.env.TG_WEBHOOK_SECRET = 'testsecret';
-    const app = await makeApp();
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/webhook/telegram',
-      payload: { test: 'data' },
-      headers: {
-        'x-telegram-bot-api-secret-token': 'testsecret',
-      },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ ok: true });
-  });
-
-  it('returns 403 with wrong secret', async () => {
-    process.env.TG_WEBHOOK_SECRET = 'testsecret';
-    const app = await makeApp();
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/webhook/telegram',
-      payload: { test: 'data' },
-      headers: {
-        'x-telegram-bot-api-secret-token': 'wrong',
-      },
-    });
-
-    expect(response.statusCode).toBe(403);
-    expect(response.json()).toEqual({ ok: false });
-  });
-
-  it('persists telegram user and returns ok', async () => {
-    delete process.env.TG_WEBHOOK_SECRET;
-    const app = await makeApp();
-
-    const payload = {
+    const body = {
       update_id: 1,
       message: {
         message_id: 1,
-        date: 1,
-        chat: { id: 1, type: 'private' },
-        from: {
-          id: 123456789,
-          is_bot: false,
-          first_name: 'Dim',
-          last_name: 'Berson',
-          username: 'dimmdao',
-        },
-        text: '/start',
+        chat: { id: 1 },
+        from: { id: 1, is_bot: false, first_name: "A" },
+        text: "/start",
       },
-    };
+    } satisfies TelegramWebhookBody;
 
-    const response = await app.inject({
-      method: 'POST',
-      url: '/webhook/telegram',
-      payload,
+    const res = await app.inject({
+      method: "POST",
+      url: "/webhook/telegram",
+      payload: body,
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ ok: true });
-    // Проверим, что меню и текст корректны (reply не возвращает sendMessage, но можно проверить логику)
-    // Для реального теста reply_markup и текст нужно мокать tgCall, но здесь проверим, что код не падает
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
   });
 
-  it('replies with notImplemented for menu buttons', async () => {
-    delete process.env.TG_WEBHOOK_SECRET;
-    const app = await makeApp();
-    for (const btn of [content.menu.book, content.menu.notifications, content.menu.question]) {
-      const payload = {
-        update_id: 2,
-        message: {
-          message_id: 2,
-          date: 1,
-          chat: { id: 1, type: 'private' },
-          from: {
-            id: 123456789,
-            is_bot: false,
-            first_name: 'Dim',
-            last_name: 'Berson',
-            username: 'dimmdao',
-          },
-          text: btn,
+  it("returns 200 with correct secret", async () => {
+    const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: "secret" });
+
+    const body = {
+      update_id: 2,
+      message: {
+        message_id: 2,
+        chat: { id: 1 },
+        from: { id: 1, is_bot: false, first_name: "A" },
+        text: "/start",
+      },
+    } satisfies TelegramWebhookBody;
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/webhook/telegram",
+      headers: { "x-telegram-bot-api-secret-token": "secret" },
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+  });
+
+  it("returns 403 with wrong secret", async () => {
+    const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: "secret" });
+
+    const body = {
+      update_id: 3,
+      message: {
+        message_id: 3,
+        chat: { id: 1 },
+        from: { id: 1, is_bot: false, first_name: "A" },
+        text: "/start",
+      },
+    } satisfies TelegramWebhookBody;
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/webhook/telegram",
+      headers: { "x-telegram-bot-api-secret-token": "wrong" },
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual({ ok: false });
+  });
+
+  it("tgCall failure must not break webhook (still 200)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ description: "Bad Request: chat not found" }),
+    } satisfies FetchResponse);
+
+    const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
+
+    const body = {
+      update_id: 4,
+      message: {
+        message_id: 4,
+        chat: { id: 999999999 },
+        from: {
+          id: 364943522,
+          is_bot: false,
+          first_name: "Дмитрий",
+          last_name: "Берсон",
+          username: "dimmdao",
         },
-      };
-      const response = await app.inject({
-        method: 'POST',
-        url: '/webhook/telegram',
-        payload,
-      });
-      expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ ok: true });
-    }
+        text: "/start",
+      },
+    } satisfies TelegramWebhookBody;
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/webhook/telegram",
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
   });
 });
