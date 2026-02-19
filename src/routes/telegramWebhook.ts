@@ -224,11 +224,12 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         }
         return reply.code(200).send({ ok: true });
       }
-      // "🔔 Настройки уведомлений" — полноценный экран
+      // "🔔 Настройки уведомлений" — открыть экран или возврат через notify_back
       if (text === telegramContent.moreMenu.notifications) {
         try {
-          const settings = await getNotificationSettings(Number(telegramId));
-          const kb = telegramContent.buildNotificationKeyboard(settings || { notify_spb: false, notify_msk: false, notify_online: false });
+          let settings = await getNotificationSettings(Number(telegramId));
+          if (!settings) settings = { notify_spb: false, notify_msk: false, notify_online: false };
+          const kb = telegramContent.buildNotificationKeyboard(settings);
           await tgCall("sendMessage", {
             chat_id: msg.chat.id,
             text: `${telegramContent.notificationSettings.title}\n\n${telegramContent.notificationSettings.subtitle}`,
@@ -240,58 +241,82 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         return reply.code(200).send({ ok: true });
       }
           // --- Обработка callback_query для уведомлений ---
-          const cq = body.callback_query;
-          if (cq?.from && cq.id && cq.data && cq.message?.chat?.id && cq.message?.message_id) {
-            const telegramId = String(cq.from.id);
-            let settings = await getNotificationSettings(Number(telegramId));
-            if (!settings) settings = { notify_spb: false, notify_msk: false, notify_online: false };
-            let updated = false;
-            if (cq.data === "notify_toggle_spb") {
-              await updateNotificationSettings(Number(telegramId), { notify_spb: !settings.notify_spb });
-              updated = true;
-            } else if (cq.data === "notify_toggle_msk") {
-              await updateNotificationSettings(Number(telegramId), { notify_msk: !settings.notify_msk });
-              updated = true;
-            } else if (cq.data === "notify_toggle_online") {
-              await updateNotificationSettings(Number(telegramId), { notify_online: !settings.notify_online });
-              updated = true;
-            } else if (cq.data === "notify_toggle_all") {
-              await updateNotificationSettings(Number(telegramId), { notify_spb: true, notify_msk: true, notify_online: true });
-              updated = true;
-            } else if (cq.data === "notify_back") {
-              // Вернуть пользователя в moreMenu
-              try {
-                await tgCall("editMessageText", {
-                  chat_id: cq.message.chat.id,
-                  message_id: cq.message.message_id,
-                  text: telegramContent.messages.chooseMenu,
-                  reply_markup: {
-                    keyboard: telegramContent.moreMenuKeyboard,
-                    resize_keyboard: true,
-                    one_time_keyboard: false,
-                  },
-                });
-              } catch (err) {
-                reqLogger.error({ err }, "Telegram editMessageText (back to moreMenu) failed");
-              }
-              return reply.code(200).send({ ok: true });
-            }
-            if (updated) {
-              // Получить новые настройки и перерисовать клавиатуру
-              const newSettings = await getNotificationSettings(Number(telegramId));
-              const kb = telegramContent.buildNotificationKeyboard(newSettings || { notify_spb: false, notify_msk: false, notify_online: false });
-              try {
-                await tgCall("editMessageReplyMarkup", {
-                  chat_id: cq.message.chat.id,
-                  message_id: cq.message.message_id,
-                  reply_markup: kb,
-                });
-              } catch (err) {
-                reqLogger.error({ err }, "Telegram editMessageReplyMarkup failed");
-              }
-              return reply.code(200).send({ ok: true });
-            }
+      // --- Обработка callback_query для уведомлений ---
+      const cq = body.callback_query;
+      if (cq?.from && cq.id && cq.data && cq.message?.chat?.id && cq.message?.message_id) {
+        const telegramId = String(cq.from.id);
+        let settings = await getNotificationSettings(Number(telegramId));
+        if (!settings) settings = { notify_spb: false, notify_msk: false, notify_online: false };
+        let updated = false;
+        let newSettings = settings;
+        if (cq.data === "notify_toggle_spb") {
+          newSettings = { ...settings, notify_spb: !settings.notify_spb };
+          try { await updateNotificationSettings(Number(telegramId), { notify_spb: newSettings.notify_spb }); } catch (err) { reqLogger.error({ err }, "updateNotificationSettings failed"); }
+          updated = true;
+        } else if (cq.data === "notify_toggle_msk") {
+          newSettings = { ...settings, notify_msk: !settings.notify_msk };
+          try { await updateNotificationSettings(Number(telegramId), { notify_msk: newSettings.notify_msk }); } catch (err) { reqLogger.error({ err }, "updateNotificationSettings failed"); }
+          updated = true;
+        } else if (cq.data === "notify_toggle_online") {
+          newSettings = { ...settings, notify_online: !settings.notify_online };
+          try { await updateNotificationSettings(Number(telegramId), { notify_online: newSettings.notify_online }); } catch (err) { reqLogger.error({ err }, "updateNotificationSettings failed"); }
+          updated = true;
+        } else if (cq.data === "notify_toggle_all") {
+          const allTrue = settings.notify_spb && settings.notify_msk && settings.notify_online;
+          newSettings = allTrue
+            ? { notify_spb: false, notify_msk: false, notify_online: false }
+            : { notify_spb: true, notify_msk: true, notify_online: true };
+          try { await updateNotificationSettings(Number(telegramId), newSettings); } catch (err) { reqLogger.error({ err }, "updateNotificationSettings failed"); }
+          updated = true;
+        } else if (cq.data === "notify_back") {
+          // Удалить inline-клавиатуру
+          try {
+            await tgCall("editMessageReplyMarkup", {
+              chat_id: cq.message.chat.id,
+              message_id: cq.message.message_id,
+              reply_markup: null,
+            });
+          } catch (err) {
+            reqLogger.error({ err }, "Telegram editMessageReplyMarkup (remove inline) failed");
           }
+          // Отправить обычное меню
+          try {
+            await tgCall("sendMessage", {
+              chat_id: cq.message.chat.id,
+              text: telegramContent.messages.chooseMenu,
+              reply_markup: {
+                keyboard: telegramContent.moreMenuKeyboard,
+                resize_keyboard: true,
+                one_time_keyboard: false,
+              },
+            });
+          } catch (err) {
+            reqLogger.error({ err }, "Telegram sendMessage (moreMenu) failed");
+          }
+          // Ответить на callback
+          try { await tgCall("answerCallbackQuery", { callback_query_id: cq.id }); } catch (err) { reqLogger.error({ err }, "answerCallbackQuery failed"); }
+          return reply.code(200).send({ ok: true });
+        }
+        if (updated) {
+          // Перерисовать клавиатуру
+          const kb = telegramContent.buildNotificationKeyboard(newSettings);
+          try {
+            await tgCall("editMessageReplyMarkup", {
+              chat_id: cq.message.chat.id,
+              message_id: cq.message.message_id,
+              reply_markup: kb,
+            });
+          } catch (err) {
+            reqLogger.error({ err }, "Telegram editMessageReplyMarkup failed");
+          }
+          // Ответить на callback
+          try { await tgCall("answerCallbackQuery", { callback_query_id: cq.id }); } catch (err) { reqLogger.error({ err }, "answerCallbackQuery failed"); }
+          return reply.code(200).send({ ok: true });
+        }
+        // Если callback не из поддерживаемых — просто ответить 200 и answerCallbackQuery
+        try { await tgCall("answerCallbackQuery", { callback_query_id: cq.id }); } catch (err) { reqLogger.error({ err }, "answerCallbackQuery failed"); }
+        return reply.code(200).send({ ok: true });
+      }
       // "📄 Мои записи" — заглушка
       if (text === telegramContent.moreMenu.myBookings) {
         // TODO: добавить реальную логику, пока только заглушка
