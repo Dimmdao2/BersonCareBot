@@ -1,31 +1,31 @@
 // src/routes/telegramWebhook.ts
-import type { FastifyInstance } from "fastify";
-import fetch from "node-fetch";
+import type { FastifyInstance } from 'fastify';
+import fetch from 'node-fetch';
 
-import { env } from "../config/env.js";
+import { env } from '../config/env.js';
 import {
   upsertTelegramUser,
   setTelegramUserState,
   getTelegramUserState,
   getNotificationSettings,
   updateNotificationSettings,
-} from "../db/telegramUsersRepo.js";
-import { getRequestLogger } from "../logger.js";
-import { telegramContent } from "../content/index.js";
+} from '../db/telegramUsersRepo.js';
+import { getRequestLogger } from '../logger.js';
+import { telegramContent } from '../content/index.js';
 
-import type { TelegramWebhookBody } from "../types/telegram.js";
+import type { TelegramWebhookBody } from '../types/telegram.js';
 
 type TgOkResponse<T> = { ok: true; result: T };
 type TgErrResponse = { ok: false; description?: string };
 
 async function tgCall<T>(method: string, params: Record<string, unknown>): Promise<T> {
   const token = env.BOT_TOKEN;
-  if (!token) throw new Error("BOT_TOKEN is not set");
+  if (!token) throw new Error('BOT_TOKEN is not set');
 
   const url = `https://api.telegram.org/bot${token}/${method}`;
   const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
 
@@ -37,7 +37,7 @@ async function tgCall<T>(method: string, params: Record<string, unknown>): Promi
 }
 
 function sendMainMenu(chatId: number): Promise<unknown> {
-  return tgCall("sendMessage", {
+  return tgCall('sendMessage', {
     chat_id: chatId,
     text: telegramContent.messages.chooseMenu,
     reply_markup: {
@@ -49,7 +49,7 @@ function sendMainMenu(chatId: number): Promise<unknown> {
 }
 
 function sendMoreMenu(chatId: number): Promise<unknown> {
-  return tgCall("sendMessage", {
+  return tgCall('sendMessage', {
     chat_id: chatId,
     text: telegramContent.messages.chooseMenu,
     reply_markup: {
@@ -66,7 +66,7 @@ async function showNotificationSettings(chatId: number, telegramId: number): Pro
 
   const kb = telegramContent.buildNotificationKeyboard(settings);
 
-  await tgCall("sendMessage", {
+  await tgCall('sendMessage', {
     chat_id: chatId,
     text: `${telegramContent.notificationSettings.title}\n\n${telegramContent.notificationSettings.subtitle}`,
     reply_markup: kb,
@@ -84,9 +84,9 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
   // Всегда закрываем "Загрузка..."
   const answer = async (): Promise<void> => {
     try {
-      await tgCall("answerCallbackQuery", { callback_query_id: cq.id });
+      await tgCall('answerCallbackQuery', { callback_query_id: cq.id });
     } catch (err) {
-      reqLogger.error({ err }, "answerCallbackQuery failed");
+      reqLogger.error({ err }, 'answerCallbackQuery failed');
     }
   };
 
@@ -94,10 +94,10 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
     // Если нет message — можно только отвечать на callback и выйти
     if (
       !cq.message ||
-      !("chat" in cq.message) ||
+      !('chat' in cq.message) ||
       !cq.message.chat ||
-      typeof cq.message.chat.id !== "number" ||
-      typeof cq.message.message_id !== "number"
+      typeof cq.message.chat.id !== 'number' ||
+      typeof cq.message.message_id !== 'number'
     ) {
       return;
     }
@@ -109,36 +109,36 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
     let settings = await getNotificationSettings(telegramIdNum);
     if (!settings) settings = { notify_spb: false, notify_msk: false, notify_online: false };
 
-    if (cq.data === "notify_back") {
+    if (cq.data === 'notify_back') {
       // Возврат: редактируем текст сообщения и убираем inline, затем показываем reply-меню
       try {
-        await tgCall("editMessageText", {
+        await tgCall('editMessageText', {
           chat_id: chatId,
           message_id: messageId,
           text: telegramContent.messages.chooseMenu,
           reply_markup: undefined,
         });
       } catch (err) {
-        reqLogger.error({ err }, "editMessageText (notify_back) failed");
+        reqLogger.error({ err }, 'editMessageText (notify_back) failed');
       }
 
       try {
         await sendMoreMenu(chatId);
       } catch (err) {
-        reqLogger.error({ err }, "sendMoreMenu failed");
+        reqLogger.error({ err }, 'sendMoreMenu failed');
       }
 
       return;
     }
 
     // toggle
-    if (cq.data === "notify_toggle_spb") {
+    if (cq.data === 'notify_toggle_spb') {
       await updateNotificationSettings(telegramIdNum, { notify_spb: !settings.notify_spb });
-    } else if (cq.data === "notify_toggle_msk") {
+    } else if (cq.data === 'notify_toggle_msk') {
       await updateNotificationSettings(telegramIdNum, { notify_msk: !settings.notify_msk });
-    } else if (cq.data === "notify_toggle_online") {
+    } else if (cq.data === 'notify_toggle_online') {
       await updateNotificationSettings(telegramIdNum, { notify_online: !settings.notify_online });
-    } else if (cq.data === "notify_toggle_all") {
+    } else if (cq.data === 'notify_toggle_all') {
       const allTrue = settings.notify_spb && settings.notify_msk && settings.notify_online;
       await updateNotificationSettings(telegramIdNum, {
         notify_spb: !allTrue,
@@ -150,39 +150,38 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
     }
 
     // перечитываем и обновляем только reply_markup
-    const fresh =
-      (await getNotificationSettings(telegramIdNum)) ?? {
-        notify_spb: false,
-        notify_msk: false,
-        notify_online: false,
-      };
+    const fresh = (await getNotificationSettings(telegramIdNum)) ?? {
+      notify_spb: false,
+      notify_msk: false,
+      notify_online: false,
+    };
 
     const kb = telegramContent.buildNotificationKeyboard(fresh);
 
     try {
-      await tgCall("editMessageReplyMarkup", {
+      await tgCall('editMessageReplyMarkup', {
         chat_id: chatId,
         message_id: messageId,
         reply_markup: kb,
       });
     } catch (err) {
-      reqLogger.error({ err }, "editMessageReplyMarkup failed");
+      reqLogger.error({ err }, 'editMessageReplyMarkup failed');
     }
   } catch (err) {
-    reqLogger.error({ err }, "notification callback error");
+    reqLogger.error({ err }, 'notification callback error');
   } finally {
     await answer();
   }
 }
 
 export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void> {
-  app.post<{ Body: TelegramWebhookBody }>("/webhook/telegram", async (request, reply) => {
+  app.post<{ Body: TelegramWebhookBody }>('/webhook/telegram', async (request, reply) => {
     const reqLogger = getRequestLogger(request.id);
 
     try {
       const secret = env.TG_WEBHOOK_SECRET;
       if (secret) {
-        const headerSecret = request.headers["x-telegram-bot-api-secret-token"];
+        const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
         if (headerSecret !== secret) {
           return reply.code(403).send({ ok: false });
         }
@@ -190,15 +189,123 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
 
       const body = request.body;
 
-      // 1) callback_query (уведомления)
+      // 1) callback_query (уведомления + inline-меню)
       if (body.callback_query) {
-        await handleNotificationCallback(body, request.id);
-        return reply.code(200).send({ ok: true });
+        const cq = body.callback_query;
+        const data = cq.data ?? '';
+
+        const ack = async () => {
+          try {
+            await tgCall('answerCallbackQuery', { callback_query_id: cq.id });
+          } catch (err) {
+            reqLogger.error({ err }, 'answerCallbackQuery failed');
+          }
+        };
+
+        try {
+          // --- УВЕДОМЛЕНИЯ ---
+          // ВАЖНО: handleNotificationCallback уже сам делает answerCallbackQuery (если у тебя он сделан как раньше),
+          // поэтому здесь ack() НЕ вызываем, чтобы не было double-ack.
+          if (data.startsWith('notify_')) {
+            await handleNotificationCallback(body, request.id);
+            return reply.code(200).send({ ok: true });
+          }
+
+          // --- INLINE "⚙️ Меню" ---
+          if (!cq.message?.chat?.id || typeof cq.message.message_id !== 'number') {
+            await ack();
+            return reply.code(200).send({ ok: true });
+          }
+
+          const chatId = cq.message.chat.id;
+          const messageId = cq.message.message_id;
+
+          if (data === 'menu_notifications') {
+            const telegramIdNum = cq.from?.id ? Number(cq.from.id) : null;
+            if (!telegramIdNum) {
+              await ack();
+              return reply.code(200).send({ ok: true });
+            }
+
+            try {
+              const settings = (await getNotificationSettings(telegramIdNum)) ?? {
+                notify_spb: false,
+                notify_msk: false,
+                notify_online: false,
+              };
+
+              const kb = telegramContent.buildNotificationKeyboard(settings);
+
+              await tgCall('editMessageText', {
+                chat_id: chatId,
+                message_id: messageId,
+                text: `${telegramContent.notificationSettings.title}\n\n${telegramContent.notificationSettings.subtitle}`,
+                reply_markup: kb,
+              });
+            } catch (err) {
+              reqLogger.error({ err }, 'editMessageText (show notifications) failed');
+            }
+
+            await ack();
+            return reply.code(200).send({ ok: true });
+          }
+
+          if (data === 'menu_my_bookings') {
+            try {
+              await tgCall('editMessageText', {
+                chat_id: chatId,
+                message_id: messageId,
+                text: telegramContent.messages.bookingMy,
+                reply_markup: telegramContent.moreMenuInline,
+              });
+            } catch (err) {
+              reqLogger.error({ err }, 'editMessageText (myBookings) failed');
+            }
+
+            await ack();
+            return reply.code(200).send({ ok: true });
+          }
+
+          // если добавишь кнопку "Назад" в inline-меню, используй callback_data: "menu_back"
+          if (data === 'menu_back') {
+            // без текста "выберите действие"
+            try {
+              await tgCall('editMessageText', {
+                chat_id: chatId,
+                message_id: messageId,
+                text: ' ',
+                reply_markup: telegramContent.moreMenuInline,
+              });
+            } catch (err) {
+              reqLogger.error({ err }, 'editMessageText (back) failed');
+              try {
+                await tgCall('editMessageReplyMarkup', {
+                  chat_id: chatId,
+                  message_id: messageId,
+                  reply_markup: telegramContent.moreMenuInline,
+                });
+              } catch (err2) {
+                reqLogger.error({ err: err2 }, 'editMessageReplyMarkup (back) failed');
+              }
+            }
+
+            await ack();
+            return reply.code(200).send({ ok: true });
+          }
+
+          // неизвестный callback — просто ack
+          await ack();
+          return reply.code(200).send({ ok: true });
+        } catch (err) {
+          reqLogger.error({ err }, 'callback_query handler failed');
+          await ack();
+          return reply.code(200).send({ ok: true });
+        }
       }
 
       // 2) message flow
       const msg = body.message;
-      if (!msg || !msg.chat || typeof msg.chat.id !== "number") {
+      if (!msg || !msg.chat || typeof msg.chat.id !== 'number') {
         return reply.code(200).send({ ok: true });
       }
 
@@ -209,15 +316,15 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         return reply.code(200).send({ ok: true });
       }
 
-      let userState = (await getTelegramUserState(telegramId)) ?? "idle";
+      let userState = (await getTelegramUserState(telegramId)) ?? 'idle';
 
       // важное: строка, не литеральный union
-      const text: string = msg.text ?? "";
+      const text: string = msg.text ?? '';
 
-      if (text === "/start") {
-        await setTelegramUserState(telegramId, "idle");
+      if (text === '/start') {
+        await setTelegramUserState(telegramId, 'idle');
         try {
-          await tgCall("sendMessage", {
+          await tgCall('sendMessage', {
             chat_id: msg.chat.id,
             text: telegramContent.messages.welcome,
             reply_markup: {
@@ -227,15 +334,15 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
             },
           });
         } catch (err) {
-          reqLogger.error({ err }, "sendMessage (/start) failed");
+          reqLogger.error({ err }, 'sendMessage (/start) failed');
         }
         return reply.code(200).send({ ok: true });
       }
 
       if (text === telegramContent.mainMenu.ask) {
-        await setTelegramUserState(telegramId, "waiting_for_question");
+        await setTelegramUserState(telegramId, 'waiting_for_question');
         try {
-          await tgCall("sendMessage", {
+          await tgCall('sendMessage', {
             chat_id: msg.chat.id,
             text: telegramContent.messages.describeQuestion,
             reply_markup: {
@@ -245,31 +352,31 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
             },
           });
         } catch (err) {
-          reqLogger.error({ err }, "sendMessage (ask) failed");
+          reqLogger.error({ err }, 'sendMessage (ask) failed');
         }
         return reply.code(200).send({ ok: true });
       }
 
-      if (userState === "waiting_for_question" && text) {
-        await setTelegramUserState(telegramId, "idle");
+      if (userState === 'waiting_for_question' && text) {
+        await setTelegramUserState(telegramId, 'idle');
 
         const adminId = env.ADMIN_TELEGRAM_ID;
         if (adminId) {
           const from = msg.from;
-          const userInfo = `От: ${from?.first_name ?? ""} ${from?.last_name ?? ""} @${
-            from?.username ?? ""
+          const userInfo = `От: ${from?.first_name ?? ''} ${from?.last_name ?? ''} @${
+            from?.username ?? ''
           }`.trim();
           const adminMsg = `Новый вопрос\n${userInfo}\nTelegram ID: ${telegramId}\nТекст:\n${text}`;
 
           try {
-            await tgCall("sendMessage", { chat_id: adminId, text: adminMsg });
+            await tgCall('sendMessage', { chat_id: adminId, text: adminMsg });
           } catch (err) {
-            reqLogger.error({ err }, "sendMessage (to admin) failed");
+            reqLogger.error({ err }, 'sendMessage (to admin) failed');
           }
         }
 
         try {
-          await tgCall("sendMessage", {
+          await tgCall('sendMessage', {
             chat_id: msg.chat.id,
             text: telegramContent.messages.questionAccepted,
             reply_markup: {
@@ -279,16 +386,16 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
             },
           });
         } catch (err) {
-          reqLogger.error({ err }, "sendMessage (questionAccepted) failed");
+          reqLogger.error({ err }, 'sendMessage (questionAccepted) failed');
         }
 
         return reply.code(200).send({ ok: true });
       }
 
       if (text === telegramContent.mainMenu.book) {
-        await setTelegramUserState(telegramId, "idle");
+        await setTelegramUserState(telegramId, 'idle');
         try {
-          await tgCall("sendMessage", {
+          await tgCall('sendMessage', {
             chat_id: msg.chat.id,
             text: telegramContent.messages.notImplemented,
             reply_markup: {
@@ -298,11 +405,12 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
             },
           });
         } catch (err) {
-          reqLogger.error({ err }, "sendMessage (book placeholder) failed");
+          reqLogger.error({ err }, 'sendMessage (book placeholder) failed');
         }
         return reply.code(200).send({ ok: true });
       }
 
+      /* 
       if (text === telegramContent.mainMenu.more) {
         try {
           await sendMoreMenu(msg.chat.id);
@@ -311,12 +419,27 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         }
         return reply.code(200).send({ ok: true });
       }
+        */
+
+      if (text === telegramContent.mainMenu.more) {
+        try {
+          await tgCall('sendMessage', {
+            chat_id: msg.chat.id,
+            text: telegramContent.messages.chooseMenu,
+            reply_markup: telegramContent.moreMenuInline,
+          });
+        } catch (err) {
+          reqLogger.error({ err }, 'Telegram send inline moreMenu failed');
+        }
+
+        return reply.code(200).send({ ok: true });
+      }
 
       if (text === telegramContent.moreMenu.back) {
         try {
           await sendMainMenu(msg.chat.id);
         } catch (err) {
-          reqLogger.error({ err }, "sendMainMenu failed");
+          reqLogger.error({ err }, 'sendMainMenu failed');
         }
         return reply.code(200).send({ ok: true });
       }
@@ -325,14 +448,14 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         try {
           await showNotificationSettings(msg.chat.id, Number(telegramId));
         } catch (err) {
-          reqLogger.error({ err }, "showNotificationSettings failed");
+          reqLogger.error({ err }, 'showNotificationSettings failed');
         }
         return reply.code(200).send({ ok: true });
       }
 
       if (text === telegramContent.moreMenu.myBookings) {
         try {
-          await tgCall("sendMessage", {
+          await tgCall('sendMessage', {
             chat_id: msg.chat.id,
             text: telegramContent.messages.bookingMy,
             reply_markup: {
@@ -342,23 +465,23 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
             },
           });
         } catch (err) {
-          reqLogger.error({ err }, "sendMessage (myBookings) failed");
+          reqLogger.error({ err }, 'sendMessage (myBookings) failed');
         }
         return reply.code(200).send({ ok: true });
       }
 
       // default
-      if (userState === "idle") {
+      if (userState === 'idle') {
         try {
           await sendMainMenu(msg.chat.id);
         } catch (err) {
-          reqLogger.error({ err }, "sendMainMenu (default) failed");
+          reqLogger.error({ err }, 'sendMainMenu (default) failed');
         }
       }
 
       return reply.code(200).send({ ok: true });
     } catch (err) {
-      reqLogger.error({ err }, "telegram webhook handler failed");
+      reqLogger.error({ err }, 'telegram webhook handler failed');
       return reply.code(200).send({ ok: true });
     }
   });
