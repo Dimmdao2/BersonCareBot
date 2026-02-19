@@ -27,17 +27,17 @@ async function resetStuckMailings() {
   `);
 }
 
-async function getActiveUsersForMailing(mailingId: number): Promise<DbUser[]> {
+async function getActiveUsersForTopic(topicId: number): Promise<DbUser[]> {
   const res = await pool.query(
     `
     SELECT u.id, u.telegram_id, u.is_active
     FROM users u
     JOIN user_subscriptions s ON s.user_id = u.id
-    WHERE s.mailing_id = $1
+    WHERE s.topic_id = $1
       AND s.is_active = true
       AND u.is_active IS DISTINCT FROM false
   `,
-    [mailingId],
+    [topicId],
   );
   return res.rows as DbUser[];
 }
@@ -141,9 +141,9 @@ export async function runMailings(): Promise<void> {
       let failCount = 0;
       let users: DbUser[] = [];
       try {
-        users = await getActiveUsersForMailing(mailing.id);
+        users = await getActiveUsersForTopic(mailing.topic_id);
         const batchSize = users.length;
-        workerLogger.info({ batchSize, mailingId: mailing.id }, "Mailing batch started");
+        workerLogger.info({ batchSize, mailingId: mailing.id, topicId: mailing.topic_id }, "Mailing batch started");
         for (const user of users) {
           if (await wasMailingSent(user.id, mailing.id)) continue;
           let attemptUsed = 0;
