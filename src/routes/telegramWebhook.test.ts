@@ -64,4 +64,35 @@ describe('POST /webhook/telegram', () => {
     expect(response.statusCode).toBe(403);
     expect(response.json()).toEqual({ ok: false });
   });
+
+  it('persists telegram user and returns ok', async () => {
+    delete process.env.TG_WEBHOOK_SECRET;
+    const app = await makeApp();
+
+    const payload = {
+      update_id: 1,
+      message: {
+        message_id: 1,
+        date: 1,
+        chat: { id: 1, type: 'private' },
+        from: {
+          id: 123456789,
+          is_bot: false,
+          first_name: 'Dim',
+          last_name: 'Berson',
+          username: 'dimmdao',
+        },
+        text: '/start',
+      },
+    };
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/telegram',
+      payload,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+  });
 });

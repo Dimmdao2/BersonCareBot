@@ -9,6 +9,7 @@ import { FastifyInstance } from "fastify";
 import fetch from "node-fetch";
 import { env } from "../config/env.js";
 import { upsertUser } from "../db/usersRepo.js";
+import { upsertTelegramUser } from "../db/telegramUsersRepo.js";
 import { logger, getRequestLogger } from "../logger.js";
 import { listTopicsWithUserState, toggleTopic } from "../services/subscriptionService.js";
 import { buildSubscriptionsKeyboard } from "../telegram/subscriptionsKeyboard.js";
@@ -130,6 +131,14 @@ export async function telegramWebhookRoutes(app: FastifyInstance) {
     // 1) message handler
     const msg = body.message;
     if (msg?.from && msg.chat?.id) {
+      // Step 1: persist telegram user
+      try {
+        await upsertTelegramUser(msg.from);
+      } catch (err) {
+        reqLogger.error({ err }, 'upsertTelegramUser failed');
+        // Do not throw, always return ok
+      }
+
       const text = msg.text ?? "";
 
       if (text === "/start") {
