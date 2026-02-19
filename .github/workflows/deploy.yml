@@ -29,8 +29,15 @@ jobs:
             hostname
             date
 
-            echo "=== step: git pull ==="
-            time sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && git status --porcelain && git pull --rebase'
+            echo "=== step: git sync ==="
+            time sudo -n -u tgcarebot bash -lc '
+              set -e
+              export GIT_TERMINAL_PROMPT=0
+              cd /opt/tgcarebot/app
+              git fetch --prune origin
+              git checkout -B main origin/main
+              git reset --hard origin/main
+            '
 
             echo "=== step: pnpm install ==="
             time sudo -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm install --frozen-lockfile --reporter=append-only'
