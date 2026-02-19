@@ -9,6 +9,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -28,8 +29,14 @@ jobs:
             hostname
             date
 
-            echo "=== step: git sync ==="
-            time sudo -n -u tgcarebot bash -lc '
+            echo "=== step: stop service ==="
+            sudo systemctl stop tgcarebot || true
+
+            echo "=== step: ensure ownership ==="
+            sudo chown -R tgcarebot:tgcarebot /opt/tgcarebot/app
+
+            echo "=== step: git sync (as tgcarebot) ==="
+            sudo -u tgcarebot bash -lc '
               set -e
               export GIT_TERMINAL_PROMPT=0
               cd /opt/tgcarebot/app
@@ -38,15 +45,20 @@ jobs:
               git reset --hard origin/main
             '
 
-            echo "=== step: pnpm install ==="
-            time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && CI=true pnpm install --frozen-lockfile --reporter=append-only'
-            
-            echo "=== step: pnpm build ==="
+            echo "=== step: pnpm install (as tgcarebot) ==="
+            sudo -u tgcarebot bash -lc '
+              cd /opt/tgcarebot/app
+              CI=true pnpm install --frozen-lockfile --reporter=append-only
+            '
 
-            time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
+            echo "=== step: build (as tgcarebot) ==="
+            sudo -u tgcarebot bash -lc '
+              cd /opt/tgcarebot/app
+              pnpm build
+            '
 
-            echo "=== step: migrate (uses /opt/tgcarebot/.env) ==="
-            time sudo -n -u tgcarebot bash -lc '
+            echo "=== step: migrate (as tgcarebot) ==="
+            sudo -u tgcarebot bash -lc '
               set -e
               set -a
               source /opt/tgcarebot/.env
@@ -56,7 +68,7 @@ jobs:
             '
 
             echo "=== step: restart ==="
-            sudo -n systemctl restart tgcarebot
+            sudo systemctl restart tgcarebot
 
             echo "=== step: status ==="
-            sudo -n systemctl status tgcarebot --no-pager
+            sudo systemctl status tgcarebot --no-pager
