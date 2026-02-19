@@ -41,8 +41,8 @@ jobs:
             '
 
             echo "=== step: pnpm install ==="
-            time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm install --frozen-lockfile --reporter=append-only'
-
+            time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && CI=true pnpm install --frozen-lockfile --reporter=append-only'
+            
             echo "=== step: pnpm build ==="
             time sudo -n -u tgcarebot bash -lc 'cd /opt/tgcarebot/app && pnpm build'
 
