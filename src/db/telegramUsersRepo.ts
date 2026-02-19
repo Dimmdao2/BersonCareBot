@@ -1,4 +1,24 @@
 /**
+ * Атомарно обновляет last_start_at для пользователя Telegram.
+ * Возвращает true, если прошло больше 5 секунд с прошлого /start или это первый вызов.
+ */
+export async function tryConsumeStart(telegramId: number): Promise<boolean> {
+  const sql = `
+    UPDATE telegram_users
+    SET last_start_at = now()
+    WHERE telegram_id = $1
+      AND (last_start_at IS NULL OR last_start_at < now() - interval '5 seconds')
+    RETURNING id;
+  `;
+  try {
+    const res = await db.query(sql, [telegramId]);
+    return (res.rowCount ?? 0) > 0;
+  } catch (err) {
+    logger.error({ err }, "tryConsumeStart error");
+    return false;
+  }
+}
+/**
  * Атомарно обновляет last_update_id для пользователя Telegram.
  * Возвращает true, если update_id был новым (и обновлён), иначе false (дубликат/старый).
  */

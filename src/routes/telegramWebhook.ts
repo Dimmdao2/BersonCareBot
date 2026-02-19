@@ -10,6 +10,7 @@ import {
   getNotificationSettings,
   updateNotificationSettings,
   tryAdvanceLastUpdateId,
+  tryConsumeStart,
 } from '../db/telegramUsersRepo.js';
 import { getRequestLogger } from '../logger.js';
 import { telegramContent } from '../content/index.js';
@@ -315,6 +316,10 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
 
       if (text === '/start') {
         await setTelegramUserState(telegramId, 'idle');
+        const allow = await tryConsumeStart(Number(telegramId));
+        if (!allow) {
+          return reply.code(200).send({ ok: true });
+        }
         try {
           await tgCall('sendMessage', {
             chat_id: msg.chat.id,
