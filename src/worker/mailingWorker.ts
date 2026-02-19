@@ -3,10 +3,6 @@ import fetch from "node-fetch";
 import { env } from "../config/env.js";
 import { logger, getWorkerLogger } from "../logger.js";
 
-type DbMailing = {
-  id: number;
-  title: string;
-};
 
 type DbUser = {
   id: number;
@@ -20,9 +16,15 @@ const TELEGRAM_API = `https://api.telegram.org/bot${env.BOT_TOKEN}`;
 const RATE_LIMIT_MS = 40;
 const MAX_RETRIES = 3;
 
-async function getActiveMailings(): Promise<DbMailing[]> {
-  const res = await pool.query("SELECT id, title FROM mailings");
-  return res.rows as DbMailing[];
+// Removed: getActiveMailings()
+
+async function resetStuckMailings() {
+  await pool.query(`
+    UPDATE mailings
+    SET status = 'scheduled'
+    WHERE status = 'processing'
+      AND started_at < NOW() - INTERVAL '15 minutes'
+  `);
 }
 
 async function getActiveUsersForMailing(mailingId: number): Promise<DbUser[]> {
@@ -111,70 +113,93 @@ function getErrorMessage(err: unknown): string | undefined {
 }
 
 export async function runMailings(): Promise<void> {
-  const mailings = await getActiveMailings();
+  await resetStuckMailings();
 
-  for (const mailing of mailings) {
-    const workerLogger = getWorkerLogger(undefined, String(mailing.id));
-    const users = await getActiveUsersForMailing(mailing.id);
-
-    const batchSize = users.length;
-    let successCount = 0;
-    let failCount = 0;
-
-    workerLogger.info({ batchSize, mailingId: mailing.id }, "Mailing batch started");
-
-    for (const user of users) {
-      if (await wasMailingSent(user.id, mailing.id)) continue;
-
-      let attemptUsed = 0;
-
-      try {
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-          attemptUsed = attempt;
-          try {
-            await sendTelegramMessage(user.telegram_id, mailing.title);
-            break;
-          } catch (err) {
-            if (attempt === MAX_RETRIES) throw err;
-            workerLogger.warn({ user_id: user.id, attempt }, "Retry sending message");
-          }
-        }
-
-        await logMailingResult(user.id, mailing.id, "sent");
-        successCount++;
-
-        workerLogger.info(
-          { user_id: user.id, mailing_id: mailing.id, attempt: attemptUsed },
-          "Mailing sent",
-        );
-      } catch (err: unknown) {
-        failCount++;
-
-        const message = getErrorMessage(err);
-
-        if (message === "blocked") {
-          await markUserInactive(user.id);
-          workerLogger.warn({ user_id: user.id }, "User blocked bot, marked inactive");
-        }
-
-        await logMailingResult(user.id, mailing.id, "error", message);
-
-        workerLogger.error(
-          { user_id: user.id, mailing_id: mailing.id, error: message, attempt: attemptUsed },
-          "Mailing failed",
-        );
-      }
-
-      await new Promise<void>((resolve) => setTimeout(resolve, RATE_LIMIT_MS));
+  // Select mailings to process, transactional selection
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const res = await client.query(`
+      SELECT * FROM mailings
+      WHERE status = 'scheduled'
+        AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+      FOR UPDATE SKIP LOCKED
+    `);
+    const mailings = res.rows;
+    for (const mailing of mailings) {
+      // Mark as processing
+      await client.query(
+        `UPDATE mailings SET status = 'processing', started_at = NOW() WHERE id = $1`,
+        [mailing.id]
+      );
     }
-
-    workerLogger.info(
-      { batchSize, successCount, failCount, mailingId: mailing.id },
-      "Mailing batch completed",
-    );
+    await client.query('COMMIT');
+    // Process each mailing outside transaction
+    for (const mailing of mailings) {
+      const workerLogger = getWorkerLogger(undefined, String(mailing.id));
+      let successCount = 0;
+      let failCount = 0;
+      let users: DbUser[] = [];
+      try {
+        users = await getActiveUsersForMailing(mailing.id);
+        const batchSize = users.length;
+        workerLogger.info({ batchSize, mailingId: mailing.id }, "Mailing batch started");
+        for (const user of users) {
+          if (await wasMailingSent(user.id, mailing.id)) continue;
+          let attemptUsed = 0;
+          try {
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+              attemptUsed = attempt;
+              try {
+                await sendTelegramMessage(user.telegram_id, mailing.title);
+                break;
+              } catch (err) {
+                if (attempt === MAX_RETRIES) throw err;
+                workerLogger.warn({ user_id: user.id, attempt }, "Retry sending message");
+              }
+            }
+            await logMailingResult(user.id, mailing.id, "sent");
+            successCount++;
+            workerLogger.info(
+              { user_id: user.id, mailing_id: mailing.id, attempt: attemptUsed },
+              "Mailing sent",
+            );
+          } catch (err: unknown) {
+            failCount++;
+            const message = getErrorMessage(err);
+            if (message === "blocked") {
+              await markUserInactive(user.id);
+              workerLogger.warn({ user_id: user.id }, "User blocked bot, marked inactive");
+            }
+            await logMailingResult(user.id, mailing.id, "error", message);
+            workerLogger.error(
+              { user_id: user.id, mailing_id: mailing.id, error: message, attempt: attemptUsed },
+              "Mailing failed",
+            );
+          }
+          await new Promise<void>((resolve) => setTimeout(resolve, RATE_LIMIT_MS));
+        }
+        workerLogger.info(
+          { batchSize, successCount, failCount, mailingId: mailing.id },
+          "Mailing batch completed",
+        );
+        // Update status after batch
+        await pool.query(
+          `UPDATE mailings SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+          [mailing.id]
+        );
+      } catch (fatal) {
+        await pool.query(
+          `UPDATE mailings SET status = 'failed' WHERE id = $1`,
+          [mailing.id]
+        );
+        workerLogger.error({ err: fatal }, "Mailing batch failed");
+      }
+      // No API/logic changes for sendTelegramMessage, retry, mailing_logs, Telegram
+    }
+  } finally {
+    client.release();
   }
-
-  await pool.end();
 }
 
 if (require.main === module) {
