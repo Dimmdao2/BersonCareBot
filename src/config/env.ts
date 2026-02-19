@@ -1,25 +1,20 @@
+import dotenv from "dotenv";
+import { z } from "zod";
+
 dotenv.config();
 
+export const env = z
+  .object({
+    NODE_ENV: z.string().default("production"),
+    HOST: z.string().default("127.0.0.1"),
+    PORT: z.coerce.number().default(3000),
+    LOG_LEVEL: z.string().default("info"),
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  HOST: z.string().default('0.0.0.0'),
-  PORT: z.coerce.number().default(3000),
-  LOG_LEVEL: z.string().default('info'),
-  BOT_TOKEN: z.string().optional(),
-  ADMIN_TELEGRAM_ID: z.string().optional(),
-  INBOX_CHAT_ID: z.string().optional(),
-  BOOKING_URL: z.string().optional(),
-  DATABASE_URL: z.string().optional(),
-  TG_WEBHOOK_SECRET: z.string().optional(),
-});
+    BOT_TOKEN: z.string().min(1),
+    ADMIN_TELEGRAM_ID: z.string().min(1),
+    INBOX_CHAT_ID: z.string().min(1),
+    BOOKING_URL: z.string().min(1),
 
-const _env = envSchema.safeParse(process.env);
-
-if (!_env.success) {
-  console.error('❌ Invalid environment variables:', _env.error.format());
-  process.exit(1);
-}
-
-export const env = _env.data;
-export type Env = typeof env;
+    DATABASE_URL: z.string().min(1),
+  })
+  .parse(process.env);
