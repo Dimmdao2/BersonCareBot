@@ -45,6 +45,13 @@ export default [
   },
 
   {
+    files: ["src/worker/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: ["*adapters*", "*app*"] }],
+    },
+  },
+
+  {
     files: ["**/*.test.ts"],
     rules: {
       "@typescript-eslint/no-unused-vars": "off",

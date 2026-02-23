@@ -12,7 +12,7 @@
 
 // Для усиления границ можно использовать eslint-boundaries или dependency-cruiser.
 
-// TODO: добавить правила ESLint для архитектурных границ
+// ESLint: adapters не импортируют *persistence*; worker не импортирует *adapters* и *app* (eslint.config.mjs).
 
 ---
 
