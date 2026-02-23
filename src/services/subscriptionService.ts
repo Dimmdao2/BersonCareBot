@@ -1,7 +1,5 @@
-// Слой бизнес-логики
-// Пример: обработка подписки, доменных операций
-import { Topic, listActiveTopics } from '../db/topicsRepo.js';
-import { getUserSubscriptions, toggleUserSubscription } from '../db/subscriptionsRepo.js';
+import { Topic, listActiveTopics } from '../persistence/repositories/topics.js';
+import { getUserSubscriptions, toggleUserSubscription } from '../persistence/repositories/subscriptions.js';
 
 export type Subscription = {
   user_id: number;

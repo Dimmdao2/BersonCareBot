@@ -1,6 +1,5 @@
-
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import { healthCheckDb } from '../db/client.js';
+import { healthCheckDb } from '../../persistence/client.js';
 
 const healthRoute: FastifyPluginAsync = async (app: FastifyInstance) => {
   app.get('/health', async (_request, _reply) => {

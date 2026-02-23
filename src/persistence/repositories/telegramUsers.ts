@@ -1,49 +1,6 @@
-/**
- * Атомарно обновляет last_start_at для пользователя Telegram.
- * Возвращает true, если прошло больше 5 секунд с прошлого /start или это первый вызов.
- */
-export async function tryConsumeStart(telegramId: number): Promise<boolean> {
-  const sql = `
-    UPDATE telegram_users
-    SET last_start_at = now()
-    WHERE telegram_id = $1
-      AND (last_start_at IS NULL OR last_start_at < now() - interval '5 seconds')
-    RETURNING id;
-  `;
-  try {
-    const res = await db.query(sql, [telegramId]);
-    return (res.rowCount ?? 0) > 0;
-  } catch (err) {
-    logger.error({ err }, "tryConsumeStart error");
-    return false;
-  }
-}
-/**
- * Атомарно обновляет last_update_id для пользователя Telegram.
- * Возвращает true, если update_id был новым (и обновлён), иначе false (дубликат/старый).
- */
-export async function tryAdvanceLastUpdateId(
-  telegramId: number,
-  updateId: number
-): Promise<boolean> {
-  const query = `
-    UPDATE telegram_users
-    SET last_update_id = $2
-    WHERE telegram_id = $1
-      AND (last_update_id IS NULL OR last_update_id < $2)
-  `;
-  try {
-    const res = await db.query(query, [String(telegramId), updateId]);
-    return res.rowCount === 1;
-  } catch (err) {
-    logger.error({ err }, "tryAdvanceLastUpdateId error");
-    return false;
-  }
-}
-// src/db/telegramUsersRepo.ts
-import { db } from "../db/client.js";
-import { logger } from "../logger.js";
-import type { TelegramUserFrom } from "../types/telegram.js";
+import { db } from '../client.js';
+import { logger } from '../../logger.js';
+import type { TelegramUserFrom } from '../../core/types.js';
 
 export type TelegramUserRow = {
   id: string;
@@ -62,10 +19,46 @@ export type NotificationSettingsPatch = {
   notify_online?: boolean;
 };
 
+export async function tryConsumeStart(telegramId: number): Promise<boolean> {
+  const sql = `
+    UPDATE telegram_users
+    SET last_start_at = now()
+    WHERE telegram_id = $1
+      AND (last_start_at IS NULL OR last_start_at < now() - interval '5 seconds')
+    RETURNING id;
+  `;
+  try {
+    const res = await db.query(sql, [telegramId]);
+    return (res.rowCount ?? 0) > 0;
+  } catch (err) {
+    logger.error({ err }, 'tryConsumeStart error');
+    return false;
+  }
+}
+
+export async function tryAdvanceLastUpdateId(
+  telegramId: number,
+  updateId: number,
+): Promise<boolean> {
+  const query = `
+    UPDATE telegram_users
+    SET last_update_id = $2
+    WHERE telegram_id = $1
+      AND (last_update_id IS NULL OR last_update_id < $2)
+  `;
+  try {
+    const res = await db.query(query, [String(telegramId), updateId]);
+    return res.rowCount === 1;
+  } catch (err) {
+    logger.error({ err }, 'tryAdvanceLastUpdateId error');
+    return false;
+  }
+}
+
 export async function upsertTelegramUser(
   from: TelegramUserFrom | null | undefined,
 ): Promise<TelegramUserRow | null> {
-  if (!from || typeof from.id !== "number") return null;
+  if (!from || typeof from.id !== 'number') return null;
 
   const telegramId = String(from.id);
   const username = from.username ?? null;
@@ -92,7 +85,7 @@ export async function upsertTelegramUser(
     ]);
     return res.rows[0] ?? null;
   } catch (err) {
-    logger.error({ err }, "upsertTelegramUser error");
+    logger.error({ err }, 'upsertTelegramUser error');
     return null;
   }
 }
@@ -109,7 +102,7 @@ export async function setTelegramUserState(
   try {
     await db.query(query, [telegramId, state]);
   } catch (err) {
-    logger.error({ err }, "setTelegramUserState error");
+    logger.error({ err }, 'setTelegramUserState error');
   }
 }
 
@@ -121,12 +114,11 @@ export async function getTelegramUserState(telegramId: string): Promise<string |
     const res = await db.query<{ state: string | null }>(query, [telegramId]);
     return res.rows[0]?.state ?? null;
   } catch (err) {
-    logger.error({ err }, "getTelegramUserState error");
+    logger.error({ err }, 'getTelegramUserState error');
     return null;
   }
 }
 
-// --- Notification Settings ---
 export async function updateNotificationSettings(
   telegramId: number,
   settings: NotificationSettingsPatch,
@@ -135,31 +127,31 @@ export async function updateNotificationSettings(
   const values: boolean[] = [];
   let idx = 2;
 
-  if (typeof settings.notify_spb === "boolean") {
+  if (typeof settings.notify_spb === 'boolean') {
     fields.push(`notify_spb = $${idx}`);
     values.push(settings.notify_spb);
     idx++;
   }
 
-  if (typeof settings.notify_msk === "boolean") {
+  if (typeof settings.notify_msk === 'boolean') {
     fields.push(`notify_msk = $${idx}`);
     values.push(settings.notify_msk);
     idx++;
   }
 
-  if (typeof settings.notify_online === "boolean") {
+  if (typeof settings.notify_online === 'boolean') {
     fields.push(`notify_online = $${idx}`);
     values.push(settings.notify_online);
   }
 
   if (fields.length === 0) return;
 
-  const query = `UPDATE telegram_users SET ${fields.join(", ")} WHERE telegram_id = $1`;
+  const query = `UPDATE telegram_users SET ${fields.join(', ')} WHERE telegram_id = $1`;
 
   try {
     await db.query(query, [String(telegramId), ...values]);
   } catch (err) {
-    logger.error({ err }, "updateNotificationSettings error");
+    logger.error({ err }, 'updateNotificationSettings error');
   }
 }
 
@@ -188,7 +180,7 @@ export async function getNotificationSettings(
       notify_online: Boolean(row.notify_online),
     };
   } catch (err) {
-    logger.error({ err }, "getNotificationSettings error");
+    logger.error({ err }, 'getNotificationSettings error');
     return null;
   }
 }

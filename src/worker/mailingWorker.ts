@@ -1,6 +1,6 @@
 import fetch from "node-fetch";
 import { env } from "../config/env.js";
-import { db } from "../db/client.js";
+import { db } from '../persistence/client.js';
 import { logger, getWorkerLogger } from "../logger.js";
 
 type DbUser = {

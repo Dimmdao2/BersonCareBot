@@ -1,6 +1,6 @@
 /**
  * E2E scenario runner: sends Telegram webhook payloads to the app,
- * mocks Telegram API via a process-global hook (see getTelegramFetch in telegramWebhook.ts).
+ * mocks Telegram API via a process-global hook (see getTelegramFetch in adapters/telegram/client.ts).
  *
  * Run: pnpm run scenarios
  * Requires: .env with DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, INBOX_CHAT_ID, BOOKING_URL.
@@ -113,7 +113,7 @@ async function main(): Promise<void> {
   const app = buildApp();
   await app.ready();
 
-  const { db } = await import('../src/db/client.js');
+  const { db } = await import('../src/persistence/client.js');
   await db.query(
     `UPDATE telegram_users SET last_start_at = NULL, last_update_id = NULL WHERE telegram_id = $1`,
     [E2E_TEST_TELEGRAM_ID],

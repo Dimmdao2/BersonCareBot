@@ -1,4 +1,4 @@
-// src/types/telegram.ts
+// Re-export domain/transport types (single place for core types)
 export type TelegramUserFrom = {
   id: number;
   is_bot?: boolean;

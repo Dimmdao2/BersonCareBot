@@ -1,47 +1,11 @@
-// src/routes/telegramWebhook.ts
 import type { FastifyInstance } from 'fastify';
-import fetch from 'node-fetch';
-
-import { env } from '../config/env.js';
-import {
-  upsertTelegramUser,
-  setTelegramUserState,
-  getTelegramUserState,
-  getNotificationSettings,
-  updateNotificationSettings,
-  tryAdvanceLastUpdateId,
-  tryConsumeStart,
-} from '../services/telegramUserService.js';
-import { getRequestLogger } from '../logger.js';
-import { telegramContent } from '../content/index.js';
-
-import type { TelegramWebhookBody } from '../types/telegram.js';
-
-type TgOkResponse<T> = { ok: true; result: T };
-type TgErrResponse = { ok: false; description?: string };
-
-function getTelegramFetch(): typeof fetch {
-  const g = process as unknown as { __TELEGRAM_FETCH_MOCK__?: typeof fetch };
-  return g.__TELEGRAM_FETCH_MOCK__ ?? fetch;
-}
-
-async function tgCall<T>(method: string, params: Record<string, unknown>): Promise<T> {
-  const token = env.BOT_TOKEN;
-  if (!token) throw new Error('BOT_TOKEN is not set');
-
-  const url = `https://api.telegram.org/bot${token}/${method}`;
-  const res = await getTelegramFetch()(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-
-  const data = (await res.json()) as TgOkResponse<T> | TgErrResponse;
-  if (!data.ok) {
-    throw new Error(`Telegram API error: ${JSON.stringify(data)}`);
-  }
-  return data.result;
-}
+import { env } from '../../config/env.js';
+import { getRequestLogger } from '../../logger.js';
+import { telegramContent } from '../../content/index.js';
+import type { TelegramWebhookBody } from '../../core/types.js';
+import * as telegramUsersRepo from '../../persistence/repositories/telegramUsers.js';
+import { tgCall } from './client.js';
+import { isNotifyCallback } from './mapper.js';
 
 function sendMainMenu(chatId: number): Promise<unknown> {
   return tgCall('sendMessage', {
@@ -63,7 +27,6 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
 
   const telegramIdNum = cq.from.id;
 
-  // Всегда закрываем "Загрузка..."
   const answer = async (): Promise<void> => {
     try {
       await tgCall('answerCallbackQuery', { callback_query_id: cq.id });
@@ -73,7 +36,6 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
   };
 
   try {
-    // Если нет message — можно только отвечать на callback и выйти
     if (
       !cq.message ||
       !('chat' in cq.message) ||
@@ -87,20 +49,24 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
     const chatId = cq.message.chat.id;
     const messageId = cq.message.message_id;
 
-    // читаем актуальные настройки
-    let settings = await getNotificationSettings(telegramIdNum);
+    let settings = await telegramUsersRepo.getNotificationSettings(telegramIdNum);
     if (!settings) settings = { notify_spb: false, notify_msk: false, notify_online: false };
 
-    // toggle
     if (cq.data === 'notify_toggle_spb') {
-      await updateNotificationSettings(telegramIdNum, { notify_spb: !settings.notify_spb });
+      await telegramUsersRepo.updateNotificationSettings(telegramIdNum, {
+        notify_spb: !settings.notify_spb,
+      });
     } else if (cq.data === 'notify_toggle_msk') {
-      await updateNotificationSettings(telegramIdNum, { notify_msk: !settings.notify_msk });
+      await telegramUsersRepo.updateNotificationSettings(telegramIdNum, {
+        notify_msk: !settings.notify_msk,
+      });
     } else if (cq.data === 'notify_toggle_online') {
-      await updateNotificationSettings(telegramIdNum, { notify_online: !settings.notify_online });
+      await telegramUsersRepo.updateNotificationSettings(telegramIdNum, {
+        notify_online: !settings.notify_online,
+      });
     } else if (cq.data === 'notify_toggle_all') {
       const allTrue = settings.notify_spb && settings.notify_msk && settings.notify_online;
-      await updateNotificationSettings(telegramIdNum, {
+      await telegramUsersRepo.updateNotificationSettings(telegramIdNum, {
         notify_spb: !allTrue,
         notify_msk: !allTrue,
         notify_online: !allTrue,
@@ -109,12 +75,12 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
       return;
     }
 
-    // перечитываем и обновляем только reply_markup
-    const fresh = (await getNotificationSettings(telegramIdNum)) ?? {
-      notify_spb: false,
-      notify_msk: false,
-      notify_online: false,
-    };
+    const fresh =
+      (await telegramUsersRepo.getNotificationSettings(telegramIdNum)) ?? ({
+        notify_spb: false,
+        notify_msk: false,
+        notify_online: false,
+      } as const);
 
     const kb = telegramContent.buildNotificationKeyboard(fresh);
 
@@ -161,9 +127,7 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         'tg_update',
       );
 
-      // --- Дедупликация апдейтов ---
       const updateId = typeof body.update_id === 'number' ? body.update_id : null;
-      // Определяем telegramId (from.id):
       let telegramIdForDedup: number | null = null;
       if (body.callback_query?.from?.id) {
         telegramIdForDedup = body.callback_query.from.id;
@@ -171,26 +135,26 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         telegramIdForDedup = body.message.from.id;
       }
 
-      // upsert user (если есть from.id)
-      let userRow = null;
+      let userRow: { id: string; telegram_id: string } | null = null;
       let telegramId: string | null = null;
       if (body.message?.from) {
-        userRow = await upsertTelegramUser(body.message.from);
+        userRow = await telegramUsersRepo.upsertTelegramUser(body.message.from);
         telegramId = body.message.from.id ? String(body.message.from.id) : null;
       } else if (body.callback_query?.from) {
-        userRow = await upsertTelegramUser(body.callback_query.from);
+        userRow = await telegramUsersRepo.upsertTelegramUser(body.callback_query.from);
         telegramId = body.callback_query.from.id ? String(body.callback_query.from.id) : null;
       }
 
-      // Если есть updateId и telegramIdForDedup, проверяем дедупликацию
       if (updateId !== null && telegramIdForDedup !== null) {
-        const isNew = await tryAdvanceLastUpdateId(Number(telegramIdForDedup), updateId);
+        const isNew = await telegramUsersRepo.tryAdvanceLastUpdateId(
+          Number(telegramIdForDedup),
+          updateId,
+        );
         if (!isNew) {
           return reply.code(200).send({ ok: true });
         }
       }
 
-      // 1) callback_query (уведомления + inline-меню)
       if (body.callback_query) {
         const cq = body.callback_query;
         const data = cq.data ?? '';
@@ -204,15 +168,11 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         };
 
         try {
-          // --- УВЕДОМЛЕНИЯ ---
-          // ВАЖНО: handleNotificationCallback уже сам делает answerCallbackQuery (если у тебя он сделан как раньше),
-          // поэтому здесь ack() НЕ вызываем, чтобы не было double-ack.
-          if (data.startsWith('notify_')) {
+          if (isNotifyCallback(data)) {
             await handleNotificationCallback(body, request.id);
             return reply.code(200).send({ ok: true });
           }
 
-          // --- INLINE "⚙️ Меню" ---
           if (!cq.message?.chat?.id || typeof cq.message.message_id !== 'number') {
             await ack();
             return reply.code(200).send({ ok: true });
@@ -229,11 +189,12 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
             }
 
             try {
-              const settings = (await getNotificationSettings(telegramIdNum)) ?? {
-                notify_spb: false,
-                notify_msk: false,
-                notify_online: false,
-              };
+              const settings =
+                (await telegramUsersRepo.getNotificationSettings(telegramIdNum)) ?? ({
+                  notify_spb: false,
+                  notify_msk: false,
+                  notify_online: false,
+                } as const);
 
               const kb = telegramContent.buildNotificationKeyboard(settings);
 
@@ -267,9 +228,7 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
             return reply.code(200).send({ ok: true });
           }
 
-          // если добавишь кнопку "Назад" в inline-меню, используй callback_data: "menu_back"
           if (data === 'menu_back') {
-            // без текста "выберите действие"
             try {
               await tgCall('editMessageText', {
                 chat_id: chatId,
@@ -294,7 +253,6 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
             return reply.code(200).send({ ok: true });
           }
 
-          // неизвестный callback — просто ack
           await ack();
           return reply.code(200).send({ ok: true });
         } catch (err) {
@@ -304,7 +262,6 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         }
       }
 
-      // 2) message flow
       const msg = body.message;
       if (!msg || !msg.chat || typeof msg.chat.id !== 'number') {
         return reply.code(200).send({ ok: true });
@@ -314,14 +271,13 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         return reply.code(200).send({ ok: true });
       }
 
-      let userState = (await getTelegramUserState(telegramId)) ?? 'idle';
+      let userState = (await telegramUsersRepo.getTelegramUserState(telegramId)) ?? 'idle';
 
-      // важное: строка, не литеральный union
       const text: string = msg.text ?? '';
 
       if (text === '/start') {
-        await setTelegramUserState(telegramId, 'idle');
-        const allow = await tryConsumeStart(Number(telegramId));
+        await telegramUsersRepo.setTelegramUserState(telegramId, 'idle');
+        const allow = await telegramUsersRepo.tryConsumeStart(Number(telegramId));
         if (!allow) {
           return reply.code(200).send({ ok: true });
         }
@@ -342,7 +298,7 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
       }
 
       if (text === telegramContent.mainMenu.ask) {
-        await setTelegramUserState(telegramId, 'waiting_for_question');
+        await telegramUsersRepo.setTelegramUserState(telegramId, 'waiting_for_question');
         try {
           await tgCall('sendMessage', {
             chat_id: msg.chat.id,
@@ -360,7 +316,7 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
       }
 
       if (userState === 'waiting_for_question' && text) {
-        await setTelegramUserState(telegramId, 'idle');
+        await telegramUsersRepo.setTelegramUserState(telegramId, 'idle');
 
         const adminId = env.ADMIN_TELEGRAM_ID;
         if (adminId) {
@@ -395,7 +351,7 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
       }
 
       if (text === telegramContent.mainMenu.book) {
-        await setTelegramUserState(telegramId, 'idle');
+        await telegramUsersRepo.setTelegramUserState(telegramId, 'idle');
         try {
           await tgCall('sendMessage', {
             chat_id: msg.chat.id,
@@ -426,7 +382,6 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         return reply.code(200).send({ ok: true });
       }
 
-      // default
       if (userState === 'idle') {
         try {
           await sendMainMenu(msg.chat.id);

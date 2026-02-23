@@ -1,10 +1,9 @@
-// src/routes/telegramWebhook.test.ts
+// adapters/telegram/webhook.test.ts
 import Fastify from 'fastify';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import type { TelegramWebhookBody } from '../types/telegram.js';
+import type { TelegramWebhookBody } from '../../core/types.js';
 
-// ---- node-fetch mock (используется внутри telegramWebhook.ts)
 type FetchResponse = {
   ok: boolean;
   status: number;
@@ -17,24 +16,15 @@ vi.mock('node-fetch', () => {
   return { default: (..._args: unknown[]) => fetchMock() };
 });
 
-// ВАЖНО:
-// env парсится в config/env.ts при импорте.
-// Поэтому для тестов, которые меняют process.env, надо:
-// 1) выставить process.env
-// 2) vi.resetModules()
-// 3) импортировать telegramWebhookRoutes динамически
 async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
-  // применяем патч к process.env (включая удаление)
   for (const [k, v] of Object.entries(envPatch)) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
 
-  // сбрасываем кеш модулей, чтобы env пересобрался заново
   vi.resetModules();
 
-  // динамический импорт после resetModules
-  const mod = (await import('./telegramWebhook.js')) as typeof import('./telegramWebhook.js');
+  const mod = (await import('./webhook.js')) as typeof import('./webhook.js');
 
   const app = Fastify({ logger: false });
   await mod.telegramWebhookRoutes(app);
@@ -56,16 +46,14 @@ const hasRealDb =
 
 describe('POST /webhook/telegram', () => {
   it.skipIf(!hasRealDb)('deduplicates repeated update_id (persistent)', async () => {
-    // Сбросить last_update_id для telegram_id=1 (если тестовая БД доступна)
     try {
-      const { db } = await import('../db/client.js');
+      const { db } = await import('../../persistence/client.js');
       await db.query('UPDATE telegram_users SET last_update_id = NULL WHERE telegram_id = $1', [1]);
     } catch (e) {
       // ignore if db not available
     }
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
 
-    // 1) первый апдейт: /start гарантированно триггерит sendMessage => fetchMock
     const body = {
       update_id: 777,
       message: {
@@ -88,7 +76,6 @@ describe('POST /webhook/telegram', () => {
     const callsAfterFirst = fetchMock.mock.calls.length;
     expect(callsAfterFirst).toBeGreaterThan(0);
 
-    // 2) тот же update_id повторно — должен быть дедуп и не должно быть новых tgCall
     const res2 = await app.inject({
       method: 'POST',
       url: '/webhook/telegram',

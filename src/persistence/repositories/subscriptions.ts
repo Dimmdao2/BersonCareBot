@@ -1,26 +1,33 @@
-import { db } from "./client.js";
+import { db } from '../client.js';
 
 export async function getUserSubscriptions(userId: number): Promise<Set<number>> {
   const res = await db.query(
     `SELECT topic_id FROM user_subscriptions WHERE user_id=$1 AND is_active=true`,
-    [userId]
+    [userId],
   );
   return new Set(res.rows.map((r: { topic_id: number }) => r.topic_id));
 }
 
-export async function upsertUserSubscription(userId: number, topicId: number, isActive: boolean): Promise<void> {
+export async function upsertUserSubscription(
+  userId: number,
+  topicId: number,
+  isActive: boolean,
+): Promise<void> {
   await db.query(
     `INSERT INTO user_subscriptions(user_id, topic_id, is_active)
      VALUES ($1, $2, $3)
      ON CONFLICT (user_id, topic_id) DO UPDATE SET is_active = EXCLUDED.is_active`,
-    [userId, topicId, isActive]
+    [userId, topicId, isActive],
   );
 }
 
-export async function toggleUserSubscription(userId: number, topicId: number): Promise<boolean> {
+export async function toggleUserSubscription(
+  userId: number,
+  topicId: number,
+): Promise<boolean> {
   const res = await db.query(
     `SELECT is_active FROM user_subscriptions WHERE user_id=$1 AND topic_id=$2`,
-    [userId, topicId]
+    [userId, topicId],
   );
   const current = res.rows[0]?.is_active === true;
   const newState = !current;

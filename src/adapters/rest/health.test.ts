@@ -1,8 +1,8 @@
 
-import { buildApp } from '../app.js';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { buildApp } from '../../app.js';
+import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../db/client.js', () => ({
+vi.mock('../../persistence/client.js', () => ({
   healthCheckDb: () => Promise.resolve(true),
 }));
 
