@@ -1,6 +1,6 @@
 /**
- * Фасад над persistence/repositories/telegramUsers для адаптеров.
- * Граница: adapters → services → persistence.
+ * Фасад над db/repos/telegramUsers для адаптеров.
+ * Граница: adapters → services → db.
  * Реализации портов ядра: userPort, notificationsPort (репозиторий как порт).
  */
 export {
@@ -13,9 +13,9 @@ export {
   updateNotificationSettings,
   tryAdvanceLastUpdateId,
   tryConsumeStart,
-} from '../persistence/repositories/telegramUsers.js';
+} from '../db/repos/telegramUsers.js';
 export type {
   TelegramUserRow,
   NotificationSettings,
   NotificationSettingsPatch,
-} from '../persistence/repositories/telegramUsers.js';
+} from '../db/repos/telegramUsers.js';

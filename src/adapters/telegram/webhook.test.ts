@@ -53,7 +53,7 @@ const hasRealDb =
 describe('POST /webhook/telegram', () => {
   it.skipIf(!hasRealDb)('deduplicates repeated update_id (persistent)', async () => {
     try {
-      const { db } = await import('../../persistence/client.js');
+      const { db } = await import('../../db/client.js');
       await db.query('UPDATE telegram_users SET last_update_id = NULL WHERE telegram_id = $1', [1]);
     } catch (e) {
       // ignore if db not available

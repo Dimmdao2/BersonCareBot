@@ -1,5 +1,5 @@
-import { Topic, listActiveTopics } from '../persistence/repositories/topics.js';
-import { getUserSubscriptions, toggleUserSubscription } from '../persistence/repositories/subscriptions.js';
+import { Topic, listActiveTopics } from '../db/repos/topics.js';
+import { getUserSubscriptions, toggleUserSubscription } from '../db/repos/subscriptions.js';
 
 export type Subscription = {
   user_id: number;

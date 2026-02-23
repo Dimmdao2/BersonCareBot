@@ -115,7 +115,7 @@ async function main(): Promise<void> {
   const app = buildApp();
   await app.ready();
 
-  const { db } = await import('../src/persistence/client.js');
+  const { db } = await import('../src/db/client.js');
   await db.query(
     `UPDATE telegram_users SET last_start_at = NULL, last_update_id = NULL WHERE telegram_id = $1`,
     [E2E_TEST_TELEGRAM_ID],

@@ -40,7 +40,7 @@ export default [
   {
     files: ["src/adapters/**/*.ts"],
     rules: {
-      "no-restricted-imports": ["error", { patterns: ["*persistence*"] }],
+      "no-restricted-imports": ["error", { patterns: ["*db*"] }],
     },
   },
 

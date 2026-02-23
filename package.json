@@ -14,9 +14,9 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "audit": "pnpm audit --prod",
     "format": "prettier -w .",
-    "migrate": "tsx src/persistence/migrate.ts",
-    "db:migrate": "tsx src/persistence/migrate.ts",
-    "db:migrate:prod": "node dist/persistence/migrate.js",
+    "migrate": "tsx src/db/migrate.ts",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:migrate:prod": "node dist/db/migrate.js",
     "scenarios": "tsx e2e/run-webhook-scenarios.ts"
   },
   "engines": {

@@ -1,8 +1,8 @@
 /**
  * Фасад для проверки состояния инфраструктуры (БД).
- * Граница: adapters → services → persistence.
+ * Граница: adapters → services → db.
  */
-import { healthCheckDb } from '../persistence/client.js';
+import { healthCheckDb } from '../db/client.js';
 
 export async function checkDb(): Promise<boolean> {
   return healthCheckDb();

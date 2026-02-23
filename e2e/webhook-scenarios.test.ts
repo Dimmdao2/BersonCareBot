@@ -114,7 +114,7 @@ describe.skipIf(!hasE2EDb)('Webhook scenarios (e2e)', () => {
     app = buildApp();
     await app.ready();
 
-    const { db } = await import('../src/persistence/client.js');
+    const { db } = await import('../src/db/client.js');
     await db.query(
       `UPDATE telegram_users SET last_start_at = NULL, last_update_id = NULL WHERE telegram_id = $1`,
       [E2E_TEST_TELEGRAM_ID],
@@ -125,7 +125,7 @@ describe.skipIf(!hasE2EDb)('Webhook scenarios (e2e)', () => {
   }, 30000);
 
   afterAll(async () => {
-    const { db } = await import('../src/persistence/client.js');
+    const { db } = await import('../src/db/client.js');
     await db.query(`DELETE FROM telegram_users WHERE telegram_id = $1`, [E2E_TEST_TELEGRAM_ID]).catch(() => {});
     await app.close();
   }, 10000);
