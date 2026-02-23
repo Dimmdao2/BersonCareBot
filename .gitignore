@@ -17,6 +17,8 @@ logs/
 # Build outputs
 dist/
 build/
+admin/dist/
+admin/node_modules/
 
 # VSCode
 .vscode/

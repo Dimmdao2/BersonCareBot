@@ -40,6 +40,9 @@ jobs:
             echo "=== step: build ==="
             pnpm build
 
+            echo "=== step: build admin ==="
+            cd admin && npm install && npm run build && cd ..
+
             echo "=== step: migrate (uses /opt/tgcarebot/.env) ==="
             set -a
             source /opt/tgcarebot/.env
