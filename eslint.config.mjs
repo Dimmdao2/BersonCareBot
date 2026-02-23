@@ -12,6 +12,8 @@ export default [
       "node_modules/**",
       "coverage/**",
       "_old/**",
+      "admin/dist/**",
+      "admin/node_modules/**",
     ],
   },
 
