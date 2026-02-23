@@ -1,6 +1,6 @@
 /**
  * E2E scenario runner: sends Telegram webhook payloads to the app,
- * mocks Telegram API (via undici), asserts HTTP status and optional Telegram call count.
+ * mocks Telegram API via a process-global hook (see getTelegramFetch in telegramWebhook.ts).
  *
  * Run: pnpm run scenarios
  * Requires: .env with DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, INBOX_CHAT_ID, BOOKING_URL.
@@ -10,42 +10,43 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MockAgent, setGlobalDispatcher } from 'undici';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const rootDir = join(__dirname, '..');
 
-// Load env before importing app (app's config/env runs dotenv too, but ensure order)
-const dotenv = await import('dotenv');
-dotenv.config({ path: join(rootDir, '.env') });
-
-// Record outbound Telegram API calls (path + body) for assertions
+// Record outbound Telegram API calls for assertions
 type RecordedCall = { path: string; method: string; body: unknown };
 const recordedCalls: RecordedCall[] = [];
 
-function setupTelegramMock(): void {
-  const agent = new MockAgent();
-  agent.disableNetConnect();
-  const pool = agent.get('https://api.telegram.org');
-  pool
-    .intercept({ path: /^\/bot[^/]+\/.+/, method: 'POST' })
-    .reply(200, async (opts: { body: unknown }) => {
-      const path = (opts as { path?: string }).path ?? '';
-      const method = path.replace(/^\/bot[^/]+\//, '') || 'unknown';
-      let body: unknown = (opts as { body?: unknown }).body;
-      if (typeof body === 'string') {
-        try {
-          body = JSON.parse(body);
-        } catch {
-          /* leave body as string */
-        }
-      }
-      recordedCalls.push({ path, method, body });
-      return { ok: true, result: true };
-    })
-    .times(999);
-  setGlobalDispatcher(agent);
-}
+// Install mock BEFORE any code that might load the app (app reads this global when telegramWebhook.ts loads)
+type FetchInput = Parameters<typeof fetch>[0];
+type FetchInit = Parameters<typeof fetch>[1];
+const mockFetch: typeof fetch = async (input: FetchInput, init?: FetchInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url: string }).url;
+  if (!String(url).includes('api.telegram.org')) {
+    return fetch(input, init);
+  }
+  const path = new URL(url).pathname;
+  const method = path.replace(/^\/bot[^/]+\//, '') || 'unknown';
+  let body: unknown = init?.body;
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      /* leave as string */
+    }
+  }
+  recordedCalls.push({ path, method, body });
+  return new Response(JSON.stringify({ ok: true, result: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+};
+(process as unknown as { __TELEGRAM_FETCH_MOCK__?: typeof fetch }).__TELEGRAM_FETCH_MOCK__ = mockFetch;
+
+// Load env before importing app
+const dotenv = await import('dotenv');
+dotenv.config({ path: join(rootDir, '.env') });
 
 function clearRecordedCalls(): void {
   recordedCalls.length = 0;
@@ -105,12 +106,18 @@ function getExpected(name: string): ScenarioExpect {
   }
 }
 
-async function main(): Promise<void> {
-  setupTelegramMock();
+const E2E_TEST_TELEGRAM_ID = '111222333';
 
+async function main(): Promise<void> {
   const { buildApp } = await import('../src/app.js');
   const app = buildApp();
   await app.ready();
+
+  const { db } = await import('../src/db/client.js');
+  await db.query(
+    `UPDATE telegram_users SET last_start_at = NULL, last_update_id = NULL WHERE telegram_id = $1`,
+    [E2E_TEST_TELEGRAM_ID],
+  ).catch(() => { /* ignore if table/user missing */ });
 
   const env = (await import('../src/config/env.js')).env;
   const webhookSecret = env.TG_WEBHOOK_SECRET;
@@ -125,14 +132,15 @@ async function main(): Promise<void> {
   let passed = 0;
   let failed = 0;
 
+  type InjectRes = { statusCode: number };
   for (const { name, payload } of fixtures) {
     clearRecordedCalls();
-    const res = await app.inject({
+    const res = (await app.inject({
       method: 'POST',
       url: '/webhook/telegram',
       headers,
-      payload,
-    });
+      payload: payload as object,
+    })) as InjectRes;
     const expect = getExpected(name);
     const ok =
       res.statusCode === expect.status &&
@@ -152,12 +160,12 @@ async function main(): Promise<void> {
   // Wrong secret (only if TG_WEBHOOK_SECRET is set)
   if (typeof webhookSecret === 'string') {
     clearRecordedCalls();
-    const wrongRes = await app.inject({
+    const wrongRes = (await app.inject({
       method: 'POST',
       url: '/webhook/telegram',
       headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'wrong-secret' },
-      payload: fixtures[0]!.payload,
-    });
+      payload: fixtures[0]!.payload as object,
+    })) as InjectRes;
     const wrongOk = wrongRes.statusCode === 403 && recordedCalls.length === 0;
     if (wrongOk) {
       console.log('  ✓ wrong_secret (403, no Telegram calls)');
@@ -167,6 +175,8 @@ async function main(): Promise<void> {
       failed++;
     }
   }
+
+  await db.query(`DELETE FROM telegram_users WHERE telegram_id = $1`, [E2E_TEST_TELEGRAM_ID]).catch(() => {});
 
   await app.close();
   console.log('');
