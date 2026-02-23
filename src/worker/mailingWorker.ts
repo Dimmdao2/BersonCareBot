@@ -1,4 +1,11 @@
+/**
+ * Воркер рассылок: обрабатывает mailings, шлёт в Telegram по user_subscriptions.
+ * Ожидает таблицы: mailings, users (id, telegram_id, is_active), user_subscriptions, mailing_logs.
+ * При отсутствии таблиц падает при первом запросе к БД; при необходимости добавить миграции.
+ */
 import fetch from "node-fetch";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { env } from "../config/env.js";
 import { db } from '../persistence/client.js';
 import { logger, getWorkerLogger } from "../logger.js";
@@ -199,7 +206,11 @@ export async function runMailings(): Promise<void> {
   }
 }
 
-if (require.main === module) {
+const isMainModule =
+  process.argv[1] !== undefined &&
+  path.resolve(process.cwd(), process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
   runMailings()
     .then(() => process.exit(0))
     .catch((e: unknown) => {
