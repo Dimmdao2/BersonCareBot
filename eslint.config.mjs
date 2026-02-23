@@ -38,7 +38,7 @@ export default [
   },
 
   {
-    files: ["src/adapters/**/*.ts"],
+    files: ["src/channels/**/*.ts"],
     rules: {
       "no-restricted-imports": ["error", { patterns: ["*db*"] }],
     },
@@ -54,7 +54,7 @@ export default [
   {
     files: ["src/worker/**/*.ts"],
     rules: {
-      "no-restricted-imports": ["error", { patterns: ["*adapters*", "*app*"] }],
+      "no-restricted-imports": ["error", { patterns: ["*channels*", "*app*"] }],
     },
   },
 

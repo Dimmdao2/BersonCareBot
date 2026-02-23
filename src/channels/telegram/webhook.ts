@@ -8,7 +8,8 @@ import type { TelegramUserFrom } from '../../domain/types.js';
 import type { UserPort } from '../../domain/ports/user.js';
 import type { NotificationsPort } from '../../domain/ports/notifications.js';
 import { getBotInstance } from './client.js';
-import { fromTelegram, toTelegram, type TelegramApi } from './mapper.js';
+import { fromTelegram } from './mapIn.js';
+import { toTelegram, type TelegramApi } from './mapOut.js';
 import { parseWebhookBody } from './schema.js';
 
 const content: WebhookContent = telegramContent;

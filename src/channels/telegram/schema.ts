@@ -9,17 +9,13 @@ const FromSchema = z.object({
   language_code: z.string().optional(),
 });
 
-const ChatSchema = z.object({
-  id: z.number(),
-}).passthrough();
-
+const ChatSchema = z.object({ id: z.number() }).passthrough();
 const MessageSchema = z.object({
   message_id: z.number().optional(),
   text: z.string().optional(),
   from: FromSchema.optional(),
   chat: ChatSchema.optional(),
 }).passthrough();
-
 const CallbackQuerySchema = z.object({
   id: z.string(),
   from: FromSchema,
@@ -35,12 +31,8 @@ export const TelegramWebhookBodySchema = z.object({
 
 export type TelegramWebhookBodyValidated = z.infer<typeof TelegramWebhookBodySchema>;
 
-export function parseWebhookBody(
-  raw: unknown,
-): { success: true; data: TelegramWebhookBodyValidated } | { success: false; error: z.ZodError } {
+export function parseWebhookBody(raw: unknown): { success: true; data: TelegramWebhookBodyValidated } | { success: false; error: z.ZodError } {
   const result = TelegramWebhookBodySchema.safeParse(raw);
-  if (result.success) {
-    return { success: true, data: result.data };
-  }
+  if (result.success) return { success: true, data: result.data };
   return { success: false, error: result.error };
 }

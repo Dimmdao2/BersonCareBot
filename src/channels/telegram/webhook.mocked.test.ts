@@ -1,6 +1,5 @@
 /**
- * Unit tests for webhook: моки сервиса и Telegram (grammy использует global fetch), без реальной БД.
- * Проверки: дедупликация по update_id, валидация, секрет, устойчивость к ошибкам sendMessage.
+ * Unit tests for webhook: моки deps и Telegram (grammy использует global fetch), без реальной БД.
  */
 import Fastify from 'fastify';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -67,8 +66,8 @@ describe('POST /webhook/telegram (mocked)', () => {
 
   it('when tryAdvanceLastUpdateId returns false (duplicate), responds 200 without calling Telegram', async () => {
     tryAdvanceLastUpdateIdMock
-      .mockResolvedValueOnce(true)  // первый запрос — новый update_id
-      .mockResolvedValueOnce(false); // второй — дубликат
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
 
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
     const body = {

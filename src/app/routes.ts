@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from './di.js';
-import { telegramWebhookRoutes } from '../adapters/telegram/webhook.js';
+import { telegramWebhookRoutes } from '../channels/telegram/webhook.js';
 
 export type HealthResponse = {
   ok: true;

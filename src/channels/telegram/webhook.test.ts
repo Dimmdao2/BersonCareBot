@@ -1,4 +1,4 @@
-// adapters/telegram/webhook.test.ts
+// channels/telegram/webhook.test.ts
 import Fastify from 'fastify';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
