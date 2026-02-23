@@ -37,3 +37,11 @@
 ## Репозитории как порты (Фаза 1.3)
 
 persistence/repositories/telegramUsers экспортирует userPort: UserPort и notificationsPort: NotificationsPort — явные реализации контрактов ядра. services/telegramUserService реэкспортирует их; адаптер передаёт telegramUserService.userPort и telegramUserService.notificationsPort в ядро.
+
+---
+
+## REST-контракт (Фаза 1.4)
+
+Типы ответов REST-эндпоинтов в adapters/rest/contract.ts. Сейчас один эндпоинт:
+
+- **GET /health** — ответ 200, тело: `{ ok: true, db: 'up' | 'down' }` (HealthResponse). Реализация использует healthService.checkDb().
