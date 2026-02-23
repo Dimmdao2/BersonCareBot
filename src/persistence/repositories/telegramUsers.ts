@@ -1,6 +1,8 @@
 import { db } from '../client.js';
 import { logger } from '../../logger.js';
 import type { TelegramUserFrom } from '../../core/types.js';
+import type { UserPort } from '../../core/ports/user.js';
+import type { NotificationsPort } from '../../core/ports/notifications.js';
 
 export type TelegramUserRow = {
   id: string;
@@ -184,3 +186,16 @@ export async function getNotificationSettings(
     return null;
   }
 }
+
+export const userPort: UserPort = {
+  upsertTelegramUser,
+  setTelegramUserState,
+  getTelegramUserState,
+  tryAdvanceLastUpdateId,
+  tryConsumeStart,
+};
+
+export const notificationsPort: NotificationsPort = {
+  getNotificationSettings,
+  updateNotificationSettings,
+};

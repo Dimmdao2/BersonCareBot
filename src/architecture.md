@@ -31,3 +31,9 @@
 ## Логика в ядре (Фаза 1.2)
 
 Обработка апдейтов в core/messaging: handleMessage (handleStart, handleAsk, handleQuestion, handleBook, handleMore, handleDefaultIdle) и handleCallback (handleNotificationCallback, handleShowNotifications, handleMyBookings, handleBack). Контент передаётся адаптером как WebhookContent; ядро не импортирует content/. Адаптер создаёт MessagingPort (обёртка над tgCall), передаёт userPort и notificationsPort (telegramUserService) и вызывает хендлеры ядра.
+
+---
+
+## Репозитории как порты (Фаза 1.3)
+
+persistence/repositories/telegramUsers экспортирует userPort: UserPort и notificationsPort: NotificationsPort — явные реализации контрактов ядра. services/telegramUserService реэкспортирует их; адаптер передаёт telegramUserService.userPort и telegramUserService.notificationsPort в ядро.

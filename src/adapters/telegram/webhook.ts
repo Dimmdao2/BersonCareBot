@@ -36,8 +36,8 @@ const content: WebhookContent = telegramContent;
 export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void> {
   app.post('/webhook/telegram', async (request, reply) => {
     const reqLogger = getRequestLogger(request.id);
-    const userPort = telegramUserService;
-    const notificationsPort = telegramUserService;
+    const userPort = telegramUserService.userPort;
+    const notificationsPort = telegramUserService.notificationsPort;
     const messagingPort = createMessagingPort();
 
     try {

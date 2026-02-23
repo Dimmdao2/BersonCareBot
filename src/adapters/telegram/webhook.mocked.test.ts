@@ -9,18 +9,36 @@ const fetchMock = vi.fn();
 vi.mock('node-fetch', () => ({ default: (..._args: unknown[]) => fetchMock() }));
 
 const tryAdvanceLastUpdateIdMock = vi.fn();
+const mockUpsert = vi.fn().mockResolvedValue({ id: '1', telegram_id: '1' });
+const mockSetState = vi.fn().mockResolvedValue(undefined);
+const mockGetState = vi.fn().mockResolvedValue('idle');
+const mockGetNotif = vi.fn().mockResolvedValue({
+  notify_spb: false,
+  notify_msk: false,
+  notify_online: false,
+});
+const mockUpdateNotif = vi.fn().mockResolvedValue(undefined);
+const mockConsumeStart = vi.fn().mockResolvedValue(true);
+
 vi.mock('../../services/telegramUserService.js', () => ({
-  upsertTelegramUser: vi.fn().mockResolvedValue({ id: '1', telegram_id: '1' }),
-  setTelegramUserState: vi.fn().mockResolvedValue(undefined),
-  getTelegramUserState: vi.fn().mockResolvedValue('idle'),
-  getNotificationSettings: vi.fn().mockResolvedValue({
-    notify_spb: false,
-    notify_msk: false,
-    notify_online: false,
-  }),
-  updateNotificationSettings: vi.fn().mockResolvedValue(undefined),
+  userPort: {
+    upsertTelegramUser: mockUpsert,
+    setTelegramUserState: mockSetState,
+    getTelegramUserState: mockGetState,
+    tryAdvanceLastUpdateId: tryAdvanceLastUpdateIdMock,
+    tryConsumeStart: mockConsumeStart,
+  },
+  notificationsPort: {
+    getNotificationSettings: mockGetNotif,
+    updateNotificationSettings: mockUpdateNotif,
+  },
+  upsertTelegramUser: mockUpsert,
+  setTelegramUserState: mockSetState,
+  getTelegramUserState: mockGetState,
+  getNotificationSettings: mockGetNotif,
+  updateNotificationSettings: mockUpdateNotif,
   tryAdvanceLastUpdateId: tryAdvanceLastUpdateIdMock,
-  tryConsumeStart: vi.fn().mockResolvedValue(true),
+  tryConsumeStart: mockConsumeStart,
 }));
 
 type FetchResponse = {
