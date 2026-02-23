@@ -22,7 +22,7 @@
 
 - **UserPort** (core/ports/user.ts): upsertTelegramUser, setTelegramUserState, getTelegramUserState, tryAdvanceLastUpdateId, tryConsumeStart. Реализация: persistence/repositories/telegramUsers → services/telegramUserService.
 - **NotificationsPort** (core/ports/notifications.ts): getNotificationSettings, updateNotificationSettings. Реализация: тот же репозиторий.
-- **MessagingPort** (core/ports/messaging.ts): sendMessage, editMessageText, editMessageReplyMarkup, answerCallbackQuery. Реализация: adapters/telegram/client (tgCall).
+- **MessagingPort** (core/ports/messaging.ts): sendMessage, editMessageText, editMessageReplyMarkup, answerCallbackQuery. Реализация: adapters/telegram/client (grammy Bot.api).
 
 Роут/адаптер передаёт порты в ядро; логика обработки — в ядре (1.2).
 
@@ -45,3 +45,9 @@ persistence/repositories/telegramUsers экспортирует userPort: UserPo
 Типы ответов REST-эндпоинтов в adapters/rest/contract.ts. Сейчас один эндпоинт:
 
 - **GET /health** — ответ 200, тело: `{ ok: true, db: 'up' | 'down' }` (HealthResponse). Реализация использует healthService.checkDb().
+
+---
+
+## Библиотека Telegram (Фаза 2)
+
+Адаптер вызовов к Telegram Bot API переведён на [grammy](https://grammy.dev): adapters/telegram/client.ts создаёт Bot с `client: { fetch: globalThis.fetch }` и экспортирует createMessagingPort(), реализующую MessagingPort через bot.api (sendMessage, editMessageText, editMessageReplyMarkup, answerCallbackQuery). В E2E и юнит-тестах подменяется globalThis.fetch для перехвата вызовов к api.telegram.org. node-fetch остаётся в проекте только для worker.

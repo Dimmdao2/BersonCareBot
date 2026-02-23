@@ -1,6 +1,6 @@
 /**
  * E2E scenario runner: sends Telegram webhook payloads to the app,
- * mocks Telegram API via a process-global hook (see getTelegramFetch in adapters/telegram/client.ts).
+ * mocks Telegram API by patching globalThis.fetch (grammy uses fetch).
  *
  * Run: pnpm run scenarios
  * Requires: .env with DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, INBOX_CHAT_ID, BOOKING_URL.
@@ -18,14 +18,10 @@ const rootDir = join(__dirname, '..');
 type RecordedCall = { path: string; method: string; body: unknown };
 const recordedCalls: RecordedCall[] = [];
 
-// Install mock BEFORE any code that might load the app (app reads this global when telegramWebhook.ts loads)
 type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];
 const mockFetch: typeof fetch = async (input: FetchInput, init?: FetchInit) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url: string }).url;
-  if (!String(url).includes('api.telegram.org')) {
-    return fetch(input, init);
-  }
   const path = new URL(url).pathname;
   const method = path.replace(/^\/bot[^/]+\//, '') || 'unknown';
   let body: unknown = init?.body;
@@ -42,7 +38,13 @@ const mockFetch: typeof fetch = async (input: FetchInput, init?: FetchInit) => {
     headers: { 'Content-Type': 'application/json' },
   });
 };
-(process as unknown as { __TELEGRAM_FETCH_MOCK__?: typeof fetch }).__TELEGRAM_FETCH_MOCK__ = mockFetch;
+
+const originalFetch = globalThis.fetch;
+globalThis.fetch = (input: FetchInput, init?: FetchInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url: string }).url;
+  if (String(url).includes('api.telegram.org')) return mockFetch(input, init);
+  return originalFetch(input, init);
+};
 
 // Load env before importing app
 const dotenv = await import('dotenv');

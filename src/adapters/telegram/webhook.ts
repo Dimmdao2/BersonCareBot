@@ -15,21 +15,11 @@ import {
   handleMyBookings,
   handleBack,
 } from '../../core/messaging/index.js';
-import type { MessagingPort } from '../../core/ports/messaging.js';
 import type { WebhookContent } from '../../core/webhookContent.js';
 import type { TelegramUserFrom } from '../../core/types.js';
-import { tgCall } from './client.js';
+import { createMessagingPort } from './client.js';
 import { isNotifyCallback } from './mapper.js';
 import { parseWebhookBody } from './schema.js';
-
-function createMessagingPort(): MessagingPort {
-  return {
-    sendMessage: (p) => tgCall('sendMessage', p),
-    editMessageText: (p) => tgCall('editMessageText', p),
-    editMessageReplyMarkup: (p) => tgCall('editMessageReplyMarkup', p),
-    answerCallbackQuery: (p) => tgCall('answerCallbackQuery', p),
-  };
-}
 
 const content: WebhookContent = telegramContent;
 

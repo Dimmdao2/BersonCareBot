@@ -1,28 +1,36 @@
-import fetch from 'node-fetch';
+/**
+ * Telegram Bot API adapter via grammy. Реализует MessagingPort для ядра.
+ * Использует globalThis.fetch (в E2E/тестах его подменяют для мока).
+ */
+import { Bot } from 'grammy';
+import type { ApiClientOptions } from 'grammy';
 import { env } from '../../config/env.js';
+import type { MessagingPort } from '../../core/ports/messaging.js';
 
-type TgOkResponse<T> = { ok: true; result: T };
-type TgErrResponse = { ok: false; description?: string };
-
-function getTelegramFetch(): typeof fetch {
-  const g = process as unknown as { __TELEGRAM_FETCH_MOCK__?: typeof fetch };
-  return g.__TELEGRAM_FETCH_MOCK__ ?? fetch;
-}
-
-export async function tgCall<T>(method: string, params: Record<string, unknown>): Promise<T> {
+function getBot(): Bot {
   const token = env.BOT_TOKEN;
   if (!token) throw new Error('BOT_TOKEN is not set');
-
-  const url = `https://api.telegram.org/bot${token}/${method}`;
-  const res = await getTelegramFetch()(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
+  return new Bot(token, {
+    client: { fetch: globalThis.fetch as unknown as NonNullable<ApiClientOptions['fetch']> },
   });
+}
 
-  const data = (await res.json()) as TgOkResponse<T> | TgErrResponse;
-  if (!data.ok) {
-    throw new Error(`Telegram API error: ${JSON.stringify(data)}`);
-  }
-  return data.result;
+let botInstance: Bot | null = null;
+
+function getBotInstance(): Bot {
+  if (!botInstance) botInstance = getBot();
+  return botInstance;
+}
+
+export function createMessagingPort(): MessagingPort {
+  const api = getBotInstance().api;
+  return {
+    sendMessage: (p) =>
+      api.sendMessage(p.chat_id, p.text, { reply_markup: p.reply_markup as never }),
+    editMessageText: (p) =>
+      api.editMessageText(p.chat_id, p.message_id, p.text, { reply_markup: p.reply_markup as never }),
+    editMessageReplyMarkup: (p) =>
+      api.editMessageReplyMarkup(p.chat_id, p.message_id, { reply_markup: p.reply_markup as never }),
+    answerCallbackQuery: (p) => api.answerCallbackQuery(p.callback_query_id),
+  };
 }

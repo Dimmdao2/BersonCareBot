@@ -4,17 +4,20 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import type { TelegramWebhookBody } from '../../core/types.js';
 
-type FetchResponse = {
-  ok: boolean;
-  status: number;
-  json: () => Promise<unknown>;
+const telegramFetchMock = vi.fn().mockImplementation(() =>
+  Promise.resolve(
+    new Response(JSON.stringify({ ok: true, result: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  ),
+);
+const originalFetch = globalThis.fetch;
+globalThis.fetch = (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url: string }).url;
+  if (String(url).includes('api.telegram.org')) return telegramFetchMock(input, init);
+  return originalFetch(input, init);
 };
-
-const fetchMock = vi.fn();
-
-vi.mock('node-fetch', () => {
-  return { default: (..._args: unknown[]) => fetchMock() };
-});
 
 async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
   for (const [k, v] of Object.entries(envPatch)) {
@@ -33,12 +36,15 @@ async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
 }
 
 beforeEach(() => {
-  fetchMock.mockReset();
-  fetchMock.mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ({}),
-  } satisfies FetchResponse);
+  telegramFetchMock.mockClear();
+  telegramFetchMock.mockImplementation(() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ ok: true, result: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ),
+  );
 });
 
 const hasRealDb =
@@ -73,7 +79,7 @@ describe('POST /webhook/telegram', () => {
     expect(res1.statusCode).toBe(200);
     expect(res1.json()).toEqual({ ok: true });
 
-    const callsAfterFirst = fetchMock.mock.calls.length;
+    const callsAfterFirst = telegramFetchMock.mock.calls.length;
     expect(callsAfterFirst).toBeGreaterThan(0);
 
     const res2 = await app.inject({
@@ -85,7 +91,7 @@ describe('POST /webhook/telegram', () => {
     expect(res2.statusCode).toBe(200);
     expect(res2.json()).toEqual({ ok: true });
 
-    const callsAfterSecond = fetchMock.mock.calls.length;
+    const callsAfterSecond = telegramFetchMock.mock.calls.length;
     expect(callsAfterSecond).toBe(callsAfterFirst);
   });
   it('returns 200 if no secret set', async () => {
@@ -160,11 +166,12 @@ describe('POST /webhook/telegram', () => {
   });
 
   it('tgCall failure must not break webhook (still 200)', async () => {
-    fetchMock.mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({ description: 'Bad Request: chat not found' }),
-    } satisfies FetchResponse);
+    telegramFetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: false, description: 'Bad Request: chat not found' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
 
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
 

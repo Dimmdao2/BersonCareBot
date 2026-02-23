@@ -1,12 +1,24 @@
 /**
- * Unit tests for webhook: моки сервиса и Telegram, без реальной БД.
- * Проверки: дедупликация по update_id, валидация, секрет, устойчивость к ошибкам tgCall.
+ * Unit tests for webhook: моки сервиса и Telegram (grammy использует global fetch), без реальной БД.
+ * Проверки: дедупликация по update_id, валидация, секрет, устойчивость к ошибкам sendMessage.
  */
 import Fastify from 'fastify';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const fetchMock = vi.fn();
-vi.mock('node-fetch', () => ({ default: (..._args: unknown[]) => fetchMock() }));
+const telegramFetchMock = vi.fn().mockImplementation(() =>
+  Promise.resolve(
+    new Response(JSON.stringify({ ok: true, result: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  ),
+);
+const originalFetch = globalThis.fetch;
+globalThis.fetch = (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as { url: string }).url;
+  if (String(url).includes('api.telegram.org')) return telegramFetchMock(input, init);
+  return originalFetch(input, init);
+};
 
 const tryAdvanceLastUpdateIdMock = vi.fn();
 const mockUpsert = vi.fn().mockResolvedValue({ id: '1', telegram_id: '1' });
@@ -41,12 +53,6 @@ vi.mock('../../services/telegramUserService.js', () => ({
   tryConsumeStart: mockConsumeStart,
 }));
 
-type FetchResponse = {
-  ok: boolean;
-  status: number;
-  json: () => Promise<unknown>;
-};
-
 async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
   for (const [k, v] of Object.entries(envPatch)) {
     if (v === undefined) delete process.env[k];
@@ -62,12 +68,7 @@ async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
 
 describe('POST /webhook/telegram (mocked)', () => {
   beforeEach(() => {
-    fetchMock.mockReset();
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({}),
-    } satisfies FetchResponse);
+    telegramFetchMock.mockClear();
     tryAdvanceLastUpdateIdMock.mockReset();
   });
 
@@ -93,7 +94,7 @@ describe('POST /webhook/telegram (mocked)', () => {
       payload: body,
     });
     expect(res1.statusCode).toBe(200);
-    const callsAfterFirst = fetchMock.mock.calls.length;
+    const callsAfterFirst = telegramFetchMock.mock.calls.length;
     expect(callsAfterFirst).toBeGreaterThan(0);
 
     const res2 = await app.inject({
@@ -103,7 +104,7 @@ describe('POST /webhook/telegram (mocked)', () => {
     });
     expect(res2.statusCode).toBe(200);
     expect(res2.json()).toEqual({ ok: true });
-    const callsAfterSecond = fetchMock.mock.calls.length;
+    const callsAfterSecond = telegramFetchMock.mock.calls.length;
     expect(callsAfterSecond).toBe(callsAfterFirst);
   });
 

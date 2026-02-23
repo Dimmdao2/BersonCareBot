@@ -1,6 +1,6 @@
 /**
  * Порты ядра — контракты «что нужно ядру» без привязки к БД и Telegram.
- * Реализации: persistence/repositories (UserPort, NotificationsPort), adapters/telegram/client (MessagingPort).
+ * Реализации: persistence/repositories (UserPort, NotificationsPort), adapters/telegram/client (MessagingPort via grammy).
  */
 export type { UserPort, TelegramUserRow } from './user.js';
 export type {
