@@ -32,7 +32,7 @@ const mockGetNotif = vi.fn().mockResolvedValue({
 const mockUpdateNotif = vi.fn().mockResolvedValue(undefined);
 const mockConsumeStart = vi.fn().mockResolvedValue(true);
 
-vi.mock('../../services/telegramUserService.js', () => ({
+const mockWebhookDeps = {
   userPort: {
     upsertTelegramUser: mockUpsert,
     setTelegramUserState: mockSetState,
@@ -44,14 +44,7 @@ vi.mock('../../services/telegramUserService.js', () => ({
     getNotificationSettings: mockGetNotif,
     updateNotificationSettings: mockUpdateNotif,
   },
-  upsertTelegramUser: mockUpsert,
-  setTelegramUserState: mockSetState,
-  getTelegramUserState: mockGetState,
-  getNotificationSettings: mockGetNotif,
-  updateNotificationSettings: mockUpdateNotif,
-  tryAdvanceLastUpdateId: tryAdvanceLastUpdateIdMock,
-  tryConsumeStart: mockConsumeStart,
-}));
+};
 
 async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
   for (const [k, v] of Object.entries(envPatch)) {
@@ -61,7 +54,7 @@ async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
   vi.resetModules();
   const mod = (await import('./webhook.js')) as typeof import('./webhook.js');
   const app = Fastify({ logger: false });
-  await mod.telegramWebhookRoutes(app);
+  await mod.telegramWebhookRoutes(app, mockWebhookDeps);
   await app.ready();
   return app;
 }

@@ -28,9 +28,10 @@ async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
   vi.resetModules();
 
   const mod = (await import('./webhook.js')) as typeof import('./webhook.js');
+  const { userPort, notificationsPort } = await import('../../db/repos/telegramUsers.js');
 
   const app = Fastify({ logger: false });
-  await mod.telegramWebhookRoutes(app);
+  await mod.telegramWebhookRoutes(app, { userPort, notificationsPort });
   await app.ready();
   return app;
 }

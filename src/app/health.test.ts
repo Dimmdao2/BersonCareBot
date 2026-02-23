@@ -1,9 +1,8 @@
-
-import { buildApp } from '../../app.js';
+import { buildApp } from './server.js';
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../services/healthService.js', () => ({
-  checkDb: () => Promise.resolve(true),
+vi.mock('../db/client.js', () => ({
+  healthCheckDb: () => Promise.resolve(true),
 }));
 
 describe('GET /health', () => {

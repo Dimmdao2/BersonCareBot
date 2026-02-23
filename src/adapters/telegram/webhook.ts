@@ -2,21 +2,29 @@ import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
 import { getRequestLogger } from '../../observability/logger.js';
 import { telegramContent } from '../../content/index.js';
-import * as telegramUserService from '../../services/telegramUserService.js';
 import { handleUpdate } from '../../domain/usecases/index.js';
 import type { WebhookContent } from '../../domain/webhookContent.js';
 import type { TelegramUserFrom } from '../../domain/types.js';
+import type { UserPort } from '../../domain/ports/user.js';
+import type { NotificationsPort } from '../../domain/ports/notifications.js';
 import { getBotInstance } from './client.js';
 import { fromTelegram, toTelegram, type TelegramApi } from './mapper.js';
 import { parseWebhookBody } from './schema.js';
 
 const content: WebhookContent = telegramContent;
 
-export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void> {
+export type TelegramWebhookDeps = {
+  userPort: UserPort;
+  notificationsPort: NotificationsPort;
+};
+
+export async function telegramWebhookRoutes(
+  app: FastifyInstance,
+  deps: TelegramWebhookDeps,
+): Promise<void> {
+  const { userPort, notificationsPort } = deps;
   app.post('/webhook/telegram', async (request, reply) => {
     const reqLogger = getRequestLogger(request.id);
-    const userPort = telegramUserService.userPort;
-    const notificationsPort = telegramUserService.notificationsPort;
 
     try {
       const secret = env.TG_WEBHOOK_SECRET;
