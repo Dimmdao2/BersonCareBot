@@ -51,3 +51,9 @@ persistence/repositories/telegramUsers экспортирует userPort: UserPo
 ## Библиотека Telegram (Фаза 2)
 
 Адаптер вызовов к Telegram Bot API переведён на [grammy](https://grammy.dev): adapters/telegram/client.ts создаёт Bot с `client: { fetch: globalThis.fetch }` и экспортирует createMessagingPort(), реализующую MessagingPort через bot.api (sendMessage, editMessageText, editMessageReplyMarkup, answerCallbackQuery). В E2E и юнит-тестах подменяется globalThis.fetch для перехвата вызовов к api.telegram.org. node-fetch остаётся в проекте только для worker.
+
+---
+
+## Воркер и схема БД
+
+Воркер рассылок (src/worker/mailingWorker.ts) использует таблицы: telegram_users (id, telegram_id, is_active), mailing_topics, user_subscriptions, mailings, mailing_logs. Миграция 008_worker_schema.sql добавляет is_active в telegram_users и создаёт mailings, mailing_logs.

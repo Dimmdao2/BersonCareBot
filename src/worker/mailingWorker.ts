@@ -1,7 +1,8 @@
 /**
  * Воркер рассылок: обрабатывает mailings, шлёт в Telegram по user_subscriptions.
- * Ожидает таблицы: mailings, users (id, telegram_id, is_active), user_subscriptions, mailing_logs.
- * При отсутствии таблиц падает при первом запросе к БД; при необходимости добавить миграции.
+ * Схема: telegram_users (id, telegram_id, is_active), mailing_topics, user_subscriptions (user_id, topic_id, is_active),
+ * mailings (id, topic_id, title, status, ...), mailing_logs (user_id, mailing_id, status, sent_at, error).
+ * Миграция: 008_worker_schema.sql.
  */
 import fetch from "node-fetch";
 import path from "node:path";
@@ -12,7 +13,7 @@ import { logger, getWorkerLogger } from "../logger.js";
 
 type DbUser = {
   id: number;
-  telegram_id: number;
+  telegram_id: number | string;
   is_active: boolean | null;
 };
 
@@ -35,7 +36,7 @@ async function getActiveUsersForTopic(topicId: number): Promise<DbUser[]> {
   const res = await db.query(
     `
     SELECT u.id, u.telegram_id, u.is_active
-    FROM users u
+    FROM telegram_users u
     JOIN user_subscriptions s ON s.user_id = u.id
     WHERE s.topic_id = $1
       AND s.is_active = true
@@ -47,7 +48,7 @@ async function getActiveUsersForTopic(topicId: number): Promise<DbUser[]> {
 }
 
 async function markUserInactive(userId: number): Promise<void> {
-  await db.query("UPDATE users SET is_active = false WHERE id = $1", [userId]);
+  await db.query("UPDATE telegram_users SET is_active = false WHERE id = $1", [userId]);
 }
 
 async function logMailingResult(
@@ -155,7 +156,7 @@ export async function runMailings(): Promise<void> {
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
               attemptUsed = attempt;
               try {
-                await sendTelegramMessage(user.telegram_id, mailing.title);
+                await sendTelegramMessage(Number(user.telegram_id), mailing.title);
                 break;
               } catch (err) {
                 if (attempt === MAX_RETRIES) throw err;
