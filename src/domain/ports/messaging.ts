@@ -1,4 +1,4 @@
-// Port for «отправить ответ» — implemented by adapters/telegram/client
+// Port for «отправить ответ» — implemented by channels/telegram/client
 export type MessagingPort = {
   sendMessage(params: {
     chat_id: number;

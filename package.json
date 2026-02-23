@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "build:admin": "cd admin && npm install && npm run build",
     "start": "node dist/main.js",
     "test": "vitest --run",

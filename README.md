@@ -76,7 +76,7 @@ pnpm run migrate
 
 Сервер: каталог приложения `/opt/tgcarebot` (в нём `.env`, подкаталог app с репо: src, dist, migrations). Сервис systemd: `tgcarebot`. Деплой от пользователя **deploy** по SSH; ключ — по усмотрению (например `~/.ssh/...`).
 
-GitHub Actions: push в main → checkout → `pnpm install --frozen-lockfile` → `pnpm build` → загрузка `.env` и `pnpm exec tsx src/persistence/migrate.ts` → `systemctl restart tgcarebot`.
+GitHub Actions: push в main → checkout → `pnpm install --frozen-lockfile` → `pnpm build` → загрузка `.env` и `pnpm exec tsx src/db/migrate.ts` → `systemctl restart tgcarebot`.
 
 Полезные команды на сервере:
 
