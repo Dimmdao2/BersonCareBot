@@ -24,4 +24,10 @@
 - **NotificationsPort** (core/ports/notifications.ts): getNotificationSettings, updateNotificationSettings. Реализация: тот же репозиторий.
 - **MessagingPort** (core/ports/messaging.ts): sendMessage, editMessageText, editMessageReplyMarkup, answerCallbackQuery. Реализация: adapters/telegram/client (tgCall).
 
-Роут/адаптер пока может вызывать сервисы напрямую; при выносе логики в ядро (1.2) ядро будет получать порты снаружи (DI).
+Роут/адаптер передаёт порты в ядро; логика обработки — в ядре (1.2).
+
+---
+
+## Логика в ядре (Фаза 1.2)
+
+Обработка апдейтов в core/messaging: handleMessage (handleStart, handleAsk, handleQuestion, handleBook, handleMore, handleDefaultIdle) и handleCallback (handleNotificationCallback, handleShowNotifications, handleMyBookings, handleBack). Контент передаётся адаптером как WebhookContent; ядро не импортирует content/. Адаптер создаёт MessagingPort (обёртка над tgCall), передаёт userPort и notificationsPort (telegramUserService) и вызывает хендлеры ядра.
