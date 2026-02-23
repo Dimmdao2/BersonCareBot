@@ -1,6 +1,6 @@
 import type { UserPort } from '../ports/user.js';
-import type { MessagingPort } from '../ports/messaging.js';
 import type { WebhookContent } from '../webhookContent.js';
+import type { OutgoingAction } from '../types.js';
 import { tryConsumeStart } from '../onboarding/service.js';
 
 const mainMenuMarkup = (content: WebhookContent) => ({
@@ -10,67 +10,77 @@ const mainMenuMarkup = (content: WebhookContent) => ({
 });
 
 /**
- * Handle /start: consume start token, send welcome + main menu. Returns true if start was consumed.
+ * Handle /start: consume start token, return welcome + main menu actions if consumed.
  */
 export async function handleStart(
   chatId: number,
   telegramId: number,
   userPort: UserPort,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-): Promise<boolean> {
+): Promise<{ consumed: boolean; actions: OutgoingAction[] }> {
   await userPort.setTelegramUserState(String(telegramId), 'idle');
   const allow = await tryConsumeStart(telegramId, userPort);
-  if (!allow) return false;
-  await messagingPort.sendMessage({
-    chat_id: chatId,
-    text: content.messages.welcome,
-    reply_markup: mainMenuMarkup(content),
-  });
-  return true;
+  if (!allow) return { consumed: false, actions: [] };
+  return {
+    consumed: true,
+    actions: [
+      {
+        type: 'sendMessage',
+        chatId,
+        text: content.messages.welcome,
+        replyMarkup: mainMenuMarkup(content),
+      },
+    ],
+  };
 }
 
 /**
- * Handle "Задать вопрос": set state, send describe question.
+ * Handle "Задать вопрос": set state, return describe question action.
  */
 export async function handleAsk(
   chatId: number,
   telegramId: string,
   userPort: UserPort,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-): Promise<void> {
+): Promise<OutgoingAction[]> {
   await userPort.setTelegramUserState(telegramId, 'waiting_for_question');
-  await messagingPort.sendMessage({
-    chat_id: chatId,
-    text: content.messages.describeQuestion,
-    reply_markup: mainMenuMarkup(content),
-  });
+  return [
+    {
+      type: 'sendMessage',
+      chatId,
+      text: content.messages.describeQuestion,
+      replyMarkup: mainMenuMarkup(content),
+    },
+  ];
 }
 
 /**
- * Handle question text in waiting_for_question: clear state, optional forward to admin, send confirmation.
+ * Handle question text in waiting_for_question: clear state, optional forward to admin, return actions.
  */
 export async function handleQuestion(
   chatId: number,
   telegramId: string,
   text: string,
   userPort: UserPort,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-  adminChatId: number | undefined,
-  adminMessage: string | undefined,
-  forwardToAdmin: (adminChatId: number, message: string) => Promise<void>,
-): Promise<void> {
+  adminForward: { chatId: number; text: string } | undefined,
+): Promise<OutgoingAction[]> {
   await userPort.setTelegramUserState(telegramId, 'idle');
-  if (adminChatId !== undefined && adminMessage !== undefined) {
-    await forwardToAdmin(adminChatId, adminMessage);
+  const actions: OutgoingAction[] = [];
+  if (adminForward) {
+    actions.push({
+      type: 'sendMessage',
+      chatId: adminForward.chatId,
+      text: adminForward.text,
+    });
   }
-  await messagingPort.sendMessage({
-    chat_id: chatId,
+  actions.push({
+    type: 'sendMessage',
+    chatId,
     text: content.messages.questionAccepted,
-    reply_markup: mainMenuMarkup(content),
+    replyMarkup: mainMenuMarkup(content),
   });
+  return actions;
 }
 
 /**
@@ -80,43 +90,49 @@ export async function handleBook(
   chatId: number,
   telegramId: string,
   userPort: UserPort,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-): Promise<void> {
+): Promise<OutgoingAction[]> {
   await userPort.setTelegramUserState(telegramId, 'idle');
-  await messagingPort.sendMessage({
-    chat_id: chatId,
-    text: content.messages.notImplemented,
-    reply_markup: mainMenuMarkup(content),
-  });
+  return [
+    {
+      type: 'sendMessage',
+      chatId,
+      text: content.messages.notImplemented,
+      replyMarkup: mainMenuMarkup(content),
+    },
+  ];
 }
 
 /**
- * Handle "Меню": send choose menu inline.
+ * Handle "Меню": choose menu inline.
  */
 export async function handleMore(
   chatId: number,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-): Promise<void> {
-  await messagingPort.sendMessage({
-    chat_id: chatId,
-    text: content.messages.chooseMenu,
-    reply_markup: content.moreMenuInline,
-  });
+): Promise<OutgoingAction[]> {
+  return [
+    {
+      type: 'sendMessage',
+      chatId,
+      text: content.messages.chooseMenu,
+      replyMarkup: content.moreMenuInline,
+    },
+  ];
 }
 
 /**
- * Default idle: send main menu.
+ * Default idle: main menu.
  */
 export async function handleDefaultIdle(
   chatId: number,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-): Promise<void> {
-  await messagingPort.sendMessage({
-    chat_id: chatId,
-    text: content.messages.chooseMenu,
-    reply_markup: mainMenuMarkup(content),
-  });
+): Promise<OutgoingAction[]> {
+  return [
+    {
+      type: 'sendMessage',
+      chatId,
+      text: content.messages.chooseMenu,
+      replyMarkup: mainMenuMarkup(content),
+    },
+  ];
 }

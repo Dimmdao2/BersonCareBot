@@ -1,11 +1,11 @@
 import type { NotificationsPort } from '../ports/notifications.js';
-import type { MessagingPort } from '../ports/messaging.js';
 import type { WebhookContent } from '../webhookContent.js';
+import type { OutgoingAction } from '../types.js';
 import { getSettings, updateSettings } from '../notifications/service.js';
 
 /**
- * Handle notification toggle callbacks: update settings, refresh keyboard.
- * Adapter should call answerCallbackQuery in finally.
+ * Handle notification toggle callbacks: update settings, return edit keyboard + ack.
+ * Caller should append answerCallbackQuery.
  */
 export async function handleNotificationCallback(
   telegramId: number,
@@ -13,9 +13,8 @@ export async function handleNotificationCallback(
   messageId: number,
   data: string,
   notificationsPort: NotificationsPort,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-): Promise<void> {
+): Promise<OutgoingAction[] | null> {
   let settings = await getSettings(telegramId, notificationsPort);
 
   if (data === 'notify_toggle_spb') {
@@ -32,12 +31,19 @@ export async function handleNotificationCallback(
       notificationsPort,
     );
   } else {
-    return;
+    return null;
   }
 
   const fresh = await getSettings(telegramId, notificationsPort);
   const kb = content.buildNotificationKeyboard(fresh);
-  await messagingPort.editMessageReplyMarkup({ chat_id: chatId, message_id: messageId, reply_markup: kb });
+  return [
+    {
+      type: 'editMessageReplyMarkup',
+      chatId,
+      messageId,
+      replyMarkup: kb,
+    },
+  ];
 }
 
 /**
@@ -48,18 +54,20 @@ export async function handleShowNotifications(
   messageId: number,
   telegramId: number,
   notificationsPort: NotificationsPort,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-): Promise<void> {
+): Promise<OutgoingAction[]> {
   const settings = await getSettings(telegramId, notificationsPort);
   const kb = content.buildNotificationKeyboard(settings);
   const text = `${content.notificationSettings.title}\n\n${content.notificationSettings.subtitle}`;
-  await messagingPort.editMessageText({
-    chat_id: chatId,
-    message_id: messageId,
-    text,
-    reply_markup: kb,
-  });
+  return [
+    {
+      type: 'editMessageText',
+      chatId,
+      messageId,
+      text,
+      replyMarkup: kb,
+    },
+  ];
 }
 
 /**
@@ -68,38 +76,40 @@ export async function handleShowNotifications(
 export async function handleMyBookings(
   chatId: number,
   messageId: number,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-): Promise<void> {
-  await messagingPort.editMessageText({
-    chat_id: chatId,
-    message_id: messageId,
-    text: content.messages.bookingMy,
-    reply_markup: content.moreMenuInline,
-  });
+): Promise<OutgoingAction[]> {
+  return [
+    {
+      type: 'editMessageText',
+      chatId,
+      messageId,
+      text: content.messages.bookingMy,
+      replyMarkup: content.moreMenuInline,
+    },
+  ];
 }
 
 /**
- * Back: clear text to space, set more menu inline.
+ * Back: edit text to space and set more menu inline (two actions for robustness).
  */
 export async function handleBack(
   chatId: number,
   messageId: number,
-  messagingPort: MessagingPort,
   content: WebhookContent,
-): Promise<void> {
-  try {
-    await messagingPort.editMessageText({
-      chat_id: chatId,
-      message_id: messageId,
+): Promise<OutgoingAction[]> {
+  return [
+    {
+      type: 'editMessageText',
+      chatId,
+      messageId,
       text: ' ',
-      reply_markup: content.moreMenuInline,
-    });
-  } catch {
-    await messagingPort.editMessageReplyMarkup({
-      chat_id: chatId,
-      message_id: messageId,
-      reply_markup: content.moreMenuInline,
-    });
-  }
+      replyMarkup: content.moreMenuInline,
+    },
+    {
+      type: 'editMessageReplyMarkup',
+      chatId,
+      messageId,
+      replyMarkup: content.moreMenuInline,
+    },
+  ];
 }

@@ -35,3 +35,60 @@ export type TelegramWebhookBody = {
   message?: TelegramMessage;
   callback_query?: TelegramCallbackQuery;
 };
+
+// --- Step 2.2: internal update/action types (transport-agnostic) ---
+
+export type IncomingMessageUpdate = {
+  kind: 'message';
+  chatId: number;
+  telegramId: string;
+  text: string;
+  userRow: { id: string; telegram_id: string } | null;
+  userState: string;
+  /** When user is in waiting_for_question and we have admin target */
+  adminForward?: { chatId: number; text: string } | undefined;
+};
+
+export type IncomingCallbackUpdate = {
+  kind: 'callback';
+  chatId: number;
+  messageId: number;
+  telegramId: number;
+  callbackData: string;
+  callbackQueryId: string;
+};
+
+export type IncomingUpdate = IncomingMessageUpdate | IncomingCallbackUpdate;
+
+export type SendMessageAction = {
+  type: 'sendMessage';
+  chatId: number;
+  text: string;
+  replyMarkup?: unknown;
+};
+
+export type EditMessageTextAction = {
+  type: 'editMessageText';
+  chatId: number;
+  messageId: number;
+  text: string;
+  replyMarkup?: unknown;
+};
+
+export type EditMessageReplyMarkupAction = {
+  type: 'editMessageReplyMarkup';
+  chatId: number;
+  messageId: number;
+  replyMarkup: unknown;
+};
+
+export type AnswerCallbackQueryAction = {
+  type: 'answerCallbackQuery';
+  callbackQueryId: string;
+};
+
+export type OutgoingAction =
+  | SendMessageAction
+  | EditMessageTextAction
+  | EditMessageReplyMarkupAction
+  | AnswerCallbackQueryAction;

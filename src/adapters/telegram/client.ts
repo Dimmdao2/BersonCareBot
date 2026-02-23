@@ -17,7 +17,7 @@ function getBot(): Bot {
 
 let botInstance: Bot | null = null;
 
-function getBotInstance(): Bot {
+export function getBotInstance(): Bot {
   if (!botInstance) botInstance = getBot();
   return botInstance;
 }
