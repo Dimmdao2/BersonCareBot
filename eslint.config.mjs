@@ -45,6 +45,13 @@ export default [
   },
 
   {
+    files: ["src/core/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: ["*adapters*", "*persistence*"] }],
+    },
+  },
+
+  {
     files: ["src/worker/**/*.ts"],
     rules: {
       "no-restricted-imports": ["error", { patterns: ["*adapters*", "*app*"] }],
