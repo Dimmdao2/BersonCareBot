@@ -2,193 +2,104 @@
 
 Telegram-бот для записи на приём, управления уведомлениями и интеграции с внутренней системой реабилитации.
 
-Проект ориентирован на:
+- Webhook Telegram, дедупликация по `update_id`, валидация входящих данных
+- TypeScript (ESM), Fastify, PostgreSQL, grammY, Vitest
+- Деплой: systemd, GitHub Actions по SSH
 
-- надёжную работу через Telegram Webhook
-- персистентную дедупликацию `update_id`
-- безопасный деплой на сервер с systemd
-- строгую типизацию (TypeScript, без `any`)
-- автоматические тесты (Vitest)
+**Внутренняя структура:** [src/architecture.md](src/architecture.md) — слои, папки, файлы, поток данных.
 
----
-
-## 🚀 Технологический стек
-
-- Node.js
-- TypeScript
-- Fastify
-- PostgreSQL
-- pnpm
-- Vitest
-- systemd (production)
-- GitHub Actions (deploy через SSH)
+Для разработки: строгий TypeScript (без `any`), исходники в `src/`, перед новой фичей — тесты.
 
 ---
 
-## 📦 Установка (локально)
+## Установка и запуск
 
 ```bash
 pnpm install
 cp .env.example .env
-pnpm run typecheck
-pnpm run lint
-pnpm run test
-pnpm run build
-
-Запуск:
-
+# заполнить .env (см. ниже)
+pnpm run typecheck && pnpm run lint && pnpm test && pnpm run build
 pnpm run dev
+```
 
+Production: `pnpm start` (перед этим `pnpm run build`).
 
-⸻
+---
 
-⚙️ Переменные окружения
+## Переменные окружения
 
-Источник истины: `src/config/env.ts`. Пример: `cp .env.example .env`
+Источник истины: **src/config/env.ts**. Пример: `.env.example`.
 
-Обязательные: `BOT_TOKEN`, `ADMIN_TELEGRAM_ID`, `INBOX_CHAT_ID`, `BOOKING_URL`, `DATABASE_URL`
+**Обязательные:** `BOT_TOKEN`, `ADMIN_TELEGRAM_ID`, `INBOX_CHAT_ID`, `BOOKING_URL`, `DATABASE_URL`
 
-Опциональные (есть значения по умолчанию): `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`. Секрет webhook: `TG_WEBHOOK_SECRET` (в production рекомендуется задать).
+**Опциональные:** `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL` (есть умолчания); `TG_WEBHOOK_SECRET` — в production рекомендуется задать.
 
-В production используется файл: `/opt/tgcarebot/.env`
+В production: `/opt/tgcarebot/.env`.
 
+---
 
-⸻
+## Основные команды
 
-🗄 Миграции
+| Команда | Назначение |
+|--------|------------|
+| `pnpm run dev` | Dev-сервер (tsx watch) |
+| `pnpm run build` | Сборка в dist |
+| `pnpm start` | Запуск собранного приложения |
+| `pnpm test` | Тесты (Vitest, включая e2e-сценарии webhook) |
+| `pnpm run lint` | ESLint |
+| `pnpm run typecheck` | Проверка типов |
+| `pnpm run migrate` | Применить миграции к БД |
+| `pnpm run scenarios` | Прогон e2e-сценариев отдельным скриптом |
 
-Запуск вручную:
+---
 
-pnpm exec tsx src/db/migrate.ts
+## API
 
-Миграции хранятся в:
+- **POST /webhook/telegram** — входящие апдейты Telegram (секрет в заголовке `x-telegram-bot-api-secret-token` при заданном `TG_WEBHOOK_SECRET`).
+- **GET /health** — ответ `{ ok: true, db: 'up' | 'down' }`.
 
-/migrations
+---
 
-Таблица контроля:
+## Миграции БД
 
-schema_migrations
+Миграции: папка **migrations/** (SQL). Таблица контроля: **schema_migrations**.
 
+```bash
+pnpm run migrate
+```
 
-⸻
+На проде после деплоя миграции выполняются из workflow (см. ниже).
 
-🧠 Дедупликация Telegram update_id
- • В таблице telegram_users хранится last_update_id
- • Обработка апдейта происходит только если update_id больше предыдущего
- • Решение персистентное (не in-memory)
- • Защищает от повторных webhook-запросов
+---
 
-⸻
+## Деплой (production)
 
-🧪 Тесты
+Сервер: каталог приложения `/opt/tgcarebot` (в нём `.env`, подкаталог app с репо: src, dist, migrations). Сервис systemd: `tgcarebot`. Деплой от пользователя **deploy** по SSH; ключ — по усмотрению (например `~/.ssh/...`).
 
-pnpm test
+GitHub Actions: push в main → checkout → `pnpm install --frozen-lockfile` → `pnpm build` → загрузка `.env` и `pnpm exec tsx src/persistence/migrate.ts` → `systemctl restart tgcarebot`.
 
-Покрывается:
- • webhook
- • секрет Telegram
- • дедупликация update_id
- • устойчивость к ошибкам tgCall
+Полезные команды на сервере:
 
-⸻
-
-🖥 Production
-
-Структура сервера
-
-/opt/tgcarebot
-  ├── .env
-  ├── app
-  │     ├── src
-  │     ├── dist
-  │     ├── migrations
-
-systemd сервис
-
-/etc/systemd/system/tgcarebot.service
-
-Запуск:
-
+```bash
 sudo systemctl restart tgcarebot
 sudo systemctl status tgcarebot
-
-Логи:
-
 journalctl -u tgcarebot -n 100 --no-pager
+```
 
+---
 
-⸻
+## Безопасность
 
-🔐 SSH и деплой
+- Webhook: проверка секрета по заголовку (если задан).
+- Данные: PostgreSQL, один пул, конфиг только из env.
+- Сервис и деплой: отдельный пользователь (tgcarebot / deploy), без лишних прав.
 
-Деплой выполняется пользователем deploy.
+---
 
-GitHub подключается через SSH-ключ:
+## Дальнейшее развитие
 
-/home/deploy/.ssh/bersoncarebot_deploy
+Запрос телефона, запись на приём (очно/онлайн), интеграция с Rubitime, напоминания, расширенная логика подписок.
 
-Проверка:
+---
 
-sudo -u deploy ssh -T git@github.com
-
-
-⸻
-
-🔁 GitHub Actions Deploy
-
-Workflow:
- • git sync
- • pnpm install
- • pnpm build
- • migrate
- • systemctl restart
-
-Все шаги выполняются под пользователем deploy.
-
-⸻
-
-📡 Webhook
-
-Route:
-
-POST /webhook/telegram
-
-Healthcheck:
-
-GET /health
-
-
-⸻
-
-🛡 Безопасность
- • Webhook secret проверяется через header
-x-telegram-bot-api-secret-token
- • Данные хранятся в PostgreSQL
- • systemd запускает сервис от отдельного пользователя tgcarebot
- • pnpm и git выполняются только от deploy
-
-⸻
-
-📌 Текущее состояние
- • Дедупликация работает
- • Меню inline стабильно
- • Перезапуск сервиса корректный
- • CI зелёный
- • Production билд стабильный
-
-⸻
-
-🧭 Дальнейшее развитие
- • Запрос номера телефона
- • Запись на приём (очно / онлайн)
- • Интеграция с Rubitime
- • Напоминания
- • Расширенная логика подписок
-
-⸻
-
-👤 Автор
-
-Dmitry Berson
-Rehabilitation & Digital Health Systems
-
+Автор: Dmitry Berson · Rehabilitation & Digital Health Systems
