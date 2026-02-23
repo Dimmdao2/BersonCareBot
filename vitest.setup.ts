@@ -1,6 +1,10 @@
 /**
- * Runs before all tests. Sets minimal env so config/env.ts parse succeeds when app is imported.
+ * Runs before all tests. Load .env so on dev (with real DB) tests use real DATABASE_URL etc.
+ * Then set fallbacks only for vars still missing (e.g. in CI).
  */
+import dotenv from 'dotenv';
+dotenv.config();
+
 Object.assign(process.env, {
   BOT_TOKEN: process.env.BOT_TOKEN ?? 'test-bot-token',
   ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID ?? '1',

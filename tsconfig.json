@@ -5,7 +5,7 @@
     "target": "ES2022",
     "lib": ["ES2022"],
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",
       "strict": true, // Keep existing strict option
       "noImplicitAny": true, // Keep existing noImplicitAny option
       "noUncheckedIndexedAccess": true, // Add new option
@@ -17,6 +17,6 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true
   },
-  "include": ["src"],
+  "include": ["src", "e2e"],
   "exclude": ["node_modules", "dist"]
 }
