@@ -193,4 +193,15 @@ describe('POST /webhook/telegram', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
   });
+
+  it('returns 400 for invalid webhook body', async () => {
+    const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/telegram',
+      payload: { message: { from: { id: 'not-a-number' } } },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ ok: false, error: 'Invalid webhook body' });
+  });
 });

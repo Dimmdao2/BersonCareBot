@@ -2,8 +2,8 @@
 import { buildApp } from '../../app.js';
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../../persistence/client.js', () => ({
-  healthCheckDb: () => Promise.resolve(true),
+vi.mock('../../services/healthService.js', () => ({
+  checkDb: () => Promise.resolve(true),
 }));
 
 describe('GET /health', () => {

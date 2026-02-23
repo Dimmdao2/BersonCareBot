@@ -38,6 +38,13 @@ export default [
   },
 
   {
+    files: ["src/adapters/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: ["*persistence*"] }],
+    },
+  },
+
+  {
     files: ["**/*.test.ts"],
     rules: {
       "@typescript-eslint/no-unused-vars": "off",

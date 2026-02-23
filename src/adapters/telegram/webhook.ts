@@ -3,9 +3,10 @@ import { env } from '../../config/env.js';
 import { getRequestLogger } from '../../logger.js';
 import { telegramContent } from '../../content/index.js';
 import type { TelegramWebhookBody } from '../../core/types.js';
-import * as telegramUsersRepo from '../../persistence/repositories/telegramUsers.js';
+import * as telegramUsersRepo from '../../services/telegramUserService.js';
 import { tgCall } from './client.js';
 import { isNotifyCallback } from './mapper.js';
+import { parseWebhookBody } from './schema.js';
 
 function sendMainMenu(chatId: number): Promise<unknown> {
   return tgCall('sendMessage', {
@@ -101,7 +102,7 @@ async function handleNotificationCallback(body: TelegramWebhookBody, reqId: stri
 }
 
 export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void> {
-  app.post<{ Body: TelegramWebhookBody }>('/webhook/telegram', async (request, reply) => {
+  app.post('/webhook/telegram', async (request, reply) => {
     const reqLogger = getRequestLogger(request.id);
 
     try {
@@ -113,7 +114,12 @@ export async function telegramWebhookRoutes(app: FastifyInstance): Promise<void>
         }
       }
 
-      const body = request.body;
+      const parseResult = parseWebhookBody(request.body);
+      if (!parseResult.success) {
+        reqLogger.warn({ err: parseResult.error.flatten(), body: request.body }, 'webhook body validation failed');
+        return reply.code(400).send({ ok: false, error: 'Invalid webhook body' });
+      }
+      const body = parseResult.data;
 
       reqLogger.info(
         {
