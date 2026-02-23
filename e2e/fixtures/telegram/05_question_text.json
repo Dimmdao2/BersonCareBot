@@ -1,0 +1,15 @@
+{
+  "update_id": 5,
+  "message": {
+    "message_id": 5,
+    "from": {
+      "id": 111222333,
+      "is_bot": false,
+      "first_name": "E2E",
+      "username": "e2e_test"
+    },
+    "chat": { "id": 111222333, "type": "private" },
+    "date": 1700000004,
+    "text": "Как записаться на приём?"
+  }
+}

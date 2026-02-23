@@ -1,0 +1,15 @@
+{
+  "update_id": 7,
+  "message": {
+    "message_id": 7,
+    "from": {
+      "id": 111222333,
+      "is_bot": false,
+      "first_name": "E2E",
+      "username": "e2e_test"
+    },
+    "chat": { "id": 111222333, "type": "private" },
+    "date": 1700000006,
+    "text": "любой текст"
+  }
+}

@@ -33,6 +33,7 @@ _old/logs/
 
 # Local environment
 .env.*
+!.env.example
 
 # Misc
 *.local

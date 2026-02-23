@@ -1,4 +1,4 @@
-
+// Единственная загрузка dotenv — до любого импорта, использующего config/env
 import dotenv from 'dotenv';
 if (process.env.NODE_ENV === 'production') {
   dotenv.config({ path: '/opt/tgcarebot/.env' });

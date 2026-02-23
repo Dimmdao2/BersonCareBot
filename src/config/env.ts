@@ -1,8 +1,6 @@
-import dotenv from "dotenv";
 import { z } from "zod";
 
-dotenv.config();
-
+/** Единственный источник переменных окружения. dotenv загружается в main.ts до импорта приложения. */
 export const env = z
   .object({
     NODE_ENV: z.string().default("production"),

@@ -15,7 +15,8 @@
     "format": "prettier -w .",
     "migrate": "tsx src/db/migrate.ts",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:migrate:prod": "node dist/db/migrate.js"
+    "db:migrate:prod": "node dist/db/migrate.js",
+    "scenarios": "tsx e2e/run-webhook-scenarios.ts"
   },
   "engines": {
     "node": ">=20"
@@ -43,6 +44,7 @@
     "prettier": "^3.8.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "undici": "^7.0.0"
   }
 }

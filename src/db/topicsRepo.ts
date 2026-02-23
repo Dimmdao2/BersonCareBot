@@ -1,8 +1,9 @@
 import { Pool } from "pg";
+import { env } from "../config/env.js";
 
 export type Topic = { id: number; key: string; title: string; is_active?: boolean };
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: env.DATABASE_URL });
 
 export async function listActiveTopics(): Promise<Topic[]> {
   const res = await pool.query(

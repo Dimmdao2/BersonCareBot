@@ -1,0 +1,21 @@
+{
+  "update_id": 10,
+  "callback_query": {
+    "id": "cq_my_bookings",
+    "from": {
+      "id": 111222333,
+      "is_bot": false,
+      "first_name": "E2E",
+      "username": "e2e_test"
+    },
+    "message": {
+      "message_id": 102,
+      "from": { "id": 0, "is_bot": true, "first_name": "Bot" },
+      "chat": { "id": 111222333, "type": "private" },
+      "date": 1700000009,
+      "text": "Выберите действие в меню."
+    },
+    "chat_instance": "test",
+    "data": "menu_my_bookings"
+  }
+}

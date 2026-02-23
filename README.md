@@ -44,18 +44,13 @@ pnpm run dev
 
 ⚙️ Переменные окружения
 
-Пример .env:
+Источник истины: `src/config/env.ts`. Пример: `cp .env.example .env`
 
-PORT=3000
+Обязательные: `BOT_TOKEN`, `ADMIN_TELEGRAM_ID`, `INBOX_CHAT_ID`, `BOOKING_URL`, `DATABASE_URL`
 
-DATABASE_URL=postgres://user:password@localhost:5432/dbname
+Опциональные (есть значения по умолчанию): `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`. Секрет webhook: `TG_WEBHOOK_SECRET` (в production рекомендуется задать).
 
-TG_BOT_TOKEN=your_telegram_bot_token
-TG_WEBHOOK_SECRET=your_secret
-
-В production используется файл:
-
-/opt/tgcarebot/.env
+В production используется файл: `/opt/tgcarebot/.env`
 
 
 ⸻
