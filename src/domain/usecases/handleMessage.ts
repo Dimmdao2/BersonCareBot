@@ -1,7 +1,7 @@
 import type { UserPort } from '../ports/user.js';
 import type { WebhookContent } from '../webhookContent.js';
 import type { OutgoingAction } from '../types.js';
-import { tryConsumeStart } from '../onboarding/service.js';
+import { tryConsumeStart } from './onboarding.js';
 
 const mainMenuMarkup = (content: WebhookContent) => ({
   keyboard: content.mainMenuKeyboard,
@@ -9,9 +9,6 @@ const mainMenuMarkup = (content: WebhookContent) => ({
   one_time_keyboard: false,
 });
 
-/**
- * Handle /start: consume start token, return welcome + main menu actions if consumed.
- */
 export async function handleStart(
   chatId: number,
   telegramId: number,
@@ -24,19 +21,11 @@ export async function handleStart(
   return {
     consumed: true,
     actions: [
-      {
-        type: 'sendMessage',
-        chatId,
-        text: content.messages.welcome,
-        replyMarkup: mainMenuMarkup(content),
-      },
+      { type: 'sendMessage', chatId, text: content.messages.welcome, replyMarkup: mainMenuMarkup(content) },
     ],
   };
 }
 
-/**
- * Handle "Задать вопрос": set state, return describe question action.
- */
 export async function handleAsk(
   chatId: number,
   telegramId: string,
@@ -45,22 +34,14 @@ export async function handleAsk(
 ): Promise<OutgoingAction[]> {
   await userPort.setTelegramUserState(telegramId, 'waiting_for_question');
   return [
-    {
-      type: 'sendMessage',
-      chatId,
-      text: content.messages.describeQuestion,
-      replyMarkup: mainMenuMarkup(content),
-    },
+    { type: 'sendMessage', chatId, text: content.messages.describeQuestion, replyMarkup: mainMenuMarkup(content) },
   ];
 }
 
-/**
- * Handle question text in waiting_for_question: clear state, optional forward to admin, return actions.
- */
 export async function handleQuestion(
   chatId: number,
   telegramId: string,
-  text: string,
+  _text: string,
   userPort: UserPort,
   content: WebhookContent,
   adminForward: { chatId: number; text: string } | undefined,
@@ -68,11 +49,7 @@ export async function handleQuestion(
   await userPort.setTelegramUserState(telegramId, 'idle');
   const actions: OutgoingAction[] = [];
   if (adminForward) {
-    actions.push({
-      type: 'sendMessage',
-      chatId: adminForward.chatId,
-      text: adminForward.text,
-    });
+    actions.push({ type: 'sendMessage', chatId: adminForward.chatId, text: adminForward.text });
   }
   actions.push({
     type: 'sendMessage',
@@ -83,9 +60,6 @@ export async function handleQuestion(
   return actions;
 }
 
-/**
- * Handle "Запись на приём": send not implemented.
- */
 export async function handleBook(
   chatId: number,
   telegramId: string,
@@ -94,45 +68,18 @@ export async function handleBook(
 ): Promise<OutgoingAction[]> {
   await userPort.setTelegramUserState(telegramId, 'idle');
   return [
-    {
-      type: 'sendMessage',
-      chatId,
-      text: content.messages.notImplemented,
-      replyMarkup: mainMenuMarkup(content),
-    },
+    { type: 'sendMessage', chatId, text: content.messages.notImplemented, replyMarkup: mainMenuMarkup(content) },
   ];
 }
 
-/**
- * Handle "Меню": choose menu inline.
- */
-export async function handleMore(
-  chatId: number,
-  content: WebhookContent,
-): Promise<OutgoingAction[]> {
+export async function handleMore(chatId: number, content: WebhookContent): Promise<OutgoingAction[]> {
   return [
-    {
-      type: 'sendMessage',
-      chatId,
-      text: content.messages.chooseMenu,
-      replyMarkup: content.moreMenuInline,
-    },
+    { type: 'sendMessage', chatId, text: content.messages.chooseMenu, replyMarkup: content.moreMenuInline },
   ];
 }
 
-/**
- * Default idle: main menu.
- */
-export async function handleDefaultIdle(
-  chatId: number,
-  content: WebhookContent,
-): Promise<OutgoingAction[]> {
+export async function handleDefaultIdle(chatId: number, content: WebhookContent): Promise<OutgoingAction[]> {
   return [
-    {
-      type: 'sendMessage',
-      chatId,
-      text: content.messages.chooseMenu,
-      replyMarkup: mainMenuMarkup(content),
-    },
+    { type: 'sendMessage', chatId, text: content.messages.chooseMenu, replyMarkup: mainMenuMarkup(content) },
   ];
 }

@@ -2,7 +2,7 @@
 import Fastify from 'fastify';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import type { TelegramWebhookBody } from '../../core/types.js';
+import type { TelegramWebhookBody } from '../../domain/types.js';
 
 const telegramFetchMock = vi.fn().mockImplementation(() =>
   Promise.resolve(

@@ -2,7 +2,7 @@ import type { NotificationSettings } from './ports/notifications.js';
 
 /**
  * Minimal content shape for webhook handlers. Adapter passes this from content/telegram
- * so core does not depend on presentation layer.
+ * so domain does not depend on presentation layer.
  */
 export type WebhookContent = {
   mainMenu: { ask: string; book: string; more: string };

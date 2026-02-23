@@ -33,7 +33,7 @@
 - Создать `src/db/client.ts` (перенос из `src/persistence/client.ts`), импорт logger из `../observability/logger.js`.
 - Создать `src/db/migrate.ts` (перенос из `src/persistence/migrate.ts`), использовать пул из `./client.js` или оставить свой Pool с `env` из config.
 - Создать `src/db/repos/`: `telegramUsers.ts`, `topics.ts`, `subscriptions.ts` (перенос из `persistence/repositories/`), импорты `db` и типы из `../../domain/`.
-- Обновить все импорты с `persistence/*` на `db/*` (в т.ч. `package.json` скрипты `migrate`/`db:migrate` и путь в deploy workflow).
+- Обновить все импорты с `persistence/*` на `db/*` (в т.ч. `package.json` скрипты `migrate`/`db:migrate` и путь в deploy workflow). **Не менять DEPLOY_PATH и systemd** — только пути внутри репозитория и импорты.
 - Удалить папку `src/persistence/`.
 - Тесты, коммит.
 
@@ -41,8 +41,8 @@
 
 ## Шаг 4 — app (server, routes, di) и health в app
 
+- **Сначала** создать `src/app/di.ts`: composition root — создание `db`, `userPort`, `notificationsPort` (из db/repos), `healthCheckDb`, опционально контент для Telegram. Так зависимости не разрываются при последующем удалении services.
 - Создать `src/app/server.ts`: создание Fastify, регистрация плагинов, вызов регистрации роутов (передача зависимостей из di).
-- Создать `src/app/di.ts`: composition root — создание `db`, `userPort`, `notificationsPort` (из db/repos), `healthCheckDb`, опционально контент для Telegram.
 - Создать `src/app/routes.ts`: регистрация GET `/health` (использование `healthCheckDb` из di) и POST `/webhook/telegram` (зависимости из di). Контракт HealthResponse — в `routes.ts` или `routes/contract.ts`.
 - Перенести логику из `src/app.ts` в `server.ts`; `buildApp()` экспортировать из `server.ts` (или из `app/index.ts` как реэкспорт).
 - Health: убрать `adapters/rest/health.ts` и `adapters/rest/contract.ts`, перенести в `app/routes.ts` (и при необходимости `app/routes/health.ts` + типы).
@@ -67,7 +67,7 @@
 
 ## Шаг 6 — content и integrations
 
-- Контент: оставить `src/content/` как есть или перенести реализацию в `src/channels/telegram/content.ts` и реэкспорт из `content/index.ts` — домен не импортирует content.
+- Контент: оставить `src/content/` как есть или перенести реализацию в `src/channels/telegram/content.ts` и реэкспорт из `content/index.ts`. **Правило:** domain не импортирует content напрямую — только через тип/порт (WebhookContent и т.п.).
 - Создать `src/integrations/` с заглушкой (README или .gitkeep); при необходимости перенести `adapters/rubitime` в `integrations/rubitime`.
 - Тесты, коммит.
 

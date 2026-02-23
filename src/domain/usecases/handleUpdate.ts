@@ -12,7 +12,7 @@ import {
 
 /**
  * Single entry: map incoming update to list of outgoing actions.
- * Core does not know about Telegram; only internal types.
+ * Domain does not know about Telegram; only internal types.
  */
 export async function handleUpdate(
   incoming: IncomingUpdate,

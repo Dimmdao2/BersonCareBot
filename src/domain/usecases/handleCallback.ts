@@ -1,12 +1,8 @@
 import type { NotificationsPort } from '../ports/notifications.js';
 import type { WebhookContent } from '../webhookContent.js';
 import type { OutgoingAction } from '../types.js';
-import { getSettings, updateSettings } from '../notifications/service.js';
+import { getSettings, updateSettings } from './notifications.js';
 
-/**
- * Handle notification toggle callbacks: update settings, return edit keyboard + ack.
- * Caller should append answerCallbackQuery.
- */
 export async function handleNotificationCallback(
   telegramId: number,
   chatId: number,
@@ -15,7 +11,7 @@ export async function handleNotificationCallback(
   notificationsPort: NotificationsPort,
   content: WebhookContent,
 ): Promise<OutgoingAction[] | null> {
-  let settings = await getSettings(telegramId, notificationsPort);
+  const settings = await getSettings(telegramId, notificationsPort);
 
   if (data === 'notify_toggle_spb') {
     await updateSettings(telegramId, { notify_spb: !settings.notify_spb }, notificationsPort);
@@ -36,19 +32,9 @@ export async function handleNotificationCallback(
 
   const fresh = await getSettings(telegramId, notificationsPort);
   const kb = content.buildNotificationKeyboard(fresh);
-  return [
-    {
-      type: 'editMessageReplyMarkup',
-      chatId,
-      messageId,
-      replyMarkup: kb,
-    },
-  ];
+  return [{ type: 'editMessageReplyMarkup', chatId, messageId, replyMarkup: kb }];
 }
 
-/**
- * Show notifications screen: edit message text + keyboard.
- */
 export async function handleShowNotifications(
   chatId: number,
   messageId: number,
@@ -59,57 +45,26 @@ export async function handleShowNotifications(
   const settings = await getSettings(telegramId, notificationsPort);
   const kb = content.buildNotificationKeyboard(settings);
   const text = `${content.notificationSettings.title}\n\n${content.notificationSettings.subtitle}`;
-  return [
-    {
-      type: 'editMessageText',
-      chatId,
-      messageId,
-      text,
-      replyMarkup: kb,
-    },
-  ];
+  return [{ type: 'editMessageText', chatId, messageId, text, replyMarkup: kb }];
 }
 
-/**
- * My bookings: edit message to placeholder text.
- */
 export async function handleMyBookings(
   chatId: number,
   messageId: number,
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
   return [
-    {
-      type: 'editMessageText',
-      chatId,
-      messageId,
-      text: content.messages.bookingMy,
-      replyMarkup: content.moreMenuInline,
-    },
+    { type: 'editMessageText', chatId, messageId, text: content.messages.bookingMy, replyMarkup: content.moreMenuInline },
   ];
 }
 
-/**
- * Back: edit text to space and set more menu inline (two actions for robustness).
- */
 export async function handleBack(
   chatId: number,
   messageId: number,
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
   return [
-    {
-      type: 'editMessageText',
-      chatId,
-      messageId,
-      text: ' ',
-      replyMarkup: content.moreMenuInline,
-    },
-    {
-      type: 'editMessageReplyMarkup',
-      chatId,
-      messageId,
-      replyMarkup: content.moreMenuInline,
-    },
+    { type: 'editMessageText', chatId, messageId, text: ' ', replyMarkup: content.moreMenuInline },
+    { type: 'editMessageReplyMarkup', chatId, messageId, replyMarkup: content.moreMenuInline },
   ];
 }

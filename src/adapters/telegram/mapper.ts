@@ -1,4 +1,4 @@
-import type { IncomingUpdate, IncomingMessageUpdate, IncomingCallbackUpdate, OutgoingAction } from '../../core/types.js';
+import type { IncomingUpdate, IncomingMessageUpdate, IncomingCallbackUpdate, OutgoingAction } from '../../domain/types.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
 export const NOTIFY_KEYS = ['notify_toggle_spb', 'notify_toggle_msk', 'notify_toggle_online', 'notify_toggle_all'] as const;

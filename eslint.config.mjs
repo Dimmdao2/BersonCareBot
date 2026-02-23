@@ -45,9 +45,9 @@ export default [
   },
 
   {
-    files: ["src/core/**/*.ts"],
+    files: ["src/domain/**/*.ts"],
     rules: {
-      "no-restricted-imports": ["error", { patterns: ["*adapters*", "*persistence*"] }],
+      "no-restricted-imports": ["error", { patterns: ["*adapters*", "*persistence*", "*channels*", "*db*"] }],
     },
   },
 

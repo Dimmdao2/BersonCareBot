@@ -1,8 +1,8 @@
 import { db } from '../client.js';
 import { logger } from '../../observability/logger.js';
-import type { TelegramUserFrom } from '../../core/types.js';
-import type { UserPort } from '../../core/ports/user.js';
-import type { NotificationsPort } from '../../core/ports/notifications.js';
+import type { TelegramUserFrom } from '../../domain/types.js';
+import type { UserPort } from '../../domain/ports/user.js';
+import type { NotificationsPort } from '../../domain/ports/notifications.js';
 
 export type TelegramUserRow = {
   id: string;

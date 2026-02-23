@@ -36,7 +36,7 @@ export type TelegramWebhookBody = {
   callback_query?: TelegramCallbackQuery;
 };
 
-// --- Step 2.2: internal update/action types (transport-agnostic) ---
+// --- internal update/action types (transport-agnostic) ---
 
 export type IncomingMessageUpdate = {
   kind: 'message';
