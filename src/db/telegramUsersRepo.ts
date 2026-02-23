@@ -144,13 +144,13 @@ export async function updateNotificationSettings(
   if (typeof settings.notify_msk === "boolean") {
     fields.push(`notify_msk = $${idx}`);
     values.push(settings.notify_msk);
-    // idx++ удалён как неиспользуемый
+    idx++;
   }
 
   if (typeof settings.notify_online === "boolean") {
     fields.push(`notify_online = $${idx}`);
     values.push(settings.notify_online);
-    // idx++ удалён как неиспользуемый
+    idx++;
   }
 
   if (fields.length === 0) return;
