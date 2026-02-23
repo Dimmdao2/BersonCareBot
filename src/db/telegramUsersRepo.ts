@@ -150,7 +150,6 @@ export async function updateNotificationSettings(
   if (typeof settings.notify_online === "boolean") {
     fields.push(`notify_online = $${idx}`);
     values.push(settings.notify_online);
-    idx++;
   }
 
   if (fields.length === 0) return;
