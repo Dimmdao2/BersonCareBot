@@ -8,7 +8,7 @@ if (process.env.NODE_ENV === 'production') {
 
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
-import { logger } from './logger.js';
+import { logger } from './observability/logger.js';
 
 async function start() {
   const app = buildApp();

@@ -1,5 +1,5 @@
 import { db } from '../client.js';
-import { logger } from '../../logger.js';
+import { logger } from '../../observability/logger.js';
 import type { TelegramUserFrom } from '../../core/types.js';
 import type { UserPort } from '../../core/ports/user.js';
 import type { NotificationsPort } from '../../core/ports/notifications.js';

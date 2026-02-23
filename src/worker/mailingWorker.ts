@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { env } from "../config/env.js";
 import { db } from '../persistence/client.js';
-import { logger, getWorkerLogger } from "../logger.js";
+import { logger, getWorkerLogger } from "../observability/logger.js";
 
 type DbUser = {
   id: number;

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
-import { getRequestLogger } from '../../logger.js';
+import { getRequestLogger } from '../../observability/logger.js';
 import { telegramContent } from '../../content/index.js';
 import * as telegramUserService from '../../services/telegramUserService.js';
 import { handleUpdate } from '../../core/messaging/index.js';
