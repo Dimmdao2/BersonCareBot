@@ -11,7 +11,7 @@ import {
   updateNotificationSettings,
   tryAdvanceLastUpdateId,
   tryConsumeStart,
-} from '../db/telegramUsersRepo.js';
+} from '../services/telegramUserService.js';
 import { getRequestLogger } from '../logger.js';
 import { telegramContent } from '../content/index.js';
 
