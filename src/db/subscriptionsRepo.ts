@@ -1,10 +1,7 @@
-import { Pool } from "pg";
-import { env } from "../config/env.js";
-
-const pool = new Pool({ connectionString: env.DATABASE_URL });
+import { db } from "./client.js";
 
 export async function getUserSubscriptions(userId: number): Promise<Set<number>> {
-  const res = await pool.query(
+  const res = await db.query(
     `SELECT topic_id FROM user_subscriptions WHERE user_id=$1 AND is_active=true`,
     [userId]
   );
@@ -12,7 +9,7 @@ export async function getUserSubscriptions(userId: number): Promise<Set<number>>
 }
 
 export async function upsertUserSubscription(userId: number, topicId: number, isActive: boolean): Promise<void> {
-  await pool.query(
+  await db.query(
     `INSERT INTO user_subscriptions(user_id, topic_id, is_active)
      VALUES ($1, $2, $3)
      ON CONFLICT (user_id, topic_id) DO UPDATE SET is_active = EXCLUDED.is_active`,
@@ -21,7 +18,7 @@ export async function upsertUserSubscription(userId: number, topicId: number, is
 }
 
 export async function toggleUserSubscription(userId: number, topicId: number): Promise<boolean> {
-  const res = await pool.query(
+  const res = await db.query(
     `SELECT is_active FROM user_subscriptions WHERE user_id=$1 AND topic_id=$2`,
     [userId, topicId]
   );

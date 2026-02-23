@@ -1,19 +1,16 @@
-import { Pool } from "pg";
-import { env } from "../config/env.js";
+import { db } from "./client.js";
 
 export type Topic = { id: number; key: string; title: string; is_active?: boolean };
 
-const pool = new Pool({ connectionString: env.DATABASE_URL });
-
 export async function listActiveTopics(): Promise<Topic[]> {
-  const res = await pool.query(
+  const res = await db.query(
     `SELECT id, key, title FROM mailing_topics WHERE is_active = true ORDER BY id`
   );
   return res.rows as Topic[];
 }
 
 export async function getTopicByKey(key: string): Promise<Topic | null> {
-  const res = await pool.query(
+  const res = await db.query(
     `SELECT id, key, title, is_active FROM mailing_topics WHERE key = $1`,
     [key]
   );

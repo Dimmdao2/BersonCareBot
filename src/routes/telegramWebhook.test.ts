@@ -51,8 +51,11 @@ beforeEach(() => {
   } satisfies FetchResponse);
 });
 
+const hasRealDb =
+  process.env.DATABASE_URL != null && !process.env.DATABASE_URL.includes('localhost:5432/test');
+
 describe('POST /webhook/telegram', () => {
-  it('deduplicates repeated update_id (persistent)', async () => {
+  it.skipIf(!hasRealDb)('deduplicates repeated update_id (persistent)', async () => {
     // Сбросить last_update_id для telegram_id=1 (если тестовая БД доступна)
     try {
       const { db } = await import('../db/client.js');

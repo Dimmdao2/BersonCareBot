@@ -1,16 +1,13 @@
-import { Pool } from "pg";
 import fetch from "node-fetch";
 import { env } from "../config/env.js";
+import { db } from "../db/client.js";
 import { logger, getWorkerLogger } from "../logger.js";
-
 
 type DbUser = {
   id: number;
   telegram_id: number;
   is_active: boolean | null;
 };
-
-const pool = new Pool({ connectionString: env.DATABASE_URL });
 
 const TELEGRAM_API = `https://api.telegram.org/bot${env.BOT_TOKEN}`;
 const RATE_LIMIT_MS = 40;
@@ -19,7 +16,7 @@ const MAX_RETRIES = 3;
 // Removed: getActiveMailings()
 
 async function resetStuckMailings() {
-  await pool.query(`
+  await db.query(`
     UPDATE mailings
     SET status = 'scheduled'
     WHERE status = 'processing'
@@ -28,7 +25,7 @@ async function resetStuckMailings() {
 }
 
 async function getActiveUsersForTopic(topicId: number): Promise<DbUser[]> {
-  const res = await pool.query(
+  const res = await db.query(
     `
     SELECT u.id, u.telegram_id, u.is_active
     FROM users u
@@ -43,7 +40,7 @@ async function getActiveUsersForTopic(topicId: number): Promise<DbUser[]> {
 }
 
 async function markUserInactive(userId: number): Promise<void> {
-  await pool.query("UPDATE users SET is_active = false WHERE id = $1", [userId]);
+  await db.query("UPDATE users SET is_active = false WHERE id = $1", [userId]);
 }
 
 async function logMailingResult(
@@ -52,7 +49,7 @@ async function logMailingResult(
   status: "sent" | "error",
   error?: string,
 ): Promise<void> {
-  await pool.query(
+  await db.query(
     `
     INSERT INTO mailing_logs (user_id, mailing_id, status, sent_at, error)
     VALUES ($1, $2, $3, NOW(), $4)
@@ -64,7 +61,7 @@ async function logMailingResult(
 }
 
 async function wasMailingSent(userId: number, mailingId: number): Promise<boolean> {
-  const res = await pool.query(
+  const res = await db.query(
     "SELECT 1 FROM mailing_logs WHERE user_id = $1 AND mailing_id = $2 AND status = $3",
     [userId, mailingId, "sent"],
   );
@@ -116,7 +113,7 @@ export async function runMailings(): Promise<void> {
   await resetStuckMailings();
 
   // Select mailings to process, transactional selection
-  const client = await pool.connect();
+  const client = await db.connect();
   try {
     await client.query('BEGIN');
     const res = await client.query(`
@@ -184,12 +181,12 @@ export async function runMailings(): Promise<void> {
           "Mailing batch completed",
         );
         // Update status after batch
-        await pool.query(
+        await db.query(
           `UPDATE mailings SET status = 'completed', completed_at = NOW() WHERE id = $1`,
           [mailing.id]
         );
       } catch (fatal) {
-        await pool.query(
+        await db.query(
           `UPDATE mailings SET status = 'failed' WHERE id = $1`,
           [mailing.id]
         );

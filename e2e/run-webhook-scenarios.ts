@@ -37,7 +37,7 @@ function setupTelegramMock(): void {
         try {
           body = JSON.parse(body);
         } catch {
-          body = body;
+          /* leave body as string */
         }
       }
       recordedCalls.push({ path, method, body });
