@@ -40,18 +40,12 @@ function escapeHtml(value: string): string {
 function renderIframeHtml(showButton: boolean, recordId: string): string {
   const safeRecordId = escapeHtml(recordId);
   const deepLink = `https://t.me/bersoncarebot?start=${encodeURIComponent(recordId)}`;
-  const frameStyle = [
-    'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;',
-    'margin:0;',
-    'padding:8px;',
-    'background:transparent;',
-  ].join('');
 
   if (!showButton) {
-    return `<!doctype html><html><head><meta charset="utf-8"></head><body style="${frameStyle}"><div data-showbtn="false" data-record-id="${safeRecordId}" data-widget="rubitime-req-success"></div></body></html>`;
+    return '';
   }
 
-  return `<!doctype html><html><head><meta charset="utf-8"></head><body style="${frameStyle}"><a data-showbtn="true" data-record-id="${safeRecordId}" data-widget="rubitime-req-success" href="${deepLink}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#2AABEE;color:#fff;text-decoration:none;font-weight:600;">Получать подтверждения в Telegram</a></body></html>`;
+  return `<div id="success_info_container"><a href="${deepLink}" data-record-id="${safeRecordId}"><button type="button" id="tgbot_activate" name="bersontgbot" class="base-type btn">Получать напоминания в телеграм</button></a></div>`;
 }
 
 function getMinuteBucket(now: Date): number {

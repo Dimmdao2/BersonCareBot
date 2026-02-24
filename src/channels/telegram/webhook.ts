@@ -137,6 +137,17 @@ export async function telegramWebhookRoutes(
       const linkingStatePrefix = 'await_contact:rubitime_record:';
       if (
         incoming.kind === 'message'
+        && userState?.startsWith(linkingStatePrefix)
+        && !incoming.contactPhone
+      ) {
+        const currentUserLinkData = await getTelegramUserLinkData(incoming.telegramId);
+        if (currentUserLinkData?.phoneNormalized) {
+          await userPort.setTelegramUserState(incoming.telegramId, 'idle');
+          return reply.code(200).send({ ok: true });
+        }
+      }
+      if (
+        incoming.kind === 'message'
         && incoming.contactPhone
         && userState?.startsWith(linkingStatePrefix)
       ) {

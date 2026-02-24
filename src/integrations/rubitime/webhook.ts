@@ -75,6 +75,33 @@ function mapBusinessKind(event: string): 'CREATE' | 'TRANSFER_REQUEST' | 'CANCEL
   return 'TRANSFER_REQUEST';
 }
 
+function formatRecordDateTime(value: unknown): string {
+  const raw = safeStr(value).trim();
+  if (!raw) return '-';
+  const normalized = raw.replace(' ', 'T');
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(date.getFullYear());
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${dd}.${mm}.${yyyy} в ${hh}:${min}`;
+}
+
+function isCanceledByStatus(data: Record<string, unknown>): boolean {
+  const statusTitle = safeStr(data.status_title).toLowerCase();
+  const statusCode = safeStr(data.status);
+  return statusTitle.includes('отмен') || statusCode === '4';
+}
+
+function isBookedByStatus(data: Record<string, unknown>): boolean {
+  const statusTitle = safeStr(data.status_title).toLowerCase();
+  const statusCode = safeStr(data.status);
+  return statusTitle === 'записан' || statusCode === '0';
+}
+
 function formatDetails(data: Record<string, unknown>): string[] {
   const lines: string[] = [];
   const id = data.id;
@@ -93,7 +120,7 @@ function formatDetails(data: Record<string, unknown>): string[] {
 function buildUserText(kind: 'CREATE' | 'TRANSFER_REQUEST' | 'CANCEL', data: Record<string, unknown>): string {
   const name = safeStr(data.name) || 'Клиент';
   const service = safeStr(data.service_title) || safeStr(data.service) || 'услугу';
-  const recordAt = safeStr(data.record) || '-';
+  const recordAt = formatRecordDateTime(data.record);
   const branch = safeStr(data.branch_title) || '-';
   const status = safeStr(data.status_title) || safeStr(data.status) || 'изменена';
 
@@ -106,8 +133,12 @@ function buildUserText(kind: 'CREATE' | 'TRANSFER_REQUEST' | 'CANCEL', data: Rec
     ].join('\n');
   }
 
-  if (kind === 'CANCEL') {
+  if (kind === 'CANCEL' || (kind === 'TRANSFER_REQUEST' && isCanceledByStatus(data))) {
     return `Отменена ваша запись к Дмитрию на ${recordAt}`;
+  }
+
+  if (kind === 'TRANSFER_REQUEST' && isBookedByStatus(data)) {
+    return `Ваша запись на ${recordAt} подтверждена`;
   }
 
   return [

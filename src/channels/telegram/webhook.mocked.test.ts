@@ -45,7 +45,7 @@ const mockWebhookDeps = {
   },
   getRubitimeRecordById: vi.fn().mockResolvedValue(null),
   findTelegramUserByPhone: vi.fn().mockResolvedValue(null),
-  getTelegramUserLinkData: vi.fn().mockResolvedValue(null),
+  getTelegramUserLinkData: vi.fn().mockResolvedValue({ chatId: 1, telegramId: '1', username: 'u', phoneNormalized: null }),
   setTelegramUserPhone: vi.fn().mockResolvedValue(undefined),
 };
 

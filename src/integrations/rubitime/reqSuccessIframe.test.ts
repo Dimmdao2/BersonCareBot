@@ -27,7 +27,7 @@ describe('GET /api/rubitime (iframe req success)', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
-    expect(res.body).toContain('data-showbtn="false"');
+    expect(res.body).toBe('');
   });
 
   it('returns html with button for fresh unlinked record', async () => {
@@ -50,7 +50,8 @@ describe('GET /api/rubitime (iframe req success)', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('data-showbtn="true"');
+    expect(res.body).toContain('id="success_info_container"');
+    expect(res.body).toContain('id="tgbot_activate"');
     expect(res.body).toContain(`t.me/bersoncarebot?start=${testRecordId}`);
   });
 
@@ -74,7 +75,7 @@ describe('GET /api/rubitime (iframe req success)', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('data-showbtn="false"');
+    expect(res.body).toBe('');
   });
 
   it('returns neutral html when ip limit is exceeded', async () => {
@@ -104,8 +105,8 @@ describe('GET /api/rubitime (iframe req success)', () => {
     });
 
     expect(first.statusCode).toBe(200);
-    expect(first.body).toContain('data-showbtn="true"');
+    expect(first.body).toContain('id="success_info_container"');
     expect(second.statusCode).toBe(200);
-    expect(second.body).toContain('data-showbtn="false"');
+    expect(second.body).toBe('');
   });
 });

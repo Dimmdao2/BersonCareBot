@@ -43,6 +43,8 @@ function basePayload(event: 'event-create-record' | 'event-update-record' | 'eve
       name: 'Иван',
       phone: '+79991234567',
       service: 'Стрижка',
+      status: 0,
+      status_title: 'Записан',
     },
   };
 }
@@ -151,7 +153,7 @@ describe('POST /webhook/rubitime', () => {
       12345,
       expect.stringContaining('Иван, вы успешно записались на прием к Дмитрию Берсону'),
     );
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Дата и время: 2025-02-24 14:00'));
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Дата и время: 24.02.2025 в 14:00'));
     expect(sendSms).not.toHaveBeenCalled();
   });
 
@@ -207,8 +209,7 @@ describe('POST /webhook/rubitime', () => {
 
     expect(res.statusCode).toBe(200);
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Ваша запись на прием к Дмитрию изменена:'));
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Статус:'));
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Ваша запись на 24.02.2025 в 14:00 подтверждена'));
     expect(sendSms).not.toHaveBeenCalled();
   });
 
@@ -242,7 +243,7 @@ describe('POST /webhook/rubitime', () => {
 
     expect(res.statusCode).toBe(200);
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Отменена ваша запись к Дмитрию'));
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Отменена ваша запись к Дмитрию на 24.02.2025 в 14:00'));
     expect(sendSms).not.toHaveBeenCalled();
   });
 
@@ -298,5 +299,23 @@ describe('POST /webhook/rubitime', () => {
     expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('Rubitime webhook payload (raw)'));
     expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.any(String));
+  });
+
+  it('UPDATE with canceled status sends cancel-like text to user', async () => {
+    const { app, sendMessage } = buildApp();
+    const payload = basePayload('event-update-record');
+    payload.data.status = 4;
+    payload.data.status_title = 'Отменен';
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/rubitime',
+      headers: { 'x-rubitime-token': token },
+      payload,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Отменена ваша запись к Дмитрию на 24.02.2025 в 14:00'));
   });
 });
