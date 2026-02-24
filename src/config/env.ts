@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Единственный источник переменных окружения. dotenv загружается в main.ts до импорта приложения. */
-export const env = z
+const parsed = z
   .object({
     NODE_ENV: z.string().default("production"),
     HOST: z.string().default("127.0.0.1"),
@@ -15,5 +15,10 @@ export const env = z
 
     DATABASE_URL: z.string().min(1),
     TG_WEBHOOK_SECRET: z.string().optional(),
+
+    /** Токен для входящего webhook Rubitime (header X-Rubitime-Token). Если задан — роут регистрируется; для локального теста задайте в .env, например this-is-secret-for-debug. */
+    RUBITIME_WEBHOOK_TOKEN: z.string().min(1).optional(),
   })
   .parse(process.env);
+
+export const env = parsed;
