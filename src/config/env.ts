@@ -16,8 +16,8 @@ const parsed = z
     DATABASE_URL: z.string().min(1),
     TG_WEBHOOK_SECRET: z.string().optional(),
 
-    /** Токен для входящего webhook Rubitime (header X-Rubitime-Token). Если задан — роут регистрируется; для локального теста задайте в .env, например this-is-secret-for-debug. */
-    RUBITIME_WEBHOOK_TOKEN: z.string().min(1).optional(),
+    /** Токен для входящего webhook Rubitime (header X-Rubitime-Token). Обязательный. */
+    RUBITIME_WEBHOOK_TOKEN: z.string().min(1),
   })
   .parse(process.env);
 

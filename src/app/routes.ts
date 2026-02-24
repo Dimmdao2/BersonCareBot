@@ -21,12 +21,14 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
     await telegramWebhookRoutes(instance, deps);
   });
 
-  if (env.RUBITIME_WEBHOOK_TOKEN) {
-    const botApi = getBotInstance().api;
-    rubitimeWebhookRoutes(app, {
-      tgApi: { sendMessage: (chatId, text) => botApi.sendMessage(chatId, text) },
-      inboxChatId: env.INBOX_CHAT_ID,
-      webhookToken: env.RUBITIME_WEBHOOK_TOKEN,
-    });
-  }
+  const botApi = getBotInstance().api;
+  rubitimeWebhookRoutes(app, {
+    tgApi: { sendMessage: (chatId, text) => botApi.sendMessage(chatId, text) },
+    smsClient: deps.smsClient,
+    findTelegramUserByPhone: deps.findTelegramUserByPhone,
+    insertEvent: deps.insertRubitimeEvent,
+    upsertRecord: deps.upsertRubitimeRecord,
+    adminTelegramId: env.ADMIN_TELEGRAM_ID,
+    webhookToken: env.RUBITIME_WEBHOOK_TOKEN,
+  });
 }
