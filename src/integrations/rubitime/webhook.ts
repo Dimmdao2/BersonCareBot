@@ -27,6 +27,33 @@ export type RubitimeWebhookDeps = {
   webhookToken: string;
 };
 
+function firstString(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
+  return null;
+}
+
+function extractIncomingToken(request: {
+  headers: Record<string, unknown>;
+  query: unknown;
+  params: unknown;
+}): string | null {
+  const headerToken = firstString(request.headers['x-rubitime-token']);
+  if (headerToken) return headerToken;
+
+  if (request.query && typeof request.query === 'object') {
+    const queryToken = firstString((request.query as Record<string, unknown>).token);
+    if (queryToken) return queryToken;
+  }
+
+  if (request.params && typeof request.params === 'object') {
+    const pathToken = firstString((request.params as Record<string, unknown>).token);
+    if (pathToken) return pathToken;
+  }
+
+  return null;
+}
+
 function safeStr(value: unknown): string {
   if (value == null) return '';
   if (typeof value === 'string') return value;
@@ -105,11 +132,19 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
   } = deps;
   const adminChatId = Number(adminTelegramId);
 
-  app.post('/webhook/rubitime', async (request, reply) => {
+  const handler = async (request: {
+    id: string;
+    headers: Record<string, unknown>;
+    query: unknown;
+    params: unknown;
+    body: unknown;
+  }, reply: {
+    code: (statusCode: number) => { send: (payload: unknown) => unknown };
+  }) => {
     const reqLogger = getRequestLogger(request.id);
 
-    const token = request.headers['x-rubitime-token'];
-    if (typeof token !== 'string' || token !== webhookToken) {
+    const incomingToken = extractIncomingToken(request);
+    if (incomingToken !== webhookToken) {
       return reply.code(403).send({ ok: false });
     }
 
@@ -187,5 +222,8 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
     }
 
     return reply.code(200).send({ ok: true });
-  });
+  };
+
+  app.post('/webhook/rubitime', handler);
+  app.post('/webhook/rubitime/:token', handler);
 }

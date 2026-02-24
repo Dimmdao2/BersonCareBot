@@ -8,8 +8,12 @@
 
 **Назначение:** приём событий записи из Rubitime, сохранение в БД и уведомление через Telegram с fallback в SMS stub.
 
-- **Endpoint:** `POST /webhook/rubitime`
-- **Защита:** токен передаётся в заголовке **`X-Rubitime-Token`**. Значение задаётся в env как `RUBITIME_WEBHOOK_TOKEN`. При неверном или отсутствующем токене ответ **403**.
+- **Endpoint:** `POST /webhook/rubitime` (или `POST /webhook/rubitime/:token`)
+- **Защита:** токен может приходить в одном из вариантов:
+  - заголовок **`X-Rubitime-Token`**
+  - query-параметр `?token=...`
+  - path-параметр `/webhook/rubitime/:token`
+  Значение задаётся в env как `RUBITIME_WEBHOOK_TOKEN`. При неверном или отсутствующем токене ответ **403**.
 - **События:** поддерживаются события:
   - `event-create-record`
   - `event-update-record`

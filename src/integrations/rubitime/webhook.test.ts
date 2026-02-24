@@ -64,6 +64,32 @@ describe('POST /webhook/rubitime', () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
+  it('returns 200 when token is provided in query', async () => {
+    const { app } = buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/webhook/rubitime?token=${token}`,
+      payload: basePayload('event-create-record'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+  });
+
+  it('returns 200 when token is provided in path', async () => {
+    const { app } = buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/webhook/rubitime/${token}`,
+      payload: basePayload('event-create-record'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+  });
+
   it('returns 403 if token is wrong', async () => {
     const { app, sendMessage } = buildApp();
 
