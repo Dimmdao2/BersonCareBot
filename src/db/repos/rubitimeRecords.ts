@@ -30,6 +30,14 @@ export type RubitimeRecordRow = {
   updated_at: Date;
 };
 
+export type RubitimeRecordForLinking = {
+  rubitimeRecordId: string;
+  phoneNormalized: string | null;
+  payloadJson: unknown;
+  recordAt: Date | null;
+  status: RubitimeRecordStatus;
+};
+
 export async function upsertRecord(input: UpsertRubitimeRecordInput): Promise<void> {
   const query = `
     INSERT INTO rubitime_records (
@@ -91,25 +99,35 @@ export async function insertEvent(input: InsertRubitimeEventInput): Promise<void
 
 export async function getRecordByRubitimeId(
   rubitimeRecordId: string,
-): Promise<RubitimeRecordRow | null> {
+): Promise<RubitimeRecordForLinking | null> {
   const query = `
     SELECT
-      id::text AS id,
       rubitime_record_id,
       phone_normalized,
-      record_at,
-      status,
       payload_json,
-      last_event,
-      created_at,
-      updated_at
+      record_at,
+      status
     FROM rubitime_records
     WHERE rubitime_record_id = $1
     LIMIT 1
   `;
   try {
-    const res = await db.query<RubitimeRecordRow>(query, [rubitimeRecordId]);
-    return res.rows[0] ?? null;
+    const res = await db.query<{
+      rubitime_record_id: string;
+      phone_normalized: string | null;
+      payload_json: unknown;
+      record_at: Date | null;
+      status: RubitimeRecordStatus;
+    }>(query, [rubitimeRecordId]);
+    const row = res.rows[0];
+    if (!row) return null;
+    return {
+      rubitimeRecordId: row.rubitime_record_id,
+      phoneNormalized: row.phone_normalized,
+      payloadJson: row.payload_json,
+      recordAt: row.record_at,
+      status: row.status,
+    };
   } catch (err) {
     logger.error({ err, rubitimeRecordId }, 'get rubitime record by id failed');
     return null;

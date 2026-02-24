@@ -43,6 +43,8 @@ export type IncomingMessageUpdate = {
   chatId: number;
   telegramId: string;
   text: string;
+  contactPhone?: string;
+  telegramUsername?: string | null;
   userRow: { id: string; telegram_id: string } | null;
   userState: string;
   /** When user is in waiting_for_question and we have admin target */

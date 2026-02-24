@@ -27,6 +27,13 @@ export type TelegramUserByPhone = {
   username: string | null;
 };
 
+export type TelegramUserLinkRow = {
+  chatId: number;
+  telegramId: string;
+  username: string | null;
+  phoneNormalized: string | null;
+};
+
 export async function tryConsumeStart(telegramId: number): Promise<boolean> {
   const sql = `
     UPDATE telegram_users
@@ -216,6 +223,53 @@ export async function findByPhone(phoneNormalized: string): Promise<TelegramUser
   } catch (err) {
     logger.error({ err }, 'findByPhone error');
     return null;
+  }
+}
+
+export async function getTelegramUserLinkData(
+  telegramId: string,
+): Promise<TelegramUserLinkRow | null> {
+  const query = `
+    SELECT telegram_id::text AS telegram_id, username, phone
+    FROM telegram_users
+    WHERE telegram_id = $1
+    LIMIT 1
+  `;
+  try {
+    const res = await db.query<{
+      telegram_id: string;
+      username: string | null;
+      phone: string | null;
+    }>(query, [telegramId]);
+    const row = res.rows[0];
+    if (!row) return null;
+    const chatId = Number(row.telegram_id);
+    if (!Number.isFinite(chatId)) return null;
+    return {
+      chatId,
+      telegramId: row.telegram_id,
+      username: row.username,
+      phoneNormalized: row.phone,
+    };
+  } catch (err) {
+    logger.error({ err }, 'getTelegramUserLinkData error');
+    return null;
+  }
+}
+
+export async function setTelegramUserPhone(
+  telegramId: string,
+  phoneNormalized: string,
+): Promise<void> {
+  const query = `
+    UPDATE telegram_users
+    SET phone = $2
+    WHERE telegram_id = $1
+  `;
+  try {
+    await db.query(query, [telegramId, phoneNormalized]);
+  } catch (err) {
+    logger.error({ err }, 'setTelegramUserPhone error');
   }
 }
 

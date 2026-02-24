@@ -7,6 +7,7 @@ import type { WebhookContent } from '../../domain/webhookContent.js';
 import type { TelegramUserFrom } from '../../domain/types.js';
 import type { UserPort } from '../../domain/ports/user.js';
 import type { NotificationsPort } from '../../domain/ports/notifications.js';
+import { linkTelegramByRubitimeRecord } from '../../domain/usecases/linkTelegramByRubitimeRecord.js';
 import { getBotInstance } from './client.js';
 import { fromTelegram } from './mapIn.js';
 import { toTelegram, type TelegramApi } from './mapOut.js';
@@ -17,13 +18,39 @@ const content: WebhookContent = telegramContent;
 export type TelegramWebhookDeps = {
   userPort: UserPort;
   notificationsPort: NotificationsPort;
+  getRubitimeRecordById: (rubitimeRecordId: string) => Promise<{
+    rubitimeRecordId: string;
+    phoneNormalized: string | null;
+    payloadJson: unknown;
+    recordAt: Date | null;
+    status: 'created' | 'updated' | 'canceled';
+  } | null>;
+  findTelegramUserByPhone: (phoneNormalized: string) => Promise<{
+    chatId: number;
+    telegramId: string;
+    username: string | null;
+  } | null>;
+  getTelegramUserLinkData: (telegramId: string) => Promise<{
+    chatId: number;
+    telegramId: string;
+    username: string | null;
+    phoneNormalized: string | null;
+  } | null>;
+  setTelegramUserPhone: (telegramId: string, phoneNormalized: string) => Promise<void>;
 };
 
 export async function telegramWebhookRoutes(
   app: FastifyInstance,
   deps: TelegramWebhookDeps,
 ): Promise<void> {
-  const { userPort, notificationsPort } = deps;
+  const {
+    userPort,
+    notificationsPort,
+    getRubitimeRecordById,
+    findTelegramUserByPhone,
+    getTelegramUserLinkData,
+    setTelegramUserPhone,
+  } = deps;
   app.post('/webhook/telegram', async (request, reply) => {
     const reqLogger = getRequestLogger(request.id);
 
@@ -104,6 +131,40 @@ export async function telegramWebhookRoutes(
       });
 
       if (!incoming) {
+        return reply.code(200).send({ ok: true });
+      }
+
+      const linkingStatePrefix = 'await_contact:rubitime_record:';
+      if (
+        incoming.kind === 'message'
+        && incoming.contactPhone
+        && userState?.startsWith(linkingStatePrefix)
+      ) {
+        const rubitimeRecordId = userState.slice(linkingStatePrefix.length);
+        const linkActions = await linkTelegramByRubitimeRecord(
+          {
+            telegramId: incoming.telegramId,
+            chatId: incoming.chatId,
+            username: incoming.telegramUsername,
+            rubitimeRecordId,
+            contactPhone: incoming.contactPhone,
+          },
+          {
+            adminTelegramId: env.ADMIN_TELEGRAM_ID,
+            getRecordByRubitimeId: getRubitimeRecordById,
+            findTelegramUserByPhone,
+            getTelegramUserLinkData,
+            setTelegramUserPhone,
+            setTelegramUserState: userPort.setTelegramUserState,
+          },
+        );
+        if (linkActions.length > 0) {
+          try {
+            await toTelegram(linkActions, getBotInstance().api as TelegramApi);
+          } catch (err) {
+            reqLogger.error({ err }, 'toTelegram failed for rubitime linking');
+          }
+        }
         return reply.code(200).send({ ok: true });
       }
 

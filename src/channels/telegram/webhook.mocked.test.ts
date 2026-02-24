@@ -43,6 +43,10 @@ const mockWebhookDeps = {
     getNotificationSettings: mockGetNotif,
     updateNotificationSettings: mockUpdateNotif,
   },
+  getRubitimeRecordById: vi.fn().mockResolvedValue(null),
+  findTelegramUserByPhone: vi.fn().mockResolvedValue(null),
+  getTelegramUserLinkData: vi.fn().mockResolvedValue(null),
+  setTelegramUserPhone: vi.fn().mockResolvedValue(undefined),
 };
 
 async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {

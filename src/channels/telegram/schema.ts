@@ -15,6 +15,12 @@ const MessageSchema = z.object({
   text: z.string().optional(),
   from: FromSchema.optional(),
   chat: ChatSchema.optional(),
+  contact: z.object({
+    phone_number: z.string(),
+    user_id: z.number().optional(),
+    first_name: z.string().optional(),
+    last_name: z.string().optional(),
+  }).optional(),
 }).passthrough();
 const CallbackQuerySchema = z.object({
   id: z.string(),

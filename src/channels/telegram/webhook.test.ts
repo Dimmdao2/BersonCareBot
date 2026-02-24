@@ -29,9 +29,18 @@ async function buildAppWithEnv(envPatch: Record<string, string | undefined>) {
 
   const mod = (await import('./webhook.js')) as typeof import('./webhook.js');
   const { userPort, notificationsPort } = await import('../../db/repos/telegramUsers.js');
+  const { getRecordByRubitimeId } = await import('../../db/repos/rubitimeRecords.js');
+  const { findByPhone, getTelegramUserLinkData, setTelegramUserPhone } = await import('../../db/repos/telegramUsers.js');
 
   const app = Fastify({ logger: false });
-  await mod.telegramWebhookRoutes(app, { userPort, notificationsPort });
+  await mod.telegramWebhookRoutes(app, {
+    userPort,
+    notificationsPort,
+    getRubitimeRecordById: getRecordByRubitimeId,
+    findTelegramUserByPhone: findByPhone,
+    getTelegramUserLinkData,
+    setTelegramUserPhone,
+  });
   await app.ready();
   return app;
 }

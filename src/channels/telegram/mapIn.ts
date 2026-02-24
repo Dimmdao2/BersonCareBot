@@ -55,6 +55,8 @@ export function fromTelegram(
       chatId,
       telegramId,
       text: msg.text ?? '',
+      ...(typeof msg.contact?.phone_number === 'string' && { contactPhone: msg.contact.phone_number }),
+      ...(typeof msg.from?.username === 'string' && { telegramUsername: msg.from.username }),
       userRow,
       userState: userState ?? 'idle',
       ...(adminForward !== undefined && { adminForward }),

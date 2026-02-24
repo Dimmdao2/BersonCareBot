@@ -6,6 +6,7 @@ export {
   handleMore,
   handleDefaultIdle,
 } from './handleMessage.js';
+export { linkTelegramByRubitimeRecord } from './linkTelegramByRubitimeRecord.js';
 export {
   handleNotificationCallback,
   handleShowNotifications,
