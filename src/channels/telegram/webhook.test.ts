@@ -211,6 +211,29 @@ describe('POST /webhook/telegram', () => {
     expect(res.json()).toEqual({ ok: true });
   });
 
+  it('accepts /start with rubitime record id and returns 200', async () => {
+    const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
+
+    const body = {
+      update_id: 401,
+      message: {
+        message_id: 401,
+        chat: { id: 12345 },
+        from: { id: 12345, is_bot: false, first_name: 'A' },
+        text: '/start rubi_record_123',
+      },
+    } satisfies TelegramWebhookBody;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/telegram',
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+  });
+
   it('returns 400 for invalid webhook body', async () => {
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
     const res = await app.inject({
