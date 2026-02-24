@@ -25,6 +25,11 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
   registerRubitimeReqSuccessIframeRoute(app, {
     getRecordByRubitimeId: deps.getRubitimeRecordById,
     findTelegramUserByPhone: deps.findTelegramUserByPhone,
+    windowMinutes: env.RUBITIME_REQSUCCESS_WINDOW_MINUTES,
+    delayMinMs: env.RUBITIME_REQSUCCESS_DELAY_MIN_MS,
+    delayMaxMs: env.RUBITIME_REQSUCCESS_DELAY_MAX_MS,
+    ipLimitPerMin: env.RUBITIME_REQSUCCESS_IP_LIMIT_PER_MIN,
+    globalLimitPerMin: env.RUBITIME_REQSUCCESS_GLOBAL_LIMIT_PER_MIN,
   });
 
   const botApi = getBotInstance().api;
