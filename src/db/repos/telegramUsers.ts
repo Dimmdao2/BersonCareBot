@@ -21,6 +21,12 @@ export type NotificationSettingsPatch = {
   notify_online?: boolean;
 };
 
+export type TelegramUserByPhone = {
+  chatId: number;
+  telegramId: string;
+  username: string | null;
+};
+
 export async function tryConsumeStart(telegramId: number): Promise<boolean> {
   const sql = `
     UPDATE telegram_users
@@ -183,6 +189,32 @@ export async function getNotificationSettings(
     };
   } catch (err) {
     logger.error({ err }, 'getNotificationSettings error');
+    return null;
+  }
+}
+
+export async function findByPhone(phoneNormalized: string): Promise<TelegramUserByPhone | null> {
+  const query = `
+    SELECT telegram_id::text AS telegram_id, username
+    FROM telegram_users
+    WHERE phone = $1
+    LIMIT 1
+  `;
+  try {
+    const res = await db.query<{ telegram_id: string; username: string | null }>(query, [phoneNormalized]);
+    const row = res.rows[0];
+    if (!row) return null;
+
+    const chatId = Number(row.telegram_id);
+    if (!Number.isFinite(chatId)) return null;
+
+    return {
+      chatId,
+      telegramId: row.telegram_id,
+      username: row.username,
+    };
+  } catch (err) {
+    logger.error({ err }, 'findByPhone error');
     return null;
   }
 }
