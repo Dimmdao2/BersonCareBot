@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateLinkCheckEligibility, isRecordFresh } from './linkCheckEligibility.js';
+import { evaluateReqSuccessEligibility, isReqSuccessRecordFresh } from './reqSuccessEligibility.js';
 
-describe('link check eligibility', () => {
+describe('req success eligibility', () => {
   const now = new Date('2026-02-25T10:00:00.000Z');
 
   it('returns showButton=true for existing fresh unlinked record', () => {
-    const result = evaluateLinkCheckEligibility({
+    const result = evaluateReqSuccessEligibility({
       now,
       windowMinutes: 20,
       record: {
@@ -22,7 +22,7 @@ describe('link check eligibility', () => {
   });
 
   it('returns showButton=false when record does not exist', () => {
-    const result = evaluateLinkCheckEligibility({
+    const result = evaluateReqSuccessEligibility({
       now,
       windowMinutes: 20,
       record: null,
@@ -32,7 +32,7 @@ describe('link check eligibility', () => {
   });
 
   it('returns showButton=false when record is already linked', () => {
-    const result = evaluateLinkCheckEligibility({
+    const result = evaluateReqSuccessEligibility({
       now,
       windowMinutes: 20,
       record: {
@@ -48,7 +48,7 @@ describe('link check eligibility', () => {
   });
 
   it('returns showButton=false when record is older than window', () => {
-    const result = evaluateLinkCheckEligibility({
+    const result = evaluateReqSuccessEligibility({
       now,
       windowMinutes: 20,
       record: {
@@ -63,8 +63,8 @@ describe('link check eligibility', () => {
     expect(result).toEqual({ showButton: false });
   });
 
-  it('isRecordFresh handles null and future values', () => {
-    expect(isRecordFresh(null, now, 20)).toBe(false);
-    expect(isRecordFresh(new Date('2026-02-25T10:01:00.000Z'), now, 20)).toBe(false);
+  it('isReqSuccessRecordFresh handles null and future values', () => {
+    expect(isReqSuccessRecordFresh(null, now, 20)).toBe(false);
+    expect(isReqSuccessRecordFresh(new Date('2026-02-25T10:01:00.000Z'), now, 20)).toBe(false);
   });
 });

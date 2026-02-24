@@ -1,29 +1,29 @@
 import type { RubitimeRecordForLinking } from '../../db/repos/rubitimeRecords.js';
 import type { RubitimeTelegramUser } from './webhook.js';
 
-export type LinkCheckEligibilityResult = {
+export type ReqSuccessEligibilityResult = {
   showButton: boolean;
 };
 
-export type LinkCheckEligibilityInput = {
+export type ReqSuccessEligibilityInput = {
   now: Date;
   windowMinutes: number;
   record: RubitimeRecordForLinking | null;
   linkedUser: RubitimeTelegramUser | null;
 };
 
-export function isRecordFresh(recordAt: Date | null, now: Date, windowMinutes: number): boolean {
+export function isReqSuccessRecordFresh(recordAt: Date | null, now: Date, windowMinutes: number): boolean {
   if (!recordAt) return false;
   const ageMs = now.getTime() - recordAt.getTime();
   const windowMs = windowMinutes * 60 * 1000;
   return ageMs >= 0 && ageMs <= windowMs;
 }
 
-export function evaluateLinkCheckEligibility(
-  input: LinkCheckEligibilityInput,
-): LinkCheckEligibilityResult {
+export function evaluateReqSuccessEligibility(
+  input: ReqSuccessEligibilityInput,
+): ReqSuccessEligibilityResult {
   if (!input.record) return { showButton: false };
-  if (!isRecordFresh(input.record.recordAt, input.now, input.windowMinutes)) {
+  if (!isReqSuccessRecordFresh(input.record.recordAt, input.now, input.windowMinutes)) {
     return { showButton: false };
   }
   if (input.linkedUser) return { showButton: false };

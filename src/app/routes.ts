@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { getBotInstance } from '../channels/telegram/client.js';
 import { telegramWebhookRoutes } from '../channels/telegram/webhook.js';
 import { rubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
+import { registerRubitimeReqSuccessIframeRoute } from '../integrations/rubitime/reqSuccessIframe.js';
 
 export type HealthResponse = {
   ok: true;
@@ -19,6 +20,11 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   app.register(async (instance) => {
     await telegramWebhookRoutes(instance, deps);
+  });
+
+  registerRubitimeReqSuccessIframeRoute(app, {
+    getRecordByRubitimeId: deps.getRubitimeRecordById,
+    findTelegramUserByPhone: deps.findTelegramUserByPhone,
   });
 
   const botApi = getBotInstance().api;
