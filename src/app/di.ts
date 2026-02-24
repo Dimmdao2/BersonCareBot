@@ -4,11 +4,15 @@
  */
 import { healthCheckDb } from '../db/client.js';
 import { userPort, notificationsPort } from '../db/repos/telegramUsers.js';
+import { logger } from '../observability/logger.js';
+import { createSmscStub } from '../integrations/smsc/stub.js';
+import type { SmsClient } from '../integrations/smsc/types.js';
 
 export type AppDeps = {
   healthCheckDb: () => Promise<boolean>;
   userPort: typeof userPort;
   notificationsPort: typeof notificationsPort;
+  smsClient: SmsClient;
 };
 
 export function buildDeps(): AppDeps {
@@ -16,5 +20,6 @@ export function buildDeps(): AppDeps {
     healthCheckDb,
     userPort,
     notificationsPort,
+    smsClient: createSmscStub(logger),
   };
 }
