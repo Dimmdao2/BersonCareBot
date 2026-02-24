@@ -25,6 +25,8 @@ export type RubitimeWebhookDeps = {
   adminTelegramId: string;
   /** Токен для проверки (header X-Rubitime-Token). */
   webhookToken: string;
+  /** Отправлять админу raw webhook payload для отладки. */
+  debugNotifyAdmin?: boolean;
 };
 
 function firstString(value: unknown): string | null {
@@ -89,24 +91,29 @@ function formatDetails(data: Record<string, unknown>): string[] {
 }
 
 function buildUserText(kind: 'CREATE' | 'TRANSFER_REQUEST' | 'CANCEL', data: Record<string, unknown>): string {
-  const details = formatDetails(data);
-  const prefix =
-    kind === 'CREATE'
-      ? 'Запись подтверждена'
-      : kind === 'CANCEL'
-        ? 'Запись отменена'
-        : 'Запрос на перенос получен';
-  return [prefix, ...details].join('\n');
-}
+  const name = safeStr(data.name) || 'Клиент';
+  const service = safeStr(data.service_title) || safeStr(data.service) || 'услугу';
+  const recordAt = safeStr(data.record) || '-';
+  const branch = safeStr(data.branch_title) || '-';
+  const status = safeStr(data.status_title) || safeStr(data.status) || 'изменена';
 
-function buildAdminTransferText(user: RubitimeTelegramUser, data: Record<string, unknown>): string {
-  const details = formatDetails(data);
+  if (kind === 'CREATE') {
+    return [
+      `${name}, вы успешно записались на прием к Дмитрию Берсону на ${service}.`,
+      '',
+      `Дата и время: ${recordAt}`,
+      `Адрес: ${branch}`,
+    ].join('\n');
+  }
+
+  if (kind === 'CANCEL') {
+    return `Отменена ваша запись к Дмитрию на ${recordAt}`;
+  }
+
   return [
-    'Rubitime: запрос на перенос',
-    `User chatId: ${user.chatId}`,
-    `Telegram ID: ${user.telegramId}`,
-    `Username: ${user.username ?? '-'}`,
-    ...details,
+    'Ваша запись на прием к Дмитрию изменена:',
+    `Дата и время: ${recordAt}`,
+    `Статус: ${status}`,
   ].join('\n');
 }
 
@@ -144,6 +151,7 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
     findTelegramUserByPhone,
     adminTelegramId,
     webhookToken,
+    debugNotifyAdmin = false,
   } = deps;
   const adminChatId = Number(adminTelegramId);
 
@@ -163,7 +171,7 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
       return reply.code(403).send({ ok: false });
     }
 
-    if (Number.isFinite(adminChatId)) {
+    if (debugNotifyAdmin && Number.isFinite(adminChatId)) {
       try {
         const payloadMessages = buildAdminWebhookPayloadTexts(request.body);
         for (const text of payloadMessages) {
@@ -213,12 +221,12 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
       reqLogger.warn({ body }, 'rubitime payload has no data.id, upsert skipped');
     }
 
-    const fallback = async (reason: string) => {
+    const fallback = async (reason: string, notifyAdmin = true) => {
       await smsClient.sendSms({
         toPhone: phoneNormalized ?? '',
         message: kind === 'CANCEL' ? 'Запись отменена' : 'Требуется подтверждение записи',
       });
-      if (Number.isFinite(adminChatId)) {
+      if (notifyAdmin && Number.isFinite(adminChatId)) {
         try {
           await tgApi.sendMessage(adminChatId, buildFallbackAdminText(reason, phoneNormalized, data));
         } catch (err) {
@@ -240,12 +248,9 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
 
     try {
       await tgApi.sendMessage(user.chatId, buildUserText(kind, data));
-      if (kind === 'TRANSFER_REQUEST' && Number.isFinite(adminChatId)) {
-        await tgApi.sendMessage(adminChatId, buildAdminTransferText(user, data));
-      }
     } catch (err) {
       reqLogger.error({ err }, 'rubitime: sendMessage to user failed');
-      await fallback('TELEGRAM_SEND_FAILED');
+      await fallback('TELEGRAM_SEND_FAILED', false);
     }
 
     return reply.code(200).send({ ok: true });

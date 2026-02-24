@@ -18,6 +18,13 @@ const parsed = z
 
     /** Токен для входящего webhook Rubitime (header X-Rubitime-Token). Обязательный. */
     RUBITIME_WEBHOOK_TOKEN: z.string().min(1),
+    /** Включает debug-уведомления админу с raw payload Rubitime. */
+    RUBITIME_DEBUG_NOTIFY_ADMIN: z
+      .preprocess(
+        (v) => (typeof v === "string" ? v.trim().toLowerCase() : v),
+        z.enum(["1", "true", "yes", "on"]).optional(),
+      )
+      .transform((v) => Boolean(v)),
   })
   .parse(process.env);
 
