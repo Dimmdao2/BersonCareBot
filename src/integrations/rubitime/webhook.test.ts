@@ -31,6 +31,20 @@ function buildApp(options?: {
   return { app, sendMessage, sendSms, insertEvent, upsertRecord, findTelegramUserByPhone };
 }
 
+function basePayload(event: 'event-create-record' | 'event-update-record' | 'event-remove-record') {
+  return {
+    from: 'rubitime',
+    event,
+    data: {
+      id: 'rec-42',
+      record: '2025-02-24 14:00',
+      name: 'Иван',
+      phone: '+79991234567',
+      service: 'Стрижка',
+    },
+  };
+}
+
 describe('POST /webhook/rubitime', () => {
   it('returns 403 if token is missing', async () => {
     const { app, sendMessage } = buildApp();
@@ -88,24 +102,14 @@ describe('POST /webhook/rubitime', () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it('returns 200, writes event/record and notifies user when found', async () => {
+  it('CREATE + user found => tg called, sms not called, admin not called', async () => {
     const { app, sendMessage, sendSms, insertEvent, upsertRecord, findTelegramUserByPhone } = buildApp();
 
     const res = await app.inject({
       method: 'POST',
       url: '/webhook/rubitime',
       headers: { 'x-rubitime-token': token },
-      payload: {
-        from: 'rubitime',
-        event: 'event-create-record',
-        data: {
-          id: 'rec-42',
-          record: '2025-02-24 14:00',
-          name: 'Иван',
-          phone: '+79991234567',
-          service: 'Стрижка',
-        },
-      },
+      payload: basePayload('event-create-record'),
     });
 
     expect(res.statusCode).toBe(200);
@@ -123,7 +127,7 @@ describe('POST /webhook/rubitime', () => {
     expect(sendSms).not.toHaveBeenCalled();
   });
 
-  it('returns 200 and uses fallback when user not found', async () => {
+  it('CREATE + user not found => sms called, admin called', async () => {
     const { app, sendMessage, sendSms } = buildApp({
       findUserImpl: async () => null,
     });
@@ -132,15 +136,102 @@ describe('POST /webhook/rubitime', () => {
       method: 'POST',
       url: '/webhook/rubitime',
       headers: { 'x-rubitime-token': token },
-      payload: {
-        from: 'rubitime',
-        event: 'event-create-record',
-        data: { id: '1', phone: '+79991234567' },
-      },
+      payload: basePayload('event-create-record'),
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
+    expect(sendSms).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith(99999, expect.stringContaining('требуется SMS'));
+  });
+
+  it('CREATE + tg throws => sms called, admin called, status 200', async () => {
+    const { app, sendMessage, sendSms } = buildApp({
+      sendMessageImpl: async (chatId) => {
+        if (chatId === 12345) {
+          throw new Error('Telegram API error');
+        }
+      },
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/rubitime',
+      headers: { 'x-rubitime-token': token },
+      payload: basePayload('event-create-record'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(sendSms).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenCalledWith(99999, expect.stringContaining('требуется SMS'));
+  });
+
+  it('TRANSFER_REQUEST => user ack + admin details when user found', async () => {
+    const { app, sendMessage, sendSms } = buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/rubitime',
+      headers: { 'x-rubitime-token': token },
+      payload: basePayload('event-update-record'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Запрос на перенос получен'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 99999, expect.stringContaining('запрос на перенос'));
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  it('TRANSFER_REQUEST => fallback when user not found', async () => {
+    const { app, sendMessage, sendSms } = buildApp({
+      findUserImpl: async () => null,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/rubitime',
+      headers: { 'x-rubitime-token': token },
+      payload: basePayload('event-update-record'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(sendSms).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith(99999, expect.stringContaining('требуется SMS'));
+  });
+
+  it('CANCEL => user notify if found', async () => {
+    const { app, sendMessage, sendSms } = buildApp();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/rubitime',
+      headers: { 'x-rubitime-token': token },
+      payload: basePayload('event-remove-record'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith(12345, expect.stringContaining('Запись отменена'));
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  it('CANCEL => fallback when user not found', async () => {
+    const { app, sendMessage, sendSms } = buildApp({
+      findUserImpl: async () => null,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/rubitime',
+      headers: { 'x-rubitime-token': token },
+      payload: basePayload('event-remove-record'),
+    });
+
+    expect(res.statusCode).toBe(200);
     expect(sendSms).toHaveBeenCalledTimes(1);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage).toHaveBeenCalledWith(99999, expect.stringContaining('требуется SMS'));
