@@ -6,7 +6,7 @@
 
 ## Rubitime
 
-**Назначение:** приём событий записи из Rubitime, сохранение в БД и уведомление через Telegram с fallback в SMS stub.
+**Назначение:** приём событий записи из Rubitime, сохранение в БД, уведомление клиента, а также iframe-проверка показа кнопки Telegram на странице успеха.
 
 - **Endpoint:** `POST /webhook/rubitime` (или `POST /webhook/rubitime/:token`)
 - **Защита:** токен может приходить в одном из вариантов:
@@ -21,15 +21,37 @@
 - **Хранение в БД:**
   - `rubitime_events` — лог каждого входящего webhook (полный body, event, received_at);
   - `rubitime_records` — актуальный срез записи Rubitime (id, phone_normalized, record_at, status, payload_json, last_event).
-- **Бизнес-сценарии:**
-  - `event-create-record` -> `CREATE`
-  - `event-update-record` -> `TRANSFER_REQUEST`
-  - `event-remove-record` -> `CANCEL`
 - **Уведомления:**
-  - если пользователь найден по нормализованному телефону -> отправляется сообщение пользователю в Telegram;
-  - для `TRANSFER_REQUEST` дополнительно отправляется подробное сообщение админу (`ADMIN_TELEGRAM_ID`);
-  - если пользователь не найден или отправка пользователю не удалась -> вызывается `smsClient.sendSms(...)` (SMSC stub), админу отправляется сообщение: «пользователь не уведомлён, требуется SMS».
+  - если пользователь найден по нормализованному телефону -> отправляется сообщение пользователю в Telegram:
+    - `event-create-record`: подтверждение с услугой, датой/временем и филиалом;
+    - `event-update-record`: сообщение об изменении со статусом;
+    - `event-remove-record`: сообщение об отмене записи;
+  - если пользователь не найден -> вызывается `smsClient.sendSms(...)` (SMSC stub), админу отправляется сообщение: «пользователь не уведомлён, требуется SMS»;
+  - debug-сообщения админу с raw payload управляются env-флагом `RUBITIME_DEBUG_NOTIFY_ADMIN` (по умолчанию выключено).
 - **Ответ:** при валидном запросе сервер всегда отвечает **200** (даже если Telegram/SMS отправка завершилась ошибкой). Неверный token -> **403**, невалидный body -> **400**.
+
+### Iframe endpoint для страницы успеха
+
+- **Endpoint:** `GET /api/rubitime?record_success=<record_id>`
+- **Назначение:** возвращает HTML-фрагмент для iframe. Внутри рендерится кнопка «Получать подтверждения в Telegram» только если:
+  - запись существует;
+  - запись не привязана к Telegram (по `phone_normalized`);
+  - запись свежая (окно `RUBITIME_REQSUCCESS_WINDOW_MINUTES`, по умолчанию 20 минут).
+- **Безопасность/маскировка:**
+  - всегда HTTP `200` и однотипный HTML-каркас (`data-showbtn="true|false"`);
+  - IP limit в минуту: `RUBITIME_REQSUCCESS_IP_LIMIT_PER_MIN` (по умолчанию 5);
+  - global limit в минуту: `RUBITIME_REQSUCCESS_GLOBAL_LIMIT_PER_MIN` (по умолчанию 120);
+  - искусственная задержка ответа: `RUBITIME_REQSUCCESS_DELAY_MIN_MS..RUBITIME_REQSUCCESS_DELAY_MAX_MS` (по умолчанию 100..200 мс).
+
+**Пример iframe:**
+
+```html
+<iframe
+  src="https://tgcarebot.bersonservices.ru/api/rubitime?record_success=7835008"
+  style="width:100%;border:0;min-height:72px"
+  loading="lazy"
+></iframe>
+```
 
 **Пример payload:**
 
