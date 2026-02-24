@@ -12,12 +12,36 @@ const mainMenuMarkup = (content: WebhookContent) => ({
 export async function handleStart(
   chatId: number,
   telegramId: number,
+  startText: string,
   userPort: UserPort,
   content: WebhookContent,
 ): Promise<{ consumed: boolean; actions: OutgoingAction[] }> {
-  await userPort.setTelegramUserState(String(telegramId), 'idle');
   const allow = await tryConsumeStart(telegramId, userPort);
   if (!allow) return { consumed: false, actions: [] };
+
+  const payloadMatch = /^\/start\s+(.+)$/.exec(startText.trim());
+  const payload = payloadMatch?.[1]?.trim() ?? '';
+  const isRubitimeRecordId = /^[A-Za-z0-9_-]{1,120}$/.test(payload);
+
+  if (isRubitimeRecordId) {
+    await userPort.setTelegramUserState(
+      String(telegramId),
+      `await_contact:rubitime_record:${payload}`,
+    );
+    return {
+      consumed: true,
+      actions: [
+        {
+          type: 'sendMessage',
+          chatId,
+          text: content.messages.confirmPhoneForRubitime,
+          replyMarkup: content.requestContactKeyboard,
+        },
+      ],
+    };
+  }
+
+  await userPort.setTelegramUserState(String(telegramId), 'idle');
   return {
     consumed: true,
     actions: [

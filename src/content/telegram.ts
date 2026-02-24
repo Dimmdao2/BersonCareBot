@@ -21,6 +21,12 @@ export const telegramContent = {
     [{ text: '📅 Запись на приём' }, { text: '❓ Задать вопрос' }, { text: '⚙️ Меню' }],
   ],
 
+  requestContactKeyboard: {
+    keyboard: [[{ text: '📲 Отправить номер телефона', request_contact: true }]],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+  },
+
   moreMenuInline: {
     inline_keyboard: [
       [{ text: '🔔 Настройки уведомлений', callback_data: 'menu_notifications' }],
@@ -34,6 +40,8 @@ export const telegramContent = {
     chooseMenu: 'Выберите действие в меню.',
     describeQuestion: 'Опишите ваш вопрос.',
     questionAccepted: 'Вопрос принят. Я отвечу вам в ближайшее время.',
+    confirmPhoneForRubitime:
+      'Для привязки записи отправьте ваш номер через кнопку ниже.',
     notImplemented: 'Раздел в разработке.',
     noBookings: 'У вас нет активных записей.',
     bookingOffline: (url: string) => `Для очной записи перейдите по ссылке: ${url}`,

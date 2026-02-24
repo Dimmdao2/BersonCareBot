@@ -7,6 +7,7 @@ import type { NotificationSettings } from './ports/notifications.js';
 export type WebhookContent = {
   mainMenu: { ask: string; book: string; more: string };
   mainMenuKeyboard: unknown;
+  requestContactKeyboard: unknown;
   moreMenuInline: unknown;
   messages: {
     welcome: string;
@@ -15,6 +16,7 @@ export type WebhookContent = {
     questionAccepted: string;
     notImplemented: string;
     bookingMy: string;
+    confirmPhoneForRubitime: string;
   };
   notificationSettings: { title: string; subtitle: string };
   buildNotificationKeyboard: (settings: NotificationSettings) => unknown;
