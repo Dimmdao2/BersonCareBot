@@ -120,6 +120,21 @@ function buildFallbackAdminText(reason: string, phoneNormalized: string | null, 
   ].join('\n');
 }
 
+function splitForTelegram(text: string, maxLen = 3500): string[] {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length; i += maxLen) {
+    chunks.push(text.slice(i, i + maxLen));
+  }
+  return chunks;
+}
+
+function buildAdminWebhookPayloadTexts(rawBody: unknown): string[] {
+  const json = JSON.stringify(rawBody, null, 2) ?? String(rawBody);
+  const fullText = `Rubitime webhook payload (raw)\n${json}`;
+  return splitForTelegram(fullText);
+}
+
 export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhookDeps): void {
   const {
     tgApi,
@@ -146,6 +161,18 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
     const incomingToken = extractIncomingToken(request);
     if (incomingToken !== webhookToken) {
       return reply.code(403).send({ ok: false });
+    }
+
+    if (Number.isFinite(adminChatId)) {
+      try {
+        const payloadMessages = buildAdminWebhookPayloadTexts(request.body);
+        for (const text of payloadMessages) {
+          // Send raw webhook payload for each accepted Rubitime event.
+          await tgApi.sendMessage(adminChatId, text);
+        }
+      } catch (err) {
+        reqLogger.error({ err }, 'rubitime: failed to send raw webhook payload to admin');
+      }
     }
 
     const parseResult = parseRubitimeBody(request.body);

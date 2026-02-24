@@ -125,7 +125,8 @@ describe('POST /webhook/rubitime', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ ok: false, error: 'Invalid webhook body' });
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledWith(99999, expect.stringContaining('Rubitime webhook payload (raw)'));
   });
 
   it('CREATE + user found => tg called, sms not called, admin not called', async () => {
@@ -143,13 +144,14 @@ describe('POST /webhook/rubitime', () => {
     expect(insertEvent).toHaveBeenCalledTimes(1);
     expect(upsertRecord).toHaveBeenCalledTimes(1);
     expect(findTelegramUserByPhone).toHaveBeenCalledWith('+79991234567');
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledWith(12345, expect.stringContaining('Запись подтверждена'));
-    expect(sendMessage).toHaveBeenCalledWith(12345, expect.stringContaining('rec-42'));
-    expect(sendMessage).toHaveBeenCalledWith(12345, expect.stringContaining('2025-02-24 14:00'));
-    expect(sendMessage).toHaveBeenCalledWith(12345, expect.stringContaining('Иван'));
-    expect(sendMessage).toHaveBeenCalledWith(12345, expect.stringContaining('+79991234567'));
-    expect(sendMessage).toHaveBeenCalledWith(12345, expect.stringContaining('Стрижка'));
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('Rubitime webhook payload (raw)'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.stringContaining('Запись подтверждена'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.stringContaining('rec-42'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.stringContaining('2025-02-24 14:00'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.stringContaining('Иван'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.stringContaining('+79991234567'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.stringContaining('Стрижка'));
     expect(sendSms).not.toHaveBeenCalled();
   });
 
@@ -168,8 +170,9 @@ describe('POST /webhook/rubitime', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledWith(99999, expect.stringContaining('требуется SMS'));
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('Rubitime webhook payload (raw)'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 99999, expect.stringContaining('требуется SMS'));
   });
 
   it('CREATE + tg throws => sms called, admin called, status 200', async () => {
@@ -190,8 +193,9 @@ describe('POST /webhook/rubitime', () => {
 
     expect(res.statusCode).toBe(200);
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(sendMessage).toHaveBeenCalledWith(99999, expect.stringContaining('требуется SMS'));
+    expect(sendMessage).toHaveBeenCalledTimes(3);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('Rubitime webhook payload (raw)'));
+    expect(sendMessage).toHaveBeenNthCalledWith(3, 99999, expect.stringContaining('требуется SMS'));
   });
 
   it('TRANSFER_REQUEST => user ack + admin details when user found', async () => {
@@ -205,9 +209,10 @@ describe('POST /webhook/rubitime', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.stringContaining('Запрос на перенос получен'));
-    expect(sendMessage).toHaveBeenNthCalledWith(2, 99999, expect.stringContaining('запрос на перенос'));
+    expect(sendMessage).toHaveBeenCalledTimes(3);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('Rubitime webhook payload (raw)'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.stringContaining('Запрос на перенос получен'));
+    expect(sendMessage).toHaveBeenNthCalledWith(3, 99999, expect.stringContaining('запрос на перенос'));
     expect(sendSms).not.toHaveBeenCalled();
   });
 
@@ -225,8 +230,9 @@ describe('POST /webhook/rubitime', () => {
 
     expect(res.statusCode).toBe(200);
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledWith(99999, expect.stringContaining('требуется SMS'));
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('Rubitime webhook payload (raw)'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 99999, expect.stringContaining('требуется SMS'));
   });
 
   it('CANCEL => user notify if found', async () => {
@@ -240,8 +246,9 @@ describe('POST /webhook/rubitime', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledWith(12345, expect.stringContaining('Запись отменена'));
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('Rubitime webhook payload (raw)'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.stringContaining('Запись отменена'));
     expect(sendSms).not.toHaveBeenCalled();
   });
 
@@ -259,7 +266,8 @@ describe('POST /webhook/rubitime', () => {
 
     expect(res.statusCode).toBe(200);
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledWith(99999, expect.stringContaining('требуется SMS'));
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('Rubitime webhook payload (raw)'));
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 99999, expect.stringContaining('требуется SMS'));
   });
 });
