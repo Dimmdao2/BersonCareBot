@@ -76,6 +76,18 @@ export async function handleUpdate(
   }
 
   if (userState === 'waiting_for_question' && text) {
+    // Menu actions have priority over "question" mode:
+    // pressing a menu button cancels waiting state and routes to that action.
+    if (text === content.mainMenu.book) {
+      return handleBook(chatId, telegramId, userPort, content);
+    }
+    if (text === content.mainMenu.more) {
+      await userPort.setTelegramUserState(telegramId, 'idle');
+      return handleMore(chatId, content);
+    }
+    if (text === content.mainMenu.ask) {
+      return handleAsk(chatId, telegramId, userPort, content);
+    }
     return handleQuestion(chatId, telegramId, text, userPort, content, adminForward);
   }
 
