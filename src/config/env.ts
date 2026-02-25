@@ -16,15 +16,8 @@ const parsed = z
     DATABASE_URL: z.string().min(1),
     TG_WEBHOOK_SECRET: z.string().optional(),
 
-    /** Токен для входящего webhook Rubitime (header X-Rubitime-Token). Обязательный. */
+    /** Токен для входящего webhook Rubitime (path /webhook/rubitime/:token). Обязательный. */
     RUBITIME_WEBHOOK_TOKEN: z.string().min(1),
-    /** Включает debug-уведомления админу с raw payload Rubitime. */
-    RUBITIME_DEBUG_NOTIFY_ADMIN: z
-      .preprocess(
-        (v) => (typeof v === "string" ? v.trim().toLowerCase() : v),
-        z.enum(["1", "true", "yes", "on"]).optional(),
-      )
-      .transform((v) => Boolean(v)),
     RUBITIME_REQSUCCESS_WINDOW_MINUTES: z.coerce.number().int().positive().default(20),
     RUBITIME_REQSUCCESS_DELAY_MIN_MS: z.coerce.number().int().nonnegative().default(100),
     RUBITIME_REQSUCCESS_DELAY_MAX_MS: z.coerce.number().int().positive().default(200),

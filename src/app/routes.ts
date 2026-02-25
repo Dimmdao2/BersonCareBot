@@ -39,8 +39,6 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
     findTelegramUserByPhone: deps.findTelegramUserByPhone,
     insertEvent: deps.insertRubitimeEvent,
     upsertRecord: deps.upsertRubitimeRecord,
-    adminTelegramId: env.ADMIN_TELEGRAM_ID,
     webhookToken: env.RUBITIME_WEBHOOK_TOKEN,
-    debugNotifyAdmin: env.RUBITIME_DEBUG_NOTIFY_ADMIN,
   });
 }

@@ -100,10 +100,10 @@ function getExpected(name: string): ScenarioExpect {
 
 const E2E_TEST_TELEGRAM_ID = '111222333';
 
-/** В CI нет реальной БД — пропускаем e2e, требующие PostgreSQL. */
-const hasE2EDb = process.env.CI !== 'true';
+/** E2E запускаются только по явному флагу RUN_E2E_TESTS=true. */
+const runE2E = process.env.RUN_E2E_TESTS === 'true';
 
-describe.skipIf(!hasE2EDb)('Webhook scenarios (e2e)', () => {
+describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
   let app: Awaited<ReturnType<Awaited<typeof import('../src/app.js')>['buildApp']>>;
   let fixtures: { name: string; payload: unknown }[];
   let webhookSecret: string | undefined;

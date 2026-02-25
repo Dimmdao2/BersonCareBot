@@ -22,38 +22,14 @@ export type RubitimeWebhookDeps = {
   insertEvent: (input: InsertRubitimeEventInput) => Promise<void>;
   upsertRecord: (input: UpsertRubitimeRecordInput) => Promise<void>;
   findTelegramUserByPhone: (phoneNormalized: string) => Promise<RubitimeTelegramUser | null>;
-  adminTelegramId: string;
-  /** Токен для проверки (header X-Rubitime-Token). */
+  /** Токен для проверки во входящем path /webhook/rubitime/:token. */
   webhookToken: string;
-  /** Отправлять админу raw webhook payload для отладки. */
-  debugNotifyAdmin?: boolean;
 };
 
-function firstString(value: unknown): string | null {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
-  return null;
-}
-
-function extractIncomingToken(request: {
-  headers: Record<string, unknown>;
-  query: unknown;
-  params: unknown;
-}): string | null {
-  const headerToken = firstString(request.headers['x-rubitime-token']);
-  if (headerToken) return headerToken;
-
-  if (request.query && typeof request.query === 'object') {
-    const queryToken = firstString((request.query as Record<string, unknown>).token);
-    if (queryToken) return queryToken;
-  }
-
-  if (request.params && typeof request.params === 'object') {
-    const pathToken = firstString((request.params as Record<string, unknown>).token);
-    if (pathToken) return pathToken;
-  }
-
-  return null;
+function extractIncomingToken(params: unknown): string | null {
+  if (!params || typeof params !== 'object') return null;
+  const value = (params as Record<string, unknown>).token;
+  return typeof value === 'string' ? value : null;
 }
 
 function safeStr(value: unknown): string {
@@ -102,21 +78,6 @@ function isBookedByStatus(data: Record<string, unknown>): boolean {
   return statusTitle === 'записан' || statusCode === '0';
 }
 
-function formatDetails(data: Record<string, unknown>): string[] {
-  const lines: string[] = [];
-  const id = data.id;
-  if (id !== undefined && id !== null) lines.push(`ID: ${safeStr(id)}`);
-  const record = data.record;
-  if (record !== undefined && record !== null) lines.push(`Дата/время: ${safeStr(record)}`);
-  const name = data.name;
-  if (name !== undefined && name !== null) lines.push(`Имя: ${safeStr(name)}`);
-  const phone = data.phone;
-  if (phone !== undefined && phone !== null) lines.push(`Телефон: ${safeStr(phone)}`);
-  const service = data.service;
-  if (service !== undefined && service !== null) lines.push(`Услуга: ${safeStr(service)}`);
-  return lines;
-}
-
 function buildUserText(kind: 'CREATE' | 'TRANSFER_REQUEST' | 'CANCEL', data: Record<string, unknown>): string {
   const name = safeStr(data.name) || 'Клиент';
   const service = safeStr(data.service_title) || safeStr(data.service) || 'услугу';
@@ -148,43 +109,8 @@ function buildUserText(kind: 'CREATE' | 'TRANSFER_REQUEST' | 'CANCEL', data: Rec
   ].join('\n');
 }
 
-function buildFallbackAdminText(reason: string, phoneNormalized: string | null, data: Record<string, unknown>): string {
-  const details = formatDetails(data);
-  return [
-    'Rubitime: пользователь не уведомлён, требуется SMS',
-    `Причина: ${reason}`,
-    `Телефон: ${phoneNormalized ?? '-'}`,
-    ...details,
-  ].join('\n');
-}
-
-function splitForTelegram(text: string, maxLen = 3500): string[] {
-  if (text.length <= maxLen) return [text];
-  const chunks: string[] = [];
-  for (let i = 0; i < text.length; i += maxLen) {
-    chunks.push(text.slice(i, i + maxLen));
-  }
-  return chunks;
-}
-
-function buildAdminWebhookPayloadTexts(rawBody: unknown): string[] {
-  const json = JSON.stringify(rawBody, null, 2) ?? String(rawBody);
-  const fullText = `Rubitime webhook payload (raw)\n${json}`;
-  return splitForTelegram(fullText);
-}
-
 export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhookDeps): void {
-  const {
-    tgApi,
-    smsClient,
-    insertEvent,
-    upsertRecord,
-    findTelegramUserByPhone,
-    adminTelegramId,
-    webhookToken,
-    debugNotifyAdmin = false,
-  } = deps;
-  const adminChatId = Number(adminTelegramId);
+  const { tgApi, smsClient, insertEvent, upsertRecord, findTelegramUserByPhone, webhookToken } = deps;
 
   const handler = async (request: {
     id: string;
@@ -197,21 +123,9 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
   }) => {
     const reqLogger = getRequestLogger(request.id);
 
-    const incomingToken = extractIncomingToken(request);
+    const incomingToken = extractIncomingToken(request.params);
     if (incomingToken !== webhookToken) {
       return reply.code(403).send({ ok: false });
-    }
-
-    if (debugNotifyAdmin && Number.isFinite(adminChatId)) {
-      try {
-        const payloadMessages = buildAdminWebhookPayloadTexts(request.body);
-        for (const text of payloadMessages) {
-          // Send raw webhook payload for each accepted Rubitime event.
-          await tgApi.sendMessage(adminChatId, text);
-        }
-      } catch (err) {
-        reqLogger.error({ err }, 'rubitime: failed to send raw webhook payload to admin');
-      }
     }
 
     const parseResult = parseRubitimeBody(request.body);
@@ -252,28 +166,21 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
       reqLogger.warn({ body }, 'rubitime payload has no data.id, upsert skipped');
     }
 
-    const fallback = async (reason: string, notifyAdmin = true) => {
+    const fallback = async () => {
       await smsClient.sendSms({
         toPhone: phoneNormalized ?? '',
         message: kind === 'CANCEL' ? 'Запись отменена' : 'Требуется подтверждение записи',
       });
-      if (notifyAdmin && Number.isFinite(adminChatId)) {
-        try {
-          await tgApi.sendMessage(adminChatId, buildFallbackAdminText(reason, phoneNormalized, data));
-        } catch (err) {
-          reqLogger.error({ err }, 'rubitime: failed to notify admin on fallback');
-        }
-      }
     };
 
     if (!phoneNormalized) {
-      await fallback('PHONE_NOT_FOUND_IN_PAYLOAD');
+      await fallback();
       return reply.code(200).send({ ok: true });
     }
 
     const user = await findTelegramUserByPhone(phoneNormalized);
     if (!user) {
-      await fallback('USER_NOT_FOUND_BY_PHONE');
+      await fallback();
       return reply.code(200).send({ ok: true });
     }
 
@@ -281,12 +188,11 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
       await tgApi.sendMessage(user.chatId, buildUserText(kind, data));
     } catch (err) {
       reqLogger.error({ err }, 'rubitime: sendMessage to user failed');
-      await fallback('TELEGRAM_SEND_FAILED', false);
+      await fallback();
     }
 
     return reply.code(200).send({ ok: true });
   };
 
-  app.post('/webhook/rubitime', handler);
   app.post('/webhook/rubitime/:token', handler);
 }

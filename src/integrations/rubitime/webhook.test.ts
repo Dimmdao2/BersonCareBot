@@ -9,7 +9,6 @@ function buildApp(options?: {
   sendMessageImpl?: (chatId: number, text: string) => Promise<unknown>;
   sendSmsImpl?: SmsClient['sendSms'];
   findUserImpl?: (phoneNormalized: string) => Promise<{ chatId: number; telegramId: string; username: string | null } | null>;
-  debugNotifyAdmin?: boolean;
 }) {
   const sendMessage = vi.fn(options?.sendMessageImpl ?? (async () => undefined));
   const sendSms = vi.fn(options?.sendSmsImpl ?? (async () => ({ ok: false, error: 'SMSC_NOT_IMPLEMENTED' })));
@@ -26,9 +25,7 @@ function buildApp(options?: {
     insertEvent,
     upsertRecord,
     findTelegramUserByPhone,
-    adminTelegramId: '99999',
     webhookToken: token,
-    debugNotifyAdmin: options?.debugNotifyAdmin ?? false,
   });
   return { app, sendMessage, sendSms, insertEvent, upsertRecord, findTelegramUserByPhone };
 }
@@ -49,8 +46,8 @@ function basePayload(event: 'event-create-record' | 'event-update-record' | 'eve
   };
 }
 
-describe('POST /webhook/rubitime', () => {
-  it('returns 403 if token is missing', async () => {
+describe('POST /webhook/rubitime/:token', () => {
+  it('returns 404 if token path segment is missing', async () => {
     const { app, sendMessage } = buildApp();
 
     const res = await app.inject({
@@ -63,22 +60,8 @@ describe('POST /webhook/rubitime', () => {
       },
     });
 
-    expect(res.statusCode).toBe(403);
-    expect(res.json()).toEqual({ ok: false });
+    expect(res.statusCode).toBe(404);
     expect(sendMessage).not.toHaveBeenCalled();
-  });
-
-  it('returns 200 when token is provided in query', async () => {
-    const { app } = buildApp();
-
-    const res = await app.inject({
-      method: 'POST',
-      url: `/webhook/rubitime?token=${token}`,
-      payload: basePayload('event-create-record'),
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ ok: true });
   });
 
   it('returns 200 when token is provided in path', async () => {
@@ -99,8 +82,7 @@ describe('POST /webhook/rubitime', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': 'wrong-token' },
+      url: '/webhook/rubitime/wrong-token',
       payload: {
         from: 'rubitime',
         event: 'event-create-record',
@@ -118,8 +100,7 @@ describe('POST /webhook/rubitime', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload: {
         from: 'rubitime',
         event: 'invalid-event',
@@ -137,8 +118,7 @@ describe('POST /webhook/rubitime', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload: basePayload('event-create-record'),
     });
 
@@ -157,26 +137,24 @@ describe('POST /webhook/rubitime', () => {
     expect(sendSms).not.toHaveBeenCalled();
   });
 
-  it('CREATE + user not found => sms called, admin called', async () => {
+  it('CREATE + user not found => sms called, admin is not called', async () => {
     const { app, sendMessage, sendSms } = buildApp({
       findUserImpl: async () => null,
     });
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload: basePayload('event-create-record'),
     });
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('требуется SMS'));
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it('CREATE + tg throws => sms called, admin called, status 200', async () => {
+  it('CREATE + tg throws => sms called, admin is not called, status 200', async () => {
     const { app, sendMessage, sendSms } = buildApp({
       sendMessageImpl: async (chatId) => {
         if (chatId === 12345) {
@@ -187,8 +165,7 @@ describe('POST /webhook/rubitime', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload: basePayload('event-create-record'),
     });
 
@@ -202,8 +179,7 @@ describe('POST /webhook/rubitime', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload: basePayload('event-update-record'),
     });
 
@@ -213,22 +189,20 @@ describe('POST /webhook/rubitime', () => {
     expect(sendSms).not.toHaveBeenCalled();
   });
 
-  it('TRANSFER_REQUEST => fallback when user not found', async () => {
+  it('TRANSFER_REQUEST => fallback when user not found and no admin message', async () => {
     const { app, sendMessage, sendSms } = buildApp({
       findUserImpl: async () => null,
     });
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload: basePayload('event-update-record'),
     });
 
     expect(res.statusCode).toBe(200);
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('требуется SMS'));
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it('CANCEL => sends formatted cancel text to user', async () => {
@@ -236,8 +210,7 @@ describe('POST /webhook/rubitime', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload: basePayload('event-remove-record'),
     });
 
@@ -247,22 +220,20 @@ describe('POST /webhook/rubitime', () => {
     expect(sendSms).not.toHaveBeenCalled();
   });
 
-  it('CANCEL => fallback when user not found', async () => {
+  it('CANCEL => fallback when user not found and no admin message', async () => {
     const { app, sendMessage, sendSms } = buildApp({
       findUserImpl: async () => null,
     });
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload: basePayload('event-remove-record'),
     });
 
     expect(res.statusCode).toBe(200);
     expect(sendSms).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('требуется SMS'));
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it('does not notify admin when user telegram send fails', async () => {
@@ -274,8 +245,7 @@ describe('POST /webhook/rubitime', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload: basePayload('event-update-record'),
     });
 
@@ -283,22 +253,6 @@ describe('POST /webhook/rubitime', () => {
     expect(sendSms).toHaveBeenCalledTimes(1);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     expect(sendMessage).toHaveBeenNthCalledWith(1, 12345, expect.any(String));
-  });
-
-  it('sends raw payload to admin only when debug flag enabled', async () => {
-    const { app, sendMessage } = buildApp({ debugNotifyAdmin: true });
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
-      payload: basePayload('event-create-record'),
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 99999, expect.stringContaining('Rubitime webhook payload (raw)'));
-    expect(sendMessage).toHaveBeenNthCalledWith(2, 12345, expect.any(String));
   });
 
   it('UPDATE with canceled status sends cancel-like text to user', async () => {
@@ -309,8 +263,7 @@ describe('POST /webhook/rubitime', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: '/webhook/rubitime',
-      headers: { 'x-rubitime-token': token },
+      url: `/webhook/rubitime/${token}`,
       payload,
     });
 

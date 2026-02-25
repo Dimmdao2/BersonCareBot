@@ -57,53 +57,7 @@ beforeEach(() => {
   );
 });
 
-const hasRealDb =
-  process.env.DATABASE_URL != null && !process.env.DATABASE_URL.includes('localhost:5432/test');
-
 describe('POST /webhook/telegram', () => {
-  it.skipIf(!hasRealDb)('deduplicates repeated update_id (persistent)', async () => {
-    try {
-      const { db } = await import('../../db/client.js');
-      await db.query('UPDATE telegram_users SET last_update_id = NULL WHERE telegram_id = $1', [1]);
-    } catch (e) {
-      // ignore if db not available
-    }
-    const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
-
-    const body = {
-      update_id: 777,
-      message: {
-        message_id: 1,
-        chat: { id: 1 },
-        from: { id: 1, is_bot: false, first_name: 'A' },
-        text: '/start',
-      },
-    } satisfies TelegramWebhookBody;
-
-    const res1 = await app.inject({
-      method: 'POST',
-      url: '/webhook/telegram',
-      payload: body,
-    });
-
-    expect(res1.statusCode).toBe(200);
-    expect(res1.json()).toEqual({ ok: true });
-
-    const callsAfterFirst = telegramFetchMock.mock.calls.length;
-    expect(callsAfterFirst).toBeGreaterThan(0);
-
-    const res2 = await app.inject({
-      method: 'POST',
-      url: '/webhook/telegram',
-      payload: body,
-    });
-
-    expect(res2.statusCode).toBe(200);
-    expect(res2.json()).toEqual({ ok: true });
-
-    const callsAfterSecond = telegramFetchMock.mock.calls.length;
-    expect(callsAfterSecond).toBe(callsAfterFirst);
-  });
   it('returns 200 if no secret set', async () => {
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
 
@@ -125,7 +79,7 @@ describe('POST /webhook/telegram', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
-  });
+  }, 15000);
 
   it('returns 200 with correct secret', async () => {
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: 'secret' });

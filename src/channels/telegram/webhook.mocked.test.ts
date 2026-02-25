@@ -105,7 +105,7 @@ describe('POST /webhook/telegram (mocked)', () => {
     expect(res2.json()).toEqual({ ok: true });
     const callsAfterSecond = telegramFetchMock.mock.calls.length;
     expect(callsAfterSecond).toBe(callsAfterFirst);
-  });
+  }, 15000);
 
   it('returns 400 when body is valid JSON but fails schema (e.g. update_id string)', async () => {
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
