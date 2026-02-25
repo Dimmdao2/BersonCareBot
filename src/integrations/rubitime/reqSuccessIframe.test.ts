@@ -4,6 +4,7 @@ import { registerRubitimeReqSuccessIframeRoute } from './reqSuccessIframe.js';
 
 describe('GET /api/rubitime (iframe req success)', () => {
   const testRecordId = 'rec-test-5008';
+  const freshRecordAt = () => new Date(Date.now() - 60_000);
   const baseDeps = {
     windowMinutes: 20,
     delayMinMs: 0,
@@ -37,7 +38,7 @@ describe('GET /api/rubitime (iframe req success)', () => {
         rubitimeRecordId: testRecordId,
         phoneNormalized: '+79990000001',
         payloadJson: {},
-        recordAt: new Date(),
+        recordAt: freshRecordAt(),
         status: 'created',
       }),
       findTelegramUserByPhone: async () => null,
@@ -62,7 +63,7 @@ describe('GET /api/rubitime (iframe req success)', () => {
         rubitimeRecordId: testRecordId,
         phoneNormalized: '+79990000001',
         payloadJson: {},
-        recordAt: new Date(),
+        recordAt: freshRecordAt(),
         status: 'created',
       }),
       findTelegramUserByPhone: async () => ({ chatId: 1, telegramId: '1', username: 'linked' }),
@@ -85,7 +86,7 @@ describe('GET /api/rubitime (iframe req success)', () => {
         rubitimeRecordId: testRecordId,
         phoneNormalized: '+79990000001',
         payloadJson: {},
-        recordAt: new Date(),
+        recordAt: freshRecordAt(),
         status: 'created',
       }),
       findTelegramUserByPhone: async () => null,
