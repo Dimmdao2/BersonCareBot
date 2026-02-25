@@ -60,7 +60,14 @@ export async function handleUpdate(
   if (!userRow || !telegramId) return [];
 
   if (text === '/start' || text.startsWith('/start ')) {
-    const { consumed, actions } = await handleStart(chatId, Number(telegramId), text, userPort, content);
+    const { consumed, actions } = await handleStart(
+      chatId,
+      Number(telegramId),
+      text,
+      incoming.hasLinkedPhone ?? false,
+      userPort,
+      content,
+    );
     return consumed ? actions : [];
   }
 

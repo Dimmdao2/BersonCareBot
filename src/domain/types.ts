@@ -44,6 +44,7 @@ export type IncomingMessageUpdate = {
   telegramId: string;
   text: string;
   contactPhone?: string;
+  hasLinkedPhone?: boolean;
   telegramUsername?: string | null;
   userRow: { id: string; telegram_id: string } | null;
   userState: string;

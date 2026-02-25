@@ -13,6 +13,7 @@ export async function handleStart(
   chatId: number,
   telegramId: number,
   startText: string,
+  hasLinkedPhone: boolean,
   userPort: UserPort,
   content: WebhookContent,
 ): Promise<{ consumed: boolean; actions: OutgoingAction[] }> {
@@ -24,6 +25,20 @@ export async function handleStart(
   const isRubitimeRecordId = /^[A-Za-z0-9_-]{1,120}$/.test(payload);
 
   if (isRubitimeRecordId) {
+    if (hasLinkedPhone) {
+      await userPort.setTelegramUserState(String(telegramId), 'idle');
+      return {
+        consumed: true,
+        actions: [
+          {
+            type: 'sendMessage',
+            chatId,
+            text: content.messages.chooseMenu,
+            replyMarkup: mainMenuMarkup(content),
+          },
+        ],
+      };
+    }
     await userPort.setTelegramUserState(
       String(telegramId),
       `await_contact:rubitime_record:${payload}`,
@@ -91,8 +106,16 @@ export async function handleBook(
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
   await userPort.setTelegramUserState(telegramId, 'idle');
+  const bookingLinkMarkup = {
+    inline_keyboard: [[{ text: content.messages.bookingOpenButton, url: content.bookingUrl }]],
+  };
   return [
-    { type: 'sendMessage', chatId, text: content.messages.notImplemented, replyMarkup: mainMenuMarkup(content) },
+    {
+      type: 'sendMessage',
+      chatId,
+      text: content.messages.bookingOpenPrompt,
+      replyMarkup: bookingLinkMarkup,
+    },
   ];
 }
 

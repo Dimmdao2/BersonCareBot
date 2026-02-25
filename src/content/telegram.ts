@@ -27,6 +27,8 @@ export const telegramContent = {
     one_time_keyboard: true,
   },
 
+  bookingUrl: process.env.BOOKING_URL ?? '',
+
   moreMenuInline: {
     inline_keyboard: [
       [{ text: '🔔 Настройки уведомлений', callback_data: 'menu_notifications' }],
@@ -43,10 +45,12 @@ export const telegramContent = {
     confirmPhoneForRubitime:
       'Для привязки записи отправьте ваш номер через кнопку ниже.',
     notImplemented: 'Раздел в разработке.',
+    bookingOpenPrompt: 'Открыть виджет записи:',
+    bookingOpenButton: 'Открыть запись',
     noBookings: 'У вас нет активных записей.',
     bookingOffline: (url: string) => `Для очной записи перейдите по ссылке: ${url}`,
     bookingOnline: 'Опишите причину обращения.',
-    bookingMy: "Раздел 'Мои записи' в разработке.",
+    bookingMy: 'Раздел в разработке.',
   },
 
   inline: {

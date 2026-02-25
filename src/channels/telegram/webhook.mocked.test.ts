@@ -30,6 +30,7 @@ const mockGetNotif = vi.fn().mockResolvedValue({
 });
 const mockUpdateNotif = vi.fn().mockResolvedValue(undefined);
 const mockConsumeStart = vi.fn().mockResolvedValue(true);
+const mockGetLinkData = vi.fn().mockResolvedValue({ chatId: 1, telegramId: '1', username: 'u', phoneNormalized: null });
 
 const mockWebhookDeps = {
   userPort: {
@@ -45,7 +46,7 @@ const mockWebhookDeps = {
   },
   getRubitimeRecordById: vi.fn().mockResolvedValue(null),
   findTelegramUserByPhone: vi.fn().mockResolvedValue(null),
-  getTelegramUserLinkData: vi.fn().mockResolvedValue({ chatId: 1, telegramId: '1', username: 'u', phoneNormalized: null }),
+  getTelegramUserLinkData: mockGetLinkData,
   setTelegramUserPhone: vi.fn().mockResolvedValue(undefined),
 };
 
@@ -66,6 +67,8 @@ describe('POST /webhook/telegram (mocked)', () => {
   beforeEach(() => {
     telegramFetchMock.mockClear();
     tryAdvanceLastUpdateIdMock.mockReset();
+    mockGetLinkData.mockReset();
+    mockGetLinkData.mockResolvedValue({ chatId: 1, telegramId: '1', username: 'u', phoneNormalized: null });
   });
 
   it('when tryAdvanceLastUpdateId returns false (duplicate), responds 200 without calling Telegram', async () => {
@@ -113,5 +116,30 @@ describe('POST /webhook/telegram (mocked)', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json()).toMatchObject({ ok: false, error: 'Invalid webhook body' });
+  });
+
+  it('does not ask contact on /start payload when user already linked', async () => {
+    mockGetLinkData.mockResolvedValueOnce({
+      chatId: 1,
+      telegramId: '1',
+      username: 'u',
+      phoneNormalized: '+79991234567',
+    });
+    const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/telegram',
+      payload: {
+        update_id: 778,
+        message: {
+          message_id: 2,
+          chat: { id: 1 },
+          from: { id: 1, is_bot: false, first_name: 'A' },
+          text: '/start rubi_record_123',
+        },
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
   });
 });

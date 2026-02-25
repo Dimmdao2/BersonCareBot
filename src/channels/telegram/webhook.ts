@@ -108,9 +108,12 @@ export async function telegramWebhookRoutes(
       }
 
       let userState: string | undefined;
+      let hasLinkedPhone = false;
       let adminForward: { chatId: number; text: string } | undefined;
       if (body.message?.from && telegramId) {
         userState = (await userPort.getTelegramUserState(telegramId)) ?? 'idle';
+        const userLinkData = await getTelegramUserLinkData(telegramId);
+        hasLinkedPhone = Boolean(userLinkData?.phoneNormalized);
         if (userState === 'waiting_for_question' && body.message.text) {
           const adminId = env.ADMIN_TELEGRAM_ID != null ? Number(env.ADMIN_TELEGRAM_ID) : undefined;
           if (adminId && body.message.from) {
@@ -127,6 +130,7 @@ export async function telegramWebhookRoutes(
         userRow,
         telegramId,
         ...(userState !== undefined && { userState }),
+        hasLinkedPhone,
         ...(adminForward !== undefined && { adminForward }),
       });
 

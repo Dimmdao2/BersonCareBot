@@ -8,6 +8,7 @@ export type WebhookContent = {
   mainMenu: { ask: string; book: string; more: string };
   mainMenuKeyboard: unknown;
   requestContactKeyboard: unknown;
+  bookingUrl: string;
   moreMenuInline: unknown;
   messages: {
     welcome: string;
@@ -17,6 +18,8 @@ export type WebhookContent = {
     notImplemented: string;
     bookingMy: string;
     confirmPhoneForRubitime: string;
+    bookingOpenPrompt: string;
+    bookingOpenButton: string;
   };
   notificationSettings: { title: string; subtitle: string };
   buildNotificationKeyboard: (settings: NotificationSettings) => unknown;

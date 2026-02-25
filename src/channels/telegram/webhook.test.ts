@@ -234,6 +234,27 @@ describe('POST /webhook/telegram', () => {
     expect(res.json()).toEqual({ ok: true });
   });
 
+  it('book menu sends BOOKING_URL button', async () => {
+    const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined, BOOKING_URL: 'https://example.com/widget' });
+    const telegramId = 54321;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/telegram',
+      payload: {
+        update_id: 402,
+        message: {
+          message_id: 402,
+          chat: { id: telegramId },
+          from: { id: telegramId, is_bot: false, first_name: 'A' },
+          text: '📅 Запись на приём',
+        },
+      },
+    } satisfies { payload: TelegramWebhookBody; method: 'POST'; url: '/webhook/telegram' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+  });
+
   it('returns 400 for invalid webhook body', async () => {
     const app = await buildAppWithEnv({ TG_WEBHOOK_SECRET: undefined });
     const res = await app.inject({

@@ -23,11 +23,6 @@ type RateLimiterState = {
   byIp: Map<string, CounterEntry>;
 };
 
-const rateState: RateLimiterState = {
-  global: { minuteBucket: -1, count: 0 },
-  byIp: new Map(),
-};
-
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -74,14 +69,15 @@ function isRateAllowed(params: {
   clientIp: string;
   ipLimitPerMin: number;
   globalLimitPerMin: number;
+  rateState: RateLimiterState;
 }): boolean {
   const minuteBucket = getMinuteBucket(params.now);
-  const globalCount = incrementCounter(rateState.global, minuteBucket);
+  const globalCount = incrementCounter(params.rateState.global, minuteBucket);
   if (globalCount > params.globalLimitPerMin) return false;
 
-  const ipCounter = rateState.byIp.get(params.clientIp) ?? { minuteBucket, count: 0 };
+  const ipCounter = params.rateState.byIp.get(params.clientIp) ?? { minuteBucket, count: 0 };
   const ipCount = incrementCounter(ipCounter, minuteBucket);
-  rateState.byIp.set(params.clientIp, ipCounter);
+  params.rateState.byIp.set(params.clientIp, ipCounter);
   return ipCount <= params.ipLimitPerMin;
 }
 
@@ -96,6 +92,11 @@ export function registerRubitimeReqSuccessIframeRoute(
   app: FastifyInstance,
   deps: ReqSuccessIframeDeps,
 ): void {
+  const rateState: RateLimiterState = {
+    global: { minuteBucket: -1, count: 0 },
+    byIp: new Map(),
+  };
+
   app.get('/api/rubitime', async (request, reply) => {
     const query = request.query as Record<string, unknown> | undefined;
     const recordSuccess = typeof query?.record_success === 'string' ? query.record_success.trim() : '';
@@ -110,6 +111,7 @@ export function registerRubitimeReqSuccessIframeRoute(
       clientIp,
       ipLimitPerMin: deps.ipLimitPerMin,
       globalLimitPerMin: deps.globalLimitPerMin,
+      rateState,
     });
     const renderAndReturn = async (showButton: boolean, recordId: string) => {
       await applyDelay(deps.delayMinMs, deps.delayMaxMs);

@@ -18,6 +18,7 @@ export type FromTelegramContext = {
   userRow: { id: string; telegram_id: string } | null;
   telegramId: string | null;
   userState?: string | undefined;
+  hasLinkedPhone?: boolean | undefined;
   adminForward?: { chatId: number; text: string } | undefined;
 };
 
@@ -28,7 +29,7 @@ export function fromTelegram(
   body: TelegramWebhookBodyValidated,
   context: FromTelegramContext,
 ): IncomingUpdate | null {
-  const { userRow, telegramId, userState = 'idle', adminForward } = context;
+  const { userRow, telegramId, userState = 'idle', hasLinkedPhone, adminForward } = context;
 
   if (body.callback_query) {
     const cq = body.callback_query;
@@ -56,6 +57,7 @@ export function fromTelegram(
       telegramId,
       text: msg.text ?? '',
       ...(typeof msg.contact?.phone_number === 'string' && { contactPhone: msg.contact.phone_number }),
+      ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       ...(typeof msg.from?.username === 'string' && { telegramUsername: msg.from.username }),
       userRow,
       userState: userState ?? 'idle',
