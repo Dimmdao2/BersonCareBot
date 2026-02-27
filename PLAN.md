@@ -495,7 +495,7 @@ journalctl -u tgcarebot -n 100 --no-pager
   - Решения по маршрутизации уведомлений — только в оркестраторе.
   - Критерий завершения: Rubitime не знает про Telegram/SMS напрямую.
 
-- [ ] Шаг 4. Orchestrator v1 (поведение 1:1 с текущим)
+- [x] Шаг 4. Orchestrator v1 (поведение 1:1 с текущим)
   - Перенести текущие сценарии без изменения бизнес-поведения.
   - Возвращать список `DbReadQuery`, `DbWriteMutation`, `OutgoingEvent`.
   - Критерий завершения: fixture-тесты текущих сценариев совпадают.
@@ -544,4 +544,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Добавлены целевые unit-тесты `orchestrateIncomingEventWithDeps` для Telegram linking (успешная привязка и ветка без контакта с возвратом в `idle`).
 - 2026-02-27: Для Telegram main-path добавлены tracing-обертки `userPort/notificationsPort`, чтобы `orchestrateIncomingEventWithDeps` возвращал `DbReadQuery/DbWriteMutation` и для обычных сценариев меню/коллбэков.
 - 2026-02-27: Добавлен fixture-driven тест `webhook.fixtures.test.ts` (01..13 Telegram fixtures) c mocked deps для проверки, что сценарии обрабатываются 1:1 и dispatch-форма не деградирует.
+- 2026-02-27: Шаг 4 отмечен завершенным: Telegram/Rubitime сценарии проходят через orchestrator, DB traces (`reads/writes`) возвращаются, добавлено целевое покрытие (unit + fixture-driven).
 
