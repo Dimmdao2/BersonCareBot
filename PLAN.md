@@ -547,4 +547,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Шаг 4 отмечен завершенным: Telegram/Rubitime сценарии проходят через orchestrator, DB traces (`reads/writes`) возвращаются, добавлено целевое покрытие (unit + fixture-driven).
 - 2026-02-27: Начат формальный Шаг 5/6 — вынесен единый `OutgoingEvent` dispatcher (`createOutgoingEventDispatcher`) и подключен в Rubitime webhook, добавлены unit-тесты маршрутизации.
 - 2026-02-27: Единый `OutgoingEvent` dispatcher расширен и на Telegram (`message.send`), Telegram webhook отправляет исходящие события через общий pipeline.
+- 2026-02-27: Для `messageByPhone` dispatcher добавлена классификация причин отказа (`permanent/retry_exhausted`) и детализированное retry/fallback логирование; добавлены unit-тесты fallback/retry-сценариев.
 
