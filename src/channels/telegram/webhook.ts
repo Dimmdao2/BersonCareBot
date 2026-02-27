@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
 import { getRequestLogger, newEventId } from '../../observability/logger.js';
 import { telegramContent } from '../../content/index.js';
-import { handleUpdate } from '../../domain/usecases/index.js';
+import { orchestrateIncomingEventWithDeps } from '../../domain/usecases/index.js';
 import type { WebhookContent } from '../../domain/webhookContent.js';
 import type { TelegramUserFrom } from '../../domain/types.js';
 import type { UserPort } from '../../domain/ports/user.js';
@@ -203,14 +203,16 @@ export async function telegramWebhookRoutes(
         return reply.code(200).send({ ok: true });
       }
 
-      const actions = await handleUpdate(normalizedIncoming, userPort, notificationsPort, content);
-      const outgoingEvents = telegramActionsToOutgoingEvents({
-        actions,
-        correlationId,
+      const orchestrated = await orchestrateIncomingEventWithDeps(incomingEvent, {
+        telegram: {
+          userPort,
+          notificationsPort,
+          content,
+        },
       });
-      if (outgoingEvents.length > 0) {
+      if (orchestrated.outgoing.length > 0) {
         try {
-          await dispatchTelegramOutgoingEvents(outgoingEvents, getBotInstance().api as TelegramApi);
+          await dispatchTelegramOutgoingEvents(orchestrated.outgoing, getBotInstance().api as TelegramApi);
         } catch (err) {
           reqLogger.error({ err }, 'toTelegram failed');
         }

@@ -1,5 +1,10 @@
 import type { DbWriteMutation, IncomingEvent, OrchestratorResult, OutgoingEvent } from '../contracts/index.js';
+import type { NotificationsPort } from '../ports/notifications.js';
+import type { UserPort } from '../ports/user.js';
+import type { IncomingUpdate, OutgoingAction } from '../types.js';
 import { normalizePhone } from '../phone.js';
+import type { WebhookContent } from '../webhookContent.js';
+import { handleUpdate } from './handleUpdate.js';
 
 type RubitimeWebhookBody = {
   from: string;
@@ -143,10 +148,62 @@ function orchestrateRubitime(event: IncomingEvent, body: RubitimeWebhookBody): O
 }
 
 export function orchestrateIncomingEvent(event: IncomingEvent): OrchestratorResult {
+  if (
+    (event.type === 'message.received' || event.type === 'callback.received')
+    && event.meta.source === 'telegram'
+  ) {
+    return { reads: [], writes: [], outgoing: [] };
+  }
+
   if (event.type === 'webhook.received' && event.meta.source === 'rubitime') {
     const body = event.payload.body as RubitimeWebhookBody | undefined;
     if (!body) return { reads: [], writes: [], outgoing: [] };
     return orchestrateRubitime(event, body);
   }
   return { reads: [], writes: [], outgoing: [] };
+}
+
+type OrchestrateIncomingDeps = {
+  telegram?: {
+    userPort: UserPort;
+    notificationsPort: NotificationsPort;
+    content: WebhookContent;
+  };
+};
+
+function actionsToOutgoingEvents(actions: OutgoingAction[], event: IncomingEvent): OutgoingEvent[] {
+  return actions.map((action) => ({
+    type: 'message.send',
+    meta: {
+      eventId: `out_${event.meta.eventId}`,
+      source: event.meta.source,
+      occurredAt: new Date().toISOString(),
+      ...(event.meta.correlationId ? { correlationId: event.meta.correlationId } : {}),
+      ...(event.meta.userId ? { userId: event.meta.userId } : {}),
+    },
+    payload: { action },
+  }));
+}
+
+export async function orchestrateIncomingEventWithDeps(
+  event: IncomingEvent,
+  deps: OrchestrateIncomingDeps,
+): Promise<OrchestratorResult> {
+  if (
+    (event.type === 'message.received' || event.type === 'callback.received')
+    && event.meta.source === 'telegram'
+    && deps.telegram
+  ) {
+    const incoming = event.payload.incoming as IncomingUpdate | undefined;
+    if (!incoming) return { reads: [], writes: [], outgoing: [] };
+    const actions = await handleUpdate(
+      incoming,
+      deps.telegram.userPort,
+      deps.telegram.notificationsPort,
+      deps.telegram.content,
+    );
+    return { reads: [], writes: [], outgoing: actionsToOutgoingEvents(actions, event) };
+  }
+
+  return orchestrateIncomingEvent(event);
 }
