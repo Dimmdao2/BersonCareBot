@@ -40,7 +40,7 @@ export default [
   },
 
   {
-    files: ["src/channels/**/*.ts"],
+    files: ["src/integrations/telegram/**/*.ts"],
     rules: {
       "no-restricted-imports": ["error", { patterns: ["*db*"] }],
     },
@@ -49,7 +49,7 @@ export default [
   {
     files: ["src/domain/**/*.ts"],
     rules: {
-      "no-restricted-imports": ["error", { patterns: ["*adapters*", "*persistence*", "*channels*", "*db*"] }],
+      "no-restricted-imports": ["error", { patterns: ["*adapters*", "*persistence*", "*channels*", "*integrations*", "*db*"] }],
     },
   },
 

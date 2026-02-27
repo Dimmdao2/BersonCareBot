@@ -17,7 +17,7 @@
 ## Границы зависимостей
 
 - `domain` не вызывает Telegram API и не знает о Fastify/pg.
-- `channels/telegram` вызывает `domain` use cases и исполняет `OutgoingAction[]` через Telegram API.
+- `integrations/telegram` вызывает `domain` use cases и исполняет `OutgoingAction[]` через Telegram API.
 - `integrations/rubitime` не идёт через `domain`; это отдельный интеграционный orchestrator:
   - валидирует webhook,
   - пишет события/срез в БД,
@@ -35,13 +35,13 @@
 ## Поток: Telegram webhook
 
 1. `app/routes.ts` регистрирует `telegramWebhookRoutes(...)`.
-2. `channels/telegram/webhook.ts`:
+2. `integrations/telegram/webhook.ts`:
    - проверка `TG_WEBHOOK_SECRET` (если задан),
    - валидация body (`schema.ts`),
    - upsert пользователя + dedup по `update_id`,
    - map во внутренний формат (`mapIn.ts`).
 3. `domain/usecases/handleUpdate.ts` возвращает `OutgoingAction[]`.
-4. `channels/telegram/mapOut.ts` исполняет actions через `grammY` API.
+4. `integrations/telegram/mapOut.ts` исполняет actions через `grammY` API.
 5. Ответ `200` (включая обработанные ошибки, чтобы не провоцировать лишние ретраи Telegram).
 
 ### Отдельная ветка в Telegram webhook
@@ -49,7 +49,7 @@
 Для `/start <record_id>` + `contact` выполняется linking use case:
 
 - `domain/usecases/linkTelegramByRubitimeRecord.ts`
-- зависимости приходят из `channels/telegram/webhook.ts` (repo-методы через DI).
+- зависимости приходят из `integrations/telegram/webhook.ts` (repo-методы через DI).
 
 ## Поток: Rubitime webhook
 

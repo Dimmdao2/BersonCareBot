@@ -104,21 +104,21 @@ SSH на сервер прода: ssh root@151.241.228.122
 
 ### Telegram-канал
 
-- **`src/channels/telegram/webhook.ts`**
+- **`src/integrations/telegram/webhook.ts`**
   - `telegramWebhookRoutes(app, deps)`
 
-- **`src/channels/telegram/mapIn.ts`**
+- **`src/integrations/telegram/mapIn.ts`**
   - `isNotifyCallback(data)`
   - `fromTelegram(body, context)`
 
-- **`src/channels/telegram/mapOut.ts`**
+- **`src/integrations/telegram/mapOut.ts`**
   - `toTelegram(actions, api)`
 
-- **`src/channels/telegram/client.ts`**
+- **`src/integrations/telegram/client.ts`**
   - `getBotInstance()`
   - `createMessagingPort()`
 
-- **`src/channels/telegram/schema.ts`**
+- **`src/integrations/telegram/schema.ts`**
   - `parseWebhookBody(body)`  
     (и схемы Zod)
 
@@ -255,7 +255,7 @@ SSH на сервер прода: ssh root@151.241.228.122
 ## Границы зависимостей
 
 - `domain` не вызывает Telegram API и не знает о Fastify/pg.
-- `channels/telegram` вызывает `domain` use cases и исполняет `OutgoingAction[]` через Telegram API.
+- `integrations/telegram` вызывает `domain` use cases и исполняет `OutgoingAction[]` через Telegram API.
 - `integrations/rubitime` не идёт через `domain`; это отдельный интеграционный orchestrator:
   - валидирует webhook,
   - пишет события/срез в БД,
@@ -273,13 +273,13 @@ SSH на сервер прода: ssh root@151.241.228.122
 ## Поток: Telegram webhook
 
 1. `app/routes.ts` регистрирует `telegramWebhookRoutes(...)`.
-2. `channels/telegram/webhook.ts`:
+2. `integrations/telegram/webhook.ts`:
    - проверка `TG_WEBHOOK_SECRET` (если задан),
    - валидация body (`schema.ts`),
    - upsert пользователя + dedup по `update_id`,
    - map во внутренний формат (`mapIn.ts`).
 3. `domain/usecases/handleUpdate.ts` возвращает `OutgoingAction[]`.
-4. `channels/telegram/mapOut.ts` исполняет actions через `grammY` API.
+4. `integrations/telegram/mapOut.ts` исполняет actions через `grammY` API.
 5. Ответ `200` (включая обработанные ошибки, чтобы не провоцировать лишние ретраи Telegram).
 
 ### Отдельная ветка в Telegram webhook
@@ -287,7 +287,7 @@ SSH на сервер прода: ssh root@151.241.228.122
 Для `/start <record_id>` + `contact` выполняется linking use case:
 
 - `domain/usecases/linkTelegramByRubitimeRecord.ts`
-- зависимости приходят из `channels/telegram/webhook.ts` (repo-методы через DI).
+- зависимости приходят из `integrations/telegram/webhook.ts` (repo-методы через DI).
 
 ## Поток: Rubitime webhook
 
@@ -436,6 +436,15 @@ journalctl -u tgcarebot -n 100 --no-pager
 - `DbReadQuery` — унифицированный запрос чтения в БД.
 - `DbWriteMutation` — унифицированная мутация записи в БД.
 
+### Классификация интеграций (фиксируем)
+
+- Все внешние адаптеры лежат в `src/integrations/*` (без отдельной папки `channels`).
+- Каждая интеграция имеет `kind`:
+  - `messenger` — Telegram/VK/Max/WhatsApp и другие каналы общения с пользователем.
+  - `system` — Rubitime/Google Calendar/Yandex Calendar и другие бизнес-системы.
+  - `provider` — SMS/email/иные провайдеры доставки.
+- Для всех `kind` единый контракт: входящие `IncomingEvent` и исходящие `OutgoingEvent`.
+
 ### Событийная модель (версия 1)
 
 - Типы `IncomingEvent.type`:
@@ -527,4 +536,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Шаг 4 расширен — Telegram main-path теперь также проходит через `orchestrateIncomingEventWithDeps`; перенос ветки linking `/start <record>` и полное покрытие read/write-списками еще в работе.
 - 2026-02-27: Для Шагов 5/6 добавлен `messageByPhone` dispatcher с retry policy (`p-retry`) и логированием fallback/ошибок; пока задействован в Rubitime-потоке.
 - 2026-02-27: Подготовлен реальный SMSC-коннектор (`SMSC_ENABLED`, `SMSC_API_KEY`, `SMSC_API_BASE_URL`) с безопасным fallback на stub; ключи хранятся только в env.
+- 2026-02-27: Структура выровнена: Telegram перенесен из `src/channels/telegram` в `src/integrations/telegram`, слой `channels` удален.
 

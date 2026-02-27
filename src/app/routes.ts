@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { AppDeps } from './di.js';
 import { env } from '../config/env.js';
-import { getBotInstance } from '../channels/telegram/client.js';
-import { telegramWebhookRoutes } from '../channels/telegram/webhook.js';
+import { getBotInstance } from '../integrations/telegram/client.js';
+import { telegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import { rubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 import { registerRubitimeReqSuccessIframeRoute } from '../integrations/rubitime/reqSuccessIframe.js';
 import { createMessageByPhoneDispatcher } from './dispatchers/messageByPhone.js';
