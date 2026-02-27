@@ -428,6 +428,7 @@ journalctl -u tgcarebot -n 100 --no-pager
    - добавить короткую запись в журнал выполнения внизу.
 4. Нельзя начинать следующий шаг, если предыдущий не зеленый по тестам.
 5. В домен не импортируем SDK интеграций (Telegram/VK/etc), только унифицированные сущности.
+6. Целевая структура папок: `src/domain`, `src/db`, `src/orchestrator`, `src/ports`, `src/integrations` (без смешивания сценариев и адаптеров).
 
 ### Базовые сущности (фиксируем)
 
@@ -524,6 +525,12 @@ journalctl -u tgcarebot -n 100 --no-pager
   - Потом управление настройками/интеграциями/ретраями.
   - Критерий завершения: админка управляет конфигом через API, не обходя оркестратор.
 
+- [ ] Шаг 10. Структурная нормализация каталогов (без изменения поведения)
+  - Убрать смешивание сценариев и интеграционных адаптеров по папкам.
+  - Перенести orchestration-сценарии в `src/orchestrator`, контракты в `src/ports`.
+  - Оставить в `src/integrations` только connector-слой (inbound/outbound mapping + SDK).
+  - Критерий завершения: путь обработки соответствует канону `incoming -> middleware -> router -> orchestrator -> domain -> db/dispatch`.
+
 ### Журнал выполнения
 
 - 2026-02-27: Рабочее дерево приведено к состоянию последнего коммита (с сохранением `PLAN.md`).
@@ -548,4 +555,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Начат формальный Шаг 5/6 — вынесен единый `OutgoingEvent` dispatcher (`createOutgoingEventDispatcher`) и подключен в Rubitime webhook, добавлены unit-тесты маршрутизации.
 - 2026-02-27: Единый `OutgoingEvent` dispatcher расширен и на Telegram (`message.send`), Telegram webhook отправляет исходящие события через общий pipeline.
 - 2026-02-27: Для `messageByPhone` dispatcher добавлена классификация причин отказа (`permanent/retry_exhausted`) и детализированное retry/fallback логирование; добавлены unit-тесты fallback/retry-сценариев.
+- 2026-02-27: `ARCHITECTURE.md` обновлен до канонического pipeline и целевой структуры папок (`domain/db/orchestrator/ports/integrations`) как обязательного направления миграции.
 

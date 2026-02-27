@@ -1,96 +1,57 @@
-# Архитектура BersonCareBot
+# Архитектура BersonCareBot (канон изоляции)
 
-Актуальная структура слоёв и потоков данных по состоянию кода.
+Цель: все внешние входы/выходы идут через единый событийный pipeline, без
+вшитой бизнес-логики в интеграциях.
 
-## Слои
+## Канонический pipeline
 
-- `app` — сборка приложения, DI, регистрация HTTP-роутов.
-- `channels` — адаптер канала Telegram (входящее/исходящее API Telegram).
-- `domain` — use cases и внутренние типы действий/апдейтов.
-- `db` — клиент PostgreSQL, миграции, репозитории.
-- `integrations` — внешние интеграции (Rubitime webhook и iframe endpoint).
-- `worker` — фоновая рассылка по подпискам.
-- `config` — парсинг и валидация env.
-- `observability` — логирование (Pino).
-- `content` — тексты и клавиатуры.
+`IncomingEvent -> middleware(valid,safe) -> router -> orchestrator -> script resolution -> domain logic -> readDb/writeDb -> dispatch OutgoingEvent -> delivery status -> logs/retry/branch update`
 
-## Границы зависимостей
+Где `IncomingEvent` и `OutgoingEvent` универсальны для любых источников:
+- `Event.source`: `telegram` / `rubitime` / `calendar` / etc.
+- `Event.type`: `message` / `service` / `calendar` / etc.
+- `Event.data`: payload в унифицированной структуре (phone/status/metadata).
 
-- `domain` не вызывает Telegram API и не знает о Fastify/pg.
-- `integrations/telegram` вызывает `domain` use cases и исполняет `OutgoingAction[]` через Telegram API.
-- `integrations/rubitime` не идёт через `domain`; это отдельный интеграционный orchestrator:
-  - валидирует webhook,
-  - пишет события/срез в БД,
-  - пытается отправить уведомление в Telegram,
-  - fallback в SMS.
-- `app/routes.ts` связывает всё вместе через DI.
+## Целевая структура папок
 
-## Ключевые маршруты
+- `src/integrations`
+  Только адаптеры внешних систем: прием webhook/SDK callback, валидация, mapping в `IncomingEvent`, отправка `OutgoingEvent` в конкретный SDK/API.
 
-- `GET /health`
-- `POST /webhook/telegram`
-- `POST /webhook/rubitime/:token`
-- `GET /api/rubitime?record_success=<record_id>`
+- `src/orchestrator`
+  Центральная маршрутизация событий, выбор сценария (script), координация ветвлений и вызов портов.
 
-## Поток: Telegram webhook
+- `src/domain`
+  Чистые бизнес-правила и шаги сценариев без SDK/Fastify/pg зависимостей.
 
-1. `app/routes.ts` регистрирует `telegramWebhookRoutes(...)`.
-2. `integrations/telegram/webhook.ts`:
-   - проверка `TG_WEBHOOK_SECRET` (если задан),
-   - валидация body (`schema.ts`),
-   - upsert пользователя + dedup по `update_id`,
-   - map во внутренний формат (`mapIn.ts`).
-3. `domain/usecases/handleUpdate.ts` возвращает `OutgoingAction[]`.
-4. `integrations/telegram/mapOut.ts` исполняет actions через `grammY` API.
-5. Ответ `200` (включая обработанные ошибки, чтобы не провоцировать лишние ретраи Telegram).
+- `src/ports`
+  Контракты взаимодействия (`readDb`, `writeDb`, dispatchers, внешние сервисы).
 
-### Отдельная ветка в Telegram webhook
+- `src/db`
+  Реализация портов БД, репозитории/миграции/клиент.
 
-Для `/start <record_id>` + `contact` выполняется linking use case:
+## Границы зависимостей (обязательно)
 
-- `domain/usecases/linkTelegramByRubitimeRecord.ts`
-- зависимости приходят из `integrations/telegram/webhook.ts` (repo-методы через DI).
+- `integrations` не знают бизнес-ветвления: только parse/validate/map/dispatch.
+- `domain` не знает про Telegram/Fastify/pg/HTTP.
+- `orchestrator` знает сценарии и вызывает только порты.
+- `db` не знает про интеграции и UI; только реализация `DbReadQuery`/`DbWriteMutation`.
+- fallback/retry policy определяется в orchestration/domain, а не в интеграции.
 
-## Поток: Rubitime webhook
+## Сценарий обработки (детально)
 
-1. `app/routes.ts` регистрирует `rubitimeWebhookRoutes(...)`.
-2. `integrations/rubitime/webhook.ts`:
-   - принимает только `POST /webhook/rubitime/:token`,
-   - проверяет token из path (`params.token`),
-   - валидирует payload (`parseRubitimeBody`),
-   - сохраняет `rubitime_events` и upsert в `rubitime_records`.
-3. Ищет Telegram пользователя по `phone_normalized`.
-4. Если пользователь найден — отправляет сообщение в Telegram.
-5. Если не найден/нет телефона/ошибка отправки в Telegram — вызывает `smsClient.sendSms(...)`.
-6. Для валидного запроса всегда отвечает `200`, при неверном токене `403`, при невалидном body `400`.
+1. Интеграция принимает вход (`webhook`, callback, cron tick).
+2. Middleware делает safety-checks (schema validation, auth/token, normalization).
+3. Router передает событие в orchestrator как `IncomingEvent`.
+4. Orchestrator определяет script по `source/type/data`.
+5. Domain исполняет логические ветки сценария.
+6. Через `readDb` читаются нужные состояния.
+7. Формируются `DbWriteMutation` и `OutgoingEvent`.
+8. Через dispatcher отправляются сообщения/webhook-и.
+9. Получается статус доставки (success/retry/fail).
+10. Пишутся логи и при необходимости обновляется состояние в БД.
 
-## Поток: iframe endpoint Rubitime
+## Текущий курс миграции
 
-`GET /api/rubitime?record_success=<record_id>`:
-
-- проверка rate limits (IP + global),
-- искусственная задержка,
-- проверка свежести записи и наличия Telegram-привязки,
-- возврат HTML:
-  - `''` (кнопку не показывать),
-  - или кнопка deep link на `t.me/bersoncarebot?start=<record_id>`.
-
-## Воркер рассылок
-
-`worker/mailingWorker.ts`:
-
-- подбирает `mailings` в статусе `scheduled`,
-- переводит в `processing`,
-- рассылает по активным подпискам (`user_subscriptions`),
-- пишет результат в `mailing_logs`,
-- отмечает блокировки бота (`403`) как `telegram_users.is_active=false`,
-- завершает `completed` или `failed`,
-- имеет reset зависших `processing`.
-
-## Логи
-
-- Fastify request logs (`incoming request`, `request completed`).
-- App logger (`observability/logger.ts`): `getRequestLogger`, `getWorkerLogger`, `getMigrationLogger`.
-- Telegram webhook: `tg_update`, validation warnings, send errors.
-- Rubitime webhook: validation warnings, notify errors, data warnings.
-- Worker: batch start/completion, retry, per-user send status, failures.
+- Проект находится в переходе к этому канону.
+- Все новые изменения должны усиливать изоляцию в направлении структуры:
+  `domain + db + orchestrator + ports + integrations`.
