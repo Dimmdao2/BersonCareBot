@@ -526,4 +526,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Для Шага 4 добавлен `orchestrateIncomingEvent` (пока покрывает Rubitime-сценарий; перенос Telegram-сценариев в оркестратор остается отдельной подзадачей).
 - 2026-02-27: Шаг 4 расширен — Telegram main-path теперь также проходит через `orchestrateIncomingEventWithDeps`; перенос ветки linking `/start <record>` и полное покрытие read/write-списками еще в работе.
 - 2026-02-27: Для Шагов 5/6 добавлен `messageByPhone` dispatcher с retry policy (`p-retry`) и логированием fallback/ошибок; пока задействован в Rubitime-потоке.
+- 2026-02-27: Подготовлен реальный SMSC-коннектор (`SMSC_ENABLED`, `SMSC_API_KEY`, `SMSC_API_BASE_URL`) с безопасным fallback на stub; ключи хранятся только в env.
 

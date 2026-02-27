@@ -56,6 +56,8 @@ export const logger = pino({
       "*.authorization",
       "*.token",
       "*.secret",
+      "*.apikey",
+      "*.apiKey",
       "*.password",
       "*.phone",
       "*.phone_number",
