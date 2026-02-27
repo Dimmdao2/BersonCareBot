@@ -540,4 +540,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Добавлен реестр интеграций и дескрипторы `kind` (`messenger/system/provider`) в `src/integrations/*` без изменения runtime-логики.
 - 2026-02-27: Реестр интеграций подключен в runtime (`buildApp`) как единый источник структуры подключенных коннекторов.
 - 2026-02-27: Ветка linking Telegram (`await_contact:rubitime_record:*`) перенесена из `telegram/webhook` в `orchestrateIncomingEventWithDeps`; webhook стал тоньше и единообразнее.
+- 2026-02-27: В orchestrator для Telegram linking добавлен явный trace `DbReadQuery/DbWriteMutation` (booking/user reads, user.state.set, user.phone.link) без изменения фактического поведения.
 

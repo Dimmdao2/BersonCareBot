@@ -1,4 +1,4 @@
-import type { DbWriteMutation, IncomingEvent, OrchestratorResult, OutgoingEvent } from '../contracts/index.js';
+import type { DbReadQuery, DbWriteMutation, IncomingEvent, OrchestratorResult, OutgoingEvent } from '../contracts/index.js';
 import type { NotificationsPort } from '../ports/notifications.js';
 import type { UserPort } from '../ports/user.js';
 import type { IncomingUpdate, OutgoingAction } from '../types.js';
@@ -217,22 +217,44 @@ export async function orchestrateIncomingEventWithDeps(
     && event.meta.source === 'telegram'
     && deps.telegram
   ) {
+    const telegramDeps = deps.telegram;
+    if (!telegramDeps) return { reads: [], writes: [], outgoing: [] };
+
     const incoming = event.payload.incoming as IncomingUpdate | undefined;
     if (!incoming) return { reads: [], writes: [], outgoing: [] };
 
     const linkingStatePrefix = 'await_contact:rubitime_record:';
     if (incoming.kind === 'message' && incoming.userState.startsWith(linkingStatePrefix)) {
       if (!incoming.contactPhone) {
-        const currentUserLinkData = deps.telegram.linking
-          ? await deps.telegram.linking.getTelegramUserLinkData(incoming.telegramId)
-          : null;
-        if (currentUserLinkData?.phoneNormalized) {
-          await deps.telegram.userPort.setTelegramUserState(incoming.telegramId, 'idle');
+        const reads: DbReadQuery[] = [];
+        const writes: DbWriteMutation[] = [];
+        let currentUserLinkData: {
+          chatId: number;
+          telegramId: string;
+          username: string | null;
+          phoneNormalized: string | null;
+        } | null = null;
+        if (telegramDeps.linking) {
+          reads.push({
+            type: 'user.byTelegramId',
+            params: { telegramId: incoming.telegramId },
+          });
+          currentUserLinkData = await telegramDeps.linking.getTelegramUserLinkData(incoming.telegramId);
         }
-        return { reads: [], writes: [], outgoing: [] };
+        if (currentUserLinkData?.phoneNormalized) {
+          await telegramDeps.userPort.setTelegramUserState(incoming.telegramId, 'idle');
+          writes.push({
+            type: 'user.state.set',
+            params: { telegramId: incoming.telegramId, state: 'idle' },
+          });
+        }
+        return { reads, writes, outgoing: [] };
       }
 
-      if (deps.telegram.linking) {
+      if (telegramDeps.linking) {
+        const linking = telegramDeps.linking;
+        const reads: DbReadQuery[] = [];
+        const writes: DbWriteMutation[] = [];
         const rubitimeRecordId = incoming.userState.slice(linkingStatePrefix.length);
         const linkActions = await linkTelegramByRubitimeRecord(
           {
@@ -243,15 +265,45 @@ export async function orchestrateIncomingEventWithDeps(
             contactPhone: incoming.contactPhone,
           },
           {
-            adminTelegramId: deps.telegram.linking.adminTelegramId,
-            getRecordByRubitimeId: deps.telegram.linking.getRubitimeRecordById,
-            findTelegramUserByPhone: deps.telegram.linking.findTelegramUserByPhone,
-            getTelegramUserLinkData: deps.telegram.linking.getTelegramUserLinkData,
-            setTelegramUserPhone: deps.telegram.linking.setTelegramUserPhone,
-            setTelegramUserState: deps.telegram.userPort.setTelegramUserState,
+            adminTelegramId: linking.adminTelegramId,
+            getRecordByRubitimeId: async (inputRubitimeRecordId: string) => {
+              reads.push({
+                type: 'booking.byRubitimeId',
+                params: { rubitimeRecordId: inputRubitimeRecordId },
+              });
+              return linking.getRubitimeRecordById(inputRubitimeRecordId);
+            },
+            findTelegramUserByPhone: async (phoneNormalized: string) => {
+              reads.push({
+                type: 'user.byPhone',
+                params: { phoneNormalized },
+              });
+              return linking.findTelegramUserByPhone(phoneNormalized);
+            },
+            getTelegramUserLinkData: async (telegramId: string) => {
+              reads.push({
+                type: 'user.byTelegramId',
+                params: { telegramId },
+              });
+              return linking.getTelegramUserLinkData(telegramId);
+            },
+            setTelegramUserPhone: async (telegramId: string, phoneNormalized: string) => {
+              writes.push({
+                type: 'user.phone.link',
+                params: { telegramId, phoneNormalized },
+              });
+              return linking.setTelegramUserPhone(telegramId, phoneNormalized);
+            },
+            setTelegramUserState: async (telegramId: string, state: string | null) => {
+              writes.push({
+                type: 'user.state.set',
+                params: { telegramId, state },
+              });
+              return telegramDeps.userPort.setTelegramUserState(telegramId, state);
+            },
           },
         );
-        return { reads: [], writes: [], outgoing: actionsToOutgoingEvents(linkActions, event) };
+        return { reads, writes, outgoing: actionsToOutgoingEvents(linkActions, event) };
       }
 
       return { reads: [], writes: [], outgoing: [] };
@@ -259,9 +311,9 @@ export async function orchestrateIncomingEventWithDeps(
 
     const actions = await handleUpdate(
       incoming,
-      deps.telegram.userPort,
-      deps.telegram.notificationsPort,
-      deps.telegram.content,
+      telegramDeps.userPort,
+      telegramDeps.notificationsPort,
+      telegramDeps.content,
     );
     return { reads: [], writes: [], outgoing: actionsToOutgoingEvents(actions, event) };
   }
