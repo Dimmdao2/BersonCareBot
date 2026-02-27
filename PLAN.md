@@ -538,4 +538,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Подготовлен реальный SMSC-коннектор (`SMSC_ENABLED`, `SMSC_API_KEY`, `SMSC_API_BASE_URL`) с безопасным fallback на stub; ключи хранятся только в env.
 - 2026-02-27: Структура выровнена: Telegram перенесен из `src/channels/telegram` в `src/integrations/telegram`, слой `channels` удален.
 - 2026-02-27: Добавлен реестр интеграций и дескрипторы `kind` (`messenger/system/provider`) в `src/integrations/*` без изменения runtime-логики.
+- 2026-02-27: Реестр интеграций подключен в runtime (`buildApp`) как единый источник структуры подключенных коннекторов.
 
