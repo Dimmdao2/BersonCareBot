@@ -34,11 +34,31 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   const botApi = getBotInstance().api;
   rubitimeWebhookRoutes(app, {
-    tgApi: { sendMessage: (chatId, text) => botApi.sendMessage(chatId, text) },
-    smsClient: deps.smsClient,
-    findTelegramUserByPhone: deps.findTelegramUserByPhone,
     insertEvent: deps.insertRubitimeEvent,
     upsertRecord: deps.upsertRubitimeRecord,
+    dispatchMessageByPhone: async ({ phoneNormalized, messageText, smsFallbackText }) => {
+      const fallback = async () => {
+        await deps.smsClient.sendSms({
+          toPhone: phoneNormalized ?? '',
+          message: smsFallbackText,
+        });
+      };
+
+      if (!phoneNormalized) {
+        await fallback();
+        return;
+      }
+      const user = await deps.findTelegramUserByPhone(phoneNormalized);
+      if (!user) {
+        await fallback();
+        return;
+      }
+      try {
+        await botApi.sendMessage(user.chatId, messageText);
+      } catch {
+        await fallback();
+      }
+    },
     webhookToken: env.RUBITIME_WEBHOOK_TOKEN,
   });
 }

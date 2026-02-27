@@ -1,5 +1,5 @@
 import type { RubitimeRecordForLinking } from '../../db/repos/rubitimeRecords.js';
-import type { RubitimeTelegramUser } from './webhook.js';
+import type { TelegramUserByPhone } from '../../db/repos/telegramUsers.js';
 
 export type ReqSuccessEligibilityResult = {
   showButton: boolean;
@@ -9,7 +9,7 @@ export type ReqSuccessEligibilityInput = {
   now: Date;
   windowMinutes: number;
   record: RubitimeRecordForLinking | null;
-  linkedUser: RubitimeTelegramUser | null;
+  linkedUser: TelegramUserByPhone | null;
 };
 
 export function isReqSuccessRecordFresh(recordAt: Date | null, now: Date, windowMinutes: number): boolean {

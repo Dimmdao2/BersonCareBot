@@ -1,27 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { getRequestLogger, newEventId } from '../../observability/logger.js';
-import { normalizePhone } from '../../domain/phone.js';
-import type { SmsClient } from '../smsc/types.js';
+import { orchestrateIncomingEvent } from '../../domain/usecases/index.js';
 import type { InsertRubitimeEventInput, UpsertRubitimeRecordInput } from '../../db/repos/rubitimeRecords.js';
+import type { DbWriteMutation, OutgoingEvent } from '../../domain/contracts/index.js';
+import { rubitimeIncomingToEvent } from './connector.js';
 import { parseRubitimeBody } from './schema.js';
 
-/** Минимальный контракт для отправки сообщения в Telegram (для тестов и подстановки api). */
-export type RubitimeTelegramApi = {
-  sendMessage(chatId: number, text: string): Promise<unknown>;
-};
-
-export type RubitimeTelegramUser = {
-  chatId: number;
-  telegramId: string;
-  username: string | null;
-};
-
 export type RubitimeWebhookDeps = {
-  tgApi: RubitimeTelegramApi;
-  smsClient: SmsClient;
   insertEvent: (input: InsertRubitimeEventInput) => Promise<void>;
   upsertRecord: (input: UpsertRubitimeRecordInput) => Promise<void>;
-  findTelegramUserByPhone: (phoneNormalized: string) => Promise<RubitimeTelegramUser | null>;
+  dispatchMessageByPhone: (input: {
+    phoneNormalized: string;
+    messageText: string;
+    smsFallbackText: string;
+  }) => Promise<void>;
   /** Токен для проверки во входящем path /webhook/rubitime/:token. */
   webhookToken: string;
 };
@@ -32,85 +24,8 @@ function extractIncomingToken(params: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function safeStr(value: unknown): string {
-  if (value == null) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return '';
-}
-
-function mapRecordStatus(event: string): 'created' | 'updated' | 'canceled' {
-  if (event === 'event-create-record') return 'created';
-  if (event === 'event-remove-record') return 'canceled';
-  return 'updated';
-}
-
-function mapBusinessKind(event: string): 'CREATE' | 'TRANSFER_REQUEST' | 'CANCEL' {
-  if (event === 'event-create-record') return 'CREATE';
-  if (event === 'event-remove-record') return 'CANCEL';
-  return 'TRANSFER_REQUEST';
-}
-
-function formatRecordDateTime(value: unknown): string {
-  const raw = safeStr(value).trim();
-  if (!raw) return '-';
-  const normalized = raw.replace(' ', 'T');
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) return raw;
-
-  const dd = String(date.getDate()).padStart(2, '0');
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const yyyy = String(date.getFullYear());
-  const hh = String(date.getHours()).padStart(2, '0');
-  const min = String(date.getMinutes()).padStart(2, '0');
-  return `${dd}.${mm}.${yyyy} в ${hh}:${min}`;
-}
-
-function isCanceledByStatus(data: Record<string, unknown>): boolean {
-  const statusTitle = safeStr(data.status_title).toLowerCase();
-  const statusCode = safeStr(data.status);
-  return statusTitle.includes('отмен') || statusCode === '4';
-}
-
-function isBookedByStatus(data: Record<string, unknown>): boolean {
-  const statusTitle = safeStr(data.status_title).toLowerCase();
-  const statusCode = safeStr(data.status);
-  return statusTitle === 'записан' || statusCode === '0';
-}
-
-function buildUserText(kind: 'CREATE' | 'TRANSFER_REQUEST' | 'CANCEL', data: Record<string, unknown>): string {
-  const name = safeStr(data.name) || 'Клиент';
-  const service = safeStr(data.service_title) || safeStr(data.service) || 'услугу';
-  const recordAt = formatRecordDateTime(data.record);
-  const branch = safeStr(data.branch_title) || '-';
-  const status = safeStr(data.status_title) || safeStr(data.status) || 'изменена';
-
-  if (kind === 'CREATE') {
-    return [
-      `${name}, вы успешно записались на прием к Дмитрию Берсону на ${service}.`,
-      '',
-      `Дата и время: ${recordAt}`,
-      `Адрес: ${branch}`,
-    ].join('\n');
-  }
-
-  if (kind === 'CANCEL' || (kind === 'TRANSFER_REQUEST' && isCanceledByStatus(data))) {
-    return `Отменена ваша запись к Дмитрию на ${recordAt}`;
-  }
-
-  if (kind === 'TRANSFER_REQUEST' && isBookedByStatus(data)) {
-    return `Ваша запись на ${recordAt} подтверждена`;
-  }
-
-  return [
-    'Ваша запись на прием к Дмитрию изменена:',
-    `Дата и время: ${recordAt}`,
-    `Статус: ${status}`,
-  ].join('\n');
-}
-
 export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhookDeps): void {
-  const { tgApi, smsClient, insertEvent, upsertRecord, findTelegramUserByPhone, webhookToken } = deps;
+  const { insertEvent, upsertRecord, dispatchMessageByPhone, webhookToken } = deps;
 
   const handler = async (request: {
     id: string;
@@ -138,63 +53,68 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
       );
       return reply.code(400).send({ ok: false, error: 'Invalid webhook body' });
     }
-    const body = parseResult.data;
-    const data = body.data;
-    const recordIdRaw = data.id;
-    const rubitimeRecordId = recordIdRaw !== undefined && recordIdRaw !== null ? safeStr(recordIdRaw) : null;
-    const recordAtRaw = data.record;
-    const recordAt = recordAtRaw !== undefined && recordAtRaw !== null ? safeStr(recordAtRaw) : null;
-    const phoneRaw = data.phone;
-    const phoneNormalized =
-      phoneRaw !== undefined && phoneRaw !== null ? normalizePhone(safeStr(phoneRaw)) : null;
-    const kind = mapBusinessKind(body.event);
 
-    await insertEvent({
-      rubitimeRecordId,
-      event: body.event,
-      payloadJson: body,
+    const incoming = rubitimeIncomingToEvent({
+      body: parseResult.data,
+      correlationId,
+      eventId,
     });
+    const result = orchestrateIncomingEvent(incoming);
 
-    if (rubitimeRecordId) {
-      await upsertRecord({
-        rubitimeRecordId,
-        phoneNormalized,
-        recordAt,
-        status: mapRecordStatus(body.event),
-        payloadJson: data,
-        lastEvent: body.event,
+    for (const mutation of result.writes) {
+      await applyDbMutation(mutation, {
+        insertEvent,
+        upsertRecord,
+        reqLogger,
       });
-    } else {
-      reqLogger.warn({ body }, 'rubitime payload has no data.id, upsert skipped');
     }
 
-    const fallback = async () => {
-      await smsClient.sendSms({
-        toPhone: phoneNormalized ?? '',
-        message: kind === 'CANCEL' ? 'Запись отменена' : 'Требуется подтверждение записи',
-      });
-    };
-
-    if (!phoneNormalized) {
-      await fallback();
-      return reply.code(200).send({ ok: true });
-    }
-
-    const user = await findTelegramUserByPhone(phoneNormalized);
-    if (!user) {
-      await fallback();
-      return reply.code(200).send({ ok: true });
-    }
-
-    try {
-      await tgApi.sendMessage(user.chatId, buildUserText(kind, data));
-    } catch (err) {
-      reqLogger.error({ err }, 'rubitime: sendMessage to user failed');
-      await fallback();
+    for (const outgoing of result.outgoing) {
+      await dispatchOutgoingEvent(outgoing, dispatchMessageByPhone);
     }
 
     return reply.code(200).send({ ok: true });
   };
 
   app.post('/webhook/rubitime/:token', handler);
+}
+
+async function applyDbMutation(
+  mutation: DbWriteMutation,
+  deps: {
+    insertEvent: (input: InsertRubitimeEventInput) => Promise<void>;
+    upsertRecord: (input: UpsertRubitimeRecordInput) => Promise<void>;
+    reqLogger: ReturnType<typeof getRequestLogger>;
+  },
+): Promise<void> {
+  if (mutation.type === 'event.log') {
+    await deps.insertEvent(mutation.params as InsertRubitimeEventInput);
+    return;
+  }
+  if (mutation.type === 'booking.upsert') {
+    const params = mutation.params as UpsertRubitimeRecordInput;
+    if (!params.rubitimeRecordId) {
+      deps.reqLogger.warn({ mutation }, 'rubitime payload has no data.id, upsert skipped');
+      return;
+    }
+    await deps.upsertRecord(params);
+  }
+}
+
+async function dispatchOutgoingEvent(
+  outgoing: OutgoingEvent,
+  dispatchMessageByPhone: RubitimeWebhookDeps['dispatchMessageByPhone'],
+): Promise<void> {
+  if (outgoing.type !== 'message.send' || outgoing.meta.source !== 'rubitime') return;
+  const payload = outgoing.payload as {
+    recipient?: { phoneNormalized?: string };
+    message?: { text?: string };
+    fallback?: { smsText?: string };
+  };
+
+  await dispatchMessageByPhone({
+    phoneNormalized: payload.recipient?.phoneNormalized ?? '',
+    messageText: payload.message?.text ?? '',
+    smsFallbackText: payload.fallback?.smsText ?? '',
+  });
 }

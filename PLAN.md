@@ -481,7 +481,7 @@ journalctl -u tgcarebot -n 100 --no-pager
   - Telegram sender только исполняет `OutgoingEvent(type=message.send)`.
   - Критерий завершения: Telegram не содержит доменной логики fallback/маршрутизации.
 
-- [ ] Шаг 3. Rubitime как чистый inbound connector
+- [x] Шаг 3. Rubitime как чистый inbound connector
   - Rubitime webhook только принимает/валидирует/мапит во `IncomingEvent`.
   - Решения по маршрутизации уведомлений — только в оркестраторе.
   - Критерий завершения: Rubitime не знает про Telegram/SMS напрямую.
@@ -522,4 +522,6 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Завершен Шаг 0 — добавлен контрактный слой `IncomingEvent`/`OutgoingEvent`/`DbReadQuery`/`DbWriteMutation`, `zod` схемы и интерфейсы оркестрации без изменения поведения runtime.
 - 2026-02-27: Завершен Шаг 1 — включен pino redaction для чувствительных полей и добавлены `correlationId`/`eventId` в цепочку webhook-логов.
 - 2026-02-27: Завершен Шаг 2 — Telegram webhook и sender переведены на connector-адаптер (`IncomingEvent`/`OutgoingEvent`) без изменения текущей доменной логики.
+- 2026-02-27: Завершен Шаг 3 — Rubitime webhook стал inbound-коннектором (валидация + маппинг + запуск оркестрации), отправка и fallback вынесены в dispatch-зависимость.
+- 2026-02-27: Для Шага 4 добавлен `orchestrateIncomingEvent` (пока покрывает Rubitime-сценарий; перенос Telegram-сценариев в оркестратор остается отдельной подзадачей).
 

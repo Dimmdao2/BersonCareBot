@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import type { RubitimeRecordForLinking } from '../../db/repos/rubitimeRecords.js';
-import type { RubitimeTelegramUser } from './webhook.js';
+import type { TelegramUserByPhone } from '../../db/repos/telegramUsers.js';
 import { evaluateReqSuccessEligibility } from './reqSuccessEligibility.js';
 
 type ReqSuccessIframeDeps = {
   getRecordByRubitimeId: (rubitimeRecordId: string) => Promise<RubitimeRecordForLinking | null>;
-  findTelegramUserByPhone: (phoneNormalized: string) => Promise<RubitimeTelegramUser | null>;
+  findTelegramUserByPhone: (phoneNormalized: string) => Promise<TelegramUserByPhone | null>;
   windowMinutes: number;
   delayMinMs: number;
   delayMaxMs: number;
