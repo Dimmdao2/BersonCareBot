@@ -1,5 +1,18 @@
 Задачи по доработке бота:
 
+### Рефактор: текущий статус (ветка `dev/isolation-step1`)
+
+- Создана параллельная структура `refactor/src/*` для поэтапного переноса.
+- Перенесены 1:1 стабильные слои: `config`, `observability`, `domain/contracts`, `domain/ports`, `db/repos`, `integrations/{telegram,rubitime,smsc}` (без webhook handlers и без переключения потока).
+- Контент Telegram перенесен в интеграционный слой: `refactor/src/integrations/telegram/content.ts`.
+- Добавлены комментарии к перенесенным файлам и ключевым функциям.
+- Зафиксировано правило: центр потока — `orchestrator`, центр бизнес-правил — `domain`.
+- Добавлен каркас `eventGateway` в домене:
+  - `refactor/src/domain/eventGateway.ts`
+  - `refactor/src/domain/index.ts`
+  - расширены контракты `EventGateway` в `refactor/src/domain/contracts/*`
+- Следующий этап: подключение `eventGateway` через `app/di` и перевод webhook handlers на цепочку `validate -> map -> eventGateway -> orchestrator`.
+
 Вводная техническая инфа:
 
 адрес в веб: http://bersonservices.ru - основной домен, там заглушка nginx (вероятно стоит ее убрать или пока забить ?)
