@@ -140,6 +140,23 @@
 Комментарий:
 - это функционально относится к шагам 5/6, но уже внедрено безопасно и с проверками.
 
+---
+
+### Шаг 10. Структурная нормализация каталогов (в процессе)
+
+Цель: перейти от смешанных импортов к явным слоям `orchestrator` и `ports` без
+изменения бизнес-поведения.
+
+Сделано в текущем атомарном шаге:
+- добавлены `src/orchestrator/orchestrateIncomingEvent.ts` и `src/orchestrator/index.ts` как целевые точки входа orchestration-слоя;
+- добавлен `src/ports/outgoingEventDispatcher.ts` как целевая точка для dispatch-контракта/маршрутизации исходящих событий;
+- `src/integrations/telegram/webhook.ts` и `src/integrations/rubitime/webhook.ts` переведены на импорты из `src/orchestrator` и `src/ports`;
+- `src/app/dispatchers/outgoingEvent.ts` оставлен как совместимый re-export, чтобы не ломать существующие вызовы и тесты.
+
+Результат:
+- слой интеграций перестал напрямую зависеть от `domain/usecases/index` и `app/dispatchers/outgoingEvent`;
+- подготовлен безопасный фундамент для следующего шага физического переноса orchestration/port-реализаций.
+
 ## Коммиты текущей серии (ключевые)
 
 - `9dfab09` docs(plan): define canonical isolation roadmap

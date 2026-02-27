@@ -556,4 +556,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Единый `OutgoingEvent` dispatcher расширен и на Telegram (`message.send`), Telegram webhook отправляет исходящие события через общий pipeline.
 - 2026-02-27: Для `messageByPhone` dispatcher добавлена классификация причин отказа (`permanent/retry_exhausted`) и детализированное retry/fallback логирование; добавлены unit-тесты fallback/retry-сценариев.
 - 2026-02-27: `ARCHITECTURE.md` обновлен до канонического pipeline и целевой структуры папок (`domain/db/orchestrator/ports/integrations`) как обязательного направления миграции.
+- 2026-02-27: Начат Шаг 10 (структурная нормализация): добавлены целевые entrypoint-слои `src/orchestrator` и `src/ports`, интеграции переведены на новые импорты без изменения runtime-поведения.
 

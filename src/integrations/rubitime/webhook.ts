@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { createOutgoingEventDispatcher } from '../../app/dispatchers/outgoingEvent.js';
+import { createOutgoingEventDispatcher } from '../../ports/outgoingEventDispatcher.js';
 import { getRequestLogger, newEventId } from '../../observability/logger.js';
-import { orchestrateIncomingEvent } from '../../domain/usecases/index.js';
+import { orchestrateIncomingEvent } from '../../orchestrator/index.js';
 import type { InsertRubitimeEventInput, UpsertRubitimeRecordInput } from '../../db/repos/rubitimeRecords.js';
 import type { DbWriteMutation } from '../../domain/contracts/index.js';
 import { rubitimeIncomingToEvent } from './connector.js';

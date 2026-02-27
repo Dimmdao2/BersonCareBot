@@ -14,4 +14,3 @@ export {
   handleBack,
 } from './handleCallback.js';
 export { handleUpdate } from './handleUpdate.js';
-export { orchestrateIncomingEvent, orchestrateIncomingEventWithDeps } from './orchestrateIncomingEvent.js';

@@ -1,9 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
-import { createOutgoingEventDispatcher } from '../../app/dispatchers/outgoingEvent.js';
+import { createOutgoingEventDispatcher } from '../../ports/outgoingEventDispatcher.js';
 import { getRequestLogger, newEventId } from '../../observability/logger.js';
 import { telegramContent } from '../../content/index.js';
-import { orchestrateIncomingEventWithDeps } from '../../domain/usecases/index.js';
+import { orchestrateIncomingEventWithDeps } from '../../orchestrator/index.js';
 import type { WebhookContent } from '../../domain/webhookContent.js';
 import type { TelegramUserFrom } from '../../domain/types.js';
 import type { UserPort } from '../../domain/ports/user.js';
