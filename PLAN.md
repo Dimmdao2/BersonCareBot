@@ -543,4 +543,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: В orchestrator для Telegram linking добавлен явный trace `DbReadQuery/DbWriteMutation` (booking/user reads, user.state.set, user.phone.link) без изменения фактического поведения.
 - 2026-02-27: Добавлены целевые unit-тесты `orchestrateIncomingEventWithDeps` для Telegram linking (успешная привязка и ветка без контакта с возвратом в `idle`).
 - 2026-02-27: Для Telegram main-path добавлены tracing-обертки `userPort/notificationsPort`, чтобы `orchestrateIncomingEventWithDeps` возвращал `DbReadQuery/DbWriteMutation` и для обычных сценариев меню/коллбэков.
+- 2026-02-27: Добавлен fixture-driven тест `webhook.fixtures.test.ts` (01..13 Telegram fixtures) c mocked deps для проверки, что сценарии обрабатываются 1:1 и dispatch-форма не деградирует.
 

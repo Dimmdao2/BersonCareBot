@@ -100,6 +100,7 @@
 - Rubitime сценарий формирует `writes` + `outgoing` через унифицированные контракты;
 - Telegram main-path идет через `orchestrateIncomingEventWithDeps`;
 - ветка linking (`/start <record>` + контакт) перенесена из `telegram/webhook` в оркестратор.
+- добавлен fixture-driven тест для Telegram webhook (`01..13` из `e2e/fixtures/telegram`) с mocked deps для контроля 1:1 поведения сценариев.
 
 Что еще не закрыто:
 - довести Telegram-поток до полного отражения через `DbReadQuery/DbWriteMutation`;
