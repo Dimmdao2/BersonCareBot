@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
+import { createOutgoingEventDispatcher } from '../../app/dispatchers/outgoingEvent.js';
 import { getRequestLogger, newEventId } from '../../observability/logger.js';
 import { telegramContent } from '../../content/index.js';
 import { orchestrateIncomingEventWithDeps } from '../../domain/usecases/index.js';
@@ -54,6 +55,11 @@ export async function telegramWebhookRoutes(
     getTelegramUserLinkData,
     setTelegramUserPhone,
   } = deps;
+  const outgoingDispatcher = createOutgoingEventDispatcher({
+    dispatchTelegramOutgoingEvent: async (event) => {
+      await dispatchTelegramOutgoingEvents([event], getBotInstance().api as TelegramApi);
+    },
+  });
   app.post('/webhook/telegram', async (request, reply) => {
     const correlationId = request.id;
     const eventId = newEventId('incoming');
@@ -167,7 +173,9 @@ export async function telegramWebhookRoutes(
       });
       if (orchestrated.outgoing.length > 0) {
         try {
-          await dispatchTelegramOutgoingEvents(orchestrated.outgoing, getBotInstance().api as TelegramApi);
+          for (const outgoing of orchestrated.outgoing) {
+            await outgoingDispatcher.dispatchOutgoing(outgoing);
+          }
         } catch (err) {
           reqLogger.error({ err }, 'toTelegram failed');
         }

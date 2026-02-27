@@ -6,13 +6,22 @@ export type OutgoingEventDispatcher = {
 };
 
 export function createOutgoingEventDispatcher(deps: {
-  dispatchMessageByPhone: (input: MessageByPhoneInput) => Promise<void>;
+  dispatchMessageByPhone?: (input: MessageByPhoneInput) => Promise<void>;
+  dispatchTelegramOutgoingEvent?: (event: OutgoingEvent) => Promise<void>;
 }): OutgoingEventDispatcher {
-  const { dispatchMessageByPhone } = deps;
+  const { dispatchMessageByPhone, dispatchTelegramOutgoingEvent } = deps;
 
   return {
     async dispatchOutgoing(event) {
-      if (event.type !== 'message.send' || event.meta.source !== 'rubitime') return;
+      if (event.type !== 'message.send') return;
+
+      if (event.meta.source === 'telegram') {
+        if (!dispatchTelegramOutgoingEvent) return;
+        await dispatchTelegramOutgoingEvent(event);
+        return;
+      }
+
+      if (event.meta.source !== 'rubitime' || !dispatchMessageByPhone) return;
       const payload = event.payload as {
         recipient?: { phoneNormalized?: string };
         message?: { text?: string };

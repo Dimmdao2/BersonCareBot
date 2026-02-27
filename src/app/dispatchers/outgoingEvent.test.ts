@@ -49,4 +49,24 @@ describe('createOutgoingEventDispatcher', () => {
 
     expect(dispatchMessageByPhone).not.toHaveBeenCalled();
   });
+
+  it('routes telegram message.send through telegram dispatcher callback', async () => {
+    const dispatchTelegramOutgoingEvent = vi.fn(async () => undefined);
+    const dispatcher = createOutgoingEventDispatcher({ dispatchTelegramOutgoingEvent });
+
+    const event: OutgoingEvent = {
+      ...buildRubitimeMessageEvent(),
+      meta: {
+        ...buildRubitimeMessageEvent().meta,
+        source: 'telegram',
+      },
+      payload: {
+        action: { type: 'sendMessage', chatId: 1, text: 'hello' },
+      },
+    };
+    await dispatcher.dispatchOutgoing(event);
+
+    expect(dispatchTelegramOutgoingEvent).toHaveBeenCalledTimes(1);
+    expect(dispatchTelegramOutgoingEvent).toHaveBeenCalledWith(event);
+  });
 });
