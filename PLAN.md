@@ -545,4 +545,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Для Telegram main-path добавлены tracing-обертки `userPort/notificationsPort`, чтобы `orchestrateIncomingEventWithDeps` возвращал `DbReadQuery/DbWriteMutation` и для обычных сценариев меню/коллбэков.
 - 2026-02-27: Добавлен fixture-driven тест `webhook.fixtures.test.ts` (01..13 Telegram fixtures) c mocked deps для проверки, что сценарии обрабатываются 1:1 и dispatch-форма не деградирует.
 - 2026-02-27: Шаг 4 отмечен завершенным: Telegram/Rubitime сценарии проходят через orchestrator, DB traces (`reads/writes`) возвращаются, добавлено целевое покрытие (unit + fixture-driven).
+- 2026-02-27: Начат формальный Шаг 5/6 — вынесен единый `OutgoingEvent` dispatcher (`createOutgoingEventDispatcher`) и подключен в Rubitime webhook, добавлены unit-тесты маршрутизации.
 

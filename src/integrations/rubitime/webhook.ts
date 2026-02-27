@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
+import { createOutgoingEventDispatcher } from '../../app/dispatchers/outgoingEvent.js';
 import { getRequestLogger, newEventId } from '../../observability/logger.js';
 import { orchestrateIncomingEvent } from '../../domain/usecases/index.js';
 import type { InsertRubitimeEventInput, UpsertRubitimeRecordInput } from '../../db/repos/rubitimeRecords.js';
-import type { DbWriteMutation, OutgoingEvent } from '../../domain/contracts/index.js';
+import type { DbWriteMutation } from '../../domain/contracts/index.js';
 import { rubitimeIncomingToEvent } from './connector.js';
 import { parseRubitimeBody } from './schema.js';
 
@@ -27,6 +28,7 @@ function extractIncomingToken(params: unknown): string | null {
 
 export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhookDeps): void {
   const { insertEvent, upsertRecord, dispatchMessageByPhone, webhookToken } = deps;
+  const outgoingDispatcher = createOutgoingEventDispatcher({ dispatchMessageByPhone });
 
   const handler = async (request: {
     id: string;
@@ -71,7 +73,7 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
     }
 
     for (const outgoing of result.outgoing) {
-      await dispatchOutgoingEvent(outgoing, dispatchMessageByPhone);
+      await outgoingDispatcher.dispatchOutgoing(outgoing);
     }
 
     return reply.code(200).send({ ok: true });
@@ -102,21 +104,3 @@ async function applyDbMutation(
   }
 }
 
-async function dispatchOutgoingEvent(
-  outgoing: OutgoingEvent,
-  dispatchMessageByPhone: RubitimeWebhookDeps['dispatchMessageByPhone'],
-): Promise<void> {
-  if (outgoing.type !== 'message.send' || outgoing.meta.source !== 'rubitime') return;
-  const payload = outgoing.payload as {
-    recipient?: { phoneNormalized?: string };
-    message?: { text?: string };
-    fallback?: { smsText?: string };
-  };
-
-  await dispatchMessageByPhone({
-    phoneNormalized: payload.recipient?.phoneNormalized ?? '',
-    messageText: payload.message?.text ?? '',
-    smsFallbackText: payload.fallback?.smsText ?? '',
-    ...(outgoing.meta.correlationId ? { correlationId: outgoing.meta.correlationId } : {}),
-  });
-}
