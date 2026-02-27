@@ -5,6 +5,7 @@ import { getBotInstance } from '../channels/telegram/client.js';
 import { telegramWebhookRoutes } from '../channels/telegram/webhook.js';
 import { rubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 import { registerRubitimeReqSuccessIframeRoute } from '../integrations/rubitime/reqSuccessIframe.js';
+import { createMessageByPhoneDispatcher } from './dispatchers/messageByPhone.js';
 
 export type HealthResponse = {
   ok: true;
@@ -33,32 +34,15 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
   });
 
   const botApi = getBotInstance().api;
+  const messageByPhoneDispatcher = createMessageByPhoneDispatcher({
+    findTelegramUserByPhone: deps.findTelegramUserByPhone,
+    sendTelegramMessage: (chatId, text) => botApi.sendMessage(chatId, text),
+    smsClient: deps.smsClient,
+  });
   rubitimeWebhookRoutes(app, {
     insertEvent: deps.insertRubitimeEvent,
     upsertRecord: deps.upsertRubitimeRecord,
-    dispatchMessageByPhone: async ({ phoneNormalized, messageText, smsFallbackText }) => {
-      const fallback = async () => {
-        await deps.smsClient.sendSms({
-          toPhone: phoneNormalized ?? '',
-          message: smsFallbackText,
-        });
-      };
-
-      if (!phoneNormalized) {
-        await fallback();
-        return;
-      }
-      const user = await deps.findTelegramUserByPhone(phoneNormalized);
-      if (!user) {
-        await fallback();
-        return;
-      }
-      try {
-        await botApi.sendMessage(user.chatId, messageText);
-      } catch {
-        await fallback();
-      }
-    },
+    dispatchMessageByPhone: (input) => messageByPhoneDispatcher.dispatchMessageByPhone(input),
     webhookToken: env.RUBITIME_WEBHOOK_TOKEN,
   });
 }

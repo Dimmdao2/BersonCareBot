@@ -13,6 +13,7 @@ export type RubitimeWebhookDeps = {
     phoneNormalized: string;
     messageText: string;
     smsFallbackText: string;
+    correlationId?: string;
   }) => Promise<void>;
   /** Токен для проверки во входящем path /webhook/rubitime/:token. */
   webhookToken: string;
@@ -116,5 +117,6 @@ async function dispatchOutgoingEvent(
     phoneNormalized: payload.recipient?.phoneNormalized ?? '',
     messageText: payload.message?.text ?? '',
     smsFallbackText: payload.fallback?.smsText ?? '',
+    ...(outgoing.meta.correlationId ? { correlationId: outgoing.meta.correlationId } : {}),
   });
 }

@@ -525,4 +525,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Завершен Шаг 3 — Rubitime webhook стал inbound-коннектором (валидация + маппинг + запуск оркестрации), отправка и fallback вынесены в dispatch-зависимость.
 - 2026-02-27: Для Шага 4 добавлен `orchestrateIncomingEvent` (пока покрывает Rubitime-сценарий; перенос Telegram-сценариев в оркестратор остается отдельной подзадачей).
 - 2026-02-27: Шаг 4 расширен — Telegram main-path теперь также проходит через `orchestrateIncomingEventWithDeps`; перенос ветки linking `/start <record>` и полное покрытие read/write-списками еще в работе.
+- 2026-02-27: Для Шагов 5/6 добавлен `messageByPhone` dispatcher с retry policy (`p-retry`) и логированием fallback/ошибок; пока задействован в Rubitime-потоке.
 
