@@ -309,13 +309,67 @@ export async function orchestrateIncomingEventWithDeps(
       return { reads: [], writes: [], outgoing: [] };
     }
 
+    const reads: DbReadQuery[] = [];
+    const writes: DbWriteMutation[] = [];
+    const tracedUserPort: UserPort = {
+      upsertTelegramUser: async (from) => {
+        writes.push({
+          type: 'user.upsert',
+          params: {
+            telegramId: from?.id != null ? String(from.id) : null,
+            payload: from ?? null,
+          },
+        });
+        return telegramDeps.userPort.upsertTelegramUser(from);
+      },
+      setTelegramUserState: async (telegramId, state) => {
+        writes.push({
+          type: 'user.state.set',
+          params: { telegramId, state },
+        });
+        return telegramDeps.userPort.setTelegramUserState(telegramId, state);
+      },
+      getTelegramUserState: async (telegramId) => {
+        reads.push({
+          type: 'user.byTelegramId',
+          params: { telegramId },
+        });
+        return telegramDeps.userPort.getTelegramUserState(telegramId);
+      },
+      tryAdvanceLastUpdateId: async (telegramId, updateId) => {
+        return telegramDeps.userPort.tryAdvanceLastUpdateId(telegramId, updateId);
+      },
+      tryConsumeStart: async (telegramId) => {
+        return telegramDeps.userPort.tryConsumeStart(telegramId);
+      },
+    };
+    const tracedNotificationsPort: NotificationsPort = {
+      getNotificationSettings: async (telegramId) => {
+        reads.push({
+          type: 'user.byTelegramId',
+          params: { telegramId: String(telegramId) },
+        });
+        return telegramDeps.notificationsPort.getNotificationSettings(telegramId);
+      },
+      updateNotificationSettings: async (telegramId, settings) => {
+        writes.push({
+          type: 'user.upsert',
+          params: {
+            telegramId: String(telegramId),
+            notificationSettings: settings,
+          },
+        });
+        return telegramDeps.notificationsPort.updateNotificationSettings(telegramId, settings);
+      },
+    };
+
     const actions = await handleUpdate(
       incoming,
-      telegramDeps.userPort,
-      telegramDeps.notificationsPort,
+      tracedUserPort,
+      tracedNotificationsPort,
       telegramDeps.content,
     );
-    return { reads: [], writes: [], outgoing: actionsToOutgoingEvents(actions, event) };
+    return { reads, writes, outgoing: actionsToOutgoingEvents(actions, event) };
   }
 
   return orchestrateIncomingEvent(event);
