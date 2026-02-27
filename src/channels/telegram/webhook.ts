@@ -9,8 +9,13 @@ import type { UserPort } from '../../domain/ports/user.js';
 import type { NotificationsPort } from '../../domain/ports/notifications.js';
 import { linkTelegramByRubitimeRecord } from '../../domain/usecases/linkTelegramByRubitimeRecord.js';
 import { getBotInstance } from './client.js';
+import {
+  dispatchTelegramOutgoingEvents,
+  telegramActionsToOutgoingEvents,
+  telegramIncomingToEvent,
+} from './connector.js';
 import { fromTelegram } from './mapIn.js';
-import { toTelegram, type TelegramApi } from './mapOut.js';
+import type { TelegramApi } from './mapOut.js';
 import { parseWebhookBody } from './schema.js';
 
 const content: WebhookContent = telegramContent;
@@ -142,32 +147,38 @@ export async function telegramWebhookRoutes(
       if (!incoming) {
         return reply.code(200).send({ ok: true });
       }
+      const incomingEvent = telegramIncomingToEvent({
+        incoming,
+        correlationId,
+        eventId,
+      });
+      const normalizedIncoming = incomingEvent.payload.incoming as typeof incoming;
 
       const linkingStatePrefix = 'await_contact:rubitime_record:';
       if (
-        incoming.kind === 'message'
+        normalizedIncoming.kind === 'message'
         && userState?.startsWith(linkingStatePrefix)
-        && !incoming.contactPhone
+        && !normalizedIncoming.contactPhone
       ) {
-        const currentUserLinkData = await getTelegramUserLinkData(incoming.telegramId);
+        const currentUserLinkData = await getTelegramUserLinkData(normalizedIncoming.telegramId);
         if (currentUserLinkData?.phoneNormalized) {
-          await userPort.setTelegramUserState(incoming.telegramId, 'idle');
+          await userPort.setTelegramUserState(normalizedIncoming.telegramId, 'idle');
           return reply.code(200).send({ ok: true });
         }
       }
       if (
-        incoming.kind === 'message'
-        && incoming.contactPhone
+        normalizedIncoming.kind === 'message'
+        && normalizedIncoming.contactPhone
         && userState?.startsWith(linkingStatePrefix)
       ) {
         const rubitimeRecordId = userState.slice(linkingStatePrefix.length);
         const linkActions = await linkTelegramByRubitimeRecord(
           {
-            telegramId: incoming.telegramId,
-            chatId: incoming.chatId,
-            username: incoming.telegramUsername,
+            telegramId: normalizedIncoming.telegramId,
+            chatId: normalizedIncoming.chatId,
+            username: normalizedIncoming.telegramUsername,
             rubitimeRecordId,
-            contactPhone: incoming.contactPhone,
+            contactPhone: normalizedIncoming.contactPhone,
           },
           {
             adminTelegramId: env.ADMIN_TELEGRAM_ID,
@@ -179,8 +190,12 @@ export async function telegramWebhookRoutes(
           },
         );
         if (linkActions.length > 0) {
+          const outgoingEvents = telegramActionsToOutgoingEvents({
+            actions: linkActions,
+            correlationId,
+          });
           try {
-            await toTelegram(linkActions, getBotInstance().api as TelegramApi);
+            await dispatchTelegramOutgoingEvents(outgoingEvents, getBotInstance().api as TelegramApi);
           } catch (err) {
             reqLogger.error({ err }, 'toTelegram failed for rubitime linking');
           }
@@ -188,11 +203,14 @@ export async function telegramWebhookRoutes(
         return reply.code(200).send({ ok: true });
       }
 
-      const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
-
-      if (actions.length > 0) {
+      const actions = await handleUpdate(normalizedIncoming, userPort, notificationsPort, content);
+      const outgoingEvents = telegramActionsToOutgoingEvents({
+        actions,
+        correlationId,
+      });
+      if (outgoingEvents.length > 0) {
         try {
-          await toTelegram(actions, getBotInstance().api as TelegramApi);
+          await dispatchTelegramOutgoingEvents(outgoingEvents, getBotInstance().api as TelegramApi);
         } catch (err) {
           reqLogger.error({ err }, 'toTelegram failed');
         }

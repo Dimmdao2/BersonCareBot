@@ -476,7 +476,7 @@ journalctl -u tgcarebot -n 100 --no-pager
   - Добавить correlation id/event id по цепочке обработки.
   - Критерий завершения: в логах нет токенов/секретов/полных телефонов.
 
-- [ ] Шаг 2. Telegram как чистый inbound/outbound connector
+- [x] Шаг 2. Telegram как чистый inbound/outbound connector
   - Telegram webhook только мапит в `IncomingEvent`.
   - Telegram sender только исполняет `OutgoingEvent(type=message.send)`.
   - Критерий завершения: Telegram не содержит доменной логики fallback/маршрутизации.
@@ -521,4 +521,5 @@ journalctl -u tgcarebot -n 100 --no-pager
 - 2026-02-27: Добавлен канонический roadmap с фиксированными правилами выполнения и критериями завершения.
 - 2026-02-27: Завершен Шаг 0 — добавлен контрактный слой `IncomingEvent`/`OutgoingEvent`/`DbReadQuery`/`DbWriteMutation`, `zod` схемы и интерфейсы оркестрации без изменения поведения runtime.
 - 2026-02-27: Завершен Шаг 1 — включен pino redaction для чувствительных полей и добавлены `correlationId`/`eventId` в цепочку webhook-логов.
+- 2026-02-27: Завершен Шаг 2 — Telegram webhook и sender переведены на connector-адаптер (`IncomingEvent`/`OutgoingEvent`) без изменения текущей доменной логики.
 
