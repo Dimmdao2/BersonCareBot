@@ -5,6 +5,7 @@ import type { IncomingUpdate, OutgoingAction } from '../types.js';
 import { normalizePhone } from '../phone.js';
 import type { WebhookContent } from '../webhookContent.js';
 import { handleUpdate } from './handleUpdate.js';
+import { linkTelegramByRubitimeRecord } from './linkTelegramByRubitimeRecord.js';
 
 type RubitimeWebhookBody = {
   from: string;
@@ -168,6 +169,28 @@ type OrchestrateIncomingDeps = {
     userPort: UserPort;
     notificationsPort: NotificationsPort;
     content: WebhookContent;
+    linking?: {
+      adminTelegramId: string;
+      getRubitimeRecordById: (rubitimeRecordId: string) => Promise<{
+        rubitimeRecordId: string;
+        phoneNormalized: string | null;
+        payloadJson: unknown;
+        recordAt: Date | null;
+        status: 'created' | 'updated' | 'canceled';
+      } | null>;
+      findTelegramUserByPhone: (phoneNormalized: string) => Promise<{
+        chatId: number;
+        telegramId: string;
+        username: string | null;
+      } | null>;
+      getTelegramUserLinkData: (telegramId: string) => Promise<{
+        chatId: number;
+        telegramId: string;
+        username: string | null;
+        phoneNormalized: string | null;
+      } | null>;
+      setTelegramUserPhone: (telegramId: string, phoneNormalized: string) => Promise<void>;
+    };
   };
 };
 
@@ -196,6 +219,44 @@ export async function orchestrateIncomingEventWithDeps(
   ) {
     const incoming = event.payload.incoming as IncomingUpdate | undefined;
     if (!incoming) return { reads: [], writes: [], outgoing: [] };
+
+    const linkingStatePrefix = 'await_contact:rubitime_record:';
+    if (incoming.kind === 'message' && incoming.userState.startsWith(linkingStatePrefix)) {
+      if (!incoming.contactPhone) {
+        const currentUserLinkData = deps.telegram.linking
+          ? await deps.telegram.linking.getTelegramUserLinkData(incoming.telegramId)
+          : null;
+        if (currentUserLinkData?.phoneNormalized) {
+          await deps.telegram.userPort.setTelegramUserState(incoming.telegramId, 'idle');
+        }
+        return { reads: [], writes: [], outgoing: [] };
+      }
+
+      if (deps.telegram.linking) {
+        const rubitimeRecordId = incoming.userState.slice(linkingStatePrefix.length);
+        const linkActions = await linkTelegramByRubitimeRecord(
+          {
+            telegramId: incoming.telegramId,
+            chatId: incoming.chatId,
+            username: incoming.telegramUsername,
+            rubitimeRecordId,
+            contactPhone: incoming.contactPhone,
+          },
+          {
+            adminTelegramId: deps.telegram.linking.adminTelegramId,
+            getRecordByRubitimeId: deps.telegram.linking.getRubitimeRecordById,
+            findTelegramUserByPhone: deps.telegram.linking.findTelegramUserByPhone,
+            getTelegramUserLinkData: deps.telegram.linking.getTelegramUserLinkData,
+            setTelegramUserPhone: deps.telegram.linking.setTelegramUserPhone,
+            setTelegramUserState: deps.telegram.userPort.setTelegramUserState,
+          },
+        );
+        return { reads: [], writes: [], outgoing: actionsToOutgoingEvents(linkActions, event) };
+      }
+
+      return { reads: [], writes: [], outgoing: [] };
+    }
+
     const actions = await handleUpdate(
       incoming,
       deps.telegram.userPort,

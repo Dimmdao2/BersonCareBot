@@ -7,11 +7,9 @@ import type { WebhookContent } from '../../domain/webhookContent.js';
 import type { TelegramUserFrom } from '../../domain/types.js';
 import type { UserPort } from '../../domain/ports/user.js';
 import type { NotificationsPort } from '../../domain/ports/notifications.js';
-import { linkTelegramByRubitimeRecord } from '../../domain/usecases/linkTelegramByRubitimeRecord.js';
 import { getBotInstance } from './client.js';
 import {
   dispatchTelegramOutgoingEvents,
-  telegramActionsToOutgoingEvents,
   telegramIncomingToEvent,
 } from './connector.js';
 import { fromTelegram } from './mapIn.js';
@@ -152,62 +150,19 @@ export async function telegramWebhookRoutes(
         correlationId,
         eventId,
       });
-      const normalizedIncoming = incomingEvent.payload.incoming as typeof incoming;
-
-      const linkingStatePrefix = 'await_contact:rubitime_record:';
-      if (
-        normalizedIncoming.kind === 'message'
-        && userState?.startsWith(linkingStatePrefix)
-        && !normalizedIncoming.contactPhone
-      ) {
-        const currentUserLinkData = await getTelegramUserLinkData(normalizedIncoming.telegramId);
-        if (currentUserLinkData?.phoneNormalized) {
-          await userPort.setTelegramUserState(normalizedIncoming.telegramId, 'idle');
-          return reply.code(200).send({ ok: true });
-        }
-      }
-      if (
-        normalizedIncoming.kind === 'message'
-        && normalizedIncoming.contactPhone
-        && userState?.startsWith(linkingStatePrefix)
-      ) {
-        const rubitimeRecordId = userState.slice(linkingStatePrefix.length);
-        const linkActions = await linkTelegramByRubitimeRecord(
-          {
-            telegramId: normalizedIncoming.telegramId,
-            chatId: normalizedIncoming.chatId,
-            username: normalizedIncoming.telegramUsername,
-            rubitimeRecordId,
-            contactPhone: normalizedIncoming.contactPhone,
-          },
-          {
-            adminTelegramId: env.ADMIN_TELEGRAM_ID,
-            getRecordByRubitimeId: getRubitimeRecordById,
-            findTelegramUserByPhone,
-            getTelegramUserLinkData,
-            setTelegramUserPhone,
-            setTelegramUserState: userPort.setTelegramUserState,
-          },
-        );
-        if (linkActions.length > 0) {
-          const outgoingEvents = telegramActionsToOutgoingEvents({
-            actions: linkActions,
-            correlationId,
-          });
-          try {
-            await dispatchTelegramOutgoingEvents(outgoingEvents, getBotInstance().api as TelegramApi);
-          } catch (err) {
-            reqLogger.error({ err }, 'toTelegram failed for rubitime linking');
-          }
-        }
-        return reply.code(200).send({ ok: true });
-      }
 
       const orchestrated = await orchestrateIncomingEventWithDeps(incomingEvent, {
         telegram: {
           userPort,
           notificationsPort,
           content,
+          linking: {
+            adminTelegramId: env.ADMIN_TELEGRAM_ID,
+            getRubitimeRecordById,
+            findTelegramUserByPhone,
+            getTelegramUserLinkData,
+            setTelegramUserPhone,
+          },
         },
       });
       if (orchestrated.outgoing.length > 0) {
