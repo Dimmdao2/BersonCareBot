@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { getRequestLogger } from '../../observability/logger.js';
+import { getRequestLogger, newEventId } from '../../observability/logger.js';
 import { normalizePhone } from '../../domain/phone.js';
 import type { SmsClient } from '../smsc/types.js';
 import type { InsertRubitimeEventInput, UpsertRubitimeRecordInput } from '../../db/repos/rubitimeRecords.js';
@@ -121,7 +121,9 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
   }, reply: {
     code: (statusCode: number) => { send: (payload: unknown) => unknown };
   }) => {
-    const reqLogger = getRequestLogger(request.id);
+    const correlationId = request.id;
+    const eventId = newEventId('incoming');
+    const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
     const incomingToken = extractIncomingToken(request.params);
     if (incomingToken !== webhookToken) {
@@ -131,7 +133,7 @@ export function rubitimeWebhookRoutes(app: FastifyInstance, deps: RubitimeWebhoo
     const parseResult = parseRubitimeBody(request.body);
     if (!parseResult.success) {
       reqLogger.warn(
-        { err: parseResult.error.flatten(), body: request.body },
+        { err: parseResult.error.flatten(), hasBody: request.body != null },
         'rubitime webhook body validation failed',
       );
       return reply.code(400).send({ ok: false, error: 'Invalid webhook body' });

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
-import { getRequestLogger } from '../../observability/logger.js';
+import { getRequestLogger, newEventId } from '../../observability/logger.js';
 import { telegramContent } from '../../content/index.js';
 import { handleUpdate } from '../../domain/usecases/index.js';
 import type { WebhookContent } from '../../domain/webhookContent.js';
@@ -52,7 +52,9 @@ export async function telegramWebhookRoutes(
     setTelegramUserPhone,
   } = deps;
   app.post('/webhook/telegram', async (request, reply) => {
-    const reqLogger = getRequestLogger(request.id);
+    const correlationId = request.id;
+    const eventId = newEventId('incoming');
+    const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
     try {
       const secret = env.TG_WEBHOOK_SECRET;
@@ -65,7 +67,10 @@ export async function telegramWebhookRoutes(
 
       const parseResult = parseWebhookBody(request.body);
       if (!parseResult.success) {
-        reqLogger.warn({ err: parseResult.error.flatten(), body: request.body }, 'webhook body validation failed');
+        reqLogger.warn(
+          { err: parseResult.error.flatten(), hasBody: request.body != null },
+          'webhook body validation failed',
+        );
         return reply.code(400).send({ ok: false, error: 'Invalid webhook body' });
       }
       const body = parseResult.data;

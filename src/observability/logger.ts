@@ -1,4 +1,5 @@
 import pino from "pino";
+import { randomUUID } from "node:crypto";
 
 export type SerializedError = {
   type: string;
@@ -47,14 +48,32 @@ export const logger = pino({
   level: process.env.LOG_LEVEL || "info",
   ...(transport ? { transport } : {}),
   base: { pid: process.pid, hostname: process.env.HOSTNAME || "" },
+  redact: {
+    paths: [
+      "headers.authorization",
+      "headers.cookie",
+      "headers.x-telegram-bot-api-secret-token",
+      "*.authorization",
+      "*.token",
+      "*.secret",
+      "*.password",
+      "*.phone",
+      "*.phone_number",
+    ],
+    censor: "[REDACTED]",
+  },
   serializers: {
     err: serializeError,
     error: serializeError,
   },
 });
 
-export function getRequestLogger(requestId: string) {
-  return logger.child({ requestId });
+export function newEventId(prefix = "evt"): string {
+  return `${prefix}_${randomUUID()}`;
+}
+
+export function getRequestLogger(requestId: string, context?: Record<string, string>) {
+  return logger.child({ requestId, ...(context ?? {}) });
 }
 
 export function getWorkerLogger(jobId?: string, mailingId?: string) {
