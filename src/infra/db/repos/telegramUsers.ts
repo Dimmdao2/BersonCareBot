@@ -288,6 +288,7 @@ export async function setTelegramUserPhone(
 export const userPort: UserPort = {
 	upsertTelegramUser,
 	setTelegramUserState,
+	setTelegramUserPhone,
 	getTelegramUserState,
 	tryAdvanceLastUpdateId,
 	tryConsumeStart,

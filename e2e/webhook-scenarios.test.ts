@@ -111,6 +111,7 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
   const inMemoryState = {
     users: new Map<string, { id: string; telegram_id: string }>(),
     states: new Map<string, string>(),
+    phones: new Map<string, string>(),
     lastUpdateId: new Map<number, number>(),
     lastStartAt: new Set<number>(),
     notifications: new Map<number, { notify_spb: boolean; notify_msk: boolean; notify_online: boolean }>(),
@@ -129,6 +130,9 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
     async setTelegramUserState(telegramId: string, state: string | null) {
       if (state == null) inMemoryState.states.delete(telegramId);
       else inMemoryState.states.set(telegramId, state);
+    },
+    async setTelegramUserPhone(telegramId: string, phoneNormalized: string) {
+      inMemoryState.phones.set(telegramId, phoneNormalized);
     },
     async getTelegramUserState(telegramId: string) {
       return inMemoryState.states.get(telegramId) ?? null;
@@ -167,7 +171,12 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
   const getTelegramUserLinkData = async (telegramId: string) => {
     const user = inMemoryState.users.get(telegramId);
     if (!user) return null;
-    return { chatId: Number(telegramId), telegramId, username: null, phoneNormalized: null };
+    return {
+      chatId: Number(telegramId),
+      telegramId,
+      username: null,
+      phoneNormalized: inMemoryState.phones.get(telegramId) ?? null,
+    };
   };
 
   beforeAll(async () => {
