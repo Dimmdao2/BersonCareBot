@@ -86,7 +86,7 @@ function getExpected(name: string): ScenarioExpect {
     case '09_callback_toggle_spb':
       return { ...base, minTelegramCalls: 1 };
     case '10_callback_my_bookings':
-      return { ...base, minTelegramCalls: 1, firstMethod: 'editMessageText' };
+      return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     case '11_callback_back':
       return { ...base, minTelegramCalls: 1 };
     case '12_callback_unknown':

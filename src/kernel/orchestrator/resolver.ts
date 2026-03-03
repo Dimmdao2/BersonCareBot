@@ -19,16 +19,25 @@ function readStatusCode(value: unknown): number | null {
 }
 
 function mapRubitimeStatusForStorage(rawStatusCode: number | null, rawEvent: string): 'created' | 'updated' | 'canceled' {
-  if (rawStatusCode === rubitimeBookingStatuses.canceled || rawEvent === 'event-remove-record') return 'canceled';
-  if (rawStatusCode === rubitimeBookingStatuses.accepted || rawEvent === 'event-create-record') return 'created';
+  if (rawEvent === 'event-remove-record') return 'canceled';
+  if (rawEvent === 'event-create-record') return 'created';
+  if (rawStatusCode === rubitimeBookingStatuses.canceled) return 'canceled';
   return 'updated';
 }
 
 function buildRubitimeMessageByStatus(input: {
+  rawEvent: string;
   statusCode: number | null;
   recordAt: string | null;
   comment: string | null;
 }): string | null {
+  if (input.rawEvent === 'event-remove-record') {
+    return rubitimeContent.messages.bookingCanceled({ recordAt: input.recordAt });
+  }
+  if (input.rawEvent === 'event-create-record') {
+    return rubitimeContent.messages.bookingAccepted({ recordAt: input.recordAt });
+  }
+  if (input.rawEvent !== 'event-update-record') return null;
   if (input.statusCode === rubitimeBookingStatuses.accepted) {
     return rubitimeContent.messages.bookingAccepted({ recordAt: input.recordAt });
   }
@@ -93,7 +102,7 @@ export async function resolveScript(event: IncomingEvent, deps: ResolverDeps = {
     const statusCode = readStatusCode(data?.status);
     const rawEvent = readString(body?.event) ?? 'event-update-record';
     const status = mapRubitimeStatusForStorage(statusCode, rawEvent);
-    const messageText = buildRubitimeMessageByStatus({ statusCode, recordAt, comment });
+    const messageText = buildRubitimeMessageByStatus({ rawEvent, statusCode, recordAt, comment });
 
     if (rubitimeRecordId) {
       steps.push({

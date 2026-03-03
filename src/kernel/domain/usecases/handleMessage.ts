@@ -60,7 +60,12 @@ export async function handleStart(
   return {
     consumed: true,
     actions: [
-      { type: 'sendMessage', chatId, text: content.messages.welcome, replyMarkup: mainMenuMarkup(content) },
+      {
+        type: 'sendMessage',
+        chatId,
+        text: hasLinkedPhone ? content.messages.chooseMenu : content.messages.welcome,
+        replyMarkup: mainMenuMarkup(content),
+      },
     ],
   };
 }

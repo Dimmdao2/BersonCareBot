@@ -85,10 +85,12 @@ export async function registerTelegramWebhookRoutes(
       let userState: string | undefined;
       let hasLinkedPhone = false;
       let adminForward: { chatId: number; text: string } | undefined;
-      if (body.message?.from && telegramId) {
-        userState = (await deps.userPort.getTelegramUserState(telegramId)) ?? 'idle';
+      if (telegramId) {
         const userLinkData = await deps.getTelegramUserLinkData(telegramId);
         hasLinkedPhone = Boolean(userLinkData?.phoneNormalized);
+      }
+      if (body.message?.from && telegramId) {
+        userState = (await deps.userPort.getTelegramUserState(telegramId)) ?? 'idle';
         if (userState === 'waiting_for_question' && body.message.text) {
           const adminId = env.ADMIN_TELEGRAM_ID != null ? Number(env.ADMIN_TELEGRAM_ID) : undefined;
           if (adminId && body.message.from) {

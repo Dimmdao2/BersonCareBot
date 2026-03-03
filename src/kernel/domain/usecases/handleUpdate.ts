@@ -30,6 +30,23 @@ function mainMenuMarkup(content: WebhookContent) {
   };
 }
 
+async function requestPhoneLink(
+  chatId: number,
+  telegramId: string,
+  userPort: UserPort,
+  content: WebhookContent,
+): Promise<OutgoingAction[]> {
+  await userPort.setTelegramUserState(telegramId, 'await_contact:subscription');
+  return [
+    {
+      type: 'sendMessage',
+      chatId,
+      text: content.messages.confirmPhoneForRubitime,
+      replyMarkup: content.requestContactKeyboard,
+    },
+  ];
+}
+
 /**
  * Single entry: map incoming update to list of outgoing actions.
  * Domain does not know about Telegram; only internal types.
@@ -64,8 +81,18 @@ export async function handleUpdate(
       );
       actions.push(...result);
     } else if (data === 'menu_my_bookings') {
+      if (!incoming.hasLinkedPhone) {
+        const result = await requestPhoneLink(
+          incoming.chatId,
+          String(incoming.telegramId),
+          userPort,
+          content,
+        );
+        actions.push(...result);
+      } else {
       const result = await handleMyBookings(incoming.chatId, incoming.messageId, content);
       actions.push(...result);
+      }
     } else if (data === 'menu_back') {
       const result = await handleBack(incoming.chatId, incoming.messageId, content);
       actions.push(...result);
@@ -79,7 +106,7 @@ export async function handleUpdate(
   const { chatId, telegramId, text, userRow, userState, adminForward } = incoming;
   if (!userRow || !telegramId) return [];
 
-  if (userState.startsWith('await_contact:rubitime_record:')) {
+  if (userState.startsWith('await_contact:')) {
     const normalized = incoming.contactPhone ? normalizePhone(incoming.contactPhone) : null;
     if (!normalized) {
       return [
@@ -123,6 +150,9 @@ export async function handleUpdate(
     // Menu actions have priority over "question" mode:
     // pressing a menu button cancels waiting state and routes to that action.
     if (text === content.mainMenu.book) {
+      if (!(incoming.hasLinkedPhone ?? false)) {
+        return requestPhoneLink(chatId, telegramId, userPort, content);
+      }
       return handleBook(chatId, telegramId, userPort, content);
     }
     if (text === content.mainMenu.more) {
@@ -136,6 +166,9 @@ export async function handleUpdate(
   }
 
   if (text === content.mainMenu.book) {
+    if (!(incoming.hasLinkedPhone ?? false)) {
+      return requestPhoneLink(chatId, telegramId, userPort, content);
+    }
     return handleBook(chatId, telegramId, userPort, content);
   }
 

@@ -155,4 +155,66 @@ describe('resolveScript for rubitime webhook', () => {
     expect(payload.message?.text).toContain('Запрос на перенос записи получен');
     expect(payload.message?.text).toContain('Можно на вечер?');
   });
+
+  it('uses accepted message for event-create-record regardless of status payload', async () => {
+    const createdEvent: IncomingEvent = {
+      ...rubitimeEventBase,
+      payload: {
+        body: {
+          event: 'event-create-record',
+          data: {
+            id: 'record-1',
+            phone: '+79990001122',
+            record: '2026-03-03 15:30',
+            status: '6',
+            comment: '',
+          },
+        },
+      },
+    };
+    const script = await resolveScript(createdEvent, {
+      resolveRubitimeRecipientContext: vi.fn().mockResolvedValue({
+        phoneNormalized: '+79990001122',
+        hasTelegramUser: true,
+        telegramUser: { chatId: 123, telegramId: '123', username: 'u' },
+        isTelegramAdmin: false,
+        isAppAdmin: false,
+        telegramNotificationsEnabled: true,
+      }),
+    });
+    const messageStep = script.steps.find((step) => step.kind === 'message.send');
+    const payload = messageStep?.payload as { message?: { text?: string } };
+    expect(payload.message?.text).toContain('Вы записаны к Дмитрию на прием');
+  });
+
+  it('uses canceled message for event-remove-record regardless of status payload', async () => {
+    const removedEvent: IncomingEvent = {
+      ...rubitimeEventBase,
+      payload: {
+        body: {
+          event: 'event-remove-record',
+          data: {
+            id: 'record-1',
+            phone: '+79990001122',
+            record: '2026-03-03 15:30',
+            status: '1',
+            comment: '',
+          },
+        },
+      },
+    };
+    const script = await resolveScript(removedEvent, {
+      resolveRubitimeRecipientContext: vi.fn().mockResolvedValue({
+        phoneNormalized: '+79990001122',
+        hasTelegramUser: false,
+        telegramUser: null,
+        isTelegramAdmin: false,
+        isAppAdmin: false,
+        telegramNotificationsEnabled: true,
+      }),
+    });
+    const messageStep = script.steps.find((step) => step.kind === 'message.send');
+    const payload = messageStep?.payload as { message?: { text?: string } };
+    expect(payload.message?.text).toContain('Отменена ваша запись на прием');
+  });
 });

@@ -54,6 +54,7 @@ export type IncomingCallbackUpdate = {
   chatId: number;
   messageId: number;
   telegramId: number;
+  hasLinkedPhone?: boolean;
   callbackData: string;
   callbackQueryId: string;
 };

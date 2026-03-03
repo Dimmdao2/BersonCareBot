@@ -42,6 +42,7 @@ export function fromTelegram(
       chatId,
       messageId,
       telegramId: cq.from.id,
+      ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       callbackData: cq.data ?? '',
       callbackQueryId: cq.id,
     };

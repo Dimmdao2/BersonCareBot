@@ -91,4 +91,70 @@ describe('handleUpdate contact linking', () => {
       text: 'confirm-contact',
     });
   });
+
+  it('does not send welcome on /start when phone is already linked', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'message',
+      chatId: 100,
+      telegramId: '100',
+      text: '/start',
+      hasLinkedPhone: true,
+      userRow: { id: '1', telegram_id: '100' },
+      userState: 'idle',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(actions[0]).toMatchObject({
+      type: 'sendMessage',
+      chatId: 100,
+      text: 'choose',
+    });
+  });
+
+  it('requests contact when book button pressed and phone is not linked', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'message',
+      chatId: 100,
+      telegramId: '100',
+      text: 'book',
+      hasLinkedPhone: false,
+      userRow: { id: '1', telegram_id: '100' },
+      userState: 'idle',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(userPort.setTelegramUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
+    expect(actions[0]).toMatchObject({
+      type: 'sendMessage',
+      chatId: 100,
+      text: 'confirm-contact',
+    });
+  });
+
+  it('requests contact for callback "menu_my_bookings" without linked phone', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'callback',
+      chatId: 100,
+      messageId: 10,
+      telegramId: 100,
+      hasLinkedPhone: false,
+      callbackData: 'menu_my_bookings',
+      callbackQueryId: 'cbq-1',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(userPort.setTelegramUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
+    expect(actions[0]).toMatchObject({
+      type: 'sendMessage',
+      chatId: 100,
+      text: 'confirm-contact',
+    });
+    expect(actions[1]).toMatchObject({
+      type: 'answerCallbackQuery',
+      callbackQueryId: 'cbq-1',
+    });
+  });
 });
