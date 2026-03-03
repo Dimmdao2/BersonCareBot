@@ -1,5 +1,5 @@
 import type { IncomingEvent, Script } from '../contracts/index.js';
-import { rubitimeContent } from '../../content/rubitime/content.js';
+import { rubitimeBookingStatuses, rubitimeContent } from '../../content/rubitime/content.js';
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
@@ -7,6 +7,38 @@ function readObject(value: unknown): Record<string, unknown> | null {
 
 function readString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function readStatusCode(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return Math.trunc(parsed);
+  }
+  return null;
+}
+
+function mapRubitimeStatusForStorage(rawStatusCode: number | null, rawEvent: string): 'created' | 'updated' | 'canceled' {
+  if (rawStatusCode === rubitimeBookingStatuses.canceled || rawEvent === 'event-remove-record') return 'canceled';
+  if (rawStatusCode === rubitimeBookingStatuses.accepted || rawEvent === 'event-create-record') return 'created';
+  return 'updated';
+}
+
+function buildRubitimeMessageByStatus(input: {
+  statusCode: number | null;
+  recordAt: string | null;
+  comment: string | null;
+}): string | null {
+  if (input.statusCode === rubitimeBookingStatuses.accepted) {
+    return rubitimeContent.messages.bookingAccepted({ recordAt: input.recordAt });
+  }
+  if (input.statusCode === rubitimeBookingStatuses.canceled) {
+    return rubitimeContent.messages.bookingCanceled({ recordAt: input.recordAt });
+  }
+  if (input.statusCode === rubitimeBookingStatuses.moved) {
+    return rubitimeContent.messages.bookingMoved({ comment: input.comment });
+  }
+  return null;
 }
 
 export type RubitimeTelegramUserContext = {
@@ -57,12 +89,11 @@ export async function resolveScript(event: IncomingEvent, deps: ResolverDeps = {
     const rubitimeRecordId = readString(data?.id);
     const phoneNormalized = readString(data?.phone);
     const recordAt = readString(data?.record);
+    const comment = readString(data?.comment);
+    const statusCode = readStatusCode(data?.status);
     const rawEvent = readString(body?.event) ?? 'event-update-record';
-    const status = rawEvent === 'event-create-record'
-      ? 'created'
-      : rawEvent === 'event-remove-record'
-        ? 'canceled'
-        : 'updated';
+    const status = mapRubitimeStatusForStorage(statusCode, rawEvent);
+    const messageText = buildRubitimeMessageByStatus({ statusCode, recordAt, comment });
 
     if (rubitimeRecordId) {
       steps.push({
@@ -74,13 +105,14 @@ export async function resolveScript(event: IncomingEvent, deps: ResolverDeps = {
           phoneNormalized,
           recordAt,
           status,
+          rubitimeStatusCode: statusCode,
           payloadJson: data ?? {},
           lastEvent: rawEvent,
         },
       });
     }
 
-    if (phoneNormalized) {
+    if (phoneNormalized && messageText) {
       const context = deps.resolveRubitimeRecipientContext
         ? await deps.resolveRubitimeRecipientContext(phoneNormalized)
         : {
@@ -105,7 +137,7 @@ export async function resolveScript(event: IncomingEvent, deps: ResolverDeps = {
         mode: 'async',
         payload: {
           recipient,
-          message: { text: rubitimeContent.messages.bookingUpdateAccepted },
+          message: { text: messageText },
           delivery: {
             channels: canSendTelegram ? ['telegram', 'smsc'] : ['smsc'],
             maxAttempts: 3,
