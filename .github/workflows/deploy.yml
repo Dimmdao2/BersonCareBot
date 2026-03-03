@@ -47,7 +47,7 @@ jobs:
             set -a
             source /opt/tgcarebot/.env
             set +a
-            pnpm exec tsx src/db/migrate.ts
+            pnpm run db:migrate
 
             echo "=== step: restart ==="
             systemctl --user restart tgcarebot || true
