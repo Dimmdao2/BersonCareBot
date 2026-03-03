@@ -11,6 +11,48 @@ import { incomingEventSchema } from '../contracts/index.js';
 import { buildDedupKey } from './dedup.js';
 import { checkGatewayRateLimit } from './rateLimit.js';
 
+type DebugEventStatus = 'processed' | 'duplicate' | 'failed';
+
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return '[unserializable payload]';
+  }
+}
+
+function truncateText(value: string, maxLen: number): string {
+  if (value.length <= maxLen) return value;
+  return `${value.slice(0, Math.max(0, maxLen - 3))}...`;
+}
+
+function buildDebugMessage(input: {
+  status: DebugEventStatus;
+  event: IncomingEvent;
+  dedupKey: string;
+  writesApplied?: number;
+  outgoingDispatched?: number;
+  error?: string;
+}): string {
+  const correlationId = input.event.meta.correlationId ?? '-';
+  const payload = truncateText(safeJson(input.event.payload), 1800);
+  const details = [
+    'DEBUG EVENT',
+    `status: ${input.status}`,
+    `source: ${input.event.meta.source}`,
+    `type: ${input.event.type}`,
+    `eventId: ${input.event.meta.eventId}`,
+    `correlationId: ${correlationId}`,
+    `dedupKey: ${input.dedupKey}`,
+    `writesApplied: ${input.writesApplied ?? 0}`,
+    `outgoingDispatched: ${input.outgoingDispatched ?? 0}`,
+    ...(input.error ? [`error: ${input.error}`] : []),
+    'payload:',
+    payload,
+  ];
+  return truncateText(details.join('\n'), 3500);
+}
+
 /**
  * Зависимости eventGateway.
  * Gateway не содержит бизнес-логики: только envelope-проверки, dedup и запуск orchestrator.
@@ -21,6 +63,8 @@ type EventGatewayDeps = {
   dispatchPort?: DispatchPort;
   idempotencyPort?: IdempotencyPort;
   dedupTtlSec?: number;
+  debugAdminChatId?: number;
+  debugForwardAllEvents?: boolean;
 };
 
 /**
@@ -34,7 +78,42 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
     dispatchPort,
     idempotencyPort,
     dedupTtlSec = 900,
+    debugAdminChatId,
+    debugForwardAllEvents = false,
   } = deps;
+
+  const sendDebugEventToAdmin = async (input: {
+    status: DebugEventStatus;
+    event: IncomingEvent;
+    dedupKey: string;
+    writesApplied?: number;
+    outgoingDispatched?: number;
+    error?: string;
+  }): Promise<void> => {
+    if (!debugForwardAllEvents) return;
+    if (!dispatchPort) return;
+    if (typeof debugAdminChatId !== 'number' || !Number.isFinite(debugAdminChatId)) return;
+
+    const text = buildDebugMessage(input);
+    try {
+      await dispatchPort.dispatchOutgoing({
+        type: 'message.send',
+        meta: {
+          eventId: `${input.event.meta.eventId}:debug:admin`,
+          occurredAt: new Date().toISOString(),
+          source: 'eventGateway',
+          ...(input.event.meta.correlationId ? { correlationId: input.event.meta.correlationId } : {}),
+        },
+        payload: {
+          recipient: { chatId: debugAdminChatId },
+          message: { text },
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      });
+    } catch {
+      // Debug forwarding must never break main event processing.
+    }
+  };
 
   return {
     /** Принимает event-конверт, выполняет dedup и запускает оркестрацию. */
@@ -43,9 +122,16 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
 
       const rate = await checkGatewayRateLimit(event);
       if (!rate.allowed) {
+        const dedupKey = `${event.meta.source}:${event.type}:rate_limited`;
+        await sendDebugEventToAdmin({
+          status: 'failed',
+          event,
+          dedupKey,
+          error: rate.reason ?? 'RATE_LIMITED',
+        });
         return {
           status: 'failed',
-          dedupKey: `${event.meta.source}:${event.type}:rate_limited`,
+          dedupKey,
           error: rate.reason ?? 'RATE_LIMITED',
         };
       }
@@ -53,28 +139,48 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
       const dedupKey = buildDedupKey(event);
       if (idempotencyPort) {
         const acquired = await idempotencyPort.tryAcquire(dedupKey, dedupTtlSec);
-        if (!acquired) return { status: 'duplicate', dedupKey };
-      }
-
-      const result = await orchestrator.orchestrate(event);
-
-      let writesApplied = 0;
-      if (writePort) {
-        for (const mutation of result.writes) {
-          await writePort.writeDb(mutation);
-          writesApplied += 1;
+        if (!acquired) {
+          await sendDebugEventToAdmin({ status: 'duplicate', event, dedupKey });
+          return { status: 'duplicate', dedupKey };
         }
       }
 
-      let outgoingDispatched = 0;
-      if (dispatchPort) {
-        for (const intent of result.outgoing) {
-          await dispatchPort.dispatchOutgoing(intent);
-          outgoingDispatched += 1;
-        }
-      }
+      try {
+        const result = await orchestrator.orchestrate(event);
 
-      return { status: 'processed', dedupKey, writesApplied, outgoingDispatched };
+        let writesApplied = 0;
+        if (writePort) {
+          for (const mutation of result.writes) {
+            await writePort.writeDb(mutation);
+            writesApplied += 1;
+          }
+        }
+
+        let outgoingDispatched = 0;
+        if (dispatchPort) {
+          for (const intent of result.outgoing) {
+            await dispatchPort.dispatchOutgoing(intent);
+            outgoingDispatched += 1;
+          }
+        }
+
+        await sendDebugEventToAdmin({
+          status: 'processed',
+          event,
+          dedupKey,
+          writesApplied,
+          outgoingDispatched,
+        });
+        return { status: 'processed', dedupKey, writesApplied, outgoingDispatched };
+      } catch (err) {
+        await sendDebugEventToAdmin({
+          status: 'failed',
+          event,
+          dedupKey,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
     },
   };
 }

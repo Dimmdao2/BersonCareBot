@@ -26,6 +26,7 @@ import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 import { registerRubitimeIframeEdgeRoute } from '../integrations/rubitime/reqSuccessIframeEdge.js';
 import {
+  findByPhone,
   getTelegramUserLinkData,
   notificationsPort,
   userPort,
@@ -94,12 +95,35 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const dbWritePort = input.dbWritePort ?? createDbWritePort();
   const dispatchPort = input.dispatchPort ?? createDefaultDispatchPort({ smsClient, writePort: dbWritePort });
   const idempotencyPort = input.idempotencyPort ?? createInMemoryIdempotencyPort();
+  const adminTelegramId = Number(env.ADMIN_TELEGRAM_ID);
 
   const eventGateway = createEventGateway({
-    orchestrator: input.orchestrator ?? createOrchestrator(),
+    orchestrator: input.orchestrator ?? createOrchestrator({
+      async resolveRubitimeRecipientContext(phoneNormalized) {
+        const telegramUser = await findByPhone(phoneNormalized);
+        const isTelegramAdmin = Boolean(
+          telegramUser
+            && Number.isFinite(adminTelegramId)
+            && String(telegramUser.telegramId) === String(adminTelegramId),
+        );
+        // App-admin roles are not implemented yet; keep explicit default.
+        const isAppAdmin = false;
+        return {
+          phoneNormalized,
+          hasTelegramUser: telegramUser !== null,
+          telegramUser,
+          isTelegramAdmin,
+          isAppAdmin,
+          // TODO: use explicit "booking notifications enabled" setting when added.
+          telegramNotificationsEnabled: true,
+        };
+      },
+    }),
     writePort: dbWritePort,
     dispatchPort,
     idempotencyPort,
+    debugAdminChatId: Number.isFinite(adminTelegramId) ? adminTelegramId : undefined,
+    debugForwardAllEvents: env.DEBUG_FORWARD_ALL_EVENTS_TO_ADMIN,
   });
 
   return {

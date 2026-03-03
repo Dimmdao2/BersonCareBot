@@ -9,12 +9,31 @@ function readString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
+export type RubitimeTelegramUserContext = {
+  chatId: number;
+  telegramId: string;
+  username: string | null;
+};
+
+export type RubitimeRecipientContext = {
+  phoneNormalized: string;
+  hasTelegramUser: boolean;
+  telegramUser: RubitimeTelegramUserContext | null;
+  isTelegramAdmin: boolean;
+  isAppAdmin: boolean;
+  telegramNotificationsEnabled: boolean;
+};
+
+type ResolverDeps = {
+  resolveRubitimeRecipientContext?: (phoneNormalized: string) => Promise<RubitimeRecipientContext>;
+};
+
 /**
  * Выбирает script по входящему событию.
  * Базовая реализация формирует минимальный скрипт с шагом журналирования события
  * и прикладными шагами для Rubitime booking webhook.
  */
-export function resolveScript(event: IncomingEvent): Script {
+export async function resolveScript(event: IncomingEvent, deps: ResolverDeps = {}): Promise<Script> {
   const steps: Script['steps'] = [
     {
       id: `step:log:${event.meta.eventId}`,
@@ -62,13 +81,38 @@ export function resolveScript(event: IncomingEvent): Script {
     }
 
     if (phoneNormalized) {
+      const context = deps.resolveRubitimeRecipientContext
+        ? await deps.resolveRubitimeRecipientContext(phoneNormalized)
+        : {
+          phoneNormalized,
+          hasTelegramUser: false,
+          telegramUser: null,
+          isTelegramAdmin: false,
+          isAppAdmin: false,
+          telegramNotificationsEnabled: true,
+        };
+      const canSendTelegram = context.hasTelegramUser
+        && context.telegramUser !== null
+        && context.telegramNotificationsEnabled;
+      const recipient = canSendTelegram
+        ? {
+          phoneNormalized,
+          chatId: context.telegramUser.chatId,
+        }
+        : { phoneNormalized };
+
       steps.push({
         id: `step:message-send:${event.meta.eventId}`,
         kind: 'message.send',
         mode: 'async',
         payload: {
-          recipient: { phoneNormalized },
+          recipient,
           message: { text: rubitimeContent.messages.bookingUpdateAccepted },
+          delivery: {
+            channels: canSendTelegram ? ['telegram', 'smsc'] : ['smsc'],
+            maxAttempts: 3,
+          },
+          context,
         },
       });
     }

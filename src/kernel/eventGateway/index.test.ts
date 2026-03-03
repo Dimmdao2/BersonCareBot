@@ -56,6 +56,28 @@ describe('eventGateway', () => {
     expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
   });
 
+  it('forwards debug event to admin when enabled', async () => {
+    const orchestrate = vi.fn().mockResolvedValue({ reads: [], writes: [], outgoing: [] });
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const { createEventGateway } = await import('./index.js');
+    const gateway = createEventGateway({
+      orchestrator: { orchestrate },
+      dispatchPort: { dispatchOutgoing },
+      idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true) },
+      debugForwardAllEvents: true,
+      debugAdminChatId: 777,
+    });
+
+    const result = await gateway.handleIncomingEvent(baseEvent);
+    expect(result.status).toBe('processed');
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
+    const forwarded = dispatchOutgoing.mock.calls[0]?.[0] as {
+      payload?: { recipient?: { chatId?: number }; delivery?: { channels?: string[] } };
+    };
+    expect(forwarded.payload?.recipient?.chatId).toBe(777);
+    expect(forwarded.payload?.delivery?.channels).toEqual(['telegram']);
+  });
+
   it('returns failed when rate limited', async () => {
     vi.resetModules();
     vi.doMock('./rateLimit.js', () => ({

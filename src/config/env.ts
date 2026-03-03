@@ -20,6 +20,7 @@ const parsed = z
     BOT_TOKEN: z.string().min(1),
     ADMIN_TELEGRAM_ID: z.string().min(1),
     INBOX_CHAT_ID: z.string().min(1),
+    DEBUG_FORWARD_ALL_EVENTS_TO_ADMIN: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
 
     /** SMSC.RU */
     SMSC_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
