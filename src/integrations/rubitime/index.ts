@@ -1,5 +1,6 @@
 import type { IntegrationDescriptor } from '../types.js';
 
+/** Descriptor Rubitime-интеграции для общего реестра. */
 export const rubitimeIntegration: IntegrationDescriptor = {
   id: 'rubitime',
   kind: 'system',

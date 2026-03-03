@@ -1,8 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import type { RubitimeRecordForLinking } from '../../db/repos/rubitimeRecords.js';
-import type { TelegramUserByPhone } from '../../db/repos/telegramUsers.js';
+import type { RubitimeRecordForLinking } from '../../infra/db/repos/rubitimeRecords.js';
+import type { TelegramUserByPhone } from '../../infra/db/repos/telegramUsers.js';
 import { evaluateReqSuccessEligibility } from './reqSuccessEligibility.js';
+import { renderRubitimeIframeHtml } from '../../content/rubitime/content.js';
 
+/** HTTP route iframe-помощника Rubitime: показывать кнопку линковки или нет. */
 type ReqSuccessIframeDeps = {
   getRecordByRubitimeId: (rubitimeRecordId: string) => Promise<RubitimeRecordForLinking | null>;
   findTelegramUserByPhone: (phoneNormalized: string) => Promise<TelegramUserByPhone | null>;
@@ -23,30 +25,13 @@ type RateLimiterState = {
   byIp: Map<string, CounterEntry>;
 };
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
-function renderIframeHtml(showButton: boolean, recordId: string): string {
-  const safeRecordId = escapeHtml(recordId);
-  const deepLink = `https://t.me/bersoncarebot?start=${encodeURIComponent(recordId)}`;
-
-  if (!showButton) {
-    return '';
-  }
-
-  return `<div id="success_info_container"><a href="${deepLink}" data-record-id="${safeRecordId}"><button type="button" id="tgbot_activate" name="bersontgbot" class="base-type btn">Получать напоминания в телеграм</button></a></div>`;
-}
-
+/** Переводит время в минутный бакет для rate limiter. */
 function getMinuteBucket(now: Date): number {
   return Math.floor(now.getTime() / 60000);
 }
 
+/** Инкрементирует счетчик в пределах минутного бакета. */
 function incrementCounter(counter: CounterEntry, minuteBucket: number): number {
   if (counter.minuteBucket !== minuteBucket) {
     counter.minuteBucket = minuteBucket;
@@ -56,6 +41,7 @@ function incrementCounter(counter: CounterEntry, minuteBucket: number): number {
   return counter.count;
 }
 
+/** Извлекает клиентский IP с учетом x-forwarded-for. */
 function getClientIp(request: { ip?: string; headers: Record<string, unknown> }): string {
   const xff = request.headers['x-forwarded-for'];
   if (typeof xff === 'string' && xff.trim()) {
@@ -64,6 +50,7 @@ function getClientIp(request: { ip?: string; headers: Record<string, unknown> })
   return request.ip || 'unknown';
 }
 
+/** Проверяет лимиты запросов (глобально и по IP). */
 function isRateAllowed(params: {
   now: Date;
   clientIp: string;
@@ -81,6 +68,7 @@ function isRateAllowed(params: {
   return ipCount <= params.ipLimitPerMin;
 }
 
+/** Применяет случайную задержку для защиты endpoint от abuse. */
 async function applyDelay(minMs: number, maxMs: number): Promise<void> {
   const low = Math.max(0, minMs);
   const high = Math.max(low, maxMs);
@@ -88,6 +76,7 @@ async function applyDelay(minMs: number, maxMs: number): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, delay));
 }
 
+/** Регистрирует endpoint `/api/rubitime` для iframe-виджета Rubitime. */
 export function registerRubitimeReqSuccessIframeRoute(
   app: FastifyInstance,
   deps: ReqSuccessIframeDeps,
@@ -116,7 +105,7 @@ export function registerRubitimeReqSuccessIframeRoute(
     const renderAndReturn = async (showButton: boolean, recordId: string) => {
       await applyDelay(deps.delayMinMs, deps.delayMaxMs);
       reply.type('text/html; charset=utf-8');
-      return reply.code(200).send(renderIframeHtml(showButton, recordId));
+      return reply.code(200).send(renderRubitimeIframeHtml(showButton, recordId));
     };
 
     if (!allowed) return renderAndReturn(false, '');

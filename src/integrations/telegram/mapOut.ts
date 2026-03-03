@@ -1,4 +1,4 @@
-import type { OutgoingAction } from '../../domain/types.js';
+import type { OutgoingAction } from '../../kernel/domain/types.js';
 
 /** Minimal API shape for executing actions (grammy Bot.api). */
 export type TelegramApi = {

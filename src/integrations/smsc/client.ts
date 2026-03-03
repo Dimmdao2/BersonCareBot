@@ -20,6 +20,7 @@ type SmscResponse = {
   error_code?: number;
 };
 
+/** Создает рабочий клиент SMSC с HTTP-вызовом API провайдера. */
 export function createSmscClient(config: SmscClientConfig): SmsClient {
   const baseUrl = config.baseUrl ?? 'https://smsc.ru/sys/send.php';
   const timeoutMs = config.timeoutMs ?? 10_000;

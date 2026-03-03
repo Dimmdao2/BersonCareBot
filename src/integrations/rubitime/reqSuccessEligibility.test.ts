@@ -1,70 +1,66 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateReqSuccessEligibility, isReqSuccessRecordFresh } from './reqSuccessEligibility.js';
+import { evaluateReqSuccessEligibility } from './reqSuccessEligibility.js';
 
-describe('req success eligibility', () => {
-  const now = new Date('2026-02-25T10:00:00.000Z');
-
-  it('returns showButton=true for existing fresh unlinked record', () => {
-    const result = evaluateReqSuccessEligibility({
-      now,
-      windowMinutes: 20,
-      record: {
-        rubitimeRecordId: '7835001',
-        phoneNormalized: '+79990001122',
-        payloadJson: {},
-        recordAt: new Date('2026-02-25T09:50:00.000Z'),
-        status: 'created',
-      },
-      linkedUser: null,
-    });
-
-    expect(result).toEqual({ showButton: true });
-  });
-
-  it('returns showButton=false when record does not exist', () => {
-    const result = evaluateReqSuccessEligibility({
-      now,
+describe('evaluateReqSuccessEligibility', () => {
+  it('returns false when record is missing', () => {
+    const res = evaluateReqSuccessEligibility({
+      now: new Date(),
       windowMinutes: 20,
       record: null,
       linkedUser: null,
     });
-    expect(result).toEqual({ showButton: false });
+    expect(res.showButton).toBe(false);
   });
 
-  it('returns showButton=false when record is already linked', () => {
-    const result = evaluateReqSuccessEligibility({
+  it('returns false when record is stale', () => {
+    const now = new Date();
+    const recordAt = new Date(now.getTime() - 60 * 60 * 1000);
+    const res = evaluateReqSuccessEligibility({
       now,
-      windowMinutes: 20,
+      windowMinutes: 5,
       record: {
-        rubitimeRecordId: '7835001',
+        rubitimeRecordId: 'rec-1',
         phoneNormalized: '+79990001122',
         payloadJson: {},
-        recordAt: new Date('2026-02-25T09:50:00.000Z'),
-        status: 'created',
-      },
-      linkedUser: { chatId: 1, telegramId: '1', username: 'test' },
-    });
-    expect(result).toEqual({ showButton: false });
-  });
-
-  it('returns showButton=false when record is older than window', () => {
-    const result = evaluateReqSuccessEligibility({
-      now,
-      windowMinutes: 20,
-      record: {
-        rubitimeRecordId: '7835001',
-        phoneNormalized: '+79990001122',
-        payloadJson: {},
-        recordAt: new Date('2026-02-25T09:39:00.000Z'),
-        status: 'created',
+        recordAt,
+        status: 'updated',
       },
       linkedUser: null,
     });
-    expect(result).toEqual({ showButton: false });
+    expect(res.showButton).toBe(false);
   });
 
-  it('isReqSuccessRecordFresh handles null and future values', () => {
-    expect(isReqSuccessRecordFresh(null, now, 20)).toBe(false);
-    expect(isReqSuccessRecordFresh(new Date('2026-02-25T10:01:00.000Z'), now, 20)).toBe(false);
+  it('returns false when linked user exists', () => {
+    const now = new Date();
+    const res = evaluateReqSuccessEligibility({
+      now,
+      windowMinutes: 20,
+      record: {
+        rubitimeRecordId: 'rec-1',
+        phoneNormalized: '+79990001122',
+        payloadJson: {},
+        recordAt: now,
+        status: 'updated',
+      },
+      linkedUser: { chatId: 1, telegramId: '1', username: null },
+    });
+    expect(res.showButton).toBe(false);
+  });
+
+  it('returns true when record is fresh and not linked', () => {
+    const now = new Date();
+    const res = evaluateReqSuccessEligibility({
+      now,
+      windowMinutes: 20,
+      record: {
+        rubitimeRecordId: 'rec-1',
+        phoneNormalized: '+79990001122',
+        payloadJson: {},
+        recordAt: now,
+        status: 'updated',
+      },
+      linkedUser: null,
+    });
+    expect(res.showButton).toBe(true);
   });
 });

@@ -5,7 +5,7 @@
 import { Bot } from 'grammy';
 import type { ApiClientOptions } from 'grammy';
 import { env } from '../../config/env.js';
-import type { MessagingPort } from '../../domain/ports/messaging.js';
+import type { MessagingPort } from '../../kernel/domain/ports/messaging.js';
 
 function getBot(): Bot {
   const token = env.BOT_TOKEN;

@@ -104,29 +104,90 @@ const E2E_TEST_TELEGRAM_ID = '111222333';
 const runE2E = process.env.RUN_E2E_TESTS === 'true';
 
 describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
-  let app: Awaited<ReturnType<Awaited<typeof import('../src/app.js')>['buildApp']>>;
+  let app: Awaited<ReturnType<Awaited<typeof import('../src/app/index.js')>['buildApp']>>;
   let fixtures: { name: string; payload: unknown }[];
   let webhookSecret: string | undefined;
 
+  const inMemoryState = {
+    users: new Map<string, { id: string; telegram_id: string }>(),
+    states: new Map<string, string>(),
+    lastUpdateId: new Map<number, number>(),
+    lastStartAt: new Set<number>(),
+    notifications: new Map<number, { notify_spb: boolean; notify_msk: boolean; notify_online: boolean }>(),
+  };
+
+  const userPort = {
+    async upsertTelegramUser(from: { id: number } | null | undefined) {
+      if (!from?.id) return null;
+      const telegramId = String(from.id);
+      const existing = inMemoryState.users.get(telegramId);
+      if (existing) return existing;
+      const row = { id: telegramId, telegram_id: telegramId };
+      inMemoryState.users.set(telegramId, row);
+      return row;
+    },
+    async setTelegramUserState(telegramId: string, state: string | null) {
+      if (state == null) inMemoryState.states.delete(telegramId);
+      else inMemoryState.states.set(telegramId, state);
+    },
+    async getTelegramUserState(telegramId: string) {
+      return inMemoryState.states.get(telegramId) ?? null;
+    },
+    async tryAdvanceLastUpdateId(telegramId: number, updateId: number) {
+      const prev = inMemoryState.lastUpdateId.get(telegramId) ?? -1;
+      if (updateId <= prev) return false;
+      inMemoryState.lastUpdateId.set(telegramId, updateId);
+      return true;
+    },
+    async tryConsumeStart(telegramId: number) {
+      if (inMemoryState.lastStartAt.has(telegramId)) return false;
+      inMemoryState.lastStartAt.add(telegramId);
+      return true;
+    },
+  };
+
+  const getNotificationSettings = async (telegramId: number) =>
+    inMemoryState.notifications.get(telegramId) ?? {
+      notify_spb: false,
+      notify_msk: false,
+      notify_online: false,
+    };
+
+  const notificationsPort = {
+    getNotificationSettings,
+    async updateNotificationSettings(
+      telegramId: number,
+      settings: { notify_spb?: boolean; notify_msk?: boolean; notify_online?: boolean },
+    ) {
+      const prev = await getNotificationSettings(telegramId);
+      inMemoryState.notifications.set(telegramId, { ...prev, ...settings });
+    },
+  };
+
+  const getTelegramUserLinkData = async (telegramId: string) => {
+    const user = inMemoryState.users.get(telegramId);
+    if (!user) return null;
+    return { chatId: Number(telegramId), telegramId, username: null, phoneNormalized: null };
+  };
+
   beforeAll(async () => {
     fixtures = await loadFixtures();
-    const { buildApp } = await import('../src/app.js');
-    app = buildApp();
+    const { buildApp } = await import('../src/app/index.js');
+    const { registerTelegramWebhookRoutes } = await import('../src/integrations/telegram/webhook.js');
+    app = buildApp({
+      registerTelegramWebhookRoutes: (instance) => registerTelegramWebhookRoutes(instance, {
+        userPort,
+        notificationsPort,
+        getTelegramUserLinkData,
+      }),
+    });
     await app.ready();
-
-    const { db } = await import('../src/db/client.js');
-    await db.query(
-      `UPDATE telegram_users SET last_start_at = NULL, last_update_id = NULL WHERE telegram_id = $1`,
-      [E2E_TEST_TELEGRAM_ID],
-    ).catch(() => {});
 
     const env = (await import('../src/config/env.js')).env;
     webhookSecret = env.TG_WEBHOOK_SECRET;
   }, 30000);
 
   afterAll(async () => {
-    const { db } = await import('../src/db/client.js');
-    await db.query(`DELETE FROM telegram_users WHERE telegram_id = $1`, [E2E_TEST_TELEGRAM_ID]).catch(() => {});
     await app.close();
   }, 10000);
 

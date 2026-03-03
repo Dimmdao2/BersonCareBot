@@ -1,17 +1,114 @@
 Задачи по доработке бота:
 
-### Рефактор: текущий статус (ветка `dev/isolation-step1`)
+## Каноничная целевая архитектура (V2)
 
-- Создана параллельная структура `refactor/src/*` для поэтапного переноса.
-- Перенесены 1:1 стабильные слои: `config`, `observability`, `domain/contracts`, `domain/ports`, `db/repos`, `integrations/{telegram,rubitime,smsc}` (без webhook handlers и без переключения потока).
-- Контент Telegram перенесен в интеграционный слой: `refactor/src/integrations/telegram/content.ts`.
+Эта схема — источник истины для дальнейшей проработки и реализации:
+
+- `src/app` — технический слой (server/di/routes).
+- `src/kernel` — ядро:
+  - `contracts` (`events`, `steps`, `scripts`, `ports`);
+  - `eventGateway` (`handleIncoming`, `dedup`, `rateLimit`);
+  - `orchestrator` (`resolver`, `runner`, `policies`, `scripts`);
+  - `domain` (`executeStep`, `actions`, `services`, `state`).
+- `src/infra` — инфраструктура:
+  - `db`, `dispatch`, `queue`, `runtime`, `observability`.
+- `src/edges` — внешние входы/выходы:
+  - `integrations/telegram/*`,
+  - `integrations/rubitime/*`, `integrations/smsc/*`, и др.
+- `src/config` — конфигурация окружения.
+- `src/content` — контент отдельно (если используется; сейчас не выделен).
+
+### Входной pipeline (обязательный)
+
+`edge webhook/ingress -> auth/validate/map -> IncomingEvent -> kernel/eventGateway -> dedup -> orchestrator -> domain.executeStep(step, ctx) -> StepResult -> orchestrator next step`
+
+### Роли
+
+- Центр потока: `kernel/orchestrator`.
+- Центр бизнес-правил: `kernel/domain`.
+
+### Роутинг (целевой)
+
+- `POST /webhook/telegram` -> `edges/integrations/telegram/webhook.ts`
+- `POST /webhook/rubitime/:token` -> `edges/integrations/rubitime/webhook.ts`
+- `GET /api/rubitime?record_success=<id>` -> `edges/integrations/rubitime/reqSuccessIframe.ts`
+- `GET /health` -> app/infra health check
+
+### Ограничения слоев (обязательно)
+
+Разрешено:
+- `app -> kernel + infra + edges`
+- `edges -> kernel/contracts + kernel/eventGateway`
+- `kernel/eventGateway -> kernel/contracts + kernel/orchestrator`
+- `kernel/orchestrator -> kernel/contracts + kernel/domain`
+- `kernel/domain -> kernel/contracts + ports`
+- `infra -> ports + kernel/contracts`
+
+Запрещено:
+- `edges -> infra/db/*`
+- `kernel/** -> fastify|pg|grammy|http sdk`
+- `app/routes -> infra/db/repos` напрямую
+- `edges -> kernel/orchestrator` напрямую (только через gateway)
+
+### Миграция: текущий статус (ветка `dev/isolation-step1`)
+
+- Миграция выполнена в `src/*`, прежний runtime перенесен в `___src__old`.
+- Перенесены 1:1 стабильные слои: `observability`, `domain/contracts`, `domain/ports`, `db/repos`, `integrations/{telegram,rubitime,smsc}` (без webhook handlers и без переключения потока).
+- Контент Telegram перенесен в интеграционный слой: `src/integrations/telegram/content.ts`.
 - Добавлены комментарии к перенесенным файлам и ключевым функциям.
 - Зафиксировано правило: центр потока — `orchestrator`, центр бизнес-правил — `domain`.
 - Добавлен каркас `eventGateway` в домене:
-  - `refactor/src/domain/eventGateway.ts`
-  - `refactor/src/domain/index.ts`
-  - расширены контракты `EventGateway` в `refactor/src/domain/contracts/*`
-- Следующий этап: подключение `eventGateway` через `app/di` и перевод webhook handlers на цепочку `validate -> map -> eventGateway -> orchestrator`.
+  - `src/domain/eventGateway.ts`
+  - `src/domain/index.ts`
+  - расширены контракты `EventGateway` в `src/domain/contracts/*`
+- Начата миграция к V2-слоям:
+  - добавлен `src/kernel/*` (contracts/eventGateway/orchestrator/domain каркас),
+  - добавлены `src/infra/*` и `src/edges/*` как совместимые фасады,
+  - `src/app/di.ts` переключен на `kernel` контракты и `infra/edges` импорты.
+- Подключены edge handlers:
+  - `src/edges/integrations/telegram/webhook.ts` (auth/validate/map -> eventGateway),
+  - `src/edges/integrations/rubitime/webhook.ts` (auth/validate/map -> eventGateway),
+  - `src/app/di.ts` теперь регистрирует Telegram/Rubitime handlers по умолчанию.
+- `GET /api/rubitime` подключен через edge-слой:
+  - `src/edges/integrations/rubitime/reqSuccessIframe.ts` собирает зависимости и регистрирует route,
+  - `src/app/di.ts` использует edge-регистратор iframe route по умолчанию.
+- Подключен реальный `kernel/orchestrator` в `app/di` (без `noop`):
+  - `src/app/di.ts` теперь использует `createOrchestrator()` по умолчанию.
+- Реализован первый рабочий контур исполнения шага:
+  - `resolver` формирует базовый шаг `event.log`,
+  - `runner` вызывает `domain.executeStep` последовательно,
+  - `domain.executeStep` для `event.log` возвращает `DbWriteMutation(type=event.log)`.
+- Введен `action-registry` в `kernel/domain/actions`:
+  - подключены обработчики `event.log`, `booking.upsert`, `message.send`,
+  - `domain.executeStep` исполняет шаги через registry.
+- Расширен `resolver` для Rubitime webhook:
+  - добавляет шаги `booking.upsert` и `message.send` (если достаточно данных в payload).
+- Подключены default `infra` порты в `app/di`:
+  - `DbWritePort` -> `src/infra/db/writePort.ts` (маппинг `DbWriteMutation` в репозитории),
+  - `DispatchPort` -> `src/infra/dispatch/default.ts` (SMSC dispatch + warning для неподключенного Telegram outbound),
+  - `IdempotencyPort` -> `src/infra/db/repos/idempotencyKeys.ts` (in-memory dedup).
+- Формализован Шаг 5/6 (первый рабочий контур):
+  - `kernel/domain/executeStep` нормализует `message.send` шаги и задает domain-level fallback policy (`delivery.channels`, `delivery.maxAttempts`),
+  - `infra/dispatch/default.ts` исполняет единый pipeline `channels -> retry -> fallback`,
+  - каждая попытка доставки пишет `DbWriteMutation(type=delivery.attempt.log)`.
+- Выполнен следующий этап:
+  - подключен реальный Telegram outbound adapter в dispatch pipeline (через `integrations/telegram/client`),
+  - `delivery.attempt.log` сохраняется в persistent storage (`delivery_attempt_logs`) через `infra/db/repos/messageLogs.ts`,
+  - добавлена миграция `migrations/010_add_delivery_attempt_logs.sql`.
+- Выполнен следующий этап:
+  - `infra/runtime/scheduler.ts` формирует канонический `IncomingEvent(schedule.tick)` через `buildScheduleTickEvent`,
+  - `infra/runtime/worker.ts` добавлен `runWorkerTask`, который конвертирует worker task (`schedule.tick`/`retry.delivery`) в `IncomingEvent(schedule.tick)` и отправляет его только в `eventGateway`.
+- Выполнен следующий этап:
+  - добавлен единый шаблон edge-интеграций (`inbound/outbound + descriptor`) в `src/edges/integrations/template.ts`,
+  - добавлены заглушки будущих коннекторов: `VK`, `Max`, `Instagram`, `Email`, `Calendar` в `src/edges/integrations/*/index.ts`,
+  - `src/edges/registry.ts` расширен этими коннекторами для единого каталога интеграций.
+- Выполнен следующий этап:
+  - удалены совместимые фасады `src/domain/contracts/*`, `src/domain/eventGateway.ts`, `src/domain/index.ts`,
+  - импорты интеграционных коннекторов переведены с `domain/contracts` на `kernel/contracts`.
+- Выполнен следующий этап:
+  - завершена структурная нормализация (`Шаг 10`): remaining зависимости на `src/domain/types|ports` убраны, типы/порты перенесены в `kernel/domain/*`, legacy `src/domain/*` удален.
+- Текущее состояние: плановые шаги 5-10 закрыты; ветка готова к финальному ревью/коммиту.
+- 2026-02-27: Выполнен финальный перенос в основном runtime (`src/*`): `src/domain` полностью перенесен в `src/kernel` (contracts + domain/usecases/types/ports), legacy `src/domain` удален, импорты переключены на `src/kernel/*`, проверки `typecheck`, `lint`, `test` зеленые.
 
 Вводная техническая инфа:
 
@@ -94,187 +191,29 @@ SSH на сервер прода: ssh root@151.241.228.122
             3. посмотреть список неотвеченных вопросов/сообщений от юзеров телеграм бота с возможностью быстрого ответа
             4. отправка сообщения по нику (напрямую в лс) или по чат_ид ( через бота, с уведомлением админа о доставке/недоставке)
 
-=============================================СТРУКТУРА ТЕКУЩАЯСТРУКТУРА ТЕКУЩАЯ 
+=============================================СТРУКТУРА ТЕКУЩАЯ
 
-### Основное ядро
+### Актуальная структура (V2, март 2026)
 
-- **`src/main.ts`**
-  - `start()`
+- `src/app` — server/di/routes.
+- `src/kernel` — contracts/eventGateway/orchestrator/domain.
+- `src/infra` — db/dispatch/queue/runtime/observability.
+- `src/edges` — integrations/*.
+- `src/app/config` — env-конфигурация.
+- `src/integrations` — переходный слой (реализации SDK/мэппинг), пока используется `edges`/`infra`.
+- `src/observability` — удалено; используется `src/infra/observability`.
+- `src/orchestrator` — удалено.
+- `___src__old` — архив прежнего runtime.
 
-- **`src/app/server.ts`**
-  - `buildApp()`
+### Поток данных (V2)
 
-- **`src/app/routes.ts`**
-  - `registerRoutes(app, deps)`
+`edge webhook/ingress -> auth/validate/map -> IncomingEvent -> kernel/eventGateway -> orchestrator -> domain.executeStep -> infra(db/dispatch)`
 
-- **`src/app/di.ts`**
-  - `buildDeps()`
+### Границы зависимостей (V2)
 
-- **`src/config/env.ts`**
-  - (нет экспортируемых функций, только `env` как результат `zod.parse`)
-
----
-
-### Telegram-канал
-
-- **`src/integrations/telegram/webhook.ts`**
-  - `telegramWebhookRoutes(app, deps)`
-
-- **`src/integrations/telegram/mapIn.ts`**
-  - `isNotifyCallback(data)`
-  - `fromTelegram(body, context)`
-
-- **`src/integrations/telegram/mapOut.ts`**
-  - `toTelegram(actions, api)`
-
-- **`src/integrations/telegram/client.ts`**
-  - `getBotInstance()`
-  - `createMessagingPort()`
-
-- **`src/integrations/telegram/schema.ts`**
-  - `parseWebhookBody(body)`  
-    (и схемы Zod)
-
----
-
-### Домен
-
-- **`src/domain/types.ts`**
-  - типы `IncomingUpdate`, `OutgoingAction`, и т.п. (без функций)
-
-- **`src/domain/webhookContent.ts`**
-  - тип `WebhookContent`
-
-- **`src/domain/ports/user.ts`**
-  - тип `UserPort`
-
-- **`src/domain/ports/notifications.ts`**
-  - тип `NotificationsPort`
-
-- **`src/domain/usecases/handleUpdate.ts`**
-  - `handleUpdate(incoming, userPort, notificationsPort, content)`
-
-- **`src/domain/usecases/handleMessage.ts`**
-  - `handleStart(chatId, telegramId, startText, hasLinkedPhone, userPort, content)`
-  - `handleAsk(chatId, telegramId, userPort, content)`
-  - `handleQuestion(chatId, telegramId, text, userPort, content, adminForward)`
-  - `handleBook(chatId, telegramId, userPort, content)`
-  - `handleMore(chatId, content)`
-  - `handleDefaultIdle(chatId, content)`
-
-- **`src/domain/usecases/handleCallback.ts`**
-  - `handleNotificationCallback(...)`
-  - `handleShowNotifications(...)`
-  - `handleMyBookings(...)`
-  - `handleBack(...)`
-
-- **`src/domain/usecases/onboarding.ts`**
-  - `tryConsumeStart(telegramId, userPort)`
-
-- **`src/domain/usecases/notifications.ts`**
-  - `getSettings(telegramId, notificationsPort)`
-  - `updateSettings(telegramId, patch, notificationsPort)`
-
-- **`src/domain/usecases/linkTelegramByRubitimeRecord.ts`**
-  - `linkTelegramByRubitimeRecord(input, deps)`
-
-- **`src/domain/phone.ts`**
-  - `normalizePhone(value)`
-
----
-
-### БД и репозитории
-
-- **`src/db/client.ts`**
-  - `healthCheckDb()`
-  - `db` (pg-pool клиент)
-
-- **`src/db/migrate.ts`**
-  - `runMigrations()` (по коду)
-
-- **`src/db/repos/telegramUsers.ts`**
-  - `tryConsumeStart(telegramId)`
-  - `tryAdvanceLastUpdateId(telegramId, updateId)`
-  - `upsertTelegramUser(from)`
-  - `setTelegramUserState(telegramId, state)`
-  - `getTelegramUserState(telegramId)`
-  - `updateNotificationSettings(telegramId, patch)`
-  - `getNotificationSettings(telegramId)`
-  - `findByPhone(phoneNormalized)`
-  - `getTelegramUserLinkData(telegramId)`
-  - `setTelegramUserPhone(telegramId)`
-  - `userPort` (объект-реализация `UserPort`)
-  - `notificationsPort` (объект-реализация `NotificationsPort`)
-
-- **`src/db/repos/rubitimeRecords.ts`**
-  - `upsertRecord(input)`
-  - `insertEvent(input)`
-  - `getRecordByRubitimeId(rubitimeRecordId)`
-
----
-
-### Интеграция Rubitime
-
-- **`src/integrations/rubitime/webhook.ts`**
-  - `rubitimeWebhookRoutes(app, deps)`
-
-- **`src/integrations/rubitime/reqSuccessEligibility.ts`**
-  - `isReqSuccessRecordFresh(recordAt, now, windowMinutes)`
-  - `evaluateReqSuccessEligibility(input)`
-
-- **`src/integrations/rubitime/reqSuccessIframe.ts`**
-  - `registerRubitimeReqSuccessIframeRoute(app, deps)`
-
----
-
-### Контент и наблюдаемость
-
-- **`src/content/telegram.ts`**
-  - константа `telegramContent` (объект с текстами и клавиатурами)
-
-- **`src/content/index.ts`**
-  - `telegramContent` (реэкспорт)
-
-- **`src/observability/logger.ts`**
-  - `serializeError(err)`
-  - `logger`
-  - `getRequestLogger(requestId)`
-  - `getWorkerLogger(jobId?, mailingId?)`
-  - `getMigrationLogger(version)`
-
----
-
-### Воркер
-
-- **`src/worker/mailingWorker.ts`**
-  - `runMailings()`
-  - (внутренние функции: `resetStuckMailings`, `getActiveUsersForTopic`, `markUserInactive`, `logMailingResult`, `wasMailingSent`, `sendTelegramMessage`, `getErrorMessage`)=============================================
-АРХИТЕКТУРА:# Архитектура BersonCareBot
-
-Актуальная структура слоёв и потоков данных по состоянию кода.
-
-## Слои
-
-- `app` — сборка приложения, DI, регистрация HTTP-роутов.
-- `channels` — адаптер канала Telegram (входящее/исходящее API Telegram).
-- `domain` — use cases и внутренние типы действий/апдейтов.
-- `db` — клиент PostgreSQL, миграции, репозитории.
-- `integrations` — внешние интеграции (Rubitime webhook и iframe endpoint).
-- `worker` — фоновая рассылка по подпискам.
-- `config` — парсинг и валидация env.
-- `observability` — логирование (Pino).
-- `content` — тексты и клавиатуры.
-
-## Границы зависимостей
-
-- `domain` не вызывает Telegram API и не знает о Fastify/pg.
-- `integrations/telegram` вызывает `domain` use cases и исполняет `OutgoingAction[]` через Telegram API.
-- `integrations/rubitime` не идёт через `domain`; это отдельный интеграционный orchestrator:
-  - валидирует webhook,
-  - пишет события/срез в БД,
-  - пытается отправить уведомление в Telegram,
-  - fallback в SMS.
-- `app/routes.ts` связывает всё вместе через DI.
+- `edges -> kernel/contracts + kernel/eventGateway`
+- `kernel/orchestrator -> kernel/domain`
+- `infra -> kernel/contracts + ports`
 
 ## Ключевые маршруты
 
@@ -341,7 +280,7 @@ SSH на сервер прода: ssh root@151.241.228.122
 ## Логи
 
 - Fastify request logs (`incoming request`, `request completed`).
-- App logger (`observability/logger.ts`): `getRequestLogger`, `getWorkerLogger`, `getMigrationLogger`.
+- App logger (`infra/observability/logger.ts`): `getRequestLogger`, `getWorkerLogger`, `getMigrationLogger`.
 - Telegram webhook: `tg_update`, validation warnings, send errors.
 - Rubitime webhook: validation warnings, notify errors, data warnings.
 - Worker: batch start/completion, retry, per-user send status, failures.
@@ -441,7 +380,7 @@ journalctl -u tgcarebot -n 100 --no-pager
    - добавить короткую запись в журнал выполнения внизу.
 4. Нельзя начинать следующий шаг, если предыдущий не зеленый по тестам.
 5. В домен не импортируем SDK интеграций (Telegram/VK/etc), только унифицированные сущности.
-6. Целевая структура папок: `src/domain`, `src/db`, `src/orchestrator`, `src/ports`, `src/integrations` (без смешивания сценариев и адаптеров).
+6. Целевая структура папок: `src/app`, `src/kernel`, `src/infra`, `src/edges` (без смешивания сценариев и адаптеров).
 
 ### Базовые сущности (фиксируем)
 
@@ -514,31 +453,31 @@ journalctl -u tgcarebot -n 100 --no-pager
   - Возвращать список `DbReadQuery`, `DbWriteMutation`, `OutgoingEvent`.
   - Критерий завершения: fixture-тесты текущих сценариев совпадают.
 
-- [ ] Шаг 5. Dispatcher исходящих событий + fallback policy
+- [x] Шаг 5. Dispatcher исходящих событий + fallback policy
   - Реализовать маршрутизацию `OutgoingEvent(message.send)` в коннекторы.
   - Доменные правила fallback (например Telegram -> SMS).
   - Критерий завершения: fallback определяется в домене, а не в коннекторах.
 
-- [ ] Шаг 6. Ретраи доставки и журнал попыток
+- [x] Шаг 6. Ретраи доставки и журнал попыток
   - Добавить policy ретраев (`p-retry` или эквивалент) для временных ошибок.
   - Логировать попытки и причины фатальных отказов.
   - Критерий завершения: видны причины недоставки и история попыток.
 
-- [ ] Шаг 7. Cron/планировщик как `IncomingEvent(schedule.tick)`
+- [x] Шаг 7. Cron/планировщик как `IncomingEvent(schedule.tick)`
   - Планировщик генерирует входящее событие в оркестратор.
   - Критерий завершения: scheduler не ходит напрямую в каналы.
 
-- [ ] Шаг 8. Заглушки и SDK для будущих коннекторов
+- [x] Шаг 8. Заглушки и SDK для будущих коннекторов
   - Добавить шаблоны коннекторов: VK/Max/Instagram/Email/Calendar.
   - Использовать SDK/официальные клиенты там, где они есть.
   - Критерий завершения: каждый новый коннектор — только адаптер.
 
-- [ ] Шаг 9. Админка (после стабилизации событийной модели)
+- [x] Шаг 9. Админка (после стабилизации событийной модели)
   - Сначала read-only метрики и логи.
   - Потом управление настройками/интеграциями/ретраями.
   - Критерий завершения: админка управляет конфигом через API, не обходя оркестратор.
 
-- [ ] Шаг 10. Структурная нормализация каталогов (без изменения поведения)
+- [x] Шаг 10. Структурная нормализация каталогов (без изменения поведения)
   - Убрать смешивание сценариев и интеграционных адаптеров по папкам.
   - Перенести orchestration-сценарии в `src/orchestrator`, контракты в `src/ports`.
   - Оставить в `src/integrations` только connector-слой (inbound/outbound mapping + SDK).

@@ -48,7 +48,7 @@ globalThis.fetch = (input: FetchInput, init?: FetchInit) => {
 
 // Load env before importing app
 const dotenv = await import('dotenv');
-dotenv.config({ path: join(rootDir, '.env') });
+dotenv.config({ path: join(rootDir, '.env'), quiet: true });
 
 function clearRecordedCalls(): void {
   recordedCalls.length = 0;
@@ -111,11 +111,11 @@ function getExpected(name: string): ScenarioExpect {
 const E2E_TEST_TELEGRAM_ID = '111222333';
 
 async function main(): Promise<void> {
-  const { buildApp } = await import('../src/app.js');
+  const { buildApp } = await import('../src/app/index.js');
   const app = buildApp();
   await app.ready();
 
-  const { db } = await import('../src/db/client.js');
+  const { db } = await import('../src/infra/db/client.js');
   await db.query(
     `UPDATE telegram_users SET last_start_at = NULL, last_update_id = NULL WHERE telegram_id = $1`,
     [E2E_TEST_TELEGRAM_ID],

@@ -4,6 +4,7 @@ type WarnLogger = {
   warn(payload: Record<string, unknown>, message: string): void;
 };
 
+/** Stub-клиент SMSC для окружений без реального API-ключа. */
 export function createSmscStub(log: WarnLogger): SmsClient {
   return {
     async sendSms(input) {

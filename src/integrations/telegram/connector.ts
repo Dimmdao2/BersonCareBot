@@ -1,5 +1,5 @@
-import type { IncomingEvent, OutgoingEvent } from '../../domain/contracts/index.js';
-import type { IncomingUpdate, OutgoingAction } from '../../domain/types.js';
+import type { IncomingEvent, OutgoingEvent } from '../../kernel/contracts/index.js';
+import type { IncomingUpdate, OutgoingAction } from '../../kernel/domain/types.js';
 import { randomUUID } from 'node:crypto';
 import { toTelegram, type TelegramApi } from './mapOut.js';
 
@@ -11,6 +11,7 @@ type TelegramOutgoingPayload = {
   action: OutgoingAction;
 };
 
+/** Оборачивает входящее Telegram-обновление в универсальный IncomingEvent. */
 export function telegramIncomingToEvent(input: {
   incoming: IncomingUpdate;
   correlationId: string;
@@ -29,6 +30,7 @@ export function telegramIncomingToEvent(input: {
   };
 }
 
+/** Извлекает Telegram payload из универсального IncomingEvent. */
 export function telegramEventToIncoming(event: IncomingEvent): IncomingUpdate | null {
   if (event.meta.source !== 'telegram') return null;
   const payload = event.payload as unknown as TelegramIncomingPayload;
@@ -36,6 +38,7 @@ export function telegramEventToIncoming(event: IncomingEvent): IncomingUpdate | 
   return payload.incoming;
 }
 
+/** Преобразует Telegram actions в список универсальных OutgoingEvent. */
 export function telegramActionsToOutgoingEvents(input: {
   actions: OutgoingAction[];
   correlationId: string;
@@ -52,6 +55,7 @@ export function telegramActionsToOutgoingEvents(input: {
   }));
 }
 
+/** Отправляет отфильтрованные telegram-события через Telegram API. */
 export async function dispatchTelegramOutgoingEvents(events: OutgoingEvent[], api: TelegramApi): Promise<void> {
   const actions: OutgoingAction[] = [];
   for (const event of events) {

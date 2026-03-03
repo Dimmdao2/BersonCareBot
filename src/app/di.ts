@@ -1,36 +1,82 @@
 /**
- * Composition root: build dependencies for app (health, webhook).
- * Services layer is bypassed — repos and client used directly.
+ * Composition root for the refactor app layer.
+ * This module wires infrastructure dependencies and exposes one EventGateway
+ * entrypoint for inbound adapters.
  */
-import { healthCheckDb } from '../db/client.js';
-import {
-  userPort,
-  notificationsPort,
-  findByPhone,
-  getTelegramUserLinkData,
-  setTelegramUserPhone,
-} from '../db/repos/telegramUsers.js';
-import { insertEvent, upsertRecord, getRecordByRubitimeId } from '../db/repos/rubitimeRecords.js';
+import type { FastifyInstance } from 'fastify';
 import { env } from '../config/env.js';
-import { logger } from '../observability/logger.js';
+import { healthCheckDb } from '../infra/db/client.js';
+import { createDbWritePort } from '../infra/db/writePort.js';
+import { createEventGateway } from '../kernel/index.js';
+import { createOrchestrator } from '../kernel/orchestrator/index.js';
+import type {
+  DispatchPort,
+  DbWritePort,
+  EventGateway,
+  IdempotencyPort,
+  Orchestrator,
+} from '../kernel/contracts/index.js';
+import { logger } from '../infra/observability/logger.js';
+import { createInMemoryIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
+import { createDefaultDispatchPort } from '../infra/dispatch/default.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
 import { createSmscStub } from '../integrations/smsc/stub.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
+import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
+import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
+import { registerRubitimeIframeEdgeRoute } from '../integrations/rubitime/reqSuccessIframeEdge.js';
+import {
+  getTelegramUserLinkData,
+  notificationsPort,
+  userPort,
+} from '../infra/db/repos/telegramUsers.js';
 
-export type AppDeps = {
-  healthCheckDb: () => Promise<boolean>;
-  userPort: typeof userPort;
-  notificationsPort: typeof notificationsPort;
-  smsClient: SmsClient;
-  findTelegramUserByPhone: typeof findByPhone;
-  insertRubitimeEvent: typeof insertEvent;
-  upsertRubitimeRecord: typeof upsertRecord;
-  getRubitimeRecordById: typeof getRecordByRubitimeId;
-  getTelegramUserLinkData: typeof getTelegramUserLinkData;
-  setTelegramUserPhone: typeof setTelegramUserPhone;
+/**
+ * Integration registrars are injected to keep app wiring stable while
+ * integration handlers are migrated incrementally.
+ */
+export type TelegramRoutesRegistrar = (
+  app: FastifyInstance,
+  deps: {
+    userPort: typeof userPort;
+    notificationsPort: typeof notificationsPort;
+    getTelegramUserLinkData: typeof getTelegramUserLinkData;
+  },
+) => Promise<void> | void;
+
+export type RubitimeRoutesRegistrar = (
+  app: FastifyInstance,
+  deps: { eventGateway: EventGateway },
+) => Promise<void> | void;
+
+export type RubitimeIframeRegistrar = (app: FastifyInstance) => void;
+
+/** Optional external dependencies for buildDeps during migration. */
+export type BuildDepsInput = {
+  orchestrator?: Orchestrator;
+  dbWritePort?: DbWritePort;
+  dispatchPort?: DispatchPort;
+  idempotencyPort?: IdempotencyPort;
+  registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
+  registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
+  registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRegistrar;
 };
 
-export function buildDeps(): AppDeps {
+/** App-layer dependencies consumed by routes/server. */
+export type AppDeps = {
+  healthCheckDb: () => Promise<boolean>;
+  smsClient: SmsClient;
+  eventGateway: EventGateway;
+  telegramUserPort: typeof userPort;
+  notificationsPort: typeof notificationsPort;
+  getTelegramUserLinkData: typeof getTelegramUserLinkData;
+  registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
+  registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
+  registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRegistrar;
+};
+
+/** Builds fully wired app dependencies for the refactor runtime. */
+export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const smsClient: SmsClient = env.SMSC_ENABLED
     ? env.SMSC_API_KEY
       ? createSmscClient({
@@ -45,16 +91,26 @@ export function buildDeps(): AppDeps {
     logger.warn({ smscEnabled: env.SMSC_ENABLED }, 'smsc enabled but api key is not set, using stub');
   }
 
+  const dbWritePort = input.dbWritePort ?? createDbWritePort();
+  const dispatchPort = input.dispatchPort ?? createDefaultDispatchPort({ smsClient, writePort: dbWritePort });
+  const idempotencyPort = input.idempotencyPort ?? createInMemoryIdempotencyPort();
+
+  const eventGateway = createEventGateway({
+    orchestrator: input.orchestrator ?? createOrchestrator(),
+    writePort: dbWritePort,
+    dispatchPort,
+    idempotencyPort,
+  });
+
   return {
     healthCheckDb,
-    userPort,
-    notificationsPort,
     smsClient,
-    findTelegramUserByPhone: findByPhone,
-    insertRubitimeEvent: insertEvent,
-    upsertRubitimeRecord: upsertRecord,
-    getRubitimeRecordById: getRecordByRubitimeId,
+    eventGateway,
+    telegramUserPort: userPort,
+    notificationsPort,
     getTelegramUserLinkData,
-    setTelegramUserPhone,
+    registerTelegramWebhookRoutes: input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes,
+    registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
+    registerRubitimeReqSuccessIframeRoute: input.registerRubitimeReqSuccessIframeRoute ?? registerRubitimeIframeEdgeRoute,
   };
 }

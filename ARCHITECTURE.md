@@ -12,30 +12,58 @@
 - `Event.type`: `message` / `service` / `calendar` / etc.
 - `Event.data`: payload в унифицированной структуре (phone/status/metadata).
 
-## Целевая структура папок
+## Целевая структура папок (V2)
+
+- `src/app`
+  Технический вход: server/di/routes, без бизнес-логики.
+
+- `src/kernel`
+  Центр домена и сценариев:
+  `contracts`, `eventGateway`, `orchestrator`, `domain`.
+
+- `src/infra`
+  Реализация портов: `db`, `dispatch`, `queue`, `runtime`, `observability`.
+
+- `src/edges`
+  Внешние края (webhook-и/SDK адаптеры):
+  `integrations/*`.
+
+- `src/config`
+  Конфигурация окружения (env) находится в общем слое.
+
+## Переходные каталоги (текущее состояние)
 
 - `src/integrations`
-  Только адаптеры внешних систем: прием webhook/SDK callback, валидация, mapping в `IncomingEvent`, отправка `OutgoingEvent` в конкретный SDK/API.
+  Общие реализации SDK/мэппинг/коннекторы, от которых пока зависят `edges` и `infra`.
+  Цель: переехать в `src/edges/integrations` (и/или `infra` для outbound).
+
+- `src/observability`
+  Удалено; актуальное логирование находится в `src/infra/observability`.
 
 - `src/orchestrator`
-  Центральная маршрутизация событий, выбор сценария (script), координация ветвлений и вызов портов.
+  Остаточный слой от старой схемы; в V2 заменяется `src/kernel/orchestrator`.
 
-- `src/domain`
-  Чистые бизнес-правила и шаги сценариев без SDK/Fastify/pg зависимостей.
-
-- `src/ports`
-  Контракты взаимодействия (`readDb`, `writeDb`, dispatchers, внешние сервисы).
-
-- `src/db`
-  Реализация портов БД, репозитории/миграции/клиент.
+- `___src__old`
+  Архив прежнего runtime до миграции.
 
 ## Границы зависимостей (обязательно)
 
-- `integrations` не знают бизнес-ветвления: только parse/validate/map/dispatch.
-- `domain` не знает про Telegram/Fastify/pg/HTTP.
-- `orchestrator` знает сценарии и вызывает только порты.
-- `db` не знает про интеграции и UI; только реализация `DbReadQuery`/`DbWriteMutation`.
-- fallback/retry policy определяется в orchestration/domain, а не в интеграции.
+Разрешено:
+- `app -> kernel + infra + edges`
+- `edges -> kernel/contracts + kernel/eventGateway`
+- `kernel/eventGateway -> kernel/contracts + kernel/orchestrator`
+- `kernel/orchestrator -> kernel/contracts + kernel/domain`
+- `kernel/domain -> kernel/contracts + ports`
+- `infra -> ports + kernel/contracts`
+
+Запрещено:
+- `edges -> infra/db/*`
+- `kernel/** -> fastify|pg|grammy|http sdk`
+- `app/routes -> infra/db/repos` напрямую
+- `edges -> kernel/orchestrator` напрямую (только через gateway)
+
+Дополнительно:
+- fallback/retry policy определяется в `kernel` (domain/orchestrator), а не в edges.
 
 ## Сценарий обработки (детально)
 

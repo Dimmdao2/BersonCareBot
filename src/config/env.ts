@@ -1,12 +1,15 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-/** Единственный источник переменных окружения. dotenv загружается в main.ts до импорта приложения. */
+/**
+ * Единый реестр переменных окружения.
+ * Значения валидируются при старте приложения.
+ */
 const parsed = z
   .object({
-    NODE_ENV: z.string().default("production"),
-    HOST: z.string().default("127.0.0.1"),
+    NODE_ENV: z.string().default('production'),
+    HOST: z.string().default('127.0.0.1'),
     PORT: z.coerce.number().default(3000),
-    LOG_LEVEL: z.string().default("info"),
+    LOG_LEVEL: z.string().default('info'),
 
     DATABASE_URL: z.string().min(1),
 
@@ -23,7 +26,7 @@ const parsed = z
     SMSC_API_KEY: z.string().optional(),
     SMSC_API_BASE_URL: z.string().url().default('https://smsc.ru/sys/send.php'),
 
-    /** Токен для входящего webhook Rubitime (path /webhook/rubitime/:token). Обязательный. */
+    /** Токен входящего webhook Rubitime (path: /webhook/rubitime/:token). */
     RUBITIME_WEBHOOK_TOKEN: z.string().min(1),
     RUBITIME_REQSUCCESS_WINDOW_MINUTES: z.coerce.number().int().positive().default(20),
     RUBITIME_REQSUCCESS_DELAY_MIN_MS: z.coerce.number().int().nonnegative().default(100),
@@ -33,4 +36,5 @@ const parsed = z
   })
   .parse(process.env);
 
+/** Нормализованные и валидированные переменные окружения. */
 export const env = parsed;

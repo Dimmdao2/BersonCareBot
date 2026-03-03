@@ -1,3 +1,4 @@
+/** Контракты отправки SMS через внешний провайдер. */
 export type SendSmsInput = {
   toPhone: string;
   message: string;

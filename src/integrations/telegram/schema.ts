@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+/** Базовая схема пользователя Telegram. */
 const FromSchema = z.object({
   id: z.number(),
   is_bot: z.boolean().optional(),
@@ -9,7 +10,10 @@ const FromSchema = z.object({
   language_code: z.string().optional(),
 });
 
+/** Базовая схема Telegram-чата. */
 const ChatSchema = z.object({ id: z.number() }).passthrough();
+
+/** Схема входящего Telegram-message payload. */
 const MessageSchema = z.object({
   message_id: z.number().optional(),
   text: z.string().optional(),
@@ -22,6 +26,8 @@ const MessageSchema = z.object({
     last_name: z.string().optional(),
   }).optional(),
 }).passthrough();
+
+/** Схема входящего callback_query payload. */
 const CallbackQuerySchema = z.object({
   id: z.string(),
   from: FromSchema,
@@ -29,14 +35,20 @@ const CallbackQuerySchema = z.object({
   message: MessageSchema.optional(),
 }).passthrough();
 
+/** Схема body Telegram webhook. */
 export const TelegramWebhookBodySchema = z.object({
   update_id: z.number().optional(),
   message: MessageSchema.optional(),
   callback_query: CallbackQuerySchema.optional(),
 }).passthrough();
 
+/** Валидированный тип Telegram webhook body. */
 export type TelegramWebhookBodyValidated = z.infer<typeof TelegramWebhookBodySchema>;
 
+/**
+ * Валидирует сырой Telegram webhook body.
+ * Возвращает discriminated-union с `success`.
+ */
 export function parseWebhookBody(raw: unknown): { success: true; data: TelegramWebhookBodyValidated } | { success: false; error: z.ZodError } {
   const result = TelegramWebhookBodySchema.safeParse(raw);
   if (result.success) return { success: true, data: result.data };

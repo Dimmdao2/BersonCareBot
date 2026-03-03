@@ -1,6 +1,7 @@
-import type { IncomingEvent } from '../../domain/contracts/index.js';
+import type { IncomingEvent } from '../../kernel/contracts/index.js';
 import type { RubitimeWebhookBodyValidated } from './schema.js';
 
+/** Оборачивает валидированный Rubitime webhook в универсальный IncomingEvent. */
 export function rubitimeIncomingToEvent(input: {
   body: RubitimeWebhookBodyValidated;
   correlationId: string;
