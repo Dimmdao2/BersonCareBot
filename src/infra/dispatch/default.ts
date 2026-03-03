@@ -80,6 +80,15 @@ function debugDeliveryMessage(input: {
   return trim(lines.join('\n'), 3500);
 }
 
+function isAdminDebugIntent(intent: OutgoingIntent, adminChatId: number): boolean {
+  const payload = intent.payload as DeliveryPayload;
+  const chatId = payload.recipient?.chatId;
+  const text = asNonEmptyString(payload.message?.text);
+  return typeof chatId === 'number'
+    && chatId === adminChatId
+    && (intent.meta.eventId.includes(':debug:admin') || (text?.startsWith('DEBUG ') ?? false));
+}
+
 async function logDeliveryAttempt(
   writePort: DbWritePort | undefined,
   intent: OutgoingIntent,
@@ -145,6 +154,7 @@ export function createDefaultDispatchPort(deps: {
   }): Promise<void> {
     if (!deps.debugForwardAllEvents) return;
     if (typeof deps.debugAdminChatId !== 'number' || !Number.isFinite(deps.debugAdminChatId)) return;
+    if (isAdminDebugIntent(input.intent, deps.debugAdminChatId)) return;
     try {
       await getMessagingPort().sendMessage({
         chat_id: deps.debugAdminChatId,

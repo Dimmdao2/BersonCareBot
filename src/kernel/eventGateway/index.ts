@@ -63,6 +63,13 @@ function buildDebugMessage(input: {
   return truncateText(details.join('\n'), 3500);
 }
 
+function readTelegramIncomingChatId(event: IncomingEvent): number | null {
+  if (event.meta.source !== 'telegram') return null;
+  const payload = event.payload as { incoming?: unknown };
+  const incoming = payload.incoming as { chatId?: unknown } | undefined;
+  return typeof incoming?.chatId === 'number' ? incoming.chatId : null;
+}
+
 /**
  * Зависимости eventGateway.
  * Gateway не содержит бизнес-логики: только envelope-проверки, dedup и запуск orchestrator.
@@ -105,6 +112,8 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
     if (!debugForwardAllEvents) return;
     if (!dispatchPort) return;
     if (typeof debugAdminChatId !== 'number' || !Number.isFinite(debugAdminChatId)) return;
+    const incomingChatId = readTelegramIncomingChatId(input.event);
+    if (incomingChatId === debugAdminChatId) return;
 
     const text = buildDebugMessage(input);
     try {
