@@ -42,6 +42,44 @@ function getErrorCause(err: unknown): unknown {
   return (err as { cause?: unknown })?.cause;
 }
 
+function stringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+function trim(value: string, maxLen: number): string {
+  if (value.length <= maxLen) return value;
+  return `${value.slice(0, Math.max(0, maxLen - 3))}...`;
+}
+
+function debugDeliveryMessage(input: {
+  intent: OutgoingIntent;
+  channel: string;
+  status: 'attempt_failed' | 'channel_success' | 'channel_failed_fallback';
+  attempt: number;
+  reason?: string;
+  err?: unknown;
+}): string {
+  const payload = trim(stringify(input.intent.payload), 1200);
+  const lines = [
+    'DEBUG DELIVERY',
+    `status: ${input.status}`,
+    `intentType: ${input.intent.type}`,
+    `intentEventId: ${input.intent.meta.eventId}`,
+    `correlationId: ${input.intent.meta.correlationId ?? '-'}`,
+    `channel: ${input.channel}`,
+    `attempt: ${input.attempt}`,
+    ...(input.reason ? [`reason: ${input.reason}`] : []),
+    ...(input.err ? [`error: ${trim(stringify(input.err), 600)}`] : []),
+    'payload:',
+    payload,
+  ];
+  return trim(lines.join('\n'), 3500);
+}
+
 async function logDeliveryAttempt(
   writePort: DbWritePort | undefined,
   intent: OutgoingIntent,
@@ -74,6 +112,8 @@ async function logDeliveryAttempt(
 export function createDefaultDispatchPort(deps: {
   smsClient: SmsClient;
   writePort?: DbWritePort;
+  debugForwardAllEvents?: boolean;
+  debugAdminChatId?: number;
 }): DispatchPort {
   const smscDispatch = createSmscDispatchPort({ smsClient: deps.smsClient });
   let messagingPort: ReturnType<typeof createMessagingPort> | null = null;
@@ -94,6 +134,26 @@ export function createDefaultDispatchPort(deps: {
       await getMessagingPort().sendMessage({ chat_id: chatId, text });
     },
   });
+
+  async function sendDebugDelivery(input: {
+    intent: OutgoingIntent;
+    channel: string;
+    status: 'attempt_failed' | 'channel_success' | 'channel_failed_fallback';
+    attempt: number;
+    reason?: string;
+    err?: unknown;
+  }): Promise<void> {
+    if (!deps.debugForwardAllEvents) return;
+    if (typeof deps.debugAdminChatId !== 'number' || !Number.isFinite(deps.debugAdminChatId)) return;
+    try {
+      await getMessagingPort().sendMessage({
+        chat_id: deps.debugAdminChatId,
+        text: debugDeliveryMessage(input),
+      });
+    } catch {
+      // Debug telemetry should not break delivery pipeline.
+    }
+  }
 
   return {
     async dispatchOutgoing(intent: OutgoingIntent): Promise<void> {
@@ -129,10 +189,24 @@ export function createDefaultDispatchPort(deps: {
                   error.attemptNumber,
                   isPermanentDispatchError(getErrorCause(error)) ? 'permanent' : 'transient',
                 );
+                await sendDebugDelivery({
+                  intent,
+                  channel,
+                  status: 'attempt_failed',
+                  attempt: error.attemptNumber,
+                  reason: isPermanentDispatchError(getErrorCause(error)) ? 'permanent' : 'transient',
+                  err: getErrorCause(error),
+                });
               },
             },
           );
           await logDeliveryAttempt(deps.writePort, intent, channel, 'success', attemptCounter);
+          await sendDebugDelivery({
+            intent,
+            channel,
+            status: 'channel_success',
+            attempt: attemptCounter,
+          });
           return;
         } catch (err) {
           lastError = err;
@@ -140,6 +214,13 @@ export function createDefaultDispatchPort(deps: {
             { err, channel, intentEventId: intent.meta.eventId },
             'outgoing dispatch failed, trying next fallback channel',
           );
+          await sendDebugDelivery({
+            intent,
+            channel,
+            status: 'channel_failed_fallback',
+            attempt: maxAttempts,
+            err,
+          });
         }
       }
 

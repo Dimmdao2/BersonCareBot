@@ -33,9 +33,13 @@ function buildDebugMessage(input: {
   writesApplied?: number;
   outgoingDispatched?: number;
   error?: string;
+  writes?: unknown[];
+  outgoing?: unknown[];
 }): string {
   const correlationId = input.event.meta.correlationId ?? '-';
   const payload = truncateText(safeJson(input.event.payload), 1800);
+  const writesPreview = truncateText(safeJson(input.writes ?? []), 1000);
+  const outgoingPreview = truncateText(safeJson(input.outgoing ?? []), 1500);
   const details = [
     'DEBUG EVENT',
     `status: ${input.status}`,
@@ -46,7 +50,13 @@ function buildDebugMessage(input: {
     `dedupKey: ${input.dedupKey}`,
     `writesApplied: ${input.writesApplied ?? 0}`,
     `outgoingDispatched: ${input.outgoingDispatched ?? 0}`,
+    `writesPlanned: ${(input.writes ?? []).length}`,
+    `outgoingPlanned: ${(input.outgoing ?? []).length}`,
     ...(input.error ? [`error: ${input.error}`] : []),
+    'writes:',
+    writesPreview,
+    'outgoing:',
+    outgoingPreview,
     'payload:',
     payload,
   ];
@@ -89,6 +99,8 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
     writesApplied?: number;
     outgoingDispatched?: number;
     error?: string;
+    writes?: unknown[];
+    outgoing?: unknown[];
   }): Promise<void> => {
     if (!debugForwardAllEvents) return;
     if (!dispatchPort) return;
@@ -170,6 +182,8 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
           dedupKey,
           writesApplied,
           outgoingDispatched,
+          writes: result.writes,
+          outgoing: result.outgoing,
         });
         return { status: 'processed', dedupKey, writesApplied, outgoingDispatched };
       } catch (err) {

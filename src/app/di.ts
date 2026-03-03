@@ -92,10 +92,15 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     logger.warn({ smscEnabled: env.SMSC_ENABLED }, 'smsc enabled but api key is not set, using stub');
   }
 
-  const dbWritePort = input.dbWritePort ?? createDbWritePort();
-  const dispatchPort = input.dispatchPort ?? createDefaultDispatchPort({ smsClient, writePort: dbWritePort });
-  const idempotencyPort = input.idempotencyPort ?? createInMemoryIdempotencyPort();
   const adminTelegramId = Number(env.ADMIN_TELEGRAM_ID);
+  const dbWritePort = input.dbWritePort ?? createDbWritePort();
+  const dispatchPort = input.dispatchPort ?? createDefaultDispatchPort({
+    smsClient,
+    writePort: dbWritePort,
+    ...(Number.isFinite(adminTelegramId) ? { debugAdminChatId: adminTelegramId } : {}),
+    debugForwardAllEvents: env.DEBUG_FORWARD_ALL_EVENTS_TO_ADMIN,
+  });
+  const idempotencyPort = input.idempotencyPort ?? createInMemoryIdempotencyPort();
 
   const eventGateway = createEventGateway({
     orchestrator: input.orchestrator ?? createOrchestrator({

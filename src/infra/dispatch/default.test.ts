@@ -56,4 +56,30 @@ describe('createDefaultDispatchPort', () => {
     expect(firstLog?.params?.status).toBe('failed');
     expect(secondLog?.params?.status).toBe('success');
   });
+
+  it('sends debug delivery notifications to admin when enabled', async () => {
+    const smsClient = { sendSms: vi.fn().mockResolvedValue(undefined) };
+    const dispatchPort = createDefaultDispatchPort({
+      smsClient,
+      debugForwardAllEvents: true,
+      debugAdminChatId: 777,
+    });
+    const intent: OutgoingIntent = {
+      type: 'message.send',
+      meta: { eventId: 'evt-3', occurredAt: '2026-03-03T00:00:00.000Z', source: 'rubitime' },
+      payload: {
+        recipient: { phoneNormalized: '+79990001122' },
+        message: { text: 'hi' },
+        delivery: { channels: ['smsc'], maxAttempts: 1 },
+      },
+    };
+
+    await dispatchPort.dispatchOutgoing(intent);
+    expect(sendMessageMock).toHaveBeenCalledTimes(1);
+    const params = sendMessageMock.mock.calls[0]?.[0] as { chat_id?: number; text?: string };
+    expect(params.chat_id).toBe(777);
+    expect(params.text).toContain('DEBUG DELIVERY');
+    expect(params.text).toContain('channel_success');
+    expect(smsClient.sendSms).toHaveBeenCalledTimes(1);
+  });
 });
