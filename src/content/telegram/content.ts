@@ -86,7 +86,7 @@ export const telegramContent = {
       ],
       [
         {
-          text: `${settings.notify_online ? '✅' : '❌'} Онлайн-уроки и вебинары`,
+          text: `${settings.notify_online ? '✅' : '❌'} Уроки и вебинары`,
           callback_data: 'notify_toggle_online',
         },
       ],
