@@ -122,7 +122,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     writePort: dbWritePort,
     dispatchPort,
     idempotencyPort,
-    debugAdminChatId: Number.isFinite(adminTelegramId) ? adminTelegramId : undefined,
+    ...(Number.isFinite(adminTelegramId) ? { debugAdminChatId: adminTelegramId } : {}),
     debugForwardAllEvents: env.DEBUG_FORWARD_ALL_EVENTS_TO_ADMIN,
   });
 

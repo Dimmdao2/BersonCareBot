@@ -13,9 +13,12 @@ type CreateOrchestratorInput = {
 export function createOrchestrator(input: CreateOrchestratorInput = {}): Orchestrator {
   return {
     async orchestrate(event: IncomingEvent): Promise<OrchestratorResult> {
-      const script = await resolveScript(event, {
-        resolveRubitimeRecipientContext: input.resolveRubitimeRecipientContext,
-      });
+      const script = await resolveScript(
+        event,
+        input.resolveRubitimeRecipientContext
+          ? { resolveRubitimeRecipientContext: input.resolveRubitimeRecipientContext }
+          : {},
+      );
       return runScript(script, { event, values: {} });
     },
   };

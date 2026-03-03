@@ -94,12 +94,10 @@ export async function resolveScript(event: IncomingEvent, deps: ResolverDeps = {
       const canSendTelegram = context.hasTelegramUser
         && context.telegramUser !== null
         && context.telegramNotificationsEnabled;
-      const recipient = canSendTelegram
-        ? {
-          phoneNormalized,
-          chatId: context.telegramUser.chatId,
-        }
-        : { phoneNormalized };
+      const recipient: { phoneNormalized: string; chatId?: number } = { phoneNormalized };
+      if (canSendTelegram && context.telegramUser) {
+        recipient.chatId = context.telegramUser.chatId;
+      }
 
       steps.push({
         id: `step:message-send:${event.meta.eventId}`,
