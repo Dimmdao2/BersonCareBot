@@ -2,6 +2,7 @@ import type { DbWriteMutation, DbWritePort } from '../../kernel/contracts/index.
 import { upsertRecord, insertEvent } from './repos/rubitimeRecords.js';
 import { setTelegramUserPhone, setTelegramUserState } from './repos/telegramUsers.js';
 import { appendMessageLog } from './repos/messageLogs.js';
+import { enqueueRubitimeCreateRetryJob } from './repos/rubitimeCreateRetryJobs.js';
 import { logger } from '../observability/logger.js';
 
 type BookingUpsertParams = {
@@ -87,6 +88,33 @@ export function createDbWritePort(): DbWritePort {
             logger.info({ params: mutation.params }, 'delivery attempt log');
           }
           await appendMessageLog(mutation);
+          return;
+        }
+        case 'rubitime.create_retry.enqueue': {
+          const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
+          const messageText = asNonEmptyString(mutation.params.messageText);
+          if (!phoneNormalized || !messageText) {
+            logger.warn(
+              { mutationType: mutation.type },
+              'skip rubitime.create_retry.enqueue: missing phone/message',
+            );
+            return;
+          }
+          const firstTryDelaySecondsRaw = mutation.params.firstTryDelaySeconds;
+          const maxAttemptsRaw = mutation.params.maxAttempts;
+          const firstTryDelaySeconds = typeof firstTryDelaySecondsRaw === 'number' && Number.isFinite(firstTryDelaySecondsRaw)
+            ? Math.max(0, Math.trunc(firstTryDelaySecondsRaw))
+            : 60;
+          const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
+            ? Math.max(1, Math.trunc(maxAttemptsRaw))
+            : 2;
+
+          await enqueueRubitimeCreateRetryJob({
+            phoneNormalized,
+            messageText,
+            firstTryDelaySeconds,
+            maxAttempts,
+          });
           return;
         }
         default: {

@@ -21,7 +21,7 @@
     "format": "prettier -w .",
     "migrate": "tsx src/infra/db/migrate.ts",
     "db:migrate": "tsx src/infra/db/migrate.ts",
-    "db:migrate:prod": "node dist/db/migrate.js",
+    "db:migrate:prod": "node dist/infra/db/migrate.js",
     "scenarios": "tsx e2e/run-webhook-scenarios.ts"
   },
   "engines": {

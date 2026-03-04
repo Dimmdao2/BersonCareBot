@@ -49,6 +49,12 @@ async function handleBookingUpsert(step: Step): Promise<StepResult> {
   });
 }
 
+async function handleRubitimeCreateRetryEnqueue(step: Step): Promise<StepResult> {
+  return success(step.id, {
+    writes: [{ type: 'rubitime.create_retry.enqueue', params: step.payload }],
+  });
+}
+
 async function handleMessageSend(step: Step, ctx: ScriptContext): Promise<StepResult> {
   const payload = step.payload as MessagePayload;
   const hasChat = typeof payload.recipient?.chatId === 'number';
@@ -90,5 +96,6 @@ async function handleMessageSend(step: Step, ctx: ScriptContext): Promise<StepRe
 export const domainActionRegistry: Record<string, ActionHandler> = {
   'event.log': handleEventLog,
   'booking.upsert': handleBookingUpsert,
+  'rubitime.create_retry.enqueue': handleRubitimeCreateRetryEnqueue,
   'message.send': handleMessageSend,
 };

@@ -113,6 +113,32 @@ describe('eventGateway', () => {
     expect(dispatchOutgoing).toHaveBeenCalledTimes(0);
   });
 
+  it('does not forward schedule.tick events to admin debug chat', async () => {
+    const orchestrate = vi.fn().mockResolvedValue({ reads: [], writes: [], outgoing: [] });
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const { createEventGateway } = await import('./index.js');
+    const gateway = createEventGateway({
+      orchestrator: { orchestrate },
+      dispatchPort: { dispatchOutgoing },
+      idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true) },
+      debugForwardAllEvents: true,
+      debugAdminChatId: 777,
+    });
+    const tickEvent: IncomingEvent = {
+      type: 'schedule.tick',
+      meta: {
+        eventId: 'wrk:tick-1',
+        occurredAt: '2026-03-03T00:00:00.000Z',
+        source: 'worker',
+      },
+      payload: { trigger: 'schedule.tick' },
+    };
+
+    const result = await gateway.handleIncomingEvent(tickEvent);
+    expect(result.status).toBe('processed');
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(0);
+  });
+
   it('returns failed when rate limited', async () => {
     vi.resetModules();
     vi.doMock('./rateLimit.js', () => ({

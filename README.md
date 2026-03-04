@@ -103,7 +103,7 @@ docker compose logs -f worker
 Миграции внутри контейнера `api`:
 
 ```bash
-docker compose exec api pnpm run db:migrate
+docker compose exec api_blue pnpm run db:migrate:prod
 ```
 
 ## Blue/Green деплой API

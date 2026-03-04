@@ -187,6 +187,47 @@ describe('resolveScript for rubitime webhook', () => {
     expect(payload.message?.text).toContain('Вы записаны к Дмитрию на прием');
   });
 
+  it('enqueues delayed create retry when event-create-record has no linked telegram user', async () => {
+    const createdEvent: IncomingEvent = {
+      ...rubitimeEventBase,
+      payload: {
+        body: {
+          event: 'event-create-record',
+          data: {
+            id: 'record-1',
+            phone: '+79990001122',
+            record: '2026-03-03 15:30',
+            status: '0',
+            comment: '',
+          },
+        },
+      },
+    };
+    const script = await resolveScript(createdEvent, {
+      resolveRubitimeRecipientContext: vi.fn().mockResolvedValue({
+        phoneNormalized: '+79990001122',
+        hasTelegramUser: false,
+        telegramUser: null,
+        isTelegramAdmin: false,
+        isAppAdmin: false,
+        telegramNotificationsEnabled: true,
+      }),
+    });
+    const enqueueStep = script.steps.find((step) => step.kind === 'rubitime.create_retry.enqueue');
+    expect(enqueueStep).toBeDefined();
+    const payload = enqueueStep?.payload as {
+      phoneNormalized?: string;
+      firstTryDelaySeconds?: number;
+      maxAttempts?: number;
+      messageText?: string;
+    };
+    expect(payload.phoneNormalized).toBe('+79990001122');
+    expect(payload.firstTryDelaySeconds).toBe(60);
+    expect(payload.maxAttempts).toBe(2);
+    expect(payload.messageText).toContain('Вы записаны к Дмитрию на прием');
+    expect(script.steps.some((step) => step.kind === 'message.send')).toBe(false);
+  });
+
   it('uses canceled message for event-remove-record regardless of status payload', async () => {
     const removedEvent: IncomingEvent = {
       ...rubitimeEventBase,

@@ -53,6 +53,7 @@ export const dbWriteMutationSchema = z.object({
     'user.state.set',
     'user.phone.link',
     'booking.upsert',
+    'rubitime.create_retry.enqueue',
     'delivery.attempt.log',
     'event.log',
   ]),

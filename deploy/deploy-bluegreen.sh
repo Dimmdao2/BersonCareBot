@@ -46,7 +46,7 @@ echo "Candidate slot: ${CANDIDATE_SLOT} on port ${CANDIDATE_PORT}"
 docker compose build "api_${CANDIDATE_SLOT}" worker admin
 docker compose up -d db worker admin "api_${CANDIDATE_SLOT}"
 
-docker compose run --rm "api_${CANDIDATE_SLOT}" pnpm run db:migrate
+docker compose run --rm "api_${CANDIDATE_SLOT}" pnpm run db:migrate:prod
 
 for i in {1..20}; do
   if curl -fsS "http://127.0.0.1:${CANDIDATE_PORT}/health" >/dev/null; then

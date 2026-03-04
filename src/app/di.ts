@@ -67,6 +67,7 @@ export type BuildDepsInput = {
 export type AppDeps = {
   healthCheckDb: () => Promise<boolean>;
   smsClient: SmsClient;
+  dispatchPort: DispatchPort;
   eventGateway: EventGateway;
   telegramUserPort: typeof userPort;
   notificationsPort: typeof notificationsPort;
@@ -134,6 +135,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   return {
     healthCheckDb,
     smsClient,
+    dispatchPort,
     eventGateway,
     telegramUserPort: userPort,
     notificationsPort,

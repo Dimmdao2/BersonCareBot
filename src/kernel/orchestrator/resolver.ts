@@ -1,5 +1,6 @@
 import type { IncomingEvent, Script } from '../contracts/index.js';
 import { rubitimeBookingStatuses, rubitimeContent } from '../../content/rubitime/content.js';
+import { appSettings } from '../../config/appSettings.js';
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
@@ -140,20 +141,35 @@ export async function resolveScript(event: IncomingEvent, deps: ResolverDeps = {
         recipient.chatId = context.telegramUser.chatId;
       }
 
-      steps.push({
-        id: `step:message-send:${event.meta.eventId}`,
-        kind: 'message.send',
-        mode: 'async',
-        payload: {
-          recipient,
-          message: { text: messageText },
-          delivery: {
-            channels: canSendTelegram ? ['telegram', 'smsc'] : ['smsc'],
-            maxAttempts: 3,
+      if (rawEvent === 'event-create-record' && !canSendTelegram) {
+        steps.push({
+          id: `step:rubitime-create-retry-enqueue:${event.meta.eventId}`,
+          kind: 'rubitime.create_retry.enqueue',
+          mode: 'async',
+          payload: {
+            phoneNormalized,
+            messageText,
+            firstTryDelaySeconds: appSettings.rubitime.createRecordDelivery.firstAttemptDelaySeconds,
+            maxAttempts: appSettings.rubitime.createRecordDelivery.maxAttemptsBeforeSms,
+            context,
           },
-          context,
-        },
-      });
+        });
+      } else {
+        steps.push({
+          id: `step:message-send:${event.meta.eventId}`,
+          kind: 'message.send',
+          mode: 'async',
+          payload: {
+            recipient,
+            message: { text: messageText },
+            delivery: {
+              channels: canSendTelegram ? ['telegram', 'smsc'] : ['smsc'],
+              maxAttempts: 3,
+            },
+            context,
+          },
+        });
+      }
     }
   }
 

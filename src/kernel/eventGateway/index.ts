@@ -70,6 +70,11 @@ function readTelegramIncomingChatId(event: IncomingEvent): number | null {
   return typeof incoming?.chatId === 'number' ? incoming.chatId : null;
 }
 
+function shouldSkipDebugForward(event: IncomingEvent): boolean {
+  // Worker ticks are infrastructure noise for admin debug feed.
+  return event.type === 'schedule.tick';
+}
+
 /**
  * Зависимости eventGateway.
  * Gateway не содержит бизнес-логики: только envelope-проверки, dedup и запуск orchestrator.
@@ -112,6 +117,7 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
     if (!debugForwardAllEvents) return;
     if (!dispatchPort) return;
     if (typeof debugAdminChatId !== 'number' || !Number.isFinite(debugAdminChatId)) return;
+    if (shouldSkipDebugForward(input.event)) return;
     const incomingChatId = readTelegramIncomingChatId(input.event);
     if (incomingChatId === debugAdminChatId) return;
 
