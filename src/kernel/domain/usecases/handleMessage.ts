@@ -13,7 +13,7 @@ export async function handleStart(
   chatId: number,
   telegramId: number,
   startText: string,
-  hasLinkedPhone: boolean,
+  _hasLinkedPhone: boolean,
   userPort: UserPort,
   content: WebhookContent,
 ): Promise<{ consumed: boolean; actions: OutgoingAction[] }> {
@@ -25,32 +25,15 @@ export async function handleStart(
   const isRubitimeRecordId = /^[A-Za-z0-9_-]{1,120}$/.test(payload);
 
   if (isRubitimeRecordId) {
-    if (hasLinkedPhone) {
-      await userPort.setTelegramUserState(String(telegramId), 'idle');
-      return {
-        consumed: true,
-        actions: [
-          {
-            type: 'sendMessage',
-            chatId,
-            text: content.messages.chooseMenu,
-            replyMarkup: mainMenuMarkup(content),
-          },
-        ],
-      };
-    }
-    await userPort.setTelegramUserState(
-      String(telegramId),
-      `await_contact:rubitime_record:${payload}`,
-    );
+    await userPort.setTelegramUserState(String(telegramId), 'idle');
     return {
       consumed: true,
       actions: [
         {
           type: 'sendMessage',
           chatId,
-          text: content.messages.confirmPhoneForRubitime,
-          replyMarkup: content.requestContactKeyboard,
+          text: content.messages.chooseMenu,
+          replyMarkup: mainMenuMarkup(content),
         },
       ],
     };
@@ -63,7 +46,7 @@ export async function handleStart(
       {
         type: 'sendMessage',
         chatId,
-        text: hasLinkedPhone ? content.messages.chooseMenu : content.messages.welcome,
+        text: content.messages.chooseMenu,
         replyMarkup: mainMenuMarkup(content),
       },
     ],

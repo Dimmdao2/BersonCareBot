@@ -112,6 +112,26 @@ describe('handleUpdate contact linking', () => {
     });
   });
 
+  it('sends menu on /start even when phone is not linked', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'message',
+      chatId: 100,
+      telegramId: '100',
+      text: '/start',
+      hasLinkedPhone: false,
+      userRow: { id: '1', telegram_id: '100' },
+      userState: 'idle',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(actions[0]).toMatchObject({
+      type: 'sendMessage',
+      chatId: 100,
+      text: 'choose',
+    });
+  });
+
   it('requests contact when book button pressed and phone is not linked', async () => {
     const userPort = buildUserPort();
     const incoming: IncomingUpdate = {

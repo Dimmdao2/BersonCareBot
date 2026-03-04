@@ -1,85 +1,90 @@
-# Архитектура BersonCareBot (канон изоляции)
+# Архитектура BersonCareBot
 
-Цель: все внешние входы/выходы идут через единый событийный pipeline, без
-вшитой бизнес-логики в интеграциях.
+Цель: все входящие события обрабатываются единым pipeline, а бизнес-логика живет в `kernel`, не в webhook-адаптерах.
 
-## Канонический pipeline
-
-`IncomingEvent -> middleware(valid,safe) -> router -> orchestrator -> script resolution -> domain logic -> readDb/writeDb -> dispatch OutgoingEvent -> delivery status -> logs/retry/branch update`
-
-Где `IncomingEvent` и `OutgoingEvent` универсальны для любых источников:
-- `Event.source`: `telegram` / `rubitime` / `calendar` / etc.
-- `Event.type`: `message` / `service` / `calendar` / etc.
-- `Event.data`: payload в унифицированной структуре (phone/status/metadata).
-
-## Целевая структура папок (V2)
+## Слои
 
 - `src/app`
-  Технический вход: server/di/routes, без бизнес-логики.
+  - composition root (`di.ts`)
+  - регистрация HTTP routes
+  - wiring портов и runtime
 
 - `src/kernel`
-  Центр домена и сценариев:
-  `contracts`, `eventGateway`, `orchestrator`, `domain`.
+  - контракты (`contracts`)
+  - event gateway (`eventGateway`)
+  - orchestrator (`orchestrator`)
+  - domain actions/usecases (`domain`)
 
 - `src/infra`
-  Реализация портов: `db`, `dispatch`, `queue`, `runtime`, `observability`.
-
-- `src/edges`
-  Внешние края (webhook-и/SDK адаптеры):
-  `integrations/*`.
-
-- `src/config`
-  Конфигурация окружения (env) находится в общем слое.
-
-## Переходные каталоги (текущее состояние)
+  - БД (`db`, `repos`, `writePort`)
+  - dispatch в каналы (`dispatch`)
+  - runtime workers (`runtime`)
+  - logging/observability
 
 - `src/integrations`
-  Общие реализации SDK/мэппинг/коннекторы, от которых пока зависят `edges` и `infra`.
-  Цель: переехать в `src/edges/integrations` (и/или `infra` для outbound).
+  - внешние адаптеры Telegram/Rubitime/SMSC
+  - mapIn/mapOut, schema validation
 
-- `src/observability`
-  Удалено; актуальное логирование находится в `src/infra/observability`.
+- `src/config`
+  - `env.ts` — секреты и env-переменные
+  - `appSettings.ts` — несеkретные runtime-настройки (poll/retry delays)
 
-- `src/orchestrator`
-  Остаточный слой от старой схемы; в V2 заменяется `src/kernel/orchestrator`.
+## Основной pipeline
 
-- `___src__old`
-  Архив прежнего runtime до миграции.
+`IncomingEvent -> EventGateway -> Orchestrator(resolve script) -> Domain actions -> DbWrite/Dispatch`
 
-## Границы зависимостей (обязательно)
+Подробно:
+
+1. Webhook-adapter валидирует и нормализует вход.
+2. Пакует в `IncomingEvent`.
+3. `eventGateway` делает safety checks (rate-limit, dedup/idempotency, debug-forward).
+4. `orchestrator` строит скрипт шагов (`event.log`, `booking.upsert`, `message.send`, и т.д.).
+5. `domain` преобразует шаги в `DbWriteMutation` и `OutgoingIntent`.
+6. `writePort` применяет мутации в БД.
+7. `dispatchPort` отправляет в Telegram/SMSC с fallback/retry политикой.
+
+## Правила изоляции
 
 Разрешено:
-- `app -> kernel + infra + edges`
-- `edges -> kernel/contracts + kernel/eventGateway`
-- `kernel/eventGateway -> kernel/contracts + kernel/orchestrator`
-- `kernel/orchestrator -> kernel/contracts + kernel/domain`
-- `kernel/domain -> kernel/contracts + ports`
-- `infra -> ports + kernel/contracts`
+
+- `app -> kernel + infra + integrations`
+- `integrations -> kernel/contracts + kernel/eventGateway`
+- `kernel/*` зависит только от контрактов/портов
+- `infra/*` реализует порты и не содержит сценарных решений
 
 Запрещено:
-- `edges -> infra/db/*`
-- `kernel/** -> fastify|pg|grammy|http sdk`
-- `app/routes -> infra/db/repos` напрямую
-- `edges -> kernel/orchestrator` напрямую (только через gateway)
 
-Дополнительно:
-- fallback/retry policy определяется в `kernel` (domain/orchestrator), а не в edges.
+- `integrations -> infra/db/repos/*` напрямую
+- `kernel/* -> fastify|pg|grammy` напрямую
+- бизнес-ветвления в webhook handlers
 
-## Сценарий обработки (детально)
+## Rubitime delivery logic (текущее поведение)
 
-1. Интеграция принимает вход (`webhook`, callback, cron tick).
-2. Middleware делает safety-checks (schema validation, auth/token, normalization).
-3. Router передает событие в orchestrator как `IncomingEvent`.
-4. Orchestrator определяет script по `source/type/data`.
-5. Domain исполняет логические ветки сценария.
-6. Через `readDb` читаются нужные состояния.
-7. Формируются `DbWriteMutation` и `OutgoingEvent`.
-8. Через dispatcher отправляются сообщения/webhook-и.
-9. Получается статус доставки (success/retry/fail).
-10. Пишутся логи и при необходимости обновляется состояние в БД.
+- `event-create-record`:
+  - при linked Telegram: immediate Telegram
+  - при отсутствии link: enqueue delayed retry job
+    - 2 попытки проверки привязки, раз в минуту
+    - если link появился -> Telegram
+    - если нет -> SMS fallback
 
-## Текущий курс миграции
+- `event-remove-record` и `event-update-record`:
+  - без ожидания
+  - immediate отправка в доступный канал (Telegram либо SMS fallback)
 
-- Проект находится в переходе к этому канону.
-- Все новые изменения должны усиливать изоляцию в направлении структуры:
-  `domain + db + orchestrator + ports + integrations`.
+## Runtime процессы
+
+- `main.ts` — HTTP API (webhooks + health + iframe endpoint)
+- `main-worker.ts` — фоновые задачи:
+  - `schedule.tick`
+  - обработка delayed Rubitime create retry jobs
+
+## Deploy model
+
+- Docker Compose services: `api_blue`, `api_green`, `worker`, `admin`, `db`
+- Nginx переключает трафик между `3001` (blue) и `3002` (green)
+- Deploy script:
+  - build candidate slot
+  - run migrations
+  - health check
+  - switch Nginx proxy
+  - update current slot marker
