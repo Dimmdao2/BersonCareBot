@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "worker:dev": "tsx watch src/main-worker.ts",
     "clean": "rm -rf dist",
     "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "build:admin": "cd admin && npm install && npm run build",
     "start": "node dist/main.js",
+    "worker:start": "node dist/main-worker.js",
     "test": "vitest --run",
     "test:e2e": "RUN_E2E_TESTS=true vitest --run e2e/webhook-scenarios.test.ts",
     "lint": "eslint .",

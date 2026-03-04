@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to run"
+        required: true
+        default: "deploy"
+        type: choice
+        options:
+          - deploy
+          - rollback
 
 jobs:
   deploy:
@@ -27,31 +36,21 @@ jobs:
             hostname
             date
 
-            echo "=== step: git sync ==="
             cd /opt/tgcarebot/app
-            export GIT_TERMINAL_PROMPT=0
-            git fetch --prune origin
-            git checkout -B main origin/main
-            git reset --hard origin/main
+            if [ ! -x ./deploy/deploy-bluegreen.sh ]; then
+              chmod +x ./deploy/deploy-bluegreen.sh
+            fi
+            if [ ! -x ./deploy/rollback-bluegreen.sh ]; then
+              chmod +x ./deploy/rollback-bluegreen.sh
+            fi
 
-            echo "=== step: pnpm install ==="
-            CI=true pnpm install --frozen-lockfile --reporter=append-only
-
-            echo "=== step: build ==="
-            pnpm build
-
-            echo "=== step: build admin ==="
-            cd admin && npm install && npm run build && cd ..
-
-            echo "=== step: migrate (uses /opt/tgcarebot/.env) ==="
-            set -a
-            source /opt/tgcarebot/.env
-            set +a
-            pnpm run db:migrate
-
-            echo "=== step: restart ==="
-            systemctl --user restart tgcarebot || true
-            sudo -n systemctl restart tgcarebot
-
-            echo "=== step: status ==="
-            sudo -n systemctl status tgcarebot --no-pager
+            ACTION_INPUT="${{ github.event.inputs.action }}"
+            if [ -z "${ACTION_INPUT}" ]; then
+              ACTION_INPUT="deploy"
+            fi
+            echo "=== action: ${ACTION_INPUT} ==="
+            if [ "${ACTION_INPUT}" = "rollback" ]; then
+              ./deploy/rollback-bluegreen.sh
+            else
+              ./deploy/deploy-bluegreen.sh
+            fi

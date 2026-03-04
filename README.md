@@ -74,3 +74,52 @@ sudo systemctl restart tgcarebot
 sudo systemctl status tgcarebot
 journalctl -u tgcarebot -n 100 --no-pager
 ```
+
+## Docker Compose
+
+В репозитории есть готовая схема контейнеров:
+
+- `api` (Fastify backend)
+- `worker` (отдельный фоновый процесс)
+- `db` (PostgreSQL, только во внутренней сети compose)
+- `admin` (статический frontend на nginx, порт `8080`)
+
+Запуск:
+
+```bash
+cp .env.example .env
+docker compose build
+docker compose up -d
+```
+
+Проверка:
+
+```bash
+docker compose ps
+docker compose logs -f api
+docker compose logs -f worker
+```
+
+Миграции внутри контейнера `api`:
+
+```bash
+docker compose exec api pnpm run db:migrate
+```
+
+## Blue/Green деплой API
+
+Для API используется схема `api_blue` и `api_green`:
+
+- `api_blue` публикуется на `127.0.0.1:3001`
+- `api_green` публикуется на `127.0.0.1:3002`
+- Nginx переключает `proxy_pass` между этими портами без остановки всего сервиса.
+
+Скрипты:
+
+- `deploy/deploy-bluegreen.sh` — автоматический deploy + migrate + health-check + switch
+- `deploy/rollback-bluegreen.sh` — ручной быстрый rollback на предыдущий слот
+
+Workflow GitHub Actions `Deploy`:
+
+- `push` в `main` запускает `deploy`
+- `workflow_dispatch` с `action=rollback` выполняет rollback

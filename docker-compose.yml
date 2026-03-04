@@ -1,0 +1,111 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: bcb_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bersoncarebot}
+      POSTGRES_USER: ${POSTGRES_USER:-bcb}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bcb_password}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bcb} -d ${POSTGRES_DB:-bersoncarebot}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - backend
+
+  api:
+    profiles: ["legacy"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-bcb}:${POSTGRES_PASSWORD:-bcb_password}@db:5432/${POSTGRES_DB:-bersoncarebot}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - backend
+
+  api_blue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-bcb}:${POSTGRES_PASSWORD:-bcb_password}@db:5432/${POSTGRES_DB:-bersoncarebot}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - backend
+
+  api_green:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-bcb}:${POSTGRES_PASSWORD:-bcb_password}@db:5432/${POSTGRES_DB:-bersoncarebot}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3002:3000"
+    networks:
+      - backend
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bcb_worker
+    restart: unless-stopped
+    command: ["node", "dist/main-worker.js"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bcb}:${POSTGRES_PASSWORD:-bcb_password}@db:5432/${POSTGRES_DB:-bersoncarebot}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: bcb_admin
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    networks:
+      - backend
+
+volumes:
+  db_data:
+
+networks:
+  backend:
+    driver: bridge

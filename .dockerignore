@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.git
+.github
+.cursor
+admin/node_modules
+admin/dist
+*.log
+.env
+.env.*
