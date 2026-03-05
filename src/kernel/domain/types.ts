@@ -1,12 +1,7 @@
+import type { TelegramUserFrom as ContractTelegramUserFrom } from '../contracts/ports.js';
+
 /** Core Telegram transport and action types used by legacy adapters. */
-export type TelegramUserFrom = {
-  id: number;
-  is_bot?: boolean;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  language_code?: string;
-};
+export type TelegramUserFrom = ContractTelegramUserFrom;
 
 export type TelegramChat = { id: number };
 

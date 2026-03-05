@@ -1,4 +1,4 @@
-import type { DeliveryAttemptResult, DeliveryJob, QueuePort } from '../../kernel/contracts/index.js';
+import type { DeliveryAttemptResult, DeliveryJob, JobQueuePort, QueuePort } from '../../kernel/contracts/index.js';
 import {
   claimDueRubitimeCreateRetryJobs,
   completeRubitimeCreateRetryJob,
@@ -6,7 +6,6 @@ import {
   failRubitimeCreateRetryJob,
   rescheduleRubitimeCreateRetryJob,
 } from '../db/repos/rubitimeCreateRetryJobs.js';
-import type { WorkerJobQueuePort } from '../runtime/worker/jobQueuePort.js';
 
 function parseDbJobId(jobId: string): number | null {
   const [, idRaw] = jobId.split(':');
@@ -76,7 +75,7 @@ function toDeliveryJob(row: {
   };
 }
 
-export type PostgresJobQueue = QueuePort & WorkerJobQueuePort;
+export type PostgresJobQueue = QueuePort & JobQueuePort;
 
 export function createPostgresJobQueue(input: { retryDelaySeconds: number }): PostgresJobQueue {
   return {

@@ -1,26 +1,15 @@
 import { db } from '../client.js';
 import { logger } from '../../observability/logger.js';
-import type { TelegramUserFrom } from '../../../kernel/domain/types.js';
-import type { UserPort } from '../../../kernel/domain/ports/user.js';
-import type { NotificationsPort } from '../../../kernel/domain/ports/notifications.js';
+import type {
+	NotificationSettings,
+	NotificationSettingsPatch,
+	NotificationsPort,
+	TelegramUserFrom,
+	TelegramUserRow,
+	UserPort,
+} from '../../../kernel/contracts/index.js';
 
 /** Репозиторий пользователей Telegram и их настроек/состояний. */
-export type TelegramUserRow = {
-	id: string;
-	telegram_id: string;
-};
-
-export type NotificationSettings = {
-	notify_spb: boolean;
-	notify_msk: boolean;
-	notify_online: boolean;
-};
-
-export type NotificationSettingsPatch = {
-	notify_spb?: boolean;
-	notify_msk?: boolean;
-	notify_online?: boolean;
-};
 
 export type TelegramUserByPhone = {
 	chatId: number;

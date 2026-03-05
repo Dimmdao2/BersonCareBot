@@ -1,5 +1,5 @@
 import type { DbReadPort, DbReadQuery } from '../../kernel/contracts/index.js';
-import { findByPhone, getTelegramUserLinkData } from './repos/telegramUsers.js';
+import { findUserByChannelId, findUserByPhone, lookupUser } from './repos/userLookup.js';
 
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
@@ -12,15 +12,7 @@ async function handleUserLookup<T = unknown>(query: DbReadQuery): Promise<T> {
 
   if (!resource || !by || !value) return null as T;
 
-  if (resource === 'telegram' && by === 'phone') {
-    return (await findByPhone(value)) as T;
-  }
-
-  if (resource === 'telegram' && by === 'telegramId') {
-    return (await getTelegramUserLinkData(value)) as T;
-  }
-
-  return null as T;
+  return (await lookupUser(resource, by, value)) as T;
 }
 
 export function createDbReadPort(): DbReadPort {
@@ -32,12 +24,12 @@ export function createDbReadPort(): DbReadPort {
         case 'user.byPhone': {
           const phone = asNonEmptyString(query.params.phoneNormalized);
           if (!phone) return null as T;
-          return (await findByPhone(phone)) as T;
+          return (await findUserByPhone(phone)) as T;
         }
         case 'user.byTelegramId': {
           const telegramId = asNonEmptyString(query.params.telegramId);
           if (!telegramId) return null as T;
-          return (await getTelegramUserLinkData(telegramId)) as T;
+          return (await findUserByChannelId('telegram', telegramId)) as T;
         }
         default:
           return null as T;

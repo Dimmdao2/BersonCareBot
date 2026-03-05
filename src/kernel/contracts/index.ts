@@ -52,11 +52,18 @@ export type {
   EventGateway,
   GatewayResult,
   IdempotencyPort,
+  JobQueuePort,
+  NotificationSettings,
+  NotificationSettingsPatch,
+  NotificationsPort,
   Orchestrator,
   OrchestratorResult,
   OutgoingDispatcher,
   QueuePort,
+  TelegramUserFrom,
+  TelegramUserRow,
   TemplatePort,
+  UserPort,
 } from './ports.js';
 
 export {

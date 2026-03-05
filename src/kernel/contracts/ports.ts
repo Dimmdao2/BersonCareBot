@@ -1,3 +1,4 @@
+import type { DeliveryAttemptResult, DeliveryJob } from './actions.js';
 import type { IncomingEvent, OutgoingIntent } from './events.js';
 
 /** Категории read-запросов к хранилищу. */
@@ -59,6 +60,55 @@ export const DEFAULT_DELIVERY_CHANNEL = DELIVERY_CHANNEL_SMSC;
 /** Порт постановки асинхронной задачи в очередь. */
 export type QueuePort = {
   enqueue(task: { kind: string; payload: Record<string, unknown> }): Promise<void>;
+};
+
+/** Порт очереди job-ов для runtime worker. */
+export type JobQueuePort = {
+  claimDueJobs(limit: number): Promise<DeliveryJob[]>;
+  completeJob(jobId: string): Promise<void>;
+  failJob(jobId: string, result: DeliveryAttemptResult): Promise<void>;
+  rescheduleJob(jobId: string, nextRunAt: string, attemptsMade: number): Promise<void>;
+  logAttempt(jobId: string, result: DeliveryAttemptResult): Promise<void>;
+};
+
+/** Базовый payload пользователя Telegram, используемый в пользовательских портах. */
+export type TelegramUserFrom = {
+  id: number;
+  is_bot?: boolean;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  language_code?: string;
+};
+
+export type TelegramUserRow = { id: string; telegram_id: string };
+
+/** Контракт хранилища пользователей для Telegram-флоу. */
+export type UserPort = {
+  upsertTelegramUser(from: TelegramUserFrom | null | undefined): Promise<TelegramUserRow | null>;
+  setTelegramUserState(telegramId: string, state: string | null): Promise<void>;
+  setTelegramUserPhone(telegramId: string, phoneNormalized: string): Promise<void>;
+  getTelegramUserState(telegramId: string): Promise<string | null>;
+  tryAdvanceLastUpdateId(telegramId: number, updateId: number): Promise<boolean>;
+  tryConsumeStart(telegramId: number): Promise<boolean>;
+};
+
+/** Настройки уведомлений пользователя. */
+export type NotificationSettings = {
+  notify_spb: boolean;
+  notify_msk: boolean;
+  notify_online: boolean;
+};
+
+export type NotificationSettingsPatch = {
+  notify_spb?: boolean;
+  notify_msk?: boolean;
+  notify_online?: boolean;
+};
+
+export type NotificationsPort = {
+  getNotificationSettings(telegramId: number): Promise<NotificationSettings | null>;
+  updateNotificationSettings(telegramId: number, settings: NotificationSettingsPatch): Promise<void>;
 };
 
 /** Порт идемпотентности входящих событий. */

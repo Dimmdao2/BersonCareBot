@@ -38,12 +38,13 @@ Runtime отвечает только за:
 что делать
 
 
-будущая струткура рантайма:
+будущая структура рантайма:
 
-src/runtime/
+src/infra/runtime/
     worker/
-        worker.ts
+        main.ts
         jobExecutor.ts
         retryPolicy.ts
     scheduler/
+        main.ts
         scheduler.ts
