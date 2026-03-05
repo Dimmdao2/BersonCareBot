@@ -57,6 +57,8 @@ export async function handleUpdate(
   notificationsPort: NotificationsPort,
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
+  // ARCH-V3 MOVE
+  // этот код должен быть перенесён в orchestrator (сценарные if-else по типам входящих событий)
   if (incoming.kind === 'callback') {
     const data = incoming.callbackData;
     const actions: OutgoingAction[] = [];

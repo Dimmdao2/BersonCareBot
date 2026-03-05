@@ -69,6 +69,8 @@ export async function runRubitimeCreateRetryIteration(dispatchPort: DispatchPort
   for (const job of jobs) {
     try {
       const telegramUser = await findByPhone(job.phoneNormalized);
+      // ARCH-V3 MOVE
+      // этот код должен быть перенесён в orchestrator (сценарный выбор канала и fallback)
       if (telegramUser) {
         await dispatchPort.dispatchOutgoing(buildTelegramIntent({
           phoneNormalized: job.phoneNormalized,

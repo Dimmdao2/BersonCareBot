@@ -76,6 +76,8 @@ export async function registerTelegramWebhookRoutes(
       }
 
       if (updateId !== null && telegramIdForDedup !== null) {
+        // ARCH-V3 MOVE
+        // этот код должен быть перенесён в eventGateway (dedup не должен жить в integration)
         const isNew = await deps.userPort.tryAdvanceLastUpdateId(Number(telegramIdForDedup), updateId);
         if (!isNew) {
           return reply.code(200).send({ ok: true });
@@ -91,6 +93,8 @@ export async function registerTelegramWebhookRoutes(
       }
       if (body.message?.from && telegramId) {
         userState = (await deps.userPort.getTelegramUserState(telegramId)) ?? 'idle';
+        // ARCH-V3 MOVE
+        // этот код должен быть перенесён в orchestrator (сценарная ветка по состоянию пользователя)
         if (userState === 'waiting_for_question' && body.message.text) {
           const adminId = env.ADMIN_TELEGRAM_ID != null ? Number(env.ADMIN_TELEGRAM_ID) : undefined;
           if (adminId && body.message.from) {
