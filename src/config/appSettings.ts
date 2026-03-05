@@ -5,6 +5,16 @@ export type AppSettings = {
   worker: {
     pollIntervalMs: number;
   };
+  runtime: {
+    worker: {
+      retryDelaySeconds: number;
+      pollIntervalMs: number;
+      batchSize: number;
+    };
+    scheduler: {
+      pollIntervalMs: number;
+    };
+  };
   rubitime: {
     createRecordDelivery: {
       firstAttemptDelaySeconds: number;
@@ -21,6 +31,16 @@ export const appSettings: AppSettings = {
   },
   worker: {
     pollIntervalMs: 5000,
+  },
+  runtime: {
+    worker: {
+      retryDelaySeconds: 60,
+      pollIntervalMs: 5000,
+      batchSize: 1,
+    },
+    scheduler: {
+      pollIntervalMs: 5000,
+    },
   },
   rubitime: {
     createRecordDelivery: {

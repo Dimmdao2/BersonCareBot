@@ -33,7 +33,7 @@ describe('createDefaultDispatchPort', () => {
     expect(writeDb).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to smsc after telegram failure', async () => {
+  it('does not fallback to smsc after telegram failure', async () => {
     sendMessageMock.mockRejectedValueOnce(new Error('telegram down'));
     const smsClient = { sendSms: vi.fn().mockResolvedValue(undefined) };
     const writeDb = vi.fn().mockResolvedValue(undefined);
@@ -48,21 +48,16 @@ describe('createDefaultDispatchPort', () => {
       },
     };
 
-    await dispatchPort.dispatchOutgoing(intent);
+    await expect(dispatchPort.dispatchOutgoing(intent)).rejects.toThrow('telegram down');
     expect(sendMessageMock).toHaveBeenCalledTimes(1);
-    expect(smsClient.sendSms).toHaveBeenCalledTimes(1);
-    expect(writeDb).toHaveBeenCalledTimes(2);
-    const [firstLog, secondLog] = writeDb.mock.calls.map((call) => call[0]);
-    expect(firstLog?.params?.status).toBe('failed');
-    expect(secondLog?.params?.status).toBe('success');
+    expect(smsClient.sendSms).toHaveBeenCalledTimes(0);
+    expect(writeDb).toHaveBeenCalledTimes(0);
   });
 
-  it('sends debug delivery notifications to admin when enabled', async () => {
+  it('sends smsc when first channel is smsc', async () => {
     const smsClient = { sendSms: vi.fn().mockResolvedValue(undefined) };
     const dispatchPort = createDefaultDispatchPort({
       smsClient,
-      debugForwardAllEvents: true,
-      debugAdminChatId: 777,
     });
     const intent: OutgoingIntent = {
       type: 'message.send',
@@ -75,11 +70,7 @@ describe('createDefaultDispatchPort', () => {
     };
 
     await dispatchPort.dispatchOutgoing(intent);
-    expect(sendMessageMock).toHaveBeenCalledTimes(1);
-    const params = sendMessageMock.mock.calls[0]?.[0] as { chat_id?: number; text?: string };
-    expect(params.chat_id).toBe(777);
-    expect(params.text).toContain('DEBUG DELIVERY');
-    expect(params.text).toContain('channel_success');
+    expect(sendMessageMock).toHaveBeenCalledTimes(0);
     expect(smsClient.sendSms).toHaveBeenCalledTimes(1);
   });
 });

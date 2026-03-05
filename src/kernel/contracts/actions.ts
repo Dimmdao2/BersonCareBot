@@ -31,14 +31,52 @@ export type Action = {
   params: Record<string, unknown>;
 };
 
+export type DeliveryTarget = {
+  resource: string;
+  address: Record<string, unknown>;
+};
+
+export type DeliveryPlanStage = {
+  stageId: string;
+  channel: string;
+  maxAttempts: number;
+};
+
+export type DeliveryRetryPolicy = {
+  maxAttempts: number;
+  backoffSeconds: number[];
+  deadlineAt?: string;
+};
+
+export type DeliveryFailPolicy = {
+  adminNotifyIntent?: OutgoingIntent;
+};
+
 /** Отложенная задача доставки/выполнения для runtime/queue. */
 export type DeliveryJob = {
   id: string;
   kind: string;
+  jobId?: string;
+  tenantId?: string | null;
+  createdAt?: string;
+  status?: 'pending' | 'processing' | 'done' | 'dead';
+  attemptsMade?: number;
+  plan?: DeliveryPlanStage[];
+  targets?: DeliveryTarget[];
+  retry?: DeliveryRetryPolicy;
+  onFail?: DeliveryFailPolicy;
   runAt: string;
   attempts: number;
   maxAttempts: number;
   payload: Record<string, unknown>;
+};
+
+/** Технический результат одной попытки доставки в runtime. */
+export type DeliveryAttemptResult = {
+  ok: boolean;
+  errorCode?: string;
+  nextRunAt?: string;
+  final?: boolean;
 };
 
 /** Результат выполнения одной доменной команды. */

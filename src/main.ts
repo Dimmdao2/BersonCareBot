@@ -2,14 +2,7 @@
  * Точка входа рефактор-ветки: загружает env и запускает HTTP-приложение.
  * Важно: dotenv должен инициализироваться до импортов, читающих `config/env`.
  */
-import dotenv from 'dotenv';
-
-// На production читаем фиксированный путь env-файла на сервере.
-if (process.env.NODE_ENV === 'production') {
-  dotenv.config({ path: '/opt/tgcarebot/.env' });
-} else {
-  dotenv.config();
-}
+import './config/loadEnv.js';
 
 /**
  * Запускает Fastify-приложение и пишет лог старта.

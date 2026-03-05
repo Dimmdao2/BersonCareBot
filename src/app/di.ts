@@ -4,16 +4,21 @@
  * единую точку входа EventGateway для входящих адаптеров.
  */
 import type { FastifyInstance } from 'fastify';
+import { appSettings } from '../config/appSettings.js';
 import { env } from '../config/env.js';
 import { healthCheckDb } from '../infra/db/client.js';
+import { createDbReadPort } from '../infra/db/readPort.js';
 import { createDbWritePort } from '../infra/db/writePort.js';
+import { createPostgresJobQueue } from '../infra/queue/postgresJobQueue.js';
 import { createEventGateway } from '../kernel/index.js';
 import { createIncomingEventPipeline } from '../kernel/eventGateway/incomingEventPipeline.js';
 import type {
+  DbReadPort,
   DispatchPort,
   DbWritePort,
   EventGateway,
   IdempotencyPort,
+  QueuePort,
 } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { createInMemoryIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
@@ -23,7 +28,6 @@ import { createSmscStub } from '../integrations/smsc/stub.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
-import { findByPhone } from '../infra/db/repos/telegramUsers.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -45,7 +49,9 @@ export type RubitimeRoutesRegistrar = (
 
 /** Опциональные внешние зависимости для buildDeps на период миграции. */
 export type BuildDepsInput = {
+  dbReadPort?: DbReadPort;
   dbWritePort?: DbWritePort;
+  queuePort?: QueuePort;
   dispatchPort?: DispatchPort;
   idempotencyPort?: IdempotencyPort;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
@@ -79,6 +85,10 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   }
 
   const dbWritePort = input.dbWritePort ?? createDbWritePort();
+  const dbReadPort = input.dbReadPort ?? createDbReadPort();
+  const queuePort = input.queuePort ?? createPostgresJobQueue({
+    retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
+  });
 
   const dispatchPort =
     input.dispatchPort ??
@@ -90,9 +100,10 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const idempotencyPort = input.idempotencyPort ?? createInMemoryIdempotencyPort();
 
   const pipeline = createIncomingEventPipeline({
+    readPort: dbReadPort,
     writePort: dbWritePort,
+    queuePort,
     dispatchPort,
-    findTelegramUserByPhone: findByPhone,
   });
 
   const eventGateway = createEventGateway({

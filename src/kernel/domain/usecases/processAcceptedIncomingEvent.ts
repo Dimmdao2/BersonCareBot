@@ -1,4 +1,4 @@
-import type { Action, ActionResult, DomainContext, IncomingEvent, OutgoingIntent } from '../../contracts/index.js';
+import type { Action, ActionResult, DbReadPort, DomainContext, IncomingEvent, OutgoingIntent } from '../../contracts/index.js';
 import { handleIncomingEvent } from '../handleIncomingEvent.js';
 
 type RubitimeTelegramUser = {
@@ -10,7 +10,7 @@ type RubitimeTelegramUser = {
 type ProcessAcceptedIncomingEventDeps = {
   executeAction: (action: Action, context: DomainContext) => Promise<ActionResult>;
   dispatchIntent: (intent: OutgoingIntent) => Promise<void>;
-  findTelegramUserByPhone?: (phoneNormalized: string) => Promise<RubitimeTelegramUser | null>;
+  readPort?: DbReadPort;
 };
 
 function readAdminTelegramIdFromEnv(): number | null {
@@ -40,8 +40,15 @@ export async function processAcceptedIncomingEvent(
   const domainResult = await handleIncomingEvent(event, {
     async buildContext(incomingEvent) {
       const phoneNormalized = readRubitimePhone(incomingEvent);
-      const telegramUser = phoneNormalized && deps.findTelegramUserByPhone
-        ? await deps.findTelegramUserByPhone(phoneNormalized)
+      const telegramUser = phoneNormalized && deps.readPort
+        ? await deps.readPort.readDb<RubitimeTelegramUser | null>({
+          type: 'user.lookup',
+          params: {
+            resource: 'telegram',
+            by: 'phone',
+            value: phoneNormalized,
+          },
+        })
         : null;
 
       const values: DomainContext['values'] = {};

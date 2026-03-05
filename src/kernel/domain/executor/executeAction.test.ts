@@ -118,4 +118,49 @@ describe('executeAction', () => {
     expect(result.status).toBe('queued');
     expect(writeDb).toHaveBeenCalledTimes(1);
   });
+
+  it('handles message.deliver by creating ready delivery job', async () => {
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const action: Action = {
+      id: 'a6',
+      type: 'message.deliver',
+      mode: 'async',
+      params: {
+        payload: {
+          message: { text: 'ready-message' },
+          delivery: { channels: ['telegram', 'smsc'] },
+        },
+        targets: [
+          { resource: 'telegram', address: { chatId: 123 } },
+          { resource: 'smsc', address: { phoneNormalized: '+79990001122' } },
+        ],
+        retry: {
+          maxAttempts: 3,
+          backoffSeconds: [0, 60, 120],
+        },
+        onFail: {
+          adminNotifyIntent: {
+            type: 'message.send',
+            meta: {
+              eventId: 'debug-1',
+              occurredAt: '2026-03-05T12:00:00.000Z',
+              source: 'domain',
+            },
+            payload: { message: { text: 'debug' } },
+          },
+        },
+      },
+    };
+
+    const result = await executeAction(action, ctx, {
+      queuePort: { enqueue },
+    });
+
+    expect(result.status).toBe('queued');
+    expect(result.jobs?.[0]?.kind).toBe('message.deliver');
+    expect(result.jobs?.[0]?.payload?.intent).toBeTruthy();
+    expect(result.jobs?.[0]?.targets?.length).toBeGreaterThan(0);
+    expect(result.jobs?.[0]?.retry?.maxAttempts).toBe(3);
+    expect(enqueue).toHaveBeenCalledTimes(1);
+  });
 });

@@ -98,3 +98,14 @@ export async function completeRubitimeCreateRetryJob(id: number): Promise<void> 
   `;
   await db.query(query, [id]);
 }
+
+export async function failRubitimeCreateRetryJob(input: { id: number; lastError?: string }): Promise<void> {
+  const query = `
+    UPDATE rubitime_create_retry_jobs
+    SET status = 'dead',
+        last_error = $2,
+        updated_at = now()
+    WHERE id = $1
+  `;
+  await db.query(query, [input.id, input.lastError ?? null]);
+}

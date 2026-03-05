@@ -2,6 +2,7 @@ import type { IncomingEvent, OutgoingIntent } from './events.js';
 
 /** Категории read-запросов к хранилищу. */
 export type DbReadQueryType =
+  | 'user.lookup'
   | 'user.byTelegramId'
   | 'user.byPhone'
   | 'booking.byRubitimeId'

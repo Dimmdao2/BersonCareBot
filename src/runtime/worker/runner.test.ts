@@ -1,14 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { runWorkerTick } from './worker.js';
+import { runWorkerTick } from './runner.js';
 
 describe('runWorkerTick', () => {
   it('returns idle when no jobs', async () => {
     const result = await runWorkerTick({
       claimNextJob: vi.fn().mockResolvedValue(null),
       completeJob: vi.fn().mockResolvedValue(undefined),
+      failJob: vi.fn().mockResolvedValue(undefined),
       rescheduleJob: vi.fn().mockResolvedValue(undefined),
-      buildContext: vi.fn(),
-      executeAction: vi.fn(),
+      logAttempt: vi.fn().mockResolvedValue(undefined),
+      dispatchOutgoing: vi.fn().mockResolvedValue(undefined),
+      nowIso: () => '2026-03-05T12:00:00.000Z',
       retryDelaySeconds: 60,
     });
     expect(result).toBe('idle');
@@ -19,24 +21,28 @@ describe('runWorkerTick', () => {
     const result = await runWorkerTick({
       claimNextJob: vi.fn().mockResolvedValue({
         id: 'j1',
-        kind: 'delivery.retry',
+        kind: 'message.deliver',
         runAt: '2026-03-05T12:00:00.000Z',
         attempts: 0,
         maxAttempts: 3,
-        payload: {},
+        payload: {
+          intent: {
+            type: 'message.send',
+            meta: { eventId: 'evt-1', occurredAt: '2026-03-05T12:00:00.000Z', source: 'worker' },
+            payload: {
+              message: { text: 'hello' },
+              delivery: { channels: ['smsc'] },
+            },
+          },
+          targets: [{ resource: 'smsc', address: { phoneNormalized: '+79990001122' } }],
+        },
       }),
       completeJob,
+      failJob: vi.fn().mockResolvedValue(undefined),
       rescheduleJob: vi.fn().mockResolvedValue(undefined),
-      buildContext: vi.fn().mockResolvedValue({
-        event: {
-          type: 'schedule.tick',
-          meta: { eventId: 'evt-1', occurredAt: '2026-03-05T12:00:00.000Z', source: 'worker' },
-          payload: {},
-        },
-        nowIso: '2026-03-05T12:00:00.000Z',
-        values: {},
-      }),
-      executeAction: vi.fn().mockResolvedValue({ status: 'success' }),
+      logAttempt: vi.fn().mockResolvedValue(undefined),
+      dispatchOutgoing: vi.fn().mockResolvedValue(undefined),
+      nowIso: () => '2026-03-05T12:00:00.000Z',
       retryDelaySeconds: 60,
     });
 

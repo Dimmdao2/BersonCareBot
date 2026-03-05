@@ -22,7 +22,12 @@ export type {
 export type {
   Action,
   ActionResult,
+  DeliveryAttemptResult,
   DeliveryJob,
+  DeliveryFailPolicy,
+  DeliveryPlanStage,
+  DeliveryRetryPolicy,
+  DeliveryTarget,
   DomainContext,
   ScriptStep,
 } from './actions.js';

@@ -68,6 +68,32 @@ export const actionSchema = z.object({
 export const deliveryJobSchema = z.object({
   id: z.string().min(1),
   kind: z.string().min(1),
+  jobId: z.string().min(1).optional(),
+  tenantId: z.string().min(1).nullable().optional(),
+  createdAt: z.iso.datetime().optional(),
+  status: z.enum(['pending', 'processing', 'done', 'dead']).optional(),
+  attemptsMade: z.number().int().min(0).optional(),
+  plan: z.array(z.object({
+    stageId: z.string().min(1),
+    channel: z.string().min(1),
+    maxAttempts: z.number().int().min(1),
+  })).optional(),
+  targets: z.array(z.object({
+    resource: z.string().min(1),
+    address: z.record(z.string(), z.unknown()),
+  })).optional(),
+  retry: z.object({
+    maxAttempts: z.number().int().min(1),
+    backoffSeconds: z.array(z.number().int().min(0)),
+    deadlineAt: z.iso.datetime().optional(),
+  }).optional(),
+  onFail: z.object({
+    adminNotifyIntent: z.object({
+      type: z.enum(['message.send', 'booking.changed', 'integration.sync', 'audit.log']),
+      meta: eventMetaSchema,
+      payload: z.record(z.string(), z.unknown()),
+    }).optional(),
+  }).optional(),
   runAt: z.iso.datetime(),
   attempts: z.number().int().min(0),
   maxAttempts: z.number().int().min(1),
@@ -90,6 +116,7 @@ export const actionResultSchema = z.object({
 /** Валидация read-контракта для DB-порта. */
 export const dbReadQuerySchema = z.object({
   type: z.enum([
+    'user.lookup',
     'user.byTelegramId',
     'user.byPhone',
     'booking.byRubitimeId',
