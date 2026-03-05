@@ -21,9 +21,10 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
   if (deps.registerTelegramWebhookRoutes) {
     app.register(async (instance) => {
       await deps.registerTelegramWebhookRoutes?.(instance, {
-        userPort: deps.telegramUserPort,
-        notificationsPort: deps.notificationsPort,
-        getTelegramUserLinkData: deps.getTelegramUserLinkData,
+        eventGateway: deps.eventGateway,
+        ...(deps.onTelegramAcceptedEvent
+          ? { onAcceptedEvent: deps.onTelegramAcceptedEvent }
+          : {}),
       });
     });
   }

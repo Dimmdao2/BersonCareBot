@@ -184,11 +184,7 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
     const { buildApp } = await import('../src/app/index.js');
     const { registerTelegramWebhookRoutes } = await import('../src/integrations/telegram/webhook.js');
     app = buildApp({
-      registerTelegramWebhookRoutes: (instance) => registerTelegramWebhookRoutes(instance, {
-        userPort,
-        notificationsPort,
-        getTelegramUserLinkData,
-      }),
+      registerTelegramWebhookRoutes,
     });
     await app.ready();
 

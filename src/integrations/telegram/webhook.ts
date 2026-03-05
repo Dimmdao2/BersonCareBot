@@ -1,30 +1,52 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
-import { getBotInstance } from './client.js';
-import { telegramContent, buildAdminForwardText } from '../../content/telegram/content.js';
-import type { WebhookContent } from '../../kernel/domain/webhookContent.js';
-import type { TelegramUserFrom } from '../../kernel/domain/types.js';
-import type { UserPort } from '../../kernel/domain/ports/user.js';
-import type { NotificationsPort } from '../../kernel/domain/ports/notifications.js';
-import { handleUpdate } from '../../kernel/domain/usecases/handleUpdate.js';
-import { toTelegram, type TelegramApi } from './mapOut.js';
-import { fromTelegram } from './mapIn.js';
+import type { EventGateway, IncomingEvent } from '../../kernel/contracts/index.js';
+import type { IncomingUpdate } from '../../kernel/domain/types.js';
+import { telegramIncomingToEvent } from './connector.js';
 import { parseWebhookBody } from './schema.js';
-
-/** Dependencies for Telegram webhook handler registration. */
-const content: WebhookContent = telegramContent;
+import type { TelegramWebhookBodyValidated } from './schema.js';
 
 export type TelegramWebhookDeps = {
-  userPort: UserPort;
-  notificationsPort: NotificationsPort;
-  getTelegramUserLinkData: (telegramId: string) => Promise<{
-    chatId: number;
-    telegramId: string;
-    username: string | null;
-    phoneNormalized: string | null;
-  } | null>;
+  eventGateway: EventGateway;
+  onAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
 };
+
+function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
+  if (body.callback_query) {
+    const callback = body.callback_query;
+    const chatId = callback.message?.chat?.id;
+    const messageId = callback.message?.message_id;
+    const telegramId = callback.from?.id;
+    if (typeof chatId !== 'number' || typeof messageId !== 'number' || typeof telegramId !== 'number') {
+      return null;
+    }
+    return {
+      kind: 'callback',
+      chatId,
+      messageId,
+      telegramId,
+      callbackData: callback.data ?? '',
+      callbackQueryId: callback.id,
+    };
+  }
+
+  if (body.message?.from && typeof body.message.chat?.id === 'number') {
+    return {
+      kind: 'message',
+      chatId: body.message.chat.id,
+      telegramId: String(body.message.from.id),
+      text: body.message.text ?? '',
+      ...(typeof body.message.contact?.phone_number === 'string' ? { contactPhone: body.message.contact.phone_number } : {}),
+      ...(typeof body.message.from.username === 'string' ? { telegramUsername: body.message.from.username } : {}),
+      userRow: null,
+      userState: 'idle',
+      hasLinkedPhone: false,
+    };
+  }
+
+  return null;
+}
 
 /**
  * Registers Telegram webhook route in integrations layer.
@@ -56,96 +78,21 @@ export async function registerTelegramWebhookRoutes(
       }
 
       const body = parseResult.data;
-
-      const updateId = typeof body.update_id === 'number' ? body.update_id : null;
-      let telegramIdForDedup: number | null = null;
-      if (body.callback_query?.from?.id) {
-        telegramIdForDedup = body.callback_query.from.id;
-      } else if (body.message?.from?.id) {
-        telegramIdForDedup = body.message.from.id;
-      }
-
-      let userRow: { id: string; telegram_id: string } | null = null;
-      let telegramId: string | null = null;
-      if (body.message?.from) {
-        // ARCH-V3 MOVE
-        // этот код должен быть перенесён в domain executor (работа с user persistence)
-        userRow = await deps.userPort.upsertTelegramUser(body.message.from as TelegramUserFrom);
-        telegramId = body.message.from.id ? String(body.message.from.id) : null;
-      } else if (body.callback_query?.from) {
-        // ARCH-V3 MOVE
-        // этот код должен быть перенесён в domain executor (работа с user persistence)
-        userRow = await deps.userPort.upsertTelegramUser(body.callback_query.from as TelegramUserFrom);
-        telegramId = body.callback_query.from.id ? String(body.callback_query.from.id) : null;
-      }
-
-      if (updateId !== null && telegramIdForDedup !== null) {
-        // ARCH-V3 MOVE
-        // этот код должен быть перенесён в eventGateway (dedup не должен жить в integration)
-        const isNew = await deps.userPort.tryAdvanceLastUpdateId(Number(telegramIdForDedup), updateId);
-        if (!isNew) {
-          return reply.code(200).send({ ok: true });
-        }
-      }
-
-      let userState: string | undefined;
-      let hasLinkedPhone = false;
-      let adminForward: { chatId: number; text: string } | undefined;
-      if (telegramId) {
-        // ARCH-V3 MOVE
-        // этот код должен быть перенесён в domain context loader
-        const userLinkData = await deps.getTelegramUserLinkData(telegramId);
-        hasLinkedPhone = Boolean(userLinkData?.phoneNormalized);
-      }
-      if (body.message?.from && telegramId) {
-        // ARCH-V3 MOVE
-        // этот код должен быть перенесён в domain context loader
-        userState = (await deps.userPort.getTelegramUserState(telegramId)) ?? 'idle';
-        // ARCH-V3 MOVE
-        // этот код должен быть перенесён в orchestrator (сценарная ветка по состоянию пользователя)
-        if (userState === 'waiting_for_question' && body.message.text) {
-          const adminId = env.ADMIN_TELEGRAM_ID != null ? Number(env.ADMIN_TELEGRAM_ID) : undefined;
-          if (adminId && body.message.from) {
-            const from = body.message.from;
-            adminForward = {
-              chatId: adminId,
-              text: buildAdminForwardText({
-                firstName: from.first_name ?? null,
-                lastName: from.last_name ?? null,
-                username: from.username ?? null,
-                telegramId,
-                messageText: body.message.text,
-              }),
-            };
-          }
-        }
-      }
-
-      const incoming = fromTelegram(body, {
-        userRow,
-        telegramId,
-        ...(userState !== undefined && { userState }),
-        hasLinkedPhone,
-        ...(adminForward !== undefined && { adminForward }),
-      });
-
+      const incoming = mapBodyToIncoming(body);
       if (!incoming) return reply.code(200).send({ ok: true });
 
-      // ARCH-V3 MOVE
-      // этот код должен быть перенесён в pipeline eventGateway -> domain.handleIncomingEvent -> orchestrator
-      const actions = await handleUpdate(
+      const event = telegramIncomingToEvent({
         incoming,
-        deps.userPort,
-        deps.notificationsPort,
-        content,
-      );
-      if (actions.length > 0) {
+        correlationId,
+        eventId,
+        ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
+      });
+      const gatewayResult = await deps.eventGateway.handleIncomingEvent(event);
+      if (gatewayResult.status === 'accepted' && deps.onAcceptedEvent) {
         try {
-          // ARCH-V3 MOVE
-          // этот код должен быть перенесён в runtime/dispatcher; integration не должна сама исполнять сценарные actions
-          await toTelegram(actions, getBotInstance().api as TelegramApi);
+          await deps.onAcceptedEvent(event);
         } catch (err) {
-          reqLogger.error({ err }, 'toTelegram failed');
+          reqLogger.error({ err }, 'telegram accepted-event pipeline failed');
         }
       }
       return reply.code(200).send({ ok: true });

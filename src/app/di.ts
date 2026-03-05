@@ -42,9 +42,8 @@ import {
 export type TelegramRoutesRegistrar = (
   app: FastifyInstance,
   deps: {
-    userPort: typeof userPort;
-    notificationsPort: typeof notificationsPort;
-    getTelegramUserLinkData: typeof getTelegramUserLinkData;
+    eventGateway: EventGateway;
+    onAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
   },
 ) => Promise<void> | void;
 
@@ -67,6 +66,7 @@ export type BuildDepsInput = {
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRegistrar;
+  onTelegramAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
   onRubitimeAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
 };
 
@@ -82,6 +82,7 @@ export type AppDeps = {
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRegistrar;
+  onTelegramAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
   onRubitimeAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
 };
 
@@ -186,6 +187,30 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     }
   });
 
+  const onTelegramAcceptedEvent = input.onTelegramAcceptedEvent ?? (async (event: IncomingEvent) => {
+    if (event.meta.source !== 'telegram') return;
+
+    const domainResult = await handleDomainIncomingEvent(event, {
+      async buildContext(incomingEvent) {
+        return {
+          event: incomingEvent,
+          nowIso: new Date().toISOString(),
+          values: {},
+        };
+      },
+      async executeAction(action, context) {
+        return executeDomainAction(action, context, { writePort: dbWritePort });
+      },
+    });
+
+    for (const intent of domainResult.intents) {
+      await dispatchIntent(intent, [{
+        canHandle: () => true,
+        send: async (outgoingIntent) => dispatchPort.dispatchOutgoing(outgoingIntent),
+      }]);
+    }
+  });
+
   return {
     healthCheckDb,
     smsClient,
@@ -197,6 +222,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     registerTelegramWebhookRoutes: input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes,
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
     registerRubitimeReqSuccessIframeRoute: input.registerRubitimeReqSuccessIframeRoute ?? registerRubitimeIframeEdgeRoute,
+    onTelegramAcceptedEvent,
     onRubitimeAcceptedEvent,
   };
 }

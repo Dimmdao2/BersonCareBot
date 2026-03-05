@@ -8,6 +8,12 @@ function readString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
+function readIdentity(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim().length > 0) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+}
+
 /**
  * Строит dedup-key на основе source/type/payload.
  * При отсутствии специфичных ключей использует `meta.eventId`.
@@ -18,7 +24,7 @@ export function buildDedupKey(event: IncomingEvent): string {
   if (source === 'telegram') {
     const payload = event.payload as { updateId?: unknown; incoming?: { telegramId?: unknown } } | undefined;
     const updateId = readNumber(payload?.updateId);
-    const telegramId = readString(payload?.incoming?.telegramId);
+    const telegramId = readIdentity(payload?.incoming?.telegramId);
     if (telegramId && updateId !== null) return `telegram:${telegramId}:${updateId}`;
   }
 
