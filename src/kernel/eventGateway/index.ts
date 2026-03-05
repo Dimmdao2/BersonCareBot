@@ -21,6 +21,9 @@ type EventGatewayDeps = {
   writePort?: unknown;
   dispatchPort?: unknown;
   idempotencyPort?: IdempotencyPort;
+  pipeline?: {
+    run: (event: IncomingEvent) => Promise<void>;
+  };
   dedupTtlSec?: number;
   debugAdminChatId?: number;
   debugForwardAllEvents?: boolean;
@@ -31,7 +34,7 @@ type EventGatewayDeps = {
  * Поток: validate -> rateLimit -> dedup -> accepted/rejected/dropped.
  */
 export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
-  const { idempotencyPort, dedupTtlSec = 900 } = deps;
+  const { idempotencyPort, pipeline, dedupTtlSec = 900 } = deps;
 
   return {
     /** Принимает event-конверт, выполняет технические проверки и возвращает статус gateway. */
@@ -60,6 +63,14 @@ export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
         const acquired = await idempotencyPort.tryAcquire(dedupKey, dedupTtlSec);
         if (!acquired) {
           return { status: 'dropped', dedupKey, reason: 'DUPLICATE' };
+        }
+      }
+
+      if (pipeline) {
+        try {
+          await pipeline.run(event);
+        } catch (error) {
+          console.error('eventGateway pipeline failed', error);
         }
       }
 

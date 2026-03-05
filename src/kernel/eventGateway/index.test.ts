@@ -12,6 +12,32 @@ const baseEvent: IncomingEvent = {
 };
 
 describe('eventGateway', () => {
+  it('runs pipeline once for accepted event', async () => {
+    const { createEventGateway } = await import('./index.js');
+    const run = vi.fn().mockResolvedValue(undefined);
+    const gateway = createEventGateway({
+      idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true) },
+      pipeline: { run },
+    });
+
+    const result = await gateway.handleIncomingEvent(baseEvent);
+    expect(result.status).toBe('accepted');
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not run pipeline when event is dropped', async () => {
+    const { createEventGateway } = await import('./index.js');
+    const run = vi.fn().mockResolvedValue(undefined);
+    const gateway = createEventGateway({
+      idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(false) },
+      pipeline: { run },
+    });
+
+    const result = await gateway.handleIncomingEvent(baseEvent);
+    expect(result.status).toBe('dropped');
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it('returns dropped when idempotency denies', async () => {
     const { createEventGateway } = await import('./index.js');
     const gateway = createEventGateway({
@@ -79,13 +105,19 @@ describe('eventGateway', () => {
       checkGatewayRateLimit: async () => ({ allowed: false, reason: 'RATE_LIMIT' }),
     }));
     const { createEventGateway } = await import('./index.js');
+    const run = vi.fn().mockResolvedValue(undefined);
     const gateway = createEventGateway();
+    const gatewayWithPipeline = createEventGateway({ pipeline: { run } });
 
     const result = await gateway.handleIncomingEvent(baseEvent);
     expect(result.status).toBe('rejected');
     if (result.status === 'rejected') {
       expect(result.reason).toBe('RATE_LIMIT');
     }
+
+    const resultWithPipeline = await gatewayWithPipeline.handleIncomingEvent(baseEvent);
+    expect(resultWithPipeline.status).toBe('rejected');
+    expect(run).not.toHaveBeenCalled();
     vi.doUnmock('./rateLimit.js');
   });
 });

@@ -11,8 +11,14 @@ type ProcessAcceptedIncomingEventDeps = {
   executeAction: (action: Action, context: DomainContext) => Promise<ActionResult>;
   dispatchIntent: (intent: OutgoingIntent) => Promise<void>;
   findTelegramUserByPhone?: (phoneNormalized: string) => Promise<RubitimeTelegramUser | null>;
-  adminTelegramId?: number;
 };
+
+function readAdminTelegramIdFromEnv(): number | null {
+  const value = process.env.ADMIN_TELEGRAM_ID;
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 function readRubitimePhone(event: IncomingEvent): string | null {
   if (event.meta.source !== 'rubitime') return null;
@@ -22,13 +28,15 @@ function readRubitimePhone(event: IncomingEvent): string | null {
 }
 
 /**
- * Domain entrypoint for already accepted gateway events.
- * Owns context preparation + script resolution + action execution + intent dispatch.
+ * Доменная входная точка для событий, уже принятых gateway.
+ * Отвечает за подготовку контекста, выбор шагов, выполнение действий и отправку intents.
  */
 export async function processAcceptedIncomingEvent(
   event: IncomingEvent,
   deps: ProcessAcceptedIncomingEventDeps,
 ): Promise<void> {
+  const adminTelegramId = readAdminTelegramIdFromEnv();
+
   const domainResult = await handleIncomingEvent(event, {
     async buildContext(incomingEvent) {
       const phoneNormalized = readRubitimePhone(incomingEvent);
@@ -44,8 +52,8 @@ export async function processAcceptedIncomingEvent(
           telegramUser,
           isTelegramAdmin: Boolean(
             telegramUser
-              && Number.isFinite(deps.adminTelegramId)
-              && String(telegramUser.telegramId) === String(deps.adminTelegramId),
+              && Number.isFinite(adminTelegramId)
+              && String(telegramUser.telegramId) === String(adminTelegramId),
           ),
           isAppAdmin: false,
           telegramNotificationsEnabled: true,

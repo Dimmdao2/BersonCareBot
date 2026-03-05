@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
-import type { EventGateway, IncomingEvent } from '../../kernel/contracts/index.js';
+import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
 import { parseWebhookBody } from './schema.js';
@@ -9,7 +9,6 @@ import type { TelegramWebhookBodyValidated } from './schema.js';
 
 export type TelegramWebhookDeps = {
   eventGateway: EventGateway;
-  onAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
 };
 
 function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
@@ -87,14 +86,7 @@ export async function registerTelegramWebhookRoutes(
         eventId,
         ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
       });
-      const gatewayResult = await deps.eventGateway.handleIncomingEvent(event);
-      if (gatewayResult.status === 'accepted' && deps.onAcceptedEvent) {
-        try {
-          await deps.onAcceptedEvent(event);
-        } catch (err) {
-          reqLogger.error({ err }, 'telegram accepted-event pipeline failed');
-        }
-      }
+      await deps.eventGateway.handleIncomingEvent(event);
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'telegram webhook failed');

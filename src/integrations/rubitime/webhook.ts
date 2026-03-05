@@ -1,14 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { env } from '../../config/env.js';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
-import type { EventGateway, IncomingEvent } from '../../kernel/contracts/index.js';
+import type { EventGateway } from '../../kernel/contracts/index.js';
 import { rubitimeIncomingToEvent } from './connector.js';
 import { parseRubitimeBody } from './schema.js';
 
 /** Dependencies for Rubitime webhook handler registration. */
 export type RubitimeWebhookDeps = {
   eventGateway: EventGateway;
-  onAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
 };
 
 /**
@@ -45,10 +44,7 @@ export async function registerRubitimeWebhookRoutes(
         eventId,
       });
 
-      const gatewayResult = await deps.eventGateway.handleIncomingEvent(incomingEvent);
-      if (gatewayResult.status === 'accepted' && deps.onAcceptedEvent) {
-        await deps.onAcceptedEvent(gatewayResult.event);
-      }
+      await deps.eventGateway.handleIncomingEvent(incomingEvent);
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'rubitime webhook failed');

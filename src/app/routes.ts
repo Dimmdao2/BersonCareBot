@@ -22,9 +22,6 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
     app.register(async (instance) => {
       await deps.registerTelegramWebhookRoutes?.(instance, {
         eventGateway: deps.eventGateway,
-        ...(deps.onTelegramAcceptedEvent
-          ? { onAcceptedEvent: deps.onTelegramAcceptedEvent }
-          : {}),
       });
     });
   }
@@ -33,9 +30,6 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
     app.register(async (instance) => {
       await deps.registerRubitimeWebhookRoutes?.(instance, {
         eventGateway: deps.eventGateway,
-        ...(deps.onRubitimeAcceptedEvent
-          ? { onAcceptedEvent: deps.onRubitimeAcceptedEvent }
-          : {}),
       });
     });
   }
