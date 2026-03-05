@@ -20,26 +20,3 @@ export function rubitimeIncomingToEvent(input: {
     },
   };
 }
-
-/** Оборачивает reqSuccess iframe запрос Rubitime в универсальный IncomingEvent. */
-export function rubitimeReqSuccessToEvent(input: {
-  recordSuccess: string;
-  clientIp: string;
-  correlationId: string;
-  eventId: string;
-}): IncomingEvent {
-  return {
-    type: 'webhook.received',
-    meta: {
-      eventId: input.eventId,
-      correlationId: input.correlationId,
-      source: 'rubitime',
-      occurredAt: new Date().toISOString(),
-    },
-    payload: {
-      kind: 'reqsuccess.iframe',
-      recordSuccess: input.recordSuccess,
-      clientIp: input.clientIp,
-    },
-  };
-}

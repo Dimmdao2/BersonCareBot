@@ -29,11 +29,6 @@ const parsed = z
 
     /** Токен входящего webhook Rubitime (path: /webhook/rubitime/:token). */
     RUBITIME_WEBHOOK_TOKEN: z.string().min(1),
-    RUBITIME_REQSUCCESS_WINDOW_MINUTES: z.coerce.number().int().positive().default(20),
-    RUBITIME_REQSUCCESS_DELAY_MIN_MS: z.coerce.number().int().nonnegative().default(100),
-    RUBITIME_REQSUCCESS_DELAY_MAX_MS: z.coerce.number().int().positive().default(200),
-    RUBITIME_REQSUCCESS_IP_LIMIT_PER_MIN: z.coerce.number().int().positive().default(5),
-    RUBITIME_REQSUCCESS_GLOBAL_LIMIT_PER_MIN: z.coerce.number().int().positive().default(120),
   })
   .parse(process.env);
 

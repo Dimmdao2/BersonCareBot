@@ -39,18 +39,4 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
       });
     });
   }
-
-  // ARCH-V3 MOVE
-  // этот код должен быть перенесён в pipeline-обработку (step 12),
-  // интеграция rubitime должна отдавать наружу только один входящий event в eventGateway
-  // Rubitime iframe endpoint is optional during migration.
-  if (deps.registerRubitimeReqSuccessIframeRoute) {
-    deps.registerRubitimeReqSuccessIframeRoute(app, {
-      eventGateway: deps.eventGateway,
-      ...(deps.onRubitimeIframeAcceptedEvent
-        ? { onAcceptedEvent: deps.onRubitimeIframeAcceptedEvent }
-        : {}),
-    });
-  }
-
 }
