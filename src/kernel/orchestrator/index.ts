@@ -2,6 +2,8 @@ import type { IncomingEvent, Orchestrator, OrchestratorResult } from '../contrac
 import { resolveScript, type RubitimeRecipientContext } from './resolver.js';
 import { runScript } from './runner.js';
 
+export { resolveScript as resolveScriptV3 } from './resolveScript.js';
+
 type CreateOrchestratorInput = {
   resolveRubitimeRecipientContext?: (phoneNormalized: string) => Promise<RubitimeRecipientContext>;
 };
