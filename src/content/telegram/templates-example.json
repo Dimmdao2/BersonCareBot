@@ -1,0 +1,19 @@
+{
+  "welcome": {
+    "telegram": {
+      "text": "Добро пожаловать, {{name}}",
+      "buttons": [
+        { "text": "Задать вопрос", "callback": "ask_question" }
+      ]
+    }
+  },
+
+  "booking_created": {
+    "telegram": {
+      "text": "Вы записаны на {{date}} в {{time}}"
+    },
+    "sms": {
+      "text": "Запись {{date}} {{time}}"
+    }
+  }
+}

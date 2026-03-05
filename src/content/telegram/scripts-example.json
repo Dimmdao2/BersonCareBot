@@ -1,0 +1,17 @@
+[
+  {
+    "id": "tg_start",
+    "source": "telegram",
+    "event": "message",
+    "match": { "text": "/start" },
+    "steps": [
+      {
+        "action": "message.send",
+        "params": {
+          "template": "welcome",
+          "channel": "telegram"
+        }
+      }
+    ]
+  }
+]

@@ -1,0 +1,15 @@
+[
+  {
+    "id": "rt_create",
+    "priority": 100,
+    "enabled": true,
+    "source": "rubitime",
+    "event": "webhook",
+    "match": { "eventName": "event-create-record" },
+    "conditions": [],
+    "steps": [
+      { "action": "booking.upsertFromRubitime", "params": {} },
+      { "action": "notify.bookingChanged", "params": { "fallback": ["telegram", "sms"] } }
+    ]
+  }
+]

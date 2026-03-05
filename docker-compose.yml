@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: bcb_db
+    container_name: ${COMPOSE_PROJECT_NAME:-bcb}_db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-bersoncarebot}
@@ -79,7 +79,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: bcb_worker
+    container_name: ${COMPOSE_PROJECT_NAME:-bcb}_worker
     restart: unless-stopped
     command: ["node", "dist/main-worker.js"]
     env_file:
@@ -96,7 +96,7 @@ services:
     build:
       context: ./admin
       dockerfile: Dockerfile
-    container_name: bcb_admin
+    container_name: ${COMPOSE_PROJECT_NAME:-bcb}_admin
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:80"
