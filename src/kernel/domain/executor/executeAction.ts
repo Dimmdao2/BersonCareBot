@@ -124,6 +124,18 @@ export async function executeAction(
 
     case 'intent.enqueueDelivery': {
       const job = buildDeliveryJob({ actionId: action.id, params: action.params, now: nowIso(ctx) });
+      if (job.kind === 'rubitime.create_retry.enqueue') {
+        const writes: DbWriteMutation[] = [{
+          type: 'rubitime.create_retry.enqueue',
+          params: {
+            ...(typeof action.params.payload === 'object' && action.params.payload !== null
+              ? action.params.payload as Record<string, unknown>
+              : action.params),
+          },
+        }];
+        await persistWrites(deps.writePort, writes);
+        return { actionId: action.id, status: 'queued', writes, jobs: [job] };
+      }
       if (deps.queuePort) {
         await deps.queuePort.enqueue({ kind: job.kind, payload: job.payload });
       }

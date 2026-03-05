@@ -1,6 +1,7 @@
 import type { ScriptContext, Step, StepResult } from '../contracts/index.js';
 import { domainActionRegistry } from './actions/index.js';
 export { executeAction as executeDomainAction } from './executor/executeAction.js';
+export { handleIncomingEvent as handleDomainIncomingEvent } from './handleIncomingEvent.js';
 
 type MessageStepPayload = {
   recipient?: {
