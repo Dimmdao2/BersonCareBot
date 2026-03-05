@@ -9,7 +9,7 @@ describe('handleIncomingEvent (v3)', () => {
       meta: {
         eventId: 'evt-1',
         occurredAt: '2026-03-05T12:00:00.000Z',
-        source: 'rubitime',
+        source: 'source-a',
       },
       payload: { body: { event: 'event-create-record' } },
     };
@@ -28,7 +28,7 @@ describe('handleIncomingEvent (v3)', () => {
 
     const buildBaseContext = vi.fn().mockResolvedValue(baseContext);
     const buildPlan = vi.fn().mockResolvedValue([
-      { id: 's1', kind: 'booking.upsert', mode: 'sync', payload: { rubitimeRecordId: 'rec-1' } },
+      { id: 's1', kind: 'booking.upsert', mode: 'sync', payload: { externalRecordId: 'rec-1' } },
       { id: 's2', kind: 'message.compose', mode: 'async', payload: { text: 'hello' } },
     ]) as unknown as () => Promise<Step[]>;
 
@@ -39,7 +39,7 @@ describe('handleIncomingEvent (v3)', () => {
         return {
           actionId: 's1',
           status: 'success',
-          writes: [{ type: 'booking.upsert', params: { rubitimeRecordId: 'rec-1' } }],
+          writes: [{ type: 'booking.upsert', params: { externalRecordId: 'rec-1' } }],
         };
       }
       return {
@@ -50,7 +50,7 @@ describe('handleIncomingEvent (v3)', () => {
           meta: {
             eventId: 'out-1',
             occurredAt: '2026-03-05T12:00:00.000Z',
-            source: 'rubitime',
+            source: 'source-a',
           },
           payload: { message: { text: 'hello' } },
         }],

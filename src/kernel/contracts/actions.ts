@@ -10,7 +10,7 @@ export type DomainContext = {
   base: BaseContext;
   user?: {
     id?: string;
-    telegramId?: string;
+    channelId?: string;
     phoneNormalized?: string | null;
     isAdmin?: boolean;
     channels?: string[];

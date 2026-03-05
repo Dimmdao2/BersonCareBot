@@ -1,7 +1,7 @@
 import type { NotificationSettings } from './ports/notifications.js';
 
 /**
- * Minimal content shape for webhook handlers. Adapter passes this from integrations/telegram
+ * Minimal content shape for webhook handlers. Adapter passes this from integration layer
  * so domain does not depend on presentation layer.
  */
 export type WebhookContent = {
@@ -17,7 +17,7 @@ export type WebhookContent = {
     questionAccepted: string;
     notImplemented: string;
     bookingMy: string;
-    confirmPhoneForRubitime: string;
+    confirmPhoneForBooking: string;
     bookingOpenPrompt: string;
     bookingOpenButton: string;
   };

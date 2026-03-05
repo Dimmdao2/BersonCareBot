@@ -1,11 +1,11 @@
-import type { DeliveryAttemptResult, DeliveryJob, JobQueuePort, QueuePort } from '../../kernel/contracts/index.js';
+import type { DbPort, DeliveryAttemptResult, DeliveryJob, JobQueuePort, QueuePort } from '../../kernel/contracts/index.js';
 import {
-  claimDueRubitimeCreateRetryJobs,
-  completeRubitimeCreateRetryJob,
-  enqueueRubitimeCreateRetryJob,
-  failRubitimeCreateRetryJob,
-  rescheduleRubitimeCreateRetryJob,
-} from '../db/repos/rubitimeCreateRetryJobs.js';
+  claimDueMessageRetryJobs,
+  completeMessageRetryJob,
+  enqueueMessageRetryJob,
+  failMessageRetryJob,
+  rescheduleMessageRetryJob,
+} from '../db/repos/jobQueue.js';
 
 function parseDbJobId(jobId: string): number | null {
   const [, idRaw] = jobId.split(':');
@@ -20,9 +20,10 @@ function toDeliveryJob(row: {
   attemptsDone: number;
   maxAttempts: number;
 }): DeliveryJob {
+  const channel = 'phone';
   return {
-    id: `rubitime-create-retry:${row.id}`,
-    jobId: `rubitime-create-retry:${row.id}`,
+    id: `message-retry:${row.id}`,
+    jobId: `message-retry:${row.id}`,
     kind: 'message.deliver',
     createdAt: new Date().toISOString(),
     status: 'processing',
@@ -31,11 +32,11 @@ function toDeliveryJob(row: {
     attempts: row.attemptsDone,
     maxAttempts: row.maxAttempts,
     plan: [
-      { stageId: 'stage:1', channel: 'smsc', maxAttempts: row.maxAttempts },
+      { stageId: 'stage:1', channel, maxAttempts: row.maxAttempts },
     ],
     targets: [
       {
-        resource: 'smsc',
+        resource: channel,
         address: {
           phoneNormalized: row.phoneNormalized,
         },
@@ -49,21 +50,21 @@ function toDeliveryJob(row: {
       intent: {
         type: 'message.send',
         meta: {
-          eventId: `rubitime:create-retry:${row.id}:smsc`,
+          eventId: `message-retry:${row.id}:${channel}`,
           occurredAt: new Date().toISOString(),
           source: 'worker',
         },
         payload: {
           message: { text: row.messageText },
           delivery: {
-            channels: ['smsc'],
+            channels: [channel],
             maxAttempts: 1,
           },
         },
       },
       targets: [
         {
-          resource: 'smsc',
+          resource: channel,
           address: { phoneNormalized: row.phoneNormalized },
         },
       ],
@@ -77,7 +78,7 @@ function toDeliveryJob(row: {
 
 export type PostgresJobQueue = QueuePort & JobQueuePort;
 
-export function createPostgresJobQueue(input: { retryDelaySeconds: number }): PostgresJobQueue {
+export function createPostgresJobQueue(input: { db: DbPort; retryDelaySeconds: number }): PostgresJobQueue {
   return {
     async enqueue(task): Promise<void> {
       const payload = task.payload;
@@ -90,9 +91,9 @@ export function createPostgresJobQueue(input: { retryDelaySeconds: number }): Po
       const targets = Array.isArray(payload.targets)
         ? payload.targets as Array<{ resource?: unknown; address?: { phoneNormalized?: unknown } }>
         : [];
-      const smsTarget = targets.find((target) => target.resource === 'smsc');
-      const phoneNormalized = typeof smsTarget?.address?.phoneNormalized === 'string'
-        ? smsTarget.address.phoneNormalized
+      const targetWithPhone = targets.find((target) => typeof target.address?.phoneNormalized === 'string');
+      const phoneNormalized = typeof targetWithPhone?.address?.phoneNormalized === 'string'
+        ? targetWithPhone.address.phoneNormalized
         : null;
       if (!messageText || !phoneNormalized) return;
 
@@ -108,7 +109,7 @@ export function createPostgresJobQueue(input: { retryDelaySeconds: number }): Po
           : input.retryDelaySeconds)
         : input.retryDelaySeconds;
 
-      await enqueueRubitimeCreateRetryJob({
+      await enqueueMessageRetryJob(input.db, {
         phoneNormalized,
         messageText,
         firstTryDelaySeconds,
@@ -117,14 +118,14 @@ export function createPostgresJobQueue(input: { retryDelaySeconds: number }): Po
     },
 
     async claimDueJobs(limit: number): Promise<DeliveryJob[]> {
-      const rows = await claimDueRubitimeCreateRetryJobs(limit);
+      const rows = await claimDueMessageRetryJobs(input.db, limit);
       return rows.map(toDeliveryJob);
     },
 
     async completeJob(jobId: string): Promise<void> {
       const dbJobId = parseDbJobId(jobId);
       if (dbJobId === null) return;
-      await completeRubitimeCreateRetryJob(dbJobId);
+      await completeMessageRetryJob(input.db, dbJobId);
     },
 
     async failJob(jobId: string, result: DeliveryAttemptResult): Promise<void> {
@@ -134,13 +135,13 @@ export function createPostgresJobQueue(input: { retryDelaySeconds: number }): Po
         id: dbJobId,
         ...(result.errorCode ? { lastError: result.errorCode } : {}),
       };
-      await failRubitimeCreateRetryJob(failInput);
+      await failMessageRetryJob(input.db, failInput);
     },
 
     async rescheduleJob(jobId: string, _nextRunAt: string, attemptsMade: number): Promise<void> {
       const dbJobId = parseDbJobId(jobId);
       if (dbJobId === null) return;
-      await rescheduleRubitimeCreateRetryJob({
+      await rescheduleMessageRetryJob(input.db, {
         id: dbJobId,
         attemptsDone: attemptsMade,
         retryDelaySeconds: input.retryDelaySeconds,

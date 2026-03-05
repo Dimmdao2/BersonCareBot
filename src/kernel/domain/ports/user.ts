@@ -1,1 +1,1 @@
-export type { TelegramUserFrom, TelegramUserRow, UserPort } from '../../contracts/ports.js';
+export type { ChannelUserFrom, ChannelUserRow, ChannelUserPort } from '../../contracts/ports.js';

@@ -5,6 +5,7 @@ export type EventMeta = {
   source: string;
   correlationId?: string;
   userId?: string;
+  dedupKey?: string;
 };
 
 /** Семантический алиас для метаданных исходящего намерения. */

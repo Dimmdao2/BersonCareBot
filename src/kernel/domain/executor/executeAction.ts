@@ -84,32 +84,37 @@ async function resolveTargets(params: Record<string, unknown>, readPort?: DbRead
   }
 
   const recipient = asRecord(params.recipient);
+  const delivery = asRecord(params.delivery);
+  const channels = asStringArray(delivery.channels);
+  const explicitResource = asString(recipient.resource) ?? asString(recipient.channel);
   const chatId = recipient.chatId;
   if (typeof chatId === 'number' && Number.isFinite(chatId)) {
-    return [{ resource: 'telegram', address: { chatId } }];
+    const resource = explicitResource ?? channels[0];
+    return resource ? [{ resource, address: { chatId } }] : [];
   }
 
   const phoneNormalized = asString(recipient.phoneNormalized) ?? asString(params.phoneNormalized);
   if (!phoneNormalized) return [];
 
   if (readPort) {
-    const telegram = await readPort.readDb<{ chatId?: number } | null>({
+    const lookup = await readPort.readDb<{ chatId?: number } | null>({
       type: 'user.lookup',
       params: {
-        resource: 'telegram',
+        resource: 'channel',
         by: 'phone',
         value: phoneNormalized,
       },
     });
-    if (telegram && typeof telegram.chatId === 'number' && Number.isFinite(telegram.chatId)) {
-      return [{
-        resource: 'telegram',
-        address: { chatId: telegram.chatId, phoneNormalized },
-      }];
+    if (lookup && typeof lookup.chatId === 'number' && Number.isFinite(lookup.chatId)) {
+      const resource = explicitResource ?? channels[0];
+      return resource
+        ? [{ resource, address: { chatId: lookup.chatId, phoneNormalized } }]
+        : [];
     }
   }
 
-  return [{ resource: 'smsc', address: { phoneNormalized } }];
+  const resource = explicitResource ?? channels[0] ?? 'phone';
+  return [{ resource, address: { phoneNormalized } }];
 }
 
 async function buildMessageDeliverJob(input: {
@@ -221,7 +226,7 @@ export async function executeAction(
         : {};
       const delivery = typeof action.params.delivery === 'object' && action.params.delivery !== null
         ? action.params.delivery as Record<string, unknown>
-        : { channels: ['smsc'], maxAttempts: 1 };
+        : { maxAttempts: 1 };
 
       const composedText = deps.templatePort && templateId
         ? (await deps.templatePort.renderTemplate({ source, templateId, vars })).text
@@ -293,7 +298,7 @@ export async function executeAction(
       };
     }
 
-    case 'rubitime.create_retry.enqueue': {
+    case 'message.retry.enqueue': {
       const mappedAction: Action = {
         id: action.id,
         type: 'message.deliver',
@@ -303,6 +308,7 @@ export async function executeAction(
             phoneNormalized: action.params.phoneNormalized,
           },
           messageText: action.params.messageText,
+          delivery: action.params.delivery,
           retry: {
             maxAttempts: action.params.maxAttempts,
             backoffSeconds: [action.params.firstTryDelaySeconds],
@@ -311,7 +317,7 @@ export async function executeAction(
       };
       const mappedResult = await executeAction(mappedAction, ctx, deps);
       const writes: DbWriteMutation[] = [{
-        type: 'rubitime.create_retry.enqueue',
+        type: 'message.retry.enqueue',
         params: action.params,
       }];
       await persistWrites(deps.writePort, writes);

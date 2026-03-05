@@ -1,15 +1,15 @@
-import type { TelegramUserFrom as ContractTelegramUserFrom } from '../contracts/ports.js';
+import type { ChannelUserFrom as ContractChannelUserFrom } from '../contracts/ports.js';
 
-/** Core Telegram transport and action types used by legacy adapters. */
-export type TelegramUserFrom = ContractTelegramUserFrom;
+/** Core transport and action types used by legacy adapters. */
+export type ChannelUserFrom = ContractChannelUserFrom;
 
-export type TelegramChat = { id: number };
+export type ChannelChat = { id: number };
 
-export type TelegramMessage = {
+export type ChannelMessage = {
   message_id?: number;
   text?: string;
-  from?: TelegramUserFrom;
-  chat?: TelegramChat;
+  from?: ChannelUserFrom;
+  chat?: ChannelChat;
   contact?: {
     phone_number: string;
     user_id?: number;
@@ -18,28 +18,28 @@ export type TelegramMessage = {
   };
 };
 
-export type TelegramCallbackQuery = {
+export type ChannelCallbackQuery = {
   id: string;
-  from: TelegramUserFrom;
+  from: ChannelUserFrom;
   data?: string;
-  message?: TelegramMessage;
+  message?: ChannelMessage;
 };
 
-export type TelegramWebhookBody = {
+export type ChannelWebhookBody = {
   update_id?: number;
-  message?: TelegramMessage;
-  callback_query?: TelegramCallbackQuery;
+  message?: ChannelMessage;
+  callback_query?: ChannelCallbackQuery;
 };
 
 export type IncomingMessageUpdate = {
   kind: 'message';
   chatId: number;
-  telegramId: string;
+  channelId: string;
   text: string;
   contactPhone?: string;
   hasLinkedPhone?: boolean;
-  telegramUsername?: string | null;
-  userRow: { id: string; telegram_id: string } | null;
+  channelUsername?: string | null;
+  userRow: { id: string; channel_id: string } | null;
   userState: string;
   adminForward?: { chatId: number; text: string } | undefined;
 };
@@ -48,7 +48,7 @@ export type IncomingCallbackUpdate = {
   kind: 'callback';
   chatId: number;
   messageId: number;
-  telegramId: number;
+  channelUserId: number;
   hasLinkedPhone?: boolean;
   callbackData: string;
   callbackQueryId: string;

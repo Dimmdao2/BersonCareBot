@@ -1,0 +1,14 @@
+{
+  "welcome": "Добро пожаловать! Я помогу вам записаться на приём, настроить уведомления или задать вопрос.",
+  "chooseMenu": "Выберите действие в меню.",
+  "describeQuestion": "Опишите ваш вопрос.",
+  "questionAccepted": "Вопрос принят. Я отвечу вам в ближайшее время.",
+  "confirmPhoneForBooking": "Для привязки записи отправьте ваш номер через кнопку ниже.",
+  "notImplemented": "Раздел в разработке.",
+  "bookingOpenPrompt": "Открыть виджет записи:",
+  "bookingOpenButton": "Открыть запись",
+  "noBookings": "У вас нет активных записей.",
+  "bookingOnline": "Опишите причину обращения.",
+  "bookingMy": "Раздел в разработке.",
+  "adminForward": "Новый вопрос\nОт: {{name}} {{username}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}"
+}

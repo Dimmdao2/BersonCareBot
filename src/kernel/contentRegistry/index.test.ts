@@ -7,14 +7,14 @@ import { getContentBundle, loadContentRegistry } from './index.js';
 describe('contentRegistry', () => {
   it('loads scripts.json and templates.json per source folder', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'content-registry-'));
-    const tg = path.join(root, 'telegram');
-    await mkdir(tg, { recursive: true });
+    const src = path.join(root, 'source-a');
+    await mkdir(src, { recursive: true });
     await writeFile(
-      path.join(tg, 'scripts.json'),
+      path.join(src, 'scripts.json'),
       JSON.stringify([
         {
           id: 'tg_start',
-          source: 'telegram',
+          source: 'source-a',
           event: 'message.received',
           steps: [{ action: 'message.compose', mode: 'sync', params: { templateId: 'welcome' } }],
         },
@@ -22,13 +22,13 @@ describe('contentRegistry', () => {
       'utf8',
     );
     await writeFile(
-      path.join(tg, 'templates.json'),
+      path.join(src, 'templates.json'),
       JSON.stringify({ welcome: { text: 'hello' } }),
       'utf8',
     );
 
     const registry = await loadContentRegistry({ rootDir: root });
-    const bundle = getContentBundle(registry, 'telegram');
+    const bundle = getContentBundle(registry, 'source-a');
 
     expect(bundle).not.toBeNull();
     expect(bundle?.scripts.length).toBe(1);
@@ -37,9 +37,9 @@ describe('contentRegistry', () => {
 
   it('throws on invalid scripts.json schema', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'content-registry-invalid-'));
-    const rt = path.join(root, 'rubitime');
-    await mkdir(rt, { recursive: true });
-    await writeFile(path.join(rt, 'scripts.json'), JSON.stringify([{ bad: true }]), 'utf8');
+    const bad = path.join(root, 'source-b');
+    await mkdir(bad, { recursive: true });
+    await writeFile(path.join(bad, 'scripts.json'), JSON.stringify([{ bad: true }]), 'utf8');
 
     await expect(loadContentRegistry({ rootDir: root })).rejects.toThrow();
   });

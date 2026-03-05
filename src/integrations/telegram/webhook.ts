@@ -24,7 +24,7 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
       kind: 'callback',
       chatId,
       messageId,
-      telegramId,
+      channelUserId: telegramId,
       callbackData: callback.data ?? '',
       callbackQueryId: callback.id,
     };
@@ -34,10 +34,10 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
     return {
       kind: 'message',
       chatId: body.message.chat.id,
-      telegramId: String(body.message.from.id),
+      channelId: String(body.message.from.id),
       text: body.message.text ?? '',
       ...(typeof body.message.contact?.phone_number === 'string' ? { contactPhone: body.message.contact.phone_number } : {}),
-      ...(typeof body.message.from.username === 'string' ? { telegramUsername: body.message.from.username } : {}),
+      ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),
       userRow: null,
       userState: 'idle',
       hasLinkedPhone: false,

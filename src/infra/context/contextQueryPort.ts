@@ -16,29 +16,29 @@ export function createContextQueryPort(input: { readPort: DbReadPort }): Context
         case 'subscriptions.forUser': {
           const userId = query.userId;
           if (!userId) return { type: 'subscriptions.forUser', items: [] };
-          const telegramUser = await input.readPort.readDb<{
+          const channelUser = await input.readPort.readDb<{
             chatId?: number;
-            telegramId?: string;
+            channelId?: string;
             username?: string | null;
           } | null>({
             type: 'user.lookup',
             params: {
-              resource: 'telegram',
+              resource: 'channel',
               by: 'phone',
               value: userId,
             },
           });
-          if (!telegramUser || typeof telegramUser.chatId !== 'number') {
+          if (!channelUser || typeof channelUser.chatId !== 'number') {
             return { type: 'subscriptions.forUser', items: [] };
           }
           return {
             type: 'subscriptions.forUser',
             items: [
               {
-                kind: 'telegram',
-                chatId: telegramUser.chatId,
-                telegramId: telegramUser.telegramId ?? String(telegramUser.chatId),
-                username: telegramUser.username ?? null,
+                kind: 'channel',
+                chatId: channelUser.chatId,
+                channelId: channelUser.channelId ?? String(channelUser.chatId),
+                username: channelUser.username ?? null,
                 notificationsEnabled: true,
               },
             ],
@@ -49,14 +49,14 @@ export function createContextQueryPort(input: { readPort: DbReadPort }): Context
           if (!userId) return { type: 'user.identityLinks', items: [] };
           return { type: 'user.identityLinks', items: [{ kind: 'userId', value: userId }] };
         }
-        case 'rubitime.recordById': {
+        case 'booking.recordByExternalId': {
           const recordId = query.recordId;
-          if (!recordId) return { type: 'rubitime.recordById', record: null };
+          if (!recordId) return { type: 'booking.recordByExternalId', record: null };
           const record = await input.readPort.readDb<Record<string, unknown> | null>({
-            type: 'booking.byRubitimeId',
-            params: { rubitimeRecordId: recordId },
+            type: 'booking.byExternalId',
+            params: { externalRecordId: recordId },
           });
-          return { type: 'rubitime.recordById', record };
+          return { type: 'booking.recordByExternalId', record };
         }
         default:
           return { type: 'bookings.forUser', items: [] };

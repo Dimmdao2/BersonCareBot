@@ -1,12 +1,13 @@
-import type { DbWriteMutation, DbWritePort } from '../../kernel/contracts/index.js';
-import { upsertRecord, insertEvent } from './repos/rubitimeRecords.js';
-import { setTelegramUserPhone, setTelegramUserState } from './repos/telegramUsers.js';
+import type { DbPort, DbWriteMutation, DbWritePort } from '../../kernel/contracts/index.js';
+import { createDbPort } from './client.js';
+import { upsertRecord, insertEvent } from './repos/bookingRecords.js';
+import { setUserPhone, setUserState } from './repos/channelUsers.js';
 import { appendMessageLog } from './repos/messageLogs.js';
-import { enqueueRubitimeCreateRetryJob } from './repos/rubitimeCreateRetryJobs.js';
+import { enqueueMessageRetryJob } from './repos/jobQueue.js';
 import { logger } from '../observability/logger.js';
 
 type BookingUpsertParams = {
-  rubitimeRecordId?: unknown;
+  externalRecordId?: unknown;
   phoneNormalized?: unknown;
   recordAt?: unknown;
   status?: unknown;
@@ -26,23 +27,24 @@ function asNullableString(value: unknown): string | null {
  * Creates the default DbWritePort implementation used by eventGateway.
  * It maps canonical write mutations to existing infra repositories.
  */
-export function createDbWritePort(): DbWritePort {
+export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
+  const db = input.db ?? createDbPort();
   return {
     async writeDb(mutation: DbWriteMutation): Promise<void> {
       switch (mutation.type) {
         case 'booking.upsert': {
           const params = mutation.params as BookingUpsertParams;
-          const rubitimeRecordId = asNonEmptyString(params.rubitimeRecordId);
-          if (!rubitimeRecordId) {
-            logger.warn({ mutationType: mutation.type }, 'skip booking.upsert: missing rubitimeRecordId');
+          const externalRecordId = asNonEmptyString(params.externalRecordId);
+          if (!externalRecordId) {
+            logger.warn({ mutationType: mutation.type }, 'skip booking.upsert: missing externalRecordId');
             return;
           }
           const statusRaw = asNonEmptyString(params.status);
           const status = statusRaw === 'created' || statusRaw === 'updated' || statusRaw === 'canceled'
             ? statusRaw
             : 'updated';
-          await upsertRecord({
-            rubitimeRecordId,
+          await upsertRecord(db, {
+            externalRecordId,
             phoneNormalized: asNullableString(params.phoneNormalized),
             recordAt: asNullableString(params.recordAt),
             status,
@@ -52,37 +54,33 @@ export function createDbWritePort(): DbWritePort {
           return;
         }
         case 'event.log': {
-          // ARCH-V3 MOVE
-          // event-specific routing (например rubitime branch) должен принимать domain executor,
-          // а db adapter должен оставаться тонким persistence adapter
-          // For Rubitime events we persist a raw webhook journal entry.
-          const source = asNonEmptyString(mutation.params.source);
+          const eventStore = asNonEmptyString(mutation.params.eventStore);
           const body = mutation.params.body;
           const bodyObj = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : null;
           const data = bodyObj?.data;
           const dataObj = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null;
-          if (source === 'rubitime') {
-            await insertEvent({
-              rubitimeRecordId: asNullableString(dataObj?.id),
+          if (eventStore === 'booking') {
+            await insertEvent(db, {
+              externalRecordId: asNullableString(dataObj?.id),
               event: asNonEmptyString(bodyObj?.event) ?? 'unknown',
               payloadJson: bodyObj ?? {},
             });
             return;
           }
-          await appendMessageLog(mutation);
+          await appendMessageLog(db, mutation);
           return;
         }
         case 'user.state.set': {
-          const telegramId = asNonEmptyString(mutation.params.telegramId);
-          if (!telegramId) return;
-          await setTelegramUserState(telegramId, asNullableString(mutation.params.state));
+          const channelUserId = asNonEmptyString(mutation.params.channelUserId);
+          if (!channelUserId) return;
+          await setUserState(db, channelUserId, asNullableString(mutation.params.state));
           return;
         }
         case 'user.phone.link': {
-          const telegramId = asNonEmptyString(mutation.params.telegramId);
+          const channelUserId = asNonEmptyString(mutation.params.channelUserId);
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
-          if (!telegramId || !phoneNormalized) return;
-          await setTelegramUserPhone(telegramId, phoneNormalized);
+          if (!channelUserId || !phoneNormalized) return;
+          await setUserPhone(db, channelUserId, phoneNormalized);
           return;
         }
         case 'delivery.attempt.log':
@@ -90,17 +88,14 @@ export function createDbWritePort(): DbWritePort {
           if (mutation.type === 'delivery.attempt.log') {
             logger.info({ params: mutation.params }, 'delivery attempt log');
           }
-          await appendMessageLog(mutation);
+          await appendMessageLog(db, mutation);
           return;
         }
-        case 'rubitime.create_retry.enqueue': {
+        case 'message.retry.enqueue': {
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
           const messageText = asNonEmptyString(mutation.params.messageText);
           if (!phoneNormalized || !messageText) {
-            logger.warn(
-              { mutationType: mutation.type },
-              'skip rubitime.create_retry.enqueue: missing phone/message',
-            );
+            logger.warn({ mutationType: mutation.type }, 'skip retry enqueue: missing phone/message');
             return;
           }
           const firstTryDelaySecondsRaw = mutation.params.firstTryDelaySeconds;
@@ -112,7 +107,7 @@ export function createDbWritePort(): DbWritePort {
             ? Math.max(1, Math.trunc(maxAttemptsRaw))
             : 2;
 
-          await enqueueRubitimeCreateRetryJob({
+          await enqueueMessageRetryJob(db, {
             phoneNormalized,
             messageText,
             firstTryDelaySeconds,

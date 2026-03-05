@@ -8,7 +8,7 @@ const ctx: ScriptContext = {
     type: 'message.received',
     meta: {
       eventId: 'evt-1',
-      source: 'telegram',
+      source: 'source-a',
       occurredAt: '2026-03-03T00:00:00.000Z',
       correlationId: 'corr-1',
     },
@@ -36,7 +36,7 @@ describe('domain executeStep', () => {
       id: 'step-2',
       kind: 'booking.upsert',
       mode: 'sync',
-      payload: { rubitimeRecordId: 'rec-1' },
+      payload: { externalRecordId: 'rec-1' },
     };
 
     const result = await executeStep(step, ctx);
@@ -44,7 +44,7 @@ describe('domain executeStep', () => {
     expect(result.data?.writes).toEqual([{ type: 'booking.upsert', params: step.payload }]);
   });
 
-  it('builds message.send outgoing with default channels', async () => {
+  it('builds message.send outgoing with provided delivery defaults', async () => {
     const step: Step = {
       id: 'step-3',
       kind: 'message.send',
@@ -59,7 +59,7 @@ describe('domain executeStep', () => {
     const outgoing = result.data?.outgoing as Array<{ payload: Record<string, unknown> }>;
     expect(outgoing).toHaveLength(1);
     const delivery = (outgoing[0]?.payload as { delivery?: { channels?: unknown; maxAttempts?: unknown } }).delivery;
-    expect(delivery?.channels).toEqual(['telegram', 'smsc']);
+    expect(delivery?.channels).toEqual([]);
     expect(delivery?.maxAttempts).toBe(3);
   });
 
@@ -71,7 +71,7 @@ describe('domain executeStep', () => {
       payload: {
         recipient: { phoneNormalized: '+79990001122' },
         message: { text: 'hi' },
-        delivery: { channels: ['smsc'], maxAttempts: 5 },
+        delivery: { channels: ['channel-a'], maxAttempts: 5 },
       },
     };
 
@@ -79,7 +79,7 @@ describe('domain executeStep', () => {
     const outgoing = result.data?.outgoing as Array<{ payload: Record<string, unknown> }>;
     expect(outgoing).toHaveLength(1);
     const delivery = (outgoing[0]?.payload as { delivery?: { channels?: unknown; maxAttempts?: unknown } }).delivery;
-    expect(delivery?.channels).toEqual(['smsc']);
+    expect(delivery?.channels).toEqual(['channel-a']);
     expect(delivery?.maxAttempts).toBe(5);
   });
 });

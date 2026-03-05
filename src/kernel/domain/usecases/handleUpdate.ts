@@ -1,4 +1,4 @@
-import type { UserPort } from '../ports/user.js';
+import type { ChannelUserPort } from '../ports/user.js';
 import type { NotificationsPort } from '../ports/notifications.js';
 import type { WebhookContent } from '../webhookContent.js';
 import type { IncomingUpdate, OutgoingAction } from '../types.js';
@@ -32,16 +32,16 @@ function mainMenuMarkup(content: WebhookContent) {
 
 async function requestPhoneLink(
   chatId: number,
-  telegramId: string,
-  userPort: UserPort,
+  channelId: string,
+  userPort: ChannelUserPort,
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
-  await userPort.setTelegramUserState(telegramId, 'await_contact:subscription');
+  await userPort.setUserState(channelId, 'await_contact:subscription');
   return [
     {
       type: 'sendMessage',
       chatId,
-      text: content.messages.confirmPhoneForRubitime,
+      text: content.messages.confirmPhoneForBooking,
       replyMarkup: content.requestContactKeyboard,
     },
   ];
@@ -49,11 +49,11 @@ async function requestPhoneLink(
 
 /**
  * Single entry: map incoming update to list of outgoing actions.
- * Domain does not know about Telegram; only internal types.
+ * Domain does not know about channel specifics; only internal types.
  */
 export async function handleUpdate(
   incoming: IncomingUpdate,
-  userPort: UserPort,
+  userPort: ChannelUserPort,
   notificationsPort: NotificationsPort,
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
@@ -65,7 +65,7 @@ export async function handleUpdate(
 
     if (data.startsWith('notify_')) {
       const result = await handleNotificationCallback(
-        incoming.telegramId,
+        incoming.channelUserId,
         incoming.chatId,
         incoming.messageId,
         data,
@@ -77,7 +77,7 @@ export async function handleUpdate(
       const result = await handleShowNotifications(
         incoming.chatId,
         incoming.messageId,
-        incoming.telegramId,
+        incoming.channelUserId,
         notificationsPort,
         content,
       );
@@ -86,7 +86,7 @@ export async function handleUpdate(
       if (!incoming.hasLinkedPhone) {
         const result = await requestPhoneLink(
           incoming.chatId,
-          String(incoming.telegramId),
+          String(incoming.channelUserId),
           userPort,
           content,
         );
@@ -105,8 +105,8 @@ export async function handleUpdate(
   }
 
   // incoming.kind === 'message'
-  const { chatId, telegramId, text, userRow, userState, adminForward } = incoming;
-  if (!userRow || !telegramId) return [];
+  const { chatId, channelId, text, userRow, userState, adminForward } = incoming;
+  if (!userRow || !channelId) return [];
 
   if (userState.startsWith('await_contact:')) {
     const normalized = incoming.contactPhone ? normalizePhone(incoming.contactPhone) : null;
@@ -115,13 +115,13 @@ export async function handleUpdate(
         {
           type: 'sendMessage',
           chatId,
-          text: content.messages.confirmPhoneForRubitime,
+          text: content.messages.confirmPhoneForBooking,
           replyMarkup: content.requestContactKeyboard,
         },
       ];
     }
-    await userPort.setTelegramUserPhone(telegramId, normalized);
-    await userPort.setTelegramUserState(telegramId, 'idle');
+    await userPort.setUserPhone(channelId, normalized);
+    await userPort.setUserState(channelId, 'idle');
     return [
       {
         type: 'sendMessage',
@@ -135,7 +135,7 @@ export async function handleUpdate(
   if (text === '/start' || text.startsWith('/start ')) {
     const { consumed, actions } = await handleStart(
       chatId,
-      Number(telegramId),
+      Number(channelId),
       text,
       incoming.hasLinkedPhone ?? false,
       userPort,
@@ -145,7 +145,7 @@ export async function handleUpdate(
   }
 
   if (text === content.mainMenu.ask) {
-    return handleAsk(chatId, telegramId, userPort, content);
+    return handleAsk(chatId, channelId, userPort, content);
   }
 
   if (userState === 'waiting_for_question' && text) {
@@ -153,25 +153,25 @@ export async function handleUpdate(
     // pressing a menu button cancels waiting state and routes to that action.
     if (text === content.mainMenu.book) {
       if (!(incoming.hasLinkedPhone ?? false)) {
-        return requestPhoneLink(chatId, telegramId, userPort, content);
+        return requestPhoneLink(chatId, channelId, userPort, content);
       }
-      return handleBook(chatId, telegramId, userPort, content);
+      return handleBook(chatId, channelId, userPort, content);
     }
     if (text === content.mainMenu.more) {
-      await userPort.setTelegramUserState(telegramId, 'idle');
+      await userPort.setUserState(channelId, 'idle');
       return handleMore(chatId, content);
     }
     if (text === content.mainMenu.ask) {
-      return handleAsk(chatId, telegramId, userPort, content);
+      return handleAsk(chatId, channelId, userPort, content);
     }
-    return handleQuestion(chatId, telegramId, text, userPort, content, adminForward);
+    return handleQuestion(chatId, channelId, text, userPort, content, adminForward);
   }
 
   if (text === content.mainMenu.book) {
     if (!(incoming.hasLinkedPhone ?? false)) {
-      return requestPhoneLink(chatId, telegramId, userPort, content);
+      return requestPhoneLink(chatId, channelId, userPort, content);
     }
-    return handleBook(chatId, telegramId, userPort, content);
+    return handleBook(chatId, channelId, userPort, content);
   }
 
   if (text === content.mainMenu.more) {

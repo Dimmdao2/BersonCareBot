@@ -16,7 +16,7 @@ export function isNotifyCallback(data: string): boolean {
 }
 
 export type FromTelegramContext = {
-  userRow: { id: string; telegram_id: string } | null;
+  userRow: { id: string; channel_id: string } | null;
   telegramId: string | null;
   userState?: string | undefined;
   hasLinkedPhone?: boolean | undefined;
@@ -41,7 +41,7 @@ export function fromTelegram(
       kind: 'callback',
       chatId,
       messageId,
-      telegramId: cq.from.id,
+      channelUserId: cq.from.id,
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       callbackData: cq.data ?? '',
       callbackQueryId: cq.id,
@@ -56,11 +56,11 @@ export function fromTelegram(
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
-      telegramId,
+      channelId: telegramId,
       text: msg.text ?? '',
       ...(typeof msg.contact?.phone_number === 'string' && { contactPhone: msg.contact.phone_number }),
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
-      ...(typeof msg.from?.username === 'string' && { telegramUsername: msg.from.username }),
+      ...(typeof msg.from?.username === 'string' && { channelUsername: msg.from.username }),
       userRow,
       userState: userState ?? 'idle',
       ...(adminForward !== undefined && { adminForward }),

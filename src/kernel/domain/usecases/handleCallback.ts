@@ -4,7 +4,7 @@ import type { OutgoingAction } from '../types.js';
 import { getSettings, updateSettings } from './notifications.js';
 
 export async function handleNotificationCallback(
-  telegramId: number,
+  channelUserId: number,
   chatId: number,
   messageId: number,
   data: string,
@@ -13,18 +13,18 @@ export async function handleNotificationCallback(
 ): Promise<OutgoingAction[] | null> {
   // ARCH-V3 MOVE
   // этот код должен быть перенесён в orchestrator (сценарные ветки callback)
-  const settings = await getSettings(telegramId, notificationsPort);
+  const settings = await getSettings(channelUserId, notificationsPort);
 
   if (data === 'notify_toggle_spb') {
-    await updateSettings(telegramId, { notify_spb: !settings.notify_spb }, notificationsPort);
+    await updateSettings(channelUserId, { notify_spb: !settings.notify_spb }, notificationsPort);
   } else if (data === 'notify_toggle_msk') {
-    await updateSettings(telegramId, { notify_msk: !settings.notify_msk }, notificationsPort);
+    await updateSettings(channelUserId, { notify_msk: !settings.notify_msk }, notificationsPort);
   } else if (data === 'notify_toggle_online') {
-    await updateSettings(telegramId, { notify_online: !settings.notify_online }, notificationsPort);
+    await updateSettings(channelUserId, { notify_online: !settings.notify_online }, notificationsPort);
   } else if (data === 'notify_toggle_all') {
     const allTrue = settings.notify_spb && settings.notify_msk && settings.notify_online;
     await updateSettings(
-      telegramId,
+      channelUserId,
       { notify_spb: !allTrue, notify_msk: !allTrue, notify_online: !allTrue },
       notificationsPort,
     );
@@ -32,7 +32,7 @@ export async function handleNotificationCallback(
     return null;
   }
 
-  const fresh = await getSettings(telegramId, notificationsPort);
+  const fresh = await getSettings(channelUserId, notificationsPort);
   const kb = content.buildNotificationKeyboard(fresh);
   return [{ type: 'editMessageReplyMarkup', chatId, messageId, replyMarkup: kb }];
 }
@@ -40,11 +40,11 @@ export async function handleNotificationCallback(
 export async function handleShowNotifications(
   chatId: number,
   messageId: number,
-  telegramId: number,
+  channelUserId: number,
   notificationsPort: NotificationsPort,
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
-  const settings = await getSettings(telegramId, notificationsPort);
+  const settings = await getSettings(channelUserId, notificationsPort);
   const kb = content.buildNotificationKeyboard(settings);
   const text = `${content.notificationSettings.title}\n\n${content.notificationSettings.subtitle}`;
   return [{ type: 'editMessageText', chatId, messageId, text, replyMarkup: kb }];

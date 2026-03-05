@@ -10,9 +10,9 @@ import type { IncomingEvent, OutgoingIntent } from './events.js';
 /** Категории read-запросов к хранилищу. */
 export type DbReadQueryType =
   | 'user.lookup'
-  | 'user.byTelegramId'
+  | 'user.byChannelId'
   | 'user.byPhone'
-  | 'booking.byRubitimeId'
+  | 'booking.byExternalId'
   | 'booking.activeByUser'
   | 'delivery.pending';
 
@@ -22,7 +22,7 @@ export type DbWriteMutationType =
   | 'user.state.set'
   | 'user.phone.link'
   | 'booking.upsert'
-  | 'rubitime.create_retry.enqueue'
+  | 'message.retry.enqueue'
   | 'delivery.attempt.log'
   | 'event.log';
 
@@ -36,6 +36,17 @@ export type DbReadQuery = {
 export type DbWriteMutation = {
   type: DbWriteMutationType;
   params: Record<string, unknown>;
+};
+
+/** Унифицированный порт БД (без pg-типов). */
+export type DbQueryResult<T = unknown> = {
+  rows: T[];
+  rowCount?: number;
+};
+
+export type DbPort = {
+  query<T = unknown>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>>;
+  tx<T>(fn: (db: DbPort) => Promise<T>): Promise<T>;
 };
 
 /** Порт чтения данных, используемый orchestrator/domain. */
@@ -59,10 +70,6 @@ export type DeliveryAdapter = {
   send(intent: OutgoingIntent): Promise<void>;
 };
 
-export const DELIVERY_CHANNEL_TELEGRAM = 'telegram';
-export const DELIVERY_CHANNEL_SMSC = 'smsc';
-export const DEFAULT_DELIVERY_CHANNEL = DELIVERY_CHANNEL_SMSC;
-
 /** Порт постановки асинхронной задачи в очередь. */
 export type QueuePort = {
   enqueue(task: { kind: string; payload: Record<string, unknown> }): Promise<void>;
@@ -82,7 +89,7 @@ export type ContextQuery =
   | { type: 'subscriptions.forUser'; userId: string }
   | { type: 'user.identityLinks'; userId: string }
   | { type: 'bookings.forUser'; userId: string }
-  | { type: 'rubitime.recordById'; recordId: string };
+  | { type: 'booking.recordByExternalId'; recordId: string };
 
 export type ContextQueryPort = {
   request(query: ContextQuery): Promise<unknown>;
@@ -94,8 +101,8 @@ export type ContentPort = {
   getTemplate(key: string, version?: string, locale?: string): Promise<ContentTemplate | null>;
 };
 
-/** Базовый payload пользователя Telegram, используемый в пользовательских портах. */
-export type TelegramUserFrom = {
+/** Базовый payload пользователя внешнего канала, используемый в пользовательских портах. */
+export type ChannelUserFrom = {
   id: number;
   is_bot?: boolean;
   username?: string;
@@ -104,16 +111,16 @@ export type TelegramUserFrom = {
   language_code?: string;
 };
 
-export type TelegramUserRow = { id: string; telegram_id: string };
+export type ChannelUserRow = { id: string; channel_id: string };
 
-/** Контракт хранилища пользователей для Telegram-флоу. */
-export type UserPort = {
-  upsertTelegramUser(from: TelegramUserFrom | null | undefined): Promise<TelegramUserRow | null>;
-  setTelegramUserState(telegramId: string, state: string | null): Promise<void>;
-  setTelegramUserPhone(telegramId: string, phoneNormalized: string): Promise<void>;
-  getTelegramUserState(telegramId: string): Promise<string | null>;
-  tryAdvanceLastUpdateId(telegramId: number, updateId: number): Promise<boolean>;
-  tryConsumeStart(telegramId: number): Promise<boolean>;
+/** Контракт хранилища пользователей внешнего канала. */
+export type ChannelUserPort = {
+  upsertUser(from: ChannelUserFrom | null | undefined): Promise<ChannelUserRow | null>;
+  setUserState(channelUserId: string, state: string | null): Promise<void>;
+  setUserPhone(channelUserId: string, phoneNormalized: string): Promise<void>;
+  getUserState(channelUserId: string): Promise<string | null>;
+  tryAdvanceLastUpdateId(channelUserId: number, updateId: number): Promise<boolean>;
+  tryConsumeStart(channelUserId: number): Promise<boolean>;
 };
 
 /** Настройки уведомлений пользователя. */
@@ -130,8 +137,8 @@ export type NotificationSettingsPatch = {
 };
 
 export type NotificationsPort = {
-  getNotificationSettings(telegramId: number): Promise<NotificationSettings | null>;
-  updateNotificationSettings(telegramId: number, settings: NotificationSettingsPatch): Promise<void>;
+  getNotificationSettings(channelUserId: number): Promise<NotificationSettings | null>;
+  updateNotificationSettings(channelUserId: number, settings: NotificationSettingsPatch): Promise<void>;
 };
 
 /** Порт идемпотентности входящих событий. */

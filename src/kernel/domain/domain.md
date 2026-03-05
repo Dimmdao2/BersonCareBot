@@ -2,7 +2,7 @@
 
 Принимает подготовленное (очищенное) событие от EventGateway.
 
-Подгружает связанный контекст (админ ли пользователь, какие идентификаторы/привязки есть: telegram/max/vk/instagram/email/phone).
+Подгружает связанный контекст (админ ли пользователь, какие идентификаторы/привязки есть по каналам и контактам).
 
 Вызывает Orchestrator: передаёт incomingEvent + baseContext.
 
@@ -21,14 +21,14 @@
 Пример логики исполнения (иллюстративно)
 
 Вместо doAction(sendMessage, …, now/every1min/attempts/fallback…) домен исполняет шаги плана, например:
-	•	message.send (channel=telegram, target=phone, template=…, params=…)
+	•	message.send (channel=channel-a, target=contact, template=…, params=…)
 	•	домен резолвит target (по привязкам в БД)
 	•	пытается доставить intent
 	•	при ошибке/нет получателя — создаёт job на retry
-	•	при исчерпании попыток — выполняет fallback (например message.send через smsc с добавленным текстом/линком)
-	•	admin.notify (channel=telegram, target=admin, message=…)
+	•	при исчерпании попыток — выполняет fallback (например message.send через channel-b с добавленным текстом/линком)
+	•	admin.notify (channel=channel-a, target=admin, message=…)
 	•	при критической ошибке доставки/исполнения шага отправляет админу debug-уведомление (если включено настройками)
-	•	rubitime.createRecord / booking.upsert / и т.п.
+	•	booking.createRecord / booking.upsert / и т.п.
 	•	домен выполняет действие через соответствующий порт (не через HTTP-SDK напрямую)
 
 Логи и метрики
@@ -68,7 +68,7 @@
 
 Домен:
 	•	не знает HTTP/webhook,
-	•	не знает Telegram API/SMSC API напрямую,
+	•	не знает SDK внешних каналов напрямую,
 	•	не знает реализацию очереди/воркера/планировщика,
 	•	не знает файловую структуру content.
 

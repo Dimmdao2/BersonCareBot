@@ -6,7 +6,7 @@
 import type { FastifyInstance } from 'fastify';
 import { appSettings } from '../config/appSettings.js';
 import { env } from '../config/env.js';
-import { healthCheckDb } from '../infra/db/client.js';
+import { createDbPort, healthCheckDb } from '../infra/db/client.js';
 import { createDbReadPort } from '../infra/db/readPort.js';
 import { createDbWritePort } from '../infra/db/writePort.js';
 import { createContentPort } from '../infra/content/contentPort.js';
@@ -93,9 +93,11 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     logger.warn({ smscEnabled: env.SMSC_ENABLED }, 'smsc enabled but api key is not set, using stub');
   }
 
-  const dbWritePort = input.dbWritePort ?? createDbWritePort();
-  const dbReadPort = input.dbReadPort ?? createDbReadPort();
+  const dbPort = createDbPort();
+  const dbWritePort = input.dbWritePort ?? createDbWritePort({ db: dbPort });
+  const dbReadPort = input.dbReadPort ?? createDbReadPort({ db: dbPort });
   const queuePort = input.queuePort ?? createPostgresJobQueue({
+    db: dbPort,
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
   });
 

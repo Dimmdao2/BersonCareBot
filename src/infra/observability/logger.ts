@@ -62,7 +62,7 @@ export const logger = pino({
     paths: [
       'headers.authorization',
       'headers.cookie',
-      'headers.x-telegram-bot-api-secret-token',
+      'headers.x-*-secret-token',
       '*.authorization',
       '*.token',
       '*.secret',

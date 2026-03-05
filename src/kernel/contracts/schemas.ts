@@ -7,6 +7,7 @@ const eventMetaSchema = z.object({
   source: z.string().min(1),
   correlationId: z.string().min(1).optional(),
   userId: z.string().min(1).optional(),
+  dedupKey: z.string().min(1).optional(),
 });
 
 const baseContextSchema = z.object({
@@ -63,7 +64,7 @@ export const domainContextSchema = z.object({
   base: baseContextSchema,
   user: z.object({
     id: z.string().min(1).optional(),
-    telegramId: z.string().min(1).optional(),
+    channelId: z.string().min(1).optional(),
     phoneNormalized: z.string().min(1).nullable().optional(),
     isAdmin: z.boolean().optional(),
     channels: z.array(z.string().min(1)).optional(),
@@ -139,9 +140,9 @@ export const actionResultSchema = z.object({
 export const dbReadQuerySchema = z.object({
   type: z.enum([
     'user.lookup',
-    'user.byTelegramId',
+    'user.byChannelId',
     'user.byPhone',
-    'booking.byRubitimeId',
+    'booking.byExternalId',
     'booking.activeByUser',
     'delivery.pending',
   ]),
@@ -155,7 +156,7 @@ export const dbWriteMutationSchema = z.object({
     'user.state.set',
     'user.phone.link',
     'booking.upsert',
-    'rubitime.create_retry.enqueue',
+    'message.retry.enqueue',
     'delivery.attempt.log',
     'event.log',
   ]),

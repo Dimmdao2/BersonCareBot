@@ -1,5 +1,4 @@
 import type { DeliveryAdapter, DispatchPort, DbWritePort, OutgoingIntent } from '../../kernel/contracts/index.js';
-import { DEFAULT_DELIVERY_CHANNEL } from '../../kernel/contracts/index.js';
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
@@ -7,14 +6,14 @@ type DeliveryPayload = {
   delivery?: { channels?: unknown; maxAttempts?: unknown };
 } & Record<string, unknown>;
 
-function readChannel(intent: OutgoingIntent): string {
+function readChannel(intent: OutgoingIntent): string | null {
   const payload = intent.payload as DeliveryPayload;
   const channels = payload.delivery?.channels;
   if (Array.isArray(channels)) {
     const normalized = channels.filter((item): item is string => typeof item === 'string');
     if (normalized.length > 0) return normalized[0] as string;
   }
-  return DEFAULT_DELIVERY_CHANNEL;
+  return null;
 }
 
 function withChannel(intent: OutgoingIntent, channel: string): OutgoingIntent {
@@ -66,6 +65,7 @@ export function createDefaultDispatchPort(deps: {
     async dispatchOutgoing(intent: OutgoingIntent): Promise<void> {
       if (intent.type !== 'message.send') return;
       const channel = readChannel(intent);
+      if (!channel) throw new Error('CHANNEL_NOT_SPECIFIED');
       const intentForChannel = withChannel(intent, channel);
       const adapter = deps.adapters.find((item) => item.canHandle(intentForChannel));
       if (!adapter) throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);

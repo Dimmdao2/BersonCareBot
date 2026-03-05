@@ -6,7 +6,7 @@ const baseEvent: IncomingEvent = {
   meta: {
     eventId: 'evt-1',
     occurredAt: '2026-03-03T00:00:00.000Z',
-    source: 'telegram',
+    source: 'source-a',
   },
   payload: {},
 };
@@ -88,7 +88,7 @@ describe('eventGateway', () => {
     const gateway = createEventGateway();
     const invalidEvent = {
       type: 'message.received',
-      meta: { occurredAt: 'invalid-iso', source: 'telegram' },
+      meta: { occurredAt: 'invalid-iso', source: 'source-a' },
       payload: {},
     } as unknown as IncomingEvent;
 

@@ -1,4 +1,4 @@
-import type { UserPort } from '../ports/user.js';
+import type { ChannelUserPort } from '../ports/user.js';
 import type { WebhookContent } from '../webhookContent.js';
 import type { OutgoingAction } from '../types.js';
 import { tryConsumeStart } from './onboarding.js';
@@ -11,23 +11,23 @@ const mainMenuMarkup = (content: WebhookContent) => ({
 
 export async function handleStart(
   chatId: number,
-  telegramId: number,
+  channelUserId: number,
   startText: string,
   _hasLinkedPhone: boolean,
-  userPort: UserPort,
+  userPort: ChannelUserPort,
   content: WebhookContent,
 ): Promise<{ consumed: boolean; actions: OutgoingAction[] }> {
   // ARCH-V3 MOVE
   // этот код должен быть перенесён в orchestrator (сценарные правила обработки команд/messages)
-  const allow = await tryConsumeStart(telegramId, userPort);
+  const allow = await tryConsumeStart(channelUserId, userPort);
   if (!allow) return { consumed: false, actions: [] };
 
   const payloadMatch = /^\/start\s+(.+)$/.exec(startText.trim());
   const payload = payloadMatch?.[1]?.trim() ?? '';
-  const isRubitimeRecordId = /^[A-Za-z0-9_-]{1,120}$/.test(payload);
+  const isExternalRecordId = /^[A-Za-z0-9_-]{1,120}$/.test(payload);
 
-  if (isRubitimeRecordId) {
-    await userPort.setTelegramUserState(String(telegramId), 'idle');
+  if (isExternalRecordId) {
+    await userPort.setUserState(String(channelUserId), 'idle');
     return {
       consumed: true,
       actions: [
@@ -41,7 +41,7 @@ export async function handleStart(
     };
   }
 
-  await userPort.setTelegramUserState(String(telegramId), 'idle');
+  await userPort.setUserState(String(channelUserId), 'idle');
   return {
     consumed: true,
     actions: [
@@ -57,11 +57,11 @@ export async function handleStart(
 
 export async function handleAsk(
   chatId: number,
-  telegramId: string,
-  userPort: UserPort,
+  channelUserId: string,
+  userPort: ChannelUserPort,
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
-  await userPort.setTelegramUserState(telegramId, 'waiting_for_question');
+  await userPort.setUserState(channelUserId, 'waiting_for_question');
   return [
     { type: 'sendMessage', chatId, text: content.messages.describeQuestion, replyMarkup: mainMenuMarkup(content) },
   ];
@@ -69,13 +69,13 @@ export async function handleAsk(
 
 export async function handleQuestion(
   chatId: number,
-  telegramId: string,
+  channelUserId: string,
   _text: string,
-  userPort: UserPort,
+  userPort: ChannelUserPort,
   content: WebhookContent,
   adminForward: { chatId: number; text: string } | undefined,
 ): Promise<OutgoingAction[]> {
-  await userPort.setTelegramUserState(telegramId, 'idle');
+  await userPort.setUserState(channelUserId, 'idle');
   const actions: OutgoingAction[] = [];
   if (adminForward) {
     actions.push({ type: 'sendMessage', chatId: adminForward.chatId, text: adminForward.text });
@@ -91,11 +91,11 @@ export async function handleQuestion(
 
 export async function handleBook(
   chatId: number,
-  telegramId: string,
-  userPort: UserPort,
+  channelUserId: string,
+  userPort: ChannelUserPort,
   content: WebhookContent,
 ): Promise<OutgoingAction[]> {
-  await userPort.setTelegramUserState(telegramId, 'idle');
+  await userPort.setUserState(channelUserId, 'idle');
   const bookingLinkMarkup = {
     inline_keyboard: [[{ text: content.messages.bookingOpenButton, url: content.bookingUrl }]],
   };

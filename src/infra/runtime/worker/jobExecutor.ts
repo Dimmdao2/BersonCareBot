@@ -22,11 +22,17 @@ function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
     : [];
 
   const attemptIndex = Math.max(0, Math.trunc(job.attempts));
-  const channel = channels[attemptIndex] ?? channels[channels.length - 1] ?? 'smsc';
-  const target = targets.find((item) => {
-    const resource = item.resource;
-    return typeof resource === 'string' && resource === channel;
-  }) ?? targets[0];
+  const channel = channels[attemptIndex] ?? channels[channels.length - 1];
+  const target = channel
+    ? targets.find((item) => {
+      const resource = item.resource;
+      return typeof resource === 'string' && resource === channel;
+    })
+    : targets[attemptIndex] ?? targets[0];
+
+  const resolvedChannel = channel
+    ?? (typeof target?.resource === 'string' ? target.resource : null);
+  if (!resolvedChannel) return null;
 
   const recipient = target ? asRecord(target.address) : asRecord(asRecord(baseIntent.payload).recipient);
   return {
@@ -37,7 +43,7 @@ function resolveIntentForAttempt(job: DeliveryJob): OutgoingIntent | null {
       recipient,
       delivery: {
         ...delivery,
-        channels: [channel],
+        channels: [resolvedChannel],
         maxAttempts: 1,
       },
     },

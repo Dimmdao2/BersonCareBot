@@ -14,8 +14,6 @@ export type {
   Preferences,
 } from './orchestrator.js';
 
-export { RubitimeRecordStatus } from './rubitime.js';
-
 export type {
   EventMeta,
   IncomingEvent,
@@ -58,6 +56,8 @@ export type {
   ContentPort,
   ContextQueryPort,
   ContextQuery,
+  DbPort,
+  DbQueryResult,
   DbReadPort,
   DbReadQuery,
   DbReadQueryType,
@@ -77,16 +77,10 @@ export type {
   OrchestratorResult,
   OutgoingDispatcher,
   QueuePort,
-  TelegramUserFrom,
-  TelegramUserRow,
+  ChannelUserFrom,
+  ChannelUserRow,
   TemplatePort,
-  UserPort,
-} from './ports.js';
-
-export {
-  DEFAULT_DELIVERY_CHANNEL,
-  DELIVERY_CHANNEL_SMSC,
-  DELIVERY_CHANNEL_TELEGRAM,
+  ChannelUserPort,
 } from './ports.js';
 
 export {

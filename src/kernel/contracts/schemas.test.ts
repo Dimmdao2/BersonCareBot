@@ -15,7 +15,7 @@ describe('kernel contracts schemas', () => {
         meta: {
           eventId: 'evt-1',
           occurredAt: '2026-03-05T10:00:00.000Z',
-          source: 'rubitime',
+          source: 'source-a',
         },
         payload: { body: { event: 'event-create-record' } },
       },
@@ -26,14 +26,14 @@ describe('kernel contracts schemas', () => {
         identityLinks: [],
       },
       user: {
-        telegramId: '123',
+        channelId: '123',
         phoneNormalized: '+79990001122',
         isAdmin: false,
-        channels: ['telegram', 'smsc'],
+        channels: ['primary', 'secondary'],
       },
     });
 
-    expect(parsed.user?.telegramId).toBe('123');
+    expect(parsed.user?.channelId).toBe('123');
   });
 
   it('validates ScriptStep and Action', () => {
@@ -91,7 +91,7 @@ describe('kernel contracts schemas', () => {
           payload: {
             recipient: { chatId: 1 },
             message: { text: 'hello' },
-            delivery: { channels: ['telegram'], maxAttempts: 1 },
+            delivery: { channels: ['primary'], maxAttempts: 1 },
           },
         },
       ],

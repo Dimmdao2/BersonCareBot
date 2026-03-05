@@ -25,7 +25,7 @@ export function telegramIncomingToEvent(input: {
       correlationId: input.correlationId,
       source: 'telegram',
       occurredAt: new Date().toISOString(),
-      ...(input.incoming.kind === 'message' ? { userId: input.incoming.telegramId } : {}),
+      ...(input.incoming.kind === 'message' ? { userId: input.incoming.channelId } : {}),
     },
     payload: {
       incoming: input.incoming as unknown,

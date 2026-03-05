@@ -8,7 +8,7 @@ const ctx: DomainContext = {
     meta: {
       eventId: 'evt-1',
       occurredAt: '2026-03-05T12:00:00.000Z',
-      source: 'rubitime',
+      source: 'source-a',
     },
     payload: {},
   },
@@ -27,7 +27,7 @@ describe('executeAction', () => {
       id: 'a1',
       type: 'booking.upsert',
       mode: 'sync',
-      params: { rubitimeRecordId: 'rec-1' },
+      params: { externalRecordId: 'rec-1' },
     };
 
     const result = await executeAction(action, ctx, {
@@ -44,11 +44,11 @@ describe('executeAction', () => {
       type: 'message.compose',
       mode: 'sync',
       params: {
-        source: 'rubitime',
+        source: 'source-a',
         templateId: 'booking.accepted',
         vars: { name: 'test' },
         recipient: { phoneNormalized: '+79990001122' },
-        delivery: { channels: ['smsc'], maxAttempts: 1 },
+        delivery: { channels: ['channel-a'], maxAttempts: 1 },
       },
     };
 
@@ -101,11 +101,11 @@ describe('executeAction', () => {
     expect(readDb).toHaveBeenCalledTimes(1);
   });
 
-  it('handles legacy rubitime.create_retry.enqueue action', async () => {
+  it('handles message.retry.enqueue action', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
     const action: Action = {
       id: 'a5',
-      type: 'rubitime.create_retry.enqueue',
+      type: 'message.retry.enqueue',
       mode: 'async',
       params: {
         phoneNormalized: '+79990001122',
@@ -132,11 +132,11 @@ describe('executeAction', () => {
       params: {
         payload: {
           message: { text: 'ready-message' },
-          delivery: { channels: ['telegram', 'smsc'] },
+          delivery: { channels: ['channel-a', 'channel-b'] },
         },
         targets: [
-          { resource: 'telegram', address: { chatId: 123 } },
-          { resource: 'smsc', address: { phoneNormalized: '+79990001122' } },
+          { resource: 'channel-a', address: { chatId: 123 } },
+          { resource: 'channel-b', address: { phoneNormalized: '+79990001122' } },
         ],
         retry: {
           maxAttempts: 3,

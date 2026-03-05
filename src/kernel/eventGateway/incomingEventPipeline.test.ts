@@ -14,7 +14,7 @@ describe('incomingEventPipeline', () => {
         id: 'webhook.received',
         steps: [
           {
-            action: 'rubitime.create_retry.enqueue',
+            action: 'message.retry.enqueue',
             mode: 'async',
             params: {
               phoneNormalized: '+79990001122',
@@ -45,9 +45,9 @@ describe('incomingEventPipeline', () => {
     const event: IncomingEvent = {
       type: 'webhook.received',
       meta: {
-        eventId: 'evt-rubitime-1',
+        eventId: 'evt-source-1',
         occurredAt: '2026-03-05T12:00:00.000Z',
-        source: 'rubitime',
+        source: 'source-a',
       },
       payload: {
         body: {

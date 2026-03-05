@@ -6,6 +6,7 @@
         "action": "event.log",
         "mode": "sync",
         "params": {
+          "eventStore": "booking",
           "source": "{{event.meta.source}}",
           "eventType": "{{event.type}}",
           "eventId": "{{event.meta.eventId}}",
@@ -19,7 +20,7 @@
         "mode": "sync",
         "params": {
           "_when": { "path": "event.payload.body.data.id", "exists": true },
-          "rubitimeRecordId": "{{event.payload.body.data.id}}",
+          "externalRecordId": "{{event.payload.body.data.id}}",
           "phoneNormalized": "{{event.payload.body.data.phone}}",
           "recordAt": "{{event.payload.body.data.record}}",
           "status": "created",
@@ -33,7 +34,7 @@
         "mode": "sync",
         "params": {
           "_when": { "path": "event.payload.body.event", "equals": "event-update-record" },
-          "rubitimeRecordId": "{{event.payload.body.data.id}}",
+          "externalRecordId": "{{event.payload.body.data.id}}",
           "phoneNormalized": "{{event.payload.body.data.phone}}",
           "recordAt": "{{event.payload.body.data.record}}",
           "status": "updated",
@@ -47,7 +48,7 @@
         "mode": "sync",
         "params": {
           "_when": { "path": "event.payload.body.event", "equals": "event-remove-record" },
-          "rubitimeRecordId": "{{event.payload.body.data.id}}",
+          "externalRecordId": "{{event.payload.body.data.id}}",
           "phoneNormalized": "{{event.payload.body.data.phone}}",
           "recordAt": "{{event.payload.body.data.record}}",
           "status": "canceled",
@@ -76,7 +77,7 @@
         }
       },
       {
-        "action": "rubitime.create_retry.enqueue",
+        "action": "message.retry.enqueue",
         "mode": "async",
         "params": {
           "_when": {

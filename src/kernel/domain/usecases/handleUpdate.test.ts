@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IncomingUpdate } from '../types.js';
-import type { UserPort } from '../ports/user.js';
+import type { ChannelUserPort } from '../ports/user.js';
 import type { NotificationsPort } from '../ports/notifications.js';
 import type { WebhookContent } from '../webhookContent.js';
 import { handleUpdate } from './handleUpdate.js';
@@ -18,7 +18,7 @@ const content: WebhookContent = {
     questionAccepted: 'accepted',
     notImplemented: 'not-implemented',
     bookingMy: 'booking-my',
-    confirmPhoneForRubitime: 'confirm-contact',
+    confirmPhoneForBooking: 'confirm-contact',
     bookingOpenPrompt: 'open',
     bookingOpenButton: 'button',
   },
@@ -26,12 +26,12 @@ const content: WebhookContent = {
   buildNotificationKeyboard: () => ({ inline_keyboard: [] }),
 };
 
-function buildUserPort(): UserPort {
+function buildUserPort(): ChannelUserPort {
   return {
-    upsertTelegramUser: vi.fn().mockResolvedValue({ id: '1', telegram_id: '100' }),
-    setTelegramUserState: vi.fn().mockResolvedValue(undefined),
-    setTelegramUserPhone: vi.fn().mockResolvedValue(undefined),
-    getTelegramUserState: vi.fn().mockResolvedValue('idle'),
+    upsertUser: vi.fn().mockResolvedValue({ id: '1', channel_id: '100' }),
+    setUserState: vi.fn().mockResolvedValue(undefined),
+    setUserPhone: vi.fn().mockResolvedValue(undefined),
+    getUserState: vi.fn().mockResolvedValue('idle'),
     tryAdvanceLastUpdateId: vi.fn().mockResolvedValue(true),
     tryConsumeStart: vi.fn().mockResolvedValue(true),
   };
@@ -52,17 +52,17 @@ describe('handleUpdate contact linking', () => {
     const incoming: IncomingUpdate = {
       kind: 'message',
       chatId: 100,
-      telegramId: '100',
+      channelId: '100',
       text: '',
       contactPhone: '8 (919) 123-45-67',
-      userRow: { id: '1', telegram_id: '100' },
-      userState: 'await_contact:rubitime_record:7878663',
+      userRow: { id: '1', channel_id: '100' },
+      userState: 'await_contact:booking_record:7878663',
     };
 
     const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
 
-    expect(userPort.setTelegramUserPhone).toHaveBeenCalledWith('100', '+79191234567');
-    expect(userPort.setTelegramUserState).toHaveBeenCalledWith('100', 'idle');
+    expect(userPort.setUserPhone).toHaveBeenCalledWith('100', '+79191234567');
+    expect(userPort.setUserState).toHaveBeenCalledWith('100', 'idle');
     expect(actions[0]).toMatchObject({
       type: 'sendMessage',
       chatId: 100,
@@ -75,16 +75,16 @@ describe('handleUpdate contact linking', () => {
     const incoming: IncomingUpdate = {
       kind: 'message',
       chatId: 100,
-      telegramId: '100',
+      channelId: '100',
       text: 'мой номер 8919...',
-      userRow: { id: '1', telegram_id: '100' },
-      userState: 'await_contact:rubitime_record:7878663',
+      userRow: { id: '1', channel_id: '100' },
+      userState: 'await_contact:booking_record:7878663',
     };
 
     const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
 
-    expect(userPort.setTelegramUserPhone).not.toHaveBeenCalled();
-    expect(userPort.setTelegramUserState).not.toHaveBeenCalled();
+    expect(userPort.setUserPhone).not.toHaveBeenCalled();
+    expect(userPort.setUserState).not.toHaveBeenCalled();
     expect(actions[0]).toMatchObject({
       type: 'sendMessage',
       chatId: 100,
@@ -97,10 +97,10 @@ describe('handleUpdate contact linking', () => {
     const incoming: IncomingUpdate = {
       kind: 'message',
       chatId: 100,
-      telegramId: '100',
+      channelId: '100',
       text: '/start',
       hasLinkedPhone: true,
-      userRow: { id: '1', telegram_id: '100' },
+      userRow: { id: '1', channel_id: '100' },
       userState: 'idle',
     };
 
@@ -117,10 +117,10 @@ describe('handleUpdate contact linking', () => {
     const incoming: IncomingUpdate = {
       kind: 'message',
       chatId: 100,
-      telegramId: '100',
+      channelId: '100',
       text: '/start',
       hasLinkedPhone: false,
-      userRow: { id: '1', telegram_id: '100' },
+      userRow: { id: '1', channel_id: '100' },
       userState: 'idle',
     };
 
@@ -137,15 +137,15 @@ describe('handleUpdate contact linking', () => {
     const incoming: IncomingUpdate = {
       kind: 'message',
       chatId: 100,
-      telegramId: '100',
+      channelId: '100',
       text: 'book',
       hasLinkedPhone: false,
-      userRow: { id: '1', telegram_id: '100' },
+      userRow: { id: '1', channel_id: '100' },
       userState: 'idle',
     };
 
     const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
-    expect(userPort.setTelegramUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
+    expect(userPort.setUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
     expect(actions[0]).toMatchObject({
       type: 'sendMessage',
       chatId: 100,
@@ -159,14 +159,14 @@ describe('handleUpdate contact linking', () => {
       kind: 'callback',
       chatId: 100,
       messageId: 10,
-      telegramId: 100,
+      channelUserId: 100,
       hasLinkedPhone: false,
       callbackData: 'menu_my_bookings',
       callbackQueryId: 'cbq-1',
     };
 
     const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
-    expect(userPort.setTelegramUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
+    expect(userPort.setUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
     expect(actions[0]).toMatchObject({
       type: 'sendMessage',
       chatId: 100,

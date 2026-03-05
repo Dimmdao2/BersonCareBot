@@ -9,7 +9,7 @@ describe('processAcceptedIncomingEvent', () => {
       meta: {
         eventId: 'evt-1',
         occurredAt: '2026-03-05T12:00:00.000Z',
-        source: 'rubitime',
+        source: 'source-a',
       },
       payload: { body: { event: 'event-create-record' } },
     };
@@ -34,7 +34,7 @@ describe('processAcceptedIncomingEvent', () => {
               meta: {
                 eventId: 'out-1',
                 occurredAt: '2026-03-05T12:00:00.000Z',
-                source: 'rubitime',
+                source: 'source-a',
               },
               payload: { message: { text: 'hi' } },
             },

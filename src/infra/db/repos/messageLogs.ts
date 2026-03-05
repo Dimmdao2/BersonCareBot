@@ -1,5 +1,4 @@
-import type { DbWriteMutation } from '../../../kernel/contracts/index.js';
-import { db } from '../client.js';
+import type { DbPort, DbWriteMutation } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
 
 type DeliveryAttemptLogParams = {
@@ -41,7 +40,7 @@ function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-async function insertDeliveryAttemptLog(params: DeliveryAttemptLogParams): Promise<void> {
+async function insertDeliveryAttemptLog(db: DbPort, params: DeliveryAttemptLogParams): Promise<void> {
   const query = `
     INSERT INTO delivery_attempt_logs (
       intent_type,
@@ -74,7 +73,7 @@ async function insertDeliveryAttemptLog(params: DeliveryAttemptLogParams): Promi
 }
 
 /** Returns recent delivery attempt logs for read-only admin endpoints. */
-export async function getRecentDeliveryAttemptLogs(limit = 100): Promise<DeliveryAttemptLogRow[]> {
+export async function getRecentDeliveryAttemptLogs(db: DbPort, limit = 100): Promise<DeliveryAttemptLogRow[]> {
   const query = `
     SELECT
       id,
@@ -123,7 +122,7 @@ export async function getRecentDeliveryAttemptLogs(limit = 100): Promise<Deliver
 }
 
 /** Returns aggregated delivery attempt counters for read-only admin metrics. */
-export async function getDeliveryAttemptStats(hours = 24): Promise<DeliveryAttemptStats> {
+export async function getDeliveryAttemptStats(db: DbPort, hours = 24): Promise<DeliveryAttemptStats> {
   const query = `
     SELECT
       COUNT(*)::int AS total,
@@ -144,9 +143,9 @@ export async function getDeliveryAttemptStats(hours = 24): Promise<DeliveryAttem
 }
 
 /** Persists audit logs for outgoing delivery attempts and fallback events. */
-export async function appendMessageLog(mutation: DbWriteMutation): Promise<void> {
+export async function appendMessageLog(db: DbPort, mutation: DbWriteMutation): Promise<void> {
   if (mutation.type === 'delivery.attempt.log') {
-    await insertDeliveryAttemptLog(mutation.params as DeliveryAttemptLogParams);
+    await insertDeliveryAttemptLog(db, mutation.params as DeliveryAttemptLogParams);
     return;
   }
 

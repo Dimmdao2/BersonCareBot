@@ -1,7 +1,7 @@
 import type { NotificationsPort, NotificationSettingsPatch } from '../ports/notifications.js';
 
-export async function getSettings(telegramId: number, notificationsPort: NotificationsPort) {
-  return (await notificationsPort.getNotificationSettings(telegramId)) ?? {
+export async function getSettings(channelUserId: number, notificationsPort: NotificationsPort) {
+  return (await notificationsPort.getNotificationSettings(channelUserId)) ?? {
     notify_spb: false,
     notify_msk: false,
     notify_online: false,
@@ -9,9 +9,9 @@ export async function getSettings(telegramId: number, notificationsPort: Notific
 }
 
 export async function updateSettings(
-  telegramId: number,
+  channelUserId: number,
   patch: NotificationSettingsPatch,
   notificationsPort: NotificationsPort,
 ): Promise<void> {
-  await notificationsPort.updateNotificationSettings(telegramId, patch);
+  await notificationsPort.updateNotificationSettings(channelUserId, patch);
 }

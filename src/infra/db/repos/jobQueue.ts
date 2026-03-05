@@ -1,6 +1,6 @@
-import { db } from '../client.js';
+import type { DbPort } from '../../../kernel/contracts/index.js';
 
-export type RubitimeCreateRetryJobRow = {
+export type MessageRetryJobRow = {
   id: number;
   phoneNormalized: string;
   messageText: string;
@@ -8,7 +8,7 @@ export type RubitimeCreateRetryJobRow = {
   maxAttempts: number;
 };
 
-export async function enqueueRubitimeCreateRetryJob(input: {
+export async function enqueueMessageRetryJob(db: DbPort, input: {
   phoneNormalized: string;
   messageText: string;
   firstTryDelaySeconds: number;
@@ -39,7 +39,7 @@ export async function enqueueRubitimeCreateRetryJob(input: {
   ]);
 }
 
-export async function claimDueRubitimeCreateRetryJobs(limit: number): Promise<RubitimeCreateRetryJobRow[]> {
+export async function claimDueMessageRetryJobs(db: DbPort, limit: number): Promise<MessageRetryJobRow[]> {
   const query = `
     WITH due AS (
       SELECT id
@@ -62,11 +62,11 @@ export async function claimDueRubitimeCreateRetryJobs(limit: number): Promise<Ru
       j.attempts_done AS "attemptsDone",
       j.max_attempts AS "maxAttempts"
   `;
-  const res = await db.query<RubitimeCreateRetryJobRow>(query, [Math.max(1, Math.trunc(limit))]);
+  const res = await db.query<MessageRetryJobRow>(query, [Math.max(1, Math.trunc(limit))]);
   return res.rows;
 }
 
-export async function rescheduleRubitimeCreateRetryJob(input: {
+export async function rescheduleMessageRetryJob(db: DbPort, input: {
   id: number;
   attemptsDone: number;
   retryDelaySeconds: number;
@@ -89,7 +89,7 @@ export async function rescheduleRubitimeCreateRetryJob(input: {
   ]);
 }
 
-export async function completeRubitimeCreateRetryJob(id: number): Promise<void> {
+export async function completeMessageRetryJob(db: DbPort, id: number): Promise<void> {
   const query = `
     UPDATE rubitime_create_retry_jobs
     SET status = 'done',
@@ -99,7 +99,7 @@ export async function completeRubitimeCreateRetryJob(id: number): Promise<void> 
   await db.query(query, [id]);
 }
 
-export async function failRubitimeCreateRetryJob(input: { id: number; lastError?: string }): Promise<void> {
+export async function failMessageRetryJob(db: DbPort, input: { id: number; lastError?: string }): Promise<void> {
   const query = `
     UPDATE rubitime_create_retry_jobs
     SET status = 'dead',

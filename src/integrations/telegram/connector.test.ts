@@ -7,9 +7,9 @@ describe('telegramIncomingToEvent', () => {
     const incoming: IncomingUpdate = {
       kind: 'message',
       chatId: 123,
-      telegramId: '123',
+      channelId: '123',
       text: '/start',
-      userRow: { id: '1', telegram_id: '123' },
+      userRow: { id: '1', channel_id: '123' },
       userState: 'idle',
     };
 
@@ -31,7 +31,7 @@ describe('telegramIncomingToEvent', () => {
       kind: 'callback',
       chatId: 123,
       messageId: 10,
-      telegramId: 123,
+      channelUserId: 123,
       callbackData: 'menu_notifications',
       callbackQueryId: 'cb-1',
     };

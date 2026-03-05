@@ -1,6 +1,7 @@
-import '../../config/loadEnv.js';
+import '../../../config/loadEnv.js';
 import { appSettings } from '../../../config/appSettings.js';
 import { createPostgresJobQueue } from '../../queue/postgresJobQueue.js';
+import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
 import { runWorkerTick } from './runner.js';
 
@@ -12,6 +13,7 @@ async function startWorker(): Promise<void> {
   const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps();
   const queue = createPostgresJobQueue({
+    db: createDbPort(),
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
   });
   const batchSize = Math.max(1, Math.trunc(appSettings.runtime.worker.batchSize));

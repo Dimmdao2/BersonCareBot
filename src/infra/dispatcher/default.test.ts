@@ -4,17 +4,17 @@ import { createDefaultDispatchPort } from './default.js';
 
 const sendPrimaryMock = vi.fn().mockResolvedValue(undefined);
 const sendSecondaryMock = vi.fn().mockResolvedValue(undefined);
-const channelPrimary = String.fromCharCode(116, 101, 108, 101, 103, 114, 97, 109);
-const channelSecondary = String.fromCharCode(115, 109, 115, 99);
+const channelPrimary = 'channel-a';
+const channelSecondary = 'channel-b';
 
-function readChannel(intent: OutgoingIntent): string {
+function readChannel(intent: OutgoingIntent): string | null {
   const payload = intent.payload as { delivery?: { channels?: unknown } };
   const channels = payload.delivery?.channels;
   if (Array.isArray(channels)) {
     const normalized = channels.filter((item): item is string => typeof item === 'string');
     if (normalized.length > 0) return normalized[0] as string;
   }
-  return channelSecondary;
+  return null;
 }
 
 function buildAdapters(): DeliveryAdapter[] {

@@ -20,10 +20,10 @@ describe('executeJob', () => {
             },
             payload: {
               message: { text: 'hello' },
-              delivery: { channels: ['smsc', 'telegram'] },
+              delivery: { channels: ['channel-a', 'channel-b'] },
             },
           },
-          targets: [{ resource: 'smsc', address: { phoneNormalized: '+79990001122' } }],
+          targets: [{ resource: 'channel-a', address: { phoneNormalized: '+79990001122' } }],
         },
       },
       {
@@ -52,18 +52,18 @@ describe('executeJob', () => {
             },
             payload: {
               message: { text: 'hello' },
-              delivery: { channels: ['smsc'] },
+              delivery: { channels: ['channel-a'] },
             },
           },
-          targets: [{ resource: 'smsc', address: { phoneNormalized: '+79990001122' } }],
+          targets: [{ resource: 'channel-a', address: { phoneNormalized: '+79990001122' } }],
         },
       },
       {
-        dispatchOutgoing: vi.fn().mockRejectedValue(new Error('SMSC_DOWN')),
+        dispatchOutgoing: vi.fn().mockRejectedValue(new Error('CHANNEL_DOWN')),
       },
     );
 
     expect(result.ok).toBe(false);
-    expect(result.errorCode).toContain('SMSC_DOWN');
+    expect(result.errorCode).toContain('CHANNEL_DOWN');
   });
 });

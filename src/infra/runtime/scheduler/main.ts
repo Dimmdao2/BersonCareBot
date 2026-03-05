@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import '../../config/loadEnv.js';
+import '../../../config/loadEnv.js';
 import { appSettings } from '../../../config/appSettings.js';
 import { logger } from '../../observability/logger.js';
+import { closeDb } from '../../db/client.js';
+import { tryAcquireSchedulerLock } from '../../db/repos/schedulerLocks.js';
 
 const SCHEDULER_LOCK_KEY = 42001001;
 
@@ -10,34 +12,23 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function startScheduler(): Promise<void> {
-  const { db } = await import('../../db/client.js');
-  const { buildDeps } = await import('../../../app/di.js');
-  const deps = buildDeps();
-
-  const client = await db.connect();
-  const lockResult = await client.query<{ locked: boolean }>(
-    'SELECT pg_try_advisory_lock($1) AS locked',
-    [SCHEDULER_LOCK_KEY],
-  );
-
-  if (lockResult.rows[0]?.locked !== true) {
+  const lockHandle = await tryAcquireSchedulerLock(SCHEDULER_LOCK_KEY);
+  if (!lockHandle) {
     logger.warn(
       'Scheduler lock not acquired, another instance is leader. Exiting.',
     );
-    client.release();
-    await db.end();
+    await closeDb();
     process.exit(0);
   }
+
+  const { buildDeps } = await import('../../../app/di.js');
+  const deps = buildDeps();
 
   logger.info('Scheduler lock acquired, starting scheduler loop');
 
   const releaseLock = async (): Promise<void> => {
-    try {
-      await client.query('SELECT pg_advisory_unlock($1)', [SCHEDULER_LOCK_KEY]);
-    } finally {
-      client.release();
-      await db.end();
-    }
+    await lockHandle.release();
+    await closeDb();
   };
 
   process.on('SIGINT', async () => {

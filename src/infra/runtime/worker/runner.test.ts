@@ -31,10 +31,10 @@ describe('runWorkerTick', () => {
             meta: { eventId: 'evt-1', occurredAt: '2026-03-05T12:00:00.000Z', source: 'worker' },
             payload: {
               message: { text: 'hello' },
-              delivery: { channels: ['smsc'] },
+              delivery: { channels: ['channel-a'] },
             },
           },
-          targets: [{ resource: 'smsc', address: { phoneNormalized: '+79990001122' } }],
+          targets: [{ resource: 'channel-a', address: { phoneNormalized: '+79990001122' } }],
         },
       }),
       completeJob,

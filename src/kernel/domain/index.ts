@@ -28,17 +28,11 @@ function normalizeMessageStep(step: Step): Step {
   const channelsFromPayload = Array.isArray(payload.delivery?.channels)
     ? payload.delivery.channels.filter((item): item is string => typeof item === 'string')
     : [];
-  const channels = channelsFromPayload.length > 0
-    ? channelsFromPayload
-    : hasChat && hasPhone
-      ? ['telegram', 'smsc']
-      : hasChat
-        ? ['telegram']
-        : ['smsc'];
   const normalizedPayload: MessageStepPayload = {
     ...payload,
     delivery: {
-      channels,
+      ...(payload.delivery ?? {}),
+      ...(channelsFromPayload.length > 0 ? { channels: channelsFromPayload } : {}),
       maxAttempts: typeof payload.delivery?.maxAttempts === 'number' ? payload.delivery.maxAttempts : 3,
     },
   };

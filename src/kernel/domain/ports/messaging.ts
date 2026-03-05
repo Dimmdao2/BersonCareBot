@@ -1,4 +1,4 @@
-/** Messaging transport port implemented by Telegram client adapter. */
+/** Messaging transport port implemented by channel client adapters. */
 export type MessagingPort = {
   sendMessage(params: {
     chat_id: number;

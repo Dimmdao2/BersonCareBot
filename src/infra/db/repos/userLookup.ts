@@ -1,21 +1,18 @@
-import { findByPhone, getTelegramUserLinkData } from './telegramUsers.js';
+import type { DbPort } from '../../../kernel/contracts/index.js';
+import { findByPhone, getUserLinkData } from './channelUsers.js';
 
-type LookupResource = 'telegram';
+type LookupBy = 'phone' | 'channelId';
 
-type LookupBy = 'phone' | 'telegramId';
-
-export async function lookupUser(resource: string, by: string, value: string) {
-  if (resource !== 'telegram') return null;
-  if (by === 'phone') return findByPhone(value);
-  if (by === 'telegramId') return getTelegramUserLinkData(value);
+export async function lookupUser(db: DbPort, _resource: string, by: string, value: string) {
+  if (by === 'phone') return findByPhone(db, value);
+  if (by === 'channelId') return getUserLinkData(db, value);
   return null;
 }
 
-export async function findUserByPhone(phoneNormalized: string) {
-  return findByPhone(phoneNormalized);
+export async function findUserByPhone(db: DbPort, phoneNormalized: string) {
+  return findByPhone(db, phoneNormalized);
 }
 
-export async function findUserByChannelId(resource: string, channelId: string) {
-  if (resource !== 'telegram') return null;
-  return getTelegramUserLinkData(channelId);
+export async function findUserByChannelId(db: DbPort, channelId: string) {
+  return getUserLinkData(db, channelId);
 }

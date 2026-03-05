@@ -49,9 +49,9 @@ async function handleBookingUpsert(step: Step): Promise<StepResult> {
   });
 }
 
-async function handleRubitimeCreateRetryEnqueue(step: Step): Promise<StepResult> {
+async function handleMessageRetryEnqueue(step: Step): Promise<StepResult> {
   return success(step.id, {
-    writes: [{ type: 'rubitime.create_retry.enqueue', params: step.payload }],
+    writes: [{ type: 'message.retry.enqueue', params: step.payload }],
   });
 }
 
@@ -64,13 +64,7 @@ async function handleMessageSend(step: Step, ctx: ScriptContext): Promise<StepRe
     ? payload.delivery.channels.filter((item): item is string => typeof item === 'string')
     : [];
   // Fallback-policy is decided in domain: dispatch receives explicit channels order.
-  const channels = channelsFromStep.length > 0
-    ? channelsFromStep
-    : hasChat && hasPhone
-      ? ['telegram', 'smsc']
-      : hasChat
-        ? ['telegram']
-        : ['smsc'];
+  const channels = channelsFromStep.length > 0 ? channelsFromStep : [];
 
   const intent: OutgoingIntent = {
     type: 'message.send',
@@ -84,6 +78,7 @@ async function handleMessageSend(step: Step, ctx: ScriptContext): Promise<StepRe
     payload: {
       ...payload,
       delivery: {
+        ...(payload.delivery ?? {}),
         channels,
         maxAttempts: typeof payload.delivery?.maxAttempts === 'number' ? payload.delivery.maxAttempts : 3,
       },
@@ -96,6 +91,6 @@ async function handleMessageSend(step: Step, ctx: ScriptContext): Promise<StepRe
 export const domainActionRegistry: Record<string, ActionHandler> = {
   'event.log': handleEventLog,
   'booking.upsert': handleBookingUpsert,
-  'rubitime.create_retry.enqueue': handleRubitimeCreateRetryEnqueue,
+  'message.retry.enqueue': handleMessageRetryEnqueue,
   'message.send': handleMessageSend,
 };
