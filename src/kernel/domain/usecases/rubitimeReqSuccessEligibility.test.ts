@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateReqSuccessEligibility } from './reqSuccessEligibility.js';
+import { evaluateReqSuccessEligibility } from './rubitimeReqSuccessEligibility.js';
 
 describe('evaluateReqSuccessEligibility', () => {
   it('returns false when record is missing', () => {

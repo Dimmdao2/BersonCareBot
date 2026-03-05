@@ -28,7 +28,7 @@ import type { SmsClient } from '../integrations/smsc/types.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 import { registerRubitimeIframeEdgeRoute } from '../integrations/rubitime/reqSuccessIframeEdge.js';
-import { evaluateReqSuccessEligibility } from '../integrations/rubitime/reqSuccessEligibility.js';
+import { evaluateReqSuccessEligibility } from '../kernel/domain/usecases/rubitimeReqSuccessEligibility.js';
 import {
   findByPhone,
   getTelegramUserLinkData,

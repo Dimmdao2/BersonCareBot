@@ -14,9 +14,6 @@ export function registerRubitimeIframeEdgeRoute(
     onAcceptedEvent?: (event: IncomingEvent) => Promise<{ showButton: boolean; recordId: string }>;
   },
 ): void {
-  // ARCH-V3 MOVE
-  // этот wiring должен быть убран из integrations/rubitime (step 12)
-  // и переведён в единый pipeline через eventGateway/domain/orchestrator/runtime
   registerRubitimeReqSuccessIframeRoute(app, {
     eventGateway: deps.eventGateway,
     ...(deps.onAcceptedEvent ? { onAcceptedEvent: deps.onAcceptedEvent } : {}),

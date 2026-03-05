@@ -1,5 +1,5 @@
-import type { RubitimeRecordForLinking } from '../../infra/db/repos/rubitimeRecords.js';
-import type { TelegramUserByPhone } from '../../infra/db/repos/telegramUsers.js';
+import type { RubitimeRecordForLinking } from '../../../infra/db/repos/rubitimeRecords.js';
+import type { TelegramUserByPhone } from '../../../infra/db/repos/telegramUsers.js';
 
 export type ReqSuccessEligibilityResult = {
   showButton: boolean;
@@ -12,7 +12,6 @@ export type ReqSuccessEligibilityInput = {
   linkedUser: TelegramUserByPhone | null;
 };
 
-/** Проверяет, укладывается ли запись в окно свежести для кнопки линковки. */
 export function isReqSuccessRecordFresh(recordAt: Date | null, now: Date, windowMinutes: number): boolean {
   if (!recordAt) return false;
   const ageMs = now.getTime() - recordAt.getTime();
@@ -20,7 +19,6 @@ export function isReqSuccessRecordFresh(recordAt: Date | null, now: Date, window
   return ageMs >= 0 && ageMs <= windowMs;
 }
 
-/** Вычисляет, показывать ли кнопку линковки для Rubitime iframe. */
 export function evaluateReqSuccessEligibility(
   input: ReqSuccessEligibilityInput,
 ): ReqSuccessEligibilityResult {

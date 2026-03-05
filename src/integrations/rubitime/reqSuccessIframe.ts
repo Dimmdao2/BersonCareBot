@@ -79,9 +79,6 @@ export function registerRubitimeReqSuccessIframeRoute(
   app: FastifyInstance,
   deps: ReqSuccessIframeDeps,
 ): void {
-  // ARCH-V3 MOVE
-  // этот endpoint должен быть переведён на pipeline (step 12),
-  // чтобы rubitime integration оставался только входным adapter-слоем
   const rateState: RateLimiterState = {
     global: { minuteBucket: -1, count: 0 },
     byIp: new Map(),
