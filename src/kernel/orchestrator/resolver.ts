@@ -1,180 +1,186 @@
-import type { IncomingEvent, Script } from '../contracts/index.js';
-import { rubitimeBookingStatuses, rubitimeContent } from '../../content/rubitime/content.js';
-import { appSettings } from '../../config/appSettings.js';
+import type {
+  ContentPort,
+  ContextQueryPort,
+  ContextQuery,
+  OrchestratorInput,
+  OrchestratorPlan,
+  OrchestratorPlanStep,
+} from '../contracts/index.js';
 
-function readObject(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null;
-}
-
-function readString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value : null;
-}
-
-function readStatusCode(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
-  if (typeof value === 'string' && value.trim().length > 0) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return Math.trunc(parsed);
-  }
-  return null;
-}
-
-function mapRubitimeStatusForStorage(rawStatusCode: number | null, rawEvent: string): 'created' | 'updated' | 'canceled' {
-  if (rawEvent === 'event-remove-record') return 'canceled';
-  if (rawEvent === 'event-create-record') return 'created';
-  if (rawStatusCode === rubitimeBookingStatuses.canceled) return 'canceled';
-  return 'updated';
-}
-
-function buildRubitimeMessageByStatus(input: {
-  rawEvent: string;
-  statusCode: number | null;
-  recordAt: string | null;
-  comment: string | null;
-}): string | null {
-  if (input.rawEvent === 'event-remove-record') {
-    return rubitimeContent.messages.bookingCanceled({ recordAt: input.recordAt });
-  }
-  if (input.rawEvent === 'event-create-record') {
-    return rubitimeContent.messages.bookingAccepted({ recordAt: input.recordAt });
-  }
-  if (input.rawEvent !== 'event-update-record') return null;
-  if (input.statusCode === rubitimeBookingStatuses.accepted) {
-    return rubitimeContent.messages.bookingAccepted({ recordAt: input.recordAt });
-  }
-  if (input.statusCode === rubitimeBookingStatuses.canceled) {
-    return rubitimeContent.messages.bookingCanceled({ recordAt: input.recordAt });
-  }
-  if (input.statusCode === rubitimeBookingStatuses.moved) {
-    return rubitimeContent.messages.bookingMoved({ comment: input.comment });
-  }
-  return null;
-}
-
-export type RubitimeTelegramUserContext = {
-  chatId: number;
-  telegramId: string;
-  username: string | null;
+type StepWhen = {
+  path?: string;
+  equals?: unknown;
+  notEquals?: unknown;
+  in?: unknown[];
+  exists?: boolean;
+  truthy?: boolean;
+  and?: StepWhen[];
+  or?: StepWhen[];
+  not?: StepWhen;
 };
 
-export type RubitimeRecipientContext = {
-  phoneNormalized: string;
-  hasTelegramUser: boolean;
-  telegramUser: RubitimeTelegramUserContext | null;
-  isTelegramAdmin: boolean;
-  isAppAdmin: boolean;
-  telegramNotificationsEnabled: boolean;
+type ScriptCondition = {
+  kind: 'context.query';
+  name: string;
+  query: ContextQuery;
 };
 
-type ResolverDeps = {
-  resolveRubitimeRecipientContext?: (phoneNormalized: string) => Promise<RubitimeRecipientContext>;
+type ScriptStep = {
+  action: string;
+  mode?: 'sync' | 'async';
+  params?: Record<string, unknown>;
 };
 
-/**
- * Выбирает script по входящему событию.
- * Базовая реализация формирует минимальный скрипт с шагом журналирования события
- * и прикладными шагами для Rubitime booking webhook.
- */
-export async function resolveScript(event: IncomingEvent, deps: ResolverDeps = {}): Promise<Script> {
-  const steps: Script['steps'] = [
-    {
-      id: `step:log:${event.meta.eventId}`,
-      kind: 'event.log',
-      mode: 'sync',
-      payload: {
-        source: event.meta.source,
-        eventType: event.type,
-        eventId: event.meta.eventId,
-        occurredAt: event.meta.occurredAt,
-        correlationId: event.meta.correlationId ?? null,
-        body: event.payload,
-      },
-    },
-  ];
+type ScriptShape = {
+  id: string;
+  steps: ScriptStep[];
+  conditions?: Array<unknown>;
+};
 
-  if (event.meta.source === 'rubitime' && event.type === 'webhook.received') {
-    const payload = readObject(event.payload);
-    const body = readObject(payload?.body);
-    const data = readObject(body?.data);
-    const rubitimeRecordId = readString(data?.id);
-    const phoneNormalized = readString(data?.phone);
-    const recordAt = readString(data?.record);
-    const comment = readString(data?.comment);
-    const statusCode = readStatusCode(data?.status);
-    const rawEvent = readString(body?.event) ?? 'event-update-record';
-    const status = mapRubitimeStatusForStorage(statusCode, rawEvent);
-    const messageText = buildRubitimeMessageByStatus({ rawEvent, statusCode, recordAt, comment });
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
 
-    if (rubitimeRecordId) {
-      steps.push({
-        id: `step:booking-upsert:${event.meta.eventId}`,
-        kind: 'booking.upsert',
-        mode: 'sync',
-        payload: {
-          rubitimeRecordId,
-          phoneNormalized,
-          recordAt,
-          status,
-          rubitimeStatusCode: statusCode,
-          payloadJson: data ?? {},
-          lastEvent: rawEvent,
-        },
-      });
-    }
-
-    if (phoneNormalized && messageText) {
-      const context = deps.resolveRubitimeRecipientContext
-        ? await deps.resolveRubitimeRecipientContext(phoneNormalized)
-        : {
-          phoneNormalized,
-          hasTelegramUser: false,
-          telegramUser: null,
-          isTelegramAdmin: false,
-          isAppAdmin: false,
-          telegramNotificationsEnabled: true,
-        };
-      const canSendTelegram = context.hasTelegramUser
-        && context.telegramUser !== null
-        && context.telegramNotificationsEnabled;
-      const recipient: { phoneNormalized: string; chatId?: number } = { phoneNormalized };
-      if (canSendTelegram && context.telegramUser) {
-        recipient.chatId = context.telegramUser.chatId;
-      }
-
-      if (rawEvent === 'event-create-record' && !canSendTelegram) {
-        steps.push({
-          id: `step:rubitime-create-retry-enqueue:${event.meta.eventId}`,
-          kind: 'rubitime.create_retry.enqueue',
-          mode: 'async',
-          payload: {
-            phoneNormalized,
-            messageText,
-            firstTryDelaySeconds: appSettings.rubitime.createRecordDelivery.firstAttemptDelaySeconds,
-            maxAttempts: appSettings.rubitime.createRecordDelivery.maxAttemptsBeforeSms,
-            context,
-          },
-        });
-      } else {
-        steps.push({
-          id: `step:message-send:${event.meta.eventId}`,
-          kind: 'message.send',
-          mode: 'async',
-          payload: {
-            recipient,
-            message: { text: messageText },
-            delivery: {
-              channels: canSendTelegram ? ['telegram', 'smsc'] : ['smsc'],
-              maxAttempts: 3,
-            },
-            context,
-          },
-        });
-      }
+function getPathValue(source: unknown, path: string): unknown {
+  const segments = path.split('.').filter((part) => part.length > 0);
+  let current: unknown = source;
+  for (const segment of segments) {
+    if (!isRecord(current) && !Array.isArray(current)) return undefined;
+    const index = Number(segment);
+    if (Array.isArray(current) && Number.isInteger(index)) {
+      current = current[index];
+    } else if (isRecord(current)) {
+      current = current[segment];
+    } else {
+      return undefined;
     }
   }
+  return current;
+}
 
+function evaluateWhen(when: StepWhen, vars: Record<string, unknown>): boolean {
+  if (when.and && Array.isArray(when.and)) {
+    return when.and.every((item) => evaluateWhen(item, vars));
+  }
+  if (when.or && Array.isArray(when.or)) {
+    return when.or.some((item) => evaluateWhen(item, vars));
+  }
+  if (when.not) return !evaluateWhen(when.not, vars);
+
+  const value = when.path ? getPathValue(vars, when.path) : undefined;
+  if (typeof when.exists === 'boolean') return when.exists ? value !== undefined : value === undefined;
+  if (typeof when.truthy === 'boolean') return when.truthy ? Boolean(value) : !Boolean(value);
+  if (Object.prototype.hasOwnProperty.call(when, 'equals')) return value === when.equals;
+  if (Object.prototype.hasOwnProperty.call(when, 'notEquals')) return value !== when.notEquals;
+  if (Array.isArray(when.in)) return when.in.includes(value as never);
+  return Boolean(value);
+}
+
+function interpolate(value: unknown, vars: Record<string, unknown>): unknown {
+  if (typeof value === 'string') {
+    return value.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
+      const replacement = getPathValue(vars, key);
+      return typeof replacement === 'string' || typeof replacement === 'number'
+        ? String(replacement)
+        : '';
+    });
+  }
+  if (Array.isArray(value)) return value.map((item) => interpolate(item, vars));
+  if (isRecord(value)) {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      result[k] = interpolate(v, vars);
+    }
+    return result;
+  }
+  return value;
+}
+
+async function resolveTemplateParams(
+  params: Record<string, unknown>,
+  contentPort: ContentPort,
+): Promise<Record<string, unknown>> {
+  const templateKey = typeof params.templateKey === 'string' ? params.templateKey : null;
+  if (!templateKey) return params;
+
+  const template = await contentPort.getTemplate(templateKey);
+  const nextParams = { ...params };
+  delete nextParams.templateKey;
+  if (!template || typeof template.text !== 'string') return nextParams;
+
+  const message = isRecord(nextParams.message) ? { ...nextParams.message } : null;
+  if (message && typeof message.text !== 'string') {
+    message.text = template.text;
+    nextParams.message = message;
+  }
+  if (typeof nextParams.messageText !== 'string') {
+    nextParams.messageText = template.text;
+  }
+  if (typeof nextParams.text !== 'string') {
+    nextParams.text = template.text;
+  }
+  return nextParams;
+}
+
+async function runContextQueries(
+  conditions: Array<unknown> | undefined,
+  vars: Record<string, unknown>,
+  contextQueryPort: ContextQueryPort,
+): Promise<Record<string, unknown>> {
+  if (!Array.isArray(conditions)) return {};
+  const results: Record<string, unknown> = {};
+  for (const item of conditions) {
+    if (!isRecord(item)) continue;
+    if (item.kind !== 'context.query') continue;
+    const name = typeof item.name === 'string' ? item.name : '';
+    if (!name) continue;
+    const query = interpolate(item.query, vars) as ContextQuery;
+    if (!isRecord(query) || typeof query.type !== 'string') continue;
+    results[name] = await contextQueryPort.request(query);
+  }
+  return results;
+}
+
+function toPlanStep(step: ScriptStep, input: OrchestratorInput, index: number, vars: Record<string, unknown>): OrchestratorPlanStep {
   return {
-    id: `script:${event.meta.source}:${event.type}`,
-    steps,
+    id: `step:${input.event.meta.eventId}:${index}`,
+    kind: step.action,
+    mode: step.mode ?? 'sync',
+    payload: (interpolate(step.params ?? {}, vars) as Record<string, unknown>),
   };
+}
+
+export async function buildPlan(
+  input: OrchestratorInput,
+  deps: { contentPort: ContentPort; contextQueryPort: ContextQueryPort },
+): Promise<OrchestratorPlan> {
+  const scriptKey = `${input.event.meta.source}:${input.event.type}`;
+  const script = await deps.contentPort.getScript(scriptKey) as ScriptShape | null;
+  if (!script) return [];
+
+  const baseVars = {
+    event: input.event,
+    context: input.context,
+  } as Record<string, unknown>;
+
+  const queryResults = await runContextQueries(script.conditions, baseVars, deps.contextQueryPort);
+  const vars = {
+    ...baseVars,
+    queries: queryResults,
+  };
+
+  const steps: OrchestratorPlanStep[] = [];
+  for (const [index, step] of script.steps.entries()) {
+    const rawParams = isRecord(step.params) ? step.params : {};
+    const when = isRecord(rawParams._when) ? (rawParams._when as StepWhen) : null;
+    const paramsWithoutWhen = { ...rawParams };
+    delete paramsWithoutWhen._when;
+    if (when && !evaluateWhen(when, vars)) continue;
+
+    const interpolated = toPlanStep({ ...step, params: paramsWithoutWhen }, input, index, vars);
+    const payload = await resolveTemplateParams(interpolated.payload, deps.contentPort);
+    steps.push({ ...interpolated, payload });
+  }
+
+  return steps;
 }

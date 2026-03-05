@@ -1,4 +1,10 @@
 import type { DeliveryAttemptResult, DeliveryJob } from './actions.js';
+import type {
+  ContentScript,
+  ContentTemplate,
+  OrchestratorInput,
+  OrchestratorPlan,
+} from './orchestrator.js';
 import type { IncomingEvent, OutgoingIntent } from './events.js';
 
 /** Категории read-запросов к хранилищу. */
@@ -71,6 +77,23 @@ export type JobQueuePort = {
   logAttempt(jobId: string, result: DeliveryAttemptResult): Promise<void>;
 };
 
+/** Порт запроса дополнительного контекста для оркестратора. */
+export type ContextQuery =
+  | { type: 'subscriptions.forUser'; userId: string }
+  | { type: 'user.identityLinks'; userId: string }
+  | { type: 'bookings.forUser'; userId: string }
+  | { type: 'rubitime.recordById'; recordId: string };
+
+export type ContextQueryPort = {
+  request(query: ContextQuery): Promise<unknown>;
+};
+
+/** Порт доступа к JSON-скриптам и шаблонам контента. */
+export type ContentPort = {
+  getScript(key: string, version?: string, locale?: string): Promise<ContentScript | null>;
+  getTemplate(key: string, version?: string, locale?: string): Promise<ContentTemplate | null>;
+};
+
 /** Базовый payload пользователя Telegram, используемый в пользовательских портах. */
 export type TelegramUserFrom = {
   id: number;
@@ -139,7 +162,7 @@ export type OrchestratorResult = {
 
 /** Публичный интерфейс оркестратора событий. */
 export type Orchestrator = {
-  orchestrate(event: IncomingEvent): Promise<OrchestratorResult>;
+  buildPlan(input: OrchestratorInput): Promise<OrchestratorPlan>;
 };
 
 /** Единая входная точка ядра для нормализованных входящих событий. */

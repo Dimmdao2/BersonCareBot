@@ -1,16 +1,21 @@
-import type { Action, ActionResult, DeliveryJob, DomainContext, IncomingEvent, OutgoingIntent } from '../contracts/index.js';
+import type {
+  Action,
+  ActionResult,
+  BaseContext,
+  DeliveryJob,
+  DomainContext,
+  IncomingEvent,
+  OrchestratorInput,
+  OrchestratorPlan,
+  OutgoingIntent,
+  Step,
+} from '../contracts/index.js';
 import type { DbWriteMutation } from '../contracts/index.js';
 import { executeAction } from './executor/executeAction.js';
-import { resolveScript as defaultResolveScript } from '../orchestrator/resolveScript.js';
 
 type HandleIncomingEventDeps = {
-  buildContext?: (event: IncomingEvent) => Promise<DomainContext>;
-  resolveScript?: (input: { event: IncomingEvent; context: DomainContext }) => Promise<Array<{
-    id: string;
-    action: string;
-    mode: 'sync' | 'async';
-    params: Record<string, unknown>;
-  }>>;
+  buildBaseContext?: (event: IncomingEvent) => Promise<BaseContext>;
+  buildPlan?: (input: OrchestratorInput) => Promise<OrchestratorPlan>;
   executeAction?: (action: Action, context: DomainContext) => Promise<ActionResult>;
 };
 
@@ -23,22 +28,39 @@ export type DomainHandleIncomingResult = {
   jobs: DeliveryJob[];
 };
 
-function toAction(step: { id: string; action: string; mode: 'sync' | 'async'; params: Record<string, unknown> }): Action {
+function toAction(step: Step): Action {
   return {
     id: step.id,
-    type: step.action,
+    type: step.kind,
     mode: step.mode,
-    params: step.params,
+    params: step.payload,
   };
 }
 
-async function defaultBuildContext(event: IncomingEvent): Promise<DomainContext> {
+function extractPhone(event: IncomingEvent): string | null {
+  const payload = event.payload as { phoneNormalized?: unknown; phone?: unknown; body?: { data?: { phone?: unknown } } };
+  const directPhone = typeof payload.phoneNormalized === 'string'
+    ? payload.phoneNormalized
+    : (typeof payload.phone === 'string' ? payload.phone : null);
+  if (directPhone && directPhone.trim().length > 0) return directPhone.trim();
+  const nestedPhone = payload.body?.data?.phone;
+  return typeof nestedPhone === 'string' && nestedPhone.trim().length > 0 ? nestedPhone.trim() : null;
+}
+
+async function buildBaseContext(event: IncomingEvent): Promise<BaseContext> {
+  const identityLinks: BaseContext['identityLinks'] = [];
+  const phone = extractPhone(event);
+  if (phone) identityLinks.push({ kind: 'phone', value: phone });
+  if (event.meta.userId) identityLinks.push({ kind: 'userId', value: event.meta.userId });
+
   return {
-    event,
-    nowIso: new Date().toISOString(),
-    values: {},
+    actor: {
+      isAdmin: false,
+    },
+    identityLinks,
   };
 }
+
 
 /**
  * Domain V3 flow: build context -> resolve script -> execute actions.
@@ -48,13 +70,20 @@ export async function handleIncomingEvent(
   event: IncomingEvent,
   deps: HandleIncomingEventDeps = {},
 ): Promise<DomainHandleIncomingResult> {
-  const context = deps.buildContext
-    ? await deps.buildContext(event)
-    : await defaultBuildContext(event);
+  const base = deps.buildBaseContext
+    ? await deps.buildBaseContext(event)
+    : await buildBaseContext(event);
 
-  const steps = deps.resolveScript
-    ? await deps.resolveScript({ event, context })
-    : await defaultResolveScript({ event, context });
+  const context: DomainContext = {
+    event,
+    nowIso: new Date().toISOString(),
+    values: {},
+    base,
+  };
+
+  const steps = deps.buildPlan
+    ? await deps.buildPlan({ event, context: base })
+    : [];
 
   const actions = steps.map(toAction);
   const execute = deps.executeAction

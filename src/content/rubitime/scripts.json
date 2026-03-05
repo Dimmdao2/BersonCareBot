@@ -1,0 +1,163 @@
+[
+  {
+    "id": "webhook.received",
+    "steps": [
+      {
+        "action": "event.log",
+        "mode": "sync",
+        "params": {
+          "source": "{{event.meta.source}}",
+          "eventType": "{{event.type}}",
+          "eventId": "{{event.meta.eventId}}",
+          "occurredAt": "{{event.meta.occurredAt}}",
+          "correlationId": "{{event.meta.correlationId}}",
+          "body": "{{event.payload}}"
+        }
+      },
+      {
+        "action": "booking.upsert",
+        "mode": "sync",
+        "params": {
+          "_when": { "path": "event.payload.body.data.id", "exists": true },
+          "rubitimeRecordId": "{{event.payload.body.data.id}}",
+          "phoneNormalized": "{{event.payload.body.data.phone}}",
+          "recordAt": "{{event.payload.body.data.record}}",
+          "status": "created",
+          "rubitimeStatusCode": "{{event.payload.body.data.status}}",
+          "payloadJson": "{{event.payload.body.data}}",
+          "lastEvent": "{{event.payload.body.event}}"
+        }
+      },
+      {
+        "action": "booking.upsert",
+        "mode": "sync",
+        "params": {
+          "_when": { "path": "event.payload.body.event", "equals": "event-update-record" },
+          "rubitimeRecordId": "{{event.payload.body.data.id}}",
+          "phoneNormalized": "{{event.payload.body.data.phone}}",
+          "recordAt": "{{event.payload.body.data.record}}",
+          "status": "updated",
+          "rubitimeStatusCode": "{{event.payload.body.data.status}}",
+          "payloadJson": "{{event.payload.body.data}}",
+          "lastEvent": "{{event.payload.body.event}}"
+        }
+      },
+      {
+        "action": "booking.upsert",
+        "mode": "sync",
+        "params": {
+          "_when": { "path": "event.payload.body.event", "equals": "event-remove-record" },
+          "rubitimeRecordId": "{{event.payload.body.data.id}}",
+          "phoneNormalized": "{{event.payload.body.data.phone}}",
+          "recordAt": "{{event.payload.body.data.record}}",
+          "status": "canceled",
+          "rubitimeStatusCode": "{{event.payload.body.data.status}}",
+          "payloadJson": "{{event.payload.body.data}}",
+          "lastEvent": "{{event.payload.body.event}}"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "_when": {
+            "and": [
+              { "path": "event.payload.body.event", "equals": "event-create-record" },
+              { "path": "queries.subscriptions.items.0.chatId", "exists": true }
+            ]
+          },
+          "recipient": {
+            "phoneNormalized": "{{event.payload.body.data.phone}}",
+            "chatId": "{{queries.subscriptions.items.0.chatId}}"
+          },
+          "message": {},
+          "delivery": { "channels": ["telegram", "smsc"], "maxAttempts": 3 },
+          "templateKey": "rubitime:bookingAccepted"
+        }
+      },
+      {
+        "action": "rubitime.create_retry.enqueue",
+        "mode": "async",
+        "params": {
+          "_when": {
+            "and": [
+              { "path": "event.payload.body.event", "equals": "event-create-record" },
+              { "not": { "path": "queries.subscriptions.items.0.chatId", "exists": true } }
+            ]
+          },
+          "phoneNormalized": "{{event.payload.body.data.phone}}",
+          "messageText": "",
+          "templateKey": "rubitime:bookingAccepted",
+          "firstTryDelaySeconds": "{{context.preferences.delivery.firstAttemptDelaySeconds}}",
+          "maxAttempts": "{{context.preferences.delivery.maxAttemptsBeforeFallback}}"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "_when": {
+            "and": [
+              { "path": "event.payload.body.event", "equals": "event-update-record" },
+              { "path": "event.payload.body.data.status", "equals": 0 }
+            ]
+          },
+          "recipient": { "phoneNormalized": "{{event.payload.body.data.phone}}" },
+          "message": {},
+          "delivery": { "channels": ["smsc"], "maxAttempts": 3 },
+          "templateKey": "rubitime:bookingAccepted"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "_when": {
+            "and": [
+              { "path": "event.payload.body.event", "equals": "event-update-record" },
+              { "path": "event.payload.body.data.status", "equals": 4 }
+            ]
+          },
+          "recipient": { "phoneNormalized": "{{event.payload.body.data.phone}}" },
+          "message": {},
+          "delivery": { "channels": ["smsc"], "maxAttempts": 3 },
+          "templateKey": "rubitime:bookingCanceled"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "_when": {
+            "and": [
+              { "path": "event.payload.body.event", "equals": "event-update-record" },
+              { "path": "event.payload.body.data.status", "equals": 7 }
+            ]
+          },
+          "recipient": { "phoneNormalized": "{{event.payload.body.data.phone}}" },
+          "message": {},
+          "delivery": { "channels": ["smsc"], "maxAttempts": 3 },
+          "templateKey": "rubitime:bookingMoved"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "_when": { "path": "event.payload.body.event", "equals": "event-remove-record" },
+          "recipient": { "phoneNormalized": "{{event.payload.body.data.phone}}" },
+          "message": {},
+          "delivery": { "channels": ["smsc"], "maxAttempts": 3 },
+          "templateKey": "rubitime:bookingCanceled"
+        }
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "context.query",
+        "name": "subscriptions",
+        "query": { "type": "subscriptions.forUser", "userId": "{{context.identityLinks.0.value}}" }
+      }
+    ]
+  }
+]

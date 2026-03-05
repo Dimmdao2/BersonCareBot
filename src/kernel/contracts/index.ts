@@ -3,6 +3,20 @@
  * Внешние слои импортируют типы только отсюда.
  */
 export type {
+  BaseContext,
+  ContentScript,
+  ContentScriptStep,
+  ContentTemplate,
+  IdentityLink,
+  OrchestratorInput,
+  OrchestratorPlan,
+  OrchestratorPlanStep,
+  Preferences,
+} from './orchestrator.js';
+
+export { RubitimeRecordStatus } from './rubitime.js';
+
+export type {
   EventMeta,
   IncomingEvent,
   IncomingEventType,
@@ -41,6 +55,9 @@ export type {
 
 export type {
   ClockPort,
+  ContentPort,
+  ContextQueryPort,
+  ContextQuery,
   DbReadPort,
   DbReadQuery,
   DbReadQueryType,

@@ -21,6 +21,10 @@ describe('kernel contracts schemas', () => {
       },
       nowIso: '2026-03-05T10:00:00.000Z',
       values: { foo: 'bar' },
+      base: {
+        actor: { isAdmin: false },
+        identityLinks: [],
+      },
       user: {
         telegramId: '123',
         phoneNormalized: '+79990001122',

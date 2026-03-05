@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ActionResult, DomainContext, IncomingEvent } from '../contracts/index.js';
+import type { ActionResult, BaseContext, DomainContext, IncomingEvent, Step } from '../contracts/index.js';
 import { handleIncomingEvent } from './handleIncomingEvent.js';
 
 describe('handleIncomingEvent (v3)', () => {
@@ -14,17 +14,23 @@ describe('handleIncomingEvent (v3)', () => {
       payload: { body: { event: 'event-create-record' } },
     };
 
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+    };
+
     const context: DomainContext = {
       event,
       nowIso: '2026-03-05T12:00:00.000Z',
       values: {},
+      base: baseContext,
     };
 
-    const buildContext = vi.fn().mockResolvedValue(context);
-    const resolveScript = vi.fn().mockResolvedValue([
-      { id: 's1', action: 'booking.upsert', mode: 'sync', params: { rubitimeRecordId: 'rec-1' } },
-      { id: 's2', action: 'message.compose', mode: 'async', params: { text: 'hello' } },
-    ]);
+    const buildBaseContext = vi.fn().mockResolvedValue(baseContext);
+    const buildPlan = vi.fn().mockResolvedValue([
+      { id: 's1', kind: 'booking.upsert', mode: 'sync', payload: { rubitimeRecordId: 'rec-1' } },
+      { id: 's2', kind: 'message.compose', mode: 'async', payload: { text: 'hello' } },
+    ]) as unknown as () => Promise<Step[]>;
 
     const executeAction = vi.fn<
       (action: { id: string }, context: DomainContext) => Promise<ActionResult>
@@ -52,13 +58,13 @@ describe('handleIncomingEvent (v3)', () => {
     });
 
     const result = await handleIncomingEvent(event, {
-      buildContext,
-      resolveScript,
+      buildBaseContext,
+      buildPlan,
       executeAction,
     });
 
-    expect(buildContext).toHaveBeenCalledTimes(1);
-    expect(resolveScript).toHaveBeenCalledTimes(1);
+    expect(buildBaseContext).toHaveBeenCalledTimes(1);
+    expect(buildPlan).toHaveBeenCalledTimes(1);
     expect(executeAction).toHaveBeenCalledTimes(2);
     expect(result.writes.length).toBe(1);
     expect(result.intents.length).toBe(1);

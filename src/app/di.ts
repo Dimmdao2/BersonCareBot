@@ -9,10 +9,14 @@ import { env } from '../config/env.js';
 import { healthCheckDb } from '../infra/db/client.js';
 import { createDbReadPort } from '../infra/db/readPort.js';
 import { createDbWritePort } from '../infra/db/writePort.js';
+import { createContentPort } from '../infra/content/contentPort.js';
+import { createContextQueryPort } from '../infra/context/contextQueryPort.js';
 import { createPostgresJobQueue } from '../infra/queue/postgresJobQueue.js';
 import { createEventGateway } from '../kernel/index.js';
 import { createIncomingEventPipeline } from '../kernel/eventGateway/incomingEventPipeline.js';
 import type {
+  ContentPort,
+  ContextQueryPort,
   DbReadPort,
   DispatchPort,
   DbWritePort,
@@ -23,6 +27,7 @@ import type {
 import { logger } from '../infra/observability/logger.js';
 import { createInMemoryIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { createDefaultDispatchPort } from '../infra/dispatcher/default.js';
+import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
 import { createSmscStub } from '../integrations/smsc/stub.js';
@@ -65,6 +70,8 @@ export type AppDeps = {
   healthCheckDb: () => Promise<boolean>;
   smsClient: SmsClient;
   dispatchPort: DispatchPort;
+  contentPort: ContentPort;
+  contextQueryPort: ContextQueryPort;
   eventGateway: EventGateway;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
@@ -92,6 +99,13 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
   });
 
+  const contentPort = createContentPort();
+  const contextQueryPort = createContextQueryPort({ readPort: dbReadPort });
+  const orchestrator = createOrchestrator({
+    contentPort,
+    contextQueryPort,
+  });
+
   const adapters = [
     createTelegramDeliveryAdapter(),
     createSmscDeliveryAdapter({ smsClient }),
@@ -111,6 +125,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     writePort: dbWritePort,
     queuePort,
     dispatchPort,
+    orchestrator,
   });
 
   const eventGateway = createEventGateway({
@@ -124,6 +139,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     healthCheckDb,
     smsClient,
     dispatchPort,
+    contentPort,
+    contextQueryPort,
     eventGateway,
     registerTelegramWebhookRoutes: input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes,
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,

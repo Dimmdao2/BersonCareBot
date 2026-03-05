@@ -14,6 +14,10 @@ const ctx: DomainContext = {
   },
   nowIso: '2026-03-05T12:00:00.000Z',
   values: {},
+  base: {
+    actor: { isAdmin: false },
+    identityLinks: [],
+  },
 };
 
 describe('executeAction', () => {

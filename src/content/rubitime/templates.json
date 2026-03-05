@@ -1,0 +1,5 @@
+{
+  "bookingAccepted": "Вы записаны к Дмитрию на прием {{event.payload.body.data.record}}",
+  "bookingCanceled": "Отменена ваша запись на прием {{event.payload.body.data.record}}",
+  "bookingMoved": "Запрос на перенос записи получен и ожидает подтверждения. Ваш комментарий: {{event.payload.body.data.comment}}"
+}

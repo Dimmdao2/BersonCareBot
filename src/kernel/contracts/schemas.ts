@@ -9,6 +9,27 @@ const eventMetaSchema = z.object({
   userId: z.string().min(1).optional(),
 });
 
+const baseContextSchema = z.object({
+  actor: z.object({
+    isAdmin: z.boolean(),
+    tenantId: z.string().min(1).optional(),
+    projectId: z.string().min(1).optional(),
+  }),
+  identityLinks: z.array(z.object({
+    kind: z.string().min(1),
+    value: z.string().min(1),
+    provider: z.string().min(1).optional(),
+  })),
+  preferences: z.object({
+    locale: z.string().min(1).optional(),
+    channels: z.array(z.string().min(1)).optional(),
+    delivery: z.object({
+      firstAttemptDelaySeconds: z.number().int().min(0).optional(),
+      maxAttemptsBeforeFallback: z.number().int().min(1).optional(),
+    }).optional(),
+  }).optional(),
+});
+
 /** Валидация входящего события pipeline. */
 export const incomingEventSchema = z.object({
   type: z.enum([
@@ -39,6 +60,7 @@ export const domainContextSchema = z.object({
   event: incomingEventSchema,
   nowIso: z.iso.datetime(),
   values: z.record(z.string(), z.unknown()),
+  base: baseContextSchema,
   user: z.object({
     id: z.string().min(1).optional(),
     telegramId: z.string().min(1).optional(),

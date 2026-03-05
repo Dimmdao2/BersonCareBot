@@ -1,12 +1,36 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { IncomingEvent } from '../contracts/index.js';
+import type { ContentPort, ContextQueryPort, IncomingEvent, Orchestrator } from '../contracts/index.js';
 import { createIncomingEventPipeline } from './incomingEventPipeline.js';
+import { createOrchestrator } from '../orchestrator/index.js';
 
 describe('incomingEventPipeline', () => {
   it('webhook -> orchestrator -> domain enqueues delivery job for async retry flow', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
     const enqueue = vi.fn().mockResolvedValue(undefined);
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+
+    const contentPort: ContentPort = {
+      getScript: vi.fn().mockResolvedValue({
+        id: 'webhook.received',
+        steps: [
+          {
+            action: 'rubitime.create_retry.enqueue',
+            mode: 'async',
+            params: {
+              phoneNormalized: '+79990001122',
+              messageText: 'hello',
+              firstTryDelaySeconds: 1,
+              maxAttempts: 2,
+            },
+          },
+        ],
+      }),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({ type: 'subscriptions.forUser', items: [] }),
+    };
+    const orchestrator: Orchestrator = createOrchestrator({ contentPort, contextQueryPort });
 
     const pipeline = createIncomingEventPipeline({
       readPort: {
@@ -15,6 +39,7 @@ describe('incomingEventPipeline', () => {
       writePort: { writeDb },
       queuePort: { enqueue },
       dispatchPort: { dispatchOutgoing },
+      orchestrator,
     });
 
     const event: IncomingEvent = {

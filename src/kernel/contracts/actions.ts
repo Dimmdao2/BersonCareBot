@@ -1,3 +1,4 @@
+import type { BaseContext } from './orchestrator.js';
 import type { IncomingEvent, OutgoingIntent } from './events.js';
 import type { DbWriteMutation } from './ports.js';
 
@@ -6,6 +7,7 @@ export type DomainContext = {
   event: IncomingEvent;
   nowIso: string;
   values: Record<string, unknown>;
+  base: BaseContext;
   user?: {
     id?: string;
     telegramId?: string;
