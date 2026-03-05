@@ -34,6 +34,59 @@ export const outgoingIntentSchema = z.object({
   payload: z.record(z.string(), z.unknown()),
 });
 
+/** Валидация доменного контекста события. */
+export const domainContextSchema = z.object({
+  event: incomingEventSchema,
+  nowIso: z.iso.datetime(),
+  values: z.record(z.string(), z.unknown()),
+  user: z.object({
+    id: z.string().min(1).optional(),
+    telegramId: z.string().min(1).optional(),
+    phoneNormalized: z.string().min(1).nullable().optional(),
+    isAdmin: z.boolean().optional(),
+    channels: z.array(z.string().min(1)).optional(),
+  }).optional(),
+});
+
+/** Валидация шага скрипта оркестратора. */
+export const scriptStepSchema = z.object({
+  id: z.string().min(1),
+  action: z.string().min(1),
+  mode: z.enum(['sync', 'async']),
+  params: z.record(z.string(), z.unknown()),
+});
+
+/** Валидация доменной команды executor. */
+export const actionSchema = z.object({
+  id: z.string().min(1),
+  type: z.string().min(1),
+  mode: z.enum(['sync', 'async']),
+  params: z.record(z.string(), z.unknown()),
+});
+
+/** Валидация задачи доставки/runtime. */
+export const deliveryJobSchema = z.object({
+  id: z.string().min(1),
+  kind: z.string().min(1),
+  runAt: z.iso.datetime(),
+  attempts: z.number().int().min(0),
+  maxAttempts: z.number().int().min(1),
+  payload: z.record(z.string(), z.unknown()),
+}).refine((job) => job.attempts <= job.maxAttempts, {
+  message: 'attempts must be <= maxAttempts',
+  path: ['attempts'],
+});
+
+/** Валидация результата выполнения domain action. */
+export const actionResultSchema = z.object({
+  actionId: z.string().min(1),
+  status: z.enum(['success', 'failed', 'queued', 'skipped']),
+  writes: z.array(z.lazy(() => dbWriteMutationSchema)).optional(),
+  intents: z.array(outgoingIntentSchema).optional(),
+  jobs: z.array(deliveryJobSchema).optional(),
+  error: z.string().min(1).optional(),
+});
+
 /** Валидация read-контракта для DB-порта. */
 export const dbReadQuerySchema = z.object({
   type: z.enum([

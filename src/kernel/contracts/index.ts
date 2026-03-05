@@ -20,6 +20,14 @@ export type {
 } from './scripts.js';
 
 export type {
+  Action,
+  ActionResult,
+  DeliveryJob,
+  DomainContext,
+  ScriptStep,
+} from './actions.js';
+
+export type {
   Step,
   StepMode,
   StepResult,
@@ -45,8 +53,13 @@ export type {
 } from './ports.js';
 
 export {
+  actionResultSchema,
+  actionSchema,
   dbReadQuerySchema,
   dbWriteMutationSchema,
+  deliveryJobSchema,
+  domainContextSchema,
   incomingEventSchema,
   outgoingIntentSchema,
+  scriptStepSchema,
 } from './schemas.js';
