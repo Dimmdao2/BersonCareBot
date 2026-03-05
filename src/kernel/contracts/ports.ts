@@ -60,6 +60,15 @@ export type ClockPort = {
   nowIso(): string;
 };
 
+/** Порт шаблонизатора для compose-этапа в domain executor. */
+export type TemplatePort = {
+  renderTemplate(input: {
+    source: string;
+    templateId: string;
+    vars?: Record<string, unknown>;
+  }): Promise<{ text: string }>;
+};
+
 /** Результат оркестрации входящего события. */
 export type OrchestratorResult = {
   reads: DbReadQuery[];

@@ -50,6 +50,7 @@ export type {
   OrchestratorResult,
   OutgoingDispatcher,
   QueuePort,
+  TemplatePort,
 } from './ports.js';
 
 export {
