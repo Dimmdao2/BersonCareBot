@@ -6,7 +6,7 @@ import {
   failRubitimeCreateRetryJob,
   rescheduleRubitimeCreateRetryJob,
 } from '../db/repos/rubitimeCreateRetryJobs.js';
-import type { WorkerJobQueuePort } from '../../runtime/worker/jobQueuePort.js';
+import type { WorkerJobQueuePort } from '../runtime/worker/jobQueuePort.js';
 
 function parseDbJobId(jobId: string): number | null {
   const [, idRaw] = jobId.split(':');

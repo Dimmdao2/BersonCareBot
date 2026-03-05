@@ -1,7 +1,7 @@
 import '../../config/loadEnv.js';
-import { appSettings } from '../../config/appSettings.js';
-import { createPostgresJobQueue } from '../../infra/queue/postgresJobQueue.js';
-import { logger } from '../../infra/observability/logger.js';
+import { appSettings } from '../../../config/appSettings.js';
+import { createPostgresJobQueue } from '../../queue/postgresJobQueue.js';
+import { logger } from '../../observability/logger.js';
 import { runWorkerTick } from './runner.js';
 
 async function sleep(ms: number): Promise<void> {
@@ -9,7 +9,7 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function startWorker(): Promise<void> {
-  const { buildDeps } = await import('../../app/di.js');
+  const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps();
   const queue = createPostgresJobQueue({
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,

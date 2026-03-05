@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import '../../config/loadEnv.js';
-import { appSettings } from '../../config/appSettings.js';
-import { logger } from '../../infra/observability/logger.js';
+import { appSettings } from '../../../config/appSettings.js';
+import { logger } from '../../observability/logger.js';
 
 const SCHEDULER_LOCK_KEY = 42001001;
 
@@ -10,8 +10,8 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function startScheduler(): Promise<void> {
-  const { db } = await import('../../infra/db/client.js');
-  const { buildDeps } = await import('../../app/di.js');
+  const { db } = await import('../../db/client.js');
+  const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps();
 
   const client = await db.connect();

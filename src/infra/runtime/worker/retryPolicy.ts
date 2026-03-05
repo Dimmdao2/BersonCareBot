@@ -1,4 +1,4 @@
-import type { DeliveryJob } from '../../kernel/contracts/index.js';
+import type { DeliveryJob } from '../../../kernel/contracts/index.js';
 
 export type RetryDecision =
   | { kind: 'complete' }

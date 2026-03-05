@@ -22,7 +22,7 @@ import type {
 } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { createInMemoryIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
-import { createDefaultDispatchPort } from '../infra/dispatch/default.js';
+import { createDefaultDispatchPort } from '../infra/dispatcher/default.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
 import { createSmscStub } from '../integrations/smsc/stub.js';
 import type { SmsClient } from '../integrations/smsc/types.js';

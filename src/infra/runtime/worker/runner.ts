@@ -1,4 +1,4 @@
-import type { DeliveryJob } from '../../kernel/contracts/index.js';
+import type { DeliveryJob } from '../../../kernel/contracts/index.js';
 import { executeJob } from './jobExecutor.js';
 import { decideRetry } from './retryPolicy.js';
 
@@ -8,7 +8,7 @@ export type WorkerRunnerDeps = {
   failJob: (jobId: string, errorCode: string) => Promise<void>;
   rescheduleJob: (jobId: string, runAt: string, attempts: number) => Promise<void>;
   logAttempt: (jobId: string, input: { ok: boolean; errorCode?: string; nextRunAt?: string; final?: boolean }) => Promise<void>;
-  dispatchOutgoing: (intent: import('../../kernel/contracts/index.js').OutgoingIntent) => Promise<void>;
+  dispatchOutgoing: (intent: import('../../../kernel/contracts/index.js').OutgoingIntent) => Promise<void>;
   nowIso: () => string;
   retryDelaySeconds: number;
 };

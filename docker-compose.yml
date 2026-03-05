@@ -81,7 +81,7 @@ services:
       dockerfile: Dockerfile
     container_name: ${COMPOSE_PROJECT_NAME:-bcb}_worker
     restart: unless-stopped
-    command: ["node", "dist/runtime/worker/main.js"]
+    command: ["node", "dist/infra/runtime/worker/main.js"]
     env_file:
       - .env
     environment:

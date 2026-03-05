@@ -1,6 +1,5 @@
 import type { DbReadPort, DispatchPort, DbWritePort, IncomingEvent, QueuePort } from '../contracts/index.js';
 import { executeDomainAction, processAcceptedIncomingEvent } from '../domain/index.js';
-import { dispatchIntent as dispatchIntentPipeline } from '../../runtime/dispatcher/dispatcher.js';
 
 export type IncomingEventPipelineDeps = {
   readPort: DbReadPort;
@@ -24,10 +23,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
           });
         },
         async dispatchIntent(intent) {
-          await dispatchIntentPipeline(intent, [{
-            canHandle: () => true,
-            send: async (outgoingIntent) => deps.dispatchPort.dispatchOutgoing(outgoingIntent),
-          }]);
+          await deps.dispatchPort.dispatchOutgoing(intent);
         },
       });
     },

@@ -1,4 +1,4 @@
-import type { DeliveryAttemptResult, DeliveryJob } from '../../kernel/contracts/index.js';
+import type { DeliveryAttemptResult, DeliveryJob } from '../../../kernel/contracts/index.js';
 
 export type WorkerJobQueuePort = {
   claimDueJobs(limit: number): Promise<DeliveryJob[]>;
