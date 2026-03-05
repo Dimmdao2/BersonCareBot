@@ -28,12 +28,14 @@ import type { SmsClient } from '../integrations/smsc/types.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 import { registerRubitimeIframeEdgeRoute } from '../integrations/rubitime/reqSuccessIframeEdge.js';
+import { evaluateReqSuccessEligibility } from '../integrations/rubitime/reqSuccessEligibility.js';
 import {
   findByPhone,
   getTelegramUserLinkData,
   notificationsPort,
   userPort,
 } from '../infra/db/repos/telegramUsers.js';
+import { getRecordByRubitimeId } from '../infra/db/repos/rubitimeRecords.js';
 
 /**
  * Integration registrars are injected to keep app wiring stable while
@@ -55,7 +57,15 @@ export type RubitimeRoutesRegistrar = (
   },
 ) => Promise<void> | void;
 
-export type RubitimeIframeRegistrar = (app: FastifyInstance) => void;
+export type RubitimeIframeAcceptedResult = { showButton: boolean; recordId: string };
+
+export type RubitimeIframeRoutesRegistrar = (
+  app: FastifyInstance,
+  deps: {
+    eventGateway: EventGateway;
+    onAcceptedEvent?: (event: IncomingEvent) => Promise<RubitimeIframeAcceptedResult>;
+  },
+) => void;
 
 /** Optional external dependencies for buildDeps during migration. */
 export type BuildDepsInput = {
@@ -65,8 +75,9 @@ export type BuildDepsInput = {
   idempotencyPort?: IdempotencyPort;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
-  registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRegistrar;
+  registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRoutesRegistrar;
   onTelegramAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
+  onRubitimeIframeAcceptedEvent?: (event: IncomingEvent) => Promise<RubitimeIframeAcceptedResult>;
   onRubitimeAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
 };
 
@@ -81,8 +92,9 @@ export type AppDeps = {
   getTelegramUserLinkData: typeof getTelegramUserLinkData;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
-  registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRegistrar;
+  registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRoutesRegistrar;
   onTelegramAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
+  onRubitimeIframeAcceptedEvent?: (event: IncomingEvent) => Promise<RubitimeIframeAcceptedResult>;
   onRubitimeAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
 };
 
@@ -211,6 +223,55 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     }
   });
 
+  const onRubitimeIframeAcceptedEvent = input.onRubitimeIframeAcceptedEvent ?? (async (event: IncomingEvent) => {
+    if (event.meta.source !== 'rubitime') {
+      return { showButton: false, recordId: '' };
+    }
+
+    const payload = event.payload as { kind?: unknown; recordSuccess?: unknown };
+    const kind = typeof payload.kind === 'string' ? payload.kind : '';
+    const recordSuccess = typeof payload.recordSuccess === 'string' ? payload.recordSuccess : '';
+    if (kind !== 'reqsuccess.iframe' || !recordSuccess) {
+      return { showButton: false, recordId: recordSuccess };
+    }
+
+    const now = new Date();
+    const record = await getRecordByRubitimeId(recordSuccess);
+    const linkedUser = record?.phoneNormalized
+      ? await findByPhone(record.phoneNormalized)
+      : null;
+
+    await handleDomainIncomingEvent(event, {
+      async buildContext(incomingEvent) {
+        return {
+          event: incomingEvent,
+          nowIso: now.toISOString(),
+          values: {
+            rubitimeReqSuccess: {
+              record,
+              linkedUser,
+            },
+          },
+        };
+      },
+      async executeAction(action, context) {
+        return executeDomainAction(action, context, { writePort: dbWritePort });
+      },
+    });
+
+    const eligibility = evaluateReqSuccessEligibility({
+      now,
+      windowMinutes: env.RUBITIME_REQSUCCESS_WINDOW_MINUTES,
+      record,
+      linkedUser,
+    });
+
+    return {
+      showButton: eligibility.showButton,
+      recordId: recordSuccess,
+    };
+  });
+
   return {
     healthCheckDb,
     smsClient,
@@ -223,6 +284,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
     registerRubitimeReqSuccessIframeRoute: input.registerRubitimeReqSuccessIframeRoute ?? registerRubitimeIframeEdgeRoute,
     onTelegramAcceptedEvent,
+    onRubitimeIframeAcceptedEvent,
     onRubitimeAcceptedEvent,
   };
 }

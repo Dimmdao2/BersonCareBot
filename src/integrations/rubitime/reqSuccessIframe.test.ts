@@ -6,9 +6,9 @@ describe('registerRubitimeReqSuccessIframeRoute', () => {
   it('returns empty body when record_success is missing', async () => {
     const app = Fastify();
     registerRubitimeReqSuccessIframeRoute(app, {
-      getRecordByRubitimeId: async () => null,
-      findTelegramUserByPhone: async () => null,
-      windowMinutes: 20,
+      eventGateway: {
+        handleIncomingEvent: async () => ({ status: 'accepted_noop', dedupKey: 'k1', reason: 'NO_RECORD_ID' }),
+      },
       delayMinMs: 0,
       delayMaxMs: 0,
       ipLimitPerMin: 100,
@@ -25,15 +25,10 @@ describe('registerRubitimeReqSuccessIframeRoute', () => {
   it('returns button html when eligible', async () => {
     const app = Fastify();
     registerRubitimeReqSuccessIframeRoute(app, {
-      getRecordByRubitimeId: async () => ({
-        rubitimeRecordId: 'rec-1',
-        phoneNormalized: '+79990001122',
-        payloadJson: {},
-        recordAt: new Date(Date.now() - 1000),
-        status: 'updated',
-      }),
-      findTelegramUserByPhone: async () => null,
-      windowMinutes: 20,
+      eventGateway: {
+        handleIncomingEvent: async (event) => ({ status: 'accepted', dedupKey: 'k2', event }),
+      },
+      onAcceptedEvent: async () => ({ showButton: true, recordId: 'rec-1' }),
       delayMinMs: 0,
       delayMaxMs: 0,
       ipLimitPerMin: 100,
@@ -51,15 +46,10 @@ describe('registerRubitimeReqSuccessIframeRoute', () => {
   it('returns empty body when linked user exists', async () => {
     const app = Fastify();
     registerRubitimeReqSuccessIframeRoute(app, {
-      getRecordByRubitimeId: async () => ({
-        rubitimeRecordId: 'rec-1',
-        phoneNormalized: '+79990001122',
-        payloadJson: {},
-        recordAt: new Date(Date.now() - 1000),
-        status: 'updated',
-      }),
-      findTelegramUserByPhone: async () => ({ chatId: 1, telegramId: '1', username: null }),
-      windowMinutes: 20,
+      eventGateway: {
+        handleIncomingEvent: async (event) => ({ status: 'accepted', dedupKey: 'k3', event }),
+      },
+      onAcceptedEvent: async () => ({ showButton: false, recordId: 'rec-1' }),
       delayMinMs: 0,
       delayMaxMs: 0,
       ipLimitPerMin: 100,

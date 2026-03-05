@@ -1,14 +1,12 @@
 import type { FastifyInstance } from 'fastify';
-import type { RubitimeRecordForLinking } from '../../infra/db/repos/rubitimeRecords.js';
-import type { TelegramUserByPhone } from '../../infra/db/repos/telegramUsers.js';
-import { evaluateReqSuccessEligibility } from './reqSuccessEligibility.js';
+import type { EventGateway, IncomingEvent } from '../../kernel/contracts/index.js';
+import { rubitimeReqSuccessToEvent } from './connector.js';
 import { renderRubitimeIframeHtml } from '../../content/rubitime/content.js';
 
 /** HTTP route iframe-помощника Rubitime: показывать кнопку линковки или нет. */
 type ReqSuccessIframeDeps = {
-  getRecordByRubitimeId: (rubitimeRecordId: string) => Promise<RubitimeRecordForLinking | null>;
-  findTelegramUserByPhone: (phoneNormalized: string) => Promise<TelegramUserByPhone | null>;
-  windowMinutes: number;
+  eventGateway: EventGateway;
+  onAcceptedEvent?: (event: IncomingEvent) => Promise<{ showButton: boolean; recordId: string }>;
   delayMinMs: number;
   delayMaxMs: number;
   ipLimitPerMin: number;
@@ -92,6 +90,8 @@ export function registerRubitimeReqSuccessIframeRoute(
   app.get('/api/rubitime', async (request, reply) => {
     const query = request.query as Record<string, unknown> | undefined;
     const recordSuccess = typeof query?.record_success === 'string' ? query.record_success.trim() : '';
+    const correlationId = request.id;
+    const eventId = `incoming:${request.id}:iframe`;
     const now = new Date();
     const clientIp = getClientIp({
       ip: request.ip,
@@ -114,21 +114,21 @@ export function registerRubitimeReqSuccessIframeRoute(
     if (!allowed) return renderAndReturn(false, '');
     if (!recordSuccess) return renderAndReturn(false, '');
 
-    // ARCH-V3 MOVE
-    // этот код должен быть перенесён в domain/context loader (доступ к данным и eligibility)
-    const record = await deps.getRecordByRubitimeId(recordSuccess);
-    const linkedUser =
-      record?.phoneNormalized != null
-        ? await deps.findTelegramUserByPhone(record.phoneNormalized)
-        : null;
-
-    const eligibility = evaluateReqSuccessEligibility({
-      now,
-      windowMinutes: deps.windowMinutes,
-      record,
-      linkedUser,
+    const incomingEvent = rubitimeReqSuccessToEvent({
+      recordSuccess,
+      clientIp,
+      correlationId,
+      eventId,
     });
+    const gatewayResult = await deps.eventGateway.handleIncomingEvent(incomingEvent);
+    if (gatewayResult.status !== 'accepted') {
+      return renderAndReturn(false, recordSuccess);
+    }
+    if (!deps.onAcceptedEvent) {
+      return renderAndReturn(false, recordSuccess);
+    }
 
-    return renderAndReturn(eligibility.showButton, recordSuccess);
+    const result = await deps.onAcceptedEvent(incomingEvent);
+    return renderAndReturn(result.showButton, result.recordId || recordSuccess);
   });
 }
