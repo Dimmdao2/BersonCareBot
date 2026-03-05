@@ -12,117 +12,36 @@ const baseEvent: IncomingEvent = {
 };
 
 describe('eventGateway', () => {
-  it('returns duplicate when idempotency denies', async () => {
-    const orchestrate = vi.fn().mockResolvedValue({ reads: [], writes: [], outgoing: [] });
+  it('returns dropped when idempotency denies', async () => {
     const { createEventGateway } = await import('./index.js');
     const gateway = createEventGateway({
-      orchestrator: { orchestrate },
       idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(false) },
     });
 
     const result = await gateway.handleIncomingEvent(baseEvent);
-    expect(result.status).toBe('duplicate');
-    expect(orchestrate).not.toHaveBeenCalled();
-  });
-
-  it('applies writes and dispatches outgoing', async () => {
-    const orchestrate = vi.fn().mockResolvedValue({
-      reads: [],
-      writes: [{ type: 'event.log', params: { foo: 'bar' } }],
-      outgoing: [{
-        type: 'message.send',
-        meta: { eventId: 'evt-1', occurredAt: '2026-03-03T00:00:00.000Z', source: 'telegram' },
-        payload: { message: { text: 'hi' } },
-      }],
-    });
-    const writeDb = vi.fn().mockResolvedValue(undefined);
-    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
-
-    const { createEventGateway } = await import('./index.js');
-    const gateway = createEventGateway({
-      orchestrator: { orchestrate },
-      writePort: { writeDb },
-      dispatchPort: { dispatchOutgoing },
-      idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true) },
-    });
-
-    const result = await gateway.handleIncomingEvent(baseEvent);
-    expect(result.status).toBe('processed');
-    if (result.status === 'processed') {
-      expect(result.writesApplied).toBe(1);
-      expect(result.outgoingDispatched).toBe(1);
+    expect(result.status).toBe('dropped');
+    if (result.status === 'dropped') {
+      expect(result.reason).toBe('DUPLICATE');
     }
-    expect(writeDb).toHaveBeenCalledTimes(1);
-    expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
   });
 
-  it('forwards debug event to admin when enabled', async () => {
-    const orchestrate = vi.fn().mockResolvedValue({ reads: [], writes: [], outgoing: [] });
-    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+  it('returns accepted for valid non-duplicate event', async () => {
     const { createEventGateway } = await import('./index.js');
     const gateway = createEventGateway({
-      orchestrator: { orchestrate },
-      dispatchPort: { dispatchOutgoing },
       idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true) },
-      debugForwardAllEvents: true,
-      debugAdminChatId: 777,
     });
 
     const result = await gateway.handleIncomingEvent(baseEvent);
-    expect(result.status).toBe('processed');
-    expect(dispatchOutgoing).toHaveBeenCalledTimes(1);
-    const forwarded = dispatchOutgoing.mock.calls[0]?.[0] as {
-      payload?: { recipient?: { chatId?: number }; delivery?: { channels?: string[] } };
-    };
-    expect(forwarded.payload?.recipient?.chatId).toBe(777);
-    expect(forwarded.payload?.delivery?.channels).toEqual(['telegram']);
+    expect(result.status).toBe('accepted');
+    if (result.status === 'accepted') {
+      expect(result.event.meta.eventId).toBe('evt-1');
+    }
   });
 
-  it('does not forward debug event for incoming admin chat messages', async () => {
-    const orchestrate = vi.fn().mockResolvedValue({ reads: [], writes: [], outgoing: [] });
-    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+  it('returns accepted for schedule.tick events', async () => {
     const { createEventGateway } = await import('./index.js');
     const gateway = createEventGateway({
-      orchestrator: { orchestrate },
-      dispatchPort: { dispatchOutgoing },
       idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true) },
-      debugForwardAllEvents: true,
-      debugAdminChatId: 777,
-    });
-    const adminEvent: IncomingEvent = {
-      type: 'message.received',
-      meta: {
-        eventId: 'evt-admin-1',
-        occurredAt: '2026-03-03T00:00:00.000Z',
-        source: 'telegram',
-      },
-      payload: {
-        incoming: {
-          kind: 'message',
-          chatId: 777,
-          telegramId: '777',
-          text: 'admin says hi',
-          userRow: null,
-          userState: 'idle',
-        },
-      },
-    };
-
-    const result = await gateway.handleIncomingEvent(adminEvent);
-    expect(result.status).toBe('processed');
-    expect(dispatchOutgoing).toHaveBeenCalledTimes(0);
-  });
-
-  it('does not forward schedule.tick events to admin debug chat', async () => {
-    const orchestrate = vi.fn().mockResolvedValue({ reads: [], writes: [], outgoing: [] });
-    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
-    const { createEventGateway } = await import('./index.js');
-    const gateway = createEventGateway({
-      orchestrator: { orchestrate },
-      dispatchPort: { dispatchOutgoing },
-      idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true) },
-      debugForwardAllEvents: true,
-      debugAdminChatId: 777,
     });
     const tickEvent: IncomingEvent = {
       type: 'schedule.tick',
@@ -135,25 +54,38 @@ describe('eventGateway', () => {
     };
 
     const result = await gateway.handleIncomingEvent(tickEvent);
-    expect(result.status).toBe('processed');
-    expect(dispatchOutgoing).toHaveBeenCalledTimes(0);
+    expect(result.status).toBe('accepted');
   });
 
-  it('returns failed when rate limited', async () => {
+  it('returns rejected for invalid envelope', async () => {
+    const { createEventGateway } = await import('./index.js');
+    const gateway = createEventGateway();
+    const invalidEvent = {
+      type: 'message.received',
+      meta: { occurredAt: 'invalid-iso', source: 'telegram' },
+      payload: {},
+    } as unknown as IncomingEvent;
+
+    const result = await gateway.handleIncomingEvent(invalidEvent);
+    expect(result.status).toBe('rejected');
+    if (result.status === 'rejected') {
+      expect(result.reason).toBe('INVALID_ENVELOPE');
+    }
+  });
+
+  it('returns rejected when rate limited', async () => {
     vi.resetModules();
     vi.doMock('./rateLimit.js', () => ({
       checkGatewayRateLimit: async () => ({ allowed: false, reason: 'RATE_LIMIT' }),
     }));
-    const orchestrate = vi.fn().mockResolvedValue({ reads: [], writes: [], outgoing: [] });
     const { createEventGateway } = await import('./index.js');
-    const gateway = createEventGateway({ orchestrator: { orchestrate } });
+    const gateway = createEventGateway();
 
     const result = await gateway.handleIncomingEvent(baseEvent);
-    expect(result.status).toBe('failed');
-    if (result.status === 'failed') {
-      expect(result.error).toBe('RATE_LIMIT');
+    expect(result.status).toBe('rejected');
+    if (result.status === 'rejected') {
+      expect(result.reason).toBe('RATE_LIMIT');
     }
-    expect(orchestrate).not.toHaveBeenCalled();
     vi.doUnmock('./rateLimit.js');
   });
 });

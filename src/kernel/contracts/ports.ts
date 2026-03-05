@@ -1,5 +1,4 @@
 import type { IncomingEvent, OutgoingIntent } from './events.js';
-import type { StepResult } from './steps.js';
 
 /** Категории read-запросов к хранилищу. */
 export type DbReadQueryType =
@@ -80,9 +79,10 @@ export type EventGateway = {
 
 /** Итог работы eventGateway над одним событием. */
 export type GatewayResult =
-  | { status: 'duplicate'; dedupKey: string }
-  | { status: 'processed'; dedupKey: string; writesApplied: number; outgoingDispatched: number }
-  | { status: 'failed'; dedupKey: string; error: string; partial?: StepResult[] };
+  | { status: 'accepted'; dedupKey: string; event: IncomingEvent }
+  | { status: 'accepted_noop'; dedupKey: string; reason: string }
+  | { status: 'rejected'; dedupKey: string; reason: string }
+  | { status: 'dropped'; dedupKey: string; reason: string };
 
 /** Совместимый алиас прежнего имени dispatch-контракта. */
 export type OutgoingDispatcher = DispatchPort;
