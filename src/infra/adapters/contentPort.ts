@@ -20,26 +20,6 @@ function createRegistryState(input?: { rootDir?: string }): RegistryState {
   };
 }
 
-function buildEventLogScript(): ContentScript {
-  return {
-    id: 'event.log',
-    steps: [
-      {
-        action: 'event.log',
-        mode: 'sync',
-        params: {
-          source: '{{source}}',
-          eventType: '{{eventType}}',
-          eventId: '{{eventId}}',
-          occurredAt: '{{occurredAt}}',
-          correlationId: '{{correlationId}}',
-          body: '{{payload}}',
-        },
-      },
-    ],
-  };
-}
-
 function normalizeScript(script: RegistryScript): ContentScript {
   const normalized: ContentScript = {
     id: script.id,
@@ -74,7 +54,6 @@ export function createContentPort(input?: { rootDir?: string }): ContentPort {
 
   return {
     async getScript(key: string): Promise<ContentScript | null> {
-      if (key === 'event.log') return buildEventLogScript();
       const [source, scriptId] = key.split(':');
       if (!source || !scriptId) return null;
       const data = await registry.load();

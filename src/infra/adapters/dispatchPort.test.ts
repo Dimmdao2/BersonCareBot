@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
-import { createDefaultDispatchPort } from './default.js';
+import { createDefaultDispatchPort } from './dispatchPort.js';
 
 const sendPrimaryMock = vi.fn().mockResolvedValue(undefined);
 const sendSecondaryMock = vi.fn().mockResolvedValue(undefined);

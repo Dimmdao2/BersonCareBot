@@ -1,6 +1,6 @@
 import '../../../config/loadEnv.js';
 import { appSettings } from '../../../config/appSettings.js';
-import { createPostgresJobQueue } from '../../queue/postgresJobQueue.js';
+import { createPostgresJobQueue } from '../../adapters/jobQueuePort.js';
 import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
 import { runWorkerTick } from './runner.js';

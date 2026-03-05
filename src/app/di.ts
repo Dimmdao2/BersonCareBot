@@ -9,9 +9,9 @@ import { env } from '../config/env.js';
 import { createDbPort, healthCheckDb } from '../infra/db/client.js';
 import { createDbReadPort } from '../infra/db/readPort.js';
 import { createDbWritePort } from '../infra/db/writePort.js';
-import { createContentPort } from '../infra/content/contentPort.js';
-import { createContextQueryPort } from '../infra/context/contextQueryPort.js';
-import { createPostgresJobQueue } from '../infra/queue/postgresJobQueue.js';
+import { createContentPort } from '../infra/adapters/contentPort.js';
+import { createContextQueryPort } from '../infra/adapters/contextQueryPort.js';
+import { createPostgresJobQueue } from '../infra/adapters/jobQueuePort.js';
 import { createEventGateway } from '../kernel/index.js';
 import { createIncomingEventPipeline } from '../kernel/eventGateway/incomingEventPipeline.js';
 import type {
@@ -26,7 +26,7 @@ import type {
 } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { createInMemoryIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
-import { createDefaultDispatchPort } from '../infra/dispatcher/default.js';
+import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';

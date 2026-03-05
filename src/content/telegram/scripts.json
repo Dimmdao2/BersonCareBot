@@ -1,1 +1,14 @@
-[]
+[
+	{
+		"id": "message.received",
+		"source": "telegram",
+		"event": "message.received",
+		"steps": []
+	},
+	{
+		"id": "callback.received",
+		"source": "telegram",
+		"event": "callback.received",
+		"steps": []
+	}
+]
