@@ -96,4 +96,26 @@ describe('executeAction', () => {
     expect(result.status).toBe('success');
     expect(readDb).toHaveBeenCalledTimes(1);
   });
+
+  it('handles legacy rubitime.create_retry.enqueue action', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const action: Action = {
+      id: 'a5',
+      type: 'rubitime.create_retry.enqueue',
+      mode: 'async',
+      params: {
+        phoneNormalized: '+79990001122',
+        messageText: 'hello',
+        firstTryDelaySeconds: 60,
+        maxAttempts: 2,
+      },
+    };
+
+    const result = await executeAction(action, ctx, {
+      writePort: { writeDb },
+    });
+
+    expect(result.status).toBe('queued');
+    expect(writeDb).toHaveBeenCalledTimes(1);
+  });
 });

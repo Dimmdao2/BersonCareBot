@@ -30,7 +30,12 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
 
   if (deps.registerRubitimeWebhookRoutes) {
     app.register(async (instance) => {
-      await deps.registerRubitimeWebhookRoutes?.(instance, { eventGateway: deps.eventGateway });
+      await deps.registerRubitimeWebhookRoutes?.(instance, {
+        eventGateway: deps.eventGateway,
+        ...(deps.onRubitimeAcceptedEvent
+          ? { onAcceptedEvent: deps.onRubitimeAcceptedEvent }
+          : {}),
+      });
     });
   }
 

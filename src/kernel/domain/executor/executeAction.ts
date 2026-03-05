@@ -66,6 +66,12 @@ export async function executeAction(
   deps: ExecutorDeps = {},
 ): Promise<ActionResult> {
   switch (action.type) {
+    case 'event.log': {
+      const writes: DbWriteMutation[] = [{ type: 'event.log', params: action.params }];
+      await persistWrites(deps.writePort, writes);
+      return { actionId: action.id, status: 'success', writes };
+    }
+
     case 'booking.upsert': {
       const writes: DbWriteMutation[] = [{ type: 'booking.upsert', params: action.params }];
       await persistWrites(deps.writePort, writes);
@@ -120,6 +126,38 @@ export async function executeAction(
         },
       }];
       return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'message.send': {
+      const intents: OutgoingIntent[] = [{
+        type: 'message.send',
+        meta: {
+          eventId: `${ctx.event.meta.eventId}:intent:${action.id}`,
+          occurredAt: nowIso(ctx),
+          source: ctx.event.meta.source,
+          ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+          ...(ctx.event.meta.userId ? { userId: ctx.event.meta.userId } : {}),
+        },
+        payload: action.params,
+      }];
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'rubitime.create_retry.enqueue': {
+      const job = buildDeliveryJob({
+        actionId: action.id,
+        params: {
+          kind: 'rubitime.create_retry.enqueue',
+          payload: action.params,
+        },
+        now: nowIso(ctx),
+      });
+      const writes: DbWriteMutation[] = [{
+        type: 'rubitime.create_retry.enqueue',
+        params: action.params,
+      }];
+      await persistWrites(deps.writePort, writes);
+      return { actionId: action.id, status: 'queued', writes, jobs: [job] };
     }
 
     case 'intent.enqueueDelivery': {

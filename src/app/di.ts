@@ -14,8 +14,11 @@ import type {
   DbWritePort,
   EventGateway,
   IdempotencyPort,
+  IncomingEvent,
   Orchestrator,
 } from '../kernel/contracts/index.js';
+import { executeDomainAction, handleDomainIncomingEvent } from '../kernel/domain/index.js';
+import { dispatchIntent } from '../runtime/dispatcher/dispatcher.js';
 import { logger } from '../infra/observability/logger.js';
 import { createInMemoryIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { createDefaultDispatchPort } from '../infra/dispatch/default.js';
@@ -47,7 +50,10 @@ export type TelegramRoutesRegistrar = (
 
 export type RubitimeRoutesRegistrar = (
   app: FastifyInstance,
-  deps: { eventGateway: EventGateway },
+  deps: {
+    eventGateway: EventGateway;
+    onAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
+  },
 ) => Promise<void> | void;
 
 export type RubitimeIframeRegistrar = (app: FastifyInstance) => void;
@@ -61,6 +67,7 @@ export type BuildDepsInput = {
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRegistrar;
+  onRubitimeAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
 };
 
 /** App-layer dependencies consumed by routes/server. */
@@ -75,6 +82,7 @@ export type AppDeps = {
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerRubitimeReqSuccessIframeRoute?: RubitimeIframeRegistrar;
+  onRubitimeAcceptedEvent?: (event: IncomingEvent) => Promise<void>;
 };
 
 /** Builds fully wired app dependencies for the refactor runtime. */
@@ -135,6 +143,49 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     debugForwardAllEvents: env.DEBUG_FORWARD_ALL_EVENTS_TO_ADMIN,
   });
 
+  const onRubitimeAcceptedEvent = input.onRubitimeAcceptedEvent ?? (async (event: IncomingEvent) => {
+    if (event.meta.source !== 'rubitime') return;
+    const payload = event.payload as { body?: { data?: { phone?: unknown } } };
+    const phoneRaw = payload.body?.data?.phone;
+    const phoneNormalized = typeof phoneRaw === 'string' && phoneRaw.trim().length > 0
+      ? phoneRaw
+      : null;
+
+    const domainResult = await handleDomainIncomingEvent(event, {
+      async buildContext(incomingEvent) {
+        const telegramUser = phoneNormalized ? await findByPhone(phoneNormalized) : null;
+        return {
+          event: incomingEvent,
+          nowIso: new Date().toISOString(),
+          values: {
+            rubitimeRecipientContext: {
+              phoneNormalized: phoneNormalized ?? '',
+              hasTelegramUser: telegramUser !== null,
+              telegramUser,
+              isTelegramAdmin: Boolean(
+                telegramUser
+                  && Number.isFinite(adminTelegramId)
+                  && String(telegramUser.telegramId) === String(adminTelegramId),
+              ),
+              isAppAdmin: false,
+              telegramNotificationsEnabled: true,
+            },
+          },
+        };
+      },
+      async executeAction(action, context) {
+        return executeDomainAction(action, context, { writePort: dbWritePort });
+      },
+    });
+
+    for (const intent of domainResult.intents) {
+      await dispatchIntent(intent, [{
+        canHandle: () => true,
+        send: async (outgoingIntent) => dispatchPort.dispatchOutgoing(outgoingIntent),
+      }]);
+    }
+  });
+
   return {
     healthCheckDb,
     smsClient,
@@ -146,5 +197,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     registerTelegramWebhookRoutes: input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes,
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
     registerRubitimeReqSuccessIframeRoute: input.registerRubitimeReqSuccessIframeRoute ?? registerRubitimeIframeEdgeRoute,
+    onRubitimeAcceptedEvent,
   };
 }
