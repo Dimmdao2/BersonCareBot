@@ -1,8 +1,5 @@
-import type { DispatchPort, DbWritePort, OutgoingIntent } from '../../kernel/contracts/index.js';
-import type { SmsClient } from '../../integrations/smsc/types.js';
-import { createMessagingPort } from '../../integrations/telegram/client.js';
-import { createSmscDispatchPort } from './smsc.js';
-import { createTelegramDispatchPort } from './telegram.js';
+import type { DeliveryAdapter, DispatchPort, DbWritePort, OutgoingIntent } from '../../kernel/contracts/index.js';
+import { DEFAULT_DELIVERY_CHANNEL } from '../../kernel/contracts/index.js';
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
@@ -17,11 +14,19 @@ function readChannel(intent: OutgoingIntent): string {
     const normalized = channels.filter((item): item is string => typeof item === 'string');
     if (normalized.length > 0) return normalized[0] as string;
   }
-  return 'smsc';
+  return DEFAULT_DELIVERY_CHANNEL;
 }
 
-function asNonEmptyString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+function withChannel(intent: OutgoingIntent, channel: string): OutgoingIntent {
+  const payload = (intent.payload ?? {}) as DeliveryPayload;
+  const delivery = { ...(payload.delivery ?? {}), channels: [channel] };
+  return {
+    ...intent,
+    payload: {
+      ...payload,
+      delivery,
+    },
+  };
 }
 
 async function logDeliveryAttempt(
@@ -54,46 +59,18 @@ async function logDeliveryAttempt(
  * Channel order comes from domain-provided `payload.delivery.channels`.
  */
 export function createDefaultDispatchPort(deps: {
-  smsClient: SmsClient;
+  adapters: DeliveryAdapter[];
   writePort?: DbWritePort;
-  debugForwardAllEvents?: boolean;
-  debugAdminChatId?: number;
 }): DispatchPort {
-  const smscDispatch = createSmscDispatchPort({ smsClient: deps.smsClient });
-  let messagingPort: ReturnType<typeof createMessagingPort> | null = null;
-  const getMessagingPort = (): ReturnType<typeof createMessagingPort> => {
-    if (!messagingPort) messagingPort = createMessagingPort();
-    return messagingPort;
-  };
-  const telegramDispatch = createTelegramDispatchPort({
-    async sendTelegramIntent(intent: OutgoingIntent): Promise<void> {
-      const payload = intent.payload as DeliveryPayload;
-      const chatId = payload.recipient?.chatId;
-      const text = asNonEmptyString(payload.message?.text);
-      if (typeof chatId !== 'number' || !text) {
-        const err = new Error('TELEGRAM_PAYLOAD_INVALID');
-        (err as { code?: number }).code = 400;
-        throw err;
-      }
-      await getMessagingPort().sendMessage({ chat_id: chatId, text });
-    },
-  });
-
   return {
     async dispatchOutgoing(intent: OutgoingIntent): Promise<void> {
       if (intent.type !== 'message.send') return;
       const channel = readChannel(intent);
-      if (channel === 'telegram') {
-        await telegramDispatch.dispatchOutgoing(intent);
-        await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
-        return;
-      }
-      if (channel === 'smsc') {
-        await smscDispatch.dispatchOutgoing(intent);
-        await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
-        return;
-      }
-      throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);
+      const intentForChannel = withChannel(intent, channel);
+      const adapter = deps.adapters.find((item) => item.canHandle(intentForChannel));
+      if (!adapter) throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);
+      await adapter.send(intentForChannel);
+      await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
     },
   };
 }

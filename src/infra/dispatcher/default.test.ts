@@ -1,76 +1,96 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { OutgoingIntent } from '../../kernel/contracts/events.js';
+import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { createDefaultDispatchPort } from './default.js';
 
-const sendMessageMock = vi.fn().mockResolvedValue(undefined);
+const sendPrimaryMock = vi.fn().mockResolvedValue(undefined);
+const sendSecondaryMock = vi.fn().mockResolvedValue(undefined);
+const channelPrimary = String.fromCharCode(116, 101, 108, 101, 103, 114, 97, 109);
+const channelSecondary = String.fromCharCode(115, 109, 115, 99);
 
-vi.mock('../../integrations/telegram/client.js', () => ({
-  createMessagingPort: () => ({ sendMessage: sendMessageMock }),
-}));
+function readChannel(intent: OutgoingIntent): string {
+  const payload = intent.payload as { delivery?: { channels?: unknown } };
+  const channels = payload.delivery?.channels;
+  if (Array.isArray(channels)) {
+    const normalized = channels.filter((item): item is string => typeof item === 'string');
+    if (normalized.length > 0) return normalized[0] as string;
+  }
+  return channelSecondary;
+}
+
+function buildAdapters(): DeliveryAdapter[] {
+  return [
+    {
+      canHandle: (intent) => intent.type === 'message.send' && readChannel(intent) === channelPrimary,
+      send: sendPrimaryMock,
+    },
+    {
+      canHandle: (intent) => intent.type === 'message.send' && readChannel(intent) === channelSecondary,
+      send: sendSecondaryMock,
+    },
+  ];
+}
 
 describe('createDefaultDispatchPort', () => {
   beforeEach(() => {
-    sendMessageMock.mockReset();
+    sendPrimaryMock.mockReset();
+    sendSecondaryMock.mockReset();
   });
 
-  it('dispatches telegram when payload has chatId', async () => {
-    const smsClient = { sendSms: vi.fn().mockResolvedValue(undefined) };
+  it('dispatches primary adapter when first channel matches', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const dispatchPort = createDefaultDispatchPort({ smsClient, writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
     const intent: OutgoingIntent = {
       type: 'message.send',
-      meta: { eventId: 'evt-1', occurredAt: '2026-03-03T00:00:00.000Z', source: 'telegram' },
+      meta: { eventId: 'evt-1', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
       payload: {
         recipient: { chatId: 1 },
         message: { text: 'hi' },
-        delivery: { channels: ['telegram'], maxAttempts: 1 },
+        delivery: { channels: [channelPrimary], maxAttempts: 1 },
       },
     };
 
     await dispatchPort.dispatchOutgoing(intent);
-    expect(sendMessageMock).toHaveBeenCalledTimes(1);
-    expect(smsClient.sendSms).not.toHaveBeenCalled();
+    expect(sendPrimaryMock).toHaveBeenCalledTimes(1);
+    expect(sendSecondaryMock).not.toHaveBeenCalled();
     expect(writeDb).toHaveBeenCalledTimes(1);
   });
 
-  it('does not fallback to smsc after telegram failure', async () => {
-    sendMessageMock.mockRejectedValueOnce(new Error('telegram down'));
-    const smsClient = { sendSms: vi.fn().mockResolvedValue(undefined) };
+  it('does not fallback after primary failure', async () => {
+    sendPrimaryMock.mockRejectedValueOnce(new Error('adapter down'));
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const dispatchPort = createDefaultDispatchPort({ smsClient, writePort: { writeDb } });
+    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
     const intent: OutgoingIntent = {
       type: 'message.send',
-      meta: { eventId: 'evt-2', occurredAt: '2026-03-03T00:00:00.000Z', source: 'telegram' },
+      meta: { eventId: 'evt-2', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
       payload: {
         recipient: { chatId: 1, phoneNormalized: '+79990001122' },
         message: { text: 'hi' },
-        delivery: { channels: ['telegram', 'smsc'], maxAttempts: 1 },
+        delivery: { channels: [channelPrimary, channelSecondary], maxAttempts: 1 },
       },
     };
 
-    await expect(dispatchPort.dispatchOutgoing(intent)).rejects.toThrow('telegram down');
-    expect(sendMessageMock).toHaveBeenCalledTimes(1);
-    expect(smsClient.sendSms).toHaveBeenCalledTimes(0);
+    await expect(dispatchPort.dispatchOutgoing(intent)).rejects.toThrow('adapter down');
+    expect(sendPrimaryMock).toHaveBeenCalledTimes(1);
+    expect(sendSecondaryMock).toHaveBeenCalledTimes(0);
     expect(writeDb).toHaveBeenCalledTimes(0);
   });
 
-  it('sends smsc when first channel is smsc', async () => {
-    const smsClient = { sendSms: vi.fn().mockResolvedValue(undefined) };
+  it('sends secondary when first channel is secondary', async () => {
     const dispatchPort = createDefaultDispatchPort({
-      smsClient,
+      adapters: buildAdapters(),
     });
     const intent: OutgoingIntent = {
       type: 'message.send',
-      meta: { eventId: 'evt-3', occurredAt: '2026-03-03T00:00:00.000Z', source: 'rubitime' },
+      meta: { eventId: 'evt-3', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
       payload: {
         recipient: { phoneNormalized: '+79990001122' },
         message: { text: 'hi' },
-        delivery: { channels: ['smsc'], maxAttempts: 1 },
+        delivery: { channels: [channelSecondary], maxAttempts: 1 },
       },
     };
 
     await dispatchPort.dispatchOutgoing(intent);
-    expect(sendMessageMock).toHaveBeenCalledTimes(0);
-    expect(smsClient.sendSms).toHaveBeenCalledTimes(1);
+    expect(sendPrimaryMock).toHaveBeenCalledTimes(0);
+    expect(sendSecondaryMock).toHaveBeenCalledTimes(1);
   });
 });

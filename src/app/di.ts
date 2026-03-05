@@ -24,8 +24,10 @@ import { logger } from '../infra/observability/logger.js';
 import { createInMemoryIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { createDefaultDispatchPort } from '../infra/dispatcher/default.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
+import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
 import { createSmscStub } from '../integrations/smsc/stub.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
+import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 
@@ -90,10 +92,15 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
   });
 
+  const adapters = [
+    createTelegramDeliveryAdapter(),
+    createSmscDeliveryAdapter({ smsClient }),
+  ];
+
   const dispatchPort =
     input.dispatchPort ??
     createDefaultDispatchPort({
-      smsClient,
+      adapters,
       writePort: dbWritePort,
     });
 

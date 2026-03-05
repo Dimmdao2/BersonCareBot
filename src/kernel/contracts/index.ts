@@ -47,6 +47,7 @@ export type {
   DbWriteMutation,
   DbWriteMutationType,
   DbWritePort,
+  DeliveryAdapter,
   DispatchPort,
   EventGateway,
   GatewayResult,
@@ -56,6 +57,12 @@ export type {
   OutgoingDispatcher,
   QueuePort,
   TemplatePort,
+} from './ports.js';
+
+export {
+  DEFAULT_DELIVERY_CHANNEL,
+  DELIVERY_CHANNEL_SMSC,
+  DELIVERY_CHANNEL_TELEGRAM,
 } from './ports.js';
 
 export {

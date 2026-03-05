@@ -46,6 +46,16 @@ export type DispatchPort = {
   dispatchOutgoing(intent: OutgoingIntent): Promise<void>;
 };
 
+/** Универсальный адаптер доставки для infra dispatcher. */
+export type DeliveryAdapter = {
+  canHandle(intent: OutgoingIntent): boolean;
+  send(intent: OutgoingIntent): Promise<void>;
+};
+
+export const DELIVERY_CHANNEL_TELEGRAM = 'telegram';
+export const DELIVERY_CHANNEL_SMSC = 'smsc';
+export const DEFAULT_DELIVERY_CHANNEL = DELIVERY_CHANNEL_SMSC;
+
 /** Порт постановки асинхронной задачи в очередь. */
 export type QueuePort = {
   enqueue(task: { kind: string; payload: Record<string, unknown> }): Promise<void>;

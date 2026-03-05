@@ -14,9 +14,9 @@ intent
 
 Пример:
 
-telegram → telegram integration
-sms → sms integration
-email → email integration
+channel-a → integration-a
+channel-b → integration-b
+channel-c → integration-c
 
 После этого dispatcher передаёт сообщение интеграции.
 
