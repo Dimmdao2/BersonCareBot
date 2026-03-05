@@ -1,5 +1,6 @@
 import pino from 'pino';
 import { randomUUID } from 'node:crypto';
+import { env } from '../../config/env.js';
 
 /** Унифицированная форма ошибки для структурированных логов. */
 export type SerializedError = {
@@ -41,8 +42,8 @@ export function serializeError(err: unknown): SerializedError {
  * в production/test оставляет JSON-логи.
  */
 function buildTransport(): pino.TransportSingleOptions | undefined {
-  const isDev = process.env.NODE_ENV === 'development';
-  const isTest = process.env.NODE_ENV === 'test';
+  const isDev = env.NODE_ENV === 'development';
+  const isTest = env.NODE_ENV === 'test';
   if (!isDev || isTest) return undefined;
 
   return {
@@ -55,9 +56,9 @@ const transport = buildTransport();
 
 /** Корневой логгер приложения с редактированием чувствительных полей. */
 export const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
+  level: env.LOG_LEVEL,
   ...(transport ? { transport } : {}),
-  base: { pid: process.pid, hostname: process.env.HOSTNAME || '' },
+  base: { pid: process.pid },
   redact: {
     paths: [
       'headers.authorization',

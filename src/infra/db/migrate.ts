@@ -1,3 +1,4 @@
+import '../../config/loadEnv.js';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { Pool } from 'pg';
