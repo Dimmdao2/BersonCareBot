@@ -80,6 +80,9 @@ function shouldSkipDebugForward(event: IncomingEvent): boolean {
  * Gateway не содержит бизнес-логики: только envelope-проверки, dedup и запуск orchestrator.
  */
 type EventGatewayDeps = {
+  // ARCH-V3 MOVE
+  // orchestrator/write/dispatch должны быть вынесены за пределы eventGateway
+  // (gateway = validate/dedup/rate-limit/audit technical stage)
   orchestrator: Orchestrator;
   writePort?: DbWritePort;
   dispatchPort?: DispatchPort;
@@ -114,6 +117,9 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
     writes?: unknown[];
     outgoing?: unknown[];
   }): Promise<void> => {
+    // ARCH-V3 MOVE
+    // отправка debug сообщений должна выполняться через domain/runtime dispatcher,
+    // а не напрямую из gateway
     if (!debugForwardAllEvents) return;
     if (!dispatchPort) return;
     if (typeof debugAdminChatId !== 'number' || !Number.isFinite(debugAdminChatId)) return;
@@ -173,10 +179,15 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
       }
 
       try {
+        // ARCH-V3 MOVE
+        // этот вызов должен быть перенесён в domain.handleIncomingEvent -> orchestrator.resolveScript
         const result = await orchestrator.orchestrate(event);
 
         let writesApplied = 0;
         if (writePort) {
+          // ARCH-V3 MOVE
+          // применение write mutations должно выполняться в domain executor/runtime,
+          // а не внутри gateway
           for (const mutation of result.writes) {
             await writePort.writeDb(mutation);
             writesApplied += 1;
@@ -185,6 +196,9 @@ export function createEventGateway(deps: EventGatewayDeps): EventGateway {
 
         let outgoingDispatched = 0;
         if (dispatchPort) {
+          // ARCH-V3 MOVE
+          // dispatch intents должен выполняться через runtime/dispatcher,
+          // а не внутри gateway
           for (const intent of result.outgoing) {
             await dispatchPort.dispatchOutgoing(intent);
             outgoingDispatched += 1;

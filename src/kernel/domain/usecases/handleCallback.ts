@@ -11,6 +11,8 @@ export async function handleNotificationCallback(
   notificationsPort: NotificationsPort,
   content: WebhookContent,
 ): Promise<OutgoingAction[] | null> {
+  // ARCH-V3 MOVE
+  // этот код должен быть перенесён в orchestrator (сценарные ветки callback)
   const settings = await getSettings(telegramId, notificationsPort);
 
   if (data === 'notify_toggle_spb') {

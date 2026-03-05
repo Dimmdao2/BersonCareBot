@@ -17,6 +17,8 @@ export async function handleStart(
   userPort: UserPort,
   content: WebhookContent,
 ): Promise<{ consumed: boolean; actions: OutgoingAction[] }> {
+  // ARCH-V3 MOVE
+  // этот код должен быть перенесён в orchestrator (сценарные правила обработки команд/messages)
   const allow = await tryConsumeStart(telegramId, userPort);
   if (!allow) return { consumed: false, actions: [] };
 

@@ -13,12 +13,18 @@ type CreateOrchestratorInput = {
 export function createOrchestrator(input: CreateOrchestratorInput = {}): Orchestrator {
   return {
     async orchestrate(event: IncomingEvent): Promise<OrchestratorResult> {
+      // ARCH-V3 MOVE
+      // подгрузка контекста должна идти из domain.handleIncomingEvent,
+      // orchestrator должен получать уже собранный DomainContext
       const script = await resolveScript(
         event,
         input.resolveRubitimeRecipientContext
           ? { resolveRubitimeRecipientContext: input.resolveRubitimeRecipientContext }
           : {},
       );
+      // ARCH-V3 MOVE
+      // исполнение шагов должно быть в domain executor;
+      // orchestrator здесь должен только resolveScript(...)
       return runScript(script, { event, values: {} });
     },
   };

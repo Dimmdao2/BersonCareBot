@@ -22,6 +22,9 @@ function asOutgoing(data: Record<string, unknown> | undefined): OutgoingIntent[]
  * Базовая реализация: sequential step execution через `domain.executeStep`.
  */
 export async function runScript(script: Script, ctx: ScriptContext): Promise<OrchestratorResult> {
+  // ARCH-V3 MOVE
+  // этот модуль должен быть перенесён в domain executor;
+  // orchestrator не исполняет шаги, а только возвращает ScriptStep[]
   const reads: DbReadQuery[] = [];
   const writes: DbWriteMutation[] = [];
   const outgoing: OutgoingIntent[] = [];

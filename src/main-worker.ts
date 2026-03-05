@@ -23,6 +23,9 @@ async function startWorker() {
 
   while (true) {
     try {
+      // ARCH-V3 MOVE
+      // этот прямой вызов должен быть перенесён в модель queue/job -> eventGateway pipeline,
+      // без отдельной ветки, обходящей domain/orchestrator
       await runRubitimeCreateRetryIteration(deps.dispatchPort);
       await runWorkerTask(deps.eventGateway, {
         id: randomUUID(),

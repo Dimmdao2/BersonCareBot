@@ -52,6 +52,9 @@ export function createDbWritePort(): DbWritePort {
           return;
         }
         case 'event.log': {
+          // ARCH-V3 MOVE
+          // event-specific routing (например rubitime branch) должен принимать domain executor,
+          // а db adapter должен оставаться тонким persistence adapter
           // For Rubitime events we persist a raw webhook journal entry.
           const source = asNonEmptyString(mutation.params.source);
           const body = mutation.params.body;

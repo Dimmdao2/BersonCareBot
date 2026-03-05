@@ -68,9 +68,13 @@ export async function registerTelegramWebhookRoutes(
       let userRow: { id: string; telegram_id: string } | null = null;
       let telegramId: string | null = null;
       if (body.message?.from) {
+        // ARCH-V3 MOVE
+        // этот код должен быть перенесён в domain executor (работа с user persistence)
         userRow = await deps.userPort.upsertTelegramUser(body.message.from as TelegramUserFrom);
         telegramId = body.message.from.id ? String(body.message.from.id) : null;
       } else if (body.callback_query?.from) {
+        // ARCH-V3 MOVE
+        // этот код должен быть перенесён в domain executor (работа с user persistence)
         userRow = await deps.userPort.upsertTelegramUser(body.callback_query.from as TelegramUserFrom);
         telegramId = body.callback_query.from.id ? String(body.callback_query.from.id) : null;
       }
@@ -88,10 +92,14 @@ export async function registerTelegramWebhookRoutes(
       let hasLinkedPhone = false;
       let adminForward: { chatId: number; text: string } | undefined;
       if (telegramId) {
+        // ARCH-V3 MOVE
+        // этот код должен быть перенесён в domain context loader
         const userLinkData = await deps.getTelegramUserLinkData(telegramId);
         hasLinkedPhone = Boolean(userLinkData?.phoneNormalized);
       }
       if (body.message?.from && telegramId) {
+        // ARCH-V3 MOVE
+        // этот код должен быть перенесён в domain context loader
         userState = (await deps.userPort.getTelegramUserState(telegramId)) ?? 'idle';
         // ARCH-V3 MOVE
         // этот код должен быть перенесён в orchestrator (сценарная ветка по состоянию пользователя)
@@ -123,6 +131,8 @@ export async function registerTelegramWebhookRoutes(
 
       if (!incoming) return reply.code(200).send({ ok: true });
 
+      // ARCH-V3 MOVE
+      // этот код должен быть перенесён в pipeline eventGateway -> domain.handleIncomingEvent -> orchestrator
       const actions = await handleUpdate(
         incoming,
         deps.userPort,
@@ -131,6 +141,8 @@ export async function registerTelegramWebhookRoutes(
       );
       if (actions.length > 0) {
         try {
+          // ARCH-V3 MOVE
+          // этот код должен быть перенесён в runtime/dispatcher; integration не должна сама исполнять сценарные actions
           await toTelegram(actions, getBotInstance().api as TelegramApi);
         } catch (err) {
           reqLogger.error({ err }, 'toTelegram failed');

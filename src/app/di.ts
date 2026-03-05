@@ -105,6 +105,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const eventGateway = createEventGateway({
     orchestrator: input.orchestrator ?? createOrchestrator({
+      // ARCH-V3 MOVE
+      // этот код должен быть перенесён в domain.handleIncomingEvent/context loader,
+      // app слой не должен собирать доменный контекст пользователя
       async resolveRubitimeRecipientContext(phoneNormalized) {
         const telegramUser = await findByPhone(phoneNormalized);
         const isTelegramAdmin = Boolean(

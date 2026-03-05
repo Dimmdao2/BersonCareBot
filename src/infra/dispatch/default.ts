@@ -124,6 +124,9 @@ export function createDefaultDispatchPort(deps: {
   debugForwardAllEvents?: boolean;
   debugAdminChatId?: number;
 }): DispatchPort {
+  // ARCH-V3 MOVE
+  // retry/fallback/delivery-attempt policy должен быть вынесен в runtime,
+  // dispatcher должен оставаться тонким transport adapter
   const smscDispatch = createSmscDispatchPort({ smsClient: deps.smsClient });
   let messagingPort: ReturnType<typeof createMessagingPort> | null = null;
   const getMessagingPort = (): ReturnType<typeof createMessagingPort> => {
@@ -168,6 +171,8 @@ export function createDefaultDispatchPort(deps: {
   return {
     async dispatchOutgoing(intent: OutgoingIntent): Promise<void> {
       if (intent.type !== 'message.send') return;
+      // ARCH-V3 MOVE
+      // выбор fallback-каналов и попыток не должен решаться в dispatcher
       const channels = readChannels(intent);
       const maxAttempts = readMaxAttempts(intent);
       let lastError: unknown = undefined;

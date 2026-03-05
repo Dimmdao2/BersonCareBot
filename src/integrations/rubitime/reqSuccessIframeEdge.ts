@@ -9,6 +9,9 @@ import { registerRubitimeReqSuccessIframeRoute } from './reqSuccessIframe.js';
  * Flow remains unchanged, but dependency assembly is centralized here.
  */
 export function registerRubitimeIframeEdgeRoute(app: FastifyInstance): void {
+  // ARCH-V3 MOVE
+  // этот wiring должен быть убран из integrations/rubitime (step 12)
+  // и переведён в единый pipeline через eventGateway/domain/orchestrator/runtime
   registerRubitimeReqSuccessIframeRoute(app, {
     getRecordByRubitimeId,
     findTelegramUserByPhone: findByPhone,

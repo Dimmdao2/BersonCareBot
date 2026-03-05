@@ -81,6 +81,9 @@ export function registerRubitimeReqSuccessIframeRoute(
   app: FastifyInstance,
   deps: ReqSuccessIframeDeps,
 ): void {
+  // ARCH-V3 MOVE
+  // этот endpoint должен быть переведён на pipeline (step 12),
+  // чтобы rubitime integration оставался только входным adapter-слоем
   const rateState: RateLimiterState = {
     global: { minuteBucket: -1, count: 0 },
     byIp: new Map(),
@@ -111,6 +114,8 @@ export function registerRubitimeReqSuccessIframeRoute(
     if (!allowed) return renderAndReturn(false, '');
     if (!recordSuccess) return renderAndReturn(false, '');
 
+    // ARCH-V3 MOVE
+    // этот код должен быть перенесён в domain/context loader (доступ к данным и eligibility)
     const record = await deps.getRecordByRubitimeId(recordSuccess);
     const linkedUser =
       record?.phoneNormalized != null

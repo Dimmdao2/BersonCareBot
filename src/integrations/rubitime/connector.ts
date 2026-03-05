@@ -7,6 +7,9 @@ export function rubitimeIncomingToEvent(input: {
   correlationId: string;
   eventId: string;
 }): IncomingEvent {
+  // ARCH-V3 MOVE
+  // этот код должен быть перенесён в канонический контракт IncomingEventType для rubitime
+  // (единый нормализованный тип события вместо общего webhook.received)
   return {
     type: 'webhook.received',
     meta: {
