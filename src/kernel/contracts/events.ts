@@ -22,6 +22,9 @@ export type IncomingEventType =
 /** Поддерживаемые типы исходящих намерений домена/оркестратора. */
 export type OutgoingIntentType =
   | 'message.send'
+  | 'message.edit'
+  | 'message.replyMarkup.edit'
+  | 'callback.answer'
   | 'booking.changed'
   | 'integration.sync'
   | 'audit.log';

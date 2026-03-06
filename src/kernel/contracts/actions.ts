@@ -85,6 +85,7 @@ export type DeliveryAttemptResult = {
 export type ActionResult = {
   actionId: string;
   status: 'success' | 'failed' | 'queued' | 'skipped';
+  values?: Record<string, unknown>;
   writes?: DbWriteMutation[];
   intents?: OutgoingIntent[];
   jobs?: DeliveryJob[];

@@ -3,241 +3,17 @@
 		"id": "message.received",
 		"source": "telegram",
 		"event": "message.received",
+		"enabled": false,
+		"match": {
+			"compatibility": { "routeAliasFor": ["telegram.start", "telegram.ask", "telegram.ask.question", "telegram.booking.open", "telegram.contact.link.request.booking", "telegram.contact.link.confirm", "telegram.contact.link.remind", "telegram.more.menu", "telegram.menu.default"] }
+		},
 		"steps": [
 			{
-				"action": "user.phone.link",
+				"action": "log.audit",
 				"mode": "sync",
 				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "await_contact:subscription" },
-							{ "path": "event.payload.incoming.contactPhone", "exists": true }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"phoneNormalized": "{{event.payload.incoming.contactPhone}}"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "await_contact:subscription" },
-							{ "path": "event.payload.incoming.contactPhone", "exists": true }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "await_contact:subscription" },
-							{ "path": "event.payload.incoming.contactPhone", "exists": true }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "await_contact:subscription" },
-							{ "path": "event.payload.incoming.contactPhone", "exists": false }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:confirmPhoneForBooking"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "/start" },
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "/start" },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "❓ Задать вопрос" },
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "waiting_for_question"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "❓ Задать вопрос" },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:describeQuestion"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.text", "equals": "📅 Запись на приём" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": true }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.text", "equals": "📅 Запись на приём" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": true }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:bookingOpenPrompt"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.text", "equals": "📅 Запись на приём" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": false }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "await_contact:subscription"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.text", "equals": "📅 Запись на приём" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": false }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:confirmPhoneForBooking"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "⚙️ Меню" },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "waiting_for_question" },
-							{ "path": "event.payload.incoming.text", "truthy": true },
-							{ "not": { "path": "event.payload.incoming.text", "in": ["📅 Запись на приём", "❓ Задать вопрос", "⚙️ Меню"] } }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.adminForward.chatId}}" },
-					"messageText": "{{event.payload.incoming.adminForward.text}}",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "waiting_for_question" },
-							{ "path": "event.payload.incoming.text", "truthy": true },
-							{ "not": { "path": "event.payload.incoming.text", "in": ["📅 Запись на приём", "❓ Задать вопрос", "⚙️ Меню"] } }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "waiting_for_question" },
-							{ "path": "event.payload.incoming.text", "truthy": true },
-							{ "not": { "path": "event.payload.incoming.text", "in": ["📅 Запись на приём", "❓ Задать вопрос", "⚙️ Меню"] } }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:questionAccepted"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "idle" },
-							{ "path": "event.payload.incoming.text", "truthy": true },
-							{ "not": { "path": "event.payload.incoming.text", "in": ["/start", "📅 Запись на приём", "❓ Задать вопрос", "⚙️ Меню"] } }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
+					"reason": "route-compatibility-alias",
+					"aliasFor": ["telegram.start", "telegram.ask", "telegram.ask.question", "telegram.booking.open", "telegram.contact.link.request.booking", "telegram.contact.link.confirm", "telegram.contact.link.remind", "telegram.more.menu", "telegram.menu.default"]
 				}
 			}
 		]
@@ -246,373 +22,66 @@
 		"id": "callback.received",
 		"source": "telegram",
 		"event": "callback.received",
+		"enabled": false,
+		"match": {
+			"compatibility": { "routeAliasFor": ["telegram.contact.link.request.bookings", "telegram.notifications.show", "telegram.notifications.toggle.spb", "telegram.notifications.toggle.msk", "telegram.notifications.toggle.online", "telegram.notifications.toggle.all", "telegram.bookings.show", "telegram.menu.back"] }
+		},
 		"steps": [
 			{
-				"action": "notifications.toggle",
+				"action": "log.audit",
 				"mode": "sync",
 				"params": {
-					"_when": { "path": "event.payload.incoming.callbackData", "in": ["notify_toggle_spb", "notify_toggle_msk", "notify_toggle_online", "notify_toggle_all"] },
-					"channelId": "{{event.payload.incoming.channelUserId}}",
-					"toggleKey": "{{event.payload.incoming.callbackData}}"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "event.payload.incoming.callbackData", "in": ["notify_toggle_spb", "notify_toggle_msk", "notify_toggle_online", "notify_toggle_all"] },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": { "text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:" },
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "event.payload.incoming.callbackData", "equals": "menu_notifications" },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": { "text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:" },
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.callbackData", "equals": "menu_my_bookings" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": false }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelUserId}}",
-					"state": "await_contact:subscription"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.callbackData", "equals": "menu_my_bookings" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": false }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:confirmPhoneForBooking"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.callbackData", "equals": "menu_my_bookings" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": true }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:bookingMy"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "event.payload.incoming.callbackData", "equals": "menu_back" },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": { "text": " " },
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
-					"callbackQueryId": "{{event.payload.incoming.callbackQueryId}}"
-				}
-			}
-		]
-	},
-	{
-		"id": "telegram.message.dispatch",
-		"steps": [
-			{
-				"action": "user.phone.link",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "await_contact:subscription" },
-							{ "path": "event.payload.incoming.contactPhone", "exists": true }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"phoneNormalized": "{{event.payload.incoming.contactPhone}}"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "await_contact:subscription" },
-							{ "path": "event.payload.incoming.contactPhone", "exists": true }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "await_contact:subscription" },
-							{ "path": "event.payload.incoming.contactPhone", "exists": true }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "await_contact:subscription" },
-							{ "path": "event.payload.incoming.contactPhone", "exists": false }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:confirmPhoneForBooking"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "/start" },
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "/start" },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "❓ Задать вопрос" },
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "waiting_for_question"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "❓ Задать вопрос" },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:describeQuestion"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.text", "equals": "📅 Запись на приём" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": true }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.text", "equals": "📅 Запись на приём" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": true }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:bookingOpenPrompt"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.text", "equals": "📅 Запись на приём" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": false }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "await_contact:subscription"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.text", "equals": "📅 Запись на приём" },
-							{ "path": "event.payload.incoming.hasLinkedPhone", "truthy": false }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:confirmPhoneForBooking"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "event.payload.incoming.text", "equals": "⚙️ Меню" },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "waiting_for_question" },
-							{ "path": "event.payload.incoming.text", "truthy": true },
-							{ "not": { "path": "event.payload.incoming.text", "in": ["📅 Запись на приём", "❓ Задать вопрос", "⚙️ Меню"] } }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.adminForward.chatId}}" },
-					"messageText": "{{event.payload.incoming.adminForward.text}}",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "waiting_for_question" },
-							{ "path": "event.payload.incoming.text", "truthy": true },
-							{ "not": { "path": "event.payload.incoming.text", "in": ["📅 Запись на приём", "❓ Задать вопрос", "⚙️ Меню"] } }
-						]
-					},
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "waiting_for_question" },
-							{ "path": "event.payload.incoming.text", "truthy": true },
-							{ "not": { "path": "event.payload.incoming.text", "in": ["📅 Запись на приём", "❓ Задать вопрос", "⚙️ Меню"] } }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:questionAccepted"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"_when": {
-						"and": [
-							{ "path": "event.payload.incoming.userState", "equals": "idle" },
-							{ "path": "event.payload.incoming.text", "truthy": true },
-							{ "not": { "path": "event.payload.incoming.text", "in": ["/start", "📅 Запись на приём", "❓ Задать вопрос", "⚙️ Меню"] } }
-						]
-					},
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
+					"reason": "route-compatibility-alias",
+					"aliasFor": ["telegram.contact.link.request.bookings", "telegram.notifications.show", "telegram.notifications.toggle.spb", "telegram.notifications.toggle.msk", "telegram.notifications.toggle.online", "telegram.notifications.toggle.all", "telegram.bookings.show", "telegram.menu.back"]
 				}
 			}
 		]
 	},
 	{
 		"id": "telegram.start",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "text": "/start" }
+		},
 		"steps": [
 			{
 				"action": "user.state.set",
 				"mode": "sync",
 				"params": {
-					"channelId": "{{event.payload.incoming.channelId}}",
+					"channelUserId": "{{actor.channelUserId}}",
 					"state": "idle"
 				}
 			},
 			{
-				"action": "message.send",
+				"action": "message.replyKeyboard.show",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"keyboard": [
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.ask" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
+					],
+					"resizeKeyboard": true
 				}
 			}
 		]
 	},
 	{
 		"id": "telegram.ask",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "question.ask" }
+		},
 		"steps": [
 			{
 				"action": "user.state.set",
 				"mode": "sync",
 				"params": {
-					"channelId": "{{event.payload.incoming.channelId}}",
+					"channelUserId": "{{actor.channelUserId}}",
 					"state": "waiting_for_question"
 				}
 			},
@@ -620,7 +89,7 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
+					"recipient": { "chatId": "{{actor.chatId}}" },
 					"message": {},
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
 					"templateKey": "telegram:describeQuestion"
@@ -630,22 +99,36 @@
 	},
 	{
 		"id": "telegram.ask.question",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"context": { "conversationState": "waiting_for_question" },
+			"input": {
+				"textPresent": true,
+				"excludeActions": ["booking.open", "question.ask", "menu.more"],
+				"excludeTexts": ["/start"]
+			}
+		},
 		"steps": [
 			{
-				"action": "message.send",
+				"action": "admin.forward",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "event.payload.incoming.adminForward.chatId", "exists": true },
-					"recipient": { "chatId": "{{event.payload.incoming.adminForward.chatId}}" },
-					"messageText": "{{event.payload.incoming.adminForward.text}}",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+					"chatId": "{{context.adminChatId}}",
+					"templateKey": "telegram:adminForward",
+					"vars": {
+						"name": "{{actor.displayName}}",
+						"username": "{{actor.username}}",
+						"channelId": "{{actor.channelUserId}}",
+						"messageText": "{{input.text}}"
+					}
 				}
 			},
 			{
 				"action": "user.state.set",
 				"mode": "sync",
 				"params": {
-					"channelId": "{{event.payload.incoming.channelId}}",
+					"channelUserId": "{{actor.channelUserId}}",
 					"state": "idle"
 				}
 			},
@@ -653,7 +136,7 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
+					"recipient": { "chatId": "{{actor.chatId}}" },
 					"message": {},
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
 					"templateKey": "telegram:questionAccepted"
@@ -662,170 +145,574 @@
 		]
 	},
 	{
-		"id": "telegram.contact.link",
+		"id": "telegram.booking.open",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "booking.open" },
+			"context": { "linkedPhone": true }
+		},
 		"steps": [
 			{
-				"action": "message.send",
-				"mode": "async",
+				"action": "user.state.set",
+				"mode": "sync",
 				"params": {
-					"_when": { "path": "event.payload.incoming.contactPhone", "exists": false },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:confirmPhoneForBooking"
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
 				}
 			},
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:bookingOpenPrompt",
+					"inlineKeyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:bookingOpenButton",
+								"url": "{{context.bookingWidgetUrl}}"
+							}
+						]
+					]
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.contact.link.request.booking",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "booking.open" },
+			"context": { "linkedPhone": false }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "await_contact:subscription"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:confirmPhoneForBooking",
+					"keyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:requestContact.button",
+								"requestContact": true
+							}
+						]
+					],
+					"resizeKeyboard": true,
+					"oneTimeKeyboard": true
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.contact.link.request.bookings",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "bookings.show" },
+			"context": { "linkedPhone": false }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "await_contact:subscription"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:confirmPhoneForBooking",
+					"keyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:requestContact.button",
+								"requestContact": true
+							}
+						]
+					],
+					"resizeKeyboard": true,
+					"oneTimeKeyboard": true
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.contact.link.confirm",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"context": { "conversationState": "await_contact:subscription" },
+			"input": { "phonePresent": true }
+		},
+		"steps": [
 			{
 				"action": "user.phone.link",
 				"mode": "sync",
 				"params": {
-					"_when": { "path": "event.payload.incoming.contactPhone", "exists": true },
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"phoneNormalized": "{{event.payload.incoming.contactPhone}}"
+					"channelUserId": "{{actor.channelUserId}}",
+					"phoneNormalized": "{{input.phone}}"
 				}
 			},
 			{
 				"action": "user.state.set",
 				"mode": "sync",
 				"params": {
-					"_when": { "path": "event.payload.incoming.contactPhone", "exists": true },
-					"channelId": "{{event.payload.incoming.channelId}}",
+					"channelUserId": "{{actor.channelUserId}}",
 					"state": "idle"
 				}
 			},
 			{
-				"action": "message.send",
+				"action": "message.replyKeyboard.show",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "event.payload.incoming.contactPhone", "exists": true },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"keyboard": [
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.ask" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
+					],
+					"resizeKeyboard": true
 				}
 			}
 		]
 	},
 	{
-		"id": "telegram.booking",
+		"id": "telegram.contact.link.remind",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"context": { "conversationState": "await_contact:subscription" },
+			"input": { "phonePresent": false }
+		},
 		"steps": [
 			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"channelId": "{{event.payload.incoming.channelId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
+				"action": "message.replyKeyboard.show",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:bookingOpenPrompt"
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:confirmPhoneForBooking",
+					"keyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:requestContact.button",
+								"requestContact": true
+							}
+						]
+					],
+					"resizeKeyboard": true,
+					"oneTimeKeyboard": true
 				}
 			}
 		]
 	},
 	{
-		"id": "telegram.more",
+		"id": "telegram.more.menu",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "menu.more" }
+		},
 		"steps": [
 			{
-				"action": "message.send",
+				"action": "message.inlineKeyboard.show",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:chooseMenu"
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
+						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
+					]
 				}
 			}
 		]
 	},
 	{
 		"id": "telegram.notifications.show",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "notifications.show" }
+		},
 		"steps": [
 			{
-				"action": "message.send",
+				"action": "message.edit",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": { "text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:" },
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
+					"inlineKeyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.spb",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.spb"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.msk",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.msk"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.online",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.online"
+							}
+						],
+						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}
 		]
 	},
 	{
-		"id": "telegram.notifications.toggle",
+		"id": "telegram.notifications.toggle.spb",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "notifications.toggle.spb" }
+		},
 		"steps": [
 			{
 				"action": "notifications.toggle",
 				"mode": "sync",
 				"params": {
-					"channelId": "{{event.payload.incoming.channelUserId}}",
-					"toggleKey": "{{event.payload.incoming.callbackData}}"
+					"channelUserId": "{{actor.channelUserId}}",
+					"toggleKey": "notify_toggle_spb"
 				}
 			},
 			{
-				"action": "message.send",
+				"action": "message.edit",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": { "text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:" },
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
+					"inlineKeyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.spb",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.spb"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.msk",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.msk"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.online",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.online"
+							}
+						],
+						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
 				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
 			}
 		]
 	},
 	{
-		"id": "telegram.menu.myBookings",
+		"id": "telegram.notifications.toggle.msk",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "notifications.toggle.msk" }
+		},
 		"steps": [
 			{
-				"action": "user.state.set",
+				"action": "notifications.toggle",
 				"mode": "sync",
 				"params": {
-					"_when": { "path": "event.payload.incoming.hasLinkedPhone", "truthy": false },
-					"channelId": "{{event.payload.incoming.channelUserId}}",
-					"state": "await_contact:subscription"
+					"channelUserId": "{{actor.channelUserId}}",
+					"toggleKey": "notify_toggle_msk"
 				}
 			},
 			{
-				"action": "message.send",
+				"action": "message.edit",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "event.payload.incoming.hasLinkedPhone", "truthy": false },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:confirmPhoneForBooking"
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
+					"inlineKeyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.spb",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.spb"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.msk",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.msk"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.online",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.online"
+							}
+						],
+						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
 				}
 			},
 			{
-				"action": "message.send",
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+			}
+		]
+	},
+	{
+		"id": "telegram.notifications.toggle.online",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "notifications.toggle.online" }
+		},
+		"steps": [
+			{
+				"action": "notifications.toggle",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"toggleKey": "notify_toggle_online"
+				}
+			},
+			{
+				"action": "message.edit",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "event.payload.incoming.hasLinkedPhone", "truthy": true },
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:bookingMy"
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
+					"inlineKeyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.spb",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.spb"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.msk",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.msk"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.online",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.online"
+							}
+						],
+						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
 				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+			}
+		]
+	},
+	{
+		"id": "telegram.notifications.toggle.all",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "notifications.toggle.all" }
+		},
+		"steps": [
+			{
+				"action": "notifications.toggle",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"toggleKey": "notify_toggle_all",
+					"supportsToggleAll": true
+				}
+			},
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
+					"inlineKeyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.spb",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.spb"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.msk",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.msk"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:notifications.label.online",
+								"prefixTemplateKey": "telegram:notifications.togglePrefix",
+								"callbackData": "notifications.toggle.online"
+							}
+						],
+						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+			}
+		]
+	},
+	{
+		"id": "telegram.bookings.show",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "bookings.show" },
+			"context": { "linkedPhone": true }
+		},
+		"steps": [
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:bookingMy",
+					"inlineKeyboard": [
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
 			}
 		]
 	},
 	{
 		"id": "telegram.menu.back",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "menu.back" }
+		},
 		"steps": [
 			{
-				"action": "message.send",
+				"action": "message.edit",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{event.payload.incoming.chatId}}" },
-					"message": { "text": " " },
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:chooseMenu",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
+						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
+					]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+			}
+		]
+	},
+	{
+		"id": "telegram.menu.default",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"context": { "conversationState": "idle" },
+			"input": {
+				"textPresent": true,
+				"excludeActions": ["booking.open", "question.ask", "menu.more"],
+				"excludeTexts": ["/start"]
+			}
+		},
+		"steps": [
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"keyboard": [
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.ask" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
+					],
+					"resizeKeyboard": true
 				}
 			}
 		]

@@ -4,6 +4,9 @@ import { createMessagingPort } from './client.js';
 type DeliveryPayload = {
   recipient?: { chatId?: unknown };
   message?: { text?: unknown };
+  messageId?: unknown;
+  callbackQueryId?: unknown;
+  replyMarkup?: unknown;
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
 
@@ -30,20 +33,69 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
 
   return {
     canHandle(intent: OutgoingIntent): boolean {
-      if (intent.type !== 'message.send') return false;
-      return readChannel(intent) === 'telegram';
+      if (!['message.send', 'message.edit', 'message.replyMarkup.edit', 'callback.answer'].includes(intent.type)) {
+        return false;
+      }
+      return intent.type === 'message.send'
+        ? readChannel(intent) === 'telegram'
+        : intent.meta.source === 'telegram';
     },
     async send(intent: OutgoingIntent): Promise<void> {
-      if (intent.type !== 'message.send') return;
       const payload = intent.payload as DeliveryPayload;
       const chatId = payload.recipient?.chatId;
+      const messageId = payload.messageId;
       const text = asNonEmptyString(payload.message?.text);
-      if (typeof chatId !== 'number' || !text) {
+
+      if (intent.type === 'message.send') {
+        if (typeof chatId !== 'number' || !text) {
+          const err = new Error('TELEGRAM_PAYLOAD_INVALID');
+          (err as { code?: number }).code = 400;
+          throw err;
+        }
+        await getMessagingPort().sendMessage({
+          chat_id: chatId,
+          text,
+          reply_markup: payload.replyMarkup as never,
+        });
+        return;
+      }
+
+      if (intent.type === 'message.edit') {
+        if (typeof chatId !== 'number' || typeof messageId !== 'number' || !text) {
+          const err = new Error('TELEGRAM_PAYLOAD_INVALID');
+          (err as { code?: number }).code = 400;
+          throw err;
+        }
+        await getMessagingPort().editMessageText({
+          chat_id: chatId,
+          message_id: messageId,
+          text,
+          reply_markup: payload.replyMarkup as never,
+        });
+        return;
+      }
+
+      if (intent.type === 'message.replyMarkup.edit') {
+        if (typeof chatId !== 'number' || typeof messageId !== 'number') {
+          const err = new Error('TELEGRAM_PAYLOAD_INVALID');
+          (err as { code?: number }).code = 400;
+          throw err;
+        }
+        await getMessagingPort().editMessageReplyMarkup({
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: payload.replyMarkup as never,
+        });
+        return;
+      }
+
+      const callbackQueryId = asNonEmptyString(payload.callbackQueryId);
+      if (!callbackQueryId) {
         const err = new Error('TELEGRAM_PAYLOAD_INVALID');
         (err as { code?: number }).code = 400;
         throw err;
       }
-      await getMessagingPort().sendMessage({ chat_id: chatId, text });
+      await getMessagingPort().answerCallbackQuery({ callback_query_id: callbackQueryId });
     },
   };
 }

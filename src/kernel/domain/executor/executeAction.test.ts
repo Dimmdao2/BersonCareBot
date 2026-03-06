@@ -167,4 +167,193 @@ describe('executeAction', () => {
     expect(result.jobs?.[0]?.retry?.maxAttempts).toBe(3);
     expect(enqueue).toHaveBeenCalledTimes(1);
   });
+
+  it('handles user.state.set and user.phone.link', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+
+    const stateResult = await executeAction({
+      id: 'a7',
+      type: 'user.state.set',
+      mode: 'sync',
+      params: { channelId: '123', state: 'idle' },
+    }, ctx, { writePort: { writeDb } });
+
+    expect(stateResult.status).toBe('success');
+    expect(stateResult.values).toEqual({ userState: 'idle' });
+
+    const phoneResult = await executeAction({
+      id: 'a8',
+      type: 'user.phone.link',
+      mode: 'sync',
+      params: { channelId: '123', phoneNormalized: '+79990001122' },
+    }, ctx, { writePort: { writeDb } });
+
+    expect(phoneResult.status).toBe('success');
+    expect(writeDb).toHaveBeenCalledTimes(2);
+  });
+
+  it('handles notifications.get and notifications.toggle', async () => {
+    const readDb = vi.fn().mockResolvedValue({ notify_spb: true, notify_msk: false, notify_online: false });
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+
+    const getResult = await executeAction({
+      id: 'a9',
+      type: 'notifications.get',
+      mode: 'sync',
+      params: { channelId: '123' },
+    }, ctx, { readPort: { readDb } });
+
+    expect(getResult.values).toEqual({ notifications: { notify_spb: true, notify_msk: false, notify_online: false } });
+
+    const toggleResult = await executeAction({
+      id: 'a10',
+      type: 'notifications.toggle',
+      mode: 'sync',
+      params: { channelId: '123', toggleKey: 'notify_toggle_msk', supportsToggleAll: true },
+    }, ctx, { readPort: { readDb }, writePort: { writeDb } });
+
+    expect(toggleResult.values).toEqual({ notifications: { notify_spb: true, notify_msk: true, notify_online: false } });
+    expect(writeDb).toHaveBeenCalledTimes(1);
+  });
+
+  it('builds message.edit, message.replyMarkup.edit and callback.answer intents', async () => {
+    const templatePort = {
+      renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
+        text: templateId === 'notifications.togglePrefix'
+          ? '✅/❌'
+          : templateId === 'notifications.label.spb'
+            ? 'Петербург'
+            : 'Текст',
+      })),
+    };
+
+    const editResult = await executeAction({
+      id: 'a11',
+      type: 'message.edit',
+      mode: 'async',
+      params: {
+        chatId: 123,
+        messageId: 77,
+        text: 'updated',
+      },
+    }, ctx);
+
+    expect(editResult.intents?.[0]).toMatchObject({
+      type: 'message.edit',
+      payload: {
+        recipient: { chatId: 123 },
+        messageId: 77,
+        message: { text: 'updated' },
+      },
+    });
+
+    const replyMarkupResult = await executeAction({
+      id: 'a12',
+      type: 'message.replyMarkup.edit',
+      mode: 'async',
+      params: {
+        chatId: 123,
+        messageId: 78,
+        inlineKeyboard: [[{
+          textTemplateKey: 'telegram:notifications.label.spb',
+          prefixTemplateKey: 'telegram:notifications.togglePrefix',
+          callbackData: 'notify_toggle_spb',
+        }]],
+      },
+    }, {
+      ...ctx,
+      values: { notifications: { notify_spb: true, notify_msk: false, notify_online: false } },
+    }, { templatePort });
+
+    expect(replyMarkupResult.intents?.[0]).toMatchObject({
+      type: 'message.replyMarkup.edit',
+      payload: {
+        recipient: { chatId: 123 },
+        messageId: 78,
+        replyMarkup: { inline_keyboard: [[{ text: '✅ Петербург', callback_data: 'notify_toggle_spb' }]] },
+      },
+    });
+
+    const callbackResult = await executeAction({
+      id: 'a13',
+      type: 'callback.answer',
+      mode: 'async',
+      params: { callbackQueryId: 'cb-1' },
+    }, ctx);
+
+    expect(callbackResult.intents?.[0]).toMatchObject({ type: 'callback.answer', payload: { callbackQueryId: 'cb-1' } });
+  });
+
+  it('lowers telegram presentation actions to message.send', async () => {
+    const templatePort = {
+      renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
+        text: templateId === 'chooseMenu'
+          ? 'Выберите действие'
+          : templateId === 'menu.book'
+            ? '📅 Запись на приём'
+            : templateId === 'moreMenu.notifications'
+              ? '🔔 Настройки уведомлений'
+              : 'Служебное сообщение',
+      })),
+    };
+
+    const replyKeyboardResult = await executeAction({
+      id: 'a14',
+      type: 'message.replyKeyboard.show',
+      mode: 'async',
+      params: {
+        chatId: 123,
+        templateKey: 'telegram:chooseMenu',
+        keyboard: [[{ textTemplateKey: 'telegram:menu.book' }]],
+        resizeKeyboard: true,
+      },
+    }, ctx, { templatePort });
+
+    expect(replyKeyboardResult.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 123 },
+        message: { text: 'Выберите действие' },
+        replyMarkup: { keyboard: [[{ text: '📅 Запись на приём' }]], resize_keyboard: true, one_time_keyboard: false },
+      },
+    });
+
+    const inlineKeyboardResult = await executeAction({
+      id: 'a15',
+      type: 'message.inlineKeyboard.show',
+      mode: 'async',
+      params: {
+        chatId: 123,
+        text: 'inline',
+        inlineKeyboard: [[{ textTemplateKey: 'telegram:moreMenu.notifications', callbackData: 'menu_notifications' }]],
+      },
+    }, ctx, { templatePort });
+
+    expect(inlineKeyboardResult.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 123 },
+        message: { text: 'inline' },
+        replyMarkup: { inline_keyboard: [[{ text: '🔔 Настройки уведомлений', callback_data: 'menu_notifications' }]] },
+      },
+    });
+
+    const adminForwardResult = await executeAction({
+      id: 'a16',
+      type: 'admin.forward',
+      mode: 'async',
+      params: {
+        chatId: 999,
+        text: 'forwarded',
+      },
+    }, ctx);
+
+    expect(adminForwardResult.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 999 },
+        message: { text: 'forwarded' },
+      },
+    });
+  });
 });

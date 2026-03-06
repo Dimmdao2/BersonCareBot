@@ -48,6 +48,9 @@ export const incomingEventSchema = z.object({
 export const outgoingIntentSchema = z.object({
   type: z.enum([
     'message.send',
+    'message.edit',
+    'message.replyMarkup.edit',
+    'callback.answer',
     'booking.changed',
     'integration.sync',
     'audit.log',
@@ -130,6 +133,7 @@ export const deliveryJobSchema = z.object({
 export const actionResultSchema = z.object({
   actionId: z.string().min(1),
   status: z.enum(['success', 'failed', 'queued', 'skipped']),
+  values: z.record(z.string(), z.unknown()).optional(),
   writes: z.array(z.lazy(() => dbWriteMutationSchema)).optional(),
   intents: z.array(outgoingIntentSchema).optional(),
   jobs: z.array(deliveryJobSchema).optional(),
@@ -142,6 +146,7 @@ export const dbReadQuerySchema = z.object({
     'user.lookup',
     'user.byChannelId',
     'user.byPhone',
+    'notifications.settings',
     'booking.byExternalId',
     'booking.activeByUser',
     'delivery.pending',
@@ -155,6 +160,7 @@ export const dbWriteMutationSchema = z.object({
     'user.upsert',
     'user.state.set',
     'user.phone.link',
+    'notifications.update',
     'booking.upsert',
     'message.retry.enqueue',
     'delivery.attempt.log',

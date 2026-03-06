@@ -1,10 +1,19 @@
 import type { DbPort, DbReadPort, DbReadQuery } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { getRecordByExternalId } from './repos/bookingRecords.js';
+import { getNotificationSettings } from './repos/channelUsers.js';
 import { findUserByChannelId, findUserByPhone, lookupUser } from './repos/userLookup.js';
 
 function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  const stringValue = asNonEmptyString(value);
+  if (!stringValue) return null;
+  const parsed = Number(stringValue);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
 }
 
 async function handleUserLookup<T = unknown>(db: DbPort, query: DbReadQuery): Promise<T> {
@@ -33,6 +42,11 @@ export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
           const channelId = asNonEmptyString(query.params.channelId);
           if (!channelId) return null as T;
           return (await findUserByChannelId(db, channelId)) as T;
+        }
+        case 'notifications.settings': {
+          const channelUserId = asFiniteNumber(query.params.channelUserId ?? query.params.channelId);
+          if (channelUserId === null) return null as T;
+          return (await getNotificationSettings(db, channelUserId)) as T;
         }
         case 'booking.byExternalId': {
           const recordId = asNonEmptyString(query.params.externalRecordId ?? query.params.recordId);

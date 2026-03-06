@@ -12,6 +12,7 @@ export type DbReadQueryType =
   | 'user.lookup'
   | 'user.byChannelId'
   | 'user.byPhone'
+  | 'notifications.settings'
   | 'booking.byExternalId'
   | 'booking.activeByUser'
   | 'delivery.pending';
@@ -21,6 +22,7 @@ export type DbWriteMutationType =
   | 'user.upsert'
   | 'user.state.set'
   | 'user.phone.link'
+  | 'notifications.update'
   | 'booking.upsert'
   | 'message.retry.enqueue'
   | 'delivery.attempt.log'

@@ -93,4 +93,22 @@ describe('createDefaultDispatchPort', () => {
     expect(sendPrimaryMock).toHaveBeenCalledTimes(0);
     expect(sendSecondaryMock).toHaveBeenCalledTimes(1);
   });
+
+  it('dispatches non-message intent by intent source', async () => {
+    const send = vi.fn().mockResolvedValue(undefined);
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: [{
+        canHandle: (intent) => intent.type === 'callback.answer' && intent.meta.source === 'telegram',
+        send,
+      }],
+    });
+
+    await dispatchPort.dispatchOutgoing({
+      type: 'callback.answer',
+      meta: { eventId: 'evt-4', occurredAt: '2026-03-03T00:00:00.000Z', source: 'telegram' },
+      payload: { callbackQueryId: 'cb-1' },
+    });
+
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });

@@ -2,6 +2,7 @@ import type {
   Action,
   ActionResult,
   DbReadPort,
+  NotificationSettings,
   DbWriteMutation,
   DbWritePort,
   DomainContext,
@@ -65,6 +66,135 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
     : [];
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function buildIntentMeta(action: Action, ctx: DomainContext): OutgoingIntent['meta'] {
+  return {
+    eventId: `${ctx.event.meta.eventId}:intent:${action.id}`,
+    occurredAt: nowIso(ctx),
+    source: ctx.event.meta.source,
+    ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+    ...(ctx.event.meta.userId ? { userId: ctx.event.meta.userId } : {}),
+  };
+}
+
+function defaultNotificationSettings(): NotificationSettings {
+  return {
+    notify_spb: false,
+    notify_msk: false,
+    notify_online: false,
+  };
+}
+
+function readNotificationSettings(ctx: DomainContext): NotificationSettings | null {
+  const raw = asRecord(ctx.values.notifications);
+  const notify_spb = asBoolean(raw.notify_spb);
+  const notify_msk = asBoolean(raw.notify_msk);
+  const notify_online = asBoolean(raw.notify_online);
+  if (notify_spb === null || notify_msk === null || notify_online === null) return null;
+  return { notify_spb, notify_msk, notify_online };
+}
+
+function splitTemplateKey(templateKey: string, source: string): { source: string; templateId: string } {
+  if (!templateKey.includes(':')) return { source, templateId: templateKey };
+  const [templateSource, templateId] = templateKey.split(':', 2);
+  return {
+    source: templateSource || source,
+    templateId: templateId || templateKey,
+  };
+}
+
+async function renderText(input: {
+  text?: unknown;
+  messageText?: unknown;
+  templateKey?: unknown;
+  ctx: DomainContext;
+  templatePort: TemplatePort | undefined;
+}): Promise<string> {
+  const directText = asString(input.text) ?? asString(input.messageText);
+  if (directText) return directText;
+  const templateKey = asString(input.templateKey);
+  if (!templateKey || !input.templatePort) return '';
+  const { source, templateId } = splitTemplateKey(templateKey, input.ctx.event.meta.source);
+  return (await input.templatePort.renderTemplate({ source, templateId, vars: input.ctx.values })).text;
+}
+
+async function renderButtonText(input: {
+  button: Record<string, unknown>;
+  ctx: DomainContext;
+  templatePort: TemplatePort | undefined;
+}): Promise<string> {
+  const directText = asString(input.button.text);
+  if (directText) return directText;
+  const templateKey = asString(input.button.textTemplateKey);
+  if (!templateKey || !input.templatePort) return '';
+  const { source, templateId } = splitTemplateKey(templateKey, input.ctx.event.meta.source);
+  const rendered = (await input.templatePort.renderTemplate({ source, templateId, vars: input.ctx.values })).text;
+  const prefixKey = asString(input.button.prefixTemplateKey);
+  if (!prefixKey) return rendered;
+  const prefix = await renderText({ templateKey: prefixKey, ctx: input.ctx, templatePort: input.templatePort });
+  const [enabledPrefix = '✅', disabledPrefix = '❌'] = prefix.split('/');
+  const callbackData = asString(input.button.callbackData) ?? '';
+  const settings = readNotificationSettings(input.ctx) ?? defaultNotificationSettings();
+  const enabled = callbackData === 'notify_toggle_spb'
+    ? settings.notify_spb
+    : callbackData === 'notify_toggle_msk'
+      ? settings.notify_msk
+      : callbackData === 'notify_toggle_online'
+        ? settings.notify_online
+        : callbackData === 'notify_toggle_all'
+          ? settings.notify_spb && settings.notify_msk && settings.notify_online
+          : false;
+  return `${enabled ? enabledPrefix : disabledPrefix} ${rendered}`.trim();
+}
+
+async function buildReplyMarkup(input: {
+  params: Record<string, unknown>;
+  ctx: DomainContext;
+  templatePort: TemplatePort | undefined;
+}): Promise<unknown> {
+  if (Array.isArray(input.params.keyboard)) {
+    const keyboard = await Promise.all(input.params.keyboard.map(async (row) => {
+      if (!Array.isArray(row)) return [];
+      return Promise.all(row.map(async (item) => {
+        const button = asRecord(item);
+        return {
+          text: await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort }),
+          ...(button.requestContact === true ? { request_contact: true } : {}),
+        };
+      }));
+    }));
+    return {
+      keyboard,
+      resize_keyboard: input.params.resizeKeyboard === true,
+      one_time_keyboard: input.params.oneTimeKeyboard === true,
+    };
+  }
+
+  if (Array.isArray(input.params.inlineKeyboard)) {
+    const inline_keyboard = await Promise.all(input.params.inlineKeyboard.map(async (row) => {
+      if (!Array.isArray(row)) return [];
+      return Promise.all(row.map(async (item) => {
+        const button = asRecord(item);
+        return {
+          text: await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort }),
+          ...(asString(button.callbackData) ? { callback_data: asString(button.callbackData) } : {}),
+          ...(asString(button.url) ? { url: asString(button.url) } : {}),
+        };
+      }));
+    }));
+    return { inline_keyboard };
+  }
+
+  return undefined;
 }
 
 async function resolveTargets(params: Record<string, unknown>, readPort?: DbReadPort): Promise<Array<{
@@ -253,16 +383,85 @@ export async function executeAction(
     case 'message.send': {
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
-        meta: {
-          eventId: `${ctx.event.meta.eventId}:intent:${action.id}`,
-          occurredAt: nowIso(ctx),
-          source: ctx.event.meta.source,
-          ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
-          ...(ctx.event.meta.userId ? { userId: ctx.event.meta.userId } : {}),
-        },
+        meta: buildIntentMeta(action, ctx),
         payload: action.params,
       }];
       return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'message.replyKeyboard.show':
+    case 'message.inlineKeyboard.show':
+    case 'admin.forward': {
+      const text = await renderText({
+        text: action.params.text,
+        messageText: action.params.messageText,
+        templateKey: action.params.templateKey,
+        ctx,
+        templatePort: deps.templatePort,
+      });
+      const replyMarkup = await buildReplyMarkup({ params: action.params, ctx, templatePort: deps.templatePort });
+      const chatId = asNumber(action.params.chatId);
+      const intents: OutgoingIntent[] = [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: chatId === null ? {} : { chatId },
+          message: { text },
+          ...(replyMarkup ? { replyMarkup } : {}),
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      }];
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'message.edit': {
+      const text = await renderText({
+        text: action.params.text,
+        messageText: action.params.messageText,
+        templateKey: action.params.templateKey,
+        ctx,
+        templatePort: deps.templatePort,
+      });
+      const replyMarkup = await buildReplyMarkup({ params: action.params, ctx, templatePort: deps.templatePort });
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const intents: OutgoingIntent[] = [{
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: chatId === null ? {} : { chatId },
+          ...(messageId === null ? {} : { messageId }),
+          message: { text },
+          ...(replyMarkup ? { replyMarkup } : {}),
+        },
+      }];
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'message.replyMarkup.edit': {
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const replyMarkup = await buildReplyMarkup({ params: action.params, ctx, templatePort: deps.templatePort });
+      const intents: OutgoingIntent[] = [{
+        type: 'message.replyMarkup.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: chatId === null ? {} : { chatId },
+          ...(messageId === null ? {} : { messageId }),
+          ...(replyMarkup ? { replyMarkup } : {}),
+        },
+      }];
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'callback.answer': {
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      const intents: OutgoingIntent[] = callbackQueryId ? [{
+        type: 'callback.answer',
+        meta: buildIntentMeta(action, ctx),
+        payload: { callbackQueryId },
+      }] : [];
+      return { actionId: action.id, status: 'success', ...(intents.length > 0 ? { intents } : {}) };
     }
 
     case 'message.deliver': {
@@ -347,6 +546,98 @@ export async function executeAction(
         await deps.readPort.readDb({ type: 'user.byPhone', params: { phoneNormalized: phone } });
       }
       return { actionId: action.id, status: 'success' };
+    }
+
+    case 'user.state.set': {
+      const writes: DbWriteMutation[] = [{
+        type: 'user.state.set',
+        params: {
+          channelUserId: action.params.channelUserId ?? action.params.channelId,
+          state: action.params.state ?? null,
+        },
+      }];
+      await persistWrites(deps.writePort, writes);
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        ...(typeof action.params.state === 'string' ? { values: { userState: action.params.state } } : {}),
+      };
+    }
+
+    case 'user.phone.link': {
+      const channelUserId = action.params.channelUserId ?? action.params.channelId;
+      const phoneNormalized = asString(action.params.phoneNormalized);
+      const writes: DbWriteMutation[] = phoneNormalized ? [{
+        type: 'user.phone.link',
+        params: {
+          channelUserId,
+          phoneNormalized,
+        },
+      }] : [];
+      await persistWrites(deps.writePort, writes);
+      return {
+        actionId: action.id,
+        status: 'success',
+        ...(writes.length > 0 ? { writes } : {}),
+      };
+    }
+
+    case 'notifications.get': {
+      const settings = deps.readPort
+        ? await deps.readPort.readDb<NotificationSettings | null>({
+            type: 'notifications.settings',
+            params: {
+              channelUserId: action.params.channelUserId ?? action.params.channelId,
+            },
+          })
+        : null;
+      return {
+        actionId: action.id,
+        status: 'success',
+        values: { notifications: settings ?? defaultNotificationSettings() },
+      };
+    }
+
+    case 'notifications.toggle': {
+      const currentSettings = readNotificationSettings(ctx)
+        ?? (deps.readPort
+          ? await deps.readPort.readDb<NotificationSettings | null>({
+              type: 'notifications.settings',
+              params: {
+                channelUserId: action.params.channelUserId ?? action.params.channelId,
+              },
+            }) ?? defaultNotificationSettings()
+          : defaultNotificationSettings());
+      const toggleKey = asString(action.params.toggleKey);
+      let nextSettings: NotificationSettings = { ...currentSettings };
+      if (toggleKey === 'notify_toggle_spb') nextSettings.notify_spb = !currentSettings.notify_spb;
+      if (toggleKey === 'notify_toggle_msk') nextSettings.notify_msk = !currentSettings.notify_msk;
+      if (toggleKey === 'notify_toggle_online') nextSettings.notify_online = !currentSettings.notify_online;
+      if (toggleKey === 'notify_toggle_all' && action.params.supportsToggleAll === true) {
+        const allEnabled = currentSettings.notify_spb && currentSettings.notify_msk && currentSettings.notify_online;
+        nextSettings = {
+          notify_spb: !allEnabled,
+          notify_msk: !allEnabled,
+          notify_online: !allEnabled,
+        };
+      }
+      const writes: DbWriteMutation[] = [{
+        type: 'notifications.update',
+        params: {
+          channelUserId: action.params.channelUserId ?? action.params.channelId,
+          notify_spb: nextSettings.notify_spb,
+          notify_msk: nextSettings.notify_msk,
+          notify_online: nextSettings.notify_online,
+        },
+      }];
+      await persistWrites(deps.writePort, writes);
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        values: { notifications: nextSettings },
+      };
     }
 
     case 'log.audit': {

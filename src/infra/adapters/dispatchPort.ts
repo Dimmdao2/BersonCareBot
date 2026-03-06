@@ -7,6 +7,7 @@ type DeliveryPayload = {
 } & Record<string, unknown>;
 
 function readChannel(intent: OutgoingIntent): string | null {
+  if (intent.type !== 'message.send') return intent.meta.source || null;
   const payload = intent.payload as DeliveryPayload;
   const channels = payload.delivery?.channels;
   if (Array.isArray(channels)) {
@@ -17,6 +18,7 @@ function readChannel(intent: OutgoingIntent): string | null {
 }
 
 function withChannel(intent: OutgoingIntent, channel: string): OutgoingIntent {
+  if (intent.type !== 'message.send') return intent;
   const payload = (intent.payload ?? {}) as DeliveryPayload;
   const delivery = { ...(payload.delivery ?? {}), channels: [channel] };
   return {
@@ -63,14 +65,15 @@ export function createDefaultDispatchPort(deps: {
 }): DispatchPort {
   return {
     async dispatchOutgoing(intent: OutgoingIntent): Promise<void> {
-      if (intent.type !== 'message.send') return;
       const channel = readChannel(intent);
       if (!channel) throw new Error('CHANNEL_NOT_SPECIFIED');
       const intentForChannel = withChannel(intent, channel);
       const adapter = deps.adapters.find((item) => item.canHandle(intentForChannel));
       if (!adapter) throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);
       await adapter.send(intentForChannel);
-      await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
+      if (intent.type === 'message.send') {
+        await logDeliveryAttempt(deps.writePort, intent, channel, 'success', 1);
+      }
     },
   };
 }
