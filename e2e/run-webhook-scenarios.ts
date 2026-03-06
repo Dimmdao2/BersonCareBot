@@ -110,16 +110,119 @@ function getExpected(name: string): ScenarioExpect {
 
 const E2E_TEST_TELEGRAM_ID = '111222333';
 
-async function main(): Promise<void> {
-  const { buildApp } = await import('../src/app/index.js');
-  const app = buildApp();
-  await app.ready();
+const inMemoryState = {
+  states: new Map<string, string>(),
+  phones: new Map<string, string>(),
+  notifications: new Map<number, { notify_spb: boolean; notify_msk: boolean; notify_online: boolean }>(),
+};
 
-  const { db } = await import('../src/infra/db/client.js');
-  await db.query(
-    `UPDATE telegram_users SET last_start_at = NULL, last_update_id = NULL WHERE telegram_id = $1`,
-    [E2E_TEST_TELEGRAM_ID],
-  ).catch(() => { /* ignore if table/user missing */ });
+const asChannelUserId = (value: unknown): string | null => {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return null;
+};
+
+const dbReadPort = {
+  async readDb<T = unknown>(query: { type: string; params: Record<string, unknown> }): Promise<T> {
+    if (query.type === 'notifications.settings') {
+      const id = query.params.channelUserId;
+      const key = typeof id === 'number' && Number.isFinite(id) ? id : Number.NaN;
+      const settings = Number.isFinite(key)
+        ? inMemoryState.notifications.get(key) ?? { notify_spb: false, notify_msk: false, notify_online: false }
+        : { notify_spb: false, notify_msk: false, notify_online: false };
+      return settings as T;
+    }
+
+    if (query.type === 'user.lookup') {
+      const by = query.params.by;
+      const value = query.params.value;
+      if (by === 'phone' && typeof value === 'string') {
+        for (const [channelUserId, phone] of inMemoryState.phones.entries()) {
+          if (phone !== value) continue;
+          const chatId = Number(channelUserId);
+          if (!Number.isFinite(chatId)) return null as T;
+          return { chatId, channelId: channelUserId, username: null } as T;
+        }
+      }
+      return null as T;
+    }
+
+    if (query.type === 'booking.activeByUser') return [] as T;
+    if (query.type === 'booking.byExternalId') return null as T;
+    return null as T;
+  },
+};
+
+const dbWritePort = {
+  async writeDb(mutation: { type: string; params: Record<string, unknown> }): Promise<void> {
+    if (mutation.type === 'user.state.set') {
+      const channelUserId = asChannelUserId(mutation.params.channelUserId);
+      if (channelUserId) {
+        const state = typeof mutation.params.state === 'string' ? mutation.params.state : null;
+        if (state === null) inMemoryState.states.delete(channelUserId);
+        else inMemoryState.states.set(channelUserId, state);
+      }
+      return;
+    }
+
+    if (mutation.type === 'user.phone.link') {
+      const channelUserId = asChannelUserId(mutation.params.channelUserId);
+      const phoneNormalized = typeof mutation.params.phoneNormalized === 'string'
+        ? mutation.params.phoneNormalized
+        : null;
+      if (channelUserId && phoneNormalized) {
+        inMemoryState.phones.set(channelUserId, phoneNormalized);
+      }
+      return;
+    }
+
+    if (mutation.type === 'notifications.update') {
+      const id = mutation.params.channelUserId;
+      const channelUserId = typeof id === 'number' && Number.isFinite(id) ? id : null;
+      if (channelUserId === null) return;
+      const prev = inMemoryState.notifications.get(channelUserId) ?? {
+        notify_spb: false,
+        notify_msk: false,
+        notify_online: false,
+      };
+      inMemoryState.notifications.set(channelUserId, {
+        notify_spb: typeof mutation.params.notify_spb === 'boolean' ? mutation.params.notify_spb : prev.notify_spb,
+        notify_msk: typeof mutation.params.notify_msk === 'boolean' ? mutation.params.notify_msk : prev.notify_msk,
+        notify_online: typeof mutation.params.notify_online === 'boolean' ? mutation.params.notify_online : prev.notify_online,
+      });
+    }
+  },
+};
+
+const queuePort = {
+  async enqueue(): Promise<void> {
+    return;
+  },
+};
+
+let telegramAdapter: {
+  canHandle: (intent: any) => boolean;
+  send: (intent: any) => Promise<void>;
+} | null = null;
+const dispatchPort = {
+  async dispatchOutgoing(intent: { type: string; meta: { source: string }; payload: unknown }): Promise<void> {
+    if (!telegramAdapter) return;
+    if (!telegramAdapter.canHandle(intent as never)) return;
+    await telegramAdapter.send(intent as never);
+  },
+};
+
+async function main(): Promise<void> {
+  const { createTelegramDeliveryAdapter } = await import('../src/integrations/telegram/deliveryAdapter.js');
+  telegramAdapter = createTelegramDeliveryAdapter();
+  const { buildApp } = await import('../src/app/index.js');
+  const app = buildApp({
+    dbReadPort,
+    dbWritePort,
+    queuePort,
+    dispatchPort,
+  });
+  await app.ready();
 
   const env = (await import('../src/config/env.js')).env;
   const webhookSecret = env.TG_WEBHOOK_SECRET;
@@ -177,8 +280,6 @@ async function main(): Promise<void> {
       failed++;
     }
   }
-
-  await db.query(`DELETE FROM telegram_users WHERE telegram_id = $1`, [E2E_TEST_TELEGRAM_ID]).catch(() => {});
 
   await app.close();
   console.log('');
