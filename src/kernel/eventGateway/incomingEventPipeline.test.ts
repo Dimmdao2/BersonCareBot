@@ -29,7 +29,6 @@ describe('incomingEventPipeline', () => {
           ],
         },
       ]),
-      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
     const contextQueryPort: ContextQueryPort = {

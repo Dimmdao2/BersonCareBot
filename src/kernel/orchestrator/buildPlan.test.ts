@@ -43,7 +43,6 @@ describe('orchestrator buildPlan', () => {
           ],
         },
       ]),
-      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 

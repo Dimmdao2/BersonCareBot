@@ -47,7 +47,6 @@ describe('orchestrator routing', () => {
           steps: [{ action: 'event.log', params: {} }],
         },
       ]),
-      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
@@ -75,7 +74,6 @@ describe('orchestrator routing', () => {
           steps: [{ action: 'event.log', params: {} }],
         },
       ]),
-      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
@@ -100,7 +98,6 @@ describe('orchestrator routing', () => {
           steps: [{ action: 'event.log', params: {} }],
         },
       ]),
-      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
@@ -123,7 +120,6 @@ describe('orchestrator routing', () => {
           steps: [{ action: 'event.log', params: {} }],
         },
       ]),
-      getScript: vi.fn().mockResolvedValue({ id: 'legacy', steps: [] }),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
@@ -133,14 +129,12 @@ describe('orchestrator routing', () => {
     );
 
     expect(plan.length).toBeGreaterThan(0);
-    expect(contentPort.getScript).not.toHaveBeenCalled();
     expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('rubitime');
   });
 
   it('returns empty plan when no business script matches and does not use legacy key', async () => {
     const contentPort: ContentPort = {
       getScriptsBySource: vi.fn().mockResolvedValue([]),
-      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
@@ -150,7 +144,6 @@ describe('orchestrator routing', () => {
     );
 
     expect(plan).toEqual([]);
-    expect(contentPort.getScript).not.toHaveBeenCalled();
     expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('unknown');
   });
 });

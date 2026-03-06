@@ -41,11 +41,6 @@ function normalizeScript(script: RegistryScript): ContentScript {
   return normalized;
 }
 
-function findScript(bundle: { scripts: RegistryScript[] }, scriptId: string): ContentScript | null {
-  const script = bundle.scripts.find((item) => item.id === scriptId);
-  return script ? normalizeScript(script) : null;
-}
-
 function listScripts(bundle: { scripts: RegistryScript[] }): ContentScript[] {
   return bundle.scripts.map((script) => normalizeScript(script));
 }
@@ -60,14 +55,6 @@ export function createContentPort(input?: { rootDir?: string }): ContentPort {
   const registry = createRegistryState(input);
 
   const port: ContentPort = {
-    async getScript(key: string): Promise<ContentScript | null> {
-      const [source, scriptId] = key.split(':');
-      if (!source || !scriptId) return null;
-      const data = await registry.load();
-      const bundle = getContentBundle(data, source);
-      if (!bundle) return null;
-      return findScript(bundle, scriptId);
-    },
     async getScriptsBySource(source: string): Promise<ContentScript[]> {
       const data = await registry.load();
       const bundle = getContentBundle(data, source);
