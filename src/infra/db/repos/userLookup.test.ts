@@ -30,6 +30,7 @@ describe('userLookup', () => {
       channelId: '123',
       username: 'alice',
       phoneNormalized: '+79990001122',
+      userState: 'idle',
     });
 
     const byPhone = await lookupUser(db, 'channel', 'phone', '+79990001122');
@@ -41,6 +42,7 @@ describe('userLookup', () => {
       channelId: '123',
       username: 'alice',
       phoneNormalized: '+79990001122',
+      userState: 'idle',
     });
     expect(findByPhoneSpy).toHaveBeenCalledWith(db, '+79990001122');
     expect(getUserLinkDataSpy).toHaveBeenCalledWith(db, '123');

@@ -20,6 +20,7 @@ export type ChannelUserLinkRow = {
   channelId: string;
   username: string | null;
   phoneNormalized: string | null;
+  userState: string | null;
 };
 
 /** Anti-dup for rapid start events. */
@@ -343,7 +344,7 @@ export async function getUserLinkData(
   channelUserId: string,
 ): Promise<ChannelUserLinkRow | null> {
   const query = `
-    SELECT i.external_id::text AS channel_id, ts.username, cp.phone
+    SELECT i.external_id::text AS channel_id, ts.username, ts.state AS user_state, cp.phone
     FROM identities i
     LEFT JOIN telegram_state ts
       ON ts.identity_id = i.id
@@ -363,6 +364,7 @@ export async function getUserLinkData(
     const res = await db.query<{
       channel_id: string;
       username: string | null;
+      user_state: string | null;
       phone: string | null;
     }>(query, [channelUserId]);
     const row = res.rows[0];
@@ -374,6 +376,7 @@ export async function getUserLinkData(
       channelId: row.channel_id,
       username: row.username,
       phoneNormalized: row.phone,
+      userState: row.user_state,
     };
   } catch (err) {
     logger.error({ err }, 'getUserLinkData error');

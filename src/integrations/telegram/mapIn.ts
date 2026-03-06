@@ -20,10 +20,25 @@ const LEGACY_CALLBACK_TO_ACTION: Record<string, string> = {
   notify_toggle_all: 'notifications.toggle.all',
 };
 
+const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
+  '📅 Запись на приём': 'booking.open',
+  'Запись на приём': 'booking.open',
+  '❓ Задать вопрос': 'question.ask',
+  'Задать вопрос': 'question.ask',
+  '⚙️ Меню': 'menu.more',
+  'Меню': 'menu.more',
+};
+
 export function normalizeTelegramAction(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return '';
   return LEGACY_CALLBACK_TO_ACTION[trimmed] ?? trimmed;
+}
+
+export function normalizeTelegramMessageAction(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return MESSAGE_TEXT_TO_ACTION[trimmed] ?? '';
 }
 
 /** Проверяет, относится ли callback к настройкам уведомлений. */
@@ -58,6 +73,7 @@ export function fromTelegram(
       chatId,
       messageId,
       channelUserId: cq.from.id,
+      action: normalizeTelegramAction(cq.data ?? ''),
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       callbackData: normalizeTelegramAction(cq.data ?? ''),
       callbackQueryId: cq.id,
@@ -74,6 +90,7 @@ export function fromTelegram(
       chatId,
       channelId: telegramId,
       text: msg.text ?? '',
+      action: normalizeTelegramMessageAction(msg.text ?? ''),
       ...(typeof msg.contact?.phone_number === 'string' && { contactPhone: msg.contact.phone_number }),
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       ...(typeof msg.from?.username === 'string' && { channelUsername: msg.from.username }),

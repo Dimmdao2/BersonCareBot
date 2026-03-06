@@ -131,9 +131,9 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(findSqlText).toContain('LEFT JOIN telegram_state ts');
 
     query.mockResolvedValueOnce({
-      rows: [{ channel_id: '123', username: 'alice', phone: '+79990001122' }],
+      rows: [{ channel_id: '123', username: 'alice', user_state: 'idle', phone: '+79990001122' }],
       rowCount: 1,
-    } as DbQueryResult<{ channel_id: string; username: string | null; phone: string | null }>);
+    } as DbQueryResult<{ channel_id: string; username: string | null; user_state: string | null; phone: string | null }>);
 
     const byChannel = await getUserLinkData(db, '123');
     expect(byChannel).toEqual({
@@ -141,6 +141,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
       channelId: '123',
       username: 'alice',
       phoneNormalized: '+79990001122',
+      userState: 'idle',
     });
 
     const [linkSql] = query.mock.calls[1] ?? [];

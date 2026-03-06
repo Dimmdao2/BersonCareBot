@@ -38,6 +38,7 @@ describe('fromTelegram', () => {
 
     expect(update).toMatchObject({
       kind: 'callback',
+      action: 'notifications.show',
       callbackData: 'notifications.show',
     });
     expect(update && 'hasLinkedPhone' in update ? update.hasLinkedPhone : undefined).toBeUndefined();
@@ -61,7 +62,29 @@ describe('fromTelegram', () => {
     expect(update).toMatchObject({
       kind: 'message',
       userState: '',
+      action: '',
       channelId: '123',
+    });
+  });
+
+  it('maps menu message text to canonical action', () => {
+    const update = fromTelegram(
+      {
+        update_id: 3,
+        message: {
+          message_id: 12,
+          from: { id: 123, is_bot: false, first_name: 'U', username: 'u1' },
+          chat: { id: 123, type: 'private' },
+          date: 1700000000,
+          text: '❓ Задать вопрос',
+        },
+      },
+      { userRow: null, telegramId: '123' },
+    );
+
+    expect(update).toMatchObject({
+      kind: 'message',
+      action: 'question.ask',
     });
   });
 });

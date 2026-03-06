@@ -36,6 +36,7 @@ export type IncomingMessageUpdate = {
   chatId: number;
   channelId: string;
   text: string;
+  action?: string;
   contactPhone?: string;
   hasLinkedPhone?: boolean;
   channelUsername?: string | null;
@@ -49,6 +50,7 @@ export type IncomingCallbackUpdate = {
   chatId: number;
   messageId: number;
   channelUserId: number;
+  action?: string;
   hasLinkedPhone?: boolean;
   callbackData: string;
   callbackQueryId: string;

@@ -103,7 +103,7 @@ function normalizeMatchVars(input: OrchestratorInput): Record<string, unknown> {
   };
   const context = {
     ...input.context,
-    ...(typeof normalizedInput.userState === 'string' ? { conversationState: normalizedInput.userState } : {}),
+    ...(isTruthyString(normalizedInput.userState) ? { conversationState: normalizedInput.userState } : {}),
     ...(typeof normalizedInput.hasLinkedPhone === 'boolean' ? { linkedPhone: normalizedInput.hasLinkedPhone } : {}),
   };
 
