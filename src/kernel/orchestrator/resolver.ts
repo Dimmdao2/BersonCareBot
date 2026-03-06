@@ -198,6 +198,13 @@ function scriptMatches(script: ScriptShape, input: OrchestratorInput): { matched
 
 function interpolate(value: unknown, vars: Record<string, unknown>): unknown {
   if (typeof value === 'string') {
+    const singlePlaceholder = value.match(/^\{\{\s*([\w.]+)\s*\}\}$/);
+    if (singlePlaceholder) {
+      const key = singlePlaceholder[1];
+      if (typeof key !== 'string') return '';
+      const replacement = getPathValue(vars, key);
+      return replacement === undefined ? '' : replacement;
+    }
     return value.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
       const replacement = getPathValue(vars, key);
       return typeof replacement === 'string' || typeof replacement === 'number'
