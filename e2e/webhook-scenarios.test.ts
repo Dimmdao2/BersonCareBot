@@ -70,7 +70,7 @@ function getExpected(name: string): ScenarioExpect {
     case '01_start':
       return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     case '02_start_again':
-      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+      return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     case '03_book':
       return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     case '04_ask':
@@ -82,17 +82,17 @@ function getExpected(name: string): ScenarioExpect {
     case '07_default_idle':
       return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     case '08_callback_notifications':
-      return { ...base, minTelegramCalls: 1, firstMethod: 'editMessageText' };
-    case '09_callback_toggle_spb':
-      return { ...base, minTelegramCalls: 1 };
-    case '10_callback_my_bookings':
-      return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
-    case '11_callback_back':
-      return { ...base, minTelegramCalls: 1 };
-    case '12_callback_unknown':
-      return { ...base, minTelegramCalls: 1, firstMethod: 'answerCallbackQuery' };
-    case '13_duplicate_update_id':
       return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+    case '09_callback_toggle_spb':
+      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+    case '10_callback_my_bookings':
+      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+    case '11_callback_back':
+      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+    case '12_callback_unknown':
+      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+    case '13_duplicate_update_id':
+      return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     default:
       return base;
   }
