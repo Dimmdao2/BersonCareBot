@@ -1,38 +1,5 @@
 [
   {
-    "id": "webhook.received",
-    "source": "rubitime",
-    "event": "webhook.received",
-    "enabled": false,
-    "match": {
-      "compatibility": {
-        "routeAliasFor": [
-          "rubitime.record.created",
-          "rubitime.record.updated.accepted",
-          "rubitime.record.updated.canceled",
-          "rubitime.record.updated.moved",
-          "rubitime.record.canceled"
-        ]
-      }
-    },
-    "steps": [
-      {
-        "action": "log.audit",
-        "mode": "sync",
-        "params": {
-          "reason": "route-compatibility-alias",
-          "aliasFor": [
-            "rubitime.record.created",
-            "rubitime.record.updated.accepted",
-            "rubitime.record.updated.canceled",
-            "rubitime.record.updated.moved",
-            "rubitime.record.canceled"
-          ]
-        }
-      }
-    ]
-  },
-  {
     "id": "rubitime.record.created",
     "source": "rubitime",
     "event": "webhook.received",

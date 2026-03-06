@@ -1,43 +1,5 @@
 [
 	{
-		"id": "message.received",
-		"source": "telegram",
-		"event": "message.received",
-		"enabled": false,
-		"match": {
-			"compatibility": { "routeAliasFor": ["telegram.start", "telegram.ask", "telegram.ask.question", "telegram.booking.open", "telegram.contact.link.request.booking", "telegram.contact.link.confirm", "telegram.contact.link.remind", "telegram.more.menu", "telegram.menu.default"] }
-		},
-		"steps": [
-			{
-				"action": "log.audit",
-				"mode": "sync",
-				"params": {
-					"reason": "route-compatibility-alias",
-					"aliasFor": ["telegram.start", "telegram.ask", "telegram.ask.question", "telegram.booking.open", "telegram.contact.link.request.booking", "telegram.contact.link.confirm", "telegram.contact.link.remind", "telegram.more.menu", "telegram.menu.default"]
-				}
-			}
-		]
-	},
-	{
-		"id": "callback.received",
-		"source": "telegram",
-		"event": "callback.received",
-		"enabled": false,
-		"match": {
-			"compatibility": { "routeAliasFor": ["telegram.contact.link.request.bookings", "telegram.notifications.show", "telegram.notifications.toggle.spb", "telegram.notifications.toggle.msk", "telegram.notifications.toggle.online", "telegram.notifications.toggle.all", "telegram.bookings.show", "telegram.menu.back"] }
-		},
-		"steps": [
-			{
-				"action": "log.audit",
-				"mode": "sync",
-				"params": {
-					"reason": "route-compatibility-alias",
-					"aliasFor": ["telegram.contact.link.request.bookings", "telegram.notifications.show", "telegram.notifications.toggle.spb", "telegram.notifications.toggle.msk", "telegram.notifications.toggle.online", "telegram.notifications.toggle.all", "telegram.bookings.show", "telegram.menu.back"]
-				}
-			}
-		]
-	},
-	{
 		"id": "telegram.start",
 		"source": "telegram",
 		"event": "message.received",
