@@ -31,7 +31,7 @@ const routeRuleSchema = z.object({
     eventType: z.string().min(1),
     meta: z.record(z.string(), z.unknown()).optional(),
   }),
-  scriptId: z.string().min(1),
+  scriptId: z.string().min(1).optional(),
 });
 
 const routesFileSchema = z.array(routeRuleSchema);
@@ -65,6 +65,7 @@ async function readJsonFile(filePath: string): Promise<unknown> {
 function validateRoutes(scope: string, scripts: ContentScript[], routes: RouteRule[]): void {
   const scriptIds = new Set(scripts.map((script) => script.id));
   for (const route of routes) {
+    if (!route.scriptId) continue;
     const [routeScope, routeScriptId] = route.scriptId.split(':');
     if (!routeScope || !routeScriptId) {
       throw new Error(`Invalid route scriptId in scope ${scope}: ${route.scriptId}`);

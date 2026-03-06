@@ -57,14 +57,10 @@ function findTemplate(bundle: { templates: Record<string, unknown> }, templateId
   return null;
 }
 
-type RoutedContentPort = {
-  getRoutes: (scope: string) => Promise<RouteRule[]>;
-};
-
 export function createContentPort(input?: { rootDir?: string }): ContentPort {
   const registry = createRegistryState(input);
 
-  const port: ContentPort & RoutedContentPort = {
+  const port: ContentPort = {
     async getScript(key: string): Promise<ContentScript | null> {
       const [source, scriptId] = key.split(':');
       if (!source || !scriptId) return null;

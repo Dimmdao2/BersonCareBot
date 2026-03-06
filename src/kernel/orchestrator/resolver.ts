@@ -51,11 +51,7 @@ type RouteRule = {
     eventType: string;
     meta?: Record<string, unknown>;
   };
-  scriptId: string;
-};
-
-type RoutedContentPort = ContentPort & {
-  getRoutes?: (scope: string) => Promise<RouteRule[]>;
+  scriptId?: string;
 };
 
 type SelectedScript = {
@@ -303,8 +299,7 @@ async function resolveScriptId(
   contentPort: ContentPort,
 ): Promise<string | null> {
   const scope = input.event.meta.source;
-  const maybeRoutedPort = contentPort as RoutedContentPort;
-  const rules = maybeRoutedPort.getRoutes ? await maybeRoutedPort.getRoutes(scope) : [];
+  const rules = contentPort.getRoutes ? await contentPort.getRoutes(scope) as RouteRule[] : [];
 
   let selectedRule: RouteRule | null = null;
   let selectedPriority = Number.NEGATIVE_INFINITY;
@@ -317,7 +312,7 @@ async function resolveScriptId(
     }
   }
 
-  if (selectedRule) return selectedRule.scriptId;
+  if (selectedRule?.scriptId) return selectedRule.scriptId;
   return null;
 }
 
