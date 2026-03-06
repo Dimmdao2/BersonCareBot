@@ -16,6 +16,6 @@
       "text": "Выберите действие в меню."
     },
     "chat_instance": "test",
-    "data": "menu_my_bookings"
+    "data": "bookings.show"
   }
 }

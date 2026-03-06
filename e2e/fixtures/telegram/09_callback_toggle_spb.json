@@ -16,6 +16,6 @@
       "text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:"
     },
     "chat_instance": "test",
-    "data": "notify_toggle_spb"
+    "data": "notifications.toggle.spb"
   }
 }
