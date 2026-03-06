@@ -1,6 +1,5 @@
 import type { DeliveryAttemptResult, DeliveryJob } from './actions.js';
 import type {
-  ContentRouteRule,
   ContentScript,
   ContentTemplate,
   OrchestratorInput,
@@ -102,7 +101,6 @@ export type ContextQueryPort = {
 export type ContentPort = {
   getScript(key: string, version?: string, locale?: string): Promise<ContentScript | null>;
   getScriptsBySource?: (source: string) => Promise<ContentScript[]>;
-  getRoutes?: (scope: string) => Promise<ContentRouteRule[]>;
   getTemplate(key: string, version?: string, locale?: string): Promise<ContentTemplate | null>;
 };
 

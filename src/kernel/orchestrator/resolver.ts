@@ -1,5 +1,4 @@
 import type {
-  ContentRouteRule,
   ContentPort,
   ContentScript,
   ContextQueryPort,
@@ -43,8 +42,6 @@ type ScriptShape = {
   steps: ScriptStep[];
   conditions?: ContentScript['conditions'];
 };
-
-type RouteRule = ContentRouteRule;
 
 type SelectedScript = {
   scriptId: string;
@@ -273,36 +270,6 @@ function toPlanStep(step: ScriptStep, input: OrchestratorInput, index: number, v
   };
 }
 
-function routeMatches(rule: RouteRule, input: OrchestratorInput): boolean {
-  if (rule.enabled === false) return false;
-  if (rule.match.source !== input.event.meta.source) return false;
-  if (rule.match.eventType !== input.event.type) return false;
-
-  const metaMatch = rule.match.meta;
-  if (!metaMatch) return true;
-  for (const [key, expected] of Object.entries(metaMatch)) {
-    if ((input.event.meta as Record<string, unknown>)[key] !== expected) return false;
-  }
-  return true;
-}
-
-async function passesRouteFilter(
-  input: OrchestratorInput,
-  contentPort: ContentPort,
-): Promise<boolean> {
-  if (!contentPort.getRoutes) return true;
-
-  const scope = input.event.meta.source;
-  const rules = await contentPort.getRoutes(scope) as RouteRule[];
-  if (rules.length === 0) return true;
-
-  for (const rule of rules) {
-    if (routeMatches(rule, input)) return true;
-  }
-
-  return false;
-}
-
 async function resolveBusinessScript(
   input: OrchestratorInput,
   contentPort: ContentPort,
@@ -330,8 +297,6 @@ export async function buildPlan(
   input: OrchestratorInput,
   deps: { contentPort: ContentPort; contextQueryPort: ContextQueryPort },
 ): Promise<OrchestratorPlan> {
-  const routeAllowed = await passesRouteFilter(input, deps.contentPort);
-  if (!routeAllowed) return [];
   const selected = await resolveBusinessScript(input, deps.contentPort);
   if (!selected) return [];
   const script = selected.script;

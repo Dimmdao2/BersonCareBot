@@ -69,18 +69,6 @@ export type ContentScript = {
   steps: ContentScriptStep[];
 };
 
-export type ContentRouteRule = {
-  id: string;
-  enabled?: boolean | undefined;
-  priority?: number | undefined;
-  match: {
-    source: string;
-    eventType: string;
-    meta?: Record<string, unknown> | undefined;
-  };
-  scriptId?: string | undefined;
-};
-
 export type ContentTemplate = {
   id: string;
   text: string;

@@ -21,20 +21,7 @@ describe('orchestrator buildPlan', () => {
       identityLinks: [{ kind: 'phone', value: '+79990001122' }],
     };
 
-    const contentPort: ContentPort & {
-      getRoutes: (scope: string) => Promise<Array<{
-        id: string;
-        match: { source: string; eventType: string };
-        scriptId: string;
-      }>>;
-    } = {
-      getRoutes: vi.fn().mockResolvedValue([
-        {
-          id: 'route.source-a.webhook',
-          match: { source: 'source-a', eventType: 'webhook.received' },
-          scriptId: 'source-a:webhook.received',
-        },
-      ]),
+    const contentPort: ContentPort = {
       getScriptsBySource: vi.fn().mockResolvedValue([
         {
           id: 'event.received',

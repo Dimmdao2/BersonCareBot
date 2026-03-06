@@ -9,7 +9,6 @@ export type {
   ContentScriptMatchValue,
   ContentScriptStep,
   ContentTemplate,
-  ContentRouteRule,
   IdentityLink,
   OrchestratorInput,
   OrchestratorPlan,

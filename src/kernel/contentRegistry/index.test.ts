@@ -34,28 +34,15 @@ describe('contentRegistry', () => {
       JSON.stringify({ welcome: { text: 'hello' } }),
       'utf8',
     );
-    await writeFile(
-      path.join(src, 'routes.json'),
-      JSON.stringify([
-        {
-          id: 'route-1',
-          match: { source: 'source-a', eventType: 'message.received' },
-          scriptId: 'source-a:tg_start',
-        },
-      ]),
-      'utf8',
-    );
-
     const registry = await loadContentRegistry({ rootDir: root });
     const bundle = getContentBundle(registry, 'source-a');
 
     expect(bundle).not.toBeNull();
     expect(bundle?.scripts.length).toBe(1);
     expect(Object.keys(bundle?.templates ?? {})).toContain('welcome');
-    expect(bundle?.routes).toHaveLength(1);
   });
 
-  it('returns empty routes when routes.json is missing', async () => {
+  it('loads bundle with scripts/templates only', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'content-registry-no-routes-'));
     const src = path.join(root, 'source-no-routes');
     await mkdir(src, { recursive: true });
@@ -66,7 +53,7 @@ describe('contentRegistry', () => {
     const bundle = getContentBundle(registry, 'source-no-routes');
 
     expect(bundle).not.toBeNull();
-    expect(bundle?.routes).toEqual([]);
+    expect(bundle?.scripts).toEqual([]);
   });
 
   it('throws on invalid scripts.json schema', async () => {
@@ -92,7 +79,6 @@ describe('contentRegistry', () => {
 
     await writeFile(path.join(source, 'scripts-example.json'), '{"broken":', 'utf8');
     await writeFile(path.join(source, 'templates-example.json'), '{"broken":', 'utf8');
-    await writeFile(path.join(source, 'routes.json'), JSON.stringify([]), 'utf8');
     await writeFile(path.join(source, 'routes-example.json'), '{"broken":', 'utf8');
 
     const registry = await loadContentRegistry({ rootDir: root });
@@ -101,7 +87,6 @@ describe('contentRegistry', () => {
     expect(bundle).not.toBeNull();
     expect(bundle?.scripts).toHaveLength(1);
     expect(bundle?.templates).toMatchObject({ welcome: 'ok' });
-    expect(bundle?.routes).toEqual([]);
   });
 
   it('validates structured script matcher operators', async () => {
