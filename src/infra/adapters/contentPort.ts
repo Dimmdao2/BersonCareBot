@@ -1,5 +1,9 @@
 import type { ContentPort, ContentScript, ContentTemplate } from '../../kernel/contracts/index.js';
-import type { ContentRegistry, ContentScript as RegistryScript } from '../../kernel/contentRegistry/index.js';
+import type {
+  ContentRegistry,
+  ContentScript as RegistryScript,
+  RouteRule,
+} from '../../kernel/contentRegistry/index.js';
 import { getContentBundle, loadContentRegistry } from '../../kernel/contentRegistry/index.js';
 
 type RegistryState = {
@@ -49,10 +53,14 @@ function findTemplate(bundle: { templates: Record<string, unknown> }, templateId
   return null;
 }
 
+type RoutedContentPort = {
+  getRoutes: (scope: string) => Promise<RouteRule[]>;
+};
+
 export function createContentPort(input?: { rootDir?: string }): ContentPort {
   const registry = createRegistryState(input);
 
-  return {
+  const port: ContentPort & RoutedContentPort = {
     async getScript(key: string): Promise<ContentScript | null> {
       const [source, scriptId] = key.split(':');
       if (!source || !scriptId) return null;
@@ -69,5 +77,13 @@ export function createContentPort(input?: { rootDir?: string }): ContentPort {
       if (!bundle) return null;
       return findTemplate(bundle, templateId);
     },
+    async getRoutes(scope: string): Promise<RouteRule[]> {
+      const data = await registry.load();
+      const bundle = getContentBundle(data, scope);
+      if (!bundle) return [];
+      return bundle.routes;
+    },
   };
+
+  return port;
 }

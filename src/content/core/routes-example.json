@@ -1,0 +1,12 @@
+[
+  {
+    "id": "example.route",
+    "enabled": true,
+    "priority": 0,
+    "match": {
+      "source": "core",
+      "eventType": "example.received"
+    },
+    "scriptId": "core:event.log"
+  }
+]

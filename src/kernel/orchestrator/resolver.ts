@@ -37,6 +37,22 @@ type ScriptShape = {
   conditions?: Array<unknown>;
 };
 
+type RouteRule = {
+  id: string;
+  enabled?: boolean;
+  priority?: number;
+  match: {
+    source: string;
+    eventType: string;
+    meta?: Record<string, unknown>;
+  };
+  scriptId: string;
+};
+
+type RoutedContentPort = ContentPort & {
+  getRoutes?: (scope: string) => Promise<RouteRule[]>;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -150,12 +166,50 @@ function toPlanStep(step: ScriptStep, input: OrchestratorInput, index: number, v
   };
 }
 
+function routeMatches(rule: RouteRule, input: OrchestratorInput): boolean {
+  if (rule.enabled === false) return false;
+  if (rule.match.source !== input.event.meta.source) return false;
+  if (rule.match.eventType !== input.event.type) return false;
+
+  const metaMatch = rule.match.meta;
+  if (!metaMatch) return true;
+  for (const [key, expected] of Object.entries(metaMatch)) {
+    if ((input.event.meta as Record<string, unknown>)[key] !== expected) return false;
+  }
+  return true;
+}
+
+async function resolveScriptId(
+  input: OrchestratorInput,
+  contentPort: ContentPort,
+): Promise<string> {
+  const scope = input.event.meta.source;
+  const maybeRoutedPort = contentPort as RoutedContentPort;
+  const rules = maybeRoutedPort.getRoutes ? await maybeRoutedPort.getRoutes(scope) : [];
+
+  let selectedRule: RouteRule | null = null;
+  let selectedPriority = Number.NEGATIVE_INFINITY;
+  for (const rule of rules) {
+    if (!routeMatches(rule, input)) continue;
+    const priority = typeof rule.priority === 'number' ? rule.priority : 0;
+    if (!selectedRule || priority > selectedPriority) {
+      selectedRule = rule;
+      selectedPriority = priority;
+    }
+  }
+
+  if (selectedRule) return selectedRule.scriptId;
+
+  // TODO remove after routes rollout
+  return `${input.event.meta.source}:${input.event.type}`;
+}
+
 export async function buildPlan(
   input: OrchestratorInput,
   deps: { contentPort: ContentPort; contextQueryPort: ContextQueryPort },
 ): Promise<OrchestratorPlan> {
-  const scriptKey = `${input.event.meta.source}:${input.event.type}`;
-  const script = await deps.contentPort.getScript(scriptKey) as ScriptShape | null;
+  const scriptId = await resolveScriptId(input, deps.contentPort);
+  const script = await deps.contentPort.getScript(scriptId) as ScriptShape | null;
   if (!script) return [];
 
   const baseVars = {

@@ -1,0 +1,22 @@
+[
+  {
+    "id": "telegram.message.received",
+    "enabled": true,
+    "priority": 100,
+    "match": {
+      "source": "telegram",
+      "eventType": "message.received"
+    },
+    "scriptId": "telegram:message.received"
+  },
+  {
+    "id": "telegram.callback.received",
+    "enabled": true,
+    "priority": 100,
+    "match": {
+      "source": "telegram",
+      "eventType": "callback.received"
+    },
+    "scriptId": "telegram:callback.received"
+  }
+]

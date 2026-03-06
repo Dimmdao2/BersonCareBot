@@ -1,0 +1,12 @@
+[
+  {
+    "id": "core.event.log",
+    "enabled": true,
+    "priority": 100,
+    "match": {
+      "source": "core",
+      "eventType": "event.log"
+    },
+    "scriptId": "core:event.log"
+  }
+]
