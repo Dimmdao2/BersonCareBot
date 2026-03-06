@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
+import type { ContentScriptMatchObject, ContentScriptMatchValue } from '../contracts/orchestrator.js';
 
 const scriptStepSchema = z.object({
   action: z.string().min(1),
@@ -8,13 +9,29 @@ const scriptStepSchema = z.object({
   params: z.record(z.string(), z.unknown()).optional(),
 });
 
+const contentScriptMatchValueSchema: z.ZodType<ContentScriptMatchValue> = z.lazy(() => z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(contentScriptMatchValueSchema),
+  contentScriptMatchObjectSchema,
+]));
+
+const contentScriptMatchObjectSchema: z.ZodType<ContentScriptMatchObject> = z.lazy(() => z.object({
+  textPresent: z.boolean().optional(),
+  phonePresent: z.boolean().optional(),
+  excludeActions: z.array(z.string().min(1)).optional(),
+  excludeTexts: z.array(z.string().min(1)).optional(),
+}).catchall(contentScriptMatchValueSchema));
+
 const contentScriptSchema = z.object({
   id: z.string().min(1),
   source: z.string().min(1).optional(),
   event: z.string().min(1).optional(),
   enabled: z.boolean().optional(),
   priority: z.number().int().optional(),
-  match: z.record(z.string(), z.unknown()).optional(),
+  match: contentScriptMatchObjectSchema.optional(),
   conditions: z.array(z.unknown()).optional(),
   steps: z.array(scriptStepSchema),
 });

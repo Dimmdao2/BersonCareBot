@@ -103,4 +103,61 @@ describe('contentRegistry', () => {
     expect(bundle?.templates).toMatchObject({ welcome: 'ok' });
     expect(bundle?.routes).toEqual([]);
   });
+
+  it('validates structured script matcher operators', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'content-registry-matchers-'));
+    const source = path.join(root, 'source-m');
+    await mkdir(source, { recursive: true });
+
+    await writeFile(
+      path.join(source, 'scripts.json'),
+      JSON.stringify([
+        {
+          id: 'message.received',
+          source: 'source-m',
+          event: 'message.received',
+          match: {
+            input: {
+              textPresent: true,
+              excludeTexts: ['/start'],
+              action: 'book',
+            },
+          },
+          steps: [],
+        },
+      ]),
+      'utf8',
+    );
+    await writeFile(path.join(source, 'templates.json'), JSON.stringify({}), 'utf8');
+
+    const registry = await loadContentRegistry({ rootDir: root });
+    const bundle = getContentBundle(registry, 'source-m');
+
+    expect(bundle?.scripts).toHaveLength(1);
+  });
+
+  it('rejects invalid matcher operators in scripts.json', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'content-registry-bad-matchers-'));
+    const source = path.join(root, 'source-bad-match');
+    await mkdir(source, { recursive: true });
+
+    await writeFile(
+      path.join(source, 'scripts.json'),
+      JSON.stringify([
+        {
+          id: 'message.received',
+          match: {
+            input: {
+              excludeActions: [1, 2],
+            },
+          },
+          steps: [],
+        },
+      ]),
+      'utf8',
+    );
+    await writeFile(path.join(source, 'templates.json'), JSON.stringify({}), 'utf8');
+
+    await expect(loadContentRegistry({ rootDir: root })).rejects.toThrow();
+  });
 });

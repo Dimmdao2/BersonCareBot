@@ -5,8 +5,11 @@
 export type {
   BaseContext,
   ContentScript,
+  ContentScriptMatchObject,
+  ContentScriptMatchValue,
   ContentScriptStep,
   ContentTemplate,
+  ContentRouteRule,
   IdentityLink,
   OrchestratorInput,
   OrchestratorPlan,

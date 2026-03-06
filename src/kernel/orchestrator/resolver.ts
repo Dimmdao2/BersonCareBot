@@ -1,5 +1,7 @@
 import type {
+  ContentRouteRule,
   ContentPort,
+  ContentScript,
   ContextQueryPort,
   ContextQuery,
   OrchestratorInput,
@@ -32,27 +34,17 @@ type ScriptStep = {
 };
 
 type ScriptShape = {
-  id: string;
-  source?: string;
-  event?: string;
-  enabled?: boolean;
-  priority?: number;
-  match?: Record<string, unknown>;
+  id: ContentScript['id'];
+  source?: ContentScript['source'];
+  event?: ContentScript['event'];
+  enabled?: ContentScript['enabled'];
+  priority?: ContentScript['priority'];
+  match?: ContentScript['match'];
   steps: ScriptStep[];
-  conditions?: Array<unknown>;
+  conditions?: ContentScript['conditions'];
 };
 
-type RouteRule = {
-  id: string;
-  enabled?: boolean;
-  priority?: number;
-  match: {
-    source: string;
-    eventType: string;
-    meta?: Record<string, unknown>;
-  };
-  scriptId?: string;
-};
+type RouteRule = ContentRouteRule;
 
 type SelectedScript = {
   scriptId: string;

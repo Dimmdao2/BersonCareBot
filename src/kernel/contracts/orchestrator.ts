@@ -42,13 +42,29 @@ export type ContentScriptStep = {
   params?: Record<string, unknown>;
 };
 
+export type ContentScriptMatchValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ContentScriptMatchObject
+  | ContentScriptMatchValue[];
+
+export type ContentScriptMatchObject = {
+  textPresent?: boolean | undefined;
+  phonePresent?: boolean | undefined;
+  excludeActions?: string[] | undefined;
+  excludeTexts?: string[] | undefined;
+  [key: string]: ContentScriptMatchValue | undefined;
+};
+
 export type ContentScript = {
   id: string;
   source?: string;
   event?: string;
   enabled?: boolean;
   priority?: number;
-  match?: Record<string, unknown>;
+  match?: ContentScriptMatchObject;
   conditions?: Array<unknown>;
   steps: ContentScriptStep[];
 };
