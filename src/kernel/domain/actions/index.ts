@@ -57,9 +57,6 @@ async function handleMessageRetryEnqueue(step: Step): Promise<StepResult> {
 
 async function handleMessageSend(step: Step, ctx: ScriptContext): Promise<StepResult> {
   const payload = step.payload as MessagePayload;
-  const hasChat = typeof payload.recipient?.chatId === 'number';
-  const hasPhone = typeof payload.recipient?.phoneNormalized === 'string'
-    && payload.recipient.phoneNormalized.trim().length > 0;
   const channelsFromStep = Array.isArray(payload.delivery?.channels)
     ? payload.delivery.channels.filter((item): item is string => typeof item === 'string')
     : [];

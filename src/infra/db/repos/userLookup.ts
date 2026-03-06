@@ -1,8 +1,6 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { findByPhone, getUserLinkData } from './channelUsers.js';
 
-type LookupBy = 'phone' | 'channelId';
-
 function isSupportedResource(resource: string): boolean {
   return resource === 'telegram' || resource === 'channel';
 }

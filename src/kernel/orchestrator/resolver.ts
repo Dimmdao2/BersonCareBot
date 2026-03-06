@@ -20,12 +20,6 @@ type StepWhen = {
   not?: StepWhen;
 };
 
-type ScriptCondition = {
-  kind: 'context.query';
-  name: string;
-  query: ContextQuery;
-};
-
 type ScriptStep = {
   action: string;
   mode?: 'sync' | 'async';
@@ -80,7 +74,7 @@ function evaluateWhen(when: StepWhen, vars: Record<string, unknown>): boolean {
 
   const value = when.path ? getPathValue(vars, when.path) : undefined;
   if (typeof when.exists === 'boolean') return when.exists ? value !== undefined : value === undefined;
-  if (typeof when.truthy === 'boolean') return when.truthy ? Boolean(value) : !Boolean(value);
+  if (typeof when.truthy === 'boolean') return when.truthy ? !!value : !value;
   if (Object.prototype.hasOwnProperty.call(when, 'equals')) return value === when.equals;
   if (Object.prototype.hasOwnProperty.call(when, 'notEquals')) return value !== when.notEquals;
   if (Array.isArray(when.in)) return when.in.includes(value as never);
@@ -89,10 +83,6 @@ function evaluateWhen(when: StepWhen, vars: Record<string, unknown>): boolean {
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return isRecord(value) ? value : null;
-}
-
-function asString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
 function isTruthyString(value: unknown): boolean {

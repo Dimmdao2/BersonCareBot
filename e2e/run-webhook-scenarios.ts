@@ -108,8 +108,6 @@ function getExpected(name: string): ScenarioExpect {
   }
 }
 
-const E2E_TEST_TELEGRAM_ID = '111222333';
-
 const inMemoryState = {
   states: new Map<string, string>(),
   phones: new Map<string, string>(),

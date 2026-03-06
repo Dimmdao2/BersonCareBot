@@ -22,9 +22,6 @@ type MessageStepPayload = {
 function normalizeMessageStep(step: Step): Step {
   if (step.kind !== 'message.send') return step;
   const payload = step.payload as MessageStepPayload;
-  const hasChat = typeof payload.recipient?.chatId === 'number';
-  const hasPhone = typeof payload.recipient?.phoneNormalized === 'string'
-    && payload.recipient.phoneNormalized.trim().length > 0;
   const channelsFromPayload = Array.isArray(payload.delivery?.channels)
     ? payload.delivery.channels.filter((item): item is string => typeof item === 'string')
     : [];
