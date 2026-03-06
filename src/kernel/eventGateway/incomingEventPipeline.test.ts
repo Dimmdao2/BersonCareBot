@@ -23,21 +23,26 @@ describe('incomingEventPipeline', () => {
           scriptId: 'source-a:webhook.received',
         },
       ]),
-      getScript: vi.fn().mockResolvedValue({
-        id: 'webhook.received',
-        steps: [
-          {
-            action: 'message.retry.enqueue',
-            mode: 'async',
-            params: {
-              phoneNormalized: '+79990001122',
-              messageText: 'hello',
-              firstTryDelaySeconds: 1,
-              maxAttempts: 2,
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'webhook.received',
+          source: 'source-a',
+          event: 'webhook.received',
+          steps: [
+            {
+              action: 'message.retry.enqueue',
+              mode: 'async',
+              params: {
+                phoneNormalized: '+79990001122',
+                messageText: 'hello',
+                firstTryDelaySeconds: 1,
+                maxAttempts: 2,
+              },
             },
-          },
-        ],
-      }),
+          ],
+        },
+      ]),
+      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
     const contextQueryPort: ContextQueryPort = {

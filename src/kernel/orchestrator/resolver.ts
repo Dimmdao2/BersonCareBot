@@ -319,12 +319,8 @@ async function resolveScriptId(
 async function resolveBusinessScript(
   input: OrchestratorInput,
   contentPort: ContentPort,
-  routeScriptId: string,
 ): Promise<SelectedScript | null> {
-  if (!contentPort.getScriptsBySource) {
-    const script = await contentPort.getScript(routeScriptId) as ScriptShape | null;
-    return script ? { scriptId: routeScriptId, script } : null;
-  }
+  if (!contentPort.getScriptsBySource) return null;
 
   const source = input.event.meta.source;
   const scripts = (await contentPort.getScriptsBySource(source)) as ScriptShape[];
@@ -340,10 +336,7 @@ async function resolveBusinessScript(
     }
   }
 
-  if (selected) return selected;
-
-  const fallbackScript = await contentPort.getScript(routeScriptId) as ScriptShape | null;
-  return fallbackScript ? { scriptId: routeScriptId, script: fallbackScript } : null;
+  return selected;
 }
 
 export async function buildPlan(
@@ -352,7 +345,7 @@ export async function buildPlan(
 ): Promise<OrchestratorPlan> {
   const routeScriptId = await resolveScriptId(input, deps.contentPort);
   if (!routeScriptId) return [];
-  const selected = await resolveBusinessScript(input, deps.contentPort, routeScriptId);
+  const selected = await resolveBusinessScript(input, deps.contentPort);
   if (!selected) return [];
   const script = selected.script;
 

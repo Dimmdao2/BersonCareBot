@@ -35,23 +35,28 @@ describe('orchestrator buildPlan', () => {
           scriptId: 'source-a:webhook.received',
         },
       ]),
-      getScript: vi.fn().mockResolvedValue({
-        id: 'event.received',
-        conditions: [
-          {
-            kind: 'context.query',
-            name: 'subscriptions',
-            query: { type: 'subscriptions.forUser', userId: '{{context.identityLinks.0.value}}' },
-          },
-        ],
-        steps: [
-          {
-            action: 'event.log',
-            mode: 'sync',
-            params: { eventId: '{{event.meta.eventId}}' },
-          },
-        ],
-      }),
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'event.received',
+          source: 'source-a',
+          event: 'webhook.received',
+          conditions: [
+            {
+              kind: 'context.query',
+              name: 'subscriptions',
+              query: { type: 'subscriptions.forUser', userId: '{{context.identityLinks.0.value}}' },
+            },
+          ],
+          steps: [
+            {
+              action: 'event.log',
+              mode: 'sync',
+              params: { eventId: '{{event.meta.eventId}}' },
+            },
+          ],
+        },
+      ]),
+      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 

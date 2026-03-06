@@ -11,7 +11,7 @@ type RouteRule = {
     eventType: string;
     meta?: Record<string, unknown>;
   };
-  scriptId: string;
+  scriptId?: string;
 };
 
 type RoutedContentPort = ContentPort & {
@@ -62,14 +62,23 @@ describe('orchestrator routing', () => {
           scriptId: 'telegram:message.received',
         },
       ]),
-      getScript: vi.fn().mockResolvedValue({ id: 'message.received', steps: [] }),
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'message.received',
+          source: 'telegram',
+          event: 'message.received',
+          steps: [{ action: 'event.log', params: {} }],
+        },
+      ]),
+      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
-    await buildPlan({ event: createEvent(), context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan({ event: createEvent(), context: baseContext }, { contentPort, contextQueryPort });
 
     expect(contentPort.getRoutes).toHaveBeenCalledWith('telegram');
-    expect(contentPort.getScript).toHaveBeenCalledWith('telegram:message.received');
+    expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('telegram');
+    expect(plan.length).toBeGreaterThan(0);
   });
 
   it('uses highest priority route, and file order on priority tie', async () => {
@@ -94,13 +103,22 @@ describe('orchestrator routing', () => {
           scriptId: 'telegram:high-second',
         },
       ]),
-      getScript: vi.fn().mockResolvedValue({ id: 'high-first', steps: [] }),
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'high-first',
+          source: 'telegram',
+          event: 'message.received',
+          steps: [{ action: 'event.log', params: {} }],
+        },
+      ]),
+      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
-    await buildPlan({ event: createEvent(), context: baseContext }, { contentPort, contextQueryPort });
+    const plan = await buildPlan({ event: createEvent(), context: baseContext }, { contentPort, contextQueryPort });
 
-    expect(contentPort.getScript).toHaveBeenCalledWith('telegram:high-first');
+    expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('telegram');
+    expect(plan.length).toBeGreaterThan(0);
   });
 
   it('supports shallow meta matching', async () => {
@@ -116,21 +134,39 @@ describe('orchestrator routing', () => {
           scriptId: 'telegram:tenant-a',
         },
       ]),
-      getScript: vi.fn().mockResolvedValue({ id: 'tenant-a', steps: [] }),
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'tenant-a',
+          source: 'telegram',
+          event: 'message.received',
+          match: { meta: { tenantId: 'tenant-a' } },
+          steps: [{ action: 'event.log', params: {} }],
+        },
+      ]),
+      getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
-    await buildPlan(
+    const plan = await buildPlan(
       { event: createEvent({ tenantId: 'tenant-a' }), context: baseContext },
       { contentPort, contextQueryPort },
     );
 
-    expect(contentPort.getScript).toHaveBeenCalledWith('telegram:tenant-a');
+    expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('telegram');
+    expect(plan.length).toBeGreaterThan(0);
   });
 
   it('returns empty plan and does not call getScript when routes are missing', async () => {
     const contentPort: RoutedContentPort = {
       getRoutes: vi.fn().mockResolvedValue([]),
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'legacy',
+          source: 'rubitime',
+          event: 'webhook.received',
+          steps: [{ action: 'event.log', params: {} }],
+        },
+      ]),
       getScript: vi.fn().mockResolvedValue({ id: 'legacy', steps: [] }),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
@@ -142,11 +178,13 @@ describe('orchestrator routing', () => {
 
     expect(plan).toEqual([]);
     expect(contentPort.getScript).not.toHaveBeenCalled();
+    expect(contentPort.getScriptsBySource).not.toHaveBeenCalled();
   });
 
   it('returns empty plan on no route match and does not use legacy key', async () => {
     const contentPort: RoutedContentPort = {
       getRoutes: vi.fn().mockResolvedValue([]),
+      getScriptsBySource: vi.fn().mockResolvedValue([]),
       getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
@@ -158,5 +196,6 @@ describe('orchestrator routing', () => {
 
     expect(plan).toEqual([]);
     expect(contentPort.getScript).not.toHaveBeenCalled();
+    expect(contentPort.getScriptsBySource).not.toHaveBeenCalled();
   });
 });
