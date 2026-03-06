@@ -1,6 +1,6 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
 
-/** Возвращает активные topic_id подписок пользователя. */
+/** Возвращает активные topic_id подписок пользователя (канонический user_id). */
 export async function getUserSubscriptions(db: DbPort, userId: number): Promise<Set<number>> {
   const res = await db.query<{ topic_id: number }>(
     `SELECT topic_id FROM user_subscriptions WHERE user_id=$1 AND is_active=true`,
@@ -9,7 +9,7 @@ export async function getUserSubscriptions(db: DbPort, userId: number): Promise<
   return new Set(res.rows.map((r) => r.topic_id));
 }
 
-/** Создает или обновляет состояние подписки пользователя на тему. */
+/** Создает или обновляет состояние подписки пользователя на тему (канонический user_id). */
 export async function upsertUserSubscription(
   db: DbPort,
   userId: number,
@@ -24,7 +24,7 @@ export async function upsertUserSubscription(
   );
 }
 
-/** Переключает состояние подписки и возвращает новое значение. */
+/** Переключает состояние подписки и возвращает новое значение (канонический user_id). */
 export async function toggleUserSubscription(
   db: DbPort,
   userId: number,

@@ -15,11 +15,11 @@
 Оставшиеся зависимости на `telegram_users` (transitional):
 
 - В `src/infra/db/repos/channelUsers.ts` сохраняется mirror-write в `telegram_users` для обратной совместимости со старыми путями.
-- `user_subscriptions` и `mailing_logs` исторически используют `telegram_users.id` как FK для Telegram-specific mailing/storage.
-- Эти зависимости не используются как каноническая identity-модель и подлежат удалению в отдельном шаге после схемного отвязывания.
+- `telegram_users` больше не является FK-владельцем для `user_subscriptions` и `mailing_logs` и используется только как legacy storage.
 
 Связь с канонической user-моделью:
 
 - каноническая identity: `identities(resource, external_id, user_id)`.
 - канонический контактный слой: `contacts(user_id, type, value_normalized, ...)`.
 - Telegram runtime state хранится отдельно в `telegram_state`.
+- `user_subscriptions.user_id` и `mailing_logs.user_id` указывают на `users.id`.
