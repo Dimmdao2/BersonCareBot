@@ -1,8 +1,6 @@
 [
   {
-    "id": "telegram.message.received",
-    "enabled": true,
-    "priority": 100,
+    "id": "telegram.entry.message.received",
     "match": {
       "source": "telegram",
       "eventType": "message.received"
@@ -10,9 +8,7 @@
     "scriptId": "telegram:message.received"
   },
   {
-    "id": "telegram.callback.received",
-    "enabled": true,
-    "priority": 100,
+    "id": "telegram.entry.callback.received",
     "match": {
       "source": "telegram",
       "eventType": "callback.received"

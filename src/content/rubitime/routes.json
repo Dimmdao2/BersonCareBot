@@ -1,8 +1,6 @@
 [
   {
-    "id": "rubitime.webhook.received",
-    "enabled": true,
-    "priority": 100,
+    "id": "rubitime.entry.webhook.received",
     "match": {
       "source": "rubitime",
       "eventType": "webhook.received"
