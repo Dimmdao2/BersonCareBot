@@ -44,34 +44,9 @@
             "phoneNormalized": "{{input.phone}}"
           },
           "recipientPolicy": {
-            "lookupByPhone": true,
-            "preferredLinkedChannels": ["telegram"]
+            "lookupByPhone": true
           },
           "message": {},
-          "delivery": {
-            "channels": ["telegram"],
-            "maxAttempts": 3
-          },
-          "retry": {
-            "maxAttempts": 3,
-            "backoffSeconds": [60, 60, 60]
-          },
-          "onFail": {
-            "fallbackIntent": {
-              "type": "message.send",
-              "payload": {
-                "recipient": {
-                  "phoneNormalized": "{{input.phone}}"
-                },
-                "message": {},
-                "delivery": {
-                  "channels": ["smsc"],
-                  "maxAttempts": 1
-                },
-                "templateKey": "rubitime:bookingAccepted"
-              }
-            }
-          },
           "templateKey": "rubitime:bookingAccepted"
         }
       }
@@ -123,34 +98,9 @@
             "phoneNormalized": "{{input.phone}}"
           },
           "recipientPolicy": {
-            "lookupByPhone": true,
-            "preferredLinkedChannels": ["telegram"]
+            "lookupByPhone": true
           },
           "message": {},
-          "delivery": {
-            "channels": ["telegram"],
-            "maxAttempts": 1
-          },
-          "retry": {
-            "maxAttempts": 1,
-            "backoffSeconds": []
-          },
-          "onFail": {
-            "fallbackIntent": {
-              "type": "message.send",
-              "payload": {
-                "recipient": {
-                  "phoneNormalized": "{{input.phone}}"
-                },
-                "message": {},
-                "delivery": {
-                  "channels": ["smsc"],
-                  "maxAttempts": 1
-                },
-                "templateKey": "rubitime:bookingAccepted"
-              }
-            }
-          },
           "templateKey": "rubitime:bookingAccepted"
         }
       }
@@ -202,34 +152,9 @@
             "phoneNormalized": "{{input.phone}}"
           },
           "recipientPolicy": {
-            "lookupByPhone": true,
-            "preferredLinkedChannels": ["telegram"]
+            "lookupByPhone": true
           },
           "message": {},
-          "delivery": {
-            "channels": ["telegram"],
-            "maxAttempts": 1
-          },
-          "retry": {
-            "maxAttempts": 1,
-            "backoffSeconds": []
-          },
-          "onFail": {
-            "fallbackIntent": {
-              "type": "message.send",
-              "payload": {
-                "recipient": {
-                  "phoneNormalized": "{{input.phone}}"
-                },
-                "message": {},
-                "delivery": {
-                  "channels": ["smsc"],
-                  "maxAttempts": 1
-                },
-                "templateKey": "rubitime:bookingCanceled"
-              }
-            }
-          },
           "templateKey": "rubitime:bookingCanceled"
         }
       }
@@ -281,34 +206,9 @@
             "phoneNormalized": "{{input.phone}}"
           },
           "recipientPolicy": {
-            "lookupByPhone": true,
-            "preferredLinkedChannels": ["telegram"]
+            "lookupByPhone": true
           },
           "message": {},
-          "delivery": {
-            "channels": ["telegram"],
-            "maxAttempts": 1
-          },
-          "retry": {
-            "maxAttempts": 1,
-            "backoffSeconds": []
-          },
-          "onFail": {
-            "fallbackIntent": {
-              "type": "message.send",
-              "payload": {
-                "recipient": {
-                  "phoneNormalized": "{{input.phone}}"
-                },
-                "message": {},
-                "delivery": {
-                  "channels": ["smsc"],
-                  "maxAttempts": 1
-                },
-                "templateKey": "rubitime:bookingMoved"
-              }
-            }
-          },
           "templateKey": "rubitime:bookingMoved"
         }
       }
@@ -359,34 +259,9 @@
             "phoneNormalized": "{{input.phone}}"
           },
           "recipientPolicy": {
-            "lookupByPhone": true,
-            "preferredLinkedChannels": ["telegram"]
+            "lookupByPhone": true
           },
           "message": {},
-          "delivery": {
-            "channels": ["telegram"],
-            "maxAttempts": 1
-          },
-          "retry": {
-            "maxAttempts": 1,
-            "backoffSeconds": []
-          },
-          "onFail": {
-            "fallbackIntent": {
-              "type": "message.send",
-              "payload": {
-                "recipient": {
-                  "phoneNormalized": "{{input.phone}}"
-                },
-                "message": {},
-                "delivery": {
-                  "channels": ["smsc"],
-                  "maxAttempts": 1
-                },
-                "templateKey": "rubitime:bookingCanceled"
-              }
-            }
-          },
           "templateKey": "rubitime:bookingCanceled"
         }
       }

@@ -10,6 +10,7 @@ import type {
   QueuePort,
   TemplatePort,
 } from '../../contracts/index.js';
+import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
 
 type ExecutorDeps = {
   readPort?: DbReadPort;
@@ -252,13 +253,14 @@ async function buildMessageDeliverJob(input: {
   ctx: DomainContext;
   readPort?: DbReadPort;
 }): Promise<{ id: string; kind: string; runAt: string; attempts: number; maxAttempts: number; payload: Record<string, unknown> }> {
-  const payload = asRecord(input.action.params.payload);
+  const resolvedParams = applyMessageSendDeliveryPolicy(input.action.params, input.ctx);
+  const payload = asRecord(resolvedParams.payload);
   const message = asRecord(payload.message);
-  const text = asString(message.text) ?? asString(input.action.params.messageText) ?? '';
+  const text = asString(message.text) ?? asString(resolvedParams.messageText) ?? '';
   const delivery = asRecord(payload.delivery);
   const channels = asStringArray(delivery.channels);
-  const retryRaw = asRecord(input.action.params.retry);
-  const maxAttemptsRaw = retryRaw.maxAttempts ?? input.action.params.maxAttempts ?? delivery.maxAttempts;
+  const retryRaw = asRecord(resolvedParams.retry);
+  const maxAttemptsRaw = retryRaw.maxAttempts ?? resolvedParams.maxAttempts ?? delivery.maxAttempts;
   const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
     ? Math.max(1, Math.trunc(maxAttemptsRaw))
     : 1;
@@ -266,7 +268,7 @@ async function buildMessageDeliverJob(input: {
     ? retryRaw.backoffSeconds.find((value) => typeof value === 'number' && Number.isFinite(value))
     : undefined;
   const firstBackoff = typeof firstBackoffRaw === 'number' ? Math.max(0, Math.trunc(firstBackoffRaw)) : 0;
-  const targets = await resolveTargets(input.action.params, input.readPort);
+  const targets = await resolveTargets(resolvedParams, input.readPort);
 
   return {
     id: `delivery:${input.action.id}`,
@@ -300,7 +302,7 @@ async function buildMessageDeliverJob(input: {
           : [],
         ...(typeof retryRaw.deadlineAt === 'string' ? { deadlineAt: retryRaw.deadlineAt } : {}),
       },
-      ...(input.action.params.onFail ? { onFail: asRecord(input.action.params.onFail) } : {}),
+      ...(resolvedParams.onFail ? { onFail: asRecord(resolvedParams.onFail) } : {}),
     },
   };
 }
@@ -381,10 +383,11 @@ export async function executeAction(
     }
 
     case 'message.send': {
+      const resolvedParams = applyMessageSendDeliveryPolicy(action.params, ctx);
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
-        payload: action.params,
+        payload: resolvedParams,
       }];
       return { actionId: action.id, status: 'success', intents };
     }

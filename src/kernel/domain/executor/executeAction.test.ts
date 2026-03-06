@@ -168,6 +168,125 @@ describe('executeAction', () => {
     expect(enqueue).toHaveBeenCalledTimes(1);
   });
 
+  it('applies rubitime delivery policy when message.send fields are missing', async () => {
+    const result = await executeAction({
+      id: 'a6b',
+      type: 'message.send',
+      mode: 'async',
+      params: {
+        recipient: { phoneNormalized: '+79990001122' },
+        recipientPolicy: { lookupByPhone: true },
+        message: {},
+        templateKey: 'rubitime:bookingAccepted',
+      },
+    }, {
+      ...ctx,
+      event: {
+        ...ctx.event,
+        meta: {
+          ...ctx.event.meta,
+          source: 'rubitime',
+        },
+      },
+      values: {
+        ...ctx.values,
+        input: { action: 'created' },
+      },
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      recipientPolicy: {
+        lookupByPhone: true,
+        preferredLinkedChannels: ['telegram'],
+      },
+      delivery: {
+        channels: ['telegram'],
+        maxAttempts: 3,
+      },
+      retry: {
+        maxAttempts: 3,
+        backoffSeconds: [60, 60, 60],
+      },
+      onFail: {
+        fallbackIntent: {
+          type: 'message.send',
+          payload: {
+            delivery: {
+              channels: ['smsc'],
+              maxAttempts: 1,
+            },
+            templateKey: 'rubitime:bookingAccepted',
+          },
+        },
+      },
+    });
+  });
+
+  it('keeps explicit message.send delivery fields without override', async () => {
+    const result = await executeAction({
+      id: 'a6c',
+      type: 'message.send',
+      mode: 'async',
+      params: {
+        recipient: { phoneNormalized: '+79990001122' },
+        recipientPolicy: {
+          lookupByPhone: true,
+          preferredLinkedChannels: ['vk'],
+        },
+        message: { text: 'custom' },
+        delivery: {
+          channels: ['smsc'],
+          maxAttempts: 9,
+        },
+        retry: {
+          maxAttempts: 9,
+          backoffSeconds: [10],
+        },
+        onFail: {
+          fallbackIntent: {
+            type: 'message.send',
+            payload: {
+              delivery: { channels: ['vk'], maxAttempts: 2 },
+            },
+          },
+        },
+      },
+    }, {
+      ...ctx,
+      event: {
+        ...ctx.event,
+        meta: {
+          ...ctx.event.meta,
+          source: 'rubitime',
+        },
+      },
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      recipientPolicy: {
+        lookupByPhone: true,
+        preferredLinkedChannels: ['vk'],
+      },
+      delivery: {
+        channels: ['smsc'],
+        maxAttempts: 9,
+      },
+      retry: {
+        maxAttempts: 9,
+        backoffSeconds: [10],
+      },
+      onFail: {
+        fallbackIntent: {
+          payload: {
+            delivery: { channels: ['vk'], maxAttempts: 2 },
+          },
+        },
+      },
+    });
+  });
+
   it('handles user.state.set and user.phone.link', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
 
