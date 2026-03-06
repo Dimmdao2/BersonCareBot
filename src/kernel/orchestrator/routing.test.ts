@@ -128,22 +128,23 @@ describe('orchestrator routing', () => {
     expect(contentPort.getScript).toHaveBeenCalledWith('telegram:tenant-a');
   });
 
-  it('falls back to legacy source:eventType when routes missing or no match', async () => {
+  it('returns empty plan and does not call getScript when routes are missing', async () => {
     const contentPort: RoutedContentPort = {
       getRoutes: vi.fn().mockResolvedValue([]),
       getScript: vi.fn().mockResolvedValue({ id: 'legacy', steps: [] }),
       getTemplate: vi.fn().mockResolvedValue(null),
     };
 
-    await buildPlan(
+    const plan = await buildPlan(
       { event: createEvent({ source: 'rubitime', type: 'webhook.received' }), context: baseContext },
       { contentPort, contextQueryPort },
     );
 
-    expect(contentPort.getScript).toHaveBeenCalledWith('rubitime:webhook.received');
+    expect(plan).toEqual([]);
+    expect(contentPort.getScript).not.toHaveBeenCalled();
   });
 
-  it('returns empty plan on no route and missing legacy script', async () => {
+  it('returns empty plan on no route match and does not use legacy key', async () => {
     const contentPort: RoutedContentPort = {
       getRoutes: vi.fn().mockResolvedValue([]),
       getScript: vi.fn().mockResolvedValue(null),
@@ -156,5 +157,6 @@ describe('orchestrator routing', () => {
     );
 
     expect(plan).toEqual([]);
+    expect(contentPort.getScript).not.toHaveBeenCalled();
   });
 });

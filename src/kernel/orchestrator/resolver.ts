@@ -182,7 +182,7 @@ function routeMatches(rule: RouteRule, input: OrchestratorInput): boolean {
 async function resolveScriptId(
   input: OrchestratorInput,
   contentPort: ContentPort,
-): Promise<string> {
+): Promise<string | null> {
   const scope = input.event.meta.source;
   const maybeRoutedPort = contentPort as RoutedContentPort;
   const rules = maybeRoutedPort.getRoutes ? await maybeRoutedPort.getRoutes(scope) : [];
@@ -199,9 +199,7 @@ async function resolveScriptId(
   }
 
   if (selectedRule) return selectedRule.scriptId;
-
-  // TODO remove after routes rollout
-  return `${input.event.meta.source}:${input.event.type}`;
+  return null;
 }
 
 export async function buildPlan(
@@ -209,6 +207,7 @@ export async function buildPlan(
   deps: { contentPort: ContentPort; contextQueryPort: ContextQueryPort },
 ): Promise<OrchestratorPlan> {
   const scriptId = await resolveScriptId(input, deps.contentPort);
+  if (!scriptId) return [];
   const script = await deps.contentPort.getScript(scriptId) as ScriptShape | null;
   if (!script) return [];
 
