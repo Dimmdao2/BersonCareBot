@@ -23,7 +23,7 @@ function createDbMock() {
 }
 
 describe('channelUsers repo (identity/contact/state split)', () => {
-  it('upsertUser uses canonical identities and telegram_state', async () => {
+  it('upsertUser uses canonical identities and telegram_state only', async () => {
     const { db, query } = createDbMock();
     query.mockResolvedValueOnce({
       rows: [{ id: '42', channel_id: '123' }],
@@ -44,7 +44,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(sqlText).toContain('INSERT INTO identities');
     expect(sqlText).toContain('INSERT INTO telegram_state');
     expect(sqlText).toContain('INSERT INTO users');
-    expect(sqlText).toContain('INSERT INTO telegram_users');
+    expect(sqlText).not.toContain('INSERT INTO telegram_users');
     expect(params).toEqual(['123', 'alice', 'Alice', 'Example']);
   });
 
@@ -56,6 +56,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     const [setSql] = query.mock.calls[0] ?? [];
     expect(String(setSql)).toContain('INSERT INTO telegram_state');
     expect(String(setSql)).toContain("FROM identities i");
+    expect(String(setSql)).not.toContain('UPDATE telegram_users');
 
     query.mockResolvedValueOnce({
       rows: [{ state: 'idle' }],
@@ -69,7 +70,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(String(getSql)).toContain("i.resource = 'telegram'");
   });
 
-  it('setUserPhone writes canonical contact and keeps legacy mirror update', async () => {
+  it('setUserPhone writes canonical contact only', async () => {
     const { db, query } = createDbMock();
     query.mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
 
@@ -79,7 +80,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     const sqlText = String(sql);
     expect(sqlText).toContain('INSERT INTO contacts');
     expect(sqlText).toContain("WHERE i.resource = 'telegram'");
-    expect(sqlText).toContain('UPDATE telegram_users');
+    expect(sqlText).not.toContain('UPDATE telegram_users');
     expect(params).toEqual(['123', '+79990001122']);
   });
 
@@ -91,6 +92,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     const [updateSql] = query.mock.calls[0] ?? [];
     expect(String(updateSql)).toContain('INSERT INTO telegram_state');
     expect(String(updateSql)).toContain('ON CONFLICT (identity_id)');
+    expect(String(updateSql)).not.toContain('UPDATE telegram_users');
 
     query.mockResolvedValueOnce({
       rows: [{ notify_spb: true, notify_msk: false, notify_online: false }],

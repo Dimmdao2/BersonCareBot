@@ -131,17 +131,6 @@ export async function upsertUser(
         first_name = EXCLUDED.first_name,
         last_name = EXCLUDED.last_name,
         updated_at = now()
-    ),
-    -- TODO remove telegram_users fallback after all telegram-linked tables stop depending on telegram_users.id
-    mirror_legacy AS (
-      INSERT INTO telegram_users (telegram_id, username, first_name, last_name, created_at, updated_at)
-      VALUES ($1::bigint, $2, $3, $4, now(), now())
-      ON CONFLICT (telegram_id)
-      DO UPDATE SET
-        username = EXCLUDED.username,
-        first_name = EXCLUDED.first_name,
-        last_name = EXCLUDED.last_name,
-        updated_at = now()
     )
     SELECT ri.user_id::text AS id, $1::text AS channel_id
     FROM resolved_identity ri;
@@ -167,7 +156,6 @@ export async function setUserState(
   channelUserId: string,
   state: string | null,
 ): Promise<void> {
-  // TODO remove telegram_users fallback after transitional compatibility window ends.
   const query = `
     WITH target_identity AS (
       SELECT i.id
@@ -185,10 +173,7 @@ export async function setUserState(
         state = EXCLUDED.state,
         updated_at = now()
     )
-    UPDATE telegram_users
-    SET state = $2,
-        updated_at = now()
-    WHERE telegram_id = $1::bigint
+    SELECT 1 FROM upsert_state
   `;
   try {
     await db.query(query, [channelUserId, state]);
@@ -251,9 +236,6 @@ export async function updateNotificationSettings(
   if (columns.length === 0) return;
 
   const updateFromExcluded = columns.map((column) => `${column} = EXCLUDED.${column}`);
-  const updateLegacyClauses = [...updateClauses, 'updated_at = now()'];
-
-  // TODO remove telegram_users fallback after transitional compatibility window ends.
   const query = `
     WITH target_identity AS (
       SELECT i.id
@@ -276,9 +258,7 @@ export async function updateNotificationSettings(
         ${updateFromExcluded.join(', ')},
         updated_at = now()
     )
-    UPDATE telegram_users
-    SET ${updateLegacyClauses.join(', ')}
-    WHERE telegram_id = $1::bigint
+    SELECT 1 FROM upsert_state
   `;
 
   try {
@@ -407,7 +387,6 @@ export async function setUserPhone(
   channelUserId: string,
   phoneNormalized: string,
 ): Promise<void> {
-  // TODO remove telegram_users fallback after transitional compatibility window ends.
   const query = `
     WITH target_identity AS (
       SELECT i.user_id
@@ -426,10 +405,7 @@ export async function setUserPhone(
         label = EXCLUDED.label,
         updated_at = now()
     )
-    UPDATE telegram_users
-    SET phone = $2,
-        updated_at = now()
-    WHERE telegram_id = $1::bigint
+    SELECT 1 FROM upsert_contact
   `;
   try {
     await db.query(query, [channelUserId, phoneNormalized]);

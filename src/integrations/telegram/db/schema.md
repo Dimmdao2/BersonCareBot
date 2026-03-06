@@ -5,17 +5,14 @@
 Текущие таблицы интеграции:
 
 - `telegram_state` — Telegram-only runtime state (state, update dedup, notification flags, profile snapshot, is_active).
-- `telegram_users` — deprecated/transitional таблица для совместимости, не канонический источник identity.
+- `telegram_users` — legacy/deprecated storage, не канонический источник identity и не используется активным runtime.
 - `subscriptions` — справочник подписок.
 - `user_subscriptions` — связи пользователей и подписок.
 - `mailing_topics` — темы рассылок.
 - `mailings` — задания рассылок.
 - `mailing_logs` — результаты отправок рассылок.
 
-Оставшиеся зависимости на `telegram_users` (transitional):
-
-- В `src/infra/db/repos/channelUsers.ts` сохраняется mirror-write в `telegram_users` для обратной совместимости со старыми путями.
-- `telegram_users` больше не является FK-владельцем для `user_subscriptions` и `mailing_logs` и используется только как legacy storage.
+`telegram_users` больше не является FK-владельцем для `user_subscriptions` и `mailing_logs` и используется только как legacy storage.
 
 Связь с канонической user-моделью:
 
