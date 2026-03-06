@@ -19,6 +19,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod --frozen-lockfile
 
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/src/content ./src/content
 
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
