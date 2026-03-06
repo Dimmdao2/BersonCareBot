@@ -44,6 +44,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(sqlText).toContain('INSERT INTO identities');
     expect(sqlText).toContain('INSERT INTO telegram_state');
     expect(sqlText).toContain('INSERT INTO users');
+    expect(sqlText).toContain('INSERT INTO telegram_users');
     expect(params).toEqual(['123', 'alice', 'Alice', 'Example']);
   });
 

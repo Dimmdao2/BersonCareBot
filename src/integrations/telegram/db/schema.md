@@ -12,6 +12,12 @@
 - `mailings` — задания рассылок.
 - `mailing_logs` — результаты отправок рассылок.
 
+Оставшиеся зависимости на `telegram_users` (transitional):
+
+- В `src/infra/db/repos/channelUsers.ts` сохраняется mirror-write в `telegram_users` для обратной совместимости со старыми путями.
+- `user_subscriptions` и `mailing_logs` исторически используют `telegram_users.id` как FK для Telegram-specific mailing/storage.
+- Эти зависимости не используются как каноническая identity-модель и подлежат удалению в отдельном шаге после схемного отвязывания.
+
 Связь с канонической user-моделью:
 
 - каноническая identity: `identities(resource, external_id, user_id)`.

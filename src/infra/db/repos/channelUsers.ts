@@ -132,6 +132,7 @@ export async function upsertUser(
         last_name = EXCLUDED.last_name,
         updated_at = now()
     ),
+    -- TODO remove telegram_users fallback after all telegram-linked tables stop depending on telegram_users.id
     mirror_legacy AS (
       INSERT INTO telegram_users (telegram_id, username, first_name, last_name, created_at, updated_at)
       VALUES ($1::bigint, $2, $3, $4, now(), now())
@@ -166,6 +167,7 @@ export async function setUserState(
   channelUserId: string,
   state: string | null,
 ): Promise<void> {
+  // TODO remove telegram_users fallback after transitional compatibility window ends.
   const query = `
     WITH target_identity AS (
       SELECT i.id
@@ -251,6 +253,7 @@ export async function updateNotificationSettings(
   const updateFromExcluded = columns.map((column) => `${column} = EXCLUDED.${column}`);
   const updateLegacyClauses = [...updateClauses, 'updated_at = now()'];
 
+  // TODO remove telegram_users fallback after transitional compatibility window ends.
   const query = `
     WITH target_identity AS (
       SELECT i.id
@@ -404,6 +407,7 @@ export async function setUserPhone(
   channelUserId: string,
   phoneNormalized: string,
 ): Promise<void> {
+  // TODO remove telegram_users fallback after transitional compatibility window ends.
   const query = `
     WITH target_identity AS (
       SELECT i.user_id
