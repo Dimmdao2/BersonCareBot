@@ -156,7 +156,7 @@ describe('orchestrator routing', () => {
     expect(plan.length).toBeGreaterThan(0);
   });
 
-  it('returns empty plan and does not call getScript when routes are missing', async () => {
+  it('builds plan from business scripts when routes are missing', async () => {
     const contentPort: RoutedContentPort = {
       getRoutes: vi.fn().mockResolvedValue([]),
       getScriptsBySource: vi.fn().mockResolvedValue([
@@ -176,14 +176,20 @@ describe('orchestrator routing', () => {
       { contentPort, contextQueryPort },
     );
 
-    expect(plan).toEqual([]);
+    expect(plan.length).toBeGreaterThan(0);
     expect(contentPort.getScript).not.toHaveBeenCalled();
-    expect(contentPort.getScriptsBySource).not.toHaveBeenCalled();
+    expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('rubitime');
   });
 
   it('returns empty plan on no route match and does not use legacy key', async () => {
     const contentPort: RoutedContentPort = {
-      getRoutes: vi.fn().mockResolvedValue([]),
+      getRoutes: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram-only',
+          match: { source: 'telegram', eventType: 'message.received' },
+          scriptId: 'telegram:any',
+        },
+      ]),
       getScriptsBySource: vi.fn().mockResolvedValue([]),
       getScript: vi.fn().mockResolvedValue(null),
       getTemplate: vi.fn().mockResolvedValue(null),

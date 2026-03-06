@@ -294,26 +294,21 @@ function routeMatches(rule: RouteRule, input: OrchestratorInput): boolean {
   return true;
 }
 
-async function resolveScriptId(
+async function passesRouteFilter(
   input: OrchestratorInput,
   contentPort: ContentPort,
-): Promise<string | null> {
-  const scope = input.event.meta.source;
-  const rules = contentPort.getRoutes ? await contentPort.getRoutes(scope) as RouteRule[] : [];
+): Promise<boolean> {
+  if (!contentPort.getRoutes) return true;
 
-  let selectedRule: RouteRule | null = null;
-  let selectedPriority = Number.NEGATIVE_INFINITY;
+  const scope = input.event.meta.source;
+  const rules = await contentPort.getRoutes(scope) as RouteRule[];
+  if (rules.length === 0) return true;
+
   for (const rule of rules) {
-    if (!routeMatches(rule, input)) continue;
-    const priority = typeof rule.priority === 'number' ? rule.priority : 0;
-    if (!selectedRule || priority > selectedPriority) {
-      selectedRule = rule;
-      selectedPriority = priority;
-    }
+    if (routeMatches(rule, input)) return true;
   }
 
-  if (selectedRule?.scriptId) return selectedRule.scriptId;
-  return null;
+  return false;
 }
 
 async function resolveBusinessScript(
@@ -343,8 +338,8 @@ export async function buildPlan(
   input: OrchestratorInput,
   deps: { contentPort: ContentPort; contextQueryPort: ContextQueryPort },
 ): Promise<OrchestratorPlan> {
-  const routeScriptId = await resolveScriptId(input, deps.contentPort);
-  if (!routeScriptId) return [];
+  const routeAllowed = await passesRouteFilter(input, deps.contentPort);
+  if (!routeAllowed) return [];
   const selected = await resolveBusinessScript(input, deps.contentPort);
   if (!selected) return [];
   const script = selected.script;
