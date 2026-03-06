@@ -47,6 +47,10 @@ function findScript(bundle: { scripts: RegistryScript[] }, scriptId: string): Co
   return script ? normalizeScript(script) : null;
 }
 
+function listScripts(bundle: { scripts: RegistryScript[] }): ContentScript[] {
+  return bundle.scripts.map((script) => normalizeScript(script));
+}
+
 function findTemplate(bundle: { templates: Record<string, unknown> }, templateId: string): ContentTemplate | null {
   const raw = bundle.templates[templateId];
   if (typeof raw === 'string') return { id: templateId, text: raw };
@@ -68,6 +72,12 @@ export function createContentPort(input?: { rootDir?: string }): ContentPort {
       const bundle = getContentBundle(data, source);
       if (!bundle) return null;
       return findScript(bundle, scriptId);
+    },
+    async getScriptsBySource(source: string): Promise<ContentScript[]> {
+      const data = await registry.load();
+      const bundle = getContentBundle(data, source);
+      if (!bundle) return [];
+      return listScripts(bundle);
     },
     async getTemplate(key: string): Promise<ContentTemplate | null> {
       const [source, templateId] = key.split(':');

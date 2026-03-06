@@ -100,6 +100,7 @@ export type ContextQueryPort = {
 /** Порт доступа к JSON-скриптам и шаблонам контента. */
 export type ContentPort = {
   getScript(key: string, version?: string, locale?: string): Promise<ContentScript | null>;
+  getScriptsBySource?: (source: string) => Promise<ContentScript[]>;
   getTemplate(key: string, version?: string, locale?: string): Promise<ContentTemplate | null>;
 };
 

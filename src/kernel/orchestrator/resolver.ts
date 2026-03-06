@@ -33,6 +33,11 @@ type ScriptStep = {
 
 type ScriptShape = {
   id: string;
+  source?: string;
+  event?: string;
+  enabled?: boolean;
+  priority?: number;
+  match?: Record<string, unknown>;
   steps: ScriptStep[];
   conditions?: Array<unknown>;
 };
@@ -51,6 +56,11 @@ type RouteRule = {
 
 type RoutedContentPort = ContentPort & {
   getRoutes?: (scope: string) => Promise<RouteRule[]>;
+};
+
+type SelectedScript = {
+  scriptId: string;
+  script: ScriptShape;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -90,6 +100,115 @@ function evaluateWhen(when: StepWhen, vars: Record<string, unknown>): boolean {
   if (Object.prototype.hasOwnProperty.call(when, 'notEquals')) return value !== when.notEquals;
   if (Array.isArray(when.in)) return when.in.includes(value as never);
   return Boolean(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function isTruthyString(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function normalizeMatchVars(input: OrchestratorInput): Record<string, unknown> {
+  const eventPayload = asRecord(input.event.payload) ?? {};
+  const normalizedInput = asRecord(eventPayload.incoming) ?? eventPayload;
+  const actor = {
+    ...(asRecord(input.context.actor) ?? {}),
+    ...(typeof normalizedInput.channelUserId === 'number' || isTruthyString(normalizedInput.channelUserId)
+      ? { channelUserId: normalizedInput.channelUserId }
+      : {}),
+    ...(typeof normalizedInput.channelId === 'string' ? { channelUserId: normalizedInput.channelId } : {}),
+    ...(typeof normalizedInput.chatId === 'number' ? { chatId: normalizedInput.chatId } : {}),
+    ...(typeof normalizedInput.channelUsername === 'string' ? { username: normalizedInput.channelUsername } : {}),
+  };
+  const context = {
+    ...input.context,
+    ...(typeof normalizedInput.userState === 'string' ? { conversationState: normalizedInput.userState } : {}),
+    ...(typeof normalizedInput.hasLinkedPhone === 'boolean' ? { linkedPhone: normalizedInput.hasLinkedPhone } : {}),
+  };
+
+  return {
+    source: input.event.meta.source,
+    event: input.event.type,
+    meta: input.event.meta,
+    payload: input.event.payload,
+    input: normalizedInput,
+    actor,
+    context,
+  };
+}
+
+function countSpecificity(match: unknown): number {
+  if (Array.isArray(match)) return match.reduce((sum, item) => sum + countSpecificity(item), 0);
+  if (!isRecord(match)) return 1;
+  return Object.entries(match).reduce((sum, [key, value]) => {
+    if (key === 'excludeActions' || key === 'excludeTexts') {
+      return sum + (Array.isArray(value) ? value.length : 1);
+    }
+    return sum + 1 + countSpecificity(value);
+  }, 0);
+}
+
+function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual)) return false;
+    if (expected.length !== actual.length) return false;
+    return expected.every((item, index) => matchesScriptPattern(actual[index], item));
+  }
+
+  if (!isRecord(expected)) return actual === expected;
+
+  const actualRecord = asRecord(actual) ?? {};
+  for (const [key, value] of Object.entries(expected)) {
+    if (key === 'textPresent') {
+      const hasText = isTruthyString(actualRecord.text);
+      if (Boolean(value) !== hasText) return false;
+      continue;
+    }
+    if (key === 'phonePresent') {
+      const hasPhone = isTruthyString(actualRecord.phone) || isTruthyString(actualRecord.contactPhone);
+      if (Boolean(value) !== hasPhone) return false;
+      continue;
+    }
+    if (key === 'excludeActions') {
+      if (!Array.isArray(value)) return false;
+      if (value.includes(actualRecord.action as never)) return false;
+      continue;
+    }
+    if (key === 'excludeTexts') {
+      if (!Array.isArray(value)) return false;
+      if (value.includes(actualRecord.text as never)) return false;
+      continue;
+    }
+    if (!matchesScriptPattern(actualRecord[key], value)) return false;
+  }
+  return true;
+}
+
+function scriptMatches(script: ScriptShape, input: OrchestratorInput): { matched: boolean; specificity: number } {
+  if (script.enabled === false) return { matched: false, specificity: Number.NEGATIVE_INFINITY };
+  if (typeof script.source === 'string' && script.source !== input.event.meta.source) {
+    return { matched: false, specificity: Number.NEGATIVE_INFINITY };
+  }
+  if (typeof script.event === 'string' && script.event !== input.event.type) {
+    return { matched: false, specificity: Number.NEGATIVE_INFINITY };
+  }
+
+  const match = isRecord(script.match) ? script.match : null;
+  if (!match) {
+    return { matched: true, specificity: 0 };
+  }
+
+  const vars = normalizeMatchVars(input);
+  return {
+    matched: matchesScriptPattern(vars, match),
+    specificity: countSpecificity(match),
+  };
 }
 
 function interpolate(value: unknown, vars: Record<string, unknown>): unknown {
@@ -202,18 +321,50 @@ async function resolveScriptId(
   return null;
 }
 
+async function resolveBusinessScript(
+  input: OrchestratorInput,
+  contentPort: ContentPort,
+  routeScriptId: string,
+): Promise<SelectedScript | null> {
+  if (!contentPort.getScriptsBySource) {
+    const script = await contentPort.getScript(routeScriptId) as ScriptShape | null;
+    return script ? { scriptId: routeScriptId, script } : null;
+  }
+
+  const source = input.event.meta.source;
+  const scripts = (await contentPort.getScriptsBySource(source)) as ScriptShape[];
+  let selected: SelectedScript | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const script of scripts) {
+    const { matched, specificity } = scriptMatches(script, input);
+    if (!matched) continue;
+    if (!selected || specificity > bestScore) {
+      selected = { scriptId: `${source}:${script.id}`, script };
+      bestScore = specificity;
+    }
+  }
+
+  if (selected) return selected;
+
+  const fallbackScript = await contentPort.getScript(routeScriptId) as ScriptShape | null;
+  return fallbackScript ? { scriptId: routeScriptId, script: fallbackScript } : null;
+}
+
 export async function buildPlan(
   input: OrchestratorInput,
   deps: { contentPort: ContentPort; contextQueryPort: ContextQueryPort },
 ): Promise<OrchestratorPlan> {
-  const scriptId = await resolveScriptId(input, deps.contentPort);
-  if (!scriptId) return [];
-  const script = await deps.contentPort.getScript(scriptId) as ScriptShape | null;
-  if (!script) return [];
+  const routeScriptId = await resolveScriptId(input, deps.contentPort);
+  if (!routeScriptId) return [];
+  const selected = await resolveBusinessScript(input, deps.contentPort, routeScriptId);
+  if (!selected) return [];
+  const script = selected.script;
 
   const baseVars = {
     event: input.event,
     context: input.context,
+    ...normalizeMatchVars(input),
   } as Record<string, unknown>;
 
   const queryResults = await runContextQueries(script.conditions, baseVars, deps.contextQueryPort);
