@@ -11,7 +11,10 @@ describe('processAcceptedIncomingEvent', () => {
         occurredAt: '2026-03-05T12:00:00.000Z',
         source: 'source-a',
       },
-      payload: { body: { event: 'event-create-record' } },
+      payload: {
+        body: { event: 'event-create-record' },
+        incoming: { channelId: '123' },
+      },
     };
 
     const orchestrator: Orchestrator = {
@@ -45,14 +48,26 @@ describe('processAcceptedIncomingEvent', () => {
     });
 
     const dispatchIntent = vi.fn().mockResolvedValue(undefined);
+    const readPort = {
+      readDb: vi.fn().mockResolvedValue({
+        channelId: '123',
+        phoneNormalized: '+79990001122',
+        userState: 'idle',
+      }),
+    };
 
     await processAcceptedIncomingEvent(event, {
+      readPort,
       orchestrator,
       executeAction,
       dispatchIntent,
     });
 
     expect(orchestrator.buildPlan).toHaveBeenCalledTimes(1);
+    expect(readPort.readDb).toHaveBeenCalledWith({
+      type: 'user.byChannelId',
+      params: { channelId: '123' },
+    });
     expect(executeAction).toHaveBeenCalledTimes(2);
     expect(dispatchIntent).toHaveBeenCalledTimes(1);
   });

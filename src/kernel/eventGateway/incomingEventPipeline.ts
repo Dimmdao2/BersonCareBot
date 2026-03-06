@@ -15,6 +15,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
   return {
     async run(event: IncomingEvent): Promise<void> {
       await processAcceptedIncomingEvent(event, {
+        readPort: deps.readPort,
         orchestrator: deps.orchestrator,
         async executeAction(action, context) {
           return executeDomainAction(action, context, {

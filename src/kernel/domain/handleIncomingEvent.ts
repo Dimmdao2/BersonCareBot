@@ -2,6 +2,7 @@ import type {
   Action,
   ActionResult,
   BaseContext,
+  DbReadPort,
   DeliveryJob,
   DomainContext,
   IncomingEvent,
@@ -14,6 +15,7 @@ import type { DbWriteMutation } from '../contracts/index.js';
 import { executeAction } from './executor/executeAction.js';
 
 type HandleIncomingEventDeps = {
+  readPort?: DbReadPort;
   buildBaseContext?: (event: IncomingEvent) => Promise<BaseContext>;
   buildPlan?: (input: OrchestratorInput) => Promise<OrchestratorPlan>;
   executeAction?: (action: Action, context: DomainContext) => Promise<ActionResult>;
@@ -47,17 +49,69 @@ function extractPhone(event: IncomingEvent): string | null {
   return typeof nestedPhone === 'string' && nestedPhone.trim().length > 0 ? nestedPhone.trim() : null;
 }
 
-async function buildBaseContext(event: IncomingEvent): Promise<BaseContext> {
+function extractChannelId(event: IncomingEvent): string | null {
+  const payload = event.payload as {
+    channelId?: unknown;
+    channelUserId?: unknown;
+    incoming?: { channelId?: unknown; channelUserId?: unknown };
+  };
+  const fromIncoming = payload.incoming;
+  const value = fromIncoming?.channelId
+    ?? fromIncoming?.channelUserId
+    ?? payload.channelId
+    ?? payload.channelUserId
+    ?? event.meta.userId;
+
+  if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(Math.trunc(value));
+  return null;
+}
+
+type ReadUserContext = {
+  userState?: unknown;
+  phoneNormalized?: unknown;
+};
+
+async function loadUserContext(
+  event: IncomingEvent,
+  readPort?: DbReadPort,
+): Promise<Pick<BaseContext, 'conversationState' | 'linkedPhone'>> {
+  if (!readPort) return {};
+  const channelId = extractChannelId(event);
+  if (!channelId) return {};
+
+  const user = await readPort.readDb<ReadUserContext | null>({
+    type: 'user.byChannelId',
+    params: { channelId },
+  });
+
+  if (!user || typeof user !== 'object') return {};
+  const conversationState = typeof user.userState === 'string' && user.userState.trim().length > 0
+    ? user.userState
+    : undefined;
+  const linkedPhone = typeof user.phoneNormalized === 'string'
+    ? user.phoneNormalized.trim().length > 0
+    : false;
+
+  return {
+    ...(conversationState ? { conversationState } : {}),
+    linkedPhone,
+  };
+}
+
+async function buildBaseContext(event: IncomingEvent, readPort?: DbReadPort): Promise<BaseContext> {
   const identityLinks: BaseContext['identityLinks'] = [];
   const phone = extractPhone(event);
   if (phone) identityLinks.push({ kind: 'phone', value: phone });
   if (event.meta.userId) identityLinks.push({ kind: 'userId', value: event.meta.userId });
+  const userContext = await loadUserContext(event, readPort);
 
   return {
     actor: {
       isAdmin: false,
     },
     identityLinks,
+    ...userContext,
   };
 }
 
@@ -72,7 +126,7 @@ export async function handleIncomingEvent(
 ): Promise<DomainHandleIncomingResult> {
   const base = deps.buildBaseContext
     ? await deps.buildBaseContext(event)
-    : await buildBaseContext(event);
+    : await buildBaseContext(event, deps.readPort);
 
   const context: DomainContext = {
     event,

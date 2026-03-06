@@ -25,6 +25,8 @@ export type BaseContext = {
   };
   identityLinks: IdentityLink[];
   preferences?: Preferences;
+  conversationState?: string;
+  linkedPhone?: boolean;
 };
 
 export type OrchestratorInput = {

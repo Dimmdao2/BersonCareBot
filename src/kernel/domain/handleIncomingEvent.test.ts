@@ -69,4 +69,48 @@ describe('handleIncomingEvent (v3)', () => {
     expect(result.writes.length).toBe(1);
     expect(result.intents.length).toBe(1);
   });
+
+  it('loads conversation context from read port and passes it into buildPlan', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-ctx-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          channelId: '123',
+        },
+      },
+    };
+
+    const readPort = {
+      readDb: vi.fn().mockResolvedValue({
+        channelId: '123',
+        phoneNormalized: '+79990001122',
+        userState: 'waiting_for_question',
+      }),
+    };
+
+    const buildPlan = vi.fn().mockResolvedValue([]);
+
+    await handleIncomingEvent(event, {
+      readPort,
+      buildPlan,
+      executeAction: vi.fn().mockResolvedValue({ actionId: 'none', status: 'success' }),
+    });
+
+    expect(readPort.readDb).toHaveBeenCalledWith({
+      type: 'user.byChannelId',
+      params: { channelId: '123' },
+    });
+    expect(buildPlan).toHaveBeenCalledWith({
+      event,
+      context: expect.objectContaining({
+        conversationState: 'waiting_for_question',
+        linkedPhone: true,
+      }),
+    });
+  });
 });

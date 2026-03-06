@@ -1,6 +1,7 @@
 import type {
   Action,
   ActionResult,
+  DbReadPort,
   DomainContext,
   IncomingEvent,
   Orchestrator,
@@ -9,6 +10,7 @@ import type {
 import { handleIncomingEvent } from '../handleIncomingEvent.js';
 
 type ProcessAcceptedIncomingEventDeps = {
+  readPort: DbReadPort;
   executeAction: (action: Action, context: DomainContext) => Promise<ActionResult>;
   dispatchIntent: (intent: OutgoingIntent) => Promise<void>;
   orchestrator: Orchestrator;
@@ -23,6 +25,7 @@ export async function processAcceptedIncomingEvent(
   deps: ProcessAcceptedIncomingEventDeps,
 ): Promise<void> {
   const domainResult = await handleIncomingEvent(event, {
+    readPort: deps.readPort,
     buildPlan: (input) => deps.orchestrator.buildPlan(input),
     async executeAction(action, context) {
       return deps.executeAction(action, context);

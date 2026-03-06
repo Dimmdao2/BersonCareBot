@@ -8,6 +8,11 @@ describe('incomingEventPipeline', () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
     const enqueue = vi.fn().mockResolvedValue(undefined);
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const readDb = vi.fn().mockResolvedValue({
+      channelId: '123',
+      phoneNormalized: '+79990001122',
+      userState: 'idle',
+    });
 
     const contentPort: ContentPort = {
       getScriptsBySource: vi.fn().mockResolvedValue([
@@ -38,7 +43,7 @@ describe('incomingEventPipeline', () => {
 
     const pipeline = createIncomingEventPipeline({
       readPort: {
-        readDb: vi.fn().mockResolvedValue(null),
+        readDb,
       },
       writePort: { writeDb },
       queuePort: { enqueue },
@@ -54,6 +59,9 @@ describe('incomingEventPipeline', () => {
         source: 'source-a',
       },
       payload: {
+        incoming: {
+          channelId: '123',
+        },
         body: {
           event: 'event-create-record',
           data: {
@@ -68,6 +76,12 @@ describe('incomingEventPipeline', () => {
 
     await pipeline.run(event);
 
+    expect(readDb.mock.calls).toContainEqual([
+      {
+        type: 'user.byChannelId',
+        params: { channelId: '123' },
+      },
+    ]);
     expect(enqueue).toHaveBeenCalledTimes(1);
     expect(dispatchOutgoing).not.toHaveBeenCalled();
     expect(writeDb).toHaveBeenCalled();
