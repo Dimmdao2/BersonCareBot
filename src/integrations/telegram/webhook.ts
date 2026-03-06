@@ -4,6 +4,7 @@ import { getRequestLogger, newEventId } from '../../infra/observability/logger.j
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
+import { normalizeTelegramAction } from './mapIn.js';
 import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
@@ -25,7 +26,7 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
       chatId,
       messageId,
       channelUserId: telegramId,
-      callbackData: callback.data ?? '',
+      callbackData: normalizeTelegramAction(callback.data ?? ''),
       callbackQueryId: callback.id,
     };
   }
@@ -39,8 +40,7 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
       ...(typeof body.message.contact?.phone_number === 'string' ? { contactPhone: body.message.contact.phone_number } : {}),
       ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),
       userRow: null,
-      userState: 'idle',
-      hasLinkedPhone: false,
+      userState: '',
     };
   }
 

@@ -10,6 +10,22 @@ export const MENU_NOTIFICATIONS = 'menu_notifications';
 export const MENU_MY_BOOKINGS = 'menu_my_bookings';
 export const MENU_BACK = 'menu_back';
 
+const LEGACY_CALLBACK_TO_ACTION: Record<string, string> = {
+  menu_notifications: 'notifications.show',
+  menu_my_bookings: 'bookings.show',
+  menu_back: 'menu.back',
+  notify_toggle_spb: 'notifications.toggle.spb',
+  notify_toggle_msk: 'notifications.toggle.msk',
+  notify_toggle_online: 'notifications.toggle.online',
+  notify_toggle_all: 'notifications.toggle.all',
+};
+
+export function normalizeTelegramAction(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return LEGACY_CALLBACK_TO_ACTION[trimmed] ?? trimmed;
+}
+
 /** Проверяет, относится ли callback к настройкам уведомлений. */
 export function isNotifyCallback(data: string): boolean {
   return data.startsWith('notify_');
@@ -30,7 +46,7 @@ export function fromTelegram(
   body: TelegramWebhookBodyValidated,
   context: FromTelegramContext,
 ): IncomingUpdate | null {
-  const { userRow, telegramId, userState = 'idle', hasLinkedPhone, adminForward } = context;
+  const { userRow, telegramId, userState, hasLinkedPhone, adminForward } = context;
 
   if (body.callback_query) {
     const cq = body.callback_query;
@@ -43,7 +59,7 @@ export function fromTelegram(
       messageId,
       channelUserId: cq.from.id,
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
-      callbackData: cq.data ?? '',
+      callbackData: normalizeTelegramAction(cq.data ?? ''),
       callbackQueryId: cq.id,
     };
     return update;
@@ -62,7 +78,7 @@ export function fromTelegram(
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       ...(typeof msg.from?.username === 'string' && { channelUsername: msg.from.username }),
       userRow,
-      userState: userState ?? 'idle',
+      userState: typeof userState === 'string' ? userState : '',
       ...(adminForward !== undefined && { adminForward }),
     };
     return update;
