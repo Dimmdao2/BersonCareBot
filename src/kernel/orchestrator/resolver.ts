@@ -235,11 +235,17 @@ async function runContextQueries(
 }
 
 function toPlanStep(step: ScriptStep, input: OrchestratorInput, index: number, vars: Record<string, unknown>): OrchestratorPlanStep {
+  const interpolated = interpolate(step.params ?? {}, vars) as Record<string, unknown>;
+  // Логгирование параметров шага для callback-сценариев
+  if (input.event.type === 'callback.received') {
+    // eslint-disable-next-line no-console
+    console.log('[orchestrator][toPlanStep] step', index, 'action:', step.action, 'params:', interpolated);
+  }
   return {
     id: `step:${input.event.meta.eventId}:${index}`,
     kind: step.action,
     mode: step.mode ?? 'sync',
-    payload: (interpolate(step.params ?? {}, vars) as Record<string, unknown>),
+    payload: interpolated,
   };
 }
 
@@ -270,6 +276,11 @@ export async function buildPlan(
   input: OrchestratorInput,
   deps: { contentPort: ContentPort; contextQueryPort: ContextQueryPort },
 ): Promise<OrchestratorPlan> {
+  // Подробное логирование для диагностики callback-сценариев
+  if (input.event.type === 'callback.received') {
+    // eslint-disable-next-line no-console
+    console.log('[orchestrator][buildPlan] input:', JSON.stringify(input, null, 2));
+  }
   const selected = await resolveBusinessScript(input, deps.contentPort);
   if (!selected) return [];
   const script = selected.script;
@@ -279,12 +290,20 @@ export async function buildPlan(
     context: input.context,
     ...normalizeMatchVars(input),
   } as Record<string, unknown>;
+  if (input.event.type === 'callback.received') {
+    // eslint-disable-next-line no-console
+    console.log('[orchestrator][buildPlan] baseVars:', JSON.stringify(baseVars, null, 2));
+  }
 
   const queryResults = await runContextQueries(script.conditions, baseVars, deps.contextQueryPort);
   const vars = {
     ...baseVars,
     queries: queryResults,
   };
+  if (input.event.type === 'callback.received') {
+    // eslint-disable-next-line no-console
+    console.log('[orchestrator][buildPlan] vars after queries:', JSON.stringify(vars, null, 2));
+  }
 
   const steps: OrchestratorPlanStep[] = [];
   for (const [index, step] of script.steps.entries()) {
@@ -295,6 +314,10 @@ export async function buildPlan(
     if (when && !evaluateWhen(when, vars)) continue;
 
     const interpolated = toPlanStep({ ...step, params: paramsWithoutWhen }, input, index, vars);
+    if (input.event.type === 'callback.received') {
+      // eslint-disable-next-line no-console
+      console.log('[orchestrator][buildPlan] step', index, 'interpolated:', JSON.stringify(interpolated, null, 2));
+    }
     steps.push(interpolated);
   }
 
