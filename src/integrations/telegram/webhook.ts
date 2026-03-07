@@ -8,6 +8,32 @@ import { normalizeTelegramAction, normalizeTelegramMessageAction } from './mapIn
 import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
+function parseTelegramChatId(value: string | undefined): number | undefined {
+  if (typeof value !== 'string') return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function joinDisplayName(input: { first_name?: string; last_name?: string }): string | undefined {
+  const parts = [input.first_name, input.last_name]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => value.trim());
+  return parts.length > 0 ? parts.join(' ') : undefined;
+}
+
+function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, unknown> {
+  const from = body.callback_query?.from ?? body.message?.from;
+  const displayName = from ? joinDisplayName(from) : undefined;
+  const bookingUrl = env.BOOKING_URL;
+  const inboxChatId = parseTelegramChatId(env.INBOX_CHAT_ID);
+
+  return {
+    ...(displayName ? { actor: { displayName } } : {}),
+    ...(bookingUrl ? { links: { bookingUrl } } : {}),
+    ...(typeof inboxChatId === 'number' ? { admin: { inboxChatId } } : {}),
+  };
+}
+
 export type TelegramWebhookDeps = {
   eventGateway: EventGateway;
 };
@@ -86,6 +112,7 @@ export async function registerTelegramWebhookRoutes(
         incoming,
         correlationId,
         eventId,
+        facts: buildTelegramFacts(body),
         ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
       });
       await deps.eventGateway.handleIncomingEvent(event);

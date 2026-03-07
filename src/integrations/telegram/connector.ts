@@ -17,6 +17,7 @@ export function telegramIncomingToEvent(input: {
   correlationId: string;
   eventId: string;
   updateId?: number;
+  facts?: Record<string, unknown>;
 }): IncomingEvent {
   return {
     type: input.incoming.kind === 'callback' ? 'callback.received' : 'message.received',
@@ -29,6 +30,7 @@ export function telegramIncomingToEvent(input: {
     },
     payload: {
       incoming: input.incoming as unknown,
+      ...(input.facts ? { facts: input.facts } : {}),
       ...(typeof input.updateId === 'number' ? { updateId: input.updateId } : {}),
     },
   };

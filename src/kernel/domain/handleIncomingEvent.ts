@@ -67,6 +67,13 @@ function extractChannelId(event: IncomingEvent): string | null {
   return null;
 }
 
+function extractFacts(event: IncomingEvent): Record<string, unknown> {
+  const payload = event.payload as { facts?: unknown };
+  return typeof payload.facts === 'object' && payload.facts !== null
+    ? payload.facts as Record<string, unknown>
+    : {};
+}
+
 type ReadUserContext = {
   userState?: unknown;
   phoneNormalized?: unknown;
@@ -111,6 +118,7 @@ async function buildBaseContext(event: IncomingEvent, readPort?: DbReadPort): Pr
       isAdmin: false,
     },
     identityLinks,
+    ...(Object.keys(extractFacts(event)).length > 0 ? { facts: extractFacts(event) } : {}),
     ...userContext,
   };
 }

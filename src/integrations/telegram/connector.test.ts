@@ -104,13 +104,21 @@ describe('telegramIncomingToEvent', () => {
       incoming,
       correlationId: 'corr-1',
       eventId: 'evt-1',
+      facts: {
+        actor: { displayName: 'User One' },
+      },
     });
 
     expect(event.type).toBe('message.received');
     expect(event.meta.source).toBe('telegram');
     expect(event.meta.correlationId).toBe('corr-1');
     expect(event.meta.eventId).toBe('evt-1');
-    expect(event.payload).toMatchObject({ incoming });
+    expect(event.payload).toMatchObject({
+      incoming,
+      facts: {
+        actor: { displayName: 'User One' },
+      },
+    });
   });
 
   it('maps callback update to IncomingEvent', () => {

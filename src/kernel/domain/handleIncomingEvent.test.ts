@@ -159,6 +159,43 @@ describe('handleIncomingEvent (v3)', () => {
     });
   });
 
+  it('loads generic facts from the event payload into base context', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-facts-2',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: { channelId: '123' },
+        facts: {
+          links: {
+            bookingUrl: 'https://example.test/open',
+          },
+        },
+      },
+    };
+
+    const buildPlan = vi.fn().mockResolvedValue([]);
+
+    await handleIncomingEvent(event, {
+      buildPlan,
+      executeAction: vi.fn().mockResolvedValue({ actionId: 'none', status: 'success' }),
+    });
+
+    expect(buildPlan).toHaveBeenCalledWith({
+      event,
+      context: expect.objectContaining({
+        facts: {
+          links: {
+            bookingUrl: 'https://example.test/open',
+          },
+        },
+      }),
+    });
+  });
+
   it('carries execution values forward between scenario steps', async () => {
     const event: IncomingEvent = {
       type: 'callback.received',

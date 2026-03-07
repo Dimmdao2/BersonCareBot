@@ -76,10 +76,10 @@
 				"action": "admin.forward",
 				"mode": "async",
 				"params": {
-					"chatId": "{{context.adminChatId}}",
+					"chatId": "{{facts.admin.inboxChatId}}",
 					"templateKey": "telegram:adminForward",
 					"vars": {
-						"name": "{{actor.displayName}}",
+						"name": "{{facts.actor.displayName}}",
 						"username": "{{actor.username}}",
 						"channelId": "{{actor.channelUserId}}",
 						"messageText": "{{input.text}}"
@@ -133,7 +133,7 @@
 						[
 							{
 								"textTemplateKey": "telegram:bookingOpenButton",
-								"url": "{{context.bookingWidgetUrl}}"
+								"url": "{{facts.links.bookingUrl}}"
 							}
 						]
 					]
