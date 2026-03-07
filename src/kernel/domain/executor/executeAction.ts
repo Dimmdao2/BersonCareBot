@@ -59,6 +59,10 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
@@ -113,10 +117,19 @@ function splitTemplateKey(templateKey: string, source: string): { source: string
   };
 }
 
+function buildTemplateVars(ctx: DomainContext, vars?: unknown): Record<string, unknown> {
+  const explicitVars = isRecord(vars) ? vars : {};
+  return {
+    ...ctx.values,
+    ...explicitVars,
+  };
+}
+
 async function renderText(input: {
   text?: unknown;
   messageText?: unknown;
   templateKey?: unknown;
+  vars?: unknown;
   ctx: DomainContext;
   templatePort: TemplatePort | undefined;
 }): Promise<string> {
@@ -125,23 +138,37 @@ async function renderText(input: {
   const templateKey = asString(input.templateKey);
   if (!templateKey || !input.templatePort) return '';
   const { source, templateId } = splitTemplateKey(templateKey, input.ctx.event.meta.source);
-  return (await input.templatePort.renderTemplate({ source, templateId, vars: input.ctx.values })).text;
+  return (await input.templatePort.renderTemplate({
+    source,
+    templateId,
+    vars: buildTemplateVars(input.ctx, input.vars),
+  })).text;
 }
 
 async function renderButtonText(input: {
   button: Record<string, unknown>;
   ctx: DomainContext;
   templatePort: TemplatePort | undefined;
+  vars?: unknown;
 }): Promise<string> {
   const directText = asString(input.button.text);
   if (directText) return directText;
   const templateKey = asString(input.button.textTemplateKey);
   if (!templateKey || !input.templatePort) return '';
   const { source, templateId } = splitTemplateKey(templateKey, input.ctx.event.meta.source);
-  const rendered = (await input.templatePort.renderTemplate({ source, templateId, vars: input.ctx.values })).text;
+  const rendered = (await input.templatePort.renderTemplate({
+    source,
+    templateId,
+    vars: buildTemplateVars(input.ctx, input.vars),
+  })).text;
   const prefixKey = asString(input.button.prefixTemplateKey);
   if (!prefixKey) return rendered;
-  const prefix = await renderText({ templateKey: prefixKey, ctx: input.ctx, templatePort: input.templatePort });
+  const prefix = await renderText({
+    templateKey: prefixKey,
+    vars: input.vars,
+    ctx: input.ctx,
+    templatePort: input.templatePort,
+  });
   const [enabledPrefix = '✅', disabledPrefix = '❌'] = prefix.split('/');
   const callbackData = asString(input.button.callbackData) ?? '';
   const settings = readNotificationSettings(input.ctx) ?? defaultNotificationSettings();
@@ -161,6 +188,7 @@ async function buildReplyMarkup(input: {
   params: Record<string, unknown>;
   ctx: DomainContext;
   templatePort: TemplatePort | undefined;
+  vars?: unknown;
 }): Promise<unknown> {
   if (Array.isArray(input.params.keyboard)) {
     const keyboard = await Promise.all(input.params.keyboard.map(async (row) => {
@@ -168,7 +196,7 @@ async function buildReplyMarkup(input: {
       return Promise.all(row.map(async (item) => {
         const button = asRecord(item);
         return {
-          text: await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort }),
+          text: await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars }),
           ...(button.requestContact === true ? { request_contact: true } : {}),
         };
       }));
@@ -186,7 +214,7 @@ async function buildReplyMarkup(input: {
       return Promise.all(row.map(async (item) => {
         const button = asRecord(item);
         return {
-          text: await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort }),
+          text: await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars }),
           ...(asString(button.callbackData) ? { callback_data: asString(button.callbackData) } : {}),
           ...(asString(button.url) ? { url: asString(button.url) } : {}),
         };
@@ -196,6 +224,50 @@ async function buildReplyMarkup(input: {
   }
 
   return undefined;
+}
+
+async function resolveGenericMessageParams(input: {
+  params: Record<string, unknown>;
+  ctx: DomainContext;
+  templatePort: TemplatePort | undefined;
+}): Promise<Record<string, unknown>> {
+  const vars = input.params.vars;
+  const message = asRecord(input.params.message);
+  const text = await renderText({
+    text: message.text ?? input.params.text,
+    messageText: input.params.messageText,
+    templateKey: input.params.templateKey,
+    vars,
+    ctx: input.ctx,
+    templatePort: input.templatePort,
+  });
+  const replyMarkup = await buildReplyMarkup({
+    params: input.params,
+    vars,
+    ctx: input.ctx,
+    templatePort: input.templatePort,
+  });
+
+  const nextParams: Record<string, unknown> = {
+    ...input.params,
+    message: {
+      ...message,
+      text,
+    },
+  };
+
+  if (replyMarkup) nextParams.replyMarkup = replyMarkup;
+
+  delete nextParams.templateKey;
+  delete nextParams.text;
+  delete nextParams.messageText;
+  delete nextParams.vars;
+  delete nextParams.keyboard;
+  delete nextParams.inlineKeyboard;
+  delete nextParams.resizeKeyboard;
+  delete nextParams.oneTimeKeyboard;
+
+  return nextParams;
 }
 
 async function resolveTargets(params: Record<string, unknown>, readPort?: DbReadPort): Promise<Array<{
@@ -383,7 +455,12 @@ export async function executeAction(
     }
 
     case 'message.send': {
-      const resolvedParams = applyMessageSendDeliveryPolicy(action.params, ctx);
+      const policyParams = applyMessageSendDeliveryPolicy(action.params, ctx);
+      const resolvedParams = await resolveGenericMessageParams({
+        params: policyParams,
+        ctx,
+        templatePort: deps.templatePort,
+      });
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
@@ -399,10 +476,16 @@ export async function executeAction(
         text: action.params.text,
         messageText: action.params.messageText,
         templateKey: action.params.templateKey,
+        vars: action.params.vars,
         ctx,
         templatePort: deps.templatePort,
       });
-      const replyMarkup = await buildReplyMarkup({ params: action.params, ctx, templatePort: deps.templatePort });
+      const replyMarkup = await buildReplyMarkup({
+        params: action.params,
+        vars: action.params.vars,
+        ctx,
+        templatePort: deps.templatePort,
+      });
       const chatId = asNumber(action.params.chatId);
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
@@ -422,10 +505,16 @@ export async function executeAction(
         text: action.params.text,
         messageText: action.params.messageText,
         templateKey: action.params.templateKey,
+        vars: action.params.vars,
         ctx,
         templatePort: deps.templatePort,
       });
-      const replyMarkup = await buildReplyMarkup({ params: action.params, ctx, templatePort: deps.templatePort });
+      const replyMarkup = await buildReplyMarkup({
+        params: action.params,
+        vars: action.params.vars,
+        ctx,
+        templatePort: deps.templatePort,
+      });
       const chatId = asNumber(action.params.chatId);
       const messageId = asNumber(action.params.messageId);
       const intents: OutgoingIntent[] = [{
@@ -444,7 +533,12 @@ export async function executeAction(
     case 'message.replyMarkup.edit': {
       const chatId = asNumber(action.params.chatId);
       const messageId = asNumber(action.params.messageId);
-      const replyMarkup = await buildReplyMarkup({ params: action.params, ctx, templatePort: deps.templatePort });
+      const replyMarkup = await buildReplyMarkup({
+        params: action.params,
+        vars: action.params.vars,
+        ctx,
+        templatePort: deps.templatePort,
+      });
       const intents: OutgoingIntent[] = [{
         type: 'message.replyMarkup.edit',
         meta: buildIntentMeta(action, ctx),

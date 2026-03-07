@@ -287,6 +287,35 @@ describe('executeAction', () => {
     });
   });
 
+  it('renders generic message.send template text through TemplatePort', async () => {
+    const templatePort = {
+      renderTemplate: vi.fn().mockImplementation(async ({ templateId, vars }) => ({
+        text: templateId === 'booking.accepted'
+          ? `Запись подтверждена: ${String((vars as Record<string, unknown>).slot ?? '')}`
+          : '',
+      })),
+    };
+
+    const result = await executeAction({
+      id: 'a6d',
+      type: 'message.send',
+      mode: 'async',
+      params: {
+        recipient: { chatId: 123 },
+        templateKey: 'telegram:booking.accepted',
+        vars: { slot: '10:00' },
+        delivery: { channels: ['telegram'], maxAttempts: 1 },
+      },
+    }, ctx, { templatePort });
+
+    expect(result.status).toBe('success');
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      recipient: { chatId: 123 },
+      message: { text: 'Запись подтверждена: 10:00' },
+      delivery: { channels: ['telegram'], maxAttempts: 1 },
+    });
+  });
+
   it('handles user.state.set and user.phone.link', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
 
@@ -463,15 +492,26 @@ describe('executeAction', () => {
       mode: 'async',
       params: {
         chatId: 999,
-        text: 'forwarded',
+        templateKey: 'telegram:adminForward',
+        vars: {
+          name: 'Иван',
+        },
       },
-    }, ctx);
+    }, ctx, {
+      templatePort: {
+        renderTemplate: vi.fn().mockImplementation(async ({ templateId, vars }) => ({
+          text: templateId === 'adminForward'
+            ? `forwarded ${(vars as Record<string, unknown>).name ?? ''}`
+            : '',
+        })),
+      },
+    });
 
     expect(adminForwardResult.intents?.[0]).toMatchObject({
       type: 'message.send',
       payload: {
         recipient: { chatId: 999 },
-        message: { text: 'forwarded' },
+        message: { text: 'forwarded Иван' },
       },
     });
   });
