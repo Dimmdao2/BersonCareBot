@@ -92,11 +92,11 @@ Scope: `src/content/telegram/scripts.json`, `src/content/rubitime/scripts.json`
 
 ## Telegram
 
-### Полностью выполняется
-
-- `telegram.more.menu`  
-  Пришло действие `menu.more` -> открывается экран меню с пунктами `Настройки уведомлений` и `Мои записи`.
-
+- `notifications.toggle.*` — исправлено в коде, не проверено в бою;
+- `bookings.show` — исправлено в коде, не проверено в бою;
+- `booking.open` — исправлено в коде, не проверено в бою;
+- `ask.question` — после `Опишите ваш вопрос` отправка текста не приводит ни к подтверждению пользователю, ни к пересылке админу;
+- `admin.forward` — админу ничего не приходит.
 - `telegram.notifications.show`  
   Пришел callback `notifications.show` -> экран настроек уведомлений открывается.
 

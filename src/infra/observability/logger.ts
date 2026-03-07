@@ -1,4 +1,5 @@
 import pino from 'pino';
+import fs from 'fs';
 import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 
@@ -55,6 +56,8 @@ function buildTransport(): pino.TransportSingleOptions | undefined {
 const transport = buildTransport();
 
 /** Корневой логгер приложения с редактированием чувствительных полей. */
+const logFilePath = '/tmp/bot.log';
+const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
 export const logger = pino({
   level: env.LOG_LEVEL,
   ...(transport ? { transport } : {}),
@@ -79,7 +82,7 @@ export const logger = pino({
     err: serializeError,
     error: serializeError,
   },
-});
+}, logStream);
 
 /** Генерирует уникальный id события с указанным префиксом. */
 export function newEventId(prefix = 'evt'): string {
