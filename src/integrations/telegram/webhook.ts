@@ -14,7 +14,7 @@ function parseTelegramChatId(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function joinDisplayName(input: { first_name?: string; last_name?: string }): string | undefined {
+function joinDisplayName(input: { first_name?: string | undefined; last_name?: string | undefined }): string | undefined {
   const parts = [input.first_name, input.last_name]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .map((value) => value.trim());
