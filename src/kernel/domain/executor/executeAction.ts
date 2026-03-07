@@ -108,6 +108,25 @@ function readNotificationSettings(ctx: DomainContext): NotificationSettings | nu
   return { notify_spb, notify_msk, notify_online };
 }
 
+function readNotificationToggleState(callbackData: string, settings: NotificationSettings): boolean {
+  switch (callbackData) {
+    case 'notify_toggle_spb':
+    case 'notifications.toggle.spb':
+      return settings.notify_spb;
+    case 'notify_toggle_msk':
+    case 'notifications.toggle.msk':
+      return settings.notify_msk;
+    case 'notify_toggle_online':
+    case 'notifications.toggle.online':
+      return settings.notify_online;
+    case 'notify_toggle_all':
+    case 'notifications.toggle.all':
+      return settings.notify_spb && settings.notify_msk && settings.notify_online;
+    default:
+      return false;
+  }
+}
+
 function splitTemplateKey(templateKey: string, source: string): { source: string; templateId: string } {
   if (!templateKey.includes(':')) return { source, templateId: templateKey };
   const [templateSource, templateId] = templateKey.split(':', 2);
@@ -172,15 +191,7 @@ async function renderButtonText(input: {
   const [enabledPrefix = '✅', disabledPrefix = '❌'] = prefix.split('/');
   const callbackData = asString(input.button.callbackData) ?? '';
   const settings = readNotificationSettings(input.ctx) ?? defaultNotificationSettings();
-  const enabled = callbackData === 'notify_toggle_spb'
-    ? settings.notify_spb
-    : callbackData === 'notify_toggle_msk'
-      ? settings.notify_msk
-      : callbackData === 'notify_toggle_online'
-        ? settings.notify_online
-        : callbackData === 'notify_toggle_all'
-          ? settings.notify_spb && settings.notify_msk && settings.notify_online
-          : false;
+  const enabled = readNotificationToggleState(callbackData, settings);
   return `${enabled ? enabledPrefix : disabledPrefix} ${rendered}`.trim();
 }
 

@@ -422,6 +422,33 @@ describe('executeAction', () => {
       },
     });
 
+    const canonicalReplyMarkupResult = await executeAction({
+      id: 'a12b',
+      type: 'message.replyMarkup.edit',
+      mode: 'async',
+      params: {
+        chatId: 123,
+        messageId: 79,
+        inlineKeyboard: [[{
+          textTemplateKey: 'telegram:notifications.label.msk',
+          prefixTemplateKey: 'telegram:notifications.togglePrefix',
+          callbackData: 'notifications.toggle.msk',
+        }]],
+      },
+    }, {
+      ...ctx,
+      values: { notifications: { notify_spb: false, notify_msk: true, notify_online: false } },
+    }, { templatePort });
+
+    expect(canonicalReplyMarkupResult.intents?.[0]).toMatchObject({
+      type: 'message.replyMarkup.edit',
+      payload: {
+        recipient: { chatId: 123 },
+        messageId: 79,
+        replyMarkup: { inline_keyboard: [[{ text: '✅ Текст', callback_data: 'notifications.toggle.msk' }]] },
+      },
+    });
+
     const callbackResult = await executeAction({
       id: 'a13',
       type: 'callback.answer',
