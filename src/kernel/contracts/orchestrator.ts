@@ -24,6 +24,7 @@ export type BaseContext = {
     projectId?: string;
   };
   identityLinks: IdentityLink[];
+  facts?: Record<string, unknown>;
   preferences?: Preferences;
   conversationState?: string;
   linkedPhone?: boolean;

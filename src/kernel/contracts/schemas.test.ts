@@ -24,6 +24,11 @@ describe('kernel contracts schemas', () => {
       base: {
         actor: { isAdmin: false },
         identityLinks: [],
+        facts: {
+          menu: {
+            bookingUrl: 'https://example.test/open',
+          },
+        },
       },
       user: {
         channelId: '123',
@@ -34,6 +39,11 @@ describe('kernel contracts schemas', () => {
     });
 
     expect(parsed.user?.channelId).toBe('123');
+    expect(parsed.base.facts).toMatchObject({
+      menu: {
+        bookingUrl: 'https://example.test/open',
+      },
+    });
   });
 
   it('validates ScriptStep and Action', () => {

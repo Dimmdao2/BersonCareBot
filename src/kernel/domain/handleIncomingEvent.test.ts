@@ -113,4 +113,49 @@ describe('handleIncomingEvent (v3)', () => {
       }),
     });
   });
+
+  it('passes generic facts through base context without interpreting them', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-facts-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          channelId: '123',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      facts: {
+        menu: {
+          target: 'bookings',
+        },
+      },
+    };
+
+    const buildPlan = vi.fn().mockResolvedValue([]);
+
+    await handleIncomingEvent(event, {
+      buildBaseContext: vi.fn().mockResolvedValue(baseContext),
+      buildPlan,
+      executeAction: vi.fn().mockResolvedValue({ actionId: 'none', status: 'success' }),
+    });
+
+    expect(buildPlan).toHaveBeenCalledWith({
+      event,
+      context: expect.objectContaining({
+        facts: {
+          menu: {
+            target: 'bookings',
+          },
+        },
+      }),
+    });
+  });
 });

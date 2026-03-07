@@ -21,6 +21,7 @@ const baseContextSchema = z.object({
     value: z.string().min(1),
     provider: z.string().min(1).optional(),
   })),
+  facts: z.record(z.string(), z.unknown()).optional(),
   preferences: z.object({
     locale: z.string().min(1).optional(),
     channels: z.array(z.string().min(1)).optional(),
