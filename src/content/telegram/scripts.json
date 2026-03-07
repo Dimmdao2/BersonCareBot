@@ -223,6 +223,49 @@
 		]
 	},
 	{
+		"id": "telegram.contact.link.request.bookings.fallback",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "bookings.show" }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "await_contact:subscription"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:confirmPhoneForBooking",
+					"keyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:requestContact.button",
+								"requestContact": true
+							}
+						]
+					],
+					"resizeKeyboard": true,
+					"oneTimeKeyboard": true
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.contact.link.confirm",
 		"source": "telegram",
 		"event": "message.received",

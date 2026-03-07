@@ -247,4 +247,65 @@ describe('orchestrator buildPlan', () => {
       title: 'Открыть раздел',
     });
   });
+
+  it('can fall back to a generic bookings callback script when linkedPhone context is absent', async () => {
+    const event: IncomingEvent = {
+      type: 'callback.received',
+      meta: {
+        eventId: 'evt-bookings-fallback-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          action: 'bookings.show',
+          chatId: 123,
+          channelUserId: 123,
+          callbackQueryId: 'cb-1',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.bookings.show',
+          source: 'telegram',
+          event: 'callback.received',
+          match: {
+            input: { action: 'bookings.show' },
+            context: { linkedPhone: true },
+          },
+          steps: [{ action: 'message.edit', mode: 'async', params: { text: 'show bookings' } }],
+        },
+        {
+          id: 'telegram.contact.link.request.bookings.fallback',
+          source: 'telegram',
+          event: 'callback.received',
+          match: {
+            input: { action: 'bookings.show' },
+          },
+          steps: [{ action: 'callback.answer', mode: 'async', params: { callbackQueryId: '{{input.callbackQueryId}}' } }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]).toMatchObject({
+      kind: 'callback.answer',
+      payload: { callbackQueryId: 'cb-1' },
+    });
+  });
 });

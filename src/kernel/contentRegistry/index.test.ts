@@ -25,6 +25,21 @@ describe('contentRegistry', () => {
     });
   });
 
+  it('keeps bookings.show safe by providing a fallback callback script', async () => {
+    const root = path.resolve(process.cwd(), 'src/content');
+    const registry = await loadContentRegistry({ rootDir: root });
+    const telegram = getContentBundle(registry, 'telegram');
+    const script = telegram?.scripts.find((item) => item.id === 'telegram.contact.link.request.bookings.fallback');
+
+    expect(script?.match).toMatchObject({
+      input: { action: 'bookings.show' },
+    });
+    expect(script?.steps.at(-1)).toMatchObject({
+      action: 'callback.answer',
+      mode: 'async',
+    });
+  });
+
   it('loads scripts.json and templates.json per source folder', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'content-registry-'));
     const src = path.join(root, 'source-a');
