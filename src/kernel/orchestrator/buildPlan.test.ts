@@ -1,3 +1,62 @@
+  it('can fall back to a generic booking.open script when linkedPhone context is absent', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-bookingopen-fallback-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          action: 'booking.open',
+          chatId: 123,
+          channelUserId: 123,
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.booking.open',
+          source: 'telegram',
+          event: 'message.received',
+          match: {
+            input: { action: 'booking.open' },
+            context: { linkedPhone: true },
+          },
+          steps: [{ action: 'message.inlineKeyboard.show', mode: 'async', params: { text: 'open booking' } }],
+        },
+        {
+          id: 'telegram.booking.open.fallback',
+          source: 'telegram',
+          event: 'message.received',
+          match: {
+            input: { action: 'booking.open' },
+          },
+          steps: [{ action: 'message.replyKeyboard.show', mode: 'async', params: { text: 'fallback' } }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]).toMatchObject({
+      kind: 'message.replyKeyboard.show',
+      payload: { text: 'fallback' },
+    });
+  });
 import { describe, expect, it, vi } from 'vitest';
 import type { BaseContext, ContentPort, ContextQueryPort, IncomingEvent } from '../contracts/index.js';
 import { buildPlan } from './resolver.js';

@@ -1,3 +1,21 @@
+  it('keeps booking.open safe by providing a fallback script', async () => {
+    const root = path.resolve(process.cwd(), 'src/content');
+    const registry = await loadContentRegistry({ rootDir: root });
+    const telegram = getContentBundle(registry, 'telegram');
+    const script = telegram?.scripts.find((item) => item.id === 'telegram.booking.open.fallback');
+
+    expect(script?.match).toMatchObject({
+      input: { action: 'booking.open' },
+    });
+    expect(script?.steps[0]).toMatchObject({
+      action: 'user.state.set',
+      mode: 'sync',
+    });
+    expect(script?.steps[1]).toMatchObject({
+      action: 'message.replyKeyboard.show',
+      mode: 'async',
+    });
+  });
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
