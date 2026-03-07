@@ -215,84 +215,6 @@ function interpolate(value: unknown, vars: Record<string, unknown>): unknown {
   return value;
 }
 
-async function resolveTemplateParams(
-  params: Record<string, unknown>,
-  contentPort: ContentPort,
-): Promise<Record<string, unknown>> {
-  const templateKey = typeof params.templateKey === 'string' ? params.templateKey : null;
-  if (!templateKey) return params;
-
-  const template = await contentPort.getTemplate(templateKey);
-  const nextParams = { ...params };
-  delete nextParams.templateKey;
-  if (!template || typeof template.text !== 'string') return nextParams;
-
-  const message = isRecord(nextParams.message) ? { ...nextParams.message } : null;
-  if (message && typeof message.text !== 'string') {
-    message.text = template.text;
-    nextParams.message = message;
-  }
-  if (typeof nextParams.messageText !== 'string') {
-    nextParams.messageText = template.text;
-  }
-  if (typeof nextParams.text !== 'string') {
-    nextParams.text = template.text;
-  }
-  return nextParams;
-}
-
-async function resolveButtonTemplate(
-  button: Record<string, unknown>,
-  contentPort: ContentPort,
-): Promise<Record<string, unknown>> {
-  if (typeof button.text === 'string') return button;
-
-  const textTemplateKey = typeof button.textTemplateKey === 'string'
-    ? button.textTemplateKey
-    : null;
-  const prefixTemplateKey = typeof button.prefixTemplateKey === 'string'
-    ? button.prefixTemplateKey
-    : null;
-
-  if (!textTemplateKey || prefixTemplateKey) return button;
-
-  const template = await contentPort.getTemplate(textTemplateKey);
-  if (!template || typeof template.text !== 'string') return button;
-
-  const nextButton = { ...button, text: template.text };
-  delete nextButton.textTemplateKey;
-  return nextButton;
-}
-
-async function resolveMarkupTemplateParams(
-  params: Record<string, unknown>,
-  contentPort: ContentPort,
-): Promise<Record<string, unknown>> {
-  const nextParams: Record<string, unknown> = { ...params };
-
-  if (Array.isArray(params.keyboard)) {
-    nextParams.keyboard = await Promise.all(params.keyboard.map(async (row) => {
-      if (!Array.isArray(row)) return row;
-      return Promise.all(row.map(async (item) => {
-        const button = asRecord(item);
-        return button ? resolveButtonTemplate(button, contentPort) : item;
-      }));
-    }));
-  }
-
-  if (Array.isArray(params.inlineKeyboard)) {
-    nextParams.inlineKeyboard = await Promise.all(params.inlineKeyboard.map(async (row) => {
-      if (!Array.isArray(row)) return row;
-      return Promise.all(row.map(async (item) => {
-        const button = asRecord(item);
-        return button ? resolveButtonTemplate(button, contentPort) : item;
-      }));
-    }));
-  }
-
-  return nextParams;
-}
-
 async function runContextQueries(
   conditions: Array<unknown> | undefined,
   vars: Record<string, unknown>,
@@ -373,9 +295,7 @@ export async function buildPlan(
     if (when && !evaluateWhen(when, vars)) continue;
 
     const interpolated = toPlanStep({ ...step, params: paramsWithoutWhen }, input, index, vars);
-    const payloadWithText = await resolveTemplateParams(interpolated.payload, deps.contentPort);
-    const payload = await resolveMarkupTemplateParams(payloadWithText, deps.contentPort);
-    steps.push({ ...interpolated, payload });
+    steps.push(interpolated);
   }
 
   return steps;

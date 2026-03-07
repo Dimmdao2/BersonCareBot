@@ -56,7 +56,7 @@ describe('orchestrator buildPlan', () => {
     expect(plan.length).toBeGreaterThan(0);
   });
 
-  it('resolves menu button textTemplateKey values in orchestrator payload', async () => {
+  it('preserves template-based menu payload for downstream runtime rendering', async () => {
     const event: IncomingEvent = {
       type: 'message.received',
       meta: {
@@ -101,12 +101,7 @@ describe('orchestrator buildPlan', () => {
           ],
         },
       ]),
-      getTemplate: vi.fn().mockImplementation(async (key: string) => {
-        if (key === 'telegram:chooseMenu') return { id: 'chooseMenu', text: 'Выберите действие' };
-        if (key === 'telegram:menu.book') return { id: 'menu.book', text: '📅 Запись на приём' };
-        if (key === 'telegram:menu.ask') return { id: 'menu.ask', text: '❓ Задать вопрос' };
-        return null;
-      }),
+      getTemplate: vi.fn().mockResolvedValue(null),
     };
 
     const contextQueryPort: ContextQueryPort = {
@@ -117,10 +112,10 @@ describe('orchestrator buildPlan', () => {
 
     expect(plan).toHaveLength(1);
     expect(plan[0]?.payload).toMatchObject({
-      text: 'Выберите действие',
+      templateKey: 'telegram:chooseMenu',
       keyboard: [
-        [{ text: '📅 Запись на приём' }],
-        [{ text: '❓ Задать вопрос' }],
+        [{ textTemplateKey: 'telegram:menu.book' }],
+        [{ textTemplateKey: 'telegram:menu.ask' }],
       ],
     });
   });
