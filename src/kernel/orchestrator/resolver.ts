@@ -92,6 +92,7 @@ function isTruthyString(value: unknown): boolean {
 function normalizeMatchVars(input: OrchestratorInput): Record<string, unknown> {
   const eventPayload = asRecord(input.event.payload) ?? {};
   const normalizedInput = asRecord(eventPayload.incoming) ?? eventPayload;
+  const facts = asRecord(input.context.facts) ?? {};
   const actor = {
     ...(asRecord(input.context.actor) ?? {}),
     ...(typeof normalizedInput.channelUserId === 'number' || isTruthyString(normalizedInput.channelUserId)
@@ -115,6 +116,7 @@ function normalizeMatchVars(input: OrchestratorInput): Record<string, unknown> {
     input: normalizedInput,
     actor,
     context,
+    facts,
   };
 }
 

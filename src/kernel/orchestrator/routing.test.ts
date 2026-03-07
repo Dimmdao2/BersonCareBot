@@ -110,6 +110,39 @@ describe('orchestrator routing', () => {
     expect(plan.length).toBeGreaterThan(0);
   });
 
+  it('supports matching by generic facts container', async () => {
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'facts-match',
+          source: 'telegram',
+          event: 'message.received',
+          match: { facts: { menu: { target: 'bookings' } } },
+          steps: [{ action: 'event.log', params: { matched: true } }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const plan = await buildPlan(
+      {
+        event: createEvent(),
+        context: {
+          ...baseContext,
+          facts: {
+            menu: {
+              target: 'bookings',
+            },
+          },
+        },
+      },
+      { contentPort, contextQueryPort },
+    );
+
+    expect(plan.length).toBeGreaterThan(0);
+    expect(plan[0]?.payload).toMatchObject({ matched: true });
+  });
+
   it('builds plan from business scripts when only source scripts are present', async () => {
     const contentPort: ContentPort = {
       getScriptsBySource: vi.fn().mockResolvedValue([

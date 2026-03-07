@@ -189,4 +189,67 @@ describe('orchestrator buildPlan', () => {
       }]],
     });
   });
+
+  it('matches and interpolates generic facts without special-case knowledge', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-facts-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          chatId: 123,
+          channelId: '123',
+          text: 'open menu',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      facts: {
+        menu: {
+          target: 'bookings',
+          title: 'Открыть раздел',
+        },
+      },
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.menu.by-facts',
+          source: 'telegram',
+          event: 'message.received',
+          match: { facts: { menu: { target: 'bookings' } } },
+          steps: [
+            {
+              action: 'event.log',
+              mode: 'sync',
+              params: {
+                target: '{{facts.menu.target}}',
+                title: '{{facts.menu.title}}',
+              },
+            },
+          ],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]?.payload).toMatchObject({
+      target: 'bookings',
+      title: 'Открыть раздел',
+    });
+  });
 });
