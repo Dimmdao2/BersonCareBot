@@ -27,6 +27,7 @@ import type {
 import { logger } from '../infra/observability/logger.js';
 import { createInMemoryIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
+import { createTemplatePort } from '../infra/adapters/templatePort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
@@ -103,6 +104,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const contentPort = createContentPort();
   const contextQueryPort = createContextQueryPort({ readPort: dbReadPort });
+  const templatePort = createTemplatePort({ contentPort });
   const orchestrator = createOrchestrator({
     contentPort,
     contextQueryPort,
@@ -128,6 +130,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     queuePort,
     dispatchPort,
     orchestrator,
+    templatePort,
   });
 
   const eventGateway = createEventGateway({
