@@ -13,6 +13,18 @@ describe('contentRegistry', () => {
     expect(getContentBundle(registry, 'telegram')).not.toBeNull();
   });
 
+  it('keeps notifications.show self-sufficient by fetching state before rendering', async () => {
+    const root = path.resolve(process.cwd(), 'src/content');
+    const registry = await loadContentRegistry({ rootDir: root });
+    const telegram = getContentBundle(registry, 'telegram');
+    const script = telegram?.scripts.find((item) => item.id === 'telegram.notifications.show');
+
+    expect(script?.steps[0]).toMatchObject({
+      action: 'notifications.get',
+      mode: 'sync',
+    });
+  });
+
   it('loads scripts.json and templates.json per source folder', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'content-registry-'));
     const src = path.join(root, 'source-a');

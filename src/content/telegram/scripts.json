@@ -323,6 +323,13 @@
 		},
 		"steps": [
 			{
+				"action": "notifications.get",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}"
+				}
+			},
+			{
 				"action": "message.edit",
 				"mode": "async",
 				"params": {
