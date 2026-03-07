@@ -152,6 +152,12 @@ export async function handleIncomingEvent(
   for (const action of actions) {
     const result = await execute(action, context);
     results.push(result);
+    if (result.values) {
+      context.values = {
+        ...context.values,
+        ...result.values,
+      };
+    }
     if (result.writes) writes.push(...result.writes);
     if (result.intents) intents.push(...result.intents);
     if (result.jobs) jobs.push(...result.jobs);

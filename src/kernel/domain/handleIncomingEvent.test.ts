@@ -158,4 +158,72 @@ describe('handleIncomingEvent (v3)', () => {
       }),
     });
   });
+
+  it('carries execution values forward between scenario steps', async () => {
+    const event: IncomingEvent = {
+      type: 'callback.received',
+      meta: {
+        eventId: 'evt-values-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {},
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+    };
+
+    const buildPlan = vi.fn().mockResolvedValue([
+      { id: 's1', kind: 'notifications.toggle', mode: 'sync', payload: {} },
+      { id: 's2', kind: 'message.edit', mode: 'async', payload: {} },
+    ]) as unknown as () => Promise<Step[]>;
+
+    const executeAction = vi.fn<
+      (action: { id: string }, context: DomainContext) => Promise<ActionResult>
+    >().mockImplementation(async (action, context) => {
+      if (action.id === 's1') {
+        return {
+          actionId: 's1',
+          status: 'success',
+          values: {
+            notifications: {
+              notify_spb: true,
+              notify_msk: false,
+              notify_online: false,
+            },
+          },
+        };
+      }
+
+      expect(context.values).toMatchObject({
+        notifications: {
+          notify_spb: true,
+          notify_msk: false,
+          notify_online: false,
+        },
+      });
+
+      return {
+        actionId: 's2',
+        status: 'success',
+      };
+    });
+
+    const result = await handleIncomingEvent(event, {
+      buildBaseContext: vi.fn().mockResolvedValue(baseContext),
+      buildPlan,
+      executeAction,
+    });
+
+    expect(executeAction).toHaveBeenCalledTimes(2);
+    expect(result.context.values).toMatchObject({
+      notifications: {
+        notify_spb: true,
+        notify_msk: false,
+        notify_online: false,
+      },
+    });
+  });
 });
