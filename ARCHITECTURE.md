@@ -1,90 +1,269 @@
 # Архитектура BersonCareBot
 
+## ГЛАВНЫЙ ЖЕСТКИЙ КОНТРАКТ ИНТЕГРАЦИЙ
+
+### Базовое правило
+
+Уникальные для интеграции поля, структуры payload, таблицы, колонки и transport-specific детали известны только в двух местах:
+
+1. **слой интеграции** — где внешний payload валидируется, нормализуется и превращается в универсальное событие;
+2. **content-сценарии** — где эти данные могут использоваться как **нормализованные ключи условий и параметров**.
+
+Все остальные слои работают с такими данными **только как с generic context data** и не знают:
+- из какой интеграции они пришли;
+- что они означают в терминах конкретного канала;
+- как они хранятся во внешней БД/SDK/webhook payload.
+
+### Жесткие запреты
+
+#### Интеграции
+
+Разрешено:
+- валидировать внешний payload;
+- мапить payload в `IncomingEvent`;
+- прикладывать набор нормализованных context facts / context data;
+- исполнять исходящие transport-specific intents.
+
+Запрещено:
+- выбирать бизнес-сценарий;
+- знать orchestrator-ветвления;
+- принимать бизнес-решения вместо content/kernel;
+- прошивать сценарную логику в webhook handler.
+
+#### App / Pipeline
+
+Разрешено:
+- wiring зависимостей;
+- запуск pipeline;
+- проброс портов и данных вниз.
+
+Запрещено:
+- интерпретировать интеграционные поля в бизнес-смысле;
+- принимать решения по меню / booking / notifications;
+- подменять orchestrator/domain.
+
+#### Orchestrator
+
+Разрешено:
+- видеть только универсальный контейнер данных;
+- матчить `event`, `input`, `context`, `meta`, `values`, `facts` по ключам и значениям;
+- подставлять данные в шаги сценария;
+- выбирать script plan.
+
+Запрещено:
+- знать transport/business смысл интеграционных ключей;
+- читать raw payload интеграции как часть бизнес-логики;
+- знать таблицы/поля БД конкретной интеграции;
+- содержать hardcoded knowledge про booking, calendar, widget, telegram-menu.
+
+#### Domain / Executor
+
+Разрешено:
+- исполнять generic actions;
+- пользоваться портами;
+- готовить `DbWriteMutation`, `OutgoingIntent`, `DeliveryJob`;
+- переносить execution-state внутри одного сценария.
+
+Запрещено:
+- знать схему webhook payload интеграции;
+- знать названия таблиц/колонок интеграционной БД;
+- хранить в `values` infra-объекты, SDK, adapter instances.
+
+#### Infra / DB / Dispatch
+
+Разрешено:
+- реализовывать порты ядра;
+- хранить интеграционно-специфичные таблицы и колонки;
+- мапить generic port-запросы в конкретную схему хранения/доставки.
+
+Запрещено:
+- принимать сценарные решения;
+- тащить бизнес-ветвления в infra adapters.
+
+### Правило для БД
+
+Интеграционно-специфичные таблицы и поля остаются на стороне `infra`/integration-specific adapters.
+
+Ядро работает только через порт:
+- по generic query/mutation типу;
+- по значениям ключей, пришедших в универсальном контексте;
+- без знания имен таблиц, колонок и схемы хранения.
+
+---
+
 Цель: все входящие события обрабатываются единым pipeline, а бизнес-логика живет в `kernel`, не в webhook-адаптерах.
 
 ## Слои
 
 - `src/app`
   - composition root (`di.ts`)
+  - сборка приложения и wiring зависимостей
   - регистрация HTTP routes
-  - wiring портов и runtime
-
-- `src/kernel`
-  - контракты (`contracts`)
-  - event gateway (`eventGateway`)
-  - orchestrator (`orchestrator`)
-  - domain actions/usecases (`domain`)
-
-- `src/infra`
-  - БД (`db`, `repos`, `writePort`)
-  - dispatch в каналы (`dispatch`)
-  - runtime workers (`runtime`)
-  - logging/observability
-
-- `src/integrations`
-  - внешние адаптеры Telegram/Rubitime/SMSC
-  - mapIn/mapOut, schema validation
 
 - `src/config`
   - `env.ts` — секреты и env-переменные
-  - `appSettings.ts` — несеkретные runtime-настройки (poll/retry delays)
+  - `appSettings.ts` — неcекретные runtime-настройки
+
+- `src/content`
+  - source-bundles (`telegram`, `rubitime`, ...)
+  - `scripts.json` и `templates.json`
+  - content описывает сценарии, но не исполняет их
+
+- `src/kernel`
+  - контракты (`contracts`)
+  - content registry contracts + loading schema
+  - event gateway (`eventGateway`)
+  - orchestrator (`orchestrator`)
+  - domain actions / executor / use cases (`domain`)
+
+- `src/infra`
+  - реализации портов (`adapters`)
+  - БД (`db`, `repos`, `readPort`, `writePort`)
+  - dispatch в каналы (`adapters/dispatchPort.ts`)
+  - runtime workers / scheduler (`runtime`)
+  - logging / observability
+
+- `src/integrations`
+  - внешние адаптеры Telegram / Rubitime / SMSC / др.
+  - schema validation
+  - `mapIn` / `connector` / `mapOut` / delivery adapters
+
+## Смысловые задачи по слоям
+
+- **Integrations**
+  - перевести внешний payload в универсальный `IncomingEvent`;
+  - приложить нормализованные данные контекста;
+  - исполнить transport-specific исходящие intents.
+
+- **App**
+  - связать зависимости;
+  - собрать pipeline;
+  - не принимать бизнес-решения.
+
+- **Kernel / EventGateway**
+  - технически принять событие;
+  - проверить envelope, rate-limit, dedup/idempotency;
+  - передать событие в pipeline.
+
+- **Kernel / Orchestrator**
+  - выбрать сценарий;
+  - собрать plan шагов из content.
+
+- **Kernel / Domain**
+  - выполнить шаги плана;
+  - подготовить generic записи в БД, intents и jobs.
+
+- **Infra**
+  - реализовать БД, dispatch, queue, worker, scheduler.
 
 ## Основной pipeline
 
-`IncomingEvent -> EventGateway -> Orchestrator(resolve script) -> Domain actions -> DbWrite/Dispatch`
+Актуальная цепочка:
+
+`IncomingEvent -> EventGateway -> IncomingEventPipeline -> Domain use case -> Orchestrator(build plan) -> Executor -> DbWrite / Queue / Dispatch`
 
 Подробно:
 
-1. Webhook-adapter валидирует и нормализует вход.
-2. Пакует в `IncomingEvent`.
-3. `eventGateway` делает safety checks (rate-limit, dedup/idempotency, debug-forward).
-4. `orchestrator` строит скрипт шагов (`event.log`, `booking.upsert`, `message.send`, и т.д.).
-5. `domain` преобразует шаги в `DbWriteMutation` и `OutgoingIntent`.
-6. `writePort` применяет мутации в БД.
-7. `dispatchPort` отправляет в Telegram/SMSC с fallback/retry политикой.
+1. Интеграционный adapter валидирует и нормализует внешний вход.
+2. Упаковывает его в `IncomingEvent`.
+3. `eventGateway` делает технические проверки:
+   - envelope validation;
+   - rate limit;
+   - dedup/idempotency.
+4. `incomingEventPipeline` передает событие в domain use case.
+5. Domain use case вызывает `orchestrator.buildPlan()`.
+6. `orchestrator` выбирает content-script и возвращает список generic шагов.
+7. Domain executor преобразует шаги в:
+   - `DbWriteMutation`
+   - `OutgoingIntent`
+   - `DeliveryJob`
+8. `writePort` применяет мутации.
+9. `dispatchPort` отправляет intents в transport adapters.
+10. `runtime/worker` обрабатывает queued jobs.
 
 ## Правила изоляции
 
 Разрешено:
 
-- `app -> kernel + infra + integrations`
+- `app -> kernel + infra + integrations + config`
 - `integrations -> kernel/contracts + kernel/eventGateway`
-- `kernel/*` зависит только от контрактов/портов
+- `kernel/*` зависит только от контрактов, content-моделей и портов
 - `infra/*` реализует порты и не содержит сценарных решений
+- `content` хранит условия и шаги сценариев, но не исполняет их
 
 Запрещено:
 
 - `integrations -> infra/db/repos/*` напрямую
 - `kernel/* -> fastify|pg|grammy` напрямую
 - бизнес-ветвления в webhook handlers
-
-## Rubitime delivery logic (текущее поведение)
-
-- `event-create-record`:
-  - при linked Telegram: immediate Telegram
-  - при отсутствии link: enqueue delayed retry job
-    - 2 попытки проверки привязки, раз в минуту
-    - если link появился -> Telegram
-    - если нет -> SMS fallback
-
-- `event-remove-record` и `event-update-record`:
-  - без ожидания
-  - immediate отправка в доступный канал (Telegram либо SMS fallback)
+- knowledge про конкретные интеграционные таблицы/поля внутри `kernel`
+- хранение adapter/infra objects внутри scenario execution state (`values`)
 
 ## Runtime процессы
 
-- `main.ts` — HTTP API (webhooks + health + iframe endpoint)
-- `main-worker.ts` — фоновые задачи:
-  - `schedule.tick`
-  - обработка delayed Rubitime create retry jobs
+- `src/main.ts`
+  - HTTP API
+  - webhooks
+  - health endpoints
+
+- `src/infra/runtime/worker/main.ts`
+  - обработка delivery/runtime jobs
+
+- `src/infra/runtime/scheduler/main.ts`
+  - scheduler tick entrypoint присутствует в кодовой базе
 
 ## Deploy model
 
-- Docker Compose services: `api_blue`, `api_green`, `worker`, `admin`, `db`
-- Nginx переключает трафик между `3001` (blue) и `3002` (green)
-- Deploy script:
-  - build candidate slot
-  - run migrations
-  - health check
-  - switch Nginx proxy
-  - update current slot marker
+Текущая docker-compose модель:
+- `db`
+- `api_blue`
+- `api_green`
+- `worker`
+- `admin`
+- `api` — legacy profile
+
+Nginx переключает трафик между `3001` (blue) и `3002` (green).
+
+Deploy script:
+- build candidate slot
+- run migrations
+- health check
+- switch Nginx proxy
+- update current slot marker
+
+## Текущие отклонения от жесткого контракта
+
+### ⚠ Отклонение 1. Transport/delivery knowledge частично живет в content
+
+Сейчас в `src/content/*/scripts.json` есть признаки transport-specific логики:
+- transport event names вроде `callback.received`, `webhook.received`;
+- transport/UI actions вроде `message.replyKeyboard.show`, `message.inlineKeyboard.show`, `callback.answer`;
+- delivery-поля вроде `delivery.channels`, `retry`, `onFail`.
+
+Это **не ломает pipeline**, но является отклонением от целевой чистой модели, где сценарии должны опираться на generic intent/data, а transport delivery policy должна жить вне сценариев.
+
+### ⚠ Отклонение 2. В `eventGateway` еще есть legacy migration hooks
+
+В `src/kernel/eventGateway/index.ts` сигнатура зависимостей все еще содержит временные поля:
+- `orchestrator?: unknown`
+- `writePort?: unknown`
+- `dispatchPort?: unknown`
+- debug flags
+
+По текущему смыслу gateway использует только `pipeline` и `idempotencyPort`.
+Это временное отклонение от чистой ответственности слоя.
+
+### ⚠ Отклонение 3. Scheduler есть в коде, но не описан как полноценный runtime-service в compose
+
+`src/infra/runtime/scheduler/main.ts` существует в кодовой базе, но в текущем `docker-compose.yml` отдельный scheduler service не поднят.
+
+Это не нарушение чистоты слоев, но отклонение между документированной runtime-структурой и фактической deploy-моделью.
+
+### ⚠ Отклонение 4. Rubitime delivery behavior распределен между content и domain executor
+
+Текущее поведение доставки Rubitime не полностью локализовано в одном слое:
+- часть задается content-сценариями;
+- часть добирается delivery policy logic в domain executor.
+
+Это рабочее состояние, но не идеальная граница ответственности.
+Целевое состояние: сценарий описывает intent/data, а delivery policy вычисляется централизованно вне content.

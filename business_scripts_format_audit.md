@@ -74,3 +74,101 @@ Concretely (single step target):
 - Resolve channel routing/retry/failover centrally in runtime/dispatcher policy layer.
 
 This keeps `match` and business intent in content while moving operational delivery strategy to infra/runtime where it belongs.
+
+## Code validation status (2026-03-07)
+
+### Short conclusion
+
+- **Scripts parse successfully.**
+- **Script matching/selection works for the current JSON structure.**
+- **Not all current script semantics execute correctly at runtime.**
+
+### What is confirmed to work in code
+
+- `scripts.json` is validated and loaded by content registry.
+- `match` is preserved through `contentRegistry` -> `contentPort` -> orchestrator.
+- Current matcher shape used in business scripts is supported:
+  - `match.input.text`
+  - `match.input.action`
+  - `match.input.entity`
+  - `match.input.status`
+  - `match.input.textPresent`
+  - `match.input.phonePresent`
+  - `match.input.excludeActions`
+  - `match.input.excludeTexts`
+  - `match.context.conversationState`
+  - `match.context.linkedPhone`
+- Current transport events used in scripts are mapped into runtime input correctly:
+  - Telegram -> `message.received`, `callback.received`
+  - Rubitime -> `webhook.received`
+- All action kinds currently used in the two script files have executor handling:
+  - `event.log`
+  - `booking.upsert`
+  - `message.send`
+  - `message.replyKeyboard.show`
+  - `message.inlineKeyboard.show`
+  - `message.edit`
+  - `callback.answer`
+  - `admin.forward`
+  - `user.state.set`
+  - `user.phone.link`
+  - `notifications.toggle`
+
+### Evidence checked
+
+- Focused tests for content loading, routing, plan building, and executor behavior passed: **35/35**.
+- Real plans were built from current `src/content/telegram/scripts.json` and `src/content/rubitime/scripts.json`.
+
+### What does not fully work today
+
+#### 1. Template variables are not fully rendered in the production pipeline
+
+- Orchestrator injects template text by `templateKey`, but only copies raw template text into payload fields.
+- It does **not** render placeholders like `{{name}}`, `{{messageText}}`, `{{event.payload.body.data.record}}` at this stage.
+- Executor can render templates only when a `TemplatePort` is provided, but current incoming-event pipeline does not pass such dependency into executor.
+
+Result:
+- Rubitime notification texts may leave raw placeholders in outgoing messages.
+- Telegram `admin.forward` template text may leave raw placeholders in outgoing messages.
+
+#### 2. Telegram button labels from `textTemplateKey` are effectively broken in the real pipeline
+
+- `message.replyKeyboard.show` and `message.inlineKeyboard.show` rely on button labels such as `textTemplateKey: "telegram:menu.book"`.
+- Those button texts are resolved only in executor via template rendering.
+- In the current production pipeline no `TemplatePort` is wired into executor.
+
+Result:
+- Menu/button markup is built, but button captions become empty strings in real execution.
+
+#### 3. Some script placeholders reference fields that are not populated anywhere
+
+- `{{context.adminChatId}}`
+- `{{context.bookingWidgetUrl}}`
+- `{{actor.displayName}}`
+
+These fields are present in script content, but no confirmed runtime population path was found for them.
+
+Result:
+- These values currently resolve to empty strings unless injected elsewhere outside the inspected path.
+
+#### 4. `params.vars` in `admin.forward` is not enough on its own
+
+- Script defines `vars` for `telegram:adminForward`.
+- Current orchestrator interpolates `params.vars`, but then replaces `templateKey` with raw template text.
+- Final template rendering against `vars` does not happen in the production path.
+
+Result:
+- The script shape is accepted and parsed, but intended templating semantics are incomplete.
+
+### Final assessment
+
+The current business script format is **structurally valid and parseable** in code.
+
+However, the runtime support is only **partially complete**:
+- **selection works**,
+- **action dispatch works**,
+- but **template-backed content semantics are incomplete in the real pipeline**.
+
+So the accurate status is:
+
+> The format is loaded and matched successfully, but not all existing script content executes with the intended rendered output.
