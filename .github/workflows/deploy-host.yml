@@ -18,8 +18,8 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Deploy to server
+      - name: Deploy to host
         run: |
-          ssh -o StrictHostKeyChecking=no 
-          ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 
-          "/opt/projects/bersoncarebot/deploy/host/deploy-prod.sh"
+          ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "${{ secrets.DEPLOY_PATH }}/deploy/host/deploy-prod.sh"
