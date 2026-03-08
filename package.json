@@ -22,7 +22,11 @@
     "migrate": "tsx src/infra/db/migrate.ts",
     "db:migrate": "tsx src/infra/db/migrate.ts",
     "db:migrate:prod": "node dist/infra/db/migrate.js",
-    "scenarios": "tsx e2e/run-webhook-scenarios.ts"
+    "scenarios": "tsx e2e/run-webhook-scenarios.ts",
+    "build:host": "pnpm run build",
+    "start:host": "node dist/main.js",
+    "worker:start:host": "node dist/infra/runtime/worker/main.js",
+    "migrate:host": "node dist/infra/db/migrate.js"
   },
   "engines": {
     "node": ">=20"
