@@ -2,11 +2,13 @@ name: Host Production Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -14,7 +16,10 @@ jobs:
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.HOST_DEPLOY_SSH_KEY }}
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Deploy to host
-        run: ssh -o StrictHostKeyChecking=no ${{ secrets.HOST_DEPLOY_USER }}@${{ secrets.HOST_DEPLOY_HOST }} "/opt/projects/bersoncarebot/deploy/host/deploy-prod.sh"
+      - name: Deploy to server
+        run: |
+          ssh -o StrictHostKeyChecking=no 
+          ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 
+          "/opt/projects/bersoncarebot/deploy/host/deploy-prod.sh"
