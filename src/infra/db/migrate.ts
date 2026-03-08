@@ -1,3 +1,9 @@
+
+/** Читает список уже примененных версий миграций. */
+async function getAppliedVersions(db: Pool): Promise<Set<string>> {
+	const res = await db.query('SELECT version FROM schema_migrations');
+	return new Set(res.rows.map((r) => r.version));
+}
 import '../../config/loadEnv.js';
 import { readdir, readFile, stat } from 'fs/promises';
 import { join } from 'path';
@@ -10,10 +16,10 @@ type MigrationFile = {
 	fileName: string;
 	filePath: string;
 	version: string;
-	legacyVersionCandidates: string[];
 };
 
 /** Создает таблицу учета примененных миграций, если ее еще нет. */
+
 async function ensureMigrationsTable(db: Pool) {
 	await db.query(`
 		CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -23,10 +29,13 @@ async function ensureMigrationsTable(db: Pool) {
 	`);
 }
 
-/** Читает список уже примененных версий миграций. */
-async function getAppliedVersions(db: Pool): Promise<Set<string>> {
-	const res = await db.query('SELECT version FROM schema_migrations');
-	return new Set(res.rows.map((r) => r.version));
+function toMigrationFile(scope: string, dirPath: string, fileName: string): MigrationFile {
+	return {
+		scope,
+		fileName,
+		filePath: join(dirPath, fileName),
+		version: `${scope}:${fileName}`,
+	};
 }
 
 function isSqlMigrationFile(fileName: string): boolean {
@@ -44,40 +53,7 @@ async function directoryExists(dirPath: string): Promise<boolean> {
 	}
 }
 
-function collectLegacyVersionCandidates(fileName: string): string[] {
-	const base = fileName.replace(/\.sql$/i, '');
-	const tokens = base.split('_');
-	const out = new Set<string>();
 
-	for (const token of tokens) {
-		if (!/^\d+$/.test(token)) continue;
-		out.add(token);
-
-		const asNumber = Number(token);
-		if (Number.isFinite(asNumber)) {
-			out.add(String(asNumber));
-			if (asNumber <= 999) {
-				out.add(String(asNumber).padStart(3, '0'));
-			}
-		}
-
-		if (token.length >= 3) {
-			out.add(token.slice(-3));
-		}
-	}
-
-	return [...out];
-}
-
-function toMigrationFile(scope: string, dirPath: string, fileName: string): MigrationFile {
-	return {
-		scope,
-		fileName,
-		filePath: join(dirPath, fileName),
-		version: `${scope}:${fileName}`,
-		legacyVersionCandidates: collectLegacyVersionCandidates(fileName),
-	};
-}
 
 async function discoverCoreMigrations(rootDir: string): Promise<MigrationFile[]> {
 	if (!(await directoryExists(rootDir))) return [];
@@ -136,22 +112,19 @@ async function applyMigration(db: Pool, version: string, sql: string) {
 
 /** Основной раннер миграций: применяет новые SQL-файлы по порядку. */
 async function migrate() {
-	if (!env.DATABASE_URL) {
-		throw new Error('DATABASE_URL is not set');
-	}
-	const db = new Pool({ connectionString: env.DATABASE_URL });
-	await ensureMigrationsTable(db);
-	const applied = await getAppliedVersions(db);
-	const migrations = await discoverMigrations();
-	for (const migration of migrations) {
-		const isAppliedByNamespace = applied.has(migration.version);
-		const isAppliedByLegacy = migration.legacyVersionCandidates.some((legacy) => applied.has(legacy));
-		if (isAppliedByNamespace || isAppliedByLegacy) continue;
-
-		const sql = await readFile(migration.filePath, 'utf8');
-		await applyMigration(db, migration.version, sql);
-	}
-	await db.end();
+  if (!env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is not set');
+  }
+  const db = new Pool({ connectionString: env.DATABASE_URL });
+  await ensureMigrationsTable(db);
+  const applied = await getAppliedVersions(db);
+  const migrations = await discoverMigrations();
+  for (const migration of migrations) {
+    if (applied.has(migration.version)) continue;
+    const sql = await readFile(migration.filePath, 'utf8');
+    await applyMigration(db, migration.version, sql);
+  }
+  await db.end();
 }
 
 migrate().catch((e) => {
