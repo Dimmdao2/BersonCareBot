@@ -1,133 +1,201 @@
-
-/** Читает список уже примененных версий миграций. */
-async function getAppliedVersions(db: Pool): Promise<Set<string>> {
-	const res = await db.query('SELECT version FROM schema_migrations');
-	return new Set(res.rows.map((r) => r.version));
-}
+// Загружаем переменные окружения (например, DATABASE_URL)
 import '../../config/loadEnv.js';
-import { readdir, readFile, stat } from 'fs/promises';
-import { join } from 'path';
-import { Pool } from 'pg';
-import { env } from '../../config/env.js';
-import { logger, getMigrationLogger } from '../observability/logger.js';
+import { readdir, readFile, stat } from 'fs/promises'; // Работа с файловой системой
+import { join } from 'path'; // Склейка путей
+import { Pool } from 'pg'; // Работа с PostgreSQL
+import { env } from '../../config/env.js'; // Переменные окружения
+import { logger, getMigrationLogger } from '../observability/logger.js'; // Логирование
 
+// Описывает одну миграцию: область (scope), имя файла, путь и версию
 type MigrationFile = {
-	scope: string;
-	fileName: string;
-	filePath: string;
-	version: string;
+  scope: string;
+  fileName: string;
+  filePath: string;
+  version: string;
 };
 
-/** Создает таблицу учета примененных миграций, если ее еще нет. */
-
-async function ensureMigrationsTable(db: Pool) {
-	await db.query(`
-		CREATE TABLE IF NOT EXISTS schema_migrations (
-			version text PRIMARY KEY,
-			applied_at timestamptz DEFAULT now()
-		)
-	`);
+// Создаёт таблицу schema_migrations, если её нет (для учёта применённых миграций)
+async function ensureMigrationsTable(db: Pool): Promise<void> {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version text PRIMARY KEY,
+      applied_at timestamptz DEFAULT now()
+    )
+  `);
 }
 
-function toMigrationFile(scope: string, dirPath: string, fileName: string): MigrationFile {
-	return {
-		scope,
-		fileName,
-		filePath: join(dirPath, fileName),
-		version: `${scope}:${fileName}`,
-	};
+// Получает список уже применённых миграций из schema_migrations
+async function getAppliedVersions(db: Pool): Promise<Set<string>> {
+  const res = await db.query<{ version: string }>('SELECT version FROM schema_migrations');
+  return new Set(
+    res.rows
+      .map((row) => row.version)
+      .filter((version): version is string => typeof version === 'string' && version.length > 0),
+  );
 }
 
+// Проверяет, является ли файл миграцией (sql и не example)
 function isSqlMigrationFile(fileName: string): boolean {
-	if (!fileName.endsWith('.sql')) return false;
-	if (fileName.toLowerCase().includes('example')) return false;
-	return true;
+  if (!fileName.endsWith('.sql')) return false;
+  if (fileName.toLowerCase().includes('example')) return false;
+  return true;
 }
 
+// Проверяет, существует ли директория
 async function directoryExists(dirPath: string): Promise<boolean> {
-	try {
-		const info = await stat(dirPath);
-		return info.isDirectory();
-	} catch {
-		return false;
-	}
+  try {
+    const info = await stat(dirPath);
+    return info.isDirectory();
+  } catch {
+    return false;
+  }
 }
 
+// Формирует объект MigrationFile для одной миграции
+function toMigrationFile(scope: string, dirPath: string, fileName: string): MigrationFile {
+  return {
+    scope,
+    fileName,
+    filePath: join(dirPath, fileName),
+    version: `${scope}:${fileName}`,
+  };
+}
 
-
+// Находит все core-миграции (src/infra/db/migrations/core)
 async function discoverCoreMigrations(rootDir: string): Promise<MigrationFile[]> {
-	if (!(await directoryExists(rootDir))) return [];
-	const files = (await readdir(rootDir))
-		.filter((name) => isSqlMigrationFile(name))
-		.sort();
-	return files.map((name) => toMigrationFile('core', rootDir, name));
+  if (!(await directoryExists(rootDir))) return [];
+
+  const files = (await readdir(rootDir))
+    .filter((name) => isSqlMigrationFile(name))
+    .sort();
+
+  return files.map((name) => toMigrationFile('core', rootDir, name));
 }
 
+// Находит миграции для всех интеграций (src/integrations/*/db/migrations)
 async function discoverIntegrationMigrations(integrationsRoot: string): Promise<MigrationFile[]> {
-	if (!(await directoryExists(integrationsRoot))) return [];
-	const entries = await readdir(integrationsRoot, { withFileTypes: true });
-	const integrationNames = entries
-		.filter((entry) => entry.isDirectory())
-		.map((entry) => entry.name)
-		.sort();
+  if (!(await directoryExists(integrationsRoot))) return [];
 
-	const result: MigrationFile[] = [];
-	for (const integrationName of integrationNames) {
-		const migrationsDir = join(integrationsRoot, integrationName, 'db', 'migrations');
-		if (!(await directoryExists(migrationsDir))) continue;
-		const files = (await readdir(migrationsDir))
-			.filter((name) => isSqlMigrationFile(name))
-			.sort();
-		for (const fileName of files) {
-			result.push(toMigrationFile(integrationName, migrationsDir, fileName));
-		}
-	}
+  const entries = await readdir(integrationsRoot, { withFileTypes: true });
+  const integrationNames = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
 
-	return result;
+  const result: MigrationFile[] = [];
+
+  for (const integrationName of integrationNames) {
+    const migrationsDir = join(integrationsRoot, integrationName, 'db', 'migrations');
+    if (!(await directoryExists(migrationsDir))) continue;
+
+    const files = (await readdir(migrationsDir))
+      .filter((name) => isSqlMigrationFile(name))
+      .sort();
+
+    for (const fileName of files) {
+      result.push(toMigrationFile(integrationName, migrationsDir, fileName));
+    }
+  }
+
+  return result;
 }
 
+// Находит все миграции (core + интеграции)
 async function discoverMigrations(): Promise<MigrationFile[]> {
-	const coreDir = join(process.cwd(), 'src', 'infra', 'db', 'migrations', 'core');
-	const integrationsRoot = join(process.cwd(), 'src', 'integrations');
-	const core = await discoverCoreMigrations(coreDir);
-	const integrations = await discoverIntegrationMigrations(integrationsRoot);
-	return [...core, ...integrations];
+  const coreDir = join(process.cwd(), 'src', 'infra', 'db', 'migrations', 'core');
+  const integrationsRoot = join(process.cwd(), 'src', 'integrations');
+
+  const core = await discoverCoreMigrations(coreDir);
+  const integrations = await discoverIntegrationMigrations(integrationsRoot);
+
+  return [...core, ...integrations];
 }
 
-/** Применяет одну SQL-миграцию в транзакции и фиксирует ее версию. */
-async function applyMigration(db: Pool, version: string, sql: string) {
-	await db.query('BEGIN');
-	const migrationLogger = getMigrationLogger(version);
-	try {
-		await db.query(sql);
-		await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [version]);
-		await db.query('COMMIT');
-		migrationLogger.info({ migration: version }, 'Applied migration');
-	} catch (e) {
-		await db.query('ROLLBACK');
-		migrationLogger.error({ err: e }, 'Migration failed');
-		throw e;
-	}
+// Применяет одну миграцию в транзакции, логирует успех/ошибку
+async function applyMigration(db: Pool, migration: MigrationFile, sql: string): Promise<void> {
+  await db.query('BEGIN');
+  const migrationLogger = getMigrationLogger(migration.version);
+
+  try {
+    await db.query(sql); // Выполняем SQL миграции
+    await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [migration.version]); // Отмечаем как применённую
+    await db.query('COMMIT');
+    migrationLogger.info(
+      {
+        scope: migration.scope,
+        fileName: migration.fileName,
+        migration: migration.version,
+      },
+      'Applied migration',
+    );
+  } catch (error) {
+    await db.query('ROLLBACK');
+    migrationLogger.error(
+      {
+        err: error,
+        scope: migration.scope,
+        fileName: migration.fileName,
+        migration: migration.version,
+      },
+      'Migration failed',
+    );
+    throw error;
+  }
 }
 
-/** Основной раннер миграций: применяет новые SQL-файлы по порядку. */
-async function migrate() {
+// Главная функция: применяет все новые миграции
+async function migrate(): Promise<void> {
   if (!env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not set');
   }
+
   const db = new Pool({ connectionString: env.DATABASE_URL });
-  await ensureMigrationsTable(db);
-  const applied = await getAppliedVersions(db);
-  const migrations = await discoverMigrations();
-  for (const migration of migrations) {
-    if (applied.has(migration.version)) continue;
-    const sql = await readFile(migration.filePath, 'utf8');
-    await applyMigration(db, migration.version, sql);
+
+  try {
+    await ensureMigrationsTable(db); // Создаём таблицу учёта миграций
+
+    const applied = await getAppliedVersions(db); // Получаем уже применённые
+    const migrations = await discoverMigrations(); // Находим все доступные
+
+    logger.info(
+      {
+        migrationsDiscovered: migrations.map((migration) => migration.version),
+        appliedVersions: [...applied].sort(),
+      },
+      'Discovered migrations',
+    );
+
+    for (const migration of migrations) {
+      if (applied.has(migration.version)) {
+        logger.info(
+          {
+            migration: migration.version,
+          },
+          'Skipping already applied migration',
+        );
+        continue;
+      }
+
+      logger.info(
+        {
+          scope: migration.scope,
+          fileName: migration.fileName,
+          migration: migration.version,
+          filePath: migration.filePath,
+        },
+        'Applying migration',
+      );
+
+      const sql = await readFile(migration.filePath, 'utf8'); // Читаем SQL
+      await applyMigration(db, migration, sql); // Применяем миграцию
+    }
+  } finally {
+    await db.end(); // Закрываем соединение
   }
-  await db.end();
 }
 
-migrate().catch((e) => {
-	logger.error({ err: e }, 'Migration process failed');
-	process.exit(1);
+// Запуск миграций при запуске скрипта
+migrate().catch((error) => {
+  logger.error({ err: error }, 'Migration process failed');
+  process.exit(1);
 });
