@@ -19,7 +19,6 @@ const parsed = z
     TG_WEBHOOK_SECRET: z.string().optional(),
     BOT_TOKEN: z.string().min(1),
     ADMIN_TELEGRAM_ID: z.string().min(1),
-    INBOX_CHAT_ID: z.string().min(1),
 
     /** SMSC.RU */
     SMSC_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),

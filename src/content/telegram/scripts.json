@@ -76,7 +76,7 @@
 				"action": "admin.forward",
 				"mode": "async",
 				"params": {
-					"chatId": "{{facts.admin.inboxChatId}}",
+					"chatId": "{{facts.admin.adminTelegramId}}",
 					"templateKey": "telegram:adminForward",
 					"vars": {
 						"name": "{{facts.actor.displayName}}",

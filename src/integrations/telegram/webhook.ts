@@ -27,10 +27,13 @@ function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, 
   const bookingUrl = env.BOOKING_URL;
   const adminTelegramId = parseTelegramChatId(env.ADMIN_TELEGRAM_ID);
 
+  const admin: Record<string, unknown> = {};
+  if (typeof adminTelegramId === 'number') admin.adminTelegramId = adminTelegramId;
+
   return {
     ...(displayName ? { actor: { displayName } } : {}),
     ...(bookingUrl ? { links: { bookingUrl } } : {}),
-    ...(typeof adminTelegramId === 'number' ? { admin: { adminTelegramId } } : {}),
+    ...(Object.keys(admin).length > 0 ? { admin } : {}),
   };
 }
 

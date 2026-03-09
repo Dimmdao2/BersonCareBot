@@ -3,7 +3,7 @@
  * mocks Telegram API by patching globalThis.fetch (grammy uses fetch).
  *
  * Run: pnpm run scenarios
- * Requires: .env with DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, INBOX_CHAT_ID, BOOKING_URL.
+ * Requires: .env with DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, BOOKING_URL.
  * Optional: TG_WEBHOOK_SECRET — if set, requests must include the header; we add it for fixture scenarios.
  */
 
@@ -285,7 +285,7 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   if (err != null && typeof err === 'object' && 'issues' in err) {
-    console.error('Env validation failed. Add .env with DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, INBOX_CHAT_ID, BOOKING_URL.');
+    console.error('Env validation failed. Add .env with DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, BOOKING_URL.');
   }
   console.error(err);
   process.exit(1);

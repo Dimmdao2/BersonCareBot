@@ -2,7 +2,7 @@
  * E2E тесты сценариев: те же фикстуры и ожидания, что и pnpm run scenarios,
  * но через Vitest (expect, отчёт в test run).
  *
- * Требуется: .env с DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, INBOX_CHAT_ID, BOOKING_URL.
+ * Требуется: .env с DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, BOOKING_URL.
  * Мок Telegram: подмена globalThis.fetch до загрузки приложения.
  */
 import { readdir, readFile } from 'node:fs/promises';

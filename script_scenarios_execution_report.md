@@ -71,7 +71,7 @@ Scope: `src/content/telegram/scripts.json`, `src/content/rubitime/scripts.json`
   - проверить, почему `telegram.ask.question` не матчится / не доходит до подтверждения и `admin.forward`.
 
 4. **Разобрать admin delivery path**
-  - проверить заполнение `facts.admin.inboxChatId`;
+  - проверить заполнение `facts.admin.adminTelegramId`;
   - проверить фактическую отправку сообщения админу.
 
 5. **Разобрать Rubitime match/delivery/runtime path**
