@@ -112,10 +112,64 @@ async function discoverMigrations(): Promise<MigrationFile[]> {
 }
 
 // Применяет одну миграцию в транзакции, логирует успех/ошибку
+async function tableExists(db: Pool, table: string): Promise<boolean> {
+  const res = await db.query(
+    `SELECT to_regclass($1) IS NOT NULL AS exists`,
+    [table]
+  );
+  return res.rows[0]?.exists === true;
+}
+
+// Проверяет, существуют ли все указанные таблицы
+async function allTablesExist(db: Pool, tables: string[]): Promise<boolean> {
+  for (const t of tables) {
+    if (!(await tableExists(db, t))) return false;
+  }
+  return true;
+}
+
+// Telegram миграции, которые можно safe-скипать если структура уже есть
+const TELEGRAM_SAFE_MIGRATIONS = [
+  'telegram:20260306_0001_init.sql',
+  'telegram:20260306_0002_refactor_telegram_schema.sql',
+  'telegram:20260306_0003_add_user_state.sql',
+  'telegram:20260306_0004_add_notification_settings.sql',
+  'telegram:20260306_0005_add_last_update_id.sql',
+  'telegram:20260306_0006_add_last_start_at.sql',
+  'telegram:20260306_0007_align_mailing_topics.sql',
+  'telegram:20260306_0008_worker_schema.sql',
+];
+const TELEGRAM_KEY_TABLES = [
+  'telegram_users',
+  'telegram_state',
+  'mailings',
+  'mailing_logs',
+  'mailing_topics',
+];
+
 async function applyMigration(db: Pool, migration: MigrationFile, sql: string): Promise<void> {
-  await db.query('BEGIN');
   const migrationLogger = getMigrationLogger(migration.version);
 
+  // Safe-скип для Telegram миграций, если структура уже есть
+  if (
+    migration.scope === 'telegram' &&
+    TELEGRAM_SAFE_MIGRATIONS.includes(migration.version) &&
+    (await allTablesExist(db, TELEGRAM_KEY_TABLES))
+  ) {
+    await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [migration.version]);
+    migrationLogger.info(
+      {
+        scope: migration.scope,
+        fileName: migration.fileName,
+        migration: migration.version,
+        safeSkip: true,
+      },
+      'Safe-skip migration: structure already present',
+    );
+    return;
+  }
+
+  await db.query('BEGIN');
   try {
     await db.query(sql); // Выполняем SQL миграции
     await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [migration.version]); // Отмечаем как применённую
