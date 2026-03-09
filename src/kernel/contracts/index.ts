@@ -85,6 +85,8 @@ export type {
   QueuePort,
   ChannelUserFrom,
   ChannelUserRow,
+  ActorResolutionPort,
+  ActorResolutionRequest,
   TemplatePort,
   ChannelUserPort,
 } from './ports.js';

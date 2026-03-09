@@ -13,6 +13,10 @@ export type DbReadQueryType =
   | 'user.byChannelId'
   | 'user.byIdentity'
   | 'user.byPhone'
+  | 'draft.activeByIdentity'
+  | 'conversation.openByIdentity'
+  | 'conversation.byId'
+  | 'conversation.listOpen'
   | 'notifications.settings'
   | 'booking.byExternalId'
   | 'booking.activeByUser'
@@ -24,6 +28,11 @@ export type DbWriteMutationType =
   | 'user.upsert'
   | 'user.state.set'
   | 'user.phone.link'
+  | 'draft.upsert'
+  | 'draft.cancel'
+  | 'conversation.open'
+  | 'conversation.message.add'
+  | 'conversation.state.set'
   | 'notifications.update'
   | 'booking.upsert'
   | 'message.retry.enqueue'
@@ -134,6 +143,21 @@ export type ChannelUserFrom = {
 };
 
 export type ChannelUserRow = { id: string; channel_id: string };
+
+export type ActorResolutionRequest = {
+  source: string;
+  isUserOriginated: boolean;
+  externalActorId?: string;
+  profile?: {
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+  };
+};
+
+export type ActorResolutionPort = {
+  ensureActor(input: ActorResolutionRequest): Promise<void>;
+};
 
 /** Контракт хранилища пользователей внешнего канала. */
 export type ChannelUserPort = {

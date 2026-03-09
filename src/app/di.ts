@@ -27,6 +27,7 @@ import type {
 import { logger } from '../infra/observability/logger.js';
 import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
+import { createActorResolutionPort } from '../infra/adapters/actorResolutionPort.js';
 import { createDeliveryDefaultsPort } from '../infra/adapters/deliveryDefaultsPort.js';
 import { createTemplatePort } from '../infra/adapters/templatePort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
@@ -126,6 +127,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const idempotencyPort = input.idempotencyPort ?? createPostgresIdempotencyPort(dbPort);
 
+  const actorResolutionPort = createActorResolutionPort({ writePort: dbWritePort });
   const deliveryDefaultsPort = createDeliveryDefaultsPort();
   const pipeline = createIncomingEventPipeline({
     readPort: dbReadPort,
@@ -134,6 +136,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     dispatchPort,
     orchestrator,
     templatePort,
+    actorResolutionPort,
     deliveryDefaultsPort,
   });
 

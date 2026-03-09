@@ -79,10 +79,35 @@ type ReadUserContext = {
   phoneNormalized?: unknown;
 };
 
+type ReadDraftContext = {
+  state?: unknown;
+  draft_text_current?: unknown;
+  external_message_id?: unknown;
+};
+
+type ReadConversationContext = {
+  id?: unknown;
+  status?: unknown;
+};
+
 async function loadUserContext(
   event: IncomingEvent,
   readPort?: DbReadPort,
-): Promise<Pick<BaseContext, 'conversationState' | 'linkedPhone' | 'phoneNormalized'>> {
+): Promise<Pick<
+  BaseContext,
+  | 'conversationState'
+  | 'linkedPhone'
+  | 'phoneNormalized'
+  | 'hasActiveDraft'
+  | 'draftState'
+  | 'draftTextCurrent'
+  | 'draftSourceMessageId'
+  | 'hasOpenConversation'
+  | 'activeConversationId'
+  | 'activeConversationStatus'
+  | 'replyMode'
+  | 'replyConversationId'
+>> {
   if (!readPort) return {};
   const externalId = extractChannelId(event);
   if (!externalId) return {};
@@ -91,12 +116,64 @@ async function loadUserContext(
     : null;
   if (!resource) return {};
 
-  const user = await readPort.readDb<ReadUserContext | null>({
-    type: 'user.byIdentity',
-    params: { resource, externalId },
-  });
+  const [user, draft, openConversation] = await Promise.all([
+    readPort.readDb<ReadUserContext | null>({
+      type: 'user.byIdentity',
+      params: { resource, externalId },
+    }),
+    readPort.readDb<ReadDraftContext | null>({
+      type: 'draft.activeByIdentity',
+      params: { resource, externalId, source: event.meta.source },
+    }),
+    readPort.readDb<ReadConversationContext | null>({
+      type: 'conversation.openByIdentity',
+      params: { resource, externalId, source: event.meta.source },
+    }),
+  ]);
 
-  if (!user || typeof user !== 'object') return {};
+  const result: Pick<
+    BaseContext,
+    | 'conversationState'
+    | 'linkedPhone'
+    | 'phoneNormalized'
+    | 'hasActiveDraft'
+    | 'draftState'
+    | 'draftTextCurrent'
+    | 'draftSourceMessageId'
+    | 'hasOpenConversation'
+    | 'activeConversationId'
+    | 'activeConversationStatus'
+    | 'replyMode'
+    | 'replyConversationId'
+  > = {};
+
+  if (!user || typeof user !== 'object') {
+    if (draft && typeof draft === 'object') {
+      const draftState = typeof draft.state === 'string' && draft.state.trim().length > 0 ? draft.state : undefined;
+      const draftTextCurrent = typeof draft.draft_text_current === 'string' && draft.draft_text_current.trim().length > 0
+        ? draft.draft_text_current
+        : undefined;
+      const draftSourceMessageId = typeof draft.external_message_id === 'string' && draft.external_message_id.trim().length > 0
+        ? draft.external_message_id
+        : undefined;
+      result.hasActiveDraft = true;
+      if (draftState) result.draftState = draftState;
+      if (draftTextCurrent) result.draftTextCurrent = draftTextCurrent;
+      if (draftSourceMessageId) result.draftSourceMessageId = draftSourceMessageId;
+    }
+    if (openConversation && typeof openConversation === 'object') {
+      const conversationId = typeof openConversation.id === 'string' && openConversation.id.trim().length > 0
+        ? openConversation.id
+        : undefined;
+      const conversationStatus = typeof openConversation.status === 'string' && openConversation.status.trim().length > 0
+        ? openConversation.status
+        : undefined;
+      result.hasOpenConversation = !!conversationId;
+      if (conversationId) result.activeConversationId = conversationId;
+      if (conversationStatus) result.activeConversationStatus = conversationStatus;
+    }
+    return result;
+  }
   const conversationState = typeof user.userState === 'string' && user.userState.trim().length > 0
     ? user.userState
     : undefined;
@@ -104,12 +181,45 @@ async function loadUserContext(
     ? user.phoneNormalized.trim()
     : undefined;
   const linkedPhone = !!phoneNormalized;
+  if (conversationState) result.conversationState = conversationState;
+  result.linkedPhone = linkedPhone;
+  if (phoneNormalized) result.phoneNormalized = phoneNormalized;
 
-  return {
-    ...(conversationState ? { conversationState } : {}),
-    linkedPhone,
-    ...(phoneNormalized ? { phoneNormalized } : {}),
-  };
+  if (conversationState?.startsWith('admin_reply:')) {
+    const replyConversationId = conversationState.slice('admin_reply:'.length).trim();
+    if (replyConversationId) {
+      result.replyMode = true;
+      result.replyConversationId = replyConversationId;
+    }
+  }
+
+  if (draft && typeof draft === 'object') {
+    const draftState = typeof draft.state === 'string' && draft.state.trim().length > 0 ? draft.state : undefined;
+    const draftTextCurrent = typeof draft.draft_text_current === 'string' && draft.draft_text_current.trim().length > 0
+      ? draft.draft_text_current
+      : undefined;
+    const draftSourceMessageId = typeof draft.external_message_id === 'string' && draft.external_message_id.trim().length > 0
+      ? draft.external_message_id
+      : undefined;
+    result.hasActiveDraft = true;
+    if (draftState) result.draftState = draftState;
+    if (draftTextCurrent) result.draftTextCurrent = draftTextCurrent;
+    if (draftSourceMessageId) result.draftSourceMessageId = draftSourceMessageId;
+  }
+
+  if (openConversation && typeof openConversation === 'object') {
+    const conversationId = typeof openConversation.id === 'string' && openConversation.id.trim().length > 0
+      ? openConversation.id
+      : undefined;
+    const conversationStatus = typeof openConversation.status === 'string' && openConversation.status.trim().length > 0
+      ? openConversation.status
+      : undefined;
+    result.hasOpenConversation = !!conversationId;
+    if (conversationId) result.activeConversationId = conversationId;
+    if (conversationStatus) result.activeConversationStatus = conversationStatus;
+  }
+
+  return result;
 }
 
 async function buildBaseContext(event: IncomingEvent, readPort?: DbReadPort): Promise<BaseContext> {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   Action,
   ActionResult,
@@ -81,6 +82,63 @@ function asBoolean(value: unknown): boolean | null {
 
 function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function asNumericString(value: unknown): string | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(Math.trunc(value));
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? String(Math.trunc(parsed)) : null;
+}
+
+function readIncoming(ctx: DomainContext): Record<string, unknown> {
+  return asRecord(ctx.event.payload.incoming);
+}
+
+function readIncomingText(ctx: DomainContext): string | null {
+  return asString(readIncoming(ctx).text);
+}
+
+function readIncomingChatId(ctx: DomainContext): string | null {
+  const incoming = readIncoming(ctx);
+  const chatId = asNumber(incoming.chatId);
+  return chatId === null ? asString(incoming.chatId) : String(chatId);
+}
+
+function readIncomingMessageId(ctx: DomainContext): string | null {
+  const incoming = readIncoming(ctx);
+  const messageId = asNumber(incoming.messageId);
+  return messageId === null ? asString(incoming.messageId) : String(messageId);
+}
+
+function readConversationId(action: Action, ctx: DomainContext): string | null {
+  return asString(action.params.conversationId)
+    ?? asString(ctx.base.replyConversationId)
+    ?? asString(readIncoming(ctx).conversationId)
+    ?? asString(ctx.base.activeConversationId);
+}
+
+function readExternalActorId(ctx: DomainContext): string | null {
+  return asString(ctx.event.meta.userId)
+    ?? asNumericString(readIncoming(ctx).channelUserId)
+    ?? asString(readIncoming(ctx).channelId);
+}
+
+function formatActorLabel(input: {
+  firstName?: string | null;
+  lastName?: string | null;
+  username?: string | null;
+  channelId?: string | null;
+}): string {
+  const name = [input.firstName, input.lastName]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .trim();
+  const username = asString(input.username);
+  if (name && username) return `${name} (@${username})`;
+  if (name) return name;
+  if (username) return `@${username}`;
+  return input.channelId ?? 'user';
 }
 
 function buildIntentMeta(action: Action, ctx: DomainContext): OutgoingIntent['meta'] {
@@ -720,6 +778,512 @@ export async function executeAction(
         status: 'success',
         ...(writes.length > 0 ? { writes } : {}),
       };
+    }
+
+    case 'draft.upsertFromMessage':
+    case 'draft.replaceFromMessage': {
+      const externalId = readExternalActorId(ctx);
+      const draftTextCurrent = asString(action.params.text) ?? readIncomingText(ctx);
+      const source = asString(action.params.source) ?? ctx.event.meta.source;
+      if (!externalId || !draftTextCurrent || !source) {
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'DRAFT_INPUT_MISSING',
+        };
+      }
+      const writes: DbWriteMutation[] = [{
+        type: 'draft.upsert',
+        params: {
+          id: randomUUID(),
+          resource: ctx.event.meta.source,
+          externalId,
+          source,
+          externalChatId: readIncomingChatId(ctx),
+          externalMessageId: readIncomingMessageId(ctx),
+          draftTextCurrent,
+          state: 'pending_confirmation',
+        },
+      }];
+      await persistWrites(deps.writePort, writes);
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        values: {
+          draftState: 'pending_confirmation',
+          draftTextCurrent,
+          draftSourceMessageId: readIncomingMessageId(ctx) ?? undefined,
+          hasActiveDraft: true,
+        },
+      };
+    }
+
+    case 'draft.cancel': {
+      const externalId = readExternalActorId(ctx);
+      const source = asString(action.params.source) ?? ctx.event.meta.source;
+      if (!externalId || !source) {
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'DRAFT_CANCEL_INPUT_MISSING',
+        };
+      }
+      const writes: DbWriteMutation[] = [{
+        type: 'draft.cancel',
+        params: {
+          resource: ctx.event.meta.source,
+          externalId,
+          source,
+        },
+      }];
+      await persistWrites(deps.writePort, writes);
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        values: {
+          hasActiveDraft: false,
+          draftState: undefined,
+          draftTextCurrent: undefined,
+          draftSourceMessageId: undefined,
+        },
+      };
+    }
+
+    case 'draft.send': {
+      const externalId = readExternalActorId(ctx);
+      const source = asString(action.params.source) ?? ctx.event.meta.source;
+      if (!deps.readPort || !externalId || !source) {
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'DRAFT_SEND_INPUT_MISSING',
+        };
+      }
+      const draft = await deps.readPort.readDb<Record<string, unknown> | null>({
+        type: 'draft.activeByIdentity',
+        params: {
+          resource: ctx.event.meta.source,
+          externalId,
+          source,
+        },
+      });
+      if (!draft) {
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'DRAFT_NOT_FOUND',
+        };
+      }
+
+      const draftTextCurrent = asString(draft.draft_text_current);
+      const userChannelId = asString(draft.channel_id);
+      const adminChatId = asNumber(asRecord(ctx.base.facts).adminChatId);
+      if (!draftTextCurrent || !userChannelId || adminChatId === null) {
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'DRAFT_SEND_CONTEXT_MISSING',
+        };
+      }
+
+      const conversationId = randomUUID();
+      const firstMessageId = randomUUID();
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'conversation.open',
+          params: {
+            id: conversationId,
+            resource: ctx.event.meta.source,
+            externalId,
+            source,
+            adminScope: asString(action.params.adminScope) ?? 'default',
+            status: 'waiting_admin',
+            openedAt: ctx.nowIso,
+            lastMessageAt: ctx.nowIso,
+          },
+        },
+        {
+          type: 'conversation.message.add',
+          params: {
+            id: firstMessageId,
+            conversationId,
+            senderRole: 'user',
+            text: draftTextCurrent,
+            source,
+            externalChatId: asString(draft.external_chat_id),
+            externalMessageId: asString(draft.external_message_id),
+            createdAt: ctx.nowIso,
+          },
+        },
+        {
+          type: 'draft.cancel',
+          params: {
+            resource: ctx.event.meta.source,
+            externalId,
+            source,
+          },
+        },
+      ];
+      await persistWrites(deps.writePort, writes);
+
+      const userLabel = formatActorLabel({
+        firstName: asString(draft.first_name),
+        lastName: asString(draft.last_name),
+        username: asString(draft.username),
+        channelId: userChannelId,
+      });
+      const adminText = await renderText({
+        templateKey: action.params.adminTemplateKey ?? 'telegram:adminForward',
+        vars: {
+          name: userLabel,
+          username: asString(draft.username),
+          channelId: userChannelId,
+          messageText: draftTextCurrent,
+        },
+        ctx,
+        templatePort: deps.templatePort,
+      });
+      const intents: OutgoingIntent[] = [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text: adminText || draftTextCurrent },
+          replyMarkup: {
+            inline_keyboard: [[
+              { text: 'Ответить', callback_data: `admin_reply:${conversationId}` },
+              { text: 'Завершить диалог', callback_data: `admin_close_dialog:${conversationId}` },
+            ]],
+          },
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      }];
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        intents,
+        values: {
+          hasActiveDraft: false,
+          hasOpenConversation: true,
+          activeConversationId: conversationId,
+          activeConversationStatus: 'waiting_admin',
+        },
+      };
+    }
+
+    case 'conversation.user.message': {
+      if (!deps.readPort) {
+        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+      }
+      const externalId = readExternalActorId(ctx);
+      const source = asString(action.params.source) ?? ctx.event.meta.source;
+      const text = asString(action.params.text) ?? readIncomingText(ctx);
+      if (!externalId || !source || !text) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING' };
+      }
+      const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
+        type: 'conversation.openByIdentity',
+        params: {
+          resource: ctx.event.meta.source,
+          externalId,
+          source,
+        },
+      });
+      const conversationId = asString(conversation?.id);
+      const adminChatId = asNumber(asRecord(ctx.base.facts).adminChatId);
+      if (!conversationId || adminChatId === null) {
+        return { actionId: action.id, status: 'skipped', error: 'OPEN_CONVERSATION_NOT_FOUND' };
+      }
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'conversation.message.add',
+          params: {
+            id: randomUUID(),
+            conversationId,
+            senderRole: 'user',
+            text,
+            source,
+            externalChatId: readIncomingChatId(ctx),
+            externalMessageId: readIncomingMessageId(ctx),
+            createdAt: ctx.nowIso,
+          },
+        },
+        {
+          type: 'conversation.state.set',
+          params: {
+            id: conversationId,
+            status: 'waiting_admin',
+            lastMessageAt: ctx.nowIso,
+          },
+        },
+      ];
+      await persistWrites(deps.writePort, writes);
+
+      const userLabel = formatActorLabel({
+        firstName: asString(conversation?.first_name),
+        lastName: asString(conversation?.last_name),
+        username: asString(conversation?.username),
+        channelId: asString(conversation?.user_channel_id),
+      });
+      const intents: OutgoingIntent[] = [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text: `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${text}` },
+          replyMarkup: {
+            inline_keyboard: [[
+              { text: 'Ответить', callback_data: `admin_reply:${conversationId}` },
+              { text: 'Завершить диалог', callback_data: `admin_close_dialog:${conversationId}` },
+            ]],
+          },
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      }];
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        intents,
+        values: {
+          hasOpenConversation: true,
+          activeConversationId: conversationId,
+          activeConversationStatus: 'waiting_admin',
+        },
+      };
+    }
+
+    case 'conversation.admin.reply': {
+      if (!deps.readPort) {
+        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+      }
+      const conversationId = readConversationId(action, ctx);
+      const text = asString(action.params.text) ?? readIncomingText(ctx);
+      if (!conversationId || !text) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
+      }
+      const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
+        type: 'conversation.byId',
+        params: { id: conversationId },
+      });
+      const userChatIdRaw = asString(conversation?.user_channel_id);
+      const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
+      const adminChatId = asNumber(readIncoming(ctx).chatId);
+      if (!conversation || !Number.isFinite(userChatId)) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_NOT_FOUND' };
+      }
+      const sourceForConversation = asString(conversation.source) ?? ctx.event.meta.source;
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'conversation.message.add',
+          params: {
+            id: randomUUID(),
+            conversationId,
+            senderRole: 'admin',
+            text,
+            source: sourceForConversation,
+            externalChatId: readIncomingChatId(ctx),
+            externalMessageId: readIncomingMessageId(ctx),
+            createdAt: ctx.nowIso,
+          },
+        },
+        {
+          type: 'conversation.state.set',
+          params: {
+            id: conversationId,
+            status: 'waiting_user',
+            lastMessageAt: ctx.nowIso,
+          },
+        },
+      ];
+      await persistWrites(deps.writePort, writes);
+
+      const intents: OutgoingIntent[] = [
+        {
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: userChatId },
+            message: { text },
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
+          },
+        },
+      ];
+      if (adminChatId !== null) {
+        intents.push({
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: adminChatId },
+            message: { text: 'Ответ отправлен.' },
+            replyMarkup: {
+              inline_keyboard: [[
+                { text: 'Дополнить ответ', callback_data: `admin_reply_continue:${conversationId}` },
+                { text: 'Завершить диалог', callback_data: `admin_close_dialog:${conversationId}` },
+              ]],
+            },
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
+          },
+        });
+      }
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        intents,
+        values: {
+          hasOpenConversation: true,
+          activeConversationId: conversationId,
+          activeConversationStatus: 'waiting_user',
+        },
+      };
+    }
+
+    case 'conversation.close': {
+      if (!deps.readPort) {
+        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+      }
+      const conversationId = readConversationId(action, ctx);
+      if (!conversationId) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ID_MISSING' };
+      }
+      const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
+        type: 'conversation.byId',
+        params: { id: conversationId },
+      });
+      const userChatIdRaw = asString(conversation?.user_channel_id);
+      const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
+      const writes: DbWriteMutation[] = [{
+        type: 'conversation.state.set',
+        params: {
+          id: conversationId,
+          status: 'closed',
+          lastMessageAt: ctx.nowIso,
+          closedAt: ctx.nowIso,
+          closeReason: asString(action.params.closeReason) ?? 'admin_closed',
+        },
+      }];
+      await persistWrites(deps.writePort, writes);
+      const intents: OutgoingIntent[] = [];
+      if (Number.isFinite(userChatId)) {
+        intents.push({
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: userChatId },
+            message: { text: asString(action.params.userText) ?? 'Диалог завершён. Если появятся новые вопросы, напишите новым сообщением.' },
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
+          },
+        });
+      }
+      const adminChatId = asNumber(readIncoming(ctx).chatId);
+      if (adminChatId !== null) {
+        intents.push({
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: adminChatId },
+            message: { text: 'Диалог завершён.' },
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
+          },
+        });
+      }
+      return { actionId: action.id, status: 'success', writes, ...(intents.length > 0 ? { intents } : {}) };
+    }
+
+    case 'conversation.listOpen': {
+      if (!deps.readPort) {
+        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+      }
+      const items = await deps.readPort.readDb<Array<Record<string, unknown>>>({
+        type: 'conversation.listOpen',
+        params: {
+          source: asString(action.params.source) ?? ctx.event.meta.source,
+          limit: asNumber(action.params.limit) ?? 10,
+        },
+      });
+      const adminChatId = asNumber(readIncoming(ctx).chatId);
+      if (adminChatId === null) {
+        return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_MISSING' };
+      }
+      const rows = Array.isArray(items) ? items : [];
+      const text = rows.length === 0
+        ? 'Открытых диалогов нет.'
+        : `Открытые диалоги:\n\n${rows.map((item, index) => {
+          const label = formatActorLabel({
+            firstName: asString(item.first_name),
+            lastName: asString(item.last_name),
+            username: asString(item.username),
+            channelId: asString(item.user_channel_id),
+          });
+          const status = asString(item.status) ?? 'open';
+          return `${index + 1}. ${label} [${status}]`;
+        }).join('\n')}`;
+      const inline_keyboard = rows.slice(0, 10).map((item) => [{
+        text: formatActorLabel({
+          firstName: asString(item.first_name),
+          lastName: asString(item.last_name),
+          username: asString(item.username),
+          channelId: asString(item.user_channel_id),
+        }),
+        callback_data: `dialogs.view:${asString(item.id)}`,
+      }]);
+      const intents: OutgoingIntent[] = [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text },
+          ...(inline_keyboard.length > 0 ? { replyMarkup: { inline_keyboard } } : {}),
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      }];
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'conversation.show': {
+      if (!deps.readPort) {
+        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+      }
+      const conversationId = readConversationId(action, ctx);
+      const adminChatId = asNumber(readIncoming(ctx).chatId);
+      if (!conversationId || adminChatId === null) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_SHOW_INPUT_MISSING' };
+      }
+      const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
+        type: 'conversation.byId',
+        params: { id: conversationId },
+      });
+      if (!conversation) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_NOT_FOUND' };
+      }
+      const label = formatActorLabel({
+        firstName: asString(conversation.first_name),
+        lastName: asString(conversation.last_name),
+        username: asString(conversation.username),
+        channelId: asString(conversation.user_channel_id),
+      });
+      const intents: OutgoingIntent[] = [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: {
+            text: `Диалог\nПользователь: ${label}\nСтатус: ${asString(conversation.status) ?? 'open'}`,
+          },
+          replyMarkup: {
+            inline_keyboard: [[
+              { text: 'Ответить', callback_data: `admin_reply:${conversationId}` },
+              { text: 'Завершить диалог', callback_data: `admin_close_dialog:${conversationId}` },
+            ]],
+          },
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      }];
+      return { actionId: action.id, status: 'success', intents };
     }
 
     case 'notifications.get': {

@@ -29,7 +29,9 @@ export function telegramIncomingToEvent(input: {
       source: 'telegram',
       occurredAt: new Date().toISOString(),
       ...(dedupKey ? { dedupKey } : {}),
-      ...(input.incoming.kind === 'message' ? { userId: input.incoming.channelId } : {}),
+      ...(input.incoming.kind === 'message'
+        ? { userId: input.incoming.channelId }
+        : { userId: String(input.incoming.channelUserId) }),
     },
     payload: {
       incoming: input.incoming as unknown,

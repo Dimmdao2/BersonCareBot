@@ -351,6 +351,351 @@ describe('executeAction', () => {
     expect(writeDb).toHaveBeenCalledTimes(2);
   });
 
+  it('upserts and cancels drafts from incoming messages', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const messageCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          ...ctx.event.meta,
+          source: 'telegram',
+          userId: '123',
+        },
+        payload: {
+          incoming: {
+            chatId: 123,
+            channelId: '123',
+            messageId: 55,
+            text: 'Хочу задать вопрос',
+          },
+        },
+      },
+    };
+
+    const upsertResult = await executeAction({
+      id: 'draft-a',
+      type: 'draft.upsertFromMessage',
+      mode: 'sync',
+      params: { source: 'telegram' },
+    }, messageCtx, { writePort: { writeDb } });
+
+    expect(upsertResult.status).toBe('success');
+    expect(writeDb).toHaveBeenCalledWith({
+      type: 'draft.upsert',
+      params: expect.objectContaining({
+        resource: 'telegram',
+        externalId: '123',
+        externalChatId: '123',
+        externalMessageId: '55',
+        draftTextCurrent: 'Хочу задать вопрос',
+      }),
+    });
+
+    const cancelResult = await executeAction({
+      id: 'draft-b',
+      type: 'draft.cancel',
+      mode: 'sync',
+      params: { source: 'telegram' },
+    }, messageCtx, { writePort: { writeDb } });
+
+    expect(cancelResult.status).toBe('success');
+    expect(writeDb).toHaveBeenLastCalledWith({
+      type: 'draft.cancel',
+      params: {
+        resource: 'telegram',
+        externalId: '123',
+        source: 'telegram',
+      },
+    });
+  });
+
+  it('sends draft by creating conversation and notifying admin', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const readDb = vi.fn().mockResolvedValue({
+      id: 'draft-1',
+      source: 'telegram',
+      channel_id: '123',
+      username: 'alice',
+      first_name: 'Alice',
+      last_name: 'Example',
+      external_chat_id: '123',
+      external_message_id: '55',
+      draft_text_current: 'Последний текст вопроса',
+    });
+    const templatePort = {
+      renderTemplate: vi.fn().mockResolvedValue({
+        text: 'Новый вопрос\nОт: Alice Example (@alice)\nTelegram ID: 123\nТекст:\nПоследний текст вопроса',
+      }),
+    };
+    const draftCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'callback.received',
+        meta: {
+          ...ctx.event.meta,
+          source: 'telegram',
+          userId: '123',
+        },
+        payload: {
+          incoming: {
+            chatId: 123,
+            channelUserId: 123,
+            action: 'send_question',
+            callbackQueryId: 'cb-1',
+          },
+        },
+      },
+      base: {
+        ...ctx.base,
+        facts: { adminChatId: 999 },
+      },
+    };
+
+    const result = await executeAction({
+      id: 'draft-send',
+      type: 'draft.send',
+      mode: 'sync',
+      params: {
+        source: 'telegram',
+        adminTemplateKey: 'telegram:adminForward',
+      },
+    }, draftCtx, {
+      readPort: { readDb },
+      writePort: { writeDb },
+      templatePort,
+    });
+
+    expect(result.status).toBe('success');
+    expect(readDb).toHaveBeenCalledWith({
+      type: 'draft.activeByIdentity',
+      params: { resource: 'telegram', externalId: '123', source: 'telegram' },
+    });
+    expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'conversation.open',
+      params: expect.objectContaining({
+        resource: 'telegram',
+        externalId: '123',
+        status: 'waiting_admin',
+      }),
+    }));
+    expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'conversation.message.add',
+      params: expect.objectContaining({
+        senderRole: 'user',
+        text: 'Последний текст вопроса',
+      }),
+    }));
+    expect(result.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 999 },
+        message: { text: expect.stringContaining('Последний текст вопроса') },
+      },
+    });
+  });
+
+  it('routes open conversation user and admin messages through conversation actions', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const readDb = vi.fn()
+      .mockResolvedValueOnce({
+        id: 'conv-1',
+        source: 'telegram',
+        status: 'waiting_user',
+        user_channel_id: '123',
+        username: 'alice',
+        first_name: 'Alice',
+        last_name: 'Example',
+      })
+      .mockResolvedValueOnce({
+        id: 'conv-1',
+        source: 'telegram',
+        status: 'waiting_admin',
+        user_channel_id: '123',
+        username: 'alice',
+        first_name: 'Alice',
+        last_name: 'Example',
+      });
+
+    const userCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          ...ctx.event.meta,
+          source: 'telegram',
+          userId: '123',
+        },
+        payload: {
+          incoming: {
+            chatId: 123,
+            channelId: '123',
+            messageId: 77,
+            text: 'Дополнение от пользователя',
+          },
+        },
+      },
+      base: {
+        ...ctx.base,
+        facts: { adminChatId: 999 },
+      },
+    };
+
+    const userResult = await executeAction({
+      id: 'conv-user',
+      type: 'conversation.user.message',
+      mode: 'sync',
+      params: { source: 'telegram' },
+    }, userCtx, {
+      readPort: { readDb },
+      writePort: { writeDb },
+    });
+
+    expect(userResult.status).toBe('success');
+    expect(userResult.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 999 },
+        message: { text: expect.stringContaining('Дополнение от пользователя') },
+      },
+    });
+
+    const adminCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          ...ctx.event.meta,
+          source: 'telegram',
+          userId: '999',
+        },
+        payload: {
+          incoming: {
+            chatId: 999,
+            channelId: '999',
+            messageId: 88,
+            text: 'Ответ администратора',
+          },
+        },
+      },
+      base: {
+        ...ctx.base,
+        actor: { isAdmin: true },
+        replyMode: true,
+        replyConversationId: 'conv-1',
+      },
+    };
+
+    const adminResult = await executeAction({
+      id: 'conv-admin',
+      type: 'conversation.admin.reply',
+      mode: 'sync',
+      params: {},
+    }, adminCtx, {
+      readPort: { readDb },
+      writePort: { writeDb },
+    });
+
+    expect(adminResult.status).toBe('success');
+    expect(adminResult.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 123 },
+        message: { text: 'Ответ администратора' },
+      },
+    });
+    expect(adminResult.intents?.[1]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 999 },
+        replyMarkup: expect.objectContaining({
+          inline_keyboard: expect.any(Array),
+        }),
+      },
+    });
+  });
+
+  it('closes conversation and shows open dialog list', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const readDb = vi.fn()
+      .mockResolvedValueOnce({
+        id: 'conv-1',
+        source: 'telegram',
+        status: 'waiting_user',
+        user_channel_id: '123',
+      })
+      .mockResolvedValueOnce([{
+        id: 'conv-1',
+        status: 'waiting_admin',
+        user_channel_id: '123',
+        username: 'alice',
+        first_name: 'Alice',
+        last_name: 'Example',
+      }]);
+
+    const adminCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'callback.received',
+        meta: {
+          ...ctx.event.meta,
+          source: 'telegram',
+          userId: '999',
+        },
+        payload: {
+          incoming: {
+            chatId: 999,
+            channelUserId: 999,
+            conversationId: 'conv-1',
+          },
+        },
+      },
+      base: {
+        ...ctx.base,
+        actor: { isAdmin: true },
+      },
+    };
+
+    const closeResult = await executeAction({
+      id: 'conv-close',
+      type: 'conversation.close',
+      mode: 'sync',
+      params: { conversationId: 'conv-1' },
+    }, adminCtx, {
+      readPort: { readDb },
+      writePort: { writeDb },
+    });
+
+    expect(closeResult.status).toBe('success');
+    expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'conversation.state.set',
+      params: expect.objectContaining({
+        id: 'conv-1',
+        status: 'closed',
+      }),
+    }));
+
+    const listResult = await executeAction({
+      id: 'conv-list',
+      type: 'conversation.listOpen',
+      mode: 'sync',
+      params: { source: 'telegram', limit: 10 },
+    }, adminCtx, {
+      readPort: { readDb },
+    });
+
+    expect(listResult.status).toBe('success');
+    expect(listResult.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 999 },
+        replyMarkup: expect.objectContaining({
+          inline_keyboard: expect.any(Array),
+        }),
+      },
+    });
+  });
+
   it('handles notifications.get and notifications.toggle', async () => {
     const readDb = vi.fn().mockResolvedValue({ notify_spb: true, notify_msk: false, notify_online: false });
     const writeDb = vi.fn().mockResolvedValue(undefined);

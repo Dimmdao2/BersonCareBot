@@ -78,6 +78,21 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
       messageId,
       channelUserId: telegramId,
       action,
+      ...(typeof callback.from?.username === 'string' ? { channelUsername: callback.from.username } : {}),
+      ...(typeof callback.from?.first_name === 'string' ? { channelFirstName: callback.from.first_name } : {}),
+      ...(typeof callback.from?.last_name === 'string' ? { channelLastName: callback.from.last_name } : {}),
+      ...(typeof callback.data === 'string' && callback.data.startsWith('admin_reply:')
+        ? { conversationId: callback.data.slice('admin_reply:'.length) }
+        : {}),
+      ...(typeof callback.data === 'string' && callback.data.startsWith('admin_reply_continue:')
+        ? { conversationId: callback.data.slice('admin_reply_continue:'.length) }
+        : {}),
+      ...(typeof callback.data === 'string' && callback.data.startsWith('admin_close_dialog:')
+        ? { conversationId: callback.data.slice('admin_close_dialog:'.length) }
+        : {}),
+      ...(typeof callback.data === 'string' && callback.data.startsWith('dialogs.view:')
+        ? { conversationId: callback.data.slice('dialogs.view:'.length) }
+        : {}),
       callbackData: action,
       callbackQueryId,
     };
@@ -88,10 +103,13 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
       kind: 'message',
       chatId: body.message.chat.id,
       channelId: String(body.message.from.id),
+      ...(typeof body.message.message_id === 'number' ? { messageId: body.message.message_id } : {}),
       text: body.message.text ?? '',
       action: normalizeTelegramMessageAction(body.message.text ?? ''),
       ...(typeof body.message.contact?.phone_number === 'string' ? { contactPhone: body.message.contact.phone_number } : {}),
       ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),
+      ...(typeof body.message.from.first_name === 'string' ? { channelFirstName: body.message.from.first_name } : {}),
+      ...(typeof body.message.from.last_name === 'string' ? { channelLastName: body.message.from.last_name } : {}),
       userRow: null,
       userState: '',
     };

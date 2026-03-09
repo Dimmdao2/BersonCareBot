@@ -29,12 +29,27 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Меню': 'menu.more',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',
+  '/dialogs': 'admin.dialogs.open',
 };
 
-export function normalizeTelegramAction(value: string): string {
+function normalizeDynamicTelegramAction(value: string): { action: string; conversationId?: string } {
   const trimmed = value.trim();
-  if (!trimmed) return '';
-  return LEGACY_CALLBACK_TO_ACTION[trimmed] ?? trimmed;
+  if (!trimmed) return { action: '' };
+  for (const prefix of ['admin_reply:', 'admin_reply_continue:', 'admin_close_dialog:', 'dialogs.view:']) {
+    if (trimmed.startsWith(prefix)) {
+      const conversationId = trimmed.slice(prefix.length).trim();
+      if (!conversationId) return { action: trimmed };
+      return {
+        action: prefix.slice(0, -1),
+        conversationId,
+      };
+    }
+  }
+  return { action: LEGACY_CALLBACK_TO_ACTION[trimmed] ?? trimmed };
+}
+
+export function normalizeTelegramAction(value: string): string {
+  return normalizeDynamicTelegramAction(value).action;
 }
 
 export function normalizeTelegramMessageAction(value: string): string {
@@ -69,14 +84,19 @@ export function fromTelegram(
     const chatId = cq.message?.chat?.id;
     const messageId = cq.message?.message_id;
     if (typeof chatId !== 'number' || typeof messageId !== 'number') return null;
+    const normalized = normalizeDynamicTelegramAction(cq.data ?? '');
     const update: IncomingCallbackUpdate = {
       kind: 'callback',
       chatId,
       messageId,
       channelUserId: cq.from.id,
-      action: normalizeTelegramAction(cq.data ?? ''),
+      action: normalized.action,
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
-      callbackData: normalizeTelegramAction(cq.data ?? ''),
+      ...(typeof cq.from.username === 'string' ? { channelUsername: cq.from.username } : {}),
+      ...(typeof cq.from.first_name === 'string' ? { channelFirstName: cq.from.first_name } : {}),
+      ...(typeof cq.from.last_name === 'string' ? { channelLastName: cq.from.last_name } : {}),
+      ...(typeof normalized.conversationId === 'string' ? { conversationId: normalized.conversationId } : {}),
+      callbackData: normalized.action,
       callbackQueryId: cq.id,
     };
     return update;
@@ -101,11 +121,14 @@ export function fromTelegram(
       kind: 'message',
       chatId,
       channelId: telegramId,
+      ...(typeof msg.message_id === 'number' ? { messageId: msg.message_id } : {}),
       text: msg.text ?? '',
       action: normalizeTelegramMessageAction(msg.text ?? ''),
       ...(typeof msg.contact?.phone_number === 'string' && { contactPhone: msg.contact.phone_number }),
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       ...(typeof msg.from?.username === 'string' && { channelUsername: msg.from.username }),
+      ...(typeof msg.from?.first_name === 'string' && { channelFirstName: msg.from.first_name } ),
+      ...(typeof msg.from?.last_name === 'string' && { channelLastName: msg.from.last_name } ),
       userRow,
       userState: typeof userState === 'string' ? userState : '',
       ...(typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)

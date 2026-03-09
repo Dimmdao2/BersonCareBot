@@ -75,17 +75,91 @@
 		},
 		"steps": [
 			{
-				"action": "admin.forward",
+				"action": "draft.upsertFromMessage",
+				"mode": "sync",
+				"params": {
+					"source": "telegram"
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.inlineKeyboard.show",
 				"mode": "async",
 				"params": {
-					"chatId": "{{facts.adminChatId}}",
-					"templateKey": "telegram:adminForward",
-					"vars": {
-						"name": "{{facts.actor.displayName}}",
-						"username": "{{actor.username}}",
-						"channelId": "{{actor.channelUserId}}",
-						"messageText": "{{input.text}}"
-					}
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:confirmQuestion",
+					"inlineKeyboard": [
+						[
+							{ "text": "Отправить вопрос", "callbackData": "send_question" }
+						],
+						[
+							{ "text": "Отмена", "callbackData": "cancel_question" }
+						]
+					]
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.draft.replace",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"context": { "hasActiveDraft": true, "hasOpenConversation": false },
+			"input": {
+				"textPresent": true,
+				"excludeActions": ["booking.open", "question.ask", "menu.more"],
+				"excludeTexts": ["/start"]
+			}
+		},
+		"steps": [
+			{
+				"action": "draft.replaceFromMessage",
+				"mode": "sync",
+				"params": {
+					"source": "telegram"
+				}
+			},
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:confirmQuestion",
+					"inlineKeyboard": [
+						[
+							{ "text": "Отправить вопрос", "callbackData": "send_question" }
+						],
+						[
+							{ "text": "Отмена", "callbackData": "cancel_question" }
+						]
+					]
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.draft.send",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"context": { "hasActiveDraft": true },
+			"input": { "action": "send_question" }
+		},
+		"steps": [
+			{
+				"action": "draft.send",
+				"mode": "sync",
+				"params": {
+					"source": "telegram",
+					"adminTemplateKey": "telegram:adminForward"
 				}
 			},
 			{
@@ -104,6 +178,84 @@
 					"message": {},
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
 					"templateKey": "telegram:questionAccepted"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.draft.cancel",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"context": { "hasActiveDraft": true },
+			"input": { "action": "cancel_question" }
+		},
+		"steps": [
+			{
+				"action": "draft.cancel",
+				"mode": "sync",
+				"params": {
+					"source": "telegram"
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"message": {},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"templateKey": "telegram:questionCancelled"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.conversation.user.message",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"context": { "hasOpenConversation": true },
+			"input": { "textPresent": true, "excludeTexts": ["/start"] }
+		},
+		"steps": [
+			{
+				"action": "conversation.user.message",
+				"mode": "sync",
+				"params": {
+					"source": "telegram"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"message": {},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"templateKey": "telegram:dialogMessageAccepted"
 				}
 			}
 		]
@@ -706,7 +858,7 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"context": { "conversationState": "idle" },
+			"context": { "conversationState": "idle", "hasOpenConversation": false },
 			"input": {
 				"textPresent": true,
 				"excludeActions": ["booking.open", "question.ask", "menu.more"],
@@ -715,19 +867,26 @@
 		},
 		"steps": [
 			{
-				"action": "message.replyKeyboard.show",
+				"action": "draft.upsertFromMessage",
+				"mode": "sync",
+				"params": {
+					"source": "telegram"
+				}
+			},
+			{
+				"action": "message.inlineKeyboard.show",
 				"mode": "async",
 				"params": {
 					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:chooseMenu",
-					"keyboard": [
+					"templateKey": "telegram:confirmQuestion",
+					"inlineKeyboard": [
 						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "text": "Отправить вопрос", "callbackData": "send_question" }
+						],
+						[
+							{ "text": "Отмена", "callbackData": "cancel_question" }
 						]
-					],
-					"resizeKeyboard": true
+					]
 				}
 			}
 		]

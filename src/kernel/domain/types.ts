@@ -35,11 +35,14 @@ export type IncomingMessageUpdate = {
   kind: 'message';
   chatId: number;
   channelId: string;
+  messageId?: number;
   text: string;
   action?: string;
   contactPhone?: string;
   hasLinkedPhone?: boolean;
   channelUsername?: string | null;
+  channelFirstName?: string | null;
+  channelLastName?: string | null;
   userRow: { id: string; channel_id: string } | null;
   userState: string;
   adminForward?: { chatId: number; text: string } | undefined;
@@ -52,8 +55,12 @@ export type IncomingCallbackUpdate = {
   channelUserId: number;
   action?: string;
   hasLinkedPhone?: boolean;
+  channelUsername?: string | null;
+  channelFirstName?: string | null;
+  channelLastName?: string | null;
   callbackData: string;
   callbackQueryId: string;
+  conversationId?: string;
 };
 
 /** Transport-agnostic incoming update shape used in connector mappers. */

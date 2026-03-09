@@ -1,8 +1,15 @@
 import type { DbPort, DbWriteMutation, DbWritePort } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { upsertRecord, insertEvent } from './repos/bookingRecords.js';
-import { setUserPhone, setUserState, updateNotificationSettings } from './repos/channelUsers.js';
+import { setUserPhone, setUserState, updateNotificationSettings, upsertUser } from './repos/channelUsers.js';
 import { appendMessageLog } from './repos/messageLogs.js';
+import {
+  cancelDraftByIdentity,
+  insertConversation,
+  insertConversationMessage,
+  setConversationState,
+  upsertDraftByIdentity,
+} from './repos/messageThreads.js';
 import { enqueueMessageRetryJob } from './repos/jobQueue.js';
 import { logger } from '../observability/logger.js';
 
@@ -87,6 +94,27 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
           await appendMessageLog(db, mutation);
           return;
         }
+        case 'user.upsert': {
+          const resource = readResource(mutation.params);
+          if (resource !== 'telegram') return;
+          const externalId = asNonEmptyString(
+            mutation.params.externalId
+            ?? mutation.params.channelUserId
+            ?? mutation.params.channelId,
+          );
+          const parsedId = externalId ? Number(externalId) : Number.NaN;
+          if (!Number.isFinite(parsedId)) return;
+          const username = asNullableString(mutation.params.username);
+          const firstName = asNullableString(mutation.params.firstName);
+          const lastName = asNullableString(mutation.params.lastName);
+          await upsertUser(db, {
+            id: Math.trunc(parsedId),
+            ...(username ? { username } : {}),
+            ...(firstName ? { first_name: firstName } : {}),
+            ...(lastName ? { last_name: lastName } : {}),
+          });
+          return;
+        }
         case 'user.state.set': {
           const resource = readResource(mutation.params);
           if (resource !== 'telegram') return;
@@ -104,6 +132,89 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
           await setUserPhone(db, channelUserId, phoneNormalized);
           return;
         }
+        case 'draft.upsert': {
+          const resource = readResource(mutation.params);
+          const externalId = readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
+          const source = asNonEmptyString(mutation.params.source) ?? resource;
+          const id = asNonEmptyString(mutation.params.id);
+          const draftTextCurrent = asNonEmptyString(mutation.params.draftTextCurrent);
+          if (!resource || !externalId || !source || !id || !draftTextCurrent) return;
+          const state = asNullableString(mutation.params.state);
+          await upsertDraftByIdentity(db, {
+            id,
+            resource,
+            externalId,
+            source,
+            ...(asNullableString(mutation.params.externalChatId) !== null ? { externalChatId: asNullableString(mutation.params.externalChatId) } : {}),
+            ...(asNullableString(mutation.params.externalMessageId) !== null ? { externalMessageId: asNullableString(mutation.params.externalMessageId) } : {}),
+            draftTextCurrent,
+            ...(state ? { state } : {}),
+          });
+          return;
+        }
+        case 'draft.cancel': {
+          const resource = readResource(mutation.params);
+          const externalId = readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
+          const source = asNonEmptyString(mutation.params.source);
+          if (!resource || !externalId) return;
+          await cancelDraftByIdentity(db, { resource, externalId, ...(source ? { source } : {}) });
+          return;
+        }
+        case 'conversation.open': {
+          const resource = readResource(mutation.params);
+          const externalId = readChannelUserId(mutation.params) ?? asNonEmptyString(mutation.params.externalId);
+          const source = asNonEmptyString(mutation.params.source) ?? resource;
+          const id = asNonEmptyString(mutation.params.id);
+          const adminScope = asNonEmptyString(mutation.params.adminScope) ?? 'default';
+          const status = asNonEmptyString(mutation.params.status) ?? 'waiting_admin';
+          const openedAt = asNonEmptyString(mutation.params.openedAt);
+          const lastMessageAt = asNonEmptyString(mutation.params.lastMessageAt) ?? openedAt;
+          if (!resource || !externalId || !source || !id || !openedAt || !lastMessageAt) return;
+          await insertConversation(db, {
+            id,
+            source,
+            resource,
+            externalId,
+            adminScope,
+            status,
+            openedAt,
+            lastMessageAt,
+          });
+          return;
+        }
+        case 'conversation.message.add': {
+          const id = asNonEmptyString(mutation.params.id);
+          const conversationId = asNonEmptyString(mutation.params.conversationId);
+          const senderRole = asNonEmptyString(mutation.params.senderRole);
+          const text = asNonEmptyString(mutation.params.text);
+          const source = asNonEmptyString(mutation.params.source) ?? 'telegram';
+          const createdAt = asNonEmptyString(mutation.params.createdAt);
+          if (!id || !conversationId || !senderRole || !text || !createdAt) return;
+          await insertConversationMessage(db, {
+            id,
+            conversationId,
+            senderRole,
+            text,
+            source,
+            ...(asNullableString(mutation.params.externalChatId) !== null ? { externalChatId: asNullableString(mutation.params.externalChatId) } : {}),
+            ...(asNullableString(mutation.params.externalMessageId) !== null ? { externalMessageId: asNullableString(mutation.params.externalMessageId) } : {}),
+            createdAt,
+          });
+          return;
+        }
+        case 'conversation.state.set': {
+          const id = asNonEmptyString(mutation.params.id ?? mutation.params.conversationId);
+          const status = asNonEmptyString(mutation.params.status);
+          if (!id || !status) return;
+          await setConversationState(db, {
+            id,
+            status,
+            ...(asNullableString(mutation.params.lastMessageAt) !== null ? { lastMessageAt: asNullableString(mutation.params.lastMessageAt) } : {}),
+            ...(asNullableString(mutation.params.closedAt) !== null ? { closedAt: asNullableString(mutation.params.closedAt) } : {}),
+            ...(asNullableString(mutation.params.closeReason) !== null ? { closeReason: asNullableString(mutation.params.closeReason) } : {}),
+          });
+          return;
+        }
         case 'notifications.update': {
           const resource = readResource(mutation.params);
           if (resource !== 'telegram') return;
@@ -117,8 +228,7 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
           await updateNotificationSettings(db, channelUserId, settings);
           return;
         }
-        case 'delivery.attempt.log':
-        case 'user.upsert': {
+        case 'delivery.attempt.log': {
           if (mutation.type === 'delivery.attempt.log') {
             logger.info({ params: mutation.params }, 'delivery attempt log');
           }

@@ -83,5 +83,189 @@
 				}
 			}
 		]
+	},
+	{
+		"id": "telegram.admin.dialogs.open",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 10,
+		"match": {
+			"input": { "action": "admin.dialogs.open" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "conversation.listOpen",
+				"mode": "sync",
+				"params": {
+					"source": "telegram",
+					"limit": 10
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.admin.dialogs.view",
+		"source": "telegram",
+		"event": "callback.received",
+		"priority": 10,
+		"match": {
+			"input": { "action": "dialogs.view" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "conversation.show",
+				"mode": "sync",
+				"params": {
+					"conversationId": "{{input.conversationId}}"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.admin.reply.start",
+		"source": "telegram",
+		"event": "callback.received",
+		"priority": 10,
+		"match": {
+			"input": { "action": "admin_reply" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "admin_reply:{{input.conversationId}}"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:admin.reply.prompt",
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.admin.reply.continue",
+		"source": "telegram",
+		"event": "callback.received",
+		"priority": 10,
+		"match": {
+			"input": { "action": "admin_reply_continue" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "admin_reply:{{input.conversationId}}"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:admin.reply.prompt",
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.admin.reply.message",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 10,
+		"match": {
+			"context": { "replyMode": true },
+			"input": {
+				"textPresent": true,
+				"excludeActions": ["admin.dialogs.open", "admin.stats.bookings", "admin.stats.users"],
+				"excludeTexts": ["/start"]
+			},
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "conversation.admin.reply",
+				"mode": "sync",
+				"params": {
+					"conversationId": "{{context.replyConversationId}}"
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.admin.dialog.close",
+		"source": "telegram",
+		"event": "callback.received",
+		"priority": 10,
+		"match": {
+			"input": { "action": "admin_close_dialog" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "conversation.close",
+				"mode": "sync",
+				"params": {
+					"conversationId": "{{input.conversationId}}"
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
 	}
 ]
