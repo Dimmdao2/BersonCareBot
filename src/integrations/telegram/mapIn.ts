@@ -84,8 +84,8 @@ export function fromTelegram(
     const msg = body.message;
     const chatId = msg.chat!.id;
     if (!telegramId) return null;
-    // Передаем adminForward с chatId из ADMIN_TELEGRAM_ID
-    const adminTelegramId = Number(process.env.ADMIN_TELEGRAM_ID);
+    const adminTelegramIdRaw = process.env.ADMIN_TELEGRAM_ID;
+    const adminTelegramId = typeof adminTelegramIdRaw === 'string' ? Number(adminTelegramIdRaw) : undefined;
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
@@ -97,7 +97,9 @@ export function fromTelegram(
       ...(typeof msg.from?.username === 'string' && { channelUsername: msg.from.username }),
       userRow,
       userState: typeof userState === 'string' ? userState : '',
-      adminForward: { chatId: adminTelegramId, text: msg.text ?? '' },
+      ...(typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)
+        ? { adminForward: { chatId: adminTelegramId, text: msg.text ?? '' } }
+        : {}),
     };
     return update;
   }
