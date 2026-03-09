@@ -27,6 +27,8 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Задать вопрос': 'question.ask',
   '⚙️ Меню': 'menu.more',
   'Меню': 'menu.more',
+  '📊 Панель администратора': 'admin.menu.open',
+  '/admin': 'admin.menu.open',
 };
 
 export function normalizeTelegramAction(value: string): string {

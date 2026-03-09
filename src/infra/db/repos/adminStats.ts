@@ -5,6 +5,7 @@ export type AdminStats = {
   activeBookings: number;
   userCountsByIntegration: {
     telegram?: { total: number; withPhone: number };
+    rubitime?: { total: number };
     [key: string]: { total: number; withPhone?: number } | undefined;
   };
 };
@@ -34,26 +35,15 @@ async function getActiveBookingsCount(db: DbPort): Promise<number> {
 async function getUserCountsByIntegration(db: DbPort): Promise<AdminStats['userCountsByIntegration']> {
   const result: AdminStats['userCountsByIntegration'] = {};
 
-  // Telegram: total identities, and those with phone (via contacts)
-  const telegramQuery = `
-    WITH telegram_users AS (
-      SELECT i.user_id
-      FROM identities i
-      WHERE i.resource = 'telegram'
-    ),
-    with_phone AS (
-      SELECT COUNT(DISTINCT c.user_id)::int AS cnt
-      FROM contacts c
-      WHERE c.type = 'phone'
-        AND c.user_id IN (SELECT user_id FROM telegram_users)
-    )
-    SELECT
-      (SELECT COUNT(*)::int FROM telegram_users) AS total,
-      (SELECT cnt FROM with_phone) AS with_phone
-  `;
+  // Telegram: legacy telegram_users (основной источник), with phone из telegram_users.phone
   try {
-    const res = await db.query<{ total: number; with_phone: number }>(telegramQuery);
-    const row = res.rows[0];
+    const telegramRes = await db.query<{ total: number; with_phone: number }>(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE phone IS NOT NULL AND TRIM(phone) != '')::int AS with_phone
+      FROM telegram_users
+    `);
+    const row = telegramRes.rows[0];
     if (row) {
       result.telegram = {
         total: row.total ?? 0,
@@ -62,6 +52,21 @@ async function getUserCountsByIntegration(db: DbPort): Promise<AdminStats['userC
     }
   } catch (err) {
     logger.error({ err }, 'get telegram user counts failed');
+  }
+
+  // RubiTime: уникальные телефоны в rubitime_records
+  try {
+    const rubitimeRes = await db.query<{ cnt: number }>(`
+      SELECT COUNT(DISTINCT phone_normalized)::int AS cnt
+      FROM rubitime_records
+      WHERE phone_normalized IS NOT NULL AND TRIM(phone_normalized) != ''
+    `);
+    const row = rubitimeRes.rows[0];
+    if (row != null) {
+      result.rubitime = { total: row.cnt ?? 0 };
+    }
+  } catch (err) {
+    logger.error({ err }, 'get rubitime user counts failed');
   }
 
   return result;

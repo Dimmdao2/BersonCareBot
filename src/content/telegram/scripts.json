@@ -29,7 +29,7 @@
 		"event": "message.received",
 		"priority": 10,
 		"match": {
-			"input": { "action": "menu.more" },
+			"input": { "action": "admin.menu.open" },
 			"actor": { "isAdmin": true }
 		},
 		"steps": [
@@ -112,7 +112,8 @@
 					"templateKey": "telegram:admin.stats.users",
 					"vars": {
 						"telegramTotal": "{{queries.adminStats.userCountsByIntegration.telegram.total}}",
-						"telegramWithPhone": "{{queries.adminStats.userCountsByIntegration.telegram.withPhone}}"
+						"telegramWithPhone": "{{queries.adminStats.userCountsByIntegration.telegram.withPhone}}",
+						"rubitimeTotal": "{{queries.adminStats.userCountsByIntegration.rubitime.total}}"
 					},
 					"inlineKeyboard": [
 						[{ "text": "⬅️ Назад", "callbackData": "admin.menu.back" }]

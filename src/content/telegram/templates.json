@@ -30,5 +30,5 @@
   "adminForward": "Новый вопрос\nОт: {{name}} {{usernameMention}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}",
   "admin.menu": "📊 Панель администратора",
   "admin.stats.bookings": "📅 Активных записей: {{activeBookings}}",
-  "admin.stats.users": "👥 Пользователи по интеграциям\n\nTelegram: {{telegramTotal}} всего, {{telegramWithPhone}} с телефоном"
+  "admin.stats.users": "👥 Пользователи по интеграциям\n\nTelegram: {{telegramTotal}} всего, {{telegramWithPhone}} с телефоном\nRubiTime: {{rubitimeTotal}} всего"
 }

@@ -5,6 +5,7 @@ import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
 import { normalizeTelegramAction, normalizeTelegramMessageAction } from './mapIn.js';
+import { setupTelegramMenuButton } from './setupMenuButton.js';
 import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
@@ -107,6 +108,8 @@ export async function registerTelegramWebhookRoutes(
   app: FastifyInstance,
   deps: TelegramWebhookDeps,
 ): Promise<void> {
+  await setupTelegramMenuButton();
+
   app.post('/webhook/telegram', async (request, reply) => {
     const correlationId = request.id;
     const eventId = newEventId('incoming');
