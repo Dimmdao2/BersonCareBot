@@ -14,21 +14,15 @@ set +a
 
 node dist/infra/db/migrate.js
 
-sudo systemctl restart bersoncarebot-api-prod
-sudo systemctl restart bersoncarebot-worker-prod
+sudo systemctl restart bersoncarebot-api-prod.service
+sudo systemctl restart bersoncarebot-worker-prod.service
 
 sleep 3
 
-sudo systemctl is-active --quiet bersoncarebot-api-prod
-sudo systemctl is-active --quiet bersoncarebot-worker-prod
+sudo systemctl is-active --quiet bersoncarebot-api-prod.service
+sudo systemctl is-active --quiet bersoncarebot-worker-prod.service
 
 curl -f http://127.0.0.1:3200/health | tee /tmp/bersoncarebot-health.json
 
 grep -q '"ok":true' /tmp/bersoncarebot-health.json
 grep -q '"db":"up"' /tmp/bersoncarebot-health.json
-
-sudo systemctl --no-pager --full status bersoncarebot-api-prod
-sudo systemctl --no-pager --full status bersoncarebot-worker-prod
-
-sudo journalctl -u bersoncarebot-api-prod -n 50 --no-pager
-sudo journalctl -u bersoncarebot-worker-prod -n 50 --no-pager
