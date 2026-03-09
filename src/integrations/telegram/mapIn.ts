@@ -84,13 +84,25 @@ export function fromTelegram(
     const msg = body.message;
     const chatId = msg.chat!.id;
     if (!telegramId) return null;
-    const adminTelegramIdRaw = process.env.ADMIN_TELEGRAM_ID;
-    const adminTelegramId = typeof adminTelegramIdRaw === 'string' ? Number(adminTelegramIdRaw) : undefined;
-    console.log('[telegram][mapIn] ADMIN_TELEGRAM_ID raw:', adminTelegramIdRaw, 'parsed:', adminTelegramId);
-    if (typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)) {
-      console.log('[telegram][mapIn] adminForward will be set:', { chatId: adminTelegramId, text: msg.text ?? '' });
-    } else {
-      console.log('[telegram][mapIn] adminForward NOT set, invalid adminTelegramId:', adminTelegramId);
+      const reqLogger = (context as any)?.reqLogger;
+      const adminTelegramIdRaw = process.env.ADMIN_TELEGRAM_ID;
+      const adminTelegramId = typeof adminTelegramIdRaw === 'string' ? Number(adminTelegramIdRaw) : undefined;
+      if (reqLogger) {
+        reqLogger.info({ adminTelegramIdRaw, adminTelegramId }, '[telegram][mapIn] ADMIN_TELEGRAM_ID diagnostics');
+        if (typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)) {
+          reqLogger.info({ chatId: adminTelegramId, text: msg.text ?? '' }, '[telegram][mapIn] adminForward will be set');
+        } else {
+          reqLogger.warn({ adminTelegramId }, '[telegram][mapIn] adminForward NOT set, invalid adminTelegramId');
+        }
+      }
+    if (reqLogger) {
+      reqLogger.info({ adminTelegramIdRaw, adminTelegramId }, '[telegram][mapIn] ADMIN_TELEGRAM_ID diagnostics');
+      if (typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)) {
+        reqLogger.info({ chatId: adminTelegramId, text: msg.text ?? '' }, '[telegram][mapIn] adminForward will be set');
+      } else {
+        reqLogger.warn({ adminTelegramId }, '[telegram][mapIn] adminForward NOT set, invalid adminTelegramId');
+      }
+>>>>>>> a4bf8e2 (111111111лог)
     }
     const update: IncomingMessageUpdate = {
       kind: 'message',
