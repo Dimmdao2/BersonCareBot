@@ -25,12 +25,12 @@ function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, 
   const from = body.callback_query?.from ?? body.message?.from;
   const displayName = from ? joinDisplayName(from) : undefined;
   const bookingUrl = env.BOOKING_URL;
-  const inboxChatId = parseTelegramChatId(env.INBOX_CHAT_ID);
+  const adminTelegramId = parseTelegramChatId(env.ADMIN_TELEGRAM_ID);
 
   return {
     ...(displayName ? { actor: { displayName } } : {}),
     ...(bookingUrl ? { links: { bookingUrl } } : {}),
-    ...(typeof inboxChatId === 'number' ? { admin: { inboxChatId } } : {}),
+    ...(typeof adminTelegramId === 'number' ? { admin: { adminTelegramId } } : {}),
   };
 }
 
