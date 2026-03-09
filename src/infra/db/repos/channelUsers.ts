@@ -173,6 +173,7 @@ export async function setUserState(
       DO UPDATE SET
         state = EXCLUDED.state,
         updated_at = now()
+      RETURNING *
     )
     SELECT 1 FROM upsert_state
   `;
