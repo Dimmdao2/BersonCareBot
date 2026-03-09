@@ -22,7 +22,18 @@ sleep 3
 sudo /bin/systemctl is-active --quiet bersoncarebot-api-prod.service
 sudo /bin/systemctl is-active --quiet bersoncarebot-worker-prod.service
 
-curl -f http://127.0.0.1:3200/health | tee /tmp/bersoncarebot-health.json
+# Health check: use PORT from .env.prod (same as API). Production must have PORT=3200 in .env.prod. Retry for slow startup.
+API_PORT="${PORT:-3200}"
+for i in 1 2 3 4 5; do
+  if curl -sf "http://127.0.0.1:${API_PORT}/health" -o /tmp/bersoncarebot-health.json; then
+    break
+  fi
+  if [ "$i" -eq 5 ]; then
+    echo "Health check failed after 5 attempts (port ${API_PORT})"
+    exit 1
+  fi
+  sleep 2
+done
 
 grep -q '"ok":true' /tmp/bersoncarebot-health.json
 grep -q '"db":"up"' /tmp/bersoncarebot-health.json
