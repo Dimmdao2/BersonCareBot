@@ -26,15 +26,19 @@ function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, 
   const displayName = from ? joinDisplayName(from) : undefined;
   const bookingUrl = env.BOOKING_URL;
   const adminTelegramId = parseTelegramChatId(env.ADMIN_TELEGRAM_ID);
+  const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
+  const isAdmin =
+    typeof adminTelegramId === 'number' &&
+    typeof chatId === 'number' &&
+    chatId === adminTelegramId;
 
-  const admin: Record<string, unknown> = {};
-  if (typeof adminTelegramId === 'number') admin.adminTelegramId = adminTelegramId;
-
-  return {
+  const result: Record<string, unknown> = {
     ...(displayName ? { actor: { displayName } } : {}),
     ...(bookingUrl ? { links: { bookingUrl } } : {}),
-    ...(Object.keys(admin).length > 0 ? { admin } : {}),
+    ...(typeof isAdmin === 'boolean' ? { isAdmin } : {}),
   };
+  if (typeof adminTelegramId === 'number') result.adminChatId = adminTelegramId;
+  return result;
 }
 
 export type TelegramWebhookDeps = {

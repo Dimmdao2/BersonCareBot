@@ -15,6 +15,7 @@ export type DbReadQueryType =
   | 'notifications.settings'
   | 'booking.byExternalId'
   | 'booking.activeByUser'
+  | 'stats.adminDashboard'
   | 'delivery.pending';
 
 /** Категории write-мутаций к хранилищу. */
@@ -91,7 +92,8 @@ export type ContextQuery =
   | { type: 'subscriptions.forUser'; userId: string }
   | { type: 'user.identityLinks'; userId: string }
   | { type: 'bookings.forUser'; userId: string }
-  | { type: 'booking.recordByExternalId'; recordId: string };
+  | { type: 'booking.recordByExternalId'; recordId: string }
+  | { type: 'admin.stats' };
 
 export type ContextQueryPort = {
   request(query: ContextQuery): Promise<unknown>;

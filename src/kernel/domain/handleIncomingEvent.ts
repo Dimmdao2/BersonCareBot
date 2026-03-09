@@ -114,13 +114,15 @@ async function buildBaseContext(event: IncomingEvent, readPort?: DbReadPort): Pr
   if (phone) identityLinks.push({ kind: 'phone', value: phone });
   if (event.meta.userId) identityLinks.push({ kind: 'userId', value: event.meta.userId });
   const userContext = await loadUserContext(event, readPort);
+  const facts = extractFacts(event);
+  const isAdmin = facts.isAdmin === true;
 
   return {
     actor: {
-      isAdmin: false,
+      isAdmin,
     },
     identityLinks,
-    ...(Object.keys(extractFacts(event)).length > 0 ? { facts: extractFacts(event) } : {}),
+    ...(Object.keys(facts).length > 0 ? { facts } : {}),
     ...userContext,
   };
 }

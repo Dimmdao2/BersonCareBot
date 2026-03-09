@@ -58,6 +58,13 @@ export function createContextQueryPort(input: { readPort: DbReadPort }): Context
           });
           return { type: 'booking.recordByExternalId', record };
         }
+        case 'admin.stats': {
+          const stats = await input.readPort.readDb<{
+            activeBookings: number;
+            userCountsByIntegration: Record<string, { total: number; withPhone?: number }>;
+          }>({ type: 'stats.adminDashboard', params: {} });
+          return { type: 'admin.stats', ...stats };
+        }
         default:
           return { type: 'bookings.forUser', items: [] };
       }

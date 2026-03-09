@@ -1,5 +1,6 @@
 import type { DbPort, DbReadPort, DbReadQuery } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
+import { getAdminStats } from './repos/adminStats.js';
 import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingRecords.js';
 import { getNotificationSettings } from './repos/channelUsers.js';
 import { findUserByChannelId, findUserByPhone, lookupUser } from './repos/userLookup.js';
@@ -58,6 +59,8 @@ export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
           if (!userId) return [] as T;
           return (await getActiveRecordsByPhone(db, userId)) as T;
         }
+        case 'stats.adminDashboard':
+          return (await getAdminStats(db)) as T;
         default:
           return null as T;
       }

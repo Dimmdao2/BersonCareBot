@@ -150,6 +150,7 @@ export const dbReadQuerySchema = z.object({
     'notifications.settings',
     'booking.byExternalId',
     'booking.activeByUser',
+    'stats.adminDashboard',
     'delivery.pending',
   ]),
   params: z.record(z.string(), z.unknown()),
