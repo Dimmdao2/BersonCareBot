@@ -18,7 +18,8 @@ set -a
 source /opt/projects/bersoncarebot/.env.prod
 set +a
 
-/opt/backups/scripts/postgres-backup.sh
+# Backup needs write access to /opt/backups/postgres/hourly/ (run as root)
+sudo /opt/backups/scripts/postgres-backup.sh
 
 node dist/infra/db/migrate.js
 
