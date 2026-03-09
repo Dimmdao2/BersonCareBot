@@ -150,25 +150,7 @@ const TELEGRAM_KEY_TABLES = [
 async function applyMigration(db: Pool, migration: MigrationFile, sql: string): Promise<void> {
   const migrationLogger = getMigrationLogger(migration.version);
 
-  // Safe-скип для Telegram миграций, если структура уже есть
-  if (
-    migration.scope === 'telegram' &&
-    TELEGRAM_SAFE_MIGRATIONS.includes(migration.version) &&
-    (await allTablesExist(db, TELEGRAM_KEY_TABLES))
-  ) {
-    await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [migration.version]);
-    migrationLogger.info(
-      {
-        scope: migration.scope,
-        fileName: migration.fileName,
-        migration: migration.version,
-        safeSkip: true,
-      },
-      'Safe-skip migration: structure already present',
-    );
-    return;
-  }
-
+  // Полностью идемпотентная логика для любых миграций
   await db.query('BEGIN');
   try {
     await db.query(sql); // Выполняем SQL миграции
@@ -182,7 +164,43 @@ async function applyMigration(db: Pool, migration: MigrationFile, sql: string): 
       },
       'Applied migration',
     );
-  } catch (error) {
+  } catch (error: any) {
+    // Список ошибок, которые считаются "уже применено"
+    const safePgCodes = [
+      '42710', // duplicate_object
+      '42701', // duplicate_column
+      '42P07', // duplicate_table
+      '23505', // unique_violation
+      '42P16', // invalid_table_definition (например, constraint exists)
+    ];
+    const safeMessages = [
+      'already exists',
+      'duplicate',
+      'already defined',
+      'already in',
+      'already present',
+      'constraint',
+    ];
+    const pgCode = error?.code;
+    const msg = (error?.message || '').toLowerCase();
+    const isSafe =
+      (pgCode && safePgCodes.includes(pgCode)) ||
+      safeMessages.some((m) => msg.includes(m));
+    if (isSafe) {
+      await db.query('ROLLBACK');
+      await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [migration.version]);
+      migrationLogger.warn(
+        {
+          err: error,
+          scope: migration.scope,
+          fileName: migration.fileName,
+          migration: migration.version,
+          idempotent: true,
+        },
+        'Migration already applied or structure exists, marking as applied',
+      );
+      return;
+    }
     await db.query('ROLLBACK');
     migrationLogger.error(
       {
