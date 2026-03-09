@@ -193,6 +193,7 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
+			"actor": { "isAdmin": false },
 			"context": { "hasOpenConversation": true },
 			"input": { "textPresent": true, "excludeTexts": ["/start"] }
 		},
