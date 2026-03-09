@@ -55,6 +55,7 @@ export async function registerRubitimeWebhookRoutes(
         {
           action: (incoming as Record<string, unknown>)?.action,
           entity: (incoming as Record<string, unknown>)?.entity,
+          status: (incoming as Record<string, unknown>)?.status,
           phone: (incoming as Record<string, unknown>)?.phone,
           recordId: (incoming as Record<string, unknown>)?.recordId,
         },

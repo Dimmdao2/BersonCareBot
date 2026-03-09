@@ -30,7 +30,7 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
   const data = asRecord(body.data);
   const record = asRecord(data.record);
   const source = Object.keys(record).length > 0 ? record : data;
-  const status = asString(source.status_name);
+  const status = asString(source.status_name) ?? asString(source.status);
   const statusCode = asString(source.status);
   const recordId = asString(source.id);
   const phone = asString(source.phone);
