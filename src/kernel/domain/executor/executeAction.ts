@@ -968,6 +968,9 @@ export async function executeAction(
         ctx,
         templatePort: deps.templatePort,
       });
+      const replyButtonText = deps.templatePort
+        ? (await renderText({ templateKey: 'telegram:admin.reply.button', ctx, templatePort: deps.templatePort })) || 'Ответить'
+        : 'Ответить';
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
@@ -976,8 +979,7 @@ export async function executeAction(
           message: { text: adminText || draftTextCurrent },
           replyMarkup: {
             inline_keyboard: [[
-              { text: 'Ответить', callback_data: `admin_reply:${conversationId}` },
-              { text: 'Завершить диалог', callback_data: `admin_close_dialog:${conversationId}` },
+              { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
             ]],
           },
           delivery: { channels: ['telegram'], maxAttempts: 1 },
@@ -1051,16 +1053,26 @@ export async function executeAction(
         username: asString(conversation?.username),
         channelId: asString(conversation?.user_channel_id),
       });
+      const newMessageText = deps.templatePort
+        ? (await renderText({
+          templateKey: 'telegram:admin.conversation.newMessage',
+          vars: { userLabel, text },
+          ctx,
+          templatePort: deps.templatePort,
+        })) || `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${text}`
+        : `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${text}`;
+      const replyButtonText = deps.templatePort
+        ? (await renderText({ templateKey: 'telegram:admin.reply.button', ctx, templatePort: deps.templatePort })) || 'Ответить'
+        : 'Ответить';
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
         payload: {
           recipient: { chatId: adminChatId },
-          message: { text: `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${text}` },
+          message: { text: newMessageText },
           replyMarkup: {
             inline_keyboard: [[
-              { text: 'Ответить', callback_data: `admin_reply:${conversationId}` },
-              { text: 'Завершить диалог', callback_data: `admin_close_dialog:${conversationId}` },
+              { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
             ]],
           },
           delivery: { channels: ['telegram'], maxAttempts: 1 },
@@ -1161,16 +1173,21 @@ export async function executeAction(
         },
       ];
       if (adminChatId !== null) {
+        const sentText = deps.templatePort
+          ? (await renderText({ templateKey: 'telegram:admin.reply.sent', ctx, templatePort: deps.templatePort })) || 'Сообщение отправлено.'
+          : 'Сообщение отправлено.';
+        const continueButtonText = deps.templatePort
+          ? (await renderText({ templateKey: 'telegram:admin.reply.continueButton', ctx, templatePort: deps.templatePort })) || 'Дополнить ответ'
+          : 'Дополнить ответ';
         intents.push({
           type: 'message.send',
           meta: buildIntentMeta(action, ctx),
           payload: {
             recipient: { chatId: adminChatId },
-            message: { text: 'Сообщение отправлено.' },
+            message: { text: sentText },
             replyMarkup: {
               inline_keyboard: [[
-                { text: 'Дополнить ответ', callback_data: `admin_reply_continue:${conversationId}` },
-                { text: 'Завершить диалог', callback_data: `admin_close_dialog:${conversationId}` },
+                { text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` },
               ]],
             },
             delivery: { channels: ['telegram'], maxAttempts: 1 },
@@ -1216,25 +1233,32 @@ export async function executeAction(
       }];
       await persistWrites(deps.writePort, writes);
       const intents: OutgoingIntent[] = [];
-      if (Number.isFinite(userChatId)) {
+      const userClosedText = asString(action.params.userText)
+        ?? (deps.templatePort
+          ? ((await renderText({ templateKey: 'telegram:dialogClosed', ctx, templatePort: deps.templatePort })) || 'Диалог завершён. Если появятся новые вопросы, напишите новым сообщением.')
+          : 'Диалог завершён. Если появятся новые вопросы, напишите новым сообщением.');
+      if (Number.isFinite(userChatId) && userClosedText) {
         intents.push({
           type: 'message.send',
           meta: buildIntentMeta(action, ctx),
           payload: {
             recipient: { chatId: userChatId },
-            message: { text: asString(action.params.userText) ?? 'Диалог завершён. Если появятся новые вопросы, напишите новым сообщением.' },
+            message: { text: userClosedText },
             delivery: { channels: ['telegram'], maxAttempts: 1 },
           },
         });
       }
       const adminChatId = asNumber(readIncoming(ctx).chatId);
       if (adminChatId !== null) {
+        const adminClosedText = deps.templatePort
+          ? (await renderText({ templateKey: 'telegram:admin.dialog.closed', ctx, templatePort: deps.templatePort })) || 'Диалог завершён.'
+          : 'Диалог завершён.';
         intents.push({
           type: 'message.send',
           meta: buildIntentMeta(action, ctx),
           payload: {
             recipient: { chatId: adminChatId },
-            message: { text: 'Диалог завершён.' },
+            message: { text: adminClosedText },
             delivery: { channels: ['telegram'], maxAttempts: 1 },
           },
         });
@@ -1258,18 +1282,19 @@ export async function executeAction(
         return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_MISSING' };
       }
       const rows = Array.isArray(items) ? items : [];
+      const listBody = rows.map((item, index) => {
+        const label = formatActorLabel({
+          firstName: asString(item.first_name),
+          lastName: asString(item.last_name),
+          username: asString(item.username),
+          channelId: asString(item.user_channel_id),
+        });
+        const status = asString(item.status) ?? 'open';
+        return `${index + 1}. ${label} [${status}]`;
+      }).join('\n');
       const text = rows.length === 0
-        ? 'Открытых диалогов нет.'
-        : `Открытые диалоги:\n\n${rows.map((item, index) => {
-          const label = formatActorLabel({
-            firstName: asString(item.first_name),
-            lastName: asString(item.last_name),
-            username: asString(item.username),
-            channelId: asString(item.user_channel_id),
-          });
-          const status = asString(item.status) ?? 'open';
-          return `${index + 1}. ${label} [${status}]`;
-        }).join('\n')}`;
+        ? (deps.templatePort ? (await renderText({ templateKey: 'telegram:admin.dialogs.empty', ctx, templatePort: deps.templatePort })) || 'Открытых диалогов нет.' : 'Открытых диалогов нет.')
+        : (deps.templatePort ? (await renderText({ templateKey: 'telegram:admin.dialogs.list', vars: { listBody }, ctx, templatePort: deps.templatePort })) || `Открытые диалоги:\n\n${listBody}` : `Открытые диалоги:\n\n${listBody}`);
       const inline_keyboard = rows.slice(0, 10).map((item) => [{
         text: formatActorLabel({
           firstName: asString(item.first_name),
@@ -1305,22 +1330,32 @@ export async function executeAction(
         return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_MISSING' };
       }
       const rows = Array.isArray(items) ? items : [];
+      const listBodyUnanswered = rows.map((item, index) => {
+        const label = formatActorLabel({
+          firstName: asString(item.first_name),
+          lastName: asString(item.last_name),
+          username: asString(item.username),
+          channelId: asString(item.user_channel_id),
+        });
+        const excerpt = (asString(item.text) ?? '').slice(0, 80);
+        return `${index + 1}. ${label}\n   ${excerpt}${(asString(item.text) ?? '').length > 80 ? '…' : ''}`;
+      }).join('\n\n');
       const text = rows.length === 0
-        ? 'Неотвеченных вопросов нет.'
-        : `Неотвеченные вопросы (${rows.length}):\n\n${rows.map((item, index) => {
+        ? (deps.templatePort ? (await renderText({ templateKey: 'telegram:admin.questions.empty', ctx, templatePort: deps.templatePort })) || 'Неотвеченных вопросов нет.' : 'Неотвеченных вопросов нет.')
+        : (deps.templatePort ? (await renderText({ templateKey: 'telegram:admin.questions.list', vars: { count: rows.length, listBody: listBodyUnanswered }, ctx, templatePort: deps.templatePort })) || `Неотвеченные вопросы (${rows.length}):\n\n${listBodyUnanswered}` : `Неотвеченные вопросы (${rows.length}):\n\n${listBodyUnanswered}`);
+      const filteredRows = rows.filter((item) => asString(item.conversation_id)).slice(0, 15);
+      const inline_keyboard = deps.templatePort
+        ? await Promise.all(filteredRows.map(async (item) => {
           const label = formatActorLabel({
             firstName: asString(item.first_name),
             lastName: asString(item.last_name),
             username: asString(item.username),
             channelId: asString(item.user_channel_id),
           });
-          const excerpt = (asString(item.text) ?? '').slice(0, 80);
-          return `${index + 1}. ${label}\n   ${excerpt}${(asString(item.text) ?? '').length > 80 ? '…' : ''}`;
-        }).join('\n\n')}`;
-      const inline_keyboard = rows
-        .filter((item) => asString(item.conversation_id))
-        .slice(0, 15)
-        .map((item) => [{
+          const btnText = (await renderText({ templateKey: 'telegram:admin.questions.replyButton', vars: { label }, ctx, templatePort: deps.templatePort })) || `Ответить: ${label}`;
+          return [{ text: btnText, callback_data: `admin_reply:${asString(item.conversation_id)}` }];
+        }))
+        : filteredRows.map((item) => [{
           text: `Ответить: ${formatActorLabel({
             firstName: asString(item.first_name),
             lastName: asString(item.last_name),
@@ -1364,18 +1399,22 @@ export async function executeAction(
         username: asString(conversation.username),
         channelId: asString(conversation.user_channel_id),
       });
+      const status = asString(conversation.status) ?? 'open';
+      const showText = deps.templatePort
+        ? (await renderText({ templateKey: 'telegram:admin.conversation.show', vars: { label, status }, ctx, templatePort: deps.templatePort })) || `Диалог\nПользователь: ${label}\nСтатус: ${status}`
+        : `Диалог\nПользователь: ${label}\nСтатус: ${status}`;
+      const replyBtnText = deps.templatePort
+        ? (await renderText({ templateKey: 'telegram:admin.reply.button', ctx, templatePort: deps.templatePort })) || 'Ответить'
+        : 'Ответить';
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
         payload: {
           recipient: { chatId: adminChatId },
-          message: {
-            text: `Диалог\nПользователь: ${label}\nСтатус: ${asString(conversation.status) ?? 'open'}`,
-          },
+          message: { text: showText },
           replyMarkup: {
             inline_keyboard: [[
-              { text: 'Ответить', callback_data: `admin_reply:${conversationId}` },
-              { text: 'Завершить диалог', callback_data: `admin_close_dialog:${conversationId}` },
+              { text: replyBtnText, callback_data: `admin_reply:${conversationId}` },
             ]],
           },
           delivery: { channels: ['telegram'], maxAttempts: 1 },

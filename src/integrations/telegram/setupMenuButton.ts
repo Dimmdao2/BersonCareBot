@@ -26,6 +26,7 @@ export async function setupTelegramMenuButton(): Promise<void> {
         { command: 'start', description: 'Главное меню' },
         { command: 'admin_bookings', description: '📅 Активные записи' },
         { command: 'admin_users', description: '👥 Пользователи' },
+        { command: 'unanswered', description: '❓ Неотвеченные вопросы' },
       ],
       { scope: { type: 'chat', chat_id: adminChatId } },
     );

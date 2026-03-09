@@ -4,5 +4,15 @@
   "admin.stats.bookings": "📅 Активных записей: {{activeBookings}}",
   "admin.stats.users": "👥 Пользователи по интеграциям\n\nTelegram: {{telegramTotal}} всего, {{telegramWithPhone}} с телефоном\nRubiTime: {{rubitimeTotal}} всего",
   "admin.reply.prompt": "Напишите ответ пользователю следующим сообщением.",
-  "admin.dialog.closed": "Диалог завершён."
+  "admin.reply.sent": "Сообщение отправлено.",
+  "admin.reply.button": "Ответить",
+  "admin.reply.continueButton": "Дополнить ответ",
+  "admin.dialog.closed": "Диалог завершён.",
+  "admin.dialogs.empty": "Открытых диалогов нет.",
+  "admin.dialogs.list": "Открытые диалоги:\n\n{{listBody}}",
+  "admin.questions.empty": "Неотвеченных вопросов нет.",
+  "admin.questions.list": "Неотвеченные вопросы ({{count}}):\n\n{{listBody}}",
+  "admin.questions.replyButton": "Ответить: {{label}}",
+  "admin.conversation.newMessage": "Новое сообщение в диалоге\nОт: {{userLabel}}\n\n{{text}}",
+  "admin.conversation.show": "Диалог\nПользователь: {{label}}\nСтатус: {{status}}"
 }
