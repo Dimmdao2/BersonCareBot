@@ -169,6 +169,17 @@ describe('executeAction', () => {
   });
 
   it('applies rubitime delivery policy when message.send fields are missing', async () => {
+    const deliveryDefaultsPort = {
+      getDeliveryDefaults: async (source: string, options?: { inputAction?: string }) =>
+        source === 'rubitime' && options?.inputAction === 'created'
+          ? {
+              preferredLinkedChannels: ['telegram'],
+              defaultChannels: ['telegram'],
+              fallbackChannels: ['smsc'],
+              retry: { maxAttempts: 3, backoffSeconds: [60, 60, 60] },
+            }
+          : null,
+    };
     const result = await executeAction({
       id: 'a6b',
       type: 'message.send',
@@ -192,7 +203,7 @@ describe('executeAction', () => {
         ...ctx.values,
         input: { action: 'created' },
       },
-    });
+    }, { deliveryDefaultsPort });
 
     expect(result.status).toBe('success');
     expect(result.intents?.[0]?.payload).toMatchObject({

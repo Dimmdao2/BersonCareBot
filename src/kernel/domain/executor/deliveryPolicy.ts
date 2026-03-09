@@ -1,4 +1,4 @@
-import type { DomainContext } from '../../contracts/index.js';
+import type { DeliveryDefaultsPort, DomainContext } from '../../contracts/index.js';
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
@@ -18,17 +18,28 @@ function asStringArray(value: unknown): string[] {
     : [];
 }
 
-function computeRubitimeRetryProfile(ctx: DomainContext): { maxAttempts: number; backoffSeconds: number[] } {
-  const input = asRecord(ctx.values.input);
-  const action = asString(input.action);
-  if (action === 'created') {
-    return { maxAttempts: 3, backoffSeconds: [60, 60, 60] };
-  }
-  return { maxAttempts: 1, backoffSeconds: [] };
-}
+/**
+ * Подставляет дефолты доставки из порта (infra). Ядро не знает имён каналов;
+ * все значения приходят из deliveryDefaultsPort или уже заданы в params.
+ */
+export async function applyMessageSendDeliveryPolicy(
+  params: Record<string, unknown>,
+  ctx: DomainContext,
+  deliveryDefaultsPort?: DeliveryDefaultsPort | null,
+): Promise<Record<string, unknown>> {
+  if (!deliveryDefaultsPort) return params;
 
-export function applyMessageSendDeliveryPolicy(params: Record<string, unknown>, ctx: DomainContext): Record<string, unknown> {
-  if (ctx.event.meta.source !== 'rubitime') return params;
+  const source = asString(ctx.event.meta.source);
+  if (!source) return params;
+
+  const input = asRecord(ctx.values?.input);
+  const inputAction = asString(input.action);
+
+  const options: { eventType?: string; inputAction?: string } = {};
+  if (ctx.event.type) options.eventType = ctx.event.type;
+  if (inputAction != null) options.inputAction = inputAction;
+  const defaults = await deliveryDefaultsPort.getDeliveryDefaults(source, Object.keys(options).length > 0 ? options : undefined);
+  if (!defaults) return params;
 
   const delivery = asRecord(params.delivery);
   const retry = asRecord(params.retry);
@@ -42,7 +53,10 @@ export function applyMessageSendDeliveryPolicy(params: Record<string, unknown>, 
 
   if (hasDelivery && hasRetry && hasOnFail && hasPreferredLinkedChannels) return params;
 
-  const retryProfile = computeRubitimeRetryProfile(ctx);
+  const defaultChannels = defaults.defaultChannels && defaults.defaultChannels.length > 0
+    ? defaults.defaultChannels
+    : [];
+  const retryProfile = defaults.retry ?? { maxAttempts: 1, backoffSeconds: [] };
   const maxAttempts = hasDelivery
     ? Math.max(1, Math.trunc(asNumber(delivery.maxAttempts) ?? 1))
     : retryProfile.maxAttempts;
@@ -51,13 +65,13 @@ export function applyMessageSendDeliveryPolicy(params: Record<string, unknown>, 
     ...params,
     recipientPolicy: {
       ...recipientPolicy,
-      ...(hasPreferredLinkedChannels ? {} : { preferredLinkedChannels: ['telegram'] }),
+      ...(hasPreferredLinkedChannels ? {} : { preferredLinkedChannels: defaults.preferredLinkedChannels ?? [] }),
     },
-    ...(hasDelivery ? {} : { delivery: { channels: ['telegram'], maxAttempts } }),
+    ...(hasDelivery ? {} : { delivery: { channels: defaultChannels, maxAttempts } }),
     ...(hasRetry ? {} : { retry: { maxAttempts, backoffSeconds: retryProfile.backoffSeconds } }),
   };
 
-  if (!hasOnFail) {
+  if (!hasOnFail && defaults.fallbackChannels && defaults.fallbackChannels.length > 0) {
     const recipient = asRecord(resolved.recipient);
     const message = asRecord(resolved.message);
     const templateKey = asString(resolved.templateKey);
@@ -67,7 +81,7 @@ export function applyMessageSendDeliveryPolicy(params: Record<string, unknown>, 
         payload: {
           recipient,
           message,
-          delivery: { channels: ['smsc'], maxAttempts: 1 },
+          delivery: { channels: defaults.fallbackChannels, maxAttempts: 1 },
           ...(templateKey ? { templateKey } : {}),
         },
       },

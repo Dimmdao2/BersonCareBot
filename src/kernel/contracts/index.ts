@@ -69,6 +69,8 @@ export type {
   DbWriteMutationType,
   DbWritePort,
   DeliveryAdapter,
+  DeliveryDefaults,
+  DeliveryDefaultsPort,
   DispatchPort,
   EventGateway,
   GatewayResult,

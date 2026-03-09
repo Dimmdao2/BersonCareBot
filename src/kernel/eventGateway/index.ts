@@ -10,23 +10,14 @@ import { checkGatewayRateLimit } from './rateLimit.js';
 
 /**
  * Зависимости eventGateway.
- * Gateway не содержит бизнес-логики: только validate/rate-limit/dedup/audit.
+ * Gateway не содержит бизнес-логики: только validate/rate-limit/dedup и вызов pipeline.
  */
-type EventGatewayDeps = {
-  /**
-   * Legacy migration hook: intentionally not used in V3 gateway step.
-   * Kept temporary to avoid broad wiring breakage until domain.handleIncomingEvent lands.
-   */
-  orchestrator?: unknown;
-  writePort?: unknown;
-  dispatchPort?: unknown;
+export type EventGatewayDeps = {
   idempotencyPort?: IdempotencyPort;
   pipeline?: {
     run: (event: IncomingEvent) => Promise<void>;
   };
   dedupTtlSec?: number;
-  debugAdminChatId?: number;
-  debugForwardAllEvents?: boolean;
 };
 
 /**

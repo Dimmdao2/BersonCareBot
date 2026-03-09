@@ -27,6 +27,7 @@ import type {
 import { logger } from '../infra/observability/logger.js';
 import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
+import { createDeliveryDefaultsPort } from '../infra/adapters/deliveryDefaultsPort.js';
 import { createTemplatePort } from '../infra/adapters/templatePort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
@@ -125,6 +126,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const idempotencyPort = input.idempotencyPort ?? createPostgresIdempotencyPort(dbPort);
 
+  const deliveryDefaultsPort = createDeliveryDefaultsPort();
   const pipeline = createIncomingEventPipeline({
     readPort: dbReadPort,
     writePort: dbWritePort,
@@ -132,11 +134,10 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     dispatchPort,
     orchestrator,
     templatePort,
+    deliveryDefaultsPort,
   });
 
   const eventGateway = createEventGateway({
-    writePort: dbWritePort,
-    dispatchPort,
     idempotencyPort,
     pipeline,
   });

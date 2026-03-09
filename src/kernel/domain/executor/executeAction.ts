@@ -2,6 +2,7 @@ import type {
   Action,
   ActionResult,
   DbReadPort,
+  DeliveryDefaultsPort,
   NotificationSettings,
   DbWriteMutation,
   DbWritePort,
@@ -17,6 +18,7 @@ type ExecutorDeps = {
   writePort?: DbWritePort;
   queuePort?: QueuePort;
   templatePort?: TemplatePort;
+  deliveryDefaultsPort?: DeliveryDefaultsPort | null;
 };
 
 function nowIso(ctx: DomainContext): string {
@@ -341,8 +343,13 @@ async function buildMessageDeliverJob(input: {
   action: Action;
   ctx: DomainContext;
   readPort?: DbReadPort;
+  deliveryDefaultsPort?: DeliveryDefaultsPort | null;
 }): Promise<{ id: string; kind: string; runAt: string; attempts: number; maxAttempts: number; payload: Record<string, unknown> }> {
-  const resolvedParams = applyMessageSendDeliveryPolicy(input.action.params, input.ctx);
+  const resolvedParams = await applyMessageSendDeliveryPolicy(
+    input.action.params,
+    input.ctx,
+    input.deliveryDefaultsPort,
+  );
   const payload = asRecord(resolvedParams.payload);
   const message = asRecord(payload.message);
   const text = asString(message.text) ?? asString(resolvedParams.messageText) ?? '';
@@ -477,7 +484,11 @@ export async function executeAction(
     }
 
     case 'message.send': {
-      const policyParams = applyMessageSendDeliveryPolicy(action.params, ctx);
+      const policyParams = await applyMessageSendDeliveryPolicy(
+        action.params,
+        ctx,
+        deps.deliveryDefaultsPort,
+      );
       const resolvedParams = await resolveGenericMessageParams({
         params: policyParams,
         ctx,
@@ -594,6 +605,7 @@ export async function executeAction(
         action,
         ctx,
         ...(deps.readPort ? { readPort: deps.readPort } : {}),
+        ...(deps.deliveryDefaultsPort !== undefined ? { deliveryDefaultsPort: deps.deliveryDefaultsPort } : {}),
       });
       if (deps.queuePort) {
         await deps.queuePort.enqueue({ kind: job.kind, payload: job.payload });

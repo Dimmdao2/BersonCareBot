@@ -214,22 +214,9 @@
 
 ## Deploy model
 
-Текущая docker-compose модель:
-- `db`
-- `api_blue`
-- `api_green`
-- `worker`
-- `admin`
-- `api` — legacy profile
+**Текущая модель (host):** Node.js на сервере, системный PostgreSQL, systemd, nginx. Бэкап БД перед миграциями, деплой через `deploy/host/deploy-prod.sh`. Подробно: `deploy/HOST_DEPLOY_README.md`.
 
-Nginx переключает трафик между `3001` (blue) и `3002` (green).
-
-Deploy script:
-- build candidate slot
-- run migrations
-- health check
-- switch Nginx proxy
-- update current slot marker
+Резервная модель (Docker / blue-green) сохранена в `deploy/docker-backup/` и в корневом `docker-compose.yml` для локальной разработки.
 
 ## Текущие отклонения от жесткого контракта
 
@@ -240,18 +227,7 @@ Deploy script:
 - transport/UI actions вроде `message.replyKeyboard.show`, `message.inlineKeyboard.show`, `callback.answer`;
 - delivery-поля вроде `delivery.channels`, `retry`, `onFail`.
 
-Это **не ломает pipeline**, но является отклонением от целевой чистой модели, где сценарии должны опираться на generic intent/data, а transport delivery policy должна жить вне сценариев.
-
-### ⚠ Отклонение 2. В `eventGateway` еще есть legacy migration hooks
-
-В `src/kernel/eventGateway/index.ts` сигнатура зависимостей все еще содержит временные поля:
-- `orchestrator?: unknown`
-- `writePort?: unknown`
-- `dispatchPort?: unknown`
-- debug flags
-
-По текущему смыслу gateway использует только `pipeline` и `idempotencyPort`.
-Это временное отклонение от чистой ответственности слоя.
+Дефолты политики доставки по source задаются через порт `DeliveryDefaultsPort` (реализация в infra); ядро их не содержит. Явные `delivery`/`retry`/`onFail` в сценариях по-прежнему допустимы. Целевая чистая модель: сценарии только generic intent/data, вся delivery policy вне content.
 
 ### ⚠ Отклонение 3. Scheduler есть в коде, но не описан как полноценный runtime-service в compose
 
@@ -259,11 +235,4 @@ Deploy script:
 
 Это не нарушение чистоты слоев, но отклонение между документированной runtime-структурой и фактической deploy-моделью.
 
-### ⚠ Отклонение 4. Rubitime delivery behavior распределен между content и domain executor
-
-Текущее поведение доставки Rubitime не полностью локализовано в одном слое:
-- часть задается content-сценариями;
-- часть добирается delivery policy logic в domain executor.
-
-Это рабочее состояние, но не идеальная граница ответственности.
-Целевое состояние: сценарий описывает intent/data, а delivery policy вычисляется централизованно вне content.
+*(Отклонения 2 и 4 устранены: eventGateway — только idempotencyPort и pipeline; дефолты доставки вынесены в порт `DeliveryDefaultsPort`, реализация в infra, ядро не знает имён каналов.)*

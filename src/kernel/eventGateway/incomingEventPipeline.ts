@@ -1,4 +1,4 @@
-import type { DbReadPort, DispatchPort, DbWritePort, IncomingEvent, Orchestrator, QueuePort, TemplatePort } from '../contracts/index.js';
+import type { DbReadPort, DeliveryDefaultsPort, DispatchPort, DbWritePort, IncomingEvent, Orchestrator, QueuePort, TemplatePort } from '../contracts/index.js';
 import { executeDomainAction, processAcceptedIncomingEvent } from '../domain/index.js';
 
 export type IncomingEventPipelineDeps = {
@@ -8,6 +8,7 @@ export type IncomingEventPipelineDeps = {
   dispatchPort: DispatchPort;
   orchestrator: Orchestrator;
   templatePort: TemplatePort;
+  deliveryDefaultsPort?: DeliveryDefaultsPort | null;
 };
 
 export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
@@ -24,6 +25,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             writePort: deps.writePort,
             queuePort: deps.queuePort,
             templatePort: deps.templatePort,
+            ...(deps.deliveryDefaultsPort !== undefined ? { deliveryDefaultsPort: deps.deliveryDefaultsPort } : {}),
           });
         },
         async dispatchIntent(intent) {

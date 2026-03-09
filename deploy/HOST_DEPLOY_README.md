@@ -26,5 +26,8 @@ See `deploy/systemd/` for ready-to-use service files (not installed automaticall
 ## Host scripts
 See `deploy/host/` for build, migrate, start, and deploy scripts.
 
+## Scheduler
+`src/infra/runtime/scheduler/main.ts` exists but is not run as a separate service in the current host deploy (no systemd unit). Only API and worker are started.
+
 ## DB backup scripts
 See `deploy/db/` for backup scripts using pg_dump.

@@ -184,6 +184,22 @@ export type TemplatePort = {
   }): Promise<{ text: string }>;
 };
 
+/** Дефолты политики доставки по источнику (каналы, retry). Реализация в infra; ядро не знает имён интеграций. */
+export type DeliveryDefaults = {
+  preferredLinkedChannels?: string[];
+  defaultChannels?: string[];
+  fallbackChannels?: string[];
+  retry?: { maxAttempts: number; backoffSeconds: number[] };
+};
+
+/** Порт дефолтов доставки: по source (и опционально event/action) возвращает подставляемые значения. */
+export type DeliveryDefaultsPort = {
+  getDeliveryDefaults(
+    source: string,
+    options?: { eventType?: string; inputAction?: string },
+  ): Promise<DeliveryDefaults | null>;
+};
+
 /** Результат оркестрации входящего события. */
 export type OrchestratorResult = {
   reads: DbReadQuery[];
