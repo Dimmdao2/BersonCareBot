@@ -10,39 +10,12 @@
 		},
 		"steps": [
 			{
-				"action": "message.inlineKeyboard.show",
+				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:admin.menu",
-					"inlineKeyboard": [
-						[{ "text": "📅 Активные записи", "callbackData": "admin.stats.bookings" }],
-						[{ "text": "👥 Пользователи", "callbackData": "admin.stats.users" }]
-					]
-				}
-			}
-		]
-	},
-	{
-		"id": "telegram.admin.menu.show",
-		"source": "telegram",
-		"event": "message.received",
-		"priority": 10,
-		"match": {
-			"input": { "action": "admin.menu.open" },
-			"actor": { "isAdmin": true }
-		},
-		"steps": [
-			{
-				"action": "message.inlineKeyboard.show",
-				"mode": "async",
-				"params": {
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:admin.menu",
-					"inlineKeyboard": [
-						[{ "text": "📅 Активные записи", "callbackData": "admin.stats.bookings" }],
-						[{ "text": "👥 Пользователи", "callbackData": "admin.stats.users" }]
-					]
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:admin.menu.hint",
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
 				}
 			}
 		]
@@ -50,7 +23,7 @@
 	{
 		"id": "telegram.admin.stats.bookings",
 		"source": "telegram",
-		"event": "callback.received",
+		"event": "message.received",
 		"priority": 10,
 		"match": {
 			"input": { "action": "admin.stats.bookings" },
@@ -65,31 +38,23 @@
 		],
 		"steps": [
 			{
-				"action": "message.edit",
+				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
+					"recipient": { "chatId": "{{actor.chatId}}" },
 					"templateKey": "telegram:admin.stats.bookings",
 					"vars": {
 						"activeBookings": "{{queries.adminStats.activeBookings}}"
 					},
-					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "admin.menu.back" }]
-					]
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
 				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
 			}
 		]
 	},
 	{
 		"id": "telegram.admin.stats.users",
 		"source": "telegram",
-		"event": "callback.received",
+		"event": "message.received",
 		"priority": 10,
 		"match": {
 			"input": { "action": "admin.stats.users" },
@@ -104,56 +69,18 @@
 		],
 		"steps": [
 			{
-				"action": "message.edit",
+				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
+					"recipient": { "chatId": "{{actor.chatId}}" },
 					"templateKey": "telegram:admin.stats.users",
 					"vars": {
 						"telegramTotal": "{{queries.adminStats.userCountsByIntegration.telegram.total}}",
 						"telegramWithPhone": "{{queries.adminStats.userCountsByIntegration.telegram.withPhone}}",
 						"rubitimeTotal": "{{queries.adminStats.userCountsByIntegration.rubitime.total}}"
 					},
-					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "admin.menu.back" }]
-					]
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
 				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
-			}
-		]
-	},
-	{
-		"id": "telegram.admin.menu.back",
-		"source": "telegram",
-		"event": "callback.received",
-		"priority": 10,
-		"match": {
-			"input": { "action": "admin.menu.back" },
-			"actor": { "isAdmin": true }
-		},
-		"steps": [
-			{
-				"action": "message.edit",
-				"mode": "async",
-				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"templateKey": "telegram:admin.menu",
-					"inlineKeyboard": [
-						[{ "text": "📅 Активные записи", "callbackData": "admin.stats.bookings" }],
-						[{ "text": "👥 Пользователи", "callbackData": "admin.stats.users" }]
-					]
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
 			}
 		]
 	},

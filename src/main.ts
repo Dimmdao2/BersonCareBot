@@ -6,12 +6,15 @@ import './config/loadEnv.js';
 
 /**
  * Запускает Fastify-приложение и пишет лог старта.
- * При ошибке завершает процесс с кодом 1.
+ * Перед стартом применяет миграции БД (dev и prod).
  */
 async function start() {
+  const { runMigrations } = await import('./infra/db/migrate.js');
   const { buildApp } = await import('./app/index.js');
   const { env } = await import('./config/env.js');
   const { logger } = await import('./infra/observability/logger.js');
+
+  await runMigrations();
 
   const app = buildApp();
   try {

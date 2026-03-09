@@ -25,7 +25,7 @@ import type {
   QueuePort,
 } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
-import { createInMemoryIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
+import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
 import { createTemplatePort } from '../infra/adapters/templatePort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
@@ -123,7 +123,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       writePort: dbWritePort,
     });
 
-  const idempotencyPort = input.idempotencyPort ?? createInMemoryIdempotencyPort();
+  const idempotencyPort = input.idempotencyPort ?? createPostgresIdempotencyPort(dbPort);
 
   const pipeline = createIncomingEventPipeline({
     readPort: dbReadPort,

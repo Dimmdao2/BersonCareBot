@@ -20,11 +20,12 @@ export async function setupTelegramMenuButton(): Promise<void> {
   const api = getBotInstance().api;
 
   try {
-    // Команды только для админа (scope chat)
+    // Команды только для админа: пункты меню = команды (без inline-кнопок)
     await api.setMyCommands(
       [
         { command: 'start', description: 'Главное меню' },
-        { command: 'admin', description: 'Панель администратора' },
+        { command: 'admin_bookings', description: '📅 Активные записи' },
+        { command: 'admin_users', description: '👥 Пользователи' },
       ],
       { scope: { type: 'chat', chat_id: adminChatId } },
     );

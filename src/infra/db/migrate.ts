@@ -2,6 +2,7 @@
 import '../../config/loadEnv.js';
 import { readdir, readFile, stat } from 'fs/promises'; // Работа с файловой системой
 import { join } from 'path'; // Склейка путей
+import { fileURLToPath } from 'url';
 import { Pool } from 'pg'; // Работа с PostgreSQL
 import { env } from '../../config/env.js'; // Переменные окружения
 import { logger, getMigrationLogger } from '../observability/logger.js'; // Логирование
@@ -186,8 +187,8 @@ async function applyMigration(db: Pool, migration: MigrationFile, sql: string): 
   }
 }
 
-// Главная функция: применяет все новые миграции
-async function migrate(): Promise<void> {
+/** Применяет все неприменённые миграции. Вызывается при старте API и при запуске скрипта. */
+export async function runMigrations(): Promise<void> {
   if (!env.DATABASE_URL) {
     throw new Error('DATABASE_URL is not set');
   }
@@ -237,8 +238,15 @@ async function migrate(): Promise<void> {
   }
 }
 
-// Запуск миграций при запуске скрипта
-migrate().catch((error) => {
-  logger.error({ err: error }, 'Migration process failed');
-  process.exit(1);
-});
+// Запуск миграций при прямом вызове скрипта (node dist/infra/db/migrate.js)
+const __filename = fileURLToPath(import.meta.url);
+const isMainModule =
+  typeof process.argv[1] === 'string' &&
+  (process.argv[1] === __filename || process.argv[1].endsWith('/migrate.js'));
+
+if (isMainModule) {
+  runMigrations().catch((error) => {
+    logger.error({ err: error }, 'Migration process failed');
+    process.exit(1);
+  });
+}

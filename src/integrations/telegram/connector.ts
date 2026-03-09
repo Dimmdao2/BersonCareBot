@@ -19,6 +19,8 @@ export function telegramIncomingToEvent(input: {
   updateId?: number;
   facts?: Record<string, unknown>;
 }): IncomingEvent {
+  const dedupKey =
+    typeof input.updateId === 'number' ? `telegram:${input.updateId}` : undefined;
   return {
     type: input.incoming.kind === 'callback' ? 'callback.received' : 'message.received',
     meta: {
@@ -26,6 +28,7 @@ export function telegramIncomingToEvent(input: {
       correlationId: input.correlationId,
       source: 'telegram',
       occurredAt: new Date().toISOString(),
+      ...(dedupKey ? { dedupKey } : {}),
       ...(input.incoming.kind === 'message' ? { userId: input.incoming.channelId } : {}),
     },
     payload: {
