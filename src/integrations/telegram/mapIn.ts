@@ -81,24 +81,17 @@ export function fromTelegram(
   }
 
   if (body.message?.from && body.message.chat && typeof body.message.chat.id === 'number') {
-        // Логгирование для диагностики adminTelegramId
-        const adminTelegramIdRaw = process.env.ADMIN_TELEGRAM_ID;
-        const adminTelegramId = typeof adminTelegramIdRaw === 'string' ? Number(adminTelegramIdRaw) : undefined;
-        console.log('[telegram][mapIn] ADMIN_TELEGRAM_ID raw:', adminTelegramIdRaw, 'parsed:', adminTelegramId);
-        const msg = body.message;
-        const chatId = msg.chat!.id;
-        if (!telegramId) return null;
-        // Логгирование для диагностики recipient.chatId
-        if (typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)) {
-          console.log('[telegram][mapIn] adminForward will be set:', { chatId: adminTelegramId, text: msg.text ?? '' });
-        } else {
-          console.log('[telegram][mapIn] adminForward NOT set, invalid adminTelegramId:', adminTelegramId);
-        }
     const msg = body.message;
     const chatId = msg.chat!.id;
     if (!telegramId) return null;
     const adminTelegramIdRaw = process.env.ADMIN_TELEGRAM_ID;
     const adminTelegramId = typeof adminTelegramIdRaw === 'string' ? Number(adminTelegramIdRaw) : undefined;
+    console.log('[telegram][mapIn] ADMIN_TELEGRAM_ID raw:', adminTelegramIdRaw, 'parsed:', adminTelegramId);
+    if (typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)) {
+      console.log('[telegram][mapIn] adminForward will be set:', { chatId: adminTelegramId, text: msg.text ?? '' });
+    } else {
+      console.log('[telegram][mapIn] adminForward NOT set, invalid adminTelegramId:', adminTelegramId);
+    }
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
