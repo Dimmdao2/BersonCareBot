@@ -20,11 +20,13 @@
 				"mode": "async",
 				"params": {
 					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:chooseMenu",
+					"templateKey": "telegram:welcome",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.ask" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.ask" },
+							{ "textTemplateKey": "telegram:menu.more" }
+						]
 					],
 					"resizeKeyboard": true
 				}
@@ -333,9 +335,11 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.ask" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.ask" },
+							{ "textTemplateKey": "telegram:menu.more" }
+						]
 					],
 					"resizeKeyboard": true
 				}
@@ -437,7 +441,6 @@
 								"callbackData": "notifications.toggle.online"
 							}
 						],
-						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
 						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
 					]
 				}
@@ -496,7 +499,6 @@
 								"callbackData": "notifications.toggle.online"
 							}
 						],
-						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
 						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
 					]
 				}
@@ -553,7 +555,6 @@
 								"callbackData": "notifications.toggle.online"
 							}
 						],
-						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
 						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
 					]
 				}
@@ -610,65 +611,6 @@
 								"callbackData": "notifications.toggle.online"
 							}
 						],
-						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-					]
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
-			}
-		]
-	},
-	{
-		"id": "telegram.notifications.toggle.all",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": {
-			"input": { "action": "notifications.toggle.all" }
-		},
-		"steps": [
-			{
-				"action": "notifications.toggle",
-				"mode": "sync",
-				"params": {
-					"channelUserId": "{{actor.channelUserId}}",
-					"toggleKey": "notify_toggle_all",
-					"supportsToggleAll": true
-				}
-			},
-			{
-				"action": "message.edit",
-				"mode": "async",
-				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
-					"inlineKeyboard": [
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.spb",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.spb"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.msk",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.msk"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.online",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.online"
-							}
-						],
-						[{ "text": "✅ Все категории", "callbackData": "notifications.toggle.all" }],
 						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
 					]
 				}
@@ -756,9 +698,11 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.ask" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.ask" },
+							{ "textTemplateKey": "telegram:menu.more" }
+						]
 					],
 					"resizeKeyboard": true
 				}
