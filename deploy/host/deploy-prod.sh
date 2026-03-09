@@ -18,8 +18,9 @@ set -a
 source /opt/projects/bersoncarebot/.env.prod
 set +a
 
-# Backup needs write access to /opt/backups/postgres/hourly/ (run as root)
-sudo /opt/backups/scripts/postgres-backup.sh
+# Backup before migrations: write to pre-migrations folder (run as root).
+# Script must support first arg "pre-migrations" and write to /opt/backups/postgres/pre-migrations/
+sudo /opt/backups/scripts/postgres-backup.sh pre-migrations
 
 node dist/infra/db/migrate.js
 
