@@ -18,6 +18,8 @@ set -a
 source /opt/projects/bersoncarebot/.env.prod
 set +a
 
+/opt/backups/scripts/postgres-backup.sh
+
 node dist/infra/db/migrate.js
 
 sudo /bin/systemctl restart bersoncarebot-api-prod.service
