@@ -3,8 +3,14 @@ set -e
 set -o pipefail
 
 cd /opt/projects/bersoncarebot
-
 git pull origin main
+
+# Re-exec self so we run the updated script (current process was started before pull).
+if [ -z "${DEPLOY_PROD_RERUN}" ]; then
+  export DEPLOY_PROD_RERUN=1
+  exec bash deploy/host/deploy-prod.sh
+fi
+
 pnpm install --frozen-lockfile
 pnpm build
 
