@@ -9,8 +9,32 @@ type RubitimeIncomingPayload = {
   recordId?: string;
   phone?: string;
   recordAt?: string;
+  recordAtFormatted?: string;
   record: Record<string, unknown>;
 };
+
+/** Форматирует дату/время в ДД.ММ.ГГГГ в ЧЧ:ММ. Вход: "2026-03-04 18:00:00" или ISO. */
+function formatRecordAt(value: string): string {
+  const s = value.trim();
+  const spaceIdx = s.indexOf(' ');
+  const datePart = spaceIdx >= 0 ? s.slice(0, spaceIdx) : s;
+  const timePart = spaceIdx >= 0 ? s.slice(spaceIdx + 1) : '';
+  const dateMatch = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = timePart.match(/^(\d{1,2}):(\d{2})/);
+  if (dateMatch) {
+    const [, y, m, d] = dateMatch;
+    const timeStr = timeMatch?.[1] != null && timeMatch?.[2] != null
+      ? ` в ${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`
+      : '';
+    return `${d}.${m}.${y}${timeStr}`;
+  }
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (isoMatch) {
+    const [, y, m, d, h, min] = isoMatch;
+    return `${d}.${m}.${y} в ${h}:${min}`;
+  }
+  return value;
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
@@ -57,6 +81,7 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
   const recordId = asString(source.id) ?? (source.id != null ? String(source.id) : undefined);
   const phone = asString(source.phone);
   const recordAt = asString(source.record) ?? asString(source.datetime);
+  const recordAtFormatted = recordAt ? formatRecordAt(recordAt) : undefined;
 
   return {
     entity: 'record',
@@ -66,6 +91,7 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
     ...(recordId ? { recordId } : {}),
     ...(phone ? { phone } : {}),
     ...(recordAt ? { recordAt } : {}),
+    ...(recordAtFormatted ? { recordAtFormatted } : {}),
     record: source,
   };
 }

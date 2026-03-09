@@ -1,5 +1,5 @@
 {
-  "bookingRecorded": "Вы успешно записаны на приём к Дмитрию. Дата и время: {{recordAt}}",
+  "bookingRecorded": "Вы успешно записаны на приём к Дмитрию {{recordAt}}",
   "bookingCanceled": "Ваша запись на {{recordAt}} отменена.",
   "bookingAwaitingConfirmation": "Ваша запись на {{recordAt}} ожидает подтверждения.",
   "bookingMovedAwaiting": "Ваш запрос на перенос записи ожидает подтверждения."
