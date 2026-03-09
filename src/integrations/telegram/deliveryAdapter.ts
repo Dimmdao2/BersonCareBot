@@ -45,9 +45,13 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       const chatId = payload.recipient?.chatId;
       const messageId = payload.messageId;
       const text = asNonEmptyString(payload.message?.text);
-
+      // Structured logging: try to get reqLogger from intent.meta
+      const reqLogger = (intent.meta as any)?.reqLogger;
       if (intent.type === 'message.send') {
         if (typeof chatId !== 'number' || !text) {
+          if (reqLogger) {
+            reqLogger.error({ recipient: payload.recipient, intent }, '[telegram][deliveryAdapter] TELEGRAM_PAYLOAD_INVALID diagnostics');
+          }
           const err = new Error('TELEGRAM_PAYLOAD_INVALID');
           (err as { code?: number }).code = 400;
           throw err;
