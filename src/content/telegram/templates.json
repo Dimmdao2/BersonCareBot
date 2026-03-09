@@ -8,6 +8,7 @@
   "bookingOpenPrompt": "Открыть виджет записи:",
   "bookingOpenButton": "Открыть запись",
   "noBookings": "У вас нет активных записей.",
+  "bookingsList": "📄 Ваши записи:\n\n{{#each queries.bookings.items}}\n• {{item.recordAt}} — {{item.status}}\n{{/each}}",
   "bookingOffline": "Для очной записи перейдите по ссылке: ${url}",
   "bookingOnline": "Опишите причину обращения.",
   "bookingMy": "Раздел в разработке.",

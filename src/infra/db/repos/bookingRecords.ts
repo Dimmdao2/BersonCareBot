@@ -100,6 +100,41 @@ export async function insertEvent(db: DbPort, input: InsertBookingEventInput): P
   }
 }
 
+export type ActiveBookingRecord = {
+  rubitimeRecordId: string;
+  recordAt: string | null;
+  status: string;
+};
+
+/** Returns active (non-canceled) records by normalized phone. */
+export async function getActiveRecordsByPhone(
+  db: DbPort,
+  phoneNormalized: string,
+): Promise<ActiveBookingRecord[]> {
+  const query = `
+    SELECT rubitime_record_id, record_at, status
+    FROM rubitime_records
+    WHERE phone_normalized = $1
+      AND status IN ('created', 'updated')
+    ORDER BY record_at ASC NULLS LAST
+  `;
+  try {
+    const res = await db.query<{
+      rubitime_record_id: string;
+      record_at: Date | null;
+      status: string;
+    }>(query, [phoneNormalized]);
+    return res.rows.map((row) => ({
+      rubitimeRecordId: row.rubitime_record_id,
+      recordAt: row.record_at ? row.record_at.toISOString() : null,
+      status: row.status,
+    }));
+  } catch (err) {
+    logger.error({ err, phoneNormalized }, 'get active records by phone failed');
+    return [];
+  }
+}
+
 /** Returns record data for linking flows. */
 export async function getRecordByExternalId(
   db: DbPort,

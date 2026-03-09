@@ -630,14 +630,37 @@
 			"input": { "action": "bookings.show" },
 			"context": { "linkedPhone": true }
 		},
+		"conditions": [
+			{
+				"kind": "context.query",
+				"name": "bookings",
+				"query": { "type": "bookings.forUser", "userId": "{{context.phoneNormalized}}" }
+			}
+		],
 		"steps": [
 			{
 				"action": "message.edit",
 				"mode": "async",
 				"params": {
+					"_when": { "path": "queries.bookings.items.length", "equals": 0 },
 					"chatId": "{{actor.chatId}}",
 					"messageId": "{{input.messageId}}",
-					"templateKey": "telegram:bookingMy",
+					"templateKey": "telegram:noBookings",
+					"vars": { "queries": "{{queries}}" },
+					"inlineKeyboard": [
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
+				}
+			},
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"_when": { "path": "queries.bookings.items.length", "truthy": true },
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:bookingsList",
+					"vars": { "queries": "{{queries}}" },
 					"inlineKeyboard": [
 						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
 					]

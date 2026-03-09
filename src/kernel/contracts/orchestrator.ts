@@ -28,6 +28,8 @@ export type BaseContext = {
   preferences?: Preferences;
   conversationState?: string;
   linkedPhone?: boolean;
+  /** Нормализованный телефон пользователя (из БД), доступен при linkedPhone. */
+  phoneNormalized?: string;
 };
 
 export type OrchestratorInput = {

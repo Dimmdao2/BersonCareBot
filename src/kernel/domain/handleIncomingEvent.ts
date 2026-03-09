@@ -82,7 +82,7 @@ type ReadUserContext = {
 async function loadUserContext(
   event: IncomingEvent,
   readPort?: DbReadPort,
-): Promise<Pick<BaseContext, 'conversationState' | 'linkedPhone'>> {
+): Promise<Pick<BaseContext, 'conversationState' | 'linkedPhone' | 'phoneNormalized'>> {
   if (!readPort) return {};
   const channelId = extractChannelId(event);
   if (!channelId) return {};
@@ -96,13 +96,15 @@ async function loadUserContext(
   const conversationState = typeof user.userState === 'string' && user.userState.trim().length > 0
     ? user.userState
     : undefined;
-  const linkedPhone = typeof user.phoneNormalized === 'string'
-    ? user.phoneNormalized.trim().length > 0
-    : false;
+  const phoneNormalized = typeof user.phoneNormalized === 'string' && user.phoneNormalized.trim().length > 0
+    ? user.phoneNormalized.trim()
+    : undefined;
+  const linkedPhone = !!phoneNormalized;
 
   return {
     ...(conversationState ? { conversationState } : {}),
     linkedPhone,
+    ...(phoneNormalized ? { phoneNormalized } : {}),
   };
 }
 
