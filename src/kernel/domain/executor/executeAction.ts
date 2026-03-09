@@ -890,6 +890,9 @@ export async function executeAction(
 
       const conversationId = randomUUID();
       const firstMessageId = randomUUID();
+      const questionId = randomUUID();
+      const firstQuestionMessageId = randomUUID();
+      const userIdentityId = asString(draft.identity_id);
       const writes: DbWriteMutation[] = [
         {
           type: 'conversation.open',
@@ -917,6 +920,26 @@ export async function executeAction(
             createdAt: ctx.nowIso,
           },
         },
+        ...(userIdentityId ? [{
+          type: 'question.create' as const,
+          params: {
+            id: questionId,
+            userIdentityId,
+            conversationId,
+            telegramMessageId: asString(draft.external_message_id),
+            text: draftTextCurrent,
+            createdAt: ctx.nowIso,
+          },
+        }, {
+          type: 'question.message.add' as const,
+          params: {
+            id: firstQuestionMessageId,
+            questionId,
+            senderType: 'user',
+            messageText: draftTextCurrent,
+            createdAt: ctx.nowIso,
+          },
+        }] : []),
         {
           type: 'draft.cancel',
           params: {
@@ -1101,6 +1124,31 @@ export async function executeAction(
       ];
       await persistWrites(deps.writePort, writes);
 
+      const question = await deps.readPort.readDb<{ id: string; answered: boolean } | null>({
+        type: 'question.byConversationId',
+        params: { conversationId },
+      });
+      if (question?.id && question.answered === false && deps.writePort) {
+        const questionReplyWrites: DbWriteMutation[] = [
+          {
+            type: 'question.message.add',
+            params: {
+              id: randomUUID(),
+              questionId: question.id,
+              senderType: 'admin',
+              messageText: text,
+              createdAt: ctx.nowIso,
+            },
+          },
+          {
+            type: 'question.markAnswered',
+            params: { questionId: question.id, answeredAt: ctx.nowIso },
+          },
+        ];
+        await persistWrites(deps.writePort, questionReplyWrites);
+        writes.push(...questionReplyWrites);
+      }
+
       const intents: OutgoingIntent[] = [
         {
           type: 'message.send',
@@ -1118,7 +1166,7 @@ export async function executeAction(
           meta: buildIntentMeta(action, ctx),
           payload: {
             recipient: { chatId: adminChatId },
-            message: { text: 'Ответ отправлен.' },
+            message: { text: 'Сообщение отправлено.' },
             replyMarkup: {
               inline_keyboard: [[
                 { text: 'Дополнить ответ', callback_data: `admin_reply_continue:${conversationId}` },
@@ -1231,6 +1279,56 @@ export async function executeAction(
         }),
         callback_data: `dialogs.view:${asString(item.id)}`,
       }]);
+      const intents: OutgoingIntent[] = [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text },
+          ...(inline_keyboard.length > 0 ? { replyMarkup: { inline_keyboard } } : {}),
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      }];
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'question.listUnanswered': {
+      if (!deps.readPort) {
+        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+      }
+      const items = await deps.readPort.readDb<Array<Record<string, unknown>>>({
+        type: 'questions.unanswered',
+        params: { limit: asNumber(action.params.limit) ?? 20 },
+      });
+      const adminChatId = asNumber(readIncoming(ctx).chatId);
+      if (adminChatId === null) {
+        return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_MISSING' };
+      }
+      const rows = Array.isArray(items) ? items : [];
+      const text = rows.length === 0
+        ? 'Неотвеченных вопросов нет.'
+        : `Неотвеченные вопросы (${rows.length}):\n\n${rows.map((item, index) => {
+          const label = formatActorLabel({
+            firstName: asString(item.first_name),
+            lastName: asString(item.last_name),
+            username: asString(item.username),
+            channelId: asString(item.user_channel_id),
+          });
+          const excerpt = (asString(item.text) ?? '').slice(0, 80);
+          return `${index + 1}. ${label}\n   ${excerpt}${(asString(item.text) ?? '').length > 80 ? '…' : ''}`;
+        }).join('\n\n')}`;
+      const inline_keyboard = rows
+        .filter((item) => asString(item.conversation_id))
+        .slice(0, 15)
+        .map((item) => [{
+          text: `Ответить: ${formatActorLabel({
+            firstName: asString(item.first_name),
+            lastName: asString(item.last_name),
+            username: asString(item.username),
+            channelId: asString(item.user_channel_id),
+          })}`,
+          callback_data: `admin_reply:${asString(item.conversation_id)}`,
+        }]);
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),

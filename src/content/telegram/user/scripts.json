@@ -98,9 +98,6 @@
 					"inlineKeyboard": [
 						[
 							{ "text": "Отправить вопрос", "callbackData": "send_question" }
-						],
-						[
-							{ "text": "Отмена", "callbackData": "cancel_question" }
 						]
 					]
 				}
@@ -136,9 +133,6 @@
 					"inlineKeyboard": [
 						[
 							{ "text": "Отправить вопрос", "callbackData": "send_question" }
-						],
-						[
-							{ "text": "Отмена", "callbackData": "cancel_question" }
 						]
 					]
 				}
@@ -178,49 +172,6 @@
 					"message": {},
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
 					"templateKey": "telegram:questionAccepted"
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
-					"callbackQueryId": "{{input.callbackQueryId}}"
-				}
-			}
-		]
-	},
-	{
-		"id": "telegram.draft.cancel",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": {
-			"context": { "hasActiveDraft": true },
-			"input": { "action": "cancel_question" }
-		},
-		"steps": [
-			{
-				"action": "draft.cancel",
-				"mode": "sync",
-				"params": {
-					"source": "telegram"
-				}
-			},
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"channelUserId": "{{actor.channelUserId}}",
-					"state": "idle"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:questionCancelled"
 				}
 			},
 			{
@@ -882,9 +833,6 @@
 					"inlineKeyboard": [
 						[
 							{ "text": "Отправить вопрос", "callbackData": "send_question" }
-						],
-						[
-							{ "text": "Отмена", "callbackData": "cancel_question" }
 						]
 					]
 				}

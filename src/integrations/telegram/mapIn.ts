@@ -30,6 +30,8 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',
   '/dialogs': 'admin.dialogs.open',
+  '/unanswered': 'admin.questions.unanswered',
+  'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 
 function normalizeDynamicTelegramAction(value: string): { action: string; conversationId?: string } {

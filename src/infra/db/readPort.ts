@@ -8,6 +8,8 @@ import {
   getConversationById,
   getOpenConversationByIdentity,
   listOpenConversations,
+  listUnansweredQuestions,
+  getQuestionByConversationId,
 } from './repos/messageThreads.js';
 import { findUserByChannelId, findUserByPhone, lookupUser } from './repos/userLookup.js';
 
@@ -79,6 +81,15 @@ export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
           const source = asNonEmptyString(query.params.source);
           const limit = asFiniteNumber(query.params.limit);
           return (await listOpenConversations(db, { ...(source ? { source } : {}), ...(limit !== null ? { limit } : {}) })) as T;
+        }
+        case 'questions.unanswered': {
+          const limit = asFiniteNumber(query.params.limit);
+          return (await listUnansweredQuestions(db, { ...(limit !== null ? { limit } : {}) })) as T;
+        }
+        case 'question.byConversationId': {
+          const conversationId = asNonEmptyString(query.params.conversationId);
+          if (!conversationId) return null as T;
+          return (await getQuestionByConversationId(db, { conversationId })) as T;
         }
         case 'notifications.settings': {
           const resource = asNonEmptyString(query.params.resource) ?? 'telegram';

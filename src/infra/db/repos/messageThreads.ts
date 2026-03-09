@@ -414,3 +414,118 @@ export async function listOpenConversations(
   const res = await db.query<ConversationListRow>(sql, [asNonEmptyString(input.source), limit]);
   return res.rows;
 }
+
+// --- user_questions & question_messages (answered / unanswered list) ---
+
+export type UserQuestionRow = {
+  id: string;
+  user_identity_id: string;
+  conversation_id: string | null;
+  telegram_message_id: string | null;
+  text: string;
+  created_at: string;
+  answered: boolean;
+  answered_at: string | null;
+  user_channel_id: string;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+};
+
+export async function insertUserQuestion(
+  db: DbPort,
+  input: {
+    id: string;
+    userIdentityId: string;
+    conversationId: string | null;
+    telegramMessageId?: string | null;
+    text: string;
+    createdAt: string;
+  },
+): Promise<void> {
+  const sql = `
+    INSERT INTO user_questions (id, user_identity_id, conversation_id, telegram_message_id, text, created_at)
+    VALUES ($1, $2::bigint, $3, $4, $5, $6::timestamptz)
+  `;
+  await db.query(sql, [
+    input.id,
+    input.userIdentityId,
+    input.conversationId,
+    input.telegramMessageId ?? null,
+    input.text,
+    input.createdAt,
+  ]);
+}
+
+export async function insertQuestionMessage(
+  db: DbPort,
+  input: {
+    id: string;
+    questionId: string;
+    senderType: 'user' | 'admin';
+    messageText: string;
+    createdAt: string;
+  },
+): Promise<void> {
+  const sql = `
+    INSERT INTO question_messages (id, question_id, sender_type, message_text, created_at)
+    VALUES ($1, $2, $3, $4, $5::timestamptz)
+  `;
+  await db.query(sql, [input.id, input.questionId, input.senderType, input.messageText, input.createdAt]);
+}
+
+export async function setQuestionAnswered(
+  db: DbPort,
+  input: { questionId: string; answeredAt: string },
+): Promise<void> {
+  const sql = `
+    UPDATE user_questions
+    SET answered = true, answered_at = $2::timestamptz
+    WHERE id = $1
+  `;
+  await db.query(sql, [input.questionId, input.answeredAt]);
+}
+
+export async function getQuestionByConversationId(
+  db: DbPort,
+  input: { conversationId: string },
+): Promise<{ id: string; answered: boolean } | null> {
+  const sql = `
+    SELECT id, answered
+    FROM user_questions
+    WHERE conversation_id = $1
+    LIMIT 1
+  `;
+  const res = await db.query<{ id: string; answered: boolean }>(sql, [input.conversationId]);
+  return res.rows[0] ?? null;
+}
+
+export async function listUnansweredQuestions(
+  db: DbPort,
+  input: { limit?: number },
+): Promise<UserQuestionRow[]> {
+  const sql = `
+    SELECT
+      uq.id,
+      uq.user_identity_id::text,
+      uq.conversation_id,
+      uq.telegram_message_id,
+      uq.text,
+      uq.created_at::text,
+      uq.answered,
+      uq.answered_at::text,
+      i.external_id::text AS user_channel_id,
+      ts.username,
+      ts.first_name,
+      ts.last_name
+    FROM user_questions uq
+    JOIN identities i ON i.id = uq.user_identity_id
+    LEFT JOIN telegram_state ts ON ts.identity_id = i.id AND i.resource = 'telegram'
+    WHERE uq.answered = false
+    ORDER BY uq.created_at DESC
+    LIMIT $1
+  `;
+  const limit = typeof input.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.trunc(input.limit)) : 50;
+  const res = await db.query<UserQuestionRow>(sql, [limit]);
+  return res.rows;
+}

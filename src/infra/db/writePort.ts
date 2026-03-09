@@ -9,6 +9,9 @@ import {
   insertConversationMessage,
   setConversationState,
   upsertDraftByIdentity,
+  insertUserQuestion,
+  insertQuestionMessage,
+  setQuestionAnswered,
 } from './repos/messageThreads.js';
 import { enqueueMessageRetryJob } from './repos/jobQueue.js';
 import { logger } from '../observability/logger.js';
@@ -39,7 +42,11 @@ function asFiniteNumber(value: unknown): number | null {
 }
 
 function readChannelUserId(params: Record<string, unknown>): string | null {
-  return asNonEmptyString(params.channelUserId ?? params.channelId);
+  const raw = params.channelUserId ?? params.channelId;
+  const asStr = asNonEmptyString(raw);
+  if (asStr) return asStr;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return String(Math.trunc(raw));
+  return null;
 }
 
 function readResource(params: Record<string, unknown>): string {
@@ -213,6 +220,46 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
             ...(asNullableString(mutation.params.closedAt) !== null ? { closedAt: asNullableString(mutation.params.closedAt) } : {}),
             ...(asNullableString(mutation.params.closeReason) !== null ? { closeReason: asNullableString(mutation.params.closeReason) } : {}),
           });
+          return;
+        }
+        case 'question.create': {
+          const id = asNonEmptyString(mutation.params.id);
+          const userIdentityId = asNonEmptyString(mutation.params.userIdentityId);
+          const conversationId = asNullableString(mutation.params.conversationId);
+          const text = asNonEmptyString(mutation.params.text);
+          const createdAt = asNonEmptyString(mutation.params.createdAt);
+          if (!id || !userIdentityId || !text || !createdAt) return;
+          await insertUserQuestion(db, {
+            id,
+            userIdentityId,
+            conversationId,
+            telegramMessageId: asNullableString(mutation.params.telegramMessageId),
+            text,
+            createdAt,
+          });
+          return;
+        }
+        case 'question.message.add': {
+          const id = asNonEmptyString(mutation.params.id);
+          const questionId = asNonEmptyString(mutation.params.questionId);
+          const senderType = asNonEmptyString(mutation.params.senderType);
+          const messageText = asNonEmptyString(mutation.params.messageText);
+          const createdAt = asNonEmptyString(mutation.params.createdAt);
+          if (!id || !questionId || (senderType !== 'user' && senderType !== 'admin') || !messageText || !createdAt) return;
+          await insertQuestionMessage(db, {
+            id,
+            questionId,
+            senderType: senderType as 'user' | 'admin',
+            messageText,
+            createdAt,
+          });
+          return;
+        }
+        case 'question.markAnswered': {
+          const questionId = asNonEmptyString(mutation.params.questionId);
+          const answeredAt = asNonEmptyString(mutation.params.answeredAt);
+          if (!questionId || !answeredAt) return;
+          await setQuestionAnswered(db, { questionId, answeredAt });
           return;
         }
         case 'notifications.update': {

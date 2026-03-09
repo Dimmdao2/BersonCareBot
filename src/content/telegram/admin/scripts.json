@@ -85,6 +85,25 @@
 		]
 	},
 	{
+		"id": "telegram.admin.questions.unanswered",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 10,
+		"match": {
+			"input": { "action": "admin.questions.unanswered" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "question.listUnanswered",
+				"mode": "sync",
+				"params": {
+					"limit": 20
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.admin.dialogs.open",
 		"source": "telegram",
 		"event": "message.received",
@@ -211,7 +230,7 @@
 			"context": { "replyMode": true },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["admin.dialogs.open", "admin.stats.bookings", "admin.stats.users"],
+				"excludeActions": ["admin.dialogs.open", "admin.stats.bookings", "admin.stats.users", "admin.questions.unanswered"],
 				"excludeTexts": ["/start"]
 			},
 			"actor": { "isAdmin": true }
