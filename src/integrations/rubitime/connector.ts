@@ -26,11 +26,25 @@ function normalizeRubitimeAction(event: RubitimeWebhookBodyValidated['event']): 
   return 'canceled';
 }
 
+/** Maps Rubitime status/status_title to script values: accepted, canceled, moved. */
+function normalizeRubitimeStatus(status: string | undefined, statusTitle: string | undefined): string | undefined {
+  const s = (status ?? '').toLowerCase();
+  const t = (statusTitle ?? '').toLowerCase();
+  if (s === 'accepted' || s === 'confirmed' || s === 'recorded' || s === '4' ||
+      t.includes('записан') || t.includes('подтвержд') || t.includes('принят')) return 'accepted';
+  if (s === 'canceled' || s === 'cancelled' || s === '0' ||
+      t.includes('отмен')) return 'canceled';
+  if (s === 'moved' || t.includes('перенос')) return 'moved';
+  return status ?? statusTitle;
+}
+
 function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomingPayload {
   const data = asRecord(body.data);
   const record = asRecord(data.record);
   const source = Object.keys(record).length > 0 ? record : data;
-  const status = asString(source.status_name) ?? asString(source.status);
+  const rawStatus = asString(source.status_name) ?? asString(source.status);
+  const statusTitle = asString(source.status_title);
+  const status = normalizeRubitimeStatus(rawStatus, statusTitle) ?? rawStatus ?? statusTitle;
   const statusCode = asString(source.status);
   const recordId = asString(source.id);
   const phone = asString(source.phone);
