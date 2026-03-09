@@ -38,11 +38,28 @@ export async function registerRubitimeWebhookRoutes(
         return reply.code(400).send({ ok: false, error: 'Invalid webhook body' });
       }
 
+      const body = parseResult.data;
+      reqLogger.info(
+        { event: body.event, from: body.from, dataKeys: Object.keys(body.data ?? {}) },
+        '[rubitime] webhook received',
+      );
+
       const incomingEvent = rubitimeIncomingToEvent({
-        body: parseResult.data,
+        body,
         correlationId,
         eventId,
       });
+
+      const incoming = (incomingEvent.payload as { incoming?: unknown }).incoming;
+      reqLogger.info(
+        {
+          action: (incoming as Record<string, unknown>)?.action,
+          entity: (incoming as Record<string, unknown>)?.entity,
+          phone: (incoming as Record<string, unknown>)?.phone,
+          recordId: (incoming as Record<string, unknown>)?.recordId,
+        },
+        '[rubitime] mapped to event',
+      );
 
       await deps.eventGateway.handleIncomingEvent(incomingEvent);
       return reply.code(200).send({ ok: true });

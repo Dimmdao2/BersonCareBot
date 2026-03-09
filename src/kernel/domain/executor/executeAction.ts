@@ -483,11 +483,17 @@ export async function executeAction(
     case 'message.replyKeyboard.show':
     case 'message.inlineKeyboard.show':
     case 'admin.forward': {
+      const rawVars = (action.params.vars ?? {}) as Record<string, unknown>;
+      const username = typeof rawVars.username === 'string' ? rawVars.username.trim() : '';
+      const vars = {
+        ...rawVars,
+        usernameMention: username ? `@${username}` : '',
+      };
       const text = await renderText({
         text: action.params.text,
         messageText: action.params.messageText,
         templateKey: action.params.templateKey,
-        vars: action.params.vars,
+        vars,
         ctx,
         templatePort: deps.templatePort,
       });

@@ -26,5 +26,5 @@
   "notifications.label.msk": "Москва (приёмы и акции)",
   "notifications.label.online": "Онлайн-уроки и вебинары",
   "notifications.togglePrefix": "✅/❌",
-  "adminForward": "Новый вопрос\nОт: {{name}} {{username}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}"
+  "adminForward": "Новый вопрос\nОт: {{name}} {{usernameMention}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}"
 }

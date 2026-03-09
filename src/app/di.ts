@@ -119,6 +119,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     input.dispatchPort ??
     createDefaultDispatchPort({
       adapters,
+      readPort: dbReadPort,
       writePort: dbWritePort,
     });
 
