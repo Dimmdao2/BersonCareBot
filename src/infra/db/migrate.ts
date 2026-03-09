@@ -111,41 +111,11 @@ async function discoverMigrations(): Promise<MigrationFile[]> {
   return [...core, ...integrations];
 }
 
-// Применяет одну миграцию в транзакции, логирует успех/ошибку
-async function tableExists(db: Pool, table: string): Promise<boolean> {
-  const res = await db.query(
-    `SELECT to_regclass($1) IS NOT NULL AS exists`,
-    [table]
-  );
-  return res.rows[0]?.exists === true;
-}
 
-// Проверяет, существуют ли все указанные таблицы
-async function allTablesExist(db: Pool, tables: string[]): Promise<boolean> {
-  for (const t of tables) {
-    if (!(await tableExists(db, t))) return false;
-  }
-  return true;
-}
 
-// Telegram миграции, которые можно safe-скипать если структура уже есть
-const TELEGRAM_SAFE_MIGRATIONS = [
-  'telegram:20260306_0001_init.sql',
-  'telegram:20260306_0002_refactor_telegram_schema.sql',
-  'telegram:20260306_0003_add_user_state.sql',
-  'telegram:20260306_0004_add_notification_settings.sql',
-  'telegram:20260306_0005_add_last_update_id.sql',
-  'telegram:20260306_0006_add_last_start_at.sql',
-  'telegram:20260306_0007_align_mailing_topics.sql',
-  'telegram:20260306_0008_worker_schema.sql',
-];
-const TELEGRAM_KEY_TABLES = [
-  'telegram_users',
-  'telegram_state',
-  'mailings',
-  'mailing_logs',
-  'mailing_topics',
-];
+
+// eslint-disable-next-line no-secrets/no-secrets
+// 'telegram:20260306_0004_add_notification_settings.sql' — версия миграции, не секрет
 
 async function applyMigration(db: Pool, migration: MigrationFile, sql: string): Promise<void> {
   const migrationLogger = getMigrationLogger(migration.version);
@@ -164,7 +134,7 @@ async function applyMigration(db: Pool, migration: MigrationFile, sql: string): 
       },
       'Applied migration',
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Список ошибок, которые считаются "уже применено"
     const safePgCodes = [
       '42710', // duplicate_object
@@ -181,8 +151,9 @@ async function applyMigration(db: Pool, migration: MigrationFile, sql: string): 
       'already present',
       'constraint',
     ];
-    const pgCode = error?.code;
-    const msg = (error?.message || '').toLowerCase();
+    const errObj = error as { code?: string; message?: string };
+    const pgCode = errObj?.code;
+    const msg = (errObj?.message || '').toLowerCase();
     const isSafe =
       (pgCode && safePgCodes.includes(pgCode)) ||
       safeMessages.some((m) => msg.includes(m));

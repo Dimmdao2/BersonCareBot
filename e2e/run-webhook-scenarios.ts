@@ -199,8 +199,8 @@ const queuePort = {
 };
 
 let telegramAdapter: {
-  canHandle: (intent: any) => boolean;
-  send: (intent: any) => Promise<void>;
+  canHandle: (intent: unknown) => boolean;
+  send: (intent: unknown) => Promise<void>;
 } | null = null;
 const dispatchPort = {
   async dispatchOutgoing(intent: { type: string; meta: { source: string }; payload: unknown }): Promise<void> {

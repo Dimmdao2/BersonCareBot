@@ -238,7 +238,6 @@ function toPlanStep(step: ScriptStep, input: OrchestratorInput, index: number, v
   const interpolated = interpolate(step.params ?? {}, vars) as Record<string, unknown>;
   // Логгирование параметров шага для callback-сценариев
   if (input.event.type === 'callback.received') {
-    // eslint-disable-next-line no-console
     console.log('[orchestrator][toPlanStep] step', index, 'action:', step.action, 'params:', interpolated);
   }
   return {
@@ -278,7 +277,6 @@ export async function buildPlan(
 ): Promise<OrchestratorPlan> {
   // Подробное логирование для диагностики callback-сценариев
   if (input.event.type === 'callback.received') {
-    // eslint-disable-next-line no-console
     console.log('[orchestrator][buildPlan] input:', JSON.stringify(input, null, 2));
   }
   const selected = await resolveBusinessScript(input, deps.contentPort);
@@ -291,7 +289,6 @@ export async function buildPlan(
     ...normalizeMatchVars(input),
   } as Record<string, unknown>;
   if (input.event.type === 'callback.received') {
-    // eslint-disable-next-line no-console
     console.log('[orchestrator][buildPlan] baseVars:', JSON.stringify(baseVars, null, 2));
   }
 
@@ -301,7 +298,6 @@ export async function buildPlan(
     queries: queryResults,
   };
   if (input.event.type === 'callback.received') {
-    // eslint-disable-next-line no-console
     console.log('[orchestrator][buildPlan] vars after queries:', JSON.stringify(vars, null, 2));
   }
 
@@ -315,7 +311,6 @@ export async function buildPlan(
 
     const interpolated = toPlanStep({ ...step, params: paramsWithoutWhen }, input, index, vars);
     if (input.event.type === 'callback.received') {
-      // eslint-disable-next-line no-console
       console.log('[orchestrator][buildPlan] step', index, 'interpolated:', JSON.stringify(interpolated, null, 2));
     }
     steps.push(interpolated);

@@ -47,7 +47,6 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
     const action = normalizeTelegramAction(callback.data ?? '');
     const callbackQueryId = callback.id;
     // Логгирование для диагностики проблем с callback
-    // eslint-disable-next-line no-console
     console.log('[telegram][mapBodyToIncoming] callback params:', {
       chatId,
       messageId,
@@ -56,7 +55,6 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
       callbackQueryId,
     });
     if (typeof chatId !== 'number' || typeof messageId !== 'number' || typeof telegramId !== 'number') {
-      // eslint-disable-next-line no-console
       console.warn('[telegram][mapBodyToIncoming] missing required callback params', {
         chatId,
         messageId,

@@ -23,7 +23,6 @@ db.on('error', (err) => {
 			PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 		}
 	}, '[db][pool] connection error');
-	// eslint-disable-next-line no-console
 	console.error('[db][pool] connection error', err, {
 		connectionString: env.DATABASE_URL,
 		db_env: {
@@ -59,7 +58,6 @@ export function createDbPort(pool: Pool = db): DbPort {
 						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 					}
 				}, '[db][query] error');
-				// eslint-disable-next-line no-console
 				console.error('[db][query] error', err, sql, params);
 				throw err;
 			}
@@ -80,7 +78,6 @@ export function createDbPort(pool: Pool = db): DbPort {
 						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 					}
 				}, '[db][tx] failed to connect');
-				// eslint-disable-next-line no-console
 				console.error('[db][tx] failed to connect', err);
 				throw err;
 			}
@@ -108,7 +105,6 @@ export function createDbPort(pool: Pool = db): DbPort {
 									PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 								}
 							}, '[db][tx][query] error');
-							// eslint-disable-next-line no-console
 							console.error('[db][tx][query] error', err, sql, params);
 							throw err;
 						}
@@ -131,7 +127,6 @@ export function createDbPort(pool: Pool = db): DbPort {
 						PGPASSWORD: process.env.PGPASSWORD ? '[set]' : undefined,
 					}
 				}, '[db][tx] error, rolled back');
-				// eslint-disable-next-line no-console
 				console.error('[db][tx] error, rolled back', err);
 				throw err;
 			} finally {
