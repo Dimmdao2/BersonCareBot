@@ -23,32 +23,40 @@ function asString(value: unknown): string | undefined {
 function normalizeRubitimeAction(event: RubitimeWebhookBodyValidated['event']): RubitimeIncomingPayload['action'] {
   if (event === 'event-create-record') return 'created';
   if (event === 'event-update-record') return 'updated';
+  if (event === 'event-delete-record' || event === 'event-remove-record') return 'canceled';
   return 'canceled';
 }
 
-/** Maps Rubitime status/status_title to script values: accepted, canceled, moved. */
+/**
+ * Maps Rubitime status to script values.
+ * 0 = Записан (recorded) — успешная запись
+ * 1, 2, 3 — ничего не делаем
+ * 4 = Отменена (canceled)
+ * Ожидает подтверждения — awaiting_confirmation
+ * Перенос записи — moved_awaiting
+ */
 function normalizeRubitimeStatus(status: string | undefined, statusTitle: string | undefined): string | undefined {
-  const s = (status ?? '').toLowerCase();
+  const s = (status ?? '').toString().toLowerCase();
   const t = (statusTitle ?? '').toLowerCase();
-  if (s === 'accepted' || s === 'confirmed' || s === 'recorded' || s === '4' ||
-      t.includes('записан') || t.includes('подтвержд') || t.includes('принят')) return 'accepted';
-  if (s === 'canceled' || s === 'cancelled' || s === '0' ||
-      t.includes('отмен')) return 'canceled';
-  if (s === 'moved' || t.includes('перенос')) return 'moved';
-  return status ?? statusTitle;
+  if (s === '0' || t.includes('записан') || s === 'accepted' || s === 'confirmed') return 'recorded';
+  if (s === '4' || t.includes('отмен') || s === 'canceled' || s === 'cancelled') return 'canceled';
+  if (t.includes('ожида') && t.includes('подтвержд')) return 'awaiting_confirmation';
+  if (t.includes('перенос') || s === 'moved') return 'moved_awaiting';
+  if (s === '1' || s === '2' || s === '3') return undefined;
+  return undefined;
 }
 
 function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomingPayload {
   const data = asRecord(body.data);
   const record = asRecord(data.record);
   const source = Object.keys(record).length > 0 ? record : data;
-  const rawStatus = asString(source.status_name) ?? asString(source.status);
+  const rawStatus = asString(source.status) ?? (source.status != null ? String(source.status) : undefined);
   const statusTitle = asString(source.status_title);
-  const status = normalizeRubitimeStatus(rawStatus, statusTitle) ?? rawStatus ?? statusTitle;
-  const statusCode = asString(source.status);
-  const recordId = asString(source.id);
+  const status = normalizeRubitimeStatus(rawStatus, statusTitle);
+  const statusCode = asString(source.status) ?? (source.status != null ? String(source.status) : undefined);
+  const recordId = asString(source.id) ?? (source.id != null ? String(source.id) : undefined);
   const phone = asString(source.phone);
-  const recordAt = asString(source.datetime);
+  const recordAt = asString(source.record) ?? asString(source.datetime);
 
   return {
     entity: 'record',

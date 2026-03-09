@@ -5,6 +5,7 @@ const RubitimeEventSchema = z.enum([
   'event-create-record',
   'event-update-record',
   'event-remove-record',
+  'event-delete-record',
 ]);
 
 /** Схема body входящего Rubitime webhook. */

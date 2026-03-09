@@ -32,7 +32,7 @@ describe('rubitimeIncomingToEvent', () => {
       incoming: {
         entity: 'record',
         action: 'updated',
-        status: 'accepted',
+        status: 'recorded',
         statusCode: 'confirmed',
         recordId: 'rec-1',
         phone: '+79990001122',

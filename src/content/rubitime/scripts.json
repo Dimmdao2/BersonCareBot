@@ -47,20 +47,23 @@
             "lookupByPhone": true
           },
           "message": {},
-          "templateKey": "rubitime:bookingAccepted"
+          "templateKey": "rubitime:bookingRecorded",
+          "vars": {
+            "recordAt": "{{input.recordAt}}"
+          }
         }
       }
     ]
   },
   {
-    "id": "rubitime.record.updated.accepted",
+    "id": "rubitime.record.updated.recorded",
     "source": "rubitime",
     "event": "webhook.received",
     "match": {
       "input": {
         "entity": "record",
         "action": "updated",
-        "status": "accepted"
+        "status": "recorded"
       }
     },
     "steps": [
@@ -101,7 +104,10 @@
             "lookupByPhone": true
           },
           "message": {},
-          "templateKey": "rubitime:bookingAccepted"
+          "templateKey": "rubitime:bookingRecorded",
+          "vars": {
+            "recordAt": "{{input.recordAt}}"
+          }
         }
       }
     ]
@@ -155,20 +161,23 @@
             "lookupByPhone": true
           },
           "message": {},
-          "templateKey": "rubitime:bookingCanceled"
+          "templateKey": "rubitime:bookingCanceled",
+          "vars": {
+            "recordAt": "{{input.recordAt}}"
+          }
         }
       }
     ]
   },
   {
-    "id": "rubitime.record.updated.moved",
+    "id": "rubitime.record.updated.awaiting_confirmation",
     "source": "rubitime",
     "event": "webhook.received",
     "match": {
       "input": {
         "entity": "record",
         "action": "updated",
-        "status": "moved"
+        "status": "awaiting_confirmation"
       }
     },
     "steps": [
@@ -209,7 +218,64 @@
             "lookupByPhone": true
           },
           "message": {},
-          "templateKey": "rubitime:bookingMoved"
+          "templateKey": "rubitime:bookingAwaitingConfirmation",
+          "vars": {
+            "recordAt": "{{input.recordAt}}"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "rubitime.record.updated.moved_awaiting",
+    "source": "rubitime",
+    "event": "webhook.received",
+    "match": {
+      "input": {
+        "entity": "record",
+        "action": "updated",
+        "status": "moved_awaiting"
+      }
+    },
+    "steps": [
+      {
+        "action": "event.log",
+        "mode": "sync",
+        "params": {
+          "eventStore": "booking",
+          "source": "{{source}}",
+          "eventType": "{{event}}",
+          "eventId": "{{meta.eventId}}",
+          "occurredAt": "{{meta.occurredAt}}",
+          "correlationId": "{{meta.correlationId}}",
+          "body": "{{input}}"
+        }
+      },
+      {
+        "action": "booking.upsert",
+        "mode": "sync",
+        "params": {
+          "externalRecordId": "{{input.recordId}}",
+          "phoneNormalized": "{{input.phone}}",
+          "recordAt": "{{input.recordAt}}",
+          "status": "updated",
+          "rubitimeStatusCode": "{{input.statusCode}}",
+          "payloadJson": "{{input.record}}",
+          "lastEvent": "{{input.action}}"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": {
+            "phoneNormalized": "{{input.phone}}"
+          },
+          "recipientPolicy": {
+            "lookupByPhone": true
+          },
+          "message": {},
+          "templateKey": "rubitime:bookingMovedAwaiting"
         }
       }
     ]
@@ -262,7 +328,10 @@
             "lookupByPhone": true
           },
           "message": {},
-          "templateKey": "rubitime:bookingCanceled"
+          "templateKey": "rubitime:bookingCanceled",
+          "vars": {
+            "recordAt": "{{input.recordAt}}"
+          }
         }
       }
     ]
