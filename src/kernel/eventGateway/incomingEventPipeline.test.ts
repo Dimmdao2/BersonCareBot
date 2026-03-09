@@ -121,8 +121,8 @@ describe('incomingEventPipeline', () => {
           ],
         },
       ]),
-      getTemplate: vi.fn().mockImplementation(async (key: string) => {
-        if (key === 'telegram:chooseMenu') return { id: 'chooseMenu', text: 'Выберите действие' };
+      getTemplate: vi.fn().mockImplementation(async (_scope: { source: string; audience: string }, templateId: string) => {
+        if (templateId === 'chooseMenu') return { id: 'chooseMenu', text: 'Выберите действие' };
         return null;
       }),
     };

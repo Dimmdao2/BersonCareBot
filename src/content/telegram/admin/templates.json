@@ -1,0 +1,6 @@
+{
+  "admin.menu": "📊 Панель администратора",
+  "admin.menu.hint": "Используйте кнопку меню (☰) для выбора раздела.",
+  "admin.stats.bookings": "📅 Активных записей: {{activeBookings}}",
+  "admin.stats.users": "👥 Пользователи по интеграциям\n\nTelegram: {{telegramTotal}} всего, {{telegramWithPhone}} с телефоном\nRubiTime: {{rubitimeTotal}} всего"
+}

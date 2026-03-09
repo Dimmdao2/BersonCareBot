@@ -49,10 +49,22 @@ export type ContentBundle = {
 
 export type ContentRegistry = Record<string, ContentBundle>;
 
+/** Audience for content selection. Must match ContentAudience in contracts. */
+export type ContentAudience = 'user' | 'admin';
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     const st = await stat(filePath);
     return st.isFile();
+  } catch {
+    return false;
+  }
+}
+
+async function dirExists(filePath: string): Promise<boolean> {
+  try {
+    const st = await stat(filePath);
+    return st.isDirectory();
   } catch {
     return false;
   }
@@ -65,7 +77,8 @@ async function readJsonFile(filePath: string): Promise<unknown> {
 
 /**
  * Loads content bundles from src/content/* folders.
- * Each source folder may define scripts.json and templates.json.
+ * - If source has user/ and admin/ subdirs (each with scripts.json), registers "source/user" and "source/admin".
+ * - Otherwise loads source/scripts.json and source/templates.json as single bundle under "source".
  */
 export async function loadContentRegistry(input?: { rootDir?: string }): Promise<ContentRegistry> {
   const rootDir = input?.rootDir ?? path.resolve(process.cwd(), 'src/content');
@@ -76,25 +89,72 @@ export async function loadContentRegistry(input?: { rootDir?: string }): Promise
     if (!entry.isDirectory()) continue;
     const source = entry.name;
     const sourceDir = path.join(rootDir, source);
+
+    const hasUserDir = await dirExists(path.join(sourceDir, 'user'));
+    const hasAdminDir = await dirExists(path.join(sourceDir, 'admin'));
+
+    if (hasUserDir && hasAdminDir) {
+      for (const audience of ['user', 'admin'] as ContentAudience[]) {
+        const audienceDir = path.join(sourceDir, audience);
+        const scriptsPath = path.join(audienceDir, 'scripts.json');
+        const templatesPath = path.join(audienceDir, 'templates.json');
+        const scriptsRaw = await fileExists(scriptsPath) ? await readJsonFile(scriptsPath) : [];
+        const templatesRaw = await fileExists(templatesPath) ? await readJsonFile(templatesPath) : {};
+        const scripts = scriptsFileSchema.parse(Array.isArray(scriptsRaw) ? scriptsRaw : []);
+        const templates = templatesFileSchema.parse(typeof templatesRaw === 'object' && templatesRaw !== null ? templatesRaw : {});
+        const key = `${source}/${audience}`;
+        ensureNoDuplicateScriptIds({ scripts, templates }, key);
+        registry[key] = { scripts, templates };
+      }
+      continue;
+    }
+
     const scriptsPath = path.join(sourceDir, 'scripts.json');
     const templatesPath = path.join(sourceDir, 'templates.json');
-
     const scripts = await fileExists(scriptsPath)
       ? scriptsFileSchema.parse(await readJsonFile(scriptsPath))
       : [];
     const templates = await fileExists(templatesPath)
       ? templatesFileSchema.parse(await readJsonFile(templatesPath))
       : {};
+    ensureNoDuplicateScriptIds({ scripts, templates }, source);
     registry[source] = { scripts, templates };
   }
 
   return registry;
 }
 
-/** Returns one source content bundle from preloaded registry. */
+/**
+ * Throws if the same script id appears twice in the bundle (deterministic conflict detection).
+ */
+export function ensureNoDuplicateScriptIds(bundle: ContentBundle, scopeKey: string): void {
+  const seen = new Set<string>();
+  for (const script of bundle.scripts) {
+    if (seen.has(script.id)) {
+      throw new Error(`Content scope "${scopeKey}": duplicate script id "${script.id}"`);
+    }
+    seen.add(script.id);
+  }
+}
+
+/** Returns one content bundle by exact key (e.g. "telegram" or "telegram/user"). */
 export function getContentBundle(
   registry: ContentRegistry,
-  source: string,
+  key: string,
 ): ContentBundle | null {
-  return registry[source] ?? null;
+  return registry[key] ?? null;
+}
+
+/**
+ * Resolves registry key for scope. Use scope-based key when present, else source-only.
+ * Deterministic: no business logic, only lookup.
+ */
+export function getEffectiveBundleKey(
+  registry: ContentRegistry,
+  source: string,
+  audience: ContentAudience,
+): string {
+  const scopeKey = `${source}/${audience}`;
+  if (registry[scopeKey]) return scopeKey;
+  return source;
 }

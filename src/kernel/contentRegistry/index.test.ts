@@ -1,8 +1,36 @@
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { ensureNoDuplicateScriptIds, getContentBundle, getEffectiveBundleKey, loadContentRegistry } from './index.js';
+
+describe('contentRegistry', () => {
+  it('loads rubitime and telegram/user, telegram/admin bundles from workspace content root', async () => {
+    const root = path.resolve(process.cwd(), 'src/content');
+    const registry = await loadContentRegistry({ rootDir: root });
+
+    expect(getContentBundle(registry, 'rubitime')).not.toBeNull();
+    expect(getContentBundle(registry, 'telegram/user')).not.toBeNull();
+    expect(getContentBundle(registry, 'telegram/admin')).not.toBeNull();
+  });
+
+  it('keeps notifications.show self-sufficient by fetching state before rendering', async () => {
+    const root = path.resolve(process.cwd(), 'src/content');
+    const registry = await loadContentRegistry({ rootDir: root });
+    const telegramUser = getContentBundle(registry, 'telegram/user');
+    const script = telegramUser?.scripts.find((item) => item.id === 'telegram.notifications.show');
+
+    expect(script?.steps[0]).toMatchObject({
+      action: 'notifications.get',
+      mode: 'sync',
+    });
+  });
+
   it('keeps booking.open safe by providing a fallback script', async () => {
     const root = path.resolve(process.cwd(), 'src/content');
     const registry = await loadContentRegistry({ rootDir: root });
-    const telegram = getContentBundle(registry, 'telegram');
-    const script = telegram?.scripts.find((item) => item.id === 'telegram.booking.open.fallback');
+    const telegramUser = getContentBundle(registry, 'telegram/user');
+    const script = telegramUser?.scripts.find((item) => item.id === 'telegram.booking.open.fallback');
 
     expect(script?.match).toMatchObject({
       input: { action: 'booking.open' },
@@ -16,38 +44,12 @@
       mode: 'async',
     });
   });
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { getContentBundle, loadContentRegistry } from './index.js';
-
-describe('contentRegistry', () => {
-  it('loads rubitime and telegram bundles from workspace content root', async () => {
-    const root = path.resolve(process.cwd(), 'src/content');
-    const registry = await loadContentRegistry({ rootDir: root });
-
-    expect(getContentBundle(registry, 'rubitime')).not.toBeNull();
-    expect(getContentBundle(registry, 'telegram')).not.toBeNull();
-  });
-
-  it('keeps notifications.show self-sufficient by fetching state before rendering', async () => {
-    const root = path.resolve(process.cwd(), 'src/content');
-    const registry = await loadContentRegistry({ rootDir: root });
-    const telegram = getContentBundle(registry, 'telegram');
-    const script = telegram?.scripts.find((item) => item.id === 'telegram.notifications.show');
-
-    expect(script?.steps[0]).toMatchObject({
-      action: 'notifications.get',
-      mode: 'sync',
-    });
-  });
 
   it('keeps bookings.show safe by providing a fallback callback script', async () => {
     const root = path.resolve(process.cwd(), 'src/content');
     const registry = await loadContentRegistry({ rootDir: root });
-    const telegram = getContentBundle(registry, 'telegram');
-    const script = telegram?.scripts.find((item) => item.id === 'telegram.contact.link.request.bookings.fallback');
+    const telegramUser = getContentBundle(registry, 'telegram/user');
+    const script = telegramUser?.scripts.find((item) => item.id === 'telegram.contact.link.request.bookings.fallback');
 
     expect(script?.match).toMatchObject({
       input: { action: 'bookings.show' },
@@ -189,5 +191,27 @@ describe('contentRegistry', () => {
     await writeFile(path.join(source, 'templates.json'), JSON.stringify({}), 'utf8');
 
     await expect(loadContentRegistry({ rootDir: root })).rejects.toThrow();
+  });
+
+  it('throws on duplicate script id within same scope', () => {
+    const bundle = {
+      scripts: [
+        { id: 'dup', steps: [{ action: 'a', params: {} }] },
+        { id: 'dup', steps: [{ action: 'b', params: {} }] },
+      ],
+      templates: {},
+    };
+    expect(() => ensureNoDuplicateScriptIds(bundle, 'test/scope')).toThrow(/duplicate script id "dup"/);
+  });
+
+  it('getEffectiveBundleKey returns scope key when present, else source', () => {
+    const registry = {
+      'telegram/user': { scripts: [], templates: {} },
+      'telegram/admin': { scripts: [], templates: {} },
+      rubitime: { scripts: [], templates: {} },
+    };
+    expect(getEffectiveBundleKey(registry, 'telegram', 'user')).toBe('telegram/user');
+    expect(getEffectiveBundleKey(registry, 'telegram', 'admin')).toBe('telegram/admin');
+    expect(getEffectiveBundleKey(registry, 'rubitime', 'user')).toBe('rubitime');
   });
 });

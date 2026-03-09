@@ -1,0 +1,87 @@
+[
+	{
+		"id": "telegram.admin.start",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 10,
+		"match": {
+			"input": { "text": "/start" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:admin.menu.hint",
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.admin.stats.bookings",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 10,
+		"match": {
+			"input": { "action": "admin.stats.bookings" },
+			"actor": { "isAdmin": true }
+		},
+		"conditions": [
+			{
+				"kind": "context.query",
+				"name": "adminStats",
+				"query": { "type": "admin.stats" }
+			}
+		],
+		"steps": [
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:admin.stats.bookings",
+					"vars": {
+						"activeBookings": "{{queries.adminStats.activeBookings}}"
+					},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.admin.stats.users",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 10,
+		"match": {
+			"input": { "action": "admin.stats.users" },
+			"actor": { "isAdmin": true }
+		},
+		"conditions": [
+			{
+				"kind": "context.query",
+				"name": "adminStats",
+				"query": { "type": "admin.stats" }
+			}
+		],
+		"steps": [
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:admin.stats.users",
+					"vars": {
+						"telegramTotal": "{{queries.adminStats.userCountsByIntegration.telegram.total}}",
+						"telegramWithPhone": "{{queries.adminStats.userCountsByIntegration.telegram.withPhone}}",
+						"rubitimeTotal": "{{queries.adminStats.userCountsByIntegration.rubitime.total}}"
+					},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+				}
+			}
+		]
+	}
+]

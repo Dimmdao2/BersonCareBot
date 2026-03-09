@@ -76,8 +76,12 @@ function interpolateTemplate(text: string, vars: Record<string, unknown>): strin
 
 export function createTemplatePort(input: { contentPort: ContentPort }): TemplatePort {
   return {
-    async renderTemplate({ source, templateId, vars = {} }): Promise<{ text: string }> {
-      const template = await input.contentPort.getTemplate(`${source}:${templateId}`);
+    async renderTemplate({ source, templateId, vars = {}, audience }): Promise<{ text: string }> {
+      const template = audience !== undefined
+        ? await input.contentPort.getTemplate({ source, audience }, templateId)
+        : (input.contentPort.getTemplateByKey
+          ? await input.contentPort.getTemplateByKey(`${source}:${templateId}`)
+          : null);
       if (!template || typeof template.text !== 'string') return { text: '' };
       return { text: interpolateTemplate(template.text, vars) };
     },

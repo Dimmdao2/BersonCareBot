@@ -1,9 +1,18 @@
-import type { ContentPort, ContentScript, ContentTemplate } from '../../kernel/contracts/index.js';
+import type {
+  ContentPort,
+  ContentScript,
+  ContentSelectionScope,
+  ContentTemplate,
+} from '../../kernel/contracts/index.js';
 import type {
   ContentRegistry,
   ContentScript as RegistryScript,
 } from '../../kernel/contentRegistry/index.js';
-import { getContentBundle, loadContentRegistry } from '../../kernel/contentRegistry/index.js';
+import {
+  getContentBundle,
+  getEffectiveBundleKey,
+  loadContentRegistry,
+} from '../../kernel/contentRegistry/index.js';
 
 type RegistryState = {
   load: () => Promise<ContentRegistry>;
@@ -55,19 +64,32 @@ export function createContentPort(input?: { rootDir?: string }): ContentPort {
   const registry = createRegistryState(input);
 
   const port: ContentPort = {
-    async getScriptsBySource(source: string): Promise<ContentScript[]> {
+    async getScripts(scope: ContentSelectionScope): Promise<ContentScript[]> {
       const data = await registry.load();
-      const bundle = getContentBundle(data, source);
+      const key = getEffectiveBundleKey(data, scope.source, scope.audience);
+      const bundle = getContentBundle(data, key);
       if (!bundle) return [];
       return listScripts(bundle);
     },
-    async getTemplate(key: string): Promise<ContentTemplate | null> {
+    async getTemplate(scope: ContentSelectionScope, templateId: string): Promise<ContentTemplate | null> {
+      const data = await registry.load();
+      const key = getEffectiveBundleKey(data, scope.source, scope.audience);
+      const bundle = getContentBundle(data, key);
+      if (!bundle) return null;
+      return findTemplate(bundle, templateId);
+    },
+    async getTemplateByKey(key: string): Promise<ContentTemplate | null> {
       const [source, templateId] = key.split(':');
       if (!source || !templateId) return null;
       const data = await registry.load();
-      const bundle = getContentBundle(data, source);
-      if (!bundle) return null;
-      return findTemplate(bundle, templateId);
+      for (const bundleKey of [source, `${source}/user`, `${source}/admin`]) {
+        const bundle = getContentBundle(data, bundleKey);
+        if (bundle) {
+          const t = findTemplate(bundle, templateId);
+          if (t) return t;
+        }
+      }
+      return null;
     },
   };
 

@@ -55,7 +55,9 @@ export type {
 
 export type {
   ClockPort,
+  ContentAudience,
   ContentPort,
+  ContentSelectionScope,
   ContextQueryPort,
   ContextQuery,
   DbPort,

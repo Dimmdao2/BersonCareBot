@@ -99,10 +99,27 @@ export type ContextQueryPort = {
   request(query: ContextQuery): Promise<unknown>;
 };
 
+/**
+ * Scope for content selection. Orchestrator passes only source + audience;
+ * registry/contentPort encapsulate bundle resolution (no filesystem knowledge in domain).
+ */
+export type ContentAudience = 'user' | 'admin';
+
+export type ContentSelectionScope = {
+  source: string;
+  audience: ContentAudience;
+};
+
 /** Порт доступа к JSON-скриптам и шаблонам контента. */
 export type ContentPort = {
+  /** Preferred: resolve scripts by scope (source + audience). */
+  getScripts?(scope: ContentSelectionScope): Promise<ContentScript[]>;
+  /** Legacy: scripts by source only (treated as user bundle when getScripts is used). */
   getScriptsBySource?: (source: string) => Promise<ContentScript[]>;
-  getTemplate(key: string, version?: string, locale?: string): Promise<ContentTemplate | null>;
+  /** Resolve template by scope and templateId. */
+  getTemplate(scope: ContentSelectionScope, templateId: string): Promise<ContentTemplate | null>;
+  /** Legacy template lookup by key "source:templateId" (used when scope not passed). */
+  getTemplateByKey?(key: string): Promise<ContentTemplate | null>;
 };
 
 /** Базовый payload пользователя внешнего канала, используемый в пользовательских портах. */
@@ -161,6 +178,8 @@ export type TemplatePort = {
     source: string;
     templateId: string;
     vars?: Record<string, unknown>;
+    /** When set, template is resolved from the effective scope bundle (user/admin). */
+    audience?: ContentAudience;
   }): Promise<{ text: string }>;
 };
 

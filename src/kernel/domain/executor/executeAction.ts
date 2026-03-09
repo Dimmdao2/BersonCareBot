@@ -144,6 +144,10 @@ function buildTemplateVars(ctx: DomainContext, vars?: unknown): Record<string, u
   };
 }
 
+function contentAudience(ctx: DomainContext): 'user' | 'admin' {
+  return ctx.base?.actor?.isAdmin === true ? 'admin' : 'user';
+}
+
 async function renderText(input: {
   text?: unknown;
   messageText?: unknown;
@@ -161,6 +165,7 @@ async function renderText(input: {
     source,
     templateId,
     vars: buildTemplateVars(input.ctx, input.vars),
+    audience: contentAudience(input.ctx),
   })).text;
 }
 
@@ -179,6 +184,7 @@ async function renderButtonText(input: {
     source,
     templateId,
     vars: buildTemplateVars(input.ctx, input.vars),
+    audience: contentAudience(input.ctx),
   })).text;
   const prefixKey = asString(input.button.prefixTemplateKey);
   if (!prefixKey) return rendered;
@@ -444,7 +450,12 @@ export async function executeAction(
         : { maxAttempts: 1 };
 
       const composedText = deps.templatePort && templateId
-        ? (await deps.templatePort.renderTemplate({ source, templateId, vars })).text
+        ? (await deps.templatePort.renderTemplate({
+          source,
+          templateId,
+          vars,
+          audience: contentAudience(ctx),
+        })).text
         : (typeof action.params.text === 'string' ? action.params.text : '');
 
       const intents: OutgoingIntent[] = [{

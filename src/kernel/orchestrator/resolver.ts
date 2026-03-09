@@ -1,6 +1,7 @@
 import type {
   ContentPort,
   ContentScript,
+  ContentSelectionScope,
   ContextQueryPort,
   ContextQuery,
   OrchestratorInput,
@@ -248,14 +249,26 @@ function toPlanStep(step: ScriptStep, input: OrchestratorInput, index: number, v
   };
 }
 
+function buildContentScope(input: OrchestratorInput): ContentSelectionScope {
+  return {
+    source: input.event.meta.source,
+    audience: input.context.actor.isAdmin === true ? 'admin' : 'user',
+  };
+}
+
 async function resolveBusinessScript(
   input: OrchestratorInput,
   contentPort: ContentPort,
 ): Promise<SelectedScript | null> {
-  if (!contentPort.getScriptsBySource) return null;
-
   const source = input.event.meta.source;
-  const scripts = (await contentPort.getScriptsBySource(source)) as ScriptShape[];
+  const scope = buildContentScope(input);
+
+  const scripts: ScriptShape[] = contentPort.getScripts
+    ? ((await contentPort.getScripts(scope)) as ScriptShape[])
+    : (contentPort.getScriptsBySource ? (await contentPort.getScriptsBySource(source)) as ScriptShape[] : []);
+
+  if (scripts.length === 0) return null;
+
   let selected: SelectedScript | null = null;
   let bestScore = Number.NEGATIVE_INFINITY;
 

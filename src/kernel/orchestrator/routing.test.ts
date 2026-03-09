@@ -179,4 +179,43 @@ describe('orchestrator routing', () => {
     expect(plan).toEqual([]);
     expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('unknown');
   });
+
+  it('calls getScripts with scope (source + audience) when port provides getScripts', async () => {
+    const getScripts = vi.fn().mockResolvedValue([
+      {
+        id: 'user.script',
+        source: 'telegram',
+        event: 'message.received',
+        steps: [{ action: 'event.log', params: {} }],
+      },
+    ]);
+    const contentPort: ContentPort = {
+      getScripts,
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    await buildPlan({ event: createEvent(), context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(getScripts).toHaveBeenCalledWith({ source: 'telegram', audience: 'user' });
+  });
+
+  it('calls getScripts with admin audience when context.actor.isAdmin is true', async () => {
+    const getScripts = vi.fn().mockResolvedValue([
+      {
+        id: 'admin.script',
+        source: 'telegram',
+        event: 'message.received',
+        steps: [{ action: 'event.log', params: {} }],
+      },
+    ]);
+    const contentPort: ContentPort = {
+      getScripts,
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    const adminContext: BaseContext = { ...baseContext, actor: { isAdmin: true } };
+
+    await buildPlan({ event: createEvent(), context: adminContext }, { contentPort, contextQueryPort });
+
+    expect(getScripts).toHaveBeenCalledWith({ source: 'telegram', audience: 'admin' });
+  });
 });
