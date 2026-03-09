@@ -35,6 +35,11 @@ function readChannelUserId(params: Record<string, unknown>): string | null {
   return asNonEmptyString(params.channelUserId ?? params.channelId);
 }
 
+function readResource(params: Record<string, unknown>): string {
+  const r = asNonEmptyString(params.resource);
+  return r ?? 'telegram';
+}
+
 /**
  * Creates the default DbWritePort implementation used by eventGateway.
  * It maps canonical write mutations to existing infra repositories.
@@ -83,12 +88,16 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
           return;
         }
         case 'user.state.set': {
+          const resource = readResource(mutation.params);
+          if (resource !== 'telegram') return;
           const channelUserId = readChannelUserId(mutation.params);
           if (!channelUserId) return;
           await setUserState(db, channelUserId, asNullableString(mutation.params.state));
           return;
         }
         case 'user.phone.link': {
+          const resource = readResource(mutation.params);
+          if (resource !== 'telegram') return;
           const channelUserId = readChannelUserId(mutation.params);
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
           if (!channelUserId || !phoneNormalized) return;
@@ -96,6 +105,8 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
           return;
         }
         case 'notifications.update': {
+          const resource = readResource(mutation.params);
+          if (resource !== 'telegram') return;
           const channelUserId = asFiniteNumber(mutation.params.channelUserId ?? mutation.params.channelId);
           if (channelUserId === null) return;
           const settings: Record<string, boolean> = {};

@@ -65,8 +65,8 @@ describe('processAcceptedIncomingEvent', () => {
 
     expect(orchestrator.buildPlan).toHaveBeenCalledTimes(1);
     expect(readPort.readDb).toHaveBeenCalledWith({
-      type: 'user.byChannelId',
-      params: { channelId: '123' },
+      type: 'user.byIdentity',
+      params: { resource: 'source-a', externalId: '123' },
     });
     expect(executeAction).toHaveBeenCalledTimes(2);
     expect(dispatchIntent).toHaveBeenCalledTimes(1);

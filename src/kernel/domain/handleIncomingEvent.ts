@@ -84,12 +84,16 @@ async function loadUserContext(
   readPort?: DbReadPort,
 ): Promise<Pick<BaseContext, 'conversationState' | 'linkedPhone' | 'phoneNormalized'>> {
   if (!readPort) return {};
-  const channelId = extractChannelId(event);
-  if (!channelId) return {};
+  const externalId = extractChannelId(event);
+  if (!externalId) return {};
+  const resource = typeof event.meta.source === 'string' && event.meta.source.trim().length > 0
+    ? event.meta.source.trim()
+    : null;
+  if (!resource) return {};
 
   const user = await readPort.readDb<ReadUserContext | null>({
-    type: 'user.byChannelId',
-    params: { channelId },
+    type: 'user.byIdentity',
+    params: { resource, externalId },
   });
 
   if (!user || typeof user !== 'object') return {};

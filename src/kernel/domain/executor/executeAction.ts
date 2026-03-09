@@ -677,6 +677,7 @@ export async function executeAction(
       const writes: DbWriteMutation[] = [{
         type: 'user.state.set',
         params: {
+          resource: ctx.event.meta.source,
           channelUserId: action.params.channelUserId ?? action.params.channelId,
           state: action.params.state ?? null,
         },
@@ -696,6 +697,7 @@ export async function executeAction(
       const writes: DbWriteMutation[] = phoneNormalized ? [{
         type: 'user.phone.link',
         params: {
+          resource: ctx.event.meta.source,
           channelUserId,
           phoneNormalized,
         },
@@ -713,6 +715,7 @@ export async function executeAction(
         ? await deps.readPort.readDb<NotificationSettings | null>({
             type: 'notifications.settings',
             params: {
+              resource: ctx.event.meta.source,
               channelUserId: action.params.channelUserId ?? action.params.channelId,
             },
           })
@@ -730,6 +733,7 @@ export async function executeAction(
           ? await deps.readPort.readDb<NotificationSettings | null>({
               type: 'notifications.settings',
               params: {
+                resource: ctx.event.meta.source,
                 channelUserId: action.params.channelUserId ?? action.params.channelId,
               },
             }) ?? defaultNotificationSettings()
@@ -750,6 +754,7 @@ export async function executeAction(
       const writes: DbWriteMutation[] = [{
         type: 'notifications.update',
         params: {
+          resource: ctx.event.meta.source,
           channelUserId: action.params.channelUserId ?? action.params.channelId,
           notify_spb: nextSettings.notify_spb,
           notify_msk: nextSettings.notify_msk,

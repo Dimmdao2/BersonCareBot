@@ -35,13 +35,22 @@ async function getActiveBookingsCount(db: DbPort): Promise<number> {
 async function getUserCountsByIntegration(db: DbPort): Promise<AdminStats['userCountsByIntegration']> {
   const result: AdminStats['userCountsByIntegration'] = {};
 
-  // Telegram: legacy telegram_users (основной источник), with phone из telegram_users.phone
+  // Telegram: identities with resource='telegram'; withPhone = those user_ids with a phone in contacts
   try {
     const telegramRes = await db.query<{ total: number; with_phone: number }>(`
       SELECT
-        COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE phone IS NOT NULL AND TRIM(phone) != '')::int AS with_phone
-      FROM telegram_users
+        COUNT(DISTINCT i.user_id)::int AS total,
+        COUNT(DISTINCT i.user_id) FILTER (
+          WHERE EXISTS (
+            SELECT 1 FROM contacts c
+            WHERE c.user_id = i.user_id
+              AND c.type = 'phone'
+              AND c.value_normalized IS NOT NULL
+              AND TRIM(c.value_normalized) != ''
+          )
+        )::int AS with_phone
+      FROM identities i
+      WHERE i.resource = 'telegram'
     `);
     const row = telegramRes.rows[0];
     if (row) {

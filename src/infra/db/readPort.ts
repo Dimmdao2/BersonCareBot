@@ -2,7 +2,7 @@ import type { DbPort, DbReadPort, DbReadQuery } from '../../kernel/contracts/ind
 import { createDbPort } from './client.js';
 import { getAdminStats } from './repos/adminStats.js';
 import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingRecords.js';
-import { getNotificationSettings } from './repos/channelUsers.js';
+import { getLinkDataByIdentity, getNotificationSettings } from './repos/channelUsers.js';
 import { findUserByChannelId, findUserByPhone, lookupUser } from './repos/userLookup.js';
 
 function asNonEmptyString(value: unknown): string | null {
@@ -44,7 +44,15 @@ export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
           if (!channelId) return null as T;
           return (await findUserByChannelId(db, channelId)) as T;
         }
+        case 'user.byIdentity': {
+          const resource = asNonEmptyString(query.params.resource);
+          const externalId = asNonEmptyString(query.params.externalId);
+          if (!resource || !externalId) return null as T;
+          return (await getLinkDataByIdentity(db, resource, externalId)) as T;
+        }
         case 'notifications.settings': {
+          const resource = asNonEmptyString(query.params.resource) ?? 'telegram';
+          if (resource !== 'telegram') return null as T;
           const channelUserId = asFiniteNumber(query.params.channelUserId ?? query.params.channelId);
           if (channelUserId === null) return null as T;
           return (await getNotificationSettings(db, channelUserId)) as T;

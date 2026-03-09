@@ -11,6 +11,7 @@ import type { IncomingEvent, OutgoingIntent } from './events.js';
 export type DbReadQueryType =
   | 'user.lookup'
   | 'user.byChannelId'
+  | 'user.byIdentity'
   | 'user.byPhone'
   | 'notifications.settings'
   | 'booking.byExternalId'

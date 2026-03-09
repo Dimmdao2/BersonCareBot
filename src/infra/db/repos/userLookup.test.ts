@@ -4,7 +4,7 @@ import * as channelUsers from './channelUsers.js';
 import { lookupUser } from './userLookup.js';
 
 describe('userLookup', () => {
-  it('returns null for unsupported resource', async () => {
+  it('returns null when no identity exists for resource (e.g. smsc)', async () => {
     const db: DbPort = {
       query: vi.fn(),
       tx: vi.fn(),
@@ -14,18 +14,18 @@ describe('userLookup', () => {
     expect(result).toBeNull();
   });
 
-  it('delegates phone/channel lookups for telegram/channel resources', async () => {
+  it('delegates phone lookups to findByIdentityByPhone and channelId to getLinkDataByIdentity', async () => {
     const db: DbPort = {
       query: vi.fn(),
       tx: vi.fn(),
     };
 
-    const findByPhoneSpy = vi.spyOn(channelUsers, 'findByPhone').mockResolvedValue({
+    const findByIdentityByPhoneSpy = vi.spyOn(channelUsers, 'findByIdentityByPhone').mockResolvedValue({
       chatId: 123,
       channelId: '123',
       username: 'alice',
     });
-    const getUserLinkDataSpy = vi.spyOn(channelUsers, 'getUserLinkData').mockResolvedValue({
+    const getLinkDataByIdentitySpy = vi.spyOn(channelUsers, 'getLinkDataByIdentity').mockResolvedValue({
       chatId: 123,
       channelId: '123',
       username: 'alice',
@@ -44,7 +44,7 @@ describe('userLookup', () => {
       phoneNormalized: '+79990001122',
       userState: 'idle',
     });
-    expect(findByPhoneSpy).toHaveBeenCalledWith(db, '+79990001122');
-    expect(getUserLinkDataSpy).toHaveBeenCalledWith(db, '123');
+    expect(findByIdentityByPhoneSpy).toHaveBeenCalledWith(db, '+79990001122', 'channel');
+    expect(getLinkDataByIdentitySpy).toHaveBeenCalledWith(db, 'telegram', '123');
   });
 });

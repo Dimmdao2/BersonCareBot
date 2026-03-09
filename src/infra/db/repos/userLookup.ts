@@ -1,21 +1,16 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { findByPhone, getUserLinkData } from './channelUsers.js';
-
-function isSupportedResource(resource: string): boolean {
-  return resource === 'telegram' || resource === 'channel';
-}
+import { findByIdentityByPhone, getLinkDataByIdentity } from './channelUsers.js';
 
 export async function lookupUser(db: DbPort, resource: string, by: string, value: string) {
-  if (!isSupportedResource(resource)) return null;
-  if (by === 'phone') return findByPhone(db, value);
-  if (by === 'channelId') return getUserLinkData(db, value);
+  if (by === 'phone') return findByIdentityByPhone(db, value, resource);
+  if (by === 'channelId' || by === 'externalId') return getLinkDataByIdentity(db, resource, value);
   return null;
 }
 
 export async function findUserByPhone(db: DbPort, phoneNormalized: string) {
-  return findByPhone(db, phoneNormalized);
+  return findByIdentityByPhone(db, phoneNormalized, 'telegram');
 }
 
 export async function findUserByChannelId(db: DbPort, channelId: string) {
-  return getUserLinkData(db, channelId);
+  return getLinkDataByIdentity(db, 'telegram', channelId);
 }

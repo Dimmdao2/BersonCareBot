@@ -102,8 +102,8 @@ describe('handleIncomingEvent (v3)', () => {
     });
 
     expect(readPort.readDb).toHaveBeenCalledWith({
-      type: 'user.byChannelId',
-      params: { channelId: '123' },
+      type: 'user.byIdentity',
+      params: { resource: 'telegram', externalId: '123' },
     });
     expect(buildPlan).toHaveBeenCalledWith({
       event,

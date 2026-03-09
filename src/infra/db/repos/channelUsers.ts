@@ -307,81 +307,148 @@ export async function getNotificationSettings(
   }
 }
 
-/** Finds channel user by normalized phone. */
+/** Finds channel user by normalized phone (Telegram only; for backward compat). */
 export async function findByPhone(db: DbPort, phoneNormalized: string): Promise<ChannelUserByPhone | null> {
+  return findByIdentityByPhone(db, phoneNormalized, 'telegram');
+}
+
+/**
+ * Finds identity for a user identified by phone, for the given resource.
+ * Returns link data (channelId, chatId when numeric) or null if no identity for that resource.
+ */
+export async function findByIdentityByPhone(
+  db: DbPort,
+  phoneNormalized: string,
+  resource: string,
+): Promise<ChannelUserByPhone | null> {
+  if (resource === 'telegram' || resource === 'channel') {
+    const query = `
+      SELECT i.external_id::text AS channel_id, ts.username
+      FROM contacts c
+      JOIN identities i ON i.user_id = c.user_id AND i.resource = 'telegram'
+      LEFT JOIN telegram_state ts ON ts.identity_id = i.id
+      WHERE c.type = 'phone' AND c.value_normalized = $1
+      LIMIT 1
+    `;
+    try {
+      const res = await db.query<{ channel_id: string; username: string | null }>(query, [phoneNormalized]);
+      const row = res.rows[0];
+      if (!row) return null;
+      const chatId = Number(row.channel_id);
+      if (!Number.isFinite(chatId)) return null;
+      return { chatId, channelId: row.channel_id, username: row.username };
+    } catch (err) {
+      logger.error({ err }, 'findByIdentityByPhone telegram error');
+      return null;
+    }
+  }
+
   const query = `
-    SELECT i.external_id::text AS channel_id, ts.username
+    SELECT i.external_id::text AS channel_id
     FROM contacts c
-    JOIN identities i
-      ON i.user_id = c.user_id
-     AND i.resource = 'telegram'
-    LEFT JOIN telegram_state ts
-      ON ts.identity_id = i.id
-    WHERE c.type = 'phone'
-      AND c.value_normalized = $1
+    JOIN identities i ON i.user_id = c.user_id AND i.resource = $2
+    WHERE c.type = 'phone' AND c.value_normalized = $1
     LIMIT 1
   `;
   try {
-    const res = await db.query<{ channel_id: string; username: string | null }>(query, [phoneNormalized]);
+    const res = await db.query<{ channel_id: string }>(query, [phoneNormalized, resource]);
     const row = res.rows[0];
     if (!row) return null;
-
     const chatId = Number(row.channel_id);
-    if (!Number.isFinite(chatId)) return null;
-
     return {
-      chatId,
+      chatId: Number.isFinite(chatId) ? chatId : 0,
       channelId: row.channel_id,
-      username: row.username,
+      username: null,
     };
   } catch (err) {
-    logger.error({ err }, 'findByPhone error');
+    logger.error({ err }, 'findByIdentityByPhone error');
     return null;
   }
 }
 
-/** Returns user data needed for linking flows. */
+/** Returns user data needed for linking flows (Telegram-only; state from telegram_state). */
 export async function getUserLinkData(
   db: DbPort,
   channelUserId: string,
 ): Promise<ChannelUserLinkRow | null> {
+  return getLinkDataByIdentity(db, 'telegram', channelUserId);
+}
+
+/**
+ * Returns user/link data by (resource, external_id). State and profile come from
+ * integration-specific tables when available (e.g. telegram_state); otherwise identities + contacts only.
+ */
+export async function getLinkDataByIdentity(
+  db: DbPort,
+  resource: string,
+  externalId: string,
+): Promise<ChannelUserLinkRow | null> {
+  if (resource === 'telegram') {
+    const query = `
+      SELECT i.external_id::text AS channel_id, ts.username, ts.state AS user_state, cp.phone
+      FROM identities i
+      LEFT JOIN telegram_state ts ON ts.identity_id = i.id
+      LEFT JOIN LATERAL (
+        SELECT c.value_normalized AS phone
+        FROM contacts c
+        WHERE c.user_id = i.user_id AND c.type = 'phone'
+        ORDER BY c.is_primary DESC NULLS LAST, c.id ASC
+        LIMIT 1
+      ) cp ON true
+      WHERE i.resource = $1 AND i.external_id = $2
+      LIMIT 1
+    `;
+    try {
+      const res = await db.query<{
+        channel_id: string;
+        username: string | null;
+        user_state: string | null;
+        phone: string | null;
+      }>(query, [resource, externalId]);
+      const row = res.rows[0];
+      if (!row) return null;
+      const chatId = Number(row.channel_id);
+      if (!Number.isFinite(chatId)) return null;
+      return {
+        chatId,
+        channelId: row.channel_id,
+        username: row.username,
+        phoneNormalized: row.phone,
+        userState: row.user_state,
+      };
+    } catch (err) {
+      logger.error({ err }, 'getLinkDataByIdentity telegram error');
+      return null;
+    }
+  }
+
   const query = `
-    SELECT i.external_id::text AS channel_id, ts.username, ts.state AS user_state, cp.phone
+    SELECT i.external_id::text AS channel_id, cp.phone
     FROM identities i
-    LEFT JOIN telegram_state ts
-      ON ts.identity_id = i.id
     LEFT JOIN LATERAL (
       SELECT c.value_normalized AS phone
       FROM contacts c
-      WHERE c.user_id = i.user_id
-        AND c.type = 'phone'
+      WHERE c.user_id = i.user_id AND c.type = 'phone'
       ORDER BY c.is_primary DESC NULLS LAST, c.id ASC
       LIMIT 1
     ) cp ON true
-    WHERE i.resource = 'telegram'
-      AND i.external_id = $1
+    WHERE i.resource = $1 AND i.external_id = $2
     LIMIT 1
   `;
   try {
-    const res = await db.query<{
-      channel_id: string;
-      username: string | null;
-      user_state: string | null;
-      phone: string | null;
-    }>(query, [channelUserId]);
+    const res = await db.query<{ channel_id: string; phone: string | null }>(query, [resource, externalId]);
     const row = res.rows[0];
     if (!row) return null;
     const chatId = Number(row.channel_id);
-    if (!Number.isFinite(chatId)) return null;
     return {
-      chatId,
+      chatId: Number.isFinite(chatId) ? chatId : 0,
       channelId: row.channel_id,
-      username: row.username,
+      username: null,
       phoneNormalized: row.phone,
-      userState: row.user_state,
+      userState: null,
     };
   } catch (err) {
-    logger.error({ err }, 'getUserLinkData error');
+    logger.error({ err }, 'getLinkDataByIdentity error');
     return null;
   }
 }

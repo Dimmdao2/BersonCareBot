@@ -146,6 +146,7 @@ export const dbReadQuerySchema = z.object({
   type: z.enum([
     'user.lookup',
     'user.byChannelId',
+    'user.byIdentity',
     'user.byPhone',
     'notifications.settings',
     'booking.byExternalId',

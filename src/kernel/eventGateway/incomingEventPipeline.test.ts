@@ -81,8 +81,8 @@ describe('incomingEventPipeline', () => {
 
     expect(readDb.mock.calls).toContainEqual([
       {
-        type: 'user.byChannelId',
-        params: { channelId: '123' },
+        type: 'user.byIdentity',
+        params: { resource: 'source-a', externalId: '123' },
       },
     ]);
     expect(enqueue).toHaveBeenCalledTimes(1);
