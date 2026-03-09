@@ -6,6 +6,7 @@
  * Мок Telegram: подмена globalThis.fetch до загрузки приложения.
  */
 import { readdir, readFile } from 'node:fs/promises';
+import type { DeliveryAdapter, OutgoingIntent } from '../src/kernel/contracts/index.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -201,15 +202,12 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
     },
   };
 
-  let telegramAdapter: {
-    canHandle: (intent: unknown) => boolean;
-    send: (intent: unknown) => Promise<void>;
-  } | null = null;
+  let telegramAdapter: DeliveryAdapter | null = null;
   const dispatchPort = {
-    async dispatchOutgoing(intent: { type: string; meta: { source: string }; payload: unknown }): Promise<void> {
+    async dispatchOutgoing(intent: OutgoingIntent): Promise<void> {
       if (!telegramAdapter) return;
-      if (!telegramAdapter.canHandle(intent as never)) return;
-      await telegramAdapter.send(intent as never);
+      if (!telegramAdapter.canHandle(intent)) return;
+      await telegramAdapter.send(intent);
     },
   };
 
