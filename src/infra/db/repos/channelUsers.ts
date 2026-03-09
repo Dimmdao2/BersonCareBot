@@ -258,6 +258,7 @@ export async function updateNotificationSettings(
       DO UPDATE SET
         ${updateFromExcluded.join(', ')},
         updated_at = now()
+      RETURNING *
     )
     SELECT 1 FROM upsert_state
   `;
