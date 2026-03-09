@@ -36,7 +36,7 @@ function readChannel(intent: OutgoingIntent): string | null {
     const normalized = channels.filter((item): item is string => typeof item === 'string');
     if (normalized.length > 0) return normalized[0] as string;
   }
-  return null;
+  return intent.meta?.source ?? null;
 }
 
 function withChannel(intent: OutgoingIntent, channel: string): OutgoingIntent {

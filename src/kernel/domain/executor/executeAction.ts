@@ -591,7 +591,7 @@ export async function executeAction(
           recipient: chatId === null ? {} : { chatId },
           message: { text },
           ...(replyMarkup ? { replyMarkup } : {}),
-          delivery: { channels: ['telegram'], maxAttempts: 1 },
+          delivery: { maxAttempts: 1 },
         },
       }];
       return { actionId: action.id, status: 'success', intents };
@@ -982,7 +982,7 @@ export async function executeAction(
               { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
             ]],
           },
-          delivery: { channels: ['telegram'], maxAttempts: 1 },
+          delivery: { maxAttempts: 1 },
         },
       }];
       return {
@@ -1075,7 +1075,7 @@ export async function executeAction(
               { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
             ]],
           },
-          delivery: { channels: ['telegram'], maxAttempts: 1 },
+          delivery: { maxAttempts: 1 },
         },
       }];
       return {
@@ -1168,7 +1168,7 @@ export async function executeAction(
           payload: {
             recipient: { chatId: userChatId },
             message: { text },
-            delivery: { channels: ['telegram'], maxAttempts: 1 },
+            delivery: { maxAttempts: 1 },
           },
         },
       ];
@@ -1190,7 +1190,7 @@ export async function executeAction(
                 { text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` },
               ]],
             },
-            delivery: { channels: ['telegram'], maxAttempts: 1 },
+            delivery: { maxAttempts: 1 },
           },
         });
       }
@@ -1244,7 +1244,7 @@ export async function executeAction(
           payload: {
             recipient: { chatId: userChatId },
             message: { text: userClosedText },
-            delivery: { channels: ['telegram'], maxAttempts: 1 },
+            delivery: { maxAttempts: 1 },
           },
         });
       }
@@ -1259,7 +1259,7 @@ export async function executeAction(
           payload: {
             recipient: { chatId: adminChatId },
             message: { text: adminClosedText },
-            delivery: { channels: ['telegram'], maxAttempts: 1 },
+            delivery: { maxAttempts: 1 },
           },
         });
       }
@@ -1311,7 +1311,7 @@ export async function executeAction(
           recipient: { chatId: adminChatId },
           message: { text },
           ...(inline_keyboard.length > 0 ? { replyMarkup: { inline_keyboard } } : {}),
-          delivery: { channels: ['telegram'], maxAttempts: 1 },
+          delivery: { maxAttempts: 1 },
         },
       }];
       return { actionId: action.id, status: 'success', intents };
@@ -1371,7 +1371,7 @@ export async function executeAction(
           recipient: { chatId: adminChatId },
           message: { text },
           ...(inline_keyboard.length > 0 ? { replyMarkup: { inline_keyboard } } : {}),
-          delivery: { channels: ['telegram'], maxAttempts: 1 },
+          delivery: { maxAttempts: 1 },
         },
       }];
       return { actionId: action.id, status: 'success', intents };
@@ -1417,7 +1417,7 @@ export async function executeAction(
               { text: replyBtnText, callback_data: `admin_reply:${conversationId}` },
             ]],
           },
-          delivery: { channels: ['telegram'], maxAttempts: 1 },
+          delivery: { maxAttempts: 1 },
         },
       }];
       return { actionId: action.id, status: 'success', intents };
