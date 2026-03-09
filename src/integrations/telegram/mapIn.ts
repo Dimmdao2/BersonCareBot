@@ -51,7 +51,6 @@ export type FromTelegramContext = {
   telegramId: string | null;
   userState?: string | undefined;
   hasLinkedPhone?: boolean | undefined;
-  adminForward?: { chatId: number; text: string } | undefined;
 };
 
 /**
@@ -61,7 +60,7 @@ export function fromTelegram(
   body: TelegramWebhookBodyValidated,
   context: FromTelegramContext,
 ): IncomingUpdate | null {
-  const { userRow, telegramId, userState, hasLinkedPhone, adminForward } = context;
+  const { userRow, telegramId, userState, hasLinkedPhone } = context;
 
   if (body.callback_query) {
     const cq = body.callback_query;
