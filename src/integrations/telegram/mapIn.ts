@@ -82,19 +82,11 @@ export function fromTelegram(
 
   if (body.message?.from && body.message.chat && typeof body.message.chat.id === 'number') {
     const msg = body.message;
-    const chatId = msg.chat!.id;
-    if (!telegramId) return null;
-      const reqLogger = (context as any)?.reqLogger;
-      const adminTelegramIdRaw = process.env.ADMIN_TELEGRAM_ID;
-      const adminTelegramId = typeof adminTelegramIdRaw === 'string' ? Number(adminTelegramIdRaw) : undefined;
-      if (reqLogger) {
-        reqLogger.info({ adminTelegramIdRaw, adminTelegramId }, '[telegram][mapIn] ADMIN_TELEGRAM_ID diagnostics');
-        if (typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)) {
-          reqLogger.info({ chatId: adminTelegramId, text: msg.text ?? '' }, '[telegram][mapIn] adminForward will be set');
-        } else {
-          reqLogger.warn({ adminTelegramId }, '[telegram][mapIn] adminForward NOT set, invalid adminTelegramId');
-        }
-      }
+    const chatId = msg.chat?.id;
+    if (!telegramId || typeof chatId !== 'number') return null;
+    const reqLogger = (context as any)?.reqLogger;
+    const adminTelegramIdRaw = process.env.ADMIN_TELEGRAM_ID;
+    const adminTelegramId = typeof adminTelegramIdRaw === 'string' ? Number(adminTelegramIdRaw) : undefined;
     if (reqLogger) {
       reqLogger.info({ adminTelegramIdRaw, adminTelegramId }, '[telegram][mapIn] ADMIN_TELEGRAM_ID diagnostics');
       if (typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)) {
@@ -102,7 +94,6 @@ export function fromTelegram(
       } else {
         reqLogger.warn({ adminTelegramId }, '[telegram][mapIn] adminForward NOT set, invalid adminTelegramId');
       }
->>>>>>> a4bf8e2 (111111111лог)
     }
     const update: IncomingMessageUpdate = {
       kind: 'message',
