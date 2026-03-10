@@ -327,7 +327,7 @@ describe('executeAction', () => {
     });
   });
 
-  it('queues async message.send through delivery job when queuePort exists', async () => {
+  it('keeps async message.send immediate for scenario-selected channels', async () => {
     const enqueue = vi.fn().mockResolvedValue(undefined);
     const result = await executeAction({
       id: 'a6e',
@@ -335,26 +335,26 @@ describe('executeAction', () => {
       mode: 'async',
       params: {
         recipient: { chatId: 123 },
-        message: { text: 'queued telegram' },
+        message: { text: 'immediate telegram' },
         delivery: { channels: ['telegram'], maxAttempts: 1 },
       },
-    }, ctx, { queuePort: { enqueue } });
-
-    expect(result.status).toBe('queued');
-    expect(result.jobs?.[0]).toMatchObject({
-      kind: 'message.deliver',
-      targets: [{ resource: 'telegram', address: { chatId: 123 } }],
-      payload: {
-        intent: {
-          type: 'message.send',
-          payload: {
-            message: { text: 'queued telegram' },
-            delivery: { channels: ['telegram'], maxAttempts: 1 },
-          },
+    }, {
+      ...ctx,
+      event: {
+        ...ctx.event,
+        meta: {
+          ...ctx.event.meta,
+          source: 'telegram',
         },
       },
+    }, { queuePort: { enqueue } });
+
+    expect(result.status).toBe('success');
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      message: { text: 'immediate telegram' },
+      delivery: { channels: ['telegram'], maxAttempts: 1 },
     });
-    expect(enqueue).toHaveBeenCalledTimes(1);
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
   it('handles user.state.set and user.phone.link', async () => {

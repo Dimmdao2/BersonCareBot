@@ -92,7 +92,7 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
           const dataObj = typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null;
           if (eventStore === 'booking') {
             await insertEvent(db, {
-              externalRecordId: asNullableString(dataObj?.id),
+              externalRecordId: asNullableString(bodyObj?.recordId) ?? asNullableString(dataObj?.id),
               event: asNonEmptyString(bodyObj?.event) ?? 'unknown',
               payloadJson: bodyObj ?? {},
             });

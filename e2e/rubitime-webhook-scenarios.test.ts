@@ -1,8 +1,7 @@
-import type { DeliveryJob, QueuePort } from '../src/kernel/contracts/index.js';
+import type { QueuePort } from '../src/kernel/contracts/index.js';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app/index.js';
 import { createDefaultDispatchPort } from '../src/infra/adapters/dispatchPort.js';
-import { executeJob } from '../src/infra/runtime/worker/jobExecutor.js';
 import { createSmscDeliveryAdapter } from '../src/integrations/smsc/deliveryAdapter.js';
 import type { SmsClient } from '../src/integrations/smsc/types.js';
 import { createTelegramDeliveryAdapter } from '../src/integrations/telegram/deliveryAdapter.js';
@@ -22,6 +21,30 @@ const recordedTelegramCalls: RecordedTelegramCall[] = [];
 const originalFetch = globalThis.fetch;
 globalThis.fetch = (input: FetchInput, init?: FetchInit) => {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  if (String(url).includes('rubitime.ru/api2/get-record')) {
+    let body: { id?: unknown } | null = null;
+    if (typeof init?.body === 'string') {
+      try {
+        body = JSON.parse(init.body) as { id?: unknown };
+      } catch {
+        body = null;
+      }
+    }
+    const id = typeof body?.id === 'string' || typeof body?.id === 'number' ? String(body.id) : 'unknown';
+    return Promise.resolve(new Response(JSON.stringify({
+      status: 'ok',
+      message: 'Success',
+      data: {
+        id,
+        phone: '+79990004455',
+        record: '2026-03-10 13:00:00',
+        status: 0,
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+  }
   if (!String(url).includes('api.telegram.org')) return originalFetch(input, init);
 
   const path = new URL(url).pathname;
@@ -49,22 +72,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
 }
 
-function buildQueuedJob(task: { kind: string; payload: Record<string, unknown> }, suffix: string): DeliveryJob {
-  const retry = asRecord(task.payload.retry);
-  const maxAttemptsRaw = retry.maxAttempts;
-  const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
-    ? Math.max(1, Math.trunc(maxAttemptsRaw))
-    : 1;
-  return {
-    id: `e2e-job:${suffix}`,
-    kind: task.kind,
-    runAt: '2026-03-10T10:00:00.000Z',
-    attempts: 0,
-    maxAttempts,
-    payload: task.payload,
-  };
-}
-
 describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
   afterAll(() => {
     globalThis.fetch = originalFetch;
@@ -75,7 +82,6 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
   });
 
   it('delivers created-record notification to Telegram when phone is linked', async () => {
-    const queuedTasks: Array<{ kind: string; payload: Record<string, unknown> }> = [];
     const writes: Array<{ type: string; params: Record<string, unknown> }> = [];
     const smsClient: SmsClient = {
       sendSms: vi.fn().mockResolvedValue({ ok: true }),
@@ -96,8 +102,8 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
       },
     };
     const queuePort: QueuePort = {
-      async enqueue(task): Promise<void> {
-        queuedTasks.push(task);
+      async enqueue(): Promise<void> {
+        return;
       },
     };
     const dispatchPort = createDefaultDispatchPort({
@@ -137,16 +143,6 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(queuedTasks).toHaveLength(1);
-    expect(queuedTasks[0]?.payload.targets).toMatchObject([
-      { resource: 'telegram', address: { chatId: 123456 } },
-    ]);
-
-    const result = await executeJob(buildQueuedJob(queuedTasks[0]!, 'telegram'), {
-      dispatchOutgoing: (intent) => dispatchPort.dispatchOutgoing(intent),
-    });
-
-    expect(result.ok).toBe(true);
     expect(recordedTelegramCalls).toHaveLength(1);
     expect(recordedTelegramCalls[0]?.method).toBe('sendMessage');
     expect(smsClient.sendSms).not.toHaveBeenCalled();
@@ -156,7 +152,6 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
   });
 
   it('falls back to SMS when no Telegram link is found', async () => {
-    const queuedTasks: Array<{ kind: string; payload: Record<string, unknown> }> = [];
     const smsClient: SmsClient = {
       sendSms: vi.fn().mockResolvedValue({ ok: true }),
     };
@@ -174,8 +169,8 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
         },
       },
       queuePort: {
-        async enqueue(task): Promise<void> {
-          queuedTasks.push(task);
+        async enqueue(): Promise<void> {
+          return;
         },
       },
       idempotencyPort: {
@@ -209,23 +204,6 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(queuedTasks).toHaveLength(1);
-    expect(queuedTasks[0]?.payload.targets).toMatchObject([
-      { resource: 'smsc', address: { phoneNormalized: '+79990002233' } },
-    ]);
-
-    const result = await executeJob(buildQueuedJob(queuedTasks[0]!, 'sms'), {
-      dispatchOutgoing: async (intent) => {
-        await createDefaultDispatchPort({
-          adapters: [
-            createTelegramDeliveryAdapter(),
-            createSmscDeliveryAdapter({ smsClient }),
-          ],
-        }).dispatchOutgoing(intent);
-      },
-    });
-
-    expect(result.ok).toBe(true);
     expect(recordedTelegramCalls).toHaveLength(0);
     expect(smsClient.sendSms).toHaveBeenCalledWith(expect.objectContaining({
       toPhone: '+79990002233',
@@ -234,8 +212,7 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
     await app.close();
   });
 
-  it('recognizes status_name payloads and still queues a Telegram notification', async () => {
-    const queuedTasks: Array<{ kind: string; payload: Record<string, unknown> }> = [];
+  it('recognizes status_name payloads and still delivers a Telegram notification', async () => {
     const app = buildApp({
       dbReadPort: {
         async readDb<T = unknown>(query: { type: string; params: Record<string, unknown> }): Promise<T> {
@@ -253,8 +230,8 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
         },
       },
       queuePort: {
-        async enqueue(task): Promise<void> {
-          queuedTasks.push(task);
+        async enqueue(): Promise<void> {
+          return;
         },
       },
       idempotencyPort: {
@@ -293,10 +270,59 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(queuedTasks).toHaveLength(1);
-    expect(queuedTasks[0]?.payload.targets).toMatchObject([
-      { resource: 'telegram', address: { chatId: 987654 } },
-    ]);
+    expect(recordedTelegramCalls).toHaveLength(1);
+    expect(recordedTelegramCalls[0]?.method).toBe('sendMessage');
+
+    await app.close();
+  });
+
+  it('supports legacy record_success callback by fetching record details from Rubitime API', async () => {
+    const legacyRecordId = 'legacy-record-id';
+    const smsClient: SmsClient = {
+      sendSms: vi.fn().mockResolvedValue({ ok: true }),
+    };
+    const app = buildApp({
+      dbReadPort: {
+        async readDb<T = unknown>(query: { type: string; params: Record<string, unknown> }): Promise<T> {
+          if (query.type === 'user.lookup' && query.params.by === 'phone' && query.params.value === '+79990004455') {
+            return { chatId: 555777, channelId: '555777', username: 'legacy-route-user' } as T;
+          }
+          if (query.type === 'booking.byExternalId') return null as T;
+          if (query.type === 'booking.activeByUser') return [] as T;
+          return null as T;
+        },
+      },
+      dbWritePort: {
+        async writeDb(): Promise<void> {
+          return;
+        },
+      },
+      queuePort: {
+        async enqueue(): Promise<void> {
+          return;
+        },
+      },
+      idempotencyPort: {
+        tryAcquire: async () => true,
+      },
+      dispatchPort: createDefaultDispatchPort({
+        adapters: [
+          createTelegramDeliveryAdapter(),
+          createSmscDeliveryAdapter({ smsClient }),
+        ],
+      }),
+    });
+
+    await app.ready();
+    clearRecordedCalls();
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/rubitime?record_success=${legacyRecordId}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(recordedTelegramCalls).toHaveLength(1);
+    expect(recordedTelegramCalls[0]?.method).toBe('sendMessage');
 
     await app.close();
   });
