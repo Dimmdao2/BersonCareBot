@@ -4,7 +4,7 @@ import { createContentPort } from '../../infra/adapters/contentPort.js';
 import type { BaseContext, ContextQueryPort, IncomingEvent } from '../contracts/index.js';
 import { buildPlan } from './resolver.js';
 
-const rootDir = fileURLToPath(new URL('../../../', import.meta.url));
+const rootDir = fileURLToPath(new URL('../../content/', import.meta.url));
 
 type RubitimeCase = {
   name: string;
