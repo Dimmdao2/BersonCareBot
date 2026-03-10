@@ -11,6 +11,7 @@ describe('rubitimeIncomingToEvent', () => {
           id: 'rec-1',
           phone: '+79990001122',
           datetime: '2026-03-06T12:00:00.000Z',
+          updated_at: '2026-03-06T12:05:00.000Z',
           status_name: 'Записан',
           status: 'custom',
         },
@@ -27,6 +28,14 @@ describe('rubitimeIncomingToEvent', () => {
     expect(event.meta.source).toBe('rubitime');
     expect(event.meta.correlationId).toBe('corr-1');
     expect(event.meta.eventId).toBe('evt-1');
+    expect(event.meta.dedupFingerprint).toEqual({
+      entity: 'record',
+      action: 'updated',
+      recordId: 'rec-1',
+      status: 'recorded',
+      recordAt: '2026-03-06T12:00:00.000Z',
+      updatedAt: '2026-03-06T12:05:00.000Z',
+    });
     expect(event.payload).toMatchObject({
       body,
       incoming: {
@@ -37,6 +46,7 @@ describe('rubitimeIncomingToEvent', () => {
         recordId: 'rec-1',
         phone: '+79990001122',
         recordAt: '2026-03-06T12:00:00.000Z',
+        updatedAt: '2026-03-06T12:05:00.000Z',
       },
     });
   });

@@ -10,6 +10,7 @@ type RubitimeIncomingPayload = {
   phone?: string;
   recordAt?: string;
   recordAtFormatted?: string;
+  updatedAt?: string;
   record: Record<string, unknown>;
 };
 
@@ -82,6 +83,7 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
   const phone = asString(source.phone);
   const recordAt = asString(source.record) ?? asString(source.datetime);
   const recordAtFormatted = recordAt ? formatRecordAt(recordAt) : undefined;
+  const updatedAt = asString(source.updated_at);
 
   return {
     entity: 'record',
@@ -92,7 +94,19 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
     ...(phone ? { phone } : {}),
     ...(recordAt ? { recordAt } : {}),
     ...(recordAtFormatted ? { recordAtFormatted } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
     record: source,
+  };
+}
+
+function buildRubitimeDedupFingerprint(incoming: RubitimeIncomingPayload): Record<string, string | number | boolean | null> {
+  return {
+    entity: incoming.entity,
+    action: incoming.action,
+    recordId: incoming.recordId ?? null,
+    status: incoming.status ?? null,
+    recordAt: incoming.recordAt ?? null,
+    updatedAt: incoming.updatedAt ?? null,
   };
 }
 
@@ -110,6 +124,7 @@ export function rubitimeIncomingToEvent(input: {
       correlationId: input.correlationId,
       source: 'rubitime',
       occurredAt: new Date().toISOString(),
+      dedupFingerprint: buildRubitimeDedupFingerprint(incoming),
     },
     payload: {
       incoming,

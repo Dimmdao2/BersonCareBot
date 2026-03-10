@@ -1,13 +1,20 @@
 import { z } from 'zod';
 
 /** Zod-схема метаданных event-конверта. */
+const dedupFingerprintSchema = z.record(z.string(), z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+]));
+
 const eventMetaSchema = z.object({
   eventId: z.string().min(1),
   occurredAt: z.iso.datetime(),
   source: z.string().min(1),
   correlationId: z.string().min(1).optional(),
   userId: z.string().min(1).optional(),
-  dedupKey: z.string().min(1).optional(),
+  dedupFingerprint: dedupFingerprintSchema.optional(),
 });
 
 const baseContextSchema = z.object({

@@ -135,12 +135,14 @@ describe('telegramIncomingToEvent', () => {
       incoming,
       correlationId: 'corr-2',
       eventId: 'evt-2',
+      updateId: 99,
     });
 
     expect(event.type).toBe('callback.received');
     expect(event.meta.source).toBe('telegram');
     expect(event.meta.correlationId).toBe('corr-2');
     expect(event.meta.eventId).toBe('evt-2');
+    expect(event.meta.dedupFingerprint).toEqual({ updateId: 99 });
     expect(event.payload).toMatchObject({ incoming });
   });
 });

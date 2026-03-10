@@ -1,3 +1,6 @@
+/** Канонический набор примитивов для дедупликации нормализованного события. */
+export type DedupFingerprint = Record<string, string | number | boolean | null>;
+
 /** Метаданные события, общие для входящих и исходящих конвертов. */
 export type EventMeta = {
   eventId: string;
@@ -5,7 +8,7 @@ export type EventMeta = {
   source: string;
   correlationId?: string;
   userId?: string;
-  dedupKey?: string;
+  dedupFingerprint?: DedupFingerprint;
 };
 
 /** Семантический алиас для метаданных исходящего намерения. */

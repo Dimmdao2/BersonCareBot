@@ -32,7 +32,6 @@ async function processRubitimeBody(input: {
     correlationId: input.correlationId,
     eventId: input.eventId,
   });
-  incomingEvent.meta.dedupKey = `rubitime:${input.body.event}:${String(input.body.data.id ?? input.eventId)}`;
 
   const incoming = (incomingEvent.payload as { incoming?: unknown }).incoming;
   reqLogger.info(
