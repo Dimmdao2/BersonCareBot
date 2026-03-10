@@ -327,6 +327,36 @@ describe('executeAction', () => {
     });
   });
 
+  it('queues async message.send through delivery job when queuePort exists', async () => {
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const result = await executeAction({
+      id: 'a6e',
+      type: 'message.send',
+      mode: 'async',
+      params: {
+        recipient: { chatId: 123 },
+        message: { text: 'queued telegram' },
+        delivery: { channels: ['telegram'], maxAttempts: 1 },
+      },
+    }, ctx, { queuePort: { enqueue } });
+
+    expect(result.status).toBe('queued');
+    expect(result.jobs?.[0]).toMatchObject({
+      kind: 'message.deliver',
+      targets: [{ resource: 'telegram', address: { chatId: 123 } }],
+      payload: {
+        intent: {
+          type: 'message.send',
+          payload: {
+            message: { text: 'queued telegram' },
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
+          },
+        },
+      },
+    });
+    expect(enqueue).toHaveBeenCalledTimes(1);
+  });
+
   it('handles user.state.set and user.phone.link', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
 

@@ -552,6 +552,65 @@ export async function executeAction(
         ctx,
         templatePort: deps.templatePort,
       });
+      if (action.mode === 'async' && deps.queuePort) {
+        const delivery = asRecord(resolvedParams.delivery);
+        const channels = asStringArray(delivery.channels);
+        const retryRaw = asRecord(resolvedParams.retry);
+        const maxAttemptsRaw = retryRaw.maxAttempts ?? resolvedParams.maxAttempts ?? delivery.maxAttempts;
+        const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
+          ? Math.max(1, Math.trunc(maxAttemptsRaw))
+          : 1;
+        const firstBackoffRaw = Array.isArray(retryRaw.backoffSeconds)
+          ? retryRaw.backoffSeconds.find((value) => typeof value === 'number' && Number.isFinite(value))
+          : undefined;
+        const firstBackoff = typeof firstBackoffRaw === 'number' ? Math.max(0, Math.trunc(firstBackoffRaw)) : 0;
+        const targets = await resolveTargets(resolvedParams, deps.readPort);
+        const job = {
+          id: `delivery:${action.id}`,
+          kind: 'message.deliver',
+          runAt: new Date(Date.parse(ctx.nowIso) + firstBackoff * 1000).toISOString(),
+          attempts: 0,
+          maxAttempts,
+          payload: {
+            intent: {
+              type: 'message.send' as const,
+              meta: buildIntentMeta(action, ctx),
+              payload: resolvedParams,
+            },
+            targets,
+            retry: {
+              maxAttempts,
+              backoffSeconds: Array.isArray(retryRaw.backoffSeconds)
+                ? retryRaw.backoffSeconds
+                  .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+                  .map((value) => Math.max(0, Math.trunc(value)))
+                : [],
+              ...(typeof retryRaw.deadlineAt === 'string' ? { deadlineAt: retryRaw.deadlineAt } : {}),
+            },
+            ...(resolvedParams.onFail ? { onFail: asRecord(resolvedParams.onFail) } : {}),
+          },
+        };
+        await deps.queuePort.enqueue({ kind: job.kind, payload: job.payload });
+        return {
+          actionId: action.id,
+          status: 'queued',
+          jobs: [{
+            ...job,
+            jobId: job.id,
+            createdAt: ctx.nowIso,
+            status: 'pending',
+            attemptsMade: 0,
+            plan: channels.map((channel, index) => ({
+              stageId: `stage:${index + 1}`,
+              channel,
+              maxAttempts: 1,
+            })),
+            targets,
+            retry: asRecord(job.payload.retry) as { maxAttempts: number; backoffSeconds: number[]; deadlineAt?: string },
+            ...(job.payload.onFail ? { onFail: asRecord(job.payload.onFail) as { adminNotifyIntent?: OutgoingIntent } } : {}),
+          }],
+        };
+      }
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),

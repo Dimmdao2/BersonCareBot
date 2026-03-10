@@ -75,7 +75,7 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
   const record = asRecord(data.record);
   const source = Object.keys(record).length > 0 ? record : data;
   const rawStatus = asString(source.status) ?? (source.status != null ? String(source.status) : undefined);
-  const statusTitle = asString(source.status_title);
+  const statusTitle = asString(source.status_title) ?? asString(source.status_name);
   const status = normalizeRubitimeStatus(rawStatus, statusTitle);
   const statusCode = asString(source.status) ?? (source.status != null ? String(source.status) : undefined);
   const recordId = asString(source.id) ?? (source.id != null ? String(source.id) : undefined);

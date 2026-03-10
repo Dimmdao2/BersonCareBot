@@ -1,6 +1,10 @@
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { createMessagingPort } from './client.js';
 
+type RequestLoggerLike = {
+  error: (obj: Record<string, unknown>, message: string) => void;
+};
+
 type DeliveryPayload = {
   recipient?: { chatId?: unknown };
   message?: { text?: unknown };
@@ -55,8 +59,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
       const rawChatId = payload.recipient?.chatId;
       const messageId = payload.messageId;
       const text = asNonEmptyString(payload.message?.text);
-      // Structured logging: try to get reqLogger from intent.meta
-      const reqLogger = (intent.meta as any)?.reqLogger;
+      const reqLogger = (intent.meta as { reqLogger?: RequestLoggerLike }).reqLogger;
       if (intent.type === 'message.send') {
         const chatId = asChatId(rawChatId);
         if (chatId === null || !text) {

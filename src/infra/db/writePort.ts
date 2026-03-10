@@ -303,6 +303,34 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
             messageText,
             firstTryDelaySeconds,
             maxAttempts,
+            kind: 'message.deliver',
+            payloadJson: {
+              intent: {
+                type: 'message.send',
+                meta: {
+                  eventId: `message-retry:${phoneNormalized}:${Date.now()}`,
+                  occurredAt: new Date().toISOString(),
+                  source: 'worker',
+                },
+                payload: {
+                  message: { text: messageText },
+                  delivery: {
+                    channels: ['smsc'],
+                    maxAttempts: 1,
+                  },
+                },
+              },
+              targets: [
+                {
+                  resource: 'smsc',
+                  address: { phoneNormalized },
+                },
+              ],
+              retry: {
+                maxAttempts,
+                backoffSeconds: [firstTryDelaySeconds],
+              },
+            },
           });
           return;
         }

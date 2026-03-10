@@ -12,7 +12,7 @@
     "start": "node dist/main.js",
     "worker:start": "node dist/infra/runtime/worker/main.js",
     "test": "vitest --run",
-    "test:e2e": "RUN_E2E_TESTS=true vitest --run e2e/webhook-scenarios.test.ts",
+    "test:e2e": "RUN_E2E_TESTS=true vitest --run e2e/*.test.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",

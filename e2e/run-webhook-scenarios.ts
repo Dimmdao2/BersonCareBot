@@ -8,9 +8,11 @@
  */
 
 import { readdir, readFile } from 'node:fs/promises';
-import type { DeliveryAdapter, OutgoingIntent } from '../src/kernel/contracts/index.js';
+import type { DeliveryJob, OutgoingIntent } from '../src/kernel/contracts/index.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createDefaultDispatchPort } from '../src/infra/adapters/dispatchPort.js';
+import { executeJob } from '../src/infra/runtime/worker/jobExecutor.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const rootDir = join(__dirname, '..');
@@ -55,6 +57,26 @@ function clearRecordedCalls(): void {
   recordedCalls.length = 0;
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+}
+
+function buildQueuedJob(task: { kind: string; payload: Record<string, unknown> }, suffix: string): DeliveryJob {
+  const retry = asRecord(task.payload.retry);
+  const maxAttemptsRaw = retry.maxAttempts;
+  const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
+    ? Math.max(1, Math.trunc(maxAttemptsRaw))
+    : 1;
+  return {
+    id: `scenario-job:${suffix}`,
+    kind: task.kind,
+    runAt: '2026-03-10T10:00:00.000Z',
+    attempts: 0,
+    maxAttempts,
+    payload: task.payload,
+  };
+}
+
 async function loadFixtures(): Promise<{ name: string; payload: unknown }[]> {
   const dir = join(__dirname, 'fixtures', 'telegram');
   const files = (await readdir(dir)).filter((f) => f.endsWith('.json')).sort();
@@ -93,17 +115,17 @@ function getExpected(name: string): ScenarioExpect {
     case '07_default_idle':
       return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     case '08_callback_notifications':
-      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
     case '09_callback_toggle_spb':
-      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
     case '10_callback_my_bookings':
-      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'sendMessage' };
     case '11_callback_back':
-      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+      return { ...base, minTelegramCalls: 2, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
     case '12_callback_unknown':
       return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
     case '13_duplicate_update_id':
-      return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
+      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
     default:
       return base;
   }
@@ -114,6 +136,7 @@ const inMemoryState = {
   phones: new Map<string, string>(),
   notifications: new Map<number, { notify_spb: boolean; notify_msk: boolean; notify_online: boolean }>(),
 };
+const idempotencyKeys = new Set<string>();
 
 const asChannelUserId = (value: unknown): string | null => {
   if (typeof value === 'string' && value.length > 0) return value;
@@ -142,6 +165,17 @@ const dbReadPort = {
           if (!Number.isFinite(chatId)) return null as T;
           return { chatId, channelId: channelUserId, username: null } as T;
         }
+      }
+      return null as T;
+    }
+
+    if (query.type === 'user.byIdentity') {
+      const externalId = query.params.externalId;
+      if (typeof externalId === 'string' && externalId.length > 0) {
+        return {
+          userState: inMemoryState.states.get(externalId) ?? null,
+          phoneNormalized: inMemoryState.phones.get(externalId) ?? null,
+        } as T;
       }
       return null as T;
     }
@@ -194,29 +228,33 @@ const dbWritePort = {
 };
 
 const queuePort = {
-  async enqueue(): Promise<void> {
-    return;
+  tasks: [] as Array<{ kind: string; payload: Record<string, unknown> }>,
+  async enqueue(task: { kind: string; payload: Record<string, unknown> }): Promise<void> {
+    this.tasks.push(task);
   },
 };
 
-let telegramAdapter: DeliveryAdapter | null = null;
-const dispatchPort = {
-  async dispatchOutgoing(intent: OutgoingIntent): Promise<void> {
-    if (!telegramAdapter) return;
-    if (!telegramAdapter.canHandle(intent)) return;
-    await telegramAdapter.send(intent);
-  },
-};
+let dispatchPort: { dispatchOutgoing: (intent: OutgoingIntent) => Promise<void> };
 
 async function main(): Promise<void> {
+  idempotencyKeys.clear();
   const { createTelegramDeliveryAdapter } = await import('../src/integrations/telegram/deliveryAdapter.js');
-  telegramAdapter = createTelegramDeliveryAdapter();
+  dispatchPort = createDefaultDispatchPort({
+    adapters: [createTelegramDeliveryAdapter()],
+  });
   const { buildApp } = await import('../src/app/index.js');
   const app = buildApp({
     dbReadPort,
     dbWritePort,
     queuePort,
     dispatchPort,
+    idempotencyPort: {
+      async tryAcquire(key: string): Promise<boolean> {
+        if (idempotencyKeys.has(key)) return false;
+        idempotencyKeys.add(key);
+        return true;
+      },
+    },
   });
   await app.ready();
 
@@ -236,12 +274,18 @@ async function main(): Promise<void> {
   type InjectRes = { statusCode: number };
   for (const { name, payload } of fixtures) {
     clearRecordedCalls();
+    queuePort.tasks.length = 0;
     const res = (await app.inject({
       method: 'POST',
       url: '/webhook/telegram',
       headers,
       payload: payload as object,
     })) as InjectRes;
+    for (const [index, task] of queuePort.tasks.entries()) {
+      await executeJob(buildQueuedJob(task, `${name}:${index}`), {
+        dispatchOutgoing: (intent) => dispatchPort.dispatchOutgoing(intent),
+      });
+    }
     const expect = getExpected(name);
     const ok =
       res.statusCode === expect.status &&

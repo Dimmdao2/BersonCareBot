@@ -2,17 +2,22 @@ import type { DbPort } from '../../../kernel/contracts/index.js';
 
 export type MessageRetryJobRow = {
   id: number;
-  phoneNormalized: string;
-  messageText: string;
+  phoneNormalized: string | null;
+  messageText: string | null;
+  kind: string | null;
+  runAt: string;
+  payloadJson: Record<string, unknown> | null;
   attemptsDone: number;
   maxAttempts: number;
 };
 
 export async function enqueueMessageRetryJob(db: DbPort, input: {
-  phoneNormalized: string;
-  messageText: string;
+  phoneNormalized: string | null;
+  messageText: string | null;
   firstTryDelaySeconds: number;
   maxAttempts: number;
+  kind: string;
+  payloadJson: Record<string, unknown>;
 }): Promise<void> {
   const query = `
     INSERT INTO rubitime_create_retry_jobs (
@@ -21,14 +26,18 @@ export async function enqueueMessageRetryJob(db: DbPort, input: {
       next_try_at,
       attempts_done,
       max_attempts,
-      status
+      status,
+      kind,
+      payload_json
     ) VALUES (
       $1,
       $2,
       now() + (($3::text || ' seconds')::interval),
       0,
       $4,
-      'pending'
+      'pending',
+      $5,
+      $6::jsonb
     )
   `;
   await db.query(query, [
@@ -36,6 +45,8 @@ export async function enqueueMessageRetryJob(db: DbPort, input: {
     input.messageText,
     Math.max(0, Math.trunc(input.firstTryDelaySeconds)),
     Math.max(1, Math.trunc(input.maxAttempts)),
+    input.kind,
+    JSON.stringify(input.payloadJson),
   ]);
 }
 
@@ -59,6 +70,9 @@ export async function claimDueMessageRetryJobs(db: DbPort, limit: number): Promi
       j.id,
       j.phone_normalized AS "phoneNormalized",
       j.message_text AS "messageText",
+      j.kind,
+      j.next_try_at::text AS "runAt",
+      j.payload_json AS "payloadJson",
       j.attempts_done AS "attemptsDone",
       j.max_attempts AS "maxAttempts"
   `;

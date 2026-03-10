@@ -6,10 +6,12 @@
  * Мок Telegram: подмена globalThis.fetch до загрузки приложения.
  */
 import { readdir, readFile } from 'node:fs/promises';
-import type { DeliveryAdapter, OutgoingIntent } from '../src/kernel/contracts/index.js';
+import type { DeliveryJob, OutgoingIntent } from '../src/kernel/contracts/index.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createDefaultDispatchPort } from '../src/infra/adapters/dispatchPort.js';
+import { executeJob } from '../src/infra/runtime/worker/jobExecutor.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -45,6 +47,26 @@ globalThis.fetch = (input: FetchInput, init?: FetchInit) => {
 
 function clearRecordedCalls(): void {
   recordedCalls.length = 0;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+}
+
+function buildQueuedJob(task: { kind: string; payload: Record<string, unknown> }, suffix: string): DeliveryJob {
+  const retry = asRecord(task.payload.retry);
+  const maxAttemptsRaw = retry.maxAttempts;
+  const maxAttempts = typeof maxAttemptsRaw === 'number' && Number.isFinite(maxAttemptsRaw)
+    ? Math.max(1, Math.trunc(maxAttemptsRaw))
+    : 1;
+  return {
+    id: `e2e-job:${suffix}`,
+    kind: task.kind,
+    runAt: '2026-03-10T10:00:00.000Z',
+    attempts: 0,
+    maxAttempts,
+    payload: task.payload,
+  };
 }
 
 async function loadFixtures(): Promise<{ name: string; payload: unknown }[]> {
@@ -83,17 +105,17 @@ function getExpected(name: string): ScenarioExpect {
     case '07_default_idle':
       return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     case '08_callback_notifications':
-      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
     case '09_callback_toggle_spb':
-      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
     case '10_callback_my_bookings':
-      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'sendMessage' };
     case '11_callback_back':
-      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
+      return { ...base, minTelegramCalls: 2, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
     case '12_callback_unknown':
       return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
     case '13_duplicate_update_id':
-      return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
+      return { ...base, minTelegramCalls: 0, maxTelegramCalls: 0 };
     default:
       return base;
   }
@@ -108,6 +130,7 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
   let app: Awaited<ReturnType<Awaited<typeof import('../src/app/index.js')>['buildApp']>>;
   let fixtures: { name: string; payload: unknown }[];
   let webhookSecret: string | undefined;
+  const idempotencyKeys = new Set<string>();
 
   const inMemoryState = {
     users: new Map<string, { id: string; telegram_id: string }>(),
@@ -145,6 +168,17 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
             if (!Number.isFinite(chatId)) return null as T;
             return { chatId, channelId: channelUserId, username: null } as T;
           }
+        }
+        return null as T;
+      }
+
+      if (query.type === 'user.byIdentity') {
+        const externalId = query.params.externalId;
+        if (typeof externalId === 'string' && externalId.length > 0) {
+          return {
+            userState: inMemoryState.states.get(externalId) ?? null,
+            phoneNormalized: inMemoryState.phones.get(externalId) ?? null,
+          } as T;
         }
         return null as T;
       }
@@ -197,19 +231,13 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
   };
 
   const queuePort = {
-    async enqueue(): Promise<void> {
-      return;
+    tasks: [] as Array<{ kind: string; payload: Record<string, unknown> }>,
+    async enqueue(task: { kind: string; payload: Record<string, unknown> }): Promise<void> {
+      this.tasks.push(task);
     },
   };
 
-  let telegramAdapter: DeliveryAdapter | null = null;
-  const dispatchPort = {
-    async dispatchOutgoing(intent: OutgoingIntent): Promise<void> {
-      if (!telegramAdapter) return;
-      if (!telegramAdapter.canHandle(intent)) return;
-      await telegramAdapter.send(intent);
-    },
-  };
+  let dispatchPort: { dispatchOutgoing: (intent: OutgoingIntent) => Promise<void> };
 
   const userPort = {
     async upsertTelegramUser(from: { id: number } | null | undefined) {
@@ -275,8 +303,11 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
 
   beforeAll(async () => {
     fixtures = await loadFixtures();
+    idempotencyKeys.clear();
     const { createTelegramDeliveryAdapter } = await import('../src/integrations/telegram/deliveryAdapter.js');
-    telegramAdapter = createTelegramDeliveryAdapter();
+    dispatchPort = createDefaultDispatchPort({
+      adapters: [createTelegramDeliveryAdapter()],
+    });
     const { buildApp } = await import('../src/app/index.js');
     const { registerTelegramWebhookRoutes } = await import('../src/integrations/telegram/webhook.js');
     app = buildApp({
@@ -284,6 +315,13 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
       dbWritePort,
       queuePort,
       dispatchPort,
+      idempotencyPort: {
+        async tryAcquire(key: string): Promise<boolean> {
+          if (idempotencyKeys.has(key)) return false;
+          idempotencyKeys.add(key);
+          return true;
+        },
+      },
       registerTelegramWebhookRoutes,
     });
     await app.ready();
@@ -302,12 +340,18 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
 
     for (const { name, payload } of fixtures) {
       clearRecordedCalls();
+      queuePort.tasks.length = 0;
       const res = await app.inject({
         method: 'POST',
         url: '/webhook/telegram',
         headers,
         payload: payload as object,
       });
+      for (const [index, task] of queuePort.tasks.entries()) {
+        await executeJob(buildQueuedJob(task, `${name}:${index}`), {
+          dispatchOutgoing: (intent) => dispatchPort.dispatchOutgoing(intent),
+        });
+      }
 
       const expect_ = getExpected(name);
       expect(res.statusCode).toBe(expect_.status);

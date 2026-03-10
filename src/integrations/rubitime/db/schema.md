@@ -6,7 +6,7 @@
 
 - `rubitime_records` — проекция записей Rubitime.
 - `rubitime_events` — входящие события Rubitime.
-- `rubitime_create_retry_jobs` — отложенные retry-задачи.
+- `rubitime_create_retry_jobs` — очередь delivery/retry-задач Rubitime с полным `message.deliver` payload.
 
 Связь с канонической user-моделью:
 
