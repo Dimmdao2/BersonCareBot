@@ -1,9 +1,41 @@
 import type { ContextQuery, ContextQueryPort, DbReadPort } from '../../kernel/contracts/index.js';
 
+function normalizePhoneForLookup(value: string): string {
+  const digits = value.replace(/[^\d+]/g, '');
+  if (!digits) return value;
+  const onlyDigits = digits.replace(/\D/g, '');
+  if (onlyDigits.length === 11 && onlyDigits.startsWith('8')) return `+7${onlyDigits.slice(1)}`;
+  if (onlyDigits.length === 11 && onlyDigits.startsWith('7')) return `+${onlyDigits}`;
+  if (onlyDigits.length === 10) return `+7${onlyDigits}`;
+  if (digits.startsWith('+') && /^\+\d{10,15}$/.test(digits)) return digits;
+  if (onlyDigits.length >= 10 && onlyDigits.length <= 15) return `+${onlyDigits}`;
+  return value;
+}
+
 export function createContextQueryPort(input: { readPort: DbReadPort }): ContextQueryPort {
   return {
     async request(query: ContextQuery): Promise<unknown> {
       switch (query.type) {
+        case 'channel.lookupByPhone': {
+          const phoneNormalized = normalizePhoneForLookup(query.phoneNormalized);
+          if (!phoneNormalized) return { type: 'channel.lookupByPhone', item: null };
+          const resource = typeof query.resource === 'string' && query.resource.trim().length > 0
+            ? query.resource
+            : 'telegram';
+          const item = await input.readPort.readDb<{
+            chatId?: number;
+            channelId?: string;
+            username?: string | null;
+          } | null>({
+            type: 'user.lookup',
+            params: {
+              resource,
+              by: 'phone',
+              value: phoneNormalized,
+            },
+          });
+          return { type: 'channel.lookupByPhone', item };
+        }
         case 'bookings.forUser': {
           const userId = query.userId;
           if (!userId) return { type: 'bookings.forUser', items: [] };

@@ -105,6 +105,7 @@ export type JobQueuePort = {
 
 /** Порт запроса дополнительного контекста для оркестратора. */
 export type ContextQuery =
+  | { type: 'channel.lookupByPhone'; phoneNormalized: string; resource?: string }
   | { type: 'subscriptions.forUser'; userId: string }
   | { type: 'user.identityLinks'; userId: string }
   | { type: 'bookings.forUser'; userId: string }

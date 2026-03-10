@@ -94,6 +94,27 @@ describe('createDefaultDispatchPort', () => {
     expect(sendSecondaryMock).toHaveBeenCalledTimes(1);
   });
 
+  it('does not auto-resolve phone recipient through readPort', async () => {
+    const readDb = vi.fn().mockResolvedValue({ chatId: 77 });
+    const dispatchPort = createDefaultDispatchPort({
+      adapters: buildAdapters(),
+      readPort: { readDb },
+    });
+    const intent: OutgoingIntent = {
+      type: 'message.send',
+      meta: { eventId: 'evt-3b', occurredAt: '2026-03-03T00:00:00.000Z', source: 'adapter' },
+      payload: {
+        recipient: { phoneNormalized: '+79990001122' },
+        message: { text: 'hi' },
+        delivery: { channels: [channelPrimary], maxAttempts: 1 },
+      },
+    };
+
+    await dispatchPort.dispatchOutgoing(intent);
+    expect(sendPrimaryMock).toHaveBeenCalledTimes(1);
+    expect(readDb).not.toHaveBeenCalled();
+  });
+
   it('dispatches non-message intent by intent source', async () => {
     const send = vi.fn().mockResolvedValue(undefined);
     const dispatchPort = createDefaultDispatchPort({

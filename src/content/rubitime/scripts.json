@@ -9,6 +9,17 @@
         "action": "created"
       }
     },
+    "conditions": [
+      {
+        "kind": "context.query",
+        "name": "telegramRecipient",
+        "query": {
+          "type": "channel.lookupByPhone",
+          "phoneNormalized": "{{input.phone}}",
+          "resource": "telegram"
+        }
+      }
+    ],
     "steps": [
       {
         "action": "event.log",
@@ -41,15 +52,42 @@
         "mode": "async",
         "params": {
           "recipient": {
-            "phoneNormalized": "{{input.phone}}"
-          },
-          "recipientPolicy": {
-            "lookupByPhone": true
+            "chatId": "{{queries.telegramRecipient.item.chatId}}"
           },
           "message": {},
           "templateKey": "rubitime:bookingRecorded",
           "vars": {
             "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": true
+          }
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": {
+            "phoneNormalized": "{{input.phone}}"
+          },
+          "message": {},
+          "templateKey": "rubitime:bookingRecorded",
+          "vars": {
+            "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["smsc"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": false
           }
         }
       }
@@ -66,6 +104,17 @@
         "status": "recorded"
       }
     },
+    "conditions": [
+      {
+        "kind": "context.query",
+        "name": "telegramRecipient",
+        "query": {
+          "type": "channel.lookupByPhone",
+          "phoneNormalized": "{{input.phone}}",
+          "resource": "telegram"
+        }
+      }
+    ],
     "steps": [
       {
         "action": "event.log",
@@ -98,15 +147,42 @@
         "mode": "async",
         "params": {
           "recipient": {
-            "phoneNormalized": "{{input.phone}}"
-          },
-          "recipientPolicy": {
-            "lookupByPhone": true
+            "chatId": "{{queries.telegramRecipient.item.chatId}}"
           },
           "message": {},
           "templateKey": "rubitime:bookingRecorded",
           "vars": {
             "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": true
+          }
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": {
+            "phoneNormalized": "{{input.phone}}"
+          },
+          "message": {},
+          "templateKey": "rubitime:bookingRecorded",
+          "vars": {
+            "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["smsc"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": false
           }
         }
       }
@@ -123,6 +199,17 @@
         "status": "canceled"
       }
     },
+    "conditions": [
+      {
+        "kind": "context.query",
+        "name": "telegramRecipient",
+        "query": {
+          "type": "channel.lookupByPhone",
+          "phoneNormalized": "{{input.phone}}",
+          "resource": "telegram"
+        }
+      }
+    ],
     "steps": [
       {
         "action": "event.log",
@@ -155,15 +242,42 @@
         "mode": "async",
         "params": {
           "recipient": {
-            "phoneNormalized": "{{input.phone}}"
-          },
-          "recipientPolicy": {
-            "lookupByPhone": true
+            "chatId": "{{queries.telegramRecipient.item.chatId}}"
           },
           "message": {},
           "templateKey": "rubitime:bookingCanceled",
           "vars": {
             "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": true
+          }
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": {
+            "phoneNormalized": "{{input.phone}}"
+          },
+          "message": {},
+          "templateKey": "rubitime:bookingCanceled",
+          "vars": {
+            "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["smsc"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": false
           }
         }
       }
@@ -180,6 +294,17 @@
         "status": "awaiting_confirmation"
       }
     },
+    "conditions": [
+      {
+        "kind": "context.query",
+        "name": "telegramRecipient",
+        "query": {
+          "type": "channel.lookupByPhone",
+          "phoneNormalized": "{{input.phone}}",
+          "resource": "telegram"
+        }
+      }
+    ],
     "steps": [
       {
         "action": "event.log",
@@ -212,15 +337,42 @@
         "mode": "async",
         "params": {
           "recipient": {
-            "phoneNormalized": "{{input.phone}}"
-          },
-          "recipientPolicy": {
-            "lookupByPhone": true
+            "chatId": "{{queries.telegramRecipient.item.chatId}}"
           },
           "message": {},
           "templateKey": "rubitime:bookingAwaitingConfirmation",
           "vars": {
             "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": true
+          }
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": {
+            "phoneNormalized": "{{input.phone}}"
+          },
+          "message": {},
+          "templateKey": "rubitime:bookingAwaitingConfirmation",
+          "vars": {
+            "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["smsc"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": false
           }
         }
       }
@@ -237,6 +389,17 @@
         "status": "moved_awaiting"
       }
     },
+    "conditions": [
+      {
+        "kind": "context.query",
+        "name": "telegramRecipient",
+        "query": {
+          "type": "channel.lookupByPhone",
+          "phoneNormalized": "{{input.phone}}",
+          "resource": "telegram"
+        }
+      }
+    ],
     "steps": [
       {
         "action": "event.log",
@@ -269,13 +432,37 @@
         "mode": "async",
         "params": {
           "recipient": {
-            "phoneNormalized": "{{input.phone}}"
-          },
-          "recipientPolicy": {
-            "lookupByPhone": true
+            "chatId": "{{queries.telegramRecipient.item.chatId}}"
           },
           "message": {},
-          "templateKey": "rubitime:bookingMovedAwaiting"
+          "templateKey": "rubitime:bookingMovedAwaiting",
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": true
+          }
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": {
+            "phoneNormalized": "{{input.phone}}"
+          },
+          "message": {},
+          "templateKey": "rubitime:bookingMovedAwaiting",
+          "delivery": {
+            "channels": ["smsc"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": false
+          }
         }
       }
     ]
@@ -290,6 +477,17 @@
         "action": "canceled"
       }
     },
+    "conditions": [
+      {
+        "kind": "context.query",
+        "name": "telegramRecipient",
+        "query": {
+          "type": "channel.lookupByPhone",
+          "phoneNormalized": "{{input.phone}}",
+          "resource": "telegram"
+        }
+      }
+    ],
     "steps": [
       {
         "action": "event.log",
@@ -322,15 +520,42 @@
         "mode": "async",
         "params": {
           "recipient": {
-            "phoneNormalized": "{{input.phone}}"
-          },
-          "recipientPolicy": {
-            "lookupByPhone": true
+            "chatId": "{{queries.telegramRecipient.item.chatId}}"
           },
           "message": {},
           "templateKey": "rubitime:bookingCanceled",
           "vars": {
             "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["telegram"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": true
+          }
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": {
+            "phoneNormalized": "{{input.phone}}"
+          },
+          "message": {},
+          "templateKey": "rubitime:bookingCanceled",
+          "vars": {
+            "recordAt": "{{input.recordAtFormatted}}"
+          },
+          "delivery": {
+            "channels": ["smsc"],
+            "maxAttempts": 1
+          },
+          "_when": {
+            "path": "queries.telegramRecipient.item.chatId",
+            "truthy": false
           }
         }
       }
