@@ -70,7 +70,7 @@
 			"input": {
 				"textPresent": true,
 				"excludeActions": ["booking.open", "question.ask", "menu.more"],
-				"excludeTexts": ["/start"]
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём"]
 			}
 		},
 		"steps": [
@@ -118,7 +118,7 @@
 			"input": {
 				"textPresent": true,
 				"excludeActions": ["booking.open", "question.ask", "menu.more"],
-				"excludeTexts": ["/start"]
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём"]
 			}
 		},
 		"steps": [
@@ -195,7 +195,11 @@
 		"match": {
 			"actor": { "isAdmin": false },
 			"context": { "hasOpenConversation": true },
-			"input": { "textPresent": true, "excludeTexts": ["/start"] }
+			"input": {
+				"textPresent": true,
+				"excludeActions": ["booking.open", "question.ask", "menu.more"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём"]
+			}
 		},
 		"steps": [
 			{
@@ -490,6 +494,50 @@
 		"event": "message.received",
 		"match": {
 			"input": { "action": "menu.more" }
+		},
+		"steps": [
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
+						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
+					]
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.more.menu.byText",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "text": "⚙️ Меню" }
+		},
+		"steps": [
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
+						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
+					]
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.more.menu.byText.plain",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "text": "Меню" }
 		},
 		"steps": [
 			{
@@ -819,7 +867,7 @@
 			"input": {
 				"textPresent": true,
 				"excludeActions": ["booking.open", "question.ask", "menu.more"],
-				"excludeTexts": ["/start"]
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём"]
 			}
 		},
 		"steps": [
