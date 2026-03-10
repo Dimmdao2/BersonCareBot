@@ -415,6 +415,59 @@ export async function listOpenConversations(
   return res.rows;
 }
 
+/** Open conversations with last_message_at strictly before given ISO time (for auto-close). */
+export async function listOpenConversationsOlderThan(
+  db: DbPort,
+  input: { olderThanIso: string; source?: string; limit?: number },
+): Promise<ConversationListRow[]> {
+  const sql = `
+    SELECT
+      c.id,
+      c.source,
+      c.user_identity_id::text,
+      c.admin_scope,
+      c.status,
+      c.opened_at::text,
+      c.last_message_at::text,
+      c.closed_at::text,
+      c.close_reason,
+      i.external_id::text AS user_channel_id,
+      ts.username,
+      ts.first_name,
+      ts.last_name,
+      cp.phone AS phone_normalized,
+      lm.text AS last_message_text,
+      lm.sender_role AS last_sender_role
+    FROM conversations c
+    JOIN identities i ON i.id = c.user_identity_id
+    LEFT JOIN telegram_state ts ON ts.identity_id = i.id AND i.resource = 'telegram'
+    LEFT JOIN LATERAL (
+      SELECT c2.value_normalized AS phone
+      FROM contacts c2
+      WHERE c2.user_id = i.user_id AND c2.type = 'phone'
+      ORDER BY c2.is_primary DESC NULLS LAST, c2.id ASC
+      LIMIT 1
+    ) cp ON true
+    LEFT JOIN LATERAL (
+      SELECT cm.text, cm.sender_role
+      FROM conversation_messages cm
+      WHERE cm.conversation_id = c.id
+      ORDER BY cm.created_at DESC, cm.id DESC
+      LIMIT 1
+    ) lm ON true
+    WHERE c.closed_at IS NULL
+      AND c.status <> 'closed'
+      AND c.last_message_at IS NOT NULL
+      AND c.last_message_at < $1::timestamptz
+      AND ($2::text IS NULL OR c.source = $2)
+    ORDER BY c.last_message_at ASC
+    LIMIT $3
+  `;
+  const limit = typeof input.limit === 'number' && Number.isFinite(input.limit) ? Math.max(1, Math.trunc(input.limit)) : 100;
+  const res = await db.query<ConversationListRow>(sql, [input.olderThanIso, asNonEmptyString(input.source), limit]);
+  return res.rows;
+}
+
 // --- user_questions & question_messages (answered / unanswered list) ---
 
 export type UserQuestionRow = {

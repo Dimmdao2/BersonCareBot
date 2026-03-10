@@ -26,7 +26,9 @@
     "build:host": "pnpm run build",
     "start:host": "node dist/main.js",
     "worker:start:host": "node dist/infra/runtime/worker/main.js",
-    "migrate:host": "node dist/infra/db/migrate.js"
+    "migrate:host": "node dist/infra/db/migrate.js",
+    "auto-close-conversations": "tsx src/infra/scripts/auto-close-stale-conversations.ts",
+    "auto-close-conversations:host": "node dist/infra/scripts/auto-close-stale-conversations.js"
   },
   "engines": {
     "node": ">=20"

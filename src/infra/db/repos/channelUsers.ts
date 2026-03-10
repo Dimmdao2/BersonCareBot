@@ -453,6 +453,18 @@ export async function getLinkDataByIdentity(
   }
 }
 
+/** Returns identity id by (resource, external_id) for use when drafting needs it. */
+export async function getIdentityIdByResourceAndExternalId(
+  db: DbPort,
+  resource: string,
+  externalId: string,
+): Promise<string | null> {
+  const query = `SELECT i.id::text FROM identities i WHERE i.resource = $1 AND i.external_id = $2 LIMIT 1`;
+  const res = await db.query<{ id: string }>(query, [resource, externalId]);
+  const row = res.rows[0];
+  return row?.id ?? null;
+}
+
 /** Links phone to a channel user. */
 export async function setUserPhone(
   db: DbPort,

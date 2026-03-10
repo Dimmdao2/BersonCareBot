@@ -892,7 +892,14 @@ export async function executeAction(
       const firstMessageId = randomUUID();
       const questionId = randomUUID();
       const firstQuestionMessageId = randomUUID();
-      const userIdentityId = asString(draft.identity_id);
+      let userIdentityId = asString(draft.identity_id);
+      if (!userIdentityId && deps.readPort) {
+        const resolvedId = await deps.readPort.readDb<string | null>({
+          type: 'identity.idByResourceAndExternalId',
+          params: { resource: ctx.event.meta.source, externalId: userChannelId },
+        });
+        userIdentityId = asString(resolvedId) ?? '';
+      }
       const writes: DbWriteMutation[] = [
         {
           type: 'conversation.open',
@@ -1179,6 +1186,9 @@ export async function executeAction(
         const continueButtonText = deps.templatePort
           ? (await renderText({ templateKey: 'telegram:admin.reply.continueButton', ctx, templatePort: deps.templatePort })) || 'Дополнить ответ'
           : 'Дополнить ответ';
+        const closeButtonText = deps.templatePort
+          ? (await renderText({ templateKey: 'telegram:admin.dialog.closeButton', ctx, templatePort: deps.templatePort })) || 'Завершить диалог'
+          : 'Завершить диалог';
         intents.push({
           type: 'message.send',
           meta: buildIntentMeta(action, ctx),
@@ -1186,9 +1196,10 @@ export async function executeAction(
             recipient: { chatId: adminChatId },
             message: { text: sentText },
             replyMarkup: {
-              inline_keyboard: [[
-                { text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` },
-              ]],
+              inline_keyboard: [
+                [{ text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` }],
+                [{ text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` }],
+              ],
             },
             delivery: { maxAttempts: 1 },
           },
@@ -1406,6 +1417,9 @@ export async function executeAction(
       const replyBtnText = deps.templatePort
         ? (await renderText({ templateKey: 'telegram:admin.reply.button', ctx, templatePort: deps.templatePort })) || 'Ответить'
         : 'Ответить';
+      const closeBtnText = deps.templatePort
+        ? (await renderText({ templateKey: 'telegram:admin.dialog.closeButton', ctx, templatePort: deps.templatePort })) || 'Завершить диалог'
+        : 'Завершить диалог';
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
@@ -1413,9 +1427,10 @@ export async function executeAction(
           recipient: { chatId: adminChatId },
           message: { text: showText },
           replyMarkup: {
-            inline_keyboard: [[
-              { text: replyBtnText, callback_data: `admin_reply:${conversationId}` },
-            ]],
+            inline_keyboard: [
+              [{ text: replyBtnText, callback_data: `admin_reply:${conversationId}` }],
+              [{ text: closeBtnText, callback_data: `admin_close_dialog:${conversationId}` }],
+            ],
           },
           delivery: { maxAttempts: 1 },
         },

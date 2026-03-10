@@ -2,7 +2,7 @@ import type { DbPort, DbReadPort, DbReadQuery } from '../../kernel/contracts/ind
 import { createDbPort } from './client.js';
 import { getAdminStats } from './repos/adminStats.js';
 import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingRecords.js';
-import { getLinkDataByIdentity, getNotificationSettings } from './repos/channelUsers.js';
+import { getIdentityIdByResourceAndExternalId, getLinkDataByIdentity, getNotificationSettings } from './repos/channelUsers.js';
 import {
   getActiveDraftByIdentity,
   getConversationById,
@@ -90,6 +90,12 @@ export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
           const conversationId = asNonEmptyString(query.params.conversationId);
           if (!conversationId) return null as T;
           return (await getQuestionByConversationId(db, { conversationId })) as T;
+        }
+        case 'identity.idByResourceAndExternalId': {
+          const resource = asNonEmptyString(query.params.resource);
+          const externalId = asNonEmptyString(query.params.externalId);
+          if (!resource || !externalId) return null as T;
+          return (await getIdentityIdByResourceAndExternalId(db, resource, externalId)) as T;
         }
         case 'notifications.settings': {
           const resource = asNonEmptyString(query.params.resource) ?? 'telegram';

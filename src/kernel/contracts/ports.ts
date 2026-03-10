@@ -19,6 +19,7 @@ export type DbReadQueryType =
   | 'conversation.listOpen'
   | 'questions.unanswered'
   | 'question.byConversationId'
+  | 'identity.idByResourceAndExternalId'
   | 'notifications.settings'
   | 'booking.byExternalId'
   | 'booking.activeByUser'
