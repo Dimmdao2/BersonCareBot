@@ -1226,12 +1226,6 @@ export async function executeAction(
       if (!conversationId) {
         return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ID_MISSING' };
       }
-      const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
-        type: 'conversation.byId',
-        params: { id: conversationId },
-      });
-      const userChatIdRaw = asString(conversation?.user_channel_id);
-      const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
       const writes: DbWriteMutation[] = [{
         type: 'conversation.state.set',
         params: {
@@ -1244,21 +1238,6 @@ export async function executeAction(
       }];
       await persistWrites(deps.writePort, writes);
       const intents: OutgoingIntent[] = [];
-      const userClosedText = asString(action.params.userText)
-        ?? (deps.templatePort
-          ? ((await renderText({ templateKey: 'telegram:dialogClosed', ctx, templatePort: deps.templatePort })) || 'Диалог завершён. Если появятся новые вопросы, напишите новым сообщением.')
-          : 'Диалог завершён. Если появятся новые вопросы, напишите новым сообщением.');
-      if (Number.isFinite(userChatId) && userClosedText) {
-        intents.push({
-          type: 'message.send',
-          meta: buildIntentMeta(action, ctx),
-          payload: {
-            recipient: { chatId: userChatId },
-            message: { text: userClosedText },
-            delivery: { maxAttempts: 1 },
-          },
-        });
-      }
       const adminChatId = asNumber(readIncoming(ctx).chatId);
       if (adminChatId !== null) {
         const adminClosedText = deps.templatePort

@@ -617,21 +617,14 @@ describe('executeAction', () => {
 
   it('closes conversation and shows open dialog list', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const readDb = vi.fn()
-      .mockResolvedValueOnce({
-        id: 'conv-1',
-        source: 'telegram',
-        status: 'waiting_user',
-        user_channel_id: '123',
-      })
-      .mockResolvedValueOnce([{
-        id: 'conv-1',
-        status: 'waiting_admin',
-        user_channel_id: '123',
-        username: 'alice',
-        first_name: 'Alice',
-        last_name: 'Example',
-      }]);
+    const readDb = vi.fn().mockResolvedValueOnce([{
+      id: 'conv-1',
+      status: 'waiting_admin',
+      user_channel_id: '123',
+      username: 'alice',
+      first_name: 'Alice',
+      last_name: 'Example',
+    }]);
 
     const adminCtx: DomainContext = {
       ...ctx,
