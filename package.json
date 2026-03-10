@@ -28,7 +28,8 @@
     "worker:start:host": "node dist/infra/runtime/worker/main.js",
     "migrate:host": "node dist/infra/db/migrate.js",
     "auto-close-conversations": "tsx src/infra/scripts/auto-close-stale-conversations.ts",
-    "auto-close-conversations:host": "node dist/infra/scripts/auto-close-stale-conversations.js"
+    "auto-close-conversations:host": "node dist/infra/scripts/auto-close-stale-conversations.js",
+    "smsc:check": "tsx src/infra/scripts/check-smsc.ts"
   },
   "engines": {
     "node": ">=20"

@@ -4,16 +4,11 @@ import { getRequestLogger, newEventId } from '../../infra/observability/logger.j
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
+import { telegramConfig } from './config.js';
 import { normalizeTelegramAction, normalizeTelegramMessageAction } from './mapIn.js';
 import { setupTelegramMenuButton } from './setupMenuButton.js';
 import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
-
-function parseTelegramChatId(value: string | undefined): number | undefined {
-  if (typeof value !== 'string') return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
 
 function joinDisplayName(input: { first_name?: string | undefined; last_name?: string | undefined }): string | undefined {
   const parts = [input.first_name, input.last_name]
@@ -26,7 +21,7 @@ function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, 
   const from = body.callback_query?.from ?? body.message?.from;
   const displayName = from ? joinDisplayName(from) : undefined;
   const bookingUrl = env.BOOKING_URL;
-  const adminTelegramId = parseTelegramChatId(env.ADMIN_TELEGRAM_ID);
+  const adminTelegramId = telegramConfig.adminTelegramId;
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
   const isAdmin =
     typeof adminTelegramId === 'number' &&
@@ -134,7 +129,7 @@ export async function registerTelegramWebhookRoutes(
     const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
     try {
-      const secret = env.TG_WEBHOOK_SECRET;
+      const secret = telegramConfig.webhookSecret;
       if (secret) {
         const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
         if (headerSecret !== secret) return reply.code(403).send({ ok: false });

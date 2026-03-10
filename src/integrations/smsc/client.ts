@@ -11,6 +11,7 @@ type SmscClientConfig = {
   baseUrl?: string;
   timeoutMs?: number;
   log: WarnLogger;
+  fetchImpl?: typeof globalThis.fetch;
 };
 
 type SmscResponse = {
@@ -24,6 +25,7 @@ type SmscResponse = {
 export function createSmscClient(config: SmscClientConfig): SmsClient {
   const baseUrl = config.baseUrl ?? 'https://smsc.ru/sys/send.php';
   const timeoutMs = config.timeoutMs ?? 10_000;
+  const fetchImpl = config.fetchImpl ?? (fetch as unknown as typeof globalThis.fetch);
 
   return {
     async sendSms(input) {
@@ -35,11 +37,12 @@ export function createSmscClient(config: SmscClientConfig): SmsClient {
         apikey: config.apiKey,
         phones: input.toPhone,
         mes: input.message,
+        charset: 'utf-8',
         fmt: '3',
       });
 
       try {
-        const res = await fetch(`${baseUrl}?${params.toString()}`, {
+        const res = await fetchImpl(`${baseUrl}?${params.toString()}`, {
           method: 'GET',
           signal: AbortSignal.timeout(timeoutMs),
         });

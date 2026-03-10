@@ -3,6 +3,7 @@ import type {
   IncomingMessageUpdate,
   IncomingCallbackUpdate,
 } from '../../kernel/domain/types.js';
+import { telegramConfig } from './config.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
 export const NOTIFY_KEYS = ['notify_toggle_spb', 'notify_toggle_msk', 'notify_toggle_online', 'notify_toggle_all'] as const;
@@ -70,6 +71,9 @@ export type FromTelegramContext = {
   telegramId: string | null;
   userState?: string | undefined;
   hasLinkedPhone?: boolean | undefined;
+  reqLogger?: {
+    info(payload: Record<string, unknown>, message: string): void;
+  } | undefined;
 };
 
 /**
@@ -108,16 +112,11 @@ export function fromTelegram(
     const msg = body.message;
     const chatId = msg.chat?.id;
     if (!telegramId || typeof chatId !== 'number') return null;
-    const reqLogger = (context as any)?.reqLogger;
-    const adminTelegramIdRaw = process.env.ADMIN_TELEGRAM_ID;
-    const adminTelegramId = typeof adminTelegramIdRaw === 'string' ? Number(adminTelegramIdRaw) : undefined;
+    const reqLogger = context.reqLogger;
+    const adminTelegramId = telegramConfig.adminTelegramId;
     if (reqLogger) {
-      reqLogger.info({ adminTelegramIdRaw, adminTelegramId }, '[telegram][mapIn] ADMIN_TELEGRAM_ID diagnostics');
-      if (typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)) {
-        reqLogger.info({ chatId: adminTelegramId, text: msg.text ?? '' }, '[telegram][mapIn] adminForward will be set');
-      } else {
-        reqLogger.warn({ adminTelegramId }, '[telegram][mapIn] adminForward NOT set, invalid adminTelegramId');
-      }
+      reqLogger.info({ adminTelegramId }, '[telegram][mapIn] admin chat diagnostics');
+      reqLogger.info({ chatId: adminTelegramId, text: msg.text ?? '' }, '[telegram][mapIn] adminForward will be set');
     }
     const update: IncomingMessageUpdate = {
       kind: 'message',
@@ -133,9 +132,7 @@ export function fromTelegram(
       ...(typeof msg.from?.last_name === 'string' && { channelLastName: msg.from.last_name } ),
       userRow,
       userState: typeof userState === 'string' ? userState : '',
-      ...(typeof adminTelegramId === 'number' && Number.isFinite(adminTelegramId)
-        ? { adminForward: { chatId: adminTelegramId, text: msg.text ?? '' } }
-        : {}),
+      adminForward: { chatId: adminTelegramId, text: msg.text ?? '' },
     };
     return update;
   }

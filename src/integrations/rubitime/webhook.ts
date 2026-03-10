@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { env } from '../../config/env.js';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import { rubitimeIncomingToEvent } from './connector.js';
+import { rubitimeConfig } from './config.js';
 import { parseRubitimeBody } from './schema.js';
 
 /** Dependencies for Rubitime webhook handler registration. */
@@ -25,7 +25,7 @@ export async function registerRubitimeWebhookRoutes(
 
     try {
       const params = request.params as { token?: string };
-      if (params.token !== env.RUBITIME_WEBHOOK_TOKEN) {
+      if (params.token !== rubitimeConfig.webhookToken) {
         return reply.code(403).send({ ok: false });
       }
 

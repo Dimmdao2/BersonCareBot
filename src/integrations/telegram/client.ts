@@ -4,13 +4,11 @@
  */
 import { Bot } from 'grammy';
 import type { ApiClientOptions } from 'grammy';
-import { env } from '../../config/env.js';
 import type { MessagingPort } from '../../kernel/domain/ports/messaging.js';
+import { telegramConfig } from './config.js';
 
 function getBot(): Bot {
-  const token = env.BOT_TOKEN;
-  if (!token) throw new Error('BOT_TOKEN is not set');
-  return new Bot(token, {
+  return new Bot(telegramConfig.botToken, {
     client: { fetch: globalThis.fetch as unknown as NonNullable<ApiClientOptions['fetch']> },
   });
 }

@@ -5,7 +5,6 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { appSettings } from '../config/appSettings.js';
-import { env } from '../config/env.js';
 import { createDbPort, healthCheckDb } from '../infra/db/client.js';
 import { createDbReadPort } from '../infra/db/readPort.js';
 import { createDbWritePort } from '../infra/db/writePort.js';
@@ -32,6 +31,7 @@ import { createDeliveryDefaultsPort } from '../infra/adapters/deliveryDefaultsPo
 import { createTemplatePort } from '../infra/adapters/templatePort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
+import { smscConfig } from '../integrations/smsc/config.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
 import { createSmscStub } from '../integrations/smsc/stub.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
@@ -82,18 +82,18 @@ export type AppDeps = {
 
 /** Собирает полностью связанный набор зависимостей app-слоя. */
 export function buildDeps(input: BuildDepsInput = {}): AppDeps {
-  const smsClient: SmsClient = env.SMSC_ENABLED
-    ? env.SMSC_API_KEY
+  const smsClient: SmsClient = smscConfig.enabled
+    ? smscConfig.apiKey
       ? createSmscClient({
-          apiKey: env.SMSC_API_KEY,
-          baseUrl: env.SMSC_API_BASE_URL,
+          apiKey: smscConfig.apiKey,
+          baseUrl: smscConfig.baseUrl,
           log: logger,
         })
       : createSmscStub(logger)
     : createSmscStub(logger);
 
-  if (env.SMSC_ENABLED && !env.SMSC_API_KEY) {
-    logger.warn({ smscEnabled: env.SMSC_ENABLED }, 'smsc enabled but api key is not set, using stub');
+  if (smscConfig.enabled && !smscConfig.apiKey) {
+    logger.warn({ smscEnabled: smscConfig.enabled }, 'smsc enabled but api key is not set, using stub');
   }
 
   const dbPort = createDbPort();

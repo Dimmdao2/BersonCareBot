@@ -2,20 +2,12 @@
  * Настраивает для админа кнопку меню (квадратная кнопка рядом с полем ввода) и список команд.
  * Только для чата админа — без ReplyKeyboard, только меню-кнопка со списком команд.
  */
-import { env } from '../../config/env.js';
 import { logger } from '../../infra/observability/logger.js';
+import { telegramConfig } from './config.js';
 import { getBotInstance } from './client.js';
 
-function parseAdminChatId(): number | undefined {
-  const raw = env.ADMIN_TELEGRAM_ID;
-  if (typeof raw !== 'string') return undefined;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : undefined;
-}
-
 export async function setupTelegramMenuButton(): Promise<void> {
-  const adminChatId = parseAdminChatId();
-  if (!adminChatId) return;
+  const adminChatId = telegramConfig.adminTelegramId;
 
   const api = getBotInstance().api;
 

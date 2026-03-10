@@ -3,8 +3,8 @@
  * mocks Telegram API by patching globalThis.fetch (grammy uses fetch).
  *
  * Run: pnpm run scenarios
- * Requires: .env with DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, BOOKING_URL.
- * Optional: TG_WEBHOOK_SECRET — if set, requests must include the header; we add it for fixture scenarios.
+ * Requires: .env with DATABASE_URL and BOOKING_URL.
+ * Telegram keys are read from src/integrations/telegram/config.ts.
  */
 
 import { readdir, readFile } from 'node:fs/promises';
@@ -220,8 +220,8 @@ async function main(): Promise<void> {
   });
   await app.ready();
 
-  const env = (await import('../src/config/env.js')).env;
-  const webhookSecret = env.TG_WEBHOOK_SECRET;
+  const { telegramConfig } = await import('../src/integrations/telegram/config.js');
+  const webhookSecret = telegramConfig.webhookSecret;
   const headers: Record<string, string> = {
     'content-type': 'application/json',
   };
@@ -258,7 +258,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Wrong secret (only if TG_WEBHOOK_SECRET is set)
+  // Wrong secret (only if Telegram webhook secret is set)
   if (typeof webhookSecret === 'string') {
     clearRecordedCalls();
     const wrongRes = (await app.inject({
@@ -285,7 +285,7 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   if (err != null && typeof err === 'object' && 'issues' in err) {
-    console.error('Env validation failed. Add .env with DATABASE_URL, BOT_TOKEN, ADMIN_TELEGRAM_ID, BOOKING_URL.');
+    console.error('Env validation failed. Add .env with DATABASE_URL and BOOKING_URL.');
   }
   console.error(err);
   process.exit(1);
