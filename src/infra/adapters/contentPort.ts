@@ -1,4 +1,5 @@
 import type {
+  ContentBundleView,
   ContentPort,
   ContentScript,
   ContentSelectionScope,
@@ -70,6 +71,17 @@ export function createContentPort(input?: { rootDir?: string }): ContentPort {
       const bundle = getContentBundle(data, key);
       if (!bundle) return [];
       return listScripts(bundle);
+    },
+    async getBundle(scope: ContentSelectionScope): Promise<ContentBundleView | null> {
+      const data = await registry.load();
+      const key = getEffectiveBundleKey(data, scope.source, scope.audience);
+      const bundle = getContentBundle(data, key);
+      if (!bundle) return null;
+      return {
+        scripts: listScripts(bundle),
+        templates: bundle.templates,
+        ...(bundle.menus ? { menus: bundle.menus } : {}),
+      };
     },
     async getTemplate(scope: ContentSelectionScope, templateId: string): Promise<ContentTemplate | null> {
       const data = await registry.load();

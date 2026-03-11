@@ -69,6 +69,7 @@ export type {
 export type {
   ClockPort,
   ContentAudience,
+  ContentBundleView,
   ContentCatalogPort,
   ContentPort,
   ContentSelectionScope,

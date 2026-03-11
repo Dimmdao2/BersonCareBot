@@ -42,9 +42,14 @@ const templatesFileSchema = z.record(z.string(), z.unknown());
 export type ContentScript = z.infer<typeof contentScriptSchema>;
 export type TemplateMap = z.infer<typeof templatesFileSchema>;
 
+/** Menu id -> inline keyboard (array of rows, each row array of button objects). */
+export type MenuMap = Record<string, unknown>;
+
 export type ContentBundle = {
   scripts: ContentScript[];
   templates: TemplateMap;
+  /** Optional menus for param expansion (e.g. params.menu = "main" → inlineKeyboard from menus.main). */
+  menus?: MenuMap;
 };
 
 export type ContentRegistry = Record<string, ContentBundle>;
@@ -98,13 +103,16 @@ export async function loadContentRegistry(input?: { rootDir?: string }): Promise
         const audienceDir = path.join(sourceDir, audience);
         const scriptsPath = path.join(audienceDir, 'scripts.json');
         const templatesPath = path.join(audienceDir, 'templates.json');
+        const menuPath = path.join(audienceDir, 'menu.json');
         const scriptsRaw = await fileExists(scriptsPath) ? await readJsonFile(scriptsPath) : [];
         const templatesRaw = await fileExists(templatesPath) ? await readJsonFile(templatesPath) : {};
+        const menusRaw = await fileExists(menuPath) ? await readJsonFile(menuPath) : undefined;
         const scripts = scriptsFileSchema.parse(Array.isArray(scriptsRaw) ? scriptsRaw : []);
         const templates = templatesFileSchema.parse(typeof templatesRaw === 'object' && templatesRaw !== null ? templatesRaw : {});
+        const menus = typeof menusRaw === 'object' && menusRaw !== null && !Array.isArray(menusRaw) ? (menusRaw as MenuMap) : undefined;
         const key = `${source}/${audience}`;
         ensureNoDuplicateScriptIds({ scripts, templates }, key);
-        registry[key] = { scripts, templates };
+        registry[key] = menus ? { scripts, templates, menus } : { scripts, templates };
       }
       continue;
     }

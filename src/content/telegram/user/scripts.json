@@ -579,13 +579,7 @@
 				"params": {
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
-					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
-						[{ "textTemplateKey": "telegram:moreMenu.reminders", "callbackData": "reminders.dashboard" }],
-						[{ "textTemplateKey": "telegram:moreMenu.usefulLessons", "callbackData": "content.useful_lessons" }],
-						[{ "textTemplateKey": "telegram:moreMenu.emergencyHelp", "callbackData": "content.emergency_help" }],
-						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
-					]
+					"menu": "main"
 				}
 			}
 		]
@@ -604,13 +598,7 @@
 				"params": {
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
-					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
-						[{ "textTemplateKey": "telegram:moreMenu.reminders", "callbackData": "reminders.dashboard" }],
-						[{ "textTemplateKey": "telegram:moreMenu.usefulLessons", "callbackData": "content.useful_lessons" }],
-						[{ "textTemplateKey": "telegram:moreMenu.emergencyHelp", "callbackData": "content.emergency_help" }],
-						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
-					]
+					"menu": "main"
 				}
 			}
 		]
@@ -629,13 +617,7 @@
 				"params": {
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
-					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
-						[{ "textTemplateKey": "telegram:moreMenu.reminders", "callbackData": "reminders.dashboard" }],
-						[{ "textTemplateKey": "telegram:moreMenu.usefulLessons", "callbackData": "content.useful_lessons" }],
-						[{ "textTemplateKey": "telegram:moreMenu.emergencyHelp", "callbackData": "content.emergency_help" }],
-						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
-					]
+					"menu": "main"
 				}
 			}
 		]
@@ -1133,10 +1115,7 @@
 					"chatId": "{{actor.chatId}}",
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:chooseMenu",
-					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
-						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
-					]
+					"menu": "main"
 				}
 			},
 			{

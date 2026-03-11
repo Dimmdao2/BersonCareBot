@@ -144,12 +144,21 @@ export type ContentSelectionScope = {
   audience: ContentAudience;
 };
 
+/** Bundle view for menu expansion (menus.main → inlineKeyboard). */
+export type ContentBundleView = {
+  scripts: ContentScript[];
+  templates: Record<string, unknown>;
+  menus?: Record<string, unknown>;
+};
+
 /** Порт доступа к JSON-скриптам и шаблонам контента. */
 export type ContentPort = {
   /** Preferred: resolve scripts by scope (source + audience). */
   getScripts?(scope: ContentSelectionScope): Promise<ContentScript[]>;
   /** Legacy: scripts by source only (treated as user bundle when getScripts is used). */
   getScriptsBySource?: (source: string) => Promise<ContentScript[]>;
+  /** Full bundle for scope (used to resolve params.menu → inlineKeyboard). */
+  getBundle?(scope: ContentSelectionScope): Promise<ContentBundleView | null>;
   /** Resolve template by scope and templateId. */
   getTemplate(scope: ContentSelectionScope, templateId: string): Promise<ContentTemplate | null>;
   /** Legacy template lookup by key "source:templateId" (used when scope not passed). */

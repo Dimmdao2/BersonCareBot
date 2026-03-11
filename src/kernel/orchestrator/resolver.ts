@@ -295,6 +295,8 @@ export async function buildPlan(
   const selected = await resolveBusinessScript(input, deps.contentPort);
   if (!selected) return [];
   const script = selected.script;
+  const scope = buildContentScope(input);
+  const bundle = deps.contentPort.getBundle ? await deps.contentPort.getBundle(scope) : null;
 
   const baseVars = {
     event: input.event,
@@ -322,11 +324,20 @@ export async function buildPlan(
     delete paramsWithoutWhen._when;
     if (when && !evaluateWhen(when, vars)) continue;
 
-    const interpolated = toPlanStep({ ...step, params: paramsWithoutWhen }, input, index, vars);
-    if (input.event.type === 'callback.received') {
-      console.log('[orchestrator][buildPlan] step', index, 'interpolated:', JSON.stringify(interpolated, null, 2));
+    let stepResult = toPlanStep({ ...step, params: paramsWithoutWhen }, input, index, vars);
+    const payload = stepResult.payload as Record<string, unknown> | undefined;
+    if (bundle?.menus && payload && typeof payload.menu === 'string') {
+      const menuId = payload.menu;
+      const menuKeyboard = isRecord(bundle.menus[menuId]) || Array.isArray(bundle.menus[menuId]) ? bundle.menus[menuId] : undefined;
+      if (menuKeyboard !== undefined) {
+        payload.inlineKeyboard = menuKeyboard;
+        delete payload.menu;
+      }
     }
-    steps.push(interpolated);
+    if (input.event.type === 'callback.received') {
+      console.log('[orchestrator][buildPlan] step', index, 'interpolated:', JSON.stringify(stepResult, null, 2));
+    }
+    steps.push(stepResult);
   }
 
   return steps;
