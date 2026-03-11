@@ -5,7 +5,7 @@ import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
 import { telegramConfig } from './config.js';
-import { normalizeTelegramAction, normalizeTelegramMessageAction } from './mapIn.js';
+import { normalizeTelegramAction, normalizeTelegramContactPhone, normalizeTelegramMessageAction } from './mapIn.js';
 import { setupTelegramMenuButton } from './setupMenuButton.js';
 import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
@@ -94,6 +94,9 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
   }
 
   if (body.message?.from && typeof body.message.chat?.id === 'number') {
+    const normalizedPhone = typeof body.message.contact?.phone_number === 'string'
+      ? normalizeTelegramContactPhone(body.message.contact.phone_number)
+      : null;
     return {
       kind: 'message',
       chatId: body.message.chat.id,
@@ -101,6 +104,7 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
       ...(typeof body.message.message_id === 'number' ? { messageId: body.message.message_id } : {}),
       text: body.message.text ?? '',
       action: normalizeTelegramMessageAction(body.message.text ?? ''),
+      ...(normalizedPhone ? { phone: normalizedPhone } : {}),
       ...(typeof body.message.contact?.phone_number === 'string' ? { contactPhone: body.message.contact.phone_number } : {}),
       ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),
       ...(typeof body.message.from.first_name === 'string' ? { channelFirstName: body.message.from.first_name } : {}),

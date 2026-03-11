@@ -87,6 +87,53 @@ describe('fromTelegram', () => {
       action: 'question.ask',
     });
   });
+
+  it('maps "Вернуться в меню" to phone.request.cancel', () => {
+    const update = fromTelegram(
+      {
+        update_id: 5,
+        message: {
+          message_id: 14,
+          from: { id: 123, is_bot: false, first_name: 'U', username: 'u1' },
+          chat: { id: 123, type: 'private' },
+          date: 1700000000,
+          text: 'Вернуться в меню',
+        },
+      },
+      { userRow: null, telegramId: '123' },
+    );
+
+    expect(update).toMatchObject({
+      kind: 'message',
+      action: 'phone.request.cancel',
+    });
+  });
+
+  it('normalizes shared contact phone into canonical phone field', () => {
+    const update = fromTelegram(
+      {
+        update_id: 4,
+        message: {
+          message_id: 13,
+          from: { id: 123, is_bot: false, first_name: 'U', username: 'u1' },
+          chat: { id: 123, type: 'private' },
+          date: 1700000000,
+          contact: {
+            phone_number: '8 (918) 900-07-82',
+            user_id: 123,
+            first_name: 'U',
+          },
+        },
+      },
+      { userRow: null, telegramId: '123' },
+    );
+
+    expect(update).toMatchObject({
+      kind: 'message',
+      phone: '+79189000782',
+      contactPhone: '8 (918) 900-07-82',
+    });
+  });
 });
 
 describe('telegramIncomingToEvent', () => {

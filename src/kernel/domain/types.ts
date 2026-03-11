@@ -38,6 +38,7 @@ export type IncomingMessageUpdate = {
   messageId?: number;
   text: string;
   action?: string;
+  phone?: string;
   contactPhone?: string;
   hasLinkedPhone?: boolean;
   channelUsername?: string | null;

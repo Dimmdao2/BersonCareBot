@@ -261,6 +261,10 @@ async function renderButtonText(input: {
   return `${enabled ? enabledPrefix : disabledPrefix} ${rendered}`.trim();
 }
 
+function isPhoneRequestButton(button: Record<string, unknown>): boolean {
+  return button.requestPhone === true || button.requestContact === true;
+}
+
 async function buildReplyMarkup(input: {
   params: Record<string, unknown>;
   ctx: DomainContext;
@@ -274,10 +278,30 @@ async function buildReplyMarkup(input: {
         const button = asRecord(item);
         return {
           text: await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars }),
-          ...(button.requestContact === true ? { request_contact: true } : {}),
+          ...(isPhoneRequestButton(button) ? { request_contact: true } : {}),
         };
       }));
     }));
+    const containsPhoneRequest = input.params.keyboard.some((row) =>
+      Array.isArray(row) && row.some((item) => isPhoneRequestButton(asRecord(item))),
+    );
+    if (containsPhoneRequest) {
+      const cancelButtonText = (await renderText({
+        templateKey: `${input.ctx.event.meta.source}:requestPhone.cancelButton`,
+        vars: input.vars,
+        ctx: input.ctx,
+        templatePort: input.templatePort,
+      })) || 'Вернуться в меню';
+      const hasCancelButton = keyboard.some((row) =>
+        Array.isArray(row) && row.some((btn) => {
+          const b = asRecord(btn);
+          return asString(b.text) === cancelButtonText && !b.request_contact;
+        }),
+      );
+      if (!hasCancelButton) {
+        keyboard.push([{ text: cancelButtonText }]);
+      }
+    }
     return {
       keyboard,
       resize_keyboard: input.params.resizeKeyboard === true,

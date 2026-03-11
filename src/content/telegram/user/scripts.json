@@ -282,7 +282,7 @@
 						[
 							{
 								"textTemplateKey": "telegram:requestContact.button",
-								"requestContact": true
+								"requestPhone": true
 							}
 						]
 					],
@@ -319,7 +319,7 @@
 						[
 							{
 								"textTemplateKey": "telegram:requestContact.button",
-								"requestContact": true
+								"requestPhone": true
 							}
 						]
 					],
@@ -356,7 +356,7 @@
 						[
 							{
 								"textTemplateKey": "telegram:requestContact.button",
-								"requestContact": true
+								"requestPhone": true
 							}
 						]
 					],
@@ -399,7 +399,7 @@
 						[
 							{
 								"textTemplateKey": "telegram:requestContact.button",
-								"requestContact": true
+								"requestPhone": true
 							}
 						]
 					],
@@ -460,6 +460,41 @@
 		]
 	},
 	{
+		"id": "telegram.contact.link.cancel",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"context": { "conversationState": "await_contact:subscription" },
+			"input": { "action": "phone.request.cancel" }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"keyboard": [
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.ask" },
+							{ "textTemplateKey": "telegram:menu.more" }
+						]
+					],
+					"resizeKeyboard": true
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.contact.link.remind",
 		"source": "telegram",
 		"event": "message.received",
@@ -478,7 +513,7 @@
 						[
 							{
 								"textTemplateKey": "telegram:requestContact.button",
-								"requestContact": true
+								"requestPhone": true
 							}
 						]
 					],

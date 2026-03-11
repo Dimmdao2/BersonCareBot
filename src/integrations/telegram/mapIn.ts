@@ -10,6 +10,7 @@ export const NOTIFY_KEYS = ['notify_toggle_spb', 'notify_toggle_msk', 'notify_to
 export const MENU_NOTIFICATIONS = 'menu_notifications';
 export const MENU_MY_BOOKINGS = 'menu_my_bookings';
 export const MENU_BACK = 'menu_back';
+export const REQUEST_PHONE_CANCEL_TEXT = 'Вернуться в меню';
 
 const LEGACY_CALLBACK_TO_ACTION: Record<string, string> = {
   menu_notifications: 'notifications.show',
@@ -28,12 +29,25 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Задать вопрос': 'question.ask',
   '⚙️ Меню': 'menu.more',
   'Меню': 'menu.more',
+  [REQUEST_PHONE_CANCEL_TEXT]: 'phone.request.cancel',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',
   '/dialogs': 'admin.dialogs.open',
   '/unanswered': 'admin.questions.unanswered',
   'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
+
+export function normalizeTelegramContactPhone(value: string): string | null {
+  const digits = value.replace(/[^\d+]/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('+') && /^\+\d{10,15}$/.test(digits)) return digits;
+  const onlyDigits = digits.replace(/\D/g, '');
+  if (onlyDigits.length === 11 && onlyDigits.startsWith('8')) return `+7${onlyDigits.slice(1)}`;
+  if (onlyDigits.length === 11 && onlyDigits.startsWith('7')) return `+${onlyDigits}`;
+  if (onlyDigits.length === 10) return `+7${onlyDigits}`;
+  if (onlyDigits.length >= 10 && onlyDigits.length <= 15) return `+${onlyDigits}`;
+  return null;
+}
 
 function normalizeDynamicTelegramAction(value: string): { action: string; conversationId?: string } {
   const trimmed = value.trim();
@@ -112,6 +126,9 @@ export function fromTelegram(
     const msg = body.message;
     const chatId = msg.chat?.id;
     if (!telegramId || typeof chatId !== 'number') return null;
+    const normalizedPhone = typeof msg.contact?.phone_number === 'string'
+      ? normalizeTelegramContactPhone(msg.contact.phone_number)
+      : null;
     const reqLogger = context.reqLogger;
     const adminTelegramId = telegramConfig.adminTelegramId;
     if (reqLogger) {
@@ -125,6 +142,7 @@ export function fromTelegram(
       ...(typeof msg.message_id === 'number' ? { messageId: msg.message_id } : {}),
       text: msg.text ?? '',
       action: normalizeTelegramMessageAction(msg.text ?? ''),
+      ...(normalizedPhone ? { phone: normalizedPhone } : {}),
       ...(typeof msg.contact?.phone_number === 'string' && { contactPhone: msg.contact.phone_number }),
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       ...(typeof msg.from?.username === 'string' && { channelUsername: msg.from.username }),

@@ -847,7 +847,11 @@ describe('executeAction', () => {
             ? '📅 Запись на приём'
             : templateId === 'moreMenu.notifications'
               ? '🔔 Настройки уведомлений'
-              : 'Служебное сообщение',
+              : templateId === 'requestPhone.cancelButton'
+                ? 'Вернуться в меню'
+                : templateId === 'requestContact.button'
+                  ? 'Предоставить контакт'
+                  : 'Служебное сообщение',
       })),
     };
 
@@ -869,6 +873,34 @@ describe('executeAction', () => {
         recipient: { chatId: 123 },
         message: { text: 'Выберите действие' },
         replyMarkup: { keyboard: [[{ text: '📅 Запись на приём' }]], resize_keyboard: true, one_time_keyboard: false },
+      },
+    });
+
+    const replyKeyboardWithPhoneResult = await executeAction({
+      id: 'a14b',
+      type: 'message.replyKeyboard.show',
+      mode: 'async',
+      params: {
+        chatId: 456,
+        templateKey: 'telegram:confirmPhoneForBooking',
+        keyboard: [[{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }]],
+        resizeKeyboard: true,
+        oneTimeKeyboard: true,
+      },
+    }, { ...ctx, event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' } } }, { templatePort });
+
+    expect(replyKeyboardWithPhoneResult.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 456 },
+        replyMarkup: {
+          keyboard: [
+            [{ text: 'Предоставить контакт', request_contact: true }],
+            [{ text: 'Вернуться в меню' }],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
       },
     });
 

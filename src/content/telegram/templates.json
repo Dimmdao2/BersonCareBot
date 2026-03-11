@@ -12,6 +12,7 @@
   "bookingOffline": "Для очной записи перейдите по ссылке: ${url}",
   "bookingOnline": "Опишите причину обращения.",
   "bookingMy": "Раздел в разработке.",
+  "requestPhone.cancelButton": "Вернуться в меню",
   "menu.book": "📅 Запись на приём",
   "menu.ask": "❓ Задать вопрос",
   "menu.more": "⚙️ Меню",
