@@ -212,36 +212,26 @@ export async function updateNotificationSettings(
   settings: NotificationSettingsPatch,
 ): Promise<void> {
   const columns: string[] = [];
-  const updateClauses: string[] = [];
   const values: boolean[] = [];
-  let idx = 2;
 
   if (typeof settings.notify_spb === 'boolean') {
     columns.push('notify_spb');
-    updateClauses.push(`notify_spb = $${idx}`);
     values.push(settings.notify_spb);
-    idx++;
   }
 
   if (typeof settings.notify_msk === 'boolean') {
     columns.push('notify_msk');
-    updateClauses.push(`notify_msk = $${idx}`);
     values.push(settings.notify_msk);
-    idx++;
   }
 
   if (typeof settings.notify_online === 'boolean') {
     columns.push('notify_online');
-    updateClauses.push(`notify_online = $${idx}`);
     values.push(settings.notify_online);
-    idx++;
   }
 
   if (typeof settings.notify_bookings === 'boolean') {
     columns.push('notify_bookings');
-    updateClauses.push(`notify_bookings = $${idx}`);
     values.push(settings.notify_bookings);
-    idx++;
   }
 
   if (columns.length === 0) return;
