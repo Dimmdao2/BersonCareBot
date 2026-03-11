@@ -94,16 +94,29 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
   }
 
   if (body.message?.from && typeof body.message.chat?.id === 'number') {
+    const text = body.message.text ?? '';
     const normalizedPhone = typeof body.message.contact?.phone_number === 'string'
       ? normalizeTelegramContactPhone(body.message.contact.phone_number)
       : null;
+    let action = normalizeTelegramMessageAction(text);
+    let phoneFromStart: string | null = null;
+    const setphoneMatch = /^\/start\s+setphone[:_](.+)$/i.exec(text.trim());
+    if (setphoneMatch?.[1]) {
+      const raw = setphoneMatch[1].trim();
+      const parsed = normalizeTelegramContactPhone(raw);
+      if (parsed) {
+        action = 'start.setphone';
+        phoneFromStart = parsed;
+      }
+    }
     return {
       kind: 'message',
       chatId: body.message.chat.id,
       channelId: String(body.message.from.id),
       ...(typeof body.message.message_id === 'number' ? { messageId: body.message.message_id } : {}),
-      text: body.message.text ?? '',
-      action: normalizeTelegramMessageAction(body.message.text ?? ''),
+      text,
+      action,
+      ...(phoneFromStart ? { phone: phoneFromStart } : {}),
       ...(normalizedPhone ? { phone: normalizedPhone } : {}),
       ...(typeof body.message.contact?.phone_number === 'string' ? { contactPhone: body.message.contact.phone_number } : {}),
       ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),

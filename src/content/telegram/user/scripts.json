@@ -1,5 +1,47 @@
 [
 	{
+		"id": "telegram.start.setphone",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "start.setphone" }
+		},
+		"steps": [
+			{
+				"action": "user.phone.link",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"phoneNormalized": "{{input.phone}}"
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"keyboard": [
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.ask" },
+							{ "textTemplateKey": "telegram:menu.more" }
+						]
+					],
+					"resizeKeyboard": true
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.start",
 		"source": "telegram",
 		"event": "message.received",
