@@ -100,7 +100,8 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
       : null;
     let action = normalizeTelegramMessageAction(text);
     let phoneFromStart: string | null = null;
-    const setphoneMatch = /^\/start\s+setphone[:_](.+)$/i.exec(text.trim());
+    let recordIdFromStart: string | null = null;
+    const setphoneMatch = /^\/start\s+setphone_(.+)$/i.exec(text.trim());
     if (setphoneMatch?.[1]) {
       const raw = setphoneMatch[1].trim();
       const parsed = normalizeTelegramContactPhone(raw);
@@ -108,6 +109,11 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
         action = 'start.setphone';
         phoneFromStart = parsed;
       }
+    }
+    const setrubitimerecordMatch = /^\/start\s+setrubitimerecord_([A-Za-z0-9_-]{1,120})$/i.exec(text.trim());
+    if (setrubitimerecordMatch?.[1]) {
+      action = 'start.setrubitimerecord';
+      recordIdFromStart = setrubitimerecordMatch[1];
     }
     return {
       kind: 'message',
@@ -117,6 +123,7 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
       text,
       action,
       ...(phoneFromStart ? { phone: phoneFromStart } : {}),
+      ...(recordIdFromStart ? { recordId: recordIdFromStart } : {}),
       ...(normalizedPhone ? { phone: normalizedPhone } : {}),
       ...(typeof body.message.contact?.phone_number === 'string' ? { contactPhone: body.message.contact.phone_number } : {}),
       ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),

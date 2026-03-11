@@ -42,6 +42,59 @@
 		]
 	},
 	{
+		"id": "telegram.start.setrubitimerecord",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "start.setrubitimerecord" }
+		},
+		"conditions": [
+			{
+				"kind": "context.query",
+				"name": "bookingRecord",
+				"query": {
+					"type": "booking.recordByExternalId",
+					"recordId": "{{input.recordId}}"
+				}
+			}
+		],
+		"steps": [
+			{
+				"action": "user.phone.link",
+				"mode": "sync",
+				"params": {
+					"_when": { "path": "queries.bookingRecord.record.phoneNormalized", "truthy": true },
+					"channelUserId": "{{actor.channelUserId}}",
+					"phoneNormalized": "{{queries.bookingRecord.record.phoneNormalized}}"
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"keyboard": [
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.ask" },
+							{ "textTemplateKey": "telegram:menu.more" }
+						]
+					],
+					"resizeKeyboard": true
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.start",
 		"source": "telegram",
 		"event": "message.received",
