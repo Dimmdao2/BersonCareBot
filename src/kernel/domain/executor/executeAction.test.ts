@@ -381,6 +381,44 @@ describe('executeAction', () => {
     expect(writeDb).toHaveBeenCalledTimes(2);
   });
 
+  it('falls back to incoming actor and contact when linking phone', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const messageCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          ...ctx.event.meta,
+          source: 'telegram',
+          userId: '123',
+        },
+        payload: {
+          incoming: {
+            channelId: '123',
+            contactPhone: '8 (919) 123-45-67',
+          },
+        },
+      },
+    };
+
+    const result = await executeAction({
+      id: 'a8b',
+      type: 'user.phone.link',
+      mode: 'sync',
+      params: {},
+    }, messageCtx, { writePort: { writeDb } });
+
+    expect(result.status).toBe('success');
+    expect(writeDb).toHaveBeenCalledWith({
+      type: 'user.phone.link',
+      params: {
+        resource: 'telegram',
+        channelUserId: '123',
+        phoneNormalized: '+79191234567',
+      },
+    });
+  });
+
   it('upserts and cancels drafts from incoming messages', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
     const messageCtx: DomainContext = {

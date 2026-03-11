@@ -91,12 +91,30 @@ function asNumericString(value: unknown): string | null {
   return Number.isFinite(parsed) ? String(Math.trunc(parsed)) : null;
 }
 
+function normalizePhone(value: string): string | null {
+  const digits = value.replace(/[^\d+]/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('+') && /^\+\d{10,15}$/.test(digits)) return digits;
+  const onlyDigits = digits.replace(/\D/g, '');
+  if (onlyDigits.length === 11 && onlyDigits.startsWith('8')) return `+7${onlyDigits.slice(1)}`;
+  if (onlyDigits.length === 11 && onlyDigits.startsWith('7')) return `+${onlyDigits}`;
+  if (onlyDigits.length === 10) return `+7${onlyDigits}`;
+  if (onlyDigits.length >= 10 && onlyDigits.length <= 15) return `+${onlyDigits}`;
+  return null;
+}
+
 function readIncoming(ctx: DomainContext): Record<string, unknown> {
   return asRecord(ctx.event.payload.incoming);
 }
 
 function readIncomingText(ctx: DomainContext): string | null {
   return asString(readIncoming(ctx).text);
+}
+
+function readIncomingPhone(ctx: DomainContext): string | null {
+  const incoming = readIncoming(ctx);
+  return asString(incoming.phone)
+    ?? (asString(incoming.contactPhone) ? normalizePhone(asString(incoming.contactPhone) as string) : null);
 }
 
 function readIncomingChatId(ctx: DomainContext): string | null {
@@ -772,7 +790,7 @@ export async function executeAction(
         type: 'user.state.set',
         params: {
           resource: ctx.event.meta.source,
-          channelUserId: action.params.channelUserId ?? action.params.channelId,
+          channelUserId: action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx),
           state: action.params.state ?? null,
         },
       }];
@@ -786,8 +804,8 @@ export async function executeAction(
     }
 
     case 'user.phone.link': {
-      const channelUserId = action.params.channelUserId ?? action.params.channelId;
-      const phoneNormalized = asString(action.params.phoneNormalized);
+      const channelUserId = action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx);
+      const phoneNormalized = asString(action.params.phoneNormalized) ?? readIncomingPhone(ctx);
       const writes: DbWriteMutation[] = phoneNormalized ? [{
         type: 'user.phone.link',
         params: {
