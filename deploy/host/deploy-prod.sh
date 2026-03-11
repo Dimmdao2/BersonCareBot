@@ -1,36 +1,81 @@
 #!/bin/bash
-set -e
-set -o pipefail
+set -euo pipefail
 
-cd /opt/projects/bersoncarebot
+PROJECT_ROOT=/opt/projects/bersoncarebot
+ENV_FILE="${PROJECT_ROOT}/.env.prod"
+BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
+API_SERVICE=bersoncarebot-api-prod.service
+WORKER_SERVICE=bersoncarebot-worker-prod.service
+
+fail() {
+  echo "deploy-prod: $*" >&2
+  exit 1
+}
+
+require_file() {
+  local path="$1"
+  local description="$2"
+  if [ ! -f "$path" ]; then
+    fail "${description} not found: ${path}"
+  fi
+}
+
+require_unit_file() {
+  local unit="$1"
+  if [ ! -e "/etc/systemd/system/${unit}" ]; then
+    fail "Missing systemd unit ${unit}. Run deploy/host/bootstrap-systemd-prod.sh on the host before CI deploys."
+  fi
+}
+
+require_sudo_rule() {
+  local description="$1"
+  shift
+
+  if ! sudo -n -l "$@" >/dev/null 2>&1; then
+    fail "Missing passwordless sudo permission for ${description}: $*"
+  fi
+}
+
+cd "${PROJECT_ROOT}"
 git pull origin main
 
 # Re-exec self so we run the updated script (current process was started before pull).
-if [ -z "${DEPLOY_PROD_RERUN}" ]; then
+if [ -z "${DEPLOY_PROD_RERUN:-}" ]; then
   export DEPLOY_PROD_RERUN=1
   exec bash deploy/host/deploy-prod.sh
 fi
+
+require_file "${ENV_FILE}" "Production environment file"
+require_file "${BACKUP_SCRIPT}" "Backup script"
+require_unit_file "${API_SERVICE}"
+require_unit_file "${WORKER_SERVICE}"
+
+require_sudo_rule "backup script" "${BACKUP_SCRIPT}" pre-migrations
+require_sudo_rule "API restart" /bin/systemctl restart "${API_SERVICE}"
+require_sudo_rule "worker restart" /bin/systemctl restart "${WORKER_SERVICE}"
+require_sudo_rule "API status check" /bin/systemctl is-active --quiet "${API_SERVICE}"
+require_sudo_rule "worker status check" /bin/systemctl is-active --quiet "${WORKER_SERVICE}"
 
 pnpm install --frozen-lockfile
 pnpm build
 
 set -a
-source /opt/projects/bersoncarebot/.env.prod
+source "${ENV_FILE}"
 set +a
 
 # Backup before migrations: write to pre-migrations folder (run as root).
 # Script must support first arg "pre-migrations" and write to /opt/backups/postgres/pre-migrations/
-sudo /opt/backups/scripts/postgres-backup.sh pre-migrations
+sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
 node dist/infra/db/migrate.js
 
-sudo /bin/systemctl restart bersoncarebot-api-prod.service
-sudo /bin/systemctl restart bersoncarebot-worker-prod.service
+sudo -n /bin/systemctl restart "${API_SERVICE}"
+sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
 
 sleep 3
 
-sudo /bin/systemctl is-active --quiet bersoncarebot-api-prod.service
-sudo /bin/systemctl is-active --quiet bersoncarebot-worker-prod.service
+sudo -n /bin/systemctl is-active --quiet "${API_SERVICE}"
+sudo -n /bin/systemctl is-active --quiet "${WORKER_SERVICE}"
 
 # Health check: use PORT from .env.prod (same as API). Production must have PORT=3200 in .env.prod. Retry for slow startup.
 API_PORT="${PORT:-3200}"
