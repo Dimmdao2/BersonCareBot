@@ -488,6 +488,7 @@ export async function setUserPhone(
         user_id = EXCLUDED.user_id,
         label = EXCLUDED.label,
         updated_at = now()
+      RETURNING id
     )
     SELECT 1 FROM upsert_contact
   `;
