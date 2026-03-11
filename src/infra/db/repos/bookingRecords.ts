@@ -104,6 +104,8 @@ export type ActiveBookingRecord = {
   rubitimeRecordId: string;
   recordAt: string | null;
   status: string;
+  /** Link to the record (from RubiTime payload: link, url, or record_url). */
+  link?: string | null;
 };
 
 /** Returns active (non-canceled) records by normalized phone. */
@@ -112,7 +114,15 @@ export async function getActiveRecordsByPhone(
   phoneNormalized: string,
 ): Promise<ActiveBookingRecord[]> {
   const query = `
-    SELECT rubitime_record_id, record_at, status
+    SELECT
+      rubitime_record_id,
+      record_at,
+      status,
+      COALESCE(
+        NULLIF(TRIM(payload_json->>'link'), ''),
+        NULLIF(TRIM(payload_json->>'url'), ''),
+        NULLIF(TRIM(payload_json->>'record_url'), '')
+      ) AS record_link
     FROM rubitime_records
     WHERE phone_normalized = $1
       AND status IN ('created', 'updated')
@@ -123,11 +133,13 @@ export async function getActiveRecordsByPhone(
       rubitime_record_id: string;
       record_at: Date | null;
       status: string;
+      record_link: string | null;
     }>(query, [phoneNormalized]);
     return res.rows.map((row) => ({
       rubitimeRecordId: row.rubitime_record_id,
       recordAt: row.record_at ? row.record_at.toISOString() : null,
       status: row.status,
+      link: row.record_link ?? null,
     }));
   } catch (err) {
     logger.error({ err, phoneNormalized }, 'get active records by phone failed');

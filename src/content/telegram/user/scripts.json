@@ -56,6 +56,14 @@
 					"type": "booking.recordByExternalId",
 					"recordId": "{{input.recordId}}"
 				}
+			},
+			{
+				"kind": "context.query",
+				"name": "bookings",
+				"query": {
+					"type": "bookings.forUser",
+					"userId": "{{queries.bookingRecord.record.phoneNormalized}}"
+				}
 			}
 		],
 		"steps": [
@@ -77,9 +85,54 @@
 				}
 			},
 			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"_when": {
+						"and": [
+							{ "path": "queries.bookingRecord.record.phoneNormalized", "truthy": true },
+							{ "path": "queries.bookings.items.length", "equals": 0 }
+						]
+					},
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:noBookings",
+					"vars": { "queries": "{{queries}}" },
+					"inlineKeyboard": [
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }],
+						[
+							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
+							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
+						]
+					]
+				}
+			},
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"_when": {
+						"and": [
+							{ "path": "queries.bookingRecord.record.phoneNormalized", "truthy": true },
+							{ "path": "queries.bookings.items.length", "truthy": true }
+						]
+					},
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:bookingsList",
+					"vars": { "queries": "{{queries}}" },
+					"inlineKeyboard": [
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }],
+						[
+							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
+							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
+						]
+					]
+				}
+			},
+			{
 				"action": "message.replyKeyboard.show",
 				"mode": "async",
 				"params": {
+					"_when": { "path": "queries.bookingRecord.record.phoneNormalized", "truthy": false },
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
@@ -1299,7 +1352,11 @@
 					"templateKey": "telegram:noBookings",
 					"vars": { "queries": "{{queries}}" },
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }],
+						[
+							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
+							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
+						]
 					]
 				}
 			},
@@ -1313,7 +1370,65 @@
 					"templateKey": "telegram:bookingsList",
 					"vars": { "queries": "{{queries}}" },
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }],
+						[
+							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
+							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
+						]
+					]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+			}
+		]
+	},
+	{
+		"id": "telegram.info.prepare",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "info.prepare" }
+		},
+		"steps": [
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:info.prepare.body",
+					"inlineKeyboard": [
+						[{ "text": "⬅️ Назад", "callbackData": "bookings.show" }]
+					]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+			}
+		]
+	},
+	{
+		"id": "telegram.info.address",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "info.address" }
+		},
+		"steps": [
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:info.address.body",
+					"inlineKeyboard": [
+						[{ "text": "⬅️ Назад", "callbackData": "bookings.show" }]
 					]
 				}
 			},
