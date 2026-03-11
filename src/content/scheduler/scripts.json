@@ -1,0 +1,17 @@
+[
+  {
+    "id": "scheduler.tick.reminders",
+    "source": "scheduler",
+    "event": "schedule.tick",
+    "match": {},
+    "steps": [
+      {
+        "action": "reminders.dispatchDue",
+        "mode": "sync",
+        "params": {
+          "limit": 50
+        }
+      }
+    ]
+  }
+]

@@ -4,6 +4,13 @@ import { getAdminStats } from './repos/adminStats.js';
 import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingRecords.js';
 import { getIdentityIdByResourceAndExternalId, getLinkDataByIdentity, getNotificationSettings } from './repos/channelUsers.js';
 import {
+  getDueReminderOccurrences,
+  getEnabledReminderRules,
+  getReminderOccurrencesForRuleRange,
+  getReminderRuleForUserAndCategory,
+  getReminderRulesForUser,
+} from './repos/reminders.js';
+import {
   getActiveDraftByIdentity,
   getConversationById,
   getOpenConversationByIdentity,
@@ -116,6 +123,32 @@ export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
         }
         case 'stats.adminDashboard':
           return (await getAdminStats(db)) as T;
+        case 'reminders.rules.forUser': {
+          const userId = asNonEmptyString(query.params.userId);
+          if (!userId) return [] as T;
+          return (await getReminderRulesForUser(db, userId)) as T;
+        }
+        case 'reminders.rule.forUserAndCategory': {
+          const userId = asNonEmptyString(query.params.userId);
+          const category = asNonEmptyString(query.params.category);
+          if (!userId || !category) return null as T;
+          return (await getReminderRuleForUserAndCategory(db, userId, category as never)) as T;
+        }
+        case 'reminders.rules.enabled':
+          return (await getEnabledReminderRules(db)) as T;
+        case 'reminders.occurrences.forRuleRange': {
+          const ruleId = asNonEmptyString(query.params.ruleId);
+          const fromIso = asNonEmptyString(query.params.fromIso);
+          const toIso = asNonEmptyString(query.params.toIso);
+          if (!ruleId || !fromIso || !toIso) return [] as T;
+          return (await getReminderOccurrencesForRuleRange(db, ruleId, fromIso, toIso)) as T;
+        }
+        case 'reminders.occurrences.due': {
+          const nowIso = asNonEmptyString(query.params.nowIso);
+          const limit = asFiniteNumber(query.params.limit) ?? 50;
+          if (!nowIso) return [] as T;
+          return (await getDueReminderOccurrences(db, nowIso, limit)) as T;
+        }
         default:
           return null as T;
       }

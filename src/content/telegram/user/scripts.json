@@ -581,6 +581,9 @@
 					"templateKey": "telegram:chooseMenu",
 					"inlineKeyboard": [
 						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
+						[{ "textTemplateKey": "telegram:moreMenu.reminders", "callbackData": "reminders.dashboard" }],
+						[{ "textTemplateKey": "telegram:moreMenu.usefulLessons", "callbackData": "content.useful_lessons" }],
+						[{ "textTemplateKey": "telegram:moreMenu.emergencyHelp", "callbackData": "content.emergency_help" }],
 						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
 					]
 				}
@@ -603,6 +606,9 @@
 					"templateKey": "telegram:chooseMenu",
 					"inlineKeyboard": [
 						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
+						[{ "textTemplateKey": "telegram:moreMenu.reminders", "callbackData": "reminders.dashboard" }],
+						[{ "textTemplateKey": "telegram:moreMenu.usefulLessons", "callbackData": "content.useful_lessons" }],
+						[{ "textTemplateKey": "telegram:moreMenu.emergencyHelp", "callbackData": "content.emergency_help" }],
 						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
 					]
 				}
@@ -625,10 +631,215 @@
 					"templateKey": "telegram:chooseMenu",
 					"inlineKeyboard": [
 						[{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
+						[{ "textTemplateKey": "telegram:moreMenu.reminders", "callbackData": "reminders.dashboard" }],
+						[{ "textTemplateKey": "telegram:moreMenu.usefulLessons", "callbackData": "content.useful_lessons" }],
+						[{ "textTemplateKey": "telegram:moreMenu.emergencyHelp", "callbackData": "content.emergency_help" }],
 						[{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }]
 					]
 				}
 			}
+		]
+	},
+	{
+		"id": "telegram.reminders.dashboard",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "reminders.dashboard" }
+		},
+		"steps": [
+			{
+				"action": "reminders.rules.get",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram"
+				}
+			},
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:reminders.dashboard.title",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:reminders.category.exercise", "callbackData": "reminders.toggle.exercise" }, { "text": "Расписание", "callbackData": "reminders.cycle.exercise" }],
+						[{ "textTemplateKey": "telegram:reminders.category.warmup", "callbackData": "reminders.toggle.warmup" }, { "text": "Расписание", "callbackData": "reminders.cycle.warmup" }],
+						[{ "textTemplateKey": "telegram:reminders.category.breathing", "callbackData": "reminders.toggle.breathing" }, { "text": "Расписание", "callbackData": "reminders.cycle.breathing" }],
+						[{ "textTemplateKey": "telegram:reminders.category.water", "callbackData": "reminders.toggle.water" }, { "text": "Расписание", "callbackData": "reminders.cycle.water" }],
+						[{ "textTemplateKey": "telegram:reminders.category.supplements_medication", "callbackData": "reminders.toggle.supplements_medication" }, { "text": "Расписание", "callbackData": "reminders.cycle.supplements_medication" }],
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.content.useful_lessons",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "content.useful_lessons" }
+		},
+		"steps": [
+			{
+				"action": "content.section.open",
+				"mode": "sync",
+				"params": {
+					"section": "useful_lessons",
+					"chatId": "{{actor.chatId}}"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.content.emergency_help",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "content.emergency_help" }
+		},
+		"steps": [
+			{
+				"action": "content.section.open",
+				"mode": "sync",
+				"params": {
+					"section": "emergency_help",
+					"chatId": "{{actor.chatId}}"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.reminders.toggle.exercise",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.toggle.exercise" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "exercise" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
+		]
+	},
+	{
+		"id": "telegram.reminders.toggle.warmup",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.toggle.warmup" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "warmup" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
+		]
+	},
+	{
+		"id": "telegram.reminders.toggle.water",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.toggle.water" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "water" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
+		]
+	},
+	{
+		"id": "telegram.reminders.toggle.breathing",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.toggle.breathing" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "breathing" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
+		]
+	},
+	{
+		"id": "telegram.reminders.toggle.supplements_medication",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.toggle.supplements_medication" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "supplements_medication" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.exercise",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.cycle.exercise" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "exercise" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.warmup",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.cycle.warmup" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "warmup" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.water",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.cycle.water" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "water" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.breathing",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.cycle.breathing" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "breathing" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.supplements_medication",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": { "input": { "action": "reminders.cycle.supplements_medication" } },
+		"steps": [
+			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
+			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "userId": "{{values.reminderUserId}}", "category": "supplements_medication" } },
+			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
 		]
 	},
 	{

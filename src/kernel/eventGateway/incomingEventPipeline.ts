@@ -1,11 +1,13 @@
 import type {
   ActorResolutionPort,
+  ContentCatalogPort,
   DbReadPort,
   DeliveryDefaultsPort,
   DispatchPort,
   DbWritePort,
   IncomingEvent,
   Orchestrator,
+  ProtectedAccessPort,
   QueuePort,
   TemplatePort,
 } from '../contracts/index.js';
@@ -18,6 +20,8 @@ export type IncomingEventPipelineDeps = {
   dispatchPort: DispatchPort;
   orchestrator: Orchestrator;
   templatePort: TemplatePort;
+  contentCatalogPort?: ContentCatalogPort;
+  protectedAccessPort?: ProtectedAccessPort;
   deliveryDefaultsPort?: DeliveryDefaultsPort | null;
   actorResolutionPort?: ActorResolutionPort;
 };
@@ -85,6 +89,8 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             writePort: deps.writePort,
             queuePort: deps.queuePort,
             templatePort: deps.templatePort,
+            ...(deps.contentCatalogPort ? { contentCatalogPort: deps.contentCatalogPort } : {}),
+            ...(deps.protectedAccessPort ? { protectedAccessPort: deps.protectedAccessPort } : {}),
             ...(deps.deliveryDefaultsPort !== undefined ? { deliveryDefaultsPort: deps.deliveryDefaultsPort } : {}),
           });
         },

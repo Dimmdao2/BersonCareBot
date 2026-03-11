@@ -54,8 +54,22 @@ export type {
 } from './steps.js';
 
 export type {
+  ContentCatalogItem,
+  ContentCatalogSection,
+  IssuedContentAccess,
+  ReminderCategory,
+  ReminderContentMode,
+  ReminderOccurrenceRecord,
+  ReminderOccurrenceStatus,
+  ReminderRuleRecord,
+  ReminderSchedulePreset,
+  DueReminderOccurrence,
+} from './reminders.js';
+
+export type {
   ClockPort,
   ContentAudience,
+  ContentCatalogPort,
   ContentPort,
   ContentSelectionScope,
   ContextQueryPort,
@@ -82,6 +96,7 @@ export type {
   Orchestrator,
   OrchestratorResult,
   OutgoingDispatcher,
+  ProtectedAccessPort,
   QueuePort,
   ChannelUserFrom,
   ChannelUserRow,

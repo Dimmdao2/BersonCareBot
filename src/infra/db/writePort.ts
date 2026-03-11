@@ -14,6 +14,15 @@ import {
   setQuestionAnswered,
 } from './repos/messageThreads.js';
 import { enqueueMessageRetryJob } from './repos/jobQueue.js';
+import {
+  createContentAccessGrant,
+  insertReminderDeliveryLog,
+  markReminderOccurrenceFailed,
+  markReminderOccurrenceQueued,
+  markReminderOccurrenceSent,
+  upsertReminderOccurrencePlanned,
+  upsertReminderRule,
+} from './repos/reminders.js';
 import { logger } from '../observability/logger.js';
 
 type BookingUpsertParams = {
@@ -273,6 +282,117 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
           if (typeof mutation.params.notify_online === 'boolean') settings.notify_online = mutation.params.notify_online;
           if (Object.keys(settings).length === 0) return;
           await updateNotificationSettings(db, channelUserId, settings);
+          return;
+        }
+        case 'reminders.rule.upsert': {
+          const userId = asNonEmptyString(mutation.params.userId);
+          const category = asNonEmptyString(mutation.params.category);
+          const id = asNonEmptyString(mutation.params.id);
+          const timezone = asNonEmptyString(mutation.params.timezone);
+          const scheduleType = asNonEmptyString(mutation.params.scheduleType);
+          const intervalMinutes = asFiniteNumber(mutation.params.intervalMinutes);
+          const windowStartMinute = asFiniteNumber(mutation.params.windowStartMinute);
+          const windowEndMinute = asFiniteNumber(mutation.params.windowEndMinute);
+          const daysMask = asNonEmptyString(mutation.params.daysMask);
+          const contentMode = asNonEmptyString(mutation.params.contentMode);
+          if (
+            !userId || !category || !id || !timezone || !scheduleType
+            || intervalMinutes === null || windowStartMinute === null || windowEndMinute === null
+            || !daysMask || !contentMode
+          ) {
+            return;
+          }
+          await upsertReminderRule(db, {
+            id,
+            userId,
+            category: category as never,
+            isEnabled: mutation.params.isEnabled === true,
+            scheduleType,
+            timezone,
+            intervalMinutes,
+            windowStartMinute,
+            windowEndMinute,
+            daysMask,
+            contentMode: contentMode as never,
+          });
+          return;
+        }
+        case 'reminders.occurrence.upsertPlanned': {
+          const id = asNonEmptyString(mutation.params.id);
+          const ruleId = asNonEmptyString(mutation.params.ruleId);
+          const occurrenceKey = asNonEmptyString(mutation.params.occurrenceKey);
+          const plannedAt = asNonEmptyString(mutation.params.plannedAt);
+          if (!id || !ruleId || !occurrenceKey || !plannedAt) return;
+          await upsertReminderOccurrencePlanned(db, { id, ruleId, occurrenceKey, plannedAt });
+          return;
+        }
+        case 'reminders.occurrence.markQueued': {
+          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
+          if (!occurrenceId) return;
+          await markReminderOccurrenceQueued(
+            db,
+            occurrenceId,
+            asNullableString(mutation.params.deliveryJobId),
+          );
+          return;
+        }
+        case 'reminders.occurrence.markSent': {
+          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
+          const channel = asNonEmptyString(mutation.params.channel);
+          if (!occurrenceId || !channel) return;
+          await markReminderOccurrenceSent(db, occurrenceId, channel);
+          return;
+        }
+        case 'reminders.occurrence.markFailed': {
+          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
+          const channel = asNonEmptyString(mutation.params.channel);
+          if (!occurrenceId || !channel) return;
+          await markReminderOccurrenceFailed(
+            db,
+            occurrenceId,
+            channel,
+            asNullableString(mutation.params.errorCode),
+          );
+          return;
+        }
+        case 'reminders.delivery.log': {
+          const id = asNonEmptyString(mutation.params.id);
+          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
+          const channel = asNonEmptyString(mutation.params.channel);
+          const status = asNonEmptyString(mutation.params.status);
+          if (!id || !occurrenceId || !channel || (status !== 'success' && status !== 'failed')) return;
+          const payloadJson = typeof mutation.params.payloadJson === 'object' && mutation.params.payloadJson !== null
+            ? mutation.params.payloadJson as Record<string, unknown>
+            : {};
+          await insertReminderDeliveryLog(db, {
+            id,
+            occurrenceId,
+            channel,
+            status,
+            errorCode: asNullableString(mutation.params.errorCode),
+            payloadJson,
+          });
+          return;
+        }
+        case 'content.access.grant.create': {
+          const id = asNonEmptyString(mutation.params.id);
+          const userId = asNonEmptyString(mutation.params.userId);
+          const contentId = asNonEmptyString(mutation.params.contentId);
+          const purpose = asNonEmptyString(mutation.params.purpose);
+          const expiresAt = asNonEmptyString(mutation.params.expiresAt);
+          if (!id || !userId || !contentId || !purpose || !expiresAt) return;
+          const metaJson = typeof mutation.params.metaJson === 'object' && mutation.params.metaJson !== null
+            ? mutation.params.metaJson as Record<string, unknown>
+            : {};
+          await createContentAccessGrant(db, {
+            id,
+            userId,
+            contentId,
+            purpose,
+            tokenHash: asNullableString(mutation.params.tokenHash),
+            expiresAt,
+            metaJson,
+          });
           return;
         }
         case 'delivery.attempt.log': {

@@ -14,6 +14,7 @@ import { createPostgresJobQueue } from '../infra/adapters/jobQueuePort.js';
 import { createEventGateway } from '../kernel/index.js';
 import { createIncomingEventPipeline } from '../kernel/eventGateway/incomingEventPipeline.js';
 import type {
+  ContentCatalogPort,
   ContentPort,
   ContextQueryPort,
   DbReadPort,
@@ -27,7 +28,9 @@ import { logger } from '../infra/observability/logger.js';
 import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
 import { createActorResolutionPort } from '../infra/adapters/actorResolutionPort.js';
+import { createContentCatalogPort } from '../infra/adapters/contentCatalogPort.js';
 import { createDeliveryDefaultsPort } from '../infra/adapters/deliveryDefaultsPort.js';
+import { createProtectedAccessPort } from '../infra/adapters/protectedAccessPort.js';
 import { createTemplatePort } from '../infra/adapters/templatePort.js';
 import { createOrchestrator } from '../kernel/orchestrator/index.js';
 import { createSmscClient } from '../integrations/smsc/client.js';
@@ -74,6 +77,7 @@ export type AppDeps = {
   smsClient: SmsClient;
   dispatchPort: DispatchPort;
   contentPort: ContentPort;
+  contentCatalogPort: ContentCatalogPort;
   contextQueryPort: ContextQueryPort;
   eventGateway: EventGateway;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
@@ -105,6 +109,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   });
 
   const contentPort = createContentPort();
+  const contentCatalogPort = createContentCatalogPort();
   const contextQueryPort = createContextQueryPort({ readPort: dbReadPort });
   const templatePort = createTemplatePort({ contentPort });
   const orchestrator = createOrchestrator({
@@ -129,6 +134,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const actorResolutionPort = createActorResolutionPort({ writePort: dbWritePort });
   const deliveryDefaultsPort = createDeliveryDefaultsPort();
+  const protectedAccessPort = createProtectedAccessPort({ writePort: dbWritePort });
   const pipeline = createIncomingEventPipeline({
     readPort: dbReadPort,
     writePort: dbWritePort,
@@ -136,6 +142,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     dispatchPort,
     orchestrator,
     templatePort,
+    contentCatalogPort,
+    protectedAccessPort,
     actorResolutionPort,
     deliveryDefaultsPort,
   });
@@ -150,6 +158,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     smsClient,
     dispatchPort,
     contentPort,
+    contentCatalogPort,
     contextQueryPort,
     eventGateway,
     registerTelegramWebhookRoutes: input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes,

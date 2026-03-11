@@ -16,6 +16,7 @@ export type ChannelUserByPhone = {
 };
 
 export type ChannelUserLinkRow = {
+  userId: string;
   chatId: number;
   channelId: string;
   username: string | null;
@@ -385,7 +386,7 @@ export async function getLinkDataByIdentity(
 ): Promise<ChannelUserLinkRow | null> {
   if (resource === 'telegram') {
     const query = `
-      SELECT i.external_id::text AS channel_id, ts.username, ts.state AS user_state, cp.phone
+      SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id, ts.username, ts.state AS user_state, cp.phone
       FROM identities i
       LEFT JOIN telegram_state ts ON ts.identity_id = i.id
       LEFT JOIN LATERAL (
@@ -400,6 +401,7 @@ export async function getLinkDataByIdentity(
     `;
     try {
       const res = await db.query<{
+        user_id: string;
         channel_id: string;
         username: string | null;
         user_state: string | null;
@@ -410,6 +412,7 @@ export async function getLinkDataByIdentity(
       const chatId = Number(row.channel_id);
       if (!Number.isFinite(chatId)) return null;
       return {
+        userId: row.user_id,
         chatId,
         channelId: row.channel_id,
         username: row.username,
@@ -423,7 +426,7 @@ export async function getLinkDataByIdentity(
   }
 
   const query = `
-    SELECT i.external_id::text AS channel_id, cp.phone
+    SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id, cp.phone
     FROM identities i
     LEFT JOIN LATERAL (
       SELECT c.value_normalized AS phone
@@ -436,11 +439,12 @@ export async function getLinkDataByIdentity(
     LIMIT 1
   `;
   try {
-    const res = await db.query<{ channel_id: string; phone: string | null }>(query, [resource, externalId]);
+    const res = await db.query<{ user_id: string; channel_id: string; phone: string | null }>(query, [resource, externalId]);
     const row = res.rows[0];
     if (!row) return null;
     const chatId = Number(row.channel_id);
     return {
+      userId: row.user_id,
       chatId: Number.isFinite(chatId) ? chatId : 0,
       channelId: row.channel_id,
       username: null,

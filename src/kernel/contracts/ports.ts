@@ -6,6 +6,11 @@ import type {
   OrchestratorPlan,
 } from './orchestrator.js';
 import type { IncomingEvent, OutgoingIntent } from './events.js';
+import type {
+  ContentCatalogItem,
+  ContentCatalogSection,
+  IssuedContentAccess,
+} from './reminders.js';
 
 /** Категории read-запросов к хранилищу. */
 export type DbReadQueryType =
@@ -24,6 +29,11 @@ export type DbReadQueryType =
   | 'booking.byExternalId'
   | 'booking.activeByUser'
   | 'stats.adminDashboard'
+  | 'reminders.rules.forUser'
+  | 'reminders.rule.forUserAndCategory'
+  | 'reminders.rules.enabled'
+  | 'reminders.occurrences.forRuleRange'
+  | 'reminders.occurrences.due'
   | 'delivery.pending';
 
 /** Категории write-мутаций к хранилищу. */
@@ -40,6 +50,13 @@ export type DbWriteMutationType =
   | 'question.message.add'
   | 'question.markAnswered'
   | 'notifications.update'
+  | 'reminders.rule.upsert'
+  | 'reminders.occurrence.upsertPlanned'
+  | 'reminders.occurrence.markQueued'
+  | 'reminders.occurrence.markSent'
+  | 'reminders.occurrence.markFailed'
+  | 'reminders.delivery.log'
+  | 'content.access.grant.create'
   | 'booking.upsert'
   | 'message.retry.enqueue'
   | 'delivery.attempt.log'
@@ -192,6 +209,20 @@ export type NotificationSettingsPatch = {
 export type NotificationsPort = {
   getNotificationSettings(channelUserId: number): Promise<NotificationSettings | null>;
   updateNotificationSettings(channelUserId: number, settings: NotificationSettingsPatch): Promise<void>;
+};
+
+export type ContentCatalogPort = {
+  getSectionLink(input: { section: ContentCatalogSection; userId?: string }): Promise<string | null>;
+  getRandomItem(input: { section: ContentCatalogSection; userId?: string }): Promise<ContentCatalogItem | null>;
+};
+
+export type ProtectedAccessPort = {
+  issueAccess(input: {
+    userId: string;
+    contentId: string;
+    purpose: 'reminder' | 'library' | 'emergency';
+    ttlSeconds: number;
+  }): Promise<IssuedContentAccess | null>;
 };
 
 /** Порт идемпотентности входящих событий. */

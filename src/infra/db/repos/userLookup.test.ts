@@ -26,6 +26,7 @@ describe('userLookup', () => {
       username: 'alice',
     });
     const getLinkDataByIdentitySpy = vi.spyOn(channelUsers, 'getLinkDataByIdentity').mockResolvedValue({
+      userId: 'user-uuid-1',
       chatId: 123,
       channelId: '123',
       username: 'alice',
@@ -38,6 +39,7 @@ describe('userLookup', () => {
 
     expect(byPhone).toEqual({ chatId: 123, channelId: '123', username: 'alice' });
     expect(byChannel).toEqual({
+      userId: 'user-uuid-1',
       chatId: 123,
       channelId: '123',
       username: 'alice',
