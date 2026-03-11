@@ -5,6 +5,7 @@ export async function getSettings(channelUserId: number, notificationsPort: Noti
     notify_spb: false,
     notify_msk: false,
     notify_online: false,
+    notify_bookings: false,
   };
 }
 

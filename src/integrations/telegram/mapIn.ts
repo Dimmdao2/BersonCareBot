@@ -19,6 +19,7 @@ const LEGACY_CALLBACK_TO_ACTION: Record<string, string> = {
   notify_toggle_spb: 'notifications.toggle.spb',
   notify_toggle_msk: 'notifications.toggle.msk',
   notify_toggle_online: 'notifications.toggle.online',
+  notify_toggle_bookings: 'notifications.toggle.bookings',
   notify_toggle_all: 'notifications.toggle.all',
 };
 

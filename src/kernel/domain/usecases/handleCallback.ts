@@ -21,11 +21,13 @@ export async function handleNotificationCallback(
     await updateSettings(channelUserId, { notify_msk: !settings.notify_msk }, notificationsPort);
   } else if (data === 'notify_toggle_online') {
     await updateSettings(channelUserId, { notify_online: !settings.notify_online }, notificationsPort);
+  } else if (data === 'notify_toggle_bookings') {
+    await updateSettings(channelUserId, { notify_bookings: !settings.notify_bookings }, notificationsPort);
   } else if (data === 'notify_toggle_all') {
-    const allTrue = settings.notify_spb && settings.notify_msk && settings.notify_online;
+    const allTrue = settings.notify_spb && settings.notify_msk && settings.notify_online && settings.notify_bookings;
     await updateSettings(
       channelUserId,
-      { notify_spb: !allTrue, notify_msk: !allTrue, notify_online: !allTrue },
+      { notify_spb: !allTrue, notify_msk: !allTrue, notify_online: !allTrue, notify_bookings: !allTrue },
       notificationsPort,
     );
   } else {

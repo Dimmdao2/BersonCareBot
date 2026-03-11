@@ -758,7 +758,7 @@ describe('executeAction', () => {
   });
 
   it('handles notifications.get and notifications.toggle', async () => {
-    const readDb = vi.fn().mockResolvedValue({ notify_spb: true, notify_msk: false, notify_online: false });
+    const readDb = vi.fn().mockResolvedValue({ notify_spb: true, notify_msk: false, notify_online: false, notify_bookings: false });
     const writeDb = vi.fn().mockResolvedValue(undefined);
 
     const getResult = await executeAction({
@@ -768,7 +768,7 @@ describe('executeAction', () => {
       params: { channelId: '123' },
     }, ctx, { readPort: { readDb } });
 
-    expect(getResult.values).toEqual({ notifications: { notify_spb: true, notify_msk: false, notify_online: false } });
+    expect(getResult.values).toEqual({ notifications: { notify_spb: true, notify_msk: false, notify_online: false, notify_bookings: false } });
 
     const toggleResult = await executeAction({
       id: 'a10',
@@ -777,7 +777,7 @@ describe('executeAction', () => {
       params: { channelId: '123', toggleKey: 'notify_toggle_msk', supportsToggleAll: true },
     }, ctx, { readPort: { readDb }, writePort: { writeDb } });
 
-    expect(toggleResult.values).toEqual({ notifications: { notify_spb: true, notify_msk: true, notify_online: false } });
+    expect(toggleResult.values).toEqual({ notifications: { notify_spb: true, notify_msk: true, notify_online: false, notify_bookings: false } });
     expect(writeDb).toHaveBeenCalledTimes(1);
   });
 
@@ -827,7 +827,7 @@ describe('executeAction', () => {
       },
     }, {
       ...ctx,
-      values: { notifications: { notify_spb: true, notify_msk: false, notify_online: false } },
+      values: { notifications: { notify_spb: true, notify_msk: false, notify_online: false, notify_bookings: false } },
     }, { templatePort });
 
     expect(replyMarkupResult.intents?.[0]).toMatchObject({
@@ -854,7 +854,7 @@ describe('executeAction', () => {
       },
     }, {
       ...ctx,
-      values: { notifications: { notify_spb: false, notify_msk: true, notify_online: false } },
+      values: { notifications: { notify_spb: false, notify_msk: true, notify_online: false, notify_bookings: false } },
     }, { templatePort });
 
     expect(canonicalReplyMarkupResult.intents?.[0]).toMatchObject({

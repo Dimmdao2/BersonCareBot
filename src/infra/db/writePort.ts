@@ -280,6 +280,7 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
           if (typeof mutation.params.notify_spb === 'boolean') settings.notify_spb = mutation.params.notify_spb;
           if (typeof mutation.params.notify_msk === 'boolean') settings.notify_msk = mutation.params.notify_msk;
           if (typeof mutation.params.notify_online === 'boolean') settings.notify_online = mutation.params.notify_online;
+          if (typeof mutation.params.notify_bookings === 'boolean') settings.notify_bookings = mutation.params.notify_bookings;
           if (Object.keys(settings).length === 0) return;
           await updateNotificationSettings(db, channelUserId, settings);
           return;

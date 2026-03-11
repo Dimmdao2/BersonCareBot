@@ -234,6 +234,14 @@ export async function updateNotificationSettings(
     columns.push('notify_online');
     updateClauses.push(`notify_online = $${idx}`);
     values.push(settings.notify_online);
+    idx++;
+  }
+
+  if (typeof settings.notify_bookings === 'boolean') {
+    columns.push('notify_bookings');
+    updateClauses.push(`notify_bookings = $${idx}`);
+    values.push(settings.notify_bookings);
+    idx++;
   }
 
   if (columns.length === 0) return;
@@ -278,7 +286,7 @@ export async function getNotificationSettings(
   channelUserId: number,
 ): Promise<NotificationSettings | null> {
   const query = `
-    SELECT ts.notify_spb, ts.notify_msk, ts.notify_online
+    SELECT ts.notify_spb, ts.notify_msk, ts.notify_online, ts.notify_bookings
     FROM identities i
     LEFT JOIN telegram_state ts
       ON ts.identity_id = i.id
@@ -292,6 +300,7 @@ export async function getNotificationSettings(
       notify_spb: boolean | null;
       notify_msk: boolean | null;
       notify_online: boolean | null;
+      notify_bookings: boolean | null;
     }>(query, [String(channelUserId)]);
 
     const row = res.rows[0];
@@ -301,6 +310,7 @@ export async function getNotificationSettings(
       notify_spb: Boolean(row.notify_spb),
       notify_msk: Boolean(row.notify_msk),
       notify_online: Boolean(row.notify_online),
+      notify_bookings: Boolean(row.notify_bookings),
     };
   } catch (err) {
     logger.error({ err }, 'getNotificationSettings error');

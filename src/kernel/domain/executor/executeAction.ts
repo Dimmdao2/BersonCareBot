@@ -185,6 +185,7 @@ function defaultNotificationSettings(): NotificationSettings {
     notify_spb: false,
     notify_msk: false,
     notify_online: false,
+    notify_bookings: false,
   };
 }
 
@@ -193,8 +194,9 @@ function readNotificationSettings(ctx: DomainContext): NotificationSettings | nu
   const notify_spb = asBoolean(raw.notify_spb);
   const notify_msk = asBoolean(raw.notify_msk);
   const notify_online = asBoolean(raw.notify_online);
-  if (notify_spb === null || notify_msk === null || notify_online === null) return null;
-  return { notify_spb, notify_msk, notify_online };
+  const notify_bookings = asBoolean(raw.notify_bookings);
+  if (notify_spb === null || notify_msk === null || notify_online === null || notify_bookings === null) return null;
+  return { notify_spb, notify_msk, notify_online, notify_bookings };
 }
 
 function readNotificationToggleState(callbackData: string, settings: NotificationSettings): boolean {
@@ -208,9 +210,12 @@ function readNotificationToggleState(callbackData: string, settings: Notificatio
     case 'notify_toggle_online':
     case 'notifications.toggle.online':
       return settings.notify_online;
+    case 'notify_toggle_bookings':
+    case 'notifications.toggle.bookings':
+      return settings.notify_bookings;
     case 'notify_toggle_all':
     case 'notifications.toggle.all':
-      return settings.notify_spb && settings.notify_msk && settings.notify_online;
+      return settings.notify_spb && settings.notify_msk && settings.notify_online && settings.notify_bookings;
     default:
       return false;
   }
@@ -1503,12 +1508,14 @@ export async function executeAction(
       if (toggleKey === 'notify_toggle_spb') nextSettings.notify_spb = !currentSettings.notify_spb;
       if (toggleKey === 'notify_toggle_msk') nextSettings.notify_msk = !currentSettings.notify_msk;
       if (toggleKey === 'notify_toggle_online') nextSettings.notify_online = !currentSettings.notify_online;
+      if (toggleKey === 'notify_toggle_bookings') nextSettings.notify_bookings = !currentSettings.notify_bookings;
       if (toggleKey === 'notify_toggle_all' && action.params.supportsToggleAll === true) {
-        const allEnabled = currentSettings.notify_spb && currentSettings.notify_msk && currentSettings.notify_online;
+        const allEnabled = currentSettings.notify_spb && currentSettings.notify_msk && currentSettings.notify_online && currentSettings.notify_bookings;
         nextSettings = {
           notify_spb: !allEnabled,
           notify_msk: !allEnabled,
           notify_online: !allEnabled,
+          notify_bookings: !allEnabled,
         };
       }
       const writes: DbWriteMutation[] = [{
@@ -1519,6 +1526,7 @@ export async function executeAction(
           notify_spb: nextSettings.notify_spb,
           notify_msk: nextSettings.notify_msk,
           notify_online: nextSettings.notify_online,
+          notify_bookings: nextSettings.notify_bookings,
         },
       }];
       await persistWrites(deps.writePort, writes);

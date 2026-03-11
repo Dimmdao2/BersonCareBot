@@ -51,6 +51,13 @@
   "notifications.label.spb": "Петербург (приёмы)",
   "notifications.label.msk": "Москва (приёмы и акции)",
   "notifications.label.online": "Онлайн-уроки и вебинары",
+  "notifications.label.bookings": "Записи на приём",
   "notifications.togglePrefix": "✅/❌",
+  "emergency.prompt": "Как я могу вам помочь?",
+  "emergency.back_pain": "Острая боль в спине",
+  "emergency.neck_pain": "Острая боль в шее",
+  "emergency.headache": "Головная боль",
+  "emergency.injury": "Что делать при травме",
+  "emergency.placeholder": "Здесь скоро будут советы и упражнения по этой теме. Как только подготовлю — обязательно сообщу!",
   "adminForward": "Новый вопрос\nОт: {{name}} {{usernameMention}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}"
 }

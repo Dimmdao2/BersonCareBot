@@ -207,12 +207,14 @@ export type NotificationSettings = {
   notify_spb: boolean;
   notify_msk: boolean;
   notify_online: boolean;
+  notify_bookings: boolean;
 };
 
 export type NotificationSettingsPatch = {
   notify_spb?: boolean;
   notify_msk?: boolean;
   notify_online?: boolean;
+  notify_bookings?: boolean;
 };
 
 export type NotificationsPort = {

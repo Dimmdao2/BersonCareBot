@@ -95,15 +95,16 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(String(updateSql)).not.toContain('UPDATE telegram_users');
 
     query.mockResolvedValueOnce({
-      rows: [{ notify_spb: true, notify_msk: false, notify_online: false }],
+      rows: [{ notify_spb: true, notify_msk: false, notify_online: false, notify_bookings: false }],
       rowCount: 1,
     } as DbQueryResult<{
       notify_spb: boolean | null;
       notify_msk: boolean | null;
       notify_online: boolean | null;
+      notify_bookings: boolean | null;
     }>);
     const settings = await getNotificationSettings(db, 123);
-    expect(settings).toEqual({ notify_spb: true, notify_msk: false, notify_online: false });
+    expect(settings).toEqual({ notify_spb: true, notify_msk: false, notify_online: false, notify_bookings: false });
 
     query.mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
     const advanced = await tryAdvanceLastUpdateId(db, 123, 1001);
