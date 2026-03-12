@@ -148,6 +148,42 @@
 		]
 	},
 	{
+		"id": "telegram.start.noticeme",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "start.noticeme" }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "await_contact:subscription"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:confirmPhoneForBooking",
+					"keyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:requestContact.button",
+								"requestPhone": true
+							}
+						]
+					],
+					"resizeKeyboard": true,
+					"oneTimeKeyboard": true
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.start",
 		"source": "telegram",
 		"event": "message.received",

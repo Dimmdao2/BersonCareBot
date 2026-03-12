@@ -182,10 +182,10 @@ function buildIntentMeta(action: Action, ctx: DomainContext): OutgoingIntent['me
 
 function defaultNotificationSettings(): NotificationSettings {
   return {
-    notify_spb: false,
-    notify_msk: false,
-    notify_online: false,
-    notify_bookings: false,
+    notify_spb: true,
+    notify_msk: true,
+    notify_online: true,
+    notify_bookings: true,
   };
 }
 

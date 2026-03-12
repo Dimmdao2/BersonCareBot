@@ -101,6 +101,9 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
     let action = normalizeTelegramMessageAction(text);
     let phoneFromStart: string | null = null;
     let recordIdFromStart: string | null = null;
+    if (/^\/start\s+noticeme$/i.test(text.trim())) {
+      action = 'start.noticeme';
+    }
     const setphoneMatch = /^\/start\s+setphone_(.+)$/i.exec(text.trim());
     if (setphoneMatch?.[1]) {
       const raw = setphoneMatch[1].trim();
