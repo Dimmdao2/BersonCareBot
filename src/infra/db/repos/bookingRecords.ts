@@ -113,6 +113,8 @@ export async function getActiveRecordsByPhone(
   db: DbPort,
   phoneNormalized: string,
 ): Promise<ActiveBookingRecord[]> {
+  // SQL column names trigger no-secrets entropy check (false positive)
+  /* eslint-disable-next-line no-secrets/no-secrets */
   const query = `
     SELECT
       rubitime_record_id,
