@@ -12,7 +12,7 @@
   "bookingsScreen.address": "Адрес и как найти",
   "info.prepare.body": "Рекомендации по подготовке к приёму будут добавлены здесь.",
   "info.address.body": "Адрес и схема проезда будут добавлены здесь.",
-  "bookingsList": "📄 Ваши записи:\n\n{{#each queries.bookings.items}}\n{{#if item.link}}• {{item.recordAt}} — {{item.status}}\n  {{item.link}}\n{{else}}• {{item.recordAt}} — {{item.status}}\n{{/if}}{{/each}}",
+  "bookingsList": "📄 Ваши записи:\n\n{{#each queries.bookings.items}}\n• {{item.recordAt}} — {{item.status}}\n{{/each}}",
   "bookingOffline": "Для очной записи перейдите по ссылке: ${url}",
   "bookingOnline": "Опишите причину обращения.",
   "bookingMy": "Раздел в разработке.",
