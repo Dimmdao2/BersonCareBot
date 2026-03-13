@@ -11,5 +11,7 @@
 | `orchestrator_matching_audit.md` | Текущий поток выбора сценария и ограничения. |
 | `core_usage_audit.md` | Наличие и использование core content. |
 | `orchestrator_migration_audit.md` | Аудит миграции оркестратора (STEP 1–5), branch ARCHITECTURE-V3-REAL-CLEAN. |
+| `REFACTOR_V3.md` | План рефакторинга V3 (выполнен). |
+| `REFACTOR_STEPS_DONE.md` | Отметки выполненных шагов рефакторинга (STEP 0–14). |
 
 Для актуальной архитектуры и правил слоёв см. корневой `ARCHITECTURE.md` и `docs/DB_STRUCTURE_AND_RECOMMENDATIONS.md`.

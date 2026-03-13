@@ -12,7 +12,7 @@
 | **Суперпользователь PostgreSQL** | `postgres` (под ним: `psql -U postgres`, `sudo -u postgres psql`) |
 | **Скрипт бэкапа перед миграциями** | `/opt/backups/scripts/postgres-backup.sh` |
 
-БД и роли — см. таблицу в разделе «Структура баз данных» ниже. Порты: API интегратора 3200, webapp 6200.
+БД и роли — см. таблицу в разделе «Структура баз данных» ниже. Порты: **prod** API 3200, webapp 6200; **dev** API 4200, webapp 5200 (см. SERVER CONVENTIONS.md).
 
 **Если что-то другое** (другой пользователь деплоя, другой путь к проекту, другой суперпользователь БД, другой хост для psql) — напиши один раз, зафиксируем в этом блоке и дальше буду давать команды под твои значения.
 
@@ -176,18 +176,18 @@ deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-webap
 Настроить виртуальные хосты:
 
 - **Интегратор:** `tgcarebot.<ваш-домен>` → proxy на `http://127.0.0.1:3200`.
-- **Webapp:** `webapp.bersonservice.ru` (или `webapp.<ваш-домен>`) → proxy на `http://127.0.0.1:6200`.
+- **Webapp:** `webapp.bersonservices.ru` (или `webapp.<ваш-домен>`) → proxy на `http://127.0.0.1:6200`.
 
 Для dev: `dev-tgcarebot.<домен>` → 4200, `dev-webapp.<домен>` → 5200 (см. SERVER CONVENTIONS.md).
 
-**Пример конфига для webapp** (файл в `/etc/nginx/sites-available/bersoncarebot-webapp`, затем симлинк в `sites-enabled`):
+**Пример конфига для webapp** (файл в `/etc/nginx/sites-available/bersoncarebot-webapp`, затем симлинк в `sites-enabled`). В `server_name` — фактический домен (иначе nginx отдаст дефолтную страницу):
 
 ```nginx
 # Webapp BersonCare (Next.js на 6200)
 server {
     listen 80;
     listen [::]:80;
-    server_name webapp.bersonservice.ru;
+    server_name webapp.bersonservices.ru;
 
     location / {
         proxy_pass http://127.0.0.1:6200;

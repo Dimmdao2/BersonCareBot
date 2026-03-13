@@ -91,6 +91,16 @@ Development users
 
 Port allocation policy
 
+**BersonCareBot (текущий проект):**
+
+| Служба      | Dev (локально) | Prod (хост) |
+|-------------|-----------------|-------------|
+| API (интегратор) | 4200            | 3200        |
+| Webapp (Next.js) | **5200**         | **6200**    |
+| Worker      | без порта       | без порта   |
+
+Webapp: dev — `pnpm run webapp:dev` (Next.js на 5200), prod — `next start` на 6200, nginx проксирует на этот порт.
+
 Reserved / forbidden for new services
 
 Do NOT use:
@@ -102,9 +112,7 @@ Do NOT use:
 
 Production API ports
 
-Use range:
-
-3200–3299
+Use range: 3200–3299
 
 Assigned:
  • bersoncarebot → 3200
@@ -114,9 +122,7 @@ Assigned:
 
 Development API ports
 
-Use range:
-
-4200–4299
+Use range: 4200–4299
 
 Assigned:
  • bersoncarebot → 4200
@@ -126,21 +132,17 @@ Assigned:
 
 Production web/frontend ports
 
-Use range:
+Use range: 6200–6299
 
-6200–6299
+Assigned:
+ • bersoncarebot-webapp → 6200 (prod)
 
-Assigned if needed:
- • bersoncarebot-webapp → 6200
+Development web/frontend ports
 
-Optional dev frontend/admin ports
+Use range: 5200–5299
 
-Use range:
-
-5200–5299
-
-Assigned if needed:
- • bersoncarebot-webapp → 5200
+Assigned:
+ • bersoncarebot-webapp → 5200 (dev)
  • storylama → 5201
  • fordoc → 5202
  • bersonservices → 5203
@@ -241,18 +243,16 @@ Runtime model
 
 Production
  • app runs directly on host via systemd
- • API binds to 127.0.0.1:<prod-port>
- • optional webapp/frontend service binds to 127.0.0.1:<prod-web-port>
+ • API binds to 127.0.0.1:3200 (bersoncarebot)
+ • Webapp binds to 127.0.0.1:6200
  • worker runs without public port
  • nginx proxies external traffic to localhost app port
  • PostgreSQL is shared system service
 
 Development
- • app runs directly on host via systemd or manual process
- • API binds to 127.0.0.1:<dev-port>
- • optional webapp/frontend service binds to 127.0.0.1:<dev-web-port>
+ • API binds to 127.0.0.1:4200 (bersoncarebot), webapp to 127.0.0.1:5200
  • development DB is separate from production DB
- • optional routing through nginx dev subdomains
+ • optional routing through nginx dev subdomains (dev-webapp.<domain> → 5200)
 
 ⸻
 
@@ -278,8 +278,8 @@ Naming rule for future projects
 For any new project with key X:
  • production API port = next free port in 3200–3299
  • development API port = corresponding port in 4200–4299
- • optional production web port = next free port in 6200–6299
- • optional development web port = corresponding port in 5200–5299
+ • production web port (if any) = next free in 6200–6299
+ • development web port (if any) = corresponding in 5200–5299
  • production DB = x_prod
  • development DB = x_dev
  • production API service = x-api-prod.service

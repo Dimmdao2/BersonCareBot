@@ -1,26 +1,45 @@
-# Документация проекта BersonCareBot
+# Документация BersonCareBot
 
-## Основные документы (корень репозитория)
+## Порты и инфраструктура (источник истины)
+
+**Порты BersonCareBot:** см. **SERVER CONVENTIONS.md** в корне репозитория.
+
+| Служба   | Dev  | Prod |
+|----------|------|------|
+| API      | 4200 | 3200 |
+| Webapp   | 5200 | 6200 |
+
+Деплой, nginx, БД, systemd: **deploy/HOST_DEPLOY_README.md**.
+
+---
+
+## Документы в корне
 
 | Файл | Назначение |
 |------|------------|
-| **ARCHITECTURE.md** | Главный контракт: слои, запреты, pipeline, правила изоляции, текущие отклонения. |
 | **README.md** | Запуск, конфиг, команды, endpoints. |
-| **REFACTOR_V3.md** | План рефакторинга V3 (выполнен). Не редактировать .md-спеки слоёв. |
-| **REFACTOR_STEPS_DONE.md** | Отметки выполненных шагов рефакторинга (STEP 0–14 DONE). |
-| **SCENARIO_LOGIC_SUMMARY.md** | Человеческое описание логики сценариев (Telegram user/admin, Rubitime). |
+| **ARCHITECTURE.md** | Контракт: слои, запреты, pipeline, изоляция. |
+| **SERVER CONVENTIONS.md** | Порты, БД, пользователи PostgreSQL, nginx, systemd (все проекты хоста). |
+| **SCENARIO_LOGIC_SUMMARY.md** | Описание логики сценариев (Telegram, Rubitime). |
 
-## Документы в docs/
+---
+
+## docs/
 
 | Файл | Назначение |
 |------|------------|
-| **DB_STRUCTURE_AND_RECOMMENDATIONS.md** | Целевая модель БД (user, identities, contacts, состояние по каналу), принцип «нет главной интеграции», правила добавления интеграций, текущие отступления. |
-| **CONTENT_AND_SCRIPTS_FLOW.md** | Откуда подтягиваются скрипты/шаблоны/меню, как выбирается скрипт по событию и payload, где логика матчинга. |
-| **archive/** | Исторические отчёты и аудиты (см. `archive/README.md`). |
+| **FULL PLATFORM MODEL.md** | Концепция платформы: мессенджеры, Web-App, backend. |
+| **DB_STRUCTURE_AND_RECOMMENDATIONS.md** | Модель БД (users, identities, contacts), правила интеграций. |
+| **CONTENT_AND_SCRIPTS_FLOW.md** | Откуда скрипты/шаблоны/меню, матчинг сценариев по событию. |
+| **REMINDERS_ROADMAP.md** | План по напоминаниям. |
+| **plan-channel-from-context.md** | План: канал из контекста. |
+| **archive/** | Исторические отчёты, аудиты, выполненный рефакторинг (см. `archive/README.md`). |
+
+---
 
 ## Спеки слоёв (src/)
 
-Описание ответственности и границ каждого слоя — в `*.md` рядом с кодом:
+Описание ответственности слоёв — в `*.md` рядом с кодом:
 
 - `src/app/app.md`
 - `src/content/content.md`
@@ -33,15 +52,10 @@
 - `src/infra/queue/queue.md`
 - `src/infra/runtime/*.md`, `src/infra/observability/observability.md`
 
-## Deploy и инфраструктура
+---
 
-- **Host deploy:** `deploy/HOST_DEPLOY_README.md`, скрипты в `deploy/host/`.
-- **Интеграции БД:** `src/integrations/<name>/db/schema.md`, `src/infra/db/schema.md`.
+## Webapp
 
-## Соответствие архитектуре и чистота слоёв
-
-- **Ядро (kernel)** не импортирует инфраструктуру в production-коде; контракты и порты — единственная граница. В тестах kernel допустим wiring адаптеров.
-- **Интеграции** не обращаются к `infra/db/repos` напрямую; вход — нормализация в `IncomingEvent`, выход — через dispatch/порты.
-- **Известные отклонения** (допустимые на текущем этапе) перечислены в конце `ARCHITECTURE.md`: transport/delivery в content, legacy hooks в eventGateway, политика доставки Rubitime в domain (знание каналов `telegram`/`rubitime` в `deliveryPolicy.ts`).
-
-При изменениях сверяться с `ARCHITECTURE.md` и со спеками слоёв, чтобы не нарушать изоляцию.
+- **webapp/README.md** — запуск, роуты, контракт с интегратором.
+- **webapp/INTEGRATOR_CONTRACT.md** — подписанные ссылки, auth exchange, webhooks.
+- **webapp/ARCHITECTURE.md** — структура Next.js, роли, доступ.
