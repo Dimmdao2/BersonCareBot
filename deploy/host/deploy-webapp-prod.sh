@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT=/opt/projects/bersoncarebot
-ENV_FILE=/opt/env/bersoncarebot-webapp.prod
+ENV_FILE=/opt/env/bersoncarebot/webapp.prod
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 WEBAPP_PORT=6200
 

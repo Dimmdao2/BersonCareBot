@@ -12,10 +12,17 @@ export async function setupTelegramMenuButton(): Promise<void> {
   const api = getBotInstance().api;
 
   try {
+    await api.setMyCommands([
+      { command: 'start', description: 'Главное меню' },
+      { command: 'show_my_id', description: 'Показать ID пользователя' },
+    ]);
+    logger.info('Telegram: setMyCommands (default) ok');
+
     // Команды только для админа: пункты меню = команды (без inline-кнопок)
     await api.setMyCommands(
       [
         { command: 'start', description: 'Главное меню' },
+        { command: 'show_my_id', description: 'Показать ID пользователя' },
         { command: 'admin_bookings', description: '📅 Активные записи' },
         { command: 'admin_users', description: '👥 Пользователи' },
         { command: 'unanswered', description: '❓ Неотвеченные вопросы' },

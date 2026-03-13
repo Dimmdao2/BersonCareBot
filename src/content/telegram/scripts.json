@@ -119,6 +119,28 @@
 		]
 	},
 	{
+		"id": "telegram.debug.show_my_id",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "debug.show_my_id" }
+		},
+		"steps": [
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:showMyId",
+					"vars": {
+						"channelId": "{{actor.channelUserId}}"
+					},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.ask",
 		"source": "telegram",
 		"event": "message.received",

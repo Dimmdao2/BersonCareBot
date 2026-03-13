@@ -1,0 +1,162 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { cookies } from "next/headers";
+import { env, isProduction } from "@/config/env";
+import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
+import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
+
+const SESSION_COOKIE_NAME = "bersoncare_webapp_session";
+const SESSION_TTL_SECONDS = 60 * 60 * 12;
+
+type IntegratorTokenPayload = {
+  sub: string;
+  role: UserRole;
+  displayName?: string;
+  phone?: string;
+  bindings?: Record<string, string | undefined>;
+  purpose: "webapp-entry";
+  exp: number;
+};
+
+type ExchangeResult = {
+  session: AppSession;
+  redirectTo: string;
+};
+
+function sign(value: string, secret: string): string {
+  return createHmac("sha256", secret).update(value).digest("base64url");
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function buildRedirectPath(role: UserRole): string {
+  if (role === "doctor") return "/app/doctor";
+  if (role === "admin") return "/app/settings";
+  return "/app/patient";
+}
+
+function buildSession(user: SessionUser): AppSession {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    user,
+    issuedAt: now,
+    expiresAt: now + SESSION_TTL_SECONDS,
+  };
+}
+
+function encodeSession(session: AppSession): string {
+  const payload = encodeBase64Url(JSON.stringify(session));
+  const signature = sign(payload, env.SESSION_COOKIE_SECRET);
+  return `${payload}.${signature}`;
+}
+
+function decodeSession(raw: string): AppSession | null {
+  const [payload, signature] = raw.split(".");
+  if (!payload || !signature) return null;
+  if (!safeEqual(signature, sign(payload, env.SESSION_COOKIE_SECRET))) return null;
+
+  const parsed = JSON.parse(decodeBase64Url(payload)) as AppSession;
+  const now = Math.floor(Date.now() / 1000);
+  return parsed.expiresAt > now ? parsed : null;
+}
+
+function parseIntegratorToken(token: string): IntegratorTokenPayload | null {
+  const [payload, signature] = token.split(".");
+  if (!payload || !signature) return null;
+  if (!safeEqual(signature, sign(payload, env.INTEGRATOR_SHARED_SECRET))) return null;
+
+  const parsed = JSON.parse(decodeBase64Url(payload)) as IntegratorTokenPayload;
+  const now = Math.floor(Date.now() / 1000);
+  if (parsed.purpose !== "webapp-entry" || parsed.exp <= now) return null;
+  return parsed;
+}
+
+function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
+  if (!env.ALLOW_DEV_AUTH_BYPASS) return null;
+
+  const presets: Record<string, IntegratorTokenPayload> = {
+    "dev:client": {
+      sub: "dev-client",
+      role: "client",
+      displayName: "Demo Client",
+      phone: "+79990000001",
+      bindings: { telegramId: "111111111" },
+      purpose: "webapp-entry",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+    "dev:doctor": {
+      sub: "dev-doctor",
+      role: "doctor",
+      displayName: "Demo Doctor",
+      phone: "+79990000002",
+      bindings: { telegramId: "222222222" },
+      purpose: "webapp-entry",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+    "dev:admin": {
+      sub: "dev-admin",
+      role: "admin",
+      displayName: "Demo Admin",
+      phone: "+79990000003",
+      bindings: { telegramId: "333333333" },
+      purpose: "webapp-entry",
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    },
+  };
+
+  return presets[token] ?? null;
+}
+
+function tokenToUser(token: IntegratorTokenPayload): SessionUser {
+  return {
+    userId: token.sub,
+    role: token.role,
+    displayName: token.displayName ?? token.sub,
+    phone: token.phone,
+    bindings: {
+      telegramId: token.bindings?.telegramId,
+      vkId: token.bindings?.vkId,
+      maxId: token.bindings?.maxId,
+    },
+  };
+}
+
+export async function exchangeIntegratorToken(token: string): Promise<ExchangeResult | null> {
+  const parsed = parseDevBypassToken(token) ?? parseIntegratorToken(token);
+  if (!parsed) return null;
+
+  const session = buildSession(tokenToUser(parsed));
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: SESSION_TTL_SECONDS,
+  });
+
+  return {
+    session,
+    redirectTo: buildRedirectPath(parsed.role),
+  };
+}
+
+export async function getCurrentSession(): Promise<AppSession | null> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  return raw ? decodeSession(raw) : null;
+}
+
+export async function clearSession(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: 0,
+  });
+}

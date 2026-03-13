@@ -32,6 +32,7 @@
   "notifications.label.msk": "Москва (приёмы и акции)",
   "notifications.label.online": "Онлайн-уроки и вебинары",
   "notifications.togglePrefix": "✅/❌",
+  "showMyId": "Ваш ID в Telegram: {{channelId}}",
   "adminForward": "Новый вопрос\nОт: {{name}} {{usernameMention}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}",
   "admin.menu": "📊 Панель администратора",
   "admin.menu.hint": "Используйте кнопку меню (☰) для выбора раздела.",

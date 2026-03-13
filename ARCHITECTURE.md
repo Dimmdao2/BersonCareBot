@@ -216,8 +216,6 @@
 
 **Текущая модель (host):** Node.js на сервере, системный PostgreSQL, systemd, nginx. Бэкап БД перед миграциями, деплой через `deploy/host/deploy-prod.sh`. Подробно: `deploy/HOST_DEPLOY_README.md`.
 
-Резервная модель (Docker / blue-green) сохранена в `deploy/docker-backup/` и в корневом `docker-compose.yml` для локальной разработки.
-
 ## Текущие отклонения от жесткого контракта
 
 ### ⚠ Отклонение 1. Transport/delivery knowledge частично живет в content
@@ -229,10 +227,8 @@
 
 Дефолты политики доставки по source задаются через порт `DeliveryDefaultsPort` (реализация в infra); ядро их не содержит. Явные `delivery`/`retry`/`onFail` в сценариях по-прежнему допустимы. Целевая чистая модель: сценарии только generic intent/data, вся delivery policy вне content.
 
-### ⚠ Отклонение 3. Scheduler есть в коде, но не описан как полноценный runtime-service в compose
+### ⚠ Отклонение 3. Scheduler есть в коде, но не запущен как отдельный сервис
 
-`src/infra/runtime/scheduler/main.ts` существует в кодовой базе, но в текущем `docker-compose.yml` отдельный scheduler service не поднят.
-
-Это не нарушение чистоты слоев, но отклонение между документированной runtime-структурой и фактической deploy-моделью.
+`src/infra/runtime/scheduler/main.ts` существует в кодовой базе, но в текущем host-deploy отдельный systemd-юнит для scheduler не поднят.
 
 *(Отклонения 2 и 4 устранены: eventGateway — только idempotencyPort и pipeline; дефолты доставки вынесены в порт `DeliveryDefaultsPort`, реализация в infra, ядро не знает имён каналов.)*

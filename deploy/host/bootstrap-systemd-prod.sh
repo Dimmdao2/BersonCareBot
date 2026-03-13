@@ -41,13 +41,13 @@ if [ -f "${WEBAPP_UNIT_SOURCE}" ]; then
 fi
 run_as_root /bin/systemctl daemon-reload
 
-if [ -f /opt/env/bersoncarebot.prod ] \
+if [ -f /opt/env/bersoncarebot/api.prod ] \
   && [ -f "${PROJECT_ROOT}/dist/main.js" ] \
   && [ -f "${PROJECT_ROOT}/dist/infra/runtime/worker/main.js" ]; then
   run_as_root /bin/systemctl enable --now "${API_SERVICE}"
   run_as_root /bin/systemctl enable --now "${WORKER_SERVICE}"
   if [ -e "${SYSTEMD_DIR}/${WEBAPP_SERVICE}" ] \
-    && [ -f /opt/env/bersoncarebot-webapp.prod ] \
+    && [ -f /opt/env/bersoncarebot/webapp.prod ] \
     && [ -d "${PROJECT_ROOT}/webapp/.next" ]; then
     run_as_root /bin/systemctl enable --now "${WEBAPP_SERVICE}"
   fi
@@ -57,6 +57,6 @@ else
   if [ -e "${SYSTEMD_DIR}/${WEBAPP_SERVICE}" ]; then
     run_as_root /bin/systemctl enable "${WEBAPP_SERVICE}"
   fi
-  echo "Units installed and enabled, but not started because /opt/env/*.prod or build artifacts are missing."
+  echo "Units installed and enabled, but not started because /opt/env/bersoncarebot/*.prod or build artifacts are missing."
   echo "Run deploy/host/deploy-prod.sh after the first build to start the services."
 fi

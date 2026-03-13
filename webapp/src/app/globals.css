@@ -1,0 +1,189 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, sans-serif;
+  background: #f5f7fb;
+  color: #18202c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: linear-gradient(180deg, #f5f7fb 0%, #edf2fb 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 20px;
+  border: 1px solid #dbe4f0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+}
+
+.top-bar h1 {
+  margin: 4px 0 0;
+  font-size: 1.75rem;
+}
+
+.eyebrow {
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5f6f86;
+}
+
+.top-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-pill,
+.status-pill,
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+}
+
+.user-pill {
+  padding: 10px 14px;
+  background: #eef4ff;
+  color: #244a80;
+  font-size: 0.95rem;
+}
+
+.user-pill__role {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
+.button {
+  padding: 10px 14px;
+  border: 1px solid #cad5e5;
+  background: white;
+}
+
+.button--ghost {
+  background: transparent;
+}
+
+.content-area,
+.stack {
+  display: grid;
+  gap: 16px;
+}
+
+.hero-card,
+.panel,
+.feature-card {
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid #dbe4f0;
+  background: white;
+  box-shadow: 0 10px 24px rgba(25, 48, 86, 0.06);
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.feature-card--link:hover {
+  border-color: #90a8cb;
+  transform: translateY(-1px);
+  transition: 0.2s ease;
+}
+
+.feature-card__meta {
+  margin-bottom: 12px;
+}
+
+.status-pill {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.status-pill--available {
+  background: #e7f8ef;
+  color: #1d6b42;
+}
+
+.status-pill--coming-soon {
+  background: #fff4dc;
+  color: #946200;
+}
+
+.status-pill--locked {
+  background: #f5e8e8;
+  color: #9c4242;
+}
+
+.list {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.list-item {
+  padding: 16px;
+  border-radius: 16px;
+  background: #f8fbff;
+  border: 1px solid #dde7f4;
+}
+
+.empty-state {
+  color: #5f6f86;
+}
+
+.code-block {
+  padding: 16px;
+  border-radius: 16px;
+  background: #101521;
+  color: #eef4ff;
+  overflow: auto;
+  font-size: 0.92rem;
+}
+
+@media (max-width: 720px) {
+  .top-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .top-bar__actions {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+}

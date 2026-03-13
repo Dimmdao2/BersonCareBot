@@ -26,9 +26,9 @@ fi
 run_as_root install -m 0644 "${WEBAPP_UNIT_SOURCE}" "${SYSTEMD_DIR}/${WEBAPP_SERVICE}"
 run_as_root /bin/systemctl daemon-reload
 
-if [ -f /opt/env/bersoncarebot-webapp.prod ] && [ -d "${PROJECT_ROOT}/webapp/.next" ]; then
+if [ -f /opt/env/bersoncarebot/webapp.prod ] && [ -d "${PROJECT_ROOT}/webapp/.next" ]; then
   run_as_root /bin/systemctl enable --now "${WEBAPP_SERVICE}"
 else
   run_as_root /bin/systemctl enable "${WEBAPP_SERVICE}"
-  echo "Webapp unit installed and enabled, but not started because /opt/env/bersoncarebot-webapp.prod or build artifacts are missing."
+  echo "Webapp unit installed and enabled, but not started because /opt/env/bersoncarebot/webapp.prod or build artifacts are missing."
 fi

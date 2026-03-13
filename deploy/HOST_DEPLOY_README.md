@@ -52,21 +52,21 @@ CREATE DATABASE bcb_webapp_dev OWNER bcb_webapp_dev_user;
 
 ### 4. Файлы окружения (каталог /opt/env/)
 
-Env на проде хранятся в **/opt/env/** (вне дерева проекта). Права: владелец — пользователь деплоя, чтение только для нужных пользователей.
+Env на проде хранятся в **/opt/env/bersoncarebot/** (вне дерева проекта). Права: владелец — пользователь деплоя, чтение только для нужных пользователей.
 
 **Интегратор (API + worker):**
 
 ```bash
-sudo mkdir -p /opt/env
-sudo chown deployuser:deployuser /opt/env
-cp deploy/env/.env.prod.example /opt/env/bersoncarebot.prod
+sudo mkdir -p /opt/env/bersoncarebot
+sudo chown deployuser:deployuser /opt/env/bersoncarebot
+cp deploy/env/.env.prod.example /opt/env/bersoncarebot/api.prod
 # Отредактировать: DATABASE_URL, при необходимости HOST, PORT (3200)
 ```
 
 **Webapp:**
 
 ```bash
-cp deploy/env/.env.webapp.prod.example /opt/env/bersoncarebot-webapp.prod
+cp deploy/env/.env.webapp.prod.example /opt/env/bersoncarebot/webapp.prod
 # Обязательно задать:
 #   DATABASE_URL — для bcb_webapp_prod (postgres://bcb_webapp_user:...@127.0.0.1:5432/bcb_webapp_prod)
 #   SESSION_COOKIE_SECRET — длинная случайная строка (минимум 32 символа)
@@ -75,9 +75,9 @@ cp deploy/env/.env.webapp.prod.example /opt/env/bersoncarebot-webapp.prod
 # PORT=6200, HOST=127.0.0.1 уже заданы в шаблоне
 ```
 
-Юниты systemd подхватывают: API и worker — `/opt/env/bersoncarebot.prod`, webapp — `/opt/env/bersoncarebot-webapp.prod`.
+Юниты systemd подхватывают: API и worker — `/opt/env/bersoncarebot/api.prod`, webapp — `/opt/env/bersoncarebot/webapp.prod`.
 
-Для dev-окружения можно оставить env в дереве проекта (`deploy/env/.env.dev.example` → `.env.dev`, `deploy/env/.env.webapp.dev.example` → `webapp/.env.dev`) или положить в `/opt/env/bersoncarebot.dev` и `/opt/env/bersoncarebot-webapp.dev`.
+Для dev-окружения env остаётся в дереве проекта: интегратор — `.env.dev` в корне, webapp — `webapp/.env.dev`. Шаблоны: `deploy/env/.env.dev.example` → `.env.dev`, `deploy/env/.env.webapp.dev.example` → `webapp/.env.dev`.
 
 ### 5. Установка systemd-юнитов (один раз)
 
@@ -94,7 +94,7 @@ bash deploy/host/bootstrap-systemd-prod.sh
 - `bersoncarebot-worker-prod.service`
 - `bersoncarebot-webapp-prod.service` (если файл есть в `deploy/systemd/`)
 
-Если уже есть `/opt/env/bersoncarebot.prod`, собранный `dist/` и для webapp — `/opt/env/bersoncarebot-webapp.prod` и `webapp/.next`, сервисы будут включены и запущены. Иначе они только включатся (enable), и старт произойдёт при первом деплое.
+Если уже есть `/opt/env/bersoncarebot/api.prod`, собранный `dist/` и для webapp — `/opt/env/bersoncarebot/webapp.prod` и `webapp/.next`, сервисы будут включены и запущены. Иначе они только включатся (enable), и старт произойдёт при первом деплое.
 
 ### 6. Sudoers для пользователя деплоя
 
@@ -138,7 +138,7 @@ pnpm build:webapp
 Миграции интегратора:
 
 ```bash
-set -a && source /opt/env/bersoncarebot.prod && set +a
+set -a && source /opt/env/bersoncarebot/api.prod && set +a
 node dist/infra/db/migrate.js
 ```
 
@@ -218,7 +218,7 @@ The bootstrap script copies these templates into `/etc/systemd/system/`, reloads
 - `bersoncarebot-worker-prod.service`
 - `bersoncarebot-webapp-prod.service` (if the template exists)
 
-If `/opt/env/bersoncarebot.prod`, `/opt/env/bersoncarebot-webapp.prod`, and build artifacts exist, the script also starts the services. Otherwise it enables them and leaves startup to the next `deploy/host/deploy-prod.sh` run.
+If `/opt/env/bersoncarebot/api.prod`, `/opt/env/bersoncarebot/webapp.prod`, and build artifacts exist, the script also starts the services. Otherwise it enables them and leaves startup to the next `deploy/host/deploy-prod.sh` run.
 
 ## CI deploy requirements
 `deploy/host/deploy-prod.sh` uses `sudo -n` and fails fast if the deploy user is missing the required `NOPASSWD` rules.
@@ -236,6 +236,40 @@ deployuser ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-w
 ```
 
 Without those permissions, CI deploy will exit before `pnpm install` or `pnpm build`.
+
+## Перенос env в /opt/env/bersoncarebot (один раз на сервере)
+
+Если раньше env лежал в проекте (`.env.prod`, `webapp/.env.prod`) или в `/opt/env/` без подкаталога, выполнить на **рабочем сервере** под пользователем деплоя:
+
+```bash
+# 1. Каталог и права
+sudo mkdir -p /opt/env/bersoncarebot
+sudo chown "$(whoami):$(whoami)" /opt/env/bersoncarebot
+
+# 2. Перенос env интегратора (API + worker)
+cp /opt/projects/bersoncarebot/.env.prod /opt/env/bersoncarebot/api.prod
+
+# 3. Перенос env webapp (если уже был)
+cp /opt/projects/bersoncarebot/webapp/.env.prod /opt/env/bersoncarebot/webapp.prod
+# Если webapp env ещё не существовал — скопировать из примера и заполнить:
+# cp deploy/env/.env.webapp.prod.example /opt/env/bersoncarebot/webapp.prod
+
+# 4. Обновить юниты systemd из репозитория (после git pull) и перезагрузить конфиг
+cd /opt/projects/bersoncarebot
+git pull origin main
+sudo cp deploy/systemd/bersoncarebot-api-prod.service deploy/systemd/bersoncarebot-worker-prod.service deploy/systemd/bersoncarebot-webapp-prod.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# 5. Перезапустить сервисы (подхватят новые EnvironmentFile)
+sudo systemctl restart bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-webapp-prod.service
+
+# 6. Проверка
+sudo systemctl status bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-webapp-prod.service
+curl -s http://127.0.0.1:3200/health
+curl -s http://127.0.0.1:6200/api/health
+```
+
+Старые файлы `.env.prod` и `webapp/.env.prod` в проекте можно удалить после проверки или оставить как бэкап (юниты их больше не читают).
 
 ## Host scripts
 See `deploy/host/` for build, migrate, start, and deploy scripts.
@@ -259,4 +293,4 @@ CREATE USER bcb_webapp_dev_user WITH PASSWORD 'password';
 CREATE DATABASE bcb_webapp_dev OWNER bcb_webapp_dev_user;
 ```
 
-Copy `deploy/env/.env.webapp.prod.example` to `/opt/env/bersoncarebot-webapp.prod` and set the correct `DATABASE_URL` (e.g. `postgres://bcb_webapp_user:...@127.0.0.1:5432/bcb_webapp_prod`) and secrets. For dev, use `deploy/env/.env.webapp.dev.example` → `webapp/.env.dev` or `/opt/env/bersoncarebot-webapp.dev`.
+Copy `deploy/env/.env.webapp.prod.example` to `/opt/env/bersoncarebot/webapp.prod` and set the correct `DATABASE_URL` (e.g. `postgres://bcb_webapp_user:...@127.0.0.1:5432/bcb_webapp_prod`) and secrets. For dev, copy `deploy/env/.env.webapp.dev.example` to `webapp/.env.dev`.

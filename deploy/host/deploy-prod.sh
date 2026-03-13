@@ -2,8 +2,8 @@
 set -euo pipefail
 
 PROJECT_ROOT=/opt/projects/bersoncarebot
-ENV_FILE=/opt/env/bersoncarebot.prod
-WEBAPP_ENV_FILE=/opt/env/bersoncarebot-webapp.prod
+ENV_FILE=/opt/env/bersoncarebot/api.prod
+WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.prod
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
@@ -84,7 +84,7 @@ sleep 3
 sudo -n /bin/systemctl is-active --quiet "${API_SERVICE}"
 sudo -n /bin/systemctl is-active --quiet "${WORKER_SERVICE}"
 
-# Health check: use PORT from env (same as API). Production must have PORT=3200 in /opt/env/bersoncarebot.prod. Retry for slow startup.
+# Health check: use PORT from env (same as API). Production must have PORT=3200 in /opt/env/bersoncarebot/api.prod. Retry for slow startup.
 API_PORT="${PORT:-3200}"
 for i in 1 2 3 4 5; do
   if curl -sf "http://127.0.0.1:${API_PORT}/health" -o /tmp/bersoncarebot-health.json; then

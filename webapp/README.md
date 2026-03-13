@@ -33,7 +33,7 @@ Default local URL: `http://127.0.0.1:5200/app`
 The service expects its own env file and database:
 
 - development env: `webapp/.env.dev`
-- production env: `/opt/env/bersoncarebot-webapp.prod`
+- production env: `/opt/env/bersoncarebot/webapp.prod`
 - development DB: `bcb_webapp_dev`
 - production DB: `bcb_webapp_prod`
 

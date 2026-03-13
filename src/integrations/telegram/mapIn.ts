@@ -35,6 +35,7 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '/admin_users': 'admin.stats.users',
   '/dialogs': 'admin.dialogs.open',
   '/unanswered': 'admin.questions.unanswered',
+  '/show_my_id': 'debug.show_my_id',
   'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 

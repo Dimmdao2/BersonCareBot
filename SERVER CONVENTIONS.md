@@ -151,15 +151,15 @@ Workers do not require public ports.
 
 Environment file convention
 
-Production env (stored in /opt/env/, not inside project tree)
+Production env (BersonCareBot: stored in /opt/env/bersoncarebot/, not inside project tree)
 
-/opt/env/bersoncarebot.prod          — integrator API + worker
-/opt/env/bersoncarebot-webapp.prod  — webapp
+/opt/env/bersoncarebot/api.prod    — integrator API + worker
+/opt/env/bersoncarebot/webapp.prod  — webapp
 /opt/projects/storylama/.env.prod
 /opt/projects/fordoc/.env.prod
 /opt/projects/bersonservices/.env.prod
 
-Development env
+Development env (always in project tree; webapp uses webapp/.env.dev)
 
 /home/dev/dev-projects/BersonCareBot/.env.dev
 /home/dev/dev-projects/BersonCareBot/webapp/.env.dev
@@ -291,7 +291,7 @@ For a split service inside an existing project:
  • service DB = x_service_prod / x_service_dev
  • service DB user = x_service_user / x_service_dev_user
  • service unit = x-service-prod.service / x-service-dev.service
- • service env path = /opt/env/x-webapp.prod (or project-specific) and /home/dev/dev-projects/X/service/.env.dev
+ • service env path = /opt/env/bersoncarebot/webapp.prod (or project-specific) and /home/dev/dev-projects/X/service/.env.dev
  • service web domain may use a dedicated subdomain (example: webapp.<domain>)
 
 ⸻
