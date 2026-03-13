@@ -151,7 +151,7 @@ Workers do not require public ports.
 
 Environment file convention
 
-Production env (BersonCareBot: stored in /opt/env/bersoncarebot/, not inside project tree)
+Production env (BersonCareBot: stored in /opt/env/bersoncarebot/, not inside project tree; владелец каталога и файлов — пользователь **deploy**)
 
 /opt/env/bersoncarebot/api.prod    — integrator API + worker
 /opt/env/bersoncarebot/webapp.prod  — webapp

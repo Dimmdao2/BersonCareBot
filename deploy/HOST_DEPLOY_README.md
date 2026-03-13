@@ -1,5 +1,23 @@
 # Host Deployment for BersonCareBot
 
+## Параметры сервера (как есть у нас)
+
+Все команды в этой документации и от AI предполагают эти значения. Если у тебя иначе — скажи, подставим свои.
+
+| Параметр | Значение |
+|----------|----------|
+| **Пользователь деплоя** | `deploy` |
+| **Каталог проекта на проде** | `/opt/projects/bersoncarebot` |
+| **Env на проде** | `/opt/env/bersoncarebot/` (файлы `api.prod`, `webapp.prod`) |
+| **Суперпользователь PostgreSQL** | `postgres` (под ним: `psql -U postgres`, `sudo -u postgres psql`) |
+| **Скрипт бэкапа перед миграциями** | `/opt/backups/scripts/postgres-backup.sh` |
+
+БД и роли — см. таблицу в разделе «Структура баз данных» ниже. Порты: API интегратора 3200, webapp 6200.
+
+**Если что-то другое** (другой пользователь деплоя, другой путь к проекту, другой суперпользователь БД, другой хост для psql) — напиши один раз, зафиксируем в этом блоке и дальше буду давать команды под твои значения.
+
+---
+
 ## Инструкция: настройка сервера с нуля
 
 Ниже — пошаговая настройка сервера для запуска интегратора (tgcarebot) и webapp.
@@ -20,10 +38,49 @@
 
 Команды из п.2 ниже выполняются **не «в какой-то базе», а на уровне кластера PostgreSQL**: под суперпользователем (обычно `postgres`), например `psql -U postgres` или `psql -U postgres -d postgres`. `CREATE USER` и `CREATE DATABASE` — это операции кластера, а не внутри конкретной БД.
 
+#### Просмотр баз и владельцев (в корне кластера)
+
+Под суперпользователем (`psql -U postgres` или `sudo -u postgres psql`):
+
+```sql
+-- список баз и владельцев
+\l
+```
+
+Или только имя базы и owner (удобно для скриптов/документации):
+
+```sql
+SELECT datname AS database, pg_catalog.pg_get_userbyid(datdba) AS owner
+FROM pg_catalog.pg_database
+WHERE datallowconn
+ORDER BY datname;
+```
+
+Список ролей (пользователей) кластера: `\du`.
+
+#### Фактическое состояние кластера на нашем хосте
+
+Актуальный снимок (обновлять при изменении баз/владельцев):
+
+```
+     database      |        owner        
+-------------------+---------------------
+ bcb_webapp_dev    | bcb_webapp_dev_user
+ bcb_webapp_prod   | bcb_webapp_prod
+ bersoncarebot_dev | bcb_dev
+ postgres          | postgres
+ storylama_dev     | storylama_dev
+ storylama_prod    | storylama_prod
+ template1         | postgres
+ tgcarebot         | tgcarebot
+```
+
+На хосте часть баз использует владельцев с именами без суффикса `_user` (например `bcb_webapp_prod`, `storylama_prod`, `tgcarebot`). В `DATABASE_URL` указывать того пользователя, который является owner нужной базы.
+
 ### 1. Требования на хосте
 
 - Linux с systemd, nginx, Node.js (>=20), pnpm, PostgreSQL (слушает только `127.0.0.1:5432`).
-- Пользователь для деплоя (например `deployuser`) с доступом к репозиторию и правом безпарольного sudo для указанных ниже команд.
+- Пользователь для деплоя **`deploy`** с доступом к репозиторию и правом безпарольного sudo для указанных ниже команд.
 
 ### 2. PostgreSQL: пользователи и базы
 
@@ -47,18 +104,18 @@ CREATE DATABASE bcb_webapp_dev OWNER bcb_webapp_dev_user;
 
 ### 3. Клонирование проекта и каталоги
 
-- **Продакшен:** `/opt/projects/bersoncarebot` (владелец — пользователь деплоя).
+- **Продакшен:** `/opt/projects/bersoncarebot` (владелец — пользователь `deploy`).
 - Клонировать репозиторий в `/opt/projects/bersoncarebot`, перейти в каталог.
 
 ### 4. Файлы окружения (каталог /opt/env/)
 
-Env на проде хранятся в **/opt/env/bersoncarebot/** (вне дерева проекта). Права: владелец — пользователь деплоя, чтение только для нужных пользователей.
+Env на проде хранятся в **/opt/env/bersoncarebot/** (вне дерева проекта). Владелец каталога и файлов — пользователь **`deploy`** (иначе деплой упадёт с Permission denied при `source`).
 
 **Интегратор (API + worker):**
 
 ```bash
 sudo mkdir -p /opt/env/bersoncarebot
-sudo chown deployuser:deployuser /opt/env/bersoncarebot
+sudo chown deploy:deploy /opt/env/bersoncarebot
 cp deploy/env/.env.prod.example /opt/env/bersoncarebot/api.prod
 # Отредактировать: DATABASE_URL, при необходимости HOST, PORT (3200)
 ```
@@ -98,18 +155,18 @@ bash deploy/host/bootstrap-systemd-prod.sh
 
 ### 6. Sudoers для пользователя деплоя
 
-Чтобы CI или ручной деплой мог перезапускать сервисы и делать бэкап без пароля, добавить (подставить имя пользователя вместо `deployuser`):
+Чтобы CI или ручной деплой мог перезапускать сервисы и делать бэкап без пароля, добавить для пользователя **`deploy`**:
 
 ```bash
 sudo visudo
 # Добавить строки:
-deployuser ALL=(root) NOPASSWD: /opt/backups/scripts/postgres-backup.sh pre-migrations
-deployuser ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-api-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-worker-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-webapp-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-api-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-worker-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-webapp-prod.service
+deploy ALL=(root) NOPASSWD: /opt/backups/scripts/postgres-backup.sh pre-migrations
+deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-api-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-worker-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-webapp-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-api-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-worker-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-webapp-prod.service
 ```
 
 Скрипт `postgres-backup.sh` должен существовать и поддерживать аргумент `pre-migrations` (запись в `/opt/backups/postgres/pre-migrations/`). Если бэкапов нет — в `deploy-prod.sh` эту проверку нужно закомментировать или адаптировать.
@@ -119,9 +176,31 @@ deployuser ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-w
 Настроить виртуальные хосты:
 
 - **Интегратор:** `tgcarebot.<ваш-домен>` → proxy на `http://127.0.0.1:3200`.
-- **Webapp:** `webapp.<ваш-домен>` → proxy на `http://127.0.0.1:6200`.
+- **Webapp:** `webapp.bersonservice.ru` (или `webapp.<ваш-домен>`) → proxy на `http://127.0.0.1:6200`.
 
 Для dev: `dev-tgcarebot.<домен>` → 4200, `dev-webapp.<домен>` → 5200 (см. SERVER CONVENTIONS.md).
+
+**Пример конфига для webapp** (файл в `/etc/nginx/sites-available/bersoncarebot-webapp`, затем симлинк в `sites-enabled`):
+
+```nginx
+# Webapp BersonCare (Next.js на 6200)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name webapp.bersonservice.ru;
+
+    location / {
+        proxy_pass http://127.0.0.1:6200;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Если перед nginx стоит TLS-терминация (certbot/Let's Encrypt), добавь блок с `listen 443 ssl` и `ssl_certificate` / `ssl_certificate_key`, либо используй отдельный конфиг для редиректа на HTTPS и прокси только на 443. После правок: `sudo nginx -t && sudo systemctl reload nginx`.
 
 ### 8. Первый деплой (сборка и запуск)
 
@@ -226,13 +305,13 @@ If `/opt/env/bersoncarebot/api.prod`, `/opt/env/bersoncarebot/webapp.prod`, and 
 Example sudoers entry for the deploy user:
 
 ```sudoers
-deployuser ALL=(root) NOPASSWD: /opt/backups/scripts/postgres-backup.sh pre-migrations
-deployuser ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-api-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-worker-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-webapp-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-api-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-worker-prod.service
-deployuser ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-webapp-prod.service
+deploy ALL=(root) NOPASSWD: /opt/backups/scripts/postgres-backup.sh pre-migrations
+deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-api-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-worker-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-webapp-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-api-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-worker-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-webapp-prod.service
 ```
 
 Without those permissions, CI deploy will exit before `pnpm install` or `pnpm build`.
@@ -242,9 +321,10 @@ Without those permissions, CI deploy will exit before `pnpm install` or `pnpm bu
 Если раньше env лежал в проекте (`.env.prod`, `webapp/.env.prod`) или в `/opt/env/` без подкаталога, выполнить на **рабочем сервере** под пользователем деплоя:
 
 ```bash
-# 1. Каталог и права
+# 1. Каталог и права (владелец — пользователь, под которым крутится деплой, иначе будет "Permission denied" при source)
 sudo mkdir -p /opt/env/bersoncarebot
-sudo chown "$(whoami):$(whoami)" /opt/env/bersoncarebot
+sudo chown deploy:deploy /opt/env/bersoncarebot
+sudo chmod 700 /opt/env/bersoncarebot
 
 # 2. Перенос env интегратора (API + worker)
 cp /opt/projects/bersoncarebot/.env.prod /opt/env/bersoncarebot/api.prod
@@ -270,6 +350,18 @@ curl -s http://127.0.0.1:6200/api/health
 ```
 
 Старые файлы `.env.prod` и `webapp/.env.prod` в проекте можно удалить после проверки или оставить как бэкап (юниты их больше не читают).
+
+### Если деплой падает с «Permission denied» на /opt/env/bersoncarebot/api.prod
+
+Скрипт деплоя делает `source` этого файла под пользователем **`deploy`** — у него должны быть права на чтение. На сервере выполнить:
+
+```bash
+sudo chown -R deploy:deploy /opt/env/bersoncarebot
+chmod 600 /opt/env/bersoncarebot/api.prod
+chmod 600 /opt/env/bersoncarebot/webapp.prod
+```
+
+Проверка от пользователя деплоя: `cat /opt/env/bersoncarebot/api.prod` не должен выдавать Permission denied.
 
 ## Host scripts
 See `deploy/host/` for build, migrate, start, and deploy scripts.
