@@ -2,10 +2,12 @@
 set -euo pipefail
 
 PROJECT_ROOT=/opt/projects/bersoncarebot
-ENV_FILE="${PROJECT_ROOT}/.env.prod"
+ENV_FILE=/opt/env/bersoncarebot.prod
+WEBAPP_ENV_FILE=/opt/env/bersoncarebot-webapp.prod
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
+WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 
 fail() {
   echo "deploy-prod: $*" >&2
@@ -58,6 +60,7 @@ require_sudo_rule "worker status check" /bin/systemctl is-active --quiet "${WORK
 
 pnpm install --frozen-lockfile
 pnpm build
+pnpm build:webapp
 
 set -a
 source "${ENV_FILE}"
@@ -72,12 +75,16 @@ node dist/infra/db/migrate.js
 sudo -n /bin/systemctl restart "${API_SERVICE}"
 sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
 
+if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
+  sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
+fi
+
 sleep 3
 
 sudo -n /bin/systemctl is-active --quiet "${API_SERVICE}"
 sudo -n /bin/systemctl is-active --quiet "${WORKER_SERVICE}"
 
-# Health check: use PORT from .env.prod (same as API). Production must have PORT=3200 in .env.prod. Retry for slow startup.
+# Health check: use PORT from env (same as API). Production must have PORT=3200 in /opt/env/bersoncarebot.prod. Retry for slow startup.
 API_PORT="${PORT:-3200}"
 for i in 1 2 3 4 5; do
   if curl -sf "http://127.0.0.1:${API_PORT}/health" -o /tmp/bersoncarebot-health.json; then

@@ -1,0 +1,13 @@
+[Unit]
+Description=BersonCare Webapp (Production)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/projects/bersoncarebot
+EnvironmentFile=/opt/env/bersoncarebot-webapp.prod
+ExecStart=/usr/bin/pnpm --dir /opt/projects/bersoncarebot/webapp start -- --hostname 127.0.0.1 --port 6200
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
