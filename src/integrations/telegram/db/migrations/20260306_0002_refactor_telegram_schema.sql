@@ -3,9 +3,16 @@
 -- удалить старую subscriptions
 DROP TABLE IF EXISTS subscriptions;
 
--- изменить telegram_users
-ALTER TABLE telegram_users
-  RENAME COLUMN chat_id TO telegram_id;
+-- изменить telegram_users (идемпотентно: переименовать только если chat_id ещё есть)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'telegram_users' AND column_name = 'chat_id'
+  ) THEN
+    ALTER TABLE telegram_users RENAME COLUMN chat_id TO telegram_id;
+  END IF;
+END $$;
 
 ALTER TABLE telegram_users
   ADD COLUMN IF NOT EXISTS phone text,
