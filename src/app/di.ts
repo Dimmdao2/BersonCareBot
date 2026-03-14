@@ -154,6 +154,10 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     pipeline,
   });
 
+  const telegramRegistrar = telegramConfig.botToken
+    ? (input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes)
+    : undefined;
+
   return {
     healthCheckDb,
     smsClient,
@@ -162,8 +166,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     contentCatalogPort,
     contextQueryPort,
     eventGateway,
-    registerTelegramWebhookRoutes:
-      telegramConfig.botToken ? (input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes) : undefined,
+    ...(telegramRegistrar !== undefined ? { registerTelegramWebhookRoutes: telegramRegistrar } : {}),
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
   };
 }
