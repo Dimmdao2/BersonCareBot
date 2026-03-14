@@ -16,6 +16,15 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("health");
   });
 
+  it("patientCabinet has getPatientCabinetState and getUpcomingAppointments", () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.patientCabinet.getPatientCabinetState).toBe("function");
+    expect(typeof deps.patientCabinet.getUpcomingAppointments).toBe("function");
+    const state = deps.patientCabinet.getPatientCabinetState("user-1");
+    expect(state).toHaveProperty("enabled");
+    expect(state).toHaveProperty("reason");
+  });
+
   it("auth has getCurrentSession, exchangeIntegratorToken, clearSession", () => {
     const deps = buildAppDeps();
     expect(typeof deps.auth.getCurrentSession).toBe("function");

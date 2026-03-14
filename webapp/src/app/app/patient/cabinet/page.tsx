@@ -5,8 +5,9 @@ import { AppShell } from "@/shared/ui/AppShell";
 export default async function PatientCabinetPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();
-  const appointments = deps.patientCabinet.getUpcomingAppointments();
-  const cabinet = deps.patientCabinet.getPatientCabinetState(appointments.length);
+  const userId = session.user.userId;
+  const cabinet = deps.patientCabinet.getPatientCabinetState(userId);
+  const appointments = deps.patientCabinet.getUpcomingAppointments(userId);
 
   return (
     <AppShell title="Кабинет клиента" user={session.user}>

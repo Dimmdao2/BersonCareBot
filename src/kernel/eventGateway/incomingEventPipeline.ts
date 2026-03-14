@@ -84,7 +84,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
         readPort: deps.readPort,
         orchestrator: deps.orchestrator,
         async executeAction(action, context) {
-          return executeDomainAction(action, context, {
+          const executorDeps = {
             readPort: deps.readPort,
             writePort: deps.writePort,
             queuePort: deps.queuePort,
@@ -92,7 +92,9 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             ...(deps.contentCatalogPort ? { contentCatalogPort: deps.contentCatalogPort } : {}),
             ...(deps.protectedAccessPort ? { protectedAccessPort: deps.protectedAccessPort } : {}),
             ...(deps.deliveryDefaultsPort !== undefined ? { deliveryDefaultsPort: deps.deliveryDefaultsPort } : {}),
-          });
+            executeAction: executeDomainAction,
+          };
+          return executeDomainAction(action, context, executorDeps);
         },
         async dispatchIntent(intent) {
           await deps.dispatchPort.dispatchOutgoing(intent);

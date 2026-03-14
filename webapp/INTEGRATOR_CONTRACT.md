@@ -34,7 +34,7 @@ Token payload shape:
 
 Token requirements:
 
-- HMAC-signed with `INTEGRATOR_SHARED_SECRET`
+- HMAC-signed with the **webapp-entry secret** (webapp: `INTEGRATOR_WEBAPP_ENTRY_SECRET`, or `INTEGRATOR_SHARED_SECRET` if not set; tgcarebot: `INTEGRATOR_SHARED_SECRET` for building the token)
 - short-lived
 - audience is `webapp`
 - carries only data needed for bootstrap
@@ -118,9 +118,7 @@ Webhook requests use:
 - `X-Bersoncare-Signature`
 - `X-Bersoncare-Idempotency-Key`
 
-The signature is an HMAC over:
-
-`timestamp + "." + rawBody`
+The signature is an HMAC over `timestamp + "." + rawBody` using the **webhook secret** (webapp: `INTEGRATOR_WEBHOOK_SECRET`, or `INTEGRATOR_SHARED_SECRET` if not set). For backward compatibility, a single `INTEGRATOR_SHARED_SECRET` can be used for both entry token and webhook; for stronger separation, set `INTEGRATOR_WEBAPP_ENTRY_SECRET` and `INTEGRATOR_WEBHOOK_SECRET` separately.
 
 ## User Linking
 

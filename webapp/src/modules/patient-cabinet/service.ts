@@ -1,11 +1,14 @@
+import type { AppointmentSummary } from "@/modules/appointments/service";
+
 export type PatientCabinetState = {
   enabled: boolean;
   reason: string;
   nextAppointmentLabel: string | null;
 };
 
-/** MVP: cabinet enabled when there are upcoming appointments (from appointments service). */
-export function getPatientCabinetState(appointmentCount: number): PatientCabinetState {
+export type GetUpcomingAppointmentsPort = (userId: string) => AppointmentSummary[];
+
+function computeCabinetState(appointmentCount: number): PatientCabinetState {
   const hasAppointments = appointmentCount > 0;
   return {
     enabled: hasAppointments,
@@ -14,4 +17,28 @@ export function getPatientCabinetState(appointmentCount: number): PatientCabinet
       : "Кабинет активируется, когда у пользователя есть запись на прием, купленный курс или назначенная программа.",
     nextAppointmentLabel: hasAppointments ? "Ближайшая запись в разделе ниже" : null,
   };
+}
+
+/**
+ * Creates patient cabinet service that uses the given port to fetch appointments.
+ * Encapsulates enabled/nextAppointmentLabel logic inside the service.
+ */
+export function createPatientCabinetService(deps: {
+  getUpcomingAppointments: GetUpcomingAppointmentsPort;
+}): {
+  getPatientCabinetState: (userId: string) => PatientCabinetState;
+  getUpcomingAppointments: (userId: string) => AppointmentSummary[];
+} {
+  return {
+    getPatientCabinetState(userId: string) {
+      const list = deps.getUpcomingAppointments(userId);
+      return computeCabinetState(list.length);
+    },
+    getUpcomingAppointments: deps.getUpcomingAppointments,
+  };
+}
+
+/** Pure helper for tests. */
+export function getPatientCabinetState(appointmentCount: number): PatientCabinetState {
+  return computeCabinetState(appointmentCount);
 }

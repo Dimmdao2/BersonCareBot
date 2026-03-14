@@ -12,4 +12,6 @@ dotenv.config({ quiet: true });
 Object.assign(process.env, {
   BOOKING_URL: process.env.BOOKING_URL ?? 'https://example.com',
   DATABASE_URL: process.env.DATABASE_URL ?? 'postgres://localhost:5432/test',
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ?? 'test-bot-token',
+  TELEGRAM_ADMIN_ID: process.env.TELEGRAM_ADMIN_ID ?? '364943522',
 });

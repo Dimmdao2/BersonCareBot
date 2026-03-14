@@ -3,35 +3,33 @@ import type {
   Action,
   ActionResult,
   ContentCatalogPort,
-  DbReadPort,
-  DeliveryDefaultsPort,
-  NotificationSettings,
   DbWriteMutation,
-  DbWritePort,
   DomainContext,
   OutgoingIntent,
-  ProtectedAccessPort,
-  QueuePort,
-  TemplatePort,
 } from '../../contracts/index.js';
-import type { DueReminderOccurrence, ReminderCategory, ReminderRuleRecord } from '../../contracts/reminders.js';
-import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
+import { handleBooking } from './handlers/booking.js';
+import { handleDelivery } from './handlers/delivery.js';
+import { handleNotifications } from './handlers/notifications.js';
+import { handleReminders } from './handlers/reminders.js';
 import {
-  buildDefaultReminderRule,
-  cycleReminderPreset,
-  detectReminderPreset,
-  reminderPresetConfig,
-} from '../reminders/policy.js';
-
-type ExecutorDeps = {
-  readPort?: DbReadPort;
-  writePort?: DbWritePort;
-  queuePort?: QueuePort;
-  templatePort?: TemplatePort;
-  deliveryDefaultsPort?: DeliveryDefaultsPort | null;
-  contentCatalogPort?: ContentCatalogPort | null;
-  protectedAccessPort?: ProtectedAccessPort | null;
-};
+  type ExecutorDeps,
+  asRecord,
+  asString,
+  asNumber,
+  readIncoming,
+  readIncomingText,
+  readIncomingChatId,
+  readIncomingMessageId,
+  readConversationId,
+  readExternalActorId,
+  readIncomingPhone,
+  formatActorLabel,
+  nowIso,
+  buildIntentMeta,
+  renderText,
+  buildReplyMarkup,
+  persistWrites,
+} from './helpers.js';
 
 function nowIso(ctx: DomainContext): string {
   return ctx.nowIso;

@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/modules/users/service";
 import { getMenuForRole } from "@/modules/menu/service";
 import { listLessons } from "@/modules/lessons/service";
 import { listEmergencyTopics } from "@/modules/emergency/service";
-import { getPatientCabinetState } from "@/modules/patient-cabinet/service";
+import { createPatientCabinetService } from "@/modules/patient-cabinet/service";
 import { getDoctorWorkspaceState } from "@/modules/doctor-cabinet/service";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import { getUpcomingAppointments } from "@/modules/appointments/service";
@@ -30,10 +30,9 @@ export function buildAppDeps() {
     emergency: {
       listEmergencyTopics,
     },
-    patientCabinet: {
-      getPatientCabinetState,
+    patientCabinet: createPatientCabinetService({
       getUpcomingAppointments,
-    },
+    }),
     doctorCabinet: {
       getDoctorWorkspaceState,
     },

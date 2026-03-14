@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { env, isProduction } from "@/config/env";
+import { env, integratorWebappEntrySecret, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
 
@@ -66,7 +66,7 @@ function decodeSession(raw: string): AppSession | null {
 function parseIntegratorToken(token: string): IntegratorTokenPayload | null {
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
-  if (!safeEqual(signature, sign(payload, env.INTEGRATOR_SHARED_SECRET))) return null;
+  if (!safeEqual(signature, sign(payload, integratorWebappEntrySecret()))) return null;
 
   const parsed = JSON.parse(decodeBase64Url(payload)) as IntegratorTokenPayload;
   const now = Math.floor(Date.now() / 1000);
@@ -75,6 +75,7 @@ function parseIntegratorToken(token: string): IntegratorTokenPayload | null {
 }
 
 function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
+  if (env.NODE_ENV === "production") return null;
   if (!env.ALLOW_DEV_AUTH_BYPASS) return null;
 
   const presets: Record<string, IntegratorTokenPayload> = {

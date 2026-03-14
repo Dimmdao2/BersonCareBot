@@ -1,11 +1,28 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { env } from "@/config/env";
+import { integratorWebhookSecret } from "@/config/env";
+
+const DEFAULT_WINDOW_SECONDS = 300; // ±5 minutes
 
 function sign(value: string): string {
-  return createHmac("sha256", env.INTEGRATOR_SHARED_SECRET).update(value).digest("base64url");
+  return createHmac("sha256", integratorWebhookSecret()).update(value).digest("base64url");
 }
 
-export function verifyIntegratorSignature(timestamp: string, body: string, signature: string): boolean {
+function isTimestampFresh(timestamp: string, windowSeconds: number): boolean {
+  const ts = Number(timestamp);
+  if (!Number.isFinite(ts)) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return Math.abs(now - ts) <= windowSeconds;
+}
+
+export function verifyIntegratorSignature(
+  timestamp: string,
+  body: string,
+  signature: string,
+  options?: { windowSeconds?: number }
+): boolean {
+  const windowSeconds = options?.windowSeconds ?? DEFAULT_WINDOW_SECONDS;
+  if (!isTimestampFresh(timestamp, windowSeconds)) return false;
+
   const expected = sign(`${timestamp}.${body}`);
   const left = Buffer.from(expected);
   const right = Buffer.from(signature);
