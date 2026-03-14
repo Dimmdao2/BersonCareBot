@@ -16,6 +16,8 @@ const parsed = z
     BOOKING_URL: z.string().min(1),
     CONTENT_SERVICE_BASE_URL: z.string().optional().default(''),
     CONTENT_ACCESS_HMAC_SECRET: z.string().optional().default(''),
+    APP_BASE_URL: z.string().url().optional(),
+    INTEGRATOR_SHARED_SECRET: z.string().min(16).optional(),
   })
   .parse(process.env);
 

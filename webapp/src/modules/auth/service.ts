@@ -34,7 +34,7 @@ function safeEqual(a: string, b: string): boolean {
 
 function buildRedirectPath(role: UserRole): string {
   if (role === "doctor") return "/app/doctor";
-  if (role === "admin") return "/app/settings";
+  if (role === "admin") return "/app/doctor";
   return "/app/patient";
 }
 
@@ -110,6 +110,26 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
   return presets[token] ?? null;
 }
 
+function getAllowedTelegramIds(): Set<string> {
+  const ids = new Set<string>();
+  const raw = env.ALLOWED_TELEGRAM_IDS?.trim() ?? "";
+  for (const s of raw.split(",")) {
+    const t = s.trim();
+    if (t) ids.add(t);
+  }
+  if (typeof env.ADMIN_TELEGRAM_ID === "number") {
+    ids.add(String(env.ADMIN_TELEGRAM_ID));
+  }
+  return ids;
+}
+
+function isAllowedByWhitelist(parsed: IntegratorTokenPayload): boolean {
+  if (parsed.role === "admin") return true;
+  const telegramId = parsed.bindings?.telegramId;
+  if (!telegramId) return false;
+  return getAllowedTelegramIds().has(telegramId);
+}
+
 function tokenToUser(token: IntegratorTokenPayload): SessionUser {
   return {
     userId: token.sub,
@@ -125,8 +145,11 @@ function tokenToUser(token: IntegratorTokenPayload): SessionUser {
 }
 
 export async function exchangeIntegratorToken(token: string): Promise<ExchangeResult | null> {
-  const parsed = parseDevBypassToken(token) ?? parseIntegratorToken(token);
+  const devParsed = parseDevBypassToken(token);
+  const parsed = devParsed ?? parseIntegratorToken(token);
   if (!parsed) return null;
+
+  if (!devParsed && !isAllowedByWhitelist(parsed)) return null;
 
   const session = buildSession(tokenToUser(parsed));
   const cookieStore = await cookies();

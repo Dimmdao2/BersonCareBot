@@ -19,6 +19,8 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((value) => value === "true"),
+  ALLOWED_TELEGRAM_IDS: z.string().optional().default(""),
+  ADMIN_TELEGRAM_ID: z.coerce.number().int().optional(),
 });
 
 export const env = envSchema.parse({
@@ -30,6 +32,8 @@ export const env = envSchema.parse({
   SESSION_COOKIE_SECRET: process.env.SESSION_COOKIE_SECRET,
   INTEGRATOR_SHARED_SECRET: process.env.INTEGRATOR_SHARED_SECRET,
   ALLOW_DEV_AUTH_BYPASS: process.env.ALLOW_DEV_AUTH_BYPASS,
+  ALLOWED_TELEGRAM_IDS: process.env.ALLOWED_TELEGRAM_IDS,
+  ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID,
 });
 
 export const isProduction = env.NODE_ENV === "production";

@@ -24,17 +24,22 @@ export function AuthBootstrap() {
       body: JSON.stringify({ token }),
     })
       .then(async (response) => {
+        if (response.status === 403 || response.status === 401) {
+          setState("error");
+          setError("Скоро здесь будет много полезного");
+          return;
+        }
         if (!response.ok) throw new Error("auth exchange failed");
         return response.json() as Promise<{ redirectTo: string }>;
       })
       .then((payload) => {
-        if (!active) return;
+        if (!active || !payload) return;
         router.replace(payload.redirectTo);
       })
       .catch(() => {
         if (!active) return;
         setState("error");
-        setError("Не удалось обменять входной токен на веб-сессию.");
+        setError("Скоро здесь будет много полезного");
       });
 
     return () => {
@@ -44,7 +49,7 @@ export function AuthBootstrap() {
 
   if (!token) return null;
 
-  if (state === "error") {
+  if (state === "error" && error) {
     return <p className="empty-state">{error}</p>;
   }
 

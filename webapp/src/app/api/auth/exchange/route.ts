@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const result = await deps.auth.exchangeIntegratorToken(token);
   if (!result) {
-    return NextResponse.json({ ok: false, error: "invalid or expired token" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
   }
 
   return NextResponse.json({

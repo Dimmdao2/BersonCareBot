@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
+
+const COMING_SOON_MESSAGE = "Скоро здесь будет много полезного";
 
 export default async function AppEntryPage() {
   const deps = buildAppDeps();
@@ -38,53 +38,11 @@ export default async function AppEntryPage() {
   return (
     <AppShell title="Вход в платформу" user={null}>
       <section className="hero-card stack">
-        <p>
-          Web-App ожидает signed entry token от интегратора. Для локальной проверки можно использовать dev
-          tokens: <code>dev:client</code>, <code>dev:doctor</code>, <code>dev:admin</code>.
-        </p>
-        <div className="feature-grid">
-          <FeatureCard
-            title="Войти как клиент"
-            description="Открыть patient route в dev-режиме."
-            href={`${routePaths.root}?token=dev:client`}
-          />
-          <FeatureCard
-            title="Войти как врач"
-            description="Проверить role-based доступ к doctor space."
-            href={`${routePaths.root}?token=dev:doctor`}
-          />
-          <FeatureCard
-            title="Войти как админ"
-            description="Проверить доступ к настройкам и расширенным правам."
-            href={`${routePaths.root}?token=dev:admin`}
-          />
-        </div>
-        <p className="empty-state">
-          Обычный рабочий поток: мессенджер открывает <code>/app?t=...</code>, затем frontend вызывает{" "}
-          <code>/api/auth/exchange</code>.
-        </p>
-        <Suspense fallback={<p className="empty-state">Загрузка...</p>}>
-          <AuthBootstrap />
-        </Suspense>
-        <DevBootstrap />
+        <p className="empty-state">{COMING_SOON_MESSAGE}</p>
       </section>
+      <Suspense fallback={<p className="empty-state">Загрузка...</p>}>
+        <AuthBootstrap />
+      </Suspense>
     </AppShell>
-  );
-}
-
-async function DevBootstrap() {
-  return (
-    <div className="panel stack">
-      <h2>Быстрый запуск dev auth</h2>
-      <p>Нажмите одну из ссылок выше или вызовите API вручную:</p>
-      <pre className="code-block">
-        {`curl -X POST http://127.0.0.1:5200/api/auth/exchange \\
-  -H 'content-type: application/json' \\
-  -d '{"token":"dev:client"}'`}
-      </pre>
-      <Link className="button" href={routePaths.patient}>
-        Перейти в patient area после обмена токена
-      </Link>
-    </div>
   );
 }

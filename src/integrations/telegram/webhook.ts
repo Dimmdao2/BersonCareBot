@@ -5,6 +5,7 @@ import type { EventGateway } from '../../kernel/contracts/index.js';
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
 import { telegramConfig } from './config.js';
+import { buildWebappEntryUrl } from '../webappEntryToken.js';
 import { normalizeTelegramAction, normalizeTelegramContactPhone, normalizeTelegramMessageAction } from './mapIn.js';
 import { ensureNoMenuButtonForUser, setupTelegramMenuButton } from './setupMenuButton.js';
 import { parseWebhookBody } from './schema.js';
@@ -28,9 +29,16 @@ function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, 
     typeof chatId === 'number' &&
     chatId === adminTelegramId;
 
+  const links: Record<string, unknown> = {};
+  if (bookingUrl) links.bookingUrl = bookingUrl;
+  if (typeof chatId === 'number') {
+    const webappEntryUrl = buildWebappEntryUrl({ chatId, displayName });
+    if (webappEntryUrl) links.webappEntryUrl = webappEntryUrl;
+  }
+
   const result: Record<string, unknown> = {
     ...(displayName ? { actor: { displayName } } : {}),
-    ...(bookingUrl ? { links: { bookingUrl } } : {}),
+    ...(Object.keys(links).length > 0 ? { links } : {}),
     ...(typeof isAdmin === 'boolean' ? { isAdmin } : {}),
   };
   if (typeof adminTelegramId === 'number') result.adminChatId = adminTelegramId;
