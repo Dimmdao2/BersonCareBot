@@ -82,8 +82,14 @@ fi
 
 sleep 3
 
-sudo -n /bin/systemctl is-active --quiet "${API_SERVICE}"
-sudo -n /bin/systemctl is-active --quiet "${WORKER_SERVICE}"
+if ! sudo -n /bin/systemctl is-active --quiet "${API_SERVICE}"; then
+  echo "deploy-prod: ${API_SERVICE} is not active after restart (check journalctl -u ${API_SERVICE}). Ensure api.prod has TELEGRAM_BOT_TOKEN, RUBITIME_*, SMSC_*." >&2
+  exit 1
+fi
+if ! sudo -n /bin/systemctl is-active --quiet "${WORKER_SERVICE}"; then
+  echo "deploy-prod: ${WORKER_SERVICE} is not active after restart (check journalctl -u ${WORKER_SERVICE})." >&2
+  exit 1
+fi
 
 # Health check: use PORT from env (same as API). Production must have PORT=3200 in /opt/env/bersoncarebot/api.prod. Retry for slow startup.
 API_PORT="${PORT:-3200}"
