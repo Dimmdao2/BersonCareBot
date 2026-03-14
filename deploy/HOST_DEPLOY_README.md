@@ -312,9 +312,11 @@ deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-webapp-prod.ser
 deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-api-prod.service
 deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-worker-prod.service
 deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-webapp-prod.service
+deploy ALL=(root) NOPASSWD: /usr/bin/journalctl -u bersoncarebot-api-prod.service -n 40 --no-pager
+deploy ALL=(root) NOPASSWD: /usr/bin/journalctl -u bersoncarebot-worker-prod.service -n 40 --no-pager
 ```
 
-Without those permissions, CI deploy will exit before `pnpm install` or `pnpm build`.
+Without those permissions, CI deploy will exit before `pnpm install` or `pnpm build`. The journalctl rules let the deploy script print API/worker logs when a service fails to start (so the error appears in CI output).
 
 ## Перенос env в /opt/env/bersoncarebot (один раз на сервере)
 

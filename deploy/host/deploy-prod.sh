@@ -88,11 +88,14 @@ fi
 sleep 3
 
 if ! sudo -n /bin/systemctl is-active --quiet "${API_SERVICE}"; then
-  echo "deploy-prod: ${API_SERVICE} is not active after restart (check journalctl -u ${API_SERVICE}). Ensure api.prod has TELEGRAM_BOT_TOKEN, RUBITIME_*, SMSC_*." >&2
+  echo "deploy-prod: ${API_SERVICE} is not active. Last journal lines:" >&2
+  sudo -n journalctl -u "${API_SERVICE}" -n 40 --no-pager 2>/dev/null || true
+  echo "deploy-prod: Ensure api.prod has PORT=3200, TELEGRAM_BOT_TOKEN, RUBITIME_*, SMSC_*, and values with \$ in single quotes." >&2
   exit 1
 fi
 if ! sudo -n /bin/systemctl is-active --quiet "${WORKER_SERVICE}"; then
-  echo "deploy-prod: ${WORKER_SERVICE} is not active after restart (check journalctl -u ${WORKER_SERVICE})." >&2
+  echo "deploy-prod: ${WORKER_SERVICE} is not active. Last journal lines:" >&2
+  sudo -n journalctl -u "${WORKER_SERVICE}" -n 40 --no-pager 2>/dev/null || true
   exit 1
 fi
 
