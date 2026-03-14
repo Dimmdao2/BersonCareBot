@@ -23,6 +23,22 @@
 
 Шаблон: `deploy/env/.env.prod.example`
 
+**Если API не видит переменные** (в логах: "TELEGRAM_BOT_TOKEN is empty", "SMSC_API_KEY is empty") — systemd не подхватывает файл. Проверить на хосте:
+
+```bash
+# Юнит действительно загружает api.prod?
+systemctl show bersoncarebot-api-prod.service -p EnvironmentFiles
+
+# Файл есть и читается?
+ls -la /opt/env/bersoncarebot/api.prod
+
+# После правок api.prod перезагрузить юнит и сервис
+sudo systemctl daemon-reload
+sudo systemctl restart bersoncarebot-api-prod.service
+```
+
+Убедиться, что в юните есть строка `EnvironmentFile=/opt/env/bersoncarebot/api.prod` (см. `deploy/systemd/bersoncarebot-api-prod.service`). Если юнит старый — переустановить из репозитория и `systemctl daemon-reload`.
+
 ---
 
 ## webapp.prod (только webapp)

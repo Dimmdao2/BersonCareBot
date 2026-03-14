@@ -38,6 +38,7 @@ import { smscConfig } from '../integrations/smsc/config.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
 import { createSmscStub } from '../integrations/smsc/stub.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
+import { telegramConfig } from '../integrations/telegram/config.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
@@ -161,7 +162,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     contentCatalogPort,
     contextQueryPort,
     eventGateway,
-    registerTelegramWebhookRoutes: input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes,
+    registerTelegramWebhookRoutes:
+      telegramConfig.botToken ? (input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes) : undefined,
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
   };
 }
