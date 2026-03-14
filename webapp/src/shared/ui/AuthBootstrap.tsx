@@ -21,6 +21,7 @@ export function AuthBootstrap() {
   const [state, setState] = useState<BootstrapState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<{ status?: number; message?: string } | null>(null);
+  const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("unknown");
   const initDataTried = useRef(false);
 
   // 1) Token in URL: exchange with integrator token
@@ -61,6 +62,13 @@ export function AuthBootstrap() {
     };
   }, [router, token, debug]);
 
+  // Debug: show initData presence on screen (no DevTools needed)
+  useEffect(() => {
+    if (!debug || token || typeof window === "undefined") return;
+    const raw = window.Telegram?.WebApp?.initData?.trim() ?? "";
+    setInitDataStatus(raw ? "yes" : "no");
+  }, [debug, token]);
+
   // 2) No token: try Telegram Web App initData (opened from menu/button inside Telegram)
   useEffect(() => {
     if (token || initDataTried.current || typeof window === "undefined") return;
@@ -98,9 +106,17 @@ export function AuthBootstrap() {
   }, [router, token, debug]);
 
   if (debug && !token) {
+    const initLabel =
+      initDataStatus === "yes"
+        ? "initData: да (есть, запрос на вход отправлен)"
+        : initDataStatus === "no"
+          ? "initData: нет (открыто не в Mini App или Telegram не передал)"
+          : "initData: проверяем…";
     return (
       <p className="empty-state" style={{ fontSize: 14, wordBreak: "break-all" }}>
-        [debug] Нет токена в URL. Ожидается ?t=... или ?token=... или вход через Telegram (initData).
+        [debug] Нет токена в URL. Ожидается ?t=... или вход через Telegram (initData).
+        <br />
+        {initLabel}
       </p>
     );
   }

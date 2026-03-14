@@ -1,29 +1,40 @@
 /**
  * Настраивает кнопку меню (сбоку от поля ввода) и список команд.
- * У клиентов команды не регистрируются (show_my_id — только сценарий по тексту, не команда в меню).
- * Кнопка меню у клиентов убирается при первом апдейте (см. ensureNoMenuButtonForUser в webhook).
- * У админа — меню со списком команд.
+ * По умолчанию — кнопка «Открыть приложение» (Web App), чтобы открытие шло как Mini App с initData.
+ * У админа — меню команд (start, admin_bookings и т.д.).
  */
 import { logger } from '../../infra/observability/logger.js';
+import { env } from '../../config/env.js';
 import { telegramConfig } from './config.js';
 import { getBotInstance } from './client.js';
 
+const WEBAPP_MENU_TEXT = 'Открыть приложение';
+
 export async function setupTelegramMenuButton(): Promise<void> {
   const adminChatId = telegramConfig.adminTelegramId;
-
   const api = getBotInstance().api;
+  const webappUrl = env.APP_BASE_URL?.replace(/\/$/, '') + '/app';
 
   try {
-    // У клиентов не показываем команды в меню вообще (show_my_id — сценарий, не пункт меню)
     await api.deleteMyCommands();
     await api.deleteMyCommands({ scope: { type: 'all_private_chats' } });
     await api.setMyCommands([]);
     logger.info('Telegram: commands cleared for default and all_private_chats');
 
-    await api.setChatMenuButton({ menu_button: { type: 'default' } });
-    logger.info('Telegram: setChatMenuButton (default) ok');
+    if (webappUrl && webappUrl.startsWith('http')) {
+      await api.setChatMenuButton({
+        menu_button: {
+          type: 'web_app',
+          text: WEBAPP_MENU_TEXT,
+          web_app: { url: webappUrl },
+        },
+      });
+      logger.info({ webappUrl }, 'Telegram: setChatMenuButton (web_app) ok');
+    } else {
+      await api.setChatMenuButton({ menu_button: { type: 'default' } });
+      logger.info('Telegram: setChatMenuButton (default) ok, APP_BASE_URL not set');
+    }
 
-    // Команды и кнопка меню только у админа
     await api.setMyCommands(
       [
         { command: 'start', description: 'Главное меню' },
@@ -42,19 +53,14 @@ export async function setupTelegramMenuButton(): Promise<void> {
     });
     logger.info({ adminChatId }, 'Telegram: setChatMenuButton (admin) ok');
   } catch (err) {
-    logger.warn({ err }, 'Telegram: setup admin menu button failed (non-fatal)');
+    logger.warn({ err }, 'Telegram: setup menu button failed (non-fatal)');
   }
 }
 
 /**
- * Убирает кнопку меню у пользователя в личном чате (не админ).
- * Вызывать при каждом апдейте от такого чата — Telegram применит скрытие меню.
+ * Больше не скрываем кнопку меню у пользователей: у всех по умолчанию «Открыть приложение» (Web App).
+ * Оставлено для совместимости вызовов из webhook.
  */
-export async function ensureNoMenuButtonForUser(chatId: number): Promise<void> {
-  const adminChatId = telegramConfig.adminTelegramId;
-  if (typeof adminChatId === 'number' && chatId === adminChatId) return;
-
-  getBotInstance()
-    .api.setChatMenuButton({ chat_id: chatId, menu_button: { type: 'default' } })
-    .catch(() => {});
+export async function ensureNoMenuButtonForUser(_chatId: number): Promise<void> {
+  // no-op: default menu is web_app, so everyone can open the app as Mini App
 }
