@@ -67,6 +67,11 @@ set -a
 source "${ENV_FILE}"
 set +a
 
+# Конвенция: прод API слушает 3200 (dev 4200). Иначе health check и nginx не совпадут с процессом.
+if [ "${PORT:-}" != "3200" ]; then
+  fail "api.prod must set PORT=3200 for production. Current: PORT=${PORT:-<unset>}. See SERVER CONVENTIONS.md and deploy/env/README.md."
+fi
+
 # Backup before migrations: write to pre-migrations folder (run as root).
 # Script must support first arg "pre-migrations" and write to /opt/backups/postgres/pre-migrations/
 sudo -n "${BACKUP_SCRIPT}" pre-migrations
@@ -91,8 +96,8 @@ if ! sudo -n /bin/systemctl is-active --quiet "${WORKER_SERVICE}"; then
   exit 1
 fi
 
-# Health check: use PORT from env (same as API). Production must have PORT=3200 in /opt/env/bersoncarebot/api.prod. Retry for slow startup.
-API_PORT="${PORT:-3200}"
+# Health check: PORT уже проверен выше (3200).
+API_PORT=3200
 for i in 1 2 3 4 5; do
   if curl -sf "http://127.0.0.1:${API_PORT}/health" -o /tmp/bersoncarebot-health.json; then
     break
