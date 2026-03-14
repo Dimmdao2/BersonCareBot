@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { validateReminderDispatchPayload } from "./service";
+import { validateReminderDispatchPayload, listReminderRules } from "./service";
 
 describe("reminders service", () => {
+  describe("listReminderRules", () => {
+    it("returns array", () => {
+      const list = listReminderRules("user-1");
+      expect(Array.isArray(list)).toBe(true);
+    });
+  });
+
   describe("validateReminderDispatchPayload", () => {
     it("accepts valid payload", () => {
       const payload = {

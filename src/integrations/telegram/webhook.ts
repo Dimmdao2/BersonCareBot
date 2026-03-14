@@ -32,7 +32,10 @@ function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, 
   const links: Record<string, unknown> = {};
   if (bookingUrl) links.bookingUrl = bookingUrl;
   if (typeof chatId === 'number') {
-    const webappEntryUrl = buildWebappEntryUrl({ chatId, displayName });
+    const webappEntryUrl = buildWebappEntryUrl({
+      chatId,
+      ...(displayName !== undefined && displayName !== '' ? { displayName } : {}),
+    });
     if (webappEntryUrl) links.webappEntryUrl = webappEntryUrl;
   }
 

@@ -8,4 +8,9 @@ describe("doctor-cabinet service", () => {
     expect(state).toHaveProperty("message");
     expect(typeof state.message).toBe("string");
   });
+
+  it("returns patientList array", () => {
+    const state = getDoctorWorkspaceState();
+    expect(Array.isArray(state.patientList)).toBe(true);
+  });
 });

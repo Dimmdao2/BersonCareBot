@@ -51,7 +51,7 @@ export function buildWebappEntryToken(params: {
   const payload: WebappEntryTokenPayload = {
     sub,
     role,
-    displayName: params.displayName,
+    ...(params.displayName !== undefined && params.displayName !== '' ? { displayName: params.displayName } : {}),
     bindings: { telegramId: String(params.chatId) },
     purpose: 'webapp-entry',
     exp,

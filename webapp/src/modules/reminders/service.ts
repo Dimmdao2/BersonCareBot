@@ -7,6 +7,18 @@ export type ReminderDispatchRequest = {
   };
 };
 
+export type ReminderRule = {
+  id: string;
+  userId: string;
+  title: string;
+  enabled: boolean;
+};
+
+/** MVP: stub; later scheduler + delivery webhook bridge. */
+export function listReminderRules(_userId: string): ReminderRule[] {
+  return [];
+}
+
 export function validateReminderDispatchPayload(value: unknown): value is ReminderDispatchRequest {
   if (typeof value !== "object" || value === null) return false;
   const payload = value as Record<string, unknown>;

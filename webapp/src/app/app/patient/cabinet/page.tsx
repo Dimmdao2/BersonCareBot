@@ -5,14 +5,14 @@ import { AppShell } from "@/shared/ui/AppShell";
 export default async function PatientCabinetPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();
-  const cabinet = deps.patientCabinet.getPatientCabinetState();
   const appointments = deps.patientCabinet.getUpcomingAppointments();
+  const cabinet = deps.patientCabinet.getPatientCabinetState(appointments.length);
 
   return (
     <AppShell title="Кабинет клиента" user={session.user}>
       <section className="hero-card stack">
         <p>{cabinet.reason}</p>
-        {cabinet.enabled ? null : <p className="empty-state">Раздел пока не активирован для текущего пользователя.</p>}
+        {cabinet.nextAppointmentLabel ? <p className="empty-state">{cabinet.nextAppointmentLabel}</p> : null}
       </section>
       <section className="panel stack">
         <h2>Ближайшие записи</h2>
@@ -21,8 +21,8 @@ export default async function PatientCabinetPage() {
         ) : (
           <ul className="list">
             {appointments.map((appointment) => (
-              <li key={appointment.label} className="list-item">
-                {appointment.label}
+              <li key={appointment.id} className="list-item">
+                {appointment.link ? <a href={appointment.link}>{appointment.label}</a> : appointment.label}
               </li>
             ))}
           </ul>

@@ -4,11 +4,14 @@ export type PatientCabinetState = {
   nextAppointmentLabel: string | null;
 };
 
-export function getPatientCabinetState(): PatientCabinetState {
+/** MVP: cabinet enabled when there are upcoming appointments (from appointments service). */
+export function getPatientCabinetState(appointmentCount: number): PatientCabinetState {
+  const hasAppointments = appointmentCount > 0;
   return {
-    enabled: false,
-    reason:
-      "Кабинет активируется, когда у пользователя есть запись на прием, купленный курс или назначенная программа.",
-    nextAppointmentLabel: null,
+    enabled: hasAppointments,
+    reason: hasAppointments
+      ? "Здесь отображаются ваши записи и программы."
+      : "Кабинет активируется, когда у пользователя есть запись на прием, купленный курс или назначенная программа.",
+    nextAppointmentLabel: hasAppointments ? "Ближайшая запись в разделе ниже" : null,
   };
 }

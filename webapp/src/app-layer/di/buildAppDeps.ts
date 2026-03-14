@@ -7,6 +7,8 @@ import { getPatientCabinetState } from "@/modules/patient-cabinet/service";
 import { getDoctorWorkspaceState } from "@/modules/doctor-cabinet/service";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import { getUpcomingAppointments } from "@/modules/appointments/service";
+import { listSymptomEntries, addSymptomEntry } from "@/modules/diaries/symptom-service";
+import { listLfkCompletions, addLfkCompletion } from "@/modules/diaries/lfk-service";
 import { checkDbHealth } from "@/infra/db/client";
 
 export function buildAppDeps() {
@@ -37,6 +39,12 @@ export function buildAppDeps() {
     },
     purchases: {
       getPurchaseSectionState,
+    },
+    diaries: {
+      listSymptomEntries,
+      addSymptomEntry,
+      listLfkCompletions,
+      addLfkCompletion,
     },
     health: {
       checkDbHealth,

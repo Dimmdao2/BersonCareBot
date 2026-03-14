@@ -3,7 +3,7 @@ import { getPatientCabinetState } from "./service";
 
 describe("patient-cabinet service", () => {
   it("returns state with enabled and reason", () => {
-    const state = getPatientCabinetState();
+    const state = getPatientCabinetState(0);
     expect(state).toHaveProperty("enabled");
     expect(state).toHaveProperty("reason");
     expect(typeof state.enabled).toBe("boolean");
@@ -11,7 +11,12 @@ describe("patient-cabinet service", () => {
   });
 
   it("returns nextAppointmentLabel", () => {
-    const state = getPatientCabinetState();
+    const state = getPatientCabinetState(0);
     expect(state).toHaveProperty("nextAppointmentLabel");
+  });
+
+  it("enables cabinet when appointmentCount > 0", () => {
+    expect(getPatientCabinetState(0).enabled).toBe(false);
+    expect(getPatientCabinetState(1).enabled).toBe(true);
   });
 });
