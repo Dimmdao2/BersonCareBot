@@ -33,8 +33,7 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" },
-							{ "textTemplateKey": "telegram:menu.cabinet" }
+							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
 					"resizeKeyboard": true
@@ -140,8 +139,7 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" },
-							{ "textTemplateKey": "telegram:menu.cabinet" }
+							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
 					"resizeKeyboard": true
@@ -211,8 +209,7 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" },
-							{ "textTemplateKey": "telegram:menu.cabinet" }
+							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
 					"resizeKeyboard": true
@@ -660,8 +657,7 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" },
-							{ "textTemplateKey": "telegram:menu.cabinet" }
+							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
 					"resizeKeyboard": true
@@ -696,8 +692,7 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" },
-							{ "textTemplateKey": "telegram:menu.cabinet" }
+							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
 					"resizeKeyboard": true
@@ -829,8 +824,7 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" },
-							{ "textTemplateKey": "telegram:menu.cabinet" }
+							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
 					"resizeKeyboard": true
