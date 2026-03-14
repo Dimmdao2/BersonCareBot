@@ -33,7 +33,8 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
 						]
 					],
 					"resizeKeyboard": true
@@ -139,7 +140,8 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
 						]
 					],
 					"resizeKeyboard": true
@@ -209,7 +211,8 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
 						]
 					],
 					"resizeKeyboard": true
@@ -275,8 +278,8 @@
 			"context": { "conversationState": "waiting_for_question" },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём"]
+				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -323,8 +326,8 @@
 			"context": { "hasActiveDraft": true, "hasOpenConversation": false },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём"]
+				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -403,8 +406,8 @@
 			"context": { "hasOpenConversation": true },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём"]
+				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -657,7 +660,8 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
 						]
 					],
 					"resizeKeyboard": true
@@ -692,7 +696,8 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
 						]
 					],
 					"resizeKeyboard": true
@@ -782,6 +787,53 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"menu": "main"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.cabinet.open.allowed",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "cabinet.open" },
+			"actor": { "channelUserId": 364943522 }
+		},
+		"steps": [
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"menu": "main"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.cabinet.open",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "cabinet.open" }
+		},
+		"steps": [
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:cabinet.placeholder",
+					"keyboard": [
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.ask" },
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
+						]
+					],
+					"resizeKeyboard": true
 				}
 			}
 		]
@@ -1530,8 +1582,8 @@
 			"context": { "conversationState": "idle", "hasOpenConversation": false },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём"]
+				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [

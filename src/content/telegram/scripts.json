@@ -110,7 +110,8 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
 						]
 					],
 					"resizeKeyboard": true
@@ -176,8 +177,8 @@
 			"context": { "conversationState": "waiting_for_question" },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more"],
-				"excludeTexts": ["/start"]
+				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -445,7 +446,8 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
 						]
 					],
 					"resizeKeyboard": true
@@ -480,7 +482,8 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
 						]
 					],
 					"resizeKeyboard": true
@@ -913,8 +916,8 @@
 			"context": { "conversationState": "idle" },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more"],
-				"excludeTexts": ["/start"]
+				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -928,7 +931,8 @@
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
 							{ "textTemplateKey": "telegram:menu.ask" },
-							{ "textTemplateKey": "telegram:menu.more" }
+							{ "textTemplateKey": "telegram:menu.more" },
+							{ "textTemplateKey": "telegram:menu.cabinet" }
 						]
 					],
 					"resizeKeyboard": true

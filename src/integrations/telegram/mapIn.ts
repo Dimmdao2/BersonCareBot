@@ -30,6 +30,8 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Задать вопрос': 'question.ask',
   '⚙️ Меню': 'menu.more',
   'Меню': 'menu.more',
+  '👤 Кабинет': 'cabinet.open',
+  'Кабинет': 'cabinet.open',
   [REQUEST_PHONE_CANCEL_TEXT]: 'phone.request.cancel',
   '/admin_bookings': 'admin.stats.bookings',
   '/admin_users': 'admin.stats.users',

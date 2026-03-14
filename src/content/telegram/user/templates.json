@@ -24,6 +24,8 @@
   "menu.book": "📅 Запись на приём",
   "menu.ask": "❓ Задать вопрос",
   "menu.more": "⚙️ Меню",
+  "menu.cabinet": "👤 Кабинет",
+  "cabinet.placeholder": "Здесь скоро будет много полезного",
   "requestContact.button": "📲 Отправить номер телефона",
   "moreMenu.notifications": "🔔 Настройка уведомлений",
   "moreMenu.reminders": "⏰ Персональные напоминания",

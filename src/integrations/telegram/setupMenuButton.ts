@@ -13,16 +13,13 @@ export async function setupTelegramMenuButton(): Promise<void> {
   const api = getBotInstance().api;
 
   try {
-    // Команды для всех: start и show_my_id работают по /команде, но в меню у клиентов не показываются
-    await api.setMyCommands([
-      { command: 'start', description: 'Главное меню' },
-      { command: 'show_my_id', description: 'Показать ID пользователя' },
-    ]);
-    logger.info('Telegram: setMyCommands (default) ok');
+    // У клиентов кнопка меню сбоку от поля ввода не показывается: пустой список команд + default кнопка
+    // /start и /show_my_id по-прежнему работают (обрабатываются ботом), просто не отображаются в меню
+    await api.setMyCommands([]);
+    logger.info('Telegram: setMyCommands (default: empty, no menu) ok');
 
-    // У клиентов меню не показывать (кнопка сбоку от поля ввода)
     await api.setChatMenuButton({ menu_button: { type: 'default' } });
-    logger.info('Telegram: setChatMenuButton (default: hidden) ok');
+    logger.info('Telegram: setChatMenuButton (default) ok');
 
     // Команды только для админа: пункты меню = команды
     await api.setMyCommands(
