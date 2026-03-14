@@ -1,4 +1,9 @@
-import { getCurrentSession, exchangeIntegratorToken, clearSession } from "@/modules/auth/service";
+import {
+  getCurrentSession,
+  exchangeIntegratorToken,
+  exchangeTelegramInitData,
+  clearSession,
+} from "@/modules/auth/service";
 import { getCurrentUser } from "@/modules/users/service";
 import { getMenuForRole } from "@/modules/menu/service";
 import { listLessons } from "@/modules/lessons/service";
@@ -21,6 +26,7 @@ export function buildAppDeps() {
     auth: {
       getCurrentSession,
       exchangeIntegratorToken,
+      exchangeTelegramInitData,
       clearSession,
     },
     users: {

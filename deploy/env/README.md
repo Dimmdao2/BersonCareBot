@@ -57,5 +57,6 @@ sudo systemctl restart bersoncarebot-api-prod.service
 - `ALLOW_DEV_AUTH_BYPASS=false`  ← на проде лучше false
 - `ALLOWED_TELEGRAM_IDS=7924656602`
 - `ADMIN_TELEGRAM_ID=364943522`
+- `TELEGRAM_BOT_TOKEN=...`  ← для входа по initData (открытие из меню/кнопки без ?t=); тот же токен, что в api.prod
 
 Шаблон: `deploy/env/.env.webapp.prod.example`

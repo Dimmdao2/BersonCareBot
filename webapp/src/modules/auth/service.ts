@@ -4,6 +4,8 @@ import { env, integratorWebappEntrySecret, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
 
+const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
+
 const SESSION_COOKIE_NAME = "bersoncare_webapp_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
@@ -131,6 +133,53 @@ function isAllowedByWhitelist(parsed: IntegratorTokenPayload): boolean {
   return getAllowedTelegramIds().has(telegramId);
 }
 
+/** Validates Telegram Web App initData (from window.Telegram.WebApp.initData). Returns user id and role or null. */
+function validateTelegramInitData(initData: string): { telegramId: string; role: UserRole; displayName?: string } | null {
+  const botToken = env.TELEGRAM_BOT_TOKEN;
+  if (!botToken?.trim()) return null;
+
+  const params = new URLSearchParams(initData.trim());
+  const hash = params.get("hash");
+  if (!hash) return null;
+
+  const authDate = params.get("auth_date");
+  if (!authDate) return null;
+  const authTs = Number(authDate);
+  if (!Number.isFinite(authTs)) return null;
+  if (Math.floor(Date.now() / 1000) - authTs > TELEGRAM_INIT_DATA_MAX_AGE_SEC) return null;
+
+  const dataCheckParts: string[] = [];
+  for (const key of [...params.keys()].sort()) {
+    if (key === "hash") continue;
+    dataCheckParts.push(`${key}=${params.get(key)!}`);
+  }
+  const dataCheckString = dataCheckParts.join("\n");
+
+  const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
+  const computedHash = createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+  if (computedHash !== hash) return null;
+
+  const userJson = params.get("user");
+  if (!userJson) return null;
+  let user: { id?: number; first_name?: string; last_name?: string };
+  try {
+    user = JSON.parse(userJson) as { id?: number; first_name?: string; last_name?: string };
+  } catch {
+    return null;
+  }
+  const telegramId = user.id != null ? String(user.id) : "";
+  if (!telegramId) return null;
+
+  const allowed = getAllowedTelegramIds();
+  if (!allowed.has(telegramId)) return null;
+
+  const isAdmin = typeof env.ADMIN_TELEGRAM_ID === "number" && user.id === env.ADMIN_TELEGRAM_ID;
+  const role: UserRole = isAdmin ? "admin" : "client";
+  const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || undefined;
+
+  return { telegramId, role, displayName };
+}
+
 function tokenToUser(token: IntegratorTokenPayload): SessionUser {
   return {
     userId: token.sub,
@@ -153,6 +202,34 @@ export async function exchangeIntegratorToken(token: string): Promise<ExchangeRe
   if (!devParsed && !isAllowedByWhitelist(parsed)) return null;
 
   const session = buildSession(tokenToUser(parsed));
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: SESSION_TTL_SECONDS,
+  });
+
+  return {
+    session,
+    redirectTo: buildRedirectPath(parsed.role),
+  };
+}
+
+/** Validates Telegram Web App initData and creates session. Used when user opens Mini App without ?t= token. */
+export async function exchangeTelegramInitData(initData: string): Promise<ExchangeResult | null> {
+  const parsed = validateTelegramInitData(initData);
+  if (!parsed) return null;
+
+  const user: SessionUser = {
+    userId: `tg:${parsed.telegramId}`,
+    role: parsed.role,
+    displayName: parsed.displayName ?? parsed.telegramId,
+    bindings: { telegramId: parsed.telegramId },
+  };
+
+  const session = buildSession(user);
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
     httpOnly: true,

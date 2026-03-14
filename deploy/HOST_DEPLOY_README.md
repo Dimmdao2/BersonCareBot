@@ -180,14 +180,70 @@ deploy ALL=(root) NOPASSWD: /bin/systemctl is-active --quiet bersoncarebot-webap
 
 Для dev: `dev-tgcarebot.<домен>` → 4200, `dev-webapp.<домен>` → 5200 (см. SERVER CONVENTIONS.md).
 
-**Пример конфига для webapp** (файл в `/etc/nginx/sites-available/bersoncarebot-webapp`, затем симлинк в `sites-enabled`). В `server_name` — фактический домен (иначе nginx отдаст дефолтную страницу):
+**Пример конфига для webapp** (файл в `/etc/nginx/sites-available/bersoncarebot-webapp`, затем симлинк в `sites-enabled`). В `server_name` — фактический домен (иначе nginx отдаст дефолтную страницу).
+
+#### HTTPS для webapp.bersonservices.ru (Let's Encrypt + nginx)
+
+1. **Nginx уже слушает 80** — положи конфиг с одним только блоком для порта 80 (см. ниже), включи сайт, перезагрузи nginx. Certbot потом сам добавит 443.
+   ```nginx
+   server {
+       listen 80;
+       listen [::]:80;
+       server_name webapp.bersonservices.ru;
+       location / {
+           proxy_pass http://127.0.0.1:6200;
+           proxy_http_version 1.1;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+   }
+   ```
+   Файл: `/etc/nginx/sites-available/bersoncarebot-webapp`, симлинк: `sudo ln -sf /etc/nginx/sites-available/bersoncarebot-webapp /etc/nginx/sites-enabled/`, затем `sudo nginx -t && sudo systemctl reload nginx`.
+
+2. **Установка certbot** (если ещё нет):
+   ```bash
+   sudo apt update && sudo apt install -y certbot python3-certbot-nginx
+   ```
+
+3. **Получить сертификат** (nginx должен быть запущен с `server_name webapp.bersonservices.ru` на порту 80; DNS домена должен указывать на этот сервер):
+   ```bash
+   sudo certbot --nginx -d webapp.bersonservices.ru
+   ```
+   Certbot сам добавит `listen 443 ssl` и пути к сертификатам в конфиг (или создаст отдельный конфиг в `sites-available`). При необходимости введи email и согласие с ToS.
+
+4. **Проверка и перезагрузка:**
+   ```bash
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+5. **Автопродление** (обычно уже настроено через systemd timer):
+   ```bash
+   sudo certbot renew --dry-run
+   ```
+
+**Ручной конфиг nginx с HTTPS** (если не используешь certbot --nginx, а правишь конфиг сам). Файл: `/etc/nginx/sites-available/bersoncarebot-webapp`:
 
 ```nginx
-# Webapp BersonCare (Next.js на 6200)
+# Редирект HTTP → HTTPS
 server {
     listen 80;
     listen [::]:80;
     server_name webapp.bersonservices.ru;
+    return 301 https://$host$request_uri;
+}
+
+# Webapp BersonCare (Next.js на 6200)
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name webapp.bersonservices.ru;
+
+    ssl_certificate     /etc/letsencrypt/live/webapp.bersonservices.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/webapp.bersonservices.ru/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     location / {
         proxy_pass http://127.0.0.1:6200;
@@ -200,7 +256,7 @@ server {
 }
 ```
 
-Если перед nginx стоит TLS-терминация (certbot/Let's Encrypt), добавь блок с `listen 443 ssl` и `ssl_certificate` / `ssl_certificate_key`, либо используй отдельный конфиг для редиректа на HTTPS и прокси только на 443. После правок: `sudo nginx -t && sudo systemctl reload nginx`.
+Пути к сертификатам после certbot обычно такие; если certbot создал конфиг сам — смотри `/etc/nginx/sites-enabled/`. Включить сайт: `sudo ln -sf /etc/nginx/sites-available/bersoncarebot-webapp /etc/nginx/sites-enabled/`. После правок: `sudo nginx -t && sudo systemctl reload nginx`.
 
 ### 8. Первый деплой (сборка и запуск)
 

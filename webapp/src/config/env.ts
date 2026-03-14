@@ -27,6 +27,8 @@ const envSchema = z.object({
     .transform((value) => value === "true"),
   ALLOWED_TELEGRAM_IDS: z.string().optional().default(""),
   ADMIN_TELEGRAM_ID: z.coerce.number().int().optional(),
+  /** Bot token for validating Telegram Web App initData (only for auth, not for API calls). */
+  TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
 });
 
 export const env = envSchema.parse({
@@ -42,6 +44,7 @@ export const env = envSchema.parse({
   ALLOW_DEV_AUTH_BYPASS: process.env.ALLOW_DEV_AUTH_BYPASS,
   ALLOWED_TELEGRAM_IDS: process.env.ALLOWED_TELEGRAM_IDS,
   ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID,
+  TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
 });
 
 export const isProduction = env.NODE_ENV === "production";
