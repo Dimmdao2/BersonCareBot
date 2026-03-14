@@ -7,9 +7,14 @@ import { createPatientCabinetService } from "@/modules/patient-cabinet/service";
 import { getDoctorWorkspaceState } from "@/modules/doctor-cabinet/service";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import { getUpcomingAppointments } from "@/modules/appointments/service";
-import { listSymptomEntries, addSymptomEntry } from "@/modules/diaries/symptom-service";
-import { listLfkCompletions, addLfkCompletion } from "@/modules/diaries/lfk-service";
+import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
+import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
+import { inMemorySymptomDiaryPort } from "@/infra/repos/symptomDiary";
+import { inMemoryLfkDiaryPort } from "@/infra/repos/lfkDiary";
 import { checkDbHealth } from "@/infra/db/client";
+
+const symptomDiaryService = createSymptomDiaryService(inMemorySymptomDiaryPort);
+const lfkDiaryService = createLfkDiaryService(inMemoryLfkDiaryPort);
 
 export function buildAppDeps() {
   return {
@@ -40,10 +45,10 @@ export function buildAppDeps() {
       getPurchaseSectionState,
     },
     diaries: {
-      listSymptomEntries,
-      addSymptomEntry,
-      listLfkCompletions,
-      addLfkCompletion,
+      listSymptomEntries: symptomDiaryService.listSymptomEntries,
+      addSymptomEntry: symptomDiaryService.addSymptomEntry,
+      listLfkCompletions: lfkDiaryService.listLfkCompletions,
+      addLfkCompletion: lfkDiaryService.addLfkCompletion,
     },
     health: {
       checkDbHealth,

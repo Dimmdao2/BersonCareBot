@@ -523,3 +523,37 @@ export async function persistWrites(writePort: DbWritePort | undefined, writes: 
     await writePort.writeDb(write);
   }
 }
+
+/**
+ * Builds an intent to send a message to the admin chat with optional inline buttons.
+ * Use for admin-facing replies (dialogs, confirmations, lists).
+ */
+export function sendAdminMessage(input: {
+  action: Action;
+  ctx: DomainContext;
+  text: string;
+  buttons?: Array<Array<{ text: string; callback_data?: string }>>;
+}): OutgoingIntent {
+  const adminChatId = asNumber(asRecord(input.ctx.base.facts).adminChatId);
+  if (adminChatId === null) {
+    return {
+      type: 'message.send',
+      meta: buildIntentMeta(input.action, input.ctx),
+      payload: {
+        recipient: {},
+        message: { text: input.text },
+        delivery: { maxAttempts: 1 },
+      },
+    };
+  }
+  return {
+    type: 'message.send',
+    meta: buildIntentMeta(input.action, input.ctx),
+    payload: {
+      recipient: { chatId: adminChatId },
+      message: { text: input.text },
+      ...(input.buttons && input.buttons.length > 0 ? { replyMarkup: { inline_keyboard: input.buttons } } : {}),
+      delivery: { maxAttempts: 1 },
+    },
+  };
+}

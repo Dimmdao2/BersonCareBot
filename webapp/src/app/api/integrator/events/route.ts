@@ -1,6 +1,22 @@
 import { NextResponse } from "next/server";
+import { handleIntegratorEvent } from "@/modules/integrator/events";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency/store";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
+
+function parseEventsBody(raw: string): { eventType: string; eventId?: string; occurredAt?: string; payload?: Record<string, unknown> } | null {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof parsed.eventType !== "string" || parsed.eventType.trim() === "") return null;
+    return {
+      eventType: parsed.eventType as string,
+      eventId: typeof parsed.eventId === "string" ? parsed.eventId : undefined,
+      occurredAt: typeof parsed.occurredAt === "string" ? parsed.occurredAt : undefined,
+      payload: typeof parsed.payload === "object" && parsed.payload !== null ? (parsed.payload as Record<string, unknown>) : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request) {
   const timestamp = request.headers.get("x-bersoncare-timestamp");
@@ -23,6 +39,12 @@ export async function POST(request: Request) {
   if (cached !== null) {
     return NextResponse.json(cached as Record<string, unknown>);
   }
+
+  const eventBody = parseEventsBody(rawBody);
+  if (!eventBody) {
+    return NextResponse.json({ ok: false, error: "invalid body: eventType required" }, { status: 400 });
+  }
+  handleIntegratorEvent(eventBody);
 
   const body = { ok: true, accepted: true, idempotencyKey };
   setCachedResponse(idempotencyKey, body);

@@ -1,12 +1,25 @@
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { defineIntegrationConfig } from '../config.js';
+import { defineIntegrationConfig, loadIntegrationEnv } from '../config.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const RubitimeConfigSchema = z.object({
   apiKey: z.string().min(1),
   webhookToken: z.string().min(1),
 });
 
-export const rubitimeConfig = defineIntegrationConfig('rubitime', RubitimeConfigSchema, {
-  apiKey: 'ddbfec5a665f5a4965db062a75c92aa377858d644a5f8a8742db0bc87371a0ae',
-  webhookToken: '6d822b752f330a6f668d8f3011f2467a44016810a4c2b8378e99c5c851c47cc4',
-});
+function loadRubitimeConfigFromEnv(): z.input<typeof RubitimeConfigSchema> {
+  loadIntegrationEnv(__dirname, 'RUBITIME_');
+  return {
+    apiKey: process.env.RUBITIME_API_KEY?.trim() ?? '',
+    webhookToken: process.env.RUBITIME_WEBHOOK_TOKEN?.trim() ?? '',
+  };
+}
+
+export const rubitimeConfig = defineIntegrationConfig(
+  'rubitime',
+  RubitimeConfigSchema,
+  loadRubitimeConfigFromEnv(),
+);

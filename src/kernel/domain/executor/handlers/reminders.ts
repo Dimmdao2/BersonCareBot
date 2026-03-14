@@ -15,6 +15,7 @@ import {
   detectReminderPreset,
   reminderPresetConfig,
 } from '../../reminders/policy.js';
+import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
 
 export async function handleReminders(
   action: Action,
@@ -117,19 +118,12 @@ export async function handleReminders(
     const items = Array.isArray(dueList) ? dueList : [];
     const writes: import('../../../contracts/index.js').DbWriteMutation[] = [];
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
-    const templateKeyByCategory: Record<string, string> = {
-      exercise: 'telegram:reminder.exercise',
-      warmup: 'telegram:reminder.warmup',
-      breathing: 'telegram:reminder.breathing',
-      water: 'telegram:reminder.water',
-      supplements_medication: 'telegram:reminder.supplements_medication',
-    };
     for (const occ of items) {
       writes.push({
         type: 'reminders.occurrence.markQueued',
         params: { occurrenceId: occ.id, deliveryJobId: null },
       });
-      const templateKey = templateKeyByCategory[occ.category] ?? 'telegram:reminder.exercise';
+      const templateKey = REMINDER_BY_CATEGORY[occ.category] ?? 'telegram:reminder.exercise';
       const text = deps.templatePort
         ? (await deps.templatePort.renderTemplate({
           source: 'telegram',

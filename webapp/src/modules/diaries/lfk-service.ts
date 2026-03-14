@@ -1,36 +1,29 @@
 /**
- * LFK (exercise) diary — MVP: in-memory completions; later reminders + entry points.
+ * LFK (exercise) diary — business logic only; storage delegated to LfkDiaryPort.
  */
-export type LfkCompletion = {
-  id: string;
-  userId: string;
-  exerciseId: string;
-  exerciseTitle: string;
-  completedAt: string; // ISO
-};
+import type { LfkDiaryPort } from "./ports";
+import type { LfkCompletion } from "./types";
 
-const store: LfkCompletion[] = [];
-let idCounter = 1;
+export type { LfkCompletion } from "./types";
 
-export function addLfkCompletion(params: {
-  userId: string;
-  exerciseId: string;
-  exerciseTitle: string;
-}): LfkCompletion {
-  const entry: LfkCompletion = {
-    id: `lfk-${idCounter++}`,
-    userId: params.userId,
-    exerciseId: params.exerciseId,
-    exerciseTitle: params.exerciseTitle,
-    completedAt: new Date().toISOString(),
+export function createLfkDiaryService(port: LfkDiaryPort): {
+  addLfkCompletion: (params: {
+    userId: string;
+    exerciseId: string;
+    exerciseTitle: string;
+  }) => LfkCompletion;
+  listLfkCompletions: (userId: string, limit?: number) => LfkCompletion[];
+} {
+  return {
+    addLfkCompletion(params) {
+      return port.addCompletion({
+        userId: params.userId,
+        exerciseId: params.exerciseId,
+        exerciseTitle: params.exerciseTitle?.trim() || "Упражнение",
+      });
+    },
+    listLfkCompletions(userId, limit) {
+      return port.listCompletions(userId, limit);
+    },
   };
-  store.push(entry);
-  return entry;
-}
-
-export function listLfkCompletions(userId: string, limit = 50): LfkCompletion[] {
-  return store
-    .filter((e) => e.userId === userId)
-    .sort((a, b) => (b.completedAt > a.completedAt ? 1 : -1))
-    .slice(0, limit);
 }

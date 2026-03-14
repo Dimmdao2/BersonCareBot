@@ -18,19 +18,18 @@ function joinDisplayName(input: { first_name?: string | undefined; last_name?: s
   return parts.length > 0 ? parts.join(' ') : undefined;
 }
 
-function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, unknown> {
+function buildActorFromBody(body: TelegramWebhookBodyValidated): Record<string, unknown> {
   const from = body.callback_query?.from ?? body.message?.from;
   const displayName = from ? joinDisplayName(from) : undefined;
-  const bookingUrl = env.BOOKING_URL;
-  const adminTelegramId = telegramConfig.adminTelegramId;
-  const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
-  const isAdmin =
-    typeof adminTelegramId === 'number' &&
-    typeof chatId === 'number' &&
-    chatId === adminTelegramId;
+  return displayName ? { actor: { displayName } } : {};
+}
 
+function buildLinksFromBody(body: TelegramWebhookBodyValidated): Record<string, unknown> {
+  const from = body.callback_query?.from ?? body.message?.from;
+  const displayName = from ? joinDisplayName(from) : undefined;
+  const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
   const links: Record<string, unknown> = {};
-  if (bookingUrl) links.bookingUrl = bookingUrl;
+  if (env.BOOKING_URL) links.bookingUrl = env.BOOKING_URL;
   if (typeof chatId === 'number') {
     const webappEntryUrl = buildWebappEntryUrl({
       chatId,
@@ -38,14 +37,27 @@ function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, 
     });
     if (webappEntryUrl) links.webappEntryUrl = webappEntryUrl;
   }
+  return Object.keys(links).length > 0 ? { links } : {};
+}
 
-  const result: Record<string, unknown> = {
-    ...(displayName ? { actor: { displayName } } : {}),
-    ...(Object.keys(links).length > 0 ? { links } : {}),
-    ...(typeof isAdmin === 'boolean' ? { isAdmin } : {}),
-  };
+function buildAdminFacts(body: TelegramWebhookBodyValidated): Record<string, unknown> {
+  const adminTelegramId = telegramConfig.adminTelegramId;
+  const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
+  const isAdmin =
+    typeof adminTelegramId === 'number' &&
+    typeof chatId === 'number' &&
+    chatId === adminTelegramId;
+  const result: Record<string, unknown> = typeof isAdmin === 'boolean' ? { isAdmin } : {};
   if (typeof adminTelegramId === 'number') result.adminChatId = adminTelegramId;
   return result;
+}
+
+function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, unknown> {
+  return {
+    ...buildActorFromBody(body),
+    ...buildLinksFromBody(body),
+    ...buildAdminFacts(body),
+  };
 }
 
 export type TelegramWebhookDeps = {

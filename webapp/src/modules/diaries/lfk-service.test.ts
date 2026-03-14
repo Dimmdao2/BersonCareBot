@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { addLfkCompletion, listLfkCompletions } from "./lfk-service";
+import { createLfkDiaryService } from "./lfk-service";
+import { inMemoryLfkDiaryPort } from "@/infra/repos/lfkDiary";
 
 describe("LFK diary service", () => {
+  const { addLfkCompletion, listLfkCompletions } = createLfkDiaryService(inMemoryLfkDiaryPort);
+
   it("adds completion and lists by userId", () => {
     const e = addLfkCompletion({
       userId: "u1",

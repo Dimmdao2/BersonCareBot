@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { addSymptomEntry, listSymptomEntries } from "./symptom-service";
+import { createSymptomDiaryService } from "./symptom-service";
+import { inMemorySymptomDiaryPort } from "@/infra/repos/symptomDiary";
 
 describe("symptom diary service", () => {
+  const { addSymptomEntry, listSymptomEntries } = createSymptomDiaryService(inMemorySymptomDiaryPort);
+
   it("adds entry and lists by userId", () => {
     const e = addSymptomEntry({
       userId: "u1",

@@ -14,7 +14,10 @@ export type ReminderRule = {
   enabled: boolean;
 };
 
-/** MVP: stub; later scheduler + delivery webhook bridge. */
+/**
+ * MVP stub: reminders module. Planned port: ReminderRulesPort (listRules(userId), toggleRule(id), …).
+ * Later: scheduler + delivery webhook bridge; listReminderRules will use the port.
+ */
 export function listReminderRules(_userId: string): ReminderRule[] {
   return [];
 }

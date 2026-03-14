@@ -1,39 +1,36 @@
 /**
- * Symptom diary — MVP: in-memory store; later persistence + reminder entry points.
+ * Symptom diary — business logic only; storage delegated to SymptomDiaryPort.
  */
-export type SymptomEntry = {
-  id: string;
-  userId: string;
-  symptom: string;
-  severity: 1 | 2 | 3 | 4 | 5;
-  notes: string | null;
-  recordedAt: string; // ISO
-};
+import type { SymptomDiaryPort } from "./ports";
+import type { SymptomEntry } from "./types";
 
-const store: SymptomEntry[] = [];
-let idCounter = 1;
+export type { SymptomEntry } from "./types";
 
-export function addSymptomEntry(params: {
-  userId: string;
-  symptom: string;
-  severity: 1 | 2 | 3 | 4 | 5;
-  notes?: string | null;
-}): SymptomEntry {
-  const entry: SymptomEntry = {
-    id: `sym-${idCounter++}`,
-    userId: params.userId,
-    symptom: params.symptom,
-    severity: params.severity,
-    notes: params.notes ?? null,
-    recordedAt: new Date().toISOString(),
-  };
-  store.push(entry);
-  return entry;
+function createId(): string {
+  return `sym-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export function listSymptomEntries(userId: string, limit = 50): SymptomEntry[] {
-  return store
-    .filter((e) => e.userId === userId)
-    .sort((a, b) => (b.recordedAt > a.recordedAt ? 1 : -1))
-    .slice(0, limit);
+export function createSymptomDiaryService(port: SymptomDiaryPort): {
+  addSymptomEntry: (params: {
+    userId: string;
+    symptom: string;
+    severity: 1 | 2 | 3 | 4 | 5;
+    notes?: string | null;
+  }) => SymptomEntry;
+  listSymptomEntries: (userId: string, limit?: number) => SymptomEntry[];
+} {
+  return {
+    addSymptomEntry(params) {
+      const severity = Math.min(5, Math.max(1, params.severity)) as 1 | 2 | 3 | 4 | 5;
+      return port.addEntry({
+        userId: params.userId,
+        symptom: params.symptom.trim() || "—",
+        severity,
+        notes: params.notes ?? null,
+      });
+    },
+    listSymptomEntries(userId, limit) {
+      return port.listEntries(userId, limit);
+    },
+  };
 }

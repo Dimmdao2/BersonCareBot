@@ -2,6 +2,12 @@
 
 This document defines the explicit contract between `tgcarebot` and `webapp`.
 
+**JSON Schemas** (canonical payload shapes):
+
+- [Webapp entry token payload](../../contracts/webapp-entry-token.json) — decoded payload of `?t=<signed-token>`
+- [POST /api/integrator/events body](../../contracts/integrator-events-body.json) — webhook events from tgcarebot
+- [POST /api/integrator/reminders/dispatch body](../../contracts/integrator-reminders-dispatch-body.json) — reminder dispatch payload
+
 ## Contract Principles
 
 - no direct database reads between services
@@ -76,6 +82,8 @@ Purpose:
 - receive machine events from `tgcarebot`
 - link a messenger action to a webapp-side domain reaction
 
+After signature and idempotency checks, the body is parsed per [integrator-events-body schema](../../contracts/integrator-events-body.json) and passed to domain handler `handleIntegratorEvent(event)`. Event types can then drive appointments, contact verified, reminder delivery result, etc.
+
 Examples:
 
 - appointment status updated
@@ -88,6 +96,8 @@ Examples:
 Purpose:
 
 - allow the `webapp` reminder scheduler to ask `tgcarebot` to deliver a reminder through messenger channels
+
+After signature and idempotency checks, the body is validated and passed to domain handler `handleReminderDispatch(body)`. Future: enqueue for orchestrator or HTTP call to tgcarebot with signature.
 
 Payload example:
 

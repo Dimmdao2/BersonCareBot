@@ -355,14 +355,15 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
 
       const expect_ = getExpected(name);
       expect(res.statusCode).toBe(expect_.status);
+      const contentCalls = recordedCalls.filter((c) => c.method !== 'setChatMenuButton');
       if (expect_.minTelegramCalls != null) {
-        expect(recordedCalls.length).toBeGreaterThanOrEqual(expect_.minTelegramCalls);
+        expect(contentCalls.length).toBeGreaterThanOrEqual(expect_.minTelegramCalls);
       }
       if (expect_.maxTelegramCalls != null) {
-        expect(recordedCalls.length).toBeLessThanOrEqual(expect_.maxTelegramCalls);
+        expect(contentCalls.length).toBeLessThanOrEqual(expect_.maxTelegramCalls);
       }
       if (expect_.firstMethod != null) {
-        expect(recordedCalls[0]?.method).toBe(expect_.firstMethod);
+        expect(contentCalls[0]?.method).toBe(expect_.firstMethod);
       }
     }
   });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { handleReminderDispatch } from "@/modules/integrator/reminderDispatch";
 import { validateReminderDispatchPayload } from "@/modules/reminders/service";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency/store";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
@@ -29,6 +30,14 @@ export async function POST(request: Request) {
   if (!validateReminderDispatchPayload(payload)) {
     return NextResponse.json({ ok: false, error: "invalid payload" }, { status: 400 });
   }
+
+  const dispatchBody = payload as { userId: string; message: { title: string; body: string }; channelBindings?: Record<string, string>; actions?: Array<{ id: string; label: string }> };
+  handleReminderDispatch({
+    userId: dispatchBody.userId,
+    message: dispatchBody.message,
+    channelBindings: dispatchBody.channelBindings,
+    actions: dispatchBody.actions,
+  });
 
   const body = { ok: true, accepted: true, dispatchMode: "bridge-to-integrator" };
   setCachedResponse(idempotencyKey, body);
