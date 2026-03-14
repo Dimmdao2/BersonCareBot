@@ -17,11 +17,21 @@ const SmscConfigSchema = z.object({
 function loadSmscConfigFromEnv(): z.input<typeof SmscConfigSchema> {
   loadIntegrationEnv(__dirname, 'SMSC_');
   const enabledRaw = process.env.SMSC_ENABLED?.trim().toLowerCase();
-  const enabled = enabledRaw === 'false' || enabledRaw === '0' ? false : true;
+  let enabled = enabledRaw === 'false' || enabledRaw === '0' ? false : true;
+  const apiKey = process.env.SMSC_API_KEY?.trim() ?? '';
   const baseUrlRaw = process.env.SMSC_BASE_URL?.trim() || 'https://smsc.ru/sys/send.php';
+  if (enabled && !apiKey) {
+    enabled = false;
+    if (typeof process !== 'undefined' && process.emitWarning) {
+      process.emitWarning(
+        'SMSC_ENABLED=true but SMSC_API_KEY is empty (check EnvironmentFile and that no .env overwrites it). SMS disabled.',
+        'SMSCConfig',
+      );
+    }
+  }
   return {
     enabled,
-    apiKey: process.env.SMSC_API_KEY?.trim() ?? '',
+    apiKey,
     baseUrl: enabled ? baseUrlRaw : '',
   };
 }

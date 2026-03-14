@@ -4,8 +4,7 @@ import { z } from 'zod';
 
 /**
  * Load KEY=value from integrationDir/.env for keys starting with envPrefix.
- * Overwrites process.env for matching keys. Used so each integration can keep
- * secrets in its own folder (e.g. integrations/telegram/.env).
+ * Does not overwrite existing non-empty process.env (so systemd/EnvironmentFile wins).
  */
 export function loadIntegrationEnv(integrationDir: string, envPrefix: string): void {
   const envPath = join(integrationDir, '.env');
@@ -17,10 +16,11 @@ export function loadIntegrationEnv(integrationDir: string, envPrefix: string): v
     const eq = trimmed.indexOf('=');
     if (eq <= 0) continue;
     const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
-    if (key.startsWith(envPrefix)) {
-      process.env[key] = value.replace(/^["']|["']$/g, '');
-    }
+    const value = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+    if (!key.startsWith(envPrefix)) continue;
+    const existing = process.env[key]?.trim();
+    if (existing !== undefined && existing !== '') continue; // keep systemd/env value
+    process.env[key] = value;
   }
 }
 
