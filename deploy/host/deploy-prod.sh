@@ -58,6 +58,7 @@ require_sudo_rule "worker restart" /bin/systemctl restart "${WORKER_SERVICE}"
 require_sudo_rule "API status check" /bin/systemctl is-active --quiet "${API_SERVICE}"
 require_sudo_rule "worker status check" /bin/systemctl is-active --quiet "${WORKER_SERVICE}"
 
+export CI=true
 pnpm install --frozen-lockfile
 pnpm build
 pnpm build:webapp

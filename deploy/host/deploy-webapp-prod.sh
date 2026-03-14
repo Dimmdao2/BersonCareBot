@@ -48,6 +48,7 @@ require_unit_file "${WEBAPP_SERVICE}"
 require_sudo_rule "webapp restart" /bin/systemctl restart "${WEBAPP_SERVICE}"
 require_sudo_rule "webapp status check" /bin/systemctl is-active --quiet "${WEBAPP_SERVICE}"
 
+export CI=true
 pnpm install --frozen-lockfile
 pnpm --dir webapp build
 
