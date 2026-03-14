@@ -6,7 +6,7 @@ import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
 import { telegramConfig } from './config.js';
 import { normalizeTelegramAction, normalizeTelegramContactPhone, normalizeTelegramMessageAction } from './mapIn.js';
-import { setupTelegramMenuButton } from './setupMenuButton.js';
+import { ensureNoMenuButtonForUser, setupTelegramMenuButton } from './setupMenuButton.js';
 import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
@@ -174,6 +174,13 @@ export async function registerTelegramWebhookRoutes(
       const body = parseResult.data;
       const incoming = mapBodyToIncoming(body);
       if (!incoming) return reply.code(200).send({ ok: true });
+
+      // Убрать кнопку меню у пользователя в личном чате (не админ)
+      const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
+      const chatType = body.callback_query?.message?.chat?.type ?? body.message?.chat?.type;
+      if (typeof chatId === 'number' && chatType === 'private') {
+        void ensureNoMenuButtonForUser(chatId);
+      }
 
       const event = telegramIncomingToEvent({
         incoming,

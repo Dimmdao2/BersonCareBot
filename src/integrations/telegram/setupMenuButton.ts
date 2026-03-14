@@ -1,6 +1,7 @@
 /**
  * Настраивает кнопку меню (сбоку от поля ввода) и список команд.
- * У клиентов меню скрыто (команда /show_my_id остаётся работающей, но не показывается в меню).
+ * У клиентов команды не регистрируются (show_my_id — только сценарий по тексту, не команда в меню).
+ * Кнопка меню у клиентов убирается при первом апдейте (см. ensureNoMenuButtonForUser в webhook).
  * У админа — меню со списком команд.
  */
 import { logger } from '../../infra/observability/logger.js';
@@ -13,15 +14,16 @@ export async function setupTelegramMenuButton(): Promise<void> {
   const api = getBotInstance().api;
 
   try {
-    // У клиентов кнопка меню сбоку от поля ввода не показывается: пустой список команд + default кнопка
-    // /start и /show_my_id по-прежнему работают (обрабатываются ботом), просто не отображаются в меню
+    // У клиентов не показываем команды в меню вообще (show_my_id — сценарий, не пункт меню)
+    await api.deleteMyCommands();
+    await api.deleteMyCommands({ scope: { type: 'all_private_chats' } });
     await api.setMyCommands([]);
-    logger.info('Telegram: setMyCommands (default: empty, no menu) ok');
+    logger.info('Telegram: commands cleared for default and all_private_chats');
 
     await api.setChatMenuButton({ menu_button: { type: 'default' } });
     logger.info('Telegram: setChatMenuButton (default) ok');
 
-    // Команды только для админа: пункты меню = команды
+    // Команды и кнопка меню только у админа
     await api.setMyCommands(
       [
         { command: 'start', description: 'Главное меню' },
@@ -34,7 +36,6 @@ export async function setupTelegramMenuButton(): Promise<void> {
     );
     logger.info({ adminChatId }, 'Telegram: setMyCommands (admin) ok');
 
-    // Кнопка меню со списком команд только у админа
     await api.setChatMenuButton({
       chat_id: adminChatId,
       menu_button: { type: 'commands' },
@@ -43,4 +44,17 @@ export async function setupTelegramMenuButton(): Promise<void> {
   } catch (err) {
     logger.warn({ err }, 'Telegram: setup admin menu button failed (non-fatal)');
   }
+}
+
+/**
+ * Убирает кнопку меню у пользователя в личном чате (не админ).
+ * Вызывать при каждом апдейте от такого чата — Telegram применит скрытие меню.
+ */
+export async function ensureNoMenuButtonForUser(chatId: number): Promise<void> {
+  const adminChatId = telegramConfig.adminTelegramId;
+  if (typeof adminChatId === 'number' && chatId === adminChatId) return;
+
+  getBotInstance()
+    .api.setChatMenuButton({ chat_id: chatId, menu_button: { type: 'default' } })
+    .catch(() => {});
 }
