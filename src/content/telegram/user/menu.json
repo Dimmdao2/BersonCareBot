@@ -4,6 +4,7 @@
     [{ "textTemplateKey": "telegram:moreMenu.personalAssistant", "callbackData": "reminders.dashboard" }],
     [{ "textTemplateKey": "telegram:moreMenu.usefulLessons", "callbackData": "content.useful_lessons" }],
     [{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }],
-    [{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }]
+    [{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }],
+    [{ "textTemplateKey": "telegram:moreMenu.cabinet", "callbackData": "cabinet.open" }]
   ]
 }
