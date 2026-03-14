@@ -13,7 +13,8 @@ const WEBAPP_MENU_TEXT = 'Открыть приложение';
 export async function setupTelegramMenuButton(): Promise<void> {
   const adminChatId = telegramConfig.adminTelegramId;
   const api = getBotInstance().api;
-  const webappUrl = env.APP_BASE_URL?.replace(/\/$/, '') + '/app';
+  const base = env.APP_BASE_URL?.replace(/\/$/, '');
+  const webappUrl = base ? `${base}/app?debug=1` : ''; // ?debug=1 — на экране видно initData: да/нет
 
   try {
     await api.deleteMyCommands();

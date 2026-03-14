@@ -6,6 +6,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
  * Validates initData signature, checks ALLOWED_TELEGRAM_IDS / ADMIN_TELEGRAM_ID, creates session.
  */
 export async function POST(request: Request) {
+  console.log("[auth/telegram-init] POST request received");
   const body = (await request.json().catch(() => null)) as { initData?: string } | null;
   const initData = typeof body?.initData === "string" ? body.initData.trim() : "";
   if (!initData) {
