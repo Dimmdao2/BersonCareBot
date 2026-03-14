@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "POST /api/integrator/events body",
+  "description": "Body of webhook events from tgcarebot to webapp",
+  "type": "object",
+  "required": ["eventType"],
+  "properties": {
+    "eventType": { "type": "string", "description": "e.g. appointment.updated, booking.confirmed, contact.verified, reminder.delivered" },
+    "eventId": { "type": "string" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "payload": {
+      "type": "object",
+      "description": "Event-specific payload"
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Webapp entry token payload",
+  "description": "Payload of the signed token in ?t= for webapp entry (before HMAC signature). Used by tgcarebot and webapp.",
+  "type": "object",
+  "required": ["sub", "role", "purpose", "exp"],
+  "properties": {
+    "sub": { "type": "string", "description": "Platform or external user id, e.g. tg:123456789" },
+    "role": { "enum": ["client", "doctor", "admin"], "description": "User role for webapp" },
+    "displayName": { "type": "string" },
+    "phone": { "type": "string" },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Channel bindings, e.g. telegramId"
+    },
+    "purpose": { "const": "webapp-entry" },
+    "exp": { "type": "integer", "minimum": 0, "description": "Unix timestamp expiry" }
+  },
+  "additionalProperties": false
+}

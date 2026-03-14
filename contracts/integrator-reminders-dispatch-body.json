@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "POST /api/integrator/reminders/dispatch body",
+  "description": "Body when webapp asks to dispatch a reminder (or when validating incoming dispatch from scheduler)",
+  "type": "object",
+  "required": ["userId", "message"],
+  "properties": {
+    "idempotencyKey": { "type": "string" },
+    "userId": { "type": "string" },
+    "channelBindings": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "e.g. telegramId"
+    },
+    "message": {
+      "type": "object",
+      "required": ["title", "body"],
+      "properties": {
+        "title": { "type": "string" },
+        "body": { "type": "string" }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": { "id": { "type": "string" }, "label": { "type": "string" } }
+      }
+    }
+  },
+  "additionalProperties": true
+}
