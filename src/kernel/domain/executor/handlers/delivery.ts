@@ -68,11 +68,35 @@ export async function handleDelivery(
       ctx,
       deps.deliveryDefaultsPort,
     );
-    const resolvedParams = await resolveGenericMessageParams({
+    let resolvedParams = await resolveGenericMessageParams({
       params: policyParams,
       ctx,
       templatePort: deps.templatePort,
     });
+    if (
+      deps.sendMenuOnButtonPress === true &&
+      contentAudience(ctx) === 'user' &&
+      !resolvedParams.replyMarkup &&
+      deps.contentPort &&
+      deps.templatePort
+    ) {
+      const recipient = asRecord(resolvedParams.recipient);
+      const chatId = asNumber(recipient.chatId);
+      if (chatId !== null) {
+        const scope = { source: ctx.event.meta.source, audience: 'user' as const };
+        const bundle = await deps.contentPort.getBundle?.(scope);
+        if (bundle?.mainReplyKeyboard && Array.isArray(bundle.mainReplyKeyboard)) {
+          const replyMarkup = await buildReplyMarkup({
+            params: { keyboard: bundle.mainReplyKeyboard, resizeKeyboard: true },
+            ctx,
+            templatePort: deps.templatePort,
+          });
+          if (replyMarkup) {
+            resolvedParams = { ...resolvedParams, replyMarkup };
+          }
+        }
+      }
+    }
     const intents: OutgoingIntent[] = [{
       type: 'message.send',
       meta: buildIntentMeta(action, ctx),

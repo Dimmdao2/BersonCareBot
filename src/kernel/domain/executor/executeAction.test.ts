@@ -991,4 +991,59 @@ describe('executeAction', () => {
       },
     });
   });
+
+  it('attaches main reply keyboard to user message.send when enabled', async () => {
+    const templatePort = {
+      renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
+        text: templateId === 'questionAccepted'
+          ? 'Вопрос принят. Я отвечу вам в ближайшее время.'
+          : templateId === 'menu.book'
+            ? '📅 Запись на приём'
+            : templateId === 'menu.more'
+              ? '⚙️ Меню'
+              : '',
+      })),
+    };
+
+    const result = await executeAction({
+      id: 'a17',
+      type: 'message.send',
+      mode: 'async',
+      params: {
+        recipient: { chatId: 123 },
+        templateKey: 'telegram:questionAccepted',
+        delivery: { channels: ['telegram'], maxAttempts: 1 },
+      },
+    }, { ...ctx, event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' } } }, {
+      templatePort,
+      sendMenuOnButtonPress: true,
+      contentPort: {
+        getTemplate: vi.fn(),
+        getBundle: vi.fn().mockResolvedValue({
+          scripts: [],
+          templates: {},
+          mainReplyKeyboard: [[
+            { textTemplateKey: 'telegram:menu.book' },
+            { textTemplateKey: 'telegram:menu.more' },
+          ]],
+        }),
+      },
+    });
+
+    expect(result.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 123 },
+        message: { text: 'Вопрос принят. Я отвечу вам в ближайшее время.' },
+        replyMarkup: {
+          keyboard: [[
+            { text: '📅 Запись на приём' },
+            { text: '⚙️ Меню' },
+          ]],
+          resize_keyboard: true,
+          one_time_keyboard: false,
+        },
+      },
+    });
+  });
 });
