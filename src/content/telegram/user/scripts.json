@@ -449,12 +449,13 @@
 				}
 			},
 			{
-				"action": "message.inlineKeyboard.show",
+				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:bookingMessage",
-					"inlineKeyboard": []
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"message": {},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"templateKey": "telegram:bookingMessage"
 				}
 			}
 		]
