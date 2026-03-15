@@ -39,6 +39,23 @@ sudo systemctl restart bersoncarebot-api-prod.service
 
 Убедиться, что в юните есть строка `EnvironmentFile=/opt/env/bersoncarebot/api.prod` (см. `deploy/systemd/bersoncarebot-api-prod.service`). Если юнит старый — переустановить из репозитория и `systemctl daemon-reload`.
 
+**Проверка после деплоя (на сервере):**
+
+```bash
+# 1. Убедиться, что деплой дошёл до рестарта (в логе деплоя в конце не должно быть ошибки)
+# 2. Сервисы перезапущены и работают
+sudo systemctl status bersoncarebot-api-prod.service bersoncarebot-worker-prod.service
+
+# 3. Время "Active: active (running) since ..." должно быть только что (после деплоя)
+# 4. Проверить, что новая версия кода подхватилась (в логах API при старте должна быть строка sendMenuOnButtonPress, если такой код задеплоен)
+sudo journalctl -u bersoncarebot-api-prod.service -n 60 --no-pager | grep -E "sendMenuOnButtonPress|Server listening"
+
+# 5. Health
+curl -s http://127.0.0.1:3200/health
+```
+
+Если после `git pull` и деплоя сервисы не перезапускаются — деплой мог упасть до шага `systemctl restart` (проверить полный вывод скрипта). Запустить деплой вручную на хосте: `cd /opt/projects/bersoncarebot && bash deploy/host/deploy-prod.sh` и дождаться конца (health check).
+
 ---
 
 ## webapp.prod (только webapp)

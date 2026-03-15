@@ -13,6 +13,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Node (for runner; actual build runs on host)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.8.0
         with:
