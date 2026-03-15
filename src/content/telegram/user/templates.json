@@ -11,6 +11,7 @@
   "notImplemented": "Раздел в разработке.",
   "bookingOpenPrompt": "Открыть виджет записи:",
   "bookingOpenButton": "Открыть запись",
+  "bookingMessage": "Выберите удобное вам время в виджете:\nhttps://dmitryberson.rubitime.ru\n\nЕсли вы не видите подходящих окон, напишите в чат с ботом",
   "noBookings": "У вас нет активных записей.",
   "bookingsScreen.prepare": "Как подготовиться",
   "bookingsScreen.address": "Адрес и как найти",

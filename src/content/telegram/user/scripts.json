@@ -449,15 +449,8 @@
 				"mode": "async",
 				"params": {
 					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:bookingOpenPrompt",
-					"inlineKeyboard": [
-						[
-							{
-								"textTemplateKey": "telegram:bookingOpenButton",
-								"url": "{{facts.links.bookingUrl}}"
-							}
-						]
-					]
+					"templateKey": "telegram:bookingMessage",
+					"inlineKeyboard": []
 				}
 			}
 		]
