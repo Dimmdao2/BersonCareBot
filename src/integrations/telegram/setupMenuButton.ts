@@ -1,20 +1,14 @@
 /**
  * Настраивает кнопку меню (сбоку от поля ввода) и список команд.
- * По умолчанию — кнопка «Открыть приложение» (Web App), чтобы открытие шло как Mini App с initData.
- * У админа — меню команд (start, admin_bookings и т.д.).
+ * У пользователей — стандартная кнопка меню (без Web App). У админа — меню команд.
  */
 import { logger } from '../../infra/observability/logger.js';
-import { env } from '../../config/env.js';
 import { telegramConfig } from './config.js';
 import { getBotInstance } from './client.js';
-
-const WEBAPP_MENU_TEXT = 'Открыть приложение';
 
 export async function setupTelegramMenuButton(): Promise<void> {
   const adminChatId = telegramConfig.adminTelegramId;
   const api = getBotInstance().api;
-  const base = env.APP_BASE_URL?.replace(/\/$/, '');
-  const webappUrl = base ? `${base}/app` : '';
 
   try {
     await api.deleteMyCommands();
@@ -22,19 +16,8 @@ export async function setupTelegramMenuButton(): Promise<void> {
     await api.setMyCommands([]);
     logger.info('Telegram: commands cleared for default and all_private_chats');
 
-    if (webappUrl && webappUrl.startsWith('http')) {
-      await api.setChatMenuButton({
-        menu_button: {
-          type: 'web_app',
-          text: WEBAPP_MENU_TEXT,
-          web_app: { url: webappUrl },
-        },
-      });
-      logger.info({ webappUrl }, 'Telegram: setChatMenuButton (web_app) ok');
-    } else {
-      await api.setChatMenuButton({ menu_button: { type: 'default' } });
-      logger.info('Telegram: setChatMenuButton (default) ok, APP_BASE_URL not set');
-    }
+    await api.setChatMenuButton({ menu_button: { type: 'default' } });
+    logger.info('Telegram: setChatMenuButton (default) ok');
 
     await api.setMyCommands(
       [
@@ -59,9 +42,8 @@ export async function setupTelegramMenuButton(): Promise<void> {
 }
 
 /**
- * Больше не скрываем кнопку меню у пользователей: у всех по умолчанию «Открыть приложение» (Web App).
- * Оставлено для совместимости вызовов из webhook.
+ * Оставлено для совместимости вызовов из webhook. У пользователей уже menu_button: default.
  */
 export async function ensureNoMenuButtonForUser(_chatId: number): Promise<void> {
-  // no-op: default menu is web_app, so everyone can open the app as Mini App
+  // no-op
 }
