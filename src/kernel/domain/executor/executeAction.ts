@@ -38,6 +38,7 @@ import {
   buildIntentMeta,
   buildDeliveryJob,
   buildMessageDeliverJob,
+  buildMainReplyKeyboardIntent,
   renderText,
   buildReplyMarkup,
   resolveGenericMessageParams,
@@ -191,6 +192,21 @@ export async function executeAction(
           delivery: { maxAttempts: 1 },
         },
       }];
+      if (
+        action.type === 'message.inlineKeyboard.show' &&
+        deps.sendMenuOnButtonPress === true &&
+        contentAudience(ctx) === 'user' &&
+        chatId !== null
+      ) {
+        const followupIntent = await buildMainReplyKeyboardIntent({
+          action,
+          ctx,
+          chatId,
+          templatePort: deps.templatePort,
+          contentPort: deps.contentPort,
+        });
+        if (followupIntent) intents.push(followupIntent);
+      }
       return { actionId: action.id, status: 'success', intents };
     }
 

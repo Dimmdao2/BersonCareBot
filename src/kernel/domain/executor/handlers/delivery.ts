@@ -5,6 +5,8 @@ import {
   asString,
   asNumber,
   asStringArray,
+  buildMainReplyKeyboardIntent,
+  buildMainReplyKeyboardMarkup,
   buildDeliveryJob,
   buildIntentMeta,
   buildMessageDeliverJob,
@@ -59,6 +61,25 @@ export async function handleDelivery(
         delivery,
       },
     }];
+    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user') {
+      const chatId = asNumber(recipient.chatId);
+      if (chatId !== null) {
+        const replyMarkup = await buildMainReplyKeyboardMarkup({
+          ctx,
+          templatePort: deps.templatePort,
+          contentPort: deps.contentPort,
+        });
+        if (replyMarkup) {
+          intents[0] = {
+            ...intents[0],
+            payload: {
+              ...intents[0].payload,
+              replyMarkup,
+            },
+          };
+        }
+      }
+    }
     return { actionId: action.id, status: 'success', intents };
   }
 
@@ -73,27 +94,29 @@ export async function handleDelivery(
       ctx,
       templatePort: deps.templatePort,
     });
-    if (
-      deps.sendMenuOnButtonPress === true &&
-      contentAudience(ctx) === 'user' &&
-      !resolvedParams.replyMarkup &&
-      deps.contentPort &&
-      deps.templatePort
-    ) {
+    const extraIntents: OutgoingIntent[] = [];
+    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user') {
       const recipient = asRecord(resolvedParams.recipient);
       const chatId = asNumber(recipient.chatId);
       if (chatId !== null) {
-        const scope = { source: ctx.event.meta.source, audience: 'user' as const };
-        const bundle = await deps.contentPort.getBundle?.(scope);
-        if (bundle?.mainReplyKeyboard && Array.isArray(bundle.mainReplyKeyboard)) {
-          const replyMarkup = await buildReplyMarkup({
-            params: { keyboard: bundle.mainReplyKeyboard, resizeKeyboard: true },
+        if (!resolvedParams.replyMarkup) {
+          const replyMarkup = await buildMainReplyKeyboardMarkup({
             ctx,
             templatePort: deps.templatePort,
+            contentPort: deps.contentPort,
           });
           if (replyMarkup) {
             resolvedParams = { ...resolvedParams, replyMarkup };
           }
+        } else if (Array.isArray(asRecord(resolvedParams.replyMarkup).inline_keyboard)) {
+          const followupIntent = await buildMainReplyKeyboardIntent({
+            action,
+            ctx,
+            chatId,
+            templatePort: deps.templatePort,
+            contentPort: deps.contentPort,
+          });
+          if (followupIntent) extraIntents.push(followupIntent);
         }
       }
     }
@@ -101,7 +124,7 @@ export async function handleDelivery(
       type: 'message.send',
       meta: buildIntentMeta(action, ctx),
       payload: resolvedParams,
-    }];
+    }, ...extraIntents];
     return { actionId: action.id, status: 'success', intents };
   }
 
@@ -132,6 +155,16 @@ export async function handleDelivery(
         ...(replyMarkup ? { replyMarkup } : {}),
       },
     }];
+    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user' && chatId !== null) {
+      const followupIntent = await buildMainReplyKeyboardIntent({
+        action,
+        ctx,
+        chatId,
+        templatePort: deps.templatePort,
+        contentPort: deps.contentPort,
+      });
+      if (followupIntent) intents.push(followupIntent);
+    }
     return { actionId: action.id, status: 'success', intents };
   }
 
@@ -153,6 +186,16 @@ export async function handleDelivery(
         ...(replyMarkup ? { replyMarkup } : {}),
       },
     }];
+    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user' && chatId !== null) {
+      const followupIntent = await buildMainReplyKeyboardIntent({
+        action,
+        ctx,
+        chatId,
+        templatePort: deps.templatePort,
+        contentPort: deps.contentPort,
+      });
+      if (followupIntent) intents.push(followupIntent);
+    }
     return { actionId: action.id, status: 'success', intents };
   }
 

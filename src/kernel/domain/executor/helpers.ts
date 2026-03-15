@@ -212,6 +212,58 @@ export function contentAudience(ctx: DomainContext): 'user' | 'admin' {
   return ctx.base?.actor?.isAdmin === true ? 'admin' : 'user';
 }
 
+export async function buildMainReplyKeyboardMarkup(input: {
+  ctx: DomainContext;
+  templatePort: TemplatePort | undefined;
+  contentPort: ContentPort | undefined;
+}): Promise<unknown | undefined> {
+  if (contentAudience(input.ctx) !== 'user' || !input.templatePort || !input.contentPort) return undefined;
+  const scope = { source: input.ctx.event.meta.source, audience: 'user' as const };
+  const bundle = await input.contentPort.getBundle?.(scope);
+  if (!bundle?.mainReplyKeyboard || !Array.isArray(bundle.mainReplyKeyboard)) return undefined;
+  return buildReplyMarkup({
+    params: { keyboard: bundle.mainReplyKeyboard, resizeKeyboard: true },
+    ctx: input.ctx,
+    templatePort: input.templatePort,
+  });
+}
+
+export async function buildMainReplyKeyboardIntent(input: {
+  action: Action;
+  ctx: DomainContext;
+  chatId: number;
+  templatePort: TemplatePort | undefined;
+  contentPort: ContentPort | undefined;
+}): Promise<OutgoingIntent | null> {
+  const replyMarkup = await buildMainReplyKeyboardMarkup({
+    ctx: input.ctx,
+    templatePort: input.templatePort,
+    contentPort: input.contentPort,
+  });
+  if (!replyMarkup) return null;
+
+  const text = (await renderText({
+    templateKey: `${input.ctx.event.meta.source}:chooseMenu`,
+    ctx: input.ctx,
+    templatePort: input.templatePort,
+  })) || 'Выберите действие в меню.';
+
+  const meta = buildIntentMeta(input.action, input.ctx);
+  return {
+    type: 'message.send',
+    meta: {
+      ...meta,
+      eventId: `${meta.eventId}:menu`,
+    },
+    payload: {
+      recipient: { chatId: input.chatId },
+      message: { text },
+      replyMarkup,
+      delivery: { maxAttempts: 1 },
+    },
+  };
+}
+
 export async function renderText(input: {
   text?: unknown;
   messageText?: unknown;
