@@ -8,7 +8,7 @@
   "admin.reply.button": "Ответить",
   "admin.reply.continueButton": "Дополнить ответ",
   "admin.dialog.closed": "Диалог завершён.",
-  "admin.dialog.closeButton": "Завершить диалог",
+  "admin.dialog.closeButton": "",
   "admin.dialogs.empty": "Открытых диалогов нет.",
   "admin.dialogs.list": "Открытые диалоги:\n\n{{listBody}}",
   "admin.questions.empty": "Неотвеченных вопросов нет.",

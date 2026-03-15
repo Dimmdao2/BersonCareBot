@@ -32,7 +32,6 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.ask" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -138,7 +137,6 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.ask" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -208,7 +206,6 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.ask" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -244,15 +241,22 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
+			"actor": { "isAdmin": false },
 			"input": { "action": "question.ask" }
 		},
 		"steps": [
 			{
-				"action": "user.state.set",
-				"mode": "sync",
+				"action": "admin.forward",
+				"mode": "async",
 				"params": {
-					"channelUserId": "{{actor.channelUserId}}",
-					"state": "waiting_for_question"
+					"chatId": "{{facts.adminChatId}}",
+					"templateKey": "telegram:adminForward",
+					"vars": {
+						"name": "{{facts.actor.displayName}}",
+						"username": "{{actor.username}}",
+						"channelId": "{{actor.channelUserId}}",
+						"messageText": "{{input.text}}"
+					}
 				}
 			},
 			{
@@ -262,7 +266,7 @@
 					"recipient": { "chatId": "{{actor.chatId}}" },
 					"message": {},
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:describeQuestion"
+					"templateKey": "telegram:questionAccepted"
 				}
 			}
 		]
@@ -649,7 +653,6 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.ask" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -684,7 +687,6 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.ask" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -816,7 +818,6 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.ask" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -1562,32 +1563,37 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
+			"actor": { "isAdmin": false },
 			"context": { "conversationState": "idle", "hasOpenConversation": false },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
+				"excludeActions": ["booking.open", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
 			{
-				"action": "draft.upsertFromMessage",
-				"mode": "sync",
+				"action": "admin.forward",
+				"mode": "async",
 				"params": {
-					"source": "telegram"
+					"chatId": "{{facts.adminChatId}}",
+					"templateKey": "telegram:adminForward",
+					"vars": {
+						"name": "{{facts.actor.displayName}}",
+						"username": "{{actor.username}}",
+						"channelId": "{{actor.channelUserId}}",
+						"messageText": "{{input.text}}"
+					}
 				}
 			},
 			{
-				"action": "message.inlineKeyboard.show",
+				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:confirmQuestion",
-					"inlineKeyboard": [
-						[
-							{ "text": "Отправить вопрос", "callbackData": "send_question" }
-						]
-					]
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"message": {},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"templateKey": "telegram:questionAccepted"
 				}
 			}
 		]

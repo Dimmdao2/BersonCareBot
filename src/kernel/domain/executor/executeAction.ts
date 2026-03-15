@@ -784,20 +784,21 @@ export async function executeAction(
           ? (await renderText({ templateKey: ADMIN.REPLY_CONTINUE_BUTTON, ctx, templatePort: deps.templatePort })) || 'Дополнить ответ'
           : 'Дополнить ответ';
         const closeButtonText = deps.templatePort
-          ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort })) || 'Завершить диалог'
-          : 'Завершить диалог';
+          ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() ?? ''
+          : '';
+        const replyRows: Array<Array<{ text: string; callback_data: string }>> = [
+          [{ text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` }],
+        ];
+        if (closeButtonText) {
+          replyRows.push([{ text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` }]);
+        }
         intents.push({
           type: 'message.send',
           meta: buildIntentMeta(action, ctx),
           payload: {
             recipient: { chatId: adminChatId },
             message: { text: sentText },
-            replyMarkup: {
-              inline_keyboard: [
-                [{ text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` }],
-                [{ text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` }],
-              ],
-            },
+            replyMarkup: { inline_keyboard: replyRows },
             delivery: { maxAttempts: 1 },
           },
         });
@@ -983,20 +984,21 @@ export async function executeAction(
         ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
         : 'Ответить';
       const closeBtnText = deps.templatePort
-        ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort })) || 'Завершить диалог'
-        : 'Завершить диалог';
+        ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() ?? ''
+        : '';
+      const rows: Array<Array<{ text: string; callback_data: string }>> = [
+        [{ text: replyBtnText, callback_data: `admin_reply:${conversationId}` }],
+      ];
+      if (closeBtnText) {
+        rows.push([{ text: closeBtnText, callback_data: `admin_close_dialog:${conversationId}` }]);
+      }
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
         payload: {
           recipient: { chatId: adminChatId },
           message: { text: showText },
-          replyMarkup: {
-            inline_keyboard: [
-              [{ text: replyBtnText, callback_data: `admin_reply:${conversationId}` }],
-              [{ text: closeBtnText, callback_data: `admin_close_dialog:${conversationId}` }],
-            ],
-          },
+          replyMarkup: { inline_keyboard: rows },
           delivery: { maxAttempts: 1 },
         },
       }];
