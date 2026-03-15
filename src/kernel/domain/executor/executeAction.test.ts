@@ -992,7 +992,7 @@ describe('executeAction', () => {
     });
   });
 
-  it('attaches main reply keyboard to user message.send when enabled', async () => {
+  it('does not attach reply keyboard when incoming is not menu/booking', async () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
         text: templateId === 'questionAccepted'
@@ -1014,7 +1014,7 @@ describe('executeAction', () => {
         templateKey: 'telegram:questionAccepted',
         delivery: { channels: ['telegram'], maxAttempts: 1 },
       },
-    }, { ...ctx, event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' } } }, {
+    }, { ...ctx, event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { text: 'question', chatId: 123 } } } }, {
       templatePort,
       sendMenuOnButtonPress: true,
       contentPort: {
@@ -1035,6 +1035,52 @@ describe('executeAction', () => {
       payload: {
         recipient: { chatId: 123 },
         message: { text: 'Вопрос принят. Я отвечу вам в ближайшее время.' },
+      },
+    });
+    expect(result.intents?.[0]?.payload).not.toHaveProperty('replyMarkup');
+  });
+
+  it('attaches main reply keyboard only when user pressed Меню or Запись на приём', async () => {
+    const templatePort = {
+      renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
+        text: templateId === 'menu.more'
+          ? '⚙️ Меню'
+          : templateId === 'menu.book'
+            ? '📅 Запись на приём'
+            : '',
+      })),
+    };
+
+    const result = await executeAction({
+      id: 'a17b',
+      type: 'message.send',
+      mode: 'async',
+      params: {
+        recipient: { chatId: 123 },
+        templateKey: 'telegram:menu.more',
+        delivery: { channels: ['telegram'], maxAttempts: 1 },
+      },
+    }, { ...ctx, event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { action: 'menu.more', text: '⚙️ Меню', chatId: 123 } } } }, {
+      templatePort,
+      sendMenuOnButtonPress: true,
+      contentPort: {
+        getTemplate: vi.fn(),
+        getBundle: vi.fn().mockResolvedValue({
+          scripts: [],
+          templates: {},
+          mainReplyKeyboard: [[
+            { textTemplateKey: 'telegram:menu.book' },
+            { textTemplateKey: 'telegram:menu.more' },
+          ]],
+        }),
+      },
+    });
+
+    expect(result.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 123 },
+        message: { text: '⚙️ Меню' },
         replyMarkup: {
           keyboard: [[
             { text: '📅 Запись на приём' },
@@ -1047,18 +1093,16 @@ describe('executeAction', () => {
     });
   });
 
-  it('sends follow-up reply keyboard after inline keyboard messages when enabled', async () => {
+  it('sends single intent for inline keyboard (no follow-up reply menu)', async () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
         text: templateId === 'moreMenu.notifications'
           ? '🔔 Настройки уведомлений'
-          : templateId === 'chooseMenu'
-            ? 'Выберите действие в меню.'
-            : templateId === 'menu.book'
-              ? '📅 Запись на приём'
-              : templateId === 'menu.more'
-                ? '⚙️ Меню'
-                : '',
+          : templateId === 'menu.book'
+            ? '📅 Запись на приём'
+            : templateId === 'menu.more'
+              ? '⚙️ Меню'
+              : '',
       })),
     };
 
@@ -1087,7 +1131,7 @@ describe('executeAction', () => {
       },
     });
 
-    expect(result.intents).toHaveLength(2);
+    expect(result.intents).toHaveLength(1);
     expect(result.intents?.[0]).toMatchObject({
       type: 'message.send',
       payload: {
@@ -1096,33 +1140,16 @@ describe('executeAction', () => {
         replyMarkup: { inline_keyboard: [[{ text: '🔔 Настройки уведомлений', callback_data: 'menu_notifications' }]] },
       },
     });
-    expect(result.intents?.[1]).toMatchObject({
-      type: 'message.send',
-      payload: {
-        recipient: { chatId: 123 },
-        message: { text: 'Выберите действие в меню.' },
-        replyMarkup: {
-          keyboard: [[
-            { text: '📅 Запись на приём' },
-            { text: '⚙️ Меню' },
-          ]],
-          resize_keyboard: true,
-          one_time_keyboard: false,
-        },
-      },
-    });
   });
 
-  it('sends follow-up reply keyboard after message.edit when enabled', async () => {
+  it('sends single intent for message.edit (no follow-up reply menu)', async () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
-        text: templateId === 'chooseMenu'
-          ? 'Выберите действие в меню.'
-          : templateId === 'menu.book'
-            ? '📅 Запись на приём'
-            : templateId === 'menu.more'
-              ? '⚙️ Меню'
-              : '',
+        text: templateId === 'menu.book'
+          ? '📅 Запись на приём'
+          : templateId === 'menu.more'
+            ? '⚙️ Меню'
+            : '',
       })),
     };
 
@@ -1151,20 +1178,13 @@ describe('executeAction', () => {
       },
     });
 
-    expect(result.intents).toHaveLength(2);
+    expect(result.intents).toHaveLength(1);
     expect(result.intents?.[0]).toMatchObject({
       type: 'message.edit',
       payload: {
         recipient: { chatId: 123 },
         messageId: 77,
         message: { text: 'updated' },
-      },
-    });
-    expect(result.intents?.[1]).toMatchObject({
-      type: 'message.send',
-      payload: {
-        recipient: { chatId: 123 },
-        message: { text: 'Выберите действие в меню.' },
       },
     });
   });

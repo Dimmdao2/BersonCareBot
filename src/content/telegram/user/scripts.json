@@ -737,7 +737,7 @@
 				"mode": "async",
 				"params": {
 					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:chooseMenu",
+					"templateKey": "telegram:menu.main.heading",
 					"menu": "main"
 				}
 			}
@@ -756,7 +756,7 @@
 				"mode": "async",
 				"params": {
 					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:chooseMenu",
+					"templateKey": "telegram:menu.main.heading",
 					"menu": "main"
 				}
 			}
@@ -775,7 +775,7 @@
 				"mode": "async",
 				"params": {
 					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:chooseMenu",
+					"templateKey": "telegram:menu.main.heading",
 					"menu": "main"
 				}
 			}
@@ -795,7 +795,7 @@
 				"mode": "async",
 				"params": {
 					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:chooseMenu",
+					"templateKey": "telegram:menu.main.heading",
 					"menu": "main"
 				}
 			}
@@ -1547,7 +1547,7 @@
 				"params": {
 					"chatId": "{{actor.chatId}}",
 					"messageId": "{{input.messageId}}",
-					"templateKey": "telegram:chooseMenu",
+					"templateKey": "telegram:menu.main.heading",
 					"menu": "main"
 				}
 			},

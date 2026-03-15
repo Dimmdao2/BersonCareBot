@@ -110,6 +110,12 @@ export function readIncomingMessageId(ctx: DomainContext): string | null {
   return messageId === null ? asString(incoming.messageId) : String(messageId);
 }
 
+/** True when the incoming message is "Меню" or "Запись на приём" (reply menu buttons). */
+export function isMainMenuTrigger(ctx: DomainContext): boolean {
+  const action = asString(readIncoming(ctx).action);
+  return action === 'menu.more' || action === 'booking.open';
+}
+
 export function readConversationId(action: Action, ctx: DomainContext): string | null {
   return asString(action.params.conversationId)
     ?? asString(ctx.base.replyConversationId)
@@ -226,42 +232,6 @@ export async function buildMainReplyKeyboardMarkup(input: {
     ctx: input.ctx,
     templatePort: input.templatePort,
   });
-}
-
-export async function buildMainReplyKeyboardIntent(input: {
-  action: Action;
-  ctx: DomainContext;
-  chatId: number;
-  templatePort: TemplatePort | undefined;
-  contentPort: ContentPort | undefined;
-}): Promise<OutgoingIntent | null> {
-  const replyMarkup = await buildMainReplyKeyboardMarkup({
-    ctx: input.ctx,
-    templatePort: input.templatePort,
-    contentPort: input.contentPort,
-  });
-  if (!replyMarkup) return null;
-
-  const text = (await renderText({
-    templateKey: `${input.ctx.event.meta.source}:chooseMenu`,
-    ctx: input.ctx,
-    templatePort: input.templatePort,
-  })) || 'Выберите действие в меню.';
-
-  const meta = buildIntentMeta(input.action, input.ctx);
-  return {
-    type: 'message.send',
-    meta: {
-      ...meta,
-      eventId: `${meta.eventId}:menu`,
-    },
-    payload: {
-      recipient: { chatId: input.chatId },
-      message: { text },
-      replyMarkup,
-      delivery: { maxAttempts: 1 },
-    },
-  };
 }
 
 export async function renderText(input: {
