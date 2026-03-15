@@ -26,7 +26,7 @@ export function getMenuForRole(role: UserRole): MenuItem[] {
   }
 
   return [
-    { id: "purchases", title: "Мои покупки", href: "/app/patient", status: "coming-soon" },
+    { id: "purchases", title: "Мои покупки", href: "/app/patient/purchases", status: "available" },
     { id: "emergency", title: "Скорая помощь", href: "/app/patient/emergency", status: "available" },
     { id: "lessons", title: "Полезные уроки", href: "/app/patient/lessons", status: "available" },
     { id: "symptoms", title: "Дневник симптомов", href: "/app/patient/diary/symptoms", status: "available" },

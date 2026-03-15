@@ -9,21 +9,15 @@ export default async function PatientHomePage() {
   const menu = deps.menu.getMenuForRole(session.user.role);
 
   return (
-    <AppShell title="Интерфейс клиента" user={session.user}>
-      <section className="hero-card stack">
-        <p>
-          Это основной shell пациентской зоны. Навигация и модули уже разделены по role-based route space,
-          но часть разделов пока остается заглушкой по MVP-плану.
-        </p>
-      </section>
-      <section className="feature-grid">
+    <AppShell title="Главное меню" user={session.user} titleSmall>
+      <section className="feature-grid feature-grid--compact">
         {menu.map((item) => (
           <FeatureCard
             key={item.id}
             title={item.title}
-            description={`Раздел ${item.title.toLowerCase()} внутри общего webapp.`}
             href={item.href}
             status={item.status}
+            compact
           />
         ))}
       </section>

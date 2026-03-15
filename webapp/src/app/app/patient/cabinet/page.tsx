@@ -10,7 +10,7 @@ export default async function PatientCabinetPage() {
   const appointments = deps.patientCabinet.getUpcomingAppointments(userId);
 
   return (
-    <AppShell title="Кабинет клиента" user={session.user}>
+    <AppShell title="Кабинет клиента" user={session.user} backHref="/app/patient" backLabel="Меню">
       <section className="hero-card stack">
         <p>{cabinet.reason}</p>
         {cabinet.nextAppointmentLabel ? <p className="empty-state">{cabinet.nextAppointmentLabel}</p> : null}
@@ -18,7 +18,7 @@ export default async function PatientCabinetPage() {
       <section className="panel stack">
         <h2>Ближайшие записи</h2>
         {appointments.length === 0 ? (
-          <p className="empty-state">В MVP список записей появится после подключения реального appointment bridge.</p>
+          <p className="empty-state">Список записей появится после подключения к системе записи.</p>
         ) : (
           <ul className="list">
             {appointments.map((appointment) => (

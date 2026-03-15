@@ -7,8 +7,9 @@ export default async function SettingsPage() {
   const deps = buildAppDeps();
   const purchases = deps.purchases.getPurchaseSectionState();
 
+  const backHref = session.user.role === "client" ? "/app/patient" : "/app/doctor";
   return (
-    <AppShell title="Настройки" user={session.user}>
+    <AppShell title="Настройки" user={session.user} backHref={backHref} backLabel="Меню">
       <div className="feature-grid">
         <section className="panel stack">
           <h2>Профиль</h2>

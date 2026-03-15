@@ -8,7 +8,7 @@ export default async function DoctorPage() {
   const workspace = deps.doctorCabinet.getDoctorWorkspaceState();
 
   return (
-    <AppShell title="Интерфейс специалиста" user={session.user}>
+    <AppShell title="Главное меню" user={session.user} titleSmall>
       <section className="hero-card stack">
         <p>{workspace.message}</p>
       </section>

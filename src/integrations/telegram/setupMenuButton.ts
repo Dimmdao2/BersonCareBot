@@ -14,7 +14,7 @@ export async function setupTelegramMenuButton(): Promise<void> {
   const adminChatId = telegramConfig.adminTelegramId;
   const api = getBotInstance().api;
   const base = env.APP_BASE_URL?.replace(/\/$/, '');
-  const webappUrl = base ? `${base}/app?debug=1` : ''; // ?debug=1 — на экране видно initData: да/нет
+  const webappUrl = base ? `${base}/app` : '';
 
   try {
     await api.deleteMyCommands();

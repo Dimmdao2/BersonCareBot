@@ -30,6 +30,10 @@ a {
   padding: 24px 16px 48px;
 }
 
+.app-shell--title-small .top-bar h1 {
+  font-size: 1.25rem;
+}
+
 .top-bar {
   display: flex;
   align-items: center;
@@ -46,6 +50,21 @@ a {
 .top-bar h1 {
   margin: 4px 0 0;
   font-size: 1.75rem;
+}
+
+.top-bar__h1--with-back {
+  font-size: 1.25rem;
+}
+
+.top-bar__title-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.button--back {
+  flex-shrink: 0;
+  font-size: 0.9rem;
 }
 
 .eyebrow {
@@ -115,10 +134,34 @@ a {
   gap: 16px;
 }
 
+.feature-grid--compact {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
 .feature-card--link:hover {
   border-color: #90a8cb;
   transform: translateY(-1px);
   transition: 0.2s ease;
+}
+
+.feature-card--compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  text-align: center;
+}
+
+.feature-card--compact .feature-card__meta,
+.feature-card--compact p {
+  display: none;
+}
+
+.feature-card__title--compact {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
 }
 
 .feature-card__meta {

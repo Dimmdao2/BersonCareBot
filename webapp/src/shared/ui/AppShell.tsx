@@ -6,15 +6,29 @@ type AppShellProps = {
   title: string;
   user: SessionUser | null;
   children: ReactNode;
+  /** Ссылка «Меню» на главный экран (для страниц разделов). */
+  backHref?: string;
+  backLabel?: string;
+  /** Чуть меньший заголовок (главный экран). */
+  titleSmall?: boolean;
 };
 
-export function AppShell({ title, user, children }: AppShellProps) {
+export function AppShell({ title, user, children, backHref, backLabel = "Меню", titleSmall }: AppShellProps) {
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${titleSmall ? "app-shell--title-small" : ""}`}>
       <header className="top-bar">
         <div>
-          <div className="eyebrow">BersonCare Platform</div>
-          <h1>{title}</h1>
+          <div className="top-bar__title-row">
+            {backHref ? (
+              <Link href={backHref} className="button button--back">
+                {backLabel}
+              </Link>
+            ) : null}
+            <div>
+              <div className="eyebrow">BersonCare Platform</div>
+              <h1 className={backHref ? "top-bar__h1--with-back" : undefined}>{title}</h1>
+            </div>
+          </div>
         </div>
         <div className="top-bar__actions">
           {user ? (
