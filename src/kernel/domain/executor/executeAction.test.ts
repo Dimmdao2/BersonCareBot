@@ -992,7 +992,7 @@ describe('executeAction', () => {
     });
   });
 
-  it('does not attach reply keyboard when incoming is not menu/booking', async () => {
+  it('attaches main reply keyboard to user messages without explicit keyboard when enabled', async () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
         text: templateId === 'questionAccepted'
@@ -1035,12 +1035,19 @@ describe('executeAction', () => {
       payload: {
         recipient: { chatId: 123 },
         message: { text: 'Вопрос принят. Я отвечу вам в ближайшее время.' },
+        replyMarkup: {
+          keyboard: [[
+            { text: '📅 Запись на приём' },
+            { text: '⚙️ Меню' },
+          ]],
+          resize_keyboard: true,
+          one_time_keyboard: false,
+        },
       },
     });
-    expect(result.intents?.[0]?.payload).not.toHaveProperty('replyMarkup');
   });
 
-  it('attaches main reply keyboard only when user pressed Меню or Запись на приём', async () => {
+  it('attaches main reply keyboard when user pressed Меню or Запись на приём', async () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
         text: templateId === 'menu.more'

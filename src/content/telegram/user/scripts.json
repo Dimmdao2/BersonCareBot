@@ -279,8 +279,8 @@
 			"context": { "conversationState": "waiting_for_question" },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
+				"excludeActions": ["booking.open", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -327,8 +327,8 @@
 			"context": { "hasActiveDraft": true, "hasOpenConversation": false },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
+				"excludeActions": ["booking.open", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -407,8 +407,8 @@
 			"context": { "hasOpenConversation": true },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "question.ask", "menu.more", "cabinet.open"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "❓ Задать вопрос", "Задать вопрос", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
+				"excludeActions": ["booking.open", "menu.more", "cabinet.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -1572,17 +1572,18 @@
 		},
 		"steps": [
 			{
-				"action": "admin.forward",
-				"mode": "async",
+				"action": "draft.upsertFromMessage",
+				"mode": "sync",
 				"params": {
-					"chatId": "{{facts.adminChatId}}",
-					"templateKey": "telegram:adminForward",
-					"vars": {
-						"name": "{{facts.actor.displayName}}",
-						"username": "{{actor.username}}",
-						"channelId": "{{actor.channelUserId}}",
-						"messageText": "{{input.text}}"
-					}
+					"source": "telegram"
+				}
+			},
+			{
+				"action": "draft.send",
+				"mode": "sync",
+				"params": {
+					"source": "telegram",
+					"adminTemplateKey": "telegram:adminForward"
 				}
 			},
 			{

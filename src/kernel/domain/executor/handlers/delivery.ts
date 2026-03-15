@@ -11,7 +11,6 @@ import {
   buildMessageDeliverJob,
   buildReplyMarkup,
   contentAudience,
-  isMainMenuTrigger,
   nowIso,
   resolveGenericMessageParams,
   persistWrites,
@@ -51,7 +50,7 @@ export async function handleDelivery(
       message: { text: composedText },
       delivery,
     };
-    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user' && isMainMenuTrigger(ctx)) {
+    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user') {
       const chatId = asNumber(recipient.chatId);
       if (chatId !== null) {
         const replyMarkup = await buildMainReplyKeyboardMarkup({
@@ -89,7 +88,7 @@ export async function handleDelivery(
       ctx,
       templatePort: deps.templatePort,
     });
-    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user' && isMainMenuTrigger(ctx) && !resolvedParams.replyMarkup) {
+    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user' && !resolvedParams.replyMarkup) {
       const recipient = asRecord(resolvedParams.recipient);
       const chatId = asNumber(recipient.chatId);
       if (chatId !== null) {

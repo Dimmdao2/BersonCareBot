@@ -67,7 +67,7 @@ describe('fromTelegram', () => {
     });
   });
 
-  it('maps menu message text to canonical action', () => {
+  it('does not map "Задать вопрос" text to a special action', () => {
     const update = fromTelegram(
       {
         update_id: 3,
@@ -84,7 +84,7 @@ describe('fromTelegram', () => {
 
     expect(update).toMatchObject({
       kind: 'message',
-      action: 'question.ask',
+      action: '',
     });
   });
 

@@ -110,12 +110,6 @@ export function readIncomingMessageId(ctx: DomainContext): string | null {
   return messageId === null ? asString(incoming.messageId) : String(messageId);
 }
 
-/** True when the incoming message is "Меню" or "Запись на приём" (reply menu buttons). */
-export function isMainMenuTrigger(ctx: DomainContext): boolean {
-  const action = asString(readIncoming(ctx).action);
-  return action === 'menu.more' || action === 'booking.open';
-}
-
 export function readConversationId(action: Action, ctx: DomainContext): string | null {
   return asString(action.params.conversationId)
     ?? asString(ctx.base.replyConversationId)
