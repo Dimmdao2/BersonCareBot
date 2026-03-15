@@ -1564,7 +1564,6 @@
 		"event": "message.received",
 		"match": {
 			"actor": { "isAdmin": false },
-			"context": { "conversationState": "idle", "hasOpenConversation": false },
 			"input": {
 				"textPresent": true,
 				"excludeActions": ["booking.open", "menu.more", "cabinet.open"],

@@ -149,6 +149,8 @@ export type ContentBundleView = {
   scripts: ContentScript[];
   templates: Record<string, unknown>;
   menus?: Record<string, unknown>;
+  /** Main reply keyboard rows (from replyMenu.json); used when sendMenuOnButtonPress is enabled. */
+  mainReplyKeyboard?: unknown[];
 };
 
 /** Порт доступа к JSON-скриптам и шаблонам контента. */

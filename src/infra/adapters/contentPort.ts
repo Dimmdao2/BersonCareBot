@@ -81,6 +81,7 @@ export function createContentPort(input?: { rootDir?: string }): ContentPort {
         scripts: listScripts(bundle),
         templates: bundle.templates,
         ...(bundle.menus ? { menus: bundle.menus } : {}),
+        ...(bundle.mainReplyKeyboard ? { mainReplyKeyboard: bundle.mainReplyKeyboard } : {}),
       };
     },
     async getTemplate(scope: ContentSelectionScope, templateId: string): Promise<ContentTemplate | null> {

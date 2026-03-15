@@ -1,6 +1,7 @@
 import type {
   ActorResolutionPort,
   ContentCatalogPort,
+  ContentPort,
   DbReadPort,
   DeliveryDefaultsPort,
   DispatchPort,
@@ -24,6 +25,9 @@ export type IncomingEventPipelineDeps = {
   protectedAccessPort?: ProtectedAccessPort;
   deliveryDefaultsPort?: DeliveryDefaultsPort | null;
   actorResolutionPort?: ActorResolutionPort;
+  /** When true, executor attaches main reply keyboard to every message to user that has no keyboard. */
+  sendMenuOnButtonPress?: boolean;
+  contentPort?: ContentPort;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -92,6 +96,8 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             ...(deps.contentCatalogPort ? { contentCatalogPort: deps.contentCatalogPort } : {}),
             ...(deps.protectedAccessPort ? { protectedAccessPort: deps.protectedAccessPort } : {}),
             ...(deps.deliveryDefaultsPort !== undefined ? { deliveryDefaultsPort: deps.deliveryDefaultsPort } : {}),
+            ...(deps.sendMenuOnButtonPress !== undefined ? { sendMenuOnButtonPress: deps.sendMenuOnButtonPress } : {}),
+            ...(deps.contentPort ? { contentPort: deps.contentPort } : {}),
             executeAction: executeDomainAction,
           };
           return executeDomainAction(action, context, executorDeps);

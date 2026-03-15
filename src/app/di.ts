@@ -147,6 +147,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     protectedAccessPort,
     actorResolutionPort,
     deliveryDefaultsPort,
+    contentPort,
+    sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress ?? false,
   });
 
   const eventGateway = createEventGateway({

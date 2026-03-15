@@ -9,6 +9,8 @@ const TelegramConfigSchema = z.object({
   botToken: z.string(),
   adminTelegramId: z.number().int(),
   webhookSecret: z.string().min(1).optional(),
+  /** When true, executor attaches main reply keyboard (from replyMenu.json) to every message to user that has no keyboard. */
+  sendMenuOnButtonPress: z.boolean().optional(),
 });
 
 function loadTelegramConfigFromEnv(): z.input<typeof TelegramConfigSchema> {
@@ -31,10 +33,15 @@ function loadTelegramConfigFromEnv(): z.input<typeof TelegramConfigSchema> {
     );
   }
 
+  const sendMenuOnButtonPress = process.env.TELEGRAM_SEND_MENU_ON_BUTTON_PRESS !== undefined
+    ? /^(1|true|yes)$/i.test(process.env.TELEGRAM_SEND_MENU_ON_BUTTON_PRESS.trim())
+    : true;
+
   return {
     botToken,
     adminTelegramId: Number.isFinite(adminTelegramId) ? (adminTelegramId as number) : 0,
     ...(webhookSecret ? { webhookSecret } : {}),
+    sendMenuOnButtonPress,
   };
 }
 

@@ -6,6 +6,7 @@ import type {
   Action,
   ActionResult,
   ContentCatalogPort,
+  ContentPort,
   DbReadPort,
   DeliveryDefaultsPort,
   DomainContext,
@@ -27,6 +28,9 @@ export type ExecutorDeps = {
   deliveryDefaultsPort?: DeliveryDefaultsPort | null;
   contentCatalogPort?: ContentCatalogPort | null;
   protectedAccessPort?: ProtectedAccessPort | null;
+  /** When true, attach main reply keyboard (from replyMenu.json) to message.send to user when params have no keyboard. */
+  sendMenuOnButtonPress?: boolean;
+  contentPort?: ContentPort;
   /** Set by pipeline so handlers can recurse (e.g. message.retry.enqueue). */
   executeAction?: (action: Action, ctx: DomainContext, deps: ExecutorDeps) => Promise<ActionResult>;
 };
