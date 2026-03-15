@@ -46,21 +46,11 @@ export async function handleDelivery(
       })).text
       : (typeof action.params.text === 'string' ? action.params.text : '');
 
-    const intents: OutgoingIntent[] = [{
-      type: 'message.send',
-      meta: {
-        eventId: `${ctx.event.meta.eventId}:intent:${action.id}`,
-        occurredAt: nowIso(ctx),
-        source: ctx.event.meta.source,
-        ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
-        ...(ctx.event.meta.userId ? { userId: ctx.event.meta.userId } : {}),
-      },
-      payload: {
-        recipient,
-        message: { text: composedText },
-        delivery,
-      },
-    }];
+    let firstPayload: Record<string, unknown> = {
+      recipient,
+      message: { text: composedText },
+      delivery,
+    };
     if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user') {
       const chatId = asNumber(recipient.chatId);
       if (chatId !== null) {
@@ -70,16 +60,21 @@ export async function handleDelivery(
           contentPort: deps.contentPort,
         });
         if (replyMarkup) {
-          intents[0] = {
-            ...intents[0],
-            payload: {
-              ...intents[0].payload,
-              replyMarkup,
-            },
-          };
+          firstPayload = { ...firstPayload, replyMarkup };
         }
       }
     }
+    const intents: OutgoingIntent[] = [{
+      type: 'message.send',
+      meta: {
+        eventId: `${ctx.event.meta.eventId}:intent:${action.id}`,
+        occurredAt: nowIso(ctx),
+        source: ctx.event.meta.source,
+        ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+        ...(ctx.event.meta.userId ? { userId: ctx.event.meta.userId } : {}),
+      },
+      payload: firstPayload,
+    }];
     return { actionId: action.id, status: 'success', intents };
   }
 
