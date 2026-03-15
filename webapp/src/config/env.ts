@@ -12,7 +12,14 @@ const envSchema = z.object({
   HOST: z.string().min(1).default("127.0.0.1"),
   PORT: z.coerce.number().int().positive().default(5200),
   APP_BASE_URL: z.string().url().default("http://127.0.0.1:5200"),
-  DATABASE_URL: z.string().min(1).default(buildDefaults.DATABASE_URL),
+  /** In test env use "" unless USE_REAL_DATABASE=1 (then use .env / dev DB for e2e). */
+  DATABASE_URL: z
+    .string()
+    .optional()
+    .default("")
+    .transform((val) =>
+      process.env.NODE_ENV === "test" && process.env.USE_REAL_DATABASE !== "1" ? "" : val ?? ""
+    ),
   SESSION_COOKIE_SECRET: z.string().min(16).default(buildDefaults.SESSION_COOKIE_SECRET),
   /** Used for both entry and webhook if INTEGRATOR_WEBAPP_ENTRY_SECRET / INTEGRATOR_WEBHOOK_SECRET are not set. */
   INTEGRATOR_SHARED_SECRET: z.string().min(16).default(buildDefaults.INTEGRATOR_SHARED_SECRET),

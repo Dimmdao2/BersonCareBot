@@ -1,7 +1,7 @@
 /**
  * Ports for diary modules. Implementations live in infra (in-memory or DB).
  */
-import type { LfkCompletion, SymptomEntry } from "./types";
+import type { LfkSession, SymptomEntry } from "./types";
 
 export type SymptomDiaryPort = {
   addEntry(params: {
@@ -9,15 +9,16 @@ export type SymptomDiaryPort = {
     symptom: string;
     severity: 1 | 2 | 3 | 4 | 5;
     notes?: string | null;
-  }): SymptomEntry;
-  listEntries(userId: string, limit?: number): SymptomEntry[];
+  }): Promise<SymptomEntry>;
+  listEntries(userId: string, limit?: number): Promise<SymptomEntry[]>;
 };
 
 export type LfkDiaryPort = {
-  addCompletion(params: {
+  addSession(params: {
     userId: string;
-    exerciseId: string;
-    exerciseTitle: string;
-  }): LfkCompletion;
-  listCompletions(userId: string, limit?: number): LfkCompletion[];
+    completedAt: string;
+    complexId?: string | null;
+    complexTitle?: string | null;
+  }): Promise<LfkSession>;
+  listSessions(userId: string, limit?: number): Promise<LfkSession[]>;
 };

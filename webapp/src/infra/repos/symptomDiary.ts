@@ -9,7 +9,7 @@ const store: SymptomEntry[] = [];
 let idCounter = 1;
 
 export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
-  addEntry(params) {
+  async addEntry(params) {
     const entry: SymptomEntry = {
       id: `sym-${idCounter++}`,
       userId: params.userId,
@@ -21,7 +21,7 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
     store.push(entry);
     return entry;
   },
-  listEntries(userId, limit = 50) {
+  async listEntries(userId, limit = 50) {
     return store
       .filter((e) => e.userId === userId)
       .sort((a, b) => (b.recordedAt > a.recordedAt ? 1 : -1))

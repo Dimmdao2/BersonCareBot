@@ -1,26 +1,26 @@
 /**
  * In-memory implementation of LfkDiaryPort.
- * MVP: replace with DB-backed repo when scaling (e.g. table webapp.lfk_completions).
+ * Replaced by pg when DATABASE_URL is used (see buildAppDeps).
  */
 import type { LfkDiaryPort } from "@/modules/diaries/ports";
-import type { LfkCompletion } from "@/modules/diaries/types";
+import type { LfkSession } from "@/modules/diaries/types";
 
-const store: LfkCompletion[] = [];
+const store: LfkSession[] = [];
 let idCounter = 1;
 
 export const inMemoryLfkDiaryPort: LfkDiaryPort = {
-  addCompletion(params) {
-    const entry: LfkCompletion = {
+  async addSession(params) {
+    const session: LfkSession = {
       id: `lfk-${idCounter++}`,
       userId: params.userId,
-      exerciseId: params.exerciseId,
-      exerciseTitle: params.exerciseTitle,
-      completedAt: new Date().toISOString(),
+      completedAt: params.completedAt,
+      complexId: params.complexId ?? null,
+      complexTitle: params.complexTitle ?? null,
     };
-    store.push(entry);
-    return entry;
+    store.push(session);
+    return session;
   },
-  listCompletions(userId, limit = 50) {
+  async listSessions(userId, limit = 50) {
     return store
       .filter((e) => e.userId === userId)
       .sort((a, b) => (b.completedAt > a.completedAt ? 1 : -1))

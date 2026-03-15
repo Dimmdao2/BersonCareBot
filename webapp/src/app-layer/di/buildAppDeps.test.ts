@@ -39,4 +39,24 @@ describe("buildAppDeps", () => {
     expect(Array.isArray(items)).toBe(true);
     expect(items.length).toBeGreaterThan(0);
   });
+
+  it("diaries exposes listSymptomEntries, addSymptomEntry, listLfkSessions, addLfkSession", () => {
+    const deps = buildAppDeps();
+    expect(deps.diaries).toHaveProperty("listSymptomEntries");
+    expect(deps.diaries).toHaveProperty("addSymptomEntry");
+    expect(deps.diaries).toHaveProperty("listLfkSessions");
+    expect(deps.diaries).toHaveProperty("addLfkSession");
+    expect(typeof deps.diaries.listSymptomEntries).toBe("function");
+    expect(typeof deps.diaries.addSymptomEntry).toBe("function");
+    expect(typeof deps.diaries.listLfkSessions).toBe("function");
+    expect(typeof deps.diaries.addLfkSession).toBe("function");
+  });
+
+  it("diaries list methods return Promise resolving to array", async () => {
+    const deps = buildAppDeps();
+    const entries = await deps.diaries.listSymptomEntries("build-deps-test-user");
+    const sessions = await deps.diaries.listLfkSessions("build-deps-test-user");
+    expect(Array.isArray(entries)).toBe(true);
+    expect(Array.isArray(sessions)).toBe(true);
+  });
 });

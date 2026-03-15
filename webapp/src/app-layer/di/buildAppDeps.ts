@@ -16,10 +16,15 @@ import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
 import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
 import { inMemorySymptomDiaryPort } from "@/infra/repos/symptomDiary";
 import { inMemoryLfkDiaryPort } from "@/infra/repos/lfkDiary";
+import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
+import { pgLfkDiaryPort } from "@/infra/repos/pgLfkDiary";
 import { checkDbHealth } from "@/infra/db/client";
+import { env } from "@/config/env";
 
-const symptomDiaryService = createSymptomDiaryService(inMemorySymptomDiaryPort);
-const lfkDiaryService = createLfkDiaryService(inMemoryLfkDiaryPort);
+const symptomDiaryPort = env.DATABASE_URL ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
+const lfkDiaryPort = env.DATABASE_URL ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
+const symptomDiaryService = createSymptomDiaryService(symptomDiaryPort);
+const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
 
 export function buildAppDeps() {
   return {
@@ -53,8 +58,8 @@ export function buildAppDeps() {
     diaries: {
       listSymptomEntries: symptomDiaryService.listSymptomEntries,
       addSymptomEntry: symptomDiaryService.addSymptomEntry,
-      listLfkCompletions: lfkDiaryService.listLfkCompletions,
-      addLfkCompletion: lfkDiaryService.addLfkCompletion,
+      listLfkSessions: lfkDiaryService.listLfkSessions,
+      addLfkSession: lfkDiaryService.addLfkSession,
     },
     health: {
       checkDbHealth,

@@ -12,7 +12,7 @@ const MOCK_ENTRIES = [
 export default async function SymptomDiaryPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();
-  const entries = deps.diaries.listSymptomEntries(session.user.userId);
+  const entries = await deps.diaries.listSymptomEntries(session.user.userId);
   const displayEntries = entries.length > 0 ? entries : MOCK_ENTRIES;
 
   return (

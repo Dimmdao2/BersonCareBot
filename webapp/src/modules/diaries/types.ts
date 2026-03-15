@@ -7,10 +7,11 @@ export type SymptomEntry = {
   recordedAt: string;
 };
 
-export type LfkCompletion = {
+/** One row = one "I exercised" session. complexId/complexTitle for future use. */
+export type LfkSession = {
   id: string;
   userId: string;
-  exerciseId: string;
-  exerciseTitle: string;
   completedAt: string;
+  complexId?: string | null;
+  complexTitle?: string | null;
 };

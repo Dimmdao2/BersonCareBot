@@ -6,21 +6,17 @@ import type { SymptomEntry } from "./types";
 
 export type { SymptomEntry } from "./types";
 
-function createId(): string {
-  return `sym-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
 export function createSymptomDiaryService(port: SymptomDiaryPort): {
   addSymptomEntry: (params: {
     userId: string;
     symptom: string;
     severity: 1 | 2 | 3 | 4 | 5;
     notes?: string | null;
-  }) => SymptomEntry;
-  listSymptomEntries: (userId: string, limit?: number) => SymptomEntry[];
+  }) => Promise<SymptomEntry>;
+  listSymptomEntries: (userId: string, limit?: number) => Promise<SymptomEntry[]>;
 } {
   return {
-    addSymptomEntry(params) {
+    async addSymptomEntry(params) {
       const severity = Math.min(5, Math.max(1, params.severity)) as 1 | 2 | 3 | 4 | 5;
       return port.addEntry({
         userId: params.userId,
@@ -29,7 +25,7 @@ export function createSymptomDiaryService(port: SymptomDiaryPort): {
         notes: params.notes ?? null,
       });
     },
-    listSymptomEntries(userId, limit) {
+    async listSymptomEntries(userId, limit) {
       return port.listEntries(userId, limit);
     },
   };

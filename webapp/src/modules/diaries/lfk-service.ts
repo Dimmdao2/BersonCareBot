@@ -1,29 +1,32 @@
 /**
- * LFK (exercise) diary — business logic only; storage delegated to LfkDiaryPort.
+ * LFK diary — one record = one session ("I exercised"). Storage delegated to LfkDiaryPort.
  */
 import type { LfkDiaryPort } from "./ports";
-import type { LfkCompletion } from "./types";
+import type { LfkSession } from "./types";
 
-export type { LfkCompletion } from "./types";
+export type { LfkSession } from "./types";
 
 export function createLfkDiaryService(port: LfkDiaryPort): {
-  addLfkCompletion: (params: {
+  addLfkSession: (params: {
     userId: string;
-    exerciseId: string;
-    exerciseTitle: string;
-  }) => LfkCompletion;
-  listLfkCompletions: (userId: string, limit?: number) => LfkCompletion[];
+    completedAt?: string;
+    complexId?: string | null;
+    complexTitle?: string | null;
+  }) => Promise<LfkSession>;
+  listLfkSessions: (userId: string, limit?: number) => Promise<LfkSession[]>;
 } {
   return {
-    addLfkCompletion(params) {
-      return port.addCompletion({
+    async addLfkSession(params) {
+      const completedAt = params.completedAt ?? new Date().toISOString();
+      return port.addSession({
         userId: params.userId,
-        exerciseId: params.exerciseId,
-        exerciseTitle: params.exerciseTitle?.trim() || "Упражнение",
+        completedAt,
+        complexId: params.complexId ?? null,
+        complexTitle: params.complexTitle ?? null,
       });
     },
-    listLfkCompletions(userId, limit) {
-      return port.listCompletions(userId, limit);
+    async listLfkSessions(userId, limit) {
+      return port.listSessions(userId, limit);
     },
   };
 }
