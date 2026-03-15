@@ -1456,11 +1456,9 @@
 					"templateKey": "telegram:noBookings",
 					"vars": { "queries": "{{queries}}" },
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }],
-						[
-							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
-							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
-						]
+						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }],
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
 					]
 				}
 			},
@@ -1474,11 +1472,9 @@
 					"templateKey": "telegram:bookingsList",
 					"vars": { "queries": "{{queries}}" },
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }],
-						[
-							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
-							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
-						]
+						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }],
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
 					]
 				}
 			},
