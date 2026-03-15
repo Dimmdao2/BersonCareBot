@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { integrationRegistry } from '../integrations/registry.js';
 import { buildDeps, type BuildDepsInput } from './di.js';
 import { registerRoutes } from './routes.js';
+import { telegramConfig } from '../integrations/telegram/config.js';
 
 /**
  * Builds Fastify app instance and wires routes with composed dependencies.
@@ -28,6 +29,11 @@ export function buildApp(input?: BuildDepsInput) {
       })),
     },
     'integration registry loaded',
+  );
+
+  app.log.info(
+    { sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress },
+    'Telegram: sendMenuOnButtonPress (reply keyboard attached to message.send when true)',
   );
 
   return app;

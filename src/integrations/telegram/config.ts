@@ -33,9 +33,11 @@ function loadTelegramConfigFromEnv(): z.input<typeof TelegramConfigSchema> {
     );
   }
 
-  const sendMenuOnButtonPress = process.env.TELEGRAM_SEND_MENU_ON_BUTTON_PRESS !== undefined
-    ? /^(1|true|yes)$/i.test(process.env.TELEGRAM_SEND_MENU_ON_BUTTON_PRESS.trim())
-    : true;
+  const raw = process.env.TELEGRAM_SEND_MENU_ON_BUTTON_PRESS;
+  const sendMenuOnButtonPress =
+    raw !== undefined && raw !== ''
+      ? /^(1|true|yes)$/i.test(String(raw).trim())
+      : true;
 
   return {
     botToken,
