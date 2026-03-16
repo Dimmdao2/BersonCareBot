@@ -1251,4 +1251,118 @@ describe('executeAction', () => {
       },
     });
   });
+
+  describe('support relay', () => {
+    const createSupportRelayPolicy = (userToAdmin: string[], adminToUser: string[]) => ({
+      isAllowedUserToAdmin: (t: string) => userToAdmin.includes(t),
+      isAllowedAdminToUser: (t: string) => adminToUser.includes(t),
+    });
+
+    it('conversation.user.message: returns refusal intent when type not allowed user->admin', async () => {
+      const readDb = vi.fn().mockResolvedValue({
+        id: 'conv-1',
+        source: 'telegram',
+        user_channel_id: '123',
+        first_name: 'A',
+        last_name: 'B',
+        username: 'u',
+      });
+      const userCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'message.received',
+          meta: { ...ctx.event.meta, source: 'telegram', userId: '123' },
+          payload: {
+            incoming: {
+              kind: 'message',
+              chatId: 123,
+              channelId: '123',
+              messageId: 42,
+              text: '',
+              relayMessageType: 'voice',
+            },
+          },
+        },
+        base: { ...ctx.base, facts: { adminChatId: 999 } },
+      };
+      const result = await executeAction({
+        id: 'u1',
+        type: 'conversation.user.message',
+        mode: 'sync',
+        params: { source: 'telegram' },
+      }, userCtx, {
+        readPort: { readDb },
+        writePort: { writeDb: vi.fn().mockResolvedValue(undefined) },
+        supportRelayPolicy: createSupportRelayPolicy(['text', 'photo'], ['text', 'photo', 'document']),
+      });
+      expect(result.status).toBe('success');
+      expect(result.intents).toHaveLength(1);
+      expect(result.intents?.[0]).toMatchObject({
+        type: 'message.send',
+        payload: {
+          recipient: { chatId: 123 },
+          message: { text: expect.any(String) },
+        },
+      });
+      expect(result.writes).toBeUndefined();
+    });
+
+    it('conversation.user.message: includes message.copy when type allowed and chatId/messageId present', async () => {
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const readDb = vi.fn().mockResolvedValue({
+        id: 'conv-1',
+        source: 'telegram',
+        user_channel_id: '123',
+        first_name: 'A',
+        last_name: 'B',
+        username: 'u',
+      });
+      const userCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'message.received',
+          meta: { ...ctx.event.meta, source: 'telegram', userId: '123' },
+          payload: {
+            incoming: {
+              kind: 'message',
+              chatId: 123,
+              channelId: '123',
+              messageId: 99,
+              text: 'Hello',
+              relayMessageType: 'text',
+            },
+          },
+        },
+        base: { ...ctx.base, facts: { adminChatId: 999 } },
+      };
+      const result = await executeAction({
+        id: 'u2',
+        type: 'conversation.user.message',
+        mode: 'sync',
+        params: { source: 'telegram' },
+      }, userCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        supportRelayPolicy: createSupportRelayPolicy(['text', 'photo'], ['text']),
+      });
+      expect(result.status).toBe('success');
+      expect(result.intents?.length).toBeGreaterThanOrEqual(1);
+      expect(result.intents?.[0]).toMatchObject({
+        type: 'message.send',
+        payload: {
+          recipient: { chatId: 999 },
+          message: { text: expect.stringContaining('Новое сообщение') },
+        },
+      });
+      const copyIntent = result.intents?.find((i) => i.type === 'message.copy');
+      if (copyIntent) {
+        expect(copyIntent.payload).toMatchObject({
+          recipient: { chatId: 999 },
+          from_chat_id: 123,
+          message_id: 99,
+        });
+      }
+    });
+
+  });
 });

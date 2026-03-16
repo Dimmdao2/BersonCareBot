@@ -639,6 +639,26 @@ export async function executeAction(
       if (!conversationId || adminChatId === null) {
         return { actionId: action.id, status: 'skipped', error: 'OPEN_CONVERSATION_NOT_FOUND' };
       }
+      const policy = deps.supportRelayPolicy;
+      if (policy && !policy.isAllowedUserToAdmin(relayMessageType)) {
+        const refusalChatId = asNumber(readIncoming(ctx).chatId);
+        const refusalText = deps.templatePort
+          ? (await renderText({ templateKey: RELAY_USER.UNSUPPORTED_TYPE, ctx, templatePort: deps.templatePort }))
+            || 'К сожалению, такой тип сообщения сейчас не поддерживается. Вы можете отправить текст, фото или документ.'
+          : 'К сожалению, такой тип сообщения сейчас не поддерживается. Вы можете отправить текст, фото или документ.';
+        const refusalIntents: OutgoingIntent[] = refusalChatId !== null
+          ? [{
+            type: 'message.send',
+            meta: buildIntentMeta(action, ctx),
+            payload: {
+              recipient: { chatId: refusalChatId },
+              message: { text: refusalText },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          }]
+          : [];
+        return { actionId: action.id, status: 'success', intents: refusalIntents };
+      }
       const writes: DbWriteMutation[] = [
         {
           type: 'conversation.message.add',
@@ -646,7 +666,7 @@ export async function executeAction(
             id: randomUUID(),
             conversationId,
             senderRole: 'user',
-            text,
+            text: text ?? (relayMessageType !== 'text' ? `[${relayMessageType}]` : ''),
             source,
             externalChatId: readIncomingChatId(ctx),
             externalMessageId: readIncomingMessageId(ctx),
@@ -670,17 +690,20 @@ export async function executeAction(
         username: asString(conversation?.username),
         channelId: asString(conversation?.user_channel_id),
       });
+      const messageLabelForService = relayMessageType === 'text' ? (text ?? '') : `[${relayMessageType}]`;
       const newMessageText = deps.templatePort
         ? (await renderText({
           templateKey: ADMIN.CONVERSATION_NEW_MESSAGE,
-          vars: { userLabel, text },
+          vars: { userLabel, text: messageLabelForService },
           ctx,
           templatePort: deps.templatePort,
-        })) || `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${text}`
-        : `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${text}`;
+        })) || `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageLabelForService}`
+        : `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageLabelForService}`;
       const replyButtonText = deps.templatePort
         ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
         : 'Ответить';
+      const userChatId = asNumber(readIncomingChatId(ctx));
+      const userMessageId = asNumber(readIncomingMessageId(ctx));
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
@@ -692,9 +715,31 @@ export async function executeAction(
               { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
             ]],
           },
-          delivery: { maxAttempts: 1 },
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
         },
       }];
+      if (userChatId !== null && userMessageId !== null) {
+        intents.push({
+          type: 'message.copy',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: adminChatId },
+            from_chat_id: userChatId,
+            message_id: userMessageId,
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
+          },
+        });
+      } else if (relayMessageType === 'text' && text) {
+        intents.push({
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: adminChatId },
+            message: { text },
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
+          },
+        });
+      }
       return {
         actionId: action.id,
         status: 'success',
@@ -713,8 +758,18 @@ export async function executeAction(
         return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
       }
       const conversationId = readConversationId(action, ctx);
+      const relayMessageType = readRelayMessageType(ctx) ?? 'text';
       const text = asString(action.params.text) ?? readIncomingText(ctx);
-      if (!conversationId || !text) {
+      const adminChatId = asNumber(readIncoming(ctx).chatId);
+      const adminMessageId = asNumber(readIncomingMessageId(ctx));
+      if (!conversationId) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
+      }
+      const isTextReply = relayMessageType === 'text' || !relayMessageType;
+      if (isTextReply && !text) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
+      }
+      if (!isTextReply && adminMessageId === null) {
         return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
       }
       const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
@@ -723,11 +778,30 @@ export async function executeAction(
       });
       const userChatIdRaw = asString(conversation?.user_channel_id);
       const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
-      const adminChatId = asNumber(readIncoming(ctx).chatId);
       if (!conversation || !Number.isFinite(userChatId)) {
         return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_NOT_FOUND' };
       }
+      const policy = deps.supportRelayPolicy;
+      if (policy && !policy.isAllowedAdminToUser(relayMessageType)) {
+        const refusalText = deps.templatePort
+          ? (await renderText({ templateKey: ADMIN.RELAY_UNSUPPORTED_ADMIN, ctx, templatePort: deps.templatePort }))
+            || 'Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.'
+          : 'Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.';
+        const refusalIntents: OutgoingIntent[] = adminChatId !== null
+          ? [{
+            type: 'message.send',
+            meta: buildIntentMeta(action, ctx),
+            payload: {
+              recipient: { chatId: adminChatId },
+              message: { text: refusalText },
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
+            },
+          }]
+          : [];
+        return { actionId: action.id, status: 'success', intents: refusalIntents };
+      }
       const sourceForConversation = asString(conversation.source) ?? ctx.event.meta.source;
+      const messageTextForDb = isTextReply ? (text ?? '') : `[${relayMessageType}]`;
       const writes: DbWriteMutation[] = [
         {
           type: 'conversation.message.add',
@@ -735,7 +809,7 @@ export async function executeAction(
             id: randomUUID(),
             conversationId,
             senderRole: 'admin',
-            text,
+            text: messageTextForDb,
             source: sourceForConversation,
             externalChatId: readIncomingChatId(ctx),
             externalMessageId: readIncomingMessageId(ctx),
@@ -765,7 +839,7 @@ export async function executeAction(
               id: randomUUID(),
               questionId: question.id,
               senderType: 'admin',
-              messageText: text,
+              messageText: messageTextForDb,
               createdAt: ctx.nowIso,
             },
           },
@@ -778,17 +852,29 @@ export async function executeAction(
         writes.push(...questionReplyWrites);
       }
 
-      const intents: OutgoingIntent[] = [
-        {
+      const intents: OutgoingIntent[] = [];
+      if (isTextReply && text) {
+        intents.push({
           type: 'message.send',
           meta: buildIntentMeta(action, ctx),
           payload: {
             recipient: { chatId: userChatId },
             message: { text },
-            delivery: { maxAttempts: 1 },
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
           },
-        },
-      ];
+        });
+      } else if (!isTextReply && adminChatId !== null && adminMessageId !== null) {
+        intents.push({
+          type: 'message.copy',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: userChatId },
+            from_chat_id: adminChatId,
+            message_id: adminMessageId,
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
+          },
+        });
+      }
       if (adminChatId !== null) {
         const sentText = deps.templatePort
           ? (await renderText({ templateKey: ADMIN.REPLY_SENT, ctx, templatePort: deps.templatePort })) || 'Сообщение отправлено.'
@@ -812,7 +898,7 @@ export async function executeAction(
             recipient: { chatId: adminChatId },
             message: { text: sentText },
             replyMarkup: { inline_keyboard: replyRows },
-            delivery: { maxAttempts: 1 },
+            delivery: { channels: ['telegram'], maxAttempts: 1 },
           },
         });
       }

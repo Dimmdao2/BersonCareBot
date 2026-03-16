@@ -31,6 +31,7 @@ export type ChannelWebhookBody = {
   callback_query?: ChannelCallbackQuery;
 };
 
+/** Тип сообщения для support relay (user↔admin). Заполняется интеграцией (e.g. Telegram). */
 export type IncomingMessageUpdate = {
   kind: 'message';
   chatId: number;
@@ -47,6 +48,8 @@ export type IncomingMessageUpdate = {
   userRow: { id: string; channel_id: string } | null;
   userState: string;
   adminForward?: { chatId: number; text: string } | undefined;
+  /** Тип сообщения для relay (text, photo, document, …). Определяется интеграцией. */
+  relayMessageType?: string;
 };
 
 export type IncomingCallbackUpdate = {

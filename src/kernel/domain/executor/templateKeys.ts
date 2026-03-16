@@ -16,6 +16,11 @@ export const ADMIN = {
   QUESTIONS_LIST: 'telegram:admin.questions.list',
   QUESTIONS_REPLY_BUTTON: 'telegram:admin.questions.replyButton',
   FORWARD: 'telegram:adminForward',
+  RELAY_UNSUPPORTED_ADMIN: 'telegram:admin.relay.unsupportedType',
+} as const;
+
+export const RELAY_USER = {
+  UNSUPPORTED_TYPE: 'telegram:relay.unsupportedType',
 } as const;
 
 export const REMINDER = {

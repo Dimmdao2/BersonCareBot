@@ -12,6 +12,7 @@ import type {
   QueuePort,
   TemplatePort,
 } from '../contracts/index.js';
+import type { SupportRelayPolicy } from '../domain/executor/helpers.js';
 import { executeDomainAction, processAcceptedIncomingEvent } from '../domain/index.js';
 
 export type IncomingEventPipelineDeps = {
@@ -28,6 +29,8 @@ export type IncomingEventPipelineDeps = {
   /** When true, executor attaches main reply keyboard to every message to user that has no keyboard. */
   sendMenuOnButtonPress?: boolean;
   contentPort?: ContentPort;
+  /** Policy for support relay allowed message types. When unset, default from app config is used. */
+  supportRelayPolicy?: SupportRelayPolicy | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -98,6 +101,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             ...(deps.deliveryDefaultsPort !== undefined ? { deliveryDefaultsPort: deps.deliveryDefaultsPort } : {}),
             ...(deps.sendMenuOnButtonPress !== undefined ? { sendMenuOnButtonPress: deps.sendMenuOnButtonPress } : {}),
             ...(deps.contentPort ? { contentPort: deps.contentPort } : {}),
+            ...(deps.supportRelayPolicy !== undefined && deps.supportRelayPolicy !== null ? { supportRelayPolicy: deps.supportRelayPolicy } : {}),
             executeAction: executeDomainAction,
           };
           return executeDomainAction(action, context, executorDeps);

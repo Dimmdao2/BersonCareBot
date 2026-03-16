@@ -20,6 +20,12 @@ import type {
 } from '../../contracts/index.js';
 import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
 
+/** Policy for support relay: which message types are allowed user→admin and admin→user. */
+export type SupportRelayPolicy = {
+  isAllowedUserToAdmin(messageType: string): boolean;
+  isAllowedAdminToUser(messageType: string): boolean;
+};
+
 export type ExecutorDeps = {
   readPort?: DbReadPort;
   writePort?: DbWritePort;
@@ -31,6 +37,8 @@ export type ExecutorDeps = {
   /** When true, attach main reply keyboard (from replyMenu.json) to message.send to user when params have no keyboard. */
   sendMenuOnButtonPress?: boolean;
   contentPort?: ContentPort;
+  /** Policy for support relay message types. When set, relay checks allowed types and uses copyMessage where applicable. */
+  supportRelayPolicy?: SupportRelayPolicy | null;
   /** Set by pipeline so handlers can recurse (e.g. message.retry.enqueue). */
   executeAction?: (action: Action, ctx: DomainContext, deps: ExecutorDeps) => Promise<ActionResult>;
 };
@@ -108,6 +116,13 @@ export function readIncomingMessageId(ctx: DomainContext): string | null {
   const incoming = readIncoming(ctx);
   const messageId = asNumber(incoming.messageId);
   return messageId === null ? asString(incoming.messageId) : String(messageId);
+}
+
+/** Тип сообщения для support relay (text, photo, document, …). Только у message. */
+export function readRelayMessageType(ctx: DomainContext): string | null {
+  const incoming = readIncoming(ctx);
+  if (incoming.kind !== 'message') return null;
+  return asString(incoming.relayMessageType);
 }
 
 export function readConversationId(action: Action, ctx: DomainContext): string | null {

@@ -71,5 +71,6 @@
   "emergency.injury": "Что делать при травме",
   "emergency.placeholder": "Здесь скоро будут советы и упражнения по этой теме. Как только подготовлю — обязательно сообщу!",
   "showMyId": "Ваш ID в Telegram: {{channelId}}",
-  "adminForward": "Новый вопрос\nОт: {{name}} {{usernameMention}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}"
+  "adminForward": "Новый вопрос\nОт: {{name}} {{usernameMention}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}",
+  "relay.unsupportedType": "К сожалению, такой тип сообщения сейчас не поддерживается. Вы можете отправить текст, фото или документ."
 }

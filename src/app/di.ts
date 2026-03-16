@@ -43,6 +43,7 @@ import { telegramConfig } from '../integrations/telegram/config.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
+import { defaultSupportRelayPolicy } from '../integrations/telegram/supportRelayPolicy.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -153,6 +154,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     deliveryDefaultsPort,
     contentPort,
     sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress ?? false,
+    supportRelayPolicy: defaultSupportRelayPolicy,
   });
 
   const eventGateway = createEventGateway({

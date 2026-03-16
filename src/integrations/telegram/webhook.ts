@@ -7,6 +7,7 @@ import { telegramIncomingToEvent } from './connector.js';
 import { telegramConfig } from './config.js';
 import { buildWebappEntryUrl } from '../webappEntryToken.js';
 import { normalizeTelegramAction, normalizeTelegramContactPhone, normalizeTelegramMessageAction } from './mapIn.js';
+import { getMessageTypeFromTelegramMessage } from './supportRelayTypes.js';
 import { ensureNoMenuButtonForUser, setupTelegramMenuButton } from './setupMenuButton.js';
 import { parseWebhookBody } from './schema.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
@@ -135,6 +136,7 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
       action = 'start.setrubitimerecord';
       recordIdFromStart = setrubitimerecordMatch[1];
     }
+    const relayMessageType = getMessageTypeFromTelegramMessage(body.message);
     return {
       kind: 'message',
       chatId: body.message.chat.id,
@@ -148,6 +150,7 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
       ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),
       ...(typeof body.message.from.first_name === 'string' ? { channelFirstName: body.message.from.first_name } : {}),
       ...(typeof body.message.from.last_name === 'string' ? { channelLastName: body.message.from.last_name } : {}),
+      ...(relayMessageType ? { relayMessageType } : {}),
       userRow: null,
       userState: '',
     };

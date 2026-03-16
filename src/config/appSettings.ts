@@ -1,6 +1,12 @@
+import type { SupportRelayMessageType } from '../integrations/telegram/supportRelayTypes.js';
+
 export type AppSettings = {
   debug: {
     forwardAllEventsToAdmin: boolean;
+  };
+  supportRelay: {
+    allowedUserToAdminMessageTypes: SupportRelayMessageType[];
+    allowedAdminToUserMessageTypes: SupportRelayMessageType[];
   };
   worker: {
     pollIntervalMs: number;
@@ -24,10 +30,19 @@ export type AppSettings = {
   };
 };
 
+const DEFAULT_ALLOWED_USER_TO_ADMIN: SupportRelayMessageType[] = ['text', 'photo', 'document'];
+const DEFAULT_ALLOWED_ADMIN_TO_USER: SupportRelayMessageType[] = [
+  'text', 'photo', 'document', 'voice', 'audio', 'video', 'video_note', 'animation', 'sticker', 'contact', 'location',
+];
+
 // Non-secret runtime settings. Kept out of .env on purpose.
 export const appSettings: AppSettings = {
   debug: {
     forwardAllEventsToAdmin: false,
+  },
+  supportRelay: {
+    allowedUserToAdminMessageTypes: DEFAULT_ALLOWED_USER_TO_ADMIN,
+    allowedAdminToUserMessageTypes: DEFAULT_ALLOWED_ADMIN_TO_USER,
   },
   worker: {
     pollIntervalMs: 5000,
