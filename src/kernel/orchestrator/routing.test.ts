@@ -218,4 +218,120 @@ describe('orchestrator routing', () => {
 
     expect(getScripts).toHaveBeenCalledWith({ source: 'telegram', audience: 'admin' });
   });
+
+  it('selects diary script when context.conversationState is diary.symptom.awaiting_title and user sends text', async () => {
+    const getScripts = vi.fn().mockResolvedValue([
+      {
+        id: 'telegram.menu.default',
+        source: 'telegram',
+        event: 'message.received',
+        match: {
+          actor: { isAdmin: false },
+          context: { conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] } },
+          input: { textPresent: true },
+        },
+        steps: [{ action: 'event.log', params: { selected: 'menu.default' } }],
+      },
+      {
+        id: 'telegram.diary.symptom.awaiting_title',
+        source: 'telegram',
+        event: 'message.received',
+        match: {
+          actor: { userState: 'diary.symptom.awaiting_title' },
+          input: { textPresent: true },
+        },
+        steps: [{ action: 'event.log', params: { selected: 'diary.symptom' } }],
+      },
+    ]);
+    const contentPort: ContentPort = {
+      getScripts,
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    const plan = await buildPlan(
+      {
+        event: {
+          ...createEvent(),
+          payload: {
+            incoming: {
+              text: 'Головная боль',
+              chatId: 123,
+              channelUserId: 456,
+            },
+          },
+        },
+        context: { ...baseContext, conversationState: 'diary.symptom.awaiting_title' },
+      },
+      { contentPort, contextQueryPort },
+    );
+    expect(plan.length).toBeGreaterThan(0);
+    expect(plan[0]?.payload).toMatchObject({ selected: 'diary.symptom' });
+  });
+
+  it('selects menu.default when conversationState is idle and user sends text (excludes diary awaiting)', async () => {
+    const getScripts = vi.fn().mockResolvedValue([
+      {
+        id: 'telegram.menu.default',
+        source: 'telegram',
+        event: 'message.received',
+        match: {
+          actor: { isAdmin: false },
+          context: { conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] } },
+          input: { textPresent: true },
+        },
+        steps: [{ action: 'event.log', params: { selected: 'menu.default' } }],
+      },
+    ]);
+    const contentPort: ContentPort = {
+      getScripts,
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    const plan = await buildPlan(
+      {
+        event: {
+          ...createEvent(),
+          payload: {
+            incoming: {
+              text: 'просто текст',
+              chatId: 123,
+              channelUserId: 456,
+            },
+          },
+        },
+        context: { ...baseContext, conversationState: 'idle' },
+      },
+      { contentPort, contextQueryPort },
+    );
+    expect(plan.length).toBeGreaterThan(0);
+    expect(plan[0]?.payload).toMatchObject({ selected: 'menu.default' });
+  });
+
+  it('does not select script with $notIn when conversationState is in the exclusion list', async () => {
+    const getScripts = vi.fn().mockResolvedValue([
+      {
+        id: 'only.when.not.diary',
+        source: 'telegram',
+        event: 'message.received',
+        match: {
+          context: { conversationState: { $notIn: ['diary.symptom.awaiting_title'] } },
+          input: { textPresent: true },
+        },
+        steps: [{ action: 'event.log', params: {} }],
+      },
+    ]);
+    const contentPort: ContentPort = {
+      getScripts,
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    const plan = await buildPlan(
+      {
+        event: {
+          ...createEvent(),
+          payload: { incoming: { text: 'симптом', chatId: 1, channelUserId: 1 } },
+        },
+        context: { ...baseContext, conversationState: 'diary.symptom.awaiting_title' },
+      },
+      { contentPort, contextQueryPort },
+    );
+    expect(plan).toEqual([]);
+  });
 });

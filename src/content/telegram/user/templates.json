@@ -31,6 +31,7 @@
   "diary.lfk": "ЛФК",
   "diary.symptom.enterTitle": "Введите название симптома для отслеживания (например: Головная боль).",
   "diary.symptom.trackingCreated": "Запись о симптоме создана. Оценку от 0 до 10 можно добавить в приложении.",
+  "diary.symptom.intensityPrompt": "Укажите интенсивность симптома",
   "diary.symptom.placeholder": "Скоро здесь можно будет вести дневник симптомов.",
   "diary.symptom.listHeading": "Симптомы. Выберите или добавьте.",
   "diary.symptom.ratePrompt": "Оцените от 0 до 10",

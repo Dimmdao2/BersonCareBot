@@ -94,6 +94,10 @@ function normalizeMatchVars(input: OrchestratorInput): Record<string, unknown> {
   const eventPayload = asRecord(input.event.payload) ?? {};
   const normalizedInput = asRecord(eventPayload.incoming) ?? eventPayload;
   const facts = asRecord(input.context.facts) ?? {};
+  const ctx = input.context as Record<string, unknown>;
+  const conversationState = isTruthyString(normalizedInput.userState)
+    ? normalizedInput.userState
+    : (isTruthyString(ctx.conversationState) ? ctx.conversationState : undefined);
   const actor = {
     ...(asRecord(input.context.actor) ?? {}),
     ...(typeof normalizedInput.channelUserId === 'number' || isTruthyString(normalizedInput.channelUserId)
@@ -102,10 +106,11 @@ function normalizeMatchVars(input: OrchestratorInput): Record<string, unknown> {
     ...(typeof normalizedInput.channelId === 'string' ? { channelUserId: normalizedInput.channelId } : {}),
     ...(typeof normalizedInput.chatId === 'number' ? { chatId: normalizedInput.chatId } : {}),
     ...(typeof normalizedInput.channelUsername === 'string' ? { username: normalizedInput.channelUsername } : {}),
+    ...(conversationState ? { userState: conversationState } : {}),
   };
   const context = {
     ...input.context,
-    ...(isTruthyString(normalizedInput.userState) ? { conversationState: normalizedInput.userState } : {}),
+    ...(conversationState ? { conversationState } : {}),
     ...(typeof normalizedInput.hasLinkedPhone === 'boolean' ? { linkedPhone: normalizedInput.hasLinkedPhone } : {}),
   };
 
@@ -140,6 +145,12 @@ function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
   }
 
   if (!isRecord(expected)) return actual === expected;
+
+  /** Match when actual is not in the given array (e.g. exclude diary awaiting states from "any text" scripts). */
+  const notIn = expected.$notIn;
+  if (Array.isArray(notIn) && Object.keys(expected).length === 1) {
+    return !notIn.includes(actual as never);
+  }
 
   const actualRecord = asRecord(actual) ?? {};
   for (const [key, value] of Object.entries(expected)) {

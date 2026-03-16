@@ -1530,4 +1530,78 @@ describe('executeAction', () => {
       expect(adminConfirmIntent).toBeDefined();
     });
   });
+
+  describe('diary.symptom.afterTrackingCreated', () => {
+    const telegramCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: { eventId: 'evt-diary', occurredAt: '2026-03-16T12:00:00.000Z', source: 'telegram' },
+        payload: {
+          incoming: {
+            text: 'Головная боль',
+            chatId: 111,
+            channelUserId: 222,
+          },
+        },
+      },
+    };
+
+    it('sends intensity prompt with 0-10 inline buttons when tracking is found by title', async () => {
+      const listSymptomTrackings = vi.fn().mockResolvedValue({
+        ok: true,
+        trackings: [
+          {
+            id: 'track-uuid-1',
+            userId: 'user-1',
+            symptomKey: null,
+            symptomTitle: 'Головная боль',
+            isActive: true,
+            createdAt: '2026-03-16T10:00:00.000Z',
+            updatedAt: '2026-03-16T10:00:00.000Z',
+          },
+        ],
+      });
+      const readDb = vi.fn().mockResolvedValue({ userId: 'user-1', userState: 'idle' });
+      const action: Action = {
+        id: 'after',
+        type: 'diary.symptom.afterTrackingCreated',
+        mode: 'async',
+        params: { symptomTitle: 'Головная боль', chatId: 111 },
+      };
+      const result = await executeAction(action, telegramCtx, {
+        readPort: { readDb },
+        webappEventsPort: { listSymptomTrackings, emit: vi.fn(), listLfkComplexes: vi.fn() },
+      });
+      expect(result.status).toBe('success');
+      expect(result.intents).toHaveLength(1);
+      expect(result.intents?.[0]?.type).toBe('message.send');
+      const payload = result.intents?.[0]?.payload as { message?: { text?: string }; replyMarkup?: { inline_keyboard?: unknown[] } };
+      expect(payload.message?.text).toMatch(/интенсивность/);
+      expect(payload.replyMarkup?.inline_keyboard).toHaveLength(1);
+      expect((payload.replyMarkup?.inline_keyboard?.[0] as unknown[]).length).toBe(11);
+      const firstButton = (payload.replyMarkup?.inline_keyboard?.[0] as { callback_data?: string }[])?.[0];
+      expect(firstButton?.callback_data).toMatch(/^diary\.symptom\.value:track-uuid-1:0$/);
+    });
+
+    it('sends fallback tracking-created message when no tracking found by title', async () => {
+      const listSymptomTrackings = vi.fn().mockResolvedValue({ ok: true, trackings: [] });
+      const readDb = vi.fn().mockResolvedValue({ userId: 'user-1' });
+      const action: Action = {
+        id: 'after',
+        type: 'diary.symptom.afterTrackingCreated',
+        mode: 'async',
+        params: { symptomTitle: 'Редкий симптом', chatId: 111 },
+      };
+      const result = await executeAction(action, telegramCtx, {
+        readPort: { readDb },
+        webappEventsPort: { listSymptomTrackings, emit: vi.fn(), listLfkComplexes: vi.fn() },
+      });
+      expect(result.status).toBe('success');
+      expect(result.intents?.[0]?.payload).toMatchObject({
+        message: { text: expect.stringContaining('Запись') },
+        replyMarkup: { inline_keyboard: [[{ text: expect.stringContaining('К списку'), callback_data: 'diary.symptom.open' }]] },
+      });
+    });
+  });
 });

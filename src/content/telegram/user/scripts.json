@@ -327,7 +327,11 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"context": { "hasActiveDraft": true, "hasOpenConversation": false },
+			"context": {
+				"hasActiveDraft": true,
+				"hasOpenConversation": false,
+				"conversationState": { "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title"] }
+			},
 			"input": {
 				"textPresent": true,
 				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
@@ -983,13 +987,11 @@
 				}
 			},
 			{
-				"action": "message.send",
+				"action": "diary.symptom.afterTrackingCreated",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
-					"templateKey": "telegram:diary.symptom.trackingCreated",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"inlineKeyboard": [[{ "text": "⬅️ К списку симптомов", "callbackData": "diary.symptom.open" }]]
+					"symptomTitle": "{{input.text}}",
+					"chatId": "{{actor.chatId}}"
 				}
 			}
 		]
@@ -1929,6 +1931,9 @@
 		"event": "message.received",
 		"match": {
 			"actor": { "isAdmin": false },
+			"context": {
+				"conversationState": { "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title"] }
+			},
 			"input": {
 				"textPresent": true,
 				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],

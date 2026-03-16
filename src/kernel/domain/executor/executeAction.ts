@@ -1362,6 +1362,84 @@ export async function executeAction(
       return { actionId: action.id, status: 'success', writes, intents };
     }
 
+    case 'diary.symptom.afterTrackingCreated': {
+      const symptomTitle = asString(action.params.symptomTitle)?.trim() ?? '';
+      const chatId = asNumber(action.params.chatId);
+      if (chatId === null) {
+        return { actionId: action.id, status: 'failed', error: 'diary.symptom.afterTrackingCreated: chatId required' };
+      }
+      let userId: string | null = asString(action.params.userId);
+      if (!userId && deps.readPort) {
+        const source = asString(ctx.event.meta.source) ?? 'telegram';
+        const channelUserId = asNumericString(readExternalActorId(ctx))
+          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        if (channelUserId) {
+          const link = await deps.readPort.readDb<{ userId?: string } | null>({
+            type: 'user.byIdentity',
+            params: { resource: source, externalId: channelUserId },
+          });
+          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        }
+      }
+      const intensityText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.symptom.intensityPrompt`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Укажите интенсивность симптома'
+        : 'Укажите интенсивность симптома';
+      const fallbackText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.symptom.trackingCreated`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Запись о симптоме создана.'
+        : 'Запись о симптоме создана.';
+      const intents: OutgoingIntent[] = [];
+      let trackingId: string | null = null;
+      if (deps.webappEventsPort && userId) {
+        const { trackings = [] } = await deps.webappEventsPort.listSymptomTrackings(userId);
+        const titleLower = symptomTitle.toLowerCase();
+        const byTitle = trackings.filter(
+          (t) => (t.symptomTitle ?? '').trim().toLowerCase() === titleLower,
+        );
+        const chosen = byTitle.length > 0
+          ? byTitle.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0]
+          : null;
+        trackingId = chosen?.id ?? null;
+      }
+      if (trackingId) {
+        const valueRow = Array.from({ length: 11 }, (_, i) => ({
+          text: String(i),
+          callback_data: `diary.symptom.value:${trackingId}:${i}`,
+        }));
+        intents.push({
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId },
+            message: { text: intensityText },
+            delivery: { channels: [ctx.event.meta.source], maxAttempts: 1 },
+            replyMarkup: { inline_keyboard: [valueRow] },
+          },
+        });
+      } else {
+        intents.push({
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId },
+            message: { text: fallbackText },
+            delivery: { channels: [ctx.event.meta.source], maxAttempts: 1 },
+            replyMarkup: {
+              inline_keyboard: [[{ text: '⬅️ К списку симптомов', callback_data: 'diary.symptom.open' }]],
+            },
+          },
+        });
+      }
+      return { actionId: action.id, status: 'success', intents };
+    }
+
     case 'diary.lfk.list': {
       const port = deps.webappEventsPort;
       const chatId = asNumber(action.params.chatId);
