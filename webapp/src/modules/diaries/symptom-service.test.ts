@@ -3,53 +3,108 @@ import { createSymptomDiaryService } from "./symptom-service";
 import { inMemorySymptomDiaryPort } from "@/infra/repos/symptomDiary";
 
 describe("symptom diary service", () => {
-  const { addSymptomEntry, listSymptomEntries } = createSymptomDiaryService(inMemorySymptomDiaryPort);
+  const service = createSymptomDiaryService(inMemorySymptomDiaryPort);
 
-  it("adds entry and lists by userId", async () => {
-    const e = await addSymptomEntry({
+  it("createTracking + addEntry and list by userId", async () => {
+    const tracking = await service.createTracking({
       userId: "u1",
-      symptom: "Головная боль",
-      severity: 3,
+      symptomTitle: "Головная боль",
+    });
+    expect(tracking.id).toBeDefined();
+    expect(tracking.symptomTitle).toBe("Головная боль");
+
+    const e = await service.addEntry({
+      userId: "u1",
+      trackingId: tracking.id,
+      value0_10: 5,
+      entryType: "instant",
+      recordedAt: new Date().toISOString(),
+      source: "bot",
       notes: "Утро",
     });
     expect(e.id).toBeDefined();
-    expect(e.symptom).toBe("Головная боль");
-    expect(e.severity).toBe(3);
+    expect(e.trackingId).toBe(tracking.id);
+    expect(e.value0_10).toBe(5);
     expect(e.recordedAt).toBeDefined();
 
-    const list = await listSymptomEntries("u1");
+    const list = await service.listSymptomEntries("u1");
     expect(list.length).toBeGreaterThanOrEqual(1);
     expect(list.some((x) => x.id === e.id)).toBe(true);
   });
 
   it("returns empty list for unknown userId", async () => {
-    const list = await listSymptomEntries("unknown-user-999");
+    const list = await service.listSymptomEntries("unknown-user-999");
     expect(Array.isArray(list)).toBe(true);
   });
 
-  it("clamps severity to 1–5", async () => {
-    const low = await addSymptomEntry({ userId: "u2", symptom: "X", severity: 0 as 1 });
-    const high = await addSymptomEntry({ userId: "u2", symptom: "Y", severity: 6 as 1 });
-    expect(low.severity).toBe(1);
-    expect(high.severity).toBe(5);
+  it("clamps value0_10 to 0–10", async () => {
+    const tracking = await service.createTracking({ userId: "u2", symptomTitle: "X" });
+    const low = await service.addEntry({
+      userId: "u2",
+      trackingId: tracking.id,
+      value0_10: -1,
+      entryType: "instant",
+      recordedAt: new Date().toISOString(),
+      source: "webapp",
+    });
+    const high = await service.addEntry({
+      userId: "u2",
+      trackingId: tracking.id,
+      value0_10: 15,
+      entryType: "daily",
+      recordedAt: new Date().toISOString(),
+      source: "webapp",
+    });
+    expect(low.value0_10).toBe(0);
+    expect(high.value0_10).toBe(10);
   });
 
-  it("trims symptom and uses fallback when empty", async () => {
-    const e = await addSymptomEntry({ userId: "u2", symptom: "  ", severity: 2 });
-    expect(e.symptom).toBe("—");
+  it("trims symptomTitle and uses fallback when empty", async () => {
+    const t = await service.createTracking({ userId: "u2", symptomTitle: "  " });
+    expect(t.symptomTitle).toBe("—");
   });
 
   it("passes notes as null when undefined", async () => {
-    const e = await addSymptomEntry({ userId: "u2", symptom: "Z", severity: 1 });
+    const tracking = await service.createTracking({ userId: "u2", symptomTitle: "Z" });
+    const e = await service.addEntry({
+      userId: "u2",
+      trackingId: tracking.id,
+      value0_10: 3,
+      entryType: "instant",
+      recordedAt: new Date().toISOString(),
+      source: "bot",
+    });
     expect(e.notes).toBeNull();
   });
 
   it("respects list limit", async () => {
     const userId = "u-limit";
-    await addSymptomEntry({ userId, symptom: "A", severity: 1 });
-    await addSymptomEntry({ userId, symptom: "B", severity: 2 });
-    await addSymptomEntry({ userId, symptom: "C", severity: 3 });
-    const list = await listSymptomEntries(userId, 2);
+    const tracking = await service.createTracking({ userId, symptomTitle: "A" });
+    await service.addEntry({
+      userId,
+      trackingId: tracking.id,
+      value0_10: 1,
+      entryType: "instant",
+      recordedAt: new Date().toISOString(),
+      source: "webapp",
+    });
+    await service.addEntry({
+      userId,
+      trackingId: tracking.id,
+      value0_10: 2,
+      entryType: "instant",
+      recordedAt: new Date().toISOString(),
+      source: "webapp",
+    });
+    await service.addEntry({
+      userId,
+      trackingId: tracking.id,
+      value0_10: 3,
+      entryType: "instant",
+      recordedAt: new Date().toISOString(),
+      source: "webapp",
+    });
+    const list = await service.listSymptomEntries(userId, 2);
     expect(list.length).toBe(2);
   });
 });

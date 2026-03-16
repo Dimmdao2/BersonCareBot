@@ -1,6 +1,7 @@
 [
   [
     { "textTemplateKey": "telegram:menu.book" },
+    { "textTemplateKey": "telegram:menu.diary" },
     { "textTemplateKey": "telegram:menu.more" }
   ]
 ]

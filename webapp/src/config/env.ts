@@ -62,6 +62,8 @@ const envSchema = z.object({
   ALLOWED_TELEGRAM_IDS: z.string().optional().default(""),
   ADMIN_TELEGRAM_ID: z.coerce.number().int().optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  /** Optional URL for MVP test video (e.g. /videos/test.mp4 or external). Webapp-owned; no integrator coupling. */
+  MEDIA_TEST_VIDEO_URL: z.string().optional().default(""),
 });
 
 const parsed = envSchema.parse({
@@ -78,6 +80,7 @@ const parsed = envSchema.parse({
   ALLOWED_TELEGRAM_IDS: process.env.ALLOWED_TELEGRAM_IDS,
   ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID,
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+  MEDIA_TEST_VIDEO_URL: process.env.MEDIA_TEST_VIDEO_URL ?? "",
 });
 
 export type EnvParsed = z.infer<typeof envSchema>;

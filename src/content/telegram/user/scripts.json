@@ -32,6 +32,7 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -137,6 +138,7 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -206,6 +208,7 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -279,8 +282,8 @@
 			"context": { "conversationState": "waiting_for_question" },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "menu.more", "cabinet.open"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
+				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "📓 Дневник", "Дневник", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -327,8 +330,8 @@
 			"context": { "hasActiveDraft": true, "hasOpenConversation": false },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "menu.more", "cabinet.open"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
+				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "📓 Дневник", "Дневник", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -407,8 +410,8 @@
 			"context": { "hasOpenConversation": true },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "menu.more", "cabinet.open"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
+				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "📓 Дневник", "Дневник", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [
@@ -654,6 +657,7 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -688,6 +692,7 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -761,6 +766,7 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -786,6 +792,7 @@
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary" },
 							{ "textTemplateKey": "telegram:menu.more" }
 						]
 					],
@@ -798,6 +805,152 @@
 				"params": {
 					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.open",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "diary.open" }
+		},
+		"steps": [
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:diary.choose",
+					"menu": "diary"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.symptom.open",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.symptom.open" }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "diary.symptom.awaiting_title"
+				}
+			},
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:diary.symptom.enterTitle",
+					"inlineKeyboard": [[{ "text": "⬅️ Назад", "callbackData": "diary.symptom.back" }]]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.symptom.back",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.symptom.back" }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:menu.main.heading",
+					"menu": "main"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.symptom.awaiting_title",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"actor": { "userState": "diary.symptom.awaiting_title" },
+			"input": { "textPresent": true }
+		},
+		"steps": [
+			{
+				"action": "webapp.event.emit",
+				"mode": "async",
+				"params": {
+					"eventType": "diary.symptom.tracking.created",
+					"payload": {
+						"symptomTitle": "{{input.text}}"
+					}
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:diary.symptom.trackingCreated",
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.lfk.open",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.lfk.open" }
+		},
+		"steps": [
+			{
+				"action": "message.inlineKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:diary.lfk.placeholder",
+					"inlineKeyboard": [[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
 			}
 		]
 	},
@@ -1588,8 +1741,8 @@
 			"actor": { "isAdmin": false },
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "menu.more", "cabinet.open"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "👤 Кабинет", "Кабинет"]
+				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
+				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "📓 Дневник", "Дневник", "👤 Кабинет", "Кабинет"]
 			}
 		},
 		"steps": [

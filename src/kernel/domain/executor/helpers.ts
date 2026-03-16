@@ -17,6 +17,7 @@ import type {
   ProtectedAccessPort,
   QueuePort,
   TemplatePort,
+  WebappEventsPort,
 } from '../../contracts/index.js';
 import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
 
@@ -41,6 +42,8 @@ export type ExecutorDeps = {
   supportRelayPolicy?: SupportRelayPolicy | null;
   /** Set by pipeline so handlers can recurse (e.g. message.retry.enqueue). */
   executeAction?: (action: Action, ctx: DomainContext, deps: ExecutorDeps) => Promise<ActionResult>;
+  /** Optional: emit signed events to webapp (e.g. diary.symptom.*). */
+  webappEventsPort?: WebappEventsPort;
 };
 
 export function nowIso(ctx: DomainContext): string {

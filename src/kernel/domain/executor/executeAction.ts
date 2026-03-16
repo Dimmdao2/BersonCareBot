@@ -78,6 +78,48 @@ export async function executeAction(
       return { actionId: action.id, status: 'success', writes };
     }
 
+    case 'webapp.event.emit': {
+      const port = deps.webappEventsPort;
+      if (!port) {
+        return { actionId: action.id, status: 'success', values: { webappEmit: { ok: false, reason: 'webappEventsPort not configured' } } };
+      }
+      const eventType = asString(action.params.eventType);
+      if (!eventType) {
+        return { actionId: action.id, status: 'failed', error: 'webapp.event.emit: eventType required' };
+      }
+      const payload = asRecord(action.params.payload ?? {});
+      let userId = asString(payload.userId);
+      if (!userId && deps.readPort) {
+        const source = asString(ctx.event.meta.source) ?? 'telegram';
+        const channelUserId = asNumericString(readExternalActorId(ctx))
+          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        if (channelUserId) {
+          const link = await deps.readPort.readDb<{ userId?: string } | null>({
+            type: 'user.byIdentity',
+            params: { resource: source, externalId: channelUserId },
+          });
+          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        }
+      }
+      const mergedPayload = userId ? { ...payload, userId } : payload;
+      const eventId = asString(action.params.eventId);
+      const occurredAt = asString(action.params.occurredAt) ?? ctx.nowIso;
+      const idempotencyKey = asString(action.params.idempotencyKey);
+      const payloadForEvent = Object.keys(mergedPayload).length > 0 ? mergedPayload : undefined;
+      const eventBody = {
+        eventType,
+        ...(eventId ? { eventId } : {}),
+        occurredAt,
+        ...(idempotencyKey ? { idempotencyKey } : {}),
+        ...(payloadForEvent ? { payload: payloadForEvent } : {}),
+      };
+      const result = await port.emit(eventBody);
+      if (!result.ok) {
+        return { actionId: action.id, status: 'success', values: { webappEmit: { ok: false, status: result.status, error: result.error } } };
+      }
+      return { actionId: action.id, status: 'success', values: { webappEmit: { ok: true, status: result.status } } };
+    }
+
     case 'booking.upsert': {
       const writes: DbWriteMutation[] = [{ type: 'booking.upsert', params: action.params }];
       await persistWrites(deps.writePort, writes);

@@ -1,4 +1,9 @@
 {
+  "diary": [
+    [{ "textTemplateKey": "telegram:diary.symptom", "callbackData": "diary.symptom.open" }],
+    [{ "textTemplateKey": "telegram:diary.lfk", "callbackData": "diary.lfk.open" }],
+    [{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+  ],
   "main": [
     [{ "textTemplateKey": "telegram:moreMenu.emergencyHelp", "callbackData": "content.emergency_help" }],
     [{ "textTemplateKey": "telegram:moreMenu.personalAssistant", "callbackData": "assistant.open", "webAppUrlFact": "links.webappEntryUrl" }],

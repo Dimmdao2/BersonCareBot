@@ -301,3 +301,17 @@ export type GatewayResult =
 
 /** Совместимый алиас прежнего имени dispatch-контракта. */
 export type OutgoingDispatcher = DispatchPort;
+
+/** Payload for POST /api/integrator/events (webapp contract). */
+export type WebappEventBody = {
+  eventType: string;
+  eventId?: string;
+  occurredAt?: string;
+  idempotencyKey?: string;
+  payload?: Record<string, unknown>;
+};
+
+/** Port for emitting signed events to webapp (e.g. diary.symptom.*). */
+export type WebappEventsPort = {
+  emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
+};

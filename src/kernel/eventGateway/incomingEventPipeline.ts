@@ -11,6 +11,7 @@ import type {
   ProtectedAccessPort,
   QueuePort,
   TemplatePort,
+  WebappEventsPort,
 } from '../contracts/index.js';
 import type { SupportRelayPolicy } from '../domain/executor/helpers.js';
 import { executeDomainAction, processAcceptedIncomingEvent } from '../domain/index.js';
@@ -31,6 +32,8 @@ export type IncomingEventPipelineDeps = {
   contentPort?: ContentPort;
   /** Policy for support relay allowed message types. When unset, default from app config is used. */
   supportRelayPolicy?: SupportRelayPolicy | null;
+  /** Optional: emit signed events to webapp (e.g. diary.symptom.*). */
+  webappEventsPort?: WebappEventsPort;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -102,6 +105,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             ...(deps.sendMenuOnButtonPress !== undefined ? { sendMenuOnButtonPress: deps.sendMenuOnButtonPress } : {}),
             ...(deps.contentPort ? { contentPort: deps.contentPort } : {}),
             ...(deps.supportRelayPolicy !== undefined && deps.supportRelayPolicy !== null ? { supportRelayPolicy: deps.supportRelayPolicy } : {}),
+            ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
             executeAction: executeDomainAction,
           };
           return executeDomainAction(action, context, executorDeps);

@@ -26,6 +26,8 @@ const LEGACY_CALLBACK_TO_ACTION: Record<string, string> = {
 const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '📅 Запись на приём': 'booking.open',
   'Запись на приём': 'booking.open',
+  '📓 Дневник': 'diary.open',
+  'Дневник': 'diary.open',
   '⚙️ Меню': 'menu.more',
   'Меню': 'menu.more',
   '👤 Кабинет': 'cabinet.open',

@@ -1,0 +1,19 @@
+{
+  "welcome": "👋 Добро пожаловать! Я помогу вам записаться на приём, настроить уведомления или задать вопрос.",
+  "chooseMenu": "Выберите действие в меню.",
+  "menu.main.heading": "⚙️ Меню",
+  "menu.book": "📅 Запись на приём",
+  "menu.diary": "📓 Дневник",
+  "menu.more": "⚙️ Меню",
+  "diary.choose": "📓 Дневник. Что хотите вести?",
+  "diary.symptom": "Симптомы",
+  "diary.lfk": "ЛФК",
+  "diary.symptom.placeholder": "Скоро здесь можно будет вести дневник симптомов.",
+  "diary.lfk.placeholder": "Скоро здесь можно будет вести дневник ЛФК.",
+  "moreMenu.emergencyHelp": "🆘 Скорая помощь при боли",
+  "moreMenu.personalAssistant": "🤖 Персональный помощник",
+  "moreMenu.usefulLessons": "📚 Полезные уроки и тренировки",
+  "moreMenu.myBookings": "📄 Мои записи на приём",
+  "moreMenu.notifications": "🔔 Настройка уведомлений",
+  "notImplemented": "Раздел в разработке."
+}

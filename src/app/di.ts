@@ -39,11 +39,15 @@ import { smscConfig } from '../integrations/smsc/config.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
 import { createSmscStub } from '../integrations/smsc/stub.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
+import { maxConfig } from '../integrations/max/config.js';
+import { createMaxDeliveryAdapter } from '../integrations/max/deliveryAdapter.js';
+import { registerMaxWebhookRoutes } from '../integrations/max/webhook.js';
 import { telegramConfig } from '../integrations/telegram/config.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 import { defaultSupportRelayPolicy } from '../integrations/telegram/supportRelayPolicy.js';
+import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -63,6 +67,13 @@ export type RubitimeRoutesRegistrar = (
   },
 ) => Promise<void> | void;
 
+export type MaxRoutesRegistrar = (
+  app: FastifyInstance,
+  deps: {
+    eventGateway: EventGateway;
+  },
+) => Promise<void> | void;
+
 /** Опциональные внешние зависимости для buildDeps на период миграции. */
 export type BuildDepsInput = {
   dbReadPort?: DbReadPort;
@@ -72,6 +83,7 @@ export type BuildDepsInput = {
   idempotencyPort?: IdempotencyPort;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
+  registerMaxWebhookRoutes?: MaxRoutesRegistrar;
 };
 
 /** Зависимости app-слоя, используемые routes/server. */
@@ -85,6 +97,7 @@ export type AppDeps = {
   eventGateway: EventGateway;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
+  registerMaxWebhookRoutes?: MaxRoutesRegistrar;
 };
 
 /** Собирает полностью связанный набор зависимостей app-слоя. */
@@ -126,6 +139,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const adapters = [
     createTelegramDeliveryAdapter(),
     createSmscDeliveryAdapter({ smsClient }),
+    ...(maxConfig.enabled ? [createMaxDeliveryAdapter()] : []),
   ];
 
   const dispatchPort =
@@ -141,6 +155,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const actorResolutionPort = createActorResolutionPort({ writePort: dbWritePort });
   const deliveryDefaultsPort = createDeliveryDefaultsPort();
   const protectedAccessPort = createProtectedAccessPort({ writePort: dbWritePort });
+  const webappEventsPort = createWebappEventsPort();
   const pipeline = createIncomingEventPipeline({
     readPort: dbReadPort,
     writePort: dbWritePort,
@@ -155,6 +170,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     contentPort,
     sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress ?? false,
     supportRelayPolicy: defaultSupportRelayPolicy,
+    webappEventsPort,
   });
 
   const eventGateway = createEventGateway({
@@ -166,6 +182,11 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     ? (input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes)
     : undefined;
 
+  const maxRegistrar =
+    maxConfig.enabled && maxConfig.apiKey
+      ? (input.registerMaxWebhookRoutes ?? registerMaxWebhookRoutes)
+      : undefined;
+
   return {
     healthCheckDb,
     smsClient,
@@ -176,5 +197,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     eventGateway,
     ...(telegramRegistrar !== undefined ? { registerTelegramWebhookRoutes: telegramRegistrar } : {}),
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
+    ...(maxRegistrar !== undefined ? { registerMaxWebhookRoutes: maxRegistrar } : {}),
   };
 }

@@ -33,6 +33,7 @@ describe("checkInsecureSecretsForStartup", () => {
     ALLOWED_TELEGRAM_IDS: "",
     ADMIN_TELEGRAM_ID: undefined,
     TELEGRAM_BOT_TOKEN: undefined,
+    MEDIA_TEST_VIDEO_URL: "",
   };
 
   it("throws when SESSION_COOKIE_SECRET is blacklisted and isTest is false", () => {

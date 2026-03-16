@@ -1,17 +1,45 @@
+export type SymptomTracking = {
+  id: string;
+  userId: string;
+  symptomKey: string | null;
+  symptomTitle: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SymptomEntry = {
   id: string;
   userId: string;
-  symptom: string;
-  severity: 1 | 2 | 3 | 4 | 5;
-  notes: string | null;
+  trackingId: string;
+  value0_10: number;
+  entryType: "instant" | "daily";
   recordedAt: string;
+  source: "bot" | "webapp" | "import";
+  notes: string | null;
+  createdAt: string;
+  /** Set when listing (join with trackings). */
+  symptomTitle?: string;
 };
 
-/** One row = one "I exercised" session. complexId/complexTitle for future use. */
+export type LfkComplex = {
+  id: string;
+  userId: string;
+  title: string;
+  origin: "manual" | "assigned_by_specialist";
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** One row = one "I exercised" session. */
 export type LfkSession = {
   id: string;
   userId: string;
+  complexId: string;
   completedAt: string;
-  complexId?: string | null;
-  complexTitle?: string | null;
+  source: "bot" | "webapp";
+  createdAt: string;
+  /** Set when listing (join with complexes). */
+  complexTitle?: string;
 };

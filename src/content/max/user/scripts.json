@@ -1,0 +1,196 @@
+[
+  {
+    "id": "max.start",
+    "source": "max",
+    "event": "message.received",
+    "match": { "input": { "text": "/start" } },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "idle"
+        }
+      },
+      {
+        "action": "message.inlineKeyboard.show",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "templateKey": "max:welcome",
+          "menu": "main",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.more.menu",
+    "source": "max",
+    "event": "message.received",
+    "match": { "input": { "action": "menu.more" } },
+    "steps": [
+      {
+        "action": "message.inlineKeyboard.show",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "templateKey": "max:menu.main.heading",
+          "menu": "main",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.diary.open",
+    "source": "max",
+    "event": "message.received",
+    "match": { "input": { "action": "diary.open" } },
+    "steps": [
+      {
+        "action": "message.inlineKeyboard.show",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "templateKey": "max:diary.choose",
+          "menu": "diary",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.diary.symptom.open",
+    "source": "max",
+    "event": "callback.received",
+    "match": { "input": { "action": "diary.symptom.open" } },
+    "steps": [
+      {
+        "action": "message.inlineKeyboard.show",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "templateKey": "max:diary.symptom.placeholder",
+          "inlineKeyboard": [[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]],
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.diary.lfk.open",
+    "source": "max",
+    "event": "callback.received",
+    "match": { "input": { "action": "diary.lfk.open" } },
+    "steps": [
+      {
+        "action": "message.inlineKeyboard.show",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "templateKey": "max:diary.lfk.placeholder",
+          "inlineKeyboard": [[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]],
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.menu.back",
+    "source": "max",
+    "event": "callback.received",
+    "match": { "input": { "action": "menu.back" } },
+    "steps": [
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:menu.main.heading",
+          "menu": "main",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.content.useful_lessons",
+    "source": "max",
+    "event": "callback.received",
+    "match": { "input": { "action": "content.useful_lessons" } },
+    "steps": [
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:notImplemented",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.content.emergency_help",
+    "source": "max",
+    "event": "callback.received",
+    "match": { "input": { "action": "content.emergency_help" } },
+    "steps": [
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:notImplemented",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.default",
+    "source": "max",
+    "event": "message.received",
+    "match": { "input": { "textPresent": true } },
+    "steps": [
+      {
+        "action": "message.inlineKeyboard.show",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "templateKey": "max:chooseMenu",
+          "menu": "main",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      }
+    ]
+  }
+]

@@ -33,4 +33,12 @@ export function registerRoutes(app: FastifyInstance, deps: AppDeps): void {
       });
     });
   }
+
+  if (deps.registerMaxWebhookRoutes) {
+    app.register(async (instance) => {
+      await deps.registerMaxWebhookRoutes?.(instance, {
+        eventGateway: deps.eventGateway,
+      });
+    });
+  }
 }

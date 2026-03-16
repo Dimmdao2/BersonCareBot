@@ -91,6 +91,16 @@ Examples:
 - contact verified
 - external reminder delivery result
 
+**Diary symptom events** (payload must include `userId`; integrator resolves from channel when omitted):
+
+- `diary.symptom.tracking.created` — payload: `userId`, `symptomTitle`, optional `symptomKey`
+- `diary.symptom.entry.created` — payload: `userId`, `trackingId`, `value0_10` (0–10), `entryType` (`instant` | `daily`), `recordedAt` (ISO), optional `notes`
+
+**Diary LFK events:**
+
+- `diary.lfk.complex.created` — payload: `userId`, `title`, optional `origin` (`manual` | `assigned_by_specialist`)
+- `diary.lfk.session.created` — payload: `userId`, `complexId`, `completedAt` (ISO), optional
+
 ### `POST /api/integrator/reminders/dispatch`
 
 Purpose:

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -14,6 +15,9 @@ export default async function EmergencyPage() {
           <li key={topic.id} className="list-item">
             <strong>{topic.title}</strong>
             <p>{topic.summary}</p>
+            <Link href={`/app/patient/content/${topic.id}`} className="button button--ghost">
+              Подробнее
+            </Link>
           </li>
         ))}
       </ul>

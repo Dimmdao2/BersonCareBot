@@ -15,6 +15,37 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("diaries");
     expect(deps).toHaveProperty("health");
     expect(deps).toHaveProperty("media");
+    expect(deps).toHaveProperty("channelPreferences");
+    expect(deps).toHaveProperty("contentCatalog");
+  });
+
+  it("contentCatalog.getBySlug resolves known slug", () => {
+    const deps = buildAppDeps();
+    const item = deps.contentCatalog.getBySlug("neck-warmup");
+    expect(item).not.toBeNull();
+    expect(item!.title).toBe("Разминка для шеи");
+  });
+
+  it("channelPreferences has getChannelCards and updatePreference", async () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.channelPreferences.getChannelCards).toBe("function");
+    expect(typeof deps.channelPreferences.updatePreference).toBe("function");
+    const cards = await deps.channelPreferences.getChannelCards("user-1", {
+      telegramId: undefined,
+      maxId: undefined,
+      vkId: undefined,
+    });
+    expect(Array.isArray(cards)).toBe(true);
+    expect(cards.length).toBe(3);
+    expect(cards[0]).toMatchObject({
+      code: "telegram",
+      title: expect.any(String),
+      openUrl: expect.any(String),
+      isLinked: expect.any(Boolean),
+      isImplemented: expect.any(Boolean),
+      isEnabledForMessages: expect.any(Boolean),
+      isEnabledForNotifications: expect.any(Boolean),
+    });
   });
 
   it("media has upload, getUrl, getById", () => {
@@ -48,14 +79,22 @@ describe("buildAppDeps", () => {
     expect(items.length).toBeGreaterThan(0);
   });
 
-  it("diaries exposes listSymptomEntries, addSymptomEntry, listLfkSessions, addLfkSession", () => {
+  it("diaries exposes listSymptomEntries, createSymptomTracking, listSymptomTrackings, addSymptomEntry, createLfkComplex, listLfkComplexes, listLfkSessions, addLfkSession", () => {
     const deps = buildAppDeps();
     expect(deps.diaries).toHaveProperty("listSymptomEntries");
+    expect(deps.diaries).toHaveProperty("createSymptomTracking");
+    expect(deps.diaries).toHaveProperty("listSymptomTrackings");
     expect(deps.diaries).toHaveProperty("addSymptomEntry");
+    expect(deps.diaries).toHaveProperty("createLfkComplex");
+    expect(deps.diaries).toHaveProperty("listLfkComplexes");
     expect(deps.diaries).toHaveProperty("listLfkSessions");
     expect(deps.diaries).toHaveProperty("addLfkSession");
     expect(typeof deps.diaries.listSymptomEntries).toBe("function");
+    expect(typeof deps.diaries.createSymptomTracking).toBe("function");
+    expect(typeof deps.diaries.listSymptomTrackings).toBe("function");
     expect(typeof deps.diaries.addSymptomEntry).toBe("function");
+    expect(typeof deps.diaries.createLfkComplex).toBe("function");
+    expect(typeof deps.diaries.listLfkComplexes).toBe("function");
     expect(typeof deps.diaries.listLfkSessions).toBe("function");
     expect(typeof deps.diaries.addLfkSession).toBe("function");
   });

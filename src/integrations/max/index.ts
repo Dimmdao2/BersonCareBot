@@ -1,7 +1,6 @@
 import type { IntegrationDescriptor } from '../types.js';
-import { createInboundPlaceholder, createOutboundPlaceholder } from '../template.js';
 
-/** Max integration descriptor placeholder for connector registry. */
+/** Max integration descriptor for connector registry. */
 export const maxIntegration: IntegrationDescriptor = {
   id: 'max',
   kind: 'messenger',
@@ -9,12 +8,6 @@ export const maxIntegration: IntegrationDescriptor = {
     supportsIncoming: true,
     supportsOutgoing: true,
   },
-  supportedIncomingTypes: ['message.received'],
-  supportedOutgoingTypes: ['message.send'],
+  supportedIncomingTypes: ['message.received', 'callback.received'],
+  supportedOutgoingTypes: ['message.send', 'callback.answer'],
 };
-
-/** Inbound adapter template for future Max webhook. */
-export const maxInboundAdapter = createInboundPlaceholder(maxIntegration);
-
-/** Outbound adapter template for future Max API. */
-export const maxOutboundAdapter = createOutboundPlaceholder(maxIntegration);

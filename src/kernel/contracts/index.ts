@@ -105,6 +105,8 @@ export type {
   ActorResolutionRequest,
   TemplatePort,
   ChannelUserPort,
+  WebappEventsPort,
+  WebappEventBody,
 } from './ports.js';
 
 export {
