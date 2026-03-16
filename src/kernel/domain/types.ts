@@ -65,6 +65,11 @@ export type IncomingCallbackUpdate = {
   callbackData: string;
   callbackQueryId: string;
   conversationId?: string;
+  /** Parsed from diary.symptom.select:id, diary.symptom.value:id:n, diary.symptom.entryType:id:n:type, diary.lfk.select:id, diary.lfk.session:id */
+  trackingId?: string;
+  value?: number;
+  entryType?: string;
+  complexId?: string;
 };
 
 /** Transport-agnostic incoming update shape used in connector mappers. */

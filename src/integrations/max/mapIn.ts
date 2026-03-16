@@ -1,5 +1,6 @@
 import type { IncomingCallbackUpdate, IncomingMessageUpdate, IncomingUpdate } from '../../kernel/domain/types.js';
 import type { MaxUpdateValidated } from './schema.js';
+import { normalizeDynamicTelegramAction } from '../telegram/mapIn.js';
 
 /** Map MAX button payload / text to internal action (e.g. for menu). */
 const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
@@ -23,21 +24,26 @@ function getActionFromText(text: string): string {
 export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
   if (body.update_type === 'message_callback') {
     const callbackId = body.callback_id;
-    const payload = body.payload ?? '';
+    const payload = typeof body.payload === 'string' ? body.payload : '';
     const msg = body.message;
     if (!callbackId) return null;
     const chatId = msg?.chat_id ?? msg?.user_id;
     const messageId = msg?.id;
     const userId = msg?.from?.user_id ?? msg?.user_id;
     if (typeof chatId !== 'number' || typeof userId !== 'number') return null;
+    const normalized = normalizeDynamicTelegramAction(payload);
     const update: IncomingCallbackUpdate = {
       kind: 'callback',
       chatId,
       messageId: typeof messageId === 'number' ? messageId : 0,
       channelUserId: userId,
-      action: payload,
-      callbackData: payload,
+      action: normalized.action,
+      callbackData: normalized.action,
       callbackQueryId: callbackId,
+      ...(typeof normalized.trackingId === 'string' ? { trackingId: normalized.trackingId } : {}),
+      ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
+      ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
+      ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
     };
     return update;
   }

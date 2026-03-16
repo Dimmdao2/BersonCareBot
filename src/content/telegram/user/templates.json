@@ -32,7 +32,15 @@
   "diary.symptom.enterTitle": "Введите название симптома для отслеживания (например: Головная боль).",
   "diary.symptom.trackingCreated": "Запись о симптоме создана. Оценку от 0 до 10 можно добавить в приложении.",
   "diary.symptom.placeholder": "Скоро здесь можно будет вести дневник симптомов.",
+  "diary.symptom.listHeading": "Симптомы. Выберите или добавьте.",
+  "diary.symptom.ratePrompt": "Оцените от 0 до 10",
+  "diary.symptom.typePrompt": "Тип записи",
+  "diary.symptom.entrySuccess": "Запись добавлена.",
   "diary.lfk.placeholder": "Скоро здесь можно будет вести дневник ЛФК.",
+  "diary.lfk.listHeading": "ЛФК. Выберите комплекс или добавьте.",
+  "diary.lfk.markSessionPrompt": "Отметить занятие?",
+  "diary.lfk.sessionSuccess": "Занятие отмечено.",
+  "diary.lfk.addTitlePrompt": "Введите название комплекса ЛФК.",
   "menu.cabinet": "👤 Кабинет",
   "cabinet.placeholder": "Здесь скоро будет много полезного",
   "requestContact.button": "📲 Отправить номер телефона",
@@ -80,5 +88,5 @@
   "emergency.placeholder": "Здесь скоро будут советы и упражнения по этой теме. Как только подготовлю — обязательно сообщу!",
   "showMyId": "Ваш ID в Telegram: {{channelId}}",
   "adminForward": "Новый вопрос\nОт: {{name}} {{usernameMention}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}",
-  "relay.unsupportedType": "К сожалению, такой тип сообщения сейчас не поддерживается. Вы можете отправить текст, фото или документ."
+  "relay.unsupportedType": "этот вид сообщений не поддерживается. Напишите ваш вопрос текстом."
 }

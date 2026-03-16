@@ -20,32 +20,16 @@ export default async function ContentSlugPage({ params }: Props) {
           <img src={item.imageUrl} alt="" style={{ maxWidth: "100%", height: "auto" }} />
         )}
         <p>{item.bodyText}</p>
-        {item.videoSource && (
-          <section className="stack" style={{ marginTop: "1rem" }}>
-            <h3>Видео</h3>
-            {item.videoSource.type === "url" ? (
-              <video
-                controls
-                playsInline
-                preload="metadata"
-                style={{ maxWidth: "100%", borderRadius: "8px" }}
-                src={item.videoSource.url}
-              >
-                Ваш браузер не поддерживает воспроизведение видео.
-              </video>
-            ) : (
-              <video
-                controls
-                playsInline
-                preload="metadata"
-                style={{ maxWidth: "100%", borderRadius: "8px" }}
-                src={`/api/media/${item.videoSource.mediaId}`}
-              >
-                Ваш браузер не поддерживает воспроизведение видео.
-              </video>
-            )}
-          </section>
-        )}
+        <section className="stack" style={{ marginTop: "1rem" }}>
+          <h3>Видео</h3>
+          <img
+            src="https://placehold.co/640x360?text=Video"
+            alt=""
+            style={{ maxWidth: "100%", height: "auto", borderRadius: "8px" }}
+            width={640}
+            height={360}
+          />
+        </section>
       </article>
     </AppShell>
   );

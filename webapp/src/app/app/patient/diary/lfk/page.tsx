@@ -3,25 +3,59 @@ import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { markLfkSession } from "./actions";
 
+const EMPTY_STATE_PLACEHOLDER =
+  "Скоро здесь будет ваша статистика. Для добавления записей в дневник воспользуйтесь кнопкой в меню бота.";
+
 export default async function LfkDiaryPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();
+  const complexes = await deps.diaries.listLfkComplexes(session.user.userId);
   const sessions = await deps.diaries.listLfkSessions(session.user.userId);
 
   return (
     <AppShell title="Дневник ЛФК" user={session.user} backHref="/app/patient" backLabel="Меню">
       <section className="hero-card stack">
-        <p>История занятий ЛФК. Комплексы и напоминания — в следующих версиях.</p>
-        <form action={markLfkSession} className="stack">
-          <button type="submit" className="button">
-            Отметить занятие
-          </button>
-        </form>
+        <p>Комплексы ЛФК и история занятий. Добавить комплекс или отметить занятие можно в боте.</p>
+        {complexes.length === 0 ? (
+          <p className="empty-state">{EMPTY_STATE_PLACEHOLDER}</p>
+        ) : (
+          <form action={markLfkSession} className="stack">
+            {complexes.length > 1 ? (
+              <label className="stack">
+                <span>Комплекс</span>
+                <select name="complexId" required className="input">
+                  {complexes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title ?? "—"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <input type="hidden" name="complexId" value={complexes[0].id} />
+            )}
+            <button type="submit" className="button">
+              Отметить занятие
+            </button>
+          </form>
+        )}
       </section>
+      {complexes.length > 0 ? (
+        <section className="panel stack">
+          <h2>Комплексы</h2>
+          <ul className="list">
+            {complexes.map((c) => (
+              <li key={c.id} className="list-item">
+                <strong>{c.title ?? "—"}</strong>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <section className="panel stack">
-        <h2>История</h2>
+        <h2>Статистика</h2>
         {sessions.length === 0 ? (
-          <p className="empty-state">Пока нет занятий. Отметьте занятие или добавьте комплекс и запись из бота.</p>
+          <p className="empty-state">{EMPTY_STATE_PLACEHOLDER}</p>
         ) : (
           <ul className="list">
             {sessions.map((s) => (

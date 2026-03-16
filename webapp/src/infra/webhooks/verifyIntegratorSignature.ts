@@ -29,3 +29,18 @@ export function verifyIntegratorSignature(
 
   return left.length === right.length && timingSafeEqual(left, right);
 }
+
+/** Verify M2M GET: sign payload is `${timestamp}.${canonicalGet}`. canonicalGet = method + pathname + search, e.g. "GET /api/integrator/diary/symptom-trackings?userId=u1" */
+export function verifyIntegratorGetSignature(
+  timestamp: string,
+  canonicalGet: string,
+  signature: string,
+  options?: { windowSeconds?: number }
+): boolean {
+  const windowSeconds = options?.windowSeconds ?? DEFAULT_WINDOW_SECONDS;
+  if (!isTimestampFresh(timestamp, windowSeconds)) return false;
+  const expected = sign(`${timestamp}.${canonicalGet}`);
+  const left = Buffer.from(expected);
+  const right = Buffer.from(signature);
+  return left.length === right.length && timingSafeEqual(left, right);
+}

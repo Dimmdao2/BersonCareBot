@@ -53,7 +53,16 @@ export function normalizeTelegramContactPhone(value: string): string | null {
   return null;
 }
 
-function normalizeDynamicTelegramAction(value: string): { action: string; conversationId?: string } {
+type DynamicActionResult = {
+  action: string;
+  conversationId?: string;
+  trackingId?: string;
+  value?: number;
+  entryType?: string;
+  complexId?: string;
+};
+
+export function normalizeDynamicTelegramAction(value: string): DynamicActionResult {
   const trimmed = value.trim();
   if (!trimmed) return { action: '' };
   for (const prefix of ['admin_reply:', 'admin_reply_continue:', 'admin_close_dialog:', 'dialogs.view:']) {
@@ -65,6 +74,39 @@ function normalizeDynamicTelegramAction(value: string): { action: string; conver
         conversationId,
       };
     }
+  }
+  if (trimmed.startsWith('diary.symptom.select:')) {
+    const id = trimmed.slice('diary.symptom.select:'.length).trim();
+    return { action: 'diary.symptom.select', ...(id ? { trackingId: id } : {}) };
+  }
+  if (trimmed.startsWith('diary.symptom.value:')) {
+    const rest = trimmed.slice('diary.symptom.value:'.length);
+    const [id, valueStr] = rest.split(':', 2);
+    const value = valueStr !== undefined ? Math.min(10, Math.max(0, Math.round(Number(valueStr)))) : undefined;
+    const out: DynamicActionResult = { action: 'diary.symptom.value' };
+    if (id?.trim()) out.trackingId = id.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) out.value = value;
+    return out;
+  }
+  if (trimmed.startsWith('diary.symptom.entryType:')) {
+    const rest = trimmed.slice('diary.symptom.entryType:'.length);
+    const parts = rest.split(':');
+    const trackingId = parts[0]?.trim();
+    const valueStr = parts[1];
+    const entryType = parts[2] === 'daily' ? 'daily' : 'instant';
+    const value = valueStr !== undefined ? Math.min(10, Math.max(0, Math.round(Number(valueStr)))) : undefined;
+    const out: DynamicActionResult = { action: 'diary.symptom.entryType', entryType };
+    if (trackingId) out.trackingId = trackingId;
+    if (typeof value === 'number' && Number.isFinite(value)) out.value = value;
+    return out;
+  }
+  if (trimmed.startsWith('diary.lfk.select:')) {
+    const id = trimmed.slice('diary.lfk.select:'.length).trim();
+    return { action: 'diary.lfk.select', ...(id ? { complexId: id } : {}) };
+  }
+  if (trimmed.startsWith('diary.lfk.session:')) {
+    const id = trimmed.slice('diary.lfk.session:'.length).trim();
+    return { action: 'diary.lfk.session', ...(id ? { complexId: id } : {}) };
   }
   return { action: LEGACY_CALLBACK_TO_ACTION[trimmed] ?? trimmed };
 }
@@ -120,6 +162,10 @@ export function fromTelegram(
       ...(typeof cq.from.first_name === 'string' ? { channelFirstName: cq.from.first_name } : {}),
       ...(typeof cq.from.last_name === 'string' ? { channelLastName: cq.from.last_name } : {}),
       ...(typeof normalized.conversationId === 'string' ? { conversationId: normalized.conversationId } : {}),
+      ...(typeof normalized.trackingId === 'string' ? { trackingId: normalized.trackingId } : {}),
+      ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
+      ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
+      ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
       callbackData: normalized.action,
       callbackQueryId: cq.id,
     };

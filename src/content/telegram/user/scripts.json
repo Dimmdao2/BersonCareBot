@@ -836,26 +836,95 @@
 		},
 		"steps": [
 			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"channelUserId": "{{actor.channelUserId}}",
-					"state": "diary.symptom.awaiting_title"
-				}
-			},
-			{
-				"action": "message.inlineKeyboard.show",
+				"action": "diary.symptom.list",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:diary.symptom.enterTitle",
-					"inlineKeyboard": [[{ "text": "⬅️ Назад", "callbackData": "diary.symptom.back" }]]
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
-			},
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.symptom.select",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.symptom.select" }
+		},
+		"steps": [
 			{
-				"action": "callback.answer",
+				"action": "diary.symptom.select",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"trackingId": "{{input.trackingId}}",
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.symptom.value",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.symptom.value" }
+		},
+		"steps": [
+			{
+				"action": "diary.symptom.value",
+				"mode": "async",
+				"params": {
+					"trackingId": "{{input.trackingId}}",
+					"value": "{{input.value}}",
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.symptom.entryType",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.symptom.entryType" }
+		},
+		"steps": [
+			{
+				"action": "diary.symptom.entryType",
+				"mode": "async",
+				"params": {
+					"trackingId": "{{input.trackingId}}",
+					"value": "{{input.value}}",
+					"entryType": "{{input.entryType}}",
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.symptom.add",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.symptom.add" }
+		},
+		"steps": [
+			{
+				"action": "diary.symptom.add",
+				"mode": "async",
+				"params": {
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
@@ -876,19 +945,13 @@
 				}
 			},
 			{
-				"action": "message.edit",
+				"action": "diary.symptom.list",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
+					"chatId": "{{input.chatId}}",
 					"messageId": "{{input.messageId}}",
-					"templateKey": "telegram:menu.main.heading",
-					"menu": "main"
+					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
 			}
 		]
 	},
@@ -925,7 +988,8 @@
 				"params": {
 					"recipient": { "chatId": "{{actor.chatId}}" },
 					"templateKey": "telegram:diary.symptom.trackingCreated",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"inlineKeyboard": [[{ "text": "⬅️ К списку симптомов", "callbackData": "diary.symptom.open" }]]
 				}
 			}
 		]
@@ -939,12 +1003,138 @@
 		},
 		"steps": [
 			{
-				"action": "message.inlineKeyboard.show",
+				"action": "diary.lfk.list",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:diary.lfk.placeholder",
-					"inlineKeyboard": [[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]]
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.lfk.select",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.lfk.select" }
+		},
+		"steps": [
+			{
+				"action": "diary.lfk.select",
+				"mode": "async",
+				"params": {
+					"complexId": "{{input.complexId}}",
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.lfk.session",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.lfk.session" }
+		},
+		"steps": [
+			{
+				"action": "diary.lfk.session",
+				"mode": "async",
+				"params": {
+					"complexId": "{{input.complexId}}",
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.lfk.add",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.lfk.add" }
+		},
+		"steps": [
+			{
+				"action": "diary.lfk.add",
+				"mode": "async",
+				"params": {
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.lfk.awaiting_title",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"actor": { "userState": "diary.lfk.awaiting_title" },
+			"input": { "textPresent": true }
+		},
+		"steps": [
+			{
+				"action": "webapp.event.emit",
+				"mode": "async",
+				"params": {
+					"eventType": "diary.lfk.complex.created",
+					"payload": {
+						"title": "{{input.text}}"
+					}
+				}
+			},
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:diary.lfk.sessionSuccess",
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"inlineKeyboard": [[{ "text": "⬅️ К списку ЛФК", "callbackData": "diary.lfk.open" }]]
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.diary.lfk.back",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "diary.lfk.back" }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"chatId": "{{input.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:diary.choose",
+					"menu": "diary"
 				}
 			},
 			{

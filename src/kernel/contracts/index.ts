@@ -107,6 +107,8 @@ export type {
   ChannelUserPort,
   WebappEventsPort,
   WebappEventBody,
+  WebappSymptomTracking,
+  WebappLfkComplex,
 } from './ports.js';
 
 export {

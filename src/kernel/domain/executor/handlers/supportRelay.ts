@@ -64,8 +64,8 @@ export async function handleConversationUserMessage(
     const refusalChatId = asNumber(readIncoming(ctx).chatId);
     const refusalText = deps.templatePort
       ? (await renderText({ templateKey: RELAY_USER.UNSUPPORTED_TYPE, ctx, templatePort: deps.templatePort }))
-        || 'К сожалению, такой тип сообщения сейчас не поддерживается. Вы можете отправить текст, фото или документ.'
-      : 'К сожалению, такой тип сообщения сейчас не поддерживается. Вы можете отправить текст, фото или документ.';
+        || 'этот вид сообщений не поддерживается. Напишите ваш вопрос текстом.'
+      : 'этот вид сообщений не поддерживается. Напишите ваш вопрос текстом.';
     const refusalIntents: OutgoingIntent[] = refusalChatId !== null
       ? [{
         type: 'message.send',

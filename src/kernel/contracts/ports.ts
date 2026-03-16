@@ -311,7 +311,31 @@ export type WebappEventBody = {
   payload?: Record<string, unknown>;
 };
 
-/** Port for emitting signed events to webapp (e.g. diary.symptom.*). */
+/** One symptom tracking from webapp GET /api/integrator/diary/symptom-trackings. */
+export type WebappSymptomTracking = {
+  id: string;
+  userId: string;
+  symptomKey: string | null;
+  symptomTitle: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** One LFK complex from webapp GET /api/integrator/diary/lfk-complexes. */
+export type WebappLfkComplex = {
+  id: string;
+  userId: string;
+  title: string;
+  origin: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Port for emitting signed events to webapp and reading diary lists (no local cache). */
 export type WebappEventsPort = {
   emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
+  listSymptomTrackings(userId: string): Promise<{ ok: boolean; trackings?: WebappSymptomTracking[]; error?: string }>;
+  listLfkComplexes(userId: string): Promise<{ ok: boolean; complexes?: WebappLfkComplex[]; error?: string }>;
 };

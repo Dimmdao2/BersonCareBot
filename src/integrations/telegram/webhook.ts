@@ -116,10 +116,17 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
     if (/^\/start\s+noticeme$/i.test(text.trim())) {
       action = 'start.noticeme';
     }
-    const setrubitimerecordMatch = /^\/start\s+setrubitimerecord_([A-Za-z0-9_-]{1,120})$/i.exec(text.trim());
-    if (setrubitimerecordMatch?.[1]) {
+    const trimmedText = text.trim();
+    const setrubitimerecordPrefix = /^\/start\s+setrubitimerecord_/i;
+    if (setrubitimerecordPrefix.test(trimmedText)) {
       action = 'start.setrubitimerecord';
-      recordIdFromStart = setrubitimerecordMatch[1];
+      const suffix = trimmedText.replace(setrubitimerecordPrefix, '').trim().slice(0, 120);
+      if (/^[A-Za-z0-9_-]+$/.test(suffix)) {
+        recordIdFromStart = suffix;
+      }
+    }
+    if (!action && /^\/start\s+set\w+/i.test(trimmedText)) {
+      action = 'start.set';
     }
     const relayMessageType = getMessageTypeFromTelegramMessage(body.message);
     return {

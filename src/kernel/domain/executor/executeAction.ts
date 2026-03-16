@@ -203,6 +203,13 @@ export async function executeAction(
     case 'message.replyKeyboard.show':
     case 'message.inlineKeyboard.show':
     case 'admin.forward': {
+      if (action.type === 'admin.forward') {
+        const userMessage = asString((action.params.vars as Record<string, unknown>)?.messageText)
+          ?? readIncomingText(ctx);
+        if (userMessage && /^\/start\s+set/i.test(userMessage.trim())) {
+          return { actionId: action.id, status: 'success' };
+        }
+      }
       const rawVars = (action.params.vars ?? {}) as Record<string, unknown>;
       const username = typeof rawVars.username === 'string' ? rawVars.username.trim() : '';
       const vars = {
@@ -1107,6 +1114,445 @@ export async function executeAction(
       }];
       await persistWrites(deps.writePort, writes);
       return { actionId: action.id, status: 'success', writes };
+    }
+
+    case 'diary.symptom.list': {
+      const port = deps.webappEventsPort;
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      if (chatId === null) {
+        return { actionId: action.id, status: 'failed', error: 'diary.symptom.list: chatId required' };
+      }
+      let userId: string | null = asString(action.params.userId);
+      if (!userId && deps.readPort) {
+        const source = asString(ctx.event.meta.source) ?? 'telegram';
+        const channelUserId = asNumericString(readExternalActorId(ctx))
+          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        if (channelUserId) {
+          const link = await deps.readPort.readDb<{ userId?: string } | null>({
+            type: 'user.byIdentity',
+            params: { resource: source, externalId: channelUserId },
+          });
+          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        }
+      }
+      const intents: OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      }
+      const listText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.symptom.listHeading`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Симптомы. Выберите или добавьте.'
+        : 'Симптомы. Выберите или добавьте.';
+      if (!port || !userId) {
+        intents.push({
+          type: 'message.edit',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId },
+            ...(messageId !== null ? { messageId } : {}),
+            message: { text: listText },
+            replyMarkup: {
+              inline_keyboard: [[{ text: 'Добавить симптом для отслеживания', callback_data: 'diary.symptom.add' }]],
+            },
+          },
+        });
+        return { actionId: action.id, status: 'success', intents };
+      }
+      const { trackings = [] } = await port.listSymptomTrackings(userId);
+      const rows: Array<Array<{ text: string; callback_data: string }>> = trackings.map((t) => [
+        { text: t.symptomTitle || t.id, callback_data: `diary.symptom.select:${t.id}` },
+      ]);
+      rows.push([{ text: '➕ Добавить симптом для отслеживания', callback_data: 'diary.symptom.add' }]);
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          ...(messageId !== null ? { messageId } : {}),
+          message: { text: listText },
+          replyMarkup: { inline_keyboard: rows },
+        },
+      });
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'diary.symptom.select': {
+      const trackingId = asString(action.params.trackingId);
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      if (!trackingId || chatId === null) {
+        return { actionId: action.id, status: 'failed', error: 'diary.symptom.select: trackingId and chatId required' };
+      }
+      const rateText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.symptom.ratePrompt`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Оцените от 0 до 10'
+        : 'Оцените от 0 до 10';
+      const valueRow = Array.from({ length: 11 }, (_, i) => ({
+        text: String(i),
+        callback_data: `diary.symptom.value:${trackingId}:${i}`,
+      }));
+      const intents: OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      }
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          ...(messageId !== null ? { messageId } : {}),
+          message: { text: rateText },
+          replyMarkup: { inline_keyboard: [valueRow] },
+        },
+      });
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'diary.symptom.value': {
+      const trackingId = asString(action.params.trackingId);
+      const valueRaw = asNumber(action.params.value) ?? asString(action.params.value);
+      const value0_10 = valueRaw !== null ? Math.min(10, Math.max(0, Math.round(Number(valueRaw)))) : null;
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      if (!trackingId || value0_10 === null || chatId === null) {
+        return { actionId: action.id, status: 'failed', error: 'diary.symptom.value: trackingId, value and chatId required' };
+      }
+      const typeText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.symptom.typePrompt`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Тип записи'
+        : 'Тип записи';
+      const intents: OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      }
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          ...(messageId !== null ? { messageId } : {}),
+          message: { text: typeText },
+          replyMarkup: {
+            inline_keyboard: [
+              [
+                { text: 'В моменте', callback_data: `diary.symptom.entryType:${trackingId}:${value0_10}:instant` },
+                { text: 'В течение дня', callback_data: `diary.symptom.entryType:${trackingId}:${value0_10}:daily` },
+              ],
+            ],
+          },
+        },
+      });
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'diary.symptom.entryType': {
+      const trackingId = asString(action.params.trackingId);
+      const entryTypeRaw = asString(action.params.entryType);
+      const entryType = entryTypeRaw === 'daily' ? 'daily' : 'instant';
+      const valueFromPrev = asNumber(action.params.value);
+      const value0_10 = valueFromPrev !== null ? Math.min(10, Math.max(0, Math.round(valueFromPrev))) : 5;
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      if (!trackingId || chatId === null) {
+        return { actionId: action.id, status: 'failed', error: 'diary.symptom.entryType: trackingId and chatId required' };
+      }
+      let userId: string | null = asString(action.params.userId);
+      if (!userId && deps.readPort) {
+        const source = asString(ctx.event.meta.source) ?? 'telegram';
+        const channelUserId = asNumericString(readExternalActorId(ctx))
+          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        if (channelUserId) {
+          const link = await deps.readPort.readDb<{ userId?: string } | null>({
+            type: 'user.byIdentity',
+            params: { resource: source, externalId: channelUserId },
+          });
+          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        }
+      }
+      const intents: OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      }
+      const port = deps.webappEventsPort;
+      if (port && userId) {
+        await port.emit({
+          eventType: 'diary.symptom.entry.created',
+          occurredAt: nowIso(ctx),
+          payload: {
+            userId,
+            trackingId,
+            value0_10,
+            entryType,
+            recordedAt: nowIso(ctx),
+          },
+        });
+      }
+      const successText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.symptom.entrySuccess`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Запись добавлена.'
+        : 'Запись добавлена.';
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          ...(messageId !== null ? { messageId } : {}),
+          message: { text: successText },
+          replyMarkup: { inline_keyboard: [[{ text: '⬅️ К списку симптомов', callback_data: 'diary.symptom.open' }]] },
+        },
+      });
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'diary.symptom.add': {
+      const writes: DbWriteMutation[] = [{
+        type: 'user.state.set',
+        params: {
+          resource: ctx.event.meta.source,
+          channelUserId: readExternalActorId(ctx),
+          state: 'diary.symptom.awaiting_title',
+        },
+      }];
+      await persistWrites(deps.writePort, writes);
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      const enterTitleText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.symptom.enterTitle`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Введите название симптома для отслеживания.'
+        : 'Введите название симптома для отслеживания.';
+      const intents: OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      }
+      if (chatId !== null) {
+        intents.push({
+          type: 'message.edit',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId },
+            ...(messageId !== null ? { messageId } : {}),
+            message: { text: enterTitleText },
+            replyMarkup: {
+              inline_keyboard: [[{ text: '⬅️ Назад', callback_data: 'diary.symptom.back' }]],
+            },
+          },
+        });
+      }
+      return { actionId: action.id, status: 'success', writes, intents };
+    }
+
+    case 'diary.lfk.list': {
+      const port = deps.webappEventsPort;
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      if (chatId === null) {
+        return { actionId: action.id, status: 'failed', error: 'diary.lfk.list: chatId required' };
+      }
+      let userId: string | null = asString(action.params.userId);
+      if (!userId && deps.readPort) {
+        const source = asString(ctx.event.meta.source) ?? 'telegram';
+        const channelUserId = asNumericString(readExternalActorId(ctx))
+          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        if (channelUserId) {
+          const link = await deps.readPort.readDb<{ userId?: string } | null>({
+            type: 'user.byIdentity',
+            params: { resource: source, externalId: channelUserId },
+          });
+          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        }
+      }
+      const intents: OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      }
+      const listText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.lfk.listHeading`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'ЛФК. Выберите комплекс или добавьте.'
+        : 'ЛФК. Выберите комплекс или добавьте.';
+      if (!port || !userId) {
+        intents.push({
+          type: 'message.edit',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId },
+            ...(messageId !== null ? { messageId } : {}),
+            message: { text: listText },
+            replyMarkup: {
+              inline_keyboard: [[{ text: '➕ Добавить комплекс', callback_data: 'diary.lfk.add' }]],
+            },
+          },
+        });
+        return { actionId: action.id, status: 'success', intents };
+      }
+      const { complexes = [] } = await port.listLfkComplexes(userId);
+      const rows: Array<Array<{ text: string; callback_data: string }>> = complexes.map((c) => [
+        { text: c.title || c.id, callback_data: `diary.lfk.select:${c.id}` },
+      ]);
+      rows.push([{ text: '➕ Добавить комплекс', callback_data: 'diary.lfk.add' }]);
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          ...(messageId !== null ? { messageId } : {}),
+          message: { text: listText },
+          replyMarkup: { inline_keyboard: rows },
+        },
+      });
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'diary.lfk.select': {
+      const complexId = asString(action.params.complexId);
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      if (!complexId || chatId === null) {
+        return { actionId: action.id, status: 'failed', error: 'diary.lfk.select: complexId and chatId required' };
+      }
+      const promptText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.lfk.markSessionPrompt`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Отметить занятие?'
+        : 'Отметить занятие?';
+      const intents: OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      }
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          ...(messageId !== null ? { messageId } : {}),
+          message: { text: promptText },
+          replyMarkup: {
+            inline_keyboard: [[{ text: '✅ Отметить занятие', callback_data: `diary.lfk.session:${complexId}` }]],
+          },
+        },
+      });
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'diary.lfk.session': {
+      const complexId = asString(action.params.complexId);
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      if (!complexId || chatId === null) {
+        return { actionId: action.id, status: 'failed', error: 'diary.lfk.session: complexId and chatId required' };
+      }
+      let userId: string | null = asString(action.params.userId);
+      if (!userId && deps.readPort) {
+        const source = asString(ctx.event.meta.source) ?? 'telegram';
+        const channelUserId = asNumericString(readExternalActorId(ctx))
+          ?? asNumericString((ctx.event.payload as { incoming?: { channelUserId?: unknown } })?.incoming?.channelUserId);
+        if (channelUserId) {
+          const link = await deps.readPort.readDb<{ userId?: string } | null>({
+            type: 'user.byIdentity',
+            params: { resource: source, externalId: channelUserId },
+          });
+          userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+        }
+      }
+      const intents: OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      }
+      const port = deps.webappEventsPort;
+      if (port && userId) {
+        await port.emit({
+          eventType: 'diary.lfk.session.created',
+          occurredAt: nowIso(ctx),
+          payload: { userId, complexId, completedAt: nowIso(ctx) },
+        });
+      }
+      const successText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.lfk.sessionSuccess`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Занятие отмечено.'
+        : 'Занятие отмечено.';
+      intents.push({
+        type: 'message.edit',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId },
+          ...(messageId !== null ? { messageId } : {}),
+          message: { text: successText },
+          replyMarkup: { inline_keyboard: [[{ text: '⬅️ К списку ЛФК', callback_data: 'diary.lfk.open' }]] },
+        },
+      });
+      return { actionId: action.id, status: 'success', intents };
+    }
+
+    case 'diary.lfk.add': {
+      const writes: DbWriteMutation[] = [{
+        type: 'user.state.set',
+        params: {
+          resource: ctx.event.meta.source,
+          channelUserId: readExternalActorId(ctx),
+          state: 'diary.lfk.awaiting_title',
+        },
+      }];
+      await persistWrites(deps.writePort, writes);
+      const chatId = asNumber(action.params.chatId);
+      const messageId = asNumber(action.params.messageId);
+      const callbackQueryId = asString(action.params.callbackQueryId);
+      const addTitleText = deps.templatePort
+        ? (await renderText({
+            templateKey: `${ctx.event.meta.source}:diary.lfk.addTitlePrompt`,
+            ctx,
+            templatePort: deps.templatePort,
+          })) || 'Введите название комплекса ЛФК.'
+        : 'Введите название комплекса ЛФК.';
+      const intents: OutgoingIntent[] = [];
+      if (callbackQueryId) {
+        intents.push({ type: 'callback.answer', meta: buildIntentMeta(action, ctx), payload: { callbackQueryId } });
+      }
+      if (chatId !== null) {
+        intents.push({
+          type: 'message.edit',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId },
+            ...(messageId !== null ? { messageId } : {}),
+            message: { text: addTitleText },
+            replyMarkup: {
+              inline_keyboard: [[{ text: '⬅️ Назад', callback_data: 'diary.lfk.back' }]],
+            },
+          },
+        });
+      }
+      return { actionId: action.id, status: 'success', writes, intents };
     }
 
     default:
