@@ -44,6 +44,23 @@ describe('mapBodyToIncoming', () => {
     }
   });
 
+  it('parses deep link /start setrubitimerecord_<id> and sets action + recordId for RubiTime linking', () => {
+    const body: TelegramWebhookBodyValidated = {
+      message: {
+        from: { id: 500, is_bot: false, first_name: 'User' },
+        chat: { id: 500 },
+        text: '/start setrubitimerecord_rec-abc123',
+      },
+    };
+    const incoming = mapBodyToIncoming(body);
+    expect(incoming).not.toBeNull();
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.action).toBe('start.setrubitimerecord');
+      expect((incoming as { recordId?: string }).recordId).toBe('rec-abc123');
+    }
+  });
+
   it('does not set start.setphone action or phone for /start setphone_... (unsafe shortcut removed)', () => {
     const body: TelegramWebhookBodyValidated = {
       message: {

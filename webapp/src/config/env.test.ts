@@ -46,13 +46,14 @@ describe("checkInsecureSecretsForStartup", () => {
   });
 
   it("throws when INTEGRATOR_SHARED_SECRET is blacklisted and used as entry/webhook fallback and isTest is false", () => {
-    const parsed: EnvParsed = {
+    // Entry/webhook not set => fallback to INTEGRATOR_SHARED_SECRET; cast needed because EnvParsed after transform is string
+    const parsed = {
       ...base,
       SESSION_COOKIE_SECRET: "safe-session-secret-min-16-chars",
       INTEGRATOR_SHARED_SECRET: "dev-integrator-secret-change-me",
       INTEGRATOR_WEBAPP_ENTRY_SECRET: undefined,
       INTEGRATOR_WEBHOOK_SECRET: undefined,
-    };
+    } as unknown as EnvParsed;
     expect(() => checkInsecureSecretsForStartup(parsed, false)).toThrow(
       /Refusing to start: secret matches repo-known insecure value/
     );

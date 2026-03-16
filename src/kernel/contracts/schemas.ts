@@ -68,6 +68,7 @@ export const incomingEventSchema = z.object({
 export const outgoingIntentSchema = z.object({
   type: z.enum([
     'message.send',
+    'message.copy',
     'message.edit',
     'message.replyMarkup.edit',
     'callback.answer',

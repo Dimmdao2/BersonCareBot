@@ -9,6 +9,11 @@ export type MessagingPort = {
     reply_markup?: unknown;
     parse_mode?: MessageParseMode;
   }): Promise<unknown>;
+  copyMessage(params: {
+    chat_id: number;
+    from_chat_id: number;
+    message_id: number;
+  }): Promise<unknown>;
   editMessageText(params: {
     chat_id: number;
     message_id: number;

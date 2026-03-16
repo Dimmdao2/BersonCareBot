@@ -48,12 +48,13 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
 
   return {
     canHandle(intent: OutgoingIntent): boolean {
-      if (!['message.send', 'message.edit', 'message.replyMarkup.edit', 'callback.answer'].includes(intent.type)) {
+      if (!['message.send', 'message.copy', 'message.edit', 'message.replyMarkup.edit', 'callback.answer'].includes(intent.type)) {
         return false;
       }
-      return intent.type === 'message.send'
-        ? readChannel(intent) === 'telegram'
-        : intent.meta.source === 'telegram';
+      if (intent.type === 'message.send' || intent.type === 'message.copy') {
+        return readChannel(intent) === 'telegram';
+      }
+      return intent.meta.source === 'telegram';
     },
     async send(intent: OutgoingIntent): Promise<void> {
       const payload = intent.payload as DeliveryPayload;
@@ -76,6 +77,25 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           text,
           reply_markup: payload.replyMarkup as never,
           ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
+        });
+        return;
+      }
+
+      if (intent.type === 'message.copy') {
+        const chatId = asChatId(payload.recipient?.chatId ?? payload.chat_id);
+        const fromChatId = asChatId(payload.from_chat_id);
+        const msgId = typeof payload.message_id === 'number' && Number.isFinite(payload.message_id)
+          ? payload.message_id
+          : (typeof payload.message_id === 'string' ? Number(payload.message_id) : NaN);
+        if (chatId === null || fromChatId === null || !Number.isFinite(msgId)) {
+          const err = new Error('TELEGRAM_PAYLOAD_INVALID');
+          (err as { code?: number }).code = 400;
+          throw err;
+        }
+        await getMessagingPort().copyMessage({
+          chat_id: chatId,
+          from_chat_id: fromChatId,
+          message_id: msgId,
         });
         return;
       }

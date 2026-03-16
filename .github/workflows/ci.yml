@@ -25,8 +25,5 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
-      - run: pnpm audit --prod
+      # Один скрипт = те же проверки, что и локально (lint, typecheck, test, test:webapp, webapp:typecheck, build, audit)
+      - run: pnpm run ci

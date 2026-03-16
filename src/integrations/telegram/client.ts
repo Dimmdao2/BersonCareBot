@@ -25,6 +25,8 @@ export function createMessagingPort(): MessagingPort {
   return {
     sendMessage: (p) =>
       api.sendMessage(p.chat_id, p.text, { reply_markup: p.reply_markup as never, parse_mode: p.parse_mode as never }),
+    copyMessage: (p) =>
+      api.copyMessage(p.chat_id, p.from_chat_id, p.message_id),
     editMessageText: (p) =>
       api.editMessageText(p.chat_id, p.message_id, p.text, { reply_markup: p.reply_markup as never, parse_mode: p.parse_mode as never }),
     editMessageReplyMarkup: (p) =>

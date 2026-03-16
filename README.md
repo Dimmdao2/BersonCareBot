@@ -21,6 +21,8 @@ pnpm run build
 pnpm run dev
 ```
 
+**Перед пушем** запустите те же проверки, что и в CI: `pnpm run ci` (или `pnpm check`). Если `pnpm ci` проходит локально — пройдёт и в GitHub Actions.
+
 Worker локально:
 
 ```bash
@@ -64,6 +66,7 @@ pnpm run worker:dev
 | `pnpm run typecheck` | Проверка типов |
 | `pnpm run lint` | ESLint |
 | `pnpm test` | Тесты |
+| `pnpm run ci` / `pnpm check` | Всё, что запускает CI: lint, typecheck, test, test:webapp, webapp:typecheck, build, audit |
 
 ## HTTP endpoints
 

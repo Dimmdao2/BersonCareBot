@@ -22,7 +22,7 @@ export type SupportRelayMessageType = (typeof SUPPORT_RELAY_MESSAGE_TYPES)[numbe
 
 /** Минимальный shape входящего message из Telegram webhook (только поля, по которым определяем тип). */
 export type TelegramMessageLike = {
-  text?: string;
+  text?: string | undefined;
   photo?: unknown;
   document?: unknown;
   voice?: unknown;
@@ -40,7 +40,7 @@ export type TelegramMessageLike = {
  * Порядок проверок: один тип на сообщение (приоритет как в Telegram: text последний среди медиа).
  */
 export function getMessageTypeFromTelegramMessage(
-  message: TelegramMessageLike,
+  message: TelegramMessageLike | null | undefined,
 ): SupportRelayMessageType | null {
   if (!message || typeof message !== 'object') return null;
 
