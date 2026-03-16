@@ -128,7 +128,10 @@ export function fromTelegram(
     const msg = body.message;
     const chatId = msg.chat?.id;
     if (!telegramId || typeof chatId !== 'number') return null;
-    const normalizedPhone = typeof msg.contact?.phone_number === 'string'
+    const fromId = msg.from?.id;
+    const contactOwnedBySender =
+      typeof msg.contact?.phone_number === 'string' && msg.contact.user_id === fromId;
+    const normalizedPhone = contactOwnedBySender
       ? normalizeTelegramContactPhone(msg.contact.phone_number)
       : null;
     const reqLogger = context.reqLogger;
@@ -145,7 +148,7 @@ export function fromTelegram(
       text: msg.text ?? '',
       action: normalizeTelegramMessageAction(msg.text ?? ''),
       ...(normalizedPhone ? { phone: normalizedPhone } : {}),
-      ...(typeof msg.contact?.phone_number === 'string' && { contactPhone: msg.contact.phone_number }),
+      ...(contactOwnedBySender && typeof msg.contact?.phone_number === 'string' && { contactPhone: msg.contact.phone_number }),
       ...(typeof hasLinkedPhone === 'boolean' && { hasLinkedPhone }),
       ...(typeof msg.from?.username === 'string' && { channelUsername: msg.from.username }),
       ...(typeof msg.from?.first_name === 'string' && { channelFirstName: msg.from.first_name } ),

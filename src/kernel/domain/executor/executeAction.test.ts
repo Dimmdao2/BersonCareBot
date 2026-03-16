@@ -419,6 +419,38 @@ describe('executeAction', () => {
     });
   });
 
+  it('reminders.rule.toggle resolves userId from channelUserId when userId not in params', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const readDb = vi.fn()
+      .mockResolvedValueOnce({ userId: 'user-uuid-1' })
+      .mockResolvedValueOnce(null);
+    const callbackCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'callback.received',
+        meta: { ...ctx.event.meta, source: 'telegram' },
+        payload: { incoming: { channelUserId: 123, chatId: 123 } },
+      },
+    };
+    const result = await executeAction({
+      id: 'rem-toggle',
+      type: 'reminders.rule.toggle',
+      mode: 'sync',
+      params: { channelUserId: '123', category: 'exercise' },
+    }, callbackCtx, { readPort: { readDb }, writePort: { writeDb } });
+    expect(result.status).toBe('success');
+    expect(readDb).toHaveBeenCalledWith({
+      type: 'user.byIdentity',
+      params: { resource: 'telegram', externalId: '123' },
+    });
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'reminders.rule.upsert',
+        params: expect.objectContaining({ userId: 'user-uuid-1', category: 'exercise' }),
+      }),
+    );
+  });
+
   it('upserts and cancels drafts from incoming messages', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
     const messageCtx: DomainContext = {

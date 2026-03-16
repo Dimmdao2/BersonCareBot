@@ -64,7 +64,8 @@ export type TelegramWebhookDeps = {
   eventGateway: EventGateway;
 };
 
-function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
+/** Exported for tests (contact ownership, setphone removal). */
+export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
   if (body.callback_query) {
     const callback = body.callback_query;
     const chatId = callback.message?.chat?.id;
@@ -117,24 +118,17 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
   }
 
   if (body.message?.from && typeof body.message.chat?.id === 'number') {
+    const fromId = body.message.from.id;
     const text = body.message.text ?? '';
-    const normalizedPhone = typeof body.message.contact?.phone_number === 'string'
-      ? normalizeTelegramContactPhone(body.message.contact.phone_number)
-      : null;
+    const contact = body.message.contact;
+    const contactOwnedBySender =
+      typeof contact?.phone_number === 'string' && contact.user_id === fromId;
+    const normalizedPhone =
+      contactOwnedBySender ? normalizeTelegramContactPhone(contact.phone_number) : null;
     let action = normalizeTelegramMessageAction(text);
-    let phoneFromStart: string | null = null;
     let recordIdFromStart: string | null = null;
     if (/^\/start\s+noticeme$/i.test(text.trim())) {
       action = 'start.noticeme';
-    }
-    const setphoneMatch = /^\/start\s+setphone_(.+)$/i.exec(text.trim());
-    if (setphoneMatch?.[1]) {
-      const raw = setphoneMatch[1].trim();
-      const parsed = normalizeTelegramContactPhone(raw);
-      if (parsed) {
-        action = 'start.setphone';
-        phoneFromStart = parsed;
-      }
     }
     const setrubitimerecordMatch = /^\/start\s+setrubitimerecord_([A-Za-z0-9_-]{1,120})$/i.exec(text.trim());
     if (setrubitimerecordMatch?.[1]) {
@@ -144,14 +138,13 @@ function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate |
     return {
       kind: 'message',
       chatId: body.message.chat.id,
-      channelId: String(body.message.from.id),
+      channelId: String(fromId),
       ...(typeof body.message.message_id === 'number' ? { messageId: body.message.message_id } : {}),
       text,
       action,
-      ...(phoneFromStart ? { phone: phoneFromStart } : {}),
       ...(recordIdFromStart ? { recordId: recordIdFromStart } : {}),
       ...(normalizedPhone ? { phone: normalizedPhone } : {}),
-      ...(typeof body.message.contact?.phone_number === 'string' ? { contactPhone: body.message.contact.phone_number } : {}),
+      ...(contactOwnedBySender && typeof contact.phone_number === 'string' ? { contactPhone: contact.phone_number } : {}),
       ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),
       ...(typeof body.message.from.first_name === 'string' ? { channelFirstName: body.message.from.first_name } : {}),
       ...(typeof body.message.from.last_name === 'string' ? { channelLastName: body.message.from.last_name } : {}),
@@ -212,11 +205,15 @@ export async function registerTelegramWebhookRoutes(
         facts: buildTelegramFacts(body),
         ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
       });
-      await deps.eventGateway.handleIncomingEvent(event);
+      const result = await deps.eventGateway.handleIncomingEvent(event);
+      if (result.status === 'rejected') {
+        reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'telegram webhook pipeline rejected');
+        return reply.code(503).send({ ok: false, error: 'Processing failed' });
+      }
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'telegram webhook failed');
-      return reply.code(200).send({ ok: true });
+      return reply.code(500).send({ ok: false, error: 'Internal error' });
     }
   });
 }

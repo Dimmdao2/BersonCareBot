@@ -104,6 +104,13 @@ export async function loadContentRegistry(input?: { rootDir?: string }): Promise
     const hasAdminDir = await dirExists(path.join(sourceDir, 'admin'));
 
     if (hasUserDir && hasAdminDir) {
+      const rootScriptsPath = path.join(sourceDir, 'scripts.json');
+      const rootTemplatesPath = path.join(sourceDir, 'templates.json');
+      if (await fileExists(rootScriptsPath) || await fileExists(rootTemplatesPath)) {
+        throw new Error(
+          `Content source "${source}" has scoped bundles (user/admin); root scripts.json/templates.json are forbidden to prevent shadow runtime content.`,
+        );
+      }
       for (const audience of ['user', 'admin'] as ContentAudience[]) {
         const audienceDir = path.join(sourceDir, audience);
         const scriptsPath = path.join(audienceDir, 'scripts.json');

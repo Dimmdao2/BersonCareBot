@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { handleReminderDispatch } from "@/modules/integrator/reminderDispatch";
 import { validateReminderDispatchPayload } from "@/modules/reminders/service";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency/store";
@@ -21,25 +22,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid signature" }, { status: 401 });
   }
 
-  const cached = getCachedResponse(idempotencyKey);
-  if (cached !== null) {
-    return NextResponse.json(cached as Record<string, unknown>);
+  const requestHash = createHash("sha256").update(rawBody).digest("hex");
+  const cached = await getCachedResponse(idempotencyKey, requestHash);
+  if (cached.hit && "mismatch" in cached && cached.mismatch) {
+    return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+  }
+  if (cached.hit && "status" in cached) {
+    return NextResponse.json(cached.body, { status: cached.status });
   }
 
-  const payload = JSON.parse(rawBody) as unknown;
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawBody) as unknown;
+  } catch {
+    return NextResponse.json({ ok: false, error: "invalid payload" }, { status: 400 });
+  }
   if (!validateReminderDispatchPayload(payload)) {
     return NextResponse.json({ ok: false, error: "invalid payload" }, { status: 400 });
   }
 
   const dispatchBody = payload as { userId: string; message: { title: string; body: string }; channelBindings?: Record<string, string>; actions?: Array<{ id: string; label: string }> };
-  handleReminderDispatch({
+  if (typeof (payload as { idempotencyKey?: unknown }).idempotencyKey === "string" && (payload as { idempotencyKey: string }).idempotencyKey !== idempotencyKey) {
+    return NextResponse.json({ ok: false, error: "idempotency key mismatch between header and body" }, { status: 400 });
+  }
+
+  const result = await handleReminderDispatch({
+    idempotencyKey,
     userId: dispatchBody.userId,
     message: dispatchBody.message,
     channelBindings: dispatchBody.channelBindings,
     actions: dispatchBody.actions,
   });
 
-  const body = { ok: true, accepted: true, dispatchMode: "bridge-to-integrator" };
-  setCachedResponse(idempotencyKey, body);
-  return NextResponse.json(body);
+  const status = result.accepted ? 202 : 503;
+  const body: Record<string, unknown> = result.accepted
+    ? { ok: true, accepted: true, dispatchMode: "bridge-to-integrator" }
+    : { ok: false, accepted: false, error: result.reason, dispatchMode: "bridge-to-integrator" };
+  await setCachedResponse(idempotencyKey, requestHash, status, body);
+  return NextResponse.json(body, { status });
 }

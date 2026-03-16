@@ -99,6 +99,22 @@ describe('eventGateway', () => {
     }
   });
 
+  it('returns rejected with PIPELINE_FAILED when pipeline.run throws', async () => {
+    const { createEventGateway } = await import('./index.js');
+    const run = vi.fn().mockRejectedValue(new Error('pipeline error'));
+    const gateway = createEventGateway({
+      idempotencyPort: { tryAcquire: vi.fn().mockResolvedValue(true) },
+      pipeline: { run },
+    });
+
+    const result = await gateway.handleIncomingEvent(baseEvent);
+    expect(result.status).toBe('rejected');
+    if (result.status === 'rejected') {
+      expect(result.reason).toBe('PIPELINE_FAILED');
+    }
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it('returns rejected when rate limited', async () => {
     vi.resetModules();
     vi.doMock('./rateLimit.js', () => ({

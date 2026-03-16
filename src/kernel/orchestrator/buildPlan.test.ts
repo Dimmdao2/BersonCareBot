@@ -1,3 +1,8 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { BaseContext, ContentPort, ContextQueryPort, IncomingEvent } from '../contracts/index.js';
+import { buildPlan } from './resolver.js';
+
+describe('orchestrator buildPlan', () => {
   it('can fall back to a generic booking.open script when linkedPhone context is absent', async () => {
     const event: IncomingEvent = {
       type: 'message.received',
@@ -57,11 +62,6 @@
       payload: { text: 'fallback' },
     });
   });
-import { describe, expect, it, vi } from 'vitest';
-import type { BaseContext, ContentPort, ContextQueryPort, IncomingEvent } from '../contracts/index.js';
-import { buildPlan } from './resolver.js';
-
-describe('orchestrator buildPlan', () => {
   it('requests extra context and builds plan', async () => {
     const event: IncomingEvent = {
       type: 'webhook.received',
@@ -365,6 +365,63 @@ describe('orchestrator buildPlan', () => {
     expect(plan[0]).toMatchObject({
       kind: 'callback.answer',
       payload: { callbackQueryId: 'cb-1' },
+    });
+  });
+
+  it('uses declared priority as the first routing tie-breaker', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-priority-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          action: 'menu.more',
+          chatId: 123,
+          channelUserId: 123,
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.low.priority',
+          source: 'telegram',
+          event: 'message.received',
+          priority: 1,
+          match: { input: { action: 'menu.more' } },
+          steps: [{ action: 'event.log', mode: 'sync', params: { selected: 'low' } }],
+        },
+        {
+          id: 'telegram.high.priority',
+          source: 'telegram',
+          event: 'message.received',
+          priority: 10,
+          match: { input: { action: 'menu.more' } },
+          steps: [{ action: 'event.log', mode: 'sync', params: { selected: 'high' } }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]).toMatchObject({
+      kind: 'event.log',
+      payload: { selected: 'high' },
     });
   });
 });

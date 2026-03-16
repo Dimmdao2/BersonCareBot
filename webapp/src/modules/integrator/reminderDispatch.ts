@@ -10,10 +10,19 @@ export type ReminderDispatchBody = {
   actions?: Array<{ id: string; label: string }>;
 };
 
-export function handleReminderDispatch(body: ReminderDispatchBody): void {
+export type ReminderDispatchResult = {
+  accepted: boolean;
+  reason?: string;
+};
+
+export async function handleReminderDispatch(body: ReminderDispatchBody): Promise<ReminderDispatchResult> {
   // MVP: log. Later: enqueue for orchestrator or HTTP call to tgcarebot with signature.
   if (process.env.NODE_ENV !== "production") {
     // eslint-disable-next-line no-console
     console.info("[integrator] reminder dispatch", body.userId, body.message?.title ?? "");
   }
+  return {
+    accepted: false,
+    reason: "durable reminder dispatch is not implemented",
+  };
 }

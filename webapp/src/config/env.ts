@@ -1,11 +1,20 @@
 import "./loadEnv";
 import { z } from "zod";
 
-const buildDefaults = {
-  DATABASE_URL: "postgres://localhost:5432/bcb_webapp_dev",
-  SESSION_COOKIE_SECRET: "dev-session-secret-change-me-min-16",
-  INTEGRATOR_SHARED_SECRET: "dev-integrator-secret-change-me",
-};
+/** Repo-known defaults that must never be used in production or development. */
+const INSECURE_SECRET_BLACKLIST = [
+  "dev-session-secret-change-me-min-16",
+  "dev-integrator-secret-change-me",
+] as const;
+
+const isTest = process.env.NODE_ENV === "test";
+
+/** Test-only defaults; never used in development or production. */
+const TEST_DEFAULTS = {
+  SESSION_COOKIE_SECRET: "test-session-secret-16chars",
+  INTEGRATOR_WEBAPP_ENTRY_SECRET: "test-integrator-entry-secret",
+  INTEGRATOR_WEBHOOK_SECRET: "test-integrator-webhook-secret",
+} as const;
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -20,25 +29,42 @@ const envSchema = z.object({
     .transform((val) =>
       process.env.NODE_ENV === "test" && process.env.USE_REAL_DATABASE !== "1" ? "" : val ?? ""
     ),
-  SESSION_COOKIE_SECRET: z.string().min(16).default(buildDefaults.SESSION_COOKIE_SECRET),
-  /** Used for both entry and webhook if INTEGRATOR_WEBAPP_ENTRY_SECRET / INTEGRATOR_WEBHOOK_SECRET are not set. */
-  INTEGRATOR_SHARED_SECRET: z.string().min(16).default(buildDefaults.INTEGRATOR_SHARED_SECRET),
-  /** Secret for signing/verifying webapp-entry token (?t=...). If unset, INTEGRATOR_SHARED_SECRET is used. */
-  INTEGRATOR_WEBAPP_ENTRY_SECRET: z.string().min(1).optional(),
-  /** Secret for webhook HMAC (X-Bersoncare-Signature). If unset, INTEGRATOR_SHARED_SECRET is used. */
-  INTEGRATOR_WEBHOOK_SECRET: z.string().min(1).optional(),
-  /** In production, dev tokens are never accepted regardless of this value. */
+  /** Required in production; in test uses safe default. In development must be set (no repo default). */
+  SESSION_COOKIE_SECRET: z
+    .string()
+    .min(16)
+    .optional()
+    .transform((val) =>
+      isTest ? val ?? TEST_DEFAULTS.SESSION_COOKIE_SECRET : (val ?? "")
+    ),
+  /** Optional fallback for entry/webhook when separate secrets not set; only for non-production. */
+  INTEGRATOR_SHARED_SECRET: z.string().min(16).optional(),
+  /** Secret for webapp-entry token (?t=...). Required in production; in test has default. */
+  INTEGRATOR_WEBAPP_ENTRY_SECRET: z
+    .string()
+    .min(1)
+    .optional()
+    .transform((val) =>
+      isTest ? val ?? TEST_DEFAULTS.INTEGRATOR_WEBAPP_ENTRY_SECRET : val ?? ""
+    ),
+  /** Secret for webhook HMAC. Required in production; in test has default. */
+  INTEGRATOR_WEBHOOK_SECRET: z
+    .string()
+    .min(1)
+    .optional()
+    .transform((val) =>
+      isTest ? val ?? TEST_DEFAULTS.INTEGRATOR_WEBHOOK_SECRET : val ?? ""
+    ),
   ALLOW_DEV_AUTH_BYPASS: z
     .string()
     .optional()
     .transform((value) => value === "true"),
   ALLOWED_TELEGRAM_IDS: z.string().optional().default(""),
   ADMIN_TELEGRAM_ID: z.coerce.number().int().optional(),
-  /** Bot token for validating Telegram Web App initData (only for auth, not for API calls). */
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
 });
 
-export const env = envSchema.parse({
+const parsed = envSchema.parse({
   NODE_ENV: process.env.NODE_ENV,
   HOST: process.env.HOST,
   PORT: process.env.PORT,
@@ -54,12 +80,70 @@ export const env = envSchema.parse({
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
 });
 
-export const isProduction = env.NODE_ENV === "production";
+export type EnvParsed = z.infer<typeof envSchema>;
 
-/** Secret used to sign/verify webapp-entry token. Falls back to INTEGRATOR_SHARED_SECRET. */
+/** Throws if any secret matches repo-known insecure value. No-op when isTest. Used at startup and in tests. */
+export function checkInsecureSecretsForStartup(env: EnvParsed, isTestEnv: boolean): void {
+  if (isTestEnv) return;
+  const session = env.SESSION_COOKIE_SECRET ?? "";
+  const entry = env.INTEGRATOR_WEBAPP_ENTRY_SECRET ?? env.INTEGRATOR_SHARED_SECRET ?? "";
+  const webhook = env.INTEGRATOR_WEBHOOK_SECRET ?? env.INTEGRATOR_SHARED_SECRET ?? "";
+  for (const bad of INSECURE_SECRET_BLACKLIST) {
+    if (session === bad || entry === bad || webhook === bad) {
+      throw new Error(
+        `Refusing to start: secret matches repo-known insecure value. Set real secrets in env (e.g. SESSION_COOKIE_SECRET, INTEGRATOR_WEBAPP_ENTRY_SECRET, INTEGRATOR_WEBHOOK_SECRET).`
+      );
+    }
+  }
+}
+
+function rejectInsecureSecrets(env: z.infer<typeof envSchema>): void {
+  checkInsecureSecretsForStartup(env, isTest);
+}
+
+if (parsed.NODE_ENV === "production") {
+  if (!parsed.SESSION_COOKIE_SECRET || parsed.SESSION_COOKIE_SECRET.length < 16) {
+    throw new Error("Production requires SESSION_COOKIE_SECRET (min 16 chars) in env.");
+  }
+  const entrySecret = parsed.INTEGRATOR_WEBAPP_ENTRY_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
+  const webhookSecret = parsed.INTEGRATOR_WEBHOOK_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
+  if (!entrySecret || entrySecret.length < 16) {
+    throw new Error("Production requires INTEGRATOR_WEBAPP_ENTRY_SECRET or INTEGRATOR_SHARED_SECRET in env.");
+  }
+  if (!webhookSecret || webhookSecret.length < 16) {
+    throw new Error("Production requires INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET in env.");
+  }
+} else {
+  if (!isTest) {
+    if (!parsed.SESSION_COOKIE_SECRET || parsed.SESSION_COOKIE_SECRET.length < 16) {
+      throw new Error(
+        "Development requires SESSION_COOKIE_SECRET (min 16 chars) in env. Use .env or .env.local."
+      );
+    }
+    const entrySecret = parsed.INTEGRATOR_WEBAPP_ENTRY_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
+    const webhookSecret = parsed.INTEGRATOR_WEBHOOK_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
+    if (!entrySecret || !webhookSecret) {
+      throw new Error(
+        "Development requires integrator secrets: set INTEGRATOR_WEBAPP_ENTRY_SECRET and INTEGRATOR_WEBHOOK_SECRET, or INTEGRATOR_SHARED_SECRET, in env."
+      );
+    }
+  }
+}
+
+rejectInsecureSecrets(parsed);
+
+export const env = parsed;
+
+export const isProduction = parsed.NODE_ENV === "production";
+
+/** Secret used to sign/verify webapp-entry token. */
 export const integratorWebappEntrySecret = (): string =>
-  env.INTEGRATOR_WEBAPP_ENTRY_SECRET ?? env.INTEGRATOR_SHARED_SECRET;
+  env.INTEGRATOR_WEBAPP_ENTRY_SECRET ||
+  env.INTEGRATOR_SHARED_SECRET ||
+  (isTest ? TEST_DEFAULTS.INTEGRATOR_WEBAPP_ENTRY_SECRET : "");
 
-/** Secret used for webhook HMAC. Falls back to INTEGRATOR_SHARED_SECRET. */
+/** Secret used for webhook HMAC. */
 export const integratorWebhookSecret = (): string =>
-  env.INTEGRATOR_WEBHOOK_SECRET ?? env.INTEGRATOR_SHARED_SECRET;
+  env.INTEGRATOR_WEBHOOK_SECRET ||
+  env.INTEGRATOR_SHARED_SECRET ||
+  (isTest ? TEST_DEFAULTS.INTEGRATOR_WEBHOOK_SECRET : "");

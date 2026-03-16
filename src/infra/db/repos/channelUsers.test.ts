@@ -84,6 +84,18 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(params).toEqual(['123', '+79990001122']);
   });
 
+  it('setUserPhone ON CONFLICT only updates when contact belongs to same user (no takeover)', async () => {
+    const { db, query } = createDbMock();
+    query.mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
+
+    await setUserPhone(db, '456', '+79990001122');
+
+    const [sql] = query.mock.calls[0] ?? [];
+    const sqlText = String(sql);
+    expect(sqlText).toContain('ON CONFLICT (type, value_normalized)');
+    expect(sqlText).toContain('WHERE contacts.user_id = (SELECT user_id FROM target_identity)');
+  });
+
   it('notification settings and dedup fields read/write through telegram_state', async () => {
     const { db, query } = createDbMock();
 

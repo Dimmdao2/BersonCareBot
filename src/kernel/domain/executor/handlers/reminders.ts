@@ -43,7 +43,17 @@ export async function handleReminders(
 
   if (action.type === 'reminders.rule.toggle') {
     if (!deps.readPort || !deps.writePort) return { actionId: action.id, status: 'skipped', error: 'reminders.rule.toggle: missing port' };
-    const userId = asString(action.params.userId);
+    let userId = asString(action.params.userId);
+    if (!userId) {
+      const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+      const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
+      if (!channelUserId) return { actionId: action.id, status: 'failed', error: 'reminders.rule.toggle: missing userId or channelUserId' };
+      const link = await deps.readPort.readDb<{ userId?: string } | null>({
+        type: 'user.byIdentity',
+        params: { resource, externalId: channelUserId },
+      });
+      userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+    }
     const category = asString(action.params.category) as ReminderCategory | null;
     if (!userId || !category) return { actionId: action.id, status: 'failed', error: 'reminders.rule.toggle: missing userId or category' };
     const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({
@@ -75,7 +85,17 @@ export async function handleReminders(
 
   if (action.type === 'reminders.rule.cyclePreset') {
     if (!deps.readPort || !deps.writePort) return { actionId: action.id, status: 'skipped', error: 'reminders.rule.cyclePreset: missing port' };
-    const userId = asString(action.params.userId);
+    let userId = asString(action.params.userId);
+    if (!userId) {
+      const channelUserId = asNumericString(action.params.channelUserId) ?? readExternalActorId(ctx);
+      const resource = asString(action.params.resource) ?? ctx.event.meta.source ?? 'telegram';
+      if (!channelUserId) return { actionId: action.id, status: 'failed', error: 'reminders.rule.cyclePreset: missing userId or channelUserId' };
+      const link = await deps.readPort.readDb<{ userId?: string } | null>({
+        type: 'user.byIdentity',
+        params: { resource, externalId: channelUserId },
+      });
+      userId = link && typeof link === 'object' && typeof link.userId === 'string' ? link.userId : null;
+    }
     const category = asString(action.params.category) as ReminderCategory | null;
     if (!userId || !category) return { actionId: action.id, status: 'failed', error: 'reminders.rule.cyclePreset: missing userId or category' };
     const existing = await deps.readPort.readDb<ReminderRuleRecord | null>({

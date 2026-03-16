@@ -14,6 +14,22 @@ describe('contentRegistry', () => {
     expect(getContentBundle(registry, 'telegram/admin')).not.toBeNull();
   });
 
+  it('rejects root scripts/templates when source has user/admin scoped bundles', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'content-registry-shadow-'));
+    const source = path.join(root, 'telegram');
+    const user = path.join(source, 'user');
+    const admin = path.join(source, 'admin');
+    await mkdir(user, { recursive: true });
+    await mkdir(admin, { recursive: true });
+    await writeFile(path.join(user, 'scripts.json'), JSON.stringify([]), 'utf8');
+    await writeFile(path.join(user, 'templates.json'), JSON.stringify({}), 'utf8');
+    await writeFile(path.join(admin, 'scripts.json'), JSON.stringify([]), 'utf8');
+    await writeFile(path.join(admin, 'templates.json'), JSON.stringify({}), 'utf8');
+    await writeFile(path.join(source, 'scripts.json'), JSON.stringify([]), 'utf8');
+
+    await expect(loadContentRegistry({ rootDir: root })).rejects.toThrow(/forbidden to prevent shadow runtime content/);
+  });
+
   it('keeps notifications.show self-sufficient by fetching state before rendering', async () => {
     const root = path.resolve(process.cwd(), 'src/content');
     const registry = await loadContentRegistry({ rootDir: root });
@@ -58,6 +74,44 @@ describe('contentRegistry', () => {
       action: 'callback.answer',
       mode: 'async',
     });
+  });
+
+  it('ensures each callback from telegram user menu has a matching callback script', async () => {
+    const root = path.resolve(process.cwd(), 'src/content');
+    const registry = await loadContentRegistry({ rootDir: root });
+    const telegramUser = getContentBundle(registry, 'telegram/user');
+    const menus = telegramUser?.menus ?? {};
+    const menuRows = Array.isArray((menus as Record<string, unknown>).main)
+      ? ((menus as Record<string, unknown>).main as unknown[])
+      : [];
+    const callbackActions = menuRows.flatMap((row) => {
+      if (!Array.isArray(row)) return [];
+      return row
+        .map((button) => (typeof button === 'object' && button !== null ? (button as Record<string, unknown>).callbackData : undefined))
+        .filter((value): value is string => typeof value === 'string' && value.length > 0);
+    });
+    const scripts = telegramUser?.scripts ?? [];
+    for (const action of callbackActions) {
+      const hasScript = scripts.some((script) => {
+        const match = script.match as Record<string, unknown> | undefined;
+        const input = match?.input as Record<string, unknown> | undefined;
+        return script.event === 'callback.received' && input?.action === action;
+      });
+      expect(hasScript).toBe(true);
+    }
+  });
+
+  it('forbids hardcoded actor authorization in telegram user scripts', async () => {
+    const root = path.resolve(process.cwd(), 'src/content');
+    const registry = await loadContentRegistry({ rootDir: root });
+    const telegramUser = getContentBundle(registry, 'telegram/user');
+    const scripts = telegramUser?.scripts ?? [];
+    const hasHardcodedActorGate = scripts.some((script) => {
+      const match = script.match as Record<string, unknown> | undefined;
+      const actor = match?.actor as Record<string, unknown> | undefined;
+      return typeof actor?.channelUserId === 'number' || typeof actor?.channelUserId === 'string';
+    });
+    expect(hasHardcodedActorGate).toBe(false);
   });
 
   it('loads scripts.json and templates.json per source folder', async () => {

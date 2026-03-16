@@ -62,6 +62,11 @@ export function createEventGateway(deps: EventGatewayDeps = {}): EventGateway {
           await pipeline.run(event);
         } catch (error) {
           console.error('eventGateway pipeline failed', error);
+          return {
+            status: 'rejected',
+            dedupKey,
+            reason: 'PIPELINE_FAILED',
+          };
         }
       }
 

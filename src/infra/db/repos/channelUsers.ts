@@ -469,7 +469,10 @@ export async function getIdentityIdByResourceAndExternalId(
   return row?.id ?? null;
 }
 
-/** Links phone to a channel user. */
+/**
+ * Links phone to a channel user. Safe against takeover: if the phone is already linked to another
+ * user, the update is not applied (idempotent re-link only for the same user).
+ */
 export async function setUserPhone(
   db: DbPort,
   channelUserId: string,
@@ -492,6 +495,7 @@ export async function setUserPhone(
         user_id = EXCLUDED.user_id,
         label = EXCLUDED.label,
         updated_at = now()
+      WHERE contacts.user_id = (SELECT user_id FROM target_identity)
       RETURNING id
     )
     SELECT 1 FROM upsert_contact

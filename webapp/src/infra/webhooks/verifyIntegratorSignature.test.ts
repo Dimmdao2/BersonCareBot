@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { env } from "@/config/env";
+import { integratorWebhookSecret } from "@/config/env";
 import { verifyIntegratorSignature } from "./verifyIntegratorSignature";
 
 describe("verifyIntegratorSignature", () => {
@@ -8,7 +8,7 @@ describe("verifyIntegratorSignature", () => {
     const timestamp = String(Math.floor(Date.now() / 1000));
     const body = '{"foo":"bar"}';
     const payload = `${timestamp}.${body}`;
-    const signature = createHmac("sha256", env.INTEGRATOR_SHARED_SECRET).update(payload).digest("base64url");
+    const signature = createHmac("sha256", integratorWebhookSecret()).update(payload).digest("base64url");
     expect(verifyIntegratorSignature(timestamp, body, signature)).toBe(true);
   });
 
@@ -20,7 +20,7 @@ describe("verifyIntegratorSignature", () => {
   it("returns false when timestamp/body mismatch", () => {
     const timestamp = String(Math.floor(Date.now() / 1000));
     const body = "x";
-    const signature = createHmac("sha256", env.INTEGRATOR_SHARED_SECRET).update(`${timestamp}.${body}`).digest("base64url");
+    const signature = createHmac("sha256", integratorWebhookSecret()).update(`${timestamp}.${body}`).digest("base64url");
     expect(verifyIntegratorSignature(String(Number(timestamp) + 1), body, signature)).toBe(false);
     expect(verifyIntegratorSignature(timestamp, "y", signature)).toBe(false);
   });
@@ -30,7 +30,7 @@ describe("verifyIntegratorSignature", () => {
     const oldTimestamp = String(now - 400);
     const body = "{}";
     const payload = `${oldTimestamp}.${body}`;
-    const signature = createHmac("sha256", env.INTEGRATOR_SHARED_SECRET).update(payload).digest("base64url");
+    const signature = createHmac("sha256", integratorWebhookSecret()).update(payload).digest("base64url");
     expect(verifyIntegratorSignature(oldTimestamp, body, signature)).toBe(false);
   });
 
@@ -39,7 +39,7 @@ describe("verifyIntegratorSignature", () => {
     const recentTimestamp = String(now - 60);
     const body = "{}";
     const payload = `${recentTimestamp}.${body}`;
-    const signature = createHmac("sha256", env.INTEGRATOR_SHARED_SECRET).update(payload).digest("base64url");
+    const signature = createHmac("sha256", integratorWebhookSecret()).update(payload).digest("base64url");
     expect(verifyIntegratorSignature(recentTimestamp, body, signature)).toBe(true);
   });
 });

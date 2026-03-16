@@ -271,13 +271,16 @@ async function resolveBusinessScript(
 
   let selected: SelectedScript | null = null;
   let bestScore = Number.NEGATIVE_INFINITY;
+  const defaultPriority = 0;
 
   for (const script of scripts) {
     const { matched, specificity } = scriptMatches(script, input);
     if (!matched) continue;
-    if (!selected || specificity > bestScore) {
+    const priority = typeof script.priority === 'number' ? script.priority : defaultPriority;
+    const score = priority * 1e6 + specificity;
+    if (!selected || score > bestScore) {
       selected = { scriptId: `${source}:${script.id}`, script };
-      bestScore = specificity;
+      bestScore = score;
     }
   }
 
