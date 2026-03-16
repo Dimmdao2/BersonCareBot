@@ -1,0 +1,342 @@
+/**
+ * Support relay: user ↔ admin message forwarding with type policy and copy/send intents.
+ * Isolated from executeAction; uses only helpers and template keys.
+ */
+import { randomUUID } from 'node:crypto';
+import type { Action, ActionResult, DbWriteMutation, DomainContext, OutgoingIntent } from '../../../contracts/index.js';
+import type { ExecutorDeps } from '../helpers.js';
+import {
+  asNumber,
+  asRecord,
+  asString,
+  buildIntentMeta,
+  formatActorLabel,
+  persistWrites,
+  readConversationId,
+  readExternalActorId,
+  readIncoming,
+  readIncomingChatId,
+  readIncomingMessageId,
+  readIncomingText,
+  readRelayMessageType,
+  renderText,
+} from '../helpers.js';
+import { ADMIN, RELAY_USER } from '../templateKeys.js';
+
+/** Builds delivery field used by Telegram adapter for message.send / message.copy. */
+function telegramDeliveryPayload() {
+  return { channels: ['telegram'] as const, maxAttempts: 1 };
+}
+
+export async function handleConversationUserMessage(
+  action: Action,
+  ctx: DomainContext,
+  deps: ExecutorDeps,
+): Promise<ActionResult> {
+  if (!deps.readPort) {
+    return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+  }
+  const externalId = readExternalActorId(ctx);
+  const source = asString(action.params.source) ?? ctx.event.meta.source;
+  const text = asString(action.params.text) ?? readIncomingText(ctx);
+  const relayMessageType = readRelayMessageType(ctx) ?? 'text';
+  if (!externalId || !source) {
+    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING' };
+  }
+  if (relayMessageType === 'text' && !text) {
+    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING' };
+  }
+  const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
+    type: 'conversation.openByIdentity',
+    params: {
+      resource: ctx.event.meta.source,
+      externalId,
+      source,
+    },
+  });
+  const conversationId = asString(conversation?.id);
+  const adminChatId = asNumber(asRecord(ctx.base.facts).adminChatId);
+  if (!conversationId || adminChatId === null) {
+    return { actionId: action.id, status: 'skipped', error: 'OPEN_CONVERSATION_NOT_FOUND' };
+  }
+  const policy = deps.supportRelayPolicy;
+  if (policy && !policy.isAllowedUserToAdmin(relayMessageType)) {
+    const refusalChatId = asNumber(readIncoming(ctx).chatId);
+    const refusalText = deps.templatePort
+      ? (await renderText({ templateKey: RELAY_USER.UNSUPPORTED_TYPE, ctx, templatePort: deps.templatePort }))
+        || 'К сожалению, такой тип сообщения сейчас не поддерживается. Вы можете отправить текст, фото или документ.'
+      : 'К сожалению, такой тип сообщения сейчас не поддерживается. Вы можете отправить текст, фото или документ.';
+    const refusalIntents: OutgoingIntent[] = refusalChatId !== null
+      ? [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: refusalChatId },
+          message: { text: refusalText },
+          delivery: telegramDeliveryPayload(),
+        },
+      }]
+      : [];
+    return { actionId: action.id, status: 'success', intents: refusalIntents };
+  }
+  const writes: DbWriteMutation[] = [
+    {
+      type: 'conversation.message.add',
+      params: {
+        id: randomUUID(),
+        conversationId,
+        senderRole: 'user',
+        text: text ?? (relayMessageType !== 'text' ? `[${relayMessageType}]` : ''),
+        source,
+        externalChatId: readIncomingChatId(ctx),
+        externalMessageId: readIncomingMessageId(ctx),
+        createdAt: ctx.nowIso,
+      },
+    },
+    {
+      type: 'conversation.state.set',
+      params: {
+        id: conversationId,
+        status: 'waiting_admin',
+        lastMessageAt: ctx.nowIso,
+      },
+    },
+  ];
+  await persistWrites(deps.writePort, writes);
+
+  const userLabel = formatActorLabel({
+    firstName: asString(conversation?.first_name),
+    lastName: asString(conversation?.last_name),
+    username: asString(conversation?.username),
+    channelId: asString(conversation?.user_channel_id),
+  });
+  const messageLabelForService = relayMessageType === 'text' ? (text ?? '') : `[${relayMessageType}]`;
+  const newMessageText = deps.templatePort
+    ? (await renderText({
+      templateKey: ADMIN.CONVERSATION_NEW_MESSAGE,
+      vars: { userLabel, text: messageLabelForService },
+      ctx,
+      templatePort: deps.templatePort,
+    })) || `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageLabelForService}`
+    : `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageLabelForService}`;
+  const replyButtonText = deps.templatePort
+    ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
+    : 'Ответить';
+  const userChatId = asNumber(readIncomingChatId(ctx));
+  const userMessageId = asNumber(readIncomingMessageId(ctx));
+  const intents: OutgoingIntent[] = [{
+    type: 'message.send',
+    meta: buildIntentMeta(action, ctx),
+    payload: {
+      recipient: { chatId: adminChatId },
+      message: { text: newMessageText },
+      replyMarkup: {
+        inline_keyboard: [[
+          { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
+        ]],
+      },
+      delivery: telegramDeliveryPayload(),
+    },
+  }];
+  if (userChatId !== null && userMessageId !== null) {
+    intents.push({
+      type: 'message.copy',
+      meta: buildIntentMeta(action, ctx),
+      payload: {
+        recipient: { chatId: adminChatId },
+        from_chat_id: userChatId,
+        message_id: userMessageId,
+        delivery: telegramDeliveryPayload(),
+      },
+    });
+  } else if (relayMessageType === 'text' && text) {
+    intents.push({
+      type: 'message.send',
+      meta: buildIntentMeta(action, ctx),
+      payload: {
+        recipient: { chatId: adminChatId },
+        message: { text },
+        delivery: telegramDeliveryPayload(),
+      },
+    });
+  }
+  return {
+    actionId: action.id,
+    status: 'success',
+    writes,
+    intents,
+    values: {
+      hasOpenConversation: true,
+      activeConversationId: conversationId,
+      activeConversationStatus: 'waiting_admin',
+    },
+  };
+}
+
+export async function handleConversationAdminReply(
+  action: Action,
+  ctx: DomainContext,
+  deps: ExecutorDeps,
+): Promise<ActionResult> {
+  if (!deps.readPort) {
+    return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+  }
+  const conversationId = readConversationId(action, ctx);
+  const relayMessageType = readRelayMessageType(ctx) ?? 'text';
+  const text = asString(action.params.text) ?? readIncomingText(ctx);
+  const adminChatId = asNumber(readIncoming(ctx).chatId);
+  const rawMsgId = readIncomingMessageId(ctx);
+  const adminMessageIdFinite =
+    rawMsgId !== null && Number.isFinite(Number(rawMsgId)) ? Number(rawMsgId) : null;
+  if (!conversationId) {
+    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
+  }
+  const isTextReply = relayMessageType === 'text' || !relayMessageType;
+  if (isTextReply && !text) {
+    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
+  }
+  if (!isTextReply && adminMessageIdFinite === null) {
+    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_ADMIN_REPLY_INPUT_MISSING' };
+  }
+  const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
+    type: 'conversation.byId',
+    params: { id: conversationId },
+  });
+  const userChatIdRaw = asString(conversation?.user_channel_id);
+  const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
+  if (!conversation || !Number.isFinite(userChatId)) {
+    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_NOT_FOUND' };
+  }
+  const policy = deps.supportRelayPolicy;
+  if (policy && !policy.isAllowedAdminToUser(relayMessageType)) {
+    const refusalText = deps.templatePort
+      ? (await renderText({ templateKey: ADMIN.RELAY_UNSUPPORTED_ADMIN, ctx, templatePort: deps.templatePort }))
+        || 'Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.'
+      : 'Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.';
+    const refusalIntents: OutgoingIntent[] = adminChatId !== null
+      ? [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text: refusalText },
+          delivery: telegramDeliveryPayload(),
+        },
+      }]
+      : [];
+    return { actionId: action.id, status: 'success', intents: refusalIntents };
+  }
+  const sourceForConversation = asString(conversation.source) ?? ctx.event.meta.source;
+  const messageTextForDb = isTextReply ? (text ?? '') : `[${relayMessageType}]`;
+  const writes: DbWriteMutation[] = [
+    {
+      type: 'conversation.message.add',
+      params: {
+        id: randomUUID(),
+        conversationId,
+        senderRole: 'admin',
+        text: messageTextForDb,
+        source: sourceForConversation,
+        externalChatId: readIncomingChatId(ctx),
+        externalMessageId: readIncomingMessageId(ctx),
+        createdAt: ctx.nowIso,
+      },
+    },
+    {
+      type: 'conversation.state.set',
+      params: {
+        id: conversationId,
+        status: 'waiting_user',
+        lastMessageAt: ctx.nowIso,
+      },
+    },
+  ];
+  await persistWrites(deps.writePort, writes);
+
+  const question = await deps.readPort.readDb<{ id: string; answered: boolean } | null>({
+    type: 'question.byConversationId',
+    params: { conversationId },
+  });
+  if (question?.id && question.answered === false && deps.writePort) {
+    const questionReplyWrites: DbWriteMutation[] = [
+      {
+        type: 'question.message.add',
+        params: {
+          id: randomUUID(),
+          questionId: question.id,
+          senderType: 'admin',
+          messageText: messageTextForDb,
+          createdAt: ctx.nowIso,
+        },
+      },
+      {
+        type: 'question.markAnswered',
+        params: { questionId: question.id, answeredAt: ctx.nowIso },
+      },
+    ];
+    await persistWrites(deps.writePort, questionReplyWrites);
+    writes.push(...questionReplyWrites);
+  }
+
+  const intents: OutgoingIntent[] = [];
+  if (isTextReply && text) {
+    intents.push({
+      type: 'message.send',
+      meta: buildIntentMeta(action, ctx),
+      payload: {
+        recipient: { chatId: userChatId },
+        message: { text },
+        delivery: telegramDeliveryPayload(),
+      },
+    });
+  } else if (!isTextReply && adminChatId !== null && adminMessageIdFinite !== null) {
+    intents.push({
+      type: 'message.copy',
+      meta: buildIntentMeta(action, ctx),
+      payload: {
+        recipient: { chatId: userChatId },
+        from_chat_id: adminChatId,
+        message_id: adminMessageIdFinite,
+        delivery: telegramDeliveryPayload(),
+      },
+    });
+  }
+  if (adminChatId !== null) {
+    const sentText = deps.templatePort
+      ? (await renderText({ templateKey: ADMIN.REPLY_SENT, ctx, templatePort: deps.templatePort })) || 'Сообщение отправлено.'
+      : 'Сообщение отправлено.';
+    const continueButtonText = deps.templatePort
+      ? (await renderText({ templateKey: ADMIN.REPLY_CONTINUE_BUTTON, ctx, templatePort: deps.templatePort })) || 'Дополнить ответ'
+      : 'Дополнить ответ';
+    const closeButtonText = deps.templatePort
+      ? (await renderText({ templateKey: ADMIN.DIALOG_CLOSE_BUTTON, ctx, templatePort: deps.templatePort }))?.trim() ?? ''
+      : '';
+    const replyRows: Array<Array<{ text: string; callback_data: string }>> = [
+      [{ text: continueButtonText, callback_data: `admin_reply_continue:${conversationId}` }],
+    ];
+    if (closeButtonText) {
+      replyRows.push([{ text: closeButtonText, callback_data: `admin_close_dialog:${conversationId}` }]);
+    }
+    intents.push({
+      type: 'message.send',
+      meta: buildIntentMeta(action, ctx),
+      payload: {
+        recipient: { chatId: adminChatId },
+        message: { text: sentText },
+        replyMarkup: { inline_keyboard: replyRows },
+        delivery: telegramDeliveryPayload(),
+      },
+    });
+  }
+  return {
+    actionId: action.id,
+    status: 'success',
+    writes,
+    intents,
+    values: {
+      hasOpenConversation: true,
+      activeConversationId: conversationId,
+      activeConversationStatus: 'waiting_user',
+    },
+  };
+}

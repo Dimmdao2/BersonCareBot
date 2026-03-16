@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createSupportRelayPolicy } from './supportRelayPolicy.js';
-import type { SupportRelayMessageType } from './supportRelayTypes.js';
+import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
 
 describe('supportRelayPolicy', () => {
   it('allows only configured user->admin types', () => {

@@ -1,4 +1,4 @@
-import type { SupportRelayMessageType } from '../integrations/telegram/supportRelayTypes.js';
+import type { SupportRelayMessageType } from '../kernel/domain/supportRelay/messageTypes.js';
 
 export type AppSettings = {
   debug: {

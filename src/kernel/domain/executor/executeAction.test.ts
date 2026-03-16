@@ -1364,5 +1364,170 @@ describe('executeAction', () => {
       }
     });
 
+    it('conversation.admin.reply: returns refusal intent when type not allowed admin->user', async () => {
+      const readDb = vi.fn().mockImplementation((query: { type: string }) => {
+        if (query.type === 'conversation.byId') {
+          return Promise.resolve({
+            id: 'conv-1',
+            source: 'telegram',
+            user_channel_id: '456',
+          });
+        }
+        return Promise.resolve(null);
+      });
+      const adminCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'message.received',
+          meta: { ...ctx.event.meta, source: 'telegram' },
+          payload: {
+            incoming: {
+              kind: 'message',
+              chatId: 999,
+              channelId: '999',
+              messageId: 11,
+              text: '',
+              relayMessageType: 'voice',
+            },
+          },
+        },
+        base: { ...ctx.base },
+      };
+      const result = await executeAction({
+        id: 'r1',
+        type: 'conversation.admin.reply',
+        mode: 'sync',
+        params: { conversationId: 'conv-1' },
+      }, adminCtx, {
+        readPort: { readDb },
+        writePort: { writeDb: vi.fn().mockResolvedValue(undefined) },
+        supportRelayPolicy: createSupportRelayPolicy(['text', 'photo'], ['text', 'photo']),
+      });
+      expect(result.status).toBe('success');
+      expect(result.intents).toHaveLength(1);
+      expect(result.intents?.[0]).toMatchObject({
+        type: 'message.send',
+        payload: {
+          recipient: { chatId: 999 },
+          message: { text: expect.any(String) },
+        },
+      });
+      expect(result.writes).toBeUndefined();
+    });
+
+    it('conversation.admin.reply: uses message.copy when allowed non-text type', async () => {
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const readDb = vi.fn().mockImplementation((query: { type: string; params?: { conversationId?: string } }) => {
+        if (query.type === 'conversation.byId') {
+          return Promise.resolve({
+            id: 'conv-2',
+            source: 'telegram',
+            user_channel_id: '456',
+          });
+        }
+        if (query.type === 'question.byConversationId') {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve(null);
+      });
+      const adminCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'message.received',
+          meta: { ...ctx.event.meta, source: 'telegram' },
+          payload: {
+            incoming: {
+              kind: 'message',
+              chatId: 999,
+              channelId: '999',
+              messageId: 22,
+              text: '',
+              relayMessageType: 'photo',
+            },
+          },
+        },
+        base: { ...ctx.base },
+      };
+      const result = await executeAction({
+        id: 'r2',
+        type: 'conversation.admin.reply',
+        mode: 'sync',
+        params: { conversationId: 'conv-2' },
+      }, adminCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        supportRelayPolicy: createSupportRelayPolicy(['text', 'photo'], ['text', 'photo', 'document']),
+      });
+      expect(result.status).toBe('success');
+      expect(result.writes).toBeDefined();
+      expect(result.writes?.some((w) => w.type === 'conversation.message.add' && w.params?.text === '[photo]')).toBe(true);
+      const copyIntent = result.intents?.find((i) => i.type === 'message.copy');
+      expect(copyIntent).toBeDefined();
+      expect(copyIntent?.payload).toMatchObject({
+        recipient: { chatId: 456 },
+        from_chat_id: 999,
+        message_id: 22,
+      });
+      const confirmIntent = result.intents?.find((i) => i.type === 'message.send' && (i.payload as { recipient?: { chatId?: number } })?.recipient?.chatId === 999);
+      expect(confirmIntent).toBeDefined();
+    });
+
+    it('conversation.admin.reply: sends text to user and confirmation to admin', async () => {
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const readDb = vi.fn().mockImplementation((query: { type: string }) => {
+        if (query.type === 'conversation.byId') {
+          return Promise.resolve({
+            id: 'conv-3',
+            source: 'telegram',
+            user_channel_id: '789',
+          });
+        }
+        if (query.type === 'question.byConversationId') {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve(null);
+      });
+      const adminCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'message.received',
+          meta: { ...ctx.event.meta, source: 'telegram' },
+          payload: {
+            incoming: {
+              kind: 'message',
+              chatId: 999,
+              channelId: '999',
+              messageId: 33,
+              text: 'Reply text',
+              relayMessageType: 'text',
+            },
+          },
+        },
+        base: { ...ctx.base },
+      };
+      const result = await executeAction({
+        id: 'r3',
+        type: 'conversation.admin.reply',
+        mode: 'sync',
+        params: { conversationId: 'conv-3' },
+      }, adminCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        supportRelayPolicy: createSupportRelayPolicy(['text'], ['text', 'photo']),
+      });
+      expect(result.status).toBe('success');
+      expect(result.writes).toBeDefined();
+      const userSendIntent = result.intents?.find(
+        (i) => i.type === 'message.send' && (i.payload as { recipient?: { chatId?: number } })?.recipient?.chatId === 789,
+      );
+      expect(userSendIntent).toBeDefined();
+      expect(userSendIntent?.payload).toMatchObject({
+        message: { text: 'Reply text' },
+      });
+      const adminConfirmIntent = result.intents?.find(
+        (i) => i.type === 'message.send' && (i.payload as { recipient?: { chatId?: number } })?.recipient?.chatId === 999,
+      );
+      expect(adminConfirmIntent).toBeDefined();
+    });
   });
 });

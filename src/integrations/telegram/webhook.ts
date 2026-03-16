@@ -74,22 +74,7 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
     const telegramId = callback.from?.id;
     const action = normalizeTelegramAction(callback.data ?? '');
     const callbackQueryId = callback.id;
-    // Логгирование для диагностики проблем с callback
-    console.log('[telegram][mapBodyToIncoming] callback params:', {
-      chatId,
-      messageId,
-      telegramId,
-      action,
-      callbackQueryId,
-    });
     if (typeof chatId !== 'number' || typeof messageId !== 'number' || typeof telegramId !== 'number') {
-      console.warn('[telegram][mapBodyToIncoming] missing required callback params', {
-        chatId,
-        messageId,
-        telegramId,
-        action,
-        callbackQueryId,
-      });
       return null;
     }
     return {

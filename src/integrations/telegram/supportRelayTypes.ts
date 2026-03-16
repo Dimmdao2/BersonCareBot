@@ -1,26 +1,10 @@
 /**
- * Support relay: типы сообщений для пересылки пользователь ↔ администратор.
- * Type-safe detector и константы без any.
+ * Telegram-specific detector: maps Telegram message shape to support relay message type.
+ * Type definitions and guard live in kernel/domain/supportRelay/messageTypes.
  */
+import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
 
-/** Поддерживаемые типы сообщений в relay (user↔admin). */
-export const SUPPORT_RELAY_MESSAGE_TYPES = [
-  'text',
-  'photo',
-  'document',
-  'voice',
-  'audio',
-  'video',
-  'video_note',
-  'animation',
-  'sticker',
-  'contact',
-  'location',
-] as const;
-
-export type SupportRelayMessageType = (typeof SUPPORT_RELAY_MESSAGE_TYPES)[number];
-
-/** Минимальный shape входящего message из Telegram webhook (только поля, по которым определяем тип). */
+/** Minimal shape of incoming message from Telegram webhook (fields used for type detection). */
 export type TelegramMessageLike = {
   text?: string | undefined;
   photo?: unknown;
@@ -36,8 +20,8 @@ export type TelegramMessageLike = {
 };
 
 /**
- * Определяет тип сообщения по объекту message из Telegram webhook.
- * Порядок проверок: один тип на сообщение (приоритет как в Telegram: text последний среди медиа).
+ * Detects relay message type from Telegram webhook message object.
+ * One type per message; priority matches Telegram (e.g. photo before text/caption).
  */
 export function getMessageTypeFromTelegramMessage(
   message: TelegramMessageLike | null | undefined,
@@ -58,8 +42,4 @@ export function getMessageTypeFromTelegramMessage(
   if (typeof message.text === 'string') return 'text';
 
   return null;
-}
-
-export function isSupportRelayMessageType(value: string): value is SupportRelayMessageType {
-  return (SUPPORT_RELAY_MESSAGE_TYPES as readonly string[]).includes(value);
 }

@@ -1,8 +1,8 @@
 /**
  * Проверка разрешённых типов сообщений для support relay по конфигу.
  */
-import type { SupportRelayMessageType } from './supportRelayTypes.js';
-import { isSupportRelayMessageType } from './supportRelayTypes.js';
+import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
+import { isSupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
 import type { AppSettings } from '../../config/appSettings.js';
 import { appSettings } from '../../config/appSettings.js';
 

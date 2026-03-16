@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { getMessageTypeFromTelegramMessage } from './supportRelayTypes.js';
 import {
-  getMessageTypeFromTelegramMessage,
   isSupportRelayMessageType,
   SUPPORT_RELAY_MESSAGE_TYPES,
-} from './supportRelayTypes.js';
+} from '../../kernel/domain/supportRelay/messageTypes.js';
 
 describe('supportRelayTypes', () => {
   describe('getMessageTypeFromTelegramMessage', () => {
