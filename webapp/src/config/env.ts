@@ -101,31 +101,36 @@ function rejectInsecureSecrets(env: z.infer<typeof envSchema>): void {
   checkInsecureSecretsForStartup(env, isTest);
 }
 
-if (parsed.NODE_ENV === "production") {
-  if (!parsed.SESSION_COOKIE_SECRET || parsed.SESSION_COOKIE_SECRET.length < 16) {
-    throw new Error("Production requires SESSION_COOKIE_SECRET (min 16 chars) in env.");
-  }
-  const entrySecret = parsed.INTEGRATOR_WEBAPP_ENTRY_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
-  const webhookSecret = parsed.INTEGRATOR_WEBHOOK_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
-  if (!entrySecret || entrySecret.length < 16) {
-    throw new Error("Production requires INTEGRATOR_WEBAPP_ENTRY_SECRET or INTEGRATOR_SHARED_SECRET in env.");
-  }
-  if (!webhookSecret || webhookSecret.length < 16) {
-    throw new Error("Production requires INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET in env.");
-  }
-} else {
-  if (!isTest) {
+/** Next.js sets this during `next build`; skip env checks then so build works without production secrets. */
+const isNextBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+
+if (!isNextBuildPhase) {
+  if (parsed.NODE_ENV === "production") {
     if (!parsed.SESSION_COOKIE_SECRET || parsed.SESSION_COOKIE_SECRET.length < 16) {
-      throw new Error(
-        "Development requires SESSION_COOKIE_SECRET (min 16 chars) in env. Use .env or .env.local."
-      );
+      throw new Error("Production requires SESSION_COOKIE_SECRET (min 16 chars) in env.");
     }
     const entrySecret = parsed.INTEGRATOR_WEBAPP_ENTRY_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
     const webhookSecret = parsed.INTEGRATOR_WEBHOOK_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
-    if (!entrySecret || !webhookSecret) {
-      throw new Error(
-        "Development requires integrator secrets: set INTEGRATOR_WEBAPP_ENTRY_SECRET and INTEGRATOR_WEBHOOK_SECRET, or INTEGRATOR_SHARED_SECRET, in env."
-      );
+    if (!entrySecret || entrySecret.length < 16) {
+      throw new Error("Production requires INTEGRATOR_WEBAPP_ENTRY_SECRET or INTEGRATOR_SHARED_SECRET in env.");
+    }
+    if (!webhookSecret || webhookSecret.length < 16) {
+      throw new Error("Production requires INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET in env.");
+    }
+  } else {
+    if (!isTest) {
+      if (!parsed.SESSION_COOKIE_SECRET || parsed.SESSION_COOKIE_SECRET.length < 16) {
+        throw new Error(
+          "Development requires SESSION_COOKIE_SECRET (min 16 chars) in env. Use .env or .env.local."
+        );
+      }
+      const entrySecret = parsed.INTEGRATOR_WEBAPP_ENTRY_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
+      const webhookSecret = parsed.INTEGRATOR_WEBHOOK_SECRET || parsed.INTEGRATOR_SHARED_SECRET;
+      if (!entrySecret || !webhookSecret) {
+        throw new Error(
+          "Development requires integrator secrets: set INTEGRATOR_WEBAPP_ENTRY_SECRET and INTEGRATOR_WEBHOOK_SECRET, or INTEGRATOR_SHARED_SECRET, in env."
+        );
+      }
     }
   }
 }
