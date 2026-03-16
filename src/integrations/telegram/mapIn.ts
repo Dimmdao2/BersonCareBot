@@ -129,11 +129,13 @@ export function fromTelegram(
     const chatId = msg.chat?.id;
     if (!telegramId || typeof chatId !== 'number') return null;
     const fromId = msg.from?.id;
+    const contact = msg.contact;
     const contactOwnedBySender =
-      typeof msg.contact?.phone_number === 'string' && msg.contact.user_id === fromId;
-    const normalizedPhone = contactOwnedBySender
-      ? normalizeTelegramContactPhone(msg.contact.phone_number)
-      : null;
+      typeof contact?.phone_number === 'string' && contact.user_id === fromId;
+    const normalizedPhone =
+      contact && typeof contact.phone_number === 'string'
+        ? normalizeTelegramContactPhone(contact.phone_number)
+        : null;
     const reqLogger = context.reqLogger;
     const adminTelegramId = telegramConfig.adminTelegramId;
     if (reqLogger) {

@@ -12,7 +12,18 @@ function normalizePhoneForLookup(value: string): string {
   return value;
 }
 
-export function createContextQueryPort(input: { readPort: DbReadPort }): ContextQueryPort {
+/** Optional base URL of the webapp (e.g. https://webapp.example.com). Used as fallback for booking item links when RubiTime does not provide one. */
+export type ContextQueryPortInput = {
+  readPort: DbReadPort;
+  webappBaseUrl?: string | null;
+};
+
+export function createContextQueryPort(input: ContextQueryPortInput): ContextQueryPort {
+  const webappBaseUrl = typeof input.webappBaseUrl === 'string' && input.webappBaseUrl.trim().length > 0
+    ? input.webappBaseUrl.replace(/\/$/, '')
+    : null;
+  const cabinetFallbackLink = webappBaseUrl ? `${webappBaseUrl}/app/patient/cabinet` : null;
+
   return {
     async request(query: ContextQuery): Promise<unknown> {
       switch (query.type) {
@@ -39,11 +50,17 @@ export function createContextQueryPort(input: { readPort: DbReadPort }): Context
         case 'bookings.forUser': {
           const userId = query.userId;
           if (!userId) return { type: 'bookings.forUser', items: [] };
-          const items = await input.readPort.readDb<Record<string, unknown>[]>({
+          const rawItems = await input.readPort.readDb<Array<{ recordAt?: unknown; status?: unknown; link?: unknown }>>({
             type: 'booking.activeByUser',
             params: { userId },
           });
-          return { type: 'bookings.forUser', items: Array.isArray(items) ? items : [] };
+          const items = Array.isArray(rawItems)
+            ? rawItems.map((item) => ({
+                ...item,
+                link: (typeof item.link === 'string' && item.link.trim().length > 0 ? item.link : null) ?? cabinetFallbackLink,
+              }))
+            : [];
+          return { type: 'bookings.forUser', items };
         }
         case 'subscriptions.forUser': {
           const userId = query.userId;

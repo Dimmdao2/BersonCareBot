@@ -908,6 +908,30 @@ describe('executeAction', () => {
     expect(callbackResult.intents?.[0]).toMatchObject({ type: 'callback.answer', payload: { callbackQueryId: 'cb-1' } });
   });
 
+  it('passes parse_mode through for message.edit when params.parseMode is HTML', async () => {
+    const result = await executeAction({
+      id: 'a13b',
+      type: 'message.edit',
+      mode: 'async',
+      params: {
+        chatId: 123,
+        messageId: 80,
+        text: 'Hello <b>world</b>',
+        parseMode: 'HTML',
+        inlineKeyboard: [[{ text: 'Back', callbackData: 'menu.back' }]],
+      },
+    }, ctx);
+
+    expect(result.intents?.[0]).toMatchObject({
+      type: 'message.edit',
+      payload: {
+        message: { text: 'Hello <b>world</b>' },
+        parse_mode: 'HTML',
+        replyMarkup: { inline_keyboard: [[{ text: 'Back', callback_data: 'menu.back' }]] },
+      },
+    });
+  });
+
   it('lowers telegram presentation actions to message.send', async () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({

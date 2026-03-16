@@ -5,6 +5,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { appSettings } from '../config/appSettings.js';
+import { env } from '../config/env.js';
 import { createDbPort, healthCheckDb } from '../infra/db/client.js';
 import { createDbReadPort } from '../infra/db/readPort.js';
 import { createDbWritePort } from '../infra/db/writePort.js';
@@ -111,7 +112,10 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const contentPort = createContentPort();
   const contentCatalogPort = createContentCatalogPort();
-  const contextQueryPort = createContextQueryPort({ readPort: dbReadPort });
+  const contextQueryPort = createContextQueryPort({
+    readPort: dbReadPort,
+    webappBaseUrl: env.APP_BASE_URL ?? null,
+  });
   const templatePort = createTemplatePort({ contentPort });
   const orchestrator = createOrchestrator({
     contentPort,

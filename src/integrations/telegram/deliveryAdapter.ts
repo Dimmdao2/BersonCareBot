@@ -11,6 +11,7 @@ type DeliveryPayload = {
   messageId?: unknown;
   callbackQueryId?: unknown;
   replyMarkup?: unknown;
+  parse_mode?: 'HTML' | 'Markdown';
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
 
@@ -74,6 +75,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           chat_id: chatId,
           text,
           reply_markup: payload.replyMarkup as never,
+          ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
         });
         return;
       }
@@ -91,6 +93,7 @@ export function createTelegramDeliveryAdapter(): DeliveryAdapter {
           message_id: numMessageId,
           text,
           reply_markup: payload.replyMarkup as never,
+          ...(payload.parse_mode ? { parse_mode: payload.parse_mode } : {}),
         });
         return;
       }

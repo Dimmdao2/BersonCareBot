@@ -127,6 +127,9 @@ export async function handleDelivery(
     });
     const chatId = asNumber(action.params.chatId);
     const messageId = asNumber(action.params.messageId);
+    const parseMode = action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
+      ? action.params.parseMode
+      : undefined;
     const intents: OutgoingIntent[] = [{
       type: 'message.edit',
       meta: buildIntentMeta(action, ctx),
@@ -135,6 +138,7 @@ export async function handleDelivery(
         ...(messageId === null ? {} : { messageId }),
         message: { text },
         ...(replyMarkup ? { replyMarkup } : {}),
+        ...(parseMode ? { parse_mode: parseMode } : {}),
       },
     }];
     return { actionId: action.id, status: 'success', intents };

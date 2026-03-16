@@ -24,9 +24,9 @@ export function createMessagingPort(): MessagingPort {
   const api = getBotInstance().api;
   return {
     sendMessage: (p) =>
-      api.sendMessage(p.chat_id, p.text, { reply_markup: p.reply_markup as never }),
+      api.sendMessage(p.chat_id, p.text, { reply_markup: p.reply_markup as never, parse_mode: p.parse_mode as never }),
     editMessageText: (p) =>
-      api.editMessageText(p.chat_id, p.message_id, p.text, { reply_markup: p.reply_markup as never }),
+      api.editMessageText(p.chat_id, p.message_id, p.text, { reply_markup: p.reply_markup as never, parse_mode: p.parse_mode as never }),
     editMessageReplyMarkup: (p) =>
       api.editMessageReplyMarkup(p.chat_id, p.message_id, { reply_markup: p.reply_markup as never }),
     answerCallbackQuery: (p) => api.answerCallbackQuery(p.callback_query_id),

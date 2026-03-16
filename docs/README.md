@@ -31,6 +31,7 @@
 | **FULL PLATFORM MODEL.md** | Концепция платформы: мессенджеры, Web-App, backend. |
 | **DB_STRUCTURE_AND_RECOMMENDATIONS.md** | Модель БД (users, identities, contacts), правила интеграций. |
 | **CONTENT_AND_SCRIPTS_FLOW.md** | Откуда скрипты/шаблоны/меню, матчинг сценариев по событию. |
+| **MESSAGING_CONTRACT.md** | Контракт message.send / message.edit: payload, parse_mode (HTML), ссылки в тексте. |
 | **REMINDERS_ROADMAP.md** | План по напоминаниям. |
 | **plan-channel-from-context.md** | План: канал из контекста. |
 | **archive/** | Исторические отчёты, аудиты, выполненный рефакторинг (см. `archive/README.md`). |

@@ -802,6 +802,50 @@
 		]
 	},
 	{
+		"id": "telegram.assistant.open",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "assistant.open" }
+		},
+		"steps": [
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"_when": { "path": "facts.links.webappEntryUrl", "truthy": true },
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:assistant.webapp.prompt",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:assistant.webapp.openButton", "url": "{{facts.links.webappEntryUrl}}" }],
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
+				}
+			},
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"_when": { "path": "facts.links.webappEntryUrl", "truthy": false },
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:assistant.webapp.prompt",
+					"inlineKeyboard": [
+						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+					]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.reminders.dashboard",
 		"source": "telegram",
 		"event": "callback.received",
@@ -1440,6 +1484,7 @@
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:bookingsList",
 					"vars": { "queries": "{{queries}}" },
+					"parseMode": "HTML",
 					"inlineKeyboard": [
 						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
 						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }],
@@ -1469,6 +1514,7 @@
 					"chatId": "{{actor.chatId}}",
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:info.prepare.body",
+					"parseMode": "HTML",
 					"inlineKeyboard": [
 						[{ "text": "⬅️ Назад", "callbackData": "bookings.show" }]
 					]
@@ -1496,6 +1542,7 @@
 					"chatId": "{{actor.chatId}}",
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:info.address.body",
+					"parseMode": "HTML",
 					"inlineKeyboard": [
 						[{ "text": "⬅️ Назад", "callbackData": "bookings.show" }]
 					]

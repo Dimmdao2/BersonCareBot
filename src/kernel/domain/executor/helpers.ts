@@ -379,6 +379,11 @@ export async function resolveGenericMessageParams(input: {
 
   if (replyMarkup) nextParams.replyMarkup = replyMarkup;
 
+  const parseMode = input.params.parseMode === 'HTML' || input.params.parseMode === 'Markdown'
+    ? input.params.parseMode
+    : undefined;
+  if (parseMode) nextParams.parse_mode = parseMode;
+
   delete nextParams.templateKey;
   delete nextParams.text;
   delete nextParams.messageText;
@@ -387,6 +392,7 @@ export async function resolveGenericMessageParams(input: {
   delete nextParams.inlineKeyboard;
   delete nextParams.resizeKeyboard;
   delete nextParams.oneTimeKeyboard;
+  delete nextParams.parseMode;
 
   return nextParams;
 }

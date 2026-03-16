@@ -181,6 +181,9 @@ export async function executeAction(
         templatePort: deps.templatePort,
       });
       const chatId = asNumber(action.params.chatId);
+      const parseMode = action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
+        ? action.params.parseMode
+        : undefined;
       const intents: OutgoingIntent[] = [{
         type: 'message.send',
         meta: buildIntentMeta(action, ctx),
@@ -188,6 +191,7 @@ export async function executeAction(
           recipient: chatId === null ? {} : { chatId },
           message: { text },
           ...(replyMarkup ? { replyMarkup } : {}),
+          ...(parseMode ? { parse_mode: parseMode } : {}),
           delivery: { maxAttempts: 1 },
         },
       }];
@@ -211,6 +215,9 @@ export async function executeAction(
       });
       const chatId = asNumber(action.params.chatId);
       const messageId = asNumber(action.params.messageId);
+      const parseMode = action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
+        ? action.params.parseMode
+        : undefined;
       const intents: OutgoingIntent[] = [{
         type: 'message.edit',
         meta: buildIntentMeta(action, ctx),
@@ -219,6 +226,7 @@ export async function executeAction(
           ...(messageId === null ? {} : { messageId }),
           message: { text },
           ...(replyMarkup ? { replyMarkup } : {}),
+          ...(parseMode ? { parse_mode: parseMode } : {}),
         },
       }];
       return { actionId: action.id, status: 'success', intents };

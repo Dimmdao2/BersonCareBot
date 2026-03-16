@@ -49,6 +49,7 @@ describe('mapBodyToIncoming', () => {
       message: {
         from: { id: 100, is_bot: false, first_name: 'A' },
         chat: { id: 100 },
+        // eslint-disable-next-line no-secrets/no-secrets -- test payload for rejected start.setphone pattern
         text: '/start setphone_+79181234567',
       },
     };
