@@ -74,12 +74,13 @@ export async function getCachedResponse(
   return { hit: true, status: entry.status, body: entry.responseBody };
 }
 
+/** @returns true if stored; file store has no race so always true when we write */
 export async function setCachedResponse(
   key: string,
   requestHash: string,
   status: number,
   responseBody: Record<string, unknown>,
-): Promise<void> {
+): Promise<boolean> {
   const store = await loadStore();
   if (purgeExpiredInPlace(store)) {
     // keep cleaned state before writing current response
@@ -93,6 +94,7 @@ export async function setCachedResponse(
     };
     await persistStore(store);
   }
+  return true;
 }
 
 export async function resetIdempotencyStoreForTests(): Promise<void> {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { handleReminderDispatch } from "@/modules/integrator/reminderDispatch";
 import { validateReminderDispatchPayload } from "@/modules/reminders/service";
-import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency/store";
+import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
 
 export async function POST(request: Request) {
@@ -58,6 +58,15 @@ export async function POST(request: Request) {
   const body: Record<string, unknown> = result.accepted
     ? { ok: true, accepted: true, dispatchMode: "bridge-to-integrator" }
     : { ok: false, accepted: false, error: result.reason, dispatchMode: "bridge-to-integrator" };
-  await setCachedResponse(idempotencyKey, requestHash, status, body);
+  const stored = await setCachedResponse(idempotencyKey, requestHash, status, body);
+  if (!stored) {
+    const again = await getCachedResponse(idempotencyKey, requestHash);
+    if (again.hit && "mismatch" in again && again.mismatch) {
+      return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+    }
+    if (again.hit && "status" in again) {
+      return NextResponse.json(again.body, { status: again.status });
+    }
+  }
   return NextResponse.json(body, { status });
 }

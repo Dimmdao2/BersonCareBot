@@ -14,6 +14,14 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("purchases");
     expect(deps).toHaveProperty("diaries");
     expect(deps).toHaveProperty("health");
+    expect(deps).toHaveProperty("media");
+  });
+
+  it("media has upload, getUrl, getById", () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.media.upload).toBe("function");
+    expect(typeof deps.media.getUrl).toBe("function");
+    expect(typeof deps.media.getById).toBe("function");
   });
 
   it("patientCabinet has getPatientCabinetState and getUpcomingAppointments", () => {

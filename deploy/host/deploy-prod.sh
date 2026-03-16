@@ -80,6 +80,14 @@ sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
 node dist/infra/db/migrate.js
 
+# Webapp migrations (use webapp DB from WEBAPP_ENV_FILE)
+if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
+  set -a
+  source "${WEBAPP_ENV_FILE}"
+  set +a
+  pnpm --dir webapp run migrate
+fi
+
 sudo -n /bin/systemctl restart "${API_SERVICE}"
 sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
 

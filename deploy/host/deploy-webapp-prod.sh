@@ -53,6 +53,12 @@ export CI=true
 pnpm install --frozen-lockfile
 pnpm --dir webapp build
 
+# Run webapp DB migrations (DATABASE_URL from webapp.prod)
+set -a
+source "${ENV_FILE}"
+set +a
+pnpm --dir webapp run migrate
+
 sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
 sleep 3
 sudo -n /bin/systemctl is-active --quiet "${WEBAPP_SERVICE}"

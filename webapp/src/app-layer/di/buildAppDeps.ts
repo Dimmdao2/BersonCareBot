@@ -12,8 +12,10 @@ import { createPatientCabinetService } from "@/modules/patient-cabinet/service";
 import { getDoctorWorkspaceState } from "@/modules/doctor-cabinet/service";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import { getUpcomingAppointments } from "@/modules/appointments/service";
+import { createMediaService } from "@/modules/media/service";
 import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
 import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
+import { mockMediaStoragePort } from "@/infra/repos/mockMediaStorage";
 import { inMemorySymptomDiaryPort } from "@/infra/repos/symptomDiary";
 import { inMemoryLfkDiaryPort } from "@/infra/repos/lfkDiary";
 import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
@@ -64,5 +66,6 @@ export function buildAppDeps() {
     health: {
       checkDbHealth,
     },
+    media: createMediaService(mockMediaStoragePort),
   };
 }

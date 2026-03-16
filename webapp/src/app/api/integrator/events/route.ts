@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { handleIntegratorEvent } from "@/modules/integrator/events";
-import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency/store";
+import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
 
 function parseEventsBody(
@@ -67,6 +67,15 @@ export async function POST(request: Request) {
   const body: Record<string, unknown> = result.accepted
     ? { ok: true, accepted: true, idempotencyKey }
     : { ok: false, accepted: false, error: result.reason, idempotencyKey };
-  await setCachedResponse(idempotencyKey, requestHash, status, body);
+  const stored = await setCachedResponse(idempotencyKey, requestHash, status, body);
+  if (!stored) {
+    const again = await getCachedResponse(idempotencyKey, requestHash);
+    if (again.hit && "mismatch" in again && again.mismatch) {
+      return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+    }
+    if (again.hit && "status" in again) {
+      return NextResponse.json(again.body, { status: again.status });
+    }
+  }
   return NextResponse.json(body, { status });
 }
