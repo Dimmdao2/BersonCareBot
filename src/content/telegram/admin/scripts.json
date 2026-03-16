@@ -229,7 +229,7 @@
 		"match": {
 			"context": { "replyMode": true },
 			"input": {
-				"textPresent": true,
+				"relayContentPresent": true,
 				"excludeActions": ["admin.dialogs.open", "admin.stats.bookings", "admin.stats.users", "admin.questions.unanswered"],
 				"excludeTexts": ["/start"]
 			},

@@ -148,6 +148,14 @@ function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
       if (Boolean(value) !== hasText) return false;
       continue;
     }
+    /** True when message has text or a relay type (voice, photo, etc.) — used for admin reply to accept media. */
+    if (key === 'relayContentPresent') {
+      const hasText = isTruthyString(actualRecord.text);
+      const hasRelayType = isTruthyString(actualRecord.relayMessageType);
+      const present = hasText || hasRelayType;
+      if (Boolean(value) !== present) return false;
+      continue;
+    }
     if (key === 'phonePresent') {
       const hasPhone = isTruthyString(actualRecord.phone) || isTruthyString(actualRecord.contactPhone);
       if (Boolean(value) !== hasPhone) return false;
