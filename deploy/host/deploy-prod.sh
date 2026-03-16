@@ -39,6 +39,8 @@ require_sudo_rule() {
 }
 
 cd "${PROJECT_ROOT}"
+# Discard local changes to auto-generated file so pull never conflicts (Next.js overwrites it on build).
+git checkout -- webapp/next-env.d.ts 2>/dev/null || true
 git pull origin main
 
 # Re-exec self so we run the updated script (current process was started before pull).

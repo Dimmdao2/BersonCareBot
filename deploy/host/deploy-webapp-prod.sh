@@ -36,6 +36,7 @@ require_sudo_rule() {
 }
 
 cd "${PROJECT_ROOT}"
+git checkout -- webapp/next-env.d.ts 2>/dev/null || true
 git pull origin main
 
 if [ -z "${DEPLOY_WEBAPP_PROD_RERUN:-}" ]; then
