@@ -34,7 +34,9 @@
     "migrate:host": "node dist/infra/db/migrate.js",
     "auto-close-conversations": "tsx src/infra/scripts/auto-close-stale-conversations.ts",
     "auto-close-conversations:host": "node dist/infra/scripts/auto-close-stale-conversations.js",
-    "smsc:check": "tsx src/infra/scripts/check-smsc.ts"
+    "smsc:check": "tsx src/infra/scripts/check-smsc.ts",
+    "s3:check": "tsx src/infra/scripts/check-s3.ts",
+    "mail:check": "tsx src/infra/scripts/check-mail.ts"
   },
   "engines": {
     "node": ">=20"
@@ -45,15 +47,18 @@
     "fastify": "^5.8.2",
     "grammy": "^1.41.1",
     "node-fetch": "^3.3.2",
+    "nodemailer": "^8.0.2",
     "p-retry": "^7.1.1",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1009.0",
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.5.0",
     "@types/node-fetch": "^2.6.13",
+    "@types/nodemailer": "^7.0.11",
     "@types/pg": "^8.18.0",
     "@typescript-eslint/eslint-plugin": "^8.57.0",
     "@typescript-eslint/parser": "^8.57.0",

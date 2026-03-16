@@ -30,6 +30,7 @@ import {
   readIncomingText,
   readIncomingChatId,
   readIncomingMessageId,
+  readRelayMessageType,
   readConversationId,
   readExternalActorId,
   readIncomingPhone,
@@ -48,7 +49,7 @@ import {
   sendAdminMessage,
 } from './helpers.js';
 import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
-import { ADMIN, REMINDER_BY_CATEGORY } from './templateKeys.js';
+import { ADMIN, RELAY_USER, REMINDER_BY_CATEGORY } from './templateKeys.js';
 
 const BOOKING_TYPES = new Set<string>(['booking.upsert', 'booking.event.insert']);
 const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
@@ -618,7 +619,11 @@ export async function executeAction(
       const externalId = readExternalActorId(ctx);
       const source = asString(action.params.source) ?? ctx.event.meta.source;
       const text = asString(action.params.text) ?? readIncomingText(ctx);
-      if (!externalId || !source || !text) {
+      const relayMessageType = readRelayMessageType(ctx) ?? 'text';
+      if (!externalId || !source) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING' };
+      }
+      if (relayMessageType === 'text' && !text) {
         return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING' };
       }
       const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
