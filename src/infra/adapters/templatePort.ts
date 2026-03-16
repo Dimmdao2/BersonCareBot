@@ -66,6 +66,19 @@ function interpolateTemplate(text: string, vars: Record<string, unknown>): strin
       .join('');
   });
 
+  const ifBlock = /\{\{\s*#if\s+([\w.]+)\s*\}\}([\s\S]*?)\{\{\s*else\s*\}\}([\s\S]*?)\{\{\s*\/if\s*\}\}/g;
+  result = result.replace(ifBlock, (_, path, thenBlock, elseBlock) => {
+    const val = getPathValue(vars, path);
+    const block = val && (typeof val === 'string' ? val.trim().length > 0 : true) ? thenBlock : (elseBlock ?? '');
+    return interpolateTemplate(block, vars);
+  });
+  const ifBlockNoElse = /\{\{\s*#if\s+([\w.]+)\s*\}\}([\s\S]*?)\{\{\s*\/if\s*\}\}/g;
+  result = result.replace(ifBlockNoElse, (_, path, thenBlock) => {
+    const val = getPathValue(vars, path);
+    const useThen = val && (typeof val === 'string' ? val.trim().length > 0 : true);
+    return useThen ? interpolateTemplate(thenBlock, vars) : '';
+  });
+
   result = result.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
     const replacement = getPathValue(vars, key);
     return formatReplacement(replacement);

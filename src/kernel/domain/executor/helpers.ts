@@ -285,6 +285,18 @@ export function isPhoneRequestButton(button: Record<string, unknown>): boolean {
   return button.requestPhone === true || button.requestContact === true;
 }
 
+/** Get value from object by dot path (e.g. "links.webappEntryUrl"). */
+function getFactByPath(facts: Record<string, unknown>, path: string): unknown {
+  const segments = path.split('.').filter((s) => s.length > 0);
+  let current: unknown = facts;
+  for (const seg of segments) {
+    if (current === null || current === undefined) return undefined;
+    if (typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[seg];
+  }
+  return current;
+}
+
 export async function buildReplyMarkup(input: {
   params: Record<string, unknown>;
   ctx: DomainContext;
@@ -330,12 +342,22 @@ export async function buildReplyMarkup(input: {
   }
 
   if (Array.isArray(input.params.inlineKeyboard)) {
+    const facts = asRecord(input.ctx.base?.facts ?? {});
     const inline_keyboard = await Promise.all(input.params.inlineKeyboard.map(async (row) => {
       if (!Array.isArray(row)) return [];
       return Promise.all(row.map(async (item) => {
         const button = asRecord(item);
+        const text = await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars });
+        const webAppUrlFact = asString(button.webAppUrlFact);
+        const webAppUrl = webAppUrlFact
+          ? (getFactByPath(facts, webAppUrlFact) as string | undefined)
+          : undefined;
+        const urlStr = typeof webAppUrl === 'string' && webAppUrl.trim().length > 0 ? webAppUrl.trim() : null;
+        if (urlStr) {
+          return { text, web_app: { url: urlStr } };
+        }
         return {
-          text: await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars }),
+          text,
           ...(asString(button.callbackData) ? { callback_data: asString(button.callbackData) } : {}),
           ...(asString(button.url) ? { url: asString(button.url) } : {}),
         };
