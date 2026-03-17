@@ -2,7 +2,7 @@
  * Главное меню пациента («/app/patient»).
  * Показывается только авторизованному пользователю с ролью пациента. Список пунктов меню
  * (дневник симптомов, ЛФК, уроки, кабинет и т.д.) берётся из конфигурации по роли; каждый
- * пункт — компактная карточка-ссылка. Кнопка «Назад» не выводится (это корневая страница раздела).
+ * пункт — карточка-ссылка с названием (одна колонка, без описания). Кнопка «Назад» не выводится (это корневая страница раздела).
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -18,7 +18,7 @@ export default async function PatientHomePage() {
 
   return (
     <AppShell title="Главное меню" user={session.user} variant="patient">
-      <section className="feature-grid feature-grid">
+      <section className="feature-grid">
         {menu.map((item) => (
           <FeatureCard
             key={item.id}
