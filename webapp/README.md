@@ -28,6 +28,8 @@ pnpm webapp:dev
 
 Default local URL: `http://127.0.0.1:5200/app`
 
+**Режим разработки (вход в браузере без Telegram):** в `.env.dev` задайте `ALLOW_DEV_AUTH_BYPASS=true`. На странице `/app` появятся кнопки «Как пациент» и «Как врач / админ» — по клику создаётся сессия и выполняется переход в интерфейс пациента или врача/админа.
+
 ## Environment
 
 The service expects its own env file and database:
@@ -46,3 +48,7 @@ The service expects its own env file and database:
 - no direct domain coupling to `tgcarebot`
 
 See `ARCHITECTURE.md`, `INTEGRATOR_CONTRACT.md`, and `MVP_PLAN.md` for the canonical service structure.
+
+## Описание модулей
+
+В каждой значимой папке внутри `src/` лежит файл с именем папки в формате `.md` (например `app/app.md`, `modules/diaries/diaries.md`, `infra/db/db.md`). В нём кратко описано назначение модуля и что он делает. При изменении или расширении модуля этот файл стоит дополнять (изменения, отклонения от изначальной логики, новые обязанности).
