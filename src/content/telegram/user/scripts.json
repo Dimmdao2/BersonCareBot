@@ -816,6 +816,7 @@
 		"id": "telegram.diary.open",
 		"source": "telegram",
 		"event": "message.received",
+		"enabled": false,
 		"match": {
 			"input": { "action": "diary.open" }
 		},
