@@ -21,7 +21,7 @@ export default async function SymptomDiaryPage() {
   const entries = await deps.diaries.listSymptomEntries(session.user.userId);
 
   return (
-    <AppShell title="Дневник симптомов" user={session.user} backHref="/app/patient" backLabel="Меню">
+    <AppShell title="Дневник симптомов" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
       <section className="hero-card stack">
         <p>Отслеживаемые симптомы и история записей. Добавить симптом или запись можно в боте.</p>
       </section>

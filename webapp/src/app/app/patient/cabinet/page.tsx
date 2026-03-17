@@ -18,7 +18,7 @@ export default async function PatientCabinetPage() {
   const appointments = deps.patientCabinet.getUpcomingAppointments(userId);
 
   return (
-    <AppShell title="Кабинет клиента" user={session.user} backHref="/app/patient" backLabel="Меню">
+    <AppShell title="Кабинет клиента" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
       <section className="hero-card stack">
         <p>{cabinet.reason}</p>
         {cabinet.nextAppointmentLabel ? <p className="empty-state">{cabinet.nextAppointmentLabel}</p> : null}

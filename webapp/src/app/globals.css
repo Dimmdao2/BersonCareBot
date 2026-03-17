@@ -7,9 +7,18 @@
 /* Базовые переменные и сброс: светлая тема, шрифт, фон и цвет текста. */
 :root {
   color-scheme: light;
-  font-family: Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #f5f7fb;
   color: #18202c;
+  /* Стиль под мобильное приложение (пациент) */
+  --patient-bg: #f8f9fc;
+  --patient-surface: #ffffff;
+  --patient-radius: 12px;
+  --patient-radius-lg: 16px;
+  --patient-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --patient-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --patient-touch: 44px;
+  --patient-gap: 12px;
 }
 
 * {
@@ -34,9 +43,33 @@ a {
 
 /* Контейнер основного контента: ограничение ширины и отступы по краям. */
 .app-shell {
-  max-width: 1120px;
+  max-width: 600px;
   margin: 0 auto;
   padding: 24px 16px 48px;
+}
+
+.app-shell--patient {
+  padding: 0 16px 32px;
+  padding-bottom: max(32px, env(safe-area-inset-bottom));
+  max-width: 480px;
+  min-height: 100%;
+  background: var(--patient-bg);
+}
+.app-shell--patient .content-area {
+  gap: var(--patient-gap);
+}
+
+.app-shell--patient .hero-card,
+.app-shell--patient .panel {
+  border-radius: var(--patient-radius-lg);
+  border: none;
+  box-shadow: var(--patient-shadow);
+}
+
+.app-shell--patient .list-item {
+  border-radius: var(--patient-radius);
+  border: none;
+  box-shadow: var(--patient-shadow);
 }
 
 /* Уменьшенный заголовок в верхней панели (например, когда есть кнопка «Назад»). */
@@ -44,7 +77,206 @@ a {
   font-size: 1.25rem;
 }
 
-/* Верхняя панель страницы: заголовок, кнопка «Назад», действия. Полупрозрачный фон с размытием. */
+/* ——— Шапка пациента (мобильный стиль): [назад | BERSONCARE | гамбургер] ——— */
+.patient-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: 0 -16px 16px;
+  padding: 12px 8px;
+  padding-left: max(8px, env(safe-area-inset-left));
+  padding-right: max(8px, env(safe-area-inset-right));
+  background: var(--patient-surface);
+  box-shadow: var(--patient-shadow);
+}
+
+.patient-header__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: var(--patient-touch);
+}
+
+.patient-header__left,
+.patient-header__center,
+.patient-header__right {
+  display: flex;
+  align-items: center;
+}
+
+.patient-header__left {
+  flex: 0 0 var(--patient-touch);
+  justify-content: flex-start;
+}
+
+.patient-header__center {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.patient-header__right {
+  flex: 0 0 var(--patient-touch);
+  justify-content: flex-end;
+}
+
+.patient-header__back,
+.patient-header__back-placeholder {
+  width: var(--patient-touch);
+  height: var(--patient-touch);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--patient-radius);
+  color: #18202c;
+  font-size: 1.25rem;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.patient-header__back:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.patient-header__back-placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.patient-header__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #18202c;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.patient-header__title:active {
+  opacity: 0.8;
+}
+
+.patient-header__menu-btn {
+  width: var(--patient-touch);
+  height: var(--patient-touch);
+  padding: 0;
+  border: none;
+  border-radius: var(--patient-radius);
+  background: transparent;
+  color: #18202c;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.patient-header__menu-btn:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.patient-header__hamburger {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.patient-header__hamburger span {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+}
+
+/* Оверлей и боковое меню справа */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.patient-header[data-open="true"] .drawer-overlay {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(280px, 85vw);
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  background: var(--patient-surface);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
+.patient-header[data-open="true"] .drawer-panel {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+body.drawer-open {
+  overflow: hidden;
+}
+
+.drawer-panel__header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 8px 12px 20px;
+  flex-shrink: 0;
+}
+
+.drawer-panel__close {
+  width: var(--patient-touch);
+  height: var(--patient-touch);
+  padding: 0;
+  border: none;
+  border-radius: var(--patient-radius);
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.drawer-panel__close:active {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.drawer-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px 24px;
+  gap: 2px;
+}
+
+.drawer-nav__link {
+  padding: 14px 16px;
+  font-size: 0.9375rem;
+  color: #18202c;
+  border-radius: var(--patient-radius);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.drawer-nav__link:active {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* ——— Верхняя панель (врач / настройки) ——— */
 .top-bar {
   display: flex;
   align-items: center;
@@ -157,11 +389,39 @@ a {
   gap: 12px;
 }
 
-/* Эффект при наведении на карточку-ссылку. */
+/* В оболочке пациента — одна колонка, карточки на всю ширину (мобильный стиль). */
+.app-shell--patient .feature-grid,
+.app-shell--patient .feature-grid--compact {
+  grid-template-columns: 1fr;
+  gap: var(--patient-gap);
+}
+
+.app-shell--patient .feature-card,
+.app-shell--patient .feature-card--link {
+  padding: 16px 20px;
+  border-radius: var(--patient-radius-lg);
+  border: none;
+  background: var(--patient-surface);
+  box-shadow: var(--patient-shadow);
+  transition: box-shadow 0.2s ease;
+}
+
+.app-shell--patient .feature-card--link:active {
+  box-shadow: var(--patient-shadow-hover);
+}
+
+/* Эффект при наведении на карточку-ссылку (десктоп). */
 .feature-card--link:hover {
   border-color: #90a8cb;
   transform: translateY(-1px);
   transition: 0.2s ease;
+}
+
+@media (hover: hover) {
+  .app-shell--patient .feature-card--link:hover {
+    box-shadow: var(--patient-shadow-hover);
+    transform: none;
+  }
 }
 
 /* Компактная карточка: только заголовок по центру, без описания. */
@@ -169,8 +429,12 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 64px;
+  min-height: 56px;
   text-align: center;
+}
+
+.app-shell--patient .feature-card--compact {
+  min-height: 56px;
 }
 
 .feature-card--compact .feature-card__meta,
@@ -180,8 +444,13 @@ a {
 
 .feature-card__title--compact {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 600;
+}
+
+.app-shell--patient .feature-card__title--compact {
+  font-size: 0.9375rem;
+  font-weight: 500;
 }
 
 .feature-card__meta {

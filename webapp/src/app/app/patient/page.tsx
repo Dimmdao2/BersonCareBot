@@ -17,8 +17,8 @@ export default async function PatientHomePage() {
   const menu = deps.menu.getMenuForRole(session.user.role);
 
   return (
-    <AppShell title="Главное меню" user={session.user} titleSmall>
-      <section className="feature-grid feature-grid--compact">
+    <AppShell title="Главное меню" user={session.user} variant="patient">
+      <section className="feature-grid feature-grid">
         {menu.map((item) => (
           <FeatureCard
             key={item.id}

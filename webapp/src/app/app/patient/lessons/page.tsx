@@ -16,7 +16,7 @@ export default async function PatientLessonsPage() {
   const lessons = deps.lessons.listLessons();
 
   return (
-    <AppShell title="Полезные уроки" user={session.user} backHref="/app/patient" backLabel="Меню">
+    <AppShell title="Полезные уроки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
       <ul className="list">
         {lessons.map((lesson) => (
           <li key={lesson.id} className="list-item">

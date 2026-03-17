@@ -3,11 +3,13 @@
  * Используется на всех страницах после входа: пациент, врач, настройки. В шапке — заголовок,
  * опционально кнопка «Назад», имя и роль пользователя, ссылка «Настройки». Контент страницы
  * передаётся в children. Отображается везде внутри /app (кроме корневого layout).
+ * Для пациента (variant="patient") — своя шапка: назад | BERSONCARE | гамбургер-меню справа.
  */
 
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { SessionUser } from "@/shared/types/session";
+import { PatientHeader } from "@/shared/ui/PatientHeader";
 
 type AppShellProps = {
   title: string;
@@ -18,10 +20,29 @@ type AppShellProps = {
   backLabel?: string;
   /** Уменьшенный заголовок, когда есть кнопка «Назад». */
   titleSmall?: boolean;
+  /** Вариант шапки: по умолчанию — заголовок и действия; patient — стрелка назад, BERSONCARE, гамбургер. */
+  variant?: "default" | "patient";
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
-export function AppShell({ title, user, children, backHref, backLabel = "Меню", titleSmall }: AppShellProps) {
+export function AppShell({
+  title,
+  user,
+  children,
+  backHref,
+  backLabel = "Меню",
+  titleSmall,
+  variant = "default",
+}: AppShellProps) {
+  if (variant === "patient") {
+    return (
+      <div className="app-shell app-shell--patient">
+        <PatientHeader backHref={backHref} />
+        <main className="content-area">{children}</main>
+      </div>
+    );
+  }
+
   return (
     <div className={`app-shell ${titleSmall ? "app-shell--title-small" : ""}`}>
       <header className="top-bar">

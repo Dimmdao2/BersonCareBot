@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 /** Рендерит общую обёртку страницы: тег html, тело и дочернее содержимое (конкретная страница). */
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="ru">
+    <html lang="ru" suppressHydrationWarning>
       <body>
         {/* Скрипт Telegram Mini App — нужен, когда приложение открывают из бота в Telegram. */}
         <Script

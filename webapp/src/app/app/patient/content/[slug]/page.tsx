@@ -22,7 +22,7 @@ export default async function ContentSlugPage({ params }: Props) {
 
   const backHref = "/app/patient";
   return (
-    <AppShell title={item.title} user={session.user} backHref={backHref} backLabel="Назад">
+    <AppShell title={item.title} user={session.user} backHref={backHref} backLabel="Назад" variant="patient">
       <article className="panel stack">
         {item.imageUrl && (
           <img src={item.imageUrl} alt="" style={{ maxWidth: "100%", height: "auto" }} />

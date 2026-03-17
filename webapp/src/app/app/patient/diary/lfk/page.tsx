@@ -22,7 +22,7 @@ export default async function LfkDiaryPage() {
   const sessions = await deps.diaries.listLfkSessions(session.user.userId);
 
   return (
-    <AppShell title="Дневник ЛФК" user={session.user} backHref="/app/patient" backLabel="Меню">
+    <AppShell title="Дневник ЛФК" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
       <section className="hero-card stack">
         <p>Комплексы ЛФК и история занятий. Добавить комплекс или отметить занятие можно в боте.</p>
         {complexes.length === 0 ? (

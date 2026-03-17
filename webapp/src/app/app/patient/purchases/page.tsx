@@ -22,7 +22,7 @@ export default async function PurchasesPage() {
   const state = deps.purchases.getPurchaseSectionState();
 
   return (
-    <AppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню">
+    <AppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
       <section className="hero-card stack">
         <p>{state.description}</p>
       </section>

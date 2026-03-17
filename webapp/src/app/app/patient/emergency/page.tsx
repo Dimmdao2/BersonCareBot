@@ -16,7 +16,7 @@ export default async function EmergencyPage() {
   const topics = deps.emergency.listEmergencyTopics();
 
   return (
-    <AppShell title="Скорая помощь" user={session.user} backHref="/app/patient" backLabel="Меню">
+    <AppShell title="Скорая помощь" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
       <ul className="list">
         {topics.map((topic) => (
           <li key={topic.id} className="list-item">
