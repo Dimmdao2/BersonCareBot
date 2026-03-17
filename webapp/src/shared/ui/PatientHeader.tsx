@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 const MENU_ITEMS: { label: string; href: string }[] = [
@@ -12,16 +13,20 @@ const MENU_ITEMS: { label: string; href: string }[] = [
 ];
 
 type PatientHeaderProps = {
-  /** Ссылка «Назад»; если не передана, стрелка не показывается (главное меню). */
-  backHref?: string;
+  /** Показывать кнопку «Назад» (переход по истории). Если не передано — стрелка не показывается (главное меню). */
+  showBack?: boolean;
 };
 
-/** Шапка пациента: стрелка назад | BERSONCARE (в меню) | гамбургер (боковое меню справа). */
-export function PatientHeader({ backHref }: PatientHeaderProps) {
+/** Шапка пациента: стрелка назад (по истории) | BERSONCARE (в меню) | гамбургер (боковое меню справа). */
+export function PatientHeader({ showBack }: PatientHeaderProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   const close = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => setOpen((v) => !v), []);
+  const goBack = useCallback(() => {
+    router.back();
+  }, [router]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -42,10 +47,15 @@ export function PatientHeader({ backHref }: PatientHeaderProps) {
     <header className="patient-header" data-open={open}>
       <div className="patient-header__row">
         <div className="patient-header__left">
-          {backHref ? (
-            <Link href={backHref} className="patient-header__back" aria-label="Назад">
+          {showBack ? (
+            <button
+              type="button"
+              className="patient-header__back"
+              onClick={goBack}
+              aria-label="Назад"
+            >
               <span className="patient-header__back-icon" aria-hidden>←</span>
-            </Link>
+            </button>
           ) : (
             <span className="patient-header__back-placeholder" aria-hidden />
           )}
