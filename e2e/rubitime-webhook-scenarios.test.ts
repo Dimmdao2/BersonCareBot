@@ -315,9 +315,10 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
 
     await app.ready();
     clearRecordedCalls();
+    const token = rubitimeConfig.webhookToken;
     const response = await app.inject({
       method: 'GET',
-      url: `/api/rubitime?record_success=${legacyRecordId}`,
+      url: `/api/rubitime?record_success=${encodeURIComponent(legacyRecordId)}&token=${encodeURIComponent(token)}`,
     });
 
     expect(response.statusCode).toBe(200);

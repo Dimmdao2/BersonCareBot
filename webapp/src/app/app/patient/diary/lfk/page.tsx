@@ -1,3 +1,11 @@
+/**
+ * Страница «Дневник ЛФК» («/app/patient/diary/lfk»).
+ * Только для пациента. Вверху — описание и форма «Отметить занятие»: выбор комплекса (если их
+ * несколько) и кнопка отправки. Ниже — блок «Комплексы» (список названий) и «Статистика»
+ * (даты отмеченных занятий). При отсутствии комплексов показывается заглушка.
+ * Кнопка «Назад» — в главное меню пациента.
+ */
+
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -6,6 +14,7 @@ import { markLfkSession } from "./actions";
 const EMPTY_STATE_PLACEHOLDER =
   "Скоро здесь будет ваша статистика. Для добавления записей в дневник воспользуйтесь кнопкой в меню бота.";
 
+/** Строит страницу дневника ЛФК: описание, форма отметки занятия, списки комплексов и занятий. */
 export default async function LfkDiaryPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();

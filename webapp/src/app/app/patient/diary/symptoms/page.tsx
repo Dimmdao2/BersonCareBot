@@ -1,3 +1,11 @@
+/**
+ * Страница «Дневник симптомов» («/app/patient/diary/symptoms»).
+ * Только для пациента. Вверху — пояснение, что записи добавляются в боте. Далее блок
+ * «Отслеживаемые симптомы» (список названий) и блок «Статистика» — список записей с баллом,
+ * типом (в моменте / за день) и датой. При отсутствии данных показывается заглушка.
+ * Кнопка «Назад» — в главное меню пациента.
+ */
+
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -5,6 +13,7 @@ import { AppShell } from "@/shared/ui/AppShell";
 const EMPTY_STATE_PLACEHOLDER =
   "Скоро здесь будет ваша статистика. Для добавления записей в дневник воспользуйтесь кнопкой в меню бота.";
 
+/** Строит страницу дневника симптомов: описание, список симптомов и список записей. */
 export default async function SymptomDiaryPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();

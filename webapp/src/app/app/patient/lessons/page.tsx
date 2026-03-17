@@ -1,8 +1,15 @@
+/**
+ * Страница «Полезные уроки» («/app/patient/lessons»).
+ * Только для пациента. Список уроков из каталога: заголовок, краткое описание, статус и ссылка
+ * «Открыть» на страницу контента по идентификатору. Кнопка «Назад» — в главное меню пациента.
+ */
+
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 
+/** Строит страницу списка уроков: оболочка и список карточек со ссылками на контент. */
 export default async function PatientLessonsPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();

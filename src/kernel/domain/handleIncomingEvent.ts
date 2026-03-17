@@ -1,3 +1,10 @@
+/**
+ * Обработка входящего события бота: сбор контекста пользователя, выбор сценария и выполнение шагов.
+ * Загружает из базы состояние пользователя (например «ожидает название симптома»), строит план
+ * действий по сценариям контента, выполняет каждый шаг (отправка сообщения, запись в БД и т.д.)
+ * и возвращает список исходящих сообщений и заданий на доставку.
+ */
+
 import type {
   Action,
   ActionResult,
@@ -30,6 +37,7 @@ export type DomainHandleIncomingResult = {
   jobs: DeliveryJob[];
 };
 
+/** Превращает шаг плана в действие для исполнителя. */
 function toAction(step: Step): Action {
   return {
     id: step.id,
@@ -90,6 +98,7 @@ type ReadConversationContext = {
   status?: unknown;
 };
 
+/** Загружает из базы состояние пользователя, черновик вопроса и открытый диалог по идентификатору канала. */
 async function loadUserContext(
   event: IncomingEvent,
   readPort?: DbReadPort,
@@ -172,6 +181,7 @@ async function loadUserContext(
       if (conversationId) result.activeConversationId = conversationId;
       if (conversationStatus) result.activeConversationStatus = conversationStatus;
     }
+    if (result.hasOpenConversation === undefined) result.hasOpenConversation = false;
     return result;
   }
   const conversationState = typeof user.userState === 'string' && user.userState.trim().length > 0
@@ -218,10 +228,12 @@ async function loadUserContext(
     if (conversationId) result.activeConversationId = conversationId;
     if (conversationStatus) result.activeConversationStatus = conversationStatus;
   }
+  if (result.hasOpenConversation === undefined) result.hasOpenConversation = false;
 
   return result;
 }
 
+/** Собирает базовый контекст: связки пользователя (телефон, идентификатор), состояние из БД, признак админа. */
 async function buildBaseContext(event: IncomingEvent, readPort?: DbReadPort): Promise<BaseContext> {
   const identityLinks: BaseContext['identityLinks'] = [];
   const phone = extractPhone(event);
@@ -242,10 +254,7 @@ async function buildBaseContext(event: IncomingEvent, readPort?: DbReadPort): Pr
 }
 
 
-/**
- * Domain V3 flow: build context -> resolve script -> execute actions.
- * Domain does not dispatch messages directly; it returns intents/jobs.
- */
+/** Строит контекст, план по сценариям и выполняет шаги; возвращает записи в БД, исходящие сообщения и задания (сама рассылка не здесь). */
 export async function handleIncomingEvent(
   event: IncomingEvent,
   deps: HandleIncomingEventDeps = {},

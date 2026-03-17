@@ -1,3 +1,10 @@
+/**
+ * Страница одного материала по адресу «/app/patient/content/[slug]».
+ * Только для пациента. Открывается из разделов «Полезные уроки» и «Скорая помощь» по идентификатору
+ * материала. Показывает заголовок, картинку, текст и блок «Видео» (плейсхолдер). Если материал не найден —
+ * 404. Кнопка «Назад» ведёт в главное меню пациента.
+ */
+
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
@@ -5,6 +12,7 @@ import { AppShell } from "@/shared/ui/AppShell";
 
 type Props = { params: Promise<{ slug: string }> };
 
+/** Загружает материал по slug из каталога и рендерит статью с картинкой, текстом и блоком видео. */
 export default async function ContentSlugPage({ params }: Props) {
   const { slug } = await params;
   const session = await requirePatientAccess();

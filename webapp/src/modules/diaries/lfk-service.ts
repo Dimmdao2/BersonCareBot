@@ -1,13 +1,17 @@
 /**
- * LFK diary — complexes + sessions. Storage delegated to LfkDiaryPort.
+ * Логика дневника ЛФК: комплексы упражнений и отметки занятий. Хранение делегировано порту.
+ * Используется веб-приложением (страница дневника ЛФК, форма «Отметить занятие») и API интегратора для бота.
  */
+
 import type { LfkDiaryPort } from "./ports";
 import type { LfkComplex, LfkSession } from "./types";
 
 export type { LfkComplex, LfkSession } from "./types";
 
+/** Создаёт сервис дневника ЛФК, привязанный к переданному порту хранилища. */
 export function createLfkDiaryService(port: LfkDiaryPort) {
   return {
+    /** Создаёт новый комплекс ЛФК по названию. */
     async createComplex(params: {
       userId: string;
       title: string;

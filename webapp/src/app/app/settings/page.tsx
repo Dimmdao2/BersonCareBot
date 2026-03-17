@@ -1,8 +1,16 @@
+/**
+ * Страница «Настройки» («/app/settings»).
+ * Доступна любому авторизованному пользователю (пациент и врач/админ). Блоки: «Профиль»
+ * (имя, роль, телефон), «Подписки на каналы» (какие мессенджеры использовать), заголовок раздела
+ * покупок, «Настройки уведомлений» (заглушка). Кнопка «Назад» ведёт в меню пациента или врача в зависимости от роли.
+ */
+
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireSession } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ChannelSubscriptionBlock } from "./ChannelSubscriptionBlock";
 
+/** Строит страницу настроек: профиль, каналы, покупки, уведомления. */
 export default async function SettingsPage() {
   const session = await requireSession();
   const deps = buildAppDeps();

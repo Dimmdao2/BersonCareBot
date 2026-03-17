@@ -1,11 +1,19 @@
 "use client";
 
+/**
+ * Блок «Подписки на каналы» на странице настроек.
+ * Список каналов (например Telegram, Max): название, статус подключения, ссылка «Открыть бота»,
+ * два переключателя — «Сообщения и ответы бота» и «Уведомления и напоминания». При изменении
+ * вызывается серверное действие обновления настройки. Отображается только на странице настроек.
+ */
+
 import { useTransition } from "react";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
 import { updateChannelPreference } from "./actions";
 
 type Props = { channelCards: ChannelCard[] };
 
+/** Рендерит список карточек каналов с переключателями и при изменении сохраняет настройки через сервер. */
 export function ChannelSubscriptionBlock({ channelCards }: Props) {
   const [pending, startTransition] = useTransition();
 

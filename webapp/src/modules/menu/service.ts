@@ -1,3 +1,9 @@
+/**
+ * Меню главного экрана: список пунктов по роли пользователя.
+ * Для врача — кабинет и настройки; для пациента — покупки, скорая помощь, уроки, дневники и т.д.
+ * Используется на странице /app/patient для отображения сетки карточек.
+ */
+
 import type { UserRole } from "@/shared/types/session";
 
 export type MenuItem = {
@@ -7,6 +13,7 @@ export type MenuItem = {
   status: "available" | "locked" | "coming-soon";
 };
 
+/** Возвращает список пунктов меню в зависимости от роли (пациент или врач). */
 export function getMenuForRole(role: UserRole): MenuItem[] {
   if (role === "doctor") {
     return [

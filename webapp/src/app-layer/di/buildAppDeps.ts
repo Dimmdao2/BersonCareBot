@@ -1,3 +1,9 @@
+/**
+ * Сборка зависимостей приложения: авторизация, меню, дневники, каталог контента, настройки каналов и т.д.
+ * Используется на страницах приложения для доступа к сервисам. При наличии базы данных подключаются
+ * хранилища в БД (дневники, настройки каналов), иначе — хранилища в памяти.
+ */
+
 import {
   getCurrentSession,
   exchangeIntegratorToken,
@@ -37,6 +43,7 @@ const contentCatalog = createContentCatalogResolver({
   testVideoUrl: env.MEDIA_TEST_VIDEO_URL?.length ? env.MEDIA_TEST_VIDEO_URL : undefined,
 });
 
+/** Возвращает объект со всеми сервисами приложения для использования на страницах и в API. */
 export function buildAppDeps() {
   return {
     auth: {

@@ -1,3 +1,10 @@
+/**
+ * Преобразование входящих обновлений Telegram в единый формат бота.
+ * Текст кнопок и сообщений переводится в действия (запись на приём, меню, кабинет и т.д.),
+ * нажатия инлайн-кнопок разбираются в действие и параметры (идентификатор записи, значение и т.д.).
+ * Используется при приёме вебхука от Telegram.
+ */
+
 import type {
   IncomingUpdate,
   IncomingMessageUpdate,
@@ -41,6 +48,7 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 
+/** Приводит введённый номер телефона к формату +7... для сохранения и проверки. */
 export function normalizeTelegramContactPhone(value: string): string | null {
   const digits = value.replace(/[^\d+]/g, '');
   if (!digits) return null;

@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * Блок входа: обмен токена из ссылки на сессию или вход через данные Telegram.
+ * Показывается на странице /app неавторизованному пользователю. Если в адресе есть
+ * токен (t или token) — отправляет его на обмен и при успехе перенаправляет в приложение.
+ * Если токена нет — пробует взять initData из Telegram Mini App и отправить на вход.
+ * В режиме debug (?debug=1) выводит подсказки по наличию токена и initData.
+ */
+
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -13,6 +21,7 @@ declare global {
   }
 }
 
+/** Запускает проверку токена или initData и при успехе перенаправляет в приложение. */
 export function AuthBootstrap() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -24,7 +33,7 @@ export function AuthBootstrap() {
   const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("unknown");
   const initDataTried = useRef(false);
 
-  // 1) Token in URL: exchange with integrator token
+  // Обмен токена из адреса на сессию и редирект
   useEffect(() => {
     if (!token) return;
 
@@ -62,14 +71,14 @@ export function AuthBootstrap() {
     };
   }, [router, token, debug]);
 
-  // Debug: show initData presence on screen (no DevTools needed)
+  // В режиме debug — показать, передан ли initData от Telegram
   useEffect(() => {
     if (!debug || token || typeof window === "undefined") return;
     const raw = window.Telegram?.WebApp?.initData?.trim() ?? "";
     setInitDataStatus(raw ? "yes" : "no");
   }, [debug, token]);
 
-  // 2) No token: try Telegram Web App initData (opened from menu/button inside Telegram)
+  // Если токена в URL нет — пробуем войти по данным Mini App Telegram (открыто из бота)
   useEffect(() => {
     if (token || initDataTried.current || typeof window === "undefined") return;
 

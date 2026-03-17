@@ -1,8 +1,16 @@
+/**
+ * Главное меню пациента («/app/patient»).
+ * Показывается только авторизованному пользователю с ролью пациента. Список пунктов меню
+ * (дневник симптомов, ЛФК, уроки, кабинет и т.д.) берётся из конфигурации по роли; каждый
+ * пункт — компактная карточка-ссылка. Кнопка «Назад» не выводится (это корневая страница раздела).
+ */
+
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
 
+/** Строит главную страницу пациента: оболочка и сетка карточек разделов. */
 export default async function PatientHomePage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();

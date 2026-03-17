@@ -1,7 +1,14 @@
+/**
+ * API для интегратора бота: список отслеживаемых симптомов пользователя.
+ * Вызывается ботом при необходимости показать список симптомов или найти только что созданный.
+ * Доступ по подписи запроса (общий секрет с ботом). Параметр userId обязателен.
+ */
+
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { verifyIntegratorGetSignature } from "@/infra/webhooks/verifyIntegratorSignature";
 
+/** Возвращает список активных отслеживаний симптомов для указанного пользователя после проверки подписи. */
 export async function GET(request: Request) {
   const timestamp = request.headers.get("x-bersoncare-timestamp");
   const signature = request.headers.get("x-bersoncare-signature");

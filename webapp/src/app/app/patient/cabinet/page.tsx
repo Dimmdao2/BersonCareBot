@@ -1,7 +1,15 @@
+/**
+ * Страница «Кабинет клиента» («/app/patient/cabinet»).
+ * Только для пациента. Показывает краткое описание кабинета (причина обращения и т.п.),
+ * метку ближайшей записи и блок «Ближайшие записи» — список предстоящих приёмов со ссылками.
+ * Кнопка «Назад» ведёт в главное меню пациента.
+ */
+
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 
+/** Рендерит кабинет: описание, следующая запись и список ближайших записей. */
 export default async function PatientCabinetPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();

@@ -1,3 +1,10 @@
+/**
+ * Выбор сценария по входящему событию и построение плана шагов.
+ * Сравнивает событие и контекст с условиями сценариев из контента, выбирает один сценарий
+ * (по приоритету и точности совпадения), подставляет переменные в параметры шагов и возвращает
+ * последовательность действий (отправка сообщения, установка состояния и т.д.).
+ */
+
 import type {
   ContentPort,
   ContentScript,
@@ -90,6 +97,7 @@ function isTruthyString(value: unknown): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+/** Собирает из события и контекста переменные для сравнения с условиями сценария (действие, текст, состояние пользователя и т.д.). */
 function normalizeMatchVars(input: OrchestratorInput): Record<string, unknown> {
   const eventPayload = asRecord(input.event.payload) ?? {};
   const normalizedInput = asRecord(eventPayload.incoming) ?? eventPayload;
@@ -306,11 +314,12 @@ async function resolveBusinessScript(
   return selected;
 }
 
+/** Выбирает подходящий сценарий, подставляет переменные в шаги и возвращает план действий. */
 export async function buildPlan(
   input: OrchestratorInput,
   deps: { contentPort: ContentPort; contextQueryPort: ContextQueryPort },
 ): Promise<OrchestratorPlan> {
-  // Подробное логирование для диагностики callback-сценариев
+  // Логирование для отладки сценариев по нажатию кнопок
   if (input.event.type === 'callback.received') {
     console.log('[orchestrator][buildPlan] input:', JSON.stringify(input, null, 2));
   }

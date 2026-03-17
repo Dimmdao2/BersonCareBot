@@ -1,3 +1,9 @@
+/**
+ * Страница «Мои покупки» («/app/patient/purchases»).
+ * Только для пациента. Описание раздела и список курсов/доступов/подписок (пока на мок-данных).
+ * Кнопка «Назад» — в главное меню пациента.
+ */
+
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -9,6 +15,7 @@ const MOCK_ITEMS = [
   { id: "3", title: "Подписка «Персональный помощник»", type: "Подписка", status: "Скоро", expiresAt: "—" },
 ];
 
+/** Строит страницу покупок: описание и список карточек с типом, статусом и сроком действия. */
 export default async function PurchasesPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();

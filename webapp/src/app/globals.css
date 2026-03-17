@@ -1,3 +1,10 @@
+/**
+ * Общие стили приложения.
+ * Цвета, шрифты, карточки, кнопки, верхняя панель и сетки — всё, что используется
+ * на страницах пациента и врача для единого вида.
+ */
+
+/* Базовые переменные и сброс: светлая тема, шрифт, фон и цвет текста. */
 :root {
   color-scheme: light;
   font-family: Arial, sans-serif;
@@ -15,6 +22,7 @@ body {
   min-height: 100%;
 }
 
+/* Градиентный фон страницы. */
 body {
   background: linear-gradient(180deg, #f5f7fb 0%, #edf2fb 100%);
 }
@@ -24,16 +32,19 @@ a {
   text-decoration: none;
 }
 
+/* Контейнер основного контента: ограничение ширины и отступы по краям. */
 .app-shell {
   max-width: 1120px;
   margin: 0 auto;
   padding: 24px 16px 48px;
 }
 
+/* Уменьшенный заголовок в верхней панели (например, когда есть кнопка «Назад»). */
 .app-shell--title-small .top-bar h1 {
   font-size: 1.25rem;
 }
 
+/* Верхняя панель страницы: заголовок, кнопка «Назад», действия. Полупрозрачный фон с размытием. */
 .top-bar {
   display: flex;
   align-items: center;
@@ -56,6 +67,7 @@ a {
   font-size: 1.25rem;
 }
 
+/* Ряд: кнопка «Назад» и заголовок. */
 .top-bar__title-row {
   display: flex;
   align-items: center;
@@ -67,6 +79,7 @@ a {
   font-size: 0.9rem;
 }
 
+/* Подзаголовок-метка над блоком (мелкий верхний регистр, серый). */
 .eyebrow {
   font-size: 0.8rem;
   letter-spacing: 0.08em;
@@ -74,6 +87,7 @@ a {
   color: #5f6f86;
 }
 
+/* Блок кнопок/действий справа в верхней панели. */
 .top-bar__actions {
   display: flex;
   align-items: center;
@@ -89,6 +103,7 @@ a {
   border-radius: 999px;
 }
 
+/* Таблетка с именем/ролью пользователя. */
 .user-pill {
   padding: 10px 14px;
   background: #eef4ff;
@@ -112,12 +127,14 @@ a {
   background: transparent;
 }
 
+/* Вертикальный стек блоков с отступом. */
 .content-area,
 .stack {
   display: grid;
   gap: 16px;
 }
 
+/* Карточки: основной контент, панели, карточки разделов. Тень и скругление. */
 .hero-card,
 .panel,
 .feature-card {
@@ -128,6 +145,7 @@ a {
   box-shadow: 0 10px 24px rgba(25, 48, 86, 0.06);
 }
 
+/* Сетка карточек разделов: подстраивается под ширину, минимум 240px на карточку. */
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -139,12 +157,14 @@ a {
   gap: 12px;
 }
 
+/* Эффект при наведении на карточку-ссылку. */
 .feature-card--link:hover {
   border-color: #90a8cb;
   transform: translateY(-1px);
   transition: 0.2s ease;
 }
 
+/* Компактная карточка: только заголовок по центру, без описания. */
 .feature-card--compact {
   display: flex;
   align-items: center;
@@ -168,6 +188,7 @@ a {
   margin-bottom: 12px;
 }
 
+/* Статусные метки: доступно / скоро / заблокировано. */
 .status-pill {
   padding: 6px 10px;
   font-size: 0.78rem;
@@ -190,6 +211,7 @@ a {
   color: #9c4242;
 }
 
+/* Список элементов без маркеров. */
 .list {
   display: grid;
   gap: 12px;
@@ -205,10 +227,12 @@ a {
   border: 1px solid #dde7f4;
 }
 
+/* Текст при пустом состоянии (нет данных). */
 .empty-state {
   color: #5f6f86;
 }
 
+/* Блок кода (тёмный фон). */
 .code-block {
   padding: 16px;
   border-radius: 16px;
@@ -218,6 +242,7 @@ a {
   font-size: 0.92rem;
 }
 
+/* На узких экранах верхняя панель переходит в колонку, действия переносятся. */
 @media (max-width: 720px) {
   .top-bar {
     align-items: flex-start;

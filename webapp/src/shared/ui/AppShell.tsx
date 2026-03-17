@@ -1,3 +1,10 @@
+/**
+ * Общая оболочка страницы приложения: верхняя панель и контент.
+ * Используется на всех страницах после входа: пациент, врач, настройки. В шапке — заголовок,
+ * опционально кнопка «Назад», имя и роль пользователя, ссылка «Настройки». Контент страницы
+ * передаётся в children. Отображается везде внутри /app (кроме корневого layout).
+ */
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { SessionUser } from "@/shared/types/session";
@@ -6,13 +13,14 @@ type AppShellProps = {
   title: string;
   user: SessionUser | null;
   children: ReactNode;
-  /** Ссылка «Меню» на главный экран (для страниц разделов). */
+  /** Ссылка «Назад» (например на главный экран пациента). */
   backHref?: string;
   backLabel?: string;
-  /** Чуть меньший заголовок (главный экран). */
+  /** Уменьшенный заголовок, когда есть кнопка «Назад». */
   titleSmall?: boolean;
 };
 
+/** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
 export function AppShell({ title, user, children, backHref, backLabel = "Меню", titleSmall }: AppShellProps) {
   return (
     <div className={`app-shell ${titleSmall ? "app-shell--title-small" : ""}`}>
