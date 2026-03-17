@@ -1,6 +1,6 @@
 /**
  * Меню главного экрана: список пунктов по роли пользователя.
- * Для врача — кабинет и настройки; для пациента — покупки, скорая помощь, уроки, дневники и т.д.
+ * Для врача — кабинет и настройки; для пациента — скорая помощь, уроки, дневники и т.д.
  * Используется на странице /app/patient для отображения сетки карточек.
  */
 
@@ -33,11 +33,9 @@ export function getMenuForRole(role: UserRole): MenuItem[] {
   }
 
   return [
-    { id: "purchases", title: "Мои покупки", href: "/app/patient/purchases", status: "available" },
     { id: "emergency", title: "Скорая помощь", href: "/app/patient/emergency", status: "available" },
     { id: "lessons", title: "Полезные уроки", href: "/app/patient/lessons", status: "available" },
     { id: "symptoms", title: "Дневник симптомов", href: "/app/patient/diary/symptoms", status: "available" },
     { id: "lfk", title: "Дневник ЛФК", href: "/app/patient/diary/lfk", status: "available" },
-    { id: "assistant", title: "Персональный помощник", href: "/app/settings", status: "coming-soon" },
   ];
 }

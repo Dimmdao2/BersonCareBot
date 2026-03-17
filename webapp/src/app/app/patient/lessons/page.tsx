@@ -1,15 +1,15 @@
 /**
  * Страница «Полезные уроки» («/app/patient/lessons»).
- * Только для пациента. Список уроков из каталога: заголовок, краткое описание, статус и ссылка
- * «Открыть» на страницу контента по идентификатору. Кнопка «Назад» — в главное меню пациента.
+ * Только для пациента. Список уроков из каталога — кнопки-карточки с заголовком,
+ * без описания и «Открыть». Кнопка «Назад» — в главное меню пациента.
  */
 
-import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { FeatureCard } from "@/shared/ui/FeatureCard";
 
-/** Строит страницу списка уроков: оболочка и список карточек со ссылками на контент. */
+/** Строит страницу списка уроков: оболочка и сетка карточек-ссылок. */
 export default async function PatientLessonsPage() {
   const session = await requirePatientAccess();
   const deps = buildAppDeps();
@@ -17,18 +17,17 @@ export default async function PatientLessonsPage() {
 
   return (
     <AppShell title="Полезные уроки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <ul className="list">
+      <section className="feature-grid">
         {lessons.map((lesson) => (
-          <li key={lesson.id} className="list-item">
-            <strong>{lesson.title}</strong>
-            <p>{lesson.summary}</p>
-            <span className={`status-pill status-pill--${lesson.status}`}>{lesson.type}</span>
-            <Link href={`/app/patient/content/${lesson.id}`} className="button button--ghost">
-              Открыть
-            </Link>
-          </li>
+          <FeatureCard
+            key={lesson.id}
+            title={lesson.title}
+            href={`/app/patient/content/${lesson.id}`}
+            status={lesson.status}
+            compact
+          />
         ))}
-      </ul>
+      </section>
     </AppShell>
   );
 }

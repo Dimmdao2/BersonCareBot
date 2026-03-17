@@ -7,15 +7,17 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 
 const EMPTY_STATE_PLACEHOLDER =
   "Скоро здесь будет ваша статистика. Для добавления записей в дневник воспользуйтесь кнопкой в меню бота.";
 
-/** Строит страницу дневника симптомов: описание, список симптомов и список записей. */
+/** Строит страницу дневника симптомов: описание, список симптомов и список записей. Требуется привязка телефона. */
 export default async function SymptomDiaryPage() {
   const session = await requirePatientAccess();
+  requirePatientPhone(session, routePaths.symptoms);
   const deps = buildAppDeps();
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId);
   const entries = await deps.diaries.listSymptomEntries(session.user.userId);

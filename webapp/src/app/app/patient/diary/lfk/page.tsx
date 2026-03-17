@@ -7,16 +7,18 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { markLfkSession } from "./actions";
 
 const EMPTY_STATE_PLACEHOLDER =
   "Скоро здесь будет ваша статистика. Для добавления записей в дневник воспользуйтесь кнопкой в меню бота.";
 
-/** Строит страницу дневника ЛФК: описание, форма отметки занятия, списки комплексов и занятий. */
+/** Строит страницу дневника ЛФК: описание, форма отметки занятия, списки комплексов и занятий. Требуется привязка телефона. */
 export default async function LfkDiaryPage() {
   const session = await requirePatientAccess();
+  requirePatientPhone(session, routePaths.lfk);
   const deps = buildAppDeps();
   const complexes = await deps.diaries.listLfkComplexes(session.user.userId);
   const sessions = await deps.diaries.listLfkSessions(session.user.userId);

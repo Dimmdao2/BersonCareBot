@@ -64,12 +64,15 @@ describe("buildAppDeps", () => {
     expect(state).toHaveProperty("reason");
   });
 
-  it("auth has getCurrentSession, exchangeIntegratorToken, exchangeTelegramInitData, clearSession", () => {
+  it("auth has getCurrentSession, exchangeIntegratorToken, exchangeTelegramInitData, clearSession, setSessionFromUser, startPhoneAuth, confirmPhoneAuth", () => {
     const deps = buildAppDeps();
     expect(typeof deps.auth.getCurrentSession).toBe("function");
     expect(typeof deps.auth.exchangeIntegratorToken).toBe("function");
     expect(typeof deps.auth.exchangeTelegramInitData).toBe("function");
     expect(typeof deps.auth.clearSession).toBe("function");
+    expect(typeof deps.auth.setSessionFromUser).toBe("function");
+    expect(typeof deps.auth.startPhoneAuth).toBe("function");
+    expect(typeof deps.auth.confirmPhoneAuth).toBe("function");
   });
 
   it("menu.getMenuForRole returns array for client", () => {

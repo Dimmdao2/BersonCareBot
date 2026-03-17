@@ -5,7 +5,8 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 
 /** Мок-данные для раздела покупок (курсы, доступы, подписки). */
@@ -18,6 +19,7 @@ const MOCK_ITEMS = [
 /** Строит страницу покупок: описание и список карточек с типом, статусом и сроком действия. */
 export default async function PurchasesPage() {
   const session = await requirePatientAccess();
+  requirePatientPhone(session, routePaths.purchases);
   const deps = buildAppDeps();
   const state = deps.purchases.getPurchaseSectionState();
 

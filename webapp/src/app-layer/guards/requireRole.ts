@@ -21,3 +21,11 @@ export async function requireDoctorAccess(): Promise<AppSession> {
   if (!canAccessDoctor(session.user.role)) redirect(routePaths.patient);
   return session;
 }
+
+/** Если у пациента нет привязанного телефона — редирект на страницу привязки с next=returnTo. Вызывать только на маршрутах из patientPathsRequiringPhone. */
+export function requirePatientPhone(session: AppSession, returnTo: string): void {
+  if (!session.user.phone?.trim()) {
+    const next = encodeURIComponent(returnTo);
+    redirect(`${routePaths.bindPhone}?next=${next}`);
+  }
+}

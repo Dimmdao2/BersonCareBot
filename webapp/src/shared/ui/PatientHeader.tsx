@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-const MENU_ITEMS: { label: string; href: string }[] = [
-  { label: "Профиль", href: "/app/patient/cabinet" },
-  { label: "Безопасность", href: "/app/settings" },
-  { label: "Настройки уведомлений", href: "/app/settings" },
-  { label: "Связь с поддержкой", href: "/app/patient/emergency" },
-  { label: "Справка", href: "/app/settings" },
+const MENU_ITEMS: { id: string; label: string; href: string }[] = [
+  { id: "cabinet", label: "Профиль", href: "/app/patient/cabinet" },
+  { id: "security", label: "Безопасность", href: "/app/settings" },
+  { id: "notifications", label: "Настройки уведомлений", href: "/app/settings" },
+  { id: "emergency", label: "Связь с поддержкой", href: "/app/patient/emergency" },
+  { id: "help", label: "Справка", href: "/app/settings" },
 ];
 
 type PatientHeaderProps = {
@@ -91,7 +91,7 @@ export function PatientHeader({ showBack }: PatientHeaderProps) {
         </div>
         <nav className="drawer-nav">
           {MENU_ITEMS.map((item) => (
-            <Link key={item.href} href={item.href} className="drawer-nav__link" onClick={close}>
+            <Link key={item.id} href={item.href} className="drawer-nav__link" onClick={close}>
               {item.label}
             </Link>
           ))}

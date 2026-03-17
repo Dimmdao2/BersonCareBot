@@ -9,7 +9,13 @@ import {
   exchangeIntegratorToken,
   exchangeTelegramInitData,
   clearSession,
+  setSessionFromUser,
 } from "@/modules/auth/service";
+import { startPhoneAuth as startPhoneAuthFlow, confirmPhoneAuth as confirmPhoneAuthFlow } from "@/modules/auth/phoneAuth";
+import type { ChannelContext } from "@/modules/auth/channelContext";
+import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
+import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
+import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 import { getCurrentUser } from "@/modules/users/service";
 import { getMenuForRole } from "@/modules/menu/service";
 import { listLessons } from "@/modules/lessons/service";
@@ -43,6 +49,13 @@ const contentCatalog = createContentCatalogResolver({
   testVideoUrl: env.MEDIA_TEST_VIDEO_URL?.length ? env.MEDIA_TEST_VIDEO_URL : undefined,
 });
 
+const smsPort = createStubSmsAdapter();
+const phoneAuthDeps = {
+  smsPort,
+  challengeStore: inMemoryPhoneChallengeStore,
+  userByPhonePort: inMemoryUserByPhonePort,
+};
+
 /** Возвращает объект со всеми сервисами приложения для использования на страницах и в API. */
 export function buildAppDeps() {
   return {
@@ -51,6 +64,11 @@ export function buildAppDeps() {
       exchangeIntegratorToken,
       exchangeTelegramInitData,
       clearSession,
+      setSessionFromUser,
+      startPhoneAuth: (phone: string, context: ChannelContext) =>
+        startPhoneAuthFlow(phone, context, phoneAuthDeps),
+      confirmPhoneAuth: (challengeId: string, code: string, context: ChannelContext) =>
+        confirmPhoneAuthFlow(challengeId, code, context, phoneAuthDeps),
     },
     users: {
       getCurrentUser,

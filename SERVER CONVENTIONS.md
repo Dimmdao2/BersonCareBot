@@ -1,4 +1,4 @@
-# SERVER_CONVENTION.md
+# SERVER CONVENTIONS
 
 ## Project keys
 
@@ -10,6 +10,33 @@ Stable internal project keys:
 - `bersonservices`
 
 Do not rename project keys after adoption.
+
+---
+
+## BersonCareBot — known host and paths (this project)
+
+Deploy and env (from this repo):
+
+| Параметр | Значение |
+|----------|----------|
+| **Deploy user** | `deploy` |
+| **Prod project dir** | `/opt/projects/bersoncarebot` |
+| **Prod env dir** | `/opt/env/bersoncarebot/` (owner: `deploy`; not inside project tree) |
+| **Prod env files** | `api.prod` (integrator API + worker), `webapp.prod` (Next.js) |
+| **PostgreSQL superuser** | `postgres` (`psql -U postgres`, `sudo -u postgres psql`) |
+| **Backup script (pre-migrations)** | `/opt/backups/scripts/postgres-backup.sh` |
+| **Public webapp URL** | `https://webapp.bersonservices.ru` |
+
+Local dev:
+
+| Параметр | Значение |
+|----------|----------|
+| **Dev project dir** | `/home/dev/dev-projects/BersonCareBot` |
+| **Dev env files** | `.env.dev` (root), `webapp/.env.dev` (webapp) |
+
+Systemd units (BersonCareBot): `bersoncarebot-api-prod.service`, `bersoncarebot-worker-prod.service`, `bersoncarebot-webapp-prod.service`; dev: `bersoncarebot-api-dev.service`, `bersoncarebot-worker-dev.service`, `bersoncarebot-webapp-dev.service`.
+
+Actual DB names and owners on the host may differ from the convention table below (e.g. different owner names). See **deploy/HOST_DEPLOY_README.md** for the current cluster snapshot and setup steps.
 
 ---
 

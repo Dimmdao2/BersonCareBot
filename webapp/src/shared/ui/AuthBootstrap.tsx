@@ -1,17 +1,30 @@
 "use client";
 
 /**
- * Блок входа: обмен токена из ссылки на сессию или вход через данные Telegram.
- * Показывается на странице /app неавторизованному пользователю. Если в адресе есть
- * токен (t или token) — отправляет его на обмен и при успехе перенаправляет в приложение.
- * Если токена нет — пробует взять initData из Telegram Mini App и отправить на вход.
- * В режиме debug (?debug=1) выводит подсказки по наличию токена и initData.
+ * Блок входа: обмен токена из ссылки на сессию, вход через Telegram initData или по номеру телефона (SMS).
+ * Если в адресе есть токен (t или token) — обмен на сессию. Если нет — пробует initData Telegram;
+ * при отсутствии или ошибке — показывает форму входа по номеру и коду из SMS.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { PhoneAuthForm } from "@/shared/ui/auth/PhoneAuthForm";
+import { SmsCodeForm } from "@/shared/ui/auth/SmsCodeForm";
 
 type BootstrapState = "idle" | "loading" | "error";
+type PhoneStep = "phone" | "code";
+
+const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
+
+function getWebChatId(): string {
+  if (typeof window === "undefined") return "";
+  let id = sessionStorage.getItem(WEB_CHAT_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    sessionStorage.setItem(WEB_CHAT_ID_KEY, id);
+  }
+  return id;
+}
 
 declare global {
   interface Window {
@@ -21,7 +34,7 @@ declare global {
   }
 }
 
-/** Запускает проверку токена или initData и при успехе перенаправляет в приложение. */
+/** Запускает проверку токена или initData и при успехе перенаправляет в приложение; иначе — форма по SMS. */
 export function AuthBootstrap() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -32,6 +45,11 @@ export function AuthBootstrap() {
   const [debugInfo, setDebugInfo] = useState<{ status?: number; message?: string } | null>(null);
   const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("unknown");
   const initDataTried = useRef(false);
+
+  const [phoneStep, setPhoneStep] = useState<PhoneStep>("phone");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
+  const [phoneForResend, setPhoneForResend] = useState<string>("");
 
   // Обмен токена из адреса на сессию и редирект
   useEffect(() => {
@@ -71,12 +89,12 @@ export function AuthBootstrap() {
     };
   }, [router, token, debug]);
 
-  // В режиме debug — показать, передан ли initData от Telegram
+  // Определить наличие initData (для показа формы по SMS, когда нет Telegram)
   useEffect(() => {
-    if (!debug || token || typeof window === "undefined") return;
+    if (token || typeof window === "undefined") return;
     const raw = window.Telegram?.WebApp?.initData?.trim() ?? "";
     setInitDataStatus(raw ? "yes" : "no");
-  }, [debug, token]);
+  }, [token]);
 
   // Если токена в URL нет — пробуем войти по данным Mini App Telegram (открыто из бота)
   useEffect(() => {
@@ -113,6 +131,104 @@ export function AuthBootstrap() {
         if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
       });
   }, [router, token, debug]);
+
+  const showPhoneFlow = !token && (initDataStatus === "no" || state === "error") && state !== "loading";
+
+  if (showPhoneFlow && phoneStep === "code" && challengeId) {
+    return (
+      <div className="stack">
+        <p className="eyebrow">Вход по номеру телефона</p>
+        <SmsCodeForm
+          challengeId={challengeId}
+          retryAfterSeconds={retryAfterSeconds}
+          onConfirm={async (code) => {
+            const chatId = getWebChatId();
+            const res = await fetch("/api/auth/phone/confirm", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                challengeId,
+                code,
+                channel: "web",
+                chatId,
+              }),
+            });
+            const data = (await res.json().catch(() => ({}))) as {
+              ok?: boolean;
+              redirectTo?: string;
+              message?: string;
+            };
+            if (data.ok && data.redirectTo) {
+              router.replace(data.redirectTo);
+              return { ok: true as const, redirectTo: data.redirectTo };
+            }
+            return { ok: false as const, message: data.message ?? "Ошибка входа" };
+          }}
+          onResend={async () => {
+            if (!phoneForResend) return;
+            const chatId = getWebChatId();
+            const res = await fetch("/api/auth/phone/start", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ phone: phoneForResend, channel: "web", chatId }),
+            });
+            const data = (await res.json().catch(() => ({}))) as {
+              ok?: boolean;
+              challengeId?: string;
+              retryAfterSeconds?: number;
+              message?: string;
+            };
+            if (data.ok && data.challengeId) {
+              setChallengeId(data.challengeId);
+              setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
+            }
+          }}
+          onBack={() => {
+            setPhoneStep("phone");
+            setChallengeId(null);
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (showPhoneFlow) {
+    return (
+      <div className="stack">
+        <p className="eyebrow">Вход по номеру телефона</p>
+        {state === "error" && error && (
+          <p className="empty-state" style={{ fontSize: 14, color: "#9c4242" }}>{error}</p>
+        )}
+        <PhoneAuthForm
+          onSubmit={async (phone) => {
+            const chatId = getWebChatId();
+            const res = await fetch("/api/auth/phone/start", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ phone, channel: "web", chatId }),
+            });
+            const data = (await res.json().catch(() => ({}))) as {
+              ok?: boolean;
+              challengeId?: string;
+              retryAfterSeconds?: number;
+              error?: string;
+              message?: string;
+            };
+            if (data.ok && data.challengeId) {
+              return { ok: true as const, challengeId: data.challengeId, retryAfterSeconds: data.retryAfterSeconds };
+            }
+            return { ok: false as const, message: data.message ?? "Не удалось отправить код" };
+          }}
+          onSuccess={(cid, retry, phone) => {
+            if (phone) setPhoneForResend(phone);
+            setChallengeId(cid);
+            setRetryAfterSeconds(retry ?? 60);
+            setPhoneStep("code");
+          }}
+        />
+      </div>
+    );
+  }
 
   if (debug && !token) {
     const initLabel =

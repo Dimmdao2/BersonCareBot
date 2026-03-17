@@ -261,3 +261,16 @@ export async function clearSession(): Promise<void> {
     maxAge: 0,
   });
 }
+
+/** Устанавливает сессию по пользователю (для входа по SMS и др.). */
+export async function setSessionFromUser(user: SessionUser): Promise<void> {
+  const session = buildSession(user);
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: SESSION_TTL_SECONDS,
+  });
+}

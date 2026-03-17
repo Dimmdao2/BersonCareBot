@@ -6,12 +6,14 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 
-/** Рендерит кабинет: описание, следующая запись и список ближайших записей. */
+/** Рендерит кабинет: описание, следующая запись и список ближайших записей. Требуется привязка телефона. */
 export default async function PatientCabinetPage() {
   const session = await requirePatientAccess();
+  requirePatientPhone(session, routePaths.cabinet);
   const deps = buildAppDeps();
   const userId = session.user.userId;
   const cabinet = deps.patientCabinet.getPatientCabinetState(userId);

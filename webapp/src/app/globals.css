@@ -41,18 +41,19 @@ a {
   text-decoration: none;
 }
 
-/* Контейнер основного контента: ограничение ширины и отступы по краям. */
+/* Контейнер основного контента: ограничение ширины, отступы по краям, по высоте — весь экран. */
 .app-shell {
   max-width: 600px;
   margin: 0 auto;
   padding: 24px 16px 48px;
+  min-height: 100vh;
 }
 
 .app-shell--patient {
   padding: 0 16px 32px;
   padding-bottom: max(32px, env(safe-area-inset-bottom));
   max-width: 480px;
-  min-height: 100%;
+  min-height: 100vh;
   background: var(--patient-bg);
 }
 .app-shell--patient .content-area {
@@ -364,6 +365,26 @@ body.drawer-open {
 
 .button--ghost {
   background: transparent;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 1rem;
+  border: 1px solid #dbe4f0;
+  border-radius: var(--patient-radius, 12px);
+  background: var(--patient-surface, #fff);
+  color: #18202c;
+}
+.auth-input::placeholder {
+  color: #8b99a8;
+}
+.auth-input:focus {
+  outline: none;
+  border-color: #90a8cb;
+}
+.auth-input[aria-invalid="true"] {
+  border-color: #c45c5c;
 }
 
 /* Вертикальный стек блоков с отступом. */
