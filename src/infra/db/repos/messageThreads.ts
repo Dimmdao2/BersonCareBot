@@ -28,6 +28,8 @@ export type ConversationRow = {
   closed_at: string | null;
   close_reason: string | null;
   user_channel_id: string;
+  /** For MAX: chat_id to send replies (from last user message). Falls back to user_channel_id. */
+  user_chat_id: string | null;
   username: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -335,6 +337,13 @@ export async function getOpenConversationByIdentity(
       c.closed_at::text,
       c.close_reason,
       i.external_id::text AS user_channel_id,
+      (
+        SELECT cm.external_chat_id
+        FROM conversation_messages cm
+        WHERE cm.conversation_id = c.id AND cm.sender_role = 'user' AND cm.external_chat_id IS NOT NULL
+        ORDER BY cm.created_at DESC, cm.id DESC
+        LIMIT 1
+      ) AS user_chat_id,
       ts.username,
       ts.first_name,
       ts.last_name,
@@ -379,6 +388,13 @@ export async function getConversationById(
       c.closed_at::text,
       c.close_reason,
       i.external_id::text AS user_channel_id,
+      (
+        SELECT cm.external_chat_id
+        FROM conversation_messages cm
+        WHERE cm.conversation_id = c.id AND cm.sender_role = 'user' AND cm.external_chat_id IS NOT NULL
+        ORDER BY cm.created_at DESC, cm.id DESC
+        LIMIT 1
+      ) AS user_chat_id,
       ts.username,
       ts.first_name,
       ts.last_name,
@@ -418,6 +434,7 @@ export async function listOpenConversations(
       c.closed_at::text,
       c.close_reason,
       i.external_id::text AS user_channel_id,
+      NULL::text AS user_chat_id,
       ts.username,
       ts.first_name,
       ts.last_name,

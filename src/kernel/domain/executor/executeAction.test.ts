@@ -652,12 +652,14 @@ describe('executeAction', () => {
     });
 
     expect(userResult.status).toBe('success');
-    expect(userResult.intents?.[0]).toMatchObject({
-      type: 'message.send',
-      payload: {
-        recipient: { chatId: 999 },
-        message: { text: expect.stringContaining('Дополнение от пользователя') },
-      },
+    expect(userResult.intents?.length).toBeGreaterThanOrEqual(2);
+    const notificationIntent = userResult.intents?.find(
+      (i) => i.type === 'message.send' && (i.payload as { message?: { text?: string } }).message?.text?.includes('От:'),
+    );
+    expect(notificationIntent).toBeDefined();
+    expect(notificationIntent?.payload).toMatchObject({
+      recipient: { chatId: 999 },
+      message: { text: expect.stringMatching(/Новое сообщение|От:/) },
     });
 
     const adminCtx: DomainContext = {
@@ -1346,22 +1348,22 @@ describe('executeAction', () => {
         supportRelayPolicy: createSupportRelayPolicy(['text', 'photo'], ['text']),
       });
       expect(result.status).toBe('success');
-      expect(result.intents?.length).toBeGreaterThanOrEqual(1);
-      expect(result.intents?.[0]).toMatchObject({
-        type: 'message.send',
-        payload: {
-          recipient: { chatId: 999 },
-          message: { text: expect.stringContaining('Новое сообщение') },
-        },
-      });
+      expect(result.intents?.length).toBeGreaterThanOrEqual(2);
       const copyIntent = result.intents?.find((i) => i.type === 'message.copy');
-      if (copyIntent) {
-        expect(copyIntent.payload).toMatchObject({
-          recipient: { chatId: 999 },
-          from_chat_id: 123,
-          message_id: 99,
-        });
-      }
+      expect(copyIntent).toBeDefined();
+      expect(copyIntent?.payload).toMatchObject({
+        recipient: { chatId: 999 },
+        from_chat_id: 123,
+        message_id: 99,
+      });
+      const notificationIntent = result.intents?.find(
+        (i) => i.type === 'message.send' && (i.payload as { message?: { text?: string } }).message?.text?.includes('Новое сообщение'),
+      );
+      expect(notificationIntent).toBeDefined();
+      expect(notificationIntent?.payload).toMatchObject({
+        recipient: { chatId: 999 },
+        message: { text: expect.stringContaining('Новое сообщение') },
+      });
     });
 
     it('conversation.user.message: routes MAX text to MAX admin chat without telegram copy', async () => {

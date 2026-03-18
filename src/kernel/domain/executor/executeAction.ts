@@ -733,41 +733,36 @@ export async function executeAction(
       ];
       await persistWrites(deps.writePort, writes);
       const userLabel = `Пользователь (${externalId})`;
-      const newMessageText = deps.templatePort
-        ? (await renderText({
-          templateKey: ADMIN.CONVERSATION_NEW_MESSAGE,
-          vars: { userLabel, text: messageText },
-          ctx,
-          templatePort: deps.templatePort,
-        })) ?? `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageText}`
-        : `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageText}`;
+      const notificationOnlyText = `Новое сообщение в диалоге\nОт: ${userLabel}`;
       const replyButtonText = deps.templatePort
         ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
         : 'Ответить';
       const adminChannel = source;
-      const intents: OutgoingIntent[] = [{
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId: adminChatId },
-          message: { text: newMessageText },
-          replyMarkup: {
-            inline_keyboard: [[
-              { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
-            ]],
+      const intents: OutgoingIntent[] = [
+        {
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: adminChatId },
+            message: { text: messageText },
+            delivery: { channels: [adminChannel], maxAttempts: 1 },
           },
-          delivery: { channels: [adminChannel], maxAttempts: 1 },
         },
-      }];
-      intents.push({
-        type: 'message.send',
-        meta: buildIntentMeta(action, ctx),
-        payload: {
-          recipient: { chatId: adminChatId },
-          message: { text: messageText },
-          delivery: { channels: [adminChannel], maxAttempts: 1 },
+        {
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient: { chatId: adminChatId },
+            message: { text: notificationOnlyText },
+            replyMarkup: {
+              inline_keyboard: [[
+                { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
+              ]],
+            },
+            delivery: { channels: [adminChannel], maxAttempts: 1 },
+          },
         },
-      });
+      ];
       return {
         actionId: action.id,
         status: 'success',

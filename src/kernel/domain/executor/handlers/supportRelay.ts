@@ -118,40 +118,25 @@ export async function handleConversationUserMessage(
   ];
   await persistWrites(deps.writePort, writes);
 
-  const userLabel = formatActorLabel({
+  let userLabel = formatActorLabel({
     firstName: asString(conversation?.first_name),
     lastName: asString(conversation?.last_name),
     username: asString(conversation?.username),
     channelId: asString(conversation?.user_channel_id),
   });
-  const messageLabelForService = relayMessageType === 'text' ? (text ?? '') : `[${relayMessageType}]`;
-  const newMessageText = deps.templatePort
-    ? (await renderText({
-      templateKey: ADMIN.CONVERSATION_NEW_MESSAGE,
-      vars: { userLabel, text: messageLabelForService },
-      ctx,
-      templatePort: deps.templatePort,
-    })) || `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageLabelForService}`
-    : `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageLabelForService}`;
+  if (source === 'max' && (!userLabel || userLabel === asString(conversation?.user_channel_id))) {
+    const cid = asString(conversation?.user_channel_id);
+    userLabel = cid ? `Пользователь (${cid})` : 'Пользователь';
+  }
   const replyButtonText = deps.templatePort
     ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
     : 'Ответить';
-  const userChatId = asNumber(readIncomingChatId(ctx));
-  const userMessageId = asNumber(readIncomingMessageId(ctx));
-  const intents: OutgoingIntent[] = [{
-    type: 'message.send',
-    meta: buildIntentMeta(action, ctx),
-    payload: {
-      recipient: { chatId: adminChatId },
-      message: { text: newMessageText },
-      replyMarkup: {
-        inline_keyboard: [[
-          { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
-        ]],
-      },
-      delivery: channelDeliveryPayload(adminChannel),
-    },
-  }];
+  const notificationOnlyText = `Новое сообщение в диалоге\nОт: ${userLabel}`;
+  const incoming = readIncoming(ctx);
+  const userChatId = asNumber(incoming.chatId);
+  const userMessageIdRaw = readIncomingMessageId(ctx);
+  const userMessageId = userMessageIdRaw !== null && Number.isFinite(Number(userMessageIdRaw)) ? Number(userMessageIdRaw) : null;
+  const intents: OutgoingIntent[] = [];
   if (source === 'telegram' && userChatId !== null && userMessageId !== null) {
     intents.push({
       type: 'message.copy',
@@ -174,6 +159,20 @@ export async function handleConversationUserMessage(
       },
     });
   }
+  intents.push({
+    type: 'message.send',
+    meta: buildIntentMeta(action, ctx),
+    payload: {
+      recipient: { chatId: adminChatId },
+      message: { text: notificationOnlyText },
+      replyMarkup: {
+        inline_keyboard: [[
+          { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
+        ]],
+      },
+      delivery: channelDeliveryPayload(adminChannel),
+    },
+  });
   return {
     actionId: action.id,
     status: 'success',
@@ -218,7 +217,7 @@ export async function handleConversationAdminReply(
     params: { id: conversationId },
   });
   const sourceForConversation = asString(conversation?.source) ?? ctx.event.meta.source;
-  const userChatIdRaw = asString(conversation?.user_channel_id);
+  const userChatIdRaw = asString(conversation?.user_chat_id) || asString(conversation?.user_channel_id);
   const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
   if (!conversation || !Number.isFinite(userChatId)) {
     return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_NOT_FOUND' };
