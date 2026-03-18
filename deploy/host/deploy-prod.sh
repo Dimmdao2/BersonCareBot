@@ -40,7 +40,7 @@ require_sudo_rule() {
 
 cd "${PROJECT_ROOT}"
 # Discard local changes to auto-generated file so pull never conflicts (Next.js overwrites it on build).
-git checkout -- webapp/next-env.d.ts 2>/dev/null || true
+git checkout -- apps/webapp/next-env.d.ts 2>/dev/null || true
 git pull origin main
 
 # Re-exec self so we run the updated script (current process was started before pull).
@@ -85,7 +85,7 @@ if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]
   set -a
   source "${WEBAPP_ENV_FILE}"
   set +a
-  pnpm --dir webapp run migrate
+  pnpm --dir apps/webapp run migrate
 fi
 
 sudo -n /bin/systemctl restart "${API_SERVICE}"

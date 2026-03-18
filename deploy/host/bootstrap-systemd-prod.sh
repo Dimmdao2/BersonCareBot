@@ -48,7 +48,7 @@ if [ -f /opt/env/bersoncarebot/api.prod ] \
   run_as_root /bin/systemctl enable --now "${WORKER_SERVICE}"
   if [ -e "${SYSTEMD_DIR}/${WEBAPP_SERVICE}" ] \
     && [ -f /opt/env/bersoncarebot/webapp.prod ] \
-    && [ -d "${PROJECT_ROOT}/webapp/.next" ]; then
+    && [ -d "${PROJECT_ROOT}/apps/webapp/.next" ]; then
     run_as_root /bin/systemctl enable --now "${WEBAPP_SERVICE}"
   fi
 else

@@ -1,3 +1,3 @@
 #!/bin/bash
 set -euo pipefail
-pnpm --dir webapp start -- --hostname 127.0.0.1 --port "${PORT:-6200}"
+pnpm --dir apps/webapp start -- --hostname 127.0.0.1 --port "${PORT:-6200}"

@@ -36,7 +36,7 @@ require_sudo_rule() {
 }
 
 cd "${PROJECT_ROOT}"
-git checkout -- webapp/next-env.d.ts 2>/dev/null || true
+git checkout -- apps/webapp/next-env.d.ts 2>/dev/null || true
 git pull origin main
 
 if [ -z "${DEPLOY_WEBAPP_PROD_RERUN:-}" ]; then
@@ -51,13 +51,13 @@ require_sudo_rule "webapp status check" /bin/systemctl is-active --quiet "${WEBA
 
 export CI=true
 pnpm install --frozen-lockfile
-pnpm --dir webapp build
+pnpm --dir apps/webapp build
 
 # Run webapp DB migrations (DATABASE_URL from webapp.prod)
 set -a
 source "${ENV_FILE}"
 set +a
-pnpm --dir webapp run migrate
+pnpm --dir apps/webapp run migrate
 
 sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
 sleep 3

@@ -2,4 +2,4 @@
 set -euo pipefail
 export CI=true
 pnpm install --frozen-lockfile
-pnpm --dir webapp build
+pnpm --dir apps/webapp build

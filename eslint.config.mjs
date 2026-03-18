@@ -14,7 +14,7 @@ export default [
       "_old/**",
       "admin/dist/**",
       "admin/node_modules/**",
-      "webapp/**",
+      "apps/webapp/**",
     ],
   },
 

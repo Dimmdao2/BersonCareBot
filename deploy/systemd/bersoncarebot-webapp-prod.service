@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 WorkingDirectory=/opt/projects/bersoncarebot
 EnvironmentFile=/opt/env/bersoncarebot/webapp.prod
-ExecStart=/usr/bin/pnpm --dir /opt/projects/bersoncarebot/webapp start
+ExecStart=/usr/bin/pnpm --dir /opt/projects/bersoncarebot/apps/webapp start
 Restart=always
 
 [Install]
