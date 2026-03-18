@@ -15,6 +15,7 @@ export default [
       "admin/dist/**",
       "admin/node_modules/**",
       "apps/webapp/**",
+      "apps/integrator/dist/**",
     ],
   },
 
@@ -41,23 +42,23 @@ export default [
   },
 
   {
-    files: ["src/integrations/telegram/**/*.ts"],
+    files: ["apps/integrator/src/integrations/telegram/**/*.ts"],
     rules: {
       "no-restricted-imports": ["error", { patterns: ["*db*"] }],
     },
   },
 
   {
-    files: ["src/domain/**/*.ts"],
+    files: ["apps/integrator/src/domain/**/*.ts"],
     rules: {
       "no-restricted-imports": ["error", { patterns: ["*adapters*", "*persistence*", "*channels*", "*integrations*", "*db*"] }],
     },
   },
 
   {
-    files: ["src/worker/**/*.ts"],
+    files: ["apps/integrator/src/infra/runtime/worker/**/*.ts"],
     rules: {
-      "no-restricted-imports": ["error", { patterns: ["*channels*", "*app*"] }],
+      "no-restricted-imports": ["error", { patterns: ["*channels*", "**/app/di*", "**/app/index*"] }],
     },
   },
 
