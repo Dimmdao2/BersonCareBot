@@ -37,7 +37,7 @@ export function AppShell({
   if (variant === "patient") {
     return (
       <div className="app-shell app-shell--patient">
-        <PatientHeader showBack={!!backHref} />
+        <PatientHeader showBack={!!backHref} backHref={backHref} backLabel={backLabel} />
         <main className="content-area">{children}</main>
       </div>
     );

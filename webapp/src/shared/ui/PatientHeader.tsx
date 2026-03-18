@@ -13,20 +13,25 @@ const MENU_ITEMS: { id: string; label: string; href: string }[] = [
 ];
 
 type PatientHeaderProps = {
-  /** Показывать кнопку «Назад» (переход по истории). Если не передано — стрелка не показывается (главное меню). */
+  /** Показывать кнопку «Назад». Если передан backHref — ссылка на него, иначе router.back(). */
   showBack?: boolean;
+  /** Куда ведёт кнопка «Назад» (например /app/patient). */
+  backHref?: string;
+  /** Текст/aria-label для кнопки «Назад». */
+  backLabel?: string;
 };
 
-/** Шапка пациента: стрелка назад (по истории) | BERSONCARE (в меню) | гамбургер (боковое меню справа). */
-export function PatientHeader({ showBack }: PatientHeaderProps) {
+/** Шапка пациента: стрелка назад | BERSONCARE | гамбургер (боковое меню справа). */
+export function PatientHeader({ showBack, backHref, backLabel = "Назад" }: PatientHeaderProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
   const close = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => setOpen((v) => !v), []);
   const goBack = useCallback(() => {
-    router.back();
-  }, [router]);
+    if (backHref) router.push(backHref);
+    else router.back();
+  }, [router, backHref]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -48,14 +53,24 @@ export function PatientHeader({ showBack }: PatientHeaderProps) {
       <div className="patient-header__row">
         <div className="patient-header__left">
           {showBack ? (
-            <button
-              type="button"
-              className="patient-header__back"
-              onClick={goBack}
-              aria-label="Назад"
-            >
-              <span className="patient-header__back-icon" aria-hidden>←</span>
-            </button>
+            backHref ? (
+              <Link
+                href={backHref}
+                className="patient-header__back"
+                aria-label={backLabel}
+              >
+                <span className="patient-header__back-icon" aria-hidden>←</span>
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className="patient-header__back"
+                onClick={goBack}
+                aria-label={backLabel}
+              >
+                <span className="patient-header__back-icon" aria-hidden>←</span>
+              </button>
+            )
           ) : (
             <span className="patient-header__back-placeholder" aria-hidden />
           )}
