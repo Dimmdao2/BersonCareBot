@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { handleIntegratorEvent } from "@/modules/integrator/events";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
@@ -62,7 +63,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "idempotency key mismatch between header and body" }, { status: 400 });
   }
 
-  const result = await handleIntegratorEvent(eventBody);
+  const deps = buildAppDeps();
+  const result = await handleIntegratorEvent(eventBody, { diaries: deps.diaries });
   const status = result.accepted ? 202 : 503;
   const body: Record<string, unknown> = result.accepted
     ? { ok: true, accepted: true, idempotencyKey }

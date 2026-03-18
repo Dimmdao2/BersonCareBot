@@ -1,3 +1,6 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildAppDeps } from "./buildAppDeps";
 
@@ -112,6 +115,19 @@ describe("buildAppDeps", () => {
     expect(stats.clients).toHaveProperty("total");
   });
 
+  it("doctorBroadcasts has getCategories, preview, execute, listAudit", async () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.doctorBroadcasts.getCategories).toBe("function");
+    expect(typeof deps.doctorBroadcasts.preview).toBe("function");
+    expect(typeof deps.doctorBroadcasts.execute).toBe("function");
+    expect(typeof deps.doctorBroadcasts.listAudit).toBe("function");
+    const categories = deps.doctorBroadcasts.getCategories();
+    expect(Array.isArray(categories)).toBe(true);
+    expect(categories).toContain("reminder");
+    const audit = await deps.doctorBroadcasts.listAudit(5);
+    expect(Array.isArray(audit)).toBe(true);
+  });
+
   it("auth has getCurrentSession, exchangeIntegratorToken, exchangeTelegramInitData, clearSession, setSessionFromUser, startPhoneAuth, confirmPhoneAuth", () => {
     const deps = buildAppDeps();
     expect(typeof deps.auth.getCurrentSession).toBe("function");
@@ -156,5 +172,28 @@ describe("buildAppDeps", () => {
     const sessions = await deps.diaries.listLfkSessions("build-deps-test-user");
     expect(Array.isArray(entries)).toBe(true);
     expect(Array.isArray(sessions)).toBe(true);
+  });
+
+  it("no module under modules/* imports buildAppDeps (composition root boundary)", () => {
+    const root = join(fileURLToPath(import.meta.url), "../../../modules");
+    const bad: string[] = [];
+    function scan(dir: string) {
+      for (const ent of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, ent.name);
+        if (ent.isDirectory()) scan(full);
+        else if (ent.name.endsWith(".ts") && !ent.name.endsWith(".test.ts")) {
+          const content = readFileSync(full, "utf-8");
+          if (
+            content.includes("buildAppDeps") &&
+            (content.includes('from "@/app-layer/di/buildAppDeps"') ||
+              content.includes("from '@/app-layer/di/buildAppDeps'"))
+          ) {
+            bad.push(full);
+          }
+        }
+      }
+    }
+    scan(root);
+    expect(bad).toEqual([]);
   });
 });

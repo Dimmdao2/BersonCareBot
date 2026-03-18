@@ -1,9 +1,8 @@
 /**
  * Domain handling for integrator webhook events (POST /api/integrator/events).
  * Parsed body shape per contracts/integrator-events-body.json.
+ * Deps are injected by the route; this module must not import buildAppDeps.
  */
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-
 export type IntegratorEventBody = {
   eventType: string;
   eventId?: string;
@@ -17,11 +16,41 @@ export type IntegratorHandleResult = {
   reason?: string;
 };
 
+/** Narrow deps for event handling; supplied by the route from buildAppDeps(). */
+export type IntegratorEventsDeps = {
+  diaries: {
+    createSymptomTracking: (params: {
+      userId: string;
+      symptomKey: string | null;
+      symptomTitle: string;
+    }) => Promise<unknown>;
+    createLfkComplex: (params: { userId: string; title: string; origin: "manual" | "assigned_by_specialist" }) => Promise<unknown>;
+    addLfkSession: (params: {
+      userId: string;
+      complexId: string;
+      completedAt?: string;
+      source: "bot" | "webapp";
+    }) => Promise<unknown>;
+    addSymptomEntry: (params: {
+      userId: string;
+      trackingId: string;
+      value0_10: number;
+      entryType: "daily" | "instant";
+      recordedAt: string;
+      source: "bot" | "webapp";
+      notes: string | null;
+    }) => Promise<unknown>;
+  };
+};
+
 function isNonEmptyString(x: unknown): x is string {
   return typeof x === "string" && x.trim().length > 0;
 }
 
-export async function handleIntegratorEvent(event: IntegratorEventBody): Promise<IntegratorHandleResult> {
+export async function handleIntegratorEvent(
+  event: IntegratorEventBody,
+  deps: IntegratorEventsDeps
+): Promise<IntegratorHandleResult> {
   if (process.env.NODE_ENV !== "production") {
     // eslint-disable-next-line no-console
     console.info("[integrator] event received", event.eventType, event.eventId ?? "");
@@ -38,7 +67,6 @@ export async function handleIntegratorEvent(event: IntegratorEventBody): Promise
       return { accepted: false, reason: "diary.symptom.tracking.created: payload.symptomTitle required" };
     }
     try {
-      const deps = buildAppDeps();
       await deps.diaries.createSymptomTracking({
         userId,
         symptomKey: typeof payload.symptomKey === "string" ? payload.symptomKey : null,
@@ -62,7 +90,6 @@ export async function handleIntegratorEvent(event: IntegratorEventBody): Promise
       return { accepted: false, reason: "diary.lfk.complex.created: payload.title required" };
     }
     try {
-      const deps = buildAppDeps();
       await deps.diaries.createLfkComplex({
         userId,
         title: (title as string).trim(),
@@ -88,7 +115,6 @@ export async function handleIntegratorEvent(event: IntegratorEventBody): Promise
     const completedAt = payload.completedAt;
     const completedAtStr = typeof completedAt === "string" ? completedAt : new Date().toISOString();
     try {
-      const deps = buildAppDeps();
       await deps.diaries.addLfkSession({
         userId,
         complexId,
@@ -121,7 +147,6 @@ export async function handleIntegratorEvent(event: IntegratorEventBody): Promise
     const recordedAt = payload.recordedAt;
     const recordedAtStr = typeof recordedAt === "string" ? recordedAt : new Date().toISOString();
     try {
-      const deps = buildAppDeps();
       await deps.diaries.addSymptomEntry({
         userId,
         trackingId,
