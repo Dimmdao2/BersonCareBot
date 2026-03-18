@@ -1,0 +1,43 @@
+# Образец правил sudo для пользователя deploy (несколько проектов).
+# Вставить в visudo или в файл в /etc/sudoers.d/ (например 99-deploy).
+# Не переименовывать в .sudoers — это не сам sudoers, а пример для копирования.
+
+# =============================================================================
+# Общие: бэкап БД перед миграциями, daemon-reload после копирования юнитов
+# =============================================================================
+deploy ALL=(root) NOPASSWD: /opt/backups/scripts/postgres-backup.sh pre-migrations
+deploy ALL=(root) NOPASSWD: /bin/systemctl daemon-reload
+
+# =============================================================================
+# BersonCareBot: копирование юнитов, enable, restart, is-active, journalctl
+# =============================================================================
+deploy ALL=(root) NOPASSWD: \
+    /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-api-prod.service /etc/systemd/system/bersoncarebot-api-prod.service, \
+    /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-worker-prod.service /etc/systemd/system/bersoncarebot-worker-prod.service, \
+    /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-webapp-prod.service /etc/systemd/system/bersoncarebot-webapp-prod.service, \
+    /bin/systemctl enable bersoncarebot-api-prod.service, \
+    /bin/systemctl enable bersoncarebot-worker-prod.service, \
+    /bin/systemctl enable bersoncarebot-webapp-prod.service, \
+    /bin/systemctl enable --now bersoncarebot-api-prod.service, \
+    /bin/systemctl enable --now bersoncarebot-worker-prod.service, \
+    /bin/systemctl enable --now bersoncarebot-webapp-prod.service, \
+    /bin/systemctl restart bersoncarebot-api-prod.service, \
+    /bin/systemctl restart bersoncarebot-worker-prod.service, \
+    /bin/systemctl restart bersoncarebot-webapp-prod.service, \
+    /bin/systemctl is-active --quiet bersoncarebot-api-prod.service, \
+    /bin/systemctl is-active --quiet bersoncarebot-worker-prod.service, \
+    /bin/systemctl is-active --quiet bersoncarebot-webapp-prod.service, \
+    /usr/bin/journalctl -u bersoncarebot-api-prod.service -n 40 --no-pager, \
+    /usr/bin/journalctl -u bersoncarebot-worker-prod.service -n 40 --no-pager, \
+    /usr/bin/journalctl -u bersoncarebot-webapp-prod.service -n 40 --no-pager
+
+# =============================================================================
+# Storylama: web и api (restart, status, is-active)
+# =============================================================================
+deploy ALL=(root) NOPASSWD: \
+    /bin/systemctl restart storylama-web-prod.service, \
+    /bin/systemctl status storylama-web-prod.service, \
+    /bin/systemctl is-active storylama-web-prod.service, \
+    /bin/systemctl restart storylama-api-prod.service, \
+    /bin/systemctl status storylama-api-prod.service, \
+    /bin/systemctl is-active storylama-api-prod.service

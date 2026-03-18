@@ -45,6 +45,9 @@ if [ -z "${DEPLOY_WEBAPP_PROD_RERUN:-}" ]; then
 fi
 
 # Reinstall webapp unit from repo so paths match current layout (apps/webapp).
+# Requires deploy user to have NOPASSWD for install and systemctl daemon-reload (see HOST_DEPLOY_README).
+require_sudo_rule "systemd unit install (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" /etc/systemd/system/bersoncarebot-webapp-prod.service
+require_sudo_rule "systemd daemon-reload (bootstrap)" /bin/systemctl daemon-reload
 bash deploy/host/bootstrap-systemd-webapp-prod.sh
 
 require_file "${ENV_FILE}" "Production webapp environment file"

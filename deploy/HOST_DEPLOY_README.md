@@ -356,12 +356,24 @@ The bootstrap script copies these templates into `/etc/systemd/system/`, reloads
 If `/opt/env/bersoncarebot/api.prod`, `/opt/env/bersoncarebot/webapp.prod`, and build artifacts exist, the script also starts the services. Otherwise it enables them and leaves startup to the next `deploy/host/deploy-prod.sh` run.
 
 ## CI deploy requirements
-`deploy/host/deploy-prod.sh` uses `sudo -n` and fails fast if the deploy user is missing the required `NOPASSWD` rules.
+`deploy/host/deploy-prod.sh` uses `sudo -n` and fails fast if the deploy user is missing the required `NOPASSWD` rules. Deploy now runs `bootstrap-systemd-prod.sh` every time (to refresh unit files after path reorgs), so the deploy user must also have passwordless sudo for **install** and **systemctl daemon-reload** (and enable/enable --now if bootstrap starts services).
 
-Example sudoers entry for the deploy user:
+**Полный образец с разбивкой по проектам и общим блоком** (бэкап, daemon-reload, BersonCareBot, Storylama) — см. файл **`deploy/sudoers-deploy.example`**. Скопировать нужные блоки в `sudo visudo` или в файл в `/etc/sudoers.d/`.
+
+Пример (только BersonCareBot, для справки):
 
 ```sudoers
 deploy ALL=(root) NOPASSWD: /opt/backups/scripts/postgres-backup.sh pre-migrations
+deploy ALL=(root) NOPASSWD: /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-api-prod.service /etc/systemd/system/bersoncarebot-api-prod.service
+deploy ALL=(root) NOPASSWD: /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-worker-prod.service /etc/systemd/system/bersoncarebot-worker-prod.service
+deploy ALL=(root) NOPASSWD: /usr/bin/install -m 0644 /opt/projects/bersoncarebot/deploy/systemd/bersoncarebot-webapp-prod.service /etc/systemd/system/bersoncarebot-webapp-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl daemon-reload
+deploy ALL=(root) NOPASSWD: /bin/systemctl enable bersoncarebot-api-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl enable bersoncarebot-worker-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl enable bersoncarebot-webapp-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl enable --now bersoncarebot-api-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl enable --now bersoncarebot-worker-prod.service
+deploy ALL=(root) NOPASSWD: /bin/systemctl enable --now bersoncarebot-webapp-prod.service
 deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-api-prod.service
 deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-worker-prod.service
 deploy ALL=(root) NOPASSWD: /bin/systemctl restart bersoncarebot-webapp-prod.service
@@ -372,7 +384,7 @@ deploy ALL=(root) NOPASSWD: /usr/bin/journalctl -u bersoncarebot-api-prod.servic
 deploy ALL=(root) NOPASSWD: /usr/bin/journalctl -u bersoncarebot-worker-prod.service -n 40 --no-pager
 ```
 
-Without those permissions, CI deploy will exit before `pnpm install` or `pnpm build`. The journalctl rules let the deploy script print API/worker logs when a service fails to start (so the error appears in CI output).
+Without those permissions, CI deploy will exit with "Missing passwordless sudo permission for ..." before `pnpm install` or `pnpm build`. The journalctl rules let the deploy script print API/worker logs when a service fails to start (so the error appears in CI output).
 
 ## Перенос env в /opt/env/bersoncarebot (один раз на сервере)
 

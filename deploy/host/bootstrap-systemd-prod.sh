@@ -19,7 +19,7 @@ run_as_root() {
   if [ "$(id -u)" -eq 0 ]; then
     "$@"
   else
-    sudo "$@"
+    sudo -n "$@"
   fi
 }
 

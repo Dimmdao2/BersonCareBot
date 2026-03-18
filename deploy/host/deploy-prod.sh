@@ -50,6 +50,13 @@ if [ -z "${DEPLOY_PROD_RERUN:-}" ]; then
 fi
 
 # Reinstall systemd units from repo so WorkingDirectory/ExecStart match current layout (apps/integrator).
+# Requires deploy user to have NOPASSWD for install and systemctl daemon-reload (see HOST_DEPLOY_README).
+require_sudo_rule "systemd unit install API (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-api-prod.service" /etc/systemd/system/bersoncarebot-api-prod.service
+require_sudo_rule "systemd unit install worker (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-worker-prod.service" /etc/systemd/system/bersoncarebot-worker-prod.service
+if [ -f "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" ]; then
+  require_sudo_rule "systemd unit install webapp (bootstrap)" /usr/bin/install -m 0644 "${PROJECT_ROOT}/deploy/systemd/bersoncarebot-webapp-prod.service" /etc/systemd/system/bersoncarebot-webapp-prod.service
+fi
+require_sudo_rule "systemd daemon-reload (bootstrap)" /bin/systemctl daemon-reload
 bash deploy/host/bootstrap-systemd-prod.sh
 
 require_file "${ENV_FILE}" "Production environment file"
