@@ -3,7 +3,9 @@
  * Модуль связывает инфраструктурные зависимости и отдает
  * единую точку входа EventGateway для входящих адаптеров.
  */
+import { join } from 'path';
 import type { FastifyInstance } from 'fastify';
+import { getAppRoot } from '../config/appRoot.js';
 import { appSettings } from '../config/appSettings.js';
 import { env } from '../config/env.js';
 import { createDbPort, healthCheckDb } from '../infra/db/client.js';
@@ -125,7 +127,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
   });
 
-  const contentPort = createContentPort();
+  const contentPort = createContentPort({ rootDir: join(getAppRoot(), 'src', 'content') });
   const contentCatalogPort = createContentCatalogPort();
   const contextQueryPort = createContextQueryPort({
     readPort: dbReadPort,

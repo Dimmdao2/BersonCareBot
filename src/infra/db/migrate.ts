@@ -4,6 +4,7 @@ import { readdir, readFile, stat } from 'fs/promises'; // Работа с фай
 import { join } from 'path'; // Склейка путей
 import { fileURLToPath } from 'url';
 import { Pool } from 'pg'; // Работа с PostgreSQL
+import { getAppRoot } from '../../config/appRoot.js';
 import { env } from '../../config/env.js'; // Переменные окружения
 import { logger, getMigrationLogger } from '../observability/logger.js'; // Логирование
 
@@ -103,8 +104,9 @@ async function discoverIntegrationMigrations(integrationsRoot: string): Promise<
 
 // Находит все миграции (core + интеграции)
 async function discoverMigrations(): Promise<MigrationFile[]> {
-  const coreDir = join(process.cwd(), 'src', 'infra', 'db', 'migrations', 'core');
-  const integrationsRoot = join(process.cwd(), 'src', 'integrations');
+  const appRoot = getAppRoot();
+  const coreDir = join(appRoot, 'src', 'infra', 'db', 'migrations', 'core');
+  const integrationsRoot = join(appRoot, 'src', 'integrations');
 
   const core = await discoverCoreMigrations(coreDir);
   const integrations = await discoverIntegrationMigrations(integrationsRoot);
