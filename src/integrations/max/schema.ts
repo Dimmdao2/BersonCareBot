@@ -22,7 +22,7 @@ const MaxMessageBodySchema = z.object({
 }).passthrough();
 
 const MaxRecipientSchema = z.object({
-  chat_id: z.number(),
+  chat_id: z.number().optional(),
   chat_type: z.string().optional(),
   user_id: z.number().optional(),
 }).passthrough();

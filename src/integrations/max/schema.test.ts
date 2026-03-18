@@ -44,6 +44,23 @@ describe('max schema', () => {
     }
   });
 
+  it('parses message_created when recipient has only user_id (private chat)', () => {
+    const result = parseMaxUpdate({
+      update_type: 'message_created',
+      timestamp: 1,
+      message: {
+        recipient: { user_id: 12345 },
+        body: { text: 'Hi' },
+        sender: { user_id: 12345 },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.message?.recipient?.user_id).toBe(12345);
+      expect(result.data.message?.recipient?.chat_id).toBeUndefined();
+    }
+  });
+
   it('parses bot_started', () => {
     const result = parseMaxUpdate({ update_type: 'bot_started', timestamp: 1, message: { recipient: { chat_id: 1 }, sender: { user_id: 2 } } });
     expect(result.success).toBe(true);

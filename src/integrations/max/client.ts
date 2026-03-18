@@ -86,7 +86,9 @@ export async function sendMaxMessage(
     if (params.attachments?.length) extra.attachments = params.attachments;
     const message = await bot.api.sendMessageToUser(params.userId, params.text, extra as never);
     return message?.body?.mid != null ? { message: { id: 0 } } : null;
-  } catch {
+  } catch (err) {
+    const { logger } = await import('../../infra/observability/logger.js');
+    logger.error({ err, userId: params.userId, textLength: params.text?.length }, 'max sendMessage failed');
     return null;
   }
 }

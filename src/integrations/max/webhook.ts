@@ -41,8 +41,22 @@ export async function registerMaxWebhookRoutes(
         return reply.code(400).send({ ok: false, error: 'Invalid webhook body' });
       }
 
-      const incoming = fromMax(parseResult.data);
+      const data = parseResult.data;
+      reqLogger.info(
+        {
+          update_type: data.update_type,
+          has_message: data.message != null,
+          has_callback: data.callback != null,
+          recipient_chat_id: data.message?.recipient?.chat_id,
+          recipient_user_id: data.message?.recipient?.user_id,
+          sender_user_id: data.message?.sender?.user_id,
+        },
+        'max webhook received',
+      );
+
+      const incoming = fromMax(data);
       if (!incoming) {
+        reqLogger.info({ update_type: data.update_type }, 'max webhook skipped (unsupported or missing chatId/userId)');
         return reply.code(200).send({ ok: true });
       }
 
