@@ -9,8 +9,8 @@ describe('max mapIn', () => {
       timestamp: 1739184000000,
       message: {
         recipient: { chat_id: 200, user_id: 12345 },
-        body: { text: 'Hi' },
-        sender: { user_id: 200 },
+        body: { mid: 'mid-1', text: 'Hi' },
+        sender: { user_id: 200, username: 'maxuser', first_name: 'Max', last_name: 'User' },
       },
       user_locale: 'ru',
     };
@@ -20,7 +20,11 @@ describe('max mapIn', () => {
     if (incoming?.kind === 'message') {
       expect(incoming.chatId).toBe(200);
       expect(incoming.channelId).toBe('200');
+      expect(incoming.messageId).toBe('mid-1');
       expect(incoming.text).toBe('Hi');
+      expect(incoming.channelUsername).toBe('maxuser');
+      expect(incoming.channelFirstName).toBe('Max');
+      expect(incoming.channelLastName).toBe('User');
     }
   });
 
@@ -39,20 +43,60 @@ describe('max mapIn', () => {
     if (incoming?.kind === 'message') expect(incoming.action).toBe('menu.more');
   });
 
+  it('maps /book command to booking.open', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 201 },
+        body: { text: '/book' },
+        sender: { user_id: 201 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.action).toBe('booking.open');
+  });
+
+  it('maps image attachment to relayMessageType photo', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 201 },
+        body: { mid: 'mid-photo', attachments: [{ type: 'image', payload: { url: 'https://x.test/a.jpg' } }] },
+        sender: { user_id: 201 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.relayMessageType).toBe('photo');
+  });
+
   it('maps message_callback (real payload) to IncomingCallbackUpdate', () => {
     const body = {
       update_type: 'message_callback' as const,
       timestamp: 1,
-      callback: { callback_id: 'cb-1', payload: 'notifications.show', user: { user_id: 202 } },
-      message: { recipient: { chat_id: 202 }, body: {}, sender: { user_id: 12345 } },
+      callback: {
+        callback_id: 'cb-1',
+        payload: 'admin_reply:conv-42',
+        user: { user_id: 202, username: 'callback-user', first_name: 'Call', last_name: 'Back' },
+      },
+      message: { recipient: { chat_id: 202 }, body: { mid: 'mid-callback-1' }, sender: { user_id: 12345 } },
     };
     const incoming = fromMax(body);
     expect(incoming).not.toBeNull();
     expect(incoming?.kind).toBe('callback');
     if (incoming?.kind === 'callback') {
+      expect(incoming.messageId).toBe('mid-callback-1');
       expect(incoming.callbackQueryId).toBe('cb-1');
-      expect(incoming.callbackData).toBe('notifications.show');
+      expect(incoming.callbackData).toBe('admin_reply');
+      expect(incoming.action).toBe('admin_reply');
+      expect(incoming.conversationId).toBe('conv-42');
       expect(incoming.channelUserId).toBe(202);
+      expect(incoming.channelUsername).toBe('callback-user');
+      expect(incoming.channelFirstName).toBe('Call');
+      expect(incoming.channelLastName).toBe('Back');
     }
   });
 
@@ -88,6 +132,17 @@ describe('max mapIn', () => {
       update_type: 'message_callback' as const,
       timestamp: 1,
       message: { recipient: { chat_id: 204 }, sender: { user_id: 204 } },
+    };
+    const incoming = fromMax(body);
+    expect(incoming).toBeNull();
+  });
+
+  it('returns null for message_callback without message mid', () => {
+    const body = {
+      update_type: 'message_callback' as const,
+      timestamp: 1,
+      callback: { callback_id: 'cb-1', payload: 'notifications.show', user: { user_id: 202 } },
+      message: { recipient: { chat_id: 202 }, body: {}, sender: { user_id: 12345 } },
     };
     const incoming = fromMax(body);
     expect(incoming).toBeNull();

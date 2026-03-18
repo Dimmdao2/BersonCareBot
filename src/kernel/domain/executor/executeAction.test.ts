@@ -1364,6 +1364,54 @@ describe('executeAction', () => {
       }
     });
 
+    it('conversation.user.message: routes MAX text to MAX admin chat without telegram copy', async () => {
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const readDb = vi.fn().mockResolvedValue({
+        id: 'conv-max-1',
+        source: 'max',
+        user_channel_id: '456',
+        first_name: 'M',
+        last_name: 'A',
+        username: 'max-user',
+      });
+      const userCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'message.received',
+          meta: { ...ctx.event.meta, source: 'max', userId: '456' },
+          payload: {
+            incoming: {
+              kind: 'message',
+              chatId: 456,
+              channelId: '456',
+              messageId: 'mid-456',
+              text: 'Hello from MAX',
+              relayMessageType: 'text',
+            },
+          },
+        },
+        base: { ...ctx.base, facts: { adminChatId: 156854402 } },
+      };
+      const result = await executeAction({
+        id: 'u-max-1',
+        type: 'conversation.user.message',
+        mode: 'sync',
+        params: { source: 'max' },
+      }, userCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        supportRelayPolicy: createSupportRelayPolicy(['text', 'photo'], ['text']),
+      });
+      expect(result.status).toBe('success');
+      expect(result.intents?.some((i) => i.type === 'message.copy')).toBe(false);
+      const adminIntents = result.intents?.filter(
+        (i) => i.type === 'message.send'
+          && (i.payload as { recipient?: { chatId?: number }; delivery?: { channels?: string[] } }).recipient?.chatId === 156854402,
+      );
+      expect(adminIntents?.length).toBe(2);
+      expect(adminIntents?.every((i) => (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels?.[0] === 'max')).toBe(true);
+    });
+
     it('conversation.admin.reply: returns refusal intent when type not allowed admin->user', async () => {
       const readDb = vi.fn().mockImplementation((query: { type: string }) => {
         if (query.type === 'conversation.byId') {
@@ -1528,6 +1576,63 @@ describe('executeAction', () => {
         (i) => i.type === 'message.send' && (i.payload as { recipient?: { chatId?: number } })?.recipient?.chatId === 999,
       );
       expect(adminConfirmIntent).toBeDefined();
+    });
+
+    it('conversation.admin.reply: sends MAX text to MAX user and confirms in MAX admin chat', async () => {
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const readDb = vi.fn().mockImplementation((query: { type: string }) => {
+        if (query.type === 'conversation.byId') {
+          return Promise.resolve({
+            id: 'conv-max-2',
+            source: 'max',
+            user_channel_id: '456',
+          });
+        }
+        if (query.type === 'question.byConversationId') {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve(null);
+      });
+      const adminCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'message.received',
+          meta: { ...ctx.event.meta, source: 'max' },
+          payload: {
+            incoming: {
+              kind: 'message',
+              chatId: 156854402,
+              channelId: '89002800',
+              messageId: 'mid-admin-1',
+              text: 'MAX admin reply',
+              relayMessageType: 'text',
+            },
+          },
+        },
+        base: { ...ctx.base },
+      };
+      const result = await executeAction({
+        id: 'r-max-1',
+        type: 'conversation.admin.reply',
+        mode: 'sync',
+        params: { conversationId: 'conv-max-2' },
+      }, adminCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        supportRelayPolicy: createSupportRelayPolicy(['text'], ['text', 'photo']),
+      });
+      expect(result.status).toBe('success');
+      expect(result.intents?.some((i) => i.type === 'message.copy')).toBe(false);
+      const userSendIntent = result.intents?.find(
+        (i) => i.type === 'message.send' && (i.payload as { recipient?: { chatId?: number } })?.recipient?.chatId === 456,
+      );
+      expect(userSendIntent).toBeDefined();
+      expect((userSendIntent?.payload as { delivery?: { channels?: string[] } }).delivery?.channels).toEqual(['max']);
+      const adminConfirmIntent = result.intents?.find(
+        (i) => i.type === 'message.send' && (i.payload as { recipient?: { chatId?: number } })?.recipient?.chatId === 156854402,
+      );
+      expect(adminConfirmIntent).toBeDefined();
+      expect((adminConfirmIntent?.payload as { delivery?: { channels?: string[] } }).delivery?.channels).toEqual(['max']);
     });
   });
 

@@ -3,6 +3,7 @@ import type { ExecutorDeps } from '../helpers.js';
 import {
   asRecord,
   asString,
+  asMessageId,
   asNumber,
   asStringArray,
   buildMainReplyKeyboardMarkup,
@@ -126,7 +127,7 @@ export async function handleDelivery(
       templatePort: deps.templatePort,
     });
     const chatId = asNumber(action.params.chatId);
-    const messageId = asNumber(action.params.messageId);
+    const messageId = asMessageId(action.params.messageId);
     const parseMode = action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
       ? action.params.parseMode
       : undefined;
@@ -146,7 +147,7 @@ export async function handleDelivery(
 
   if (action.type === 'message.replyMarkup.edit') {
     const chatId = asNumber(action.params.chatId);
-    const messageId = asNumber(action.params.messageId);
+    const messageId = asMessageId(action.params.messageId);
     const replyMarkup = await buildReplyMarkup({
       params: action.params,
       vars: action.params.vars,

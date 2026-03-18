@@ -1,5 +1,6 @@
 import type { IncomingCallbackUpdate, IncomingMessageUpdate, IncomingUpdate } from '../../kernel/domain/types.js';
 import type { MaxUpdateValidated } from './schema.js';
+import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
 import { normalizeDynamicTelegramAction } from '../telegram/mapIn.js';
 
 /** Map MAX button payload / text to internal action (e.g. for menu). */
@@ -10,6 +11,13 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Меню': 'menu.more',
   '📓 Дневник': 'diary.open',
   'Дневник': 'diary.open',
+  '/admin_bookings': 'admin.stats.bookings',
+  '/admin_users': 'admin.stats.users',
+  '/dialogs': 'admin.dialogs.open',
+  '/unanswered': 'admin.questions.unanswered',
+  '/show_my_id': 'debug.show_my_id',
+  '/book': 'booking.open',
+  'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 
 function getActionFromText(text: string): string {
@@ -32,6 +40,34 @@ function getUserIdFromMessage(msg: MaxUpdateValidated['message']): number | null
   return null;
 }
 
+function getMessageIdFromMessage(msg: MaxUpdateValidated['message']): string | null {
+  return typeof msg?.body?.mid === 'string' && msg.body.mid.trim().length > 0 ? msg.body.mid : null;
+}
+
+function getRelayMessageTypeFromMaxMessage(msg: MaxUpdateValidated['message']): SupportRelayMessageType | null {
+  const attachments = Array.isArray(msg?.body?.attachments) ? msg.body.attachments : [];
+  const first = attachments[0] as { type?: unknown } | undefined;
+  const type = typeof first?.type === 'string' ? first.type : null;
+  switch (type) {
+    case 'image':
+      return 'photo';
+    case 'file':
+      return 'document';
+    case 'audio':
+      return 'audio';
+    case 'video':
+      return 'video';
+    case 'sticker':
+      return 'sticker';
+    case 'contact':
+      return 'contact';
+    case 'location':
+      return 'location';
+    default:
+      return typeof msg?.body?.text === 'string' && msg.body.text.trim().length > 0 ? 'text' : null;
+  }
+}
+
 /**
  * Maps validated MAX webhook/long-poll Update to internal IncomingUpdate.
  * Real payload: message.body.text, message.sender, message.recipient; callback.*.
@@ -42,16 +78,21 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
     const payload = typeof body.callback.payload === 'string' ? body.callback.payload : '';
     const userId = body.callback.user?.user_id;
     const chatId = getChatIdFromMessage(body.message) ?? userId ?? null;
-    if (!callbackId || chatId === null || userId == null) return null;
+    const messageId = getMessageIdFromMessage(body.message);
+    if (!callbackId || chatId === null || userId == null || !messageId) return null;
     const normalized = normalizeDynamicTelegramAction(payload);
     const update: IncomingCallbackUpdate = {
       kind: 'callback',
       chatId,
-      messageId: 0,
+      messageId,
       channelUserId: userId,
       action: normalized.action,
       callbackData: normalized.action,
       callbackQueryId: callbackId,
+      ...(typeof normalized.conversationId === 'string' ? { conversationId: normalized.conversationId } : {}),
+      ...(typeof body.callback.user?.username === 'string' ? { channelUsername: body.callback.user.username } : {}),
+      ...(typeof body.callback.user?.first_name === 'string' ? { channelFirstName: body.callback.user.first_name } : {}),
+      ...(typeof body.callback.user?.last_name === 'string' ? { channelLastName: body.callback.user.last_name } : {}),
       ...(typeof normalized.trackingId === 'string' ? { trackingId: normalized.trackingId } : {}),
       ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
       ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
@@ -70,8 +111,13 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       kind: 'message',
       chatId,
       channelId: String(userId),
+      ...(getMessageIdFromMessage(msg) ? { messageId: getMessageIdFromMessage(msg) as string } : {}),
       text,
       action: getActionFromText(text),
+      ...(getRelayMessageTypeFromMaxMessage(msg) ? { relayMessageType: getRelayMessageTypeFromMaxMessage(msg) as SupportRelayMessageType } : {}),
+      ...(typeof msg.sender?.username === 'string' ? { channelUsername: msg.sender.username } : {}),
+      ...(typeof msg.sender?.first_name === 'string' ? { channelFirstName: msg.sender.first_name } : {}),
+      ...(typeof msg.sender?.last_name === 'string' ? { channelLastName: msg.sender.last_name } : {}),
       userRow: null,
       userState: '',
     };
@@ -89,6 +135,9 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       channelId: String(userId),
       text: '/start',
       action: '',
+      ...(typeof (msg?.sender?.username ?? body.user?.username) === 'string' ? { channelUsername: (msg?.sender?.username ?? body.user?.username) as string } : {}),
+      ...(typeof (msg?.sender?.first_name ?? body.user?.first_name) === 'string' ? { channelFirstName: (msg?.sender?.first_name ?? body.user?.first_name) as string } : {}),
+      ...(typeof (msg?.sender?.last_name ?? body.user?.last_name) === 'string' ? { channelLastName: (msg?.sender?.last_name ?? body.user?.last_name) as string } : {}),
       userRow: null,
       userState: '',
     };
@@ -102,6 +151,9 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       channelId: String(body.user.user_id),
       text: '/start',
       action: '',
+      ...(typeof body.user.username === 'string' ? { channelUsername: body.user.username } : {}),
+      ...(typeof body.user.first_name === 'string' ? { channelFirstName: body.user.first_name } : {}),
+      ...(typeof body.user.last_name === 'string' ? { channelLastName: body.user.last_name } : {}),
       userRow: null,
       userState: '',
     };

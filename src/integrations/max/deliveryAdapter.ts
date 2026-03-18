@@ -1,4 +1,5 @@
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import { maxConfig } from './config.js';
 import * as maxClient from './client.js';
 
@@ -39,13 +40,13 @@ function asNonEmptyString(value: unknown): string | null {
 /**
  * Convert Telegram-style reply_markup.inline_keyboard to MAX inline_keyboard attachment.
  */
-function toMaxInlineKeyboard(replyMarkup: unknown): Array<{ type: 'inline_keyboard'; payload: { buttons: Array<Array<{ type: string; text: string; payload?: string; url?: string }>> } }> | undefined {
+function toMaxInlineKeyboard(replyMarkup: unknown): AttachmentRequest[] | undefined {
   const rm = replyMarkup as { inline_keyboard?: Array<Array<{ text?: string; callback_data?: string; url?: string }>> } | null;
   if (!rm?.inline_keyboard?.length) return undefined;
-  const buttons = rm.inline_keyboard.map((row) =>
-    row.map((btn) => {
-      if (btn.url) return { type: 'link' as const, text: btn.text ?? '', url: btn.url };
-      return { type: 'callback' as const, text: btn.text ?? '', payload: btn.callback_data ?? '' };
+  const buttons: Button[][] = rm.inline_keyboard.map((row) =>
+    row.map((btn): Button => {
+      if (btn.url) return { type: 'link', text: btn.text ?? '', url: btn.url };
+      return { type: 'callback', text: btn.text ?? '', payload: btn.callback_data ?? '' };
     }),
   );
   return [{ type: 'inline_keyboard', payload: { buttons } }];
@@ -58,6 +59,7 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
     canHandle(intent: OutgoingIntent): boolean {
       if (intent.type === 'message.send') return readChannel(intent) === 'max';
       if (intent.type === 'message.edit') return intent.meta.source === 'max';
+      if (intent.type === 'message.replyMarkup.edit') return intent.meta.source === 'max';
       if (intent.type === 'callback.answer') return intent.meta.source === 'max';
       return false;
     },
@@ -73,34 +75,57 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
           throw new Error('MAX_PAYLOAD_INVALID: recipient.chatId and message.text required');
         }
         const attachments = toMaxInlineKeyboard(payload.replyMarkup);
-        await maxClient.sendMaxMessage(config, {
-          userId: chatId,
+        const result = await maxClient.sendMaxMessage(config, {
+          chatId,
           text,
-          ...(payload.parse_mode === 'HTML' ? { format: 'html' } : {}),
-          ...(attachments?.length ? { attachments } : {}),
+          extra: {
+            ...(payload.parse_mode === 'HTML' ? { format: 'html' as const } : {}),
+            ...(attachments?.length ? { attachments } : {}),
+          },
         });
+        if (!result) throw new Error('MAX_SEND_FAILED');
         return;
       }
 
       if (intent.type === 'message.edit') {
-        const numMessageId = typeof messageId === 'number' ? messageId : (typeof messageId === 'string' ? Number(messageId) : NaN);
-        if (!Number.isFinite(numMessageId) || !text) {
+        const stringMessageId = asNonEmptyString(messageId) ?? (typeof messageId === 'number' && Number.isFinite(messageId) ? String(messageId) : null);
+        if (!stringMessageId || !text) {
           throw new Error('MAX_PAYLOAD_INVALID: messageId and message.text required for edit');
         }
         const attachments = toMaxInlineKeyboard(payload.replyMarkup);
-        await maxClient.editMaxMessage(config, {
-          messageId: numMessageId,
-          text,
-          ...(payload.parse_mode === 'HTML' ? { format: 'html' } : {}),
-          ...(attachments?.length ? { attachments } : {}),
+        const result = await maxClient.editMaxMessage(config, {
+          messageId: stringMessageId,
+          extra: {
+            text,
+            ...(payload.parse_mode === 'HTML' ? { format: 'html' as const } : {}),
+            ...(attachments?.length ? { attachments } : {}),
+          },
         });
+        if (!result) throw new Error('MAX_EDIT_FAILED');
+        return;
+      }
+
+      if (intent.type === 'message.replyMarkup.edit') {
+        const stringMessageId = asNonEmptyString(messageId) ?? (typeof messageId === 'number' && Number.isFinite(messageId) ? String(messageId) : null);
+        if (!stringMessageId) {
+          throw new Error('MAX_PAYLOAD_INVALID: messageId required for replyMarkup edit');
+        }
+        const attachments = toMaxInlineKeyboard(payload.replyMarkup);
+        const result = await maxClient.editMaxMessage(config, {
+          messageId: stringMessageId,
+          extra: {
+            ...(attachments?.length ? { attachments } : { attachments: [] }),
+          },
+        });
+        if (!result) throw new Error('MAX_EDIT_FAILED');
         return;
       }
 
       if (intent.type === 'callback.answer') {
         const callbackQueryId = asNonEmptyString(payload.callbackQueryId);
         if (!callbackQueryId) throw new Error('MAX_PAYLOAD_INVALID: callbackQueryId required');
-        await maxClient.answerMaxCallback(config, { callbackId: callbackQueryId });
+        const result = await maxClient.answerMaxCallback(config, { callbackId: callbackQueryId });
+        if (!result) throw new Error('MAX_CALLBACK_ANSWER_FAILED');
       }
     },
   };

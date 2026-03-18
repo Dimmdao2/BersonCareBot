@@ -36,7 +36,7 @@ export type IncomingMessageUpdate = {
   kind: 'message';
   chatId: number;
   channelId: string;
-  messageId?: number;
+  messageId?: number | string;
   text: string;
   action?: string;
   phone?: string;
@@ -55,7 +55,7 @@ export type IncomingMessageUpdate = {
 export type IncomingCallbackUpdate = {
   kind: 'callback';
   chatId: number;
-  messageId: number;
+  messageId: number | string;
   channelUserId: number;
   action?: string;
   hasLinkedPhone?: boolean;
@@ -85,7 +85,7 @@ export type SendMessageAction = {
 export type EditMessageTextAction = {
   type: 'editMessageText';
   chatId: number;
-  messageId: number;
+  messageId: number | string;
   text: string;
   replyMarkup?: unknown;
 };
@@ -93,7 +93,7 @@ export type EditMessageTextAction = {
 export type EditMessageReplyMarkupAction = {
   type: 'editMessageReplyMarkup';
   chatId: number;
-  messageId: number;
+  messageId: number | string;
   replyMarkup: unknown;
 };
 

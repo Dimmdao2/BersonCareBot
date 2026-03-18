@@ -43,12 +43,34 @@ const MaxCallbackSchema = z.object({
 
 /** MAX API: Update body sent to webhook (POST) or returned by GET /updates. */
 export const MaxUpdateSchema = z.object({
-  update_type: z.enum(['message_created', 'message_callback', 'bot_started', 'user_added']),
+  update_type: z.enum([
+    'message_created',
+    'message_callback',
+    'message_removed',
+    'message_edited',
+    'bot_added',
+    'bot_removed',
+    'user_added',
+    'user_removed',
+    'bot_started',
+    'chat_title_changed',
+    'message_construction_request',
+    'message_constructed',
+    'message_chat_created',
+  ]),
   timestamp: z.number(),
   message: MaxMessageSchema.optional().nullable(),
   callback: MaxCallbackSchema.optional(),
   user_locale: z.string().optional().nullable(),
   chat_id: z.number().optional(),
+  message_id: z.string().optional(),
+  payload: z.string().optional().nullable(),
+  title: z.string().optional(),
+  session_id: z.string().optional(),
+  data: z.string().optional().nullable(),
+  input: z.unknown().optional(),
+  chat: z.unknown().optional(),
+  is_channel: z.boolean().optional(),
   user: MaxUserSchema.optional(),
 }).passthrough();
 

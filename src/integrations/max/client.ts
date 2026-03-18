@@ -3,50 +3,65 @@
  * Docs: https://github.com/max-messenger/max-bot-api-client-ts
  */
 import { Bot } from '@maxhub/max-bot-api';
+import type { AttachmentRequest, BotCommand, BotInfo, Message, MessageLinkType } from '@maxhub/max-bot-api/types';
 
 export type MaxClientConfig = {
   apiKey: string;
   baseUrl?: string;
 };
 
-export type MaxBotInfo = {
-  user_id: number;
-  name: string;
-  username?: string;
-  is_bot: boolean;
-  last_activity_time?: number;
+export type MaxBotInfo = BotInfo;
+
+export type MaxSendMessageExtra = {
+  attachments?: AttachmentRequest[] | null;
+  disable_link_preview?: boolean;
+  link?: { type: MessageLinkType; mid: string } | null;
+  notify?: boolean;
+  format?: 'markdown' | 'html' | null;
+};
+
+export type MaxEditMessageExtra = {
+  text?: string | null;
+  attachments?: AttachmentRequest[] | null;
+  link?: { type: MessageLinkType; mid: string } | null;
+  notify?: boolean;
+  format?: 'markdown' | 'html' | null;
+};
+
+export type MaxAnswerCallbackExtra = {
+  message?: MaxEditMessageExtra | null;
+  notification?: string | null;
 };
 
 export type MaxSendMessageParams = {
-  userId: number;
+  chatId?: number;
+  userId?: number;
   text: string;
-  format?: 'markdown' | 'html';
-  attachments?: Array<{
-    type: 'inline_keyboard';
-    payload: { buttons: Array<Array<{ type: string; text: string; payload?: string; url?: string }>> };
-  }>;
+  extra?: MaxSendMessageExtra;
 };
 
 export type MaxAnswerCallbackParams = {
   callbackId: string;
-  notification?: string;
+  extra?: MaxAnswerCallbackExtra;
 };
 
 export type MaxEditMessageParams = {
-  messageId: number | string;
-  text: string;
-  format?: 'markdown' | 'html';
-  attachments?: Array<{
-    type: 'inline_keyboard';
-    payload: { buttons: Array<Array<{ type: string; text: string; payload?: string; url?: string }>> };
-  }>;
+  messageId: string;
+  extra?: MaxEditMessageExtra;
 };
 
-let cachedBot: { apiKey: string; bot: Bot } | null = null;
+let cachedBot: { cacheKey: string; bot: Bot } | null = null;
 
-function getBot(apiKey: string): Bot {
-  if (cachedBot?.apiKey === apiKey) return cachedBot.bot;
-  cachedBot = { apiKey, bot: new Bot(apiKey) };
+function getBot(config: MaxClientConfig): Bot {
+  const cacheKey = `${config.apiKey}::${config.baseUrl ?? ''}`;
+  if (cachedBot?.cacheKey === cacheKey) return cachedBot.bot;
+  cachedBot = {
+    cacheKey,
+    bot: new Bot(
+      config.apiKey,
+      config.baseUrl ? { clientOptions: { baseUrl: config.baseUrl } } : undefined,
+    ),
+  };
   return cachedBot.bot;
 }
 
@@ -55,40 +70,49 @@ function getBot(apiKey: string): Bot {
  */
 export async function getMaxBotInfo(config: MaxClientConfig): Promise<MaxBotInfo | null> {
   try {
-    const bot = getBot(config.apiKey);
-    const info = await bot.api.getMyInfo();
-    if (!info?.user_id) return null;
-    const raw = info as { user_id: number; name?: string; first_name?: string; username?: string | null; is_bot?: boolean; last_activity_time?: number };
-    const result: MaxBotInfo = {
-      user_id: raw.user_id,
-      name: raw.name ?? raw.first_name ?? '',
-      is_bot: raw.is_bot ?? true,
-    };
-    if (raw.username != null && raw.username !== '') result.username = raw.username;
-    if (raw.last_activity_time != null) result.last_activity_time = raw.last_activity_time;
-    return result;
+    const bot = getBot(config);
+    return await bot.api.getMyInfo();
   } catch {
     return null;
   }
 }
 
+export async function setMaxBotCommands(
+  config: MaxClientConfig,
+  commands: BotCommand[],
+): Promise<boolean> {
+  try {
+    const bot = getBot(config);
+    await bot.api.setMyCommands(commands);
+    return true;
+  } catch (err) {
+    const { logger } = await import('../../infra/observability/logger.js');
+    logger.error({ err, commandsCount: commands.length }, 'max setMyCommands failed');
+    return false;
+  }
+}
+
 /**
- * POST /messages?user_id={userId} — send message to user.
+ * POST /messages?chat_id= or ?user_id= — send message.
  */
 export async function sendMaxMessage(
   config: MaxClientConfig,
   params: MaxSendMessageParams,
-): Promise<{ message?: { id: number } } | null> {
+): Promise<Message | null> {
   try {
-    const bot = getBot(config.apiKey);
-    const extra: Record<string, unknown> = {};
-    if (params.format === 'html' || params.format === 'markdown') extra.format = params.format;
-    if (params.attachments?.length) extra.attachments = params.attachments;
-    const message = await bot.api.sendMessageToUser(params.userId, params.text, extra as never);
-    return message?.body?.mid != null ? { message: { id: 0 } } : null;
+    const bot = getBot(config);
+    const message = params.chatId != null
+      ? await bot.api.sendMessageToChat(params.chatId, params.text, params.extra)
+      : params.userId != null
+        ? await bot.api.sendMessageToUser(params.userId, params.text, params.extra)
+        : null;
+    return message;
   } catch (err) {
     const { logger } = await import('../../infra/observability/logger.js');
-    logger.error({ err, userId: params.userId, textLength: params.text?.length }, 'max sendMessage failed');
+    logger.error(
+      { err, chatId: params.chatId, userId: params.userId, textLength: params.text?.length },
+      'max sendMessage failed',
+    );
     return null;
   }
 }
@@ -98,14 +122,12 @@ export async function sendMaxMessage(
  */
 export async function editMaxMessage(config: MaxClientConfig, params: MaxEditMessageParams): Promise<boolean> {
   try {
-    const bot = getBot(config.apiKey);
-    const messageId = typeof params.messageId === 'string' ? params.messageId : String(params.messageId);
-    const extra: Record<string, unknown> = { text: params.text };
-    if (params.format === 'html' || params.format === 'markdown') extra.format = params.format;
-    if (params.attachments !== undefined) extra.attachments = params.attachments;
-    await bot.api.editMessage(messageId, extra as never);
+    const bot = getBot(config);
+    await bot.api.editMessage(params.messageId, params.extra);
     return true;
-  } catch {
+  } catch (err) {
+    const { logger } = await import('../../infra/observability/logger.js');
+    logger.error({ err, messageId: params.messageId }, 'max editMessage failed');
     return false;
   }
 }
@@ -115,10 +137,12 @@ export async function editMaxMessage(config: MaxClientConfig, params: MaxEditMes
  */
 export async function answerMaxCallback(config: MaxClientConfig, params: MaxAnswerCallbackParams): Promise<boolean> {
   try {
-    const bot = getBot(config.apiKey);
-    await bot.api.answerOnCallback(params.callbackId, params.notification ? { notification: params.notification } : undefined);
+    const bot = getBot(config);
+    await bot.api.answerOnCallback(params.callbackId, params.extra);
     return true;
-  } catch {
+  } catch (err) {
+    const { logger } = await import('../../infra/observability/logger.js');
+    logger.error({ err, callbackId: params.callbackId }, 'max answerOnCallback failed');
     return false;
   }
 }

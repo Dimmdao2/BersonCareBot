@@ -30,6 +30,7 @@ import {
   type ExecutorDeps,
   asRecord,
   asString,
+  asMessageId,
   asNumber,
   asNumericString,
   asStringArray,
@@ -270,7 +271,7 @@ export async function executeAction(
         templatePort: deps.templatePort,
       });
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const parseMode = action.params.parseMode === 'HTML' || action.params.parseMode === 'Markdown'
         ? action.params.parseMode
         : undefined;
@@ -290,7 +291,7 @@ export async function executeAction(
 
     case 'message.replyMarkup.edit': {
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const replyMarkup = await buildReplyMarkup({
         params: action.params,
         vars: action.params.vars,
@@ -1125,7 +1126,7 @@ export async function executeAction(
     case 'diary.symptom.list': {
       const port = deps.webappEventsPort;
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (chatId === null) {
         return { actionId: action.id, status: 'failed', error: 'diary.symptom.list: chatId required' };
@@ -1190,7 +1191,7 @@ export async function executeAction(
     case 'diary.symptom.select': {
       const trackingId = asString(action.params.trackingId);
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!trackingId || chatId === null) {
         return { actionId: action.id, status: 'failed', error: 'diary.symptom.select: trackingId and chatId required' };
@@ -1228,7 +1229,7 @@ export async function executeAction(
       const valueRaw = asNumber(action.params.value) ?? asString(action.params.value);
       const value0_10 = valueRaw !== null ? Math.min(10, Math.max(0, Math.round(Number(valueRaw)))) : null;
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!trackingId || value0_10 === null || chatId === null) {
         return { actionId: action.id, status: 'failed', error: 'diary.symptom.value: trackingId, value and chatId required' };
@@ -1271,7 +1272,7 @@ export async function executeAction(
       const valueFromPrev = asNumber(action.params.value);
       const value0_10 = valueFromPrev !== null ? Math.min(10, Math.max(0, Math.round(valueFromPrev))) : 5;
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!trackingId || chatId === null) {
         return { actionId: action.id, status: 'failed', error: 'diary.symptom.entryType: trackingId and chatId required' };
@@ -1338,7 +1339,7 @@ export async function executeAction(
       }];
       await persistWrites(deps.writePort, writes);
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       const enterTitleText = deps.templatePort
         ? (await renderText({
@@ -1449,7 +1450,7 @@ export async function executeAction(
     case 'diary.lfk.list': {
       const port = deps.webappEventsPort;
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (chatId === null) {
         return { actionId: action.id, status: 'failed', error: 'diary.lfk.list: chatId required' };
@@ -1514,7 +1515,7 @@ export async function executeAction(
     case 'diary.lfk.select': {
       const complexId = asString(action.params.complexId);
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!complexId || chatId === null) {
         return { actionId: action.id, status: 'failed', error: 'diary.lfk.select: complexId and chatId required' };
@@ -1548,7 +1549,7 @@ export async function executeAction(
     case 'diary.lfk.session': {
       const complexId = asString(action.params.complexId);
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       if (!complexId || chatId === null) {
         return { actionId: action.id, status: 'failed', error: 'diary.lfk.session: complexId and chatId required' };
@@ -1609,7 +1610,7 @@ export async function executeAction(
       }];
       await persistWrites(deps.writePort, writes);
       const chatId = asNumber(action.params.chatId);
-      const messageId = asNumber(action.params.messageId);
+      const messageId = asMessageId(action.params.messageId);
       const callbackQueryId = asString(action.params.callbackQueryId);
       const addTitleText = deps.templatePort
         ? (await renderText({

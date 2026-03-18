@@ -47,6 +47,15 @@ async function requestPhoneLink(
   ];
 }
 
+function asNumericMessageId(value: number | string): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 /**
  * Single entry: map incoming update to list of outgoing actions.
  * Domain does not know about channel specifics; only internal types.
@@ -62,12 +71,17 @@ export async function handleUpdate(
   if (incoming.kind === 'callback') {
     const data = incoming.callbackData;
     const actions: OutgoingAction[] = [];
+    const messageId = asNumericMessageId(incoming.messageId);
+
+    if (messageId === null) {
+      return [{ type: 'answerCallbackQuery', callbackQueryId: incoming.callbackQueryId }];
+    }
 
     if (data.startsWith('notify_')) {
       const result = await handleNotificationCallback(
         incoming.channelUserId,
         incoming.chatId,
-        incoming.messageId,
+        messageId,
         data,
         notificationsPort,
         content,
@@ -76,7 +90,7 @@ export async function handleUpdate(
     } else if (data === 'menu_notifications') {
       const result = await handleShowNotifications(
         incoming.chatId,
-        incoming.messageId,
+        messageId,
         incoming.channelUserId,
         notificationsPort,
         content,
@@ -92,11 +106,11 @@ export async function handleUpdate(
         );
         actions.push(...result);
       } else {
-      const result = await handleMyBookings(incoming.chatId, incoming.messageId, content);
+      const result = await handleMyBookings(incoming.chatId, messageId, content);
       actions.push(...result);
       }
     } else if (data === 'menu_back') {
-      const result = await handleBack(incoming.chatId, incoming.messageId, content);
+      const result = await handleBack(incoming.chatId, messageId, content);
       actions.push(...result);
     }
 

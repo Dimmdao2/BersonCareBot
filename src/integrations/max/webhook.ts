@@ -5,10 +5,32 @@ import { maxConfig } from './config.js';
 import { maxIncomingToEvent } from './connector.js';
 import { fromMax } from './mapIn.js';
 import { parseMaxUpdate } from './schema.js';
+import { setupMaxCommands } from './setupCommands.js';
 
 export type MaxWebhookDeps = {
   eventGateway: EventGateway;
 };
+
+function buildMaxFacts(body: unknown): Record<string, unknown> {
+  const data = body as {
+    message?: { recipient?: { chat_id?: number } | null; sender?: { user_id?: number } | null } | null;
+    chat_id?: number;
+    callback?: { user?: { user_id?: number } | null } | null;
+    user?: { user_id?: number } | null;
+  };
+  const adminChatId = maxConfig.adminChatId;
+  const adminUserId = maxConfig.adminUserId;
+  const chatId = data.message?.recipient?.chat_id ?? data.chat_id;
+  const senderUserId = data.callback?.user?.user_id ?? data.message?.sender?.user_id ?? data.user?.user_id;
+  const isAdmin =
+    (typeof adminUserId === 'number' && typeof senderUserId === 'number' && adminUserId === senderUserId)
+    || (typeof adminUserId !== 'number' && typeof adminChatId === 'number' && typeof chatId === 'number' && adminChatId === chatId);
+  return {
+    ...(typeof adminChatId === 'number' ? { adminChatId } : {}),
+    ...(typeof adminUserId === 'number' ? { adminUserId } : {}),
+    ...((typeof chatId === 'number' || typeof senderUserId === 'number') ? { isAdmin } : {}),
+  };
+}
 
 /**
  * Registers MAX webhook route. Flow: secret check -> validate -> map -> eventGateway.
@@ -19,6 +41,8 @@ export async function registerMaxWebhookRoutes(
   app: FastifyInstance,
   deps: MaxWebhookDeps,
 ): Promise<void> {
+  await setupMaxCommands();
+
   app.post('/webhook/max', async (request, reply) => {
     const correlationId = request.id;
     const eventId = newEventId('incoming');
@@ -64,7 +88,7 @@ export async function registerMaxWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: {},
+        facts: buildMaxFacts(data),
       });
       const result = await deps.eventGateway.handleIncomingEvent(event);
       if (result.status === 'rejected') {

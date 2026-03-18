@@ -23,9 +23,22 @@ import {
 } from '../helpers.js';
 import { ADMIN, RELAY_USER } from '../templateKeys.js';
 
-/** Builds delivery field used by Telegram adapter for message.send / message.copy. */
-function telegramDeliveryPayload() {
-  return { channels: ['telegram'] as const, maxAttempts: 1 };
+function channelDeliveryPayload(channel: string) {
+  return { channels: [channel], maxAttempts: 1 };
+}
+
+function getUnsupportedUserRelayText(source: string): string {
+  if (source === 'max') {
+    return 'Пока для общения в MAX поддерживаются только текстовые сообщения. Скоро добавим пересылку других типов контента.';
+  }
+  return 'этот вид сообщений не поддерживается. Напишите ваш вопрос текстом.';
+}
+
+function getUnsupportedAdminRelayText(source: string): string {
+  if (source === 'max') {
+    return 'Пока для ответа пользователю в MAX поддерживается только текст. Скоро добавим пересылку других типов контента.';
+  }
+  return 'Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.';
 }
 
 export async function handleConversationUserMessage(
@@ -38,6 +51,7 @@ export async function handleConversationUserMessage(
   }
   const externalId = readExternalActorId(ctx);
   const source = asString(action.params.source) ?? ctx.event.meta.source;
+  const adminChannel = ctx.event.meta.source;
   const text = asString(action.params.text) ?? readIncomingText(ctx);
   const relayMessageType = readRelayMessageType(ctx) ?? 'text';
   if (!externalId || !source) {
@@ -62,10 +76,10 @@ export async function handleConversationUserMessage(
   const policy = deps.supportRelayPolicy;
   if (policy && !policy.isAllowedUserToAdmin(relayMessageType)) {
     const refusalChatId = asNumber(readIncoming(ctx).chatId);
-    const refusalText = deps.templatePort
+    const refusalText = source !== 'max' && deps.templatePort
       ? (await renderText({ templateKey: RELAY_USER.UNSUPPORTED_TYPE, ctx, templatePort: deps.templatePort }))
-        || 'этот вид сообщений не поддерживается. Напишите ваш вопрос текстом.'
-      : 'этот вид сообщений не поддерживается. Напишите ваш вопрос текстом.';
+        || getUnsupportedUserRelayText(source)
+      : getUnsupportedUserRelayText(source);
     const refusalIntents: OutgoingIntent[] = refusalChatId !== null
       ? [{
         type: 'message.send',
@@ -73,7 +87,7 @@ export async function handleConversationUserMessage(
         payload: {
           recipient: { chatId: refusalChatId },
           message: { text: refusalText },
-          delivery: telegramDeliveryPayload(),
+          delivery: channelDeliveryPayload(source),
         },
       }]
       : [];
@@ -135,10 +149,10 @@ export async function handleConversationUserMessage(
           { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
         ]],
       },
-      delivery: telegramDeliveryPayload(),
+      delivery: channelDeliveryPayload(adminChannel),
     },
   }];
-  if (userChatId !== null && userMessageId !== null) {
+  if (source === 'telegram' && userChatId !== null && userMessageId !== null) {
     intents.push({
       type: 'message.copy',
       meta: buildIntentMeta(action, ctx),
@@ -146,7 +160,7 @@ export async function handleConversationUserMessage(
         recipient: { chatId: adminChatId },
         from_chat_id: userChatId,
         message_id: userMessageId,
-        delivery: telegramDeliveryPayload(),
+        delivery: channelDeliveryPayload(adminChannel),
       },
     });
   } else if (relayMessageType === 'text' && text) {
@@ -156,7 +170,7 @@ export async function handleConversationUserMessage(
       payload: {
         recipient: { chatId: adminChatId },
         message: { text },
-        delivery: telegramDeliveryPayload(),
+        delivery: channelDeliveryPayload(adminChannel),
       },
     });
   }
@@ -184,6 +198,7 @@ export async function handleConversationAdminReply(
   const conversationId = readConversationId(action, ctx);
   const relayMessageType = readRelayMessageType(ctx) ?? 'text';
   const text = asString(action.params.text) ?? readIncomingText(ctx);
+  const adminChannel = ctx.event.meta.source;
   const adminChatId = asNumber(readIncoming(ctx).chatId);
   const rawMsgId = readIncomingMessageId(ctx);
   const adminMessageIdFinite =
@@ -202,6 +217,7 @@ export async function handleConversationAdminReply(
     type: 'conversation.byId',
     params: { id: conversationId },
   });
+  const sourceForConversation = asString(conversation?.source) ?? ctx.event.meta.source;
   const userChatIdRaw = asString(conversation?.user_channel_id);
   const userChatId = userChatIdRaw ? Number(userChatIdRaw) : Number.NaN;
   if (!conversation || !Number.isFinite(userChatId)) {
@@ -209,10 +225,10 @@ export async function handleConversationAdminReply(
   }
   const policy = deps.supportRelayPolicy;
   if (policy && !policy.isAllowedAdminToUser(relayMessageType)) {
-    const refusalText = deps.templatePort
+    const refusalText = sourceForConversation !== 'max' && deps.templatePort
       ? (await renderText({ templateKey: ADMIN.RELAY_UNSUPPORTED_ADMIN, ctx, templatePort: deps.templatePort }))
-        || 'Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.'
-      : 'Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.';
+        || getUnsupportedAdminRelayText(sourceForConversation)
+      : getUnsupportedAdminRelayText(sourceForConversation);
     const refusalIntents: OutgoingIntent[] = adminChatId !== null
       ? [{
         type: 'message.send',
@@ -220,13 +236,12 @@ export async function handleConversationAdminReply(
         payload: {
           recipient: { chatId: adminChatId },
           message: { text: refusalText },
-          delivery: telegramDeliveryPayload(),
+          delivery: channelDeliveryPayload(adminChannel),
         },
       }]
       : [];
     return { actionId: action.id, status: 'success', intents: refusalIntents };
   }
-  const sourceForConversation = asString(conversation.source) ?? ctx.event.meta.source;
   const messageTextForDb = isTextReply ? (text ?? '') : `[${relayMessageType}]`;
   const writes: DbWriteMutation[] = [
     {
@@ -286,10 +301,16 @@ export async function handleConversationAdminReply(
       payload: {
         recipient: { chatId: userChatId },
         message: { text },
-        delivery: telegramDeliveryPayload(),
+        delivery: channelDeliveryPayload(sourceForConversation),
       },
     });
-  } else if (!isTextReply && adminChatId !== null && adminMessageIdFinite !== null) {
+  } else if (
+    !isTextReply &&
+    adminChannel === 'telegram' &&
+    sourceForConversation === 'telegram' &&
+    adminChatId !== null &&
+    adminMessageIdFinite !== null
+  ) {
     intents.push({
       type: 'message.copy',
       meta: buildIntentMeta(action, ctx),
@@ -297,7 +318,7 @@ export async function handleConversationAdminReply(
         recipient: { chatId: userChatId },
         from_chat_id: adminChatId,
         message_id: adminMessageIdFinite,
-        delivery: telegramDeliveryPayload(),
+        delivery: channelDeliveryPayload(sourceForConversation),
       },
     });
   }
@@ -324,7 +345,7 @@ export async function handleConversationAdminReply(
         recipient: { chatId: adminChatId },
         message: { text: sentText },
         replyMarkup: { inline_keyboard: replyRows },
-        delivery: telegramDeliveryPayload(),
+        delivery: channelDeliveryPayload(adminChannel),
       },
     });
   }

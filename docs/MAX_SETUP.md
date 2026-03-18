@@ -29,6 +29,7 @@ npx tsx scripts/check-max.ts
 | `MAX_API_KEY` | Ключ доступа к MAX Platform API (как у Telegram — токен бота). |
 | `MAX_WEBHOOK_SECRET` | Секрет для проверки заголовка `X-Max-Bot-Api-Secret` в webhook; **рекомендуется в проде**. |
 | `MAX_BOT_ID` | Идентификатор бота в MAX (при необходимости для сценариев). |
+| `MAX_ADMIN_CHAT_ID` | Chat ID админского диалога в MAX для пересылки пользовательских вопросов и ответов администратора. Для личного чата с ботом обычно берётся из `recipient_chat_id` в логах webhook. |
 
 Пример (dev, в `.env` рядом с `TELEGRAM_*`):
 
@@ -37,6 +38,7 @@ MAX_ENABLED=true
 MAX_API_KEY=your-max-bot-api-key
 MAX_WEBHOOK_SECRET=your-webhook-secret-min-16-chars
 MAX_BOT_ID=
+MAX_ADMIN_CHAT_ID=
 ```
 
 После этого перезапустить интегратор и снова выполнить:
@@ -67,12 +69,13 @@ npx tsx scripts/check-max.ts
      -H "Content-Type: application/json" \
      -d '{
        "url": "https://tgcarebot.bersonservices.ru/webhook/max",
-       "update_types": ["message_created", "bot_started"],
+       "update_types": ["message_created", "message_callback", "bot_started", "user_added"],
        "secret": "ТОТ_ЖЕ_ЧТО_MAX_WEBHOOK_SECRET"
      }'
    ```
 
    `secret` должен совпадать с `MAX_WEBHOOK_SECRET` в env интегратора (интегратор сравнивает его с заголовком `X-Max-Bot-Api-Secret`).
+   `message_callback` нужен для inline-кнопок, `user_added` полезен для стартового меню при добавлении бота.
 
 2. **Через чат MAX** (если поддерживается): команда `/set_webhook` в [@MasterBot](https://max.ru/MasterBot) и указание того же URL и секрета.
 
@@ -110,3 +113,16 @@ npx tsx scripts/check-max.ts
 - [ ] В вебапп заданы `INTEGRATOR_*` и `APP_BASE_URL`; отдельные ключи для MAX в вебапп не нужны.
 
 После этого MAX бот подключён к интегратору (webhook + отправка сообщений), а вебапп принимает пользователей из MAX через общий механизм `?t=...`.
+
+---
+
+## 6. Ограничения и следующие задачи
+
+- Сейчас для MAX при старте webhook автоматически настраиваются команды бота через `setMyCommands`, включая `book` (`Записаться на прием`) и `start` (`Главное меню`).
+- Это не полный аналог telegram-style menu button: в MAX сейчас основной UX строится на командах бота и inline-кнопках в сообщениях.
+- Сейчас для support relay в MAX гарантированно поддерживается только **текст**.
+- Если пользователь или администратор отправляет в MAX неподдерживаемый тип сообщения, бот отвечает, что пока поддерживается только текст и пересылка медиа появится позже.
+- Следующий этап:
+  - определить типы вложений MAX (`image`, `file`, `audio`, `video`, `sticker`, `contact`, `location`) в webhook;
+  - реализовать пересылку медиа через MAX API вместо текущего текстового fallback;
+  - отдельно исследовать UX постоянного меню в MAX: сейчас используются inline-кнопки, а не telegram-style reply keyboard/menu button.

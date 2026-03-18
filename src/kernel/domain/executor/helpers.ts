@@ -76,6 +76,12 @@ export function asNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+export function asMessageId(value: unknown): string | number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length > 0) return value;
+  return null;
+}
+
 export function asNumericString(value: unknown): string | null {
   if (typeof value === 'number' && Number.isFinite(value)) return String(Math.trunc(value));
   if (typeof value !== 'string' || value.trim().length === 0) return null;
@@ -117,8 +123,8 @@ export function readIncomingChatId(ctx: DomainContext): string | null {
 
 export function readIncomingMessageId(ctx: DomainContext): string | null {
   const incoming = readIncoming(ctx);
-  const messageId = asNumber(incoming.messageId);
-  return messageId === null ? asString(incoming.messageId) : String(messageId);
+  const messageId = asMessageId(incoming.messageId);
+  return messageId === null ? null : String(messageId);
 }
 
 /** Тип сообщения для support relay (text, photo, document, …). Только у message. */

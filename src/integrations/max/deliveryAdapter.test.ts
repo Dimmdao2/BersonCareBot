@@ -43,6 +43,16 @@ describe('max deliveryAdapter', () => {
     expect(adapter.canHandle(intent)).toBe(true);
   });
 
+  it('canHandle message.replyMarkup.edit when source is max', () => {
+    const adapter = createMaxDeliveryAdapter();
+    const intent = {
+      type: 'message.replyMarkup.edit' as const,
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: { messageId: 'mid-1', replyMarkup: { inline_keyboard: [] } },
+    };
+    expect(adapter.canHandle(intent)).toBe(true);
+  });
+
   it('does not handle message.send for telegram channel', () => {
     const adapter = createMaxDeliveryAdapter();
     const intent = {
@@ -66,8 +76,28 @@ describe('max deliveryAdapter', () => {
     });
     expect(sendMaxMessageMock).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: 'test-key' }),
-      expect.objectContaining({ userId: 200, text: 'Hello' }),
+      expect.objectContaining({
+        chatId: 200,
+        text: 'Hello',
+        extra: {},
+      }),
     );
+  });
+
+  it('send message.send throws when MAX client returns null', async () => {
+    sendMaxMessageMock.mockResolvedValueOnce(null);
+    const adapter = createMaxDeliveryAdapter();
+    await expect(
+      adapter.send({
+        type: 'message.send',
+        meta: { eventId: 'e', occurredAt: '', source: 'max' },
+        payload: {
+          recipient: { chatId: 200 },
+          message: { text: 'Hello' },
+          delivery: { channels: ['max'] },
+        },
+      }),
+    ).rejects.toThrow('MAX_SEND_FAILED');
   });
 
   it('send callback.answer calls answerMaxCallback', async () => {
@@ -81,6 +111,73 @@ describe('max deliveryAdapter', () => {
       expect.any(Object),
       { callbackId: 'cb-99' },
     );
+  });
+
+  it('send message.edit keeps string messageId', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.edit',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        messageId: 'mid-42',
+        message: { text: 'Updated' },
+        delivery: { channels: ['max'] },
+      },
+    });
+    expect(editMaxMessageMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        messageId: 'mid-42',
+        extra: expect.objectContaining({ text: 'Updated' }),
+      }),
+    );
+  });
+
+  it('send replyMarkup.edit calls editMaxMessage', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.replyMarkup.edit',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        messageId: 'mid-99',
+        replyMarkup: {
+          inline_keyboard: [[{ text: 'Open', callback_data: 'menu.more' }]],
+        },
+      },
+    });
+    expect(editMaxMessageMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        messageId: 'mid-99',
+      }),
+    );
+  });
+
+  it('send message.edit throws when MAX client returns false', async () => {
+    editMaxMessageMock.mockResolvedValueOnce(false);
+    const adapter = createMaxDeliveryAdapter();
+    await expect(
+      adapter.send({
+        type: 'message.edit',
+        meta: { eventId: 'e', occurredAt: '', source: 'max' },
+        payload: {
+          messageId: 'mid-42',
+          message: { text: 'Updated' },
+        },
+      }),
+    ).rejects.toThrow('MAX_EDIT_FAILED');
+  });
+
+  it('send callback.answer throws when MAX client returns false', async () => {
+    answerMaxCallbackMock.mockResolvedValueOnce(false);
+    const adapter = createMaxDeliveryAdapter();
+    await expect(
+      adapter.send({
+        type: 'callback.answer',
+        meta: { eventId: 'e', occurredAt: '', source: 'max' },
+        payload: { callbackQueryId: 'cb-99' },
+      }),
+    ).rejects.toThrow('MAX_CALLBACK_ANSWER_FAILED');
   });
 
   it('send message.send throws when chatId missing', async () => {
