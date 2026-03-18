@@ -24,7 +24,6 @@ export async function handleReminderDispatch(body: ReminderDispatchBody): Promis
   // MVP: log. Later: enqueue for orchestrator or HTTP call to tgcarebot with signature;
   // integrator will fan out to each channel in body.channelBindings (telegram, max).
   if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
     console.info("[integrator] reminder dispatch", body.userId, body.message?.title ?? "", body.channelBindings ?? {});
   }
   return {

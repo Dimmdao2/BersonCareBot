@@ -52,7 +52,6 @@ export async function handleIntegratorEvent(
   deps: IntegratorEventsDeps
 ): Promise<IntegratorHandleResult> {
   if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
     console.info("[integrator] event received", event.eventType, event.eventId ?? "");
   }
 

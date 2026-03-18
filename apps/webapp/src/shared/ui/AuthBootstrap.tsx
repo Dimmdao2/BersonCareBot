@@ -58,7 +58,7 @@ export function AuthBootstrap() {
     if (!token) return;
 
     let active = true;
-    setState("loading");
+    queueMicrotask(() => setState("loading"));
 
     void fetch("/api/auth/exchange", {
       method: "POST",
@@ -96,7 +96,7 @@ export function AuthBootstrap() {
   useEffect(() => {
     if (token || typeof window === "undefined") return;
     const raw = window.Telegram?.WebApp?.initData?.trim() ?? "";
-    setInitDataStatus(raw ? "yes" : "no");
+    queueMicrotask(() => setInitDataStatus(raw ? "yes" : "no"));
   }, [token]);
 
   const showPhoneFlow =
@@ -121,7 +121,7 @@ export function AuthBootstrap() {
       (typeof window !== "undefined" && window.Telegram?.WebApp?.initData?.trim()) || "";
     if (!initData) return;
 
-    setState("loading");
+    queueMicrotask(() => setState("loading"));
 
     void fetch("/api/auth/telegram-init", {
       method: "POST",
