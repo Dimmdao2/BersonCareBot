@@ -286,5 +286,26 @@
         }
       }
     ]
+  },
+  {
+    "id": "max.admin.test.anyCommand",
+    "source": "max",
+    "event": "message.received",
+    "priority": 1,
+    "match": {
+      "actor": { "isAdmin": true }
+    },
+    "steps": [
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "telegram:admin.test.commandReceived",
+          "vars": { "rawText": "{{input.text}}" },
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      }
+    ]
   }
 ]

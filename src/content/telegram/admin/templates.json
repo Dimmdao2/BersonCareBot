@@ -16,5 +16,6 @@
   "admin.questions.replyButton": "Ответить: {{label}}",
   "admin.conversation.newMessage": "Новое сообщение в диалоге\nОт: {{userLabel}}\n\n{{text}}",
   "admin.conversation.show": "Диалог\nПользователь: {{label}}\nСтатус: {{status}}",
-  "admin.relay.unsupportedType": "Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ."
+  "admin.relay.unsupportedType": "Такой тип сообщения нельзя переслать пользователю. Используйте текст, фото или документ.",
+  "admin.test.commandReceived": "Тест: команда получена — {{rawText}}"
 }
