@@ -16,6 +16,7 @@ import type { ChannelContext } from "@/modules/auth/channelContext";
 import { createIntegratorSmsAdapter } from "@/infra/integrations/sms/integratorSmsAdapter";
 import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
 import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
+import { createPgPhoneChallengeStore } from "@/infra/repos/pgPhoneChallengeStore";
 import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 import { inMemoryIdentityResolutionPort } from "@/infra/repos/inMemoryIdentityResolution";
 import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
@@ -34,8 +35,10 @@ import { createDoctorBroadcastsService } from "@/modules/doctor-broadcasts/servi
 import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports";
 import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
 import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit";
+import { createPgBroadcastAuditPort } from "@/infra/repos/pgBroadcastAudit";
 import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppointments";
 import { inMemoryMessageLogPort } from "@/infra/repos/inMemoryMessageLog";
+import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import { getUpcomingAppointments } from "@/modules/appointments/service";
@@ -61,6 +64,9 @@ const channelPreferencesPort = env.DATABASE_URL ? pgChannelPreferencesPort : inM
 const userByPhonePort = env.DATABASE_URL ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const identityResolutionPort = env.DATABASE_URL ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
 const doctorClientsPort = env.DATABASE_URL ? createPgDoctorClientsPort() : inMemoryDoctorClientsPort;
+const challengeStore = env.DATABASE_URL ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
+const messageLogPort = env.DATABASE_URL ? createPgMessageLogPort() : inMemoryMessageLogPort;
+const broadcastAuditPort = env.DATABASE_URL ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
 const symptomDiaryService = createSymptomDiaryService(symptomDiaryPort);
 const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
 const channelPreferencesService = createChannelPreferencesService(channelPreferencesPort);
@@ -71,14 +77,14 @@ const contentCatalog = createContentCatalogResolver({
 const smsPort =
   env.INTEGRATOR_API_URL && integratorWebhookSecret()
     ? createIntegratorSmsAdapter({
-        challengeStore: inMemoryPhoneChallengeStore,
+        challengeStore,
         integratorBaseUrl: env.INTEGRATOR_API_URL,
         sharedSecret: integratorWebhookSecret(),
       })
-    : createStubSmsAdapter({ challengeStore: inMemoryPhoneChallengeStore });
+    : createStubSmsAdapter({ challengeStore });
 const phoneAuthDeps = {
   smsPort,
-  challengeStore: inMemoryPhoneChallengeStore,
+  challengeStore,
   userByPhonePort,
 };
 
@@ -138,7 +144,7 @@ export function buildAppDeps() {
           identityResolutionPort,
           preferencesPort: channelPreferencesPort,
         }),
-      messageLogPort: inMemoryMessageLogPort,
+      messageLogPort,
     }),
     doctorAppointments: createDoctorAppointmentsService({
       appointmentsPort: inMemoryDoctorAppointmentsPort,
@@ -161,7 +167,7 @@ export function buildAppDeps() {
         const list = await doctorClientsPort.listClients(filters);
         return list.length;
       },
-      broadcastAuditPort: inMemoryBroadcastAuditPort,
+      broadcastAuditPort,
     }),
     purchases: {
       getPurchaseSectionState,
