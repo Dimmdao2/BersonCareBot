@@ -22,7 +22,7 @@ describe('max connector', () => {
     expect(event.meta.userId).toBe('100');
   });
 
-  it('wraps callback incoming in IncomingEvent', () => {
+  it('wraps callback incoming in IncomingEvent with dedup by callbackId', () => {
     const incoming = {
       kind: 'callback' as const,
       chatId: 101,
@@ -39,6 +39,7 @@ describe('max connector', () => {
     expect(event.type).toBe('callback.received');
     expect(event.meta.source).toBe('max');
     expect(event.meta.userId).toBe('101');
+    expect(event.meta.dedupFingerprint).toEqual({ callbackId: 'cb-1' });
   });
 
   it('extracts incoming from event', () => {

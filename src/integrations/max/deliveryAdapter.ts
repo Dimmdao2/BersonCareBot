@@ -8,6 +8,7 @@ type DeliveryPayload = {
   message?: { text?: unknown };
   messageId?: unknown;
   callbackQueryId?: unknown;
+  notification?: unknown;
   replyMarkup?: unknown;
   parse_mode?: string;
   delivery?: { channels?: unknown };
@@ -124,7 +125,11 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       if (intent.type === 'callback.answer') {
         const callbackQueryId = asNonEmptyString(payload.callbackQueryId);
         if (!callbackQueryId) throw new Error('MAX_PAYLOAD_INVALID: callbackQueryId required');
-        const result = await maxClient.answerMaxCallback(config, { callbackId: callbackQueryId });
+        const notification = asNonEmptyString(payload.notification) ?? 'OK';
+        const result = await maxClient.answerMaxCallback(config, {
+          callbackId: callbackQueryId,
+          extra: { notification },
+        });
         if (!result) throw new Error('MAX_CALLBACK_ANSWER_FAILED');
       }
     },

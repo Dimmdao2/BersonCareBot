@@ -109,7 +109,20 @@ describe('max deliveryAdapter', () => {
     });
     expect(answerMaxCallbackMock).toHaveBeenCalledWith(
       expect.any(Object),
-      { callbackId: 'cb-99' },
+      { callbackId: 'cb-99', extra: { notification: 'OK' } },
+    );
+  });
+
+  it('send callback.answer keeps explicit notification', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'callback.answer',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: { callbackQueryId: 'cb-100', notification: 'Открываю диалог' },
+    });
+    expect(answerMaxCallbackMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      { callbackId: 'cb-100', extra: { notification: 'Открываю диалог' } },
     );
   });
 
