@@ -1,39 +1,24 @@
 import { randomBytes } from "node:crypto";
+import type { PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
+import { generateSmsCode } from "@/modules/auth/smsCode";
 import type { SendCodeResult, SmsPort, VerifyCodeResult } from "@/modules/auth/smsPort";
-
-const CHALLENGE_TTL_MS = 10 * 60 * 1000; // 10 min
-const STUB_ACCEPT_CODE = "123456";
-
-type StoredChallenge = {
-  phone: string;
-  code: string;
-  expiresAt: number;
-};
-
-const challenges = new Map<string, StoredChallenge>();
 
 function generateChallengeId(): string {
   return randomBytes(16).toString("base64url");
 }
 
-function cleanupExpired(): void {
-  const now = Date.now();
-  for (const [id, c] of challenges.entries()) {
-    if (c.expiresAt <= now) challenges.delete(id);
-  }
-}
+export type StubSmsAdapterDeps = {
+  challengeStore: PhoneChallengeStore;
+};
 
-export function createStubSmsAdapter(): SmsPort {
+export function createStubSmsAdapter(deps: StubSmsAdapterDeps): SmsPort {
+  const { challengeStore } = deps;
   return {
-    async sendCode(phone: string): Promise<SendCodeResult> {
-      cleanupExpired();
+    async sendCode(phone: string, ttlSec: number): Promise<SendCodeResult> {
       const challengeId = generateChallengeId();
-      const code = STUB_ACCEPT_CODE;
-      challenges.set(challengeId, {
-        phone,
-        code,
-        expiresAt: Date.now() + CHALLENGE_TTL_MS,
-      });
+      const code = generateSmsCode();
+      const expiresAt = Math.floor(Date.now() / 1000) + ttlSec;
+      await challengeStore.set(challengeId, { phone, expiresAt, code });
       return {
         ok: true,
         challengeId,
@@ -42,19 +27,18 @@ export function createStubSmsAdapter(): SmsPort {
     },
 
     async verifyCode(challengeId: string, code: string): Promise<VerifyCodeResult> {
-      cleanupExpired();
-      const stored = challenges.get(challengeId);
+      const stored = await challengeStore.get(challengeId);
       if (!stored) {
         return { ok: false, code: "expired_code" };
       }
-      if (stored.expiresAt <= Date.now()) {
-        challenges.delete(challengeId);
+      if (stored.expiresAt <= Math.floor(Date.now() / 1000)) {
+        await challengeStore.delete(challengeId);
         return { ok: false, code: "expired_code" };
       }
       if (stored.code !== code) {
         return { ok: false, code: "invalid_code" };
       }
-      challenges.delete(challengeId);
+      await challengeStore.delete(challengeId);
       return { ok: true };
     },
   };

@@ -7,22 +7,22 @@
 
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 
 type Props = { params: Promise<{ slug: string }> };
 
-/** Загружает материал по slug из каталога и рендерит статью с картинкой, текстом и блоком видео. */
+/** Загружает материал по slug из каталога и рендерит статью. Доступно без входа. */
 export default async function ContentSlugPage({ params }: Props) {
   const { slug } = await params;
-  const session = await requirePatientAccess();
+  const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
   const item = deps.contentCatalog.getBySlug(slug);
   if (!item) notFound();
 
   const backHref = "/app/patient";
   return (
-    <AppShell title={item.title} user={session.user} backHref={backHref} backLabel="Назад" variant="patient">
+    <AppShell title={item.title} user={session?.user ?? null} backHref={backHref} backLabel="Назад" variant="patient">
       <article className="panel stack">
         {item.imageUrl && (
           <img src={item.imageUrl} alt="" style={{ maxWidth: "100%", height: "auto" }} />

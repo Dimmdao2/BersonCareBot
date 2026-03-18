@@ -17,7 +17,7 @@ const EMPTY_STATE_PLACEHOLDER =
 
 /** Строит страницу дневника ЛФК: описание, форма отметки занятия, списки комплексов и занятий. Требуется привязка телефона. */
 export default async function LfkDiaryPage() {
-  const session = await requirePatientAccess();
+  const session = await requirePatientAccess(routePaths.lfk);
   requirePatientPhone(session, routePaths.lfk);
   const deps = buildAppDeps();
   const complexes = await deps.diaries.listLfkComplexes(session.user.userId);

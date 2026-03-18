@@ -22,6 +22,8 @@ export type VerifyCodeResult =
   | { ok: false; code: SmsErrorCode; retryAfterSeconds?: number };
 
 export type SmsPort = {
-  sendCode(phone: string): Promise<SendCodeResult>;
+  /** Генерирует код и challengeId, сохраняет в store (с code), отправляет SMS (через интегратор или заглушку). */
+  sendCode(phone: string, ttlSec: number): Promise<SendCodeResult>;
+  /** Проверка кода только в вебапп (по данным из store). */
   verifyCode(challengeId: string, code: string): Promise<VerifyCodeResult>;
 };

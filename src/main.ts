@@ -16,7 +16,7 @@ async function start() {
 
   await runMigrations();
 
-  const app = buildApp();
+  const app = await buildApp();
   try {
     await app.listen({
       port: env.PORT,

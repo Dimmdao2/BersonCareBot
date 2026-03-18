@@ -5,7 +5,7 @@ import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChalleng
 import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 
 const deps = {
-  smsPort: createStubSmsAdapter(),
+  smsPort: createStubSmsAdapter({ challengeStore: inMemoryPhoneChallengeStore }),
   challengeStore: inMemoryPhoneChallengeStore,
   userByPhonePort: inMemoryUserByPhonePort,
 };
@@ -47,7 +47,9 @@ describe("confirmPhoneAuth", () => {
     const start = await startPhoneAuth("+79997654321", webContext, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
-    const confirm = await confirmPhoneAuth(start.challengeId, "123456", webContext, deps);
+    const challenge = await inMemoryPhoneChallengeStore.get(start.challengeId);
+    expect(challenge?.code).toBeDefined();
+    const confirm = await confirmPhoneAuth(start.challengeId, challenge!.code!, webContext, deps);
     expect(confirm.ok).toBe(true);
     if (confirm.ok) {
       expect(confirm.user.role).toBe("client");
@@ -60,7 +62,7 @@ describe("confirmPhoneAuth", () => {
     const start = await startPhoneAuth("+79991111111", webContext, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
-    const confirm = await confirmPhoneAuth(start.challengeId, "000000", webContext, deps);
+    const confirm = await confirmPhoneAuth(start.challengeId, "000000", webContext, deps); // wrong code
     expect(confirm.ok).toBe(false);
     if (!confirm.ok) expect(confirm.code).toBe("invalid_code");
   });

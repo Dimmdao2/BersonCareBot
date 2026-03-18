@@ -16,7 +16,7 @@ const EMPTY_STATE_PLACEHOLDER =
 
 /** Строит страницу дневника симптомов: описание, список симптомов и список записей. Требуется привязка телефона. */
 export default async function SymptomDiaryPage() {
-  const session = await requirePatientAccess();
+  const session = await requirePatientAccess(routePaths.symptoms);
   requirePatientPhone(session, routePaths.symptoms);
   const deps = buildAppDeps();
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId);

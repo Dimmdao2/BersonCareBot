@@ -243,7 +243,7 @@ async function main(): Promise<void> {
     adapters: [createTelegramDeliveryAdapter()],
   });
   const { buildApp } = await import('../src/app/index.js');
-  const app = buildApp({
+  const app = await buildApp({
     dbReadPort,
     dbWritePort,
     queuePort,

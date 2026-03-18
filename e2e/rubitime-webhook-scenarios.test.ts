@@ -113,7 +113,7 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
       ],
       writePort: dbWritePort,
     });
-    const app = buildApp({
+    const app = await buildApp({
       dbReadPort,
       dbWritePort,
       queuePort,
@@ -155,7 +155,7 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
     const smsClient: SmsClient = {
       sendSms: vi.fn().mockResolvedValue({ ok: true }),
     };
-    const app = buildApp({
+    const app = await buildApp({
       dbReadPort: {
         async readDb<T = unknown>(query: { type: string; params: Record<string, unknown> }): Promise<T> {
           if (query.type === 'booking.byExternalId') return null as T;
@@ -213,7 +213,7 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
   });
 
   it('recognizes status_name payloads and still delivers a Telegram notification', async () => {
-    const app = buildApp({
+    const app = await buildApp({
       dbReadPort: {
         async readDb<T = unknown>(query: { type: string; params: Record<string, unknown> }): Promise<T> {
           if (query.type === 'user.lookup' && query.params.by === 'phone' && query.params.value === '+79990003344') {
@@ -281,7 +281,7 @@ describe.skipIf(!runE2E)('Rubitime webhook scenarios (e2e)', () => {
     const smsClient: SmsClient = {
       sendSms: vi.fn().mockResolvedValue({ ok: true }),
     };
-    const app = buildApp({
+    const app = await buildApp({
       dbReadPort: {
         async readDb<T = unknown>(query: { type: string; params: Record<string, unknown> }): Promise<T> {
           if (query.type === 'user.lookup' && query.params.by === 'phone' && query.params.value === '+79990004455') {

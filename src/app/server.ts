@@ -9,7 +9,7 @@ import { telegramConfig } from '../integrations/telegram/config.js';
  * Builds Fastify app instance and wires routes with composed dependencies.
  * The app layer stays focused on bootstrap/wiring only.
  */
-export function buildApp(input?: BuildDepsInput) {
+export async function buildApp(input?: BuildDepsInput) {
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -17,7 +17,7 @@ export function buildApp(input?: BuildDepsInput) {
   });
 
   const deps = buildDeps(input);
-  registerRoutes(app, deps);
+  await registerRoutes(app, deps);
 
   app.log.info(
     {

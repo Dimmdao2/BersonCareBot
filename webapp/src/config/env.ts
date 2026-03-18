@@ -39,6 +39,11 @@ const envSchema = z.object({
     ),
   /** Optional fallback for entry/webhook when separate secrets not set; only for non-production. */
   INTEGRATOR_SHARED_SECRET: z.string().min(16).optional(),
+  /** Base URL интегратора для вызова отправки SMS (POST /api/bersoncare/send-sms). Если не задан — используется заглушка. */
+  INTEGRATOR_API_URL: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v.trim() : "")),
   /** Secret for webapp-entry token (?t=...). Required in production; in test has default. */
   INTEGRATOR_WEBAPP_ENTRY_SECRET: z
     .string()
@@ -74,6 +79,7 @@ const parsed = envSchema.parse({
   DATABASE_URL: process.env.DATABASE_URL,
   SESSION_COOKIE_SECRET: process.env.SESSION_COOKIE_SECRET,
   INTEGRATOR_SHARED_SECRET: process.env.INTEGRATOR_SHARED_SECRET,
+  INTEGRATOR_API_URL: process.env.INTEGRATOR_API_URL ?? "",
   INTEGRATOR_WEBAPP_ENTRY_SECRET: process.env.INTEGRATOR_WEBAPP_ENTRY_SECRET,
   INTEGRATOR_WEBHOOK_SECRET: process.env.INTEGRATOR_WEBHOOK_SECRET,
   ALLOW_DEV_AUTH_BYPASS: process.env.ALLOW_DEV_AUTH_BYPASS,

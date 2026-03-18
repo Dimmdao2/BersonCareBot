@@ -34,11 +34,21 @@ declare global {
   }
 }
 
-/** Запускает проверку токена или initData и при успехе перенаправляет в приложение; иначе — форма по SMS. */
+const SAFE_NEXT_PREFIX = "/app/patient";
+const SAFE_NEXT_EXCLUDE = "/app/patient/bind-phone";
+
+function isSafeNext(next: string | null): next is string {
+  if (!next || typeof next !== "string") return false;
+  const path = next.startsWith("/") ? next : new URL(next, "http://localhost").pathname;
+  return path.startsWith(SAFE_NEXT_PREFIX) && !path.startsWith(SAFE_NEXT_EXCLUDE);
+}
+
+/** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — форма по SMS. */
 export function AuthBootstrap() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("t") ?? searchParams.get("token");
+  const nextParam = searchParams.get("next");
   const debug = searchParams.get("debug") === "1";
   const [state, setState] = useState<BootstrapState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +84,8 @@ export function AuthBootstrap() {
         if (!response.ok) throw new Error(`auth exchange failed: ${response.status}`);
         const payload = text ? (JSON.parse(text) as { redirectTo: string }) : null;
         if (!active || !payload) return;
-        router.replace(payload.redirectTo);
+        const target = isSafeNext(nextParam) ? nextParam : payload.redirectTo;
+        router.replace(target);
       })
       .catch((e) => {
         if (active) {
@@ -87,7 +98,7 @@ export function AuthBootstrap() {
     return () => {
       active = false;
     };
-  }, [router, token, debug]);
+  }, [router, token, debug, nextParam]);
 
   // Определить наличие initData (для показа формы по SMS, когда нет Telegram)
   useEffect(() => {
@@ -95,6 +106,19 @@ export function AuthBootstrap() {
     const raw = window.Telegram?.WebApp?.initData?.trim() ?? "";
     setInitDataStatus(raw ? "yes" : "no");
   }, [token]);
+
+  const showPhoneFlow =
+    !token &&
+    (initDataStatus === "no" || state === "error") &&
+    state !== "loading" &&
+    !!nextParam;
+  const redirectToGuestMenu =
+    !token && (initDataStatus === "no" || state === "error") && state !== "loading" && !nextParam;
+
+  // Без токена и без next= — увести в гостевое меню, не показывать форму телефона
+  useEffect(() => {
+    if (redirectToGuestMenu) router.replace("/app/patient");
+  }, [router, redirectToGuestMenu]);
 
   // Если токена в URL нет — пробуем войти по данным Mini App Telegram (открыто из бота)
   useEffect(() => {
@@ -123,16 +147,17 @@ export function AuthBootstrap() {
         if (!response.ok) return;
         const payload = text ? (JSON.parse(text) as { redirectTo: string }) : null;
         if (!payload?.redirectTo) return;
-        router.replace(payload.redirectTo);
+        const target = isSafeNext(nextParam) ? nextParam : payload.redirectTo;
+        router.replace(target);
       })
       .catch((e) => {
         setState("error");
         setError("Скоро здесь будет много полезного");
         if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
       });
-  }, [router, token, debug]);
+  }, [router, token, debug, nextParam]);
 
-  const showPhoneFlow = !token && (initDataStatus === "no" || state === "error") && state !== "loading";
+  if (redirectToGuestMenu) return null;
 
   if (showPhoneFlow && phoneStep === "code" && challengeId) {
     return (
@@ -159,8 +184,9 @@ export function AuthBootstrap() {
               message?: string;
             };
             if (data.ok && data.redirectTo) {
-              router.replace(data.redirectTo);
-              return { ok: true as const, redirectTo: data.redirectTo };
+              const target = isSafeNext(nextParam) ? nextParam : data.redirectTo;
+              router.replace(target);
+              return { ok: true as const, redirectTo: target };
             }
             return { ok: false as const, message: data.message ?? "Ошибка входа" };
           }}

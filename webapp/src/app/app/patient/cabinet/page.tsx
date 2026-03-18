@@ -12,7 +12,7 @@ import { AppShell } from "@/shared/ui/AppShell";
 
 /** Рендерит кабинет: описание, следующая запись и список ближайших записей. Требуется привязка телефона. */
 export default async function PatientCabinetPage() {
-  const session = await requirePatientAccess();
+  const session = await requirePatientAccess(routePaths.cabinet);
   requirePatientPhone(session, routePaths.cabinet);
   const deps = buildAppDeps();
   const userId = session.user.userId;

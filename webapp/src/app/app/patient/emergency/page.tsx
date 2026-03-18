@@ -5,18 +5,18 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
 
-/** Строит страницу списка тем «Скорая помощь»: оболочка и сетка карточек-ссылок. */
+/** Строит страницу списка тем «Скорая помощь»: оболочка и сетка карточек-ссылок. Доступно без входа. */
 export default async function EmergencyPage() {
-  const session = await requirePatientAccess();
+  const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
   const topics = deps.emergency.listEmergencyTopics();
 
   return (
-    <AppShell title="Скорая помощь" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
+    <AppShell title="Скорая помощь" user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">
       <section className="feature-grid">
         {topics.map((topic) => (
           <FeatureCard

@@ -18,7 +18,7 @@ const MOCK_ITEMS = [
 
 /** Строит страницу покупок: описание и список карточек с типом, статусом и сроком действия. */
 export default async function PurchasesPage() {
-  const session = await requirePatientAccess();
+  const session = await requirePatientAccess(routePaths.purchases);
   requirePatientPhone(session, routePaths.purchases);
   const deps = buildAppDeps();
   const state = deps.purchases.getPurchaseSectionState();

@@ -15,12 +15,30 @@ import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
 
 const COMING_SOON_MESSAGE = "Скоро здесь будет много полезного";
 
-/** Определяет сессию и либо редиректит по роли, либо показывает экран входа с блоком авторизации. */
-export default async function AppEntryPage() {
+const SAFE_NEXT_PREFIX = "/app/patient";
+const SAFE_NEXT_EXCLUDE = "/app/patient/bind-phone";
+
+function isSafeNext(next: string | null): next is string {
+  if (!next || typeof next !== "string") return false;
+  const path = next.startsWith("/") ? next : new URL(next, "http://localhost").pathname;
+  return path.startsWith(SAFE_NEXT_PREFIX) && !path.startsWith(SAFE_NEXT_EXCLUDE);
+}
+
+type SearchParams = { next?: string };
+
+/** Определяет сессию и либо редиректит по роли (или по ?next=), либо показывает экран входа. */
+export default async function AppEntryPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const deps = buildAppDeps();
   const session = await deps.auth.getCurrentSession();
+  const { next: nextParam } = await searchParams;
 
   if (session) {
+    const target = isSafeNext(nextParam ?? null) ? (nextParam ?? null) : null;
+    if (target) redirect(target);
     const role = session.user.role;
     redirect(role === "admin" || role === "doctor" ? "/app/doctor" : "/app/patient");
   }

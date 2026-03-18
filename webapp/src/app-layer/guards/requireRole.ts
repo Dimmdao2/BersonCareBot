@@ -4,14 +4,26 @@ import { canAccessDoctor, canAccessPatient } from "@/modules/roles/service";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { AppSession } from "@/shared/types/session";
 
-export async function requireSession(): Promise<AppSession> {
+export async function requireSession(returnPath?: string): Promise<AppSession> {
   const session = await getCurrentSession();
-  if (!session) redirect(routePaths.root);
+  if (!session) {
+    const query = returnPath ? `?next=${encodeURIComponent(returnPath)}` : "";
+    redirect(`${routePaths.root}${query}`);
+  }
   return session;
 }
 
-export async function requirePatientAccess(): Promise<AppSession> {
-  const session = await requireSession();
+/** Сессия для разделов «только для авторизованного» (записи, дневники, покупки). Редирект на /app с ?next= при отсутствии сессии. */
+export async function requirePatientAccess(returnPath?: string): Promise<AppSession> {
+  const session = await requireSession(returnPath);
+  if (!canAccessPatient(session.user.role)) redirect(routePaths.doctor);
+  return session;
+}
+
+/** Опциональная сессия пациента: для главного меню, уроков, скорой, контента — можно без входа (гость). Возвращает null, если нет сессии; редирект только если роль не пациент. */
+export async function getOptionalPatientSession(): Promise<AppSession | null> {
+  const session = await getCurrentSession();
+  if (!session) return null;
   if (!canAccessPatient(session.user.role)) redirect(routePaths.doctor);
   return session;
 }

@@ -38,7 +38,7 @@ export async function startPhoneAuth(
     return { ok: false, code: "invalid_phone" };
   }
 
-  const sendResult = await deps.smsPort.sendCode(normalized);
+  const sendResult = await deps.smsPort.sendCode(normalized, CHALLENGE_TTL_SEC);
   if (!sendResult.ok) {
     return {
       ok: false,
@@ -46,9 +46,6 @@ export async function startPhoneAuth(
       retryAfterSeconds: sendResult.retryAfterSeconds,
     };
   }
-
-  const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
-  await deps.challengeStore.set(sendResult.challengeId, { phone: normalized, expiresAt });
 
   return {
     ok: true,

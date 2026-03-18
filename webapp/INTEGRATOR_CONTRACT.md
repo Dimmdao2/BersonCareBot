@@ -151,6 +151,43 @@ Canonical linking rules:
 - phone-based linking requires verified contact flows
 - links are stored explicitly and audited
 
+## Flow 4: BersonCare → Integrator (send SMS code)
+
+**Направление:** вебапп (bersoncare) вызывает интегратор для отправки SMS с кодом подтверждения. Код генерируется в вебапп; проверка кода — только в вебапп (интегратор не участвует в верификации).
+
+### Запрос от вебапп к интегратору
+
+**Метод и URL:** `POST {INTEGRATOR_API_URL}/api/bersoncare/send-sms`
+
+**Заголовки:**
+
+- `Content-Type: application/json`
+- `X-Bersoncare-Timestamp` — Unix timestamp (секунды), строка
+- `X-Bersoncare-Signature` — подпись: `HMAC-SHA256(secret, timestamp + "." + rawBody)` в base64url
+
+**Тело (JSON):**
+
+```json
+{
+  "phone": "+79991234567",
+  "code": "123456"
+}
+```
+
+Опционально: `idempotencyKey` (для идемпотентности на стороне интегратора при необходимости).
+
+**Ответ интегратора:**
+
+- `200`: `{ "ok": true }` — SMS принято к отправке
+- `400`: `{ "ok": false, "error": "missing_headers" | "phone and code required" }`
+- `401`: `{ "ok": false, "error": "invalid_signature" }`
+- `502`: `{ "ok": false, "error": "<SMSC error>" }` — ошибка провайдера SMS
+- `503`: `{ "ok": false, "error": "service_unconfigured" }` — не задан секрет
+
+**Сценарий интегратора:** получение запроса от bersoncare → проверка подписи → вызов SMSC (или заглушки) с текстом вида «Ваш код BersonCare: {code}». Повторная проверка кода и привязка номера — только в вебапп.
+
+---
+
 ## Future Extensions
 
 The contract is intentionally narrow so the services can evolve independently.

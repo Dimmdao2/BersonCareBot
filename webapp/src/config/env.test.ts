@@ -27,6 +27,7 @@ describe("checkInsecureSecretsForStartup", () => {
     DATABASE_URL: "",
     SESSION_COOKIE_SECRET: "some-safe-session-secret-min-16",
     INTEGRATOR_SHARED_SECRET: "some-safe-integrator-secret-16",
+    INTEGRATOR_API_URL: "",
     INTEGRATOR_WEBAPP_ENTRY_SECRET: "",
     INTEGRATOR_WEBHOOK_SECRET: "",
     ALLOW_DEV_AUTH_BYPASS: false,

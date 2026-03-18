@@ -361,6 +361,8 @@ body.drawer-open {
   padding: 10px 14px;
   border: 1px solid #cad5e5;
   background: white;
+  color: #18202c;
+  font-size: 1rem;
 }
 
 .button--ghost {

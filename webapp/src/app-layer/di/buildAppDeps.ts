@@ -13,6 +13,7 @@ import {
 } from "@/modules/auth/service";
 import { startPhoneAuth as startPhoneAuthFlow, confirmPhoneAuth as confirmPhoneAuthFlow } from "@/modules/auth/phoneAuth";
 import type { ChannelContext } from "@/modules/auth/channelContext";
+import { createIntegratorSmsAdapter } from "@/infra/integrations/sms/integratorSmsAdapter";
 import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
 import { inMemoryPhoneChallengeStore } from "@/infra/repos/inMemoryPhoneChallengeStore";
 import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
@@ -49,7 +50,14 @@ const contentCatalog = createContentCatalogResolver({
   testVideoUrl: env.MEDIA_TEST_VIDEO_URL?.length ? env.MEDIA_TEST_VIDEO_URL : undefined,
 });
 
-const smsPort = createStubSmsAdapter();
+const smsPort =
+  env.INTEGRATOR_API_URL && env.INTEGRATOR_SHARED_SECRET
+    ? createIntegratorSmsAdapter({
+        challengeStore: inMemoryPhoneChallengeStore,
+        integratorBaseUrl: env.INTEGRATOR_API_URL,
+        sharedSecret: env.INTEGRATOR_SHARED_SECRET,
+      })
+    : createStubSmsAdapter({ challengeStore: inMemoryPhoneChallengeStore });
 const phoneAuthDeps = {
   smsPort,
   challengeStore: inMemoryPhoneChallengeStore,

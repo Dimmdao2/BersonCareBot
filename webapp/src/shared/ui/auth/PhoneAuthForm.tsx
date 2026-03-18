@@ -51,8 +51,13 @@ export function PhoneAuthForm({ onSubmit, onSuccess }: PhoneAuthFormProps) {
         aria-invalid={!!error}
       />
       {error && <p className="empty-state" style={{ fontSize: 14, color: "#9c4242" }}>{error}</p>}
-      <button type="submit" className="button" disabled={loading}>
-        {loading ? "Отправка…" : "Получить код"}
+      <button
+        type="submit"
+        className="button"
+        disabled={loading}
+        aria-label={loading ? "Отправка кода…" : "Получить код по SMS"}
+      >
+        <span aria-hidden>{loading ? "Отправка…" : "Получить код"}</span>
       </button>
     </form>
   );

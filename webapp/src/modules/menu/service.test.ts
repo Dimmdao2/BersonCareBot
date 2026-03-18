@@ -7,7 +7,7 @@ describe("menu service", () => {
     expect(items.length).toBeGreaterThan(0);
     expect(items.some((i) => i.id === "lessons")).toBe(true);
     expect(items.some((i) => i.id === "emergency")).toBe(true);
-    expect(items.some((i) => i.id === "cabinet")).toBe(false);
+    expect(items.some((i) => i.id === "cabinet")).toBe(true);
   });
 
   it("returns doctor menu for doctor", () => {

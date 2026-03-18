@@ -5,18 +5,18 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
 
-/** Строит страницу списка уроков: оболочка и сетка карточек-ссылок. */
+/** Строит страницу списка уроков: оболочка и сетка карточек-ссылок. Доступно без входа. */
 export default async function PatientLessonsPage() {
-  const session = await requirePatientAccess();
+  const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
   const lessons = deps.lessons.listLessons();
 
   return (
-    <AppShell title="Полезные уроки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
+    <AppShell title="Полезные уроки" user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">
       <section className="feature-grid">
         {lessons.map((lesson) => (
           <FeatureCard
