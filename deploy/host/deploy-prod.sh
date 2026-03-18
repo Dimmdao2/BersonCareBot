@@ -49,6 +49,9 @@ if [ -z "${DEPLOY_PROD_RERUN:-}" ]; then
   exec bash deploy/host/deploy-prod.sh
 fi
 
+# Reinstall systemd units from repo so WorkingDirectory/ExecStart match current layout (apps/integrator).
+bash deploy/host/bootstrap-systemd-prod.sh
+
 require_file "${ENV_FILE}" "Production environment file"
 require_file "${BACKUP_SCRIPT}" "Backup script"
 require_unit_file "${API_SERVICE}"
@@ -62,6 +65,10 @@ require_sudo_rule "worker status check" /bin/systemctl is-active --quiet "${WORK
 
 export CI=true
 pnpm install --frozen-lockfile
+
+# Remove stale root dist/ from before move to apps/integrator (API/worker now run from apps/integrator/dist).
+rm -rf dist
+
 pnpm build
 pnpm build:webapp
 

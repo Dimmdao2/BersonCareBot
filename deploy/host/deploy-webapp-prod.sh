@@ -44,6 +44,9 @@ if [ -z "${DEPLOY_WEBAPP_PROD_RERUN:-}" ]; then
   exec bash deploy/host/deploy-webapp-prod.sh
 fi
 
+# Reinstall webapp unit from repo so paths match current layout (apps/webapp).
+bash deploy/host/bootstrap-systemd-webapp-prod.sh
+
 require_file "${ENV_FILE}" "Production webapp environment file"
 require_unit_file "${WEBAPP_SERVICE}"
 require_sudo_rule "webapp restart" /bin/systemctl restart "${WEBAPP_SERVICE}"
