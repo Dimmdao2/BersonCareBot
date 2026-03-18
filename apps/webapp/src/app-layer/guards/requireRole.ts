@@ -36,7 +36,11 @@ export async function requireDoctorAccess(): Promise<AppSession> {
 
 /** Если у пациента нет привязанного телефона — редирект на страницу привязки с next=returnTo. Вызывать только на маршрутах из patientPathsRequiringPhone. */
 export function requirePatientPhone(session: AppSession, returnTo: string): void {
-  if (!session.user.phone?.trim()) {
+  const hasMessengerBinding =
+    Boolean(session.user.bindings.telegramId?.trim()) ||
+    Boolean(session.user.bindings.maxId?.trim()) ||
+    Boolean(session.user.bindings.vkId?.trim());
+  if (!session.user.phone?.trim() && !hasMessengerBinding) {
     const next = encodeURIComponent(returnTo);
     redirect(`${routePaths.bindPhone}?next=${next}`);
   }

@@ -1,3 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-node dist/infra/db/migrate.js
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+cd "${PROJECT_ROOT}"
+pnpm --dir apps/integrator run db:migrate:prod

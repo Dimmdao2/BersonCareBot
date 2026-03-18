@@ -1,0 +1,52 @@
+{
+  "name": "@bersoncare/integrator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "worker:dev": "tsx watch src/infra/runtime/worker/main.ts",
+    "clean": "rm -rf dist",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "worker:start": "node dist/infra/runtime/worker/main.js",
+    "test": "vitest --run",
+    "test:e2e": "RUN_E2E_TESTS=true vitest --run e2e/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/infra/db/migrate.ts",
+    "db:migrate": "tsx src/infra/db/migrate.ts",
+    "db:migrate:prod": "node dist/infra/db/migrate.js",
+    "scenarios": "tsx e2e/run-webhook-scenarios.ts",
+    "auto-close-conversations": "tsx src/infra/scripts/auto-close-stale-conversations.ts",
+    "auto-close-conversations:host": "node dist/infra/scripts/auto-close-stale-conversations.js",
+    "smsc:check": "tsx src/infra/scripts/check-smsc.ts",
+    "s3:check": "tsx src/infra/scripts/check-s3.ts",
+    "mail:check": "tsx src/infra/scripts/check-mail.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@maxhub/max-bot-api": "^0.2.2",
+    "dotenv": "^17.3.1",
+    "fastify": "^5.8.2",
+    "grammy": "^1.41.1",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^8.0.2",
+    "p-retry": "^7.1.1",
+    "pg": "^8.20.0",
+    "pino": "^10.3.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1009.0",
+    "@types/node": "^25.5.0",
+    "@types/node-fetch": "^2.6.13",
+    "@types/nodemailer": "^7.0.11",
+    "@types/pg": "^8.18.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "undici": "^7.24.3",
+    "vitest": "^4.1.0"
+  }
+}

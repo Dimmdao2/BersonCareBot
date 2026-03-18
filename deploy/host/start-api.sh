@@ -1,3 +1,5 @@
 #!/bin/bash
 set -euo pipefail
-node dist/main.js
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "${SCRIPT_DIR}/../../apps/integrator"
+exec node dist/main.js

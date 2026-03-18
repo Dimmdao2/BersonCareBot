@@ -15,7 +15,7 @@ export type MenuItem = {
 
 /** Возвращает список пунктов меню в зависимости от роли (пациент или врач). */
 export function getMenuForRole(role: UserRole): MenuItem[] {
-  if (role === "doctor") {
+  if (role === "doctor" || role === "admin") {
     return [
       {
         id: "doctor-workspace",

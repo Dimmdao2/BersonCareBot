@@ -19,11 +19,12 @@ dist/
 build/
 admin/dist/
 admin/node_modules/
-webapp/.next/
-webapp/next-env.d.ts
-webapp/node_modules/
-webapp/.turbo/
-webapp/out/
+apps/webapp/.next/
+apps/webapp/next-env.d.ts
+apps/webapp/node_modules/
+apps/webapp/.turbo/
+apps/webapp/out/
+apps/integrator/dist/
 
 # VSCode
 .vscode/
@@ -41,7 +42,7 @@ _old/logs/
 # Local environment
 .env.*
 !.env.example
-!webapp/.env.example
+!apps/webapp/.env.example
 
 # Misc
 *.local

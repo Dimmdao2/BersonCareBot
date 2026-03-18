@@ -16,8 +16,8 @@ describe("menu service", () => {
     expect(items.some((i) => i.id === "doctor-workspace")).toBe(true);
   });
 
-  it("returns patient menu for admin", () => {
+  it("returns specialist menu for admin", () => {
     const items = getMenuForRole("admin");
-    expect(items.some((i) => i.id === "lessons")).toBe(true);
+    expect(items.some((i) => i.id === "doctor-workspace")).toBe(true);
   });
 });

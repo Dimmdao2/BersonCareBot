@@ -42,8 +42,8 @@ fi
 run_as_root /bin/systemctl daemon-reload
 
 if [ -f /opt/env/bersoncarebot/api.prod ] \
-  && [ -f "${PROJECT_ROOT}/dist/main.js" ] \
-  && [ -f "${PROJECT_ROOT}/dist/infra/runtime/worker/main.js" ]; then
+  && [ -f "${PROJECT_ROOT}/apps/integrator/dist/main.js" ] \
+  && [ -f "${PROJECT_ROOT}/apps/integrator/dist/infra/runtime/worker/main.js" ]; then
   run_as_root /bin/systemctl enable --now "${API_SERVICE}"
   run_as_root /bin/systemctl enable --now "${WORKER_SERVICE}"
   if [ -e "${SYSTEMD_DIR}/${WEBAPP_SERVICE}" ] \

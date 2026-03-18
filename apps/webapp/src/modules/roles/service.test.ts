@@ -3,9 +3,9 @@ import { canAccessPatient, canAccessDoctor } from "./service";
 
 describe("roles service", () => {
   describe("canAccessPatient", () => {
-    it("allows client and admin", () => {
+    it("allows only client", () => {
       expect(canAccessPatient("client")).toBe(true);
-      expect(canAccessPatient("admin")).toBe(true);
+      expect(canAccessPatient("admin")).toBe(false);
     });
     it("denies doctor", () => {
       expect(canAccessPatient("doctor")).toBe(false);

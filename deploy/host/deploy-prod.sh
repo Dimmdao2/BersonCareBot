@@ -78,7 +78,7 @@ fi
 # Script must support first arg "pre-migrations" and write to /opt/backups/postgres/pre-migrations/
 sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
-node dist/infra/db/migrate.js
+pnpm --dir apps/integrator run db:migrate:prod
 
 # Webapp migrations (use webapp DB from WEBAPP_ENV_FILE)
 if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
