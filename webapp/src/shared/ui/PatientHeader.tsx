@@ -19,10 +19,12 @@ type PatientHeaderProps = {
   backHref?: string;
   /** Текст/aria-label для кнопки «Назад». */
   backLabel?: string;
+  /** Заголовок страницы (отображается по центру и ведёт в меню). Если не передан — «BERSONCARE». */
+  title?: string;
 };
 
-/** Шапка пациента: стрелка назад | BERSONCARE | гамбургер (боковое меню справа). */
-export function PatientHeader({ showBack, backHref, backLabel = "Назад" }: PatientHeaderProps) {
+/** Шапка пациента: стрелка назад | заголовок (ссылка в меню) | гамбургер (боковое меню справа). */
+export function PatientHeader({ showBack, backHref, backLabel = "Назад", title }: PatientHeaderProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -76,8 +78,8 @@ export function PatientHeader({ showBack, backHref, backLabel = "Назад" }: 
           )}
         </div>
         <div className="patient-header__center">
-          <Link href="/app/patient" className="patient-header__title">
-            BERSONCARE
+          <Link href="/app/patient" className="patient-header__title" prefetch={false}>
+            {title?.trim() ?? "BERSONCARE"}
           </Link>
         </div>
         <div className="patient-header__right">

@@ -136,11 +136,14 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
-button.patient-header__back {
+button.patient-header__back,
+a.patient-header__back {
   border: none;
   background: none;
   cursor: pointer;
   font: inherit;
+  text-decoration: none;
+  color: inherit;
 }
 
 .patient-header__back:active {
@@ -158,6 +161,12 @@ button.patient-header__back {
   letter-spacing: 0.06em;
   color: #18202c;
   -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--patient-touch);
+  padding: 0 8px;
 }
 
 .patient-header__title:active {
