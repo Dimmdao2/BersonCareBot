@@ -668,6 +668,119 @@ export async function executeAction(
       };
     }
 
+    case 'conversation.openWithMessage': {
+      if (!deps.writePort || !deps.readPort) {
+        return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
+      }
+      const externalId = readExternalActorId(ctx);
+      const source = asString(action.params.source) ?? ctx.event.meta.source;
+      const adminChatId = asNumber(asRecord(ctx.base.facts).adminChatId);
+      const text = readIncomingText(ctx);
+      if (!externalId || !source) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_OPEN_INPUT_MISSING' };
+      }
+      if (adminChatId === null) {
+        return { actionId: action.id, status: 'skipped', error: 'ADMIN_CHAT_ID_REQUIRED' };
+      }
+      const messageText = (typeof text === 'string' && text.trim().length > 0) ? text.trim() : null;
+      if (!messageText) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_OPEN_TEXT_REQUIRED' };
+      }
+      await persistWrites(deps.writePort, [{
+        type: 'identity.ensure',
+        params: { resource: source, externalId },
+      }]);
+      const conversationId = randomUUID();
+      const firstMessageId = randomUUID();
+      const nowIsoVal = ctx.nowIso;
+      const chatIdStr = readIncomingChatId(ctx);
+      const messageIdStr = readIncomingMessageId(ctx);
+      const writes: DbWriteMutation[] = [
+        {
+          type: 'conversation.open',
+          params: {
+            id: conversationId,
+            resource: ctx.event.meta.source,
+            externalId,
+            source,
+            adminScope: 'default',
+            status: 'waiting_admin',
+            openedAt: nowIsoVal,
+            lastMessageAt: nowIsoVal,
+          },
+        },
+        {
+          type: 'conversation.message.add',
+          params: {
+            id: firstMessageId,
+            conversationId,
+            senderRole: 'user',
+            text: messageText,
+            source,
+            externalChatId: chatIdStr ?? undefined,
+            externalMessageId: messageIdStr ?? undefined,
+            createdAt: nowIsoVal,
+          },
+        },
+        {
+          type: 'conversation.state.set',
+          params: {
+            id: conversationId,
+            status: 'waiting_admin',
+            lastMessageAt: nowIsoVal,
+          },
+        },
+      ];
+      await persistWrites(deps.writePort, writes);
+      const userLabel = `Пользователь (${externalId})`;
+      const newMessageText = deps.templatePort
+        ? (await renderText({
+          templateKey: ADMIN.CONVERSATION_NEW_MESSAGE,
+          vars: { userLabel, text: messageText },
+          ctx,
+          templatePort: deps.templatePort,
+        })) ?? `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageText}`
+        : `Новое сообщение в диалоге\nОт: ${userLabel}\n\n${messageText}`;
+      const replyButtonText = deps.templatePort
+        ? (await renderText({ templateKey: ADMIN.REPLY_BUTTON, ctx, templatePort: deps.templatePort })) || 'Ответить'
+        : 'Ответить';
+      const adminChannel = source;
+      const intents: OutgoingIntent[] = [{
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text: newMessageText },
+          replyMarkup: {
+            inline_keyboard: [[
+              { text: replyButtonText, callback_data: `admin_reply:${conversationId}` },
+            ]],
+          },
+          delivery: { channels: [adminChannel], maxAttempts: 1 },
+        },
+      }];
+      intents.push({
+        type: 'message.send',
+        meta: buildIntentMeta(action, ctx),
+        payload: {
+          recipient: { chatId: adminChatId },
+          message: { text: messageText },
+          delivery: { channels: [adminChannel], maxAttempts: 1 },
+        },
+      });
+      return {
+        actionId: action.id,
+        status: 'success',
+        writes,
+        intents,
+        values: {
+          hasOpenConversation: true,
+          activeConversationId: conversationId,
+          activeConversationStatus: 'waiting_admin',
+        },
+      };
+    }
+
     case 'conversation.user.message': {
       return handleConversationUserMessage(action, ctx, fullDeps);
     }

@@ -421,6 +421,68 @@
     ]
   },
   {
+    "id": "max.conversation.user.message",
+    "source": "max",
+    "event": "message.received",
+    "match": {
+      "actor": { "isAdmin": false },
+      "context": { "hasOpenConversation": true },
+      "input": {
+        "textPresent": true,
+        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
+        "excludeTexts": ["/start", "/book"]
+      }
+    },
+    "steps": [
+      {
+        "action": "conversation.user.message",
+        "mode": "sync",
+        "params": { "source": "max" }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "message": {},
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "templateKey": "max:dialogMessageAccepted"
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.conversation.openWithMessage",
+    "source": "max",
+    "event": "message.received",
+    "match": {
+      "actor": { "isAdmin": false },
+      "context": { "hasOpenConversation": false },
+      "input": {
+        "textPresent": true,
+        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
+        "excludeTexts": ["/start", "/book"]
+      }
+    },
+    "steps": [
+      {
+        "action": "conversation.openWithMessage",
+        "mode": "sync",
+        "params": { "source": "max" }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "message": {},
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "templateKey": "max:dialogMessageAccepted"
+        }
+      }
+    ]
+  },
+  {
     "id": "max.default",
     "source": "max",
     "event": "message.received",

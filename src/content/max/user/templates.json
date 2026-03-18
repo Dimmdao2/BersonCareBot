@@ -25,5 +25,6 @@
   "moreMenu.usefulLessons": "📚 Полезные уроки и тренировки",
   "moreMenu.myBookings": "📄 Мои записи на приём",
   "moreMenu.notifications": "🔔 Настройка уведомлений",
-  "notImplemented": "Раздел в разработке."
+  "notImplemented": "Раздел в разработке.",
+  "dialogMessageAccepted": "Сообщение отправлено. Ожидайте ответа."
 }

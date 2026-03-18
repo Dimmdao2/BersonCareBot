@@ -5,6 +5,7 @@ import { setUserPhone, setUserState, updateNotificationSettings, upsertUser } fr
 import { appendMessageLog } from './repos/messageLogs.js';
 import {
   cancelDraftByIdentity,
+  ensureIdentityForMessenger,
   insertConversation,
   insertConversationMessage,
   setConversationState,
@@ -174,6 +175,13 @@ export function createDbWritePort(input: { db?: DbPort } = {}): DbWritePort {
           const source = asNonEmptyString(mutation.params.source);
           if (!resource || !externalId) return;
           await cancelDraftByIdentity(db, { resource, externalId, ...(source ? { source } : {}) });
+          return;
+        }
+        case 'identity.ensure': {
+          const resource = asNonEmptyString(mutation.params.resource);
+          const externalId = asNonEmptyString(mutation.params.externalId);
+          if (!resource || !externalId) return;
+          await ensureIdentityForMessenger(db, { resource, externalId });
           return;
         }
         case 'conversation.open': {

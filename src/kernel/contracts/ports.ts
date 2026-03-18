@@ -38,6 +38,7 @@ export type DbReadQueryType =
 
 /** Категории write-мутаций к хранилищу. */
 export type DbWriteMutationType =
+  | 'identity.ensure'
   | 'user.upsert'
   | 'user.state.set'
   | 'user.phone.link'

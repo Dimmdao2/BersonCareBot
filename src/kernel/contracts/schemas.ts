@@ -192,6 +192,7 @@ export const dbReadQuerySchema = z.object({
 /** Валидация write-контракта для DB-порта. */
 export const dbWriteMutationSchema = z.object({
   type: z.enum([
+    'identity.ensure',
     'user.upsert',
     'user.state.set',
     'user.phone.link',

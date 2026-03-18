@@ -280,6 +280,45 @@ export async function setConversationState(
   ]);
 }
 
+/**
+ * Ensures an identity exists for a messenger (e.g. max). Creates user and identity if missing.
+ * Used so conversation.open can succeed for channels that don't use Telegram's upsertUser.
+ */
+export async function ensureIdentityForMessenger(
+  db: DbPort,
+  input: { resource: string; externalId: string },
+): Promise<void> {
+  if (input.resource !== 'max' || !input.externalId.trim()) return;
+  const sql = `
+    WITH existing AS (
+      SELECT id FROM identities
+      WHERE resource = $1 AND external_id = $2
+      LIMIT 1
+    ),
+    new_user AS (
+      INSERT INTO users (created_at, updated_at)
+      SELECT now(), now()
+      WHERE NOT EXISTS (SELECT 1 FROM existing)
+      RETURNING id
+    ),
+    user_id AS (
+      SELECT id FROM new_user
+      UNION ALL
+      SELECT i.user_id FROM identities i
+      WHERE i.resource = $1 AND i.external_id = $2
+      LIMIT 1
+    ),
+    ins AS (
+      INSERT INTO identities (user_id, resource, external_id, created_at, updated_at)
+      SELECT (SELECT id FROM user_id LIMIT 1), $1, $2, now(), now()
+      WHERE NOT EXISTS (SELECT 1 FROM existing)
+      ON CONFLICT (resource, external_id) DO UPDATE SET updated_at = now()
+    )
+    SELECT 1
+  `;
+  await db.query(sql, [input.resource, input.externalId.trim()]);
+}
+
 export async function getOpenConversationByIdentity(
   db: DbPort,
   input: { resource: string; externalId: string; source?: string },
