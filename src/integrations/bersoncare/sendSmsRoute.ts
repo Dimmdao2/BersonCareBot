@@ -63,7 +63,7 @@ export async function registerBersoncareSendSmsRoute(
       return reply.code(400).send({ ok: false, error: 'missing_headers' });
     }
     if (!sharedSecret) {
-      logger.warn({}, 'bersoncare send-sms: INTEGRATOR_SHARED_SECRET not set');
+      logger.warn({}, 'bersoncare send-sms: webhook secret not set (INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET)');
       return reply.code(503).send({ ok: false, error: 'service_unconfigured' });
     }
     if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {

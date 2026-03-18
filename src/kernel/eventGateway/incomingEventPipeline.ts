@@ -4,6 +4,7 @@ import type {
   ContentPort,
   DbReadPort,
   DeliveryDefaultsPort,
+  DeliveryTargetsPort,
   DispatchPort,
   DbWritePort,
   IncomingEvent,
@@ -34,6 +35,8 @@ export type IncomingEventPipelineDeps = {
   supportRelayPolicy?: SupportRelayPolicy | null;
   /** Optional: emit signed events to webapp (e.g. diary.symptom.*). */
   webappEventsPort?: WebappEventsPort;
+  /** Optional: resolve delivery targets for multi-channel fan-out (e.g. Rubitime/booking). */
+  deliveryTargetsPort?: DeliveryTargetsPort;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -106,6 +109,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             ...(deps.contentPort ? { contentPort: deps.contentPort } : {}),
             ...(deps.supportRelayPolicy !== undefined && deps.supportRelayPolicy !== null ? { supportRelayPolicy: deps.supportRelayPolicy } : {}),
             ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
+            ...(deps.deliveryTargetsPort ? { deliveryTargetsPort: deps.deliveryTargetsPort } : {}),
             executeAction: executeDomainAction,
           };
           return executeDomainAction(action, context, executorDeps);

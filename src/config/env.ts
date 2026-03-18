@@ -3,6 +3,7 @@ import { z } from 'zod';
 /**
  * Единый реестр переменных окружения.
  * Значения валидируются при старте приложения.
+ * Secret separation: INTEGRATOR_WEBAPP_ENTRY_SECRET for ?t= tokens, INTEGRATOR_WEBHOOK_SECRET for webhook signing/verification; INTEGRATOR_SHARED_SECRET fallback for both when separate not set.
  */
 const parsed = z
   .object({
@@ -18,8 +19,20 @@ const parsed = z
     CONTENT_ACCESS_HMAC_SECRET: z.string().optional().default(''),
     APP_BASE_URL: z.string().url().optional(),
     INTEGRATOR_SHARED_SECRET: z.string().min(16).optional(),
+    /** Secret for signing webapp-entry token (?t=). Prefer over INTEGRATOR_SHARED_SECRET when set. */
+    INTEGRATOR_WEBAPP_ENTRY_SECRET: z.string().min(16).optional(),
+    /** Secret for webhook HMAC (outbound to webapp, inbound from webapp e.g. send-sms). Prefer over INTEGRATOR_SHARED_SECRET when set. */
+    INTEGRATOR_WEBHOOK_SECRET: z.string().min(16).optional(),
   })
   .parse(process.env);
 
 /** Нормализованные и валидированные переменные окружения. */
 export const env = parsed;
+
+/** Secret for building webapp-entry token. */
+export const integratorWebappEntrySecret = (): string =>
+  parsed.INTEGRATOR_WEBAPP_ENTRY_SECRET ?? parsed.INTEGRATOR_SHARED_SECRET ?? '';
+
+/** Secret for webhook signing and verification (webapp M2M). */
+export const integratorWebhookSecret = (): string =>
+  parsed.INTEGRATOR_WEBHOOK_SECRET ?? parsed.INTEGRATOR_SHARED_SECRET ?? '';

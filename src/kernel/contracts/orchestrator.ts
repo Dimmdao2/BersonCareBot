@@ -69,6 +69,8 @@ export type ContentScriptMatchObject = {
   phonePresent?: boolean | undefined;
   excludeActions?: string[] | undefined;
   excludeTexts?: string[] | undefined;
+  /** Если текст сообщения начинается с любого из префиксов — сценарий не матчится (не вопрос пользователя). */
+  excludeTextPrefixes?: string[] | undefined;
   [key: string]: ContentScriptMatchValue | undefined;
 };
 

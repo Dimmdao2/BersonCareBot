@@ -138,7 +138,7 @@ function countSpecificity(match: unknown): number {
   if (Array.isArray(match)) return match.reduce((sum, item) => sum + countSpecificity(item), 0);
   if (!isRecord(match)) return 1;
   return Object.entries(match).reduce((sum, [key, value]) => {
-    if (key === 'excludeActions' || key === 'excludeTexts') {
+    if (key === 'excludeActions' || key === 'excludeTexts' || key === 'excludeTextPrefixes') {
       return sum + (Array.isArray(value) ? value.length : 1);
     }
     return sum + 1 + countSpecificity(value);
@@ -188,6 +188,12 @@ function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
     if (key === 'excludeTexts') {
       if (!Array.isArray(value)) return false;
       if (value.includes(actualRecord.text as never)) return false;
+      continue;
+    }
+    if (key === 'excludeTextPrefixes') {
+      if (!Array.isArray(value)) return false;
+      const text = typeof actualRecord.text === 'string' ? actualRecord.text.trim() : '';
+      if (value.some((prefix: unknown) => typeof prefix === 'string' && text.startsWith(prefix))) return false;
       continue;
     }
     if (!matchesScriptPattern(actualRecord[key], value)) return false;
@@ -255,7 +261,8 @@ async function runContextQueries(
     if (item.kind !== 'context.query') continue;
     const name = typeof item.name === 'string' ? item.name : '';
     if (!name) continue;
-    const query = interpolate(item.query, vars) as ContextQuery;
+    const varsWithQueries = { ...vars, queries: results };
+    const query = interpolate(item.query, varsWithQueries) as ContextQuery;
     if (!isRecord(query) || typeof query.type !== 'string') continue;
     results[name] = await contextQueryPort.request(query);
   }

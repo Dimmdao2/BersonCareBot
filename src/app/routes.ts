@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { registerBersoncareSendSmsRoute } from '../integrations/bersoncare/sendSmsRoute.js';
-import { env } from '../config/env.js';
+import { integratorWebhookSecret } from '../config/env.js';
 import type { AppDeps } from './di.js';
 
 /** Public response shape for the health endpoint. */
@@ -22,7 +22,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
 
   await registerBersoncareSendSmsRoute(app, {
     smsClient: deps.smsClient,
-    sharedSecret: env.INTEGRATOR_SHARED_SECRET ?? '',
+    sharedSecret: integratorWebhookSecret(),
   });
 
   if (deps.registerTelegramWebhookRoutes) {

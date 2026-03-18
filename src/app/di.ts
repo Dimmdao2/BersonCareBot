@@ -48,6 +48,7 @@ import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.
 import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.js';
 import { defaultSupportRelayPolicy } from '../integrations/telegram/supportRelayPolicy.js';
 import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js';
+import { createDeliveryTargetsPort } from '../infra/adapters/deliveryTargetsPort.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -156,6 +157,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const deliveryDefaultsPort = createDeliveryDefaultsPort();
   const protectedAccessPort = createProtectedAccessPort({ writePort: dbWritePort });
   const webappEventsPort = createWebappEventsPort();
+  const deliveryTargetsPort = createDeliveryTargetsPort();
   const pipeline = createIncomingEventPipeline({
     readPort: dbReadPort,
     writePort: dbWritePort,
@@ -171,6 +173,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     sendMenuOnButtonPress: telegramConfig.sendMenuOnButtonPress ?? false,
     supportRelayPolicy: defaultSupportRelayPolicy,
     webappEventsPort,
+    deliveryTargetsPort,
   });
 
   const eventGateway = createEventGateway({

@@ -1,23 +1,35 @@
 import type { FastifyInstance } from 'fastify';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
+import { buildWebappEntryUrlForMax } from '../webappEntryToken.js';
 import { maxConfig } from './config.js';
 import { maxIncomingToEvent } from './connector.js';
 import { fromMax } from './mapIn.js';
 import { parseMaxUpdate } from './schema.js';
 import { setupMaxCommands } from './setupCommands.js';
+import type { MaxUpdateValidated } from './schema.js';
 
 export type MaxWebhookDeps = {
   eventGateway: EventGateway;
 };
 
-function buildMaxFacts(body: unknown): Record<string, unknown> {
-  const data = body as {
-    message?: { recipient?: { chat_id?: number } | null; sender?: { user_id?: number } | null } | null;
-    chat_id?: number;
-    callback?: { user?: { user_id?: number } | null } | null;
-    user?: { user_id?: number } | null;
-  };
+function buildMaxLinks(data: MaxUpdateValidated): Record<string, unknown> {
+  const maxId = data.message?.sender?.user_id ?? data.callback?.user?.user_id ?? data.user?.user_id;
+  if (maxId == null || typeof maxId !== 'number') return {};
+  const sender = data.message?.sender ?? data.callback?.user ?? data.user;
+  const displayName =
+    sender?.first_name != null || sender?.last_name != null
+      ? [sender?.first_name, sender?.last_name].filter(Boolean).join(' ').trim() || undefined
+      : sender?.name ?? undefined;
+  const webappEntryUrl = buildWebappEntryUrlForMax({
+    maxId: String(maxId),
+    ...(displayName ? { displayName } : {}),
+  });
+  if (!webappEntryUrl) return {};
+  return { links: { webappEntryUrl } };
+}
+
+function buildMaxFacts(data: MaxUpdateValidated): Record<string, unknown> {
   const adminChatId = maxConfig.adminChatId;
   const adminUserId = maxConfig.adminUserId;
   const chatId = data.message?.recipient?.chat_id ?? data.chat_id;
@@ -26,6 +38,7 @@ function buildMaxFacts(body: unknown): Record<string, unknown> {
     (typeof adminUserId === 'number' && typeof senderUserId === 'number' && adminUserId === senderUserId)
     || (typeof adminUserId !== 'number' && typeof adminChatId === 'number' && typeof chatId === 'number' && adminChatId === chatId);
   return {
+    ...buildMaxLinks(data),
     ...(typeof adminChatId === 'number' ? { adminChatId } : {}),
     ...(typeof adminUserId === 'number' ? { adminUserId } : {}),
     ...((typeof chatId === 'number' || typeof senderUserId === 'number') ? { isAdmin } : {}),
@@ -89,7 +102,7 @@ export async function registerMaxWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: buildMaxFacts(data),
+        facts: buildMaxFacts(parseResult.data),
       });
       const result = await deps.eventGateway.handleIncomingEvent(event);
       if (result.status === 'rejected') {

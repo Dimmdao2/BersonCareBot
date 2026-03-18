@@ -64,6 +64,54 @@ describe("buildAppDeps", () => {
     expect(state).toHaveProperty("reason");
   });
 
+  it("doctorCabinet has getDoctorWorkspaceState and getOverviewState", () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.doctorCabinet.getDoctorWorkspaceState).toBe("function");
+    expect(typeof deps.doctorCabinet.getOverviewState).toBe("function");
+    const overview = deps.doctorCabinet.getOverviewState();
+    expect(overview).toHaveProperty("myDay");
+    expect(overview).toHaveProperty("quickActions");
+    expect(Array.isArray(overview.quickActions)).toBe(true);
+  });
+
+  it("doctorClients has listClients and getClientProfile", async () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.doctorClients.listClients).toBe("function");
+    expect(typeof deps.doctorClients.getClientProfile).toBe("function");
+    const list = await deps.doctorClients.listClients({});
+    expect(Array.isArray(list)).toBe(true);
+  });
+
+  it("doctorAppointments has listAppointmentsForSpecialist and getAppointmentStats", async () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.doctorAppointments.listAppointmentsForSpecialist).toBe("function");
+    expect(typeof deps.doctorAppointments.getAppointmentStats).toBe("function");
+    const list = await deps.doctorAppointments.listAppointmentsForSpecialist({ range: "today" });
+    const stats = await deps.doctorAppointments.getAppointmentStats({ range: "today" });
+    expect(Array.isArray(list)).toBe(true);
+    expect(stats).toHaveProperty("total");
+    expect(stats).toHaveProperty("cancellations30d");
+  });
+
+  it("doctorMessaging has prepareMessageDraft, sendMessage, listMessageHistory", async () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.doctorMessaging.prepareMessageDraft).toBe("function");
+    expect(typeof deps.doctorMessaging.sendMessage).toBe("function");
+    expect(typeof deps.doctorMessaging.listMessageHistory).toBe("function");
+    const draft = await deps.doctorMessaging.prepareMessageDraft({ userId: "unknown" });
+    expect(draft).toBeNull();
+  });
+
+  it("doctorStats has getStats", async () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.doctorStats.getStats).toBe("function");
+    const stats = await deps.doctorStats.getStats();
+    expect(stats).toHaveProperty("appointments");
+    expect(stats).toHaveProperty("clients");
+    expect(stats.appointments).toHaveProperty("total");
+    expect(stats.clients).toHaveProperty("total");
+  });
+
   it("auth has getCurrentSession, exchangeIntegratorToken, exchangeTelegramInitData, clearSession, setSessionFromUser, startPhoneAuth, confirmPhoneAuth", () => {
     const deps = buildAppDeps();
     expect(typeof deps.auth.getCurrentSession).toBe("function");

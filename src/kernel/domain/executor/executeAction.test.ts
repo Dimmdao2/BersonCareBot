@@ -168,6 +168,53 @@ describe('executeAction', () => {
     expect(enqueue).toHaveBeenCalledTimes(1);
   });
 
+  it('fans out rubitime message.send to multiple channels when deliveryTargetsPort returns bindings', async () => {
+    const deliveryTargetsPort = {
+      getTargetsByPhone: async () => ({ telegramId: '123', maxId: '456' }),
+      getTargetsByChannelBinding: async () => null,
+    };
+    const result = await executeAction(
+      {
+        id: 'a6d',
+        type: 'message.send',
+        mode: 'async',
+        params: {
+          recipient: { phoneNormalized: '+79990001122' },
+          recipientPolicy: { lookupByPhone: true },
+          message: { text: 'Booking confirmed' },
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      },
+      {
+        ...ctx,
+        event: {
+          ...ctx.event,
+          meta: { ...ctx.event.meta, source: 'rubitime' },
+          payload: { incoming: { phone: '89643805480', action: 'created' } },
+        },
+      },
+      { deliveryTargetsPort }
+    );
+    expect(result.status).toBe('success');
+    expect(result.intents).toHaveLength(2);
+    const telegramIntent = result.intents?.find(
+      (i) => i.type === 'message.send' && (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels?.[0] === 'telegram'
+    );
+    const maxIntent = result.intents?.find(
+      (i) => i.type === 'message.send' && (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels?.[0] === 'max'
+    );
+    expect(telegramIntent?.payload).toMatchObject({
+      recipient: { chatId: 123 },
+      delivery: { channels: ['telegram'], maxAttempts: 1 },
+      message: { text: 'Booking confirmed' },
+    });
+    expect(maxIntent?.payload).toMatchObject({
+      recipient: { chatId: 456 },
+      delivery: { channels: ['max'], maxAttempts: 1 },
+      message: { text: 'Booking confirmed' },
+    });
+  });
+
   it('applies rubitime delivery policy when message.send fields are missing', async () => {
     const deliveryDefaultsPort = {
       getDeliveryDefaults: async (source: string, options?: { inputAction?: string }) =>

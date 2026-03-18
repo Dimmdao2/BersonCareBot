@@ -65,6 +65,8 @@ const envSchema = z.object({
     .optional()
     .transform((value) => value === "true"),
   ALLOWED_TELEGRAM_IDS: z.string().optional().default(""),
+  /** Comma-separated MAX user ids allowed for webapp entry (when entry token has maxId). */
+  ALLOWED_MAX_IDS: z.string().optional().default(""),
   ADMIN_TELEGRAM_ID: z.coerce.number().int().optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   /** Optional URL for MVP test video (e.g. /videos/test.mp4 or external). Webapp-owned; no integrator coupling. */
@@ -84,6 +86,7 @@ const parsed = envSchema.parse({
   INTEGRATOR_WEBHOOK_SECRET: process.env.INTEGRATOR_WEBHOOK_SECRET,
   ALLOW_DEV_AUTH_BYPASS: process.env.ALLOW_DEV_AUTH_BYPASS,
   ALLOWED_TELEGRAM_IDS: process.env.ALLOWED_TELEGRAM_IDS,
+  ALLOWED_MAX_IDS: process.env.ALLOWED_MAX_IDS,
   ADMIN_TELEGRAM_ID: process.env.ADMIN_TELEGRAM_ID,
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   MEDIA_TEST_VIDEO_URL: process.env.MEDIA_TEST_VIDEO_URL ?? "",

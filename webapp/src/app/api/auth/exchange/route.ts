@@ -11,7 +11,19 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const result = await deps.auth.exchangeIntegratorToken(token);
   if (!result) {
+    if (process.env.NODE_ENV !== "test") {
+      console.info("[auth/exchange] access_denied");
+    }
     return NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+  }
+
+  const source = result.session.user.bindings?.maxId
+    ? "max"
+    : result.session.user.bindings?.telegramId
+      ? "telegram"
+      : "web";
+  if (process.env.NODE_ENV !== "test") {
+    console.info("[auth/exchange] success source=%s role=%s", source, result.session.user.role);
   }
 
   return NextResponse.json({

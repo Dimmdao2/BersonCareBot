@@ -10,7 +10,7 @@
     "channelBindings": {
       "type": "object",
       "additionalProperties": { "type": "string" },
-      "description": "e.g. telegramId"
+      "description": "Channel external IDs for delivery. Known keys: telegramId, maxId. Dispatch may target one or multiple channels; each key present is a candidate target if enabled for notifications."
     },
     "message": {
       "type": "object",

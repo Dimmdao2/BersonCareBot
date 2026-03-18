@@ -19,6 +19,18 @@ import {
 } from '../helpers.js';
 import { applyMessageSendDeliveryPolicy } from '../deliveryPolicy.js';
 
+function channelBindingsToTargets(bindings: Record<string, string> | null | undefined): Array<{ channel: 'telegram' | 'max'; externalId: string }> {
+  if (!bindings || typeof bindings !== 'object') return [];
+  const out: Array<{ channel: 'telegram' | 'max'; externalId: string }> = [];
+  if (typeof bindings.telegramId === 'string' && bindings.telegramId.trim().length > 0) {
+    out.push({ channel: 'telegram', externalId: bindings.telegramId.trim() });
+  }
+  if (typeof bindings.maxId === 'string' && bindings.maxId.trim().length > 0) {
+    out.push({ channel: 'max', externalId: bindings.maxId.trim() });
+  }
+  return out;
+}
+
 export async function handleDelivery(
   action: Action,
   ctx: DomainContext,
@@ -103,6 +115,34 @@ export async function handleDelivery(
         }
       }
     }
+
+    const source = asString(ctx.event.meta.source);
+    const incoming = asRecord((ctx.event.payload as { incoming?: unknown })?.incoming);
+    const phone = asString(incoming?.phone) ?? asString(asRecord(resolvedParams.recipient).phoneNormalized);
+    if (source === 'rubitime' && deps.deliveryTargetsPort && phone) {
+      const bindings = await deps.deliveryTargetsPort.getTargetsByPhone(phone);
+      const targets = channelBindingsToTargets(bindings ?? undefined);
+      if (targets.length > 0) {
+        const delivery = asRecord(resolvedParams.delivery);
+        const maxAttempts = typeof delivery.maxAttempts === 'number' && Number.isFinite(delivery.maxAttempts)
+          ? Math.max(1, Math.trunc(delivery.maxAttempts))
+          : 1;
+        const intents: OutgoingIntent[] = targets.map((target) => {
+          const chatId = target.channel === 'telegram' ? Number(target.externalId) : (Number(target.externalId) || target.externalId);
+          return {
+            type: 'message.send' as const,
+            meta: buildIntentMeta(action, ctx),
+            payload: {
+              ...resolvedParams,
+              recipient: { chatId },
+              delivery: { channels: [target.channel], maxAttempts },
+            },
+          };
+        });
+        return { actionId: action.id, status: 'success', intents };
+      }
+    }
+
     const intents: OutgoingIntent[] = [{
       type: 'message.send',
       meta: buildIntentMeta(action, ctx),

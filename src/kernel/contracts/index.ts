@@ -109,6 +109,8 @@ export type {
   WebappEventBody,
   WebappSymptomTracking,
   WebappLfkComplex,
+  DeliveryTargetsPort,
+  DeliveryTargetsChannelBindings,
 } from './ports.js';
 
 export {

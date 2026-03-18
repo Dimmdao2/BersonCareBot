@@ -3,7 +3,7 @@
  * Contract: webapp/INTEGRATOR_CONTRACT.md; GET sign payload: timestamp.canonicalGet (canonicalGet = "GET pathname?query").
  */
 import { createHmac } from 'node:crypto';
-import { env } from '../../config/env.js';
+import { env, integratorWebhookSecret } from '../../config/env.js';
 import type {
   WebappEventBody,
   WebappEventsPort,
@@ -52,12 +52,12 @@ async function fetchSignedGet<T>(input: {
 
 export function createWebappEventsPort(): WebappEventsPort {
   const baseUrl = env.APP_BASE_URL ?? '';
-  const secret = env.INTEGRATOR_SHARED_SECRET ?? '';
+  const secret = integratorWebhookSecret();
 
   return {
     async emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }> {
       if (!baseUrl || !secret) {
-        return { ok: false, status: 0, error: 'APP_BASE_URL or INTEGRATOR_SHARED_SECRET not set' };
+        return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/events`;
       const body = JSON.stringify({
@@ -96,7 +96,7 @@ export function createWebappEventsPort(): WebappEventsPort {
       error?: string;
     }> {
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'APP_BASE_URL or INTEGRATOR_SHARED_SECRET not set' };
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const result = await fetchSignedGet<{ trackings?: WebappSymptomTracking[] }>({
         baseUrl,
@@ -118,7 +118,7 @@ export function createWebappEventsPort(): WebappEventsPort {
       error?: string;
     }> {
       if (!baseUrl || !secret) {
-        return { ok: false, error: 'APP_BASE_URL or INTEGRATOR_SHARED_SECRET not set' };
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const result = await fetchSignedGet<{ complexes?: WebappLfkComplex[] }>({
         baseUrl,

@@ -26,5 +26,7 @@
   "moreMenu.myBookings": "📄 Мои записи на приём",
   "moreMenu.notifications": "🔔 Настройка уведомлений",
   "notImplemented": "Раздел в разработке.",
-  "dialogMessageAccepted": "Сообщение отправлено. Ожидайте ответа."
+  "dialogMessageAccepted": "Сообщение отправлено. Ожидайте ответа.",
+  "assistant.webapp.prompt": "Откройте веб-приложение для доступа к урокам, дневникам и настройкам.",
+  "assistant.webapp.openButton": "Открыть приложение"
 }

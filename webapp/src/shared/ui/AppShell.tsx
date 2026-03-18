@@ -10,6 +10,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientHeader } from "@/shared/ui/PatientHeader";
+import { AskQuestionFAB } from "@/shared/ui/AskQuestionFAB";
 
 type AppShellProps = {
   title: string;
@@ -35,6 +36,10 @@ export function AppShell({
   variant = "default",
 }: AppShellProps) {
   if (variant === "patient") {
+    const isBrowserOnly =
+      user &&
+      !user.bindings.telegramId?.trim() &&
+      !user.bindings.maxId?.trim();
     return (
       <div className="app-shell app-shell--patient">
         <PatientHeader
@@ -44,6 +49,7 @@ export function AppShell({
           title={title}
         />
         <main className="content-area">{children}</main>
+        <AskQuestionFAB visible={!!isBrowserOnly} />
       </div>
     );
   }

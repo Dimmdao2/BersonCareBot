@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["eventType"],
   "properties": {
-    "eventType": { "type": "string", "description": "e.g. appointment.updated, booking.confirmed, contact.verified, reminder.delivered" },
+    "eventType": { "type": "string", "description": "e.g. appointment.updated, booking.confirmed, contact.verified, reminder.delivered, reminder.delivery.result (payload per contracts/reminder-delivery-result-payload.json)" },
     "eventId": { "type": "string" },
     "occurredAt": { "type": "string", "format": "date-time" },
     "payload": {

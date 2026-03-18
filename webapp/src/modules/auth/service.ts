@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { env, integratorWebappEntrySecret, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
+import type { IdentityResolutionPort } from "./identityResolutionPort";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -126,11 +127,23 @@ function getAllowedTelegramIds(): Set<string> {
   return ids;
 }
 
+function getAllowedMaxIds(): Set<string> {
+  const ids = new Set<string>();
+  const raw = env.ALLOWED_MAX_IDS?.trim() ?? "";
+  for (const s of raw.split(",")) {
+    const t = s.trim();
+    if (t) ids.add(t);
+  }
+  return ids;
+}
+
 function isAllowedByWhitelist(parsed: IntegratorTokenPayload): boolean {
   if (parsed.role === "admin") return true;
   const telegramId = parsed.bindings?.telegramId;
-  if (!telegramId) return false;
-  return getAllowedTelegramIds().has(telegramId);
+  const maxId = parsed.bindings?.maxId;
+  if (telegramId && getAllowedTelegramIds().has(telegramId)) return true;
+  if (maxId && getAllowedMaxIds().has(maxId)) return true;
+  return false;
 }
 
 /** Validates Telegram Web App initData (from window.Telegram.WebApp.initData). Returns user id and role or null. */
@@ -194,14 +207,41 @@ function tokenToUser(token: IntegratorTokenPayload): SessionUser {
   };
 }
 
-export async function exchangeIntegratorToken(token: string): Promise<ExchangeResult | null> {
+function firstBinding(parsed: IntegratorTokenPayload): { channelCode: "telegram" | "max" | "vk"; externalId: string } | null {
+  if (parsed.bindings?.telegramId) return { channelCode: "telegram", externalId: parsed.bindings.telegramId };
+  if (parsed.bindings?.maxId) return { channelCode: "max", externalId: parsed.bindings.maxId };
+  if (parsed.bindings?.vkId) return { channelCode: "vk", externalId: parsed.bindings.vkId };
+  return null;
+}
+
+export async function exchangeIntegratorToken(
+  token: string,
+  identityResolutionPort?: IdentityResolutionPort | null
+): Promise<ExchangeResult | null> {
   const devParsed = parseDevBypassToken(token);
   const parsed = devParsed ?? parseIntegratorToken(token);
   if (!parsed) return null;
 
   if (!devParsed && !isAllowedByWhitelist(parsed)) return null;
 
-  const session = buildSession(tokenToUser(parsed));
+  let user: SessionUser;
+  if (identityResolutionPort && !devParsed) {
+    const binding = firstBinding(parsed);
+    if (binding) {
+      user = await identityResolutionPort.findOrCreateByChannelBinding({
+        channelCode: binding.channelCode,
+        externalId: binding.externalId,
+        displayName: parsed.displayName,
+        role: parsed.role,
+      });
+    } else {
+      user = tokenToUser(parsed);
+    }
+  } else {
+    user = tokenToUser(parsed);
+  }
+
+  const session = buildSession(user);
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
     httpOnly: true,
@@ -213,7 +253,7 @@ export async function exchangeIntegratorToken(token: string): Promise<ExchangeRe
 
   return {
     session,
-    redirectTo: buildRedirectPath(parsed.role),
+    redirectTo: buildRedirectPath(user.role),
   };
 }
 

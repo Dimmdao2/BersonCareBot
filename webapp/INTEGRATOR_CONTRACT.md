@@ -4,9 +4,10 @@ This document defines the explicit contract between `tgcarebot` and `webapp`.
 
 **JSON Schemas** (canonical payload shapes):
 
-- [Webapp entry token payload](../../contracts/webapp-entry-token.json) — decoded payload of `?t=<signed-token>`
+- [Webapp entry token payload](../../contracts/webapp-entry-token.json) — decoded payload of `?t=<signed-token>` (bindings may include telegramId, maxId)
 - [POST /api/integrator/events body](../../contracts/integrator-events-body.json) — webhook events from tgcarebot
-- [POST /api/integrator/reminders/dispatch body](../../contracts/integrator-reminders-dispatch-body.json) — reminder dispatch payload
+- [POST /api/integrator/reminders/dispatch body](../../contracts/integrator-reminders-dispatch-body.json) — reminder dispatch payload (channelBindings: telegramId, maxId)
+- [reminder.delivery.result payload](../../contracts/reminder-delivery-result-payload.json) — per-channel delivery outcome when eventType is `reminder.delivery.result`
 
 ## Contract Principles
 
@@ -138,7 +139,7 @@ Webhook requests use:
 - `X-Bersoncare-Signature`
 - `X-Bersoncare-Idempotency-Key`
 
-The signature is an HMAC over `timestamp + "." + rawBody` using the **webhook secret** (webapp: `INTEGRATOR_WEBHOOK_SECRET`, or `INTEGRATOR_SHARED_SECRET` if not set). For backward compatibility, a single `INTEGRATOR_SHARED_SECRET` can be used for both entry token and webhook; for stronger separation, set `INTEGRATOR_WEBAPP_ENTRY_SECRET` and `INTEGRATOR_WEBHOOK_SECRET` separately.
+The signature is an HMAC over `timestamp + "." + rawBody` using the **webhook secret** (webapp: `INTEGRATOR_WEBHOOK_SECRET`, or `INTEGRATOR_SHARED_SECRET` if not set). **Secret separation:** use one secret for webapp-entry tokens (`INTEGRATOR_WEBAPP_ENTRY_SECRET`) and a different one for webhooks (`INTEGRATOR_WEBHOOK_SECRET`). Integrator must support both: when building `?t=` tokens use entry secret; when signing outbound webhook requests or verifying incoming webapp→integrator calls use webhook secret. For backward compatibility, a single `INTEGRATOR_SHARED_SECRET` can be used for both; for production, set separate secrets.
 
 ## User Linking
 

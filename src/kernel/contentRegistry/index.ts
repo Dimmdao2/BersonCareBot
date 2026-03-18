@@ -23,6 +23,7 @@ const contentScriptMatchObjectSchema: z.ZodType<ContentScriptMatchObject> = z.la
   phonePresent: z.boolean().optional(),
   excludeActions: z.array(z.string().min(1)).optional(),
   excludeTexts: z.array(z.string().min(1)).optional(),
+  excludeTextPrefixes: z.array(z.string().min(1)).optional(),
 }).catchall(contentScriptMatchValueSchema));
 
 const contentScriptSchema = z.object({

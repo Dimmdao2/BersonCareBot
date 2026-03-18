@@ -12,7 +12,7 @@
     "bindings": {
       "type": "object",
       "additionalProperties": { "type": "string" },
-      "description": "Channel bindings, e.g. telegramId"
+      "description": "Channel bindings. Known keys: telegramId, maxId, vkId (string values). At least one may be present when user enters from a messenger."
     },
     "purpose": { "const": "webapp-entry" },
     "exp": { "type": "integer", "minimum": 0, "description": "Unix timestamp expiry" }

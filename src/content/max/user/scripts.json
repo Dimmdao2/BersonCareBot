@@ -377,6 +377,46 @@
     ]
   },
   {
+    "id": "max.assistant.open",
+    "source": "max",
+    "event": "callback.received",
+    "match": { "input": { "action": "assistant.open" } },
+    "steps": [
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "_when": { "path": "facts.links.webappEntryUrl", "truthy": true },
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:assistant.webapp.prompt",
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:assistant.webapp.openButton", "url": "{{facts.links.webappEntryUrl}}" }],
+            [{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+          ],
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      },
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "_when": { "path": "facts.links.webappEntryUrl", "truthy": false },
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:assistant.webapp.prompt",
+          "inlineKeyboard": [[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]],
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
     "id": "max.content.useful_lessons",
     "source": "max",
     "event": "callback.received",

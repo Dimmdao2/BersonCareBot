@@ -1,9 +1,10 @@
 /**
  * Builds a signed webapp-entry token for the BersonCare webapp.
  * Contract: webapp/INTEGRATOR_CONTRACT.md
+ * Source-agnostic: telegram or max (bindings.telegramId / bindings.maxId).
  */
 import { createHmac } from 'node:crypto';
-import { env } from '../config/env.js';
+import { env, integratorWebappEntrySecret } from '../config/env.js';
 import { telegramConfig } from './telegram/config.js';
 
 type WebappEntryTokenPayload = {
@@ -11,10 +12,14 @@ type WebappEntryTokenPayload = {
   role: 'client' | 'doctor' | 'admin';
   displayName?: string;
   phone?: string;
-  bindings?: { telegramId?: string };
+  bindings?: { telegramId?: string; maxId?: string; vkId?: string };
   purpose: 'webapp-entry';
   exp: number;
 };
+
+export type WebappEntrySource =
+  | { source: 'telegram'; chatId: number; displayName?: string }
+  | { source: 'max'; maxId: string; displayName?: string };
 
 function base64UrlEncode(value: string): string {
   return Buffer.from(value, 'utf8')
@@ -28,31 +33,46 @@ function sign(value: string, secret: string): string {
   return createHmac('sha256', secret).update(value).digest('base64url');
 }
 
+function resolveRoleAndBindings(params: WebappEntrySource): {
+  role: WebappEntryTokenPayload['role'];
+  sub: string;
+  bindings: NonNullable<WebappEntryTokenPayload['bindings']>;
+} {
+  if (params.source === 'telegram') {
+    const isAdmin =
+      typeof telegramConfig.adminTelegramId === 'number' &&
+      params.chatId === telegramConfig.adminTelegramId;
+    return {
+      role: isAdmin ? 'admin' : 'client',
+      sub: `tg:${params.chatId}`,
+      bindings: { telegramId: String(params.chatId) },
+    };
+  }
+  return {
+    role: 'client',
+    sub: `max:${params.maxId}`,
+    bindings: { maxId: params.maxId },
+  };
+}
+
 /**
- * Builds a signed webapp-entry token for the given Telegram user.
- * Returns null if APP_BASE_URL or INTEGRATOR_SHARED_SECRET are not set.
+ * Source-agnostic: builds signed webapp-entry token for telegram or max.
+ * Returns null if APP_BASE_URL or entry secret are not set.
  */
-export function buildWebappEntryToken(params: {
-  chatId: number;
-  displayName?: string;
-}): string | null {
+export function buildWebappEntryTokenFromSource(params: WebappEntrySource): string | null {
   const baseUrl = env.APP_BASE_URL;
-  const secret = env.INTEGRATOR_SHARED_SECRET;
+  const secret = integratorWebappEntrySecret();
   if (!baseUrl || !secret) return null;
 
-  const isAdmin =
-    typeof telegramConfig.adminTelegramId === 'number' &&
-    params.chatId === telegramConfig.adminTelegramId;
-  const role: WebappEntryTokenPayload['role'] = isAdmin ? 'admin' : 'client';
-  const sub = `tg:${params.chatId}`;
+  const { role, sub, bindings } = resolveRoleAndBindings(params);
   const now = Math.floor(Date.now() / 1000);
-  const exp = now + 300; // 5 minutes
+  const exp = now + 300;
 
   const payload: WebappEntryTokenPayload = {
     sub,
     role,
     ...(params.displayName !== undefined && params.displayName !== '' ? { displayName: params.displayName } : {}),
-    bindings: { telegramId: String(params.chatId) },
+    bindings,
     purpose: 'webapp-entry',
     exp,
   };
@@ -63,14 +83,42 @@ export function buildWebappEntryToken(params: {
 }
 
 /**
- * Returns the full webapp entry URL with signed token, or null if config is missing.
+ * Returns the full webapp entry URL with signed token (source-agnostic).
  */
+export function buildWebappEntryUrlFromSource(params: WebappEntrySource): string | null {
+  const token = buildWebappEntryTokenFromSource(params);
+  if (!token) return null;
+  const baseUrl = env.APP_BASE_URL!.replace(/\/$/, '');
+  return `${baseUrl}/app?t=${encodeURIComponent(token)}`;
+}
+
+/** @deprecated Prefer source-agnostic builder with source telegram. Kept for backward compatibility. */
+export function buildWebappEntryToken(params: { chatId: number; displayName?: string }): string | null {
+  const src: WebappEntrySource = { source: 'telegram', chatId: params.chatId };
+  if (params.displayName !== undefined) src.displayName = params.displayName;
+  return buildWebappEntryTokenFromSource(src);
+}
+
+/** @deprecated Prefer source-agnostic builder with source max. Kept for backward compatibility. */
+export function buildWebappEntryTokenForMax(params: { maxId: string; displayName?: string }): string | null {
+  const src: WebappEntrySource = { source: 'max', maxId: params.maxId };
+  if (params.displayName !== undefined) src.displayName = params.displayName;
+  return buildWebappEntryTokenFromSource(src);
+}
+
+/** Returns the full webapp entry URL for MAX user. */
+export function buildWebappEntryUrlForMax(params: { maxId: string; displayName?: string }): string | null {
+  const src: WebappEntrySource = { source: 'max', maxId: params.maxId };
+  if (params.displayName !== undefined) src.displayName = params.displayName;
+  return buildWebappEntryUrlFromSource(src);
+}
+
+/** Returns the full webapp entry URL for Telegram user. */
 export function buildWebappEntryUrl(params: {
   chatId: number;
   displayName?: string;
 }): string | null {
-  const token = buildWebappEntryToken(params);
-  if (!token) return null;
-  const baseUrl = env.APP_BASE_URL!.replace(/\/$/, '');
-  return `${baseUrl}/app?t=${encodeURIComponent(token)}`;
+  const src: WebappEntrySource = { source: 'telegram', chatId: params.chatId };
+  if (params.displayName !== undefined) src.displayName = params.displayName;
+  return buildWebappEntryUrlFromSource(src);
 }

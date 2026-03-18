@@ -340,3 +340,12 @@ export type WebappEventsPort = {
   listSymptomTrackings(userId: string): Promise<{ ok: boolean; trackings?: WebappSymptomTracking[]; error?: string }>;
   listLfkComplexes(userId: string): Promise<{ ok: boolean; complexes?: WebappLfkComplex[]; error?: string }>;
 };
+
+/** Channel bindings for multi-channel delivery (telegramId, maxId). */
+export type DeliveryTargetsChannelBindings = Record<string, string>;
+
+/** Port to resolve delivery targets (linked channels) for a user by phone or channel binding. Used for reminder/booking fan-out. */
+export type DeliveryTargetsPort = {
+  getTargetsByPhone(phoneNormalized: string): Promise<DeliveryTargetsChannelBindings | null>;
+  getTargetsByChannelBinding(params: { telegramId?: string; maxId?: string }): Promise<DeliveryTargetsChannelBindings | null>;
+};

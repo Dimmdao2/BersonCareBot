@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "reminder.delivery.result event payload",
+  "description": "Payload for eventType reminder.delivery.result when tgcarebot reports per-channel delivery outcome to webapp (POST /api/integrator/events).",
+  "type": "object",
+  "required": ["reminderOccurrenceId", "channel", "success"],
+  "properties": {
+    "reminderOccurrenceId": { "type": "string", "description": "Id of the reminder occurrence that was dispatched" },
+    "channel": { "type": "string", "enum": ["telegram", "max", "sms"], "description": "Channel where delivery was attempted" },
+    "externalId": { "type": "string", "description": "Channel user id (e.g. telegramId, maxId) used for this attempt" },
+    "success": { "type": "boolean", "description": "Whether the message was delivered" },
+    "messageId": { "type": "string", "description": "Transport message id if available" },
+    "errorCode": { "type": "string", "description": "Optional error code when success is false" }
+  },
+  "additionalProperties": true
+}

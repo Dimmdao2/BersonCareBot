@@ -32,6 +32,7 @@ describe("checkInsecureSecretsForStartup", () => {
     INTEGRATOR_WEBHOOK_SECRET: "",
     ALLOW_DEV_AUTH_BYPASS: false,
     ALLOWED_TELEGRAM_IDS: "",
+    ALLOWED_MAX_IDS: "",
     ADMIN_TELEGRAM_ID: undefined,
     TELEGRAM_BOT_TOKEN: undefined,
     MEDIA_TEST_VIDEO_URL: "",

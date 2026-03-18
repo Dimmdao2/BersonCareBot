@@ -32,7 +32,7 @@ export function ChannelSubscriptionBlock({ channelCards }: Props) {
     <section className="panel stack">
       <h2>Подписки на каналы</h2>
       <p className="empty-state">
-        Выберите, в какие мессенджеры отправлять сообщения и уведомления. Сначала откройте бота по ссылке и запустите его.
+        Подключите удобный вам мессенджер для уведомлений и входа в приложение. Если канал уже подключён, настройте доставку ниже.
       </p>
       <ul className="list">
         {channelCards.map((card) => (
@@ -41,14 +41,20 @@ export function ChannelSubscriptionBlock({ channelCards }: Props) {
               <div>
                 <strong>{card.title}</strong>
                 {card.isLinked ? (
-                  <span className="status-pill" style={{ marginLeft: "0.5rem" }}>подключён</span>
+                  <span className="status-pill" style={{ marginLeft: "0.5rem" }}>Уже подключено</span>
                 ) : (
                   <span className="status-pill status-pill--coming-soon" style={{ marginLeft: "0.5rem" }}>не подключён</span>
                 )}
               </div>
-              <a href={card.openUrl} target="_blank" rel="noopener noreferrer" className="button button--ghost" style={{ alignSelf: "start" }}>
-                Открыть бота
-              </a>
+              {card.isLinked ? (
+                <a href={card.openUrl} target="_blank" rel="noopener noreferrer" className="button button--ghost" style={{ alignSelf: "start" }}>
+                  Открыть бота
+                </a>
+              ) : (
+                <a href={card.openUrl} target="_blank" rel="noopener noreferrer" className="button button--primary" style={{ alignSelf: "start" }}>
+                  Подключить
+                </a>
+              )}
               {card.isImplemented ? (
                 <div className="stack" style={{ gap: "0.25rem" }}>
                   <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
