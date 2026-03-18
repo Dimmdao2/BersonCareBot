@@ -170,7 +170,10 @@ export async function registerTelegramWebhookRoutes(
       const secret = telegramConfig.webhookSecret;
       if (secret) {
         const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
-        if (headerSecret !== secret) return reply.code(403).send({ ok: false });
+        if (headerSecret !== secret) {
+          reqLogger.warn('telegram webhook secret mismatch');
+          return reply.code(200).send({ ok: false, error: 'Forbidden' });
+        }
       }
 
       const parseResult = parseWebhookBody(request.body);
@@ -179,7 +182,7 @@ export async function registerTelegramWebhookRoutes(
           { err: parseResult.error.flatten(), hasBody: request.body != null },
           'telegram webhook body validation failed',
         );
-        return reply.code(400).send({ ok: false, error: 'Invalid webhook body' });
+        return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
       }
 
       const body = parseResult.data;
@@ -203,12 +206,12 @@ export async function registerTelegramWebhookRoutes(
       const result = await deps.eventGateway.handleIncomingEvent(event);
       if (result.status === 'rejected') {
         reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'telegram webhook pipeline rejected');
-        return reply.code(503).send({ ok: false, error: 'Processing failed' });
+        return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'telegram webhook failed');
-      return reply.code(500).send({ ok: false, error: 'Internal error' });
+      return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });
 }

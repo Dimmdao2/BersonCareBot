@@ -6,7 +6,7 @@ vi.mock('./config.js', () => ({ maxConfig: { webhookSecret: '' } }));
 
 /** Real MAX payload: message.body.text, recipient, sender. */
 describe('max webhook', () => {
-  it('returns 400 for invalid body', async () => {
+  it('returns 200 with ok:false for invalid body (always 200 to avoid provider retries)', async () => {
     const eventGateway = { handleIncomingEvent: vi.fn() };
     const app = Fastify();
     await registerMaxWebhookRoutes(app, { eventGateway });
@@ -15,7 +15,8 @@ describe('max webhook', () => {
       url: '/webhook/max',
       payload: { update_type: 'invalid', timestamp: 0 },
     });
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toMatchObject({ ok: false, error: 'Invalid webhook body' });
     expect(eventGateway.handleIncomingEvent).not.toHaveBeenCalled();
   });
 

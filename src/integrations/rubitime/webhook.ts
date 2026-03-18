@@ -64,7 +64,8 @@ export async function registerRubitimeWebhookRoutes(
     try {
       const params = request.params as { token?: string };
       if (params.token !== rubitimeConfig.webhookToken) {
-        return reply.code(403).send({ ok: false });
+        reqLogger.warn('rubitime webhook token mismatch');
+        return reply.code(200).send({ ok: false, error: 'Forbidden' });
       }
 
       const parseResult = parseRubitimeBody(request.body);
@@ -73,7 +74,7 @@ export async function registerRubitimeWebhookRoutes(
           { err: parseResult.error.flatten(), hasBody: request.body != null },
           'rubitime webhook body validation failed',
         );
-        return reply.code(400).send({ ok: false, error: 'Invalid webhook body' });
+        return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
       }
 
       const result = await processRubitimeBody({
@@ -85,12 +86,12 @@ export async function registerRubitimeWebhookRoutes(
       });
       if (result?.status === 'rejected') {
         reqLogger.warn({ reason: result.reason }, 'rubitime webhook pipeline rejected');
-        return reply.code(503).send({ ok: false, error: 'Processing failed' });
+        return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'rubitime webhook failed');
-      return reply.code(500).send({ ok: false, error: 'Internal error' });
+      return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });
 
@@ -101,7 +102,8 @@ export async function registerRubitimeWebhookRoutes(
 
     const params = request.query as { record_success?: string; token?: string };
     if (params.token !== rubitimeConfig.webhookToken) {
-      return reply.code(403).send({ ok: false, error: 'Missing or invalid token' });
+      reqLogger.warn('rubitime record_success token mismatch');
+      return reply.code(200).send({ ok: false, error: 'Missing or invalid token' });
     }
 
     try {
@@ -109,7 +111,7 @@ export async function registerRubitimeWebhookRoutes(
         ? params.record_success.trim()
         : null;
       if (!recordId) {
-        return reply.code(400).send({ ok: false, error: 'record_success is required' });
+        return reply.code(200).send({ ok: false, error: 'record_success is required' });
       }
 
       const record = await fetchRubitimeRecordById({ recordId });
@@ -126,12 +128,12 @@ export async function registerRubitimeWebhookRoutes(
       });
       if (result?.status === 'rejected') {
         reqLogger.warn({ reason: result.reason }, 'rubitime record_success pipeline rejected');
-        return reply.code(503).send({ ok: false, error: 'Processing failed' });
+        return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
       return reply.code(200).send({ ok: true, source: 'record_success', recordId });
     } catch (err) {
       reqLogger.error({ err }, 'rubitime record_success callback failed');
-      return reply.code(500).send({ ok: false, error: 'Internal error' });
+      return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });
 }

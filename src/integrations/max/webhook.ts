@@ -52,7 +52,8 @@ export async function registerMaxWebhookRoutes(
       if (maxConfig.webhookSecret) {
         const headerSecret = request.headers['x-max-bot-api-secret'];
         if (headerSecret !== maxConfig.webhookSecret) {
-          return reply.code(403).send({ ok: false });
+          reqLogger.warn('max webhook secret mismatch');
+          return reply.code(200).send({ ok: false, error: 'Forbidden' });
         }
       }
 
@@ -62,7 +63,7 @@ export async function registerMaxWebhookRoutes(
           { err: parseResult.error.flatten(), hasBody: request.body != null },
           'max webhook body validation failed',
         );
-        return reply.code(400).send({ ok: false, error: 'Invalid webhook body' });
+        return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
       }
 
       const data = parseResult.data;
@@ -93,12 +94,12 @@ export async function registerMaxWebhookRoutes(
       const result = await deps.eventGateway.handleIncomingEvent(event);
       if (result.status === 'rejected') {
         reqLogger.warn({ reason: result.reason, dedupKey: result.dedupKey }, 'max webhook pipeline rejected');
-        return reply.code(503).send({ ok: false, error: 'Processing failed' });
+        return reply.code(200).send({ ok: false, error: 'Processing failed' });
       }
       return reply.code(200).send({ ok: true });
     } catch (err) {
       reqLogger.error({ err }, 'max webhook failed');
-      return reply.code(500).send({ ok: false, error: 'Internal error' });
+      return reply.code(200).send({ ok: false, error: 'Internal error' });
     }
   });
 }
