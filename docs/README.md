@@ -34,6 +34,7 @@
 | **MESSAGING_CONTRACT.md** | Контракт message.send / message.edit: payload, parse_mode (HTML), ссылки в тексте. |
 | **REMINDERS_ROADMAP.md** | План по напоминаниям. |
 | **plan-channel-from-context.md** | План: канал из контекста. |
+| **MAX_SETUP.md** | Подключение MAX бота к интегратору и вебапп (env, webhook, проверка). |
 | **archive/** | Исторические отчёты, аудиты, выполненный рефакторинг (см. `archive/README.md`). |
 
 ---

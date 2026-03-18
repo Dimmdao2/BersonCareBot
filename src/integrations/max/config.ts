@@ -18,6 +18,20 @@ function loadMaxConfigFromEnv(): z.input<typeof MaxConfigSchema> {
   const apiKey = process.env.MAX_API_KEY?.trim() ?? '';
   const webhookSecret = process.env.MAX_WEBHOOK_SECRET?.trim() ?? '';
   const botId = process.env.MAX_BOT_ID?.trim() ?? '';
+
+  if (enabled && !apiKey && process.env.NODE_ENV === 'production' && typeof process.emitWarning === 'function') {
+    process.emitWarning(
+      'MAX_ENABLED=true but MAX_API_KEY is empty. Set MAX_API_KEY and MAX_WEBHOOK_SECRET in env (e.g. api.prod). MAX webhook disabled.',
+      'MaxConfig',
+    );
+  }
+  if (enabled && apiKey && !webhookSecret && process.env.NODE_ENV === 'production' && typeof process.emitWarning === 'function') {
+    process.emitWarning(
+      'MAX_WEBHOOK_SECRET is empty. Webhook will accept requests without secret check. Set MAX_WEBHOOK_SECRET for production.',
+      'MaxConfig',
+    );
+  }
+
   return { enabled, apiKey, webhookSecret, botId };
 }
 
