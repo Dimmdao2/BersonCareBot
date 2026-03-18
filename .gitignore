@@ -17,6 +17,7 @@ logs/
 # Build outputs
 dist/
 build/
+**/.next/
 admin/dist/
 admin/node_modules/
 apps/webapp/.next/
