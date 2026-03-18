@@ -531,6 +531,22 @@ body.drawer-open {
   color: #5f6f86;
 }
 
+/* Плашечка на странице входа: призыв зарегистрироваться. */
+.auth-plaque {
+  padding: 16px 20px;
+  border-radius: var(--patient-radius-lg, 16px);
+  background: #eef1f6;
+  border: 1px solid #e0e4ec;
+  box-shadow: var(--patient-shadow, 0 1px 3px rgba(0, 0, 0, 0.06));
+}
+
+.auth-plaque__text {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: #4a5568;
+}
+
 /* Блок кода (тёмный фон). */
 .code-block {
   padding: 16px;

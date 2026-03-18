@@ -78,7 +78,7 @@ export function AuthBootstrap() {
         if (debug && active) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
         if (response.status === 403 || response.status === 401) {
           setState("error");
-          setError("Скоро здесь будет много полезного");
+          setError("Не удалось войти");
           return;
         }
         if (!response.ok) throw new Error(`auth exchange failed: ${response.status}`);
@@ -90,7 +90,7 @@ export function AuthBootstrap() {
       .catch((e) => {
         if (active) {
           setState("error");
-          setError("Скоро здесь будет много полезного");
+          setError("Не удалось войти");
           if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
         }
       });
@@ -141,7 +141,7 @@ export function AuthBootstrap() {
         if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
         if (response.status === 403 || response.status === 401) {
           setState("error");
-          setError("Скоро здесь будет много полезного");
+          setError("Не удалось войти");
           return;
         }
         if (!response.ok) return;
@@ -152,7 +152,7 @@ export function AuthBootstrap() {
       })
       .catch((e) => {
         setState("error");
-        setError("Скоро здесь будет много полезного");
+        setError("Не удалось войти");
         if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
       });
   }, [router, token, debug, nextParam]);

@@ -1,8 +1,8 @@
 /**
  * Страница входа в приложение («/app»).
  * Если пользователь уже авторизован — перенаправляет: врач/админ в /app/doctor, пациент в /app/patient.
- * Если нет — показывает заголовок «Вход в платформу», текст «Скоро здесь будет много полезного» и блок
- * авторизации (AuthBootstrap). В dev при ALLOW_DEV_AUTH_BYPASS=true показываются кнопки «Войти как пациент» и «Войти как врач/админ» для входа в браузере без Telegram.
+ * Если нет — шапка как у пациента (PersonCare), плашечка с призывом зарегистрироваться и блок
+ * авторизации (AuthBootstrap). В dev при ALLOW_DEV_AUTH_BYPASS=true — кнопки входа без Telegram.
  */
 
 import Link from "next/link";
@@ -12,8 +12,6 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { AppShell } from "@/shared/ui/AppShell";
 import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
-
-const COMING_SOON_MESSAGE = "Скоро здесь будет много полезного";
 
 const SAFE_NEXT_PREFIX = "/app/patient";
 const SAFE_NEXT_EXCLUDE = "/app/patient/bind-phone";
@@ -46,11 +44,15 @@ export default async function AppEntryPage({
   const allowDevBypass = env.ALLOW_DEV_AUTH_BYPASS === true && env.NODE_ENV !== "production";
 
   return (
-    <AppShell title="Вход в платформу" user={null}>
-      <section className="hero-card stack">
-        <p className="empty-state">{COMING_SOON_MESSAGE}</p>
+    <AppShell title="Вход" user={null} variant="patient">
+      <div className="stack">
+        <div className="auth-plaque">
+          <p className="auth-plaque__text">
+            Для полноценной работы в приложении зарегистрируйтесь.
+          </p>
+        </div>
         {allowDevBypass && (
-          <div className="stack" style={{ marginTop: "1rem" }}>
+          <div className="stack" style={{ marginTop: "0.5rem" }}>
             <p className="eyebrow">Режим разработки</p>
             <p className="empty-state" style={{ fontSize: "0.9rem" }}>
               Войти в интерфейс без Telegram (только при ALLOW_DEV_AUTH_BYPASS=true):
@@ -65,7 +67,7 @@ export default async function AppEntryPage({
             </div>
           </div>
         )}
-      </section>
+      </div>
       <Suspense fallback={<p className="empty-state">Загрузка...</p>}>
         <AuthBootstrap />
       </Suspense>
