@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@maxhub/max-bot-api':
+        specifier: ^0.2.2
+        version: 0.2.2
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1
@@ -677,6 +680,10 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
+  '@maxhub/max-bot-api@0.2.2':
+    resolution: {integrity: sha512-Su3Ar7L+lsOctu7V5+me+eh+84l909ka3LtlPVuBbSz1fygk5L/F45HQp1vaUGg9sRpQ6/qoyKg6HJgemnX3mg==}
+    engines: {node: '>=18.18.0'}
+
   '@next/env@16.1.7':
     resolution: {integrity: sha512-rJJbIdJB/RQr2F1nylZr/PJzamvNNhfr3brdKP6s/GW850jbtR70QlSfFselvIBbcPUOlQwBakexjFzqLzF6pg==}
 
@@ -1283,6 +1290,10 @@ packages:
     resolution: {integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==}
     engines: {node: '>= 0.4'}
 
+  camelcase@5.3.1:
+    resolution: {integrity: sha512-L28STB170nwWS63UjtlEOE3dldQApaJXZkOI1uMFfzf3rRuPegHaHesyee+YxQ+W6SvRDQV6UrdOdRiR153wJg==}
+    engines: {node: '>=6'}
+
   caniuse-lite@1.0.30001779:
     resolution: {integrity: sha512-U5og2PN7V4DMgF50YPNtnZJGWVLFjjsN3zb6uMT5VGYIewieDj1upwfuVNXf4Kor+89c3iCRJnSzMD5LmTvsfA==}
 
@@ -1505,6 +1516,9 @@ packages:
 
   flatted@3.4.1:
     resolution: {integrity: sha512-IxfVbRFVlV8V/yRaGzk0UVIcsKKHMSfYw66T/u4nTwlWteQePsxe//LjudR1AMX4tZW3WFCh3Zqa/sjlqpbURQ==}
+
+  foldline@1.1.0:
+    resolution: {integrity: sha512-9SheyADS50hjvFYjFJ3OB/GlDz2mD1T2CHd7auIk4Uto5YYWPBcw8iYo3F+gENJ+/SOeH9tT0loHZSqlUlumTA==}
 
   form-data@4.0.5:
     resolution: {integrity: sha512-8RipRLol37bNs2bhoV67fiTEvdTrbMUYcFTiy3+wuuOnUog2QBHCZWXDRijWQfAkhBj2Uf5UnVaiWwA5vdd82w==}
@@ -1993,6 +2007,9 @@ packages:
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
+
+  vcf@2.1.2:
+    resolution: {integrity: sha512-oLYtZ+GJPjpKS950fw70+HavdP7ZO2Q+xMCMeCyiUKuXkJJJG1/wUjCKTagPryS1gApYjZOWW/khmdLsch8jxg==}
 
   vite@7.3.1:
     resolution: {integrity: sha512-w+N7Hifpc3gRjZ63vYBXA56dvvRlNWRczTdmCBBa+CotUzAPf5b7YMdMR/8CQoeYE5LX3W4wj6RYTgonm1b9DA==}
@@ -2802,6 +2819,13 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
+  '@maxhub/max-bot-api@0.2.2':
+    dependencies:
+      debug: 4.4.3
+      vcf: 2.1.2
+    transitivePeerDependencies:
+      - supports-color
+
   '@next/env@16.1.7': {}
 
   '@next/swc-darwin-arm64@16.1.7':
@@ -3478,6 +3502,8 @@ snapshots:
       es-errors: 1.3.0
       function-bind: 1.1.2
 
+  camelcase@5.3.1: {}
+
   caniuse-lite@1.0.30001779: {}
 
   chai@6.2.2: {}
@@ -3735,6 +3761,8 @@ snapshots:
       keyv: 4.5.4
 
   flatted@3.4.1: {}
+
+  foldline@1.1.0: {}
 
   form-data@4.0.5:
     dependencies:
@@ -4206,6 +4234,11 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
+
+  vcf@2.1.2:
+    dependencies:
+      camelcase: 5.3.1
+      foldline: 1.1.0
 
   vite@7.3.1(@types/node@25.5.0)(tsx@4.21.0):
     dependencies:

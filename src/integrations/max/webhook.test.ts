@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { registerMaxWebhookRoutes } from './webhook.js';
 
+vi.mock('./config.js', () => ({ maxConfig: { webhookSecret: '' } }));
+
+/** Real MAX payload: message.body.text, recipient, sender. */
 describe('max webhook', () => {
   it('returns 400 for invalid body', async () => {
     const eventGateway = { handleIncomingEvent: vi.fn() };
@@ -16,7 +19,7 @@ describe('max webhook', () => {
     expect(eventGateway.handleIncomingEvent).not.toHaveBeenCalled();
   });
 
-  it('returns 200 and calls eventGateway for valid message_created', async () => {
+  it('returns 200 and calls eventGateway for valid message_created (real payload)', async () => {
     const eventGateway = vi.fn().mockResolvedValue({ status: 'accepted' });
     const app = Fastify();
     await registerMaxWebhookRoutes(app, { eventGateway: { handleIncomingEvent: eventGateway } });
@@ -25,8 +28,13 @@ describe('max webhook', () => {
       url: '/webhook/max',
       payload: {
         update_type: 'message_created',
-        timestamp: 1,
-        message: { id: 1, text: 'Hi', user_id: 100, chat_id: 100 },
+        timestamp: 1739184000000,
+        message: {
+          recipient: { chat_id: 100, user_id: 12345 },
+          body: { text: 'Hi' },
+          sender: { user_id: 100 },
+        },
+        user_locale: 'ru',
       },
     });
     expect(res.statusCode).toBe(200);

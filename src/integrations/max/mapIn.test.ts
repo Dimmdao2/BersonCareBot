@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { fromMax } from './mapIn.js';
 
+/** Real MAX payload: message.body.text, message.recipient, message.sender; callback.* */
 describe('max mapIn', () => {
-  it('maps message_created to IncomingMessageUpdate', () => {
+  it('maps message_created (real payload) to IncomingMessageUpdate', () => {
     const body = {
       update_type: 'message_created' as const,
-      timestamp: 1,
-      message: { id: 10, text: 'Hi', user_id: 200, chat_id: 200 },
+      timestamp: 1739184000000,
+      message: {
+        recipient: { chat_id: 200, user_id: 12345 },
+        body: { text: 'Hi' },
+        sender: { user_id: 200 },
+      },
+      user_locale: 'ru',
     };
     const incoming = fromMax(body);
     expect(incoming).not.toBeNull();
@@ -22,20 +28,23 @@ describe('max mapIn', () => {
     const body = {
       update_type: 'message_created' as const,
       timestamp: 1,
-      message: { id: 11, text: '⚙️ Меню', user_id: 201, chat_id: 201 },
+      message: {
+        recipient: { chat_id: 201 },
+        body: { text: '⚙️ Меню' },
+        sender: { user_id: 201 },
+      },
     };
     const incoming = fromMax(body);
     expect(incoming?.kind).toBe('message');
     if (incoming?.kind === 'message') expect(incoming.action).toBe('menu.more');
   });
 
-  it('maps message_callback to IncomingCallbackUpdate', () => {
+  it('maps message_callback (real payload) to IncomingCallbackUpdate', () => {
     const body = {
       update_type: 'message_callback' as const,
       timestamp: 1,
-      callback_id: 'cb-1',
-      payload: 'notifications.show',
-      message: { id: 5, user_id: 202, chat_id: 202 },
+      callback: { callback_id: 'cb-1', payload: 'notifications.show', user: { user_id: 202 } },
+      message: { recipient: { chat_id: 202 }, body: {}, sender: { user_id: 12345 } },
     };
     const incoming = fromMax(body);
     expect(incoming).not.toBeNull();
@@ -51,18 +60,34 @@ describe('max mapIn', () => {
     const body = {
       update_type: 'bot_started' as const,
       timestamp: 1,
-      message: { id: 1, user_id: 203, chat_id: 203 },
+      message: { recipient: { chat_id: 203 }, sender: { user_id: 203 } },
     };
     const incoming = fromMax(body);
     expect(incoming?.kind).toBe('message');
     if (incoming?.kind === 'message') expect(incoming.text).toBe('/start');
   });
 
-  it('returns null for message_callback without callback_id', () => {
+  it('maps user_added to /start-like message', () => {
+    const body = {
+      update_type: 'user_added' as const,
+      timestamp: 1,
+      chat_id: 204,
+      user: { user_id: 204, name: 'User' },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.text).toBe('/start');
+      expect(incoming.chatId).toBe(204);
+      expect(incoming.channelId).toBe('204');
+    }
+  });
+
+  it('returns null for message_callback without callback object', () => {
     const body = {
       update_type: 'message_callback' as const,
       timestamp: 1,
-      message: { user_id: 204, chat_id: 204 },
+      message: { recipient: { chat_id: 204 }, sender: { user_id: 204 } },
     };
     const incoming = fromMax(body);
     expect(incoming).toBeNull();

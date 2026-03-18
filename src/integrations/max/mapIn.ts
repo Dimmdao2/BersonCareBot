@@ -17,25 +17,37 @@ function getActionFromText(text: string): string {
   return MESSAGE_TEXT_TO_ACTION[t] ?? '';
 }
 
+function getChatIdFromMessage(msg: MaxUpdateValidated['message']): number | null {
+  if (!msg) return null;
+  const r = msg.recipient;
+  if (r?.chat_id != null && typeof r.chat_id === 'number') return r.chat_id;
+  if (r?.user_id != null && typeof r.user_id === 'number') return r.user_id;
+  const uid = msg.sender?.user_id;
+  if (uid != null && typeof uid === 'number') return uid;
+  return null;
+}
+
+function getUserIdFromMessage(msg: MaxUpdateValidated['message']): number | null {
+  if (msg?.sender?.user_id != null) return msg.sender.user_id;
+  return null;
+}
+
 /**
  * Maps validated MAX webhook/long-poll Update to internal IncomingUpdate.
- * Returns null if the update type is not handled (e.g. bot_started without message).
+ * Real payload: message.body.text, message.sender, message.recipient; callback.*.
  */
 export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
-  if (body.update_type === 'message_callback') {
-    const callbackId = body.callback_id;
-    const payload = typeof body.payload === 'string' ? body.payload : '';
-    const msg = body.message;
-    if (!callbackId) return null;
-    const chatId = msg?.chat_id ?? msg?.user_id;
-    const messageId = msg?.id;
-    const userId = msg?.from?.user_id ?? msg?.user_id;
-    if (typeof chatId !== 'number' || typeof userId !== 'number') return null;
+  if (body.update_type === 'message_callback' && body.callback) {
+    const callbackId = body.callback.callback_id;
+    const payload = typeof body.callback.payload === 'string' ? body.callback.payload : '';
+    const userId = body.callback.user?.user_id;
+    const chatId = getChatIdFromMessage(body.message) ?? userId ?? null;
+    if (!callbackId || chatId === null || userId == null) return null;
     const normalized = normalizeDynamicTelegramAction(payload);
     const update: IncomingCallbackUpdate = {
       kind: 'callback',
       chatId,
-      messageId: typeof messageId === 'number' ? messageId : 0,
+      messageId: 0,
       channelUserId: userId,
       action: normalized.action,
       callbackData: normalized.action,
@@ -50,10 +62,10 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
 
   if (body.update_type === 'message_created' && body.message) {
     const msg = body.message;
-    const text = msg.text ?? '';
-    const chatId = msg.chat_id ?? msg.user_id;
-    const userId = msg.from?.user_id ?? msg.user_id;
-    if (typeof chatId !== 'number' || userId == null) return null;
+    const text = msg.body?.text ?? '';
+    const chatId = getChatIdFromMessage(msg);
+    const userId = getUserIdFromMessage(msg);
+    if (chatId === null || userId == null) return null;
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
@@ -63,15 +75,14 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       userRow: null,
       userState: '',
     };
-    if (typeof msg.id === 'number') update.messageId = msg.id;
     return update;
   }
 
-  if (body.update_type === 'bot_started' && body.message) {
+  if (body.update_type === 'bot_started') {
     const msg = body.message;
-    const chatId = msg.chat_id ?? msg.user_id;
-    const userId = msg.from?.user_id ?? msg.user_id;
-    if (typeof chatId !== 'number' || userId == null) return null;
+    const chatId = msg ? getChatIdFromMessage(msg) : (body.chat_id ?? body.user?.user_id ?? null);
+    const userId = msg ? getUserIdFromMessage(msg) : (body.user?.user_id ?? null);
+    if (chatId === null || userId == null) return null;
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
@@ -81,7 +92,19 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       userRow: null,
       userState: '',
     };
-    if (typeof msg.id === 'number') update.messageId = msg.id;
+    return update;
+  }
+
+  if (body.update_type === 'user_added' && body.chat_id != null && body.user?.user_id != null) {
+    const update: IncomingMessageUpdate = {
+      kind: 'message',
+      chatId: body.chat_id,
+      channelId: String(body.user.user_id),
+      text: '/start',
+      action: '',
+      userRow: null,
+      userState: '',
+    };
     return update;
   }
 

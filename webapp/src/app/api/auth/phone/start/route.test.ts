@@ -1,4 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({
+    auth: {
+      startPhoneAuth: async () => ({
+        ok: true as const,
+        challengeId: "test-challenge-id",
+        retryAfterSeconds: 60,
+      }),
+    },
+  }),
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/auth/phone/start", () => {

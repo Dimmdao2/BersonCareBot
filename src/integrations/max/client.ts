@@ -1,9 +1,8 @@
 /**
- * MAX Platform API client. Uses globalThis.fetch (mockable in tests).
- * Docs: https://dev.max.ru/docs-api
- * Base: https://platform-api.max.ru
+ * MAX Platform API client via @maxhub/max-bot-api.
+ * Docs: https://github.com/max-messenger/max-bot-api-client-ts
  */
-const MAX_API_BASE = 'https://platform-api.max.ru';
+import { Bot } from '@maxhub/max-bot-api';
 
 export type MaxClientConfig = {
   apiKey: string;
@@ -33,62 +32,8 @@ export type MaxAnswerCallbackParams = {
   notification?: string;
 };
 
-function authHeader(apiKey: string): Record<string, string> {
-  return { Authorization: apiKey };
-}
-
-/**
- * GET /me — bot info (health/auth check).
- */
-export async function getMaxBotInfo(config: MaxClientConfig): Promise<MaxBotInfo | null> {
-  const base = config.baseUrl ?? MAX_API_BASE;
-  const res = await globalThis.fetch(`${base}/me`, {
-    method: 'GET',
-    headers: { ...authHeader(config.apiKey), 'Content-Type': 'application/json' },
-  });
-  if (!res.ok) return null;
-  const data = (await res.json()) as MaxBotInfo;
-  return data?.user_id != null ? data : null;
-}
-
-/**
- * POST /messages?user_id={userId} — send message to user. Inline keyboard via attachments.
- */
-export async function sendMaxMessage(config: MaxClientConfig, params: MaxSendMessageParams): Promise<{ message?: { id: number } } | null> {
-  const base = config.baseUrl ?? MAX_API_BASE;
-  const url = new URL(`${base}/messages`);
-  url.searchParams.set('user_id', String(params.userId));
-  const body: Record<string, unknown> = {
-    text: params.text,
-    ...(params.format ? { format: params.format } : {}),
-    ...(params.attachments?.length ? { attachments: params.attachments } : {}),
-  };
-  const res = await globalThis.fetch(url.toString(), {
-    method: 'POST',
-    headers: { ...authHeader(config.apiKey), 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as { message?: { id: number } };
-}
-
-/**
- * POST /answers — answer callback (button press). Required after message_callback.
- */
-export async function answerMaxCallback(config: MaxClientConfig, params: MaxAnswerCallbackParams): Promise<boolean> {
-  const base = config.baseUrl ?? MAX_API_BASE;
-  const body: Record<string, unknown> = { callback_id: params.callbackId };
-  if (params.notification) body.notification = params.notification;
-  const res = await globalThis.fetch(`${base}/answers`, {
-    method: 'POST',
-    headers: { ...authHeader(config.apiKey), 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return res.ok;
-}
-
 export type MaxEditMessageParams = {
-  messageId: number;
+  messageId: number | string;
   text: string;
   format?: 'markdown' | 'html';
   attachments?: Array<{
@@ -97,22 +42,81 @@ export type MaxEditMessageParams = {
   }>;
 };
 
+let cachedBot: { apiKey: string; bot: Bot } | null = null;
+
+function getBot(apiKey: string): Bot {
+  if (cachedBot?.apiKey === apiKey) return cachedBot.bot;
+  cachedBot = { apiKey, bot: new Bot(apiKey) };
+  return cachedBot.bot;
+}
+
 /**
- * PUT /messages?message_id={id} — edit message (e.g. after callback). MAX allows edit within 24h.
+ * GET /me — bot info (health/auth check).
+ */
+export async function getMaxBotInfo(config: MaxClientConfig): Promise<MaxBotInfo | null> {
+  try {
+    const bot = getBot(config.apiKey);
+    const info = await bot.api.getMyInfo();
+    if (!info?.user_id) return null;
+    const raw = info as { user_id: number; name?: string; first_name?: string; username?: string | null; is_bot?: boolean; last_activity_time?: number };
+    const result: MaxBotInfo = {
+      user_id: raw.user_id,
+      name: raw.name ?? raw.first_name ?? '',
+      is_bot: raw.is_bot ?? true,
+    };
+    if (raw.username != null && raw.username !== '') result.username = raw.username;
+    if (raw.last_activity_time != null) result.last_activity_time = raw.last_activity_time;
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * POST /messages?user_id={userId} — send message to user.
+ */
+export async function sendMaxMessage(
+  config: MaxClientConfig,
+  params: MaxSendMessageParams,
+): Promise<{ message?: { id: number } } | null> {
+  try {
+    const bot = getBot(config.apiKey);
+    const extra: Record<string, unknown> = {};
+    if (params.format === 'html' || params.format === 'markdown') extra.format = params.format;
+    if (params.attachments?.length) extra.attachments = params.attachments;
+    const message = await bot.api.sendMessageToUser(params.userId, params.text, extra as never);
+    return message?.body?.mid != null ? { message: { id: 0 } } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * PUT /messages?message_id= — edit message. Library expects messageId as string.
  */
 export async function editMaxMessage(config: MaxClientConfig, params: MaxEditMessageParams): Promise<boolean> {
-  const base = config.baseUrl ?? MAX_API_BASE;
-  const url = new URL(`${base}/messages`);
-  url.searchParams.set('message_id', String(params.messageId));
-  const body: Record<string, unknown> = {
-    text: params.text,
-    ...(params.format ? { format: params.format } : {}),
-    ...(params.attachments !== undefined ? { attachments: params.attachments } : {}),
-  };
-  const res = await globalThis.fetch(url.toString(), {
-    method: 'PUT',
-    headers: { ...authHeader(config.apiKey), 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return res.ok;
+  try {
+    const bot = getBot(config.apiKey);
+    const messageId = typeof params.messageId === 'string' ? params.messageId : String(params.messageId);
+    const extra: Record<string, unknown> = { text: params.text };
+    if (params.format === 'html' || params.format === 'markdown') extra.format = params.format;
+    if (params.attachments !== undefined) extra.attachments = params.attachments;
+    await bot.api.editMessage(messageId, extra as never);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * POST /answers — answer callback (button press).
+ */
+export async function answerMaxCallback(config: MaxClientConfig, params: MaxAnswerCallbackParams): Promise<boolean> {
+  try {
+    const bot = getBot(config.apiKey);
+    await bot.api.answerOnCallback(params.callbackId, params.notification ? { notification: params.notification } : undefined);
+    return true;
+  } catch {
+    return false;
+  }
 }
