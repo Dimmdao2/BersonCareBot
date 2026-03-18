@@ -4,6 +4,7 @@ import { env, integratorWebappEntrySecret, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
 import type { IdentityResolutionPort } from "./identityResolutionPort";
+import { getRedirectPathForRole } from "./redirectPolicy";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -33,12 +34,6 @@ function safeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function buildRedirectPath(role: UserRole): string {
-  if (role === "doctor") return "/app/doctor";
-  if (role === "admin") return "/app/doctor";
-  return "/app/patient";
 }
 
 function buildSession(user: SessionUser): AppSession {
@@ -253,21 +248,34 @@ export async function exchangeIntegratorToken(
 
   return {
     session,
-    redirectTo: buildRedirectPath(user.role),
+    redirectTo: getRedirectPathForRole(user.role),
   };
 }
 
 /** Validates Telegram Web App initData and creates session. Used when user opens Mini App without ?t= token. */
-export async function exchangeTelegramInitData(initData: string): Promise<ExchangeResult | null> {
+export async function exchangeTelegramInitData(
+  initData: string,
+  identityResolutionPort?: IdentityResolutionPort | null
+): Promise<ExchangeResult | null> {
   const parsed = validateTelegramInitData(initData);
   if (!parsed) return null;
 
-  const user: SessionUser = {
-    userId: `tg:${parsed.telegramId}`,
-    role: parsed.role,
-    displayName: parsed.displayName ?? parsed.telegramId,
-    bindings: { telegramId: parsed.telegramId },
-  };
+  let user: SessionUser;
+  if (identityResolutionPort) {
+    user = await identityResolutionPort.findOrCreateByChannelBinding({
+      channelCode: "telegram",
+      externalId: parsed.telegramId,
+      displayName: parsed.displayName,
+      role: parsed.role,
+    });
+  } else {
+    user = {
+      userId: `tg:${parsed.telegramId}`,
+      role: parsed.role,
+      displayName: parsed.displayName ?? parsed.telegramId,
+      bindings: { telegramId: parsed.telegramId },
+    };
+  }
 
   const session = buildSession(user);
   const cookieStore = await cookies();
@@ -281,7 +289,7 @@ export async function exchangeTelegramInitData(initData: string): Promise<Exchan
 
   return {
     session,
-    redirectTo: buildRedirectPath(parsed.role),
+    redirectTo: getRedirectPathForRole(user.role),
   };
 }
 

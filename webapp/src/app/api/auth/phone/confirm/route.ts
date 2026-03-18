@@ -1,15 +1,14 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ChannelKind } from "@/modules/auth/channelContext";
 
+/**
+ * Confirm phone code. Channel/chatId/displayName are never read from body;
+ * binding uses only the context stored in the challenge at start.
+ */
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     challengeId?: string;
     code?: string;
-    channel?: ChannelKind;
-    chatId?: string;
-    displayName?: string;
   } | null;
 
   const challengeId = typeof body?.challengeId === "string" ? body.challengeId.trim() : "";
@@ -21,12 +20,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const channel = body?.channel ?? "web";
-  const chatId = (typeof body?.chatId === "string" ? body.chatId.trim() : null) || randomUUID();
-  const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : undefined;
-
   const deps = buildAppDeps();
-  const result = await deps.auth.confirmPhoneAuth(challengeId, code, { channel, chatId, displayName });
+  const result = await deps.auth.confirmPhoneAuth(challengeId, code);
 
   if (!result.ok) {
     const status = result.code === "too_many_attempts" ? 429 : 400;

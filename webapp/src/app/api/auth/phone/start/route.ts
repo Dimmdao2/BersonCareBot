@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ChannelKind } from "@/modules/auth/channelContext";
 
+/**
+ * Start phone auth. Channel/chatId are never taken from request body for binding.
+ * Only server-approved context is stored (here: web + server-generated id).
+ */
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     phone?: string;
-    channel?: ChannelKind;
-    chatId?: string;
     displayName?: string;
   } | null;
 
@@ -19,12 +20,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const channel = body?.channel ?? "web";
-  const chatId = (typeof body?.chatId === "string" ? body.chatId.trim() : null) || randomUUID();
-  const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : undefined;
+  const context = {
+    channel: "web" as const,
+    chatId: randomUUID(),
+    displayName: typeof body?.displayName === "string" ? body.displayName.trim() || undefined : undefined,
+  };
 
   const deps = buildAppDeps();
-  const result = await deps.auth.startPhoneAuth(phone, { channel, chatId, displayName });
+  const result = await deps.auth.startPhoneAuth(phone, context);
 
   if (!result.ok) {
     const status = result.code === "rate_limited" || result.code === "too_many_attempts" ? 429 : 400;

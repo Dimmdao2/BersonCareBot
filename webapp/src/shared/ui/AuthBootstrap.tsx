@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { isSafeNext } from "@/modules/auth/redirectPolicy";
 import { PhoneAuthForm } from "@/shared/ui/auth/PhoneAuthForm";
 import { SmsCodeForm } from "@/shared/ui/auth/SmsCodeForm";
 
@@ -32,15 +33,6 @@ declare global {
       WebApp?: { initData?: string };
     };
   }
-}
-
-const SAFE_NEXT_PREFIX = "/app/patient";
-const SAFE_NEXT_EXCLUDE = "/app/patient/bind-phone";
-
-function isSafeNext(next: string | null): next is string {
-  if (!next || typeof next !== "string") return false;
-  const path = next.startsWith("/") ? next : new URL(next, "http://localhost").pathname;
-  return path.startsWith(SAFE_NEXT_PREFIX) && !path.startsWith(SAFE_NEXT_EXCLUDE);
 }
 
 /** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — форма по SMS. */

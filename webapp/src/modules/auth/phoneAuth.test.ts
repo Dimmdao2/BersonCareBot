@@ -49,7 +49,7 @@ describe("confirmPhoneAuth", () => {
     if (!start.ok) return;
     const challenge = await inMemoryPhoneChallengeStore.get(start.challengeId);
     expect(challenge?.code).toBeDefined();
-    const confirm = await confirmPhoneAuth(start.challengeId, challenge!.code!, webContext, deps);
+    const confirm = await confirmPhoneAuth(start.challengeId, challenge!.code!, deps);
     expect(confirm.ok).toBe(true);
     if (confirm.ok) {
       expect(confirm.user.role).toBe("client");
@@ -62,14 +62,37 @@ describe("confirmPhoneAuth", () => {
     const start = await startPhoneAuth("+79991111111", webContext, deps);
     expect(start.ok).toBe(true);
     if (!start.ok) return;
-    const confirm = await confirmPhoneAuth(start.challengeId, "000000", webContext, deps); // wrong code
+    const confirm = await confirmPhoneAuth(start.challengeId, "000000", deps); // wrong code
     expect(confirm.ok).toBe(false);
     if (!confirm.ok) expect(confirm.code).toBe("invalid_code");
   });
 
   it("returns expired_code for unknown challengeId", async () => {
-    const confirm = await confirmPhoneAuth("nonexistent-challenge-id", "123456", webContext, deps);
+    const confirm = await confirmPhoneAuth("nonexistent-challenge-id", "123456", deps);
     expect(confirm.ok).toBe(false);
     if (!confirm.ok) expect(confirm.code).toBe("expired_code");
+  });
+
+  it("binding comes from challenge only, not from request (regression: spoofed chatId)", async () => {
+    const telegramContext = { channel: "telegram" as const, chatId: "trusted-telegram-456", displayName: "Test" };
+    const start = await startPhoneAuth("+79997777777", telegramContext, deps);
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    const challenge = await inMemoryPhoneChallengeStore.get(start.challengeId);
+    expect(challenge?.channelContext).toEqual(telegramContext);
+    const confirm = await confirmPhoneAuth(start.challengeId, challenge!.code!, deps);
+    expect(confirm.ok).toBe(true);
+    if (confirm.ok) {
+      expect(confirm.user.bindings.telegramId).toBe("trusted-telegram-456");
+    }
+  });
+
+  it("challenge stores server-approved context at start", async () => {
+    const ctx = { channel: "web" as const, chatId: "server-web-id", displayName: "Web User" };
+    const start = await startPhoneAuth("+79998888888", ctx, deps);
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    const stored = await inMemoryPhoneChallengeStore.get(start.challengeId);
+    expect(stored?.channelContext).toEqual(ctx);
   });
 });

@@ -30,7 +30,10 @@ import { createDoctorClientsService } from "@/modules/doctor-clients/service";
 import { createDoctorAppointmentsService } from "@/modules/doctor-appointments/service";
 import { createDoctorMessagingService } from "@/modules/doctor-messaging/service";
 import { createDoctorStatsService } from "@/modules/doctor-stats/service";
+import { createDoctorBroadcastsService } from "@/modules/doctor-broadcasts/service";
+import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports";
 import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
+import { inMemoryBroadcastAuditPort } from "@/infra/repos/inMemoryBroadcastAudit";
 import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppointments";
 import { inMemoryMessageLogPort } from "@/infra/repos/inMemoryMessageLog";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
@@ -95,13 +98,14 @@ export function buildAppDeps() {
       getCurrentSession,
       exchangeIntegratorToken: (token: string) =>
         exchangeIntegratorToken(token, identityResolutionPort),
-      exchangeTelegramInitData,
+      exchangeTelegramInitData: (initData: string) =>
+        exchangeTelegramInitData(initData, identityResolutionPort),
       clearSession,
       setSessionFromUser,
       startPhoneAuth: (phone: string, context: ChannelContext) =>
         startPhoneAuthFlow(phone, context, phoneAuthDeps),
-      confirmPhoneAuth: (challengeId: string, code: string, context: ChannelContext) =>
-        confirmPhoneAuthFlow(challengeId, code, context, phoneAuthDeps),
+      confirmPhoneAuth: (challengeId: string, code: string) =>
+        confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps),
     },
     users: {
       getCurrentUser,
@@ -143,6 +147,21 @@ export function buildAppDeps() {
       getAppointmentStats: (filter) =>
         inMemoryDoctorAppointmentsPort.getAppointmentStats(filter),
       listClients: (filters) => doctorClientsPort.listClients(filters),
+    }),
+    doctorBroadcasts: createDoctorBroadcastsService({
+      resolveAudienceSize: async (filter: BroadcastAudienceFilter) => {
+        const filters =
+          filter === "with_telegram"
+            ? { hasTelegram: true }
+            : filter === "with_max"
+              ? { hasMax: true }
+              : filter === "with_upcoming_appointment" || filter === "active_clients"
+                ? { hasUpcomingAppointment: true }
+                : {};
+        const list = await doctorClientsPort.listClients(filters);
+        return list.length;
+      },
+      broadcastAuditPort: inMemoryBroadcastAuditPort,
     }),
     purchases: {
       getPurchaseSectionState,

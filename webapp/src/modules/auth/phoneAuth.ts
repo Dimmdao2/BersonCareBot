@@ -1,10 +1,17 @@
+import { randomUUID } from "node:crypto";
 import type { SessionUser } from "@/shared/types/session";
 import type { ChannelContext } from "./channelContext";
 import type { PhoneChallengeStore } from "./phoneChallengeStore";
 import type { SmsPort } from "./smsPort";
 import type { UserByPhonePort } from "./userByPhonePort";
+import { getRedirectPathForRole } from "./redirectPolicy";
 
 const CHALLENGE_TTL_SEC = 600; // 10 min
+
+/** Default context when challenge has no channelContext (e.g. legacy or web-only flow). */
+function defaultWebContext(): ChannelContext {
+  return { channel: "web", chatId: randomUUID(), displayName: undefined };
+}
 
 export function normalizePhone(phone: string): string {
   let digits = phone.replace(/\D/g, "");
@@ -30,7 +37,7 @@ export type ConfirmPhoneAuthResult =
 
 export async function startPhoneAuth(
   phone: string,
-  _context: ChannelContext,
+  context: ChannelContext,
   deps: PhoneAuthDeps
 ): Promise<StartPhoneAuthResult> {
   const normalized = normalizePhone(phone);
@@ -47,6 +54,14 @@ export async function startPhoneAuth(
     };
   }
 
+  const existing = await deps.challengeStore.get(sendResult.challengeId);
+  if (existing) {
+    await deps.challengeStore.set(sendResult.challengeId, {
+      ...existing,
+      channelContext: context,
+    });
+  }
+
   return {
     ok: true,
     challengeId: sendResult.challengeId,
@@ -54,10 +69,13 @@ export async function startPhoneAuth(
   };
 }
 
+/**
+ * Confirms phone code. Channel context is taken only from the challenge (set at start);
+ * request body must not supply channel/chatId/displayName for binding.
+ */
 export async function confirmPhoneAuth(
   challengeId: string,
   code: string,
-  context: ChannelContext,
   deps: PhoneAuthDeps
 ): Promise<ConfirmPhoneAuthResult> {
   const challenge = await deps.challengeStore.get(challengeId);
@@ -76,8 +94,7 @@ export async function confirmPhoneAuth(
 
   await deps.challengeStore.delete(challengeId);
 
+  const context = challenge.channelContext ?? defaultWebContext();
   const user = await deps.userByPhonePort.createOrBind(challenge.phone, context);
-  const redirectTo = user.role === "doctor" || user.role === "admin" ? "/app/doctor" : "/app/patient";
-
-  return { ok: true, user, redirectTo };
+  return { ok: true, user, redirectTo: getRedirectPathForRole(user.role) };
 }

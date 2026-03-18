@@ -10,17 +10,9 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
+import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { AppShell } from "@/shared/ui/AppShell";
 import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
-
-const SAFE_NEXT_PREFIX = "/app/patient";
-const SAFE_NEXT_EXCLUDE = "/app/patient/bind-phone";
-
-function isSafeNext(next: string | null): next is string {
-  if (!next || typeof next !== "string") return false;
-  const path = next.startsWith("/") ? next : new URL(next, "http://localhost").pathname;
-  return path.startsWith(SAFE_NEXT_PREFIX) && !path.startsWith(SAFE_NEXT_EXCLUDE);
-}
 
 type SearchParams = { next?: string };
 
@@ -35,10 +27,7 @@ export default async function AppEntryPage({
   const { next: nextParam } = await searchParams;
 
   if (session) {
-    const target = isSafeNext(nextParam ?? null) ? (nextParam ?? null) : null;
-    if (target) redirect(target);
-    const role = session.user.role;
-    redirect(role === "admin" || role === "doctor" ? "/app/doctor" : "/app/patient");
+    redirect(getPostAuthRedirectTarget(session.user.role, nextParam ?? null));
   }
 
   const allowDevBypass = env.ALLOW_DEV_AUTH_BYPASS === true && env.NODE_ENV !== "production";
