@@ -65,7 +65,12 @@ const channelPreferencesPort = env.DATABASE_URL ? pgChannelPreferencesPort : inM
 const userByPhonePort = env.DATABASE_URL ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const identityResolutionPort = env.DATABASE_URL ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
 const doctorClientsPort = env.DATABASE_URL ? createPgDoctorClientsPort() : inMemoryDoctorClientsPort;
-const doctorAppointmentsPort = env.DATABASE_URL ? createPgDoctorAppointmentsPort() : inMemoryDoctorAppointmentsPort;
+// rubitime_records lives in the integrator DB, not in the webapp DB,
+// so PG port is only safe when RUBITIME_IN_WEBAPP_DB is explicitly set.
+const doctorAppointmentsPort =
+  env.DATABASE_URL && process.env.RUBITIME_IN_WEBAPP_DB === "1"
+    ? createPgDoctorAppointmentsPort()
+    : inMemoryDoctorAppointmentsPort;
 const challengeStore = env.DATABASE_URL ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
 const messageLogPort = env.DATABASE_URL ? createPgMessageLogPort() : inMemoryMessageLogPort;
 const broadcastAuditPort = env.DATABASE_URL ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
