@@ -17,10 +17,11 @@ export default async function PatientLessonsPage() {
 
   return (
     <AppShell title="Полезные уроки" user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <section className="feature-grid">
+      <section id="patient-lessons-feature-grid-section" className="feature-grid">
         {lessons.map((lesson) => (
           <FeatureCard
             key={lesson.id}
+            containerId={`patient-lessons-card-${lesson.id}`}
             title={lesson.title}
             href={`/app/patient/content/${lesson.id}`}
             status={lesson.status}

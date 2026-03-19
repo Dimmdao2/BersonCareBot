@@ -13,7 +13,6 @@ type ClientProfileCardProps = {
   messageDraft: PrepareDraftResult | null;
   messageHistory: MessageLogEntry[];
   userId: string;
-  senderId: string;
 };
 
 export function ClientProfileCard({
@@ -21,7 +20,6 @@ export function ClientProfileCard({
   messageDraft,
   messageHistory,
   userId,
-  senderId,
 }: ClientProfileCardProps) {
   const {
     identity,
@@ -36,13 +34,13 @@ export function ClientProfileCard({
 
   return (
     <>
-      <section className="panel stack">
+      <section id="doctor-client-contacts-section" className="panel stack">
         <h2>Контакты</h2>
         <p>{identity.phone ? `Телефон: ${identity.phone}` : "Телефон не указан"}</p>
         <p className="eyebrow">Каналы</p>
-        <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <ul id="doctor-client-channels-list" className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {channelCards.map((ch) => (
-            <li key={ch.code}>
+            <li key={ch.code} id={`doctor-client-channel-item-${ch.code}`}>
               {ch.title}: {ch.isLinked ? "подключён" : "не подключён"}
               {ch.isLinked && (ch.isEnabledForMessages ? ", сообщения вкл." : ", сообщения выкл.")}
             </li>
@@ -50,14 +48,14 @@ export function ClientProfileCard({
         </ul>
       </section>
 
-      <section className="panel stack">
+      <section id="doctor-client-appointments-section" className="panel stack">
         <h2>Ближайшие записи</h2>
         {upcomingAppointments.length === 0 ? (
           <p className="empty-state">Нет предстоящих записей.</p>
         ) : (
-          <ul className="list">
+          <ul id="doctor-client-upcoming-appointments-list" className="list">
             {upcomingAppointments.map((a) => (
-              <li key={a.id} className="list-item">
+              <li key={a.id} id={`doctor-client-upcoming-appointment-${a.id}`} className="list-item">
                 {a.link && /^https?:\/\//i.test(a.link) ? (
                   <a href={a.link} target="_blank" rel="noopener noreferrer">{a.label}</a>
                 ) : (
@@ -72,7 +70,7 @@ export function ClientProfileCard({
         </p>
       </section>
 
-      <section className="panel stack">
+      <section id="doctor-client-symptoms-section" className="panel stack">
         <h2>Дневник симптомов</h2>
         {symptomTrackings.length === 0 ? (
           <p className="empty-state">Нет отслеживаемых симптомов.</p>
@@ -86,7 +84,7 @@ export function ClientProfileCard({
         )}
       </section>
 
-      <section className="panel stack">
+      <section id="doctor-client-lfk-section" className="panel stack">
         <h2>Дневник ЛФК</h2>
         {lfkComplexes.length === 0 ? (
           <p className="empty-state">Нет комплексов ЛФК.</p>
@@ -100,12 +98,11 @@ export function ClientProfileCard({
         )}
       </section>
 
-      <section className="panel stack">
+      <section id="doctor-client-communications-section" className="panel stack">
         <h2>Коммуникации</h2>
         {messageDraft ? (
           <SendMessageForm
             userId={userId}
-            senderId={senderId}
             availableChannels={messageDraft.availableChannels}
             channelBindings={messageDraft.channelBindings}
           />
@@ -116,9 +113,9 @@ export function ClientProfileCard({
         {messageHistory.length === 0 ? (
           <p className="empty-state">Сообщений пока нет.</p>
         ) : (
-          <ul className="list">
+          <ul id="doctor-client-message-history-list" className="list">
             {messageHistory.map((entry) => (
-              <li key={entry.id} className="list-item">
+              <li key={entry.id} id={`doctor-client-message-history-item-${entry.id}`} className="list-item">
                 <span className="eyebrow">
                   {new Date(entry.sentAt).toLocaleString("ru")} · {entry.category}
                   {entry.outcome === "sent" ? (
@@ -144,8 +141,8 @@ export function ClientProfileCard({
         )}
       </section>
 
-      <p>
-        <Link href="/app/doctor/clients" className="button button--back">
+      <p id="doctor-client-back-link-container">
+        <Link id="doctor-client-back-link" href="/app/doctor/clients" className="button button--back">
           К списку клиентов
         </Link>
       </p>

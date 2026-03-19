@@ -22,9 +22,14 @@ export function ClientsFilters({ defaults }: ClientsFiltersProps) {
   };
 
   return (
-    <div className="clients-filters" style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
+    <div
+      id="doctor-clients-filters"
+      className="clients-filters"
+      style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}
+    >
       <button
         type="button"
+        id="doctor-clients-filter-telegram"
         className={`button ${defaults.telegram ? "clients-filters__btn--active" : ""}`}
         onClick={() => toggle("telegram")}
         aria-pressed={defaults.telegram}
@@ -33,6 +38,7 @@ export function ClientsFilters({ defaults }: ClientsFiltersProps) {
       </button>
       <button
         type="button"
+        id="doctor-clients-filter-max"
         className={`button ${defaults.max ? "clients-filters__btn--active" : ""}`}
         onClick={() => toggle("max")}
         aria-pressed={defaults.max}
@@ -41,6 +47,7 @@ export function ClientsFilters({ defaults }: ClientsFiltersProps) {
       </button>
       <button
         type="button"
+        id="doctor-clients-filter-appointment"
         className={`button ${defaults.appointment ? "clients-filters__btn--active" : ""}`}
         onClick={() => toggle("appointment")}
         aria-pressed={defaults.appointment}

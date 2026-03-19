@@ -25,12 +25,12 @@ export default async function LfkDiaryPage() {
 
   return (
     <AppShell title="Дневник ЛФК" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <section className="hero-card stack">
+      <section id="patient-lfk-diary-hero-section" className="hero-card stack">
         <p>Комплексы ЛФК и история занятий. Добавить комплекс или отметить занятие можно в боте.</p>
         {complexes.length === 0 ? (
           <p className="empty-state">{EMPTY_STATE_PLACEHOLDER}</p>
         ) : (
-          <form action={markLfkSession} className="stack">
+          <form id="patient-lfk-mark-session-form" action={markLfkSession} className="stack">
             {complexes.length > 1 ? (
               <label className="stack">
                 <span>Комплекс</span>
@@ -52,25 +52,25 @@ export default async function LfkDiaryPage() {
         )}
       </section>
       {complexes.length > 0 ? (
-        <section className="panel stack">
+        <section id="patient-lfk-complexes-section" className="panel stack">
           <h2>Комплексы</h2>
-          <ul className="list">
+          <ul id="patient-lfk-complexes-list" className="list">
             {complexes.map((c) => (
-              <li key={c.id} className="list-item">
+              <li key={c.id} id={`patient-lfk-complex-item-${c.id}`} className="list-item">
                 <strong>{c.title ?? "—"}</strong>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
-      <section className="panel stack">
+      <section id="patient-lfk-stats-section" className="panel stack">
         <h2>Статистика</h2>
         {sessions.length === 0 ? (
           <p className="empty-state">{EMPTY_STATE_PLACEHOLDER}</p>
         ) : (
-          <ul className="list">
+          <ul id="patient-lfk-sessions-list" className="list">
             {sessions.map((s) => (
-              <li key={s.id} className="list-item">
+              <li key={s.id} id={`patient-lfk-session-item-${s.id}`} className="list-item">
                 <strong>{s.complexTitle ?? "ЛФК"}</strong>
                 <span className="status-pill">{new Date(s.completedAt).toLocaleDateString("ru-RU")}</span>
               </li>

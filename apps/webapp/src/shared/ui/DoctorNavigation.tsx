@@ -18,17 +18,18 @@ export function DoctorNavigation() {
   const pathname = usePathname();
 
   return (
-    <nav className="doctor-nav" aria-label="Разделы кабинета">
-      <ul className="doctor-nav__list">
+    <nav id="doctor-main-nav" className="doctor-nav" aria-label="Разделы кабинета">
+      <ul id="doctor-main-nav-list" className="doctor-nav__list">
         {DOCTOR_NAV_ITEMS.map((item) => {
           const isActive =
             item.href === "/app/doctor"
               ? pathname === "/app/doctor"
               : pathname.startsWith(item.href);
           return (
-            <li key={item.id} className="doctor-nav__item">
+            <li key={item.id} id={`doctor-main-nav-item-${item.id}`} className="doctor-nav__item">
               <Link
                 href={item.href}
+                id={`doctor-main-nav-link-${item.id}`}
                 className={`doctor-nav__link ${isActive ? "doctor-nav__link--active" : ""}`}
               >
                 {item.label}

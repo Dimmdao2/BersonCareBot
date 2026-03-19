@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import React, { useActionState, useState } from "react";
 import type { ChannelBindings } from "@/shared/types/session";
 import type { PrepareDraftResult } from "@/modules/doctor-messaging/service";
 import { sendMessageAction, type SendMessageResult } from "@/app/app/doctor/clients/[userId]/actions";
@@ -19,16 +19,22 @@ type ClientOption = { userId: string; displayName: string };
 
 type NewMessageFormProps = {
   clients: ClientOption[];
-  senderId: string;
 };
 
-export function NewMessageForm({ clients, senderId }: NewMessageFormProps) {
+export function NewMessageForm({ clients }: NewMessageFormProps) {
   const [selectedUserId, setSelectedUserId] = useState("");
   const [draft, setDraft] = useState<PrepareDraftResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [state, formAction] = useActionState<SendMessageResult, FormData>(sendMessageAction, {
     success: false,
   });
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  React.useEffect(() => {
+    if (state.success && formRef.current) {
+      formRef.current.reset();
+    }
+  }, [state]);
 
   const handleClientChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const userId = e.target.value;
@@ -48,8 +54,8 @@ export function NewMessageForm({ clients, senderId }: NewMessageFormProps) {
   const availableChannels = draft?.availableChannels ?? [];
 
   return (
-    <div className="stack" style={{ gap: 16 }}>
-      <div>
+    <div id="doctor-messages-new-message-form-container" className="stack" style={{ gap: 16 }}>
+      <div id="doctor-messages-recipient-select-section">
         <label htmlFor="msg-recipient" className="eyebrow" style={{ display: "block", marginBottom: 4 }}>
           Получатель
         </label>
@@ -72,9 +78,8 @@ export function NewMessageForm({ clients, senderId }: NewMessageFormProps) {
       {loading && <p className="eyebrow">Загрузка...</p>}
 
       {selectedUserId && draft && !loading ? (
-        <form action={formAction} className="stack" style={{ gap: 12 }}>
+        <form ref={formRef} id="doctor-messages-send-form" action={formAction} className="stack" style={{ gap: 12 }}>
           <input type="hidden" name="userId" value={selectedUserId} />
-          <input type="hidden" name="senderId" value={senderId} />
           <input type="hidden" name="channel_telegram_id" value={channelBindings.telegramId ?? ""} />
           <input type="hidden" name="channel_max_id" value={channelBindings.maxId ?? ""} />
           <input type="hidden" name="channel_vk_id" value={channelBindings.vkId ?? ""} />
@@ -108,7 +113,7 @@ export function NewMessageForm({ clients, senderId }: NewMessageFormProps) {
               <span className="eyebrow" style={{ display: "block", marginBottom: 4 }}>
                 Каналы доставки
               </span>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <div id="doctor-messages-channel-options" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 {availableChannels.includes("telegram") && (
                   <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <input type="checkbox" name="channel_telegram" value="1" />

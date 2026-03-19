@@ -54,7 +54,7 @@ export function SmsCodeForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="stack" style={{ maxWidth: 320 }}>
+    <form id="sms-code-form" onSubmit={handleSubmit} className="stack" style={{ maxWidth: 320 }}>
       <p className="empty-state" style={{ fontSize: 14 }}>
         Код отправлен в SMS. Введите его ниже.
       </p>

@@ -26,10 +26,11 @@ export default async function PatientHomePage() {
 
   return (
     <AppShell title="Главное меню" user={session?.user ?? null} variant="patient">
-      <section className="feature-grid">
+      <section id="patient-home-feature-grid-section" className="feature-grid">
         {menu.map((item) => (
           <FeatureCard
             key={item.id}
+            containerId={`patient-home-feature-card-${item.id}`}
             title={item.title}
             href={item.href}
             status={item.status}

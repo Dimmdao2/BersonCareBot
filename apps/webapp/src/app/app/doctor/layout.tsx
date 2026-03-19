@@ -7,9 +7,9 @@ import { DoctorNavigation } from "@/shared/ui/DoctorNavigation";
 
 export default function DoctorSectionLayout({ children }: { children: ReactNode }) {
   return (
-    <>
+    <div id="doctor-section-layout">
       <DoctorNavigation />
-      {children}
-    </>
+      <div id="doctor-section-content">{children}</div>
+    </div>
   );
 }

@@ -12,22 +12,22 @@ export default async function DoctorStatsPage() {
 
   return (
     <AppShell title="Статистика" user={session.user} variant="doctor">
-      <section className="panel stack">
+      <section id="doctor-stats-appointments-section" className="panel stack">
         <h2>Записи (неделя)</h2>
-        <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <li>Всего записей: {stats.appointments.total}</li>
-          <li>Отмен: {stats.appointments.cancellations}</li>
-          <li>Отмен за 30 дн.: {stats.appointments.cancellations30d}</li>
-          <li>Переносов: {stats.appointments.reschedules}</li>
+        <ul id="doctor-stats-appointments-list" className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <li id="doctor-stats-appointments-total">Всего записей: {stats.appointments.total}</li>
+          <li id="doctor-stats-appointments-cancellations">Отмен: {stats.appointments.cancellations}</li>
+          <li id="doctor-stats-appointments-cancellations-30d">Отмен за 30 дн.: {stats.appointments.cancellations30d}</li>
+          <li id="doctor-stats-appointments-reschedules">Переносов: {stats.appointments.reschedules}</li>
         </ul>
       </section>
-      <section className="panel stack">
+      <section id="doctor-stats-clients-section" className="panel stack">
         <h2>Клиенты</h2>
-        <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <li>Всего: {stats.clients.total}</li>
-          <li>Без каналов связи: {stats.clients.withNoChannels}</li>
-          <li>С одним каналом: {stats.clients.withOneChannel}</li>
-          <li>С несколькими каналами: {stats.clients.withMultipleChannels}</li>
+        <ul id="doctor-stats-clients-list" className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <li id="doctor-stats-clients-total">Всего: {stats.clients.total}</li>
+          <li id="doctor-stats-clients-without-channels">Без каналов связи: {stats.clients.withNoChannels}</li>
+          <li id="doctor-stats-clients-with-one-channel">С одним каналом: {stats.clients.withOneChannel}</li>
+          <li id="doctor-stats-clients-with-multiple-channels">С несколькими каналами: {stats.clients.withMultipleChannels}</li>
         </ul>
       </section>
     </AppShell>

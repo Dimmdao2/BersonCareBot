@@ -153,7 +153,7 @@ export function AuthBootstrap() {
 
   if (showPhoneFlow && phoneStep === "code" && challengeId) {
     return (
-      <div className="stack">
+      <div id="auth-bootstrap-code-step" className="stack">
         <p className="eyebrow">Вход по номеру телефона</p>
         <SmsCodeForm
           challengeId={challengeId}
@@ -212,7 +212,7 @@ export function AuthBootstrap() {
 
   if (showPhoneFlow) {
     return (
-      <div className="stack">
+      <div id="auth-bootstrap-phone-step" className="stack">
         <p className="eyebrow">Вход по номеру телефона</p>
         {state === "error" && error && (
           <p className="empty-state" style={{ fontSize: 14, color: "#9c4242" }}>{error}</p>

@@ -41,14 +41,16 @@ export function AppShell({
       !user.bindings.telegramId?.trim() &&
       !user.bindings.maxId?.trim();
     return (
-      <div className="app-shell app-shell--patient">
+      <div id="app-shell-patient" className="app-shell app-shell--patient">
         <PatientHeader
           showBack={!!backHref}
           backHref={backHref}
           backLabel={backLabel}
           title={title}
         />
-        <main className="content-area">{children}</main>
+        <main id="app-shell-content" className="content-area">
+          {children}
+        </main>
         <AskQuestionFAB visible={!!isBrowserOnly} />
       </div>
     );
@@ -57,11 +59,12 @@ export function AppShell({
   const isDoctor = variant === "doctor";
   return (
     <div
+      id={isDoctor ? "app-shell-doctor" : "app-shell-default"}
       className={`app-shell ${isDoctor ? "app-shell--doctor" : ""} ${!isDoctor && titleSmall ? "app-shell--title-small" : ""}`}
     >
-      <header className="top-bar">
+      <header id="app-shell-top-bar" className="top-bar">
         <div>
-          <div className="top-bar__title-row">
+          <div id="app-shell-title-row" className="top-bar__title-row">
             {backHref ? (
               <Link href={backHref} className="button button--back">
                 {backLabel}
@@ -73,7 +76,7 @@ export function AppShell({
             </div>
           </div>
         </div>
-        <div className="top-bar__actions">
+        <div id="app-shell-top-bar-actions" className="top-bar__actions">
           {user ? (
             <div className="user-pill">
               <span>{user.displayName}</span>
@@ -85,7 +88,9 @@ export function AppShell({
           </Link>
         </div>
       </header>
-      <main className="content-area">{children}</main>
+      <main id="app-shell-content" className="content-area">
+        {children}
+      </main>
     </div>
   );
 }

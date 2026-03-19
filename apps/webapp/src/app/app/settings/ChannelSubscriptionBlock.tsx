@@ -29,15 +29,15 @@ export function ChannelSubscriptionBlock({ channelCards }: Props) {
   }
 
   return (
-    <section className="panel stack">
+    <section id="settings-channel-subscriptions-section" className="panel stack">
       <h2>Подписки на каналы</h2>
       <p className="empty-state">
         Подключите удобный вам мессенджер для уведомлений и входа в приложение. Если канал уже подключён, настройте доставку ниже.
       </p>
-      <ul className="list">
+      <ul id="settings-channel-subscriptions-list" className="list">
         {channelCards.map((card) => (
-          <li key={card.code} className="list-item">
-            <div className="stack" style={{ gap: "0.5rem" }}>
+          <li key={card.code} id={`settings-channel-subscription-item-${card.code}`} className="list-item">
+            <div id={`settings-channel-subscription-card-${card.code}`} className="stack" style={{ gap: "0.5rem" }}>
               <div>
                 <strong>{card.title}</strong>
                 {card.isLinked ? (

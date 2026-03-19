@@ -92,6 +92,7 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
     <>
       <button
         type="button"
+        id="ask-question-fab-button"
         className="ask-question-fab"
         onClick={toggle}
         aria-label="Задать вопрос"
@@ -101,6 +102,7 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
       </button>
 
       <div
+        id="ask-question-overlay"
         className="ask-question-overlay"
         aria-hidden={!open}
         onClick={close}
@@ -109,6 +111,7 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
         role="presentation"
       />
       <div
+        id="ask-question-panel"
         className={`ask-question-panel ${open ? "ask-question-panel--open" : ""}`}
         role="dialog"
         aria-label="Отправить вопрос"

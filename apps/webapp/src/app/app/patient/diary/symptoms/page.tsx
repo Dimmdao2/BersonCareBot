@@ -24,29 +24,29 @@ export default async function SymptomDiaryPage() {
 
   return (
     <AppShell title="Дневник симптомов" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <section className="hero-card stack">
+      <section id="patient-symptoms-diary-hero-section" className="hero-card stack">
         <p>Отслеживаемые симптомы и история записей. Добавить симптом или запись можно в боте.</p>
       </section>
       {trackings.length > 0 ? (
-        <section className="panel stack">
+        <section id="patient-symptoms-tracking-section" className="panel stack">
           <h2>Отслеживаемые симптомы</h2>
-          <ul className="list">
+          <ul id="patient-symptoms-tracking-list" className="list">
             {trackings.map((t) => (
-              <li key={t.id} className="list-item">
+              <li key={t.id} id={`patient-symptoms-tracking-item-${t.id}`} className="list-item">
                 <strong>{t.symptomTitle ?? "—"}</strong>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
-      <section className="panel stack">
+      <section id="patient-symptoms-stats-section" className="panel stack">
         <h2>Статистика</h2>
         {entries.length === 0 ? (
           <p className="empty-state">{EMPTY_STATE_PLACEHOLDER}</p>
         ) : (
-          <ul className="list">
+          <ul id="patient-symptoms-stats-list" className="list">
             {entries.map((entry) => (
-              <li key={entry.id} className="list-item">
+              <li key={entry.id} id={`patient-symptoms-entry-item-${entry.id}`} className="list-item">
                 <strong>{entry.symptomTitle ?? "—"}</strong> — {entry.value0_10}/10
                 <span className="status-pill">{entry.entryType === "instant" ? "в моменте" : "за день"}</span>
                 {entry.notes ? ` (${entry.notes})` : null}

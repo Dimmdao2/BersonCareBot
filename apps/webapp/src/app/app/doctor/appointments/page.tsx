@@ -16,22 +16,22 @@ export default async function DoctorAppointmentsPage() {
 
   return (
     <AppShell title="Записи" user={session.user} variant="doctor">
-      <section className="panel stack">
+      <section id="doctor-appointments-stats-section" className="panel stack">
         <h2>Статистика (сегодня)</h2>
-        <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <li>Записей: {stats.total}</li>
-          <li>Отмен за 30 дн.: {stats.cancellations30d}</li>
-          <li>Переносов: {stats.reschedules}</li>
+        <ul id="doctor-appointments-stats-list" className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <li id="doctor-appointments-stats-total">Записей: {stats.total}</li>
+          <li id="doctor-appointments-stats-cancellations-30d">Отмен за 30 дн.: {stats.cancellations30d}</li>
+          <li id="doctor-appointments-stats-reschedules">Переносов: {stats.reschedules}</li>
         </ul>
       </section>
-      <section className="panel stack">
+      <section id="doctor-appointments-upcoming-section" className="panel stack">
         <h2>Ближайшие записи</h2>
         {appointments.length === 0 ? (
           <p className="empty-state">Нет записей на выбранный период.</p>
         ) : (
-          <ul className="list">
+          <ul id="doctor-appointments-upcoming-list" className="list">
             {appointments.map((a) => (
-              <li key={a.id} className="list-item">
+              <li key={a.id} id={`doctor-appointments-item-${a.id}`} className="list-item">
                 <Link href={`/app/doctor/clients/${a.clientUserId}`}>
                   {a.time} — {a.clientLabel} ({a.type}, {a.status})
                 </Link>

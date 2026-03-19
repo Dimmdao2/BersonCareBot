@@ -1,8 +1,8 @@
 "use client";
 
+import React, { useActionState } from "react";
 import type { ChannelBindings } from "@/shared/types/session";
 import { sendMessageAction, type SendMessageResult } from "./actions";
-import { useActionState } from "react";
 
 const MESSAGE_CATEGORIES = [
   { value: "organizational", label: "Организационное" },
@@ -15,25 +15,29 @@ const MESSAGE_CATEGORIES = [
 
 type SendMessageFormProps = {
   userId: string;
-  senderId: string;
   availableChannels: string[];
   channelBindings: ChannelBindings;
 };
 
 export function SendMessageForm({
   userId,
-  senderId,
   availableChannels,
   channelBindings,
 }: SendMessageFormProps) {
   const [state, formAction] = useActionState<SendMessageResult, FormData>(sendMessageAction, {
     success: false,
   });
+  const formRef = React.useRef<HTMLFormElement>(null);
+
+  React.useEffect(() => {
+    if (state.success && formRef.current) {
+      formRef.current.reset();
+    }
+  }, [state]);
 
   return (
-    <form action={formAction} className="stack" style={{ gap: 12 }}>
+    <form ref={formRef} id="doctor-client-send-message-form" action={formAction} className="stack" style={{ gap: 12 }}>
       <input type="hidden" name="userId" value={userId} />
-      <input type="hidden" name="senderId" value={senderId} />
       <input type="hidden" name="channel_telegram_id" value={channelBindings.telegramId ?? ""} />
       <input type="hidden" name="channel_max_id" value={channelBindings.maxId ?? ""} />
       <input type="hidden" name="channel_vk_id" value={channelBindings.vkId ?? ""} />
@@ -67,7 +71,7 @@ export function SendMessageForm({
           <span className="eyebrow" style={{ display: "block", marginBottom: 4 }}>
             Каналы доставки
           </span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div id="doctor-client-send-message-channel-options" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {availableChannels.includes("telegram") && (
               <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <input type="checkbox" name="channel_telegram" value="1" />

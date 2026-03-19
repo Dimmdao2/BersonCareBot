@@ -25,14 +25,14 @@ export default async function PurchasesPage() {
 
   return (
     <AppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <section className="hero-card stack">
+      <section id="patient-purchases-hero-section" className="hero-card stack">
         <p>{state.description}</p>
       </section>
-      <section className="panel stack">
+      <section id="patient-purchases-items-section" className="panel stack">
         <h2>Курсы, доступы и подписки</h2>
-        <ul className="list">
+        <ul id="patient-purchases-items-list" className="list">
           {MOCK_ITEMS.map((item) => (
-            <li key={item.id} className="list-item">
+            <li key={item.id} id={`patient-purchases-item-${item.id}`} className="list-item">
               <strong>{item.title}</strong>
               <span className="status-pill status-pill--available">{item.type}</span>
               <span style={{ fontSize: "0.9rem", color: "#5f6f86" }}>{item.status} · {item.expiresAt}</span>

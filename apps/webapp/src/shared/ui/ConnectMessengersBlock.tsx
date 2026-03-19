@@ -23,7 +23,7 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true }:
   if (cards.length === 0) return null;
 
   return (
-    <section className="panel stack" style={{ marginTop: "1rem" }}>
+    <section id="connect-messengers-section" className="panel stack" style={{ marginTop: "1rem" }}>
       <h2 className="h3">
         {linkedCount === 0
           ? "Подключите удобный вам мессенджер"
@@ -32,12 +32,14 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true }:
             : "Мессенджеры"}
       </h2>
       <div
+        id="connect-messengers-grid"
         className="feature-grid"
         style={{ gridTemplateColumns: "repeat(2, 1fr)", gap: "0.75rem" }}
       >
         {cards.map((card) => (
           <div
             key={card.code}
+            id={`connect-messenger-card-${card.code}`}
             className="stack"
             style={{
               padding: "0.75rem",

@@ -36,7 +36,7 @@ export function BindPhoneBlock({ channel, chatId }: BindPhoneBlockProps) {
 
   if (step === "code" && challengeId) {
     return (
-      <div className="stack">
+      <div id="bind-phone-code-step" className="stack">
         <p className="eyebrow">Привязка номера телефона</p>
         <SmsCodeForm
           challengeId={challengeId}
@@ -90,7 +90,7 @@ export function BindPhoneBlock({ channel, chatId }: BindPhoneBlockProps) {
   }
 
   return (
-    <div className="stack">
+    <div id="bind-phone-phone-step" className="stack">
       <p className="eyebrow">Привязка номера телефона</p>
       <p className="empty-state" style={{ fontSize: 14 }}>
         Для доступа к записям, дневникам и покупкам нужен привязанный номер. Введите его и подтвердите кодом из SMS.

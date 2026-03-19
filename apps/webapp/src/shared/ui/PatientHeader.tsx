@@ -51,8 +51,8 @@ export function PatientHeader({ showBack, backHref, backLabel = "Назад", ti
   }, [close]);
 
   return (
-    <header className="patient-header" data-open={open}>
-      <div className="patient-header__row">
+    <header id="patient-header" className="patient-header" data-open={open}>
+      <div id="patient-header-row" className="patient-header__row">
         <div className="patient-header__left">
           {showBack ? (
             backHref ? (
@@ -85,6 +85,7 @@ export function PatientHeader({ showBack, backHref, backLabel = "Назад", ti
         <div className="patient-header__right">
           <button
             type="button"
+            id="patient-menu-toggle"
             className="patient-header__menu-btn"
             onClick={toggle}
             aria-label="Меню"
@@ -99,16 +100,28 @@ export function PatientHeader({ showBack, backHref, backLabel = "Назад", ti
         </div>
       </div>
 
-      <div className="drawer-overlay" aria-hidden={!open} onClick={close} tabIndex={-1} />
-      <aside className="drawer-panel" role="dialog" aria-label="Меню" aria-modal="true">
+      <div
+        id="patient-menu-overlay"
+        className="drawer-overlay"
+        aria-hidden={!open}
+        onClick={close}
+        tabIndex={-1}
+      />
+      <aside id="patient-menu-drawer" className="drawer-panel" role="dialog" aria-label="Меню" aria-modal="true">
         <div className="drawer-panel__header">
           <button type="button" className="drawer-panel__close" onClick={close} aria-label="Закрыть">
             ×
           </button>
         </div>
-        <nav className="drawer-nav">
+        <nav id="patient-menu-nav" className="drawer-nav">
           {MENU_ITEMS.map((item) => (
-            <Link key={item.id} href={item.href} className="drawer-nav__link" onClick={close}>
+            <Link
+              key={item.id}
+              id={`patient-menu-link-${item.id}`}
+              href={item.href}
+              className="drawer-nav__link"
+              onClick={close}
+            >
               {item.label}
             </Link>
           ))}

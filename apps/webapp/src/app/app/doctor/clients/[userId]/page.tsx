@@ -29,13 +29,14 @@ export default async function DoctorClientProfilePage({ params }: Props) {
       backLabel="Клиенты"
       variant="doctor"
     >
+      <div id={`doctor-client-profile-page-${userId}`}>
       <ClientProfileCard
         profile={profile}
         messageDraft={messageDraft}
         messageHistory={messageHistory}
         userId={userId}
-        senderId={session.user.userId}
       />
+      </div>
     </AppShell>
   );
 }

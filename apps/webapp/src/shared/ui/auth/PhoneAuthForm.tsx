@@ -34,7 +34,7 @@ export function PhoneAuthForm({ onSubmit, onSuccess }: PhoneAuthFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="stack" style={{ maxWidth: 320 }}>
+    <form id="phone-auth-form" onSubmit={handleSubmit} className="stack" style={{ maxWidth: 320 }}>
       <label className="eyebrow" htmlFor="phone-auth-phone">
         Номер телефона
       </label>

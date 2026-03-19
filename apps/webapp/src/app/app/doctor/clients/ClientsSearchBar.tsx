@@ -49,7 +49,12 @@ export function ClientsSearchBar({ defaultValue }: ClientsSearchBarProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="stack" style={{ marginBottom: "0.5rem" }}>
+    <form
+      id="doctor-clients-search-form"
+      onSubmit={handleSubmit}
+      className="stack"
+      style={{ marginBottom: "0.5rem" }}
+    >
       <input
         type="search"
         className="auth-input"

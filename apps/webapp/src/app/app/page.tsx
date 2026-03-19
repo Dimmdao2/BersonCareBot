@@ -34,23 +34,23 @@ export default async function AppEntryPage({
 
   return (
     <AppShell title="Вход" user={null} variant="patient">
-      <div className="stack">
-        <div className="auth-plaque">
+      <div id="app-entry-content" className="stack">
+        <div id="app-entry-auth-plaque" className="auth-plaque">
           <p className="auth-plaque__text">
             Для полноценной работы в приложении зарегистрируйтесь.
           </p>
         </div>
         {allowDevBypass && (
-          <div className="stack" style={{ marginTop: "0.5rem" }}>
+          <div id="app-entry-dev-bypass-panel" className="stack" style={{ marginTop: "0.5rem" }}>
             <p className="eyebrow">Режим разработки</p>
             <p className="empty-state" style={{ fontSize: "0.9rem" }}>
               Войти в интерфейс без Telegram (только при ALLOW_DEV_AUTH_BYPASS=true):
             </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-              <Link href="/app?t=dev:client" className="button">
+            <div id="app-entry-dev-bypass-actions" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+              <Link id="app-entry-dev-login-patient" href="/app?t=dev:client" className="button">
                 Как пациент
               </Link>
-              <Link href="/app?t=dev:admin" className="button">
+              <Link id="app-entry-dev-login-doctor" href="/app?t=dev:admin" className="button">
                 Как врач / админ
               </Link>
             </div>

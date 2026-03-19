@@ -23,12 +23,12 @@ export default async function ContentSlugPage({ params }: Props) {
   const backHref = "/app/patient";
   return (
     <AppShell title={item.title} user={session?.user ?? null} backHref={backHref} backLabel="Назад" variant="patient">
-      <article className="panel stack">
+      <article id={`patient-content-article-${slug}`} className="panel stack">
         {item.imageUrl && (
           <img src={item.imageUrl} alt="" style={{ maxWidth: "100%", height: "auto" }} />
         )}
         <p>{item.bodyText}</p>
-        <section className="stack" style={{ marginTop: "1rem" }}>
+        <section id={`patient-content-video-section-${slug}`} className="stack" style={{ marginTop: "1rem" }}>
           <h3>Видео</h3>
           <img
             src="https://placehold.co/640x360?text=Video"

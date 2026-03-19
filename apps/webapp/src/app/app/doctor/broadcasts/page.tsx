@@ -14,7 +14,7 @@ export default async function DoctorBroadcastsPage() {
   const audit = await deps.doctorBroadcasts.listAudit(5);
   return (
     <AppShell title="Рассылки" user={session.user} variant="doctor">
-      <section className="panel stack">
+      <section id="doctor-broadcasts-overview-section" className="panel stack">
         <p className="empty-state">
           Массовые рассылки во втором релизе: категория, выбор аудитории, предпросмотр и журнал отправок.
         </p>

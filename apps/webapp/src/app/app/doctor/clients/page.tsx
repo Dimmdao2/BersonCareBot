@@ -1,6 +1,7 @@
 /**
  * Список клиентов кабинета специалиста («/app/doctor/clients»).
  */
+import { pluralizeRu } from "@/shared/lib/pluralize";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -52,9 +53,9 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
 
   return (
     <AppShell title="Клиенты" user={session.user} variant="doctor">
-      <div className="master-detail">
-        <div className="master-detail__list">
-          <section className="panel stack">
+      <div id="doctor-clients-master-detail" className="master-detail">
+        <div id="doctor-clients-list-column" className="master-detail__list">
+          <section id="doctor-clients-list-section" className="panel stack">
             <ClientsSearchBar key={q ?? ""} defaultValue={q} />
             <ClientsFilters
               defaults={{
@@ -66,10 +67,10 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
             {clients.length === 0 ? (
               <p className="empty-state">Нет клиентов. Список заполняется из платформенных пользователей с ролью «клиент».</p>
             ) : (
-              <ul className="list">
+              <ul id="doctor-clients-list" className="list">
                 {clients.map((c) => (
-                  <li key={c.userId} className="list-item">
-                    <div className="client-row">
+                  <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="list-item">
+                    <div id={`doctor-clients-card-${c.userId}`} className="client-row">
                       <div>
                         <ClientListLink userId={c.userId} searchParams={params}>
                           {c.displayName}
@@ -86,25 +87,24 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
                         {c.bindings.maxId ? <span className="badge badge--channel">MAX</span> : null}
                         {c.cancellationCount30d > 0 ? (
                           <span className="badge badge--warning">
-                            {c.cancellationCount30d} {c.cancellationCount30d === 1 ? "отмена" : "отмены"}
+                            {c.cancellationCount30d} {pluralizeRu(c.cancellationCount30d, "отмена", "отмены", "отмен")}
                           </span>
                         ) : null}
                       </div>
                     </div>
                   </li>
-            ))}
-          </ul>
-        )}
-        </section>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
         {selectedProfile ? (
-          <div className="master-detail__detail">
+          <div id="doctor-clients-detail-column" className="master-detail__detail">
             <ClientProfileCard
               profile={selectedProfile}
               messageDraft={selectedMessageDraft}
               messageHistory={selectedMessageHistory}
               userId={selected!}
-              senderId={session.user.userId}
             />
           </div>
         ) : null}

@@ -17,10 +17,11 @@ export default async function EmergencyPage() {
 
   return (
     <AppShell title="Скорая помощь" user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <section className="feature-grid">
+      <section id="patient-emergency-feature-grid-section" className="feature-grid">
         {topics.map((topic) => (
           <FeatureCard
             key={topic.id}
+            containerId={`patient-emergency-card-${topic.id}`}
             title={topic.title}
             href={`/app/patient/content/${topic.id}`}
             compact

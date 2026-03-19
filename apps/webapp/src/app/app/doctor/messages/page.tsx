@@ -19,21 +19,20 @@ export default async function DoctorMessagesPage() {
 
   return (
     <AppShell title="Сообщения" user={session.user} variant="doctor">
-      <section className="panel stack">
+      <section id="doctor-messages-new-message-section" className="panel stack">
         <h2>Новое сообщение</h2>
         <NewMessageForm
           clients={clients.map((c) => ({ userId: c.userId, displayName: c.displayName }))}
-          senderId={session.user.userId}
         />
       </section>
-      <section className="panel stack">
+      <section id="doctor-messages-log-section" className="panel stack">
         <h2>Журнал сообщений</h2>
         {entries.length === 0 ? (
           <p className="empty-state">Сообщений пока нет.</p>
         ) : (
-          <ul className="list">
+          <ul id="doctor-messages-log-list" className="list">
             {entries.map((entry) => (
-              <li key={entry.id} className="list-item">
+              <li key={entry.id} id={`doctor-messages-log-item-${entry.id}`} className="list-item">
                 <span className="eyebrow">
                   {new Date(entry.sentAt).toLocaleString("ru")} · {entry.category}
                   {entry.outcome === "sent" ? (
