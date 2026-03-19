@@ -16,4 +16,9 @@ export const inMemoryMessageLogPort: MessageLogPort = {
       .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
       .slice(0, limit);
   },
+  async listAll(limit = 50): Promise<MessageLogEntry[]> {
+    return [...store]
+      .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
+      .slice(0, limit);
+  },
 };

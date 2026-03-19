@@ -1,22 +1,66 @@
 /**
  * Сообщения кабинета специалиста («/app/doctor/messages»).
- * Отправка индивидуальных сообщений клиентам и журнал — через карточку клиента или выбор клиента.
+ * Журнал отправленных сообщений и форма отправки нового.
  */
 import Link from "next/link";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { NewMessageForm } from "./NewMessageForm";
 
 export default async function DoctorMessagesPage() {
   const session = await requireDoctorAccess();
+  const deps = buildAppDeps();
+  const [entries, clients] = await Promise.all([
+    deps.doctorMessaging.listAllMessages(50),
+    deps.doctorClients.listClients({}),
+  ]);
+  const clientNames = new Map(clients.map((c) => [c.userId, c.displayName]));
+
   return (
-    <AppShell title="Сообщения" user={session.user} titleSmall>
+    <AppShell title="Сообщения" user={session.user} variant="doctor">
       <section className="panel stack">
-        <p>Чтобы отправить сообщение клиенту, откройте карточку клиента и используйте блок «Коммуникации» или кнопку «Написать».</p>
-        <p>
-          <Link href="/app/doctor/clients" className="button">
-            Перейти к списку клиентов
-          </Link>
-        </p>
+        <h2>Новое сообщение</h2>
+        <NewMessageForm
+          clients={clients.map((c) => ({ userId: c.userId, displayName: c.displayName }))}
+          senderId={session.user.userId}
+        />
+      </section>
+      <section className="panel stack">
+        <h2>Журнал сообщений</h2>
+        {entries.length === 0 ? (
+          <p className="empty-state">Сообщений пока нет.</p>
+        ) : (
+          <ul className="list">
+            {entries.map((entry) => (
+              <li key={entry.id} className="list-item">
+                <span className="eyebrow">
+                  {new Date(entry.sentAt).toLocaleString("ru")} · {entry.category}
+                  {entry.outcome === "sent" ? (
+                    <span className="badge badge--channel" style={{ marginLeft: 6 }}>доставлено</span>
+                  ) : entry.outcome === "failed" ? (
+                    <span className="badge badge--warning" style={{ marginLeft: 6 }}>ошибка</span>
+                  ) : (
+                    <span style={{ marginLeft: 6 }}>{entry.outcome}</span>
+                  )}
+                </span>
+                <p style={{ margin: "4px 0 0" }}>
+                  <Link href={`/app/doctor/clients/${entry.userId}`}>
+                    {clientNames.get(entry.userId) ?? entry.userId}
+                  </Link>
+                  {" — "}
+                  {entry.text.slice(0, 100)}
+                  {entry.text.length > 100 ? "…" : ""}
+                </p>
+                {Object.keys(entry.channelBindingsUsed).length > 0 ? (
+                  <span className="eyebrow" style={{ fontSize: "0.75rem" }}>
+                    Каналы: {Object.keys(entry.channelBindingsUsed).join(", ")}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </AppShell>
   );

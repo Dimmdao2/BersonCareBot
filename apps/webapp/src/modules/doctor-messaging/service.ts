@@ -68,5 +68,9 @@ export function createDoctorMessagingService(deps: DoctorMessagingServiceDeps) {
     async listMessageHistory(userId: string, limit?: number) {
       return deps.messageLogPort.listByUser(userId, limit);
     },
+
+    async listAllMessages(limit?: number) {
+      return deps.messageLogPort.listAll(limit);
+    },
   };
 }

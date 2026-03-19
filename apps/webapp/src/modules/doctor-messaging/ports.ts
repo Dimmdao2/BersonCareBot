@@ -14,4 +14,5 @@ export type MessageLogEntry = {
 export type MessageLogPort = {
   append(entry: Omit<MessageLogEntry, "id" | "sentAt">): Promise<MessageLogEntry>;
   listByUser(userId: string, limit?: number): Promise<MessageLogEntry[]>;
+  listAll(limit?: number): Promise<MessageLogEntry[]>;
 };

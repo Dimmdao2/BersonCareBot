@@ -40,6 +40,7 @@ import { inMemoryDoctorAppointmentsPort } from "@/infra/repos/inMemoryDoctorAppo
 import { inMemoryMessageLogPort } from "@/infra/repos/inMemoryMessageLog";
 import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
+import { createPgDoctorAppointmentsPort } from "@/infra/repos/pgDoctorAppointments";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
 import { getUpcomingAppointments } from "@/modules/appointments/service";
 import { createMediaService } from "@/modules/media/service";
@@ -64,6 +65,7 @@ const channelPreferencesPort = env.DATABASE_URL ? pgChannelPreferencesPort : inM
 const userByPhonePort = env.DATABASE_URL ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const identityResolutionPort = env.DATABASE_URL ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
 const doctorClientsPort = env.DATABASE_URL ? createPgDoctorClientsPort() : inMemoryDoctorClientsPort;
+const doctorAppointmentsPort = env.DATABASE_URL ? createPgDoctorAppointmentsPort() : inMemoryDoctorAppointmentsPort;
 const challengeStore = env.DATABASE_URL ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
 const messageLogPort = env.DATABASE_URL ? createPgMessageLogPort() : inMemoryMessageLogPort;
 const broadcastAuditPort = env.DATABASE_URL ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
@@ -147,11 +149,10 @@ export function buildAppDeps() {
       messageLogPort,
     }),
     doctorAppointments: createDoctorAppointmentsService({
-      appointmentsPort: inMemoryDoctorAppointmentsPort,
+      appointmentsPort: doctorAppointmentsPort,
     }),
     doctorStats: createDoctorStatsService({
-      getAppointmentStats: (filter) =>
-        inMemoryDoctorAppointmentsPort.getAppointmentStats(filter),
+      getAppointmentStats: (filter) => doctorAppointmentsPort.getAppointmentStats(filter),
       listClients: (filters) => doctorClientsPort.listClients(filters),
     }),
     doctorBroadcasts: createDoctorBroadcastsService({

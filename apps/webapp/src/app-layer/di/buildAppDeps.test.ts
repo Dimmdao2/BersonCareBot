@@ -96,13 +96,16 @@ describe("buildAppDeps", () => {
     expect(stats).toHaveProperty("cancellations30d");
   });
 
-  it("doctorMessaging has prepareMessageDraft, sendMessage, listMessageHistory", async () => {
+  it("doctorMessaging has prepareMessageDraft, sendMessage, listMessageHistory, listAllMessages", async () => {
     const deps = buildAppDeps();
     expect(typeof deps.doctorMessaging.prepareMessageDraft).toBe("function");
     expect(typeof deps.doctorMessaging.sendMessage).toBe("function");
     expect(typeof deps.doctorMessaging.listMessageHistory).toBe("function");
+    expect(typeof deps.doctorMessaging.listAllMessages).toBe("function");
     const draft = await deps.doctorMessaging.prepareMessageDraft({ userId: "unknown" });
     expect(draft).toBeNull();
+    const allMessages = await deps.doctorMessaging.listAllMessages(50);
+    expect(Array.isArray(allMessages)).toBe(true);
   });
 
   it("doctorStats has getStats", async () => {

@@ -13,7 +13,7 @@ export default async function DoctorBroadcastsPage() {
   const categories = deps.doctorBroadcasts.getCategories();
   const audit = await deps.doctorBroadcasts.listAudit(5);
   return (
-    <AppShell title="Рассылки" user={session.user} titleSmall>
+    <AppShell title="Рассылки" user={session.user} variant="doctor">
       <section className="panel stack">
         <p className="empty-state">
           Массовые рассылки во втором релизе: категория, выбор аудитории, предпросмотр и журнал отправок.

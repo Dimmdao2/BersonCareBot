@@ -51,5 +51,24 @@ export function createPgMessageLogPort(): MessageLogPort {
         errorMessage: row.error_message,
       }));
     },
+    async listAll(limit = 50): Promise<MessageLogEntry[]> {
+      const pool = getPool();
+      const r = await pool.query(
+        `SELECT id, user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
+         FROM message_log ORDER BY sent_at DESC LIMIT $1`,
+        [limit]
+      );
+      return r.rows.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        senderId: row.sender_id,
+        text: row.text,
+        category: row.category,
+        channelBindingsUsed: (row.channel_bindings_used as Record<string, string>) ?? {},
+        sentAt: new Date(row.sent_at).toISOString(),
+        outcome: row.outcome,
+        errorMessage: row.error_message,
+      }));
+    },
   };
 }

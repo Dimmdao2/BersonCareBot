@@ -21,8 +21,8 @@ type AppShellProps = {
   backLabel?: string;
   /** Уменьшенный заголовок, когда есть кнопка «Назад». */
   titleSmall?: boolean;
-  /** Вариант шапки: по умолчанию — заголовок и действия; patient — стрелка назад, BERSONCARE, гамбургер. */
-  variant?: "default" | "patient";
+  /** Вариант шапки: по умолчанию — заголовок и действия; patient — стрелка назад, BERSONCARE, гамбургер; doctor — широкий layout. */
+  variant?: "default" | "patient" | "doctor";
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -54,8 +54,11 @@ export function AppShell({
     );
   }
 
+  const isDoctor = variant === "doctor";
   return (
-    <div className={`app-shell ${titleSmall ? "app-shell--title-small" : ""}`}>
+    <div
+      className={`app-shell ${isDoctor ? "app-shell--doctor" : ""} ${!isDoctor && titleSmall ? "app-shell--title-small" : ""}`}
+    >
       <header className="top-bar">
         <div>
           <div className="top-bar__title-row">

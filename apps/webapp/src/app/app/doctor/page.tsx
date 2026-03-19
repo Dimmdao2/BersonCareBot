@@ -18,80 +18,88 @@ export default async function DoctorPage() {
     deps.doctorClients.listClients({}),
     deps.doctorAppointments.listAppointmentsForSpecialist({ range: "today" }),
   ]);
-  const recentClients = clients.slice(0, 8);
-
   return (
-    <AppShell title="Обзор" user={session.user} titleSmall>
-      <section className="panel stack">
-        <h2>Кабинет специалиста</h2>
-        <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <li>Клиентов в базе: {stats.clients.total}</li>
-          <li>Записей на сегодня: {appointmentsToday.length}</li>
-          <li>Отмен за 30 дней: {stats.appointments.cancellations30d}</li>
-          <li>Клиентов без канала связи: {stats.clients.withNoChannels}</li>
-        </ul>
-      </section>
+    <AppShell title="Обзор" user={session.user} variant="doctor">
+      <div className="kpi-grid">
+        <div className="kpi-card panel">
+          <span className="kpi-card__value">{appointmentsToday.length}</span>
+          <span className="kpi-card__label eyebrow">Записей сегодня</span>
+        </div>
+        <div className="kpi-card panel">
+          <span className="kpi-card__value">{stats.clients.total}</span>
+          <span className="kpi-card__label eyebrow">Клиентов в базе</span>
+        </div>
+        <div className="kpi-card panel">
+          <span className="kpi-card__value">{stats.appointments.cancellations30d}</span>
+          <span className="kpi-card__label eyebrow">Отмен за 30 дн.</span>
+        </div>
+        <div className="kpi-card panel">
+          <span className="kpi-card__value">{stats.clients.withNoChannels}</span>
+          <span className="kpi-card__label eyebrow">Без канала связи</span>
+        </div>
+      </div>
 
-      <section className="panel stack">
-        <h2>Сегодняшние записи</h2>
-        {appointmentsToday.length === 0 ? (
-          <p className="empty-state">Нет ближайших записей.</p>
-        ) : (
-          <ul className="list">
-            {appointmentsToday.map((a) => (
-              <li key={a.id} className="list-item">
-                <Link href={`/app/doctor/clients/${a.clientUserId}`}>
-                  {a.time} — {a.clientLabel} ({a.type}, {a.status})
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="panel stack">
-        <h2>Клиенты</h2>
-        {recentClients.length === 0 ? (
-          <p className="empty-state">Пока нет клиентов в платформенном справочнике.</p>
-        ) : (
-          <ul className="list">
-            {recentClients.map((r) => (
-              <li key={r.userId} className="list-item">
-                <Link href={`/app/doctor/clients/${r.userId}`}>{r.displayName}</Link>
-                <span className="eyebrow">
-                  {" "}
-                  — {r.phone ?? "без телефона"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <div className="overview-columns">
+        <section className="panel stack">
+          <h2>Ближайшие записи</h2>
+          {appointmentsToday.length === 0 ? (
+            <p className="empty-state">Нет ближайших записей.</p>
+          ) : (
+            <ul className="list">
+              {appointmentsToday.map((a) => (
+                <li key={a.id} className="list-item">
+                  <Link href={`/app/doctor/clients/${a.clientUserId}`}>
+                    {a.time} — {a.clientLabel} ({a.type}, {a.status})
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section className="panel stack">
+          <h2>Требуют внимания</h2>
+          {stats.clients.withNoChannels > 0 ? (
+            <p>
+              Клиентов без канала связи:{" "}
+              <Link href="/app/doctor/clients">{stats.clients.withNoChannels}</Link>
+            </p>
+          ) : null}
+          {(() => {
+            const withCancellations = clients.filter((c) => c.cancellationCount30d > 2).slice(0, 5);
+            if (withCancellations.length === 0 && stats.clients.withNoChannels === 0) {
+              return <p className="empty-state">Нет клиентов, требующих внимания.</p>;
+            }
+            return withCancellations.length > 0 ? (
+              <ul className="list">
+                {withCancellations.map((c) => (
+                  <li key={c.userId} className="list-item">
+                    <Link href={`/app/doctor/clients/${c.userId}`}>
+                      {c.displayName} — {c.cancellationCount30d} отмен за 30 дн.
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : null;
+          })()}
+        </section>
+      </div>
 
       <section className="panel stack">
         <h2>Быстрые действия</h2>
-        <ul className="doctor-nav__list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          <li style={{ marginBottom: "0.5rem" }}>
-            <Link href="/app/doctor/clients" className="button">
-              Открыть клиентов
-            </Link>
-          </li>
-          <li style={{ marginBottom: "0.5rem" }}>
-            <Link href="/app/doctor/appointments" className="button">
-              Открыть записи
-            </Link>
-          </li>
-          <li style={{ marginBottom: "0.5rem" }}>
-            <Link href="/app/doctor/messages" className="button">
-              Сообщения
-            </Link>
-          </li>
-          <li style={{ marginBottom: "0.5rem" }}>
-            <Link href="/app/doctor/stats" className="button">
-              Статистика
-            </Link>
-          </li>
-        </ul>
+        <div className="feature-grid feature-grid--compact">
+          <Link href="/app/doctor/clients" className="button">
+            Клиенты
+          </Link>
+          <Link href="/app/doctor/appointments" className="button">
+            Записи
+          </Link>
+          <Link href="/app/doctor/messages" className="button">
+            Сообщения
+          </Link>
+          <Link href="/app/doctor/stats" className="button">
+            Статистика
+          </Link>
+        </div>
       </section>
     </AppShell>
   );

@@ -11,7 +11,7 @@ export default async function DoctorStatsPage() {
   const stats = await deps.doctorStats.getStats();
 
   return (
-    <AppShell title="Статистика" user={session.user} titleSmall>
+    <AppShell title="Статистика" user={session.user} variant="doctor">
       <section className="panel stack">
         <h2>Записи (неделя)</h2>
         <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>

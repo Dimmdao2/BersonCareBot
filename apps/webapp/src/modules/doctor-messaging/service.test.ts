@@ -31,6 +31,9 @@ describe("doctor-messaging service", () => {
     async listByUser(userId: string): Promise<MessageLogEntry[]> {
       return log.filter((e) => e.userId === userId);
     },
+    async listAll(): Promise<MessageLogEntry[]> {
+      return [...log];
+    },
   };
 
   const service = createDoctorMessagingService({
@@ -76,6 +79,11 @@ describe("doctor-messaging service", () => {
 
   it("listMessageHistory returns entries for user", async () => {
     const list = await service.listMessageHistory("user-1");
+    expect(Array.isArray(list)).toBe(true);
+  });
+
+  it("listAllMessages returns array from port.listAll", async () => {
+    const list = await service.listAllMessages(50);
     expect(Array.isArray(list)).toBe(true);
   });
 });

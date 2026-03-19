@@ -78,6 +78,65 @@ a {
   font-size: 1.25rem;
 }
 
+.app-shell--doctor {
+  max-width: 1200px;
+}
+@media (max-width: 768px) {
+  .app-shell--doctor {
+    max-width: 100%;
+    padding: 16px 12px 32px;
+  }
+}
+
+/* ——— Обзор кабинета специалиста ——— */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.kpi-card {
+  text-align: center;
+  padding: 16px;
+}
+.kpi-card__value {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #18202c;
+}
+.kpi-card__label {
+  display: block;
+  margin-top: 4px;
+}
+.overview-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 768px) {
+  .overview-columns {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ——— Master-detail клиентов (десктоп) ——— */
+.master-detail {
+  display: block;
+}
+.master-detail__detail {
+  display: none;
+}
+@media (min-width: 768px) {
+  .master-detail {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 16px;
+  }
+  .master-detail__detail {
+    display: block;
+  }
+}
+
 /* ——— Навигация кабинета специалиста ——— */
 .doctor-nav {
   margin-bottom: 1rem;
@@ -112,6 +171,41 @@ a {
   background: #18202c;
   color: #fff;
   border-color: #18202c;
+}
+
+.clients-filters__btn--active {
+  background: #18202c;
+  color: #fff;
+  border-color: #18202c;
+}
+
+/* ——— Строка клиента в списке (кабинет врача) ——— */
+.client-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.client-row__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.badge--channel {
+  background: #eef4ff;
+  color: #244a80;
+}
+.badge--warning {
+  background: #f5e8e8;
+  color: #9c4242;
 }
 
 /* ——— Шапка пациента (мобильный стиль): [назад | BERSONCARE | гамбургер] ——— */

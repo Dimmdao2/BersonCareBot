@@ -15,7 +15,7 @@ export default async function DoctorAppointmentsPage() {
   ]);
 
   return (
-    <AppShell title="Записи" user={session.user} titleSmall>
+    <AppShell title="Записи" user={session.user} variant="doctor">
       <section className="panel stack">
         <h2>Статистика (сегодня)</h2>
         <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
