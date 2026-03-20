@@ -297,7 +297,32 @@ bash deploy/host/deploy-webapp-prod.sh
 
 ### Перенос данных при первом деплое / cutover
 
-Скрипты деплоя **не выполняют** backfill и reconcile автоматически. При первой настройке webapp БД или при cutover после миграций нужно вручную выполнить перенос данных и проверку целостности по чеклисту:
+Для first cutover есть отдельный скрипт:
+
+```bash
+cd /opt/projects/bersoncarebot
+bash deploy/host/run-stage13-cutover.sh
+```
+
+Режим без записей (только проверки и dry-run):
+
+```bash
+bash deploy/host/run-stage13-cutover.sh --dry-run-only
+```
+
+Также cutover можно включить автоматически в full deploy через флаг:
+
+```bash
+RUN_STAGE13_CUTOVER=1 bash deploy/host/deploy-prod.sh
+```
+
+Только dry-run в рамках full deploy:
+
+```bash
+RUN_STAGE13_CUTOVER=1 RUN_STAGE13_CUTOVER_DRY_RUN_ONLY=1 bash deploy/host/deploy-prod.sh
+```
+
+По умолчанию full deploy не запускает cutover-скрипт (чтобы не делать тяжёлый backfill на каждом релизе). Для порядка и проверки целостности ориентир:
 
 - **[DATA_MIGRATION_CHECKLIST.md](DATA_MIGRATION_CHECKLIST.md)** — порядок backfill (person, communication, reminders, appointments, subscription_mailing), reconcile и stage13-gate.
 

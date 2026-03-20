@@ -53,12 +53,20 @@ pnpm run stage13-gate
 
 ## Интеграция в deploy
 
-Текущие скрипты деплоя (`deploy/host/deploy-prod.sh` и др.) **не запускают** backfill и reconcile автоматически. Причины:
+По умолчанию deploy-скрипты выполняют миграции и рестарт сервисов. Backfill/reconcile остаются отдельным шагом.
 
-- Backfill идемпотентен, но тяжёлый; его обычно выполняют один раз после миграций или при cutover.
-- Reconcile и gate требуют двух БД (webapp + integrator) и правильных env.
+- **Ручной запуск (рекомендуемо для cutover):**
+  - `bash deploy/host/run-stage13-cutover.sh`
+  - только проверка без записей: `bash deploy/host/run-stage13-cutover.sh --dry-run-only`
+- **Автозапуск в рамках full deploy (по флагу):**
+  - `RUN_STAGE13_CUTOVER=1 bash deploy/host/deploy-prod.sh`
+  - только dry-run этапы: `RUN_STAGE13_CUTOVER=1 RUN_STAGE13_CUTOVER_DRY_RUN_ONLY=1 bash deploy/host/deploy-prod.sh`
 
-**Рекомендация:** при первом деплое на новую webapp БД или при cutover выполнить шаги 1–3 вручную по этому чеклисту. При обычных обновлениях кода достаточно миграций и рестарта сервисов; повторный backfill не обязателен (проекция из integrator в webapp идёт в реальном времени через projection worker).
+Почему не включено без флага:
+
+- Backfill идемпотентен, но тяжёлый; обычно это one-time операция после миграций/cutover.
+- Reconcile и gate требуют двух БД (webapp + integrator) и корректных env.
+- Для обычных релизов повторный backfill не обязателен (онлайн-проекция из integrator в webapp работает через projection worker).
 
 ## Сохранность данных
 

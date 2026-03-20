@@ -5,6 +5,7 @@ PROJECT_ROOT=/opt/projects/bersoncarebot
 ENV_FILE=/opt/env/bersoncarebot/api.prod
 WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.prod
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
+STAGE13_CUTOVER_SCRIPT=deploy/host/run-stage13-cutover.sh
 API_SERVICE=bersoncarebot-api-prod.service
 WORKER_SERVICE=bersoncarebot-worker-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
@@ -138,3 +139,20 @@ done
 
 grep -q '"ok":true' /tmp/bersoncarebot-health.json
 grep -q '"db":"up"' /tmp/bersoncarebot-health.json
+
+# Optional post-deploy Stage 13 cutover (backfill + reconcile + stage13-gate).
+# Enable explicitly to avoid heavy one-time tasks on every deploy:
+#   RUN_STAGE13_CUTOVER=1 bash deploy/host/deploy-prod.sh
+# Optional dry-run-only:
+#   RUN_STAGE13_CUTOVER=1 RUN_STAGE13_CUTOVER_DRY_RUN_ONLY=1 bash deploy/host/deploy-prod.sh
+if [ "${RUN_STAGE13_CUTOVER:-0}" = "1" ]; then
+  if [ ! -x "${PROJECT_ROOT}/${STAGE13_CUTOVER_SCRIPT}" ]; then
+    fail "Stage13 cutover script is missing or not executable: ${PROJECT_ROOT}/${STAGE13_CUTOVER_SCRIPT}"
+  fi
+
+  if [ "${RUN_STAGE13_CUTOVER_DRY_RUN_ONLY:-0}" = "1" ]; then
+    bash "${PROJECT_ROOT}/${STAGE13_CUTOVER_SCRIPT}" --dry-run-only
+  else
+    bash "${PROJECT_ROOT}/${STAGE13_CUTOVER_SCRIPT}"
+  fi
+fi
