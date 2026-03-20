@@ -130,7 +130,8 @@
 - `HOST=127.0.0.1`
 - `PORT=6200`
 - `APP_BASE_URL=https://webapp.bersonservices.ru`
-- `DATABASE_URL=...`
+- `DATABASE_URL=...` (webapp БД)
+- `INTEGRATOR_DATABASE_URL=...` или `SOURCE_DATABASE_URL=...` (для backfill/reconcile — БД integrator, та же что в api.prod)
 - `SESSION_COOKIE_SECRET=...`
 - `INTEGRATOR_SHARED_SECRET=...`
 - `INTEGRATOR_API_URL=https://tgcarebot.bersonservices.ru`
@@ -246,6 +247,58 @@
 - `/opt/env/bersoncarebot` существует и принадлежит `deploy`.
 - Команда со снимком `pg_database` в этом audit оборвалась по shell-ошибке, поэтому точные current DB owners в этот документ не включены.
 - Для базы и владельцев пока опираться на `deploy/HOST_DEPLOY_README.md`, пока не будет отдельного успешного postgres snapshot.
+
+### Data migration / доступ к БД (production)
+
+Для проверки переноса данных и backfill/reconcile нужны две БД: **integrator** (источник) и **webapp** (целевая).
+
+| Назначение | Переменная | Где задана на проде |
+|------------|------------|----------------------|
+| Integrator (источник) | `DATABASE_URL` | `/opt/env/bersoncarebot/api.prod` |
+| Webapp (целевая) | `DATABASE_URL` | `/opt/env/bersoncarebot/webapp.prod` |
+| Integrator для webapp (backfill/reconcile) | `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` | `/opt/env/bersoncarebot/webapp.prod` (должна указывать на ту же БД, что и `DATABASE_URL` в api.prod) |
+
+Подключение к psql на проде (под пользователем, у которого есть доступ к БД):
+
+```bash
+# Загрузить env и подключиться к нужной БД (значения не коммитить)
+source /opt/env/bersoncarebot/api.prod && psql "$DATABASE_URL"    # integrator
+source /opt/env/bersoncarebot/webapp.prod && psql "$DATABASE_URL" # webapp
+```
+
+Если на хосте psql запускают от имени `postgres`: `sudo -u postgres psql -d <имя_базы>`. Имена баз и пользователей берут из соответствующих env-файлов (см. примеры в `deploy/env/.env.webapp.prod.example`; для api — корневой `.env.example`).
+
+### Как узнать, чего не хватает, и вписать на сервер
+
+Выполнять на **production-хосте** (под пользователем с доступом к env и при необходимости `sudo -u postgres`).
+
+**1. Снять снимок баз и ролей (обновить раздел Database / backup facts):**
+
+```bash
+sudo -u postgres psql -At -F $'\t' -c "SELECT datname, pg_catalog.pg_get_userbyid(datdba) FROM pg_database WHERE datallowconn ORDER BY datname;"
+sudo -u postgres psql -At -F $'\t' -c "SELECT rolname FROM pg_roles ORDER BY rolname;"
+```
+
+Результат вписать в этот документ (раздел «Database / backup facts») или в `deploy/HOST_DEPLOY_README.md`, чтобы не терять актуальные имена баз и владельцев.
+
+**2. Проверить, какие переменные заданы в env (без вывода секретов):**
+
+```bash
+echo "=== api.prod (integrator) ==="
+grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/api.prod 2>/dev/null | cut -d= -f1 | sort
+echo "=== webapp.prod ==="
+grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/webapp.prod 2>/dev/null | cut -d= -f1 | sort
+```
+
+**3. Чего часто не хватает и как добавить:**
+
+| Чего не хватает | Как проверить | Как вписать |
+|-----------------|---------------|-------------|
+| `INTEGRATOR_DATABASE_URL` в webapp.prod | В списке из п.2 для webapp.prod нет `INTEGRATOR_DATABASE_URL` (и нет `SOURCE_DATABASE_URL`) | Взять значение `DATABASE_URL` из `/opt/env/bersoncarebot/api.prod` и добавить в webapp.prod строку: `INTEGRATOR_DATABASE_URL=<то_же_значение>`. Перезапуск webapp не обязателен для одной переменной, но после правки env лучше: `sudo systemctl restart bersoncarebot-webapp-prod.service`. |
+| Имена баз для psql | Не знаете, к какой базе подключаться | Из `api.prod`: `source /opt/env/bersoncarebot/api.prod && echo "$DATABASE_URL"` — в URL будет имя базы (после последнего `/`). Аналогично для webapp из `webapp.prod`. Или после п.1 смотреть вывод списка баз. |
+| Backup перед миграциями | Не уверены, что дампы создаются | Проверить наличие скрипта: `ls -la /opt/backups/scripts/postgres-backup.sh`. Запуск: `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`. Проверить появление дампов в `/opt/backups/postgres/pre-migrations/` (или путь из скрипта). |
+
+**4. После добавления переменных:** backfill/reconcile запускать с хоста (или с машины, где доступны те же env), см. `deploy/DATA_MIGRATION_CHECKLIST.md`.
 
 ---
 

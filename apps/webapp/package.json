@@ -15,6 +15,7 @@
     "test:with-db": "USE_REAL_DATABASE=1 vitest --run",
     "migrate": "node scripts/run-migrations.mjs",
     "backfill-person-domain": "node scripts/backfill-person-domain.mjs",
+    "backfill-communication-history": "node scripts/backfill-communication-history.mjs",
     "reconcile-person-domain": "node scripts/reconcile-person-domain.mjs",
     "reconcile-communication-domain": "node scripts/reconcile-communication-domain.mjs",
     "backfill-reminders-domain": "node scripts/backfill-reminders-domain.mjs",
