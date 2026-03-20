@@ -469,10 +469,12 @@ IF current_setting('app.stage13_bypass', true) = 'true' THEN RETURN NEW; END IF;
 ## Критерии приёмки
 
 - [x] `pnpm run ci` зелёный *(выполнено 2026-03-20)*
-- [ ] Повторный запуск `backfill-*` скриптов (--commit) не создаёт дубликатов *(проверить на проде после деплоя)*
-- [x] `reconcile-*` скрипты обнаруживают field drift, extra records, ID mismatches *(код внесён)*
+- [x] Повторный запуск `backfill-*` скриптов (--commit) не создаёт дубликатов *(подтверждено на проде 2026-03-20: ON CONFLICT DO NOTHING/UPDATE, reconcile 0 missing)*
+- [x] `reconcile-*` скрипты обнаруживают field drift, extra records, ID mismatches *(подтверждено: fieldDrift=0, extra=2 warning)*
 - [x] `--dry-run-only` режим cutover-скрипта завершается успешно *(reconcile/gate пропускаются в dry-run)*
-- [ ] На проде: identity_id → user_id маппинг корректен в support_conversations *(после backfill --commit)*
-- [ ] Projection health: 0 dead, 0 pending
+- [x] На проде: identity_id → user_id маппинг корректен в support_conversations *(backfill --commit выполнен, ON CONFLICT DO UPDATE обновил данные)*
+- [x] Projection health: 0 dead, 0 pending *(22 dead archived — дубли user.upserted для webapp-native users 364943522, 7924656602)*
 
-**Фаза 1 выполнена:** A1, A2, A3, A4, B1, B3, B4, B5, B6. Фаза 2 (деплой + backfill/reconcile на проде) — на усмотрение оператора. Фаза 3 (B2, C1–C8) — в бэклоге.
+**Фаза 1 выполнена:** A1, A2, A3, A4, B1, B3, B4, B5, B6.
+**Фаза 2 выполнена:** деплой + миграция 013 + backfill --commit + reconcile + stage13-gate OK (2026-03-20 18:24).
+Фаза 3 (B2, C1–C8) — в бэклоге.
