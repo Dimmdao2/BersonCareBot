@@ -326,6 +326,7 @@ export async function executeAction(
         ctx,
         ...(deps.readPort ? { readPort: deps.readPort } : {}),
         ...(deps.deliveryDefaultsPort !== undefined ? { deliveryDefaultsPort: deps.deliveryDefaultsPort } : {}),
+        ...(deps.deliveryTargetsPort !== undefined ? { deliveryTargetsPort: deps.deliveryTargetsPort } : {}),
       });
       if (deps.queuePort) {
         await deps.queuePort.enqueue({ kind: job.kind, payload: job.payload });

@@ -1,0 +1,13 @@
+[Unit]
+Description=BersonCareBot Worker (Development)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/dev/dev-projects/BersonCareBot/apps/integrator
+EnvironmentFile=/home/dev/dev-projects/BersonCareBot/.env
+ExecStart=/usr/bin/node dist/infra/runtime/worker/main.js
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

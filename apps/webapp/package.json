@@ -13,7 +13,13 @@
     "test:e2e": "vitest --run e2e/",
     "test:e2e:live": "E2E_LIVE_DEV=1 vitest --run e2e/live-dev.test.ts",
     "test:with-db": "USE_REAL_DATABASE=1 vitest --run",
-    "migrate": "node scripts/run-migrations.mjs"
+    "migrate": "node scripts/run-migrations.mjs",
+    "reconcile-person-domain": "node scripts/reconcile-person-domain.mjs",
+    "reconcile-communication-domain": "node scripts/reconcile-communication-domain.mjs",
+    "backfill-reminders-domain": "node scripts/backfill-reminders-domain.mjs",
+    "reconcile-reminders-domain": "node scripts/reconcile-reminders-domain.mjs",
+    "backfill-appointments-domain": "node scripts/backfill-appointments-domain.mjs",
+    "reconcile-appointments-domain": "node scripts/reconcile-appointments-domain.mjs"
   },
   "dependencies": {
     "dotenv": "^17.3.1",

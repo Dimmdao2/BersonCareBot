@@ -2,7 +2,7 @@
  * Emits signed events to webapp POST /api/integrator/events and reads diary lists via GET with M2M auth.
  * Contract: webapp/INTEGRATOR_CONTRACT.md; GET sign payload: timestamp.canonicalGet (canonicalGet = "GET pathname?query").
  */
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { env, integratorWebhookSecret } from '../../config/env.js';
 import type {
   WebappEventBody,
@@ -69,7 +69,7 @@ export function createWebappEventsPort(): WebappEventsPort {
       });
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = sign(timestamp, body, secret);
-      const idempotencyKey = event.idempotencyKey ?? `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const idempotencyKey = event.idempotencyKey ?? `evt-fallback:${event.eventType}:${createHash('sha256').update(body).digest('hex').slice(0, 24)}`;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Bersoncare-Timestamp': timestamp,

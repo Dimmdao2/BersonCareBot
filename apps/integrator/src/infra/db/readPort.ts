@@ -1,4 +1,11 @@
-import type { DbPort, DbReadPort, DbReadQuery } from '../../kernel/contracts/index.js';
+import type {
+  AppointmentsReadsPort,
+  CommunicationReadsPort,
+  DbPort,
+  DbReadPort,
+  DbReadQuery,
+  RemindersReadsPort,
+} from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { getAdminStats } from './repos/adminStats.js';
 import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingRecords.js';
@@ -7,8 +14,6 @@ import {
   getDueReminderOccurrences,
   getEnabledReminderRules,
   getReminderOccurrencesForRuleRange,
-  getReminderRuleForUserAndCategory,
-  getReminderRulesForUser,
 } from './repos/reminders.js';
 import {
   getActiveDraftByIdentity,
@@ -42,8 +47,16 @@ async function handleUserLookup<T = unknown>(db: DbPort, query: DbReadQuery): Pr
   return (await lookupUser(db, resource, by, value)) as T;
 }
 
-export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
+export function createDbReadPort(input: {
+  db?: DbPort;
+  communicationReadsPort?: CommunicationReadsPort;
+  remindersReadsPort?: RemindersReadsPort;
+  appointmentsReadsPort?: AppointmentsReadsPort;
+} = {}): DbReadPort {
   const db = input.db ?? createDbPort();
+  const communicationReadsPort = input.communicationReadsPort;
+  const remindersReadsPort = input.remindersReadsPort;
+  const appointmentsReadsPort = input.appointmentsReadsPort;
   return {
     async readDb<T = unknown>(query: DbReadQuery): Promise<T> {
       switch (query.type) {
@@ -82,20 +95,37 @@ export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
         case 'conversation.byId': {
           const id = asNonEmptyString(query.params.id ?? query.params.conversationId);
           if (!id) return null as T;
+          if (communicationReadsPort) {
+            return (await communicationReadsPort.getConversationById(id)) as T;
+          }
           return (await getConversationById(db, { id })) as T;
         }
         case 'conversation.listOpen': {
           const source = asNonEmptyString(query.params.source);
           const limit = asFiniteNumber(query.params.limit);
+          if (communicationReadsPort) {
+            return (await communicationReadsPort.listOpenConversations({
+              ...(source ? { source } : {}),
+              ...(limit !== null ? { limit } : {}),
+            })) as T;
+          }
           return (await listOpenConversations(db, { ...(source ? { source } : {}), ...(limit !== null ? { limit } : {}) })) as T;
         }
         case 'questions.unanswered': {
           const limit = asFiniteNumber(query.params.limit);
+          if (communicationReadsPort) {
+            return (await communicationReadsPort.listUnansweredQuestions({
+              ...(limit !== null ? { limit } : {}),
+            })) as T;
+          }
           return (await listUnansweredQuestions(db, { ...(limit !== null ? { limit } : {}) })) as T;
         }
         case 'question.byConversationId': {
           const conversationId = asNonEmptyString(query.params.conversationId);
           if (!conversationId) return null as T;
+          if (communicationReadsPort) {
+            return (await communicationReadsPort.getQuestionByConversationId(conversationId)) as T;
+          }
           return (await getQuestionByConversationId(db, { conversationId })) as T;
         }
         case 'identity.idByResourceAndExternalId': {
@@ -114,11 +144,17 @@ export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
         case 'booking.byExternalId': {
           const recordId = asNonEmptyString(query.params.externalRecordId ?? query.params.recordId);
           if (!recordId) return null as T;
+          if (appointmentsReadsPort) {
+            return (await appointmentsReadsPort.getRecordByExternalId(recordId)) as T;
+          }
           return (await getRecordByExternalId(db, recordId)) as T;
         }
         case 'booking.activeByUser': {
           const userId = asNonEmptyString(query.params.userId);
           if (!userId) return [] as T;
+          if (appointmentsReadsPort) {
+            return (await appointmentsReadsPort.getActiveRecordsByPhone(userId)) as T;
+          }
           return (await getActiveRecordsByPhone(db, userId)) as T;
         }
         case 'stats.adminDashboard':
@@ -126,13 +162,19 @@ export function createDbReadPort(input: { db?: DbPort } = {}): DbReadPort {
         case 'reminders.rules.forUser': {
           const userId = asNonEmptyString(query.params.userId);
           if (!userId) return [] as T;
-          return (await getReminderRulesForUser(db, userId)) as T;
+          if (!remindersReadsPort) {
+            throw new Error('reminders product reads require remindersReadsPort');
+          }
+          return (await remindersReadsPort.listRulesForUser(userId)) as T;
         }
         case 'reminders.rule.forUserAndCategory': {
           const userId = asNonEmptyString(query.params.userId);
           const category = asNonEmptyString(query.params.category);
           if (!userId || !category) return null as T;
-          return (await getReminderRuleForUserAndCategory(db, userId, category as never)) as T;
+          if (!remindersReadsPort) {
+            throw new Error('reminders product reads require remindersReadsPort');
+          }
+          return (await remindersReadsPort.getRuleForUserAndCategory(userId, category)) as T;
         }
         case 'reminders.rules.enabled':
           return (await getEnabledReminderRules(db)) as T;

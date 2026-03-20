@@ -16,8 +16,10 @@ export default async function PatientCabinetPage() {
   requirePatientPhone(session, routePaths.cabinet);
   const deps = buildAppDeps();
   const userId = session.user.userId;
-  const cabinet = deps.patientCabinet.getPatientCabinetState(userId);
-  const appointments = deps.patientCabinet.getUpcomingAppointments(userId);
+  const [cabinet, appointments] = await Promise.all([
+    deps.patientCabinet.getPatientCabinetState(userId),
+    deps.patientCabinet.getUpcomingAppointments(userId),
+  ]);
 
   return (
     <AppShell title="Кабинет клиента" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">

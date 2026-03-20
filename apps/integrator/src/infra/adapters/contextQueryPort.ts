@@ -1,4 +1,4 @@
-import type { ContextQuery, ContextQueryPort, DbReadPort } from '../../kernel/contracts/index.js';
+import type { ContextQuery, ContextQueryPort, DbReadPort, DeliveryTargetsPort } from '../../kernel/contracts/index.js';
 
 function normalizePhoneForLookup(value: string): string {
   const digits = value.replace(/[^\d+]/g, '');
@@ -12,10 +12,39 @@ function normalizePhoneForLookup(value: string): string {
   return value;
 }
 
+/** Map webapp channelBindings to context item { chatId, channelId, username } for a given resource. */
+function bindingsToLookupItem(
+  bindings: Record<string, string> | null,
+  resource: string,
+): { chatId?: number; channelId?: string; username?: string | null } | null {
+  if (!bindings || typeof bindings !== 'object') return null;
+  const telegramId = typeof bindings.telegramId === 'string' && bindings.telegramId.trim().length > 0
+    ? bindings.telegramId.trim()
+    : null;
+  const maxId = typeof bindings.maxId === 'string' && bindings.maxId.trim().length > 0
+    ? bindings.maxId.trim()
+    : null;
+  if (resource === 'telegram' && telegramId) {
+    const chatId = Number(telegramId);
+    return Number.isFinite(chatId) ? { chatId, channelId: telegramId, username: null } : { channelId: telegramId, username: null };
+  }
+  if (resource === 'max' && maxId) return { channelId: maxId, username: null };
+  if (!resource || resource === 'channel') {
+    if (telegramId) {
+      const chatId = Number(telegramId);
+      return Number.isFinite(chatId) ? { chatId, channelId: telegramId, username: null } : { channelId: telegramId, username: null };
+    }
+    if (maxId) return { channelId: maxId, username: null };
+  }
+  return null;
+}
+
 /** Optional base URL of the webapp (e.g. https://webapp.example.com). Used as fallback for booking item links when RubiTime does not provide one. */
 export type ContextQueryPortInput = {
   readPort: DbReadPort;
   webappBaseUrl?: string | null;
+  /** Webapp-backed delivery targets; used for product-side person/channel lookup instead of legacy readPort user.lookup. */
+  deliveryTargetsPort?: DeliveryTargetsPort | null;
 };
 
 export function createContextQueryPort(input: ContextQueryPortInput): ContextQueryPort {
@@ -23,6 +52,7 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
     ? input.webappBaseUrl.replace(/\/$/, '')
     : null;
   const cabinetFallbackLink = webappBaseUrl ? `${webappBaseUrl}/app/patient/cabinet` : null;
+  const deliveryTargetsPort = input.deliveryTargetsPort ?? null;
 
   return {
     async request(query: ContextQuery): Promise<unknown> {
@@ -33,17 +63,18 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
           const resource = typeof query.resource === 'string' && query.resource.trim().length > 0
             ? query.resource
             : 'telegram';
+          if (deliveryTargetsPort) {
+            const bindings = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized);
+            const item = bindingsToLookupItem(bindings ?? null, resource);
+            return { type: 'channel.lookupByPhone', item };
+          }
           const item = await input.readPort.readDb<{
             chatId?: number;
             channelId?: string;
             username?: string | null;
           } | null>({
             type: 'user.lookup',
-            params: {
-              resource,
-              by: 'phone',
-              value: phoneNormalized,
-            },
+            params: { resource, by: 'phone', value: phoneNormalized },
           });
           return { type: 'channel.lookupByPhone', item };
         }
@@ -65,17 +96,38 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
         case 'subscriptions.forUser': {
           const userId = query.userId;
           if (!userId) return { type: 'subscriptions.forUser', items: [] };
+          if (deliveryTargetsPort) {
+            const bindings = await deliveryTargetsPort.getTargetsByPhone(userId.trim());
+            const items: Array<{ kind: string; chatId: number; channelId: string; username: string | null; notificationsEnabled: boolean }> = [];
+            if (bindings?.telegramId) {
+              const tid = bindings.telegramId.trim();
+              const chatId = Number(tid);
+              items.push({
+                kind: 'channel',
+                chatId: Number.isFinite(chatId) ? chatId : 0,
+                channelId: tid,
+                username: null,
+                notificationsEnabled: true,
+              });
+            }
+            if (bindings?.maxId) {
+              items.push({
+                kind: 'channel',
+                chatId: 0,
+                channelId: bindings.maxId.trim(),
+                username: null,
+                notificationsEnabled: true,
+              });
+            }
+            return { type: 'subscriptions.forUser', items };
+          }
           const channelUser = await input.readPort.readDb<{
             chatId?: number;
             channelId?: string;
             username?: string | null;
           } | null>({
             type: 'user.lookup',
-            params: {
-              resource: 'channel',
-              by: 'phone',
-              value: userId,
-            },
+            params: { resource: 'channel', by: 'phone', value: userId },
           });
           if (!channelUser || typeof channelUser.chatId !== 'number') {
             return { type: 'subscriptions.forUser', items: [] };

@@ -10,6 +10,7 @@ import type {
   ContentCatalogItem,
   ContentCatalogSection,
   IssuedContentAccess,
+  ReminderRuleRecord,
 } from './reminders.js';
 
 /** Категории read-запросов к хранилищу. */
@@ -348,4 +349,101 @@ export type DeliveryTargetsChannelBindings = Record<string, string>;
 export type DeliveryTargetsPort = {
   getTargetsByPhone(phoneNormalized: string): Promise<DeliveryTargetsChannelBindings | null>;
   getTargetsByChannelBinding(params: { telegramId?: string; maxId?: string }): Promise<DeliveryTargetsChannelBindings | null>;
+};
+
+/** Item shape for conversation list (admin); compatible with executeAction formatters. */
+export type CommunicationConversationListItem = {
+  id: string;
+  source: string;
+  user_identity_id: string;
+  admin_scope: string;
+  status: string;
+  opened_at: string;
+  last_message_at: string;
+  closed_at: string | null;
+  close_reason: string | null;
+  user_channel_id: string;
+  user_chat_id: string | null;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone_normalized: string | null;
+  last_message_text: string | null;
+  last_sender_role: string | null;
+};
+
+export type CommunicationConversationDetail = CommunicationConversationListItem;
+
+/** Item shape for unanswered questions list (admin). */
+export type CommunicationQuestionListItem = {
+  id: string;
+  user_identity_id: string;
+  conversation_id: string | null;
+  telegram_message_id: string | null;
+  text: string;
+  created_at: string;
+  answered: boolean;
+  answered_at: string | null;
+  user_channel_id: string;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+};
+
+/** Port to read communication data (conversations, questions) from webapp. Used for admin product reads. */
+export type CommunicationReadsPort = {
+  listOpenConversations(params: { source?: string; limit?: number }): Promise<CommunicationConversationListItem[]>;
+  getConversationById(integratorConversationId: string): Promise<CommunicationConversationDetail | null>;
+  listUnansweredQuestions(params: { limit?: number }): Promise<CommunicationQuestionListItem[]>;
+  getQuestionByConversationId(integratorConversationId: string): Promise<{ id: string; answered: boolean } | null>;
+};
+
+// --- Stage 7: Reminders product reads (webapp projection) ---
+
+/** List item for reminder rules; same shape as ReminderRuleRecord for handler compatibility. */
+export type ReminderRuleListItem = ReminderRuleRecord;
+
+/** Detail for a single reminder rule. */
+export type ReminderRuleDetail = ReminderRuleRecord;
+
+/** History item for finalized reminder occurrences (sent/failed) in webapp projection. */
+export type ReminderOccurrenceHistoryItem = {
+  id: string;
+  ruleId: string;
+  status: 'sent' | 'failed';
+  deliveryChannel: string | null;
+  errorCode: string | null;
+  occurredAt: string;
+};
+
+/** Port to read reminder product data from webapp (projection). Used with fallback to local DB. */
+export type RemindersReadsPort = {
+  listRulesForUser(integratorUserId: string): Promise<ReminderRuleListItem[]>;
+  getRuleForUserAndCategory(integratorUserId: string, category: string): Promise<ReminderRuleDetail | null>;
+  listHistoryForUser(integratorUserId: string, limit?: number): Promise<ReminderOccurrenceHistoryItem[]>;
+};
+
+// --- Stage 9: Appointments product reads (webapp projection) ---
+
+/** Single booking record for linking flows; compatible with readPort booking.byExternalId. */
+export type BookingRecordForLinking = {
+  externalRecordId: string;
+  phoneNormalized: string | null;
+  payloadJson: unknown;
+  recordAt: Date | null;
+  status: string;
+};
+
+/** Active (non-canceled) booking record for list; compatible with readPort booking.activeByUser. */
+export type ActiveBookingRecord = {
+  rubitimeRecordId: string;
+  recordAt: string | null;
+  status: string;
+  link?: string | null;
+};
+
+/** Port to read appointment/booking product data from webapp (projection). Used with fallback to local DB. */
+export type AppointmentsReadsPort = {
+  getRecordByExternalId(externalRecordId: string): Promise<BookingRecordForLinking | null>;
+  getActiveRecordsByPhone(phoneNormalized: string): Promise<ActiveBookingRecord[]>;
 };

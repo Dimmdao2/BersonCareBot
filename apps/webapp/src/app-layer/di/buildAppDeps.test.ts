@@ -58,11 +58,11 @@ describe("buildAppDeps", () => {
     expect(typeof deps.media.getById).toBe("function");
   });
 
-  it("patientCabinet has getPatientCabinetState and getUpcomingAppointments", () => {
+  it("patientCabinet has getPatientCabinetState and getUpcomingAppointments", async () => {
     const deps = buildAppDeps();
     expect(typeof deps.patientCabinet.getPatientCabinetState).toBe("function");
     expect(typeof deps.patientCabinet.getUpcomingAppointments).toBe("function");
-    const state = deps.patientCabinet.getPatientCabinetState("user-1");
+    const state = await deps.patientCabinet.getPatientCabinetState("user-1");
     expect(state).toHaveProperty("enabled");
     expect(state).toHaveProperty("reason");
   });

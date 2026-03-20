@@ -7,8 +7,9 @@ import { join } from 'path';
 import type { FastifyInstance } from 'fastify';
 import { getAppRoot } from '../config/appRoot.js';
 import { appSettings } from '../config/appSettings.js';
-import { env } from '../config/env.js';
+import { env, integratorWebhookSecret } from '../config/env.js';
 import { createDbPort, healthCheckDb } from '../infra/db/client.js';
+import { getProjectionHealth } from '../infra/db/repos/projectionHealth.js';
 import { createDbReadPort } from '../infra/db/readPort.js';
 import { createDbWritePort } from '../infra/db/writePort.js';
 import { createContentPort } from '../infra/adapters/contentPort.js';
@@ -51,6 +52,9 @@ import { registerRubitimeWebhookRoutes } from '../integrations/rubitime/webhook.
 import { defaultSupportRelayPolicy } from '../integrations/telegram/supportRelayPolicy.js';
 import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js';
 import { createDeliveryTargetsPort } from '../infra/adapters/deliveryTargetsPort.js';
+import { createCommunicationReadsPort } from '../infra/adapters/communicationReadsPort.js';
+import { createRemindersReadsPort } from '../infra/adapters/remindersReadsPort.js';
+import { createAppointmentsReadsPort } from '../infra/adapters/appointmentsReadsPort.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -89,9 +93,13 @@ export type BuildDepsInput = {
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
 };
 
+/** Projection health snapshot for release gate. */
+export type ProjectionHealthSnapshot = import('../infra/db/repos/projectionHealth.js').ProjectionHealthSnapshot;
+
 /** Зависимости app-слоя, используемые routes/server. */
 export type AppDeps = {
   healthCheckDb: () => Promise<boolean>;
+  getProjectionHealth: () => Promise<ProjectionHealthSnapshot>;
   smsClient: SmsClient;
   dispatchPort: DispatchPort;
   contentPort: ContentPort;
@@ -120,8 +128,25 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   }
 
   const dbPort = createDbPort();
-  const dbWritePort = input.dbWritePort ?? createDbWritePort({ db: dbPort });
-  const dbReadPort = input.dbReadPort ?? createDbReadPort({ db: dbPort });
+  const communicationReadsPort = createCommunicationReadsPort();
+  /** Without webapp base URL + webhook secret, reminder product reads stay on integrator DB (safe fallback). */
+  const remindersReadsPort =
+    env.APP_BASE_URL && integratorWebhookSecret().length >= 16
+      ? createRemindersReadsPort()
+      : undefined;
+  /** Same condition: appointment product reads from webapp when configured. */
+  const appointmentsReadsPort =
+    env.APP_BASE_URL && integratorWebhookSecret().length >= 16
+      ? createAppointmentsReadsPort()
+      : undefined;
+  const dbReadPort = input.dbReadPort ?? createDbReadPort({
+    db: dbPort,
+    communicationReadsPort,
+    ...(remindersReadsPort !== undefined ? { remindersReadsPort } : {}),
+    ...(appointmentsReadsPort !== undefined ? { appointmentsReadsPort } : {}),
+  });
+  const webappEventsPort = createWebappEventsPort();
+  const dbWritePort = input.dbWritePort ?? createDbWritePort({ db: dbPort, readPort: dbReadPort });
   const queuePort = input.queuePort ?? createPostgresJobQueue({
     db: dbPort,
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
@@ -129,9 +154,11 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const contentPort = createContentPort({ rootDir: join(getAppRoot(), 'src', 'content') });
   const contentCatalogPort = createContentCatalogPort();
+  const deliveryTargetsPort = createDeliveryTargetsPort();
   const contextQueryPort = createContextQueryPort({
     readPort: dbReadPort,
     webappBaseUrl: env.APP_BASE_URL ?? null,
+    deliveryTargetsPort,
   });
   const templatePort = createTemplatePort({ contentPort });
   const orchestrator = createOrchestrator({
@@ -158,8 +185,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const actorResolutionPort = createActorResolutionPort({ writePort: dbWritePort });
   const deliveryDefaultsPort = createDeliveryDefaultsPort();
   const protectedAccessPort = createProtectedAccessPort({ writePort: dbWritePort });
-  const webappEventsPort = createWebappEventsPort();
-  const deliveryTargetsPort = createDeliveryTargetsPort();
   const pipeline = createIncomingEventPipeline({
     readPort: dbReadPort,
     writePort: dbWritePort,
@@ -194,6 +219,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   return {
     healthCheckDb,
+    getProjectionHealth: () => getProjectionHealth(dbPort),
     smsClient,
     dispatchPort,
     contentPort,

@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/dev/dev-projects/BersonCareBot
-EnvironmentFile=/home/dev/dev-projects/BersonCareBot/.env.dev
+WorkingDirectory=/home/dev/dev-projects/BersonCareBot/apps/integrator
+EnvironmentFile=/home/dev/dev-projects/BersonCareBot/.env
 ExecStart=/usr/bin/node dist/main.js
 Restart=always
 

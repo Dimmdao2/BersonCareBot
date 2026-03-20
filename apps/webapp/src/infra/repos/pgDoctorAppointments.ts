@@ -39,7 +39,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
       const pool = getPool();
       const { from, to } = getDateBounds(filter.range);
       const result = await pool.query<{
-        rubitime_record_id: string;
+        integrator_record_id: string;
         phone_normalized: string | null;
         record_at: Date | null;
         status: string;
@@ -48,20 +48,20 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         display_name: string | null;
       }>(
         `SELECT
-          rr.rubitime_record_id,
-          rr.phone_normalized,
-          rr.record_at,
-          rr.status,
-          rr.payload_json,
+          ar.integrator_record_id,
+          ar.phone_normalized,
+          ar.record_at,
+          ar.status,
+          ar.payload_json,
           pu.id AS user_id,
           pu.display_name
-         FROM rubitime_records rr
-         LEFT JOIN platform_users pu ON rr.phone_normalized = pu.phone_normalized
-         WHERE rr.status != 'canceled'
-           AND rr.record_at IS NOT NULL
-           AND rr.record_at >= $1::timestamptz
-           AND rr.record_at <= $2::timestamptz
-         ORDER BY rr.record_at ASC`,
+         FROM appointment_records ar
+         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized
+         WHERE ar.status != 'canceled'
+           AND ar.record_at IS NOT NULL
+           AND ar.record_at >= $1::timestamptz
+           AND ar.record_at <= $2::timestamptz
+         ORDER BY ar.record_at ASC`,
         [from, to]
       );
 
@@ -73,7 +73,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
           (payload.record_url && payload.record_url.trim()) ||
           null;
         return {
-          id: row.rubitime_record_id,
+          id: row.integrator_record_id,
           clientUserId: row.user_id ?? "",
           clientLabel: row.display_name ?? "Неизвестный клиент",
           time: formatRecordAt(row.record_at),
@@ -97,13 +97,13 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
           COUNT(*)::text AS total,
           COUNT(*) FILTER (WHERE status = 'canceled')::text AS cancellations,
           COUNT(*) FILTER (WHERE status = 'updated')::text AS reschedules
-         FROM rubitime_records
+         FROM appointment_records
          WHERE record_at >= $1::timestamptz AND record_at <= $2::timestamptz`,
         [from, to]
       );
       const cancellations30dResult = await pool.query<{ count: string }>(
         `SELECT COUNT(*)::text AS count
-         FROM rubitime_records
+         FROM appointment_records
          WHERE status = 'canceled' AND updated_at >= NOW() - INTERVAL '30 days'`
       );
       const row = rangeResult.rows[0];

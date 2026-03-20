@@ -1,9 +1,11 @@
 import '../../../config/loadEnv.js';
 import { appSettings } from '../../../config/appSettings.js';
 import { createPostgresJobQueue } from '../../adapters/jobQueuePort.js';
+import { createWebappEventsPort } from '../../adapters/webappEventsClient.js';
 import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
 import { runWorkerTick } from './runner.js';
+import { runProjectionWorkerTick } from './projectionWorker.js';
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -12,6 +14,8 @@ async function sleep(ms: number): Promise<void> {
 async function startWorker(): Promise<void> {
   const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps();
+  const projectionDb = createDbPort();
+  const webappEvents = createWebappEventsPort();
   const queue = createPostgresJobQueue({
     db: createDbPort(),
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
@@ -41,6 +45,12 @@ async function startWorker(): Promise<void> {
 
     } catch (err) {
       logger.error({ err }, 'Runtime worker tick failed');
+    }
+
+    try {
+      await runProjectionWorkerTick(projectionDb, webappEvents);
+    } catch (err) {
+      logger.error({ err }, 'Projection worker tick failed');
     }
 
     await sleep(appSettings.runtime.worker.pollIntervalMs);

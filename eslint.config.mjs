@@ -69,5 +69,14 @@ export default [
     },
   },
 
+  {
+    files: ["**/*.mjs"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+
   prettier,
 ];

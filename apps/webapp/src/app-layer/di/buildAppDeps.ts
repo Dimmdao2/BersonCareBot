@@ -42,7 +42,7 @@ import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
 import { createPgDoctorAppointmentsPort } from "@/infra/repos/pgDoctorAppointments";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
-import { getUpcomingAppointments } from "@/modules/appointments/service";
+import type { AppointmentSummary } from "@/modules/appointments/service";
 import { createMediaService } from "@/modules/media/service";
 import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
 import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
@@ -55,7 +55,14 @@ import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
 import { pgLfkDiaryPort } from "@/infra/repos/pgLfkDiary";
 import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
 import { pgChannelPreferencesPort } from "@/infra/repos/pgChannelPreferences";
-import { checkDbHealth } from "@/infra/db/client";
+import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
+import { createPgSupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
+import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
+import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
+import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
+import { createPgAppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
+import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
+import { checkDbHealth, getPool } from "@/infra/db/client";
 import { env, integratorWebhookSecret } from "@/config/env";
 import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
 
@@ -65,15 +72,57 @@ const channelPreferencesPort = env.DATABASE_URL ? pgChannelPreferencesPort : inM
 const userByPhonePort = env.DATABASE_URL ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const identityResolutionPort = env.DATABASE_URL ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
 const doctorClientsPort = env.DATABASE_URL ? createPgDoctorClientsPort() : inMemoryDoctorClientsPort;
-// rubitime_records lives in the integrator DB, not in the webapp DB,
-// so PG port is only safe when RUBITIME_IN_WEBAPP_DB is explicitly set.
-const doctorAppointmentsPort =
-  env.DATABASE_URL && process.env.RUBITIME_IN_WEBAPP_DB === "1"
-    ? createPgDoctorAppointmentsPort()
-    : inMemoryDoctorAppointmentsPort;
+// Stage 9: appointment_records lives in webapp DB (projection from integrator).
+const doctorAppointmentsPort = env.DATABASE_URL ? createPgDoctorAppointmentsPort() : inMemoryDoctorAppointmentsPort;
 const challengeStore = env.DATABASE_URL ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
 const messageLogPort = env.DATABASE_URL ? createPgMessageLogPort() : inMemoryMessageLogPort;
 const broadcastAuditPort = env.DATABASE_URL ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
+const userProjectionPort = env.DATABASE_URL ? pgUserProjectionPort : inMemoryUserProjectionPort;
+const supportCommunicationPort = env.DATABASE_URL
+  ? createPgSupportCommunicationPort()
+  : inMemorySupportCommunicationPort;
+const reminderProjectionPort = env.DATABASE_URL
+  ? createPgReminderProjectionPort()
+  : inMemoryReminderProjectionPort;
+const appointmentProjectionPort = env.DATABASE_URL
+  ? createPgAppointmentProjectionPort()
+  : inMemoryAppointmentProjectionPort;
+
+function linkFromPayload(payload: Record<string, unknown>): string | null {
+  const link = payload?.link;
+  if (typeof link === "string" && link.trim()) return link.trim();
+  const url = payload?.url;
+  if (typeof url === "string" && url.trim()) return url.trim();
+  const recordUrl = payload?.record_url;
+  if (typeof recordUrl === "string" && recordUrl.trim()) return recordUrl.trim();
+  return null;
+}
+
+const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]> =
+  env.DATABASE_URL && appointmentProjectionPort
+    ? async (userId: string) => {
+        try {
+          const pool = getPool();
+          const res = await pool.query<{ phone_normalized: string | null }>(
+            "SELECT phone_normalized FROM platform_users WHERE id = $1",
+            [userId]
+          );
+          const phone = res.rows[0]?.phone_normalized;
+          if (!phone || typeof phone !== "string") return [];
+          const rows = await appointmentProjectionPort.listActiveByPhoneNormalized(phone);
+          return rows.map((row) => ({
+            id: row.integratorRecordId,
+            label: row.recordAt
+              ? `Запись ${new Date(row.recordAt).toLocaleString("ru-RU")}`
+              : "Запись",
+            link: linkFromPayload(row.payloadJson),
+          }));
+        } catch {
+          return [];
+        }
+      }
+    : async () => [];
+
 const symptomDiaryService = createSymptomDiaryService(symptomDiaryPort);
 const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
 const channelPreferencesService = createChannelPreferencesService(channelPreferencesPort);
@@ -202,5 +251,14 @@ export function buildAppDeps() {
           preferencesPort: channelPreferencesPort,
         }),
     },
+    userProjection: {
+      upsertFromProjection: userProjectionPort.upsertFromProjection,
+      findByIntegratorId: userProjectionPort.findByIntegratorId,
+      updatePhone: userProjectionPort.updatePhone,
+      upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
+    },
+    supportCommunication: supportCommunicationPort,
+    reminderProjection: reminderProjectionPort,
+    appointmentProjection: appointmentProjectionPort,
   };
 }

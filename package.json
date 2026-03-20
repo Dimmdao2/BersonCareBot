@@ -36,7 +36,11 @@
     "auto-close-conversations:host": "pnpm --dir apps/integrator run auto-close-conversations:host",
     "smsc:check": "pnpm --dir apps/integrator run smsc:check",
     "s3:check": "pnpm --dir apps/integrator run s3:check",
-    "mail:check": "pnpm --dir apps/integrator run mail:check"
+    "mail:check": "pnpm --dir apps/integrator run mail:check",
+    "stage4-gate": "node scripts/stage4-release-gate.mjs",
+    "stage6-gate": "node scripts/stage6-release-gate.mjs",
+    "stage7-gate": "node scripts/stage7-release-gate.mjs",
+    "stage9-gate": "node scripts/stage9-release-gate.mjs"
   },
   "engines": {
     "node": ">=20"

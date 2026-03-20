@@ -111,7 +111,27 @@ export type {
   WebappLfkComplex,
   DeliveryTargetsPort,
   DeliveryTargetsChannelBindings,
+  CommunicationReadsPort,
+  CommunicationConversationListItem,
+  CommunicationConversationDetail,
+  CommunicationQuestionListItem,
+  RemindersReadsPort,
+  ReminderRuleListItem,
+  ReminderRuleDetail,
+  ReminderOccurrenceHistoryItem,
+  AppointmentsReadsPort,
+  BookingRecordForLinking,
+  ActiveBookingRecord,
 } from './ports.js';
+
+export {
+  REMINDER_RULE_UPSERTED,
+  REMINDER_OCCURRENCE_FINALIZED,
+  REMINDER_DELIVERY_LOGGED,
+  CONTENT_ACCESS_GRANTED,
+  APPOINTMENT_RECORD_UPSERTED,
+} from './projectionEventTypes.js';
+export type { ReminderProjectionEventType, AppointmentProjectionEventType } from './projectionEventTypes.js';
 
 export {
   actionResultSchema,

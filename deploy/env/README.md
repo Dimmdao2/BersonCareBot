@@ -1,79 +1,191 @@
 # Env-файлы для деплоя
 
-## api.prod (интегратор API + worker)
-
-**Путь на хосте:** `/opt/env/bersoncarebot/api.prod`
-
-**Обязательные переменные** (без них API не стартует):
-
-- `NODE_ENV=production`
-- `HOST=127.0.0.1`
-- `PORT=3200`  ← прод, не 4200
-- `DATABASE_URL='...'`  ← если в пароле есть `$`, вся строка в одинарных кавычках
-- `BOOKING_URL=https://...`
-- `TELEGRAM_BOT_TOKEN=...`
-- `TELEGRAM_ADMIN_ID=364943522`
-- `RUBITIME_WEBHOOK_TOKEN=...`
-- `RUBITIME_API_KEY=...`
-- `SMSC_ENABLED=true`
-- `SMSC_API_KEY='...'`  ← если в значении есть `$`, в одинарных кавычках
-- `SMSC_BASE_URL=https://smsc.ru/sys/send.php`
-- `INTEGRATOR_SHARED_SECRET=...`
-- `APP_BASE_URL=https://webapp.bersonservices.ru`
-
-Шаблон: `deploy/env/.env.prod.example`
-
-**Если API не видит переменные** (в логах: "TELEGRAM_BOT_TOKEN is empty", "SMSC_API_KEY is empty") — systemd не подхватывает файл. Проверить на хосте:
-
-```bash
-# Юнит действительно загружает api.prod?
-systemctl show bersoncarebot-api-prod.service -p EnvironmentFiles
-
-# Файл есть и читается?
-ls -la /opt/env/bersoncarebot/api.prod
-
-# После правок api.prod перезагрузить юнит и сервис
-sudo systemctl daemon-reload
-sudo systemctl restart bersoncarebot-api-prod.service
-```
-
-Убедиться, что в юните есть строка `EnvironmentFile=/opt/env/bersoncarebot/api.prod` (см. `deploy/systemd/bersoncarebot-api-prod.service`). Если юнит старый — переустановить из репозитория и `systemctl daemon-reload`.
-
-**Проверка после деплоя (на сервере):**
-
-```bash
-# 1. Убедиться, что деплой дошёл до рестарта (в логе деплоя в конце не должно быть ошибки)
-# 2. Сервисы перезапущены и работают
-sudo systemctl status bersoncarebot-api-prod.service bersoncarebot-worker-prod.service
-
-# 3. Время "Active: active (running) since ..." должно быть только что (после деплоя)
-# 4. Проверить, что новая версия кода подхватилась (в логах API при старте должна быть строка sendMenuOnButtonPress, если такой код задеплоен)
-sudo journalctl -u bersoncarebot-api-prod.service -n 60 --no-pager | grep -E "sendMenuOnButtonPress|Server listening"
-
-# 5. Health
-curl -s http://127.0.0.1:3200/health
-```
-
-Если после `git pull` и деплоя сервисы не перезапускаются — деплой мог упасть до шага `systemctl restart` (проверить полный вывод скрипта). Запустить деплой вручную на хосте: `cd /opt/projects/bersoncarebot && bash deploy/host/deploy-prod.sh` и дождаться конца (health check).
+Этот файл описывает только текущие env-файлы `BersonCareBot`.
 
 ---
 
-## webapp.prod (только webapp)
+## Production
+
+### `api.prod` (integrator API + worker)
+
+**Путь на хосте:** `/opt/env/bersoncarebot/api.prod`
+
+Этот файл используют оба production unit'а:
+
+- `bersoncarebot-api-prod.service`
+- `bersoncarebot-worker-prod.service`
+
+Обязательные ключи по текущему runtime:
+
+- `NODE_ENV=production`
+- `HOST=127.0.0.1`
+- `PORT=3200`
+- `DATABASE_URL='...'`
+- `BOOKING_URL=https://...`
+- `INTEGRATOR_SHARED_SECRET=...`
+- `APP_BASE_URL=https://webapp.bersonservices.ru`
+- `TELEGRAM_BOT_TOKEN=...`
+- `TELEGRAM_ADMIN_ID=364943522`
+- `TELEGRAM_SEND_MENU_ON_BUTTON_PRESS=true|false`
+- `RUBITIME_WEBHOOK_TOKEN=...`
+- `RUBITIME_API_KEY=...`
+- `SMSC_ENABLED=true|false`
+- `SMSC_API_KEY='...'`
+- `SMSC_BASE_URL=https://smsc.ru/sys/send.php`
+
+Опционально, если используется MAX:
+
+- `MAX_ENABLED=true`
+- `MAX_ADMIN_USER_ID=...`
+- `MAX_ADMIN_CHAT_ID=...`
+- `MAX_API_KEY=...`
+- `MAX_WEBHOOK_SECRET=...`
+
+Шаблон для integrator production в репозитории:
+
+- root `.env.example`
+
+Важно:
+
+- `deploy/env/.env.prod.example` **сейчас отсутствует** в репозитории;
+- если в значении есть `$`, строку в env брать в одинарные кавычки;
+- этот файл `source`-ится bash-скриптами деплоя, поэтому синтаксис должен быть bash-compatible.
+
+Проверка:
+
+```bash
+systemctl show bersoncarebot-api-prod.service -p EnvironmentFiles
+systemctl show bersoncarebot-worker-prod.service -p EnvironmentFiles
+ls -la /opt/env/bersoncarebot/api.prod
+sudo systemctl restart bersoncarebot-api-prod.service
+sudo systemctl restart bersoncarebot-worker-prod.service
+curl -s http://127.0.0.1:3200/health
+```
+
+---
+
+### `webapp.prod`
 
 **Путь на хосте:** `/opt/env/bersoncarebot/webapp.prod`
 
-**Переменные** (Telegram/Rubitime/SMSC сюда не класть — они для api.prod):
+Этот файл использует:
 
-- `NODE_ENV=production`  ← не "prodaction"
+- `bersoncarebot-webapp-prod.service`
+
+Обязательные ключи:
+
+- `NODE_ENV=production`
 - `HOST=127.0.0.1`
 - `PORT=6200`
-- `APP_BASE_URL=https://webapp.bersonservices.ru`  ← публичный URL, не 127.0.0.1:5200
-- `DATABASE_URL='...'`  ← закрывающая кавычка в конце строки
+- `APP_BASE_URL=https://webapp.bersonservices.ru`
+- `DATABASE_URL='...'`
 - `SESSION_COOKIE_SECRET=...`
-- `INTEGRATOR_SHARED_SECRET=...`  ← тот же, что в api.prod
-- `ALLOW_DEV_AUTH_BYPASS=false`  ← на проде лучше false
-- `ALLOWED_TELEGRAM_IDS=7924656602`
-- `ADMIN_TELEGRAM_ID=364943522`
-- `TELEGRAM_BOT_TOKEN=...`  ← для входа по initData (открытие из меню/кнопки без ?t=); тот же токен, что в api.prod
+- `INTEGRATOR_SHARED_SECRET=...`
+- `INTEGRATOR_API_URL=https://tgcarebot.bersonservices.ru`
+- `ALLOW_DEV_AUTH_BYPASS=false`
+- `ALLOWED_TELEGRAM_IDS=...`
+- `ADMIN_TELEGRAM_ID=...`
+- `TELEGRAM_BOT_TOKEN=...`
 
-Шаблон: `deploy/env/.env.webapp.prod.example`
+Шаблон:
+
+- `deploy/env/.env.webapp.prod.example`
+
+Важно:
+
+- Telegram / Rubitime / SMSC runtime-переменные сюда не класть;
+- `INTEGRATOR_SHARED_SECRET` должен совпадать с `api.prod`.
+
+Проверка:
+
+```bash
+systemctl show bersoncarebot-webapp-prod.service -p EnvironmentFiles
+ls -la /opt/env/bersoncarebot/webapp.prod
+sudo systemctl restart bersoncarebot-webapp-prod.service
+curl -s http://127.0.0.1:6200/api/health
+```
+
+---
+
+## Development
+
+### Integrator dev
+
+Фактическое состояние на текущем хосте:
+
+- `/home/dev/dev-projects/BersonCareBot/.env.dev` — отсутствует
+- `/home/dev/dev-projects/BersonCareBot/.env` — существует
+
+По коду `apps/integrator/src/config/loadEnv.ts` integrator по умолчанию грузит `.env`, если `ENV_FILE` не задан.
+
+Значит текущий dev source of truth для integrator:
+
+- `/home/dev/dev-projects/BersonCareBot/.env`
+
+### Webapp dev
+
+Фактический файл:
+
+- `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev`
+
+Ключи:
+
+- `NODE_ENV=development`
+- `HOST=127.0.0.1`
+- `PORT=5200`
+- `APP_BASE_URL=http://127.0.0.1:5200`
+- `DATABASE_URL=...`
+- `SESSION_COOKIE_SECRET=...`
+- `INTEGRATOR_SHARED_SECRET=...`
+- `INTEGRATOR_API_URL=http://127.0.0.1:4200`
+- `ALLOW_DEV_AUTH_BYPASS=true|false`
+
+Шаблон:
+
+- `deploy/env/.env.webapp.dev.example`
+
+Примечание:
+
+- старый путь `webapp/.env.dev` больше не актуален для текущей структуры `apps/webapp`.
+
+---
+
+## Если env не подхватывается
+
+Проверить effective unit:
+
+```bash
+systemctl cat bersoncarebot-api-prod.service
+systemctl cat bersoncarebot-worker-prod.service
+systemctl cat bersoncarebot-webapp-prod.service
+```
+
+Проверить, что `EnvironmentFile=` совпадает с фактическим путём.
+
+Если исправили env-файл:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart bersoncarebot-api-prod.service
+sudo systemctl restart bersoncarebot-worker-prod.service
+sudo systemctl restart bersoncarebot-webapp-prod.service
+```
+
+---
+
+## Права
+
+Если деплой падает с `Permission denied` на `/opt/env/bersoncarebot/*.prod`:
+
+```bash
+sudo chown -R deploy:deploy /opt/env/bersoncarebot
+chmod 600 /opt/env/bersoncarebot/api.prod
+chmod 600 /opt/env/bersoncarebot/webapp.prod
+```
+
+Проверка от пользователя `deploy`:
+
+```bash
+cat /opt/env/bersoncarebot/api.prod
+cat /opt/env/bersoncarebot/webapp.prod
+```

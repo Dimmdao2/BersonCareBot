@@ -6,7 +6,7 @@ export type PatientCabinetState = {
   nextAppointmentLabel: string | null;
 };
 
-export type GetUpcomingAppointmentsPort = (userId: string) => AppointmentSummary[];
+export type GetUpcomingAppointmentsPort = (userId: string) => Promise<AppointmentSummary[]>;
 
 function computeCabinetState(appointmentCount: number): PatientCabinetState {
   const hasAppointments = appointmentCount > 0;
@@ -26,12 +26,12 @@ function computeCabinetState(appointmentCount: number): PatientCabinetState {
 export function createPatientCabinetService(deps: {
   getUpcomingAppointments: GetUpcomingAppointmentsPort;
 }): {
-  getPatientCabinetState: (userId: string) => PatientCabinetState;
-  getUpcomingAppointments: (userId: string) => AppointmentSummary[];
+  getPatientCabinetState: (userId: string) => Promise<PatientCabinetState>;
+  getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]>;
 } {
   return {
-    getPatientCabinetState(userId: string) {
-      const list = deps.getUpcomingAppointments(userId);
+    async getPatientCabinetState(userId: string) {
+      const list = await deps.getUpcomingAppointments(userId);
       return computeCabinetState(list.length);
     },
     getUpcomingAppointments: deps.getUpcomingAppointments,

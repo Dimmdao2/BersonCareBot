@@ -13,29 +13,59 @@
 
 ---
 
-## Документы в корне
+## Структура docs/
+
+### ARCHITECTURE/ — система как она есть
+
+Описание текущей архитектуры, контракты, модели, guardrails.
+
+| Файл | Назначение |
+|------|------------|
+| **FULL PLATFORM MODEL.md** | Концепция платформы: мессенджеры, Web-App, backend, MVP. |
+| **ARCHITECTURE_GUARDRAILS.md** | Guardrails runtime: content paths, security, integrator boundaries. |
+| **CONTENT_AND_SCRIPTS_FLOW.md** | Как загружается контент, матчинг сценариев по событию. |
+| **DB_STRUCTURE_AND_RECOMMENDATIONS.md** | Модель БД integrator (users, identities, contacts). |
+| **MESSAGING_CONTRACT.md** | Контракт message.send / message.edit: payload, parse_mode, ссылки. |
+| **SPECIALIST_CABINET_STRUCTURE.md** | Продуктовая структура кабинета специалиста. |
+| **MAX_CAPABILITY_MATRIX.md** | Матрица Telegram vs MAX: механики, уведомления, Web App. |
+| **MAX_SETUP.md** | Подключение MAX: env, webhook, smoke-тесты. |
+| **LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md** | Low-level аудит auth, DI, composition roots (2026-03). |
+
+### MIGRATION/ — текущий план переноса данных и задачи
+
+Активный roadmap миграции webapp ↔ integrator и все связанные планы.
+
+| Файл | Назначение |
+|------|------------|
+| **DB_ZONES_RESTRUCTURE.md** | Roadmap верхнего уровня: этапы 0–14, guardrails, инструкция для агентов. |
+| **DB_MIGRATION_PREPARATION_FOUNDATION.md** | Stage 1: реестр таблиц, ownership, backup, safeguards, projection draft. |
+| **DB_MIGRATION_STAGE2_PATIENT_MASTER.md** | Stage 2: patient master domain — projection, schema, emitters. |
+| **STAGE2_REMEDIATION_PLAN.md** | План исправления ошибок Stage 2: durable projection, id contract, out-of-order. |
+| **STAGE2_REMEDIATION_TASKS_FOR_JUNIOR_AGENT.md** | Атомарные задачи T1–T6 для авто-агента (эталонный формат). |
+| **REMINDERS_ROADMAP.md** | Roadmap напоминаний: фазы 1–4. |
+| **plan-channel-from-context.md** | План: канал доставки из контекста вместо hardcode. |
+
+### archive/ — история
+
+Завершённые аудиты, рефакторинги, одноразовые отчёты.
+
+| Файл | Назначение |
+|------|------------|
+| **CODE_ASSESSMENT_REPORT.md** | Code assessment integrator+webapp (2025-03). |
+| **ROLLOUT.md** | MAX-first rollout checklist (завершён). |
+| **STATS_READINESS.md** | Аудит diary-схемы для аналитики. |
+| *(и 10 исторических аудитов)* | См. `archive/README.md`. |
+
+---
+
+## Документы в корне репозитория
 
 | Файл | Назначение |
 |------|------------|
 | **README.md** | Запуск, конфиг, команды, endpoints. |
 | **ARCHITECTURE.md** | Контракт: слои, запреты, pipeline, изоляция. |
-| **SERVER CONVENTIONS.md** | Порты, БД, пользователи PostgreSQL, nginx, systemd (все проекты хоста). |
-| **SCENARIO_LOGIC_SUMMARY.md** | Описание логики сценариев (Telegram, Rubitime). |
-
----
-
-## docs/
-
-| Файл | Назначение |
-|------|------------|
-| **FULL PLATFORM MODEL.md** | Концепция платформы: мессенджеры, Web-App, backend. |
-| **DB_STRUCTURE_AND_RECOMMENDATIONS.md** | Модель БД (users, identities, contacts), правила интеграций. |
-| **CONTENT_AND_SCRIPTS_FLOW.md** | Откуда скрипты/шаблоны/меню, матчинг сценариев по событию. |
-| **MESSAGING_CONTRACT.md** | Контракт message.send / message.edit: payload, parse_mode (HTML), ссылки в тексте. |
-| **REMINDERS_ROADMAP.md** | План по напоминаниям. |
-| **plan-channel-from-context.md** | План: канал из контекста. |
-| **MAX_SETUP.md** | Подключение MAX бота к интегратору и вебапп (env, webhook, проверка). |
-| **archive/** | Исторические отчёты, аудиты, выполненный рефакторинг (см. `archive/README.md`). |
+| **SERVER CONVENTIONS.md** | Порты, БД, пользователи PostgreSQL, nginx, systemd. |
+| **SCENARIO_LOGIC_SUMMARY.md** | Логика сценариев (Telegram, Rubitime). |
 
 ---
 

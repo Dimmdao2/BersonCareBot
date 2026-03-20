@@ -298,11 +298,12 @@ export async function getDueReminderOccurrences(
   }).filter((row) => row.chatId > 0);
 }
 
+/** Upserts rule; returns DB `updated_at` for deterministic projection payloads. */
 export async function upsertReminderRule(
   db: DbPort,
   input: ReminderRuleRecord,
-): Promise<void> {
-  await db.query(
+): Promise<string> {
+  const res = await db.query<{ updated_at: string }>(
     `INSERT INTO user_reminder_rules (
        id,
        user_id,
@@ -330,7 +331,8 @@ export async function upsertReminderRule(
        window_end_minute = EXCLUDED.window_end_minute,
        days_mask = EXCLUDED.days_mask,
        content_mode = EXCLUDED.content_mode,
-       updated_at = now()`,
+       updated_at = now()
+     RETURNING updated_at::text`,
     [
       input.id,
       input.userId,
@@ -345,6 +347,7 @@ export async function upsertReminderRule(
       input.contentMode,
     ],
   );
+  return res.rows[0]?.updated_at ?? new Date().toISOString();
 }
 
 export async function upsertReminderOccurrencePlanned(
@@ -418,6 +421,7 @@ export async function markReminderOccurrenceFailed(
   );
 }
 
+/** Inserts delivery log; returns DB `created_at` for projection idempotency payload. */
 export async function insertReminderDeliveryLog(
   db: DbPort,
   input: {
@@ -428,8 +432,8 @@ export async function insertReminderDeliveryLog(
     errorCode?: string | null;
     payloadJson?: Record<string, unknown>;
   },
-): Promise<void> {
-  await db.query(
+): Promise<string> {
+  const res = await db.query<{ created_at: string }>(
     `INSERT INTO user_reminder_delivery_logs (
        id,
        occurrence_id,
@@ -440,7 +444,8 @@ export async function insertReminderDeliveryLog(
        created_at
      ) VALUES (
        $1, $2, $3, $4, $5, $6::jsonb, now()
-     )`,
+     )
+     RETURNING created_at::text`,
     [
       input.id,
       input.occurrenceId,
@@ -450,8 +455,55 @@ export async function insertReminderDeliveryLog(
       JSON.stringify(input.payloadJson ?? {}),
     ],
   );
+  return res.rows[0]?.created_at ?? new Date().toISOString();
 }
 
+/** Context for projection reminder.occurrence.finalized / reminder.delivery.logged. */
+export async function getReminderOccurrenceContextForProjection(
+  db: DbPort,
+  occurrenceId: string,
+): Promise<{
+  ruleId: string;
+  userId: string;
+  category: string;
+  status: string;
+  occurredAt: string;
+  deliveryChannel: string | null;
+  errorCode: string | null;
+} | null> {
+  const res = await db.query<{
+    rule_id: string;
+    user_id: string | number;
+    category: string;
+    status: string;
+    sent_at: string | null;
+    failed_at: string | null;
+    delivery_channel: string | null;
+    error_code: string | null;
+  }>(
+    `SELECT o.rule_id, r.user_id::text AS user_id, r.category, o.status,
+            o.sent_at::text AS sent_at, o.failed_at::text AS failed_at,
+            o.delivery_channel, o.error_code
+     FROM user_reminder_occurrences o
+     JOIN user_reminder_rules r ON r.id = o.rule_id
+     WHERE o.id = $1`,
+    [occurrenceId],
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+  const occurredAt = row.sent_at ?? row.failed_at ?? new Date().toISOString();
+  return {
+    ruleId: row.rule_id,
+    userId: String(row.user_id),
+    category: row.category,
+    status: row.status,
+    occurredAt,
+    deliveryChannel: row.delivery_channel ?? null,
+    errorCode: row.error_code ?? null,
+  };
+}
+
+/** Creates grant; returns DB `created_at` for deterministic projection payload. */
 export async function createContentAccessGrant(
   db: DbPort,
   input: {
@@ -463,8 +515,8 @@ export async function createContentAccessGrant(
     expiresAt: string;
     metaJson?: Record<string, unknown>;
   },
-): Promise<void> {
-  await db.query(
+): Promise<string> {
+  const res = await db.query<{ created_at: string }>(
     `INSERT INTO content_access_grants (
        id,
        user_id,
@@ -476,7 +528,8 @@ export async function createContentAccessGrant(
        created_at
      ) VALUES (
        $1, $2, $3, $4, $5, $6::timestamptz, $7::jsonb, now()
-     )`,
+     )
+     RETURNING created_at::text`,
     [
       input.id,
       input.userId,
@@ -487,4 +540,5 @@ export async function createContentAccessGrant(
       JSON.stringify(input.metaJson ?? {}),
     ],
   );
+  return res.rows[0]?.created_at ?? new Date().toISOString();
 }

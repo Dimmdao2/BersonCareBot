@@ -64,19 +64,30 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const result = await handleIntegratorEvent(eventBody, { diaries: deps.diaries });
+  const result = await handleIntegratorEvent(eventBody, {
+    diaries: deps.diaries,
+    users: deps.userProjection,
+    preferences: deps.userProjection,
+    supportCommunication: deps.supportCommunication,
+    reminderProjection: deps.reminderProjection,
+    appointmentProjection: deps.appointmentProjection,
+  });
   const status = result.accepted ? 202 : 503;
   const body: Record<string, unknown> = result.accepted
     ? { ok: true, accepted: true, idempotencyKey }
     : { ok: false, accepted: false, error: result.reason, idempotencyKey };
-  const stored = await setCachedResponse(idempotencyKey, requestHash, status, body);
-  if (!stored) {
-    const again = await getCachedResponse(idempotencyKey, requestHash);
-    if (again.hit && "mismatch" in again && again.mismatch) {
-      return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
-    }
-    if (again.hit && "status" in again) {
-      return NextResponse.json(again.body, { status: again.status });
+
+  // Only cache successful acceptance so projection worker retries can re-run the handler after transient 503
+  if (result.accepted) {
+    const stored = await setCachedResponse(idempotencyKey, requestHash, status, body);
+    if (!stored) {
+      const again = await getCachedResponse(idempotencyKey, requestHash);
+      if (again.hit && "mismatch" in again && again.mismatch) {
+        return NextResponse.json({ ok: false, error: "idempotency key reused with different payload" }, { status: 409 });
+      }
+      if (again.hit && "status" in again) {
+        return NextResponse.json(again.body, { status: again.status });
+      }
     }
   }
   return NextResponse.json(body, { status });

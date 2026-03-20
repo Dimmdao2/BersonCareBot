@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Action, DomainContext } from '../../contracts/index.js';
+import type { Action, DbReadPort, DomainContext } from '../../contracts/index.js';
 import { executeAction } from './executeAction.js';
+import { resolveTargets } from './helpers.js';
 
 const ctx: DomainContext = {
   event: {
@@ -1757,5 +1758,38 @@ describe('executeAction', () => {
         replyMarkup: { inline_keyboard: [[{ text: expect.stringContaining('К списку'), callback_data: 'diary.symptom.open' }]] },
       });
     });
+  });
+});
+
+describe('resolveTargets guardrail: webapp-backed resolution', () => {
+  it('uses deliveryTargetsPort and does NOT call readPort for user.lookup', async () => {
+    const readDb = vi.fn();
+    const readPort = { readDb } as unknown as DbReadPort;
+    const getTargetsByPhone = vi.fn().mockResolvedValue({ telegramId: '555', maxId: 'max-1' });
+    const deliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
+
+    const targets = await resolveTargets(
+      { recipient: { phoneNormalized: '+79991234567' }, delivery: { channels: ['telegram'] } },
+      { readPort, deliveryTargetsPort },
+    );
+
+    expect(targets).toEqual([{ resource: 'telegram', address: { chatId: 555 } }]);
+    expect(getTargetsByPhone).toHaveBeenCalledWith('+79991234567');
+    expect(readDb).not.toHaveBeenCalled();
+  });
+
+  it('falls back to phoneNormalized address when deliveryTargetsPort returns null bindings', async () => {
+    const readDb = vi.fn();
+    const readPort = { readDb } as unknown as DbReadPort;
+    const getTargetsByPhone = vi.fn().mockResolvedValue(null);
+    const deliveryTargetsPort = { getTargetsByPhone, getTargetsByChannelBinding: vi.fn() };
+
+    const targets = await resolveTargets(
+      { recipient: { phoneNormalized: '+79991234567' }, delivery: { channels: ['telegram'] } },
+      { readPort, deliveryTargetsPort },
+    );
+
+    expect(targets).toEqual([{ resource: 'telegram', address: { phoneNormalized: '+79991234567' } }]);
+    expect(readDb).not.toHaveBeenCalled();
   });
 });

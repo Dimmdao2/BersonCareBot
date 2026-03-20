@@ -446,10 +446,10 @@ export async function resolveGenericMessageParams(input: {
   return nextParams;
 }
 
-export async function resolveTargets(params: Record<string, unknown>, readPort?: DbReadPort): Promise<Array<{
-  resource: string;
-  address: Record<string, unknown>;
-}>> {
+export async function resolveTargets(
+  params: Record<string, unknown>,
+  opts?: { readPort?: DbReadPort; deliveryTargetsPort?: DeliveryTargetsPort | null },
+): Promise<Array<{ resource: string; address: Record<string, unknown> }>> {
   const explicitTargetsRaw = params.targets;
   if (Array.isArray(explicitTargetsRaw)) {
     const explicitTargets = explicitTargetsRaw
@@ -475,14 +475,38 @@ export async function resolveTargets(params: Record<string, unknown>, readPort?:
   const phoneNormalized = asString(recipient.phoneNormalized) ?? asString(params.phoneNormalized);
   if (!phoneNormalized) return [];
 
+  const deliveryTargetsPort = opts?.deliveryTargetsPort;
+  if (deliveryTargetsPort) {
+    const bindings = await deliveryTargetsPort.getTargetsByPhone(phoneNormalized);
+    if (bindings && typeof bindings === 'object') {
+      const targets: Array<{ resource: string; address: Record<string, unknown> }> = [];
+      const telegramId = typeof bindings.telegramId === 'string' && bindings.telegramId.trim().length > 0
+        ? bindings.telegramId.trim()
+        : null;
+      const maxId = typeof bindings.maxId === 'string' && bindings.maxId.trim().length > 0
+        ? bindings.maxId.trim()
+        : null;
+      const resource = explicitResource ?? channels[0];
+      if (telegramId && (!resource || resource === 'telegram')) {
+        const cid = Number(telegramId);
+        targets.push({
+          resource: 'telegram',
+          address: Number.isFinite(cid) ? { chatId: cid } : { channelId: telegramId },
+        });
+      }
+      if (maxId && (!resource || resource === 'max')) {
+        targets.push({ resource: 'max', address: { channelId: maxId } });
+      }
+      if (targets.length > 0) return targets;
+    }
+    return [{ resource: explicitResource ?? channels[0] ?? 'phone', address: { phoneNormalized } }];
+  }
+
+  const readPort = opts?.readPort;
   if (readPort) {
     const lookup = await readPort.readDb<{ chatId?: number } | null>({
       type: 'user.lookup',
-      params: {
-        resource: 'channel',
-        by: 'phone',
-        value: phoneNormalized,
-      },
+      params: { resource: 'channel', by: 'phone', value: phoneNormalized },
     });
     if (lookup && typeof lookup.chatId === 'number' && Number.isFinite(lookup.chatId)) {
       const resource = explicitResource ?? channels[0];
@@ -533,6 +557,7 @@ export async function buildMessageDeliverJob(input: {
   ctx: DomainContext;
   readPort?: DbReadPort;
   deliveryDefaultsPort?: DeliveryDefaultsPort | null;
+  deliveryTargetsPort?: DeliveryTargetsPort | null;
 }): Promise<{ id: string; kind: string; runAt: string; attempts: number; maxAttempts: number; payload: Record<string, unknown> }> {
   const resolvedParams = await applyMessageSendDeliveryPolicy(
     input.action.params,
@@ -553,7 +578,10 @@ export async function buildMessageDeliverJob(input: {
     ? retryRaw.backoffSeconds.find((value) => typeof value === 'number' && Number.isFinite(value))
     : undefined;
   const firstBackoff = typeof firstBackoffRaw === 'number' ? Math.max(0, Math.trunc(firstBackoffRaw)) : 0;
-  const targets = await resolveTargets(resolvedParams, input.readPort);
+  const opts: { readPort?: DbReadPort; deliveryTargetsPort?: DeliveryTargetsPort | null } = {};
+  if (input.readPort !== undefined) opts.readPort = input.readPort;
+  if (input.deliveryTargetsPort !== undefined) opts.deliveryTargetsPort = input.deliveryTargetsPort;
+  const targets = await resolveTargets(resolvedParams, opts);
 
   return {
     id: `delivery:${input.action.id}`,

@@ -21,7 +21,8 @@
     "auto-close-conversations:host": "node dist/infra/scripts/auto-close-stale-conversations.js",
     "smsc:check": "tsx src/infra/scripts/check-smsc.ts",
     "s3:check": "tsx src/infra/scripts/check-s3.ts",
-    "mail:check": "tsx src/infra/scripts/check-mail.ts"
+    "mail:check": "tsx src/infra/scripts/check-mail.ts",
+    "projection-health": "node scripts/projection-health.mjs"
   },
   "engines": {
     "node": ">=20"
