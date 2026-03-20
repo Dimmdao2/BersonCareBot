@@ -66,7 +66,7 @@ async function main() {
           last_event = EXCLUDED.last_event,
           updated_at = EXCLUDED.updated_at`,
         [
-          row.rubitime_record_id,
+          String(row.rubitime_record_id ?? ""),
           row.phone_normalized,
           row.record_at,
           row.status,

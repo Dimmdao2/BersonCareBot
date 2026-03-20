@@ -56,4 +56,41 @@ describe('contextQueryPort', () => {
     expect(getTargetsByPhone).toHaveBeenCalledWith('+79990001122');
     expect(readDb).not.toHaveBeenCalled();
   });
+
+  it('returns item null for channel.lookupByPhone when deliveryTargetsPort is missing (no legacy read)', async () => {
+    const { readPort, readDb } = createReadPortMock();
+    const port = createContextQueryPort({
+      readPort,
+      webappBaseUrl: null,
+      deliveryTargetsPort: null,
+    });
+
+    const result = await port.request({
+      type: 'channel.lookupByPhone',
+      phoneNormalized: '+79991234567',
+      resource: 'telegram',
+    }) as { type: string; item: unknown };
+
+    expect(result.type).toBe('channel.lookupByPhone');
+    expect(result.item).toBeNull();
+    expect(readDb).not.toHaveBeenCalled();
+  });
+
+  it('returns empty items for subscriptions.forUser when deliveryTargetsPort is missing (no legacy read)', async () => {
+    const { readPort, readDb } = createReadPortMock();
+    const port = createContextQueryPort({
+      readPort,
+      webappBaseUrl: null,
+      deliveryTargetsPort: null,
+    });
+
+    const result = await port.request({
+      type: 'subscriptions.forUser',
+      userId: '+79990001122',
+    }) as { type: string; items: unknown[] };
+
+    expect(result.type).toBe('subscriptions.forUser');
+    expect(result.items).toEqual([]);
+    expect(readDb).not.toHaveBeenCalled();
+  });
 });

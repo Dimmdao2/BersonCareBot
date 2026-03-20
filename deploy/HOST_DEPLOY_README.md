@@ -113,6 +113,40 @@
 
 ---
 
+## Backup contract (pre-migrations)
+
+Скрипт `/opt/backups/scripts/postgres-backup.sh` вызывается с первым аргументом `pre-migrations` перед миграциями в deploy-prod и в deploy-webapp-prod.
+
+**Ожидаемое поведение (оператор должен обеспечить на хосте):**
+
+1. **Вызов:** `postgres-backup.sh pre-migrations`
+2. **Назначение:** снимок БД перед применением миграций для возможности отката.
+3. **Куда писать:** каталог `/opt/backups/postgres/pre-migrations/` (или эквивалент, зафиксированный на хосте). Имена файлов — на усмотрение оператора (например, по дате/времени и имени БД).
+4. **Какие БД:**
+   - **Full prod deploy (deploy-prod.sh):** должны быть включены все БД, используемые в этом деплое: минимум БД integrator (из api.prod) и при наличии webapp unit — БД webapp (из webapp.prod). Если на хосте один скрипт дампит одну БД — оператор обязан настроить вызов так, чтобы перед миграциями создавались снимки обеих БД (или зафиксировать иначе в runbook хоста).
+   - **Webapp-only deploy (deploy-webapp-prod.sh):** должна быть включена БД webapp (DATABASE_URL из webapp.prod). Либо тот же скрипт с аргументом pre-migrations дампит только webapp, либо на хосте настроен отдельный регламент (например, отдельный скрипт или второй вызов с параметром).
+
+**Проверка на хосте:** перед первым production data move оператор должен убедиться, что при запуске `postgres-backup.sh pre-migrations` в указанном каталоге появляются дампы нужных БД.
+
+---
+
+## Pre/post migrate checklist
+
+**Перед миграциями (integrator и/или webapp):**
+
+- [ ] Backup выполнен (pre-migrations) и файлы дампа присутствуют в целевом каталоге.
+- [ ] Переменные окружения (api.prod / webapp.prod) указывают на нужные БД.
+- [ ] Доступ к БД с хоста проверен (например, `psql` или приложение подключается).
+
+**После миграций:**
+
+- [ ] Миграции завершились без ошибок (код выхода 0).
+- [ ] Сервисы перезапущены и в статусе active.
+- [ ] Health check возвращает ok (API и webapp).
+- [ ] При необходимости: запуск backfill/reconcile по [DATA_MIGRATION_CHECKLIST.md](DATA_MIGRATION_CHECKLIST.md) (при первом деплое или cutover).
+
+---
+
 ## Порты
 
 ### Production
@@ -256,9 +290,16 @@ bash deploy/host/deploy-webapp-prod.sh
 - reinstall webapp unit
 - `pnpm install --frozen-lockfile`
 - `pnpm --dir apps/webapp build`
+- перед миграциями: вызов backup (`BACKUP_SCRIPT` pre-migrations). Требуется наличие скрипта и sudo-прав (см. Sudoers). Скрипт backup должен быть тем же, что в full prod deploy (`/opt/backups/scripts/postgres-backup.sh`), или эквивалентным; контракт аргумента и каталога см. в разделе «Backup contract (pre-migrations)» ниже.
 - `pnpm --dir apps/webapp run migrate`
 - restart webapp
 - health check `http://127.0.0.1:6200/api/health`
+
+### Перенос данных при первом деплое / cutover
+
+Скрипты деплоя **не выполняют** backfill и reconcile автоматически. При первой настройке webapp БД или при cutover после миграций нужно вручную выполнить перенос данных и проверку целостности по чеклисту:
+
+- **[DATA_MIGRATION_CHECKLIST.md](DATA_MIGRATION_CHECKLIST.md)** — порядок backfill (person, communication, reminders, appointments, subscription_mailing), reconcile и stage13-gate.
 
 ### Bootstrap systemd
 

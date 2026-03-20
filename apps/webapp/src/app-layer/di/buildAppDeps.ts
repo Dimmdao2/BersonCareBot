@@ -62,6 +62,8 @@ import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjecti
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { createPgAppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
 import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
+import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
+import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemorySubscriptionMailingProjection";
 import { checkDbHealth, getPool } from "@/infra/db/client";
 import { env, integratorWebhookSecret } from "@/config/env";
 import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
@@ -87,6 +89,9 @@ const reminderProjectionPort = env.DATABASE_URL
 const appointmentProjectionPort = env.DATABASE_URL
   ? createPgAppointmentProjectionPort()
   : inMemoryAppointmentProjectionPort;
+const subscriptionMailingProjectionPort = env.DATABASE_URL
+  ? createPgSubscriptionMailingProjectionPort()
+  : inMemorySubscriptionMailingProjectionPort;
 
 function linkFromPayload(payload: Record<string, unknown>): string | null {
   const link = payload?.link;
@@ -260,5 +265,6 @@ export function buildAppDeps() {
     supportCommunication: supportCommunicationPort,
     reminderProjection: reminderProjectionPort,
     appointmentProjection: appointmentProjectionPort,
+    subscriptionMailingProjection: subscriptionMailingProjectionPort,
   };
 }

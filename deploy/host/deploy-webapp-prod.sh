@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_ROOT=/opt/projects/bersoncarebot
 ENV_FILE=/opt/env/bersoncarebot/webapp.prod
+BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 WEBAPP_PORT=6200
 
@@ -52,6 +53,8 @@ bash deploy/host/bootstrap-systemd-webapp-prod.sh
 
 require_file "${ENV_FILE}" "Production webapp environment file"
 require_unit_file "${WEBAPP_SERVICE}"
+require_file "${BACKUP_SCRIPT}" "Backup script (for pre-migration backup)"
+require_sudo_rule "backup script" "${BACKUP_SCRIPT}" pre-migrations
 require_sudo_rule "webapp restart" /bin/systemctl restart "${WEBAPP_SERVICE}"
 require_sudo_rule "webapp status check" /bin/systemctl is-active --quiet "${WEBAPP_SERVICE}"
 
@@ -63,6 +66,10 @@ pnpm --dir apps/webapp build
 set -a
 source "${ENV_FILE}"
 set +a
+
+# Backup webapp DB before migrations (same contract as deploy-prod: pre-migrations → /opt/backups/postgres/pre-migrations/)
+sudo -n "${BACKUP_SCRIPT}" pre-migrations
+
 pnpm --dir apps/webapp run migrate
 
 sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"

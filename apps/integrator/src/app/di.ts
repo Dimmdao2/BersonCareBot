@@ -55,6 +55,7 @@ import { createDeliveryTargetsPort } from '../infra/adapters/deliveryTargetsPort
 import { createCommunicationReadsPort } from '../infra/adapters/communicationReadsPort.js';
 import { createRemindersReadsPort } from '../infra/adapters/remindersReadsPort.js';
 import { createAppointmentsReadsPort } from '../infra/adapters/appointmentsReadsPort.js';
+import { createSubscriptionMailingReadsPort } from '../infra/adapters/subscriptionMailingReadsPort.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -139,11 +140,17 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     env.APP_BASE_URL && integratorWebhookSecret().length >= 16
       ? createAppointmentsReadsPort()
       : undefined;
+  /** Subscription/mailing product reads from webapp when configured. */
+  const subscriptionMailingReadsPort =
+    env.APP_BASE_URL && integratorWebhookSecret().length >= 16
+      ? createSubscriptionMailingReadsPort()
+      : undefined;
   const dbReadPort = input.dbReadPort ?? createDbReadPort({
     db: dbPort,
     communicationReadsPort,
     ...(remindersReadsPort !== undefined ? { remindersReadsPort } : {}),
     ...(appointmentsReadsPort !== undefined ? { appointmentsReadsPort } : {}),
+    ...(subscriptionMailingReadsPort !== undefined ? { subscriptionMailingReadsPort } : {}),
   });
   const webappEventsPort = createWebappEventsPort();
   const dbWritePort = input.dbWritePort ?? createDbWritePort({ db: dbPort, readPort: dbReadPort });

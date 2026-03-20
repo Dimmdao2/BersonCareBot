@@ -130,17 +130,14 @@
 
 ### Текущее состояние
 
-- [apps/webapp/scripts/run-migrations.mjs](apps/webapp/scripts/run-migrations.mjs): перечисляет все `.sql`, сортирует, выполняет `client.query(sql)` **без**:
-  - таблицы учёта применённых миграций;
-  - транзакции на файл;
-  - checksum / версионирования.
+- [apps/webapp/scripts/run-migrations.mjs](apps/webapp/scripts/run-migrations.mjs): перечисляет все `.sql`, сортирует, выполняет каждую миграцию в транзакции и записывает имя файла в таблицу `schema_migrations` (аналог ledger). Уже применённые миграции пропускаются. Checksum/версионирование не реализовано.
 
 - [apps/integrator/src/infra/db/migrate.ts](apps/integrator/src/infra/db/migrate.ts): `schema_migrations`, транзакции, skip уже применённых, идемпотентная обработка части ошибок.
 
 ### Blocking issues до production data move в webapp
 
 1. Повторный прогон миграций с `DROP TABLE` / деструктивной логикой (см. 004, 005) **рискует потерей данных**.
-2. Нет явного **migration ledger** для webapp — нельзя безопасно нарастить только additive миграции без дисциплины.
+2. ~~Нет явного migration ledger для webapp~~ — ledger введён (schema_migrations); новые миграции по-прежнему должны быть по возможности additive и идемпотентные (IF NOT EXISTS).
 3. **Webapp-only deploy** без pre-migration backup.
 
 ### Минимальный safeguard-set (целевой до Stage 2)

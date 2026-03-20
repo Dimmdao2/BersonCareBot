@@ -5,10 +5,10 @@ import type {
   DbReadPort,
   DbReadQuery,
   RemindersReadsPort,
+  SubscriptionMailingReadsPort,
 } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { getAdminStats } from './repos/adminStats.js';
-import { getActiveRecordsByPhone, getRecordByExternalId } from './repos/bookingRecords.js';
 import { getIdentityIdByResourceAndExternalId, getLinkDataByIdentity, getNotificationSettings } from './repos/channelUsers.js';
 import {
   getDueReminderOccurrences,
@@ -52,11 +52,13 @@ export function createDbReadPort(input: {
   communicationReadsPort?: CommunicationReadsPort;
   remindersReadsPort?: RemindersReadsPort;
   appointmentsReadsPort?: AppointmentsReadsPort;
+  subscriptionMailingReadsPort?: SubscriptionMailingReadsPort;
 } = {}): DbReadPort {
   const db = input.db ?? createDbPort();
   const communicationReadsPort = input.communicationReadsPort;
   const remindersReadsPort = input.remindersReadsPort;
   const appointmentsReadsPort = input.appointmentsReadsPort;
+  const subscriptionMailingReadsPort = input.subscriptionMailingReadsPort;
   return {
     async readDb<T = unknown>(query: DbReadQuery): Promise<T> {
       switch (query.type) {
@@ -144,18 +146,18 @@ export function createDbReadPort(input: {
         case 'booking.byExternalId': {
           const recordId = asNonEmptyString(query.params.externalRecordId ?? query.params.recordId);
           if (!recordId) return null as T;
-          if (appointmentsReadsPort) {
-            return (await appointmentsReadsPort.getRecordByExternalId(recordId)) as T;
+          if (!appointmentsReadsPort) {
+            throw new Error('appointments product reads require appointmentsReadsPort');
           }
-          return (await getRecordByExternalId(db, recordId)) as T;
+          return (await appointmentsReadsPort.getRecordByExternalId(recordId)) as T;
         }
         case 'booking.activeByUser': {
           const userId = asNonEmptyString(query.params.userId);
           if (!userId) return [] as T;
-          if (appointmentsReadsPort) {
-            return (await appointmentsReadsPort.getActiveRecordsByPhone(userId)) as T;
+          if (!appointmentsReadsPort) {
+            throw new Error('appointments product reads require appointmentsReadsPort');
           }
-          return (await getActiveRecordsByPhone(db, userId)) as T;
+          return (await appointmentsReadsPort.getActiveRecordsByPhone(userId)) as T;
         }
         case 'stats.adminDashboard':
           return (await getAdminStats(db)) as T;
@@ -190,6 +192,16 @@ export function createDbReadPort(input: {
           const limit = asFiniteNumber(query.params.limit) ?? 50;
           if (!nowIso) return [] as T;
           return (await getDueReminderOccurrences(db, nowIso, limit)) as T;
+        }
+        case 'mailing.topics.list': {
+          if (!subscriptionMailingReadsPort) return [] as T;
+          return (await subscriptionMailingReadsPort.listTopics()) as T;
+        }
+        case 'subscriptions.byUser': {
+          const userIdParam = asNonEmptyString(query.params.integratorUserId ?? query.params.userId);
+          if (!userIdParam) return [] as T;
+          if (!subscriptionMailingReadsPort) return [] as T;
+          return (await subscriptionMailingReadsPort.getSubscriptionsByUserId(userIdParam)) as T;
         }
         default:
           return null as T;

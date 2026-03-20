@@ -40,7 +40,10 @@
     "stage4-gate": "node scripts/stage4-release-gate.mjs",
     "stage6-gate": "node scripts/stage6-release-gate.mjs",
     "stage7-gate": "node scripts/stage7-release-gate.mjs",
-    "stage9-gate": "node scripts/stage9-release-gate.mjs"
+    "stage9-gate": "node scripts/stage9-release-gate.mjs",
+    "stage11-gate": "node scripts/stage11-release-gate.mjs",
+    "stage12-gate": "node scripts/stage12-release-gate.mjs",
+    "stage13-gate": "node scripts/stage13-release-gate.mjs"
   },
   "engines": {
     "node": ">=20"

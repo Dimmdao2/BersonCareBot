@@ -68,15 +68,7 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
             const item = bindingsToLookupItem(bindings ?? null, resource);
             return { type: 'channel.lookupByPhone', item };
           }
-          const item = await input.readPort.readDb<{
-            chatId?: number;
-            channelId?: string;
-            username?: string | null;
-          } | null>({
-            type: 'user.lookup',
-            params: { resource, by: 'phone', value: phoneNormalized },
-          });
-          return { type: 'channel.lookupByPhone', item };
+          return { type: 'channel.lookupByPhone', item: null };
         }
         case 'bookings.forUser': {
           const userId = query.userId;
@@ -121,29 +113,7 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
             }
             return { type: 'subscriptions.forUser', items };
           }
-          const channelUser = await input.readPort.readDb<{
-            chatId?: number;
-            channelId?: string;
-            username?: string | null;
-          } | null>({
-            type: 'user.lookup',
-            params: { resource: 'channel', by: 'phone', value: userId },
-          });
-          if (!channelUser || typeof channelUser.chatId !== 'number') {
-            return { type: 'subscriptions.forUser', items: [] };
-          }
-          return {
-            type: 'subscriptions.forUser',
-            items: [
-              {
-                kind: 'channel',
-                chatId: channelUser.chatId,
-                channelId: channelUser.channelId ?? String(channelUser.chatId),
-                username: channelUser.username ?? null,
-                notificationsEnabled: true,
-              },
-            ],
-          };
+          return { type: 'subscriptions.forUser', items: [] };
         }
         case 'user.identityLinks': {
           const userId = query.userId;

@@ -3,6 +3,7 @@ import { createDbReadPort } from './readPort.js';
 import type { CommunicationReadsPort } from '../../kernel/contracts/index.js';
 import type { RemindersReadsPort } from '../../kernel/contracts/index.js';
 import type { AppointmentsReadsPort } from '../../kernel/contracts/index.js';
+import type { SubscriptionMailingReadsPort } from '../../kernel/contracts/index.js';
 
 function createMockDb() {
   const query = vi.fn().mockResolvedValue({ rows: [] });
@@ -328,16 +329,16 @@ describe('createDbReadPort', () => {
       expect(db.query).not.toHaveBeenCalled();
     });
 
-    it('booking.byExternalId falls back to DB when appointmentsReadsPort is undefined', async () => {
+    it('booking.byExternalId throws when appointmentsReadsPort is undefined', async () => {
       const db = createMockDb();
       const port = createDbReadPort({ db });
 
-      await port.readDb({
-        type: 'booking.byExternalId',
-        params: { externalRecordId: 'rec-1' },
-      });
-
-      expect(db.query).toHaveBeenCalled();
+      await expect(
+        port.readDb({
+          type: 'booking.byExternalId',
+          params: { externalRecordId: 'rec-1' },
+        })
+      ).rejects.toThrow(/appointmentsReadsPort|appointments product reads/);
     });
 
     it('booking.activeByUser delegates to appointmentsReadsPort when available', async () => {
@@ -361,16 +362,104 @@ describe('createDbReadPort', () => {
       expect(db.query).not.toHaveBeenCalled();
     });
 
-    it('booking.activeByUser falls back to DB when appointmentsReadsPort is undefined', async () => {
+    it('booking.activeByUser throws when appointmentsReadsPort is undefined', async () => {
       const db = createMockDb();
       const port = createDbReadPort({ db });
 
-      await port.readDb({
-        type: 'booking.activeByUser',
-        params: { userId: '+79991234567' },
+      await expect(
+        port.readDb({
+          type: 'booking.activeByUser',
+          params: { userId: '+79991234567' },
+        })
+      ).rejects.toThrow(/appointmentsReadsPort|appointments product reads/);
+    });
+  });
+
+  describe('subscription/mailing reads (webapp-only)', () => {
+    it('mailing.topics.list without port returns []', async () => {
+      const db = createMockDb();
+      const port = createDbReadPort({ db });
+
+      const result = await port.readDb({
+        type: 'mailing.topics.list',
+        params: {},
       });
 
-      expect(db.query).toHaveBeenCalled();
+      expect(result).toEqual([]);
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('mailing.topics.list with port delegates to port', async () => {
+      const adapterTopics = [
+        { integratorTopicId: '1', code: 'news', title: 'News', key: 'news', isActive: true },
+      ];
+      const subscriptionMailingReadsPort: SubscriptionMailingReadsPort = {
+        listTopics: vi.fn().mockResolvedValue(adapterTopics),
+        getSubscriptionsByUserId: vi.fn(),
+      };
+      const db = createMockDb();
+      const port = createDbReadPort({ db, subscriptionMailingReadsPort });
+
+      const result = await port.readDb({
+        type: 'mailing.topics.list',
+        params: {},
+      });
+
+      expect(result).toEqual(adapterTopics);
+      expect(subscriptionMailingReadsPort.listTopics).toHaveBeenCalledTimes(1);
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('subscriptions.byUser without port returns []', async () => {
+      const db = createMockDb();
+      const port = createDbReadPort({ db });
+
+      const result = await port.readDb({
+        type: 'subscriptions.byUser',
+        params: { integratorUserId: '42' },
+      });
+
+      expect(result).toEqual([]);
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('subscriptions.byUser with empty integratorUserId returns [] without calling port', async () => {
+      const subscriptionMailingReadsPort: SubscriptionMailingReadsPort = {
+        listTopics: vi.fn(),
+        getSubscriptionsByUserId: vi.fn(),
+      };
+      const db = createMockDb();
+      const port = createDbReadPort({ db, subscriptionMailingReadsPort });
+
+      const result = await port.readDb({
+        type: 'subscriptions.byUser',
+        params: { integratorUserId: '' },
+      });
+
+      expect(result).toEqual([]);
+      expect(subscriptionMailingReadsPort.getSubscriptionsByUserId).not.toHaveBeenCalled();
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('subscriptions.byUser with port delegates to port', async () => {
+      const adapterSubs = [
+        { integratorTopicId: '1', topicCode: 'news', isActive: true },
+      ];
+      const subscriptionMailingReadsPort: SubscriptionMailingReadsPort = {
+        listTopics: vi.fn(),
+        getSubscriptionsByUserId: vi.fn().mockResolvedValue(adapterSubs),
+      };
+      const db = createMockDb();
+      const port = createDbReadPort({ db, subscriptionMailingReadsPort });
+
+      const result = await port.readDb({
+        type: 'subscriptions.byUser',
+        params: { integratorUserId: '42' },
+      });
+
+      expect(result).toEqual(adapterSubs);
+      expect(subscriptionMailingReadsPort.getSubscriptionsByUserId).toHaveBeenCalledWith('42');
+      expect(db.query).not.toHaveBeenCalled();
     });
   });
 });

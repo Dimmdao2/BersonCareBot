@@ -34,6 +34,14 @@ function displayNameFromLegacy(firstName, lastName) {
   return [firstName, lastName].filter(Boolean).map((s) => normalize(s)).join(" ").trim() || "";
 }
 
+/** Same mapping as backfill-person-domain: legacy telegram_state column -> webapp topic_code */
+const NOTIFY_TOPIC_MAP = [
+  { legacy: "notify_spb", topicCode: "booking_spb" },
+  { legacy: "notify_msk", topicCode: "booking_msk" },
+  { legacy: "notify_online", topicCode: "booking_online" },
+  { legacy: "notify_bookings", topicCode: "bookings" },
+];
+
 async function fetchLegacy(client) {
   const usersRes = await client.query(`
     SELECT u.id AS user_id, c.value_normalized AS phone
@@ -62,10 +70,9 @@ async function fetchLegacy(client) {
       const dn = displayNameFromLegacy(row.first_name, row.last_name);
       if (dn && !u.displayName) u.displayName = dn;
     }
-    if (row.notify_spb != null) u.topics.notify_spb = !!row.notify_spb;
-    if (row.notify_msk != null) u.topics.notify_msk = !!row.notify_msk;
-    if (row.notify_online != null) u.topics.notify_online = !!row.notify_online;
-    if (row.notify_bookings != null) u.topics.notify_bookings = !!row.notify_bookings;
+    for (const { legacy, topicCode } of NOTIFY_TOPIC_MAP) {
+      if (row[legacy] != null) u.topics[topicCode] = !!row[legacy];
+    }
   }
   return byUser;
 }

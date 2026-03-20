@@ -16,3 +16,12 @@ export type ReminderProjectionEventType =
 export const APPOINTMENT_RECORD_UPSERTED = 'appointment.record.upserted';
 
 export type AppointmentProjectionEventType = typeof APPOINTMENT_RECORD_UPSERTED;
+
+export const MAILING_TOPIC_UPSERTED = 'mailing.topic.upserted';
+export const USER_SUBSCRIPTION_UPSERTED = 'user.subscription.upserted';
+export const MAILING_LOG_SENT = 'mailing.log.sent';
+
+export type SubscriptionMailingProjectionEventType =
+  | typeof MAILING_TOPIC_UPSERTED
+  | typeof USER_SUBSCRIPTION_UPSERTED
+  | typeof MAILING_LOG_SENT;

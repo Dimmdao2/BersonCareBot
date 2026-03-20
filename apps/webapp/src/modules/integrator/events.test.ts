@@ -4,6 +4,7 @@ import { handleIntegratorEvent, type IntegratorEventsDeps } from "./events";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
 import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
+import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemorySubscriptionMailingProjection";
 
 const mockDeps: IntegratorEventsDeps = {
   diaries: {
@@ -721,6 +722,47 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     expect(result.reason).toContain("required payload fields missing");
   });
 
+  it("calls upsertContentAccessGrantFromProjection with payload when content.access.granted", async () => {
+    const mockRp = {
+      upsertRuleFromProjection: vi.fn(),
+      appendFinalizedOccurrenceFromProjection: vi.fn(),
+      appendDeliveryEventFromProjection: vi.fn(),
+      upsertContentAccessGrantFromProjection: vi.fn().mockResolvedValue(undefined),
+      listRulesByIntegratorUserId: vi.fn().mockResolvedValue([]),
+      getRuleByIntegratorUserIdAndCategory: vi.fn().mockResolvedValue(null),
+      listHistoryByIntegratorUserId: vi.fn().mockResolvedValue([]),
+    };
+    const depsContent: IntegratorEventsDeps = { ...mockDeps, reminderProjection: mockRp };
+    const payload = {
+      integratorGrantId: "grant-spy-1",
+      integratorUserId: "43",
+      contentId: "content-spy",
+      purpose: "view",
+      tokenHash: "thash",
+      expiresAt: "2026-06-01T00:00:00.000Z",
+      revokedAt: null as string | null,
+      metaJson: { key: "value" },
+      createdAt: "2025-04-01T12:00:00.000Z",
+    };
+    const result = await handleIntegratorEvent(
+      { eventType: "content.access.granted", payload },
+      depsContent
+    );
+    expect(result.accepted).toBe(true);
+    expect(mockRp.upsertContentAccessGrantFromProjection).toHaveBeenCalledTimes(1);
+    expect(mockRp.upsertContentAccessGrantFromProjection).toHaveBeenCalledWith({
+      integratorGrantId: "grant-spy-1",
+      integratorUserId: "43",
+      contentId: "content-spy",
+      purpose: "view",
+      tokenHash: "thash",
+      expiresAt: "2026-06-01T00:00:00.000Z",
+      revokedAt: null,
+      metaJson: { key: "value" },
+      createdAt: "2025-04-01T12:00:00.000Z",
+    });
+  });
+
   const depsWithAp: IntegratorEventsDeps = { ...mockDeps, appointmentProjection: inMemoryAppointmentProjectionPort };
 
   it("accepts appointment.record.upserted", async () => {
@@ -788,6 +830,83 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     }
   });
 
+  it("idempotent: duplicate appointment.record.upserted both accepted and upsert called twice", async () => {
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+    };
+    const depsIdem: IntegratorEventsDeps = { ...mockDeps, appointmentProjection: mockAp };
+    const payload = {
+      integratorRecordId: "rec-idem-1",
+      phoneNormalized: "+79991112233",
+      recordAt: "2025-08-01T12:00:00.000Z",
+      status: "created",
+      payloadJson: {},
+      lastEvent: "event-create",
+      updatedAt: "2025-07-01T10:00:00.000Z",
+    };
+    const r1 = await handleIntegratorEvent(
+      { eventType: "appointment.record.upserted", payload },
+      depsIdem
+    );
+    const r2 = await handleIntegratorEvent(
+      { eventType: "appointment.record.upserted", payload },
+      depsIdem
+    );
+    expect(r1.accepted).toBe(true);
+    expect(r2.accepted).toBe(true);
+    expect(mockAp.upsertRecordFromProjection).toHaveBeenCalledTimes(2);
+    const expectedArg = {
+      integratorRecordId: "rec-idem-1",
+      phoneNormalized: "+79991112233",
+      recordAt: "2025-08-01T12:00:00.000Z",
+      status: "created",
+      payloadJson: {},
+      lastEvent: "event-create",
+      updatedAt: "2025-07-01T10:00:00.000Z",
+    };
+    expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(1, expectedArg);
+    expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(2, expectedArg);
+  });
+
+  it("appointment.record.upserted accepts update (e.g. status cancelled) and calls upsert with new payload", async () => {
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+    };
+    const depsIdem: IntegratorEventsDeps = { ...mockDeps, appointmentProjection: mockAp };
+    const createPayload = {
+      integratorRecordId: "rec-update-1",
+      phoneNormalized: "+79991112233",
+      recordAt: "2025-08-01T12:00:00.000Z",
+      status: "created",
+      payloadJson: {},
+      lastEvent: "event-create",
+      updatedAt: "2025-07-01T10:00:00.000Z",
+    };
+    const updatePayload = {
+      ...createPayload,
+      status: "cancelled",
+      lastEvent: "event-cancel",
+      updatedAt: "2025-07-02T14:00:00.000Z",
+    };
+    const r1 = await handleIntegratorEvent(
+      { eventType: "appointment.record.upserted", payload: createPayload },
+      depsIdem
+    );
+    const r2 = await handleIntegratorEvent(
+      { eventType: "appointment.record.upserted", payload: updatePayload },
+      depsIdem
+    );
+    expect(r1.accepted).toBe(true);
+    expect(r2.accepted).toBe(true);
+    expect(mockAp.upsertRecordFromProjection).toHaveBeenCalledTimes(2);
+    expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(1, createPayload);
+    expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(2, updatePayload);
+  });
+
   it("idempotent: duplicate reminder.rule.upserted returns accepted", async () => {
     const payload = {
       integratorRuleId: "rule-idem-1",
@@ -826,6 +945,201 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
           daysMask: "1111111",
           contentMode: "none",
           updatedAt: new Date().toISOString(),
+        },
+      },
+      mockDeps
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.reason).toContain("not implemented");
+  });
+});
+
+describe("handleIntegratorEvent: Stage 11 subscription/mailing projection ingest", () => {
+  const smp = inMemorySubscriptionMailingProjectionPort;
+  const depsWithSmp: IntegratorEventsDeps = { ...mockDeps, subscriptionMailingProjection: smp };
+
+  it("accepts mailing.topic.upserted", async () => {
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "mailing.topic.upserted",
+        payload: {
+          integratorTopicId: 100,
+          code: "news",
+          title: "News",
+          key: "news",
+          isActive: true,
+          updatedAt: "2025-03-01T10:00:00.000Z",
+        },
+      },
+      depsWithSmp
+    );
+    expect(result.accepted).toBe(true);
+  });
+
+  it("rejects mailing.topic.upserted without required fields", async () => {
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "mailing.topic.upserted",
+        payload: { integratorTopicId: 100, code: "news" },
+      },
+      depsWithSmp
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.reason).toContain("integratorTopicId, code, title, key required");
+  });
+
+  it("calls upsertTopicFromProjection with payload when mailing.topic.upserted", async () => {
+    const upsertSpy = vi.spyOn(smp, "upsertTopicFromProjection").mockResolvedValue();
+    try {
+      const payload = {
+        integratorTopicId: 101,
+        code: "alerts",
+        title: "Alerts",
+        key: "alerts",
+        isActive: false,
+        updatedAt: "2025-03-02T12:00:00.000Z",
+      };
+      const result = await handleIntegratorEvent(
+        { eventType: "mailing.topic.upserted", payload },
+        depsWithSmp
+      );
+      expect(result.accepted).toBe(true);
+      expect(upsertSpy).toHaveBeenCalledTimes(1);
+      expect(upsertSpy).toHaveBeenCalledWith({
+        integratorTopicId: 101,
+        code: "alerts",
+        title: "Alerts",
+        key: "alerts",
+        isActive: false,
+        updatedAt: "2025-03-02T12:00:00.000Z",
+      });
+    } finally {
+      upsertSpy.mockRestore();
+    }
+  });
+
+  it("accepts user.subscription.upserted", async () => {
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "user.subscription.upserted",
+        payload: {
+          integratorUserId: 1,
+          integratorTopicId: 100,
+          isActive: true,
+          updatedAt: "2025-03-01T10:00:00.000Z",
+        },
+      },
+      depsWithSmp
+    );
+    expect(result.accepted).toBe(true);
+  });
+
+  it("rejects user.subscription.upserted without required fields", async () => {
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "user.subscription.upserted",
+        payload: { integratorUserId: 1 },
+      },
+      depsWithSmp
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.reason).toContain("integratorUserId, integratorTopicId required");
+  });
+
+  it("calls upsertUserSubscriptionFromProjection with payload when user.subscription.upserted", async () => {
+    const upsertSpy = vi.spyOn(smp, "upsertUserSubscriptionFromProjection").mockResolvedValue();
+    try {
+      const payload = {
+        integratorUserId: 2,
+        integratorTopicId: 100,
+        isActive: false,
+        updatedAt: "2025-03-02T14:00:00.000Z",
+      };
+      const result = await handleIntegratorEvent(
+        { eventType: "user.subscription.upserted", payload },
+        depsWithSmp
+      );
+      expect(result.accepted).toBe(true);
+      expect(upsertSpy).toHaveBeenCalledTimes(1);
+      expect(upsertSpy).toHaveBeenCalledWith({
+        integratorUserId: 2,
+        integratorTopicId: 100,
+        isActive: false,
+        updatedAt: "2025-03-02T14:00:00.000Z",
+      });
+    } finally {
+      upsertSpy.mockRestore();
+    }
+  });
+
+  it("accepts mailing.log.sent", async () => {
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "mailing.log.sent",
+        payload: {
+          integratorUserId: 1,
+          integratorMailingId: 200,
+          status: "sent",
+          sentAt: "2025-03-01T12:00:00.000Z",
+          errorText: null,
+        },
+      },
+      depsWithSmp
+    );
+    expect(result.accepted).toBe(true);
+  });
+
+  it("rejects mailing.log.sent without required fields", async () => {
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "mailing.log.sent",
+        payload: { integratorUserId: 1, integratorMailingId: 200 },
+      },
+      depsWithSmp
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.reason).toContain("integratorUserId, integratorMailingId, status required");
+  });
+
+  it("calls appendMailingLogFromProjection with payload when mailing.log.sent", async () => {
+    const appendSpy = vi.spyOn(smp, "appendMailingLogFromProjection").mockResolvedValue();
+    try {
+      const payload = {
+        integratorUserId: 3,
+        integratorMailingId: 201,
+        status: "failed",
+        sentAt: "2025-03-02T15:00:00.000Z",
+        errorText: "timeout",
+      };
+      const result = await handleIntegratorEvent(
+        { eventType: "mailing.log.sent", payload },
+        depsWithSmp
+      );
+      expect(result.accepted).toBe(true);
+      expect(appendSpy).toHaveBeenCalledTimes(1);
+      expect(appendSpy).toHaveBeenCalledWith({
+        integratorUserId: 3,
+        integratorMailingId: 201,
+        status: "failed",
+        sentAt: "2025-03-02T15:00:00.000Z",
+        errorText: "timeout",
+      });
+    } finally {
+      appendSpy.mockRestore();
+    }
+  });
+
+  it("falls through to not-implemented when subscriptionMailingProjection dep missing", async () => {
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "mailing.topic.upserted",
+        payload: {
+          integratorTopicId: 100,
+          code: "news",
+          title: "News",
+          key: "news",
+          isActive: true,
+          updatedAt: "2025-03-01T10:00:00.000Z",
         },
       },
       mockDeps

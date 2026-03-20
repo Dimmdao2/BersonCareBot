@@ -71,6 +71,7 @@ export async function POST(request: Request) {
     supportCommunication: deps.supportCommunication,
     reminderProjection: deps.reminderProjection,
     appointmentProjection: deps.appointmentProjection,
+    subscriptionMailingProjection: deps.subscriptionMailingProjection,
   });
   const status = result.accepted ? 202 : 503;
   const body: Record<string, unknown> = result.accepted

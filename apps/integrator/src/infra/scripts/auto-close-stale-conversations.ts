@@ -1,7 +1,8 @@
 /**
  * Закрывает диалоги, в которых последнее сообщение было более 24 часов назад.
  * Запуск: cron раз в день или вручную.
- * Домен не трогаем — только инфра: read repo + write repo.
+ * Runtime/operational: использует integrator messageThreads для list + setConversationState.
+ * Product reads для support UI идут через webapp; этот скрипт — исключение для операционного закрытия.
  */
 import '../../config/loadEnv.js';
 import { createDbPort } from '../db/client.js';

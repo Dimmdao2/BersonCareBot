@@ -35,7 +35,9 @@ export type DbReadQueryType =
   | 'reminders.rules.enabled'
   | 'reminders.occurrences.forRuleRange'
   | 'reminders.occurrences.due'
-  | 'delivery.pending';
+  | 'delivery.pending'
+  | 'mailing.topics.list'
+  | 'subscriptions.byUser';
 
 /** Категории write-мутаций к хранилищу. */
 export type DbWriteMutationType =
@@ -62,7 +64,10 @@ export type DbWriteMutationType =
   | 'booking.upsert'
   | 'message.retry.enqueue'
   | 'delivery.attempt.log'
-  | 'event.log';
+  | 'event.log'
+  | 'mailing.topic.upsert'
+  | 'user.subscription.upsert'
+  | 'mailing.log.append';
 
 /** Универсальный read-запрос к БД. */
 export type DbReadQuery = {
@@ -446,4 +451,26 @@ export type ActiveBookingRecord = {
 export type AppointmentsReadsPort = {
   getRecordByExternalId(externalRecordId: string): Promise<BookingRecordForLinking | null>;
   getActiveRecordsByPhone(phoneNormalized: string): Promise<ActiveBookingRecord[]>;
+};
+
+/** Row shape for mailing topic (bigint-safe: id as string). */
+export type MailingTopicReadRow = {
+  integratorTopicId: string;
+  code: string;
+  title: string;
+  key: string;
+  isActive: boolean;
+};
+
+/** Row shape for user subscription (bigint-safe). */
+export type UserSubscriptionReadRow = {
+  integratorTopicId: string;
+  topicCode: string;
+  isActive: boolean;
+};
+
+/** Port to read subscription/mailing product data from webapp (projection). Used with fallback to local DB. */
+export type SubscriptionMailingReadsPort = {
+  listTopics(): Promise<MailingTopicReadRow[]>;
+  getSubscriptionsByUserId(integratorUserId: string): Promise<UserSubscriptionReadRow[]>;
 };

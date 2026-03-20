@@ -31,10 +31,14 @@ import {
   REMINDER_DELIVERY_LOGGED,
   CONTENT_ACCESS_GRANTED,
   APPOINTMENT_RECORD_UPSERTED,
+  MAILING_TOPIC_UPSERTED,
+  USER_SUBSCRIPTION_UPSERTED,
+  MAILING_LOG_SENT,
 } from '../../kernel/contracts/index.js';
 import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
 import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';
 import { logger } from '../observability/logger.js';
+import { insertMailingLog } from './repos/mailingLogs.js';
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -781,6 +785,88 @@ export function createDbWritePort(input: {
           });
           return;
         }
+        case 'mailing.topic.upsert': {
+          const topicId = asFiniteNumber(mutation.params.integratorTopicId) ?? asFiniteNumber(mutation.params.id);
+          const code = asNonEmptyString(mutation.params.code);
+          const title = asNonEmptyString(mutation.params.title);
+          const key = asNonEmptyString(mutation.params.key);
+          const isActive = typeof mutation.params.isActive === 'boolean' ? mutation.params.isActive : true;
+          if (topicId === null || !code || !title || !key) {
+            logger.warn({ mutationType: mutation.type }, 'skip mailing.topic.upsert: missing required fields');
+            return;
+          }
+          const updatedAt = new Date().toISOString();
+          await db.tx(async (txDb) => {
+            const payload: Record<string, unknown> = {
+              integratorTopicId: String(topicId),
+              code,
+              title,
+              key,
+              isActive,
+              updatedAt,
+            };
+            await enqueueProjectionEvent(txDb, {
+              eventType: MAILING_TOPIC_UPSERTED,
+              idempotencyKey: projectionIdempotencyKey(MAILING_TOPIC_UPSERTED, String(topicId), hashPayload(payload)),
+              occurredAt: updatedAt,
+              payload,
+            });
+          });
+          return;
+        }
+        case 'user.subscription.upsert': {
+          const userId = asFiniteNumber(mutation.params.integratorUserId);
+          const topicId = asFiniteNumber(mutation.params.integratorTopicId);
+          const isActive = typeof mutation.params.isActive === 'boolean' ? mutation.params.isActive : true;
+          if (userId === null || topicId === null) {
+            logger.warn({ mutationType: mutation.type }, 'skip user.subscription.upsert: missing userId or topicId');
+            return;
+          }
+          const updatedAt = new Date().toISOString();
+          await db.tx(async (txDb) => {
+            const payload: Record<string, unknown> = {
+              integratorUserId: String(userId),
+              integratorTopicId: String(topicId),
+              isActive,
+              updatedAt,
+            };
+            await enqueueProjectionEvent(txDb, {
+              eventType: USER_SUBSCRIPTION_UPSERTED,
+              idempotencyKey: projectionIdempotencyKey(USER_SUBSCRIPTION_UPSERTED, `${userId}:${topicId}`, hashPayload(payload)),
+              occurredAt: updatedAt,
+              payload,
+            });
+          });
+          return;
+        }
+        case 'mailing.log.append': {
+          const userId = asFiniteNumber(mutation.params.integratorUserId);
+          const mailingId = asFiniteNumber(mutation.params.integratorMailingId);
+          const status = asNonEmptyString(mutation.params.status);
+          const sentAt = asNonEmptyString(mutation.params.sentAt) ?? new Date().toISOString();
+          const error = asNullableString(mutation.params.errorText ?? mutation.params.error);
+          if (userId === null || mailingId === null || !status) {
+            logger.warn({ mutationType: mutation.type }, 'skip mailing.log.append: missing required fields');
+            return;
+          }
+          await db.tx(async (txDb) => {
+            await insertMailingLog(txDb, { userId, mailingId, status, sentAt, error });
+            const payload: Record<string, unknown> = {
+              integratorUserId: String(userId),
+              integratorMailingId: String(mailingId),
+              status,
+              sentAt,
+              errorText: error,
+            };
+            await enqueueProjectionEvent(txDb, {
+              eventType: MAILING_LOG_SENT,
+              idempotencyKey: projectionIdempotencyKey(MAILING_LOG_SENT, `${userId}:${mailingId}`, hashPayload(payload)),
+              occurredAt: sentAt,
+              payload,
+            });
+          });
+          return;
+        }
         case 'message.retry.enqueue': {
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
           const messageText = asNonEmptyString(mutation.params.messageText);
@@ -807,6 +893,7 @@ export function createDbWritePort(input: {
               intent: {
                 type: 'message.send',
                 meta: {
+                  // Intentionally unique per attempt (not a projection idempotency key); retry events must not dedupe.
                   eventId: `message-retry:${phoneNormalized}:${Date.now()}`,
                   occurredAt: new Date().toISOString(),
                   source: 'worker',

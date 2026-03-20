@@ -34,6 +34,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         oldestPendingAt: null,
         processingCount: 0,
         retryDistribution: {},
+        lastSuccessAt: null,
+        retriesOverThreshold: 0,
       });
     }
   });
