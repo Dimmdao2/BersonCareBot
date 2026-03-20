@@ -47,20 +47,43 @@ async function main() {
   let exitCode = 0;
   try {
     const pairs = [
-      { name: "mailing_topics", srcTable: "mailing_topics", srcCol: "id", tgtTable: "mailing_topics_webapp", tgtCol: "integrator_topic_id" },
-      { name: "user_subscriptions", srcTable: "user_subscriptions", srcCol: "user_id", tgtTable: "user_subscriptions_webapp", tgtCol: "integrator_user_id" },
-      { name: "mailing_logs", srcTable: "mailing_logs", srcCol: "user_id", tgtTable: "mailing_logs_webapp", tgtCol: "integrator_user_id" },
+      {
+        name: "mailing_topics",
+        srcQuery: "SELECT id FROM mailing_topics",
+        srcKey: "id",
+        tgtQuery: "SELECT integrator_topic_id FROM mailing_topics_webapp",
+        tgtKey: "integrator_topic_id",
+      },
+      {
+        name: "user_subscriptions",
+        srcQuery: "SELECT user_id, topic_id FROM user_subscriptions",
+        srcKeyFn: (r) => `${r.user_id}:${r.topic_id}`,
+        tgtQuery: "SELECT integrator_user_id, integrator_topic_id FROM user_subscriptions_webapp",
+        tgtKeyFn: (r) => `${r.integrator_user_id}:${r.integrator_topic_id}`,
+      },
+      {
+        name: "mailing_logs",
+        srcQuery: "SELECT user_id, mailing_id FROM mailing_logs",
+        srcKeyFn: (r) => `${r.user_id}:${r.mailing_id}`,
+        tgtQuery: "SELECT integrator_user_id, integrator_mailing_id FROM mailing_logs_webapp",
+        tgtKeyFn: (r) => `${r.integrator_user_id}:${r.integrator_mailing_id}`,
+      },
     ];
 
-    for (const { name, srcTable, tgtTable } of pairs) {
-      const srcRes = await integrator.query(`SELECT COUNT(*) AS c FROM ${srcTable}`);
-      const tgtRes = await webapp.query(`SELECT COUNT(*) AS c FROM ${tgtTable}`);
-      const srcCount = parseInt(srcRes.rows[0]?.c ?? "0", 10);
-      const tgtCount = parseInt(tgtRes.rows[0]?.c ?? "0", 10);
-      const diff = Math.abs(srcCount - tgtCount);
-      const pct = srcCount > 0 ? (diff / srcCount) * 100 : 0;
+    function toKey(rows, keyFn, keyCol) {
+      return new Set(rows.map(keyFn ?? ((r) => String(r[keyCol]))));
+    }
+
+    for (const p of pairs) {
+      const srcRes = await integrator.query(p.srcQuery);
+      const tgtRes = await webapp.query(p.tgtQuery);
+      const srcSet = toKey(srcRes.rows, p.srcKeyFn, p.srcKey);
+      const tgtSet = toKey(tgtRes.rows, p.tgtKeyFn, p.tgtKey);
+      const missing = [...srcSet].filter((k) => !tgtSet.has(k));
+      const diff = missing.length;
+      const pct = srcSet.size > 0 ? (diff / srcSet.size) * 100 : 0;
       const ok = pct <= maxMismatchPercent;
-      console.log(`${name}: source=${srcCount} target=${tgtCount} diff=${diff} ${pct.toFixed(1)}% ${ok ? "ok" : "MISMATCH"}`);
+      console.log(`${p.name}: source=${srcSet.size} target=${tgtSet.size} missing=${diff} ${pct.toFixed(1)}% ${ok ? "ok" : "MISMATCH"}`);
       if (!ok) exitCode = 1;
     }
 

@@ -122,20 +122,21 @@ async function main() {
       missingInWebappSample: missingQm.slice(0, sampleSize),
     };
 
-    // Delivery logs: count only (no integrator_id match)
+    // Delivery logs: ID matching by intent_event_id (stored as integrator_intent_event_id in webapp)
     const delSrc = await integratorClient.query(
-      "SELECT COUNT(*) AS c FROM delivery_attempt_logs"
+      "SELECT intent_event_id FROM delivery_attempt_logs WHERE intent_event_id IS NOT NULL"
     );
     const delTgt = await webappClient.query(
-      "SELECT COUNT(*) AS c FROM support_delivery_events"
+      "SELECT integrator_intent_event_id FROM support_delivery_events WHERE integrator_intent_event_id IS NOT NULL"
     );
-    const srcDelCount = parseInt(delSrc.rows[0]?.c ?? "0", 10);
-    const tgtDelCount = parseInt(delTgt.rows[0]?.c ?? "0", 10);
+    const srcDelIds = new Set(delSrc.rows.map((r) => r.intent_event_id));
+    const tgtDelIds = new Set(delTgt.rows.map((r) => r.integrator_intent_event_id));
+    const missingDel = [...srcDelIds].filter((id) => !tgtDelIds.has(id));
     report.delivery_events = {
-      sourceCount: srcDelCount,
-      targetCount: tgtDelCount,
-      missingInWebappCount: Math.max(0, srcDelCount - tgtDelCount),
-      missingInWebappSample: [],
+      sourceCount: srcDelIds.size,
+      targetCount: tgtDelIds.size,
+      missingInWebappCount: missingDel.length,
+      missingInWebappSample: missingDel.slice(0, sampleSize),
     };
   } finally {
     await webappClient.end();

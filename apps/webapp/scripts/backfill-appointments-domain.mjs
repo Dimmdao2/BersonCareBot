@@ -7,6 +7,7 @@
  *   INTEGRATOR_DATABASE_URL=... DATABASE_URL=... node scripts/backfill-appointments-domain.mjs [--dry-run | --commit] [--limit=N]
  * Defaults to --dry-run.
  */
+import "dotenv/config";
 import pg from "pg";
 
 const args = process.argv.slice(2);
@@ -44,42 +45,43 @@ const dst = new pg.Client({ connectionString: targetUrl });
 async function main() {
   await src.connect();
   await dst.connect();
+  try {
+    const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
+    const { rows } = await src.query(
+      `SELECT rubitime_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at
+       FROM rubitime_records ORDER BY updated_at ASC${limitClause}`
+    );
+    console.log(`Appointment records to backfill: ${rows.length}`);
 
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
-  const { rows } = await src.query(
-    `SELECT rubitime_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at
-     FROM rubitime_records ORDER BY updated_at ASC${limitClause}`
-  );
-  console.log(`Appointment records to backfill: ${rows.length}`);
-
-  for (const row of rows) {
-    if (!dryRun) {
-      await dst.query(
-        `INSERT INTO appointment_records (
-          integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at
-        ) VALUES ($1, $2, $3::timestamptz, $4, $5::jsonb, $6, $7::timestamptz)
-        ON CONFLICT (integrator_record_id) DO UPDATE SET
-          phone_normalized = EXCLUDED.phone_normalized,
-          record_at = EXCLUDED.record_at,
-          status = EXCLUDED.status,
-          payload_json = EXCLUDED.payload_json,
-          last_event = EXCLUDED.last_event,
-          updated_at = EXCLUDED.updated_at`,
-        [
-          String(row.rubitime_record_id ?? ""),
-          row.phone_normalized,
-          row.record_at,
-          row.status,
-          JSON.stringify(row.payload_json ?? {}),
-          row.last_event ?? "",
-          row.updated_at,
-        ]
-      );
+    for (const row of rows) {
+      if (!dryRun) {
+        await dst.query(
+          `INSERT INTO appointment_records (
+            integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at
+          ) VALUES ($1, $2, $3::timestamptz, $4, $5::jsonb, $6, $7::timestamptz)
+          ON CONFLICT (integrator_record_id) DO UPDATE SET
+            phone_normalized = EXCLUDED.phone_normalized,
+            record_at = EXCLUDED.record_at,
+            status = EXCLUDED.status,
+            payload_json = EXCLUDED.payload_json,
+            last_event = EXCLUDED.last_event,
+            updated_at = EXCLUDED.updated_at`,
+          [
+            String(row.rubitime_record_id ?? ""),
+            row.phone_normalized,
+            row.record_at,
+            row.status,
+            JSON.stringify(row.payload_json ?? {}),
+            row.last_event ?? "",
+            row.updated_at,
+          ]
+        );
+      }
     }
+  } finally {
+    await src.end();
+    await dst.end();
   }
-
-  await src.end();
-  await dst.end();
   console.log(dryRun ? "[DRY-RUN] Done." : "Done.");
 }
 

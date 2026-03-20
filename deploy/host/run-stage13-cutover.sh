@@ -89,13 +89,17 @@ else
   echo "[$(timestamp)] skipping --commit stage (dry-run-only mode)"
 fi
 
-run_step "reconcile-person-domain" pnpm --dir apps/webapp run reconcile-person-domain
-run_step "reconcile-communication-domain" pnpm --dir apps/webapp run reconcile-communication-domain
-run_step "reconcile-reminders-domain" pnpm --dir apps/webapp run reconcile-reminders-domain
-run_step "reconcile-appointments-domain" pnpm --dir apps/webapp run reconcile-appointments-domain
-run_step "reconcile-subscription-mailing-domain" pnpm --dir apps/webapp run reconcile-subscription-mailing-domain
+if [ "${DRY_RUN_ONLY}" -eq 0 ]; then
+  run_step "reconcile-person-domain" pnpm --dir apps/webapp run reconcile-person-domain
+  run_step "reconcile-communication-domain" pnpm --dir apps/webapp run reconcile-communication-domain
+  run_step "reconcile-reminders-domain" pnpm --dir apps/webapp run reconcile-reminders-domain
+  run_step "reconcile-appointments-domain" pnpm --dir apps/webapp run reconcile-appointments-domain
+  run_step "reconcile-subscription-mailing-domain" pnpm --dir apps/webapp run reconcile-subscription-mailing-domain
 
-run_step "stage13-gate" pnpm run stage13-gate
+  run_step "stage13-gate" pnpm run stage13-gate
+else
+  echo "[$(timestamp)] skipping reconcile + gate (dry-run-only mode)"
+fi
 
 echo ""
 echo "[$(timestamp)] stage13-cutover completed successfully"

@@ -87,7 +87,7 @@ async function main() {
   };
 
   try {
-    const userFilter = filterUserId ? "AND u.id = $1" : "";
+    const userFilter = filterUserId ? "WHERE u.id = $1" : "";
     const userParams = filterUserId ? [filterUserId] : [];
     const limitClause = limit > 0 ? `LIMIT ${limit}` : "";
     const usersRes = await integrator.query(

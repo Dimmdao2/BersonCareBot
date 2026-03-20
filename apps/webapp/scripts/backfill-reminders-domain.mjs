@@ -12,6 +12,7 @@
  *   INTEGRATOR_DATABASE_URL=... DATABASE_URL=... node scripts/backfill-reminders-domain.mjs [--dry-run | --commit] [--limit=N]
  * Defaults to --dry-run.
  */
+import "dotenv/config";
 import pg from "pg";
 
 const args = process.argv.slice(2);

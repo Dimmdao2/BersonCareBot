@@ -15,6 +15,7 @@
  *
  * Defaults to --dry-run.
  */
+import "dotenv/config";
 import pg from "pg";
 
 const args = process.argv.slice(2);
@@ -53,14 +54,16 @@ async function resolveWebappPlatformUserId(integratorUserId) {
 async function backfillConversations() {
   const limitClause = limit > 0 ? ` LIMIT ${limit}` : "";
   const { rows } = await src.query(
-    `SELECT id, source, user_identity_id, admin_scope, status,
-            opened_at, last_message_at, closed_at, close_reason
-     FROM conversations ORDER BY opened_at ASC${limitClause}`
+    `SELECT c.id, c.source, i.user_id, c.admin_scope, c.status,
+            c.opened_at, c.last_message_at, c.closed_at, c.close_reason
+     FROM conversations c
+     LEFT JOIN identities i ON i.id = c.user_identity_id
+     ORDER BY c.opened_at ASC${limitClause}`
   );
   console.log(`Conversations to backfill: ${rows.length}`);
   let upserted = 0;
   for (const row of rows) {
-    const platformUserId = await resolveWebappPlatformUserId(row.user_identity_id);
+    const platformUserId = await resolveWebappPlatformUserId(row.user_id);
     if (!dryRun) {
       await dst.query(
         `INSERT INTO support_conversations (
@@ -78,7 +81,7 @@ async function backfillConversations() {
         [
           row.id,
           platformUserId,
-          row.user_identity_id ? String(row.user_identity_id) : null,
+          row.user_id ? String(row.user_id) : null,
           row.source,
           row.admin_scope,
           row.status,
@@ -235,7 +238,8 @@ async function backfillDeliveryAttemptLogs() {
         `INSERT INTO support_delivery_events (
           integrator_intent_event_id, correlation_id, channel_code, status, attempt,
           reason, payload_json, occurred_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
+        ON CONFLICT (integrator_intent_event_id) WHERE (integrator_intent_event_id IS NOT NULL) DO NOTHING`,
         [
           row.intent_event_id,
           row.correlation_id,
