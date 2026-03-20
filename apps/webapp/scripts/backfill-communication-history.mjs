@@ -11,7 +11,7 @@
  * message_drafts are explicitly excluded.
  *
  * Usage:
- *   SOURCE_DATABASE_URL=... DATABASE_URL=... node scripts/backfill-communication-history.mjs [--dry-run | --commit] [--limit=N]
+ *   INTEGRATOR_DATABASE_URL=... DATABASE_URL=... node scripts/backfill-communication-history.mjs [--dry-run | --commit] [--limit=N]
  *
  * Defaults to --dry-run.
  */
@@ -22,11 +22,11 @@ const dryRun = !args.includes("--commit");
 const limitArg = args.find((a) => a.startsWith("--limit="));
 const limit = limitArg ? parseInt(limitArg.split("=")[1], 10) : 0;
 
-const sourceUrl = process.env.SOURCE_DATABASE_URL;
+const sourceUrl = process.env.INTEGRATOR_DATABASE_URL || process.env.SOURCE_DATABASE_URL;
 const targetUrl = process.env.DATABASE_URL;
 
 if (!sourceUrl) {
-  console.error("SOURCE_DATABASE_URL is not set (integrator DB)");
+  console.error("INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set");
   process.exit(1);
 }
 if (!targetUrl) {
