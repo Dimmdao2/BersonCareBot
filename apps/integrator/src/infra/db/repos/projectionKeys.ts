@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { jsonStableStringify } from '../../adapters/jsonStableStringify.js';
 
 /**
  * Builds a deterministic idempotency key for projection events.
@@ -17,6 +18,5 @@ export function projectionIdempotencyKey(
 }
 
 export function hashPayload(payload: Record<string, unknown>): string {
-  const sorted = JSON.stringify(payload, Object.keys(payload).sort());
-  return createHash('sha256').update(sorted).digest('hex').slice(0, 16);
+  return createHash('sha256').update(jsonStableStringify(payload)).digest('hex').slice(0, 16);
 }

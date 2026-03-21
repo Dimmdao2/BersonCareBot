@@ -184,6 +184,12 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
   },
 
   async appendDeliveryEventFromProjection(params) {
+    if (params.integratorIntentEventId) {
+      const existing = deliveryEvents.find(
+        (e) => e.integratorIntentEventId === params.integratorIntentEventId,
+      );
+      if (existing) return { id: existing.id };
+    }
     const id = nextId("del", ++deliveryIdSeq);
     deliveryEvents.push({
       id,

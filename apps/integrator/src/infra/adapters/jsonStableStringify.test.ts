@@ -23,4 +23,10 @@ describe('jsonStableStringify', () => {
     };
     expect(buildIntegratorEventsHttpBody(event1)).toBe(buildIntegratorEventsHttpBody(event2));
   });
+
+  it('throws on circular structures', () => {
+    const obj: Record<string, unknown> = { a: 1 };
+    obj.self = obj;
+    expect(() => jsonStableStringify(obj)).toThrow(/circular/i);
+  });
 });

@@ -68,6 +68,24 @@ describe("SupportCommunicationPort (in-memory)", () => {
     expect(ma.id).toBe(mb.id);
   });
 
+  it("delivery event append is idempotent by integratorIntentEventId", async () => {
+    const port = inMemorySupportCommunicationPort;
+    const params = {
+      conversationMessageId: null,
+      integratorIntentEventId: "evt-idemp-1",
+      correlationId: "corr-idemp-1",
+      channelCode: "telegram",
+      status: "success",
+      attempt: 1,
+      reason: null,
+      payloadJson: {},
+      occurredAt: new Date().toISOString(),
+    };
+    const a = await port.appendDeliveryEventFromProjection(params);
+    const b = await port.appendDeliveryEventFromProjection(params);
+    expect(a.id).toBe(b.id);
+  });
+
   it("delivery event append stores per-channel status trail", async () => {
     const port = inMemorySupportCommunicationPort;
     const { id: conversationId } = await port.upsertConversationFromProjection({

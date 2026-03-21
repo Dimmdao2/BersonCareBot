@@ -24,7 +24,15 @@ loadCutoverEnv();
 const args = process.argv.slice(2);
 const dryRun = !args.includes("--commit");
 const limitArg = args.find((a) => a.startsWith("--limit="));
-const limit = limitArg ? parseInt(limitArg.split("=")[1], 10) : 0;
+const MAX_BACKFILL_LIMIT = 500_000;
+function parseBackfillLimit(arg) {
+  if (!arg || !arg.includes("=")) return 0;
+  const raw = arg.slice(arg.indexOf("=") + 1);
+  const n = parseInt(String(raw), 10);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, MAX_BACKFILL_LIMIT);
+}
+const limit = limitArg ? parseBackfillLimit(limitArg) : 0;
 
 const sourceUrl = process.env.INTEGRATOR_DATABASE_URL || process.env.SOURCE_DATABASE_URL;
 const targetUrl = process.env.DATABASE_URL;
@@ -107,7 +115,13 @@ async function backfillConversations() {
       }
       if (!dryRun) await dst.query("COMMIT");
     } catch (err) {
-      if (!dryRun) await dst.query("ROLLBACK");
+      if (!dryRun) {
+        try {
+          await dst.query("ROLLBACK");
+        } catch {
+          // Best effort rollback; preserve original batch error.
+        }
+      }
       throw err;
     }
   }
@@ -163,7 +177,13 @@ async function backfillConversationMessages() {
       }
       if (!dryRun) await dst.query("COMMIT");
     } catch (err) {
-      if (!dryRun) await dst.query("ROLLBACK");
+      if (!dryRun) {
+        try {
+          await dst.query("ROLLBACK");
+        } catch {
+          // Best effort rollback; preserve original batch error.
+        }
+      }
       throw err;
     }
   }
@@ -209,7 +229,13 @@ async function backfillQuestions() {
       }
       if (!dryRun) await dst.query("COMMIT");
     } catch (err) {
-      if (!dryRun) await dst.query("ROLLBACK");
+      if (!dryRun) {
+        try {
+          await dst.query("ROLLBACK");
+        } catch {
+          // Best effort rollback; preserve original batch error.
+        }
+      }
       throw err;
     }
   }
@@ -253,7 +279,13 @@ async function backfillQuestionMessages() {
       }
       if (!dryRun) await dst.query("COMMIT");
     } catch (err) {
-      if (!dryRun) await dst.query("ROLLBACK");
+      if (!dryRun) {
+        try {
+          await dst.query("ROLLBACK");
+        } catch {
+          // Best effort rollback; preserve original batch error.
+        }
+      }
       throw err;
     }
   }
@@ -296,7 +328,13 @@ async function backfillDeliveryAttemptLogs() {
       }
       if (!dryRun) await dst.query("COMMIT");
     } catch (err) {
-      if (!dryRun) await dst.query("ROLLBACK");
+      if (!dryRun) {
+        try {
+          await dst.query("ROLLBACK");
+        } catch {
+          // Best effort rollback; preserve original batch error.
+        }
+      }
       throw err;
     }
   }

@@ -51,7 +51,12 @@ async function fetchAppointmentsGet<T>(
     const res = await fetch(url, { method: 'GET', headers });
     const data = (await res.json().catch(() => ({}))) as T;
     return { ok: res.ok && (data as { ok?: boolean }).ok === true, data, status: res.status };
-  } catch {
+  } catch (err) {
+    console.warn('appointments reads GET failed', {
+      pathname,
+      status: 0,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return { ok: false, status: 0 };
   }
 }

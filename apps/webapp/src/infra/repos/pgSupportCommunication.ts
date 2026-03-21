@@ -416,6 +416,9 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           conversation_message_id, integrator_intent_event_id, correlation_id,
           channel_code, status, attempt, reason, payload_json, occurred_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::timestamptz)
+        ON CONFLICT (integrator_intent_event_id)
+          WHERE integrator_intent_event_id IS NOT NULL
+        DO NOTHING
         RETURNING id`,
         [
           params.conversationMessageId,
@@ -429,7 +432,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           params.occurredAt,
         ]
       );
-      return { id: r.rows[0].id };
+      return { id: r.rows[0]?.id ?? '' };
     },
 
     async listConversationsByUser(platformUserId) {

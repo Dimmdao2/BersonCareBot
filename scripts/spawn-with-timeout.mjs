@@ -28,12 +28,17 @@ export function runWithTimeout(cmd, args, opts) {
       cwd,
       stdio: "inherit",
       shell,
+      detached: process.platform !== "win32",
     });
     const timer = setTimeout(() => {
       timedOut = true;
       console.error(`[${name}] TIMEOUT after ${timeoutMs}ms — sending SIGTERM`);
       try {
-        child.kill("SIGTERM");
+        if (process.platform !== "win32" && typeof child.pid === "number") {
+          process.kill(-child.pid, "SIGTERM");
+        } else {
+          child.kill("SIGTERM");
+        }
       } catch {
         /* ignore */
       }

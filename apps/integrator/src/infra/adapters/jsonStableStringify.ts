@@ -4,20 +4,30 @@
  * nested objects), matching webapp raw-body hashing for idempotency.
  */
 export function jsonStableStringify(value: unknown): string {
+  return stringifyStable(value, new WeakSet<object>());
+}
+
+function stringifyStable(value: unknown, seen: WeakSet<object>): string {
   if (value === null) return 'null';
   const t = typeof value;
   if (t === 'string') return JSON.stringify(value);
   if (t === 'number' || t === 'boolean') return JSON.stringify(value);
   if (t === 'bigint') return JSON.stringify(Number(value));
   if (Array.isArray(value)) {
-    return `[${value.map((item) => jsonStableStringify(item === undefined ? null : item)).join(',')}]`;
+    return `[${value.map((item) => stringifyStable(item === undefined ? null : item, seen)).join(',')}]`;
   }
   if (t === 'object') {
     const obj = value as Record<string, unknown>;
+    if (seen.has(obj)) {
+      throw new TypeError('Converting circular structure to JSON');
+    }
+    seen.add(obj);
     const keys = Object.keys(obj)
       .filter((k) => obj[k] !== undefined)
       .sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${jsonStableStringify(obj[k])}`).join(',')}}`;
+    const out = `{${keys.map((k) => `${JSON.stringify(k)}:${stringifyStable(obj[k], seen)}`).join(',')}}`;
+    seen.delete(obj);
+    return out;
   }
   return JSON.stringify(value);
 }

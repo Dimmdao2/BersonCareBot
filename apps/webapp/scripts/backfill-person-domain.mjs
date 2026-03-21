@@ -258,7 +258,13 @@ async function main() {
         }
         if (!dryRun) await webapp.query("COMMIT");
       } catch (err) {
-        if (!dryRun) await webapp.query("ROLLBACK");
+        if (!dryRun) {
+          try {
+            await webapp.query("ROLLBACK");
+          } catch {
+            // Best effort rollback; preserve original batch error.
+          }
+        }
         throw err;
       }
     }

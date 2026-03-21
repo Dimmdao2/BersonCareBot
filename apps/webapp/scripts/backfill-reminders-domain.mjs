@@ -117,7 +117,13 @@ async function backfillReminderRules() {
       }
       if (!dryRun) await dst.query("COMMIT");
     } catch (err) {
-      if (!dryRun) await dst.query("ROLLBACK");
+      if (!dryRun) {
+        try {
+          await dst.query("ROLLBACK");
+        } catch {
+          // Best effort rollback; preserve original batch error.
+        }
+      }
       throw err;
     }
   }
@@ -164,7 +170,13 @@ async function backfillReminderOccurrenceHistory() {
       }
       if (!dryRun) await dst.query("COMMIT");
     } catch (err) {
-      if (!dryRun) await dst.query("ROLLBACK");
+      if (!dryRun) {
+        try {
+          await dst.query("ROLLBACK");
+        } catch {
+          // Best effort rollback; preserve original batch error.
+        }
+      }
       throw err;
     }
   }
@@ -211,7 +223,13 @@ async function backfillReminderDeliveryEvents() {
       }
       if (!dryRun) await dst.query("COMMIT");
     } catch (err) {
-      if (!dryRun) await dst.query("ROLLBACK");
+      if (!dryRun) {
+        try {
+          await dst.query("ROLLBACK");
+        } catch {
+          // Best effort rollback; preserve original batch error.
+        }
+      }
       throw err;
     }
   }
@@ -265,7 +283,13 @@ async function backfillContentAccessGrants() {
       }
       if (!dryRun) await dst.query("COMMIT");
     } catch (err) {
-      if (!dryRun) await dst.query("ROLLBACK");
+      if (!dryRun) {
+        try {
+          await dst.query("ROLLBACK");
+        } catch {
+          // Best effort rollback; preserve original batch error.
+        }
+      }
       throw err;
     }
   }
