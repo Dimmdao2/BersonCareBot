@@ -33,7 +33,7 @@ export function ContentForm({ page }: { page?: ContentPage }) {
         {page ? (
           <>
             <input type="hidden" name="section" value={page.section} />
-            <input type="text" className="auth-input" value={page.section} disabled readOnly />
+            <input type="text" className="auth-input" value={page.section} disabled />
           </>
         ) : (
           <select id="content-section" name="section" className="auth-input" defaultValue="lessons">
