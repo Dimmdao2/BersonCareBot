@@ -16,6 +16,10 @@ export async function saveContentPage(formData: FormData) {
   const title = (formData.get("title") as string)?.trim() || "";
   const summary = (formData.get("summary") as string)?.trim() || "";
   const bodyHtml = (formData.get("body_html") as string) || "";
+  if (title.length > 500) return;
+  if (summary.length > 2000) return;
+  if (bodyHtml.length > 50000) return;
+  if (slug.length > 200) return;
   const sortOrder = parseInt(formData.get("sort_order") as string, 10) || 0;
   const isPublished = formData.get("is_published") === "on";
   const videoUrl = (formData.get("video_url") as string)?.trim() || null;

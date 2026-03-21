@@ -38,6 +38,7 @@ export async function createLfkComplex(formData: FormData) {
   const session = await requirePatientAccess();
   const title = (formData.get("complexTitle") as string)?.trim();
   if (!title) return;
+  if (title.length > 200) return;
   const deps = buildAppDeps();
   try {
     await deps.diaries.createLfkComplex({

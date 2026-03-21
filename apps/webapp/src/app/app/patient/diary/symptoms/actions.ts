@@ -35,6 +35,7 @@ export async function addSymptomEntry(formData: FormData) {
 
   const notes =
     typeof notesRaw === "string" && notesRaw.trim() ? notesRaw.trim() : null;
+  if (notes && notes.length > 2000) return;
 
   try {
     await deps.diaries.addSymptomEntry({
@@ -59,6 +60,7 @@ export async function createSymptomTracking(formData: FormData) {
   if (typeof symptomTitleRaw !== "string" || !symptomTitleRaw.trim()) {
     return;
   }
+  if (symptomTitleRaw.trim().length > 200) return;
   const deps = buildAppDeps();
   try {
     await deps.diaries.createSymptomTracking({

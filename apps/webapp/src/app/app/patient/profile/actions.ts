@@ -8,6 +8,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 export async function updateDisplayName(newName: string) {
   const trimmedName = newName.trim();
   if (!trimmedName) return;
+  if (trimmedName.length > 200) return;
 
   const session = await requirePatientAccess(routePaths.profile);
   const deps = buildAppDeps();
