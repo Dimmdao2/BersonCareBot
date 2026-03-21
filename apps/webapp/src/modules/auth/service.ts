@@ -3,7 +3,9 @@ import { cookies } from "next/headers";
 import { env, integratorWebappEntrySecret, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
+import { resolveRoleFromEnv, getNormalizedWhitelistedPhonesFromEnv } from "./envRole";
 import type { IdentityResolutionPort } from "./identityResolutionPort";
+import { normalizePhone } from "./phoneAuth";
 import { getRedirectPathForRole } from "./redirectPolicy";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
@@ -156,6 +158,8 @@ function isAllowedByWhitelist(parsed: IntegratorTokenPayload): boolean {
   const maxId = parsed.bindings?.maxId;
   if (telegramId && getAllowedTelegramIds().has(telegramId)) return true;
   if (maxId && getAllowedMaxIds().has(maxId)) return true;
+  const phone = parsed.phone?.trim();
+  if (phone && getNormalizedWhitelistedPhonesFromEnv().has(normalizePhone(phone))) return true;
   return false;
 }
 
@@ -199,47 +203,10 @@ function validateTelegramInitData(initData: string): { telegramId: string; role:
   const allowed = getAllowedTelegramIds();
   if (!allowed.has(telegramId)) return null;
 
-  const role: UserRole = resolveRole({ telegramId });
+  const role: UserRole = resolveRoleFromEnv({});
   const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || undefined;
 
   return { telegramId, role, displayName };
-}
-
-/** Resolves role from Telegram and/or Max bindings (env lists). Priority: admin > doctor > client on any channel. */
-function resolveRole(ids: { telegramId?: string; maxId?: string }): UserRole {
-  const telegramIdStr = ids.telegramId?.trim();
-  const maxIdStr = ids.maxId?.trim();
-
-  const doctorIds = (env.DOCTOR_TELEGRAM_IDS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const adminMax = (env.ADMIN_MAX_IDS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const doctorMax = (env.DOCTOR_MAX_IDS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (telegramIdStr) {
-    const numericId = parseInt(telegramIdStr, 10);
-    if (typeof env.ADMIN_TELEGRAM_ID === "number" && numericId === env.ADMIN_TELEGRAM_ID) {
-      return "admin";
-    }
-  }
-  if (maxIdStr && adminMax.includes(maxIdStr)) return "admin";
-
-  if (telegramIdStr) {
-    const numericId = parseInt(telegramIdStr, 10);
-    if (doctorIds.includes(telegramIdStr) || doctorIds.includes(String(numericId))) {
-      return "doctor";
-    }
-  }
-  if (maxIdStr && doctorMax.includes(maxIdStr)) return "doctor";
-
-  return "client";
 }
 
 function tokenToUser(token: IntegratorTokenPayload): SessionUser {
@@ -291,9 +258,8 @@ export async function exchangeIntegratorToken(
     user = tokenToUser(parsed);
   }
 
-  const envRole = resolveRole({
-    telegramId: parsed.bindings?.telegramId,
-    maxId: parsed.bindings?.maxId,
+  const envRole = resolveRoleFromEnv({
+    phone: user.phone ?? parsed.phone,
   });
   if (user.role !== envRole) {
     if (updateRoleFn) await updateRoleFn(user.userId, envRole);
@@ -342,7 +308,7 @@ export async function exchangeTelegramInitData(
     };
   }
 
-  const envRole = resolveRole({ telegramId: parsed.telegramId });
+  const envRole = resolveRoleFromEnv({ phone: user.phone });
   if (user.role !== envRole) {
     if (updateRoleFn) await updateRoleFn(user.userId, envRole);
     user = { ...user, role: envRole };
@@ -364,10 +330,44 @@ export async function exchangeTelegramInitData(
   };
 }
 
+/**
+ * Если в сессии есть привязанный телефон, роль сверяется с ADMIN_PHONES / DOCTOR_PHONES.
+ * Так пользователь мессенджера после привязки номера получает admin/doctor без повторного входа;
+ * cookie и при наличии БД строка role в platform_users обновляются.
+ */
 export async function getCurrentSession(): Promise<AppSession | null> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  return raw ? decodeSession(raw) : null;
+  const session = raw ? decodeSession(raw) : null;
+  if (!session?.user) return null;
+
+  const phone = session.user.phone?.trim();
+  if (!phone) return session;
+
+  const envRole = resolveRoleFromEnv({ phone });
+  if (session.user.role === envRole) return session;
+
+  const nextUser = { ...session.user, role: envRole };
+  const nextSession = buildSession(nextUser);
+
+  if (env.DATABASE_URL) {
+    try {
+      const { pgUserProjectionPort } = await import("@/infra/repos/pgUserProjection");
+      await pgUserProjectionPort.updateRole(session.user.userId, envRole);
+    } catch {
+      /* ignore: in-memory tests or DB unavailable */
+    }
+  }
+
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(nextSession), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: SESSION_TTL_SECONDS,
+  });
+
+  return nextSession;
 }
 
 export async function clearSession(): Promise<void> {

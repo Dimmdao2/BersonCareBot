@@ -73,6 +73,12 @@ const envSchema = z.object({
   ADMIN_MAX_IDS: z.string().optional().default(""),
   /** Comma-separated Max user ids treated as doctor (role resolution + whitelist). */
   DOCTOR_MAX_IDS: z.string().optional().default(""),
+  /** Comma-separated phone numbers (any format); normalized match → admin. */
+  ADMIN_PHONES: z.string().optional().default(""),
+  /** Comma-separated phone numbers → doctor. */
+  DOCTOR_PHONES: z.string().optional().default(""),
+  /** Comma-separated phone numbers allowed for client-only entry (token / phone flow whitelist). */
+  ALLOWED_PHONES: z.string().optional().default(""),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   /** Optional URL for MVP test video (e.g. /videos/test.mp4 or external). Webapp-owned; no integrator coupling. */
   MEDIA_TEST_VIDEO_URL: z.string().optional().default(""),
@@ -96,6 +102,9 @@ const parsed = envSchema.parse({
   DOCTOR_TELEGRAM_IDS: process.env.DOCTOR_TELEGRAM_IDS,
   ADMIN_MAX_IDS: process.env.ADMIN_MAX_IDS,
   DOCTOR_MAX_IDS: process.env.DOCTOR_MAX_IDS,
+  ADMIN_PHONES: process.env.ADMIN_PHONES,
+  DOCTOR_PHONES: process.env.DOCTOR_PHONES,
+  ALLOWED_PHONES: process.env.ALLOWED_PHONES,
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   MEDIA_TEST_VIDEO_URL: process.env.MEDIA_TEST_VIDEO_URL ?? "",
 });

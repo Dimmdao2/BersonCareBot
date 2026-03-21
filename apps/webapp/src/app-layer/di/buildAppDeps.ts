@@ -68,6 +68,8 @@ import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubsc
 import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemorySubscriptionMailingProjection";
 import { checkDbHealth, getPool } from "@/infra/db/client";
 import { env, integratorWebhookSecret } from "@/config/env";
+import { resolveRoleFromEnv } from "@/modules/auth/envRole";
+import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
 
 const symptomDiaryPort = env.DATABASE_URL ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
@@ -176,8 +178,19 @@ export function buildAppDeps() {
       setSessionFromUser,
       startPhoneAuth: (phone: string, context: ChannelContext) =>
         startPhoneAuthFlow(phone, context, phoneAuthDeps),
-      confirmPhoneAuth: (challengeId: string, code: string) =>
-        confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps),
+      confirmPhoneAuth: async (challengeId: string, code: string) => {
+        const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
+        if (!result.ok) return result;
+        const envRole = resolveRoleFromEnv({ phone: result.user.phone });
+        if (result.user.role === envRole) return result;
+        await userProjectionPort.updateRole(result.user.userId, envRole);
+        const user = { ...result.user, role: envRole };
+        return {
+          ok: true as const,
+          user,
+          redirectTo: getRedirectPathForRole(envRole),
+        };
+      },
     },
     users: {
       getCurrentUser,
