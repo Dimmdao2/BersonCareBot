@@ -10,6 +10,7 @@ const DOCTOR_NAV_ITEMS: { id: string; label: string; href: string }[] = [
   { id: "messages", label: "Сообщения", href: "/app/doctor/messages" },
   { id: "broadcasts", label: "Рассылки", href: "/app/doctor/broadcasts" },
   { id: "stats", label: "Статистика", href: "/app/doctor/stats" },
+  { id: "content", label: "Контент", href: "/app/doctor/content" },
   { id: "settings", label: "Настройки", href: "/app/settings" },
 ];
 

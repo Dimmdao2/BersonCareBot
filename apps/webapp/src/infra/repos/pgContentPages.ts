@@ -17,6 +17,7 @@ export type ContentPageRow = {
 export type ContentPagesPort = {
   listBySection: (section: string) => Promise<ContentPageRow[]>;
   getBySlug: (slug: string) => Promise<ContentPageRow | null>;
+  getById: (id: string) => Promise<ContentPageRow | null>;
   listAll: () => Promise<ContentPageRow[]>;
   upsert: (page: Omit<ContentPageRow, "id"> & { id?: string }) => Promise<string>;
 };
@@ -38,6 +39,15 @@ export function createPgContentPagesPort(): ContentPagesPort {
         `SELECT id, section, slug, title, summary, body_html, sort_order, is_published, video_url, video_type, image_url
          FROM content_pages WHERE slug = $1 AND is_published = true`,
         [slug]
+      );
+      return res.rows[0] ? mapRow(res.rows[0]) : null;
+    },
+    async getById(id) {
+      const pool = getPool();
+      const res = await pool.query(
+        `SELECT id, section, slug, title, summary, body_html, sort_order, is_published, video_url, video_type, image_url
+         FROM content_pages WHERE id = $1`,
+        [id]
       );
       return res.rows[0] ? mapRow(res.rows[0]) : null;
     },
@@ -87,6 +97,7 @@ function mapRow(row: Record<string, unknown>): ContentPageRow {
 export const inMemoryContentPagesPort: ContentPagesPort = {
   listBySection: async () => [],
   getBySlug: async () => null,
+  getById: async () => null,
   listAll: async () => [],
   upsert: async () => "",
 };

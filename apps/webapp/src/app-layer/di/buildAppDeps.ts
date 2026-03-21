@@ -275,5 +275,6 @@ export function buildAppDeps() {
     appointmentProjection: appointmentProjectionPort,
     branches: branchesProjectionPort ?? undefined,
     subscriptionMailingProjection: subscriptionMailingProjectionPort,
+    contentPages: contentPagesPort,
   };
 }
