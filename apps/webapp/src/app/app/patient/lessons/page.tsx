@@ -13,7 +13,7 @@ import { FeatureCard } from "@/shared/ui/FeatureCard";
 export default async function PatientLessonsPage() {
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
-  const lessons = deps.lessons.listLessons();
+  const lessons = await deps.lessons.listLessons();
 
   return (
     <AppShell title="Полезные уроки" user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">

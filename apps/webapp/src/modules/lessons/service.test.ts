@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { listLessons } from "./service";
 
 describe("lessons service", () => {
-  it("returns non-empty list", () => {
-    const lessons = listLessons();
+  it("returns non-empty list", async () => {
+    const lessons = await listLessons();
     expect(Array.isArray(lessons)).toBe(true);
     expect(lessons.length).toBeGreaterThan(0);
   });
 
-  it("each lesson has id, title, type, summary, status", () => {
-    const lessons = listLessons();
+  it("each lesson has id, title, type, summary, status", async () => {
+    const lessons = await listLessons();
     for (const lesson of lessons) {
       expect(lesson).toHaveProperty("id");
       expect(lesson).toHaveProperty("title");

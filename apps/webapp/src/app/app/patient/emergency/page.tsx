@@ -13,7 +13,7 @@ import { FeatureCard } from "@/shared/ui/FeatureCard";
 export default async function EmergencyPage() {
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
-  const topics = deps.emergency.listEmergencyTopics();
+  const topics = await deps.emergency.listEmergencyTopics();
 
   return (
     <AppShell title="Скорая помощь" user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">

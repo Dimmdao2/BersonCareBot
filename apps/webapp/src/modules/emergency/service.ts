@@ -1,10 +1,12 @@
+import type { ContentPagesPort } from "@/infra/repos/pgContentPages";
+
 export type EmergencyTopic = {
   id: string;
   title: string;
   summary: string;
 };
 
-const topics: EmergencyTopic[] = [
+const hardcodedTopics: EmergencyTopic[] = [
   {
     id: "back-pain",
     title: "Острая боль в спине",
@@ -22,6 +24,20 @@ const topics: EmergencyTopic[] = [
   },
 ];
 
-export function listEmergencyTopics(): EmergencyTopic[] {
-  return topics;
+export async function listEmergencyTopics(contentPages?: ContentPagesPort): Promise<EmergencyTopic[]> {
+  if (contentPages) {
+    try {
+      const rows = await contentPages.listBySection("emergency");
+      if (rows.length > 0) {
+        return rows.map((r) => ({
+          id: r.slug,
+          title: r.title,
+          summary: r.summary,
+        }));
+      }
+    } catch {
+      // fallback to hardcoded data
+    }
+  }
+  return hardcodedTopics;
 }

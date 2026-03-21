@@ -56,6 +56,7 @@ import { pgLfkDiaryPort } from "@/infra/repos/pgLfkDiary";
 import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
 import { pgChannelPreferencesPort } from "@/infra/repos/pgChannelPreferences";
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
+import { createPgContentPagesPort, inMemoryContentPagesPort } from "@/infra/repos/pgContentPages";
 import { createPgSupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
@@ -94,6 +95,7 @@ const branchesProjectionPort = env.DATABASE_URL ? createPgBranchesProjectionPort
 const subscriptionMailingProjectionPort = env.DATABASE_URL
   ? createPgSubscriptionMailingProjectionPort()
   : inMemorySubscriptionMailingProjectionPort;
+const contentPagesPort = env.DATABASE_URL ? createPgContentPagesPort() : inMemoryContentPagesPort;
 
 function linkFromPayload(payload: Record<string, unknown>): string | null {
   const link = payload?.link;
@@ -135,6 +137,7 @@ const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
 const channelPreferencesService = createChannelPreferencesService(channelPreferencesPort);
 const contentCatalog = createContentCatalogResolver({
   testVideoUrl: env.MEDIA_TEST_VIDEO_URL?.length ? env.MEDIA_TEST_VIDEO_URL : undefined,
+  contentPages: contentPagesPort,
 });
 
 const smsPort =
@@ -183,10 +186,10 @@ export function buildAppDeps() {
       getMenuForRole,
     },
     lessons: {
-      listLessons,
+      listLessons: () => listLessons(contentPagesPort),
     },
     emergency: {
-      listEmergencyTopics,
+      listEmergencyTopics: () => listEmergencyTopics(contentPagesPort),
     },
     patientCabinet: createPatientCabinetService({
       getUpcomingAppointments,

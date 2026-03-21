@@ -42,7 +42,7 @@ export default async function ContentSlugPage({ params }: Props) {
   const { slug } = await params;
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
-  const item = deps.contentCatalog.getBySlug(slug);
+  const item = await deps.contentCatalog.getBySlug(slug);
   if (!item) notFound();
 
   const videoPlayableUrl =

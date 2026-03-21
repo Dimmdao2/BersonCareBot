@@ -22,9 +22,9 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("contentCatalog");
   });
 
-  it("contentCatalog.getBySlug resolves known slug", () => {
+  it("contentCatalog.getBySlug resolves known slug", async () => {
     const deps = buildAppDeps();
-    const item = deps.contentCatalog.getBySlug("neck-warmup");
+    const item = await deps.contentCatalog.getBySlug("neck-warmup");
     expect(item).not.toBeNull();
     expect(item!.title).toBe("Разминка для шеи");
   });

@@ -1,3 +1,5 @@
+import type { ContentPagesPort } from "@/infra/repos/pgContentPages";
+
 export type LessonCard = {
   id: string;
   title: string;
@@ -6,7 +8,7 @@ export type LessonCard = {
   status: "available" | "coming-soon";
 };
 
-const lessons: LessonCard[] = [
+const hardcodedLessons: LessonCard[] = [
   {
     id: "neck-warmup",
     title: "Разминка для шеи",
@@ -30,6 +32,22 @@ const lessons: LessonCard[] = [
   },
 ];
 
-export function listLessons(): LessonCard[] {
-  return lessons;
+export async function listLessons(contentPages?: ContentPagesPort): Promise<LessonCard[]> {
+  if (contentPages) {
+    try {
+      const rows = await contentPages.listBySection("lessons");
+      if (rows.length > 0) {
+        return rows.map((r) => ({
+          id: r.slug,
+          title: r.title,
+          type: "lesson" as const,
+          summary: r.summary,
+          status: "available" as const,
+        }));
+      }
+    } catch {
+      // fallback to hardcoded data
+    }
+  }
+  return hardcodedLessons;
 }

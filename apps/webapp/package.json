@@ -23,7 +23,8 @@
     "backfill-appointments-domain": "node scripts/backfill-appointments-domain.mjs",
     "reconcile-appointments-domain": "node scripts/reconcile-appointments-domain.mjs",
     "backfill-subscription-mailing-domain": "node scripts/backfill-subscription-mailing-domain.mjs",
-    "reconcile-subscription-mailing-domain": "node scripts/reconcile-subscription-mailing-domain.mjs"
+    "reconcile-subscription-mailing-domain": "node scripts/reconcile-subscription-mailing-domain.mjs",
+    "seed-content": "node scripts/seed-content-pages.mjs"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
