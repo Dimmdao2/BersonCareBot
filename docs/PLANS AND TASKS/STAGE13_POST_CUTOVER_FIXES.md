@@ -533,4 +533,5 @@ IF current_setting('app.stage13_bypass', true) = 'true' THEN RETURN NEW; END IF;
 
 **Фаза 1 выполнена:** A1, A2, A3, A4, B1, B3, B4, B5, B6.
 **Фаза 2 выполнена:** деплой + миграция 013 + backfill --commit + reconcile + stage13-gate OK (2026-03-20 18:24).
-**Фаза 3 выполнена в коде:** B2, B2a, C1–C8 (миграции integrator `20260320_*`, stable JSON для projection delivery, batch-транзакции в backfill, таймауты gate/cutover, параллельные loop worker, док stage12, bypass freeze). Деплой на прод и проверки — отдельно по runbook.
+**Фаза 3 выполнена:** B2, B2a, C1–C8 (миграции integrator `20260320_*`, stable JSON для projection delivery, batch-транзакции в backfill, таймауты gate/cutover, параллельные loop worker, док stage12, bypass freeze).
+**Фаза 3 (prod) подтверждена:** `deploy-prod.sh` выполнен, `stage13-gate` = OK, `projection-health` = 0 pending / 0 dead, SQL-проверки `projection_outbox` = без дублей `idempotency_key` и без `dead` для `user.upserted` (2026-03-21).
