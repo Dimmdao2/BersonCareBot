@@ -36,7 +36,8 @@ export function createContentCatalogResolver(options: {
             }
             return item;
           }
-        } catch {
+        } catch (err) {
+          console.error("content DB fallback:", err);
           // fallback to static catalog
         }
       }

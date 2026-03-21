@@ -14,19 +14,29 @@ const pages = [
 ];
 
 async function seed() {
-  for (const p of pages) {
-    await pool.query(
-      `INSERT INTO content_pages (section, slug, title, summary, body_html, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (section, slug) DO UPDATE SET
-         title = EXCLUDED.title,
-         summary = EXCLUDED.summary,
-         sort_order = EXCLUDED.sort_order,
-         updated_at = now()`,
-      [p.section, p.slug, p.title, p.summary, p.body_html, p.sort_order]
-    );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    for (const p of pages) {
+      await client.query(
+        `INSERT INTO content_pages (section, slug, title, summary, body_html, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (section, slug) DO UPDATE SET
+           title = EXCLUDED.title,
+           summary = EXCLUDED.summary,
+           sort_order = EXCLUDED.sort_order,
+           updated_at = now()`,
+        [p.section, p.slug, p.title, p.summary, p.body_html, p.sort_order]
+      );
+    }
+    await client.query("COMMIT");
+    console.log(`Seeded ${pages.length} content pages.`);
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
   }
-  console.log(`Seeded ${pages.length} content pages.`);
   await pool.end();
 }
 

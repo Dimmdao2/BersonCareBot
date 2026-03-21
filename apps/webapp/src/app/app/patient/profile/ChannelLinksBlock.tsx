@@ -13,6 +13,10 @@ const CHANNEL_ICONS: Record<string, string> = {
 export function ChannelLinksBlock({ channelCards }: Props) {
   const cards = channelCards.filter((card) => card.isImplemented);
 
+  if (cards.length === 0) {
+    return <p className="empty-state">Нет доступных каналов.</p>;
+  }
+
   return (
     <ul className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
       {cards.map((card) => (

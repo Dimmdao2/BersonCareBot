@@ -45,7 +45,8 @@ export async function listLessons(contentPages?: ContentPagesPort): Promise<Less
           status: "available" as const,
         }));
       }
-    } catch {
+    } catch (err) {
+      console.error("lessons DB fallback:", err);
       // fallback to hardcoded data
     }
   }

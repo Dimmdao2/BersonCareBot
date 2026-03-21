@@ -53,6 +53,9 @@ export default async function AppEntryPage({
               <Link id="app-entry-dev-login-doctor" href="/app?t=dev:admin" className="button">
                 Как врач / админ
               </Link>
+              <Link id="app-entry-dev-login-doctor-role" href="/app?t=dev:doctor" className="button">
+                Как специалист
+              </Link>
             </div>
           </div>
         )}
