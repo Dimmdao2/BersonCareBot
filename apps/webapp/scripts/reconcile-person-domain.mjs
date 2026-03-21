@@ -99,8 +99,11 @@ async function fetchTarget(client) {
     WHERE pu.integrator_user_id IS NOT NULL
   `);
   const byIntegratorId = new Map();
+  /** @type {Map<string, string>} platform_users.id (uuid string) -> integrator_user_id */
+  const integratorIdByPlatformUserId = new Map();
   for (const row of usersRes.rows) {
     const id = String(row.integrator_user_id);
+    integratorIdByPlatformUserId.set(String(row.id), id);
     byIntegratorId.set(id, {
       platformUserId: row.id,
       integratorUserId: id,
@@ -111,16 +114,16 @@ async function fetchTarget(client) {
     });
   }
   for (const row of bindingsRes.rows) {
-    const pu = usersRes.rows.find((r) => r.id === row.user_id);
-    if (pu) {
-      const u = byIntegratorId.get(String(pu.integrator_user_id));
+    const integratorKey = integratorIdByPlatformUserId.get(String(row.user_id));
+    if (integratorKey) {
+      const u = byIntegratorId.get(integratorKey);
       if (u) u.bindings.push({ channelCode: row.channel_code, externalId: row.external_id });
     }
   }
   for (const row of topicsRes.rows) {
-    const pu = usersRes.rows.find((r) => r.id === row.user_id);
-    if (pu) {
-      const u = byIntegratorId.get(String(pu.integrator_user_id));
+    const integratorKey = integratorIdByPlatformUserId.get(String(row.user_id));
+    if (integratorKey) {
+      const u = byIntegratorId.get(integratorKey);
       if (u) u.topics[row.topic_code] = !!row.is_enabled;
     }
   }

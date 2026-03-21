@@ -10,6 +10,7 @@ import type {
   WebappLfkComplex,
   WebappSymptomTracking,
 } from '../../kernel/contracts/index.js';
+import { buildIntegratorEventsHttpBody } from './jsonStableStringify.js';
 
 function sign(timestamp: string, body: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('base64url');
@@ -60,16 +61,12 @@ export function createWebappEventsPort(): WebappEventsPort {
         return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
       }
       const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/events`;
-      const body = JSON.stringify({
-        eventType: event.eventType,
-        ...(event.eventId && { eventId: event.eventId }),
-        ...(event.occurredAt && { occurredAt: event.occurredAt }),
-        ...(event.idempotencyKey && { idempotencyKey: event.idempotencyKey }),
-        ...(event.payload && { payload: event.payload }),
-      });
+      const body = buildIntegratorEventsHttpBody(event);
       const timestamp = String(Math.floor(Date.now() / 1000));
       const signature = sign(timestamp, body, secret);
-      const idempotencyKey = event.idempotencyKey ?? `evt-fallback:${event.eventType}:${createHash('sha256').update(body).digest('hex').slice(0, 24)}`;
+      const idempotencyKey =
+        event.idempotencyKey ??
+        `evt-fallback:${event.eventType}:${createHash('sha256').update(body).digest('hex').slice(0, 24)}`;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Bersoncare-Timestamp': timestamp,

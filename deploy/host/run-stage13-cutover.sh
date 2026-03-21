@@ -71,13 +71,21 @@ fi
 
 export DATABASE_URL="${WEBAPP_DB_URL}"
 export INTEGRATOR_DATABASE_URL="${API_DB_URL}"
+# Cutover runs on production host: avoid leaking NODE_ENV from webapp/api env files into scripts.
+export NODE_ENV=production
+
+STEP_TIMEOUT_SEC="${STAGE13_STEP_TIMEOUT_SEC:-120}"
 
 run_step() {
   local name="$1"
   shift
   echo ""
   echo "[$(timestamp)] >>> ${name}"
-  "$@"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "${STEP_TIMEOUT_SEC}" "$@"
+  else
+    "$@"
+  fi
   echo "[$(timestamp)] <<< ${name} [OK]"
 }
 

@@ -8,10 +8,10 @@
  * Usage: pnpm run stage13-gate
  *        STAGE13_E2E=1 pnpm run stage13-gate   # also run stage13 e2e suite when available
  */
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { loadCutoverEnv } from "./load-cutover-env.mjs";
+import { runWithTimeout } from "./spawn-with-timeout.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -32,35 +32,27 @@ if (!integratorUrl?.trim()) {
   process.exit(1);
 }
 
-function run(cmd, args, name) {
-  return new Promise((resolve) => {
-    const child = spawn(cmd, args, {
-      cwd: rootDir,
-      stdio: "inherit",
-      shell: true,
-    });
-    child.on("close", (code) => resolve(code !== 0 ? name : null));
-  });
-}
-
 async function main() {
   const failed = [];
 
-  const preflight = await run("node", ["scripts/stage13-preflight.mjs"], "stage13-preflight");
+  const preflight = await runWithTimeout("node", ["scripts/stage13-preflight.mjs"], {
+    cwd: rootDir,
+    name: "stage13-preflight",
+  });
   if (preflight) failed.push(preflight);
 
-  const projHealth = await run(
+  const projHealth = await runWithTimeout(
     "pnpm",
     ["--dir", "apps/integrator", "run", "projection-health"],
-    "projection-health"
+    { cwd: rootDir, name: "projection-health" }
   );
   if (projHealth) failed.push(projHealth);
 
   if (process.env.STAGE13_E2E === "1") {
-    const e2e = await run(
+    const e2e = await runWithTimeout(
       "pnpm",
       ["--dir", "apps/webapp", "run", "test", "--", "e2e/stage13", "--run"],
-      "stage13-e2e"
+      { cwd: rootDir, name: "stage13-e2e" }
     );
     if (e2e) failed.push(e2e);
   }

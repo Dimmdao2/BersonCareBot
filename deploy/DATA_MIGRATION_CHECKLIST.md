@@ -75,6 +75,19 @@ pnpm run stage13-gate
 - Reconcile и gate требуют двух БД (webapp + integrator) и корректных env.
 - Для обычных релизов повторный backfill не обязателен (онлайн-проекция из integrator в webapp работает через projection worker).
 
+### Integrator: freeze legacy таблиц (Stage 13)
+
+Триггеры на `mailing_topics` и `user_subscriptions` в БД integrator блокируют записи (проекция идёт в webapp). Для разовых ручных правок в той же сессии:
+
+```sql
+BEGIN;
+SET LOCAL app.stage13_bypass = 'true';
+-- корректирующий SQL
+COMMIT;
+```
+
+См. миграцию `20260320_0002_stage13_freeze_bypass.sql` в репозитории integrator.
+
 ## Сохранность данных
 
 - **Карточки и настройки пользователей:** backfill-person-domain переносит users → platform_users, identities/contacts → bindings, telegram_state (notify_*) → user_notification_topics (topic_code). Reconcile-person-domain сравнивает по integrator_user_id, phone, display_name, bindings, topics (с маппингом notify_* → topic_code).

@@ -155,7 +155,14 @@ async function main() {
 
     stats.usersScanned = byUser.size;
 
-    for (const [integratorUserId, u] of byUser) {
+    const PERSON_BATCH = 200;
+    const userEntries = [...byUser.entries()];
+
+    for (let off = 0; off < userEntries.length; off += PERSON_BATCH) {
+      const chunk = userEntries.slice(off, off + PERSON_BATCH);
+      if (!dryRun) await webapp.query("BEGIN");
+      try {
+        for (const [integratorUserId, u] of chunk) {
       let platformUserId = null;
       const existingByIntegrator = await webapp.query(
         "SELECT id FROM platform_users WHERE integrator_user_id = $1",
@@ -247,6 +254,12 @@ async function main() {
         }
       } else if (topicsToUpsert.length > 0 && dryRun) {
         stats.topicsUpserted += topicsToUpsert.length;
+      }
+        }
+        if (!dryRun) await webapp.query("COMMIT");
+      } catch (err) {
+        if (!dryRun) await webapp.query("ROLLBACK");
+        throw err;
       }
     }
 

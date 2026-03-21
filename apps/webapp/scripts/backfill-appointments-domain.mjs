@@ -81,7 +81,12 @@ async function main() {
     );
     console.log(`Appointment records to backfill: ${rows.length}`);
 
-    for (const row of rows) {
+    const BACKFILL_WRITE_BATCH = 500;
+    for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+      const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+      if (!dryRun) await dst.query("BEGIN");
+      try {
+        for (const row of chunk) {
       const payload = row.payload_json ?? {};
       const name = asString(payload.name);
       const email = asString(payload.email);
@@ -182,6 +187,12 @@ async function main() {
         );
       }
       stats.appointmentsProcessed += 1;
+        }
+        if (!dryRun) await dst.query("COMMIT");
+      } catch (err) {
+        if (!dryRun) await dst.query("ROLLBACK");
+        throw err;
+      }
     }
   } finally {
     await src.end();

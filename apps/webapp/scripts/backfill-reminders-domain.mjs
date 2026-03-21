@@ -47,6 +47,8 @@ if (dryRun) {
   console.log("[DRY-RUN] No writes will be performed. Pass --commit to write.");
 }
 
+const BACKFILL_WRITE_BATCH = 1000;
+
 const src = new pg.Client({ connectionString: sourceUrl });
 const dst = new pg.Client({ connectionString: targetUrl });
 
@@ -68,11 +70,15 @@ async function backfillReminderRules() {
   );
   console.log(`Reminder rules to backfill: ${rows.length}`);
   let n = 0;
-  for (const row of rows) {
-    const platformUserId = await resolvePlatformUserId(row.user_id);
-    if (!dryRun) {
-      await dst.query(
-        `INSERT INTO reminder_rules (
+  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+    if (!dryRun) await dst.query("BEGIN");
+    try {
+      for (const row of chunk) {
+        const platformUserId = await resolvePlatformUserId(row.user_id);
+        if (!dryRun) {
+          await dst.query(
+            `INSERT INTO reminder_rules (
           integrator_rule_id, platform_user_id, integrator_user_id, category, is_enabled,
           schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute,
           days_mask, content_mode, updated_at
@@ -90,24 +96,30 @@ async function backfillReminderRules() {
           days_mask = EXCLUDED.days_mask,
           content_mode = EXCLUDED.content_mode,
           updated_at = EXCLUDED.updated_at`,
-        [
-          row.id,
-          platformUserId,
-          String(row.user_id),
-          row.category,
-          row.is_enabled,
-          row.schedule_type,
-          row.timezone,
-          row.interval_minutes,
-          row.window_start_minute,
-          row.window_end_minute,
-          row.days_mask,
-          row.content_mode,
-          row.updated_at,
-        ]
-      );
+            [
+              row.id,
+              platformUserId,
+              String(row.user_id),
+              row.category,
+              row.is_enabled,
+              row.schedule_type,
+              row.timezone,
+              row.interval_minutes,
+              row.window_start_minute,
+              row.window_end_minute,
+              row.days_mask,
+              row.content_mode,
+              row.updated_at,
+            ]
+          );
+        }
+        n++;
+      }
+      if (!dryRun) await dst.query("COMMIT");
+    } catch (err) {
+      if (!dryRun) await dst.query("ROLLBACK");
+      throw err;
     }
-    n++;
   }
   console.log(`  Rules ${dryRun ? "would upsert" : "upserted"}: ${n}`);
 }
@@ -124,27 +136,37 @@ async function backfillReminderOccurrenceHistory() {
   );
   console.log(`Reminder occurrence history (sent/failed) to backfill: ${rows.length}`);
   let n = 0;
-  for (const row of rows) {
-    if (!dryRun) {
-      await dst.query(
-        `INSERT INTO reminder_occurrence_history (
+  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+    if (!dryRun) await dst.query("BEGIN");
+    try {
+      for (const row of chunk) {
+        if (!dryRun) {
+          await dst.query(
+            `INSERT INTO reminder_occurrence_history (
           integrator_occurrence_id, integrator_rule_id, integrator_user_id, category,
           status, delivery_channel, error_code, occurred_at
         ) VALUES ($1, $2, $3::bigint, $4, $5, $6, $7, $8::timestamptz)
         ON CONFLICT (integrator_occurrence_id) DO NOTHING`,
-        [
-          row.id,
-          row.rule_id,
-          String(row.user_id),
-          row.category,
-          row.status,
-          row.delivery_channel ?? null,
-          row.error_code ?? null,
-          row.occurred_at,
-        ]
-      );
+            [
+              row.id,
+              row.rule_id,
+              String(row.user_id),
+              row.category,
+              row.status,
+              row.delivery_channel ?? null,
+              row.error_code ?? null,
+              row.occurred_at,
+            ]
+          );
+        }
+        n++;
+      }
+      if (!dryRun) await dst.query("COMMIT");
+    } catch (err) {
+      if (!dryRun) await dst.query("ROLLBACK");
+      throw err;
     }
-    n++;
   }
   console.log(`  Occurrence history ${dryRun ? "would insert" : "inserted"}: ${n}`);
 }
@@ -160,28 +182,38 @@ async function backfillReminderDeliveryEvents() {
   );
   console.log(`Reminder delivery events to backfill: ${rows.length}`);
   let n = 0;
-  for (const row of rows) {
-    if (!dryRun) {
-      await dst.query(
-        `INSERT INTO reminder_delivery_events (
+  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+    if (!dryRun) await dst.query("BEGIN");
+    try {
+      for (const row of chunk) {
+        if (!dryRun) {
+          await dst.query(
+            `INSERT INTO reminder_delivery_events (
           integrator_delivery_log_id, integrator_occurrence_id, integrator_rule_id, integrator_user_id,
           channel, status, error_code, payload_json, created_at
         ) VALUES ($1, $2, $3, $4::bigint, $5, $6, $7, $8::jsonb, $9::timestamptz)
         ON CONFLICT (integrator_delivery_log_id) DO NOTHING`,
-        [
-          row.id,
-          row.occurrence_id,
-          row.rule_id,
-          String(row.user_id),
-          row.channel,
-          row.status,
-          row.error_code ?? null,
-          JSON.stringify(row.payload_json ?? {}),
-          row.created_at,
-        ]
-      );
+            [
+              row.id,
+              row.occurrence_id,
+              row.rule_id,
+              String(row.user_id),
+              row.channel,
+              row.status,
+              row.error_code ?? null,
+              JSON.stringify(row.payload_json ?? {}),
+              row.created_at,
+            ]
+          );
+        }
+        n++;
+      }
+      if (!dryRun) await dst.query("COMMIT");
+    } catch (err) {
+      if (!dryRun) await dst.query("ROLLBACK");
+      throw err;
     }
-    n++;
   }
   console.log(`  Delivery events ${dryRun ? "would insert" : "inserted"}: ${n}`);
 }
@@ -194,11 +226,15 @@ async function backfillContentAccessGrants() {
   );
   console.log(`Content access grants to backfill: ${rows.length}`);
   let n = 0;
-  for (const row of rows) {
-    const platformUserId = await resolvePlatformUserId(row.user_id);
-    if (!dryRun) {
-      await dst.query(
-        `INSERT INTO content_access_grants_webapp (
+  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+    if (!dryRun) await dst.query("BEGIN");
+    try {
+      for (const row of chunk) {
+        const platformUserId = await resolvePlatformUserId(row.user_id);
+        if (!dryRun) {
+          await dst.query(
+            `INSERT INTO content_access_grants_webapp (
           integrator_grant_id, platform_user_id, integrator_user_id, content_id, purpose,
           token_hash, expires_at, revoked_at, meta_json, created_at
         ) VALUES ($1, $2, $3::bigint, $4, $5, $6, $7::timestamptz, $8::timestamptz, $9::jsonb, $10::timestamptz)
@@ -211,21 +247,27 @@ async function backfillContentAccessGrants() {
           expires_at = EXCLUDED.expires_at,
           revoked_at = EXCLUDED.revoked_at,
           meta_json = EXCLUDED.meta_json`,
-        [
-          row.id,
-          platformUserId,
-          String(row.user_id),
-          row.content_id,
-          row.purpose,
-          row.token_hash ?? null,
-          row.expires_at,
-          row.revoked_at ?? null,
-          JSON.stringify(row.meta_json ?? {}),
-          row.created_at,
-        ]
-      );
+            [
+              row.id,
+              platformUserId,
+              String(row.user_id),
+              row.content_id,
+              row.purpose,
+              row.token_hash ?? null,
+              row.expires_at,
+              row.revoked_at ?? null,
+              JSON.stringify(row.meta_json ?? {}),
+              row.created_at,
+            ]
+          );
+        }
+        n++;
+      }
+      if (!dryRun) await dst.query("COMMIT");
+    } catch (err) {
+      if (!dryRun) await dst.query("ROLLBACK");
+      throw err;
     }
-    n++;
   }
   console.log(`  Content grants ${dryRun ? "would upsert" : "upserted"}: ${n}`);
 }

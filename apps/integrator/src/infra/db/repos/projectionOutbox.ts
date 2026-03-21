@@ -21,7 +21,8 @@ export async function enqueueProjectionEvent(
 ): Promise<void> {
   await db.query(
     `INSERT INTO projection_outbox (event_type, idempotency_key, occurred_at, payload)
-     VALUES ($1, $2, $3, $4::jsonb)`,
+     VALUES ($1, $2, $3, $4::jsonb)
+     ON CONFLICT (idempotency_key) DO NOTHING`,
     [input.eventType, input.idempotencyKey, input.occurredAt, JSON.stringify(input.payload)],
   );
 }

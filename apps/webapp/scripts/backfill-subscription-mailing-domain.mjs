@@ -37,6 +37,8 @@ if (dryRun) {
   console.log("[DRY-RUN] No writes. Pass --commit to write.");
 }
 
+const BACKFILL_WRITE_BATCH = 1000;
+
 const src = new pg.Client({ connectionString: sourceUrl });
 const dst = new pg.Client({ connectionString: targetUrl });
 
@@ -53,15 +55,25 @@ async function main() {
     );
     console.log(`mailing_topics to backfill: ${topics.length}`);
     if (!dryRun && topics.length > 0) {
-      for (const row of topics) {
-        await dst.query(
-          `INSERT INTO mailing_topics_webapp (integrator_topic_id, code, title, key, is_active, updated_at)
+      for (let i = 0; i < topics.length; i += BACKFILL_WRITE_BATCH) {
+        const chunk = topics.slice(i, i + BACKFILL_WRITE_BATCH);
+        await dst.query("BEGIN");
+        try {
+          for (const row of chunk) {
+            await dst.query(
+              `INSERT INTO mailing_topics_webapp (integrator_topic_id, code, title, key, is_active, updated_at)
            VALUES ($1, $2, $3, $4, $5, now())
            ON CONFLICT (integrator_topic_id) DO UPDATE SET
              code = EXCLUDED.code, title = EXCLUDED.title, key = EXCLUDED.key,
              is_active = EXCLUDED.is_active, updated_at = now()`,
-          [String(row.id), row.code, row.title, row.key, row.is_active ?? true]
-        );
+              [String(row.id), row.code, row.title, row.key, row.is_active ?? true]
+            );
+          }
+          await dst.query("COMMIT");
+        } catch (err) {
+          await dst.query("ROLLBACK");
+          throw err;
+        }
       }
     }
 
@@ -71,14 +83,24 @@ async function main() {
     );
     console.log(`user_subscriptions to backfill: ${subs.length}`);
     if (!dryRun && subs.length > 0) {
-      for (const row of subs) {
-        await dst.query(
-          `INSERT INTO user_subscriptions_webapp (integrator_user_id, integrator_topic_id, is_active, updated_at)
+      for (let i = 0; i < subs.length; i += BACKFILL_WRITE_BATCH) {
+        const chunk = subs.slice(i, i + BACKFILL_WRITE_BATCH);
+        await dst.query("BEGIN");
+        try {
+          for (const row of chunk) {
+            await dst.query(
+              `INSERT INTO user_subscriptions_webapp (integrator_user_id, integrator_topic_id, is_active, updated_at)
            VALUES ($1, $2, $3, $4::timestamptz)
            ON CONFLICT (integrator_user_id, integrator_topic_id) DO UPDATE SET
              is_active = EXCLUDED.is_active, updated_at = EXCLUDED.updated_at`,
-          [String(row.user_id), String(row.topic_id), row.is_active ?? true, row.updated_at ?? new Date().toISOString()]
-        );
+              [String(row.user_id), String(row.topic_id), row.is_active ?? true, row.updated_at ?? new Date().toISOString()]
+            );
+          }
+          await dst.query("COMMIT");
+        } catch (err) {
+          await dst.query("ROLLBACK");
+          throw err;
+        }
       }
     }
 
@@ -88,13 +110,23 @@ async function main() {
     );
     console.log(`mailing_logs to backfill: ${logs.length}`);
     if (!dryRun && logs.length > 0) {
-      for (const row of logs) {
-        await dst.query(
-          `INSERT INTO mailing_logs_webapp (integrator_user_id, integrator_mailing_id, status, sent_at, error_text)
+      for (let i = 0; i < logs.length; i += BACKFILL_WRITE_BATCH) {
+        const chunk = logs.slice(i, i + BACKFILL_WRITE_BATCH);
+        await dst.query("BEGIN");
+        try {
+          for (const row of chunk) {
+            await dst.query(
+              `INSERT INTO mailing_logs_webapp (integrator_user_id, integrator_mailing_id, status, sent_at, error_text)
            VALUES ($1, $2, $3, $4::timestamptz, $5)
            ON CONFLICT (integrator_user_id, integrator_mailing_id) DO NOTHING`,
-          [String(row.user_id), String(row.mailing_id), row.status, row.sent_at ?? new Date().toISOString(), row.error ?? null]
-        );
+              [String(row.user_id), String(row.mailing_id), row.status, row.sent_at ?? new Date().toISOString(), row.error ?? null]
+            );
+          }
+          await dst.query("COMMIT");
+        } catch (err) {
+          await dst.query("ROLLBACK");
+          throw err;
+        }
       }
     }
 

@@ -34,6 +34,7 @@ describe('projectionOutbox', () => {
     const sql = call[0] as string;
     const params = call[1] as unknown[];
     expect(sql).toContain('INSERT INTO projection_outbox');
+    expect(sql).toContain('ON CONFLICT (idempotency_key) DO NOTHING');
     expect(params[0]).toBe('user.upserted');
     expect(params[1]).toBe('user.upserted:42:abc');
     expect(params[2]).toBe('2026-03-19T00:00:00Z');

@@ -96,6 +96,30 @@ describe('runProjectionWorkerTick', () => {
     expect(mockReschedule).toHaveBeenCalledWith(db, 1, 1, 30);
   });
 
+  it('completes after failed emit then successful retry (same outbox row)', async () => {
+    const db = fakeDb();
+    const emit = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 503, error: 'unavailable' })
+      .mockResolvedValueOnce({ ok: true, status: 202 });
+    const port: WebappEventsPort = {
+      emit,
+      listSymptomTrackings: vi.fn().mockResolvedValue({ ok: true, trackings: [] }),
+      listLfkComplexes: vi.fn().mockResolvedValue({ ok: true, complexes: [] }),
+    };
+    mockClaim
+      .mockResolvedValueOnce([{ ...BASE_EVENT, attemptsDone: 0 }])
+      .mockResolvedValueOnce([{ ...BASE_EVENT, attemptsDone: 1 }]);
+
+    await runProjectionWorkerTick(db, port, 10);
+    await runProjectionWorkerTick(db, port, 10);
+
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(mockReschedule).toHaveBeenCalledWith(db, 1, 1, 30);
+    expect(mockComplete).toHaveBeenCalledWith(db, 1);
+    expect(mockFail).not.toHaveBeenCalled();
+  });
+
   it('returns 0 when no events due', async () => {
     mockClaim.mockResolvedValueOnce([]);
     const processed = await runProjectionWorkerTick(fakeDb(), fakeWebappPort(true), 10);

@@ -42,6 +42,10 @@ if (dryRun) {
   console.log("[DRY-RUN] No writes will be performed. Pass --commit to write.");
 }
 
+/** Integrator `conversation_messages` has no message_type column — bodies are always text. */
+const CONVERSATION_MESSAGE_TYPE = "text";
+const BACKFILL_WRITE_BATCH = 1000;
+
 const src = new pg.Client({ connectionString: sourceUrl });
 const dst = new pg.Client({ connectionString: targetUrl });
 
@@ -65,11 +69,15 @@ async function backfillConversations() {
   );
   console.log(`Conversations to backfill: ${rows.length}`);
   let upserted = 0;
-  for (const row of rows) {
-    const platformUserId = await resolveWebappPlatformUserId(row.user_id);
-    if (!dryRun) {
-      await dst.query(
-        `INSERT INTO support_conversations (
+  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+    if (!dryRun) await dst.query("BEGIN");
+    try {
+      for (const row of chunk) {
+        const platformUserId = await resolveWebappPlatformUserId(row.user_id);
+        if (!dryRun) {
+          await dst.query(
+            `INSERT INTO support_conversations (
           integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
           opened_at, last_message_at, closed_at, close_reason
         ) VALUES ($1, $2, $3::bigint, $4, $5, $6, $7, $8, $9, $10)
@@ -81,21 +89,27 @@ async function backfillConversations() {
           closed_at = EXCLUDED.closed_at,
           close_reason = EXCLUDED.close_reason,
           updated_at = now()`,
-        [
-          row.id,
-          platformUserId,
-          row.user_id ? String(row.user_id) : null,
-          row.source,
-          row.admin_scope,
-          row.status,
-          row.opened_at,
-          row.last_message_at,
-          row.closed_at,
-          row.close_reason,
-        ]
-      );
+            [
+              row.id,
+              platformUserId,
+              row.user_id ? String(row.user_id) : null,
+              row.source,
+              row.admin_scope,
+              row.status,
+              row.opened_at,
+              row.last_message_at,
+              row.closed_at,
+              row.close_reason,
+            ]
+          );
+        }
+        upserted++;
+      }
+      if (!dryRun) await dst.query("COMMIT");
+    } catch (err) {
+      if (!dryRun) await dst.query("ROLLBACK");
+      throw err;
     }
-    upserted++;
   }
   console.log(`  Conversations ${dryRun ? "would upsert" : "upserted"}: ${upserted}`);
 }
@@ -111,36 +125,47 @@ async function backfillConversationMessages() {
   );
   console.log(`Conversation messages to backfill: ${rows.length}`);
   let upserted = 0;
-  for (const row of rows) {
-    if (!dryRun) {
-      const conv = await dst.query(
-        "SELECT id FROM support_conversations WHERE integrator_conversation_id = $1",
-        [row.conversation_id]
-      );
-      const conversationId = conv.rows[0]?.id;
-      if (!conversationId) {
-        console.warn(`  WARN: conversation ${row.conversation_id} not found in webapp, skipping message ${row.id}`);
-        continue;
-      }
-      await dst.query(
-        `INSERT INTO support_conversation_messages (
+  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+    if (!dryRun) await dst.query("BEGIN");
+    try {
+      for (const row of chunk) {
+        if (!dryRun) {
+          const conv = await dst.query(
+            "SELECT id FROM support_conversations WHERE integrator_conversation_id = $1",
+            [row.conversation_id]
+          );
+          const conversationId = conv.rows[0]?.id;
+          if (!conversationId) {
+            console.warn(`  WARN: conversation ${row.conversation_id} not found in webapp, skipping message ${row.id}`);
+            continue;
+          }
+          await dst.query(
+            `INSERT INTO support_conversation_messages (
           integrator_message_id, conversation_id, sender_role, message_type, text, source,
           external_chat_id, external_message_id, created_at
-        ) VALUES ($1, $2, $3, 'text', $4, $5, $6, $7, $8)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (integrator_message_id) DO NOTHING`,
-        [
-          row.id,
-          conversationId,
-          row.sender_role,
-          row.text,
-          row.source,
-          row.external_chat_id,
-          row.external_message_id,
-          row.created_at,
-        ]
-      );
+            [
+              row.id,
+              conversationId,
+              row.sender_role,
+              CONVERSATION_MESSAGE_TYPE,
+              row.text,
+              row.source,
+              row.external_chat_id,
+              row.external_message_id,
+              row.created_at,
+            ]
+          );
+        }
+        upserted++;
+      }
+      if (!dryRun) await dst.query("COMMIT");
+    } catch (err) {
+      if (!dryRun) await dst.query("ROLLBACK");
+      throw err;
     }
-    upserted++;
   }
   console.log(`  Conversation messages ${dryRun ? "would upsert" : "upserted"}: ${upserted}`);
 }
@@ -153,19 +178,23 @@ async function backfillQuestions() {
   );
   console.log(`Questions to backfill: ${rows.length}`);
   let upserted = 0;
-  for (const row of rows) {
-    if (!dryRun) {
-      let conversationId = null;
-      if (row.conversation_id) {
-        const c = await dst.query(
-          "SELECT id FROM support_conversations WHERE integrator_conversation_id = $1",
-          [row.conversation_id]
-        );
-        conversationId = c.rows[0]?.id ?? null;
-      }
-      const status = row.answered ? "answered" : "open";
-      await dst.query(
-        `INSERT INTO support_questions (
+  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+    if (!dryRun) await dst.query("BEGIN");
+    try {
+      for (const row of chunk) {
+        if (!dryRun) {
+          let conversationId = null;
+          if (row.conversation_id) {
+            const c = await dst.query(
+              "SELECT id FROM support_conversations WHERE integrator_conversation_id = $1",
+              [row.conversation_id]
+            );
+            conversationId = c.rows[0]?.id ?? null;
+          }
+          const status = row.answered ? "answered" : "open";
+          await dst.query(
+            `INSERT INTO support_questions (
           integrator_question_id, conversation_id, status, created_at, answered_at
         ) VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (integrator_question_id) DO UPDATE SET
@@ -173,16 +202,16 @@ async function backfillQuestions() {
           status = EXCLUDED.status,
           answered_at = COALESCE(EXCLUDED.answered_at, support_questions.answered_at),
           updated_at = now()`,
-        [
-          row.id,
-          conversationId,
-          status,
-          row.created_at,
-          row.answered_at,
-        ]
-      );
+            [row.id, conversationId, status, row.created_at, row.answered_at]
+          );
+        }
+        upserted++;
+      }
+      if (!dryRun) await dst.query("COMMIT");
+    } catch (err) {
+      if (!dryRun) await dst.query("ROLLBACK");
+      throw err;
     }
-    upserted++;
   }
   console.log(`  Questions ${dryRun ? "would upsert" : "upserted"}: ${upserted}`);
 }
@@ -197,32 +226,36 @@ async function backfillQuestionMessages() {
   );
   console.log(`Question messages to backfill: ${rows.length}`);
   let upserted = 0;
-  for (const row of rows) {
-    if (!dryRun) {
-      const q = await dst.query(
-        "SELECT id FROM support_questions WHERE integrator_question_id = $1",
-        [row.question_id]
-      );
-      const questionId = q.rows[0]?.id;
-      if (!questionId) {
-        console.warn(`  WARN: question ${row.question_id} not found in webapp, skipping question message ${row.id}`);
-        continue;
-      }
-      await dst.query(
-        `INSERT INTO support_question_messages (
+  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+    if (!dryRun) await dst.query("BEGIN");
+    try {
+      for (const row of chunk) {
+        if (!dryRun) {
+          const q = await dst.query(
+            "SELECT id FROM support_questions WHERE integrator_question_id = $1",
+            [row.question_id]
+          );
+          const questionId = q.rows[0]?.id;
+          if (!questionId) {
+            console.warn(`  WARN: question ${row.question_id} not found in webapp, skipping question message ${row.id}`);
+            continue;
+          }
+          await dst.query(
+            `INSERT INTO support_question_messages (
           integrator_question_message_id, question_id, sender_role, text, created_at
         ) VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (integrator_question_message_id) DO NOTHING`,
-        [
-          row.id,
-          questionId,
-          row.sender_type,
-          row.message_text,
-          row.created_at,
-        ]
-      );
+            [row.id, questionId, row.sender_type, row.message_text, row.created_at]
+          );
+        }
+        upserted++;
+      }
+      if (!dryRun) await dst.query("COMMIT");
+    } catch (err) {
+      if (!dryRun) await dst.query("ROLLBACK");
+      throw err;
     }
-    upserted++;
   }
   console.log(`  Question messages ${dryRun ? "would upsert" : "upserted"}: ${upserted}`);
 }
@@ -235,27 +268,37 @@ async function backfillDeliveryAttemptLogs() {
   );
   console.log(`Delivery attempt logs to backfill: ${rows.length}`);
   let inserted = 0;
-  for (const row of rows) {
-    if (!dryRun) {
-      await dst.query(
-        `INSERT INTO support_delivery_events (
+  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
+    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
+    if (!dryRun) await dst.query("BEGIN");
+    try {
+      for (const row of chunk) {
+        if (!dryRun) {
+          await dst.query(
+            `INSERT INTO support_delivery_events (
           integrator_intent_event_id, correlation_id, channel_code, status, attempt,
           reason, payload_json, occurred_at
         ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
         ON CONFLICT (integrator_intent_event_id) WHERE (integrator_intent_event_id IS NOT NULL) DO NOTHING`,
-        [
-          row.intent_event_id,
-          row.correlation_id,
-          row.channel,
-          row.status,
-          row.attempt,
-          row.reason,
-          JSON.stringify(row.payload_json ?? {}),
-          row.occurred_at,
-        ]
-      );
+            [
+              row.intent_event_id,
+              row.correlation_id,
+              row.channel,
+              row.status,
+              row.attempt,
+              row.reason,
+              JSON.stringify(row.payload_json ?? {}),
+              row.occurred_at,
+            ]
+          );
+        }
+        inserted++;
+      }
+      if (!dryRun) await dst.query("COMMIT");
+    } catch (err) {
+      if (!dryRun) await dst.query("ROLLBACK");
+      throw err;
     }
-    inserted++;
   }
   console.log(`  Delivery events ${dryRun ? "would insert" : "inserted"}: ${inserted}`);
 }

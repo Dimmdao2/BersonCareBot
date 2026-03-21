@@ -24,37 +24,46 @@ async function startWorker(): Promise<void> {
 
   logger.info('Runtime worker started');
 
-  while (true) {
-    try {
+  const pollIntervalMs = appSettings.runtime.worker.pollIntervalMs;
+
+  // Job queue and projection outbox run on separate loops so a long job drain cannot starve projection delivery (Stage13 C4).
+  await Promise.all([
+    (async function jobQueueLoop(): Promise<void> {
       while (true) {
-        const jobs = await queue.claimDueJobs(batchSize);
-        if (jobs.length === 0) break;
-        for (const job of jobs) {
-          await runWorkerTick({
-            claimNextJob: async () => job,
-            completeJob: async (jobId) => queue.completeJob(jobId),
-            failJob: async (jobId, errorCode) => queue.failJob(jobId, { ok: false, errorCode, final: true }),
-            rescheduleJob: async (jobId, runAt, attempts) => queue.rescheduleJob(jobId, runAt, attempts),
-            logAttempt: async (jobId, result) => queue.logAttempt(jobId, result),
-            dispatchOutgoing: (intent) => deps.dispatchPort.dispatchOutgoing(intent),
-            nowIso: () => new Date().toISOString(),
-            retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
-          });
+        try {
+          while (true) {
+            const jobs = await queue.claimDueJobs(batchSize);
+            if (jobs.length === 0) break;
+            for (const job of jobs) {
+              await runWorkerTick({
+                claimNextJob: async () => job,
+                completeJob: async (jobId) => queue.completeJob(jobId),
+                failJob: async (jobId, errorCode) => queue.failJob(jobId, { ok: false, errorCode, final: true }),
+                rescheduleJob: async (jobId, runAt, attempts) => queue.rescheduleJob(jobId, runAt, attempts),
+                logAttempt: async (jobId, result) => queue.logAttempt(jobId, result),
+                dispatchOutgoing: (intent) => deps.dispatchPort.dispatchOutgoing(intent),
+                nowIso: () => new Date().toISOString(),
+                retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,
+              });
+            }
+          }
+        } catch (err) {
+          logger.error({ err }, 'Runtime worker tick failed');
         }
+        await sleep(pollIntervalMs);
       }
-
-    } catch (err) {
-      logger.error({ err }, 'Runtime worker tick failed');
-    }
-
-    try {
-      await runProjectionWorkerTick(projectionDb, webappEvents);
-    } catch (err) {
-      logger.error({ err }, 'Projection worker tick failed');
-    }
-
-    await sleep(appSettings.runtime.worker.pollIntervalMs);
-  }
+    })(),
+    (async function projectionOutboxLoop(): Promise<void> {
+      while (true) {
+        try {
+          await runProjectionWorkerTick(projectionDb, webappEvents);
+        } catch (err) {
+          logger.error({ err }, 'Projection worker tick failed');
+        }
+        await sleep(pollIntervalMs);
+      }
+    })(),
+  ]);
 }
 
 startWorker().catch((err) => {

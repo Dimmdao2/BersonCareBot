@@ -6,10 +6,10 @@
  * Usage: pnpm run stage13-preflight  (or node scripts/stage13-preflight.mjs)
  * Exit: 0 when all checks pass; 1 when any fail or DB env missing.
  */
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { loadCutoverEnv } from "./load-cutover-env.mjs";
+import { runWithTimeout } from "./spawn-with-timeout.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -27,20 +27,33 @@ if (!integratorUrl?.trim()) {
   process.exit(1);
 }
 
-function run(cmd, args, name) {
-  return new Promise((resolve) => {
-    const child = spawn(cmd, args, { cwd: rootDir, stdio: "inherit", shell: true });
-    child.on("close", (code) => resolve(code !== 0 ? name : null));
-  });
-}
-
 const steps = [
-  () => run("pnpm", ["run", "stage12-gate"], "stage12-gate"),
-  () => run("pnpm", ["--dir", "apps/webapp", "run", "reconcile-person-domain"], "reconcile-person-domain"),
-  () => run("pnpm", ["--dir", "apps/webapp", "run", "reconcile-communication-domain"], "reconcile-communication-domain"),
-  () => run("pnpm", ["--dir", "apps/webapp", "run", "reconcile-reminders-domain"], "reconcile-reminders-domain"),
-  () => run("pnpm", ["--dir", "apps/webapp", "run", "reconcile-appointments-domain"], "reconcile-appointments-domain"),
-  () => run("pnpm", ["--dir", "apps/webapp", "run", "reconcile-subscription-mailing-domain"], "reconcile-subscription-mailing-domain"),
+  () => runWithTimeout("pnpm", ["run", "stage12-gate"], { cwd: rootDir, name: "stage12-gate" }),
+  () =>
+    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-person-domain"], {
+      cwd: rootDir,
+      name: "reconcile-person-domain",
+    }),
+  () =>
+    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-communication-domain"], {
+      cwd: rootDir,
+      name: "reconcile-communication-domain",
+    }),
+  () =>
+    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-reminders-domain"], {
+      cwd: rootDir,
+      name: "reconcile-reminders-domain",
+    }),
+  () =>
+    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-appointments-domain"], {
+      cwd: rootDir,
+      name: "reconcile-appointments-domain",
+    }),
+  () =>
+    runWithTimeout("pnpm", ["--dir", "apps/webapp", "run", "reconcile-subscription-mailing-domain"], {
+      cwd: rootDir,
+      name: "reconcile-subscription-mailing-domain",
+    }),
 ];
 
 let failed = null;

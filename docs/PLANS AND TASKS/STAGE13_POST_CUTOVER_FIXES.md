@@ -271,6 +271,62 @@ Exit code зависит только от `missingInWebappCount`. `fieldDriftCo
 
 ---
 
+### B2a. Projection delivery: `user.upserted` уходит в dead с `idempotency key reused with different payload`
+
+**Файлы:**
+- `apps/integrator/src/infra/runtime/worker/projectionWorker.ts`
+- `apps/integrator/src/infra/db/writePort.ts`
+- `apps/webapp/src/app/api/integrator/events/route.ts`
+- `apps/webapp/src/infra/idempotency/*`
+
+**Проблема:**
+На production выявлен системный баг доставки projection events: повторная отправка `user.upserted` с тем же `idempotencyKey` может быть отклонена webapp с ошибкой:
+
+```text
+idempotency key reused with different payload
+```
+
+Типичный кейс:
+
+- ключ идемпотентности строится детерминированно по business payload;
+- при повторной доставке body отличается по полям-обёрткам (`occurredAt`, порядок/сериализация, другие transport-level поля);
+- webapp idempotency store считает это reuse того же ключа с другим payload и возвращает 409;
+- worker после retry переводит event в `dead`, хотя продуктовые данные уже применены.
+
+Результат:
+
+- `projection_outbox` загрязняется ложными `dead` rows;
+- `projection-health` краснеет;
+- оператору приходится вручную архивировать/закрывать dead rows.
+
+**Шаги:**
+
+1. Зафиксировать один источник истины для idempotency comparison между integrator → webapp:
+   - либо сделать request body полностью стабильным для одного `idempotencyKey`;
+   - либо исключить transport-only поля из сравнения request hash на стороне webapp;
+   - либо включить все меняющиеся поля (например `occurredAt`) в fingerprint/idempotency key.
+
+2. Предпочтительный вариант: для одного и того же projection event повторная доставка должна отправлять **тот же body**, а не только тот же `idempotencyKey`.
+   - Проверить, какие поля в body меняются между retry;
+   - устранить генерацию нового значения для retry одного и того же business event.
+
+3. Добавить тест/тесты на повторную доставку:
+   - `user.upserted` с тем же `idempotencyKey` и тем же body -> accepted/idempotent;
+   - retry того же projection event не создаёт `dead` row;
+   - `projection-health` не деградирует из-за ложных duplicate delivery conflicts.
+
+4. После фикса очистить/переиграть существующие ложные `dead` rows на dev, затем проверить на prod runbook.
+
+5. `pnpm run ci`
+
+**Верификация:**
+
+- повторная доставка `user.upserted` не уходит в `dead`;
+- `projection-health` остаётся зелёным без ручного `UPDATE projection_outbox SET status='done' ...`;
+- операторский сценарий `stage13-gate` не требует ручной очистки ложных duplicate conflicts.
+
+---
+
 ### B3. backfill-person-domain: --user-id генерирует невалидный SQL
 
 **Файлы:**
@@ -461,7 +517,7 @@ IF current_setting('app.stage13_bypass', true) = 'true' THEN RETURN NEW; END IF;
   └─ reconcile по всем доменам
 
 Фаза 3 (backlog, по ходу):
-  B2 → C1 → C2 → C3 → C4 → C5 → C6 → C7 → C8
+  B2 → B2a → C1 → C2 → C3 → C4 → C5 → C6 → C7 → C8
 ```
 
 ---
@@ -477,4 +533,4 @@ IF current_setting('app.stage13_bypass', true) = 'true' THEN RETURN NEW; END IF;
 
 **Фаза 1 выполнена:** A1, A2, A3, A4, B1, B3, B4, B5, B6.
 **Фаза 2 выполнена:** деплой + миграция 013 + backfill --commit + reconcile + stage13-gate OK (2026-03-20 18:24).
-Фаза 3 (B2, C1–C8) — в бэклоге.
+**Фаза 3 выполнена в коде:** B2, B2a, C1–C8 (миграции integrator `20260320_*`, stable JSON для projection delivery, batch-транзакции в backfill, таймауты gate/cutover, параллельные loop worker, док stage12, bypass freeze). Деплой на прод и проверки — отдельно по runbook.

@@ -6,42 +6,29 @@
  * Usage: pnpm run stage11-gate
  * Exit: 0 when both checks pass; 1 when any check fails.
  */
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { loadCutoverEnv } from "./load-cutover-env.mjs";
+import { runWithTimeout } from "./spawn-with-timeout.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 
 loadCutoverEnv();
 
-function run(cmd, args, cwd, name) {
-  return new Promise((resolve) => {
-    const child = spawn(cmd, args, {
-      cwd: cwd || rootDir,
-      stdio: "inherit",
-      shell: true,
-    });
-    child.on("close", (code) => resolve(code !== 0 ? name : null));
-  });
-}
-
 async function main() {
   const failed = [];
-  const projHealth = await run(
+  const projHealth = await runWithTimeout(
     "pnpm",
     ["--dir", "apps/integrator", "run", "projection-health"],
-    rootDir,
-    "projection-health"
+    { cwd: rootDir, name: "projection-health" }
   );
   if (projHealth) failed.push(projHealth);
 
-  const reconcile = await run(
+  const reconcile = await runWithTimeout(
     "pnpm",
     ["--dir", "apps/webapp", "run", "reconcile-subscription-mailing-domain"],
-    rootDir,
-    "reconcile-subscription-mailing-domain"
+    { cwd: rootDir, name: "reconcile-subscription-mailing-domain" }
   );
   if (reconcile) failed.push(reconcile);
 
