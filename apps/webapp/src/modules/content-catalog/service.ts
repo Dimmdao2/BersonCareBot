@@ -26,7 +26,7 @@ export function createContentCatalogResolver(options: {
               bodyText: row.bodyHtml,
               imageUrl: row.imageUrl ?? undefined,
             };
-            if (row.videoUrl && row.videoType === "url") {
+            if (row.videoUrl && (row.videoType === "url" || row.videoType === "youtube")) {
               item.videoSource = { type: "url", url: row.videoUrl };
             } else if (row.videoUrl && row.videoType === "api") {
               item.videoSource = { type: "api", mediaId: row.videoUrl };
