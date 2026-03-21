@@ -36,15 +36,20 @@ export async function addSymptomEntry(formData: FormData) {
   const notes =
     typeof notesRaw === "string" && notesRaw.trim() ? notesRaw.trim() : null;
 
-  await deps.diaries.addSymptomEntry({
-    userId: session.user.userId,
-    trackingId,
-    value0_10,
-    entryType: entryTypeRaw,
-    recordedAt: new Date().toISOString(),
-    source: "webapp",
-    notes,
-  });
+  try {
+    await deps.diaries.addSymptomEntry({
+      userId: session.user.userId,
+      trackingId,
+      value0_10,
+      entryType: entryTypeRaw,
+      recordedAt: new Date().toISOString(),
+      source: "webapp",
+      notes,
+    });
+  } catch (err) {
+    console.error("addSymptomEntry failed:", err);
+    return;
+  }
   revalidatePath(routePaths.symptoms);
 }
 
@@ -55,9 +60,14 @@ export async function createSymptomTracking(formData: FormData) {
     return;
   }
   const deps = buildAppDeps();
-  await deps.diaries.createSymptomTracking({
-    userId: session.user.userId,
-    symptomTitle: symptomTitleRaw.trim(),
-  });
+  try {
+    await deps.diaries.createSymptomTracking({
+      userId: session.user.userId,
+      symptomTitle: symptomTitleRaw.trim(),
+    });
+  } catch (err) {
+    console.error("createSymptomTracking failed:", err);
+    return;
+  }
   revalidatePath(routePaths.symptoms);
 }

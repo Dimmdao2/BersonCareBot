@@ -30,18 +30,23 @@ export async function saveContentPage(formData: FormData) {
         : "url";
   }
 
-  await deps.contentPages.upsert({
-    section,
-    slug,
-    title,
-    summary,
-    bodyHtml,
-    sortOrder,
-    isPublished,
-    videoUrl,
-    videoType,
-    imageUrl: null,
-  });
+  try {
+    await deps.contentPages.upsert({
+      section,
+      slug,
+      title,
+      summary,
+      bodyHtml,
+      sortOrder,
+      isPublished,
+      videoUrl,
+      videoType,
+      imageUrl: null,
+    });
+  } catch (err) {
+    console.error("saveContentPage failed:", err);
+    return;
+  }
 
   revalidatePath("/app/doctor/content");
   revalidatePath(`/app/patient/content/${slug}`);

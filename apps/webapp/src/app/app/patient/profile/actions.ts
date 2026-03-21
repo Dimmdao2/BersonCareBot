@@ -11,6 +11,11 @@ export async function updateDisplayName(newName: string) {
 
   const session = await requirePatientAccess(routePaths.profile);
   const deps = buildAppDeps();
-  await deps.userProjection.updateDisplayName(session.user.userId, trimmedName);
+  try {
+    await deps.userProjection.updateDisplayName(session.user.userId, trimmedName);
+  } catch (err) {
+    console.error("updateDisplayName failed:", err);
+    return;
+  }
   revalidatePath(routePaths.profile);
 }

@@ -21,11 +21,16 @@ export async function markLfkSession(formData: FormData) {
   if (!complexes.some((c) => c.id === complexId.trim())) {
     return;
   }
-  await deps.diaries.addLfkSession({
-    userId: session.user.userId,
-    complexId: complexId.trim(),
-    source: "webapp",
-  });
+  try {
+    await deps.diaries.addLfkSession({
+      userId: session.user.userId,
+      complexId: complexId.trim(),
+      source: "webapp",
+    });
+  } catch (err) {
+    console.error("markLfkSession failed:", err);
+    return;
+  }
   revalidatePath("/app/patient/diary/lfk");
 }
 
@@ -34,9 +39,14 @@ export async function createLfkComplex(formData: FormData) {
   const title = (formData.get("complexTitle") as string)?.trim();
   if (!title) return;
   const deps = buildAppDeps();
-  await deps.diaries.createLfkComplex({
-    userId: session.user.userId,
-    title,
-  });
+  try {
+    await deps.diaries.createLfkComplex({
+      userId: session.user.userId,
+      title,
+    });
+  } catch (err) {
+    console.error("createLfkComplex failed:", err);
+    return;
+  }
   revalidatePath("/app/patient/diary/lfk");
 }
