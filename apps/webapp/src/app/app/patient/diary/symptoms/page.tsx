@@ -1,8 +1,7 @@
 /**
  * Страница «Дневник симптомов» («/app/patient/diary/symptoms»).
- * Только для пациента. Вверху — пояснение, что записи добавляются в боте. Далее блок
- * «Отслеживаемые симптомы» (список названий) и блок «Статистика» — список записей с баллом,
- * типом (в моменте / за день) и датой. При отсутствии данных показывается заглушка.
+ * Только для пациента. Формы добавления симптома и записи, блок «Отслеживаемые симптомы» и
+ * «Статистика» — список записей с баллом, типом (в моменте / за день) и датой.
  * Кнопка «Назад» — в главное меню пациента.
  */
 
@@ -10,6 +9,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
+import { AddEntryForm } from "./AddEntryForm";
+import { CreateTrackingForm } from "./CreateTrackingForm";
 
 const EMPTY_STATE_PLACEHOLDER =
   "Скоро здесь будет ваша статистика. Для добавления записей в дневник воспользуйтесь кнопкой в меню бота.";
@@ -25,7 +26,16 @@ export default async function SymptomDiaryPage() {
   return (
     <AppShell title="Дневник симптомов" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
       <section id="patient-symptoms-diary-hero-section" className="hero-card stack">
-        <p>Отслеживаемые симптомы и история записей. Добавить симптом или запись можно в боте.</p>
+        <h2>Добавить запись</h2>
+        {trackings.length > 0 ? (
+          <AddEntryForm trackings={trackings} />
+        ) : (
+          <p className="empty-state">Добавьте симптом для начала отслеживания.</p>
+        )}
+      </section>
+      <section id="patient-symptoms-add-tracking-section" className="panel stack">
+        <h2>Добавить симптом</h2>
+        <CreateTrackingForm />
       </section>
       {trackings.length > 0 ? (
         <section id="patient-symptoms-tracking-section" className="panel stack">
