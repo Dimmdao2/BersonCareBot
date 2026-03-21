@@ -14,7 +14,7 @@ function computeCabinetState(appointmentCount: number): PatientCabinetState {
     enabled: hasAppointments,
     reason: hasAppointments
       ? "Здесь отображаются ваши записи и программы."
-      : "Кабинет активируется, когда у пользователя есть запись на прием, купленный курс или назначенная программа.",
+      : "У вас пока нет записей на приём.",
     nextAppointmentLabel: hasAppointments ? "Ближайшая запись в разделе ниже" : null,
   };
 }

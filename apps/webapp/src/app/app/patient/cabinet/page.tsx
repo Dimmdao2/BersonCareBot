@@ -23,10 +23,12 @@ export default async function PatientCabinetPage() {
 
   return (
     <AppShell title="Кабинет клиента" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <section id="patient-cabinet-hero-section" className="hero-card stack">
-        <p>{cabinet.reason}</p>
-        {cabinet.nextAppointmentLabel ? <p className="empty-state">{cabinet.nextAppointmentLabel}</p> : null}
-      </section>
+      {cabinet.enabled && (
+        <section id="patient-cabinet-hero-section" className="hero-card stack">
+          <p>{cabinet.reason}</p>
+          {cabinet.nextAppointmentLabel ? <p className="empty-state">{cabinet.nextAppointmentLabel}</p> : null}
+        </section>
+      )}
       <section id="patient-cabinet-upcoming-appointments-section" className="panel stack">
         <h2>Ближайшие записи</h2>
         {appointments.length === 0 ? (
