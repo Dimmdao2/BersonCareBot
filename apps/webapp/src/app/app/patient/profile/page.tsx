@@ -3,6 +3,7 @@ import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ChannelLinksBlock } from "./ChannelLinksBlock";
+import { LogoutSection } from "./LogoutSection";
 import { ProfileForm } from "./ProfileForm";
 
 export default async function PatientProfilePage() {
@@ -31,11 +32,7 @@ export default async function PatientProfilePage() {
         <ChannelLinksBlock channelCards={channelCards} />
       </section>
 
-      <section className="stack" style={{ marginTop: 16 }}>
-        <a href="/api/auth/logout" className="button button--danger-outline">
-          Выйти из аккаунта
-        </a>
-      </section>
+      <LogoutSection />
     </AppShell>
   );
 }

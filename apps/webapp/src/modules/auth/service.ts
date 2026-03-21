@@ -139,6 +139,14 @@ function getAllowedMaxIds(): Set<string> {
     const t = s.trim();
     if (t) ids.add(t);
   }
+  for (const s of (env.ADMIN_MAX_IDS ?? "").split(",")) {
+    const t = s.trim();
+    if (t) ids.add(t);
+  }
+  for (const s of (env.DOCTOR_MAX_IDS ?? "").split(",")) {
+    const t = s.trim();
+    if (t) ids.add(t);
+  }
   return ids;
 }
 
@@ -191,24 +199,46 @@ function validateTelegramInitData(initData: string): { telegramId: string; role:
   const allowed = getAllowedTelegramIds();
   if (!allowed.has(telegramId)) return null;
 
-  const role: UserRole = resolveRoleByTelegramId(telegramId);
+  const role: UserRole = resolveRole({ telegramId });
   const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || undefined;
 
   return { telegramId, role, displayName };
 }
 
-function resolveRoleByTelegramId(telegramIdStr: string): UserRole {
-  const numericId = parseInt(telegramIdStr, 10);
-  if (typeof env.ADMIN_TELEGRAM_ID === "number" && numericId === env.ADMIN_TELEGRAM_ID) {
-    return "admin";
-  }
+/** Resolves role from Telegram and/or Max bindings (env lists). Priority: admin > doctor > client on any channel. */
+function resolveRole(ids: { telegramId?: string; maxId?: string }): UserRole {
+  const telegramIdStr = ids.telegramId?.trim();
+  const maxIdStr = ids.maxId?.trim();
+
   const doctorIds = (env.DOCTOR_TELEGRAM_IDS ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (doctorIds.includes(telegramIdStr) || doctorIds.includes(String(numericId))) {
-    return "doctor";
+  const adminMax = (env.ADMIN_MAX_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const doctorMax = (env.DOCTOR_MAX_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (telegramIdStr) {
+    const numericId = parseInt(telegramIdStr, 10);
+    if (typeof env.ADMIN_TELEGRAM_ID === "number" && numericId === env.ADMIN_TELEGRAM_ID) {
+      return "admin";
+    }
   }
+  if (maxIdStr && adminMax.includes(maxIdStr)) return "admin";
+
+  if (telegramIdStr) {
+    const numericId = parseInt(telegramIdStr, 10);
+    if (doctorIds.includes(telegramIdStr) || doctorIds.includes(String(numericId))) {
+      return "doctor";
+    }
+  }
+  if (maxIdStr && doctorMax.includes(maxIdStr)) return "doctor";
+
   return "client";
 }
 
@@ -261,13 +291,13 @@ export async function exchangeIntegratorToken(
     user = tokenToUser(parsed);
   }
 
-  const telegramId = parsed.bindings?.telegramId;
-  if (telegramId) {
-    const envRole = resolveRoleByTelegramId(telegramId);
-    if (user.role !== envRole) {
-      if (updateRoleFn) await updateRoleFn(user.userId, envRole);
-      user = { ...user, role: envRole };
-    }
+  const envRole = resolveRole({
+    telegramId: parsed.bindings?.telegramId,
+    maxId: parsed.bindings?.maxId,
+  });
+  if (user.role !== envRole) {
+    if (updateRoleFn) await updateRoleFn(user.userId, envRole);
+    user = { ...user, role: envRole };
   }
 
   const session = buildSession(user);
@@ -312,7 +342,7 @@ export async function exchangeTelegramInitData(
     };
   }
 
-  const envRole = resolveRoleByTelegramId(parsed.telegramId);
+  const envRole = resolveRole({ telegramId: parsed.telegramId });
   if (user.role !== envRole) {
     if (updateRoleFn) await updateRoleFn(user.userId, envRole);
     user = { ...user, role: envRole };

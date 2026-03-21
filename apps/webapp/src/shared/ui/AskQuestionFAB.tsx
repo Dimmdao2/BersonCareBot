@@ -4,12 +4,13 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 type AskQuestionFABProps = {
-  /** Показывать только когда пользователь зашёл через браузер (без telegram/max). */
+  /** Показывать только когда пользователь зашёл через браузер (не Mini App Telegram). */
   visible: boolean;
 };
 
 export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
   const pathname = usePathname();
+  const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -43,6 +44,12 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [close]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setIsTelegramMiniApp(!!window.Telegram?.WebApp);
+    });
+  }, []);
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
@@ -86,7 +93,7 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
     }
   }, [text, sending, pathname, close]);
 
-  if (!visible) return null;
+  if (!visible || isTelegramMiniApp) return null;
 
   return (
     <>

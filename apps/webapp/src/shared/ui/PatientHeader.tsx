@@ -11,25 +11,25 @@ const MENU_ITEMS: { id: string; label: string; href: string }[] = [
 ];
 
 type PatientHeaderProps = {
-  /** Показывать кнопку «Назад». Если передан backHref — ссылка на него, иначе router.back(). */
+  /** Показывать кнопку «Назад» (история браузера через router.back). */
   showBack?: boolean;
-  /** Куда ведёт кнопка «Назад» (например /app/patient). */
+  /** Зарезервировано для будущего fallback; навигация назад — всегда router.back(). */
   backHref?: string;
   /** Текст/aria-label для кнопки «Назад». */
   backLabel?: string;
 };
 
 /** Шапка пациента: стрелка назад | заголовок (ссылка в меню) | гамбургер (боковое меню справа). */
-export function PatientHeader({ showBack, backHref, backLabel = "Назад" }: PatientHeaderProps) {
+export function PatientHeader({ showBack, backLabel = "Назад" }: PatientHeaderProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
 
   const close = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => setOpen((v) => !v), []);
   const goBack = useCallback(() => {
-    if (backHref) router.push(backHref);
-    else router.back();
-  }, [router, backHref]);
+    router.back();
+  }, [router]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -46,29 +46,25 @@ export function PatientHeader({ showBack, backHref, backLabel = "Назад" }: 
     return () => document.removeEventListener("keydown", handler);
   }, [close]);
 
+  useEffect(() => {
+    queueMicrotask(() => {
+      setIsTelegramMiniApp(!!window.Telegram?.WebApp);
+    });
+  }, []);
+
   return (
     <header id="patient-header" className="patient-header" data-open={open}>
       <div id="patient-header-row" className="patient-header__row">
         <div className="patient-header__left">
           {showBack ? (
-            backHref ? (
-              <Link
-                href={backHref}
-                className="patient-header__back"
-                aria-label={backLabel}
-              >
-                <span className="patient-header__back-icon" aria-hidden>←</span>
-              </Link>
-            ) : (
-              <button
-                type="button"
-                className="patient-header__back"
-                onClick={goBack}
-                aria-label={backLabel}
-              >
-                <span className="patient-header__back-icon" aria-hidden>←</span>
-              </button>
-            )
+            <button
+              type="button"
+              className="patient-header__back"
+              onClick={goBack}
+              aria-label={backLabel}
+            >
+              <span className="patient-header__back-icon" aria-hidden>←</span>
+            </button>
           ) : (
             <span className="patient-header__back-placeholder" aria-hidden />
           )}
@@ -134,18 +130,22 @@ export function PatientHeader({ showBack, backHref, backLabel = "Назад" }: 
               {item.label}
             </Link>
           ))}
-          <div className="drawer-nav__divider" />
-          <button
-            type="button"
-            id="patient-menu-logout"
-            className="drawer-nav__link drawer-nav__link--danger"
-            onClick={() => {
-              close();
-              window.location.href = "/api/auth/logout";
-            }}
-          >
-            Выйти
-          </button>
+          {!isTelegramMiniApp && (
+            <>
+              <div className="drawer-nav__divider" />
+              <button
+                type="button"
+                id="patient-menu-logout"
+                className="drawer-nav__link drawer-nav__link--danger"
+                onClick={() => {
+                  close();
+                  window.location.href = "/api/auth/logout";
+                }}
+              >
+                Выйти
+              </button>
+            </>
+          )}
         </nav>
       </aside>
     </header>
