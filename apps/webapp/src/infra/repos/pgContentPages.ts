@@ -37,7 +37,8 @@ export function createPgContentPagesPort(): ContentPagesPort {
       const pool = getPool();
       const res = await pool.query(
         `SELECT id, section, slug, title, summary, body_html, sort_order, is_published, video_url, video_type, image_url
-         FROM content_pages WHERE slug = $1 AND is_published = true`,
+         FROM content_pages WHERE slug = $1 AND is_published = true
+         ORDER BY section LIMIT 1`,
         [slug]
       );
       return res.rows[0] ? mapRow(res.rows[0]) : null;

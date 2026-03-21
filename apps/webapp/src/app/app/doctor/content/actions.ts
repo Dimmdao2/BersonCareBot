@@ -10,6 +10,9 @@ export async function saveContentPage(formData: FormData) {
 
   const section = (formData.get("section") as string)?.trim() || "lessons";
   const slug = (formData.get("slug") as string)?.trim() || "";
+  const ALLOWED_SECTIONS = ["lessons", "emergency"];
+  if (!ALLOWED_SECTIONS.includes(section)) return;
+  if (!/^[a-z0-9-]+$/.test(slug)) return;
   const title = (formData.get("title") as string)?.trim() || "";
   const summary = (formData.get("summary") as string)?.trim() || "";
   const bodyHtml = (formData.get("body_html") as string) || "";

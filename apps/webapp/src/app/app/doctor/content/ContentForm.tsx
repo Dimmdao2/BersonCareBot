@@ -30,10 +30,17 @@ export function ContentForm({ page }: { page?: ContentPage }) {
 
       <label className="stack" style={{ gap: "0.25rem" }}>
         <span className="eyebrow">Раздел</span>
-        <select name="section" className="auth-input" defaultValue={page?.section ?? "lessons"}>
-          <option value="lessons">lessons</option>
-          <option value="emergency">emergency</option>
-        </select>
+        {page ? (
+          <>
+            <input type="hidden" name="section" value={page.section} />
+            <input type="text" className="auth-input" value={page.section} disabled readOnly />
+          </>
+        ) : (
+          <select id="content-section" name="section" className="auth-input" defaultValue="lessons">
+            <option value="lessons">lessons</option>
+            <option value="emergency">emergency</option>
+          </select>
+        )}
       </label>
 
       <label className="stack" style={{ gap: "0.25rem" }}>
