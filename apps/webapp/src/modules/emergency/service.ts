@@ -36,7 +36,7 @@ export async function listEmergencyTopics(contentPages?: ContentPagesPort): Prom
         }));
       }
     } catch (err) {
-      console.error("emergency DB fallback:", err);
+      console.error("content DB fallback:", err);
       // fallback to hardcoded data
     }
   }
