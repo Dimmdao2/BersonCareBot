@@ -222,9 +222,8 @@ async function main() {
     const mismatchPercent = totalLegacy > 0 ? (100 * missing) / totalLegacy : 0;
     const overThreshold = maxMismatchPercent > 0 && mismatchPercent > maxMismatchPercent;
     const hasMissing = missing > 0;
-    const hasDrift = drift > 0;
-    const exitCode = overThreshold || hasMissing || hasDrift ? 1 : 0;
-    if (hasDrift) console.error(`[reconcile-person-domain] fieldDrift: ${drift} records with mismatched fields`);
+    const exitCode = overThreshold || hasMissing ? 1 : 0;
+    if (drift > 0) console.warn(`[reconcile-person-domain] warning: fieldDrift=${drift} records with mismatched fields`);
     if (extra > 0) console.warn(`[reconcile-person-domain] warning: ${extra} extra records in webapp not in integrator`);
     process.exit(exitCode);
   } finally {

@@ -131,7 +131,6 @@
 - `PORT=6200`
 - `APP_BASE_URL=https://webapp.bersonservices.ru`
 - `DATABASE_URL=...` (webapp БД)
-- `INTEGRATOR_DATABASE_URL=...` или `SOURCE_DATABASE_URL=...` (для backfill/reconcile — БД integrator, та же что в api.prod)
 - `SESSION_COOKIE_SECRET=...`
 - `INTEGRATOR_SHARED_SECRET=...`
 - `INTEGRATOR_API_URL=https://tgcarebot.bersonservices.ru`
@@ -139,6 +138,34 @@
 - `ALLOWED_TELEGRAM_IDS=7924656602`
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
+
+**Обязательно для скриптов** `apps/webapp/scripts/backfill-*.mjs` и `reconcile-*.mjs` (и для `pnpm run stage13-gate`, если он гоняет reconcile):
+
+- **`INTEGRATOR_DATABASE_URL`** или **`SOURCE_DATABASE_URL`** — строка подключения к **БД integrator** (должна совпадать с **`DATABASE_URL`** из `/opt/env/bersoncarebot/api.prod`).
+
+Если этой переменной в `webapp.prod` нет, скрипты падают с `INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set`.
+
+**Как добавить в `webapp.prod` (один раз):**
+
+1. Скопировать значение `DATABASE_URL` из `api.prod` (без изменений).
+2. В `webapp.prod` добавить строку (пример формата, не коммитить реальные пароли):
+
+   ```bash
+   # то же значение, что DATABASE_URL в /opt/env/bersoncarebot/api.prod
+   INTEGRATOR_DATABASE_URL='postgresql://...'
+   ```
+
+3. После правки env: `sudo systemctl restart bersoncarebot-webapp-prod.service` (не обязательно только ради переменной для скриптов, но для единообразия ок).
+
+**Одноразовый запуск без правки файла** (сначала поднять integrator URL, потом webapp — иначе `DATABASE_URL` перезапишется):
+
+```bash
+set -a && source /opt/env/bersoncarebot/api.prod && set +a
+export INTEGRATOR_DATABASE_URL="$DATABASE_URL"
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+# сейчас: DATABASE_URL = webapp, INTEGRATOR_DATABASE_URL = integrator
+cd /opt/projects/bersoncarebot && pnpm --dir /opt/projects/bersoncarebot/apps/webapp run backfill-appointments-domain -- --dry-run
+```
 
 ---
 
@@ -256,7 +283,7 @@
 |------------|------------|----------------------|
 | Integrator (источник) | `DATABASE_URL` | `/opt/env/bersoncarebot/api.prod` |
 | Webapp (целевая) | `DATABASE_URL` | `/opt/env/bersoncarebot/webapp.prod` |
-| Integrator для webapp (backfill/reconcile) | `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` | `/opt/env/bersoncarebot/webapp.prod` (должна указывать на ту же БД, что и `DATABASE_URL` в api.prod) |
+| Integrator для webapp (backfill/reconcile) | `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` | `/opt/env/bersoncarebot/webapp.prod` — **обязательно**; значение = та же строка, что `DATABASE_URL` в `api.prod` (без этого скрипты падают) |
 
 Подключение к psql на проде (под пользователем, у которого есть доступ к БД):
 
@@ -294,7 +321,7 @@ grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/webapp.prod 2>/dev/nul
 
 | Чего не хватает | Как проверить | Как вписать |
 |-----------------|---------------|-------------|
-| `INTEGRATOR_DATABASE_URL` в webapp.prod | В списке из п.2 для webapp.prod нет `INTEGRATOR_DATABASE_URL` (и нет `SOURCE_DATABASE_URL`) | Взять значение `DATABASE_URL` из `/opt/env/bersoncarebot/api.prod` и добавить в webapp.prod строку: `INTEGRATOR_DATABASE_URL=<то_же_значение>`. Перезапуск webapp не обязателен для одной переменной, но после правки env лучше: `sudo systemctl restart bersoncarebot-webapp-prod.service`. |
+| `INTEGRATOR_DATABASE_URL` в webapp.prod | В списке из п.2 для webapp.prod нет `INTEGRATOR_DATABASE_URL` (и нет `SOURCE_DATABASE_URL`) | **Обязательно:** взять значение `DATABASE_URL` из `/opt/env/bersoncarebot/api.prod` и добавить в `webapp.prod` строку `INTEGRATOR_DATABASE_URL='...'` (то же значение, что в api.prod). См. также блок «**Обязательно для скриптов**» в разделе `webapp.prod` выше и одноразовый `source` без правки файла. После правки: `sudo systemctl restart bersoncarebot-webapp-prod.service`. |
 | Имена баз для psql | Не знаете, к какой базе подключаться | Из `api.prod`: `source /opt/env/bersoncarebot/api.prod && echo "$DATABASE_URL"` — в URL будет имя базы (после последнего `/`). Аналогично для webapp из `webapp.prod`. Или после п.1 смотреть вывод списка баз. |
 | Backup перед миграциями | Не уверены, что дампы создаются | Проверить наличие скрипта: `ls -la /opt/backups/scripts/postgres-backup.sh`. Запуск: `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`. Проверить появление дампов в `/opt/backups/postgres/pre-migrations/` (или путь из скрипта). |
 
