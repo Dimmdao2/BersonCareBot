@@ -10,6 +10,15 @@ import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/re
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 
+function isSafeHref(url: string): boolean {
+  try {
+    const parsed = new URL(url, "https://placeholder.invalid");
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 /** Рендерит кабинет: описание, следующая запись и список ближайших записей. Требуется привязка телефона. */
 export default async function PatientCabinetPage() {
   const session = await requirePatientAccess(routePaths.cabinet);
@@ -41,7 +50,13 @@ export default async function PatientCabinetPage() {
                 id={`patient-cabinet-appointment-item-${appointment.id}`}
                 className="list-item"
               >
-                {appointment.link ? <a href={appointment.link}>{appointment.label}</a> : appointment.label}
+                {appointment.link && isSafeHref(appointment.link) ? (
+                  <a href={appointment.link} target="_blank" rel="noopener noreferrer">
+                    {appointment.label}
+                  </a>
+                ) : (
+                  appointment.label
+                )}
               </li>
             ))}
           </ul>
