@@ -1,6 +1,15 @@
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-export const DEFAULT_CUTOVER_ENV_FILE = "/opt/env/bersoncarebot/cutover.prod";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, "..");
+
+export const DEFAULT_CUTOVER_ENV_FILES = [
+  "/opt/env/bersoncarebot/cutover.prod",
+  path.join(repoRoot, ".env.cutover.dev"),
+  path.join(repoRoot, ".env.cutover"),
+];
 
 function parseEnvFile(content) {
   const parsed = {};
@@ -24,17 +33,19 @@ function parseEnvFile(content) {
 }
 
 export function loadCutoverEnv(options = {}) {
-  const path = options.path || process.env.CUTOVER_ENV_FILE || DEFAULT_CUTOVER_ENV_FILE;
   const override = options.override === true;
-  if (!path || !existsSync(path)) {
-    return { loaded: false, path };
+  const explicitPath = options.path || process.env.CUTOVER_ENV_FILE;
+  const candidates = explicitPath ? [explicitPath] : DEFAULT_CUTOVER_ENV_FILES;
+  const resolvedPath = candidates.find((candidate) => candidate && existsSync(candidate)) ?? candidates[0] ?? null;
+  if (!resolvedPath || !existsSync(resolvedPath)) {
+    return { loaded: false, path: resolvedPath };
   }
 
-  const parsed = parseEnvFile(readFileSync(path, "utf8"));
+  const parsed = parseEnvFile(readFileSync(resolvedPath, "utf8"));
   for (const [key, value] of Object.entries(parsed)) {
     if (override || process.env[key] == null || process.env[key] === "") {
       process.env[key] = value;
     }
   }
-  return { loaded: true, path };
+  return { loaded: true, path: resolvedPath };
 }

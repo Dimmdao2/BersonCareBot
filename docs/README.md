@@ -10,6 +10,7 @@
 | Webapp   | 5200 | 6200 |
 
 Деплой, nginx, БД, systemd: **deploy/HOST_DEPLOY_README.md**.
+Cutover/backfill/reconcile env для prod/dev: **docs/ARCHITECTURE/SERVER CONVENTIONS.md** и **deploy/env/README.md**.
 
 ---
 

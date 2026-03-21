@@ -157,7 +157,12 @@
 - `DATABASE_URL` — **webapp** DB (`bcb_webapp_prod`);
 - `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — **integrator** DB (`tgcarebot`).
 
-Скрипты репозитория при запуске с хоста сначала пытаются автоматически загрузить `/opt/env/bersoncarebot/cutover.prod`, и только потом используют текущее окружение/локальные `.env`.
+Скрипты репозитория автоматически пытаются загрузить cutover env в таком порядке:
+
+1. `CUTOVER_ENV_FILE`, если задан явно;
+2. `/opt/env/bersoncarebot/cutover.prod` на production;
+3. `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev` в dev workspace;
+4. `/home/dev/dev-projects/BersonCareBot/.env.cutover` как резервный локальный файл.
 
 Шаблон в репозитории:
 
@@ -175,6 +180,7 @@
 | Integrator env (факт на audit) | `/home/dev/dev-projects/BersonCareBot/.env` |
 | Integrator `.env.dev` | отсутствует |
 | Webapp env | `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` |
+| Dev cutover env | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev` |
 | Legacy `webapp/.env.dev` | отсутствует |
 
 ### systemd / processes
@@ -216,6 +222,31 @@
 - `INTEGRATOR_SHARED_SECRET=...`
 - `INTEGRATOR_API_URL=http://127.0.0.1:4200`
 - `ALLOW_DEV_AUTH_BYPASS=...`
+
+### Dev cutover env
+
+Для симметрии с production dev-скрипты backfill/reconcile/gate используют отдельный файл:
+
+- `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`
+
+Назначение:
+
+- отдельный ops/dev-only env для `backfill-*`, `reconcile-*`, `projection-health`, `stage*-gate`;
+- не смешивает source и target DB URL в runtime env webapp;
+- позволяет запускать dev cutover тем же способом, что и prod.
+
+Ожидаемые ключи:
+
+- `DATABASE_URL` — **webapp dev** DB;
+- `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — **integrator dev** DB.
+
+Подтвержденные **имена dev БД** (по env preview в workspace, без секретов):
+
+| Назначение | Файл env | Переменная | Имя БД |
+|------------|----------|------------|--------|
+| Integrator dev | `/home/dev/dev-projects/BersonCareBot/.env` | `DATABASE_URL` | `bersoncarebot_dev` |
+| Webapp dev | `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` | `DATABASE_URL` | `bcb_webapp_dev` |
+| Integrator для dev cutover/backfill/reconcile | `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev` | `INTEGRATOR_DATABASE_URL` | должно указывать на `bersoncarebot_dev` |
 
 ### Integrator dev env loading
 

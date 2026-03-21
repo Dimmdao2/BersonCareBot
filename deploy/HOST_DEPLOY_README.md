@@ -72,6 +72,7 @@
 | Prod env dir | `/opt/env/bersoncarebot` |
 | Integrator env | `/opt/env/bersoncarebot/api.prod` |
 | Webapp env | `/opt/env/bersoncarebot/webapp.prod` |
+| Cutover env | `/opt/env/bersoncarebot/cutover.prod` |
 
 ### systemd units
 
@@ -240,6 +241,26 @@
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
 
+### `/opt/env/bersoncarebot/cutover.prod`
+
+Этот файл используют только operational-скрипты:
+
+- `backfill-*`
+- `reconcile-*`
+- `projection-health`
+- `stage*-gate`
+
+Обязательные ключи:
+
+- `DATABASE_URL=...` — webapp production DB
+- `INTEGRATOR_DATABASE_URL=...` или `SOURCE_DATABASE_URL=...` — integrator production DB
+
+Важно:
+
+- это не runtime env для `bersoncarebot-webapp-prod.service`;
+- `webapp.prod` не обязан содержать integrator DB URL;
+- preferred схема для cutover/gate — отдельный `cutover.prod`.
+
 ### Dev env
 
 Фактически на audited host:
@@ -247,12 +268,14 @@
 - `/home/dev/dev-projects/BersonCareBot/.env.dev` — отсутствует
 - `/home/dev/dev-projects/BersonCareBot/webapp/.env.dev` — отсутствует
 - `/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev` — существует
+- `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev` — должен использоваться для dev cutover/backfill/reconcile/gate
 - `/home/dev/dev-projects/BersonCareBot/.env` — существует
 
 Вывод:
 
 - webapp dev сейчас живёт на `apps/webapp/.env.dev`
 - integrator dev по факту использует root `.env`, потому что `apps/integrator/src/config/loadEnv.ts` по умолчанию грузит `.env`, а не `.env.dev`
+- dev cutover/backfill/reconcile/gate должен использовать отдельный `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`
 
 ---
 

@@ -107,6 +107,33 @@ curl -s http://127.0.0.1:6200/api/health
 
 ---
 
+### `cutover.prod`
+
+**Путь на хосте:** `/opt/env/bersoncarebot/cutover.prod`
+
+Этот файл используют operational-скрипты:
+
+- `backfill-*`
+- `reconcile-*`
+- `projection-health`
+- `stage*-gate`
+
+Обязательные ключи:
+
+- `DATABASE_URL='...'` — webapp production DB
+- `INTEGRATOR_DATABASE_URL='...'` или `SOURCE_DATABASE_URL='...'` — integrator production DB
+
+Шаблон:
+
+- `deploy/env/.env.cutover.prod.example`
+
+Важно:
+
+- это **не runtime env** для `bersoncarebot-webapp-prod.service`;
+- файл нужен, чтобы не хранить integrator DB URL в `webapp.prod`.
+
+---
+
 ## Development
 
 ### Integrator dev
@@ -147,6 +174,23 @@ curl -s http://127.0.0.1:6200/api/health
 Примечание:
 
 - старый путь `webapp/.env.dev` больше не актуален для текущей структуры `apps/webapp`.
+
+### Dev cutover
+
+Файл:
+
+- `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`
+
+Этот файл используют dev cutover/backfill/reconcile/gate-скрипты.
+
+Обязательные ключи:
+
+- `DATABASE_URL='...'` — webapp dev DB
+- `INTEGRATOR_DATABASE_URL='...'` или `SOURCE_DATABASE_URL='...'` — integrator dev DB
+
+Шаблон:
+
+- `deploy/env/.env.cutover.dev.example`
 
 ---
 

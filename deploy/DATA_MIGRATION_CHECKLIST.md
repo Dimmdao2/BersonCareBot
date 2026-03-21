@@ -8,6 +8,13 @@
 - `INTEGRATOR_DATABASE_URL` (или `SOURCE_DATABASE_URL`) — integrator (источник).
 - Миграции **уже применены** к обеим БД (integrator и webapp).
 
+Рекомендуемая схема env:
+
+- **prod:** `/opt/env/bersoncarebot/cutover.prod`
+- **dev:** `/home/dev/dev-projects/BersonCareBot/.env.cutover.dev`
+
+Скрипты репозитория пытаются автоматически загрузить cutover env, поэтому для cutover/backfill/reconcile/gate не нужно хранить integrator DB URL в runtime env webapp.
+
 ## Порядок выполнения
 
 ### 1. Backfill (перенос данных)
