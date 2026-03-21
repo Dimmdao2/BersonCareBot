@@ -5,11 +5,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
-  { id: "cabinet", label: "Профиль", href: "/app/patient/cabinet" },
-  { id: "security", label: "Безопасность", href: "/app/settings" },
-  { id: "notifications", label: "Настройки уведомлений", href: "/app/settings" },
-  { id: "emergency", label: "Связь с поддержкой", href: "/app/patient/emergency" },
-  { id: "help", label: "Справка", href: "/app/settings" },
+  { id: "profile", label: "Мой профиль", href: "/app/patient/profile" },
+  { id: "cabinet", label: "Мои записи", href: "/app/patient/cabinet" },
+  { id: "notifications", label: "Настройки уведомлений", href: "/app/patient/notifications" },
 ];
 
 type PatientHeaderProps = {
@@ -19,12 +17,10 @@ type PatientHeaderProps = {
   backHref?: string;
   /** Текст/aria-label для кнопки «Назад». */
   backLabel?: string;
-  /** Заголовок страницы (отображается по центру и ведёт в меню). Если не передан — «BERSONCARE». */
-  title?: string;
 };
 
 /** Шапка пациента: стрелка назад | заголовок (ссылка в меню) | гамбургер (боковое меню справа). */
-export function PatientHeader({ showBack, backHref, backLabel = "Назад", title }: PatientHeaderProps) {
+export function PatientHeader({ showBack, backHref, backLabel = "Назад" }: PatientHeaderProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -78,8 +74,21 @@ export function PatientHeader({ showBack, backHref, backLabel = "Назад", ti
           )}
         </div>
         <div className="patient-header__center">
-          <Link href="/app/patient" className="patient-header__title" prefetch={false}>
-            {title?.trim() ?? "BERSONCARE"}
+          <Link href="/app/patient" className="patient-header__home-link" prefetch={false} aria-label="Главное меню">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
+              <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            </svg>
           </Link>
         </div>
         <div className="patient-header__right">
@@ -125,6 +134,18 @@ export function PatientHeader({ showBack, backHref, backLabel = "Назад", ti
               {item.label}
             </Link>
           ))}
+          <div className="drawer-nav__divider" />
+          <button
+            type="button"
+            id="patient-menu-logout"
+            className="drawer-nav__link drawer-nav__link--danger"
+            onClick={() => {
+              close();
+              window.location.href = "/api/auth/logout";
+            }}
+          >
+            Выйти
+          </button>
         </nav>
       </aside>
     </header>

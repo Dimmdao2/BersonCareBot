@@ -6,6 +6,8 @@ export const routePaths = {
   lessons: "/app/patient/lessons",
   emergency: "/app/patient/emergency",
   cabinet: "/app/patient/cabinet",
+  profile: "/app/patient/profile",
+  notifications: "/app/patient/notifications",
   purchases: "/app/patient/purchases",
   symptoms: "/app/patient/diary/symptoms",
   lfk: "/app/patient/diary/lfk",

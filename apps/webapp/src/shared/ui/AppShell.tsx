@@ -46,9 +46,9 @@ export function AppShell({
           showBack={!!backHref}
           backHref={backHref}
           backLabel={backLabel}
-          title={title}
         />
         <main id="app-shell-content" className="content-area">
+          {title ? <h1 className="page-title">{title}</h1> : null}
           {children}
         </main>
         <AskQuestionFAB visible={!!isBrowserOnly} />

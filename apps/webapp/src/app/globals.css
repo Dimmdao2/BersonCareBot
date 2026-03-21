@@ -208,7 +208,7 @@ a {
   color: #9c4242;
 }
 
-/* ——— Шапка пациента (мобильный стиль): [назад | BERSONCARE | гамбургер] ——— */
+/* ——— Шапка пациента (мобильный стиль): [назад | home | гамбургер] ——— */
 .patient-header {
   position: sticky;
   top: 0;
@@ -285,22 +285,19 @@ a.patient-header__back {
   pointer-events: none;
 }
 
-.patient-header__title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: #18202c;
-  -webkit-tap-highlight-color: transparent;
-  text-decoration: none;
-  display: flex;
+.patient-header__home-link {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: var(--patient-touch);
   padding: 0 8px;
+  color: #18202c;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
 }
 
-.patient-header__title:active {
-  opacity: 0.8;
+.patient-header__home-link:active {
+  opacity: 0.7;
 }
 
 .patient-header__menu-btn {
@@ -421,6 +418,29 @@ body.drawer-open {
 
 .drawer-nav__link:active {
   background: rgba(0, 0, 0, 0.05);
+}
+
+.drawer-nav__divider {
+  height: 1px;
+  margin: 8px 16px;
+  background: #e5e7eb;
+}
+
+.drawer-nav__link--danger {
+  color: #dc2626;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #18202c;
 }
 
 /* ——— Верхняя панель (врач / настройки) ——— */
