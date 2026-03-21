@@ -56,7 +56,12 @@ function decodeSession(raw: string): AppSession | null {
   if (!payload || !signature) return null;
   if (!safeEqual(signature, sign(payload, env.SESSION_COOKIE_SECRET))) return null;
 
-  const parsed = JSON.parse(decodeBase64Url(payload)) as AppSession;
+  let parsed: AppSession;
+  try {
+    parsed = JSON.parse(decodeBase64Url(payload)) as AppSession;
+  } catch {
+    return null;
+  }
   const now = Math.floor(Date.now() / 1000);
   return parsed.expiresAt > now ? parsed : null;
 }
@@ -259,7 +264,7 @@ export async function exchangeIntegratorToken(
   const telegramId = parsed.bindings?.telegramId;
   if (telegramId) {
     const envRole = resolveRoleByTelegramId(telegramId);
-    if (envRole !== "client" && user.role !== envRole) {
+    if (user.role !== envRole) {
       if (updateRoleFn) await updateRoleFn(user.userId, envRole);
       user = { ...user, role: envRole };
     }
@@ -308,7 +313,7 @@ export async function exchangeTelegramInitData(
   }
 
   const envRole = resolveRoleByTelegramId(parsed.telegramId);
-  if (envRole !== "client" && user.role !== envRole) {
+  if (user.role !== envRole) {
     if (updateRoleFn) await updateRoleFn(user.userId, envRole);
     user = { ...user, role: envRole };
   }
