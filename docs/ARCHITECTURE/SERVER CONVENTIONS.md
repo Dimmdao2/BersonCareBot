@@ -33,6 +33,7 @@
 | Env dir | `/opt/env/bersoncarebot` |
 | API env | `/opt/env/bersoncarebot/api.prod` |
 | Webapp env | `/opt/env/bersoncarebot/webapp.prod` |
+| Cutover env | `/opt/env/bersoncarebot/cutover.prod` |
 
 ### systemd units
 
@@ -139,33 +140,28 @@
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
 
-**Обязательно для скриптов** `apps/webapp/scripts/backfill-*.mjs` и `reconcile-*.mjs` (и для `pnpm run stage13-gate`, если он гоняет reconcile):
+Для обычного runtime webapp **не нужно** хранить integrator DB в `webapp.prod`.
 
-- **`INTEGRATOR_DATABASE_URL`** или **`SOURCE_DATABASE_URL`** — строка подключения к **БД integrator** (должна совпадать с **`DATABASE_URL`** из `/opt/env/bersoncarebot/api.prod`).
+Для cutover/backfill/reconcile/gate-скриптов используется отдельный файл:
 
-Если этой переменной в `webapp.prod` нет, скрипты падают с `INTEGRATOR_DATABASE_URL (or SOURCE_DATABASE_URL) is not set`.
+#### `/opt/env/bersoncarebot/cutover.prod`
 
-**Как добавить в `webapp.prod` (один раз):**
+Назначение:
 
-1. Скопировать значение `DATABASE_URL` из `api.prod` (без изменений).
-2. В `webapp.prod` добавить строку (пример формата, не коммитить реальные пароли):
+- отдельный ops-only env для `backfill-*`, `reconcile-*`, `projection-health`, `stage*-gate`;
+- не используется как runtime env для `bersoncarebot-webapp-prod.service`;
+- позволяет не хранить integrator DB URL в `webapp.prod`.
 
-   ```bash
-   # то же значение, что DATABASE_URL в /opt/env/bersoncarebot/api.prod
-   INTEGRATOR_DATABASE_URL='postgresql://...'
-   ```
+Ожидаемые ключи:
 
-3. После правки env: `sudo systemctl restart bersoncarebot-webapp-prod.service` (не обязательно только ради переменной для скриптов, но для единообразия ок).
+- `DATABASE_URL` — **webapp** DB (`bcb_webapp_prod`);
+- `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — **integrator** DB (`tgcarebot`).
 
-**Одноразовый запуск без правки файла** (сначала поднять integrator URL, потом webapp — иначе `DATABASE_URL` перезапишется):
+Скрипты репозитория при запуске с хоста сначала пытаются автоматически загрузить `/opt/env/bersoncarebot/cutover.prod`, и только потом используют текущее окружение/локальные `.env`.
 
-```bash
-set -a && source /opt/env/bersoncarebot/api.prod && set +a
-export INTEGRATOR_DATABASE_URL="$DATABASE_URL"
-set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-# сейчас: DATABASE_URL = webapp, INTEGRATOR_DATABASE_URL = integrator
-cd /opt/projects/bersoncarebot && pnpm --dir /opt/projects/bersoncarebot/apps/webapp run backfill-appointments-domain -- --dry-run
-```
+Шаблон в репозитории:
+
+- `deploy/env/.env.cutover.prod.example`
 
 ---
 
@@ -283,7 +279,15 @@ cd /opt/projects/bersoncarebot && pnpm --dir /opt/projects/bersoncarebot/apps/we
 |------------|------------|----------------------|
 | Integrator (источник) | `DATABASE_URL` | `/opt/env/bersoncarebot/api.prod` |
 | Webapp (целевая) | `DATABASE_URL` | `/opt/env/bersoncarebot/webapp.prod` |
-| Integrator для webapp (backfill/reconcile) | `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` | `/opt/env/bersoncarebot/webapp.prod` — **обязательно**; значение = та же строка, что `DATABASE_URL` в `api.prod` (без этого скрипты падают) |
+| Integrator для webapp (backfill/reconcile) | `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` | `/opt/env/bersoncarebot/cutover.prod` — preferred; значение = та же строка, что `DATABASE_URL` в `api.prod` |
+
+Подтвержденные **имена production БД** (по env preview на `2026-03-21`, без секретов):
+
+| Назначение | Файл env | Переменная | Имя БД |
+|------------|----------|------------|--------|
+| Integrator | `/opt/env/bersoncarebot/api.prod` | `DATABASE_URL` | `tgcarebot` |
+| Webapp | `/opt/env/bersoncarebot/webapp.prod` | `DATABASE_URL` | `bcb_webapp_prod` |
+| Integrator для webapp backfill/reconcile | `/opt/env/bersoncarebot/cutover.prod` | `INTEGRATOR_DATABASE_URL` | должно указывать на `tgcarebot` |
 
 Подключение к psql на проде (под пользователем, у которого есть доступ к БД):
 
@@ -315,13 +319,15 @@ echo "=== api.prod (integrator) ==="
 grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/api.prod 2>/dev/null | cut -d= -f1 | sort
 echo "=== webapp.prod ==="
 grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/webapp.prod 2>/dev/null | cut -d= -f1 | sort
+echo "=== cutover.prod ==="
+grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/cutover.prod 2>/dev/null | cut -d= -f1 | sort
 ```
 
 **3. Чего часто не хватает и как добавить:**
 
 | Чего не хватает | Как проверить | Как вписать |
 |-----------------|---------------|-------------|
-| `INTEGRATOR_DATABASE_URL` в webapp.prod | В списке из п.2 для webapp.prod нет `INTEGRATOR_DATABASE_URL` (и нет `SOURCE_DATABASE_URL`) | **Обязательно:** взять значение `DATABASE_URL` из `/opt/env/bersoncarebot/api.prod` и добавить в `webapp.prod` строку `INTEGRATOR_DATABASE_URL='...'` (то же значение, что в api.prod). См. также блок «**Обязательно для скриптов**» в разделе `webapp.prod` выше и одноразовый `source` без правки файла. После правки: `sudo systemctl restart bersoncarebot-webapp-prod.service`. |
+| `INTEGRATOR_DATABASE_URL` для cutover-скриптов | В `/opt/env/bersoncarebot/cutover.prod` нет `INTEGRATOR_DATABASE_URL` (и нет `SOURCE_DATABASE_URL`) | Создать `/opt/env/bersoncarebot/cutover.prod`; взять значение `DATABASE_URL` из `/opt/env/bersoncarebot/api.prod` и записать как `INTEGRATOR_DATABASE_URL='...'`. `DATABASE_URL` в этом файле должен указывать на webapp DB из `webapp.prod`. |
 | Имена баз для psql | Не знаете, к какой базе подключаться | Из `api.prod`: `source /opt/env/bersoncarebot/api.prod && echo "$DATABASE_URL"` — в URL будет имя базы (после последнего `/`). Аналогично для webapp из `webapp.prod`. Или после п.1 смотреть вывод списка баз. |
 | Backup перед миграциями | Не уверены, что дампы создаются | Проверить наличие скрипта: `ls -la /opt/backups/scripts/postgres-backup.sh`. Запуск: `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`. Проверить появление дампов в `/opt/backups/postgres/pre-migrations/` (или путь из скрипта). |
 

@@ -11,8 +11,11 @@
  */
 import "dotenv/config";
 import pg from "pg";
+import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
 
 const { Client } = pg;
+
+loadCutoverEnv();
 
 const argv = process.argv.slice(2);
 const dryRun = !argv.includes("--commit");

@@ -7,8 +7,11 @@
  * Requires: DATABASE_URL (webapp), INTEGRATOR_DATABASE_URL (integrator).
  */
 import pg from "pg";
+import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
 
 const { Client } = pg;
+
+loadCutoverEnv();
 
 function parseArgs(argv) {
   let maxMismatchPercent = 0;

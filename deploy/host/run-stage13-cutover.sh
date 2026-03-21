@@ -4,6 +4,7 @@ set -euo pipefail
 PROJECT_ROOT=/opt/projects/bersoncarebot
 API_ENV_FILE=/opt/env/bersoncarebot/api.prod
 WEBAPP_ENV_FILE=/opt/env/bersoncarebot/webapp.prod
+CUTOVER_ENV_FILE=/opt/env/bersoncarebot/cutover.prod
 
 DRY_RUN_ONLY=0
 if [ "${1:-}" = "--dry-run-only" ]; then
@@ -43,21 +44,29 @@ require_file "${WEBAPP_ENV_FILE}" "Webapp env file"
 
 cd "${PROJECT_ROOT}"
 
-set -a
-source "${API_ENV_FILE}"
-set +a
-API_DB_URL="${INTEGRATOR_DATABASE_URL:-${SOURCE_DATABASE_URL:-${DATABASE_URL:-}}}"
+if [ -f "${CUTOVER_ENV_FILE}" ]; then
+  set -a
+  source "${CUTOVER_ENV_FILE}"
+  set +a
+  API_DB_URL="${INTEGRATOR_DATABASE_URL:-${SOURCE_DATABASE_URL:-}}"
+  WEBAPP_DB_URL="${DATABASE_URL:-}"
+else
+  set -a
+  source "${API_ENV_FILE}"
+  set +a
+  API_DB_URL="${INTEGRATOR_DATABASE_URL:-${SOURCE_DATABASE_URL:-${DATABASE_URL:-}}}"
 
-set -a
-source "${WEBAPP_ENV_FILE}"
-set +a
-WEBAPP_DB_URL="${DATABASE_URL:-}"
+  set -a
+  source "${WEBAPP_ENV_FILE}"
+  set +a
+  WEBAPP_DB_URL="${DATABASE_URL:-}"
+fi
 
 if [ -z "${WEBAPP_DB_URL}" ]; then
-  fail "DATABASE_URL (webapp) is empty after loading ${WEBAPP_ENV_FILE}"
+  fail "DATABASE_URL (webapp) is empty after loading ${CUTOVER_ENV_FILE} or ${WEBAPP_ENV_FILE}"
 fi
 if [ -z "${API_DB_URL}" ]; then
-  fail "INTEGRATOR_DATABASE_URL/SOURCE_DATABASE_URL/DATABASE_URL (integrator) is empty after loading ${API_ENV_FILE}"
+  fail "INTEGRATOR_DATABASE_URL/SOURCE_DATABASE_URL (integrator) is empty after loading ${CUTOVER_ENV_FILE} or ${API_ENV_FILE}"
 fi
 
 export DATABASE_URL="${WEBAPP_DB_URL}"

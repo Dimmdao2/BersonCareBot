@@ -9,9 +9,12 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { loadCutoverEnv } from "./load-cutover-env.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
+
+loadCutoverEnv();
 
 await new Promise((resolve, reject) => {
   const child = spawn("node", ["scripts/stage11-release-gate.mjs"], {

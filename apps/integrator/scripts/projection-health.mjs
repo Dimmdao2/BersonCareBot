@@ -6,9 +6,12 @@
  */
 import 'dotenv/config';
 import pg from 'pg';
+import { loadCutoverEnv } from '../../../scripts/load-cutover-env.mjs';
 
 const { Pool } = pg;
 const RETRY_THRESHOLD = 3;
+
+loadCutoverEnv();
 
 async function getProjectionHealth(pool) {
   const [countsRes, oldestRes, distRes, lastSuccessRes, overThresholdRes] = await Promise.all([

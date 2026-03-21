@@ -9,9 +9,12 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { loadCutoverEnv } from "./load-cutover-env.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
+
+loadCutoverEnv();
 
 function run(cmd, args, cwd, name) {
   return new Promise((resolve) => {

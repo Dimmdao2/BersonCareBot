@@ -1,0 +1,22 @@
+---
+description: Always use confirmed server conventions and read core docs first
+alwaysApply: true
+---
+
+# Server Conventions And Doc Onboarding
+
+- At the start of every new chat, first familiarize yourself with core project docs before giving substantial guidance:
+  - `README.md`
+  - `docs/README.md`
+  - `docs/ARCHITECTURE/SERVER CONVENTIONS.md`
+  - `deploy/HOST_DEPLOY_README.md`
+- For any server, deploy, prod, systemd, nginx, env, path, port, DB, backup, migration, backfill, reconcile, or cutover question:
+  - Treat `docs/ARCHITECTURE/SERVER CONVENTIONS.md` as the primary source of truth for confirmed runtime facts.
+  - Use exact names and paths from that file. Never invent or guess paths, service names, env file names, DB names, ports, URLs, or users.
+- If a required runtime fact is missing or not explicitly confirmed in docs:
+  - Say clearly that the value is missing/unconfirmed.
+  - Give exact commands to discover it on the host.
+  - Then update the documentation with the newly confirmed non-secret fact so the next chat does not repeat the discovery.
+- When adding discovered server facts to docs:
+  - Store only non-secret operational facts in docs (paths, unit names, port numbers, DB names, env key names, URLs, users, ownership).
+  - Never write secrets, passwords, tokens, or full credential-bearing connection strings into repo docs.

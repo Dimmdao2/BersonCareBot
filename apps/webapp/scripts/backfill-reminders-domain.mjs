@@ -14,8 +14,10 @@
  */
 import "dotenv/config";
 import pg from "pg";
+import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
 
 const args = process.argv.slice(2);
+loadCutoverEnv();
 const dryRun = !args.includes("--commit");
 const limitArg = args.find((a) => a.startsWith("--limit="));
 /** Safe row cap for backfill (avoids accidental huge LIMIT / NaN in SQL). */

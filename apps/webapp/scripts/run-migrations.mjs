@@ -8,9 +8,12 @@ import { readdir, readFile } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import pg from "pg";
+import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(__dirname, "..", "migrations");
+
+loadCutoverEnv();
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;

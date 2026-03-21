@@ -13,8 +13,10 @@
  */
 import "dotenv/config";
 import pg from "pg";
+import { loadCutoverEnv } from "../../../scripts/load-cutover-env.mjs";
 
 const args = process.argv.slice(2);
+loadCutoverEnv();
 const dryRun = args.includes("--dry-run") || !args.includes("--commit");
 const limitArg = args.find((a) => a.startsWith("--limit="));
 const limit = limitArg ? Math.max(0, parseInt(limitArg.split("=")[1], 10)) : 0;
