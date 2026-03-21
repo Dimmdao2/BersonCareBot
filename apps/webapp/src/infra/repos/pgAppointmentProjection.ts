@@ -13,6 +13,7 @@ export type AppointmentRecordRow = {
   status: string;
   payloadJson: Record<string, unknown>;
   lastEvent: string;
+  branchId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -26,6 +27,7 @@ export type AppointmentProjectionPort = {
     payloadJson: Record<string, unknown>;
     lastEvent: string;
     updatedAt: string;
+    branchId?: string | null;
   }): Promise<void>;
   getRecordByIntegratorId(integratorRecordId: string): Promise<AppointmentRecordRow | null>;
   listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]>;
@@ -39,6 +41,7 @@ function mapRow(r: {
   status: string;
   payload_json: unknown;
   last_event: string;
+  branch_id: string | null;
   created_at: Date;
   updated_at: Date;
 }): AppointmentRecordRow {
@@ -53,6 +56,7 @@ function mapRow(r: {
         ? (r.payload_json as Record<string, unknown>)
         : {},
     lastEvent: r.last_event ?? "",
+    branchId: r.branch_id ?? null,
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
   };
@@ -64,15 +68,16 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
       const pool = getPool();
       await pool.query(
         `INSERT INTO appointment_records (
-          integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at
-        ) VALUES ($1, $2, $3::timestamptz, $4, $5::jsonb, $6, $7::timestamptz)
+          integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, updated_at, branch_id
+        ) VALUES ($1, $2, $3::timestamptz, $4, $5::jsonb, $6, $7::timestamptz, $8::uuid)
         ON CONFLICT (integrator_record_id) DO UPDATE SET
           phone_normalized = EXCLUDED.phone_normalized,
           record_at = EXCLUDED.record_at,
           status = EXCLUDED.status,
           payload_json = EXCLUDED.payload_json,
           last_event = EXCLUDED.last_event,
-          updated_at = EXCLUDED.updated_at`,
+          updated_at = EXCLUDED.updated_at,
+          branch_id = EXCLUDED.branch_id`,
         [
           params.integratorRecordId,
           params.phoneNormalized,
@@ -81,6 +86,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
           JSON.stringify(params.payloadJson),
           params.lastEvent,
           params.updatedAt,
+          params.branchId ?? null,
         ]
       );
     },
@@ -95,10 +101,11 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
         status: string;
         payload_json: unknown;
         last_event: string;
+        branch_id: string | null;
         created_at: Date;
         updated_at: Date;
       }>(
-        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, created_at, updated_at
+        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at
          FROM appointment_records WHERE integrator_record_id = $1 LIMIT 1`,
         [integratorRecordId]
       );
@@ -116,10 +123,11 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
         status: string;
         payload_json: unknown;
         last_event: string;
+        branch_id: string | null;
         created_at: Date;
         updated_at: Date;
       }>(
-        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, created_at, updated_at
+        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at
          FROM appointment_records
          WHERE phone_normalized = $1 AND status IN ('created', 'updated')
          ORDER BY record_at ASC NULLS LAST`,

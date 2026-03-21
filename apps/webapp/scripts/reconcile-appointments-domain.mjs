@@ -47,16 +47,54 @@ async function main() {
 
   let report = null;
   try {
-    const srcRows = await integratorClient.query("SELECT rubitime_record_id AS id FROM rubitime_records");
-    const tgtRows = await webappClient.query("SELECT integrator_record_id FROM appointment_records");
+    const srcRows = await integratorClient.query(
+      "SELECT rubitime_record_id AS id, payload_json FROM rubitime_records"
+    );
+    const tgtRows = await webappClient.query(
+      `SELECT ar.integrator_record_id, b.integrator_branch_id
+       FROM appointment_records ar
+       LEFT JOIN branches b ON ar.branch_id = b.id`
+    );
     const srcIds = new Set(srcRows.rows.map((r) => r.id));
     const tgtIds = new Set(tgtRows.rows.map((r) => r.integrator_record_id));
+    const tgtByRecordId = new Map(tgtRows.rows.map((r) => [r.integrator_record_id, r]));
     const missing = [...srcIds].filter((id) => !tgtIds.has(id));
+
+    let branchMatch = 0;
+    let branchMismatch = 0;
+    let branchSourceOnly = 0;
+    let branchTargetOnly = 0;
+    for (const src of srcRows.rows) {
+      const id = src.id;
+      const tgt = tgtByRecordId.get(id);
+      if (!tgt) continue;
+      const payload = src.payload_json ?? {};
+      const srcBranchId =
+        payload.branch_id != null
+          ? (typeof payload.branch_id === "number"
+              ? payload.branch_id
+              : parseInt(String(payload.branch_id), 10))
+          : null;
+      const srcBranch = Number.isFinite(srcBranchId) ? srcBranchId : null;
+      const tgtBranch = tgt.integrator_branch_id != null ? Number(tgt.integrator_branch_id) : null;
+      if (srcBranch != null && tgtBranch != null) {
+        if (srcBranch === tgtBranch) branchMatch += 1;
+        else branchMismatch += 1;
+      } else if (srcBranch != null) branchSourceOnly += 1;
+      else if (tgtBranch != null) branchTargetOnly += 1;
+    }
+
     report = {
       sourceCount: srcRows.rowCount ?? 0,
       targetCount: tgtRows.rowCount ?? 0,
       missingInWebappCount: missing.length,
       missingInWebappSample: missing.slice(0, sampleSize),
+      branchConsistency: {
+        branchMatch,
+        branchMismatch,
+        branchSourceOnly,
+        branchTargetOnly,
+      },
     };
   } finally {
     await webappClient.end();

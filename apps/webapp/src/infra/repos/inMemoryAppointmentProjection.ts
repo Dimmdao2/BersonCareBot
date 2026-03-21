@@ -9,6 +9,7 @@ const recordsByIntegratorId = new Map<
     status: string;
     payloadJson: Record<string, unknown>;
     lastEvent: string;
+    branchId: string | null;
     createdAt: string;
     updatedAt: string;
   }
@@ -23,6 +24,7 @@ function toRow(
     status: string;
     payloadJson: Record<string, unknown>;
     lastEvent: string;
+    branchId: string | null;
     createdAt: string;
     updatedAt: string;
   }
@@ -35,6 +37,7 @@ function toRow(
     status: v.status,
     payloadJson: v.payloadJson,
     lastEvent: v.lastEvent,
+    branchId: v.branchId ?? null,
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
   };
@@ -51,6 +54,7 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
       status: params.status,
       payloadJson: params.payloadJson ?? {},
       lastEvent: params.lastEvent ?? "",
+      branchId: params.branchId ?? null,
       createdAt: existing?.createdAt ?? now,
       updatedAt: params.updatedAt ?? now,
     });

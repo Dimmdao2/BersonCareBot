@@ -62,6 +62,7 @@ import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjecti
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { createPgAppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
 import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
+import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
 import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemorySubscriptionMailingProjection";
 import { checkDbHealth, getPool } from "@/infra/db/client";
@@ -89,6 +90,7 @@ const reminderProjectionPort = env.DATABASE_URL
 const appointmentProjectionPort = env.DATABASE_URL
   ? createPgAppointmentProjectionPort()
   : inMemoryAppointmentProjectionPort;
+const branchesProjectionPort = env.DATABASE_URL ? createPgBranchesProjectionPort() : null;
 const subscriptionMailingProjectionPort = env.DATABASE_URL
   ? createPgSubscriptionMailingProjectionPort()
   : inMemorySubscriptionMailingProjectionPort;
@@ -260,11 +262,13 @@ export function buildAppDeps() {
       upsertFromProjection: userProjectionPort.upsertFromProjection,
       findByIntegratorId: userProjectionPort.findByIntegratorId,
       updatePhone: userProjectionPort.updatePhone,
+      updateProfileByPhone: userProjectionPort.updateProfileByPhone,
       upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
     },
     supportCommunication: supportCommunicationPort,
     reminderProjection: reminderProjectionPort,
     appointmentProjection: appointmentProjectionPort,
+    branches: branchesProjectionPort ?? undefined,
     subscriptionMailingProjection: subscriptionMailingProjectionPort,
   };
 }

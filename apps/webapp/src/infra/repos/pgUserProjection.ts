@@ -5,11 +5,22 @@ export type UserProjectionPort = {
     integratorUserId: string;
     phoneNormalized?: string;
     displayName?: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
     channelCode?: string;
     externalId?: string;
   }) => Promise<{ platformUserId: string }>;
   findByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
   updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
+  /** Update profile (first_name, last_name, email, display_name) by phone; no-op if no user found. */
+  updateProfileByPhone: (params: {
+    phoneNormalized: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    displayName?: string | null;
+  }) => Promise<void>;
   upsertNotificationTopics: (params: {
     platformUserId: string;
     topics: { topicCode: string; isEnabled: boolean }[];
@@ -33,6 +44,18 @@ export const pgUserProjectionPort: UserProjectionPort = {
       if (params.displayName != null) {
         sets.push(`display_name = $${++idx}`);
         vals.push(params.displayName);
+      }
+      if (params.firstName !== undefined) {
+        sets.push(`first_name = $${++idx}`);
+        vals.push(params.firstName);
+      }
+      if (params.lastName !== undefined) {
+        sets.push(`last_name = $${++idx}`);
+        vals.push(params.lastName);
+      }
+      if (params.email !== undefined) {
+        sets.push(`email = $${++idx}`);
+        vals.push(params.email);
       }
       if (params.phoneNormalized != null) {
         sets.push(`phone_normalized = $${++idx}`);
@@ -58,6 +81,18 @@ export const pgUserProjectionPort: UserProjectionPort = {
           sets.push(`display_name = $${vals.length + 1}`);
           vals.push(params.displayName);
         }
+        if (params.firstName !== undefined) {
+          sets.push(`first_name = $${vals.length + 1}`);
+          vals.push(params.firstName);
+        }
+        if (params.lastName !== undefined) {
+          sets.push(`last_name = $${vals.length + 1}`);
+          vals.push(params.lastName);
+        }
+        if (params.email !== undefined) {
+          sets.push(`email = $${vals.length + 1}`);
+          vals.push(params.email);
+        }
         await pool.query(
           `UPDATE platform_users SET ${sets.join(", ")} WHERE id = $1`,
           vals,
@@ -66,10 +101,14 @@ export const pgUserProjectionPort: UserProjectionPort = {
     }
 
     if (!userId) {
+      const displayName = params.displayName ?? "";
+      const firstName = params.firstName ?? null;
+      const lastName = params.lastName ?? null;
+      const email = params.email ?? null;
       const ins = await pool.query<{ id: string }>(
-        `INSERT INTO platform_users (integrator_user_id, phone_normalized, display_name)
-         VALUES ($1, $2, $3) RETURNING id`,
-        [params.integratorUserId, params.phoneNormalized ?? null, params.displayName ?? ""],
+        `INSERT INTO platform_users (integrator_user_id, phone_normalized, display_name, first_name, last_name, email)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+        [params.integratorUserId, params.phoneNormalized ?? null, displayName, firstName, lastName, email],
       );
       userId = ins.rows[0].id;
     }
@@ -103,6 +142,35 @@ export const pgUserProjectionPort: UserProjectionPort = {
     );
   },
 
+  async updateProfileByPhone(params) {
+    const pool = getPool();
+    const sets: string[] = ["updated_at = now()"];
+    const vals: unknown[] = [];
+    let idx = 0;
+    if (params.firstName !== undefined) {
+      sets.push(`first_name = $${++idx}`);
+      vals.push(params.firstName);
+    }
+    if (params.lastName !== undefined) {
+      sets.push(`last_name = $${++idx}`);
+      vals.push(params.lastName);
+    }
+    if (params.email !== undefined) {
+      sets.push(`email = $${++idx}`);
+      vals.push(params.email);
+    }
+    if (params.displayName !== undefined) {
+      sets.push(`display_name = $${++idx}`);
+      vals.push(params.displayName);
+    }
+    if (vals.length === 0) return;
+    vals.push(params.phoneNormalized);
+    await pool.query(
+      `UPDATE platform_users SET ${sets.join(", ")} WHERE phone_normalized = $${idx + 1}`,
+      vals,
+    );
+  },
+
   async upsertNotificationTopics(params) {
     const pool = getPool();
     for (const topic of params.topics) {
@@ -121,5 +189,6 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   upsertFromProjection: async () => ({ platformUserId: "" }),
   findByIntegratorId: async () => null,
   updatePhone: async () => {},
+  updateProfileByPhone: async () => {},
   upsertNotificationTopics: async () => {},
 };

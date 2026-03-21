@@ -12,6 +12,13 @@ type RubitimeIncomingPayload = {
   recordAtFormatted?: string;
   updatedAt?: string;
   record: Record<string, unknown>;
+  /** Patient profile from Rubitime card (for scripts and projection). */
+  clientName?: string;
+  clientEmail?: string;
+  clientFirstName?: string;
+  clientLastName?: string;
+  integratorBranchId?: string;
+  branchName?: string;
 };
 
 /** Форматирует дату/время в ДД.ММ.ГГГГ в ЧЧ:ММ. Вход: "2026-03-04 18:00:00" или ISO. */
@@ -43,6 +50,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+/** Best-effort split: "Иванов Иван" -> last=Иванов, first=Иван; single word -> first only. */
+function parseNameToFirstLast(name: string): { firstName?: string; lastName?: string } {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return {};
+  if (parts.length === 1) return { firstName: parts[0] as string };
+  return { lastName: parts[0] as string, firstName: parts.slice(1).join(' ') };
 }
 
 function normalizeRubitimeAction(event: RubitimeWebhookBodyValidated['event']): RubitimeIncomingPayload['action'] {
@@ -84,6 +99,14 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
   const recordAt = asString(source.record) ?? asString(source.datetime);
   const recordAtFormatted = recordAt ? formatRecordAt(recordAt) : undefined;
   const updatedAt = asString(source.updated_at);
+  const clientName = asString(source.name);
+  const clientEmail = asString(source.email);
+  const integratorBranchId =
+    asString(source.branch_id) ?? (source.branch_id != null ? String(source.branch_id) : undefined);
+  const branchName = asString(source.branch_name) ?? asString(source.branch_title);
+  const { firstName: clientFirstName, lastName: clientLastName } = clientName
+    ? parseNameToFirstLast(clientName)
+    : {};
 
   return {
     entity: 'record',
@@ -96,6 +119,12 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
     ...(recordAtFormatted ? { recordAtFormatted } : {}),
     ...(updatedAt ? { updatedAt } : {}),
     record: source,
+    ...(clientName ? { clientName } : {}),
+    ...(clientEmail ? { clientEmail } : {}),
+    ...(clientFirstName ? { clientFirstName } : {}),
+    ...(clientLastName ? { clientLastName } : {}),
+    ...(integratorBranchId ? { integratorBranchId } : {}),
+    ...(branchName ? { branchName } : {}),
   };
 }
 

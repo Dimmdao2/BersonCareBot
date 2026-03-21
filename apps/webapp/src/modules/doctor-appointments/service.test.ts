@@ -16,6 +16,7 @@ describe("doctor-appointments service", () => {
             status: "подтверждена",
             link: null,
             cancellationCountForClient: 0,
+            branchName: null,
           },
         ];
       }

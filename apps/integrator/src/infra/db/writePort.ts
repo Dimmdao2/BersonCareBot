@@ -47,6 +47,11 @@ type BookingUpsertParams = {
   status?: unknown;
   payloadJson?: unknown;
   lastEvent?: unknown;
+  patientFirstName?: unknown;
+  patientLastName?: unknown;
+  patientEmail?: unknown;
+  integratorBranchId?: unknown;
+  branchName?: unknown;
 };
 
 function asNonEmptyString(value: unknown): string | null {
@@ -55,6 +60,14 @@ function asNonEmptyString(value: unknown): string | null {
 
 function asNullableString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+
+/** Best-effort split: "Иванов Иван" -> last=Иванов, first=Иван. */
+function parseNameToFirstLast(name: string): { firstName: string | null; lastName: string | null } {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: null, lastName: null };
+  if (parts.length === 1) return { firstName: parts[0] ?? null, lastName: null };
+  return { lastName: parts[0] ?? null, firstName: parts.slice(1).join(' ') };
 }
 
 function asFiniteNumber(value: unknown): number | null {
@@ -109,6 +122,23 @@ export function createDbWritePort(input: {
             : {};
           const lastEvent = asNonEmptyString(params.lastEvent) ?? 'unknown';
           const updatedAt = new Date().toISOString();
+          const rawEmail = asNullableString(params.patientEmail) ?? asNullableString(payloadJson.email);
+          const rawBranchId =
+            asNullableString(params.integratorBranchId) ??
+            asNullableString(payloadJson.branch_id) ??
+            (payloadJson.branch_id != null ? String(payloadJson.branch_id) : null);
+          const rawBranchName =
+            asNullableString(params.branchName) ??
+            asNullableString(payloadJson.branch_name) ??
+            asNullableString(payloadJson.branch_title);
+          const nameFromPayload = asNullableString(payloadJson.name);
+          const parsedFromName = nameFromPayload
+            ? parseNameToFirstLast(nameFromPayload)
+            : { firstName: null, lastName: null };
+          const patientFirstName: string | null =
+            asNullableString(params.patientFirstName) ?? parsedFromName.firstName;
+          const patientLastName: string | null =
+            asNullableString(params.patientLastName) ?? parsedFromName.lastName;
           await db.tx(async (txDb) => {
             await upsertRecord(txDb, {
               externalRecordId,
@@ -126,6 +156,11 @@ export function createDbWritePort(input: {
               payloadJson,
               lastEvent,
               updatedAt,
+              patientFirstName: patientFirstName ?? null,
+              patientLastName: patientLastName ?? null,
+              patientEmail: rawEmail ?? null,
+              integratorBranchId: rawBranchId ?? null,
+              branchName: rawBranchName ?? null,
             };
             await enqueueProjectionEvent(txDb, {
               eventType: APPOINTMENT_RECORD_UPSERTED,

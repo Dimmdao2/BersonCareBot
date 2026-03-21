@@ -7,6 +7,7 @@ import type { ReminderProjectionPort } from "@/infra/repos/pgReminderProjection"
 import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import type { AppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
 import type { SubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
+import type { BranchesProjectionPort } from "@/infra/repos/pgBranches";
 
 const REMINDER_RULE_UPSERTED = "reminder.rule.upserted";
 const REMINDER_OCCURRENCE_FINALIZED = "reminder.occurrence.finalized";
@@ -60,12 +61,23 @@ export type IntegratorEventsDeps = {
       integratorUserId: string;
       phoneNormalized?: string;
       displayName?: string;
+      firstName?: string | null;
+      lastName?: string | null;
+      email?: string | null;
       channelCode?: string;
       externalId?: string;
     }) => Promise<{ platformUserId: string }>;
     findByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
     updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
+    updateProfileByPhone: (params: {
+      phoneNormalized: string;
+      firstName?: string | null;
+      lastName?: string | null;
+      email?: string | null;
+      displayName?: string | null;
+    }) => Promise<void>;
   };
+  branches?: BranchesProjectionPort;
   preferences?: {
     upsertNotificationTopics: (params: {
       platformUserId: string;
@@ -624,6 +636,35 @@ export async function handleIntegratorEvent(
         : {};
     const lastEvent = typeof p.lastEvent === "string" ? p.lastEvent : "";
     const updatedAt = typeof p.updatedAt === "string" ? p.updatedAt : new Date().toISOString();
+    const patientFirstName = coerceToString(p.patientFirstName) ?? null;
+    const patientLastName = coerceToString(p.patientLastName) ?? null;
+    const patientEmail = coerceToString(p.patientEmail) ?? null;
+    const integratorBranchId = coerceToString(p.integratorBranchId) ?? null;
+    const branchName = coerceToString(p.branchName) ?? null;
+
+    let branchId: string | null = null;
+    if (deps.branches && integratorBranchId) {
+      const { branchId: id } = await deps.branches.upsertFromProjection({
+        integratorBranchId,
+        name: branchName,
+      });
+      branchId = id;
+    }
+
+    if (deps.users && phoneNormalized && (patientFirstName ?? patientLastName ?? patientEmail ?? null)) {
+      const displayName =
+        [patientLastName, patientFirstName].filter(Boolean).join(" ").trim() ||
+        (typeof payloadJson.name === "string" ? payloadJson.name.trim() : null) ||
+        undefined;
+      await deps.users.updateProfileByPhone({
+        phoneNormalized,
+        firstName: patientFirstName,
+        lastName: patientLastName,
+        email: patientEmail,
+        ...(displayName ? { displayName } : {}),
+      });
+    }
+
     try {
       await ap.upsertRecordFromProjection({
         integratorRecordId,
@@ -633,6 +674,7 @@ export async function handleIntegratorEvent(
         payloadJson,
         lastEvent,
         updatedAt,
+        branchId,
       });
       return { accepted: true };
     } catch (err) {

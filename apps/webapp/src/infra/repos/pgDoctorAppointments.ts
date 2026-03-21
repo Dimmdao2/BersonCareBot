@@ -46,6 +46,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         payload_json: { link?: string; url?: string; record_url?: string; service_title?: string };
         user_id: string | null;
         display_name: string | null;
+        branch_name: string | null;
       }>(
         `SELECT
           ar.integrator_record_id,
@@ -54,9 +55,11 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
           ar.status,
           ar.payload_json,
           pu.id AS user_id,
-          pu.display_name
+          COALESCE(pu.display_name, pu.first_name || ' ' || NULLIF(pu.last_name, ''), pu.first_name, pu.last_name) AS display_name,
+          b.name AS branch_name
          FROM appointment_records ar
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized
+         LEFT JOIN branches b ON ar.branch_id = b.id
          WHERE ar.status != 'canceled'
            AND ar.record_at IS NOT NULL
            AND ar.record_at >= $1::timestamptz
@@ -75,12 +78,13 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         return {
           id: row.integrator_record_id,
           clientUserId: row.user_id ?? "",
-          clientLabel: row.display_name ?? "Неизвестный клиент",
+          clientLabel: (row.display_name && row.display_name.trim()) || "Неизвестный клиент",
           time: formatRecordAt(row.record_at),
           type: (payload.service_title && payload.service_title.trim()) || "Запись",
           status: row.status,
           link,
           cancellationCountForClient: 0,
+          branchName: row.branch_name ?? null,
         };
       });
     },

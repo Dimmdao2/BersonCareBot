@@ -50,4 +50,65 @@ describe('rubitimeIncomingToEvent', () => {
       },
     });
   });
+
+  it('parses name, email, branch_id from record into client and branch fields', () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-create-record' as const,
+      data: {
+        record: {
+          id: '42',
+          phone: '+79991234567',
+          record: '2026-04-01 10:00:00',
+          name: 'Иванов Иван Петрович',
+          email: 'ivan@example.com',
+          branch_id: 101,
+          branch_name: 'Филиал Центр',
+        },
+      },
+    };
+
+    const event = rubitimeIncomingToEvent({
+      body,
+      correlationId: 'c1',
+      eventId: 'e1',
+    });
+
+    const incoming = event.payload.incoming as Record<string, unknown>;
+    expect(incoming).toMatchObject({
+      clientName: 'Иванов Иван Петрович',
+      clientEmail: 'ivan@example.com',
+      integratorBranchId: '101',
+      branchName: 'Филиал Центр',
+      clientFirstName: 'Иван Петрович',
+      clientLastName: 'Иванов',
+    });
+  });
+
+  it('handles single-word name and numeric branch_id', () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-update-record' as const,
+      data: {
+        record: {
+          id: '43',
+          phone: '+79990000000',
+          name: 'Мария',
+          branch_id: 2,
+        },
+      },
+    };
+
+    const event = rubitimeIncomingToEvent({
+      body,
+      correlationId: 'c2',
+      eventId: 'e2',
+    });
+
+    const incoming = event.payload.incoming as Record<string, unknown>;
+    expect(incoming.clientName).toBe('Мария');
+    expect(incoming.clientFirstName).toBe('Мария');
+    expect(incoming.clientLastName).toBeUndefined();
+    expect(incoming.integratorBranchId).toBe('2');
+  });
 });

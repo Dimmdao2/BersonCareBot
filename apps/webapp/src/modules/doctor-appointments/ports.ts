@@ -13,6 +13,8 @@ export type AppointmentRow = {
   status: string;
   link: string | null;
   cancellationCountForClient: number;
+  /** Branch name from Rubitime (if linked). */
+  branchName: string | null;
 };
 
 /** Агрегатная статистика по записям. */

@@ -824,10 +824,74 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
         payloadJson: { link: "https://example.com" },
         lastEvent: "event-update",
         updatedAt: "2025-06-15T09:00:00.000Z",
+        branchId: null,
       });
     } finally {
       upsertSpy.mockRestore();
     }
+  });
+
+  it("appointment.record.upserted with patient and branch calls branches, users.updateProfileByPhone, and upsert with branchId", async () => {
+    const { vi } = await import("vitest");
+    const mockBranches = {
+      upsertFromProjection: vi.fn().mockResolvedValue({ branchId: "branch-uuid-1" }),
+      getByIntegratorBranchId: vi.fn(),
+    };
+    const mockUsers = {
+      upsertFromProjection: vi.fn(),
+      findByIntegratorId: vi.fn(),
+      updatePhone: vi.fn(),
+      updateProfileByPhone: vi.fn().mockResolvedValue(undefined),
+    };
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+    };
+    const deps: IntegratorEventsDeps = {
+      ...mockDeps,
+      users: mockUsers,
+      branches: mockBranches,
+      appointmentProjection: mockAp,
+    };
+    const payload = {
+      integratorRecordId: "rec-branch-1",
+      phoneNormalized: "+79997654321",
+      recordAt: "2025-09-01T11:00:00.000Z",
+      status: "created",
+      payloadJson: { name: "Петров Пётр" },
+      lastEvent: "event-create",
+      updatedAt: "2025-08-01T12:00:00.000Z",
+      patientFirstName: "Пётр",
+      patientLastName: "Петров",
+      patientEmail: "petr@example.com",
+      integratorBranchId: "202",
+      branchName: "Филиал Юг",
+    };
+    const result = await handleIntegratorEvent(
+      { eventType: "appointment.record.upserted", payload },
+      deps
+    );
+    expect(result.accepted).toBe(true);
+    expect(mockBranches.upsertFromProjection).toHaveBeenCalledTimes(1);
+    expect(mockBranches.upsertFromProjection).toHaveBeenCalledWith({
+      integratorBranchId: "202",
+      name: "Филиал Юг",
+    });
+    expect(mockUsers.updateProfileByPhone).toHaveBeenCalledTimes(1);
+    expect(mockUsers.updateProfileByPhone).toHaveBeenCalledWith({
+      phoneNormalized: "+79997654321",
+      firstName: "Пётр",
+      lastName: "Петров",
+      email: "petr@example.com",
+      displayName: "Петров Пётр",
+    });
+    expect(mockAp.upsertRecordFromProjection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        integratorRecordId: "rec-branch-1",
+        branchId: "branch-uuid-1",
+      })
+    );
   });
 
   it("idempotent: duplicate appointment.record.upserted both accepted and upsert called twice", async () => {
@@ -865,6 +929,7 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       payloadJson: {},
       lastEvent: "event-create",
       updatedAt: "2025-07-01T10:00:00.000Z",
+      branchId: null,
     };
     expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(1, expectedArg);
     expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(2, expectedArg);
@@ -903,8 +968,14 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     expect(r1.accepted).toBe(true);
     expect(r2.accepted).toBe(true);
     expect(mockAp.upsertRecordFromProjection).toHaveBeenCalledTimes(2);
-    expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(1, createPayload);
-    expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(2, updatePayload);
+    expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(1, {
+      ...createPayload,
+      branchId: null,
+    });
+    expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(2, {
+      ...updatePayload,
+      branchId: null,
+    });
   });
 
   it("idempotent: duplicate reminder.rule.upserted returns accepted", async () => {

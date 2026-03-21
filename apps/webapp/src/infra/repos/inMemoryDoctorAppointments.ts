@@ -7,7 +7,7 @@ import type {
 
 export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
   async listAppointmentsForSpecialist(_filter: DoctorAppointmentsFilter): Promise<AppointmentRow[]> {
-    return [];
+    return []; // branchName included in AppointmentRow when using pg port
   },
   async getAppointmentStats(_filter: DoctorAppointmentsFilter): Promise<AppointmentStats> {
     return {
