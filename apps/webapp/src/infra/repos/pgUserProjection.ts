@@ -146,10 +146,13 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
   async updateDisplayName(platformUserId, displayName) {
     const pool = getPool();
-    await pool.query(
+    const result = await pool.query(
       "UPDATE platform_users SET display_name = $1, updated_at = now() WHERE id = $2",
       [displayName, platformUserId],
     );
+    if (result.rowCount === 0) {
+      throw new Error(`updateDisplayName: user ${platformUserId} not found`);
+    }
   },
 
   async updateProfileByPhone(params) {
@@ -196,10 +199,13 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
   async updateRole(platformUserId, role) {
     const pool = getPool();
-    await pool.query(
+    const result = await pool.query(
       "UPDATE platform_users SET role = $1, updated_at = now() WHERE id = $2",
       [role, platformUserId],
     );
+    if (result.rowCount === 0) {
+      throw new Error(`updateRole: user ${platformUserId} not found`);
+    }
   },
 };
 
