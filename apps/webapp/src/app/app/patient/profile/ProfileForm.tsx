@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { updateDisplayName } from "./actions";
 
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function ProfileForm({ displayName, phone }: Props) {
+  const router = useRouter();
   const [name, setName] = useState(displayName);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -21,6 +23,7 @@ export function ProfileForm({ displayName, phone }: Props) {
     startTransition(async () => {
       await updateDisplayName(trimmedName);
       setSaved(true);
+      router.refresh();
     });
   };
 
