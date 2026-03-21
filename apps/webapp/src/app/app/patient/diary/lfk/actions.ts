@@ -28,3 +28,15 @@ export async function markLfkSession(formData: FormData) {
   });
   revalidatePath("/app/patient/diary/lfk");
 }
+
+export async function createLfkComplex(formData: FormData) {
+  const session = await requirePatientAccess();
+  const title = (formData.get("complexTitle") as string)?.trim();
+  if (!title) return;
+  const deps = buildAppDeps();
+  await deps.diaries.createLfkComplex({
+    userId: session.user.userId,
+    title,
+  });
+  revalidatePath("/app/patient/diary/lfk");
+}

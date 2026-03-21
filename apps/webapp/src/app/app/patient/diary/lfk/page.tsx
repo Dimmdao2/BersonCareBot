@@ -2,7 +2,7 @@
  * Страница «Дневник ЛФК» («/app/patient/diary/lfk»).
  * Только для пациента. Вверху — описание и форма «Отметить занятие»: выбор комплекса (если их
  * несколько) и кнопка отправки. Ниже — блок «Комплексы» (список названий) и «Статистика»
- * (даты отмеченных занятий). При отсутствии комплексов показывается заглушка.
+ * (даты отмеченных занятий). При отсутствии комплексов — форма создания комплекса.
  * Кнопка «Назад» — в главное меню пациента.
  */
 
@@ -10,7 +10,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
-import { markLfkSession } from "./actions";
+import { createLfkComplex, markLfkSession } from "./actions";
 
 const EMPTY_STATE_PLACEHOLDER =
   "Скоро здесь будет ваша статистика. Для добавления записей в дневник воспользуйтесь кнопкой в меню бота.";
@@ -28,7 +28,25 @@ export default async function LfkDiaryPage() {
       <section id="patient-lfk-diary-hero-section" className="hero-card stack">
         <p>Комплексы ЛФК и история занятий. Добавить комплекс или отметить занятие можно в боте.</p>
         {complexes.length === 0 ? (
-          <p className="empty-state">{EMPTY_STATE_PLACEHOLDER}</p>
+          <div className="stack" style={{ gap: 12 }}>
+            <p style={{ fontSize: "0.9rem", color: "#5f6f86" }}>
+              Создайте комплекс упражнений, чтобы начать отслеживать занятия.
+            </p>
+            <form action={createLfkComplex} className="stack" style={{ gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="text"
+                  name="complexTitle"
+                  className="auth-input"
+                  placeholder="Название комплекса"
+                  required
+                />
+                <button type="submit" className="button">
+                  Создать
+                </button>
+              </div>
+            </form>
+          </div>
         ) : (
           <form id="patient-lfk-mark-session-form" action={markLfkSession} className="stack">
             {complexes.length > 1 ? (
