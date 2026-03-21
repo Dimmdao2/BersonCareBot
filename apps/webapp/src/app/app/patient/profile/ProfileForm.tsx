@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { updateDisplayName } from "./actions";
 
 type Props = {
@@ -15,6 +15,10 @@ export function ProfileForm({ displayName, phone }: Props) {
   const [name, setName] = useState(displayName);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setName(displayName);
+  }, [displayName]);
 
   const handleSaveName = () => {
     const trimmedName = name.trim();
