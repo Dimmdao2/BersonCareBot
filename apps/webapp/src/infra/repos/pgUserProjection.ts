@@ -26,6 +26,7 @@ export type UserProjectionPort = {
     platformUserId: string;
     topics: { topicCode: string; isEnabled: boolean }[];
   }) => Promise<void>;
+  updateRole: (platformUserId: string, role: string) => Promise<void>;
 };
 
 export const pgUserProjectionPort: UserProjectionPort = {
@@ -192,6 +193,14 @@ export const pgUserProjectionPort: UserProjectionPort = {
       );
     }
   },
+
+  async updateRole(platformUserId, role) {
+    const pool = getPool();
+    await pool.query(
+      "UPDATE platform_users SET role = $1, updated_at = now() WHERE id = $2",
+      [role, platformUserId],
+    );
+  },
 };
 
 export const inMemoryUserProjectionPort: UserProjectionPort = {
@@ -201,4 +210,5 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   updateDisplayName: async () => {},
   updateProfileByPhone: async () => {},
   upsertNotificationTopics: async () => {},
+  updateRole: async () => {},
 };

@@ -119,6 +119,11 @@ function getAllowedTelegramIds(): Set<string> {
   if (typeof env.ADMIN_TELEGRAM_ID === "number") {
     ids.add(String(env.ADMIN_TELEGRAM_ID));
   }
+  const doctorRaw = env.DOCTOR_TELEGRAM_IDS?.trim() ?? "";
+  for (const s of doctorRaw.split(",")) {
+    const t = s.trim();
+    if (t) ids.add(t);
+  }
   return ids;
 }
 
@@ -181,11 +186,25 @@ function validateTelegramInitData(initData: string): { telegramId: string; role:
   const allowed = getAllowedTelegramIds();
   if (!allowed.has(telegramId)) return null;
 
-  const isAdmin = typeof env.ADMIN_TELEGRAM_ID === "number" && user.id === env.ADMIN_TELEGRAM_ID;
-  const role: UserRole = isAdmin ? "admin" : "client";
+  const role: UserRole = resolveRoleByTelegramId(telegramId);
   const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || undefined;
 
   return { telegramId, role, displayName };
+}
+
+function resolveRoleByTelegramId(telegramIdStr: string): UserRole {
+  const numericId = parseInt(telegramIdStr, 10);
+  if (typeof env.ADMIN_TELEGRAM_ID === "number" && numericId === env.ADMIN_TELEGRAM_ID) {
+    return "admin";
+  }
+  const doctorIds = (env.DOCTOR_TELEGRAM_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (doctorIds.includes(telegramIdStr) || doctorIds.includes(String(numericId))) {
+    return "doctor";
+  }
+  return "client";
 }
 
 function tokenToUser(token: IntegratorTokenPayload): SessionUser {
@@ -211,7 +230,8 @@ function firstBinding(parsed: IntegratorTokenPayload): { channelCode: "telegram"
 
 export async function exchangeIntegratorToken(
   token: string,
-  identityResolutionPort?: IdentityResolutionPort | null
+  identityResolutionPort?: IdentityResolutionPort | null,
+  updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
   const devParsed = parseDevBypassToken(token);
   const parsed = devParsed ?? parseIntegratorToken(token);
@@ -236,6 +256,15 @@ export async function exchangeIntegratorToken(
     user = tokenToUser(parsed);
   }
 
+  const telegramId = parsed.bindings?.telegramId;
+  if (telegramId) {
+    const envRole = resolveRoleByTelegramId(telegramId);
+    if (envRole !== "client" && user.role !== envRole) {
+      if (updateRoleFn) await updateRoleFn(user.userId, envRole);
+      user = { ...user, role: envRole };
+    }
+  }
+
   const session = buildSession(user);
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
@@ -255,7 +284,8 @@ export async function exchangeIntegratorToken(
 /** Validates Telegram Web App initData and creates session. Used when user opens Mini App without ?t= token. */
 export async function exchangeTelegramInitData(
   initData: string,
-  identityResolutionPort?: IdentityResolutionPort | null
+  identityResolutionPort?: IdentityResolutionPort | null,
+  updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
   const parsed = validateTelegramInitData(initData);
   if (!parsed) return null;
@@ -275,6 +305,12 @@ export async function exchangeTelegramInitData(
       displayName: parsed.displayName ?? parsed.telegramId,
       bindings: { telegramId: parsed.telegramId },
     };
+  }
+
+  const envRole = resolveRoleByTelegramId(parsed.telegramId);
+  if (envRole !== "client" && user.role !== envRole) {
+    if (updateRoleFn) await updateRoleFn(user.userId, envRole);
+    user = { ...user, role: envRole };
   }
 
   const session = buildSession(user);

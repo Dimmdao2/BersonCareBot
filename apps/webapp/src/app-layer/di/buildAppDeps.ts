@@ -166,9 +166,9 @@ export function buildAppDeps() {
     auth: {
       getCurrentSession,
       exchangeIntegratorToken: (token: string) =>
-        exchangeIntegratorToken(token, identityResolutionPort),
+        exchangeIntegratorToken(token, identityResolutionPort, userProjectionPort.updateRole),
       exchangeTelegramInitData: (initData: string) =>
-        exchangeTelegramInitData(initData, identityResolutionPort),
+        exchangeTelegramInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
       clearSession,
       setSessionFromUser,
       startPhoneAuth: (phone: string, context: ChannelContext) =>
@@ -265,6 +265,7 @@ export function buildAppDeps() {
       updateDisplayName: userProjectionPort.updateDisplayName,
       updateProfileByPhone: userProjectionPort.updateProfileByPhone,
       upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
+      updateRole: userProjectionPort.updateRole,
     },
     supportCommunication: supportCommunicationPort,
     reminderProjection: reminderProjectionPort,

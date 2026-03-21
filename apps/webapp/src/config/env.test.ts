@@ -34,6 +34,7 @@ describe("checkInsecureSecretsForStartup", () => {
     ALLOWED_TELEGRAM_IDS: "",
     ALLOWED_MAX_IDS: "",
     ADMIN_TELEGRAM_ID: undefined,
+    DOCTOR_TELEGRAM_IDS: "",
     TELEGRAM_BOT_TOKEN: undefined,
     MEDIA_TEST_VIDEO_URL: "",
   };
