@@ -13,6 +13,7 @@ export type UserProjectionPort = {
   }) => Promise<{ platformUserId: string }>;
   findByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
   updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
+  updateDisplayName: (platformUserId: string, displayName: string) => Promise<void>;
   /** Update profile (first_name, last_name, email, display_name) by phone; no-op if no user found. */
   updateProfileByPhone: (params: {
     phoneNormalized: string;
@@ -142,6 +143,14 @@ export const pgUserProjectionPort: UserProjectionPort = {
     );
   },
 
+  async updateDisplayName(platformUserId, displayName) {
+    const pool = getPool();
+    await pool.query(
+      "UPDATE platform_users SET display_name = $1, updated_at = now() WHERE id = $2",
+      [displayName, platformUserId],
+    );
+  },
+
   async updateProfileByPhone(params) {
     const pool = getPool();
     const sets: string[] = ["updated_at = now()"];
@@ -189,6 +198,7 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   upsertFromProjection: async () => ({ platformUserId: "" }),
   findByIntegratorId: async () => null,
   updatePhone: async () => {},
+  updateDisplayName: async () => {},
   updateProfileByPhone: async () => {},
   upsertNotificationTopics: async () => {},
 };

@@ -262,6 +262,7 @@ export function buildAppDeps() {
       upsertFromProjection: userProjectionPort.upsertFromProjection,
       findByIntegratorId: userProjectionPort.findByIntegratorId,
       updatePhone: userProjectionPort.updatePhone,
+      updateDisplayName: userProjectionPort.updateDisplayName,
       updateProfileByPhone: userProjectionPort.updateProfileByPhone,
       upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
     },
