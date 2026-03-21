@@ -36,10 +36,6 @@ export function AppShell({
   variant = "default",
 }: AppShellProps) {
   if (variant === "patient") {
-    const isBrowserOnly =
-      user &&
-      !user.bindings.telegramId?.trim() &&
-      !user.bindings.maxId?.trim();
     return (
       <div id="app-shell-patient" className="app-shell app-shell--patient">
         <PatientHeader
@@ -51,7 +47,7 @@ export function AppShell({
           {title ? <h1 className="page-title">{title}</h1> : null}
           {children}
         </main>
-        <AskQuestionFAB visible={!!isBrowserOnly} />
+        <AskQuestionFAB visible={user !== null} />
       </div>
     );
   }

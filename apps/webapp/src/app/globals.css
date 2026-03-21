@@ -51,7 +51,7 @@ a {
 
 .app-shell--patient {
   padding: 0 16px 32px;
-  padding-bottom: max(32px, env(safe-area-inset-bottom));
+  padding-bottom: max(72px, calc(52px + env(safe-area-inset-bottom)));
   max-width: 480px;
   min-height: 100vh;
   background: var(--patient-bg);
@@ -753,30 +753,28 @@ body.drawer-open {
 /* ——— Кнопка «Задать вопрос» и панель (только для браузера, без мессенджера) ——— */
 .ask-question-fab {
   position: fixed;
-  bottom: max(20px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 90;
-  padding: 12px 24px;
+  padding: 14px 16px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
   font-size: 0.9375rem;
   font-weight: 500;
   color: #fff;
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   border: none;
-  border-radius: 24px;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+  border-radius: 0;
+  box-shadow: 0 -2px 12px rgba(37, 99, 235, 0.25);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.ask-question-fab:hover {
-  transform: translateX(-50%) scale(1.02);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.45);
+  text-align: center;
+  max-width: 480px;
+  margin: 0 auto;
 }
 
 .ask-question-fab:active {
-  transform: translateX(-50%) scale(0.98);
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
 }
 
 .ask-question-overlay {
