@@ -4,12 +4,22 @@ import { useRouter } from "next/navigation";
 
 type ClientsFiltersProps = {
   defaults: { telegram?: boolean; max?: boolean; appointment?: boolean };
+  /** Если задан — мержит все флаги и обновляет URL одним replace (без потери остальных query). */
+  onChange?: (next: { telegram: boolean; max: boolean; appointment: boolean }) => void;
 };
 
-export function ClientsFilters({ defaults }: ClientsFiltersProps) {
+export function ClientsFilters({ defaults, onChange }: ClientsFiltersProps) {
   const router = useRouter();
 
   const toggle = (param: "telegram" | "max" | "appointment") => {
+    if (onChange) {
+      onChange({
+        telegram: param === "telegram" ? !defaults.telegram : !!defaults.telegram,
+        max: param === "max" ? !defaults.max : !!defaults.max,
+        appointment: param === "appointment" ? !defaults.appointment : !!defaults.appointment,
+      });
+      return;
+    }
     const params = new URLSearchParams(window.location.search);
     const current = params.get(param) === "1";
     if (current) {

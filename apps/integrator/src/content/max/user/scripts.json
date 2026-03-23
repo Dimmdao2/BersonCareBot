@@ -1,5 +1,31 @@
 [
   {
+    "id": "max.contact.phone.link",
+    "source": "max",
+    "event": "message.received",
+    "match": { "input": { "phonePresent": true } },
+    "steps": [
+      {
+        "action": "user.phone.link",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "phoneNormalized": "{{input.phone}}"
+        }
+      },
+      {
+        "action": "message.inlineKeyboard.show",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "templateKey": "max:welcome",
+          "menu": "main",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      }
+    ]
+  },
+  {
     "id": "max.start",
     "source": "max",
     "event": "message.received",

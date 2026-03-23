@@ -41,15 +41,29 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         bindingsByUser.set(row.user_id, list);
       }
 
+      const upcomingPhones = await pool.query<{ phone_normalized: string }>(
+        `SELECT DISTINCT phone_normalized
+         FROM appointment_records
+         WHERE phone_normalized IS NOT NULL
+           AND record_at IS NOT NULL
+           AND record_at >= NOW()
+           AND status IN ('created', 'updated')`
+      );
+      const phoneHasUpcoming = new Set(
+        upcomingPhones.rows.map((row) => row.phone_normalized).filter(Boolean) as string[],
+      );
+
       let list: ClientListItem[] = clientRows.rows.map(
         (r: { id: string; display_name: string; phone_normalized: string | null; created_at: string }) => {
           const bindings = rowToBindings(bindingsByUser.get(r.id) ?? []);
+          const phone = r.phone_normalized;
+          const hasUpcoming = phone && phoneHasUpcoming.has(phone);
           return {
             userId: r.id,
             displayName: r.display_name ?? "",
-            phone: r.phone_normalized,
+            phone,
             bindings,
-            nextAppointmentLabel: null,
+            nextAppointmentLabel: hasUpcoming ? "Есть запись" : null,
             cancellationCount30d: 0,
           };
         }

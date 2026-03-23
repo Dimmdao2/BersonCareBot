@@ -1,9 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { addSymptomEntry } from "./actions";
 
 type TrackingOption = { id: string; symptomTitle: string | null };
+
+/** Градиент от зелёного (0) к жёлтому (5) к бордовому (10) — как в плане этапа 1. */
+function getScoreColor(score: number): string {
+  if (score <= 5) {
+    const t = score / 5;
+    const h = 120 + (45 - 120) * t;
+    const s = 60 + (80 - 60) * t;
+    const l = 40 + (50 - 40) * t;
+    return `hsl(${h} ${s}% ${l}%)`;
+  }
+  const t = (score - 5) / 5;
+  const h = 45 + (0 - 45) * t;
+  const s = 80 + (70 - 80) * t;
+  const l = 50 + (35 - 50) * t;
+  return `hsl(${h} ${s}% ${l}%)`;
+}
 
 export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
   const [selectedValue, setSelectedValue] = useState<number | null>(null);
@@ -38,17 +55,30 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
       )}
       <div className="stack">
         <span className="eyebrow">Интенсивность (0–10)</span>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {Array.from({ length: 11 }, (_, i) => (
-            <button
-              key={i}
-              type="button"
-              className={`button ${selectedValue === i ? "clients-filters__btn--active" : ""}`}
-              onClick={() => setSelectedValue(i)}
-            >
-              {i}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 11 }, (_, i) => {
+            const color = getScoreColor(i);
+            const active = selectedValue === i;
+            return (
+              <button
+                key={i}
+                type="button"
+                className={cn(
+                  "inline-flex size-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors",
+                  active ? "border-transparent text-white" : "border-solid bg-transparent",
+                )}
+                style={
+                  active
+                    ? { backgroundColor: color, borderColor: color }
+                    : { borderColor: color, color }
+                }
+                onClick={() => setSelectedValue(i)}
+                aria-pressed={active}
+              >
+                {i}
+              </button>
+            );
+          })}
         </div>
         <input
           type="hidden"

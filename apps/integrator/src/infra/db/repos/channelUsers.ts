@@ -477,18 +477,19 @@ export async function setUserPhone(
   db: DbPort,
   channelUserId: string,
   phoneNormalized: string,
+  resource: string = "telegram",
 ): Promise<void> {
   const query = `
     WITH target_identity AS (
       SELECT i.user_id
       FROM identities i
-      WHERE i.resource = 'telegram'
+      WHERE i.resource = $3
         AND i.external_id = $1
       LIMIT 1
     ),
     upsert_contact AS (
       INSERT INTO contacts (user_id, type, value_normalized, label, is_primary, created_at, updated_at)
-      SELECT ti.user_id, 'phone', $2, 'telegram', NULL, now(), now()
+      SELECT ti.user_id, 'phone', $2, $3, NULL, now(), now()
       FROM target_identity ti
       ON CONFLICT (type, value_normalized)
       DO UPDATE SET
@@ -501,7 +502,7 @@ export async function setUserPhone(
     SELECT 1 FROM upsert_contact
   `;
   try {
-    await db.query(query, [channelUserId, phoneNormalized]);
+    await db.query(query, [channelUserId, phoneNormalized, resource]);
   } catch (err) {
     logger.error({ err }, 'setUserPhone error');
   }
@@ -512,7 +513,8 @@ export function createChannelUserPort(db: DbPort): ChannelUserPort & Notificatio
   return {
     upsertUser: (from) => upsertUser(db, from),
     setUserState: (channelUserId, state) => setUserState(db, channelUserId, state),
-    setUserPhone: (channelUserId, phoneNormalized) => setUserPhone(db, channelUserId, phoneNormalized),
+    setUserPhone: (channelUserId, phoneNormalized, resource?: string) =>
+      setUserPhone(db, channelUserId, phoneNormalized, resource ?? "telegram"),
     getUserState: (channelUserId) => getUserState(db, channelUserId),
     tryAdvanceLastUpdateId: (channelUserId, updateId) => tryAdvanceLastUpdateId(db, channelUserId, updateId),
     tryConsumeStart: (channelUserId) => tryConsumeStart(db, channelUserId),

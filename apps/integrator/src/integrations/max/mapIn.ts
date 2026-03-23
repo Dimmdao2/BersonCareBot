@@ -1,7 +1,7 @@
 import type { IncomingCallbackUpdate, IncomingMessageUpdate, IncomingUpdate } from '../../kernel/domain/types.js';
 import type { MaxUpdateValidated } from './schema.js';
 import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
-import { normalizeDynamicTelegramAction } from '../telegram/mapIn.js';
+import { normalizeDynamicTelegramAction, normalizeTelegramContactPhone } from '../telegram/mapIn.js';
 
 /** Map MAX button payload / text to internal action (e.g. for menu). */
 const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
@@ -42,6 +42,24 @@ function getUserIdFromMessage(msg: MaxUpdateValidated['message']): number | null
 
 function getMessageIdFromMessage(msg: MaxUpdateValidated['message']): string | null {
   return typeof msg?.body?.mid === 'string' && msg.body.mid.trim().length > 0 ? msg.body.mid : null;
+}
+
+function getContactPhoneFromMaxMessage(msg: MaxUpdateValidated['message']): string | null {
+  const attachments = Array.isArray(msg?.body?.attachments) ? msg.body.attachments : [];
+  for (const raw of attachments) {
+    const a = raw as { type?: string; payload?: { phone?: string; phone_number?: string } };
+    if (a?.type === 'contact') {
+      const p = a.payload ?? {};
+      const rawPhone =
+        typeof p.phone === 'string'
+          ? p.phone
+          : typeof p.phone_number === 'string'
+            ? p.phone_number
+            : '';
+      return normalizeTelegramContactPhone(rawPhone);
+    }
+  }
+  return null;
 }
 
 function getRelayMessageTypeFromMaxMessage(msg: MaxUpdateValidated['message']): SupportRelayMessageType | null {
@@ -107,6 +125,7 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
     const chatId = getChatIdFromMessage(msg);
     const userId = getUserIdFromMessage(msg);
     if (chatId === null || userId == null) return null;
+    const contactPhone = getContactPhoneFromMaxMessage(msg);
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
@@ -114,6 +133,7 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       ...(getMessageIdFromMessage(msg) ? { messageId: getMessageIdFromMessage(msg) as string } : {}),
       text,
       action: getActionFromText(text),
+      ...(contactPhone ? { phone: contactPhone } : {}),
       ...(getRelayMessageTypeFromMaxMessage(msg) ? { relayMessageType: getRelayMessageTypeFromMaxMessage(msg) as SupportRelayMessageType } : {}),
       ...(typeof msg.sender?.username === 'string' ? { channelUsername: msg.sender.username } : {}),
       ...(typeof msg.sender?.first_name === 'string' ? { channelFirstName: msg.sender.first_name } : {}),

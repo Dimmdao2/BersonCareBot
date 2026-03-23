@@ -12,6 +12,8 @@ const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
 const SESSION_COOKIE_NAME = "bersoncare_webapp_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
+/** Доктор: до 7 суток + продление при активности (см. getCurrentSession). */
+const SESSION_TTL_DOCTOR_SECONDS = 60 * 60 * 24 * 7;
 
 type IntegratorTokenPayload = {
   sub: string;
@@ -40,11 +42,16 @@ function safeEqual(a: string, b: string): boolean {
 
 function buildSession(user: SessionUser): AppSession {
   const now = Math.floor(Date.now() / 1000);
+  const ttl = user.role === "doctor" ? SESSION_TTL_DOCTOR_SECONDS : SESSION_TTL_SECONDS;
   return {
     user,
     issuedAt: now,
-    expiresAt: now + SESSION_TTL_SECONDS,
+    expiresAt: now + ttl,
   };
+}
+
+function cookieMaxAgeSeconds(session: AppSession): number {
+  return Math.max(0, session.expiresAt - Math.floor(Date.now() / 1000));
 }
 
 function encodeSession(session: AppSession): string {
@@ -273,7 +280,7 @@ export async function exchangeIntegratorToken(
     sameSite: "lax",
     secure: isProduction,
     path: "/",
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: cookieMaxAgeSeconds(session),
   });
 
   return {
@@ -321,7 +328,7 @@ export async function exchangeTelegramInitData(
     sameSite: "lax",
     secure: isProduction,
     path: "/",
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: cookieMaxAgeSeconds(session),
   });
 
   return {
@@ -338,8 +345,26 @@ export async function exchangeTelegramInitData(
 export async function getCurrentSession(): Promise<AppSession | null> {
   const cookieStore = await cookies();
   const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const session = raw ? decodeSession(raw) : null;
-  if (!session?.user) return null;
+  const decoded = raw ? decodeSession(raw) : null;
+  if (!decoded?.user) {
+    if (raw && process.env.NODE_ENV !== "production") {
+      console.info("[auth] session_cookie_invalid_or_expired");
+    }
+    return null;
+  }
+
+  let session = decoded;
+  if (session.user.role === "doctor") {
+    const slid = buildSession(session.user);
+    cookieStore.set(SESSION_COOKIE_NAME, encodeSession(slid), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isProduction,
+      path: "/",
+      maxAge: cookieMaxAgeSeconds(slid),
+    });
+    session = slid;
+  }
 
   const phone = session.user.phone?.trim();
   if (!phone) return session;
@@ -364,7 +389,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
     sameSite: "lax",
     secure: isProduction,
     path: "/",
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: cookieMaxAgeSeconds(nextSession),
   });
 
   return nextSession;
@@ -390,6 +415,6 @@ export async function setSessionFromUser(user: SessionUser): Promise<void> {
     sameSite: "lax",
     secure: isProduction,
     path: "/",
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: cookieMaxAgeSeconds(session),
   });
 }

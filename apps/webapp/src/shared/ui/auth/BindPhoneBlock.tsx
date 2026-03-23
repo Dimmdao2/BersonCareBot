@@ -20,12 +20,16 @@ function getWebChatId(): string {
 type BindPhoneBlockProps = {
   channel: "telegram" | "web";
   chatId: string;
+  /** Если задан — используется вместо query `?next=` (встраивание в профиль и т.п.). */
+  nextPathOverride?: string;
+  /** После успешной привязки без `router.replace` (например, остаться в профиле). */
+  onBindSuccess?: () => void;
 };
 
-export function BindPhoneBlock({ channel, chatId }: BindPhoneBlockProps) {
+export function BindPhoneBlock({ channel, chatId, nextPathOverride, onBindSuccess }: BindPhoneBlockProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next")?.trim() || "/app/patient";
+  const next = nextPathOverride?.trim() || searchParams.get("next")?.trim() || "/app/patient";
 
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [challengeId, setChallengeId] = useState<string | null>(null);
@@ -58,6 +62,10 @@ export function BindPhoneBlock({ channel, chatId }: BindPhoneBlockProps) {
               message?: string;
             };
             if (data.ok) {
+              if (onBindSuccess) {
+                onBindSuccess();
+                return { ok: true as const, redirectTo: next };
+              }
               router.replace(next);
               return { ok: true as const, redirectTo: next };
             }

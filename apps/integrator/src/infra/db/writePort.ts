@@ -242,12 +242,15 @@ export function createDbWritePort(input: {
         }
         case 'user.phone.link': {
           const resource = readResource(mutation.params);
-          if (resource !== 'telegram') return;
+          if (resource !== 'telegram' && resource !== 'max') return;
           const channelUserId = readChannelUserId(mutation.params);
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
           if (!channelUserId || !phoneNormalized) return;
           await db.tx(async (txDb) => {
-            await setUserPhone(txDb, channelUserId, phoneNormalized);
+            if (resource === "max") {
+              await ensureIdentityForMessenger(txDb, { resource: "max", externalId: channelUserId });
+            }
+            await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
             if (readPort) {
               const link = await readPort.readDb<{ userId?: string } | null>({
                 type: 'user.byIdentity',

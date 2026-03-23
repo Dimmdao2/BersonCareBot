@@ -13,6 +13,8 @@ export default async function PatientProfilePage() {
     session.user.userId,
     session.user.bindings,
   );
+  const phoneChannel = session.user.bindings.telegramId ? ("telegram" as const) : ("web" as const);
+  const phoneChatId = session.user.bindings.telegramId ?? "";
 
   return (
     <AppShell
@@ -24,7 +26,12 @@ export default async function PatientProfilePage() {
     >
       <section className="panel stack">
         <h2>Личные данные</h2>
-        <ProfileForm displayName={session.user.displayName} phone={session.user.phone ?? null} />
+        <ProfileForm
+          displayName={session.user.displayName}
+          phone={session.user.phone ?? null}
+          phoneChannel={phoneChannel}
+          phoneChatId={phoneChatId}
+        />
       </section>
 
       <section className="panel stack">

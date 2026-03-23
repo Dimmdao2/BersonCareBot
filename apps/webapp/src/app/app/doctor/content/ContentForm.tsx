@@ -1,6 +1,7 @@
 "use client";
 
-import { saveContentPage } from "./actions";
+import { useActionState } from "react";
+import { saveContentPage, type SaveContentPageState } from "./actions";
 
 type ContentPage = {
   id: string;
@@ -15,8 +16,21 @@ type ContentPage = {
 };
 
 export function ContentForm({ page }: { page?: ContentPage }) {
+  const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
+
   return (
-    <form action={saveContentPage} className="stack" style={{ gap: "1rem" }}>
+    <form action={formAction} className="stack" style={{ gap: "1rem" }}>
+      {state?.error ? (
+        <p role="alert" className="empty-state" style={{ color: "#b91c1c" }}>
+          {state.error}
+        </p>
+      ) : null}
+      {state?.ok ? (
+        <p role="status" style={{ color: "#15803d", fontSize: "0.9rem" }}>
+          Сохранено
+        </p>
+      ) : null}
+
       <label className="stack" style={{ gap: "0.25rem" }}>
         <span className="eyebrow">Заголовок</span>
         <input
@@ -25,6 +39,7 @@ export function ContentForm({ page }: { page?: ContentPage }) {
           className="auth-input"
           required
           defaultValue={page?.title ?? ""}
+          key={`title-${page?.id ?? "new"}`}
         />
       </label>
 
@@ -33,7 +48,7 @@ export function ContentForm({ page }: { page?: ContentPage }) {
         {page ? (
           <>
             <input type="hidden" name="section" value={page.section} />
-            <input type="text" className="auth-input" value={page.section} disabled />
+            <input type="text" className="auth-input" value={page.section} disabled readOnly />
           </>
         ) : (
           <select id="content-section" name="section" className="auth-input" defaultValue="lessons">
@@ -52,6 +67,7 @@ export function ContentForm({ page }: { page?: ContentPage }) {
           required
           defaultValue={page?.slug ?? ""}
           readOnly={!!page}
+          key={`slug-${page?.id ?? "new"}`}
         />
       </label>
 
@@ -62,6 +78,7 @@ export function ContentForm({ page }: { page?: ContentPage }) {
           className="auth-input"
           rows={2}
           defaultValue={page?.summary ?? ""}
+          key={`summary-${page?.id ?? "new"}`}
         />
       </label>
 
@@ -72,6 +89,7 @@ export function ContentForm({ page }: { page?: ContentPage }) {
           className="auth-input"
           rows={10}
           defaultValue={page?.bodyHtml ?? ""}
+          key={`body-${page?.id ?? "new"}`}
         />
       </label>
 
@@ -82,6 +100,7 @@ export function ContentForm({ page }: { page?: ContentPage }) {
           name="sort_order"
           className="auth-input"
           defaultValue={page?.sortOrder ?? 0}
+          key={`sort-${page?.id ?? "new"}`}
         />
       </label>
 
@@ -90,6 +109,7 @@ export function ContentForm({ page }: { page?: ContentPage }) {
           type="checkbox"
           name="is_published"
           defaultChecked={page?.isPublished ?? true}
+          key={`pub-${page?.id ?? "new"}`}
         />
         <span className="eyebrow">Опубликовано</span>
       </label>
@@ -101,11 +121,12 @@ export function ContentForm({ page }: { page?: ContentPage }) {
           name="video_url"
           className="auth-input"
           defaultValue={page?.videoUrl ?? ""}
+          key={`video-${page?.id ?? "new"}`}
         />
       </label>
 
-      <button type="submit" className="button">
-        Сохранить
+      <button type="submit" className="button" disabled={pending}>
+        {pending ? "Сохранение…" : "Сохранить"}
       </button>
     </form>
   );

@@ -79,9 +79,9 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     const [sql, params] = query.mock.calls[0] ?? [];
     const sqlText = String(sql);
     expect(sqlText).toContain('INSERT INTO contacts');
-    expect(sqlText).toContain("WHERE i.resource = 'telegram'");
+    expect(sqlText).toContain('WHERE i.resource = $3');
     expect(sqlText).not.toContain('UPDATE telegram_users');
-    expect(params).toEqual(['123', '+79990001122']);
+    expect(params).toEqual(['123', '+79990001122', 'telegram']);
   });
 
   it('setUserPhone ON CONFLICT only updates when contact belongs to same user (no takeover)', async () => {

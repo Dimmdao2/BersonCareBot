@@ -10,7 +10,8 @@ type AskQuestionFABProps = {
 
 export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
   const pathname = usePathname();
-  const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
+  /** unknown — до гидрации, чтобы не мигать «есть/нет» */
+  const [miniAppEnv, setMiniAppEnv] = useState<"unknown" | "mini" | "browser">("unknown");
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -47,7 +48,7 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
 
   useEffect(() => {
     queueMicrotask(() => {
-      setIsTelegramMiniApp(!!window.Telegram?.WebApp);
+      setMiniAppEnv(!!window.Telegram?.WebApp ? "mini" : "browser");
     });
   }, []);
 
@@ -93,10 +94,23 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
     }
   }, [text, sending, pathname, close]);
 
-  if (!visible || isTelegramMiniApp) return null;
+  if (!visible) return null;
+
+  const hideInMessenger = miniAppEnv === "mini";
+  const shellOpacity = hideInMessenger ? 0 : miniAppEnv === "unknown" ? 0 : 1;
+  const shellPointer = hideInMessenger || miniAppEnv === "unknown" ? "none" : "auto";
 
   return (
-    <>
+    <div
+      className="ask-question-fab-root"
+      style={{
+        opacity: shellOpacity,
+        pointerEvents: shellPointer as "none" | "auto",
+        transition: "opacity 0.2s ease",
+        visibility: hideInMessenger ? "hidden" : "visible",
+      }}
+      aria-hidden={hideInMessenger}
+    >
       <button
         type="button"
         id="ask-question-fab-button"
@@ -165,6 +179,6 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

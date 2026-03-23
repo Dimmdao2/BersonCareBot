@@ -2,19 +2,24 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { Suspense, useEffect, useState, useTransition } from "react";
+import { BindPhoneBlock } from "@/shared/ui/auth/BindPhoneBlock";
 import { updateDisplayName } from "./actions";
 
 type Props = {
   displayName: string;
   phone: string | null;
+  /** Контекст для SMS-привязки (как на странице bind-phone). */
+  phoneChannel: "telegram" | "web";
+  phoneChatId: string;
 };
 
-export function ProfileForm({ displayName, phone }: Props) {
+export function ProfileForm({ displayName, phone, phoneChannel, phoneChatId }: Props) {
   const router = useRouter();
   const [name, setName] = useState(displayName);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [editingPhone, setEditingPhone] = useState(false);
 
   useEffect(() => {
     setName(displayName);
@@ -69,16 +74,29 @@ export function ProfileForm({ displayName, phone }: Props) {
         <span className="eyebrow" style={{ display: "block", marginBottom: 4 }}>
           Телефон
         </span>
-        {phone ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {phone && editingPhone ? (
+          <div className="stack" style={{ gap: 8 }}>
+            <Suspense fallback={<p className="empty-state">Загрузка формы…</p>}>
+              <BindPhoneBlock
+                channel={phoneChannel}
+                chatId={phoneChatId}
+                nextPathOverride="/app/patient/profile"
+                onBindSuccess={() => {
+                  setEditingPhone(false);
+                  router.refresh();
+                }}
+              />
+            </Suspense>
+            <button type="button" className="button button--ghost" onClick={() => setEditingPhone(false)}>
+              Отмена
+            </button>
+          </div>
+        ) : phone ? (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <span>{phone}</span>
-            <Link
-              href="/app/patient/bind-phone?next=/app/patient/profile"
-              className="button button--ghost"
-              style={{ fontSize: "0.875rem" }}
-            >
+            <button type="button" className="button button--ghost" style={{ fontSize: "0.875rem" }} onClick={() => setEditingPhone(true)}>
               Изменить
-            </Link>
+            </button>
           </div>
         ) : (
           <Link href="/app/patient/bind-phone?next=/app/patient/profile" className="button">

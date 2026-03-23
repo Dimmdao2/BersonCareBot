@@ -99,7 +99,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
       }>(
         `SELECT
           COUNT(*)::text AS total,
-          COUNT(*) FILTER (WHERE status = 'canceled')::text AS cancellations,
+          COUNT(*) FILTER (WHERE status = 'canceled' AND last_event NOT IN ('event-remove-record', 'event-delete-record'))::text AS cancellations,
           COUNT(*) FILTER (WHERE status = 'updated')::text AS reschedules
          FROM appointment_records
          WHERE record_at >= $1::timestamptz AND record_at <= $2::timestamptz`,
@@ -108,7 +108,9 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
       const cancellations30dResult = await pool.query<{ count: string }>(
         `SELECT COUNT(*)::text AS count
          FROM appointment_records
-         WHERE status = 'canceled' AND updated_at >= NOW() - INTERVAL '30 days'`
+         WHERE status = 'canceled'
+           AND last_event NOT IN ('event-remove-record', 'event-delete-record')
+           AND updated_at >= NOW() - INTERVAL '30 days'`
       );
       const row = rangeResult.rows[0];
       const row30 = cancellations30dResult.rows[0];

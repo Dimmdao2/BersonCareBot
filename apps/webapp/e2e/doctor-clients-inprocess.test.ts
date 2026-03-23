@@ -42,10 +42,10 @@ describe("doctor clients e2e (in-process)", () => {
     expect(profile).toBeNull();
   });
 
-  it("ClientsSearchBar and ClientsFilters are client components", async () => {
-    const searchBar = await import("@/app/app/doctor/clients/ClientsSearchBar");
+  it("DoctorClientsPanel and ClientsFilters are client components", async () => {
+    const panel = await import("@/app/app/doctor/clients/DoctorClientsPanel");
     const filters = await import("@/app/app/doctor/clients/ClientsFilters");
-    expect(typeof searchBar.ClientsSearchBar).toBe("function");
+    expect(typeof panel.DoctorClientsPanel).toBe("function");
     expect(typeof filters.ClientsFilters).toBe("function");
   });
 
