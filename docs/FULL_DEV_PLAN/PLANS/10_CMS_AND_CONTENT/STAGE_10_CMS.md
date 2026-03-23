@@ -6,43 +6,46 @@
 
 ---
 
-## Подэтап 10.1: Установка TipTap
+## Подэтап 10.1: Установка Markdown-стека
 
-**Задача:** подключить WYSIWYG-редактор.
+**Задача:** подключить Markdown-редактор и рендеринг.
 
 **Файлы:**
 - `apps/webapp/package.json`
 
 **Действия:**
-1. Установить: `pnpm --filter webapp add @tiptap/react @tiptap/starter-kit @tiptap/extension-link @tiptap/extension-image @tiptap/extension-placeholder`.
-2. Создать компонент-обёртку `RichTextEditor.tsx`:
-   - Toolbar: жирный, курсив, заголовки H2/H3, список, ссылка, изображение.
-   - Минималистичный стиль, согласованный с дизайн-системой.
+1. Установить: `pnpm --filter webapp add react-markdown remark-gfm`.
+2. Создать компонент `MarkdownEditor.tsx`:
+   - `<textarea>` для ввода Markdown с базовой toolbar-панелью (жирный, курсив, заголовок, список, ссылка, изображение — вставляют Markdown-синтаксис).
+   - Превью: рядом или под редактором через `<ReactMarkdown>`.
    - `value` / `onChange` props.
-3. Client component (TipTap — client-only).
+3. Создать компонент `MarkdownContent.tsx`:
+   - Рендеринг Markdown для отображения клиенту.
+   - Стили для заголовков, списков, ссылок, изображений в рамках дизайн-системы.
 
 **Критерий:**
-- Редактор рендерится.
-- Базовое форматирование работает.
+- Markdown-редактор с toolbar и превью работает.
+- Рендеринг Markdown корректен.
+- Нет XSS-рисков (Markdown безопасен по умолчанию).
 
 ---
 
-## Подэтап 10.2: ContentForm с WYSIWYG
+## Подэтап 10.2: ContentForm с Markdown
 
-**Задача:** заменить textarea на WYSIWYG в форме контента.
+**Задача:** заменить textarea на Markdown-редактор в форме контента.
 
 **Файлы:**
 - `apps/webapp/src/app/app/doctor/content/ContentForm.tsx`
 
 **Действия:**
-1. Заменить `<textarea>` на `<RichTextEditor>`.
-2. Сохранение: HTML из редактора → `body_html` в `content_pages`.
-3. **Санитизация:** на сервере при сохранении — strip опасных тегов (script, iframe, on*). Использовать simple allowlist (p, h2, h3, ul, ol, li, a, img, strong, em, br).
-4. При отображении контента клиенту: `dangerouslySetInnerHTML` с уже санитизированным HTML.
+1. Заменить `<textarea>` на `<MarkdownEditor>`.
+2. Сохранение: Markdown-текст → `body_html` переименовать в `body_md` (или хранить оба: `body_md` для редактирования, `body_html` как кэш рендеринга).
+3. Миграция: `ALTER TABLE content_pages ADD COLUMN IF NOT EXISTS body_md TEXT NOT NULL DEFAULT ''`.
+4. При отображении контента клиенту: `<MarkdownContent content={page.body_md} />`.
 
 **Критерий:**
-- Контент создаётся с форматированием.
-- При сохранении — опасные теги удалены.
+- Контент создаётся в Markdown-формате.
+- Превью показывает результат.
 - Контент корректно отображается у клиента.
 
 ---

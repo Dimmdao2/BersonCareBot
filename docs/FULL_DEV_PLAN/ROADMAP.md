@@ -28,7 +28,7 @@
 | Charts | recharts |
 | Tables | @tanstack/react-table |
 | Headless UI | @radix-ui/react-* (точечно: Dialog, Popover, Tabs, Select) |
-| WYSIWYG | @tiptap/react (или Markdown) |
+| Markdown | react-markdown + remark-gfm |
 | DnD | @dnd-kit/core + @dnd-kit/sortable |
 | Dates | date-fns |
 | Toasts | react-hot-toast |
@@ -232,8 +232,8 @@
 
 | # | Подэтап | Описание |
 |---|---------|----------|
-| 10.1 | Установка TipTap | Зависимость, базовый WYSIWYG-компонент |
-| 10.2 | ContentForm с WYSIWYG | Редактор вместо textarea в doctor/content |
+| 10.1 | Установка Markdown-стека | react-markdown + remark-gfm, MarkdownEditor + MarkdownContent компоненты |
+| 10.2 | ContentForm с Markdown | Markdown-редактор с toolbar и превью вместо textarea |
 | 10.3 | Медиа-загрузка | Upload файлов/видео/фото, хранение в S3 (S3_ENDPOINT=https://fs.bersonservices.ru), таблица media_files |
 | 10.4 | Разделы контента | Управление секциями, сортировка, архивация |
 | 10.5 | Новости и мотивашки | Таблицы news_items, motivational_quotes, UI управления (doctor), отображение (patient) |
