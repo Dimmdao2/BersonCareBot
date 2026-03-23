@@ -57,8 +57,8 @@
 3. Новые компоненты — в `modules/<name>/components/`, не в `shared/ui/` (кроме дизайн-системы).
 4. Все тексты UI на русском языке.
 5. SQL-миграции — идемпотентные (`IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`).
-6. Не добавлять Tailwind, ORM, тяжёлые UI-фреймворки (MUI, Ant Design).
-7. CSS — через CSS custom properties и классы. Постепенно выделять из `globals.css` в tokens/patterns/component CSS.
+6. Не добавлять ORM, тяжёлые UI-фреймворки (MUI, Ant Design, Chakra). Вопрос Tailwind/shadcn — открыт, решение до начала этапа 2.
+7. CSS — решение по стеку (кастомный CSS с tokens/patterns или Tailwind/shadcn) будет принято владельцем до этапа 2.
 8. Медиа-файлы загружать в S3 (`S3_ENDPOINT`).
 9. Новые таблицы — заранее добавлять `tenant_id` / `owner_id` (nullable) для будущей мультитенантности.
 10. E2E-тесты обязательны для каждого нового функционала.

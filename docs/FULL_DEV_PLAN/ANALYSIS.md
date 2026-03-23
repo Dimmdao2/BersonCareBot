@@ -375,14 +375,17 @@ GET    /api/settings/public    -- client-facing flags
 | **pg** (уже есть) | PostgreSQL | MIT | Уже используется |
 | **p-retry** (уже есть) | Retry logic | MIT | Уже используется |
 
+### Решение по стилям — открытый вопрос
+
+> Владелец рассматривает вариант Tailwind CSS + shadcn/ui или сохранение текущих кастомных стилей. Решение будет принято до начала этапа 2 (дизайн-система). До этого момента не мигрировать и не ломать текущий CSS-стек.
+
 ### Не рекомендуется добавлять
 
 | Что | Почему |
 |-----|--------|
-| Tailwind CSS | Проект уже использует кастомный CSS, переход будет дорогим и бессмысленным |
+| MUI / Ant Design / Chakra | Тяжёлые UI-фреймворки, конфликтуют с кастомным дизайном |
 | Prisma / Drizzle ORM | Проект построен на raw SQL + pg, ORM добавит сложность без пользы |
 | Socket.IO | Для чата лучше SSE или long-polling — проще, не нужен отдельный WS-сервер |
-| MUI / Ant Design | Проект имеет свой дизайн, тяжёлые UI-фреймворки создадут конфликты |
 | Redux / Zustand | React 19 + Server Actions + `use` хватает для state management |
 
 ---
@@ -429,7 +432,7 @@ GET    /api/settings/public    -- client-facing flags
 
 1. **Email-канал** — провайдер SMTP настраивается через admin-настройки, хранится в БД (`system_settings`). Текущие российские провайдеры (Yandex 360, Mail.ru) пока не запрещены. Провайдера можно сменить.
 2. **⏸ PWA push** — ОТЛОЖЕНО. Будет прорабатываться вместе с PWA.
-3. **Виджет Rubitime** — загружать через `<iframe src="https://dmitryberson.rubitime.ru/widget">`, не через внедрение script. Это безопаснее и не конфликтует с CSP/React.
+3. **Виджет Rubitime** — загружать через `<iframe src="https://dmitryberson.rubitime.ru/widget">`. Если iframe конфликтует с CSP или Next.js — fallback: простая ссылка на страницу записи (в Тильда iframe не конфликтует, нужна проверка в Next.js).
 4. **Max Bot API** — необходимо изучить API подробно: https://dev.max.ru/docs и библиотеку https://github.com/max-messenger/max-bot-api-client-ts. Сохранить все хуки, команды, контракты в документах (папка интеграции или общие доки). Проверить поддержку deep links для привязки. Для ВК — отложить.
 
 ---
