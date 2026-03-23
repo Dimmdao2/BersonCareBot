@@ -1,66 +1,70 @@
 # PLANS — Инструкции по этапам
 
-Каждая папка соответствует функциональному блоку проекта. Внутри — файлы с детальными инструкциями для каждого этапа, декомпозированными до уровня авто-агента.
+Каждая папка = один этап дорожной карты, пронумерован по порядку выполнения.
+Внутри — файл `PLAN.md` с детальной инструкцией для авто-агента.
 
 ## Структура
 
 ```
 PLANS/
-├── 01_CRITICAL_INFRA/          ← Перенос сервера, бэкапы
-│   └── STAGE_18_SERVER_MIGRATION.md
-├── 02_BUGFIXES_AND_UX/         ← Исправление критических багов
-│   └── STAGE_01_BUGFIXES.md
-├── 03_AUTH_AND_SECURITY/       ← Авторизация, email, OTP, deep-link
-│   ├── STAGE_03_PROFILE.md
-│   └── STAGE_05_PASSWORD_AUTH.md
-├── 04_DESIGN_SYSTEM/           ← CSS, шапка, меню, компоненты
-│   └── STAGE_02_DESIGN_SYSTEM.md
-├── 05_PATIENT_WEBAPP/          ← Главная, записи, уведомления
-│   └── STAGE_04_HOME_AND_APPOINTMENTS.md
-├── 06_DOCTOR_WEBAPP/           ← Дашборд, клиенты, подписчики, настройки
-│   ├── STAGE_09_DOCTOR_CABINET.md
-│   └── STAGE_15_SETTINGS_ADMIN.md
-├── 07_DIARIES_MODULE/          ← Дневники: справочники, расширение, графики
-│   ├── STAGE_06_DIARIES_EXTENSION.md
-│   └── STAGE_07_CHARTS.md
-├── 08_MESSAGING/               ← Чат клиент↔врач
-│   └── STAGE_08_MESSAGING.md
-├── 09_LFK_MODULE/              ← Упражнения, комплексы, назначения
-│   └── STAGE_11_LFK.md
-├── 10_CMS_AND_CONTENT/         ← WYSIWYG, медиа, новости
-│   └── STAGE_10_CMS.md
-├── 11_REMINDERS/               ← Бот заботы, пуш
-│   └── STAGE_12_REMINDERS.md
-├── 12_INTEGRATIONS/            ← Email, deep-link, Google Calendar, Rubitime
-│   └── STAGE_13_INTEGRATIONS.md
-├── 13_PWA_AND_MOBILE/          ← PWA, offline, push
-│   └── STAGE_14_PWA.md
-└── 14_MULTITENANT_AND_PAYMENTS/ ← Будущие этапы 16–20
-    └── STAGE_20_MULTITENANT.md
+├── STAGE_00_TAILWIND_SETUP/     ← Установка Tailwind + shadcn/ui (ПЕРЕД всем)
+├── STAGE_01_BUGFIXES/           ← Исправление критических багов
+├── STAGE_02_DESIGN_SYSTEM/      ← Дизайн-система на Tailwind + shadcn
+├── STAGE_03_PROFILE/            ← Профиль клиента, email, OTP, deep-link
+├── STAGE_04_HOME_AND_APPOINTMENTS/ ← Главная, записи, уведомления
+├── STAGE_05_AUTH_SYSTEM/        ← Авторизация (PIN, мессенджер, OAuth, SMS)
+├── STAGE_06_DIARIES_EXTENSION/  ← Дневники: справочники, расширение модели
+├── STAGE_07_CHARTS/             ← Графики и статистика
+├── STAGE_08_MESSAGING/          ← Чат клиент↔врач
+├── STAGE_09_DOCTOR_CABINET/     ← Дашборд, клиенты, подписчики
+├── STAGE_10_CMS/                ← Markdown-редактор, медиа, новости
+├── STAGE_11_LFK/                ← Упражнения, комплексы, назначения
+│
+│   >>> CHECKPOINT: CSS cleanup — дочистить остатки globals.css <<<
+│
+├── STAGE_12_REMINDERS/          ← Бот заботы, пуш (в будущем)
+├── STAGE_13_INTEGRATIONS/       ← Email, deep-link, Google Calendar
+├── STAGE_14_PWA/                ← ⏸ ОТЛОЖЕН
+├── STAGE_15_SETTINGS_ADMIN/     ← Настройки, режим админа
+├── STAGE_16_REFERRALS/          ← Реферальная система (пока пустой)
+├── STAGE_17_PATIENT_CARD/       ← Карта пациента (пока пустой)
+├── STAGE_18_SERVER_MIGRATION/   ← 🔒 Ответственность владельца
+├── STAGE_19_SCENARIOS_DB/       ← Сценарии в БД (пока пустой)
+└── STAGE_20_MULTITENANT/        ← Мультитенант + платежи (пока пустой)
 ```
 
 ## Порядок выполнения
 
-1. **Этап 1** → `02_BUGFIXES_AND_UX/STAGE_01_BUGFIXES.md`
-2. **Этап 2** → `04_DESIGN_SYSTEM/STAGE_02_DESIGN_SYSTEM.md`
-3. **Этап 3** → `03_AUTH_AND_SECURITY/STAGE_03_PROFILE.md`
-4. **Этап 4** → `05_PATIENT_WEBAPP/STAGE_04_HOME_AND_APPOINTMENTS.md`
-5. **Этап 5** → `03_AUTH_AND_SECURITY/STAGE_05_PASSWORD_AUTH.md`
-6. **Этап 6** → `07_DIARIES_MODULE/STAGE_06_DIARIES_EXTENSION.md`
-7. **Этап 7** → `07_DIARIES_MODULE/STAGE_07_CHARTS.md`
-8. **Этап 8** → `08_MESSAGING/STAGE_08_MESSAGING.md`
-9. **Этап 9** → `06_DOCTOR_WEBAPP/STAGE_09_DOCTOR_CABINET.md`
-10. **Этап 10** → `10_CMS_AND_CONTENT/STAGE_10_CMS.md`
-11. **Этап 11** → `09_LFK_MODULE/STAGE_11_LFK.md`
-12. **Этап 12** → `11_REMINDERS/STAGE_12_REMINDERS.md`
-13. **Этап 13** → `12_INTEGRATIONS/STAGE_13_INTEGRATIONS.md`
-14. **Этап 14** → `13_PWA_AND_MOBILE/STAGE_14_PWA.md`
-15. **Этап 15** → `06_DOCTOR_WEBAPP/STAGE_15_SETTINGS_ADMIN.md`
-16. **Этапы 16–20** → `14_MULTITENANT_AND_PAYMENTS/STAGE_20_MULTITENANT.md`
+| # | Папка | Описание |
+|---|-------|----------|
+| 0 | `STAGE_00_TAILWIND_SETUP/` | Установка Tailwind 4 + shadcn/ui + bundle analyzer |
+| 1 | `STAGE_01_BUGFIXES/` | 9 критических багов |
+| 2 | `STAGE_02_DESIGN_SYSTEM/` | Шапки, меню, компоненты, иконки |
+| 3 | `STAGE_03_PROFILE/` | Профиль, email, OTP, deep-link, BindPhoneBlock |
+| 4 | `STAGE_04_HOME_AND_APPOINTMENTS/` | Главная, записи, уведомления, мини-статистика |
+| 5 | `STAGE_05_AUTH_SYSTEM/` | Multi-method auth (PIN, мессенджер, OAuth, SMS) |
+| 6 | `STAGE_06_DIARIES_EXTENSION/` | Справочники, расширение модели, вкладки, быстрое добавление |
+| 7 | `STAGE_07_CHARTS/` | recharts, графики симптомов, таблица ЛФК |
+| 8 | `STAGE_08_MESSAGING/` | Чат UI, список диалогов, real-time |
+| 9 | `STAGE_09_DOCTOR_CABINET/` | Дашборд, клиенты/подписчики, карточки |
+| 10 | `STAGE_10_CMS/` | Markdown-редактор, медиа (S3), новости, мотивашки |
+| 11 | `STAGE_11_LFK/` | Справочник упражнений, конструктор комплексов |
+| **✓** | **CSS CLEANUP** | **Дочистить globals.css, убрать все старые классы** |
+| 12 | `STAGE_12_REMINDERS/` | Напоминания, колокольчик |
+| 13 | `STAGE_13_INTEGRATIONS/` | Email, deep-link, Google Calendar, Rubitime |
+| 14 | `STAGE_14_PWA/` | ⏸ Отложен |
+| 15 | `STAGE_15_SETTINGS_ADMIN/` | Настройки, режим админа |
+| 16–20 | Будущее | Рефералы, карта пациента, сервер, сценарии, мультитенант |
+
+## Правило Tailwind
+
+> **С этапа 0 весь новый и изменяемый код — только Tailwind + shadcn/ui.**
+> При касании любого файла — переводить его CSS на Tailwind, удалять старые классы из globals.css.
+> После этапа 11 — checkpoint: прошерстить и дочистить остатки globals.css.
 
 ## Как использовать
 
-1. Агенту передаётся файл конкретного этапа.
+1. Агенту передаётся `PLAN.md` из конкретной папки.
 2. Агент выполняет подэтапы последовательно.
 3. После каждого подэтапа: `pnpm run ci`.
 4. После всего этапа: проверка по чеклисту в конце файла.

@@ -82,7 +82,7 @@
 
 | Задача | Блок |
 |--------|------|
-| Авторизация по паролю | Auth |
+| Система авторизации (PIN, мессенджер, OAuth, SMS fallback) | Auth |
 | Email-привязка и верификация | Auth + Integrator |
 | Расширенная модель симптомов (тип, регион, диагноз, стадия, справочники) | Дневники |
 | Графики статистики симптомов | Дневники |
@@ -91,7 +91,7 @@
 | Конструктор комплексов | ЛФК |
 | Чат клиент↔врач (полноценный UI) | Сообщения |
 | Привязка мессенджеров через deep-link секрет | Integrator |
-| CMS: WYSIWYG, медиа, управление разделами | CMS |
+| CMS: Markdown-редактор, медиа, управление разделами | CMS |
 | Напоминалки: UI настройки, интеграция с каналами | Reminders |
 | OTP rate-limit (таймер, блокировка после 3 попыток) | Auth |
 
@@ -152,14 +152,14 @@
 
 ### Сложные (10+ файлов, новые модули, миграции БД)
 
-- Авторизация по паролю (хэширование, сброс, UI, backend)
+- Система авторизации multi-method (PIN, мессенджер login, OAuth, SMS, UI выбора метода)
 - Email-верификация (mailer в integrator, challenge flow)
 - Расширенная модель симптомов (справочники, миграция, API, UI)
 - Графики статистики (библиотека, API, агрегация данных)
 - Чат клиент↔врач (WebSocket или polling, UI, backend, хранение)
 - Справочник упражнений (новый модуль, CRUD, медиа)
 - Конструктор комплексов (drag-and-drop, сложный UI)
-- CMS с WYSIWYG (редактор, медиа-загрузка, хранение файлов)
+- CMS с Markdown (редактор, медиа-загрузка, хранение в S3)
 - Привязка мессенджеров через deep-link (integrator + webapp)
 - Карта пациента (новый домен, много таблиц)
 - Назначение комплексов ЛФК пациенту (связь doctor↔patient)
@@ -238,9 +238,10 @@ patient_lfk_assignments  -- id, patient_user_id, template_id (nullable), complex
                         -- stage_ref_id, rehab_step, schedule_json_override,
                         -- recommendations_override, assigned_by, assigned_at
 
--- Авторизация
-user_passwords           -- user_id, password_hash, created_at, updated_at
-password_reset_tokens    -- id, user_id, token_hash, expires_at, used_at
+-- Авторизация (multi-method)
+user_pins                -- user_id, pin_hash, attempts_failed, locked_until
+user_oauth_bindings      -- id, user_id, provider (google/apple/yandex), provider_user_id, email
+login_tokens             -- id, token_hash, user_id, method (telegram/max), status, expires_at
 
 -- Email
 ALTER platform_users ADD: email_verified_at
@@ -275,13 +276,17 @@ patient_visits           -- id, patient_card_id, visit_type (initial/follow_up),
 ### 5.2 Новые API-эндпоинты (webapp)
 
 ```
--- Auth
-POST   /api/auth/password/set
-POST   /api/auth/password/login
-POST   /api/auth/password/reset-request
-POST   /api/auth/password/reset-confirm
-POST   /api/auth/email/start
-POST   /api/auth/email/confirm
+-- Auth (multi-method)
+POST   /api/auth/check-phone              -- определение доступных методов
+POST   /api/auth/pin/login                -- вход по PIN
+POST   /api/auth/pin/set                  -- создание/изменение PIN (требует сессию)
+POST   /api/auth/messenger/start          -- генерация login_token + deep-link
+POST   /api/auth/messenger/poll           -- проверка статуса login_token
+POST   /api/auth/messenger/confirm        -- подтверждение из бота (integrator → webapp)
+POST   /api/auth/oauth/start              -- redirect URL для провайдера
+GET    /api/auth/oauth/callback            -- обработка callback, создание сессии
+POST   /api/auth/email/start              -- OTP на email
+POST   /api/auth/email/confirm            -- подтверждение email
 
 -- References
 GET    /api/references/:category         -- справочник по категории
