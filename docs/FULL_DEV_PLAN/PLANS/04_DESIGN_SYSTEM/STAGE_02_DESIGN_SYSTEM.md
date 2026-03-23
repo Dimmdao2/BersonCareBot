@@ -1,200 +1,193 @@
-# Этап 2: Дизайн-система
+# Этап 2: Дизайн-система (Tailwind + shadcn/ui)
 
 > Приоритет: P1
 > Зависимости: Этап 1 (багфиксы)
 > Риск: низкий
->
-> **⚠️ Открытый вопрос:** владелец рассматривает Tailwind CSS + shadcn/ui как альтернативу текущему кастомному CSS. Решение будет принято до начала этого этапа. Подэтапы ниже описаны для кастомного CSS-подхода; при выборе Tailwind/shadcn структура подэтапов будет пересмотрена.
+> Стек: Tailwind CSS 4 + shadcn/ui
 
 ---
 
-## Подэтап 2.1: CSS foundation — пресеты кнопок, отступы, шрифты
+## Подэтап 2.1: Установка Tailwind CSS 4 + shadcn/ui
 
-**Задача:** создать единую систему CSS-переменных и классов.
+**Задача:** настроить Tailwind и shadcn/ui в webapp.
 
 **Файлы:**
+- `apps/webapp/package.json`
+- `apps/webapp/tailwind.config.ts` (или CSS-based config для Tailwind 4)
 - `apps/webapp/src/app/globals.css`
+- `apps/webapp/components.json` (shadcn config)
+- `apps/webapp/src/lib/utils.ts` (утилита `cn()`)
 
 **Действия:**
-1. Добавить CSS-переменные в `:root`:
+1. Установить Tailwind CSS 4: `pnpm --filter webapp add tailwindcss @tailwindcss/postcss postcss`.
+2. Настроить PostCSS и Tailwind (или CSS-based конфигурацию Tailwind 4).
+3. Добавить Tailwind директивы в `globals.css`:
    ```css
-   --btn-radius: 8px;       /* было ~12-16px, уменьшить */
-   --btn-padding: 10px 20px;
-   --spacing-xs: 4px;
-   --spacing-sm: 8px;
-   --spacing-md: 16px;
-   --spacing-lg: 24px;
-   --spacing-xl: 32px;
-   --font-heading: 1.1rem;  /* уменьшить от текущего */
-   --font-body: 0.95rem;
-   --font-small: 0.8rem;
-   --color-primary-blue: hsl(215, 35%, 40%);
-   --color-danger-red: hsl(0, 55%, 45%);
-   --color-inverse-bg: hsl(0, 0%, 95%);
-   --color-inverse-text: hsl(0, 0%, 25%);
+   @import "tailwindcss";
    ```
-2. Обновить существующий класс `.button`:
-   - Скругление: `var(--btn-radius)`.
-   - Единые padding.
-3. Добавить классы-модификаторы:
-   - `.button--primary` (серовато тёмно-синий фон, белый текст).
-   - `.button--danger` (приглушённый красный фон, белый текст).
-   - `.button--inverse` (белый фон, тёмно-серый текст, тонкая border).
-   - `.button--small` (меньше padding, меньше font-size).
-4. Унифицировать отступы: `.stack` gap через `var(--spacing-md)`.
-5. Уменьшить шрифт заголовков `h1`, `h2`, `h3` на ~10%.
+4. Настроить тему: цвета проекта (patient-bg, surface, текст), радиусы, шрифты — как CSS-переменные для shadcn.
+5. Инициализировать shadcn/ui: `npx shadcn@latest init`.
+6. Создать `src/lib/utils.ts` с `cn()` (clsx + tailwind-merge).
+7. Убедиться что существующий CSS в globals.css не конфликтует с Tailwind (оставить его пока — будет удаляться попутно).
 
 **Критерий:**
-- Все кнопки в приложении используют единые пресеты.
-- Скругления кнопок не конфликтуют с полями ввода.
-- Отступы единообразны.
+- `pnpm run ci` проходит.
+- Tailwind классы работают в компонентах.
+- shadcn/ui инициализирован.
 
 ---
 
-## Подэтап 2.2: AppShell — шапка
+## Подэтап 2.2: shadcn/ui примитивы
 
-**Задача:** уменьшить шапку, добавить заголовок страницы и иконки.
+**Задача:** добавить базовые shadcn-компоненты.
+
+**Файлы:**
+- `apps/webapp/src/components/ui/` (стандартная shadcn-структура)
+
+**Действия:**
+1. Добавить компоненты shadcn/ui:
+   ```bash
+   npx shadcn@latest add button card dialog tabs select input textarea badge
+   npx shadcn@latest add dropdown-menu popover tooltip scroll-area separator
+   ```
+2. Настроить Button варианты в соответствии с планом:
+   - `default` — обычная.
+   - `secondary` / `outline` — инверсия (тёмно-серый текст, светлый фон).
+   - `destructive` — красная (приглушённый красный).
+   - Добавить кастомный variant `primary` — серовато тёмно-синий (тёплый, не яркий).
+3. Настроить цветовую схему в CSS-переменных shadcn:
+   - `--primary`: тёплый приглушённый синий (`hsl(215 35% 40%)`).
+   - `--destructive`: приглушённый красный (`hsl(0 55% 45%)`).
+   - `--radius`: 8px (уменьшить от текущих 12–16px).
+4. Скругления кнопок не должны конфликтовать с полями ввода.
+
+**Критерий:**
+- Все shadcn-компоненты доступны.
+- Button 4 варианта работают.
+- Цвета и скругления по плану.
+
+---
+
+## Подэтап 2.3: AppShell / шапка (patient)
+
+**Задача:** переписать шапку на Tailwind, уменьшить, добавить заголовок и иконки.
 
 **Файлы:**
 - `apps/webapp/src/shared/ui/AppShell.tsx`
 - `apps/webapp/src/shared/ui/PatientHeader.tsx`
-- `apps/webapp/src/app/globals.css`
 
 **Действия:**
-1. Уменьшить высоту `.top-bar` на 15% (padding сверху/снизу).
-2. Структура шапки (patient):
+1. Переписать PatientHeader на Tailwind-классы.
+2. Уменьшить высоту шапки на ~15% (padding `py-2` вместо текущего).
+3. Структура:
    ```
    [← назад] [🏠] .... Заголовок страницы .... [💬] [🔔] [☰]
    ```
-3. Заголовок: props `pageTitle`, рендер по центру, мелкий шрифт, приглушённый цвет.
-4. Иконка домика: прижать влево рядом со стрелкой назад.
-5. Справа: иконка сообщений (со счётчиком), колокольчик (в будущем), меню.
-6. Иконки — SVG инлайн или CSS-only (чтобы не тянуть icon library).
+4. Заголовок: props `pageTitle`, по центру, `text-sm text-muted-foreground`.
+5. Иконка домика: прижать влево рядом со стрелкой.
+6. Справа: иконка сообщений (со счётчиком), колокольчик (будущее), меню.
+7. Удалить старые CSS-классы из globals.css (`top-bar`, `top-bar__actions` и т.д.) по мере замены.
 
 **Критерий:**
-- Шапка компактнее.
-- Заголовок страницы отображается по центру.
-- Иконка домика слева рядом со стрелкой.
-- Справа: иконки сообщений и меню.
+- Шапка компактнее, на Tailwind.
+- Заголовок страницы по центру.
+- Иконки справа.
+- Старые CSS-классы шапки можно удалить.
 
 ---
 
-## Подэтап 2.3: Боковое меню (patient)
+## Подэтап 2.4: Боковое меню (patient)
 
-**Задача:** выровнять отступы, добавить пункты.
+**Задача:** боковое меню на shadcn Sheet/Dialog, новые пункты.
 
 **Файлы:**
-- Компонент бокового меню (определить по AppShell.tsx)
+- Компонент бокового меню
 - `apps/webapp/src/app-layer/routes/paths.ts`
-- `apps/webapp/src/modules/menu/`
 
 **Действия:**
-1. Выровнять правый padding = левый padding.
-2. Добавить пункты меню:
+1. Использовать shadcn `Sheet` (side drawer) для бокового меню.
+2. Выровнять padding: одинаковый слева и справа.
+3. Добавить пункты:
    - «Сообщения» → `/app/patient/messages` (пока заглушка).
    - «Адрес кабинета» → `window.open('https://dmitryberson.ru/adress', '_blank')`.
    - «Справка» → `/app/patient/help` (пока заглушка).
    - «Поделиться с другом» → копирование ссылки + toast.
    - «Установить приложение» → `/app/patient/install` (пока заглушка).
-3. Страницы-заглушки: простой текст «Раздел в разработке», стиль InfoBlock.
+4. Заглушки: компонент с текстом «Раздел в разработке».
 
 **Критерий:**
-- Меню: отступы симметричны.
+- Меню через shadcn Sheet.
 - Все пункты кликабельны.
-- «Адрес кабинета» открывает новую вкладку.
+- Padding симметричный.
 
 ---
 
-## Подэтап 2.4: Шапка и меню (doctor)
+## Подэтап 2.5: Шапка и меню (doctor)
 
-**Задача:** создать фиксированную шапку и правое меню для кабинета врача.
+**Задача:** создать фиксированную шапку и правое меню для доктора.
 
 **Файлы:**
-- `apps/webapp/src/shared/ui/DoctorNavigation.tsx`
-- `apps/webapp/src/shared/ui/AppShell.tsx`
-- Новый: `DoctorHeader.tsx` или расширение PatientHeader
+- `apps/webapp/src/shared/ui/DoctorNavigation.tsx` → заменить
+- Новый: `DoctorHeader.tsx`
 
 **Действия:**
-1. Создать `DoctorHeader` по аналогии с PatientHeader:
+1. Создать `DoctorHeader` на Tailwind по аналогии с PatientHeader:
    ```
    [← назад] [🏠 дашборд] .... Название экрана .... [👤 клиенты] [💬 N] [☰]
    ```
-2. Фиксированная позиция сверху.
-3. Правое меню (пункты из плана): Клиенты, Записи, Рассылки, Справочники, CMS, Статистика, --- , Профиль, Настройки.
-4. Убрать кнопки-навигацию вверху страниц doctor (убрать DoctorNavigation).
-5. Кнопка «настройки», которая торчит на всех страницах — убрать.
+2. Фиксированная позиция: `fixed top-0 z-50`.
+3. Правое меню (shadcn Sheet): Клиенты, Записи, Рассылки, Справочники, CMS, Статистика, --- , Профиль, Настройки.
+4. Убрать DoctorNavigation (кнопки вверху страниц).
+5. Убрать кнопку «настройки» со всех страниц доктора.
 
 **Критерий:**
 - Шапка доктора фиксирована сверху.
-- Правое меню содержит все пункты.
-- Старые кнопки навигации убраны.
+- Правое меню shadcn Sheet с пунктами.
+- Старая навигация убрана.
 
 ---
 
-## Подэтап 2.5: Информационный блок (InfoBlock)
+## Подэтап 2.6: Базовые переиспользуемые компоненты
 
-**Задача:** переиспользуемый компонент для информационных сообщений.
+**Задача:** создать набор базовых компонентов проекта на shadcn.
 
 **Файлы:**
-- Новый: `apps/webapp/src/shared/ui/InfoBlock.tsx`
-- `apps/webapp/src/app/globals.css`
+- `apps/webapp/src/components/` (новая структура)
 
 **Действия:**
-1. Создать компонент `InfoBlock`:
+1. **InfoBlock** — компонент информационных сообщений:
    - Props: `children`, `variant: 'info' | 'important'`.
-   - `info`: текущий стиль как на странице уведомлений (светлый фон, тонкая border).
-   - `important`: красный фон (приглушённый), белый текст.
-2. Добавить CSS-классы `.info-block`, `.info-block--important`.
-3. Заменить существующий inline-стиль на странице уведомлений на `<InfoBlock>`.
+   - `info`: мягкий фон (`bg-muted`), тонкая border.
+   - `important`: красный фон (`bg-destructive/10`), красный текст.
+2. **PageHeader** — заголовок страницы + breadcrumb (опционально).
+3. **EmptyState** — пустое состояние с текстом и опциональной кнопкой.
+4. **StatusBadge** — цветной бейдж для статусов (зелёный/сиреневый/красный).
+5. Интегрировать `react-hot-toast`: добавить `<Toaster />` в layout.tsx.
 
 **Критерий:**
-- Компонент `InfoBlock` используется в 1+ местах.
-- Два варианта визуально различаются.
-
----
-
-## Подэтап 2.6: Toast-уведомления
-
-**Задача:** подключить систему toast-уведомлений.
-
-**Файлы:**
-- `apps/webapp/package.json`
-- `apps/webapp/src/app/layout.tsx`
-- Компоненты, где нужен toast (дневник и др.)
-
-**Действия:**
-1. Установить `react-hot-toast`: `pnpm --filter webapp add react-hot-toast`.
-2. Добавить `<Toaster />` в layout.tsx (client component wrapper).
-3. Использовать `toast.success('Запись добавлена')` в дневнике (подэтап 1.9).
-
-**Критерий:**
-- Toast отображается при успешном действии.
-- Автоматически исчезает через 1–2 секунды.
+- InfoBlock, EmptyState, StatusBadge, PageHeader — работают.
+- Toast-уведомления работают.
 
 ---
 
 ## Подэтап 2.7: Адаптивность — breakpoints
 
-**Задача:** заложить CSS breakpoints для future desktop layout.
+**Задача:** настроить breakpoints в Tailwind.
 
 **Файлы:**
-- `apps/webapp/src/app/globals.css`
+- Tailwind config
 
 **Действия:**
-1. Добавить CSS custom media / media queries:
-   ```css
-   /* Mobile first */
-   /* Tablet: min-width 768px */
-   /* Desktop: min-width 1024px */
-   /* Wide: min-width 1280px */
-   ```
-2. Обернуть основной контент в `.app-container` с `max-width` на desktop.
-3. Для doctor layout: подготовить sidebar placeholder на desktop (пока скрыт).
+1. Tailwind breakpoints по умолчанию (sm:640, md:768, lg:1024, xl:1280) — подходят.
+2. Обернуть основной контент:
+   - Patient: `max-w-[480px] mx-auto` (как сейчас).
+   - Doctor: `max-w-7xl mx-auto` на desktop, `w-full` на mobile.
+3. Doctor layout: подготовить sidebar placeholder на desktop (`hidden md:block`).
 
 **Критерий:**
-- На mobile: текущий вид.
-- На desktop: контент центрирован, не растягивается на всю ширину.
-- Breakpoints определены и готовы для future использования.
+- Mobile: текущий вид.
+- Desktop: контент центрирован.
+- Breakpoints готовы.
 
 ---
 
@@ -208,52 +201,33 @@
 
 **Действия:**
 1. Создать папку `public/icons/`.
-2. Составить список необходимых иконок (SVG/PNG):
+2. Составить список необходимых иконок (SVG):
    - Мессенджеры: telegram.svg, max.svg, vk.svg
    - Навигация: home.svg, back.svg, menu.svg, close.svg
    - Действия: send.svg, edit.svg, delete.svg, add.svg, search.svg
    - Статусы: check.svg, bell.svg, message.svg, calendar.svg
    - Дневник: chart.svg, exercise.svg, diary.svg
    - Прочее: share.svg, install.svg, settings.svg, user.svg, users.svg
-3. Создать `README.md` со списком иконок, именами файлов, размерами.
-4. Для начала: использовать inline SVG в компонентах (не ждать загрузки файлов).
-5. Владелец загрузит файлы по списку.
+3. Создать `README.md` со списком иконок и именами файлов.
+4. Для начала: использовать lucide-react (идёт вместе с shadcn/ui) для стандартных иконок. Кастомные (мессенджеры) — inline SVG или файлы от владельца.
 
 **Критерий:**
 - Каталог создан, список определён.
-- README с именами файлов для загрузки.
-
----
-
-## Подэтап 2.9: Radix UI primitives (точечное внедрение)
-
-**Задача:** установить Radix UI, заменить первые самописные интерактивные компоненты.
-
-**Файлы:**
-- `apps/webapp/package.json`
-- Компоненты, где нужны Dialog, Tabs, Select
-
-**Действия:**
-1. Установить точечно: `pnpm --filter webapp add @radix-ui/react-dialog @radix-ui/react-tabs @radix-ui/react-dropdown-menu @radix-ui/react-select @radix-ui/react-popover @radix-ui/react-tooltip`.
-2. Создать обёртки в `shared/ui/` с кастомными стилями (не визуальная библиотека, а headless фундамент).
-3. Первые замены: боковое меню (Dialog/Drawer), вкладки дневника (Tabs), dropdown в три-точки (DropdownMenu).
-
-**Критерий:**
-- Radix primitives установлены.
-- 1–2 компонента используют Radix вместо самописной логики.
-- Стили остаются кастомными.
+- lucide-react используется для стандартных иконок.
+- README с именами файлов для кастомных иконок.
 
 ---
 
 ## Общий критерий завершения этапа 2
 
-- [ ] CSS foundation: пресеты кнопок, единые отступы, шрифты.
-- [ ] Шапка patient: компактная, заголовок, иконки.
-- [ ] Боковое меню patient: все пункты, симметричные отступы.
-- [ ] Шапка + меню doctor: фиксированная, пункты, старая навигация убрана.
-- [ ] InfoBlock компонент.
-- [ ] Toast-система.
-- [ ] Breakpoints определены.
-- [ ] Каталог иконок создан (README со списком для загрузки).
-- [ ] Radix UI primitives установлены и используются точечно.
+- [ ] Tailwind CSS 4 установлен и работает.
+- [ ] shadcn/ui инициализирован, базовые компоненты добавлены.
+- [ ] Button 4 варианта, цвета и скругления по плану.
+- [ ] Шапка patient: компактная, заголовок, иконки — на Tailwind.
+- [ ] Боковое меню patient: shadcn Sheet, все пункты, симметричные отступы.
+- [ ] Шапка + меню doctor: фиксированная, shadcn Sheet, старая навигация убрана.
+- [ ] InfoBlock, EmptyState, StatusBadge, PageHeader — на Tailwind.
+- [ ] Toast-система (react-hot-toast).
+- [ ] Breakpoints настроены.
+- [ ] Каталог иконок создан.
 - [ ] `pnpm run ci` проходит.

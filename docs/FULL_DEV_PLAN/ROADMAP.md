@@ -20,14 +20,14 @@
 
 | Слой | Технология |
 |------|-----------|
-| Frontend | Next.js 16, React 19, CSS custom properties |
+| Frontend | Next.js 16, React 19, Tailwind CSS 4, shadcn/ui |
 | Backend (webapp) | Next.js API Routes + Server Actions, pg, Zod |
 | Backend (integrator) | Fastify, pg, Zod, grammY, @maxhub/max-bot-api |
 | Database | PostgreSQL 16+ |
 | Auth | Cookie sessions (HMAC), argon2, OTP via SMS/email |
 | Charts | recharts |
 | Tables | @tanstack/react-table |
-| Headless UI | @radix-ui/react-* (точечно: Dialog, Popover, Tabs, Select) |
+| UI primitives | shadcn/ui (Button, Card, Dialog, Tabs, Select, Input и др. на Radix UI) |
 | Markdown | react-markdown + remark-gfm |
 | DnD | @dnd-kit/core + @dnd-kit/sortable |
 | Dates | date-fns |
@@ -44,7 +44,7 @@
 | **Colocated modules** | `modules/<name>/` с `types.ts`, `actions.ts`, `components/`, `repos/` |
 | **Repository pattern** | Все запросы к БД через `pg*Repo.ts` файлы |
 | **Zod schemas** | Валидация на входе в каждый action/endpoint |
-| **CSS Variables + utility classes** | Дизайн-система через `globals.css` |
+| **Tailwind utility classes** | Стили в компонентах, shadcn/ui для примитивов |
 | **Feature flags** | `system_settings` таблица, проверка на сервере |
 | **Soft-delete** | Все пользовательские данные помечаются `deleted_at`, не удаляются |
 | **Idempotency** | Все мутации через integrator — idempotent |
@@ -57,8 +57,8 @@
 3. Новые компоненты — в `modules/<name>/components/`, не в `shared/ui/` (кроме дизайн-системы).
 4. Все тексты UI на русском языке.
 5. SQL-миграции — идемпотентные (`IF NOT EXISTS`, `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`).
-6. Не добавлять ORM, тяжёлые UI-фреймворки (MUI, Ant Design, Chakra). Вопрос Tailwind/shadcn — открыт, решение до начала этапа 2.
-7. CSS — решение по стеку (кастомный CSS с tokens/patterns или Tailwind/shadcn) будет принято владельцем до этапа 2.
+6. Не добавлять ORM, тяжёлые UI-фреймворки (MUI, Ant Design, Chakra).
+7. **Стили: Tailwind CSS 4 + shadcn/ui.** Все новые/изменяемые компоненты — на Tailwind. Старый CSS из globals.css переводить при касании файла.
 8. Медиа-файлы загружать в S3 (`S3_ENDPOINT`).
 9. Новые таблицы — заранее добавлять `tenant_id` / `owner_id` (nullable) для будущей мультитенантности.
 10. E2E-тесты обязательны для каждого нового функционала.
@@ -89,21 +89,22 @@
 
 ---
 
-### Этап 2: Дизайн-система
+### Этап 2: Дизайн-система (Tailwind + shadcn/ui)
 
-**Цель:** единообразный UI, переиспользуемые компоненты.
+**Цель:** единообразный UI на Tailwind + shadcn/ui, переиспользуемые компоненты.
 
 | # | Подэтап | Описание |
 |---|---------|----------|
-| 2.1 | CSS foundation | Пресеты кнопок (default, inverse, primary-blue, danger-red), единые отступы, скругления, шрифты |
-| 2.2 | AppShell: шапка | Уменьшить высоту на 15%, заголовок страницы по центру, иконки справа (сообщения, колокольчик, меню) |
-| 2.3 | Боковое меню (patient) | Равные отступы, новые пункты (Сообщения, Справка, Адрес кабинета, Поделиться, Установить) |
-| 2.4 | Шапка и меню (doctor) | Фиксированная шапка, кнопки (назад, домой, клиенты, сообщения, меню), правое меню по пунктам |
-| 2.5 | Информационный блок | Переиспользуемый компонент InfoBlock (normal / important-red) |
-| 2.6 | Toast-уведомления | Интеграция react-hot-toast, компонент Toast |
-| 2.7 | Адаптивность: breakpoints | CSS media queries для mobile / tablet / desktop |
+| 2.1 | Установка Tailwind 4 + shadcn/ui | Tailwind, PostCSS, shadcn init, cn() утилита, настройка темы |
+| 2.2 | shadcn/ui примитивы | Button (4 варианта), Card, Dialog, Tabs, Select, Input, Badge, DropdownMenu, Popover, Tooltip |
+| 2.3 | Шапка (patient) | Переписать на Tailwind, уменьшить 15%, заголовок по центру, иконки справа |
+| 2.4 | Боковое меню (patient) | shadcn Sheet, равные отступы, новые пункты |
+| 2.5 | Шапка и меню (doctor) | Фиксированная шапка на Tailwind, shadcn Sheet для правого меню, убрать старую навигацию |
+| 2.6 | Базовые компоненты | InfoBlock, EmptyState, StatusBadge, PageHeader + react-hot-toast |
+| 2.7 | Адаптивность: breakpoints | Tailwind responsive, max-w для patient/doctor |
+| 2.8 | Каталог иконок | lucide-react + список кастомных SVG для загрузки |
 
-**Критерий завершения:** `globals.css` содержит полный набор пресетов, компоненты AppShell/Header/SideMenu обновлены, всё выглядит единообразно на мобильном.
+**Критерий завершения:** Tailwind + shadcn работают, шапки/меню переписаны, базовые компоненты готовы, единообразный вид на мобильном.
 
 ---
 

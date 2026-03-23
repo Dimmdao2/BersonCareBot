@@ -362,7 +362,8 @@ GET    /api/settings/public    -- client-facing flags
 | **react-hot-toast** | Toast-уведомления | MIT | Минималистичный, 5 KB, без зависимостей |
 | **@dnd-kit/core** + **@dnd-kit/sortable** | Drag-and-drop (комплексы, упражнения) | MIT | Модульный, accessible, React-нативный |
 | **zod** (уже есть) | Валидация форм | MIT | Уже используется, отлично для form validation |
-| **@radix-ui/react-*** | Headless UI примитивы (Dialog, Popover, Tabs, Select и др.) | MIT | Accessibility-ready, headless, не навязывает стили, точечное внедрение |
+| **tailwindcss** 4.x | Utility-first CSS | MIT | Zero-runtime, стили в компонентах, масштабируемость |
+| **shadcn/ui** | UI-примитивы (Button, Dialog, Tabs, Select, Card и др.) | MIT | Copy-paste компоненты на Radix UI, полностью кастомизируемые |
 | **@next/bundle-analyzer** | Анализ размера бандла | MIT | Контроль при добавлении библиотек |
 
 ### Backend (integrator, Fastify)
@@ -375,15 +376,27 @@ GET    /api/settings/public    -- client-facing flags
 | **pg** (уже есть) | PostgreSQL | MIT | Уже используется |
 | **p-retry** (уже есть) | Retry logic | MIT | Уже используется |
 
-### Решение по стилям — открытый вопрос
+### Решение по стилям — ПРИНЯТО: Tailwind CSS + shadcn/ui
 
-> Владелец рассматривает вариант Tailwind CSS + shadcn/ui или сохранение текущих кастомных стилей. Решение будет принято до начала этапа 2 (дизайн-система). До этого момента не мигрировать и не ломать текущий CSS-стек.
+> Решение от 2026-03-23: переход на **Tailwind 4 + shadcn/ui**.
+>
+> Обоснование: почти каждая страница будет переписана в ходе плана → миграция практически zero-cost. Каждый новый или изменяемый блок сразу пишется на Tailwind. Старый globals.css вычищается попутно при касании файла.
+>
+> shadcn/ui даёт все нужные примитивы (Button, Dialog, Tabs, Select, Card, Dropdown, Tooltip) на базе Radix UI с полной кастомизацией.
+>
+> Стратегия миграции:
+> 1. Установить Tailwind 4 + shadcn/ui + `cn()` утилиту в начале этапа 2.
+> 2. Добавить shadcn-компоненты: Button (4 варианта), Card, Dialog, Tabs, Select, Input, Textarea, Badge, DropdownMenu, Popover, Tooltip.
+> 3. Все новые компоненты — только на Tailwind.
+> 4. При рефакторинге существующей страницы — переводить её CSS на Tailwind.
+> 5. По мере продвижения — удалять неиспользуемые классы из globals.css.
+> 6. globals.css в итоге содержит только reset, CSS-переменные темы и минимальные глобальные стили.
 
 ### Не рекомендуется добавлять
 
 | Что | Почему |
 |-----|--------|
-| MUI / Ant Design / Chakra | Тяжёлые UI-фреймворки, конфликтуют с кастомным дизайном |
+| MUI / Ant Design / Chakra | Тяжёлые runtime UI-фреймворки, конфликтуют с Tailwind-подходом |
 | Prisma / Drizzle ORM | Проект построен на raw SQL + pg, ORM добавит сложность без пользы |
 | Socket.IO | Для чата лучше SSE или long-polling — проще, не нужен отдельный WS-сервер |
 | Redux / Zustand | React 19 + Server Actions + `use` хватает для state management |
@@ -477,39 +490,27 @@ GET    /api/settings/public    -- client-facing flags
 
 6. **Readme per module** — краткий `module.md` (уже есть в integrator). Продолжить практику для webapp modules. **Всегда вести документацию и синхронизировать с реальностью при изменениях.**
 
-### 9.2 UI-архитектура (ключевой раздел)
+### 9.2 UI-архитектура: Tailwind + shadcn/ui
 
-**Главная идея:** не делать «переписать UI на новую модную систему», а аккуратно превратить текущий самописный UI-слой в более явную, дисциплинированную и масштабируемую дизайн-систему с точечным использованием headless-примитивов.
+> Решение принято 2026-03-23.
 
-**Принципы:**
+**Стек:** Tailwind CSS 4 + shadcn/ui (на базе Radix UI).
 
-1. **Не мигрировать** на Tailwind / shadcn / MUI / Chakra / Ant. Текущий проект уже имеет собственный UI-слой — систематизировать и усилить.
-2. Рассматривать `apps/webapp` как **самописную UI-платформу** с зачатками design system.
-3. **Сохранить текущий CSS-стек**, но постепенно разделить ответственность:
-   - Глобальные токены и базовые переменные (`tokens.css`).
-   - Базовые layout/surface/control/state-паттерны (`patterns.css`).
-   - Компонентные стили (colocated или модульные).
-   - Редкие truly-global стили (`globals.css`).
-4. **Постепенно сокращать inline styles** — выносить в системные паттерны там, где повторяется.
-5. **Усилить `shared/ui`** как точку сборки дизайн-системы. Набор базовых примитивов:
-   - Button / button variants
-   - Input / Textarea / Select
-   - Card / Panel / Surface
-   - Status / Badge / EmptyState
-   - PageSection / FormRow / ActionBar
-   - Modal / Drawer / Tabs
-   - Navigation primitives
-6. **Radix UI primitives** — точечное внедрение как headless-фундамент для сложных интерактивных и accessibility-чувствительных компонентов:
-   - Dialog, Popover, Dropdown Menu, Tabs, Accordion, Tooltip, Select, Scroll Area.
-   - Решение о внедрении — точечно по зонам, где самописная логика дорожает в поддержке.
-7. **Не использовать** Headless UI как основной вектор. React Aria — только если потребуется тяжёлая accessibility-архитектура (сейчас избыточно).
-8. **Сохранить сильную сторону:** thin pages / thin API + бизнес-логика в modules + infra + DI. UI-реорганизация не размывает эти границы.
+**Стратегия миграции — zero-cost при рефакторинге:**
 
-**Эволюционный путь:**
-1. Аудит и группировка текущих UI-паттернов.
-2. Выделение устойчивых примитивов.
-3. Точечная замена сложных интерактивных участков на headless primitives.
-4. Только после этого — более крупные решения, если понадобятся.
+1. В начале этапа 2: установить Tailwind 4, shadcn/ui, утилиту `cn()`.
+2. Инициализировать shadcn: Button (4 варианта), Card, Dialog, Tabs, Select, Input, Textarea, Badge, DropdownMenu, Popover, Tooltip, ScrollArea.
+3. **Все новые компоненты** — только Tailwind + shadcn.
+4. **При касании существующей страницы** — переводить её на Tailwind (убирать className из globals.css, заменять inline styles).
+5. `globals.css` постепенно сжимается до: reset + CSS-переменные темы (цвета, радиусы) + минимум глобальных стилей.
+6. `shared/ui/` заменяется на shadcn-компоненты в `components/ui/` (стандартная структура shadcn).
+
+**Принципы (сохраняются):**
+
+1. **Thin components** — бизнес-логика в modules, не в компонентах.
+2. **Сохранить архитектуру:** thin pages / thin API + modules + infra + DI.
+3. **Не добавлять** MUI, Ant Design, Chakra — shadcn/ui покрывает все потребности.
+4. **Accessibility** — через Radix UI (под капотом shadcn), не требует отдельного решения.
 
 ### 9.3 PWA и React Native
 
