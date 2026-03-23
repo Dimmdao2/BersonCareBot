@@ -3,6 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import toast from "react-hot-toast";
+import { Bell, Home, Menu, MessageCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { routePaths } from "@/app-layer/routes/paths";
+import { cn } from "@/lib/utils";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
@@ -12,40 +25,19 @@ const MENU_ITEMS: { id: string; label: string; href: string }[] = [
 ];
 
 type PatientHeaderProps = {
-  /** Показывать кнопку «Назад» (история браузера через router.back). */
+  /** Заголовок экрана в шапке (не дублировать в main). */
+  pageTitle: string;
   showBack?: boolean;
-  /** Зарезервировано для будущего fallback; навигация назад — всегда router.back(). */
   backHref?: string;
-  /** Текст/aria-label для кнопки «Назад». */
   backLabel?: string;
 };
 
-/** Шапка пациента: стрелка назад | заголовок (ссылка в меню) | гамбургер (боковое меню справа). */
-export function PatientHeader({ showBack, backLabel = "Назад" }: PatientHeaderProps) {
+export function PatientHeader({ pageTitle, showBack, backLabel = "Назад" }: PatientHeaderProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [isMessengerMiniApp, setIsMessengerMiniApp] = useState(false);
 
-  const close = useCallback(() => setOpen(false), []);
-  const toggle = useCallback(() => setOpen((v) => !v), []);
-  const goBack = useCallback(() => {
-    router.back();
-  }, [router]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (open) document.body.classList.add("drawer-open");
-    else document.body.classList.remove("drawer-open");
-    return () => document.body.classList.remove("drawer-open");
-  }, [open]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [close]);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -53,102 +45,193 @@ export function PatientHeader({ showBack, backLabel = "Назад" }: PatientHea
     });
   }, []);
 
-  return (
-    <header id="patient-header" className="patient-header" data-open={open}>
-      <div id="patient-header-row" className="patient-header__row">
-        <div className="patient-header__left">
-          {showBack ? (
-            <button
-              type="button"
-              className="patient-header__back"
-              onClick={goBack}
-              aria-label={backLabel}
-            >
-              <span className="patient-header__back-icon" aria-hidden>←</span>
-            </button>
-          ) : (
-            <span className="patient-header__back-placeholder" aria-hidden />
-          )}
-        </div>
-        <div className="patient-header__center">
-          <Link href="/app/patient" className="patient-header__home-link" prefetch={false} aria-label="Главное меню">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
-              <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            </svg>
-          </Link>
-        </div>
-        <div className="patient-header__right">
-          <button
-            type="button"
-            id="patient-menu-toggle"
-            className="patient-header__menu-btn"
-            onClick={toggle}
-            aria-label="Меню"
-            aria-expanded={open}
-          >
-            <span className="patient-header__hamburger" aria-hidden>
-              <span />
-              <span />
-              <span />
-            </span>
-          </button>
-        </div>
-      </div>
+  const goBack = useCallback(() => {
+    router.back();
+  }, [router]);
 
-      <div
-        id="patient-menu-overlay"
-        className="drawer-overlay"
-        aria-hidden={!open}
-        onClick={close}
-        tabIndex={-1}
-      />
-      <aside id="patient-menu-drawer" className="drawer-panel" role="dialog" aria-label="Меню" aria-modal="true">
-        <div className="drawer-panel__header">
-          <button type="button" className="drawer-panel__close" onClick={close} aria-label="Закрыть">
-            ×
-          </button>
-        </div>
-        <nav id="patient-menu-nav" className="drawer-nav">
-          {MENU_ITEMS.map((item) => (
-            <Link
-              key={item.id}
-              id={`patient-menu-link-${item.id}`}
-              href={item.href}
-              className="drawer-nav__link"
-              onClick={close}
-            >
-              {item.label}
-            </Link>
-          ))}
-          {!isMessengerMiniApp && (
-            <>
-              <div className="drawer-nav__divider" />
-              <button
+  const shareWithFriend = useCallback(async () => {
+    const url = `${typeof window !== "undefined" ? window.location.origin : ""}/app/patient`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Ссылка скопирована");
+    } catch {
+      toast.error("Не удалось скопировать ссылку");
+    }
+    closeMenu();
+  }, [closeMenu]);
+
+  const openCabinetAddress = useCallback(() => {
+    window.open("https://dmitryberson.ru/adress", "_blank", "noopener,noreferrer");
+    closeMenu();
+  }, [closeMenu]);
+
+  return (
+    <>
+      <header
+        id="patient-header"
+        className="sticky top-0 z-40 -mx-4 mb-4 border-b border-border/60 bg-[var(--patient-surface)] px-3 py-2 shadow-sm"
+      >
+        <div
+          id="patient-header-row"
+          className="flex items-center gap-2"
+        >
+          <div className="flex shrink-0 items-center gap-1">
+            {showBack ? (
+              <Button
                 type="button"
-                id="patient-menu-logout"
-                className="drawer-nav__link drawer-nav__link--danger"
-                onClick={() => {
-                  close();
-                  window.location.href = "/api/auth/logout";
-                }}
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0"
+                onClick={goBack}
+                aria-label={backLabel}
               >
-                Выйти
-              </button>
-            </>
-          )}
-        </nav>
-      </aside>
-    </header>
+                <span className="text-lg leading-none" aria-hidden>←</span>
+              </Button>
+            ) : (
+              <span className="inline-flex w-8 shrink-0" aria-hidden />
+            )}
+            <Link
+              href="/app/patient"
+              prefetch={false}
+              aria-label="Главное меню"
+              className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "shrink-0")}
+            >
+              <Home className="size-5" aria-hidden />
+            </Link>
+          </div>
+
+          <div className="min-w-0 flex-1 text-center">
+            <p
+              className="truncate text-sm font-medium text-muted-foreground"
+              title={pageTitle}
+            >
+              {pageTitle}
+            </p>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Link
+              href={routePaths.patientMessages}
+              prefetch={false}
+              aria-label="Сообщения"
+              className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "relative")}
+            >
+              <MessageCircle className="size-5" aria-hidden />
+              <Badge
+                variant="secondary"
+                className="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px] leading-none"
+              >
+                0
+              </Badge>
+            </Link>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Уведомления" disabled>
+              <Bell className="size-5 opacity-50" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              id="patient-menu-toggle"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Меню"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(true)}
+            >
+              <Menu className="size-5" aria-hidden />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+        <SheetContent side="right" className="flex w-[min(100vw,20rem)] flex-col px-4 sm:max-w-sm">
+          <SheetHeader className="px-0 text-left">
+            <SheetTitle>Меню</SheetTitle>
+          </SheetHeader>
+          <nav id="patient-menu-nav" className="flex flex-col gap-1 py-2" aria-label="Навигация">
+            <Link
+              id="patient-menu-link-messages"
+              href={routePaths.patientMessages}
+              onClick={closeMenu}
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                "h-auto w-full justify-start px-3 py-2 font-normal",
+              )}
+            >
+              Сообщения
+            </Link>
+            {MENU_ITEMS.map((item) => (
+              <Link
+                key={item.id}
+                id={`patient-menu-link-${item.id}`}
+                href={item.href}
+                onClick={closeMenu}
+                className={cn(
+                  buttonVariants({ variant: "ghost" }),
+                  "h-auto w-full justify-start px-3 py-2 font-normal",
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+            <Separator className="my-2" />
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto w-full justify-start px-3 py-2 font-normal"
+              onClick={openCabinetAddress}
+            >
+              Адрес кабинета
+            </Button>
+            <Link
+              id="patient-menu-link-help"
+              href={routePaths.patientHelp}
+              onClick={closeMenu}
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                "h-auto w-full justify-start px-3 py-2 font-normal",
+              )}
+            >
+              Справка
+            </Link>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto w-full justify-start px-3 py-2 font-normal"
+              onClick={shareWithFriend}
+            >
+              Поделиться с другом
+            </Button>
+            <Link
+              id="patient-menu-link-install"
+              href={routePaths.patientInstall}
+              onClick={closeMenu}
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                "h-auto w-full justify-start px-3 py-2 font-normal",
+              )}
+            >
+              Установить приложение
+            </Link>
+            {!isMessengerMiniApp ? (
+              <>
+                <Separator className="my-2" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  id="patient-menu-logout"
+                  className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => {
+                    closeMenu();
+                    window.location.href = "/api/auth/logout";
+                  }}
+                >
+                  Выйти
+                </Button>
+              </>
+            ) : null}
+          </nav>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

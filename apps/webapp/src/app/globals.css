@@ -1,3 +1,10 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+/*---break---
+ */
+@custom-variant dark (&:is(.dark *));
+
 /**
  * Общие стили приложения.
  * Цвета, шрифты, карточки, кнопки, верхняя панель и сетки — всё, что используется
@@ -19,6 +26,40 @@
   --patient-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
   --patient-touch: 44px;
   --patient-gap: 12px;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  /* shadcn theme (BersonCare, STAGE_00): как в плане — hsl(215 35% 40%) тёплый спокойный синий, не кричащий */
+  --primary: hsl(215 35% 40%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: hsl(220 14% 96%);
+  --muted-foreground: hsl(220 9% 46%);
+  --accent: hsl(220 14% 96%);
+  --accent-foreground: hsl(220 40% 20%);
+  --destructive: hsl(0 55% 45%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 * {
@@ -31,10 +72,7 @@ body {
   min-height: 100%;
 }
 
-/* Градиентный фон страницы. */
-body {
-  background: linear-gradient(180deg, #f5f7fb 0%, #edf2fb 100%);
-}
+/* Градиентный фон страницы — см. @layer base body. */
 
 a {
   color: inherit;
@@ -49,10 +87,9 @@ a {
   min-height: 100vh;
 }
 
+/* Ширина и горизонтальные отступы — в AppShell (Tailwind); снизу — запас под FAB. */
 .app-shell--patient {
-  padding: 0 16px 32px;
-  padding-bottom: max(72px, calc(52px + env(safe-area-inset-bottom)));
-  max-width: 480px;
+  padding: 0 0 max(72px, calc(52px + env(safe-area-inset-bottom)));
   min-height: 100vh;
   background: var(--patient-bg);
 }
@@ -78,15 +115,7 @@ a {
   font-size: 1.25rem;
 }
 
-.app-shell--doctor {
-  max-width: 1200px;
-}
-@media (max-width: 768px) {
-  .app-shell--doctor {
-    max-width: 100%;
-    padding: 16px 12px 32px;
-  }
-}
+/* Кабинет врача: max-width и padding — в AppShell (Tailwind). */
 
 /* ——— Обзор кабинета специалиста ——— */
 .kpi-grid {
@@ -137,42 +166,6 @@ a {
   }
 }
 
-/* ——— Навигация кабинета специалиста ——— */
-.doctor-nav {
-  margin-bottom: 1rem;
-}
-.doctor-nav__list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.doctor-nav__item {
-  margin: 0;
-}
-.doctor-nav__link {
-  display: inline-block;
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #18202c;
-  background: rgba(255, 255, 255, 0.8);
-  text-decoration: none;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-}
-.doctor-nav__link:hover {
-  background: #fff;
-  border-color: rgba(0, 0, 0, 0.12);
-}
-.doctor-nav__link--active {
-  background: #18202c;
-  color: #fff;
-  border-color: #18202c;
-}
-
 .clients-filters__btn--active {
   background: #18202c;
   color: #fff;
@@ -206,234 +199,6 @@ a {
 .badge--warning {
   background: #f5e8e8;
   color: #9c4242;
-}
-
-/* ——— Шапка пациента (мобильный стиль): [назад | home | гамбургер] ——— */
-.patient-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  margin: 0 -16px 16px;
-  padding: 12px 8px;
-  padding-left: max(8px, env(safe-area-inset-left));
-  padding-right: max(8px, env(safe-area-inset-right));
-  background: var(--patient-surface);
-  box-shadow: var(--patient-shadow);
-}
-
-.patient-header__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: var(--patient-touch);
-}
-
-.patient-header__left,
-.patient-header__center,
-.patient-header__right {
-  display: flex;
-  align-items: center;
-}
-
-.patient-header__left {
-  flex: 0 0 var(--patient-touch);
-  justify-content: flex-start;
-}
-
-.patient-header__center {
-  flex: 1;
-  justify-content: center;
-  min-width: 0;
-}
-
-.patient-header__right {
-  flex: 0 0 var(--patient-touch);
-  justify-content: flex-end;
-}
-
-.patient-header__back,
-.patient-header__back-placeholder {
-  width: var(--patient-touch);
-  height: var(--patient-touch);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--patient-radius);
-  color: #18202c;
-  font-size: 1.25rem;
-  line-height: 1;
-  -webkit-tap-highlight-color: transparent;
-}
-
-button.patient-header__back,
-a.patient-header__back {
-  border: none;
-  background: none;
-  cursor: pointer;
-  font: inherit;
-  text-decoration: none;
-  color: inherit;
-}
-
-.patient-header__back:active {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.patient-header__back-placeholder {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.patient-header__home-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--patient-touch);
-  padding: 0 8px;
-  color: #18202c;
-  -webkit-tap-highlight-color: transparent;
-  text-decoration: none;
-}
-
-.patient-header__home-link:active {
-  opacity: 0.7;
-}
-
-.patient-header__menu-btn {
-  width: var(--patient-touch);
-  height: var(--patient-touch);
-  padding: 0;
-  border: none;
-  border-radius: var(--patient-radius);
-  background: transparent;
-  color: #18202c;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.patient-header__menu-btn:active {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.patient-header__hamburger {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.patient-header__hamburger span {
-  display: block;
-  width: 20px;
-  height: 2px;
-  background: currentColor;
-  border-radius: 1px;
-}
-
-/* Оверлей и боковое меню справа */
-.drawer-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 100;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.22s ease;
-}
-
-.patient-header[data-open="true"] .drawer-overlay {
-  pointer-events: auto;
-  opacity: 1;
-}
-
-.drawer-panel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(280px, 85vw);
-  padding-top: env(safe-area-inset-top);
-  padding-right: env(safe-area-inset-right);
-  background: var(--patient-surface);
-  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
-  z-index: 101;
-  display: flex;
-  flex-direction: column;
-  transform: translateX(100%);
-  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
-  pointer-events: none;
-}
-
-.patient-header[data-open="true"] .drawer-panel {
-  transform: translateX(0);
-  pointer-events: auto;
-}
-
-body.drawer-open {
-  overflow: hidden;
-}
-
-.drawer-panel__header {
-  display: flex;
-  justify-content: flex-end;
-  padding: 12px 8px 12px 20px;
-  flex-shrink: 0;
-}
-
-.drawer-panel__close {
-  width: var(--patient-touch);
-  height: var(--patient-touch);
-  padding: 0;
-  border: none;
-  border-radius: var(--patient-radius);
-  background: transparent;
-  font-size: 1.5rem;
-  line-height: 1;
-  color: #6b7280;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.drawer-panel__close:active {
-  background: rgba(0, 0, 0, 0.06);
-}
-
-.drawer-nav {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 12px 24px;
-  gap: 2px;
-}
-
-.drawer-nav__link {
-  padding: 14px 16px;
-  font-size: 0.9375rem;
-  color: #18202c;
-  border-radius: var(--patient-radius);
-  -webkit-tap-highlight-color: transparent;
-}
-
-.drawer-nav__link:active {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.drawer-nav__divider {
-  height: 1px;
-  margin: 8px 16px;
-  background: #e5e7eb;
-}
-
-.drawer-nav__link--danger {
-  color: #dc2626;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  width: 100%;
 }
 
 .page-title {
@@ -893,4 +658,104 @@ body.ask-question-panel-open .ask-question-overlay {
 .ask-question-send {
   align-self: flex-end;
   min-width: 120px;
+}
+
+/*---break---
+ */
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/*---break---
+ */
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  /* Спокойный синий на тёмном фоне — чуть светлее, без неона */
+  --primary: hsl(215 38% 58%);
+  --primary-foreground: hsl(215 25% 12%);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.62 0.16 25);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/*---break---
+ */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply text-foreground;
+    background: linear-gradient(180deg, #f5f7fb 0%, #edf2fb 100%);
+  }
+  html {
+    @apply font-sans;
+  }
 }

@@ -37,14 +37,17 @@ export function AppShell({
 }: AppShellProps) {
   if (variant === "patient") {
     return (
-      <div id="app-shell-patient" className="app-shell app-shell--patient">
+      <div
+        id="app-shell-patient"
+        className="app-shell app-shell--patient mx-auto w-full max-w-[480px] px-4"
+      >
         <PatientHeader
+          pageTitle={title}
           showBack={!!backHref}
           backHref={backHref}
           backLabel={backLabel}
         />
         <main id="app-shell-content" className="content-area">
-          {title ? <h1 className="page-title">{title}</h1> : null}
           {children}
         </main>
         <AskQuestionFAB visible={user !== null} />
@@ -52,11 +55,24 @@ export function AppShell({
     );
   }
 
-  const isDoctor = variant === "doctor";
+  /** Кабинет врача: верхняя панель и «Настройки» — в `DoctorHeader` в `app/doctor/layout.tsx`. */
+  if (variant === "doctor") {
+    return (
+      <div
+        id="app-shell-doctor"
+        className="app-shell app-shell--doctor mx-auto w-full max-w-7xl px-3 pb-8 md:px-4"
+      >
+        <main id="app-shell-content" className="content-area">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div
-      id={isDoctor ? "app-shell-doctor" : "app-shell-default"}
-      className={`app-shell ${isDoctor ? "app-shell--doctor" : ""} ${!isDoctor && titleSmall ? "app-shell--title-small" : ""}`}
+      id="app-shell-default"
+      className={`app-shell ${titleSmall ? "app-shell--title-small" : ""}`}
     >
       <header id="app-shell-top-bar" className="top-bar">
         <div>

@@ -8,6 +8,12 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { Geist } from "next/font/google";
+import { ClientToaster } from "@/components/ClientToaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "BersonCare Webapp",
@@ -17,14 +23,17 @@ export const metadata: Metadata = {
 /** Рендерит общую обёртку страницы: тег html, тело и дочернее содержимое (конкретная страница). */
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="ru" suppressHydrationWarning>
+    <html lang="ru" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body>
-        {/* Скрипт Telegram Mini App — нужен, когда приложение открывают из бота в Telegram. */}
-        <Script
-          src="https://telegram.org/js/telegram-web-app.js"
-          strategy="beforeInteractive"
-        />
-        {children}
+        <TooltipProvider>
+          <ClientToaster />
+          {/* Скрипт Telegram Mini App — нужен, когда приложение открывают из бота в Telegram. */}
+          <Script
+            src="https://telegram.org/js/telegram-web-app.js"
+            strategy="beforeInteractive"
+          />
+          {children}
+        </TooltipProvider>
       </body>
     </html>
   );

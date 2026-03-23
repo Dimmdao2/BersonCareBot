@@ -1,15 +1,18 @@
 /**
  * Layout раздела кабинета специалиста (/app/doctor).
- * Оборачивает все страницы раздела врача общей навигацией по разделам.
+ * Фиксированная шапка и меню — `DoctorHeader`; контент страниц — в `AppShell variant="doctor"`.
  */
 import type { ReactNode } from "react";
-import { DoctorNavigation } from "@/shared/ui/DoctorNavigation";
+import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { DoctorHeader } from "@/shared/ui/DoctorHeader";
 
-export default function DoctorSectionLayout({ children }: { children: ReactNode }) {
+export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
+  const session = await requireDoctorAccess();
   return (
-    <div id="doctor-section-layout">
-      <DoctorNavigation />
-      <div id="doctor-section-content">{children}</div>
+    <div className="min-h-screen bg-[#f5f7fb]">
+      {/* TODO(STAGE_02): при появлении отдельного десктоп-layout — sidebar placeholder hidden md:block w-64 */}
+      <DoctorHeader userDisplayName={session.user.displayName} />
+      <div className="pt-14">{children}</div>
     </div>
   );
 }
