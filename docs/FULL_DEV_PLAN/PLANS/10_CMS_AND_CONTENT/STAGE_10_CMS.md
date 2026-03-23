@@ -71,7 +71,7 @@
      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
    );
    ```
-2. Хранение: `/opt/uploads/bersoncarebot/` на диске (в будущем — S3).
+2. Хранение: S3-совместимое хранилище (`S3_ENDPOINT=https://fs.bersonservices.ru`, указано в env).
 3. API: `POST /api/media/upload` — multipart form data, лимит 50MB.
 4. Обновить `GET /api/media/[id]` — отдача файла.
 5. Компонент `MediaUploader`: drag-and-drop или кнопка выбора файла.

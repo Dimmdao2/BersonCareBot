@@ -14,8 +14,8 @@
 - Миграция: `apps/webapp/migrations/021_chat_messages.sql`
 
 **Действия:**
-1. Оценить текущие `support_conversations` и `support_conversation_messages` — можно ли расширить или нужна новая таблица.
-2. Рекомендация: расширить существующие таблицы:
+1. `support_conversations` и `support_conversation_messages` **уже живут в webapp DB** — это основная модель для чата. Расширяем:
+2. Миграция:
    ```sql
    ALTER TABLE support_conversation_messages ADD COLUMN IF NOT EXISTS media_url TEXT;
    ALTER TABLE support_conversation_messages ADD COLUMN IF NOT EXISTS media_type TEXT;
@@ -162,7 +162,7 @@
 1. На странице чата: polling каждые 5 секунд (fetch новых сообщений с `since` timestamp).
 2. На странице списка диалогов: polling каждые 15 секунд.
 3. В шапке (unread count): polling каждые 30 секунд.
-4. **Альтернатива (SSE):** если нагрузка от polling высока — перейти на Server-Sent Events через API route. Но для MVP polling достаточен.
+4. **Подход:** выбрать наименее сложный, но нормально масштабируемый механизм (SSE или lightweight polling). Не использовать решения, которые потом придётся переписывать для PWA/mobile. Можно поднять бесплатный сервис рядом для real-time обновлений если нужно.
 5. Оптимистичное обновление: при отправке сообщения — показывать сразу (pending state).
 
 **Критерий:**

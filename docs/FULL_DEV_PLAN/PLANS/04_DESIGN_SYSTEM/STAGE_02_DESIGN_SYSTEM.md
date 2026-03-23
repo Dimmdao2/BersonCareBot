@@ -196,6 +196,53 @@
 
 ---
 
+## Подэтап 2.8: Каталог иконок
+
+**Задача:** создать каталог public-медиа для дизайна.
+
+**Файлы:**
+- Новая папка: `apps/webapp/public/icons/`
+- Новый: `apps/webapp/public/icons/README.md`
+
+**Действия:**
+1. Создать папку `public/icons/`.
+2. Составить список необходимых иконок (SVG/PNG):
+   - Мессенджеры: telegram.svg, max.svg, vk.svg
+   - Навигация: home.svg, back.svg, menu.svg, close.svg
+   - Действия: send.svg, edit.svg, delete.svg, add.svg, search.svg
+   - Статусы: check.svg, bell.svg, message.svg, calendar.svg
+   - Дневник: chart.svg, exercise.svg, diary.svg
+   - Прочее: share.svg, install.svg, settings.svg, user.svg, users.svg
+3. Создать `README.md` со списком иконок, именами файлов, размерами.
+4. Для начала: использовать inline SVG в компонентах (не ждать загрузки файлов).
+5. Владелец загрузит файлы по списку.
+
+**Критерий:**
+- Каталог создан, список определён.
+- README с именами файлов для загрузки.
+
+---
+
+## Подэтап 2.9: Radix UI primitives (точечное внедрение)
+
+**Задача:** установить Radix UI, заменить первые самописные интерактивные компоненты.
+
+**Файлы:**
+- `apps/webapp/package.json`
+- Компоненты, где нужны Dialog, Tabs, Select
+
+**Действия:**
+1. Установить точечно: `pnpm --filter webapp add @radix-ui/react-dialog @radix-ui/react-tabs @radix-ui/react-dropdown-menu @radix-ui/react-select @radix-ui/react-popover @radix-ui/react-tooltip`.
+2. Создать обёртки в `shared/ui/` с кастомными стилями (не визуальная библиотека, а headless фундамент).
+3. Первые замены: боковое меню (Dialog/Drawer), вкладки дневника (Tabs), dropdown в три-точки (DropdownMenu).
+
+**Критерий:**
+- Radix primitives установлены.
+- 1–2 компонента используют Radix вместо самописной логики.
+- Стили остаются кастомными.
+
+---
+
 ## Общий критерий завершения этапа 2
 
 - [ ] CSS foundation: пресеты кнопок, единые отступы, шрифты.
@@ -205,4 +252,6 @@
 - [ ] InfoBlock компонент.
 - [ ] Toast-система.
 - [ ] Breakpoints определены.
+- [ ] Каталог иконок создан (README со списком для загрузки).
+- [ ] Radix UI primitives установлены и используются точечно.
 - [ ] `pnpm run ci` проходит.
