@@ -175,6 +175,82 @@
 
 ---
 
+## Подэтап 13.8: Тестовая инфраструктура для интеграций
+
+**Задача:** обеспечить автоматическое тестирование всех интеграций без реальных внешних сервисов в CI.
+
+**Файлы:**
+- `apps/integrator/package.json` (dev-зависимость `nock`)
+- `apps/integrator/src/integrations/*/` — тестовые файлы
+- `apps/integrator/e2e/`
+
+**Действия:**
+
+### Уровень 1: Unit-тесты (fake-порты)
+
+Integrator построен на портах/адаптерах — подставляем fake-реализации:
+1. Для каждого delivery adapter (Telegram, Max, SMSC, Email) создать `*.test.ts` рядом с модулем.
+2. Мокать порты через `vi.fn()`:
+   ```ts
+   const fakeDispatch = { dispatchOutgoing: vi.fn() };
+   const fakeUserPort = { findByPhone: vi.fn().mockResolvedValue(testUser) };
+   ```
+3. Тестировать бизнес-логику: «при event-create-record → создаётся уведомление с правильным текстом».
+4. Не зависят от сети, быстрые, стабильные.
+
+### Уровень 2: HTTP-моки (nock)
+
+Перехват исходящих HTTP-запросов к внешним API:
+1. Установить: `pnpm --filter integrator add -D nock`.
+2. Для Telegram:
+   ```ts
+   nock('https://api.telegram.org')
+     .post(`/bot${testToken}/sendMessage`)
+     .reply(200, { ok: true, result: { message_id: 123 } });
+   ```
+3. Для Max: аналогично, мок `https://botapi.max.ru/` (или актуальный base URL).
+4. Для Google Calendar: мок `https://www.googleapis.com/calendar/v3/`.
+5. Для SMSC: мок `https://smsc.ru/sys/send.php`.
+6. Для Email: nodemailer уже имеет `createTestAccount()` / `getTestMessageUrl()` для тестов.
+7. Проверять что уходят правильные payload-ы, headers, auth.
+
+### Уровень 3: Webhook-тесты (fastify.inject)
+
+Эмуляция входящих webhook-запросов без реального сервера:
+1. Использовать `fastify.inject()` для имитации входящего webhook:
+   ```ts
+   const res = await app.inject({
+     method: 'POST',
+     url: '/webhook/telegram',
+     headers: { 'x-telegram-bot-api-secret-token': webhookSecret },
+     payload: telegramUpdatePayload,
+   });
+   expect(res.statusCode).toBe(200);
+   ```
+2. Для Rubitime: аналогично через `/webhook/rubitime/:token`.
+3. Для Max: через `/webhook/max`.
+4. Проверять полный pipeline: webhook → EventGateway → orchestrator → dispatch.
+
+### Уровень 4: E2E / smoke — реальные тестовые боты
+
+Для ручной проверки владельцем (не в CI):
+1. После каждой интеграции агент предоставляет **чёткие инструкции**:
+   - Какое тестовое событие отправить (текст команды в боте, webhook payload).
+   - Какую команду выполнить на сервере и под каким пользователем.
+   - Какой ожидаемый результат (ответ бота, запись в БД, событие в календаре).
+   - Какой вывод прислать для проверки.
+2. Ключи и подключения к внешним сервисам обеспечивает владелец.
+3. Документировать smoke-тесты в `apps/integrator/e2e/README.md`.
+
+**Критерий:**
+- Unit-тесты: покрыты все delivery adapters и основные event flows.
+- HTTP-моки: nock перехватывает все исходящие запросы к TG/Max/SMSC/Calendar/Email.
+- Webhook-тесты: fastify.inject для всех входящих webhook endpoints.
+- E2E инструкции: README с пошаговыми smoke-тестами для владельца.
+- Все тесты проходят в CI (`pnpm run ci`) без реальных внешних сервисов.
+
+---
+
 ## Общий критерий завершения этапа 13
 
 - [ ] Email adapter работает.
@@ -184,4 +260,5 @@
 - [ ] Google Calendar sync.
 - [ ] Rubitime обратный API (или документация о невозможности).
 - [ ] Auto-привязка email из Rubitime.
+- [ ] Тестовая инфраструктура: unit + nock + fastify.inject + smoke инструкции.
 - [ ] `pnpm run ci` проходит.
