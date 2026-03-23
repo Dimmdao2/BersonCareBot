@@ -24,7 +24,7 @@
 | Backend (webapp) | Next.js API Routes + Server Actions, pg, Zod |
 | Backend (integrator) | Fastify, pg, Zod, grammY, @maxhub/max-bot-api |
 | Database | PostgreSQL 16+ |
-| Auth | Cookie sessions (HMAC), argon2, OTP via SMS/email |
+| Auth | Cookie sessions (HMAC), argon2 (PIN), OTP SMS, OAuth (Яндекс/Google/Apple), messenger deep-link login |
 | Charts | recharts |
 | Tables | @tanstack/react-table |
 | UI primitives | shadcn/ui (Button, Card, Dialog, Tabs, Select, Input и др. на Radix UI) |
@@ -139,19 +139,22 @@
 
 ---
 
-### Этап 5: Авторизация по паролю
+### Этап 5: Система авторизации (multi-method)
 
-**Цель:** пользователь может создать пароль и входить по нему.
+**Цель:** вход по телефону с выбором метода (PIN / мессенджер / OAuth / SMS fallback).
 
 | # | Подэтап | Описание |
 |---|---------|----------|
-| 5.1 | Backend: пароль | Миграция user_passwords, API set/login/reset, argon2 хэширование |
-| 5.2 | UI: создание пароля в профиле | Форма в профиле «Создать пароль» |
-| 5.3 | UI: вход по паролю | Экран логина: телефон/email + пароль |
-| 5.4 | Сброс пароля | password_reset_tokens, отправка ссылки на email/SMS |
-| 5.5 | Длительная сессия | Refresh token с TTL 90 дней, механизм отзыва |
+| 5.1 | Backend: модель авторизации | Таблицы user_pins, user_oauth_bindings, login_tokens. API: check-phone, PIN login, messenger login, OAuth, SMS |
+| 5.2 | UI: экран авторизации | Ввод телефона → определение методов → выбор метода → авторизация |
+| 5.3 | Вход по PIN | PinInput (4–6 цифр, auto-submit), блокировка после 5 попыток, fallback SMS |
+| 5.4 | Вход через мессенджер | Deep-link login_token, polling, подтверждение в боте, сессия в браузере |
+| 5.5 | OAuth (Яндекс, Google, Apple) | OAuth2 flow, привязка в профиле, создание сессии |
+| 5.6 | PIN в профиле | Создание/изменение PIN-кода в настройках безопасности |
+| 5.7 | Длительная сессия | 90 дней browser, session cookie Mini App |
+| 5.8 | Предложение после входа | Задать PIN / привязать мессенджер / OAuth — после SMS-входа |
 
-**Критерий завершения:** пользователь может создать пароль, войти, сбросить. Сессия живёт 90 дней.
+**Критерий завершения:** телефон → выбор метода → вход. PIN, мессенджер, OAuth, SMS — все flow работают. Сессия 90 дней.
 
 ---
 

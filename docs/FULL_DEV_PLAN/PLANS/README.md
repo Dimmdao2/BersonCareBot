@@ -10,9 +10,9 @@ PLANS/
 │   └── STAGE_18_SERVER_MIGRATION.md
 ├── 02_BUGFIXES_AND_UX/         ← Исправление критических багов
 │   └── STAGE_01_BUGFIXES.md
-├── 03_AUTH_AND_SECURITY/       ← Авторизация, email, OTP, deep-link
+├── 03_AUTH_AND_SECURITY/       ← Авторизация, email, OTP, PIN, OAuth, deep-link
 │   ├── STAGE_03_PROFILE.md
-│   └── STAGE_05_PASSWORD_AUTH.md
+│   └── STAGE_05_AUTH_SYSTEM.md
 ├── 04_DESIGN_SYSTEM/           ← CSS, шапка, меню, компоненты
 │   └── STAGE_02_DESIGN_SYSTEM.md
 ├── 05_PATIENT_WEBAPP/          ← Главная, записи, уведомления
@@ -45,7 +45,7 @@ PLANS/
 2. **Этап 2** → `04_DESIGN_SYSTEM/STAGE_02_DESIGN_SYSTEM.md`
 3. **Этап 3** → `03_AUTH_AND_SECURITY/STAGE_03_PROFILE.md`
 4. **Этап 4** → `05_PATIENT_WEBAPP/STAGE_04_HOME_AND_APPOINTMENTS.md`
-5. **Этап 5** → `03_AUTH_AND_SECURITY/STAGE_05_PASSWORD_AUTH.md`
+5. **Этап 5** → `03_AUTH_AND_SECURITY/STAGE_05_AUTH_SYSTEM.md`
 6. **Этап 6** → `07_DIARIES_MODULE/STAGE_06_DIARIES_EXTENSION.md`
 7. **Этап 7** → `07_DIARIES_MODULE/STAGE_07_CHARTS.md`
 8. **Этап 8** → `08_MESSAGING/STAGE_08_MESSAGING.md`
