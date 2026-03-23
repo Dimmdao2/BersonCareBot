@@ -14,4 +14,16 @@ describe("getDoctorScreenTitle", () => {
   it("returns references", () => {
     expect(getDoctorScreenTitle("/app/doctor/references")).toBe("Справочники");
   });
+  it("returns new content page title", () => {
+    expect(getDoctorScreenTitle("/app/doctor/content/new")).toBe("Новая страница");
+  });
+  it("returns edit content title", () => {
+    expect(getDoctorScreenTitle("/app/doctor/content/edit/abc")).toBe("Редактировать страницу");
+  });
+  it("normalizes trailing slash on overview", () => {
+    expect(getDoctorScreenTitle("/app/doctor/")).toBe("Обзор");
+  });
+  it("returns fallback for unknown doctor path", () => {
+    expect(getDoctorScreenTitle("/app/doctor/unknown-section")).toBe("Кабинет");
+  });
 });

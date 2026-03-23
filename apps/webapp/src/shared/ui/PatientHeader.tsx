@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Bell, Home, Menu, MessageCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -17,6 +16,12 @@ import {
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+
+/** Единый стиль пунктов бокового меню (Sheet). */
+const SHEET_NAV_LINK_CLASS = cn(
+  buttonVariants({ variant: "ghost" }),
+  "h-auto w-full justify-start px-3 py-2 font-normal",
+);
 
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
   { id: "profile", label: "Мой профиль", href: "/app/patient/profile" },
@@ -32,7 +37,12 @@ type PatientHeaderProps = {
   backLabel?: string;
 };
 
-export function PatientHeader({ pageTitle, showBack, backLabel = "Назад" }: PatientHeaderProps) {
+export function PatientHeader({
+  pageTitle,
+  showBack,
+  backHref,
+  backLabel = "Назад",
+}: PatientHeaderProps) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMessengerMiniApp, setIsMessengerMiniApp] = useState(false);
@@ -46,8 +56,12 @@ export function PatientHeader({ pageTitle, showBack, backLabel = "Назад" }:
   }, []);
 
   const goBack = useCallback(() => {
+    if (backHref) {
+      router.push(backHref);
+      return;
+    }
     router.back();
-  }, [router]);
+  }, [router, backHref]);
 
   const shareWithFriend = useCallback(async () => {
     const url = `${typeof window !== "undefined" ? window.location.origin : ""}/app/patient`;
@@ -117,12 +131,7 @@ export function PatientHeader({ pageTitle, showBack, backLabel = "Назад" }:
               className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "relative")}
             >
               <MessageCircle className="size-5" aria-hidden />
-              <Badge
-                variant="secondary"
-                className="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px] leading-none"
-              >
-                0
-              </Badge>
+              {/* Счётчик неразобранных — когда API подключит, показывать при > 0 */}
             </Link>
             <Button type="button" variant="ghost" size="icon-sm" aria-label="Уведомления" disabled>
               <Bell className="size-5 opacity-50" aria-hidden />
@@ -152,10 +161,7 @@ export function PatientHeader({ pageTitle, showBack, backLabel = "Назад" }:
               id="patient-menu-link-messages"
               href={routePaths.patientMessages}
               onClick={closeMenu}
-              className={cn(
-                buttonVariants({ variant: "ghost" }),
-                "h-auto w-full justify-start px-3 py-2 font-normal",
-              )}
+              className={SHEET_NAV_LINK_CLASS}
             >
               Сообщения
             </Link>
@@ -165,10 +171,7 @@ export function PatientHeader({ pageTitle, showBack, backLabel = "Назад" }:
                 id={`patient-menu-link-${item.id}`}
                 href={item.href}
                 onClick={closeMenu}
-                className={cn(
-                  buttonVariants({ variant: "ghost" }),
-                  "h-auto w-full justify-start px-3 py-2 font-normal",
-                )}
+                className={SHEET_NAV_LINK_CLASS}
               >
                 {item.label}
               </Link>
@@ -186,10 +189,7 @@ export function PatientHeader({ pageTitle, showBack, backLabel = "Назад" }:
               id="patient-menu-link-help"
               href={routePaths.patientHelp}
               onClick={closeMenu}
-              className={cn(
-                buttonVariants({ variant: "ghost" }),
-                "h-auto w-full justify-start px-3 py-2 font-normal",
-              )}
+              className={SHEET_NAV_LINK_CLASS}
             >
               Справка
             </Link>
@@ -205,10 +205,7 @@ export function PatientHeader({ pageTitle, showBack, backLabel = "Назад" }:
               id="patient-menu-link-install"
               href={routePaths.patientInstall}
               onClick={closeMenu}
-              className={cn(
-                buttonVariants({ variant: "ghost" }),
-                "h-auto w-full justify-start px-3 py-2 font-normal",
-              )}
+              className={SHEET_NAV_LINK_CLASS}
             >
               Установить приложение
             </Link>

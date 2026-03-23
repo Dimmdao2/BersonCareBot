@@ -201,13 +201,6 @@ a {
   color: #9c4242;
 }
 
-.page-title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #18202c;
-}
-
 /* ——— Верхняя панель (врач / настройки) ——— */
 .top-bar {
   display: flex;

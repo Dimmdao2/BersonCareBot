@@ -3,7 +3,7 @@
  * Используется на всех страницах после входа: пациент, врач, настройки. В шапке — заголовок,
  * опционально кнопка «Назад», имя и роль пользователя, ссылка «Настройки». Контент страницы
  * передаётся в children. Отображается везде внутри /app (кроме корневого layout).
- * Для пациента (variant="patient") — своя шапка: назад | BERSONCARE | гамбургер-меню справа.
+ * Для пациента (variant="patient") — PatientHeader: назад, домой, заголовок, меню (Sheet).
  */
 
 import Link from "next/link";
@@ -39,7 +39,7 @@ export function AppShell({
     return (
       <div
         id="app-shell-patient"
-        className="app-shell app-shell--patient mx-auto w-full max-w-[480px] px-4"
+        className="app-shell--patient mx-auto flex min-h-screen w-full max-w-[480px] flex-col px-4"
       >
         <PatientHeader
           pageTitle={title}

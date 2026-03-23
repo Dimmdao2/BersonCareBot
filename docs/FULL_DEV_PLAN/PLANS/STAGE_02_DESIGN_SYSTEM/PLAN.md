@@ -56,9 +56,9 @@
 | Оболочка пациента | `apps/webapp/src/shared/ui/AppShell.tsx` — `variant="patient"` передаёт в `PatientHeader` только back; **заголовок страницы сейчас в `<main>`** (`page-title`). План 2.3 требует заголовок **в шапке** — понадобится проп вроде `pageTitle` в `PatientHeader` и передача `title` из `AppShell`. |
 | Шапка пациента | `apps/webapp/src/shared/ui/PatientHeader.tsx` — сейчас кастомный drawer (`.drawer-panel`), не shadcn Sheet. |
 | Меню / маршруты пациента | `apps/webapp/src/app-layer/routes/paths.ts` — добавить новые пути для заглушек. |
-| Кабинет врача layout | `apps/webapp/src/app/app/doctor/layout.tsx` — подключает `DoctorNavigation`. |
-| Старая навигация врача | `apps/webapp/src/shared/ui/DoctorNavigation.tsx` — список ссылок + «Настройки» → `/app/settings`. |
-| Оболочка врача на страницах | `apps/webapp/src/shared/ui/AppShell.tsx` — `variant="doctor"` (топ-бар без фиксации в текущем виде — проверить по коду). |
+| Кабинет врача layout | `apps/webapp/src/app/app/doctor/layout.tsx` — `DoctorHeader` (fixed) + `pt-14` для контента. |
+| Навигация врача | `apps/webapp/src/shared/ui/DoctorHeader.tsx` — шапка + Sheet-меню (старый `DoctorNavigation` удалён). |
+| Оболочка врача на страницах | `apps/webapp/src/shared/ui/AppShell.tsx` — `variant="doctor"` только контент (без дублирующего top-bar). |
 | Тема / глобальные стили | `apps/webapp/src/app/globals.css` |
 | shadcn | `apps/webapp/components.json`, `apps/webapp/src/components/ui/`, `apps/webapp/src/lib/utils.ts` |
 | Корневой layout | `apps/webapp/src/app/layout.tsx` — сюда обычно `<Toaster />` (подэтап 2.6). |

@@ -10,7 +10,6 @@ import {
   MessageCircle,
   Users,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -25,6 +24,11 @@ import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
 type DoctorHeaderProps = {
   userDisplayName?: string;
 };
+
+const DOCTOR_SHEET_LINK_CLASS = cn(
+  buttonVariants({ variant: "ghost" }),
+  "h-auto w-full justify-start px-3 py-2 font-normal",
+);
 
 const DOCTOR_MENU_LINKS: { id: string; label: string; href: string }[] = [
   { id: "overview", label: "Обзор", href: "/app/doctor" },
@@ -54,9 +58,7 @@ export function DoctorHeader({ userDisplayName }: DoctorHeaderProps) {
     <>
       <header
         id="doctor-header"
-        className={cn(
-          "fixed top-0 right-0 left-0 z-50 border-b border-border/70 bg-background/95 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80",
-        )}
+        className="fixed top-0 right-0 left-0 z-50 border-b border-border/70 bg-background/95 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80"
       >
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 md:px-4">
           <div className="flex min-w-0 shrink-0 items-center gap-1">
@@ -103,15 +105,9 @@ export function DoctorHeader({ userDisplayName }: DoctorHeaderProps) {
               href="/app/doctor/messages"
               prefetch={false}
               aria-label="Сообщения"
-              className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "relative")}
+              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
             >
               <MessageCircle className="size-5" aria-hidden />
-              <Badge
-                variant="secondary"
-                className="absolute -right-1 -top-1 h-4 min-w-4 px-1 text-[10px] leading-none"
-              >
-                0
-              </Badge>
             </Link>
             <Button
               type="button"
@@ -143,23 +139,13 @@ export function DoctorHeader({ userDisplayName }: DoctorHeaderProps) {
                 id={`doctor-menu-link-${item.id}`}
                 href={item.href}
                 onClick={closeMenu}
-                className={cn(
-                  buttonVariants({ variant: "ghost" }),
-                  "h-auto w-full justify-start px-3 py-2 font-normal",
-                )}
+                className={DOCTOR_SHEET_LINK_CLASS}
               >
                 {item.label}
               </Link>
             ))}
             <Separator className="my-2" />
-            <Link
-              href="/app/settings"
-              onClick={closeMenu}
-              className={cn(
-                buttonVariants({ variant: "ghost" }),
-                "h-auto w-full justify-start px-3 py-2 font-normal",
-              )}
-            >
+            <Link href="/app/settings" onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
               Профиль и настройки
             </Link>
           </nav>
