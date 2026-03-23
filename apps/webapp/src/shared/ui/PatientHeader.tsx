@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
   { id: "profile", label: "Мой профиль", href: "/app/patient/profile" },
@@ -23,7 +24,7 @@ type PatientHeaderProps = {
 export function PatientHeader({ showBack, backLabel = "Назад" }: PatientHeaderProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [isTelegramMiniApp, setIsTelegramMiniApp] = useState(false);
+  const [isMessengerMiniApp, setIsMessengerMiniApp] = useState(false);
 
   const close = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => setOpen((v) => !v), []);
@@ -48,7 +49,7 @@ export function PatientHeader({ showBack, backLabel = "Назад" }: PatientHea
 
   useEffect(() => {
     queueMicrotask(() => {
-      setIsTelegramMiniApp(!!window.Telegram?.WebApp);
+      setIsMessengerMiniApp(isMessengerMiniAppHost());
     });
   }, []);
 
@@ -130,7 +131,7 @@ export function PatientHeader({ showBack, backLabel = "Назад" }: PatientHea
               {item.label}
             </Link>
           ))}
-          {!isTelegramMiniApp && (
+          {!isMessengerMiniApp && (
             <>
               <div className="drawer-nav__divider" />
               <button

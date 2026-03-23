@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 
 type AskQuestionFABProps = {
   /** Показывать только когда пользователь зашёл через браузер (не Mini App Telegram). */
@@ -48,7 +49,7 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
 
   useEffect(() => {
     queueMicrotask(() => {
-      setMiniAppEnv(!!window.Telegram?.WebApp ? "mini" : "browser");
+      setMiniAppEnv(isMessengerMiniAppHost() ? "mini" : "browser");
     });
   }, []);
 

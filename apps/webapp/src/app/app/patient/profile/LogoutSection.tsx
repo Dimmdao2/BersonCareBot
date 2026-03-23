@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 
-/** Скрывает кнопку выхода в Telegram Mini App (выход там недоступен / не нужен). */
+/** Скрывает кнопку выхода в Mini App мессенджера (Telegram / MAX). */
 export function LogoutSection() {
   const [hideLogout, setHideLogout] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
-      setHideLogout(!!window.Telegram?.WebApp);
+      setHideLogout(isMessengerMiniAppHost());
     });
   }, []);
 
