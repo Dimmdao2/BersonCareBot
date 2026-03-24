@@ -1,7 +1,12 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { hasMessengerBinding, requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
+import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
+import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
+import { InfoBlock } from "@/shared/ui/InfoBlock";
+import { PatientBindPhoneSection } from "../PatientBindPhoneSection";
+import { ChannelNotificationToggles } from "./ChannelNotificationToggles";
 import { SubscriptionsList } from "./SubscriptionsList";
 
 const SUBSCRIPTIONS = [
@@ -14,33 +19,72 @@ const SUBSCRIPTIONS = [
 export default async function NotificationsPage() {
   const session = await requirePatientAccess(routePaths.notifications);
   const deps = buildAppDeps();
+  const needsPhone = !session.user.phone?.trim() && !hasMessengerBinding(session);
+  const phoneChannel = session.user.bindings.telegramId ? ("telegram" as const) : ("web" as const);
+  const phoneChatId = session.user.bindings.telegramId ?? "";
+
+  if (needsPhone) {
+    return (
+      <AppShell
+        title="Подписки на уведомления"
+        user={session.user}
+        backHref={routePaths.patient}
+        backLabel="Меню"
+        variant="patient"
+      >
+        <InfoBlock className="mb-4">
+          Для настройки уведомлений привяжите номер телефона или подключите мессенджер в профиле.
+        </InfoBlock>
+        <PatientBindPhoneSection
+          phoneChannel={phoneChannel}
+          phoneChatId={phoneChatId}
+          nextPath={routePaths.notifications}
+        />
+      </AppShell>
+    );
+  }
+
+  const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
+  const emailVerified = Boolean(emailFields.emailVerifiedAt);
+
   const channelCards = await deps.channelPreferences.getChannelCards(
     session.user.userId,
     session.user.bindings,
+    {
+      phone: session.user.phone,
+      emailVerified,
+    }
   );
-
-  const linkedChannels = channelCards
-    .filter((card) => card.isLinked && card.isImplemented)
-    .map((card) => ({ code: card.code, title: card.title }));
 
   return (
     <AppShell
-      title="Настройки уведомлений"
+      title="Подписки на уведомления"
       user={session.user}
       backHref={routePaths.patient}
       backLabel="Меню"
       variant="patient"
     >
-      <section className="panel stack">
-        <h2>Подписки</h2>
-        {linkedChannels.length === 0 ? (
-          <p className="empty-state">
-            Для настройки уведомлений подключите хотя бы один канал в разделе «Мой профиль».
-          </p>
-        ) : (
-          <SubscriptionsList subscriptions={SUBSCRIPTIONS} linkedChannels={linkedChannels} />
-        )}
-      </section>
+      <div className="flex flex-col gap-8">
+        <section className="panel stack">
+          <h2 className="text-base font-semibold">Каналы доставки</h2>
+          <ChannelNotificationToggles cards={channelCards} />
+        </section>
+
+        <section className="panel stack">
+          <h2 className="text-base font-semibold">Темы рассылок</h2>
+          <SubscriptionsList subscriptions={SUBSCRIPTIONS} />
+        </section>
+
+        <ConnectMessengersBlock channelCards={channelCards} implementedOnly />
+
+        <section className="panel stack">
+          <h2 className="text-base font-semibold">Email</h2>
+          <EmailAccountPanel
+            initialEmail={emailFields.email}
+            emailVerified={emailVerified}
+          />
+        </section>
+      </div>
     </AppShell>
   );
 }

@@ -752,3 +752,37 @@ body.ask-question-panel-open .ask-question-overlay {
     @apply font-sans;
   }
 }
+
+/* Markdown preview (doctor CMS + patient content) */
+.markdown-preview {
+  line-height: 1.5;
+  color: var(--foreground);
+}
+.markdown-preview p {
+  margin: 0 0 0.5em;
+}
+.markdown-preview ul,
+.markdown-preview ol {
+  margin: 0 0 0.5em 1.25rem;
+  padding: 0;
+}
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3 {
+  margin: 0.75em 0 0.35em;
+  font-weight: 600;
+}
+.markdown-preview a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.markdown-preview table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9em;
+}
+.markdown-preview th,
+.markdown-preview td {
+  border: 1px solid var(--border);
+  padding: 0.35em 0.5em;
+}

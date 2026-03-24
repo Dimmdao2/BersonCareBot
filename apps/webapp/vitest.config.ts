@@ -7,7 +7,7 @@ export default defineConfig({
     globals: true,
     globalSetup: ["./vitest.globalSetup.ts"],
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.ts", "e2e/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "e2e/**/*.test.ts"],
     exclude: ["node_modules", ".next"],
   },
   resolve: {

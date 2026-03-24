@@ -1,46 +1,92 @@
 /**
  * Главное меню пациента («/app/patient»).
- * Доступно без входа (гость): можно смотреть общие бесплатные материалы. Список пунктов меню
- * берётся из конфигурации; при клике на «Мои записи», дневники и т.д. — запрос входа и при необходимости телефона.
- * Внизу блок «Подключите удобный вам мессенджер» (Telegram, MAX) — только для авторизованных.
+ * Доступно без входа (гость): общие блоки; персональные секции — при наличии сессии.
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { MiniStats } from "@/modules/diaries/components/MiniStats";
+import {
+  getHomeNews,
+  getQuoteForDay,
+  incrementNewsViews,
+} from "@/modules/patient-home/newsMotivation";
+import { getPatientHomeBannerTopic, listRecentMailingLogsForPlatformUser } from "@/modules/patient-home/repository";
 import { AppShell } from "@/shared/ui/AppShell";
-import { FeatureCard } from "@/shared/ui/FeatureCard";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
+import { PostLoginSuggestion } from "@/shared/ui/auth/PostLoginSuggestion";
+import { loadMiniStatsProps } from "./home/loadMiniStats";
+import { PatientHomeCabinetSection } from "./home/PatientHomeCabinetSection";
+import { PatientHomeDiariesSection } from "./home/PatientHomeDiariesSection";
+import { PatientHomeLessonsSection } from "./home/PatientHomeLessonsSection";
+import { PatientHomeMailingsSection } from "./home/PatientHomeMailingsSection";
+import { PatientHomeMotivationSection } from "./home/PatientHomeMotivationSection";
+import { PatientHomeNewsSection } from "./home/PatientHomeNewsSection";
 
-/** Строит главную страницу пациента: оболочка и сетка карточек разделов. Гость видит то же меню без входа. */
 export default async function PatientHomePage() {
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
   const menu = deps.menu.getMenuForRole("client");
+  const emergency = menu.find((i) => i.id === "emergency");
+  const lfkItem = menu.find((i) => i.id === "lfk");
+  const lessons = await deps.lessons.listLessons();
+
+  const emailFields =
+    session?.user != null
+      ? await deps.userProjection.getProfileEmailFields(session.user.userId)
+      : null;
+
   const channelCards =
     session?.user != null
       ? await deps.channelPreferences.getChannelCards(
           session.user.userId,
-          session.user.bindings
+          session.user.bindings,
+          {
+            phone: session.user.phone,
+            emailVerified: Boolean(emailFields?.emailVerifiedAt),
+          }
         )
       : [];
 
+  const [homeNews, banner, mailings, miniStats, motivationQuote] = await Promise.all([
+    getHomeNews(),
+    getPatientHomeBannerTopic(),
+    session?.user
+      ? listRecentMailingLogsForPlatformUser(session.user.userId)
+      : Promise.resolve([]),
+    loadMiniStatsProps(deps, session),
+    getQuoteForDay(session?.user?.userId ?? "guest"),
+  ]);
+
+  if (session?.user && homeNews) {
+    await incrementNewsViews(homeNews.id);
+  }
+
   return (
     <AppShell title="Главное меню" user={session?.user ?? null} variant="patient">
-      <section id="patient-home-feature-grid-section" className="feature-grid">
-        {menu.map((item) => (
-          <FeatureCard
-            key={item.id}
-            containerId={`patient-home-feature-card-${item.id}`}
-            title={item.title}
-            href={item.href}
-            status={item.status}
-            compact
-          />
-        ))}
-      </section>
-      {session?.user != null && channelCards.length > 0 && (
-        <ConnectMessengersBlock channelCards={channelCards} implementedOnly />
-      )}
+      <div className="flex flex-col gap-10">
+        {session?.user != null ? <PostLoginSuggestion /> : null}
+        <PatientHomeCabinetSection items={menu} />
+        <PatientHomeDiariesSection lfkItem={lfkItem} />
+        <PatientHomeLessonsSection emergency={emergency} lessons={lessons} />
+        <PatientHomeNewsSection news={homeNews} banner={banner} />
+        {session?.user && mailings.length > 0 ? (
+          <PatientHomeMailingsSection userId={session.user.userId} items={mailings} />
+        ) : null}
+        <PatientHomeMotivationSection
+          quote={
+            motivationQuote?.body ??
+            "Двигайтесь в комфортном темпе и прислушивайтесь к ощущениям — это помогает устойчиво закреплять привычки."
+          }
+        />
+        <section id="patient-home-stats-section" className="stack gap-3">
+          <h2 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">Статистика</h2>
+          <MiniStats {...miniStats} />
+        </section>
+        {session?.user != null && channelCards.length > 0 && (
+          <ConnectMessengersBlock channelCards={channelCards} implementedOnly />
+        )}
+      </div>
     </AppShell>
   );
 }

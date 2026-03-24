@@ -12,6 +12,7 @@ const recordsByIntegratorId = new Map<
     branchId: string | null;
     createdAt: string;
     updatedAt: string;
+    deletedAt: string | null;
   }
 >();
 
@@ -27,6 +28,7 @@ function toRow(
     branchId: string | null;
     createdAt: string;
     updatedAt: string;
+    deletedAt: string | null;
   }
 ): AppointmentRecordRow {
   return {
@@ -40,6 +42,7 @@ function toRow(
     branchId: v.branchId ?? null,
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
+    deletedAt: v.deletedAt,
   };
 }
 
@@ -57,6 +60,7 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
       branchId: params.branchId ?? null,
       createdAt: existing?.createdAt ?? now,
       updatedAt: params.updatedAt ?? now,
+      deletedAt: existing?.deletedAt ?? null,
     });
   },
 
@@ -68,7 +72,11 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
   async listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]> {
     const list: AppointmentRecordRow[] = [];
     for (const [key, v] of recordsByIntegratorId) {
-      if (v.phoneNormalized === phoneNormalized && (v.status === "created" || v.status === "updated")) {
+      if (
+        !v.deletedAt &&
+        v.phoneNormalized === phoneNormalized &&
+        (v.status === "created" || v.status === "updated")
+      ) {
         list.push(toRow(key, v));
       }
     }
@@ -78,5 +86,28 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
       return at.localeCompare(bt);
     });
     return list;
+  },
+
+  async listHistoryByPhoneNormalized(phoneNormalized: string, limit = 50): Promise<AppointmentRecordRow[]> {
+    const list: AppointmentRecordRow[] = [];
+    for (const [key, v] of recordsByIntegratorId) {
+      if (!v.deletedAt && v.phoneNormalized === phoneNormalized) {
+        list.push(toRow(key, v));
+      }
+    }
+    list.sort((a, b) => {
+      const at = a.recordAt ?? "";
+      const bt = b.recordAt ?? "";
+      return bt.localeCompare(at);
+    });
+    return list.slice(0, limit);
+  },
+
+  async softDeleteByIntegratorId(integratorRecordId: string): Promise<boolean> {
+    const v = recordsByIntegratorId.get(integratorRecordId);
+    if (!v || v.deletedAt) return false;
+    const now = new Date().toISOString();
+    recordsByIntegratorId.set(integratorRecordId, { ...v, deletedAt: now, updatedAt: now });
+    return true;
   },
 };

@@ -4,6 +4,7 @@ import type {
   ClientListItem,
   DoctorClientsFilters,
   DoctorClientsPort,
+  DoctorDashboardPatientMetrics,
 } from "@/modules/doctor-clients/ports";
 
 const STUB_CLIENTS: ClientListItem[] = [];
@@ -37,7 +38,18 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     if (filters.hasUpcomingAppointment === true) {
       list = list.filter((item) => Boolean(item.nextAppointmentLabel));
     }
+    if (filters.onlyWithAppointmentRecords === true) {
+      list = [];
+    }
     return list;
+  },
+
+  async getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics> {
+    return {
+      totalClients: 0,
+      onSupportCount: 0,
+      visitedThisCalendarMonthCount: 0,
+    };
   },
 
   async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
@@ -49,6 +61,26 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       phone: found.phone,
       bindings: found.bindings,
       createdAt: null,
+      isBlocked: false,
+      blockedReason: null,
+      isArchived: false,
     };
+  },
+
+  async isClientMessagingBlocked(_userId: string): Promise<boolean> {
+    return false;
+  },
+
+  async setClientBlocked(_params: {
+    userId: string;
+    blocked: boolean;
+    reason: string | null;
+    actorId: string;
+  }): Promise<void> {
+    /* no-op in memory stub */
+  },
+
+  async setUserArchived(_userId: string, _archived: boolean): Promise<void> {
+    /* no-op in memory stub */
   },
 };

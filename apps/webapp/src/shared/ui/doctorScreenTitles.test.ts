@@ -20,6 +20,9 @@ describe("getDoctorScreenTitle", () => {
   it("returns edit content title", () => {
     expect(getDoctorScreenTitle("/app/doctor/content/edit/abc")).toBe("Редактировать страницу");
   });
+  it("returns news and motivation title", () => {
+    expect(getDoctorScreenTitle("/app/doctor/content/news")).toBe("Новости и мотивация");
+  });
   it("normalizes trailing slash on overview", () => {
     expect(getDoctorScreenTitle("/app/doctor/")).toBe("Обзор");
   });

@@ -21,6 +21,13 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
       isActive: true,
       createdAt: now,
       updatedAt: now,
+      symptomTypeRefId: params.symptomTypeRefId ?? null,
+      regionRefId: params.regionRefId ?? null,
+      side: params.side ?? null,
+      diagnosisText: params.diagnosisText ?? null,
+      diagnosisRefId: params.diagnosisRefId ?? null,
+      stageRefId: params.stageRefId ?? null,
+      deletedAt: null,
     };
     trackings.push(tracking);
     return tracking;
@@ -28,7 +35,12 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
 
   async listTrackings(userId, activeOnly = true) {
     return trackings
-      .filter((t) => t.userId === userId && (!activeOnly || t.isActive))
+      .filter(
+        (t) =>
+          t.userId === userId &&
+          !t.deletedAt &&
+          (!activeOnly || t.isActive)
+      )
       .sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1));
   },
 
@@ -52,12 +64,65 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
 
   async listEntries(userId, limit = 50) {
     return entries
-      .filter((e) => e.userId === userId)
+      .filter((e) => {
+        if (e.userId !== userId) return false;
+        const t = trackings.find((x) => x.id === e.trackingId);
+        return t && !t.deletedAt;
+      })
       .sort((a, b) => (b.recordedAt > a.recordedAt ? 1 : -1))
       .slice(0, limit)
       .map((e) => {
         const t = trackings.find((x) => x.id === e.trackingId);
         return { ...e, symptomTitle: t?.symptomTitle };
       });
+  },
+
+  async getTrackingForUser(params) {
+    const t = trackings.find(
+      (x) => x.id === params.trackingId && x.userId === params.userId && !x.deletedAt
+    );
+    return t ?? null;
+  },
+
+  async listEntriesForTrackingInRange(params) {
+    const t = trackings.find(
+      (x) => x.id === params.trackingId && x.userId === params.userId && !x.deletedAt
+    );
+    if (!t) return [];
+    const fromMs = new Date(params.fromRecordedAt).getTime();
+    const toEx = new Date(params.toRecordedAtExclusive).getTime();
+    return entries
+      .filter((e) => {
+        if (e.userId !== params.userId || e.trackingId !== params.trackingId) return false;
+        const ts = new Date(e.recordedAt).getTime();
+        return ts >= fromMs && ts < toEx;
+      })
+      .sort((a, b) => (a.recordedAt > b.recordedAt ? 1 : -1))
+      .map((e) => ({ ...e, symptomTitle: t.symptomTitle }));
+  },
+
+  async updateTrackingTitle(params) {
+    const t = trackings.find((x) => x.id === params.trackingId && x.userId === params.userId);
+    if (t && !t.deletedAt) {
+      t.symptomTitle = params.symptomTitle;
+      t.updatedAt = new Date().toISOString();
+    }
+  },
+
+  async setTrackingActive(params) {
+    const t = trackings.find((x) => x.id === params.trackingId && x.userId === params.userId);
+    if (t && !t.deletedAt) {
+      t.isActive = params.isActive;
+      t.updatedAt = new Date().toISOString();
+    }
+  },
+
+  async softDeleteTracking(params) {
+    const t = trackings.find((x) => x.id === params.trackingId && x.userId === params.userId);
+    if (t && !t.deletedAt) {
+      t.isActive = false;
+      t.deletedAt = new Date().toISOString();
+      t.updatedAt = t.deletedAt;
+    }
   },
 };

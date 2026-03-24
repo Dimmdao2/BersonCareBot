@@ -67,6 +67,25 @@ describe("confirmPhoneAuth", () => {
     if (!confirm.ok) expect(confirm.code).toBe("invalid_code");
   });
 
+  it("returns too_many_attempts after 3 wrong codes", async () => {
+    const start = await startPhoneAuth("+79990000099", webContext, deps);
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    const cid = start.challengeId;
+    for (let i = 0; i < 2; i++) {
+      const r = await confirmPhoneAuth(cid, "000000", deps);
+      expect(r.ok).toBe(false);
+      if (r.ok) return;
+      expect(r.code).toBe("invalid_code");
+    }
+    const last = await confirmPhoneAuth(cid, "000000", deps);
+    expect(last.ok).toBe(false);
+    if (!last.ok) {
+      expect(last.code).toBe("too_many_attempts");
+      expect(last.retryAfterSeconds).toBeDefined();
+    }
+  });
+
   it("returns expired_code for unknown challengeId", async () => {
     const confirm = await confirmPhoneAuth("nonexistent-challenge-id", "123456", deps);
     expect(confirm.ok).toBe(false);

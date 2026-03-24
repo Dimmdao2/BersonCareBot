@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+const DEFAULT_BASE = "/app/doctor/clients";
+
 type ClientListLinkProps = {
   userId: string;
+  /** Базовый путь списка: `/app/doctor/clients` или `/app/doctor/subscribers`. */
+  basePath?: string;
   searchParams: { q?: string; telegram?: string; max?: string; appointment?: string };
   children: React.ReactNode;
 };
 
-export function ClientListLink({ userId, searchParams, children }: ClientListLinkProps) {
+export function ClientListLink({ userId, basePath = DEFAULT_BASE, searchParams, children }: ClientListLinkProps) {
   const router = useRouter();
 
   const handleClick = (e: React.MouseEvent) => {
@@ -21,16 +25,12 @@ export function ClientListLink({ userId, searchParams, children }: ClientListLin
       if (searchParams.max === "1") params.set("max", "1");
       if (searchParams.appointment === "1") params.set("appointment", "1");
       params.set("selected", userId);
-      router.push(`/app/doctor/clients?${params.toString()}`);
+      router.push(`${basePath}?${params.toString()}`);
     }
   };
 
   return (
-    <Link
-      href={`/app/doctor/clients/${userId}`}
-      onClick={handleClick}
-      style={{ fontWeight: 600 }}
-    >
+    <Link href={`${basePath}/${userId}`} onClick={handleClick} className="font-semibold">
       {children}
     </Link>
   );

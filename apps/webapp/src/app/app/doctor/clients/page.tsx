@@ -1,9 +1,10 @@
 /**
- * Список клиентов кабинета специалиста («/app/doctor/clients»).
+ * Клиенты с записями на приём (этап 9): только пользователи с строками в `appointment_records`.
  */
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { CreateClientFromRecordStub } from "./CreateClientFromRecordStub";
 import { ClientProfileCard } from "./ClientProfileCard";
 import { DoctorClientsPanel } from "./DoctorClientsPanel";
 
@@ -17,13 +18,15 @@ type Props = {
   }>;
 };
 
+const BASE = "/app/doctor/clients";
+
 export default async function DoctorClientsPage({ searchParams }: Props) {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
   const params = await searchParams;
   const selected = params.selected;
   const [allClients, selectedData] = await Promise.all([
-    deps.doctorClients.listClients({}),
+    deps.doctorClients.listClients({ onlyWithAppointmentRecords: true }),
     selected
       ? Promise.all([
           deps.doctorClients.getClientProfile(selected),
@@ -41,10 +44,11 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
 
   return (
     <AppShell title="Клиенты" user={session.user} variant="doctor">
+      <CreateClientFromRecordStub />
       <div id="doctor-clients-master-detail" className="master-detail">
         <div id="doctor-clients-list-column" className="master-detail__list">
           <section id="doctor-clients-list-section" className="panel stack">
-            <DoctorClientsPanel allClients={allClients} urlParams={params} />
+            <DoctorClientsPanel allClients={allClients} urlParams={params} basePath={BASE} />
           </section>
         </div>
         {selectedProfile ? (
@@ -54,6 +58,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
               messageDraft={selectedMessageDraft}
               messageHistory={selectedMessageHistory}
               userId={selected!}
+              listBasePath={BASE}
             />
           </div>
         ) : null}

@@ -4,6 +4,7 @@ import type {
   AppointmentStats,
   DoctorAppointmentsFilter,
   DoctorAppointmentsPort,
+  DoctorDashboardAppointmentMetrics,
 } from "@/modules/doctor-appointments/ports";
 
 function formatRecordAt(recordAt: Date | null): string {
@@ -61,6 +62,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
          LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized
          LEFT JOIN branches b ON ar.branch_id = b.id
          WHERE ar.status != 'canceled'
+           AND ar.deleted_at IS NULL
            AND ar.record_at IS NOT NULL
            AND ar.record_at >= $1::timestamptz
            AND ar.record_at <= $2::timestamptz
@@ -119,6 +121,36 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         cancellations: row ? parseInt(row.cancellations, 10) : 0,
         cancellations30d: row30 ? parseInt(row30.count, 10) : 0,
         reschedules: row ? parseInt(row.reschedules, 10) : 0,
+      };
+    },
+
+    async getDashboardAppointmentMetrics(): Promise<DoctorDashboardAppointmentMetrics> {
+      const pool = getPool();
+      const [futureR, monthR, cancelR] = await Promise.all([
+        pool.query<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM appointment_records
+           WHERE deleted_at IS NULL
+             AND record_at IS NOT NULL AND record_at > NOW() AND status IN ('created', 'updated')`
+        ),
+        pool.query<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM appointment_records
+           WHERE deleted_at IS NULL
+             AND record_at IS NOT NULL
+             AND record_at >= date_trunc('month', NOW())
+             AND record_at < date_trunc('month', NOW()) + interval '1 month'`
+        ),
+        pool.query<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM appointment_records
+           WHERE deleted_at IS NULL
+             AND status = 'canceled'
+             AND updated_at >= date_trunc('month', NOW())
+             AND updated_at < date_trunc('month', NOW()) + interval '1 month'`
+        ),
+      ]);
+      return {
+        futureActiveCount: parseInt(futureR.rows[0]?.c ?? "0", 10),
+        recordsInCalendarMonthTotal: parseInt(monthR.rows[0]?.c ?? "0", 10),
+        cancellationsInCalendarMonth: parseInt(cancelR.rows[0]?.c ?? "0", 10),
       };
     },
   };

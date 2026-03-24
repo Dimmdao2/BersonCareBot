@@ -1,11 +1,12 @@
 /**
  * Сообщения кабинета специалиста («/app/doctor/messages»).
- * Журнал отправленных сообщений и форма отправки нового.
+ * Поддержка: чаты с пациентами (webapp) + журнал рассылок.
  */
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorSupportInbox } from "./DoctorSupportInbox";
 import { NewMessageForm } from "./NewMessageForm";
 
 export default async function DoctorMessagesPage() {
@@ -19,14 +20,16 @@ export default async function DoctorMessagesPage() {
 
   return (
     <AppShell title="Сообщения" user={session.user} variant="doctor">
-      <section id="doctor-messages-new-message-section" className="panel stack">
-        <h2>Новое сообщение</h2>
+      <DoctorSupportInbox />
+      <section id="doctor-messages-new-message-section" className="panel stack mt-8">
+        <h2 className="text-lg font-semibold">Рассылки и журнал</h2>
+        <h3 className="text-base font-medium">Новое сообщение</h3>
         <NewMessageForm
           clients={clients.map((c) => ({ userId: c.userId, displayName: c.displayName }))}
         />
       </section>
       <section id="doctor-messages-log-section" className="panel stack">
-        <h2>Журнал сообщений</h2>
+        <h3 className="text-base font-medium">Журнал сообщений</h3>
         {entries.length === 0 ? (
           <p className="empty-state">Сообщений пока нет.</p>
         ) : (
@@ -36,14 +39,14 @@ export default async function DoctorMessagesPage() {
                 <span className="eyebrow">
                   {new Date(entry.sentAt).toLocaleString("ru")} · {entry.category}
                   {entry.outcome === "sent" ? (
-                    <span className="badge badge--channel" style={{ marginLeft: 6 }}>доставлено</span>
+                    <span className="badge badge--channel ml-1.5">доставлено</span>
                   ) : entry.outcome === "failed" ? (
-                    <span className="badge badge--warning" style={{ marginLeft: 6 }}>ошибка</span>
+                    <span className="badge badge--warning ml-1.5">ошибка</span>
                   ) : (
-                    <span style={{ marginLeft: 6 }}>{entry.outcome}</span>
+                    <span className="ml-1.5">{entry.outcome}</span>
                   )}
                 </span>
-                <p style={{ margin: "4px 0 0" }}>
+                <p className="mt-1">
                   <Link href={`/app/doctor/clients/${entry.userId}`}>
                     {clientNames.get(entry.userId) ?? entry.userId}
                   </Link>
@@ -52,7 +55,7 @@ export default async function DoctorMessagesPage() {
                   {entry.text.length > 100 ? "…" : ""}
                 </p>
                 {Object.keys(entry.channelBindingsUsed).length > 0 ? (
-                  <span className="eyebrow" style={{ fontSize: "0.75rem" }}>
+                  <span className="eyebrow text-xs">
                     Каналы: {Object.keys(entry.channelBindingsUsed).join(", ")}
                   </span>
                 ) : null}

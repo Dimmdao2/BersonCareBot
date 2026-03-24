@@ -5,6 +5,7 @@ import type {
   ClientListItem,
   DoctorClientsFilters,
   DoctorClientsPort,
+  DoctorDashboardPatientMetrics,
 } from "@/modules/doctor-clients/ports";
 
 function rowToBindings(rows: { channel_code: string; external_id: string }[]): ChannelBindings {
@@ -24,7 +25,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const clientRows = await pool.query(
         `SELECT id, display_name, phone_normalized, created_at
          FROM platform_users
-         WHERE role = 'client'
+         WHERE role = 'client' AND COALESCE(is_archived, false) = false
          ORDER BY display_name, id`
       );
       if (clientRows.rows.length === 0) return [];
@@ -45,6 +46,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         `SELECT DISTINCT phone_normalized
          FROM appointment_records
          WHERE phone_normalized IS NOT NULL
+           AND deleted_at IS NULL
            AND record_at IS NOT NULL
            AND record_at >= NOW()
            AND status IN ('created', 'updated')`
@@ -88,13 +90,62 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       if (filters.hasUpcomingAppointment === true) {
         list = list.filter((item) => Boolean(item.nextAppointmentLabel));
       }
+      if (filters.onlyWithAppointmentRecords === true) {
+        const phones = await pool.query<{ phone_normalized: string }>(
+          `SELECT DISTINCT phone_normalized FROM appointment_records WHERE phone_normalized IS NOT NULL AND deleted_at IS NULL`
+        );
+        const phoneSet = new Set(
+          phones.rows.map((row) => row.phone_normalized).filter(Boolean) as string[]
+        );
+        list = list.filter((item) => Boolean(item.phone) && phoneSet.has(item.phone!));
+      }
       return list;
+    },
+
+    async getDashboardPatientMetrics(): Promise<DoctorDashboardPatientMetrics> {
+      const pool = getPool();
+      const [totalR, supportR, visitedR] = await Promise.all([
+        pool.query<{ c: string }>(
+          `SELECT COUNT(*)::text AS c FROM platform_users WHERE role = 'client' AND COALESCE(is_archived, false) = false`
+        ),
+        pool.query<{ c: string }>(
+          `SELECT COUNT(DISTINCT pu.id)::text AS c
+           FROM platform_users pu
+           INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
+           WHERE pu.role = 'client'
+             AND COALESCE(pu.is_archived, false) = false
+             AND ar.record_at IS NOT NULL AND ar.record_at > NOW()
+             AND ar.status IN ('created', 'updated')
+             AND ar.deleted_at IS NULL`
+        ),
+        pool.query<{ c: string }>(
+          `SELECT COUNT(DISTINCT pu.id)::text AS c
+           FROM platform_users pu
+           INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
+           WHERE pu.role = 'client'
+             AND COALESCE(pu.is_archived, false) = false
+             AND ar.record_at IS NOT NULL
+             AND ar.record_at >= date_trunc('month', NOW())
+             AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
+             AND ar.status IN ('created', 'updated')
+             AND ar.deleted_at IS NULL`
+        ),
+      ]);
+      return {
+        totalClients: parseInt(totalR.rows[0]?.c ?? "0", 10),
+        onSupportCount: parseInt(supportR.rows[0]?.c ?? "0", 10),
+        visitedThisCalendarMonthCount: parseInt(visitedR.rows[0]?.c ?? "0", 10),
+      };
     },
 
     async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
       const userRow = await pool.query(
-        "SELECT id, display_name, phone_normalized, created_at FROM platform_users WHERE id = $1",
+        `SELECT id, display_name, phone_normalized, created_at,
+                COALESCE(is_blocked, false) AS is_blocked,
+                blocked_reason,
+                COALESCE(is_archived, false) AS is_archived
+         FROM platform_users WHERE id = $1`,
         [userId]
       );
       if (userRow.rows.length === 0) return null;
@@ -103,6 +154,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         display_name: string;
         phone_normalized: string | null;
         created_at: string;
+        is_blocked: boolean;
+        blocked_reason: string | null;
+        is_archived: boolean;
       };
       const bindingsRows = await pool.query(
         "SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1",
@@ -117,7 +171,59 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         phone: r.phone_normalized,
         bindings,
         createdAt: r.created_at,
+        isBlocked: r.is_blocked,
+        blockedReason: r.blocked_reason,
+        isArchived: r.is_archived,
       };
+    },
+
+    async isClientMessagingBlocked(userId: string): Promise<boolean> {
+      const pool = getPool();
+      const r = await pool.query<{ b: boolean }>(
+        `SELECT COALESCE(is_blocked, false) AS b FROM platform_users WHERE id = $1`,
+        [userId]
+      );
+      return Boolean(r.rows[0]?.b);
+    },
+
+    async setClientBlocked(params: {
+      userId: string;
+      blocked: boolean;
+      reason: string | null;
+      actorId: string;
+    }): Promise<void> {
+      const pool = getPool();
+      if (params.blocked) {
+        await pool.query(
+          `UPDATE platform_users SET
+             is_blocked = true,
+             blocked_at = now(),
+             blocked_reason = $2,
+             blocked_by = $3::uuid,
+             updated_at = now()
+           WHERE id = $1::uuid AND role = 'client'`,
+          [params.userId, params.reason, params.actorId]
+        );
+      } else {
+        await pool.query(
+          `UPDATE platform_users SET
+             is_blocked = false,
+             blocked_at = NULL,
+             blocked_reason = NULL,
+             blocked_by = NULL,
+             updated_at = now()
+           WHERE id = $1::uuid AND role = 'client'`,
+          [params.userId]
+        );
+      }
+    },
+
+    async setUserArchived(userId: string, archived: boolean): Promise<void> {
+      const pool = getPool();
+      await pool.query(
+        `UPDATE platform_users SET is_archived = $2, updated_at = now() WHERE id = $1::uuid`,
+        [userId, archived]
+      );
     },
   };
 }

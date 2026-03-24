@@ -19,6 +19,16 @@ describe("doctor-stats service", () => {
       if (filters.hasMax) return all.filter((c) => c.bindings.maxId);
       return all;
     },
+    getDashboardPatientMetrics: async () => ({
+      totalClients: 10,
+      onSupportCount: 3,
+      visitedThisCalendarMonthCount: 4,
+    }),
+    getDashboardAppointmentMetrics: async () => ({
+      futureActiveCount: 7,
+      recordsInCalendarMonthTotal: 12,
+      cancellationsInCalendarMonth: 1,
+    }),
   });
 
   it("getStats returns appointments and clients aggregates", async () => {
@@ -29,5 +39,15 @@ describe("doctor-stats service", () => {
     expect(stats.clients.withNoChannels).toBe(1);
     expect(stats.clients.withOneChannel).toBe(1);
     expect(stats.clients.withMultipleChannels).toBe(1);
+  });
+
+  it("getDashboardMetrics maps patient and appointment aggregates", async () => {
+    const m = await service.getDashboardMetrics();
+    expect(m.patients.total).toBe(10);
+    expect(m.patients.onSupport).toBe(3);
+    expect(m.patients.visitedThisMonth).toBe(4);
+    expect(m.appointments.futureActive).toBe(7);
+    expect(m.appointments.recordsInMonthTotal).toBe(12);
+    expect(m.appointments.cancellationsInMonth).toBe(1);
   });
 });

@@ -9,6 +9,9 @@ describe("doctor-clients service", () => {
     phone: "+79001234567",
     bindings: { telegramId: "tg1", maxId: undefined, vkId: undefined },
     createdAt: "2024-01-01T00:00:00Z",
+    isBlocked: false,
+    blockedReason: null,
+    isArchived: false,
   };
 
   const mockPort: DoctorClientsPort = {
@@ -27,11 +30,22 @@ describe("doctor-clients service", () => {
     async getClientIdentity(userId: string) {
       return userId === "user-1" ? stubIdentity : null;
     },
+    async getDashboardPatientMetrics() {
+      return { totalClients: 0, onSupportCount: 0, visitedThisCalendarMonthCount: 0 };
+    },
+    async isClientMessagingBlocked() {
+      return false;
+    },
+    async setClientBlocked() {},
+    async setUserArchived() {},
   };
 
   const service = createDoctorClientsService({
     clientsPort: mockPort,
-    getUpcomingAppointments: () => [{ id: "apt-1", label: "Консультация", link: null }],
+    getUpcomingAppointments: () => [
+      { id: "apt-1", label: "Консультация", link: null, status: "confirmed" as const },
+    ],
+    listAppointmentHistoryForPhone: async () => [],
     listSymptomTrackings: async () => [],
     listSymptomEntries: async () => [],
     listLfkComplexes: async () => [],
@@ -75,5 +89,6 @@ describe("doctor-clients service", () => {
     expect(profile!.recentSymptomEntries).toEqual([]);
     expect(profile!.lfkComplexes).toEqual([]);
     expect(profile!.recentLfkSessions).toEqual([]);
+    expect(profile!.appointmentHistory).toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import type { ChannelCode, ChannelPreference } from "@/modules/channel-preferences/types";
 
-const CODES: ChannelCode[] = ["telegram", "max", "vk"];
+const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email"];
 
 const store = new Map<string, Map<ChannelCode, ChannelPreference>>();
 

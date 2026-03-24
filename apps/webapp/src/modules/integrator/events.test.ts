@@ -847,6 +847,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       getRecordByIntegratorId: vi.fn(),
       listActiveByPhoneNormalized: vi.fn(),
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
     };
     const deps: IntegratorEventsDeps = {
       ...mockDeps,
@@ -899,6 +901,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       getRecordByIntegratorId: vi.fn(),
       listActiveByPhoneNormalized: vi.fn(),
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
     };
     const depsIdem: IntegratorEventsDeps = { ...mockDeps, appointmentProjection: mockAp };
     const payload = {
@@ -940,6 +944,8 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       getRecordByIntegratorId: vi.fn(),
       listActiveByPhoneNormalized: vi.fn(),
       upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
     };
     const depsIdem: IntegratorEventsDeps = { ...mockDeps, appointmentProjection: mockAp };
     const createPayload = {

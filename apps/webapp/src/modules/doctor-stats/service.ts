@@ -1,4 +1,7 @@
 /** Операционная статистика для кабинета специалиста. */
+import type { DoctorDashboardAppointmentMetrics } from "@/modules/doctor-appointments/ports";
+import type { DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
+
 export type DoctorStatsState = {
   appointments: {
     total: number;
@@ -14,6 +17,24 @@ export type DoctorStatsState = {
   };
 };
 
+/**
+ * Плитки главной `/app/doctor` (этап 9).
+ * Пациенты: total — все role=client; onSupport — есть будущая запись; visitedThisMonth — визит в текущем месяце (по record_at).
+ * Записи: см. `DoctorDashboardAppointmentMetrics`.
+ */
+export type DoctorDashboardMetrics = {
+  patients: {
+    total: number;
+    onSupport: number;
+    visitedThisMonth: number;
+  };
+  appointments: {
+    futureActive: number;
+    recordsInMonthTotal: number;
+    cancellationsInMonth: number;
+  };
+};
+
 export type DoctorStatsServiceDeps = {
   getAppointmentStats: (filter: { range: "today" | "tomorrow" | "week" }) => Promise<{
     total: number;
@@ -24,6 +45,8 @@ export type DoctorStatsServiceDeps = {
   listClients: (filters: { hasTelegram?: boolean; hasMax?: boolean }) => Promise<
     Array<{ userId: string; bindings: { telegramId?: string; maxId?: string } }>
   >;
+  getDashboardPatientMetrics: () => Promise<DoctorDashboardPatientMetrics>;
+  getDashboardAppointmentMetrics: () => Promise<DoctorDashboardAppointmentMetrics>;
 };
 
 export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
@@ -58,6 +81,25 @@ export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
           withNoChannels,
           withOneChannel,
           withMultipleChannels,
+        },
+      };
+    },
+
+    async getDashboardMetrics(): Promise<DoctorDashboardMetrics> {
+      const [p, a] = await Promise.all([
+        deps.getDashboardPatientMetrics(),
+        deps.getDashboardAppointmentMetrics(),
+      ]);
+      return {
+        patients: {
+          total: p.totalClients,
+          onSupport: p.onSupportCount,
+          visitedThisMonth: p.visitedThisCalendarMonthCount,
+        },
+        appointments: {
+          futureActive: a.futureActiveCount,
+          recordsInMonthTotal: a.recordsInCalendarMonthTotal,
+          cancellationsInMonth: a.cancellationsInCalendarMonth,
         },
       };
     },

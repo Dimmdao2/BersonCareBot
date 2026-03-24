@@ -9,10 +9,12 @@ export const routePaths = {
   profile: "/app/patient/profile",
   notifications: "/app/patient/notifications",
   purchases: "/app/patient/purchases",
-  symptoms: "/app/patient/diary/symptoms",
-  lfk: "/app/patient/diary/lfk",
+  /** Единая страница дневника с вкладками «Симптомы» / «ЛФК». */
+  diary: "/app/patient/diary",
+  symptoms: "/app/patient/diary?tab=symptoms",
+  lfk: "/app/patient/diary?tab=lfk",
   bindPhone: "/app/patient/bind-phone",
-  /** Сообщения пациента (заглушка до модуля). */
+  /** Сообщения пациента (поддержка, webapp-чат). */
   patientMessages: "/app/patient/messages",
   /** Справка (заглушка). */
   patientHelp: "/app/patient/help",
@@ -24,6 +26,7 @@ export const routePaths = {
 export const patientPathsRequiringPhone: readonly string[] = [
   routePaths.cabinet,
   routePaths.purchases,
+  routePaths.diary,
   routePaths.symptoms,
   routePaths.lfk,
 ];

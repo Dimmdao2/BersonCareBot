@@ -1,30 +1,55 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { ChannelContext } from "@/modules/auth/channelContext";
+
+const bodySchema = z.object({
+  phone: z.string().min(1),
+  displayName: z.string().optional(),
+  channel: z.enum(["web", "telegram"]).optional(),
+  chatId: z.string().optional(),
+});
 
 /**
- * Start phone auth. Channel/chatId are never taken from request body for binding.
- * Only server-approved context is stored (here: web + server-generated id).
+ * Start phone auth. Для telegram channel/chatId берутся из тела (как на bind-phone);
+ * для web при отсутствии chatId подставляется серверный UUID.
  */
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as {
-    phone?: string;
-    displayName?: string;
-  } | null;
-
-  const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
-  if (!phone) {
+  const raw = (await request.json().catch(() => null)) as unknown;
+  const parsed = bodySchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json(
       { ok: false, error: "phone_required", message: "Номер телефона обязателен" },
       { status: 400 }
     );
   }
 
-  const context = {
-    channel: "web" as const,
-    chatId: randomUUID(),
-    displayName: typeof body?.displayName === "string" ? body.displayName.trim() || undefined : undefined,
-  };
+  const { phone, displayName } = parsed.data;
+  const channel = parsed.data.channel ?? "web";
+  let context: ChannelContext;
+
+  if (channel === "telegram") {
+    const chatId = parsed.data.chatId?.trim();
+    if (!chatId) {
+      return NextResponse.json(
+        { ok: false, error: "chat_id_required", message: "Для Telegram укажите chatId" },
+        { status: 400 }
+      );
+    }
+    context = {
+      channel: "telegram",
+      chatId,
+      displayName: displayName?.trim() || undefined,
+    };
+  } else {
+    const cid = parsed.data.chatId?.trim();
+    context = {
+      channel: "web",
+      chatId: cid && cid.length > 0 ? cid : randomUUID(),
+      displayName: displayName?.trim() || undefined,
+    };
+  }
 
   const deps = buildAppDeps();
   const result = await deps.auth.startPhoneAuth(phone, context);

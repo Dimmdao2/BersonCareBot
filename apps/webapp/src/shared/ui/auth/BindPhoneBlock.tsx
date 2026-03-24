@@ -60,6 +60,8 @@ export function BindPhoneBlock({ channel, chatId, nextPathOverride, onBindSucces
               ok?: boolean;
               redirectTo?: string;
               message?: string;
+              error?: string;
+              retryAfterSeconds?: number;
             };
             if (data.ok) {
               if (onBindSuccess) {
@@ -69,7 +71,12 @@ export function BindPhoneBlock({ channel, chatId, nextPathOverride, onBindSucces
               router.replace(next);
               return { ok: true as const, redirectTo: next };
             }
-            return { ok: false as const, message: data.message ?? "Ошибка привязки" };
+            return {
+              ok: false as const,
+              message: data.message ?? "Ошибка привязки",
+              code: data.error,
+              retryAfterSeconds: data.retryAfterSeconds,
+            };
           }}
           onResend={async () => {
             if (!phoneForResend) return;
@@ -100,7 +107,7 @@ export function BindPhoneBlock({ channel, chatId, nextPathOverride, onBindSucces
   return (
     <div id="bind-phone-phone-step" className="stack">
       <p className="eyebrow">Привязка номера телефона</p>
-      <p className="empty-state" style={{ fontSize: 14 }}>
+      <p className="text-muted-foreground text-sm">
         Для доступа к записям, дневникам и покупкам нужен привязанный номер. Введите его и подтвердите кодом из SMS.
       </p>
       <PhoneAuthForm

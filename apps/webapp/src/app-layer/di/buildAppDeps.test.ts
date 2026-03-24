@@ -39,7 +39,7 @@ describe("buildAppDeps", () => {
       vkId: undefined,
     });
     expect(Array.isArray(cards)).toBe(true);
-    expect(cards.length).toBe(3);
+    expect(cards.length).toBe(5);
     expect(cards[0]).toMatchObject({
       code: "telegram",
       title: expect.any(String),
@@ -131,6 +131,11 @@ describe("buildAppDeps", () => {
     expect(Array.isArray(audit)).toBe(true);
   });
 
+  it("userProjection has getProfileEmailFields", () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.userProjection.getProfileEmailFields).toBe("function");
+  });
+
   it("auth has getCurrentSession, exchangeIntegratorToken, exchangeTelegramInitData, clearSession, setSessionFromUser, startPhoneAuth, confirmPhoneAuth", () => {
     const deps = buildAppDeps();
     expect(typeof deps.auth.getCurrentSession).toBe("function");
@@ -142,6 +147,15 @@ describe("buildAppDeps", () => {
     expect(typeof deps.auth.confirmPhoneAuth).toBe("function");
   });
 
+  it("exposes userByPhone, userPins, oauthBindings, loginTokens ports", () => {
+    const deps = buildAppDeps();
+    expect(typeof deps.userByPhone.findByPhone).toBe("function");
+    expect(typeof deps.userByPhone.findByUserId).toBe("function");
+    expect(typeof deps.userPins.getByUserId).toBe("function");
+    expect(typeof deps.oauthBindings.listProvidersForUser).toBe("function");
+    expect(typeof deps.loginTokens.createPending).toBe("function");
+  });
+
   it("menu.getMenuForRole returns array for client", () => {
     const deps = buildAppDeps();
     const items = deps.menu.getMenuForRole("client");
@@ -149,7 +163,7 @@ describe("buildAppDeps", () => {
     expect(items.length).toBeGreaterThan(0);
   });
 
-  it("diaries exposes listSymptomEntries, createSymptomTracking, listSymptomTrackings, addSymptomEntry, createLfkComplex, listLfkComplexes, listLfkSessions, addLfkSession", () => {
+  it("diaries exposes listSymptomEntries, createSymptomTracking, listSymptomTrackings, addSymptomEntry, createLfkComplex, listLfkComplexes, listLfkSessions, addLfkSession, stats helpers", () => {
     const deps = buildAppDeps();
     expect(deps.diaries).toHaveProperty("listSymptomEntries");
     expect(deps.diaries).toHaveProperty("createSymptomTracking");
@@ -159,6 +173,10 @@ describe("buildAppDeps", () => {
     expect(deps.diaries).toHaveProperty("listLfkComplexes");
     expect(deps.diaries).toHaveProperty("listLfkSessions");
     expect(deps.diaries).toHaveProperty("addLfkSession");
+    expect(deps.diaries).toHaveProperty("getSymptomTrackingForUser");
+    expect(deps.diaries).toHaveProperty("listSymptomEntriesForTrackingInRange");
+    expect(deps.diaries).toHaveProperty("getLfkComplexForUser");
+    expect(deps.diaries).toHaveProperty("listLfkSessionsInRange");
     expect(typeof deps.diaries.listSymptomEntries).toBe("function");
     expect(typeof deps.diaries.createSymptomTracking).toBe("function");
     expect(typeof deps.diaries.listSymptomTrackings).toBe("function");
@@ -167,6 +185,10 @@ describe("buildAppDeps", () => {
     expect(typeof deps.diaries.listLfkComplexes).toBe("function");
     expect(typeof deps.diaries.listLfkSessions).toBe("function");
     expect(typeof deps.diaries.addLfkSession).toBe("function");
+    expect(typeof deps.diaries.getSymptomTrackingForUser).toBe("function");
+    expect(typeof deps.diaries.listSymptomEntriesForTrackingInRange).toBe("function");
+    expect(typeof deps.diaries.getLfkComplexForUser).toBe("function");
+    expect(typeof deps.diaries.listLfkSessionsInRange).toBe("function");
   });
 
   it("diaries list methods return Promise resolving to array", async () => {
@@ -175,6 +197,15 @@ describe("buildAppDeps", () => {
     const sessions = await deps.diaries.listLfkSessions("build-deps-test-user");
     expect(Array.isArray(entries)).toBe(true);
     expect(Array.isArray(sessions)).toBe(true);
+  });
+
+  it("messaging exposes patient and doctorSupport services", () => {
+    const deps = buildAppDeps();
+    expect(deps.messaging).toBeDefined();
+    expect(typeof deps.messaging.patient.bootstrap).toBe("function");
+    expect(typeof deps.messaging.patient.sendText).toBe("function");
+    expect(typeof deps.messaging.doctorSupport.listOpenConversations).toBe("function");
+    expect(typeof deps.messaging.doctorSupport.getMessages).toBe("function");
   });
 
   it("no module under modules/* imports buildAppDeps (composition root boundary)", () => {

@@ -2,16 +2,22 @@
 
 /**
  * Серверные действия для страницы дневника ЛФК.
- * Используются при отправке формы «Отметить занятие» на странице /app/patient/diary/lfk.
  */
 
 import { revalidatePath } from "next/cache";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { routePaths } from "@/app-layer/routes/paths";
+
+function parseOptionalInt(raw: unknown): number | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isNaN(n) ? null : n;
+}
 
 /** Принимает данные формы, проверяет доступ пациента и комплекс, сохраняет отметку занятия и обновляет страницу. */
 export async function markLfkSession(formData: FormData) {
-  const session = await requirePatientAccess();
+  const session = await requirePatientAccess(routePaths.diary);
   const complexId = formData.get("complexId");
   if (typeof complexId !== "string" || !complexId.trim()) {
     return;
@@ -21,21 +27,48 @@ export async function markLfkSession(formData: FormData) {
   if (!complexes.some((c) => c.id === complexId.trim())) {
     return;
   }
+
+  const dateRaw = formData.get("sessionDate");
+  const timeRaw = formData.get("sessionTime");
+  let completedAt = new Date().toISOString();
+  if (typeof dateRaw === "string" && dateRaw.trim() && typeof timeRaw === "string" && timeRaw.trim()) {
+    const iso = `${dateRaw.trim()}T${timeRaw.trim()}:00`;
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) {
+      completedAt = d.toISOString();
+    }
+  }
+
+  const durationMinutes = parseOptionalInt(formData.get("durationMinutes"));
+  const difficulty0_10 = parseOptionalInt(formData.get("difficulty0_10"));
+  const pain0_10 = parseOptionalInt(formData.get("pain0_10"));
+  const commentRaw = formData.get("comment");
+  let comment: string | null = typeof commentRaw === "string" ? commentRaw.trim() : null;
+  if (comment && comment.length > 200) {
+    comment = comment.slice(0, 200);
+  }
+
   try {
     await deps.diaries.addLfkSession({
       userId: session.user.userId,
       complexId: complexId.trim(),
       source: "webapp",
+      completedAt,
+      recordedAt: completedAt,
+      durationMinutes,
+      difficulty0_10: difficulty0_10 !== null ? Math.min(10, Math.max(0, difficulty0_10)) : null,
+      pain0_10: pain0_10 !== null ? Math.min(10, Math.max(0, pain0_10)) : null,
+      comment,
     });
   } catch (err) {
     console.error("markLfkSession failed:", err);
     return;
   }
-  revalidatePath("/app/patient/diary/lfk");
+  revalidatePath(routePaths.diary);
 }
 
 export async function createLfkComplex(formData: FormData) {
-  const session = await requirePatientAccess();
+  const session = await requirePatientAccess(routePaths.diary);
   const title = (formData.get("complexTitle") as string)?.trim();
   if (!title) return;
   if (title.length > 200) return;
@@ -49,5 +82,5 @@ export async function createLfkComplex(formData: FormData) {
     console.error("createLfkComplex failed:", err);
     return;
   }
-  revalidatePath("/app/patient/diary/lfk");
+  revalidatePath(routePaths.diary);
 }

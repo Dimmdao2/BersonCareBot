@@ -24,10 +24,14 @@ export async function saveContentPage(
   }
   const title = (formData.get("title") as string)?.trim() || "";
   const summary = (formData.get("summary") as string)?.trim() || "";
-  const bodyHtml = (formData.get("body_html") as string) || "";
+  const bodyMd = (formData.get("body_md") as string) ?? "";
+  const bodyHtmlLegacy = (formData.get("body_html") as string) ?? "";
   if (title.length > 500) return { ok: false, error: "Заголовок слишком длинный" };
   if (summary.length > 2000) return { ok: false, error: "Краткое описание слишком длинное" };
-  if (bodyHtml.length > 50000) return { ok: false, error: "HTML слишком большой" };
+  if (bodyMd.length > 50000) return { ok: false, error: "Текст страницы слишком большой" };
+  if (bodyHtmlLegacy.length > 50000) return { ok: false, error: "HTML слишком большой" };
+  const bodyMdStored = bodyMd.length > 0 ? bodyMd : "";
+  const bodyHtmlStored = bodyMd.length > 0 ? "" : bodyHtmlLegacy;
   if (slug.length > 200) return { ok: false, error: "Slug слишком длинный" };
   const sortOrder = parseInt(formData.get("sort_order") as string, 10) || 0;
   const isPublished = formData.get("is_published") === "on";
@@ -49,7 +53,8 @@ export async function saveContentPage(
       slug,
       title,
       summary,
-      bodyHtml,
+      bodyMd: bodyMdStored,
+      bodyHtml: bodyHtmlStored,
       sortOrder,
       isPublished,
       videoUrl,

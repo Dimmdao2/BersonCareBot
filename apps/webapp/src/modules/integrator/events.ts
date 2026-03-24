@@ -36,15 +36,30 @@ export type IntegratorEventsDeps = {
   diaries: {
     createSymptomTracking: (params: {
       userId: string;
-      symptomKey: string | null;
+      symptomKey?: string | null;
       symptomTitle: string;
+      symptomTypeRefId?: string | null;
+      regionRefId?: string | null;
+      side?: "left" | "right" | "both" | null;
+      diagnosisText?: string | null;
+      diagnosisRefId?: string | null;
+      stageRefId?: string | null;
     }) => Promise<unknown>;
-    createLfkComplex: (params: { userId: string; title: string; origin: "manual" | "assigned_by_specialist" }) => Promise<unknown>;
+    createLfkComplex: (params: {
+      userId: string;
+      title: string;
+      origin?: "manual" | "assigned_by_specialist";
+    }) => Promise<unknown>;
     addLfkSession: (params: {
       userId: string;
       complexId: string;
       completedAt?: string;
       source: "bot" | "webapp";
+      recordedAt?: string | null;
+      durationMinutes?: number | null;
+      difficulty0_10?: number | null;
+      pain0_10?: number | null;
+      comment?: string | null;
     }) => Promise<unknown>;
     addSymptomEntry: (params: {
       userId: string;

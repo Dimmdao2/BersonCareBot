@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
+import { useDoctorSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
@@ -32,6 +33,7 @@ const DOCTOR_SHEET_LINK_CLASS = cn(
 
 const DOCTOR_MENU_LINKS: { id: string; label: string; href: string }[] = [
   { id: "overview", label: "Обзор", href: "/app/doctor" },
+  { id: "subscribers", label: "Подписчики", href: "/app/doctor/subscribers" },
   { id: "clients", label: "Клиенты", href: "/app/doctor/clients" },
   { id: "appointments", label: "Записи", href: "/app/doctor/appointments" },
   { id: "messages", label: "Сообщения", href: "/app/doctor/messages" },
@@ -46,6 +48,7 @@ export function DoctorHeader({ userDisplayName }: DoctorHeaderProps) {
   const pathname = usePathname() ?? "/app/doctor";
   const title = getDoctorScreenTitle(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
+  const supportUnread = useDoctorSupportUnreadCount();
   const showBack = pathname !== "/app/doctor" && pathname !== "/app/doctor/";
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -94,9 +97,9 @@ export function DoctorHeader({ userDisplayName }: DoctorHeaderProps) {
 
           <div className="flex shrink-0 items-center gap-0.5">
             <Link
-              href="/app/doctor/clients"
+              href="/app/doctor/subscribers"
               prefetch={false}
-              aria-label="Клиенты"
+              aria-label="Подписчики"
               className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
             >
               <Users className="size-5" aria-hidden />
@@ -105,9 +108,14 @@ export function DoctorHeader({ userDisplayName }: DoctorHeaderProps) {
               href="/app/doctor/messages"
               prefetch={false}
               aria-label="Сообщения"
-              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+              className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "relative")}
             >
               <MessageCircle className="size-5" aria-hidden />
+              {supportUnread > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+                  {supportUnread > 99 ? "99+" : supportUnread}
+                </span>
+              ) : null}
             </Link>
             <Button
               type="button"

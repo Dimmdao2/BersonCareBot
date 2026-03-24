@@ -10,16 +10,30 @@ describe("diaries e2e (in-process)", () => {
     expect(typeof markLfkSession).toBe("function");
   });
 
-  it("LFK diary page default export is an async component", async () => {
-    const mod = await import("@/app/app/patient/diary/lfk/page");
+  it("unified diary page default export is an async component", async () => {
+    const mod = await import("@/app/app/patient/diary/page");
     expect(typeof mod.default).toBe("function");
     expect(mod.default.constructor.name).toBe("AsyncFunction");
   });
 
-  it("symptoms diary page default export is an async component", async () => {
-    const mod = await import("@/app/app/patient/diary/symptoms/page");
-    expect(typeof mod.default).toBe("function");
-    expect(mod.default.constructor.name).toBe("AsyncFunction");
+  it("legacy diary subroutes export redirect pages", async () => {
+    const lfk = await import("@/app/app/patient/diary/lfk/page");
+    const sym = await import("@/app/app/patient/diary/symptoms/page");
+    expect(typeof lfk.default).toBe("function");
+    expect(typeof sym.default).toBe("function");
+  });
+
+  it("QuickAddPopup client module loads", async () => {
+    const mod = await import("@/app/app/patient/diary/QuickAddPopup");
+    expect(typeof mod.QuickAddPopup).toBe("function");
+  });
+
+  it("buildAppDeps references returns seeded symptom types (in-memory)", async () => {
+    const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
+    const deps = buildAppDeps();
+    const items = await deps.references.listActiveItemsByCategoryCode("symptom_type");
+    expect(Array.isArray(items)).toBe(true);
+    expect(items.length).toBeGreaterThan(0);
   });
 
   it("buildAppDeps diaries createLfkComplex + addLfkSession + listLfkSessions roundtrip", async () => {
@@ -32,6 +46,10 @@ describe("diaries e2e (in-process)", () => {
       userId,
       complexId: complex.id,
       source: "webapp",
+      durationMinutes: 20,
+      difficulty0_10: 3,
+      pain0_10: 1,
+      comment: "e2e",
     });
     expect(added.id).toBeDefined();
     expect(added.userId).toBe(userId);

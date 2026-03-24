@@ -82,6 +82,14 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   /** Optional URL for MVP test video (e.g. /videos/test.mp4 or external). Webapp-owned; no integrator coupling. */
   MEDIA_TEST_VIDEO_URL: z.string().optional().default(""),
+  /** Directory for uploaded CMS media files (disk). Empty → `var/media` under cwd. */
+  MEDIA_STORAGE_DIR: z.string().optional().default(""),
+  /** Имя Telegram-бота без @ для deep-link t.me/… (привязка канала). */
+  TELEGRAM_BOT_USERNAME: z.string().min(1).default("bersoncare_bot"),
+  /** Яндекс OAuth (этап 5). Пусто — режим отключён. */
+  YANDEX_OAUTH_CLIENT_ID: z.string().optional().default(""),
+  YANDEX_OAUTH_CLIENT_SECRET: z.string().optional().default(""),
+  YANDEX_OAUTH_REDIRECT_URI: z.string().optional().default(""),
 });
 
 const parsed = envSchema.parse({
@@ -107,6 +115,11 @@ const parsed = envSchema.parse({
   ALLOWED_PHONES: process.env.ALLOWED_PHONES,
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   MEDIA_TEST_VIDEO_URL: process.env.MEDIA_TEST_VIDEO_URL ?? "",
+  MEDIA_STORAGE_DIR: process.env.MEDIA_STORAGE_DIR ?? "",
+  TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME?.trim() || "bersoncare_bot",
+  YANDEX_OAUTH_CLIENT_ID: process.env.YANDEX_OAUTH_CLIENT_ID,
+  YANDEX_OAUTH_CLIENT_SECRET: process.env.YANDEX_OAUTH_CLIENT_SECRET,
+  YANDEX_OAUTH_REDIRECT_URI: process.env.YANDEX_OAUTH_REDIRECT_URI,
 });
 
 export type EnvParsed = z.infer<typeof envSchema>;

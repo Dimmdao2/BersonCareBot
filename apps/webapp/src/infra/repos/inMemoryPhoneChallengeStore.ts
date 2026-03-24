@@ -18,4 +18,9 @@ export const inMemoryPhoneChallengeStore: PhoneChallengeStore = {
   async delete(challengeId: string): Promise<void> {
     store.delete(challengeId);
   },
+  async deleteByPhone(phone: string): Promise<void> {
+    for (const [id, payload] of store.entries()) {
+      if (payload.phone === phone) store.delete(id);
+    }
+  },
 };

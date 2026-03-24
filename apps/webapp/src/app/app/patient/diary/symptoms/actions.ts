@@ -5,8 +5,19 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 
+function parseOptionalId(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const t = raw.trim();
+  return t.length > 0 ? t : null;
+}
+
+function parseSide(raw: unknown): "left" | "right" | "both" | null {
+  if (raw !== "left" && raw !== "right" && raw !== "both") return null;
+  return raw;
+}
+
 export async function addSymptomEntry(formData: FormData) {
-  const session = await requirePatientAccess(routePaths.symptoms);
+  const session = await requirePatientAccess(routePaths.diary);
   const deps = buildAppDeps();
   const trackingIdRaw = formData.get("trackingId");
   const valueRaw = formData.get("value");
@@ -51,25 +62,118 @@ export async function addSymptomEntry(formData: FormData) {
     console.error("addSymptomEntry failed:", err);
     return;
   }
-  revalidatePath(routePaths.symptoms);
+  revalidatePath(routePaths.diary);
 }
 
 export async function createSymptomTracking(formData: FormData) {
-  const session = await requirePatientAccess(routePaths.symptoms);
+  const session = await requirePatientAccess(routePaths.diary);
+  const deps = buildAppDeps();
+
   const symptomTitleRaw = formData.get("symptomTitle");
-  if (typeof symptomTitleRaw !== "string" || !symptomTitleRaw.trim()) {
+  const title =
+    typeof symptomTitleRaw === "string" ? symptomTitleRaw.trim() : "";
+  if (title.length > 200) return;
+
+  const symptomTypeRefId = parseOptionalId(formData.get("symptomTypeRefId"));
+  const regionRefId = parseOptionalId(formData.get("regionRefId"));
+  const diagnosisRefId = parseOptionalId(formData.get("diagnosisRefId"));
+  const stageRefId = parseOptionalId(formData.get("stageRefId"));
+  const side = parseSide(formData.get("side"));
+  const diagnosisTextRaw = formData.get("diagnosisText");
+  const diagnosisText =
+    typeof diagnosisTextRaw === "string" && diagnosisTextRaw.trim()
+      ? diagnosisTextRaw.trim().slice(0, 500)
+      : null;
+
+  if (!title && !symptomTypeRefId) {
     return;
   }
-  if (symptomTitleRaw.trim().length > 200) return;
-  const deps = buildAppDeps();
+
+  let resolvedTitle = title;
+  if (!resolvedTitle && symptomTypeRefId) {
+    const item = await deps.references.findItemById(symptomTypeRefId);
+    resolvedTitle = item?.title?.trim() ?? "—";
+  }
+  if (!resolvedTitle) resolvedTitle = "—";
+
   try {
     await deps.diaries.createSymptomTracking({
       userId: session.user.userId,
-      symptomTitle: symptomTitleRaw.trim(),
+      symptomTitle: resolvedTitle,
+      symptomTypeRefId,
+      regionRefId,
+      side,
+      diagnosisText,
+      diagnosisRefId,
+      stageRefId,
     });
   } catch (err) {
     console.error("createSymptomTracking failed:", err);
     return;
   }
-  revalidatePath(routePaths.symptoms);
+  revalidatePath(routePaths.diary);
+}
+
+export async function renameSymptomTracking(formData: FormData) {
+  const session = await requirePatientAccess(routePaths.diary);
+  const trackingId = parseOptionalId(formData.get("trackingId"));
+  const newTitleRaw = formData.get("newTitle");
+  if (!trackingId || typeof newTitleRaw !== "string") return;
+  const newTitle = newTitleRaw.trim();
+  if (!newTitle || newTitle.length > 200) return;
+  const deps = buildAppDeps();
+  const trackings = await deps.diaries.listSymptomTrackings(session.user.userId, false);
+  const t = trackings.find((x) => x.id === trackingId);
+  if (!t || t.deletedAt) return;
+  try {
+    await deps.diaries.renameSymptomTracking({
+      userId: session.user.userId,
+      trackingId,
+      symptomTitle: newTitle,
+    });
+  } catch (e) {
+    console.error("renameSymptomTracking", e);
+    return;
+  }
+  revalidatePath(routePaths.diary);
+}
+
+export async function archiveSymptomTracking(formData: FormData) {
+  const session = await requirePatientAccess(routePaths.diary);
+  const trackingId = parseOptionalId(formData.get("trackingId"));
+  if (!trackingId) return;
+  const deps = buildAppDeps();
+  const trackings = await deps.diaries.listSymptomTrackings(session.user.userId, false);
+  const t = trackings.find((x) => x.id === trackingId);
+  if (!t || t.deletedAt) return;
+  try {
+    await deps.diaries.archiveSymptomTracking({
+      userId: session.user.userId,
+      trackingId,
+    });
+  } catch (e) {
+    console.error("archiveSymptomTracking", e);
+    return;
+  }
+  revalidatePath(routePaths.diary);
+}
+
+export async function deleteSymptomTracking(formData: FormData) {
+  const session = await requirePatientAccess(routePaths.diary);
+  const trackingId = parseOptionalId(formData.get("trackingId"));
+  if (!trackingId) return;
+  const deps = buildAppDeps();
+  const trackings = await deps.diaries.listSymptomTrackings(session.user.userId, false);
+  const t = trackings.find((x) => x.id === trackingId);
+  if (!t || t.deletedAt) return;
+  try {
+    await deps.diaries.deleteSymptomTracking({
+      userId: session.user.userId,
+      trackingId,
+    });
+  } catch (e) {
+    console.error("deleteSymptomTracking", e);
+    return;
+  }
+  revalidatePath(routePaths.diary);
 }

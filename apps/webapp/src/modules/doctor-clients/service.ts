@@ -4,10 +4,20 @@ import type { LfkComplex, LfkSession, SymptomEntry, SymptomTracking } from "@/mo
 import type { DoctorClientsFilters, DoctorClientsPort } from "./ports";
 import type { ClientIdentity, ClientListItem } from "./ports";
 
+/** Строка истории записей на приём (этап 9, `appointment_records`). */
+export type ClientAppointmentHistoryItem = {
+  id: string;
+  recordAt: string | null;
+  status: string;
+  label: string;
+};
+
 export type ClientProfile = {
   identity: ClientIdentity;
   channelCards: ChannelCard[];
   upcomingAppointments: AppointmentSummary[];
+  /** История по телефону клиента (не удалённые записи). */
+  appointmentHistory: ClientAppointmentHistoryItem[];
   appointmentStats: {
     total: number;
     cancellations30d: number;
@@ -23,11 +33,17 @@ export type ClientProfile = {
 export type DoctorClientsServiceDeps = {
   clientsPort: DoctorClientsPort;
   getUpcomingAppointments: (userId: string) => AppointmentSummary[] | Promise<AppointmentSummary[]>;
+  /** История `appointment_records` по нормализованному телефону (MVP этап 9). */
+  listAppointmentHistoryForPhone: (phoneNormalized: string | null) => Promise<ClientAppointmentHistoryItem[]>;
   listSymptomTrackings: (userId: string, activeOnly?: boolean) => Promise<SymptomTracking[]>;
   listSymptomEntries: (userId: string, limit?: number) => Promise<SymptomEntry[]>;
   listLfkComplexes: (userId: string, activeOnly?: boolean) => Promise<LfkComplex[]>;
   listLfkSessions: (userId: string, limit?: number) => Promise<LfkSession[]>;
-  getChannelCards: (userId: string, bindings: ClientIdentity["bindings"]) => Promise<ChannelCard[]>;
+  getChannelCards: (
+    userId: string,
+    bindings: ClientIdentity["bindings"],
+    delivery?: { phone?: string | null; emailVerified?: boolean }
+  ) => Promise<ChannelCard[]>;
 };
 
 export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
@@ -43,13 +59,18 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
       const [
         channelCards,
         upcomingAppointments,
+        appointmentHistory,
         symptomTrackings,
         recentSymptomEntries,
         lfkComplexes,
         recentLfkSessions,
       ] = await Promise.all([
-        deps.getChannelCards(userId, identity.bindings),
+        deps.getChannelCards(userId, identity.bindings, {
+          phone: identity.phone,
+          emailVerified: false,
+        }),
         Promise.resolve(deps.getUpcomingAppointments(userId)),
+        deps.listAppointmentHistoryForPhone(identity.phone),
         deps.listSymptomTrackings(userId, true),
         deps.listSymptomEntries(userId, 20),
         deps.listLfkComplexes(userId, true),
@@ -63,6 +84,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
         identity,
         channelCards,
         upcomingAppointments: appointments,
+        appointmentHistory,
         appointmentStats: {
           total: appointments.length,
           cancellations30d: 0,

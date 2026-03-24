@@ -16,6 +16,8 @@ export type AppointmentRecordRow = {
   branchId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Этап 9: soft-delete (только админ). */
+  deletedAt: string | null;
 };
 
 export type AppointmentProjectionPort = {
@@ -31,6 +33,10 @@ export type AppointmentProjectionPort = {
   }): Promise<void>;
   getRecordByIntegratorId(integratorRecordId: string): Promise<AppointmentRecordRow | null>;
   listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]>;
+  /** Все записи по телефону для истории (исключая soft-delete). */
+  listHistoryByPhoneNormalized(phoneNormalized: string, limit?: number): Promise<AppointmentRecordRow[]>;
+  /** Админ: пометить запись удалённой. */
+  softDeleteByIntegratorId(integratorRecordId: string): Promise<boolean>;
 };
 
 function mapRow(r: {
@@ -44,6 +50,7 @@ function mapRow(r: {
   branch_id: string | null;
   created_at: Date;
   updated_at: Date;
+  deleted_at?: Date | null;
 }): AppointmentRecordRow {
   return {
     id: r.id,
@@ -59,6 +66,7 @@ function mapRow(r: {
     branchId: r.branch_id ?? null,
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
+    deletedAt: r.deleted_at ? r.deleted_at.toISOString() : null,
   };
 }
 
@@ -104,8 +112,9 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
         branch_id: string | null;
         created_at: Date;
         updated_at: Date;
+        deleted_at: Date | null;
       }>(
-        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at
+        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
          FROM appointment_records WHERE integrator_record_id = $1 LIMIT 1`,
         [integratorRecordId]
       );
@@ -126,14 +135,51 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
         branch_id: string | null;
         created_at: Date;
         updated_at: Date;
+        deleted_at: Date | null;
       }>(
-        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at
+        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
          FROM appointment_records
          WHERE phone_normalized = $1 AND status IN ('created', 'updated')
+           AND deleted_at IS NULL
          ORDER BY record_at ASC NULLS LAST`,
         [phoneNormalized]
       );
       return result.rows.map(mapRow);
+    },
+
+    async listHistoryByPhoneNormalized(phoneNormalized: string, limit = 50): Promise<AppointmentRecordRow[]> {
+      const pool = getPool();
+      const result = await pool.query<{
+        id: string;
+        integrator_record_id: string;
+        phone_normalized: string | null;
+        record_at: Date | null;
+        status: string;
+        payload_json: unknown;
+        last_event: string;
+        branch_id: string | null;
+        created_at: Date;
+        updated_at: Date;
+        deleted_at: Date | null;
+      }>(
+        `SELECT id, integrator_record_id, phone_normalized, record_at, status, payload_json, last_event, branch_id, created_at, updated_at, deleted_at
+         FROM appointment_records
+         WHERE phone_normalized = $1 AND deleted_at IS NULL
+         ORDER BY record_at DESC NULLS LAST, updated_at DESC
+         LIMIT $2`,
+        [phoneNormalized, limit]
+      );
+      return result.rows.map(mapRow);
+    },
+
+    async softDeleteByIntegratorId(integratorRecordId: string): Promise<boolean> {
+      const pool = getPool();
+      const r = await pool.query(
+        `UPDATE appointment_records SET deleted_at = now(), updated_at = now()
+         WHERE integrator_record_id = $1 AND deleted_at IS NULL`,
+        [integratorRecordId]
+      );
+      return (r.rowCount ?? 0) > 0;
     },
   };
 }

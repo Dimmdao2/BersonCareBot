@@ -16,6 +16,7 @@ import {
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
 
 /** Единый стиль пунктов бокового меню (Sheet). */
 const SHEET_NAV_LINK_CLASS = cn(
@@ -46,6 +47,7 @@ export function PatientHeader({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMessengerMiniApp, setIsMessengerMiniApp] = useState(false);
+  const supportUnread = usePatientSupportUnreadCount();
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -131,7 +133,11 @@ export function PatientHeader({
               className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "relative")}
             >
               <MessageCircle className="size-5" aria-hidden />
-              {/* Счётчик неразобранных — когда API подключит, показывать при > 0 */}
+              {supportUnread > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+                  {supportUnread > 99 ? "99+" : supportUnread}
+                </span>
+              ) : null}
             </Link>
             <Button type="button" variant="ghost" size="icon-sm" aria-label="Уведомления" disabled>
               <Bell className="size-5 opacity-50" aria-hidden />

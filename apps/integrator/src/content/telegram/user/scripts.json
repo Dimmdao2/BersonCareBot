@@ -1,5 +1,24 @@
 [
 	{
+		"id": "telegram.start.link",
+		"source": "telegram",
+		"event": "message.received",
+		"match": {
+			"input": { "action": "start.link" }
+		},
+		"steps": [
+			{
+				"action": "webapp.channelLink.complete",
+				"mode": "sync",
+				"params": {
+					"linkToken": "{{input.linkSecret}}",
+					"channelCode": "telegram",
+					"externalId": "{{input.channelId}}"
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.start.setphone",
 		"source": "telegram",
 		"event": "message.received",

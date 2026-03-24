@@ -4,7 +4,7 @@
  */
 
 import type { SymptomDiaryPort } from "./ports";
-import type { SymptomEntry, SymptomTracking } from "./types";
+import type { SymptomEntry, SymptomSide, SymptomTracking } from "./types";
 
 export type { SymptomEntry, SymptomTracking } from "./types";
 
@@ -14,17 +14,29 @@ const VALUE_MAX = 10;
 /** Создаёт сервис дневника симптомов, привязанный к переданному порту хранилища. */
 export function createSymptomDiaryService(port: SymptomDiaryPort) {
   return {
-    /** Создаёт новое отслеживание симптома по названию. */
+    /** Создаёт новое отслеживание симптома. Нужен непустой title ИЛИ symptomTypeRefId (разрешение заголовка — в action). */
     async createTracking(params: {
       userId: string;
       symptomKey?: string | null;
       symptomTitle: string;
+      symptomTypeRefId?: string | null;
+      regionRefId?: string | null;
+      side?: SymptomSide | null;
+      diagnosisText?: string | null;
+      diagnosisRefId?: string | null;
+      stageRefId?: string | null;
     }): Promise<SymptomTracking> {
       const title = params.symptomTitle.trim() || "—";
       return port.createTracking({
         userId: params.userId,
         symptomKey: params.symptomKey ?? null,
         symptomTitle: title,
+        symptomTypeRefId: params.symptomTypeRefId ?? null,
+        regionRefId: params.regionRefId ?? null,
+        side: params.side ?? null,
+        diagnosisText: params.diagnosisText ?? null,
+        diagnosisRefId: params.diagnosisRefId ?? null,
+        stageRefId: params.stageRefId ?? null,
       });
     },
     /** Возвращает список отслеживаемых симптомов пользователя. */
@@ -55,6 +67,39 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
     /** Возвращает список записей дневника симптомов пользователя. */
     async listSymptomEntries(userId: string, limit?: number): Promise<SymptomEntry[]> {
       return port.listEntries(userId, limit);
+    },
+    async getSymptomTrackingForUser(params: {
+      userId: string;
+      trackingId: string;
+    }): Promise<SymptomTracking | null> {
+      return port.getTrackingForUser(params);
+    },
+    async listSymptomEntriesForTrackingInRange(params: {
+      userId: string;
+      trackingId: string;
+      fromRecordedAt: string;
+      toRecordedAtExclusive: string;
+    }): Promise<SymptomEntry[]> {
+      return port.listEntriesForTrackingInRange(params);
+    },
+    async renameTracking(params: { userId: string; trackingId: string; symptomTitle: string }): Promise<void> {
+      const t = params.symptomTitle.trim();
+      if (!t || t.length > 200) return;
+      await port.updateTrackingTitle({
+        userId: params.userId,
+        trackingId: params.trackingId,
+        symptomTitle: t,
+      });
+    },
+    async archiveTracking(params: { userId: string; trackingId: string }): Promise<void> {
+      await port.setTrackingActive({
+        userId: params.userId,
+        trackingId: params.trackingId,
+        isActive: false,
+      });
+    },
+    async deleteTracking(params: { userId: string; trackingId: string }): Promise<void> {
+      await port.softDeleteTracking(params);
     },
   };
 }

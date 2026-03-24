@@ -345,6 +345,12 @@ export type WebappEventsPort = {
   emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
   listSymptomTrackings(userId: string): Promise<{ ok: boolean; trackings?: WebappSymptomTracking[]; error?: string }>;
   listLfkComplexes(userId: string): Promise<{ ok: boolean; complexes?: WebappLfkComplex[]; error?: string }>;
+  /** Привязка мессенджера по одноразовому токену из deep-link (POST /api/integrator/channel-link/complete). */
+  completeChannelLink?(params: {
+    linkToken: string;
+    channelCode: string;
+    externalId: string;
+  }): Promise<{ ok: boolean; error?: string }>;
 };
 
 /** Channel bindings for multi-channel delivery (telegramId, maxId). */

@@ -130,5 +130,42 @@ export function createWebappEventsPort(): WebappEventsPort {
         ? { ok: true, complexes: result.complexes ?? [] }
         : { ok: false, error: result.error ?? 'request failed' };
     },
+
+    async completeChannelLink(params: {
+      linkToken: string;
+      channelCode: string;
+      externalId: string;
+    }): Promise<{ ok: boolean; error?: string }> {
+      if (!baseUrl || !secret) {
+        return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
+      }
+      const body = JSON.stringify({
+        linkToken: params.linkToken,
+        channelCode: params.channelCode,
+        externalId: params.externalId,
+      });
+      const timestamp = String(Math.floor(Date.now() / 1000));
+      const signature = sign(timestamp, body, secret);
+      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/channel-link/complete`;
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Bersoncare-Timestamp': timestamp,
+            'X-Bersoncare-Signature': signature,
+          },
+          body,
+        });
+        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok) {
+          return { ok: false, error: data.error ?? res.statusText };
+        }
+        return { ok: data.ok === true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, error: message };
+      }
+    },
   };
 }

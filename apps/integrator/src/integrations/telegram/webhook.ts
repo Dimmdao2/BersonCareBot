@@ -117,6 +117,12 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
       action = 'start.noticeme';
     }
     const trimmedText = text.trim();
+    const linkStart = trimmedText.match(/^\/start\s+(link_[A-Za-z0-9_-]+)$/i);
+    let linkSecretFromStart: string | null = null;
+    if (linkStart) {
+      action = 'start.link';
+      linkSecretFromStart = linkStart[1] ?? null;
+    }
     const setrubitimerecordPrefix = /^\/start\s+setrubitimerecord_/i;
     if (setrubitimerecordPrefix.test(trimmedText)) {
       action = 'start.setrubitimerecord';
@@ -137,6 +143,7 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
       text,
       action,
       ...(recordIdFromStart ? { recordId: recordIdFromStart } : {}),
+      ...(linkSecretFromStart ? { linkSecret: linkSecretFromStart } : {}),
       ...(normalizedPhone ? { phone: normalizedPhone } : {}),
       ...(contactOwnedBySender && typeof contact.phone_number === 'string' ? { contactPhone: contact.phone_number } : {}),
       ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),

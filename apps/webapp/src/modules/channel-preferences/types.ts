@@ -1,4 +1,4 @@
-export type ChannelCode = "telegram" | "max" | "vk";
+export type ChannelCode = "telegram" | "max" | "vk" | "sms" | "email";
 
 export type ChannelPreference = {
   channelCode: ChannelCode;

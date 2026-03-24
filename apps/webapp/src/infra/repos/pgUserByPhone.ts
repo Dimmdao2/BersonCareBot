@@ -22,6 +22,30 @@ function rowToBindings(rows: { channel_code: string; external_id: string }[]): C
 }
 
 export const pgUserByPhonePort: UserByPhonePort = {
+  async findByUserId(userId: string): Promise<SessionUser | null> {
+    const pool = getPool();
+    const userRow = await pool.query(
+      "SELECT id, display_name, role, phone_normalized FROM platform_users WHERE id = $1",
+      [userId]
+    );
+    if (userRow.rows.length === 0) return null;
+    const u = userRow.rows[0];
+    const bindingsRows = await pool.query(
+      "SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1",
+      [u.id]
+    );
+    const bindings = rowToBindings(
+      bindingsRows.rows as { channel_code: string; external_id: string }[]
+    );
+    return {
+      userId: u.id,
+      role: u.role as SessionUser["role"],
+      displayName: u.display_name ?? "",
+      phone: u.phone_normalized,
+      bindings,
+    };
+  },
+
   async findByPhone(normalizedPhone: string): Promise<SessionUser | null> {
     const pool = getPool();
     const userRow = await pool.query(

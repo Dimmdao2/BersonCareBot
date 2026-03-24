@@ -3,6 +3,7 @@ import type {
   AppointmentStats,
   DoctorAppointmentsFilter,
   DoctorAppointmentsPort,
+  DoctorDashboardAppointmentMetrics,
 } from "@/modules/doctor-appointments/ports";
 
 export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
@@ -15,6 +16,13 @@ export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
       cancellations: 0,
       cancellations30d: 0,
       reschedules: 0,
+    };
+  },
+  async getDashboardAppointmentMetrics(): Promise<DoctorDashboardAppointmentMetrics> {
+    return {
+      futureActiveCount: 0,
+      recordsInCalendarMonthTotal: 0,
+      cancellationsInCalendarMonth: 0,
     };
   },
 };

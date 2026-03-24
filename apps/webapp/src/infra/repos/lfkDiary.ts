@@ -20,6 +20,11 @@ export const inMemoryLfkDiaryPort: LfkDiaryPort = {
       isActive: true,
       createdAt: now,
       updatedAt: now,
+      symptomTrackingId: params.symptomTrackingId ?? null,
+      regionRefId: params.regionRefId ?? null,
+      side: params.side ?? null,
+      diagnosisText: params.diagnosisText ?? null,
+      diagnosisRefId: params.diagnosisRefId ?? null,
     };
     complexes.push(complex);
     return complex;
@@ -40,6 +45,11 @@ export const inMemoryLfkDiaryPort: LfkDiaryPort = {
       completedAt: params.completedAt,
       source: params.source,
       createdAt: new Date().toISOString(),
+      recordedAt: params.recordedAt ?? null,
+      durationMinutes: params.durationMinutes ?? null,
+      difficulty0_10: params.difficulty0_10 ?? null,
+      pain0_10: params.pain0_10 ?? null,
+      comment: params.comment ?? null,
       complexTitle: complex?.title,
     };
     sessions.push(session);
@@ -51,6 +61,30 @@ export const inMemoryLfkDiaryPort: LfkDiaryPort = {
       .filter((s) => s.userId === userId)
       .sort((a, b) => (b.completedAt > a.completedAt ? 1 : -1))
       .slice(0, limit)
+      .map((s) => {
+        const c = complexes.find((x) => x.id === s.complexId);
+        return { ...s, complexTitle: c?.title };
+      });
+  },
+
+  async getComplexForUser(params) {
+    const c = complexes.find((x) => x.id === params.complexId && x.userId === params.userId);
+    return c ?? null;
+  },
+
+  async listSessionsInRange(params) {
+    const lim = Math.min(params.limit ?? 2000, 5000);
+    const fromMs = new Date(params.fromCompletedAt).getTime();
+    const toEx = new Date(params.toCompletedAtExclusive).getTime();
+    return sessions
+      .filter((s) => {
+        if (s.userId !== params.userId) return false;
+        if (params.complexId && s.complexId !== params.complexId) return false;
+        const ts = new Date(s.completedAt).getTime();
+        return ts >= fromMs && ts < toEx;
+      })
+      .sort((a, b) => (b.completedAt > a.completedAt ? 1 : -1))
+      .slice(0, lim)
       .map((s) => {
         const c = complexes.find((x) => x.id === s.complexId);
         return { ...s, complexTitle: c?.title };

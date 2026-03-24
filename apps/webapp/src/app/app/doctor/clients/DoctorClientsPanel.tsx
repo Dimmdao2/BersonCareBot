@@ -1,10 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { pluralizeRu } from "@/shared/lib/pluralize";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
-import { ClientListLink } from "./ClientListLink";
 import { ClientsFilters } from "./ClientsFilters";
 
 type UrlParams = {
@@ -18,7 +18,11 @@ type UrlParams = {
 type Props = {
   allClients: ClientListItem[];
   urlParams: UrlParams;
+  /** Путь страницы списка (без завершающего слэша). */
+  basePath?: string;
 };
+
+const DEFAULT_BASE = "/app/doctor/clients";
 
 function matchesSearch(item: ClientListItem, query: string): boolean {
   const s = query.toLowerCase().trim();
@@ -31,7 +35,7 @@ function matchesSearch(item: ClientListItem, query: string): boolean {
   );
 }
 
-export function DoctorClientsPanel({ allClients, urlParams }: Props) {
+export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_BASE }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState(urlParams.q ?? "");
 
@@ -61,9 +65,24 @@ export function DoctorClientsPanel({ allClients, urlParams }: Props) {
       if (next.appointment) params.set("appointment", "1");
       if (urlParams.selected) params.set("selected", urlParams.selected);
       const query = params.toString();
-      router.replace(`/app/doctor/clients${query ? `?${query}` : ""}`);
+      router.replace(`${basePath}${query ? `?${query}` : ""}`);
     },
-    [router, urlParams.selected],
+    [router, urlParams.selected, basePath],
+  );
+
+  const onRowClick = useCallback(
+    (userId: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+      if (typeof window !== "undefined" && window.innerWidth >= 768) {
+        e.preventDefault();
+        const params = new URLSearchParams();
+        if (urlParams.telegram === "1") params.set("telegram", "1");
+        if (urlParams.max === "1") params.set("max", "1");
+        if (urlParams.appointment === "1") params.set("appointment", "1");
+        params.set("selected", userId);
+        router.push(`${basePath}?${params.toString()}`);
+      }
+    },
+    [router, basePath, urlParams.telegram, urlParams.max, urlParams.appointment],
   );
 
   return (
@@ -71,8 +90,7 @@ export function DoctorClientsPanel({ allClients, urlParams }: Props) {
       <form
         id="doctor-clients-search-form"
         onSubmit={(e) => e.preventDefault()}
-        className="stack"
-        style={{ marginBottom: "0.5rem" }}
+        className="stack mb-2"
       >
         <input
           type="search"
@@ -80,7 +98,7 @@ export function DoctorClientsPanel({ allClients, urlParams }: Props) {
           placeholder="Поиск (от 3 символов)…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          aria-label="Поиск клиентов"
+          aria-label="Поиск в списке"
         />
       </form>
 
@@ -94,28 +112,22 @@ export function DoctorClientsPanel({ allClients, urlParams }: Props) {
       />
 
       {filtered.length === 0 ? (
-        <p className="empty-state">Нет клиентов по текущим фильтрам.</p>
+        <p className="empty-state">Нет записей по текущим фильтрам.</p>
       ) : (
         <ul id="doctor-clients-list" className="list">
           {filtered.map((c) => (
-            <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="list-item">
-              <div id={`doctor-clients-card-${c.userId}`} className="client-row">
+            <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="list-item p-0">
+              <Link
+                id={`doctor-clients-card-${c.userId}`}
+                href={`${basePath}/${c.userId}`}
+                onClick={onRowClick(c.userId)}
+                className="client-row block w-full rounded-md px-3 py-3 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 <div>
-                  <ClientListLink
-                    userId={c.userId}
-                    searchParams={{
-                      telegram: urlParams.telegram === "1" ? "1" : undefined,
-                      max: urlParams.max === "1" ? "1" : undefined,
-                      appointment: urlParams.appointment === "1" ? "1" : undefined,
-                    }}
-                  >
-                    {c.displayName}
-                  </ClientListLink>
-                  {c.phone ? <span className="eyebrow" style={{ display: "block", marginTop: 2 }}>{c.phone}</span> : null}
+                  <span className="font-semibold text-foreground">{c.displayName}</span>
+                  {c.phone ? <span className="eyebrow mt-0.5 block">{c.phone}</span> : null}
                   {c.nextAppointmentLabel ? (
-                    <span className="eyebrow" style={{ display: "block", marginTop: 2, color: "#5f6f86" }}>
-                      {c.nextAppointmentLabel}
-                    </span>
+                    <span className="eyebrow mt-0.5 block text-muted-foreground">{c.nextAppointmentLabel}</span>
                   ) : null}
                 </div>
                 <div className="client-row__badges">
@@ -127,7 +139,7 @@ export function DoctorClientsPanel({ allClients, urlParams }: Props) {
                     </span>
                   ) : null}
                 </div>
-              </div>
+              </Link>
             </li>
           ))}
         </ul>

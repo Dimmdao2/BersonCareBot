@@ -127,6 +127,33 @@ export async function executeAction(
       return { actionId: action.id, status: 'success', values: { webappEmit: { ok: true, status: result.status } } };
     }
 
+    case 'webapp.channelLink.complete': {
+      const port = deps.webappEventsPort;
+      const linkToken = asString(action.params.linkToken);
+      const channelCode = asString(action.params.channelCode) ?? 'telegram';
+      const externalId = asString(action.params.externalId);
+      if (!linkToken || !externalId) {
+        return { actionId: action.id, status: 'failed', error: 'webapp.channelLink.complete: linkToken and externalId required' };
+      }
+      if (!port?.completeChannelLink) {
+        return {
+          actionId: action.id,
+          status: 'success',
+          values: { channelLink: { ok: false, reason: 'channel_link_port_missing' } },
+        };
+      }
+      const result = await port.completeChannelLink({ linkToken, channelCode, externalId });
+      if (!result.ok) {
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: result.error ?? 'channel link failed',
+          values: { channelLink: { ok: false, error: result.error } },
+        };
+      }
+      return { actionId: action.id, status: 'success', values: { channelLink: { ok: true } } };
+    }
+
     case 'booking.upsert': {
       const writes: DbWriteMutation[] = [{ type: 'booking.upsert', params: action.params }];
       await persistWrites(deps.writePort, writes);

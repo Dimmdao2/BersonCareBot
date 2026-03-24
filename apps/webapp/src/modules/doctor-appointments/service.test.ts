@@ -30,6 +30,13 @@ describe("doctor-appointments service", () => {
         reschedules: 0,
       };
     },
+    async getDashboardAppointmentMetrics() {
+      return {
+        futureActiveCount: 0,
+        recordsInCalendarMonthTotal: 0,
+        cancellationsInCalendarMonth: 0,
+      };
+    },
   };
 
   const service = createDoctorAppointmentsService({ appointmentsPort: mockPort });

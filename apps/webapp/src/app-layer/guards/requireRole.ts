@@ -34,13 +34,15 @@ export async function requireDoctorAccess(): Promise<AppSession> {
   return session;
 }
 
+/** Есть ли привязка хотя бы одного мессенджера (альтернатива телефону для части сценариев). */
+export function hasMessengerBinding(session: AppSession): boolean {
+  const b = session.user.bindings;
+  return Boolean(b.telegramId?.trim() || b.maxId?.trim() || b.vkId?.trim());
+}
+
 /** Если у пациента нет привязанного телефона — редирект на страницу привязки с next=returnTo. Вызывать только на маршрутах из patientPathsRequiringPhone. */
 export function requirePatientPhone(session: AppSession, returnTo: string): void {
-  const hasMessengerBinding =
-    Boolean(session.user.bindings.telegramId?.trim()) ||
-    Boolean(session.user.bindings.maxId?.trim()) ||
-    Boolean(session.user.bindings.vkId?.trim());
-  if (!session.user.phone?.trim() && !hasMessengerBinding) {
+  if (!session.user.phone?.trim() && !hasMessengerBinding(session)) {
     const next = encodeURIComponent(returnTo);
     redirect(`${routePaths.bindPhone}?next=${next}`);
   }

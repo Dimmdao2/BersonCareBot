@@ -42,6 +42,11 @@ describe("checkInsecureSecretsForStartup", () => {
     ALLOWED_PHONES: "",
     TELEGRAM_BOT_TOKEN: undefined,
     MEDIA_TEST_VIDEO_URL: "",
+    MEDIA_STORAGE_DIR: "",
+    TELEGRAM_BOT_USERNAME: "bersoncare_bot",
+    YANDEX_OAUTH_CLIENT_ID: "",
+    YANDEX_OAUTH_CLIENT_SECRET: "",
+    YANDEX_OAUTH_REDIRECT_URI: "",
   };
 
   it("throws when SESSION_COOKIE_SECRET is blacklisted and isTest is false", () => {

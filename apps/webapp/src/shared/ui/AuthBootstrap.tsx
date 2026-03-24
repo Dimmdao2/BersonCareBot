@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isSafeNext } from "@/modules/auth/redirectPolicy";
+import { AuthFlowV2 } from "@/shared/ui/auth/AuthFlowV2";
 import { PhoneAuthForm } from "@/shared/ui/auth/PhoneAuthForm";
 import { SmsCodeForm } from "@/shared/ui/auth/SmsCodeForm";
 
@@ -104,6 +105,8 @@ export function AuthBootstrap() {
     (initDataStatus === "no" || state === "error") &&
     state !== "loading" &&
     !!nextParam;
+
+  const authV2Enabled = process.env.NEXT_PUBLIC_AUTH_V2 === "1";
   const redirectToGuestMenu =
     !token && (initDataStatus === "no" || state === "error") && state !== "loading" && !nextParam;
 
@@ -150,6 +153,10 @@ export function AuthBootstrap() {
   }, [router, token, debug, nextParam]);
 
   if (redirectToGuestMenu) return null;
+
+  if (authV2Enabled && showPhoneFlow) {
+    return <AuthFlowV2 nextParam={nextParam} />;
+  }
 
   if (showPhoneFlow && phoneStep === "code" && challengeId) {
     return (

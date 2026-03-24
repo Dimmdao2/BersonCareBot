@@ -16,6 +16,12 @@ describe("doctor clients e2e (in-process)", () => {
     expect(mod.default.constructor.name).toBe("AsyncFunction");
   });
 
+  it("doctor subscriber profile page default export is async component (stage 9)", async () => {
+    const mod = await import("@/app/app/doctor/subscribers/[userId]/page");
+    expect(typeof mod.default).toBe("function");
+    expect(mod.default.constructor.name).toBe("AsyncFunction");
+  });
+
   it("buildAppDeps doctorClients listClients returns array", async () => {
     const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
     const deps = buildAppDeps();

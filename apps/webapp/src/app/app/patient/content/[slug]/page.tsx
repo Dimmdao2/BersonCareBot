@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -58,7 +59,10 @@ export default async function ContentSlugPage({ params }: Props) {
         {item.imageUrl && (
           <img src={item.imageUrl} alt="" style={{ maxWidth: "100%", height: "auto" }} />
         )}
-        <p>{item.bodyText}</p>
+        <MarkdownContent
+          text={item.bodyText}
+          bodyFormat={item.bodyFormat ?? "markdown"}
+        />
         {videoPlayableUrl ? (
           <section id={`patient-content-video-section-${slug}`} className="stack" style={{ marginTop: "1rem" }}>
             <h3>Видео</h3>

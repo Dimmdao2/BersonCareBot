@@ -9,8 +9,13 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
+  const pinRow = await deps.userPins.getByUserId(session.user.userId);
+
   return NextResponse.json({
     ok: true,
     user: deps.users.getCurrentUser(session),
+    security: {
+      hasPin: pinRow != null,
+    },
   });
 }

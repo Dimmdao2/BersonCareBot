@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { MarkdownEditor } from "@/shared/ui/markdown/MarkdownEditor";
 import { saveContentPage, type SaveContentPageState } from "./actions";
 
 type ContentPage = {
@@ -9,10 +10,13 @@ type ContentPage = {
   slug: string;
   title: string;
   summary: string;
+  bodyMd: string;
   bodyHtml: string;
   sortOrder: number;
   isPublished: boolean;
   videoUrl: string | null;
+  archivedAt?: string | null;
+  deletedAt?: string | null;
 };
 
 export function ContentForm({ page }: { page?: ContentPage }) {
@@ -82,16 +86,13 @@ export function ContentForm({ page }: { page?: ContentPage }) {
         />
       </label>
 
-      <label className="stack" style={{ gap: "0.25rem" }}>
-        <span className="eyebrow">Содержимое (HTML)</span>
-        <textarea
-          name="body_html"
-          className="auth-input"
-          rows={10}
-          defaultValue={page?.bodyHtml ?? ""}
-          key={`body-${page?.id ?? "new"}`}
-        />
-      </label>
+      <MarkdownEditor
+        name="body_md"
+        defaultValue={
+          page ? (page.bodyMd.trim().length > 0 ? page.bodyMd : page.bodyHtml) : ""
+        }
+        key={`body-${page?.id ?? "new"}`}
+      />
 
       <label className="stack" style={{ gap: "0.25rem" }}>
         <span className="eyebrow">Порядок сортировки</span>

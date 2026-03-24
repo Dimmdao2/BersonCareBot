@@ -31,6 +31,8 @@ import { createDoctorClientsService } from "@/modules/doctor-clients/service";
 import { createDoctorAppointmentsService } from "@/modules/doctor-appointments/service";
 import { createDoctorMessagingService } from "@/modules/doctor-messaging/service";
 import { createDoctorStatsService } from "@/modules/doctor-stats/service";
+import { createDoctorNotesService } from "@/modules/doctor-notes/service";
+import type { ClientAppointmentHistoryItem } from "@/modules/doctor-clients/service";
 import { createDoctorBroadcastsService } from "@/modules/doctor-broadcasts/service";
 import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports";
 import { inMemoryDoctorClientsPort } from "@/infra/repos/inMemoryDoctorClients";
@@ -42,13 +44,18 @@ import { createPgMessageLogPort } from "@/infra/repos/pgMessageLog";
 import { createPgDoctorClientsPort } from "@/infra/repos/pgDoctorClients";
 import { createPgDoctorAppointmentsPort } from "@/infra/repos/pgDoctorAppointments";
 import { getPurchaseSectionState } from "@/modules/purchases/service";
-import type { AppointmentSummary } from "@/modules/appointments/service";
+import {
+  getUpcomingAppointments as getUpcomingAppointmentsMock,
+  type AppointmentRecordStatus,
+  type AppointmentSummary,
+} from "@/modules/appointments/service";
 import { createMediaService } from "@/modules/media/service";
 import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
 import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
 import { createChannelPreferencesService } from "@/modules/channel-preferences/service";
 import { createContentCatalogResolver } from "@/modules/content-catalog/service";
 import { mockMediaStoragePort } from "@/infra/repos/mockMediaStorage";
+import { createPgMediaStoragePort } from "@/infra/repos/pgMediaStorage";
 import { inMemorySymptomDiaryPort } from "@/infra/repos/symptomDiary";
 import { inMemoryLfkDiaryPort } from "@/infra/repos/lfkDiary";
 import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
@@ -56,13 +63,25 @@ import { pgLfkDiaryPort } from "@/infra/repos/pgLfkDiary";
 import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
 import { pgChannelPreferencesPort } from "@/infra/repos/pgChannelPreferences";
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
+import { pgUserPinsPort } from "@/infra/repos/pgUserPins";
+import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
+import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
+import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
+import { pgLoginTokensPort } from "@/infra/repos/pgLoginTokens";
+import { inMemoryLoginTokensPort } from "@/infra/repos/inMemoryLoginTokens";
+import { pgReferencesPort } from "@/infra/repos/pgReferences";
+import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
 import { createPgContentPagesPort, inMemoryContentPagesPort } from "@/infra/repos/pgContentPages";
 import { createPgSupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
+import { createPatientMessagingService } from "@/modules/messaging/patientMessagingService";
+import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorSupportMessagingService";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { createPgAppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
 import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
+import { createPgDoctorNotesPort } from "@/infra/repos/pgDoctorNotes";
+import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
 import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
 import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemorySubscriptionMailingProjection";
@@ -76,6 +95,9 @@ const symptomDiaryPort = env.DATABASE_URL ? pgSymptomDiaryPort : inMemorySymptom
 const lfkDiaryPort = env.DATABASE_URL ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
 const channelPreferencesPort = env.DATABASE_URL ? pgChannelPreferencesPort : inMemoryChannelPreferencesPort;
 const userByPhonePort = env.DATABASE_URL ? pgUserByPhonePort : inMemoryUserByPhonePort;
+const userPinsPort = env.DATABASE_URL ? pgUserPinsPort : inMemoryUserPinsPort;
+const oauthBindingsPort = env.DATABASE_URL ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
+const loginTokensPort = env.DATABASE_URL ? pgLoginTokensPort : inMemoryLoginTokensPort;
 const identityResolutionPort = env.DATABASE_URL ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
 const doctorClientsPort = env.DATABASE_URL ? createPgDoctorClientsPort() : inMemoryDoctorClientsPort;
 // Stage 9: appointment_records lives in webapp DB (projection from integrator).
@@ -98,6 +120,15 @@ const subscriptionMailingProjectionPort = env.DATABASE_URL
   ? createPgSubscriptionMailingProjectionPort()
   : inMemorySubscriptionMailingProjectionPort;
 const contentPagesPort = env.DATABASE_URL ? createPgContentPagesPort() : inMemoryContentPagesPort;
+const mediaStoragePort = env.DATABASE_URL ? createPgMediaStoragePort() : mockMediaStoragePort;
+const referencesPort = env.DATABASE_URL ? pgReferencesPort : inMemoryReferencesPort;
+const doctorNotesPort = env.DATABASE_URL ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
+const doctorNotesService = createDoctorNotesService(doctorNotesPort);
+
+const patientMessagingService = createPatientMessagingService(supportCommunicationPort, {
+  isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),
+});
+const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort);
 
 function linkFromPayload(payload: Record<string, unknown>): string | null {
   const link = payload?.link;
@@ -107,6 +138,22 @@ function linkFromPayload(payload: Record<string, unknown>): string | null {
   const recordUrl = payload?.record_url;
   if (typeof recordUrl === "string" && recordUrl.trim()) return recordUrl.trim();
   return null;
+}
+
+function cancelReasonFromPayload(payload: Record<string, unknown>): string | null {
+  const a = payload?.cancellation_reason;
+  const b = payload?.cancel_reason;
+  if (typeof a === "string" && a.trim()) return a.trim();
+  if (typeof b === "string" && b.trim()) return b.trim();
+  return null;
+}
+
+function mapRecordStatus(raw: string): AppointmentRecordStatus {
+  const x = raw.toLowerCase();
+  if (x.includes("cancel")) return "cancelled";
+  if (x.includes("resched")) return "rescheduled";
+  if (x === "confirmed" || x === "updated") return "confirmed";
+  return "created";
 }
 
 const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]> =
@@ -127,12 +174,15 @@ const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]>
               ? `Запись ${new Date(row.recordAt).toLocaleString("ru-RU")}`
               : "Запись",
             link: linkFromPayload(row.payloadJson),
+            status: mapRecordStatus(row.status),
+            cancelReason: cancelReasonFromPayload(row.payloadJson),
+            startsAt: row.recordAt,
           }));
         } catch {
           return [];
         }
       }
-    : async () => [];
+    : async (userId: string) => getUpcomingAppointmentsMock(userId);
 
 const symptomDiaryService = createSymptomDiaryService(symptomDiaryPort);
 const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
@@ -156,16 +206,31 @@ const phoneAuthDeps = {
   userByPhonePort,
 };
 
+async function listAppointmentHistoryForPhone(phone: string | null): Promise<ClientAppointmentHistoryItem[]> {
+  if (!phone) return [];
+  const rows = await appointmentProjectionPort.listHistoryByPhoneNormalized(phone, 80);
+  return rows.map((row) => ({
+    id: row.integratorRecordId,
+    recordAt: row.recordAt,
+    status: row.status,
+    label: row.recordAt
+      ? `${new Date(row.recordAt).toLocaleString("ru-RU")} · ${row.status}`
+      : row.status,
+  }));
+}
+
 /** Возвращает объект со всеми сервисами приложения для использования на страницах и в API. */
 export function buildAppDeps() {
   const doctorClients = createDoctorClientsService({
     clientsPort: doctorClientsPort,
     getUpcomingAppointments,
+    listAppointmentHistoryForPhone,
     listSymptomTrackings: symptomDiaryService.listTrackings,
     listSymptomEntries: symptomDiaryService.listSymptomEntries,
     listLfkComplexes: lfkDiaryService.listComplexes,
     listLfkSessions: lfkDiaryService.listLfkSessions,
-    getChannelCards: (userId, bindings) => channelPreferencesService.getChannelCards(userId, bindings),
+    getChannelCards: (userId, bindings, delivery) =>
+      channelPreferencesService.getChannelCards(userId, bindings, delivery),
   });
   return {
     auth: {
@@ -212,6 +277,9 @@ export function buildAppDeps() {
       getOverviewState,
     },
     doctorClients,
+    /** Прямой порт для API (идентичность, блокировка) без лишней агрегации профиля. */
+    doctorClientsPort,
+    doctorNotes: doctorNotesService,
     doctorMessaging: createDoctorMessagingService({
       getClientIdentity: async (userId) => {
         const p = await doctorClients.getClientProfile(userId);
@@ -231,6 +299,8 @@ export function buildAppDeps() {
     doctorStats: createDoctorStatsService({
       getAppointmentStats: (filter) => doctorAppointmentsPort.getAppointmentStats(filter),
       listClients: (filters) => doctorClientsPort.listClients(filters),
+      getDashboardPatientMetrics: () => doctorClientsPort.getDashboardPatientMetrics(),
+      getDashboardAppointmentMetrics: () => doctorAppointmentsPort.getDashboardAppointmentMetrics(),
     }),
     doctorBroadcasts: createDoctorBroadcastsService({
       resolveAudienceSize: async (filter: BroadcastAudienceFilter) => {
@@ -255,15 +325,23 @@ export function buildAppDeps() {
       createSymptomTracking: symptomDiaryService.createTracking,
       listSymptomTrackings: symptomDiaryService.listTrackings,
       addSymptomEntry: symptomDiaryService.addEntry,
+      renameSymptomTracking: symptomDiaryService.renameTracking,
+      archiveSymptomTracking: symptomDiaryService.archiveTracking,
+      deleteSymptomTracking: symptomDiaryService.deleteTracking,
+      getSymptomTrackingForUser: symptomDiaryService.getSymptomTrackingForUser,
+      listSymptomEntriesForTrackingInRange: symptomDiaryService.listSymptomEntriesForTrackingInRange,
       createLfkComplex: lfkDiaryService.createComplex,
       listLfkComplexes: lfkDiaryService.listComplexes,
       listLfkSessions: lfkDiaryService.listLfkSessions,
       addLfkSession: lfkDiaryService.addLfkSession,
+      getLfkComplexForUser: lfkDiaryService.getLfkComplexForUser,
+      listLfkSessionsInRange: lfkDiaryService.listLfkSessionsInRange,
     },
+    references: referencesPort,
     health: {
       checkDbHealth,
     },
-    media: createMediaService(mockMediaStoragePort),
+    media: createMediaService(mediaStoragePort),
     channelPreferences: channelPreferencesService,
     contentCatalog,
     deliveryTargetsApi: {
@@ -282,12 +360,22 @@ export function buildAppDeps() {
       updateProfileByPhone: userProjectionPort.updateProfileByPhone,
       upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
       updateRole: userProjectionPort.updateRole,
+      getProfileEmailFields: userProjectionPort.getProfileEmailFields,
     },
     supportCommunication: supportCommunicationPort,
+    /** Поддержка: чат webapp ↔ админ (этап 8). */
+    messaging: {
+      patient: patientMessagingService,
+      doctorSupport: doctorSupportMessagingService,
+    },
     reminderProjection: reminderProjectionPort,
     appointmentProjection: appointmentProjectionPort,
     branches: branchesProjectionPort ?? undefined,
     subscriptionMailingProjection: subscriptionMailingProjectionPort,
     contentPages: contentPagesPort,
+    userByPhone: userByPhonePort,
+    userPins: userPinsPort,
+    oauthBindings: oauthBindingsPort,
+    loginTokens: loginTokensPort,
   };
 }

@@ -13,6 +13,7 @@ describe("deliveryTargetsApi", () => {
   const deps: DeliveryTargetsApiDeps = {
     userByPhonePort: {
       findByPhone: vi.fn().mockResolvedValue(null),
+      findByUserId: vi.fn().mockResolvedValue(null),
       createOrBind: vi.fn().mockResolvedValue(mockUser),
     },
     identityResolutionPort: {

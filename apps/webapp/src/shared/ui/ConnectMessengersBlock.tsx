@@ -1,72 +1,90 @@
 "use client";
 
 /**
- * Блок «Подключите удобный вам мессенджер»: два столбца (Telegram, MAX).
- * Если канал подключён — «Уже подключено» (неактивная кнопка); если нет — кнопка «Подключить» (ссылка на бота).
- * Показывается на главной пациента и может дублироваться в настройках.
+ * Блок «Подключите удобный вам мессенджер»: Telegram (deep-link с одноразовым секретом), MAX — статическая ссылка.
  */
 
+import { useState } from "react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
 
 type Props = {
   channelCards: ChannelCard[];
   /** Показывать только реализованные каналы (telegram, max). По умолчанию true. */
   implementedOnly?: boolean;
+  /** Если false — без заголовка секции (родитель задаёт свой). */
+  showHeading?: boolean;
 };
 
-export function ConnectMessengersBlock({ channelCards, implementedOnly = true }: Props) {
+export function ConnectMessengersBlock({ channelCards, implementedOnly = true, showHeading = true }: Props) {
   const cards = implementedOnly
     ? channelCards.filter((c): c is ChannelCard => c.code === "telegram" || c.code === "max")
     : channelCards.filter((c) => c.code !== "vk");
   const linkedCount = cards.filter((c) => c.isLinked).length;
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function openTelegramLink(): Promise<void> {
+    setError(null);
+    setBusy("telegram");
+    try {
+      const res = await fetch("/api/auth/channel-link/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ channelCode: "telegram" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
+      if (data.ok && data.url) {
+        window.open(data.url, "_blank", "noopener,noreferrer");
+      } else {
+        setError("Не удалось получить ссылку. Попробуйте позже.");
+      }
+    } finally {
+      setBusy(null);
+    }
+  }
 
   if (cards.length === 0) return null;
 
   return (
-    <section id="connect-messengers-section" className="panel stack" style={{ marginTop: "1rem" }}>
-      <h2 className="h3">
-        {linkedCount === 0
-          ? "Подключите удобный вам мессенджер"
-          : linkedCount < cards.length
-            ? "Подключите ещё один мессенджер"
-            : "Мессенджеры"}
-      </h2>
-      <div
-        id="connect-messengers-grid"
-        className="feature-grid"
-        style={{ gridTemplateColumns: "repeat(2, 1fr)", gap: "0.75rem" }}
-      >
+    <section id="connect-messengers-section" className={showHeading ? "panel stack mt-4" : "flex flex-col gap-3"}>
+      {showHeading ? (
+        <h2 className="h3">
+          {linkedCount === 0
+            ? "Подключите удобный вам мессенджер"
+            : linkedCount < cards.length
+              ? "Подключите ещё один мессенджер"
+              : "Мессенджеры"}
+        </h2>
+      ) : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      <div id="connect-messengers-grid" className="feature-grid grid grid-cols-2 gap-3">
         {cards.map((card) => (
           <div
             key={card.code}
             id={`connect-messenger-card-${card.code}`}
-            className="stack"
-            style={{
-              padding: "0.75rem",
-              border: "1px solid var(--border, #e0e0e0)",
-              borderRadius: "8px",
-              gap: "0.5rem",
-            }}
+            className="border-border flex flex-col gap-2 rounded-lg border p-3"
           >
             <strong>{card.title}</strong>
             {card.isLinked ? (
-              <span
-                className="status-pill"
-                style={{
-                  opacity: 0.9,
-                  alignSelf: "start",
-                  cursor: "default",
-                }}
+              <span className="status-pill w-fit cursor-default opacity-90">Уже подключено</span>
+            ) : card.code === "telegram" ? (
+              <Button
+                type="button"
+                size="sm"
+                className="w-fit"
+                disabled={busy === "telegram"}
+                onClick={() => void openTelegramLink()}
               >
-                Уже подключено
-              </span>
+                {busy === "telegram" ? "…" : "Подключить"}
+              </Button>
             ) : (
               <a
                 href={card.openUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="button button--primary"
-                style={{ alignSelf: "start" }}
+                className={cn(buttonVariants({ variant: "default", size: "sm" }), "w-fit")}
               >
                 Подключить
               </a>

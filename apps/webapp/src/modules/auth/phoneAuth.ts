@@ -5,20 +5,15 @@ import type { PhoneChallengeStore } from "./phoneChallengeStore";
 import type { SmsPort } from "./smsPort";
 import type { UserByPhonePort } from "./userByPhonePort";
 import { getRedirectPathForRole } from "./redirectPolicy";
+import { normalizePhone } from "./phoneNormalize";
+
+export { normalizePhone } from "./phoneNormalize";
 
 const CHALLENGE_TTL_SEC = 600; // 10 min
 
 /** Default context when challenge has no channelContext (e.g. legacy or web-only flow). */
 function defaultWebContext(): ChannelContext {
   return { channel: "web", chatId: randomUUID(), displayName: undefined };
-}
-
-export function normalizePhone(phone: string): string {
-  let digits = phone.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("8")) digits = "7" + digits.slice(1);
-  if (digits.length >= 10 && digits.startsWith("7")) return `+${digits}`;
-  if (digits.length >= 10) return `+7${digits}`;
-  return `+${digits}`;
 }
 
 export type PhoneAuthDeps = {

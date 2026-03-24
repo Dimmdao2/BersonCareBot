@@ -19,11 +19,20 @@ export function createContentCatalogResolver(options: {
         try {
           const row = await options.contentPages.getBySlug(slug);
           if (row) {
+            const bodyText =
+              row.bodyMd.trim().length > 0 ? row.bodyMd : row.bodyHtml;
+            const bodyFormat =
+              row.bodyMd.trim().length > 0
+                ? ("markdown" as const)
+                : row.bodyHtml.trim().length > 0
+                  ? ("legacy-html" as const)
+                  : ("markdown" as const);
             const item: ContentStubItem = {
               slug: row.slug,
               title: row.title,
               summary: row.summary,
-              bodyText: row.bodyHtml,
+              bodyText,
+              bodyFormat,
               imageUrl: row.imageUrl ?? undefined,
             };
             if (row.videoUrl && (row.videoType === "url" || row.videoType === "youtube")) {
@@ -44,7 +53,7 @@ export function createContentCatalogResolver(options: {
 
       const entry = base.find((e) => e.slug === slug);
       if (!entry) return null;
-      const item: ContentStubItem = { ...entry };
+      const item: ContentStubItem = { ...entry, bodyFormat: "markdown" };
       if (slug === "test-video" && testVideoUrl) {
         item.videoSource = { type: "url", url: testVideoUrl };
       }

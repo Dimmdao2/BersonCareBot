@@ -23,6 +23,8 @@ type AppShellProps = {
   titleSmall?: boolean;
   /** Вариант шапки: по умолчанию — заголовок и действия; patient — стрелка назад, BERSONCARE, гамбургер; doctor — широкий layout. */
   variant?: "default" | "patient" | "doctor";
+  /** Доп. плавающий UI для пациента (например QuickAdd на дневнике). */
+  patientFloatingSlot?: ReactNode;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -34,6 +36,7 @@ export function AppShell({
   backLabel = "Меню",
   titleSmall,
   variant = "default",
+  patientFloatingSlot,
 }: AppShellProps) {
   if (variant === "patient") {
     return (
@@ -50,6 +53,7 @@ export function AppShell({
         <main id="app-shell-content" className="content-area">
           {children}
         </main>
+        {patientFloatingSlot}
         <AskQuestionFAB visible={user !== null} />
       </div>
     );

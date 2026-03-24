@@ -25,7 +25,19 @@ export type AppointmentStats = {
   reschedules: number;
 };
 
+/** Метрики записей для дашборда врача (этап 9). */
+export type DoctorDashboardAppointmentMetrics = {
+  /** Записи с `record_at` в будущем и статусом created/updated. */
+  futureActiveCount: number;
+  /** Все строки в `appointment_records` с `record_at` в текущем UTC-месяце. */
+  recordsInCalendarMonthTotal: number;
+  /** Отмены (`status = canceled`) с `updated_at` в текущем UTC-месяце. */
+  cancellationsInCalendarMonth: number;
+};
+
 export type DoctorAppointmentsPort = {
   listAppointmentsForSpecialist(filter: DoctorAppointmentsFilter): Promise<AppointmentRow[]>;
   getAppointmentStats(filter: DoctorAppointmentsFilter): Promise<AppointmentStats>;
+  /** Агрегаты для плиток дашборда; без React. */
+  getDashboardAppointmentMetrics(): Promise<DoctorDashboardAppointmentMetrics>;
 };

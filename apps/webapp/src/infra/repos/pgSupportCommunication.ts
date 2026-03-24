@@ -35,6 +35,10 @@ export type SupportConversationMessageRow = {
   externalMessageId: string | null;
   deliveryStatus: string | null;
   createdAt: string;
+  readAt: string | null;
+  deliveredAt: string | null;
+  mediaUrl: string | null;
+  mediaType: string | null;
 };
 
 export type SupportQuestionRow = {
@@ -70,6 +74,8 @@ export type SupportDeliveryEventRow = {
 };
 
 export type AdminConversationListRow = {
+  /** Internal UUID `support_conversations.id` (этап 8) */
+  conversationId: string;
   integratorConversationId: string;
   source: string;
   integratorUserId: string | null;
@@ -171,7 +177,43 @@ export type SupportCommunicationPort = {
   getConversationByIntegratorId(integratorConversationId: string): Promise<AdminConversationDetailRow | null>;
   listUnansweredQuestionsForAdmin(params: { limit?: number }): Promise<AdminQuestionListRow[]>;
   getQuestionByIntegratorConversationId(integratorConversationId: string): Promise<{ id: string; answered: boolean } | null>;
+  /** Один диалог webapp на пользователя: `integrator_conversation_id = webapp:platform:{uuid}`. */
+  ensureWebappConversationForUser(platformUserId: string): Promise<{ id: string }>;
+  appendWebappMessage(params: {
+    conversationId: string;
+    integratorMessageId: string;
+    senderRole: string;
+    text: string;
+    source: string;
+    createdAt: string;
+  }): Promise<{ id: string }>;
+  listMessagesSince(conversationId: string, params: { sinceCreatedAt?: string | null; limit: number }): Promise<SupportConversationMessageRow[]>;
+  getConversationIfOwnedByUser(conversationId: string, platformUserId: string): Promise<SupportConversationRow | null>;
+  markInboundReadForUser(conversationId: string, platformUserId: string): Promise<void>;
+  markUserMessagesReadByAdmin(conversationId: string): Promise<void>;
+  countUnreadForUser(platformUserId: string): Promise<number>;
+  countUnreadUserMessagesForAdmin(): Promise<number>;
 };
+
+function mapMessageRow(m: Record<string, unknown>): SupportConversationMessageRow {
+  return {
+    id: String(m.id),
+    integratorMessageId: String(m.integrator_message_id),
+    conversationId: String(m.conversation_id),
+    senderRole: String(m.sender_role),
+    messageType: String(m.message_type),
+    text: String(m.text),
+    source: String(m.source),
+    externalChatId: m.external_chat_id != null ? String(m.external_chat_id) : null,
+    externalMessageId: m.external_message_id != null ? String(m.external_message_id) : null,
+    deliveryStatus: m.delivery_status != null ? String(m.delivery_status) : null,
+    createdAt: String(m.created_at),
+    readAt: m.read_at != null ? String(m.read_at) : null,
+    deliveredAt: m.delivered_at != null ? String(m.delivered_at) : null,
+    mediaUrl: m.media_url != null ? String(m.media_url) : null,
+    mediaType: m.media_type != null ? String(m.media_type) : null,
+  };
+}
 
 function resolvePlatformUserId(pool: Awaited<ReturnType<typeof getPool>>, integratorUserId: string | null): Promise<string | null> {
   if (integratorUserId == null || integratorUserId === "") return Promise.resolve(null);
@@ -493,23 +535,12 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       };
       const msg = await pool.query(
         `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
-                external_chat_id, external_message_id, delivery_status, created_at::text
+                external_chat_id, external_message_id, delivery_status, created_at::text,
+                read_at::text, delivered_at::text, media_url, media_type
          FROM support_conversation_messages WHERE conversation_id = $1 ORDER BY created_at ASC`,
         [conversationId]
       );
-      const messages: SupportConversationMessageRow[] = msg.rows.map((m) => ({
-        id: m.id,
-        integratorMessageId: m.integrator_message_id,
-        conversationId: m.conversation_id,
-        senderRole: m.sender_role,
-        messageType: m.message_type,
-        text: m.text,
-        source: m.source,
-        externalChatId: m.external_chat_id,
-        externalMessageId: m.external_message_id,
-        deliveryStatus: m.delivery_status,
-        createdAt: m.created_at,
-      }));
+      const messages: SupportConversationMessageRow[] = msg.rows.map((m) => mapMessageRow(m as Record<string, unknown>));
       return { conversation, messages };
     },
 
@@ -563,6 +594,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       const source = typeof params.source === "string" && params.source.trim() ? params.source.trim() : null;
       const r = await pool.query(
         `SELECT
+          sc.id AS conversation_id,
           sc.integrator_conversation_id,
           sc.source,
           sc.integrator_user_id::text,
@@ -594,6 +626,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         [source, limit]
       );
       return r.rows.map((row) => ({
+        conversationId: String(row.conversation_id),
         integratorConversationId: row.integrator_conversation_id,
         source: row.source,
         integratorUserId: row.integrator_user_id,
@@ -615,6 +648,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       const pool = getPool();
       const r = await pool.query(
         `SELECT
+          sc.id AS conversation_id,
           sc.integrator_conversation_id,
           sc.source,
           sc.integrator_user_id::text,
@@ -653,6 +687,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       if (r.rows.length === 0) return null;
       const row = r.rows[0]!;
       return {
+        conversationId: String(row.conversation_id),
         integratorConversationId: row.integrator_conversation_id,
         source: row.source,
         integratorUserId: row.integrator_user_id,
@@ -730,6 +765,160 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         id: row.integrator_question_id,
         answered: row.status === "answered",
       };
+    },
+
+    async ensureWebappConversationForUser(platformUserId) {
+      const pool = getPool();
+      const integratorConversationId = `webapp:platform:${platformUserId}`;
+      const r = await pool.query<{ id: string }>(
+        `INSERT INTO support_conversations (
+          integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
+          opened_at, last_message_at
+        ) VALUES ($1, $2::uuid, NULL, 'webapp', 'support', 'open', now(), now())
+        ON CONFLICT (integrator_conversation_id) DO UPDATE SET
+          platform_user_id = COALESCE(EXCLUDED.platform_user_id, support_conversations.platform_user_id),
+          updated_at = now()
+        RETURNING id`,
+        [integratorConversationId, platformUserId]
+      );
+      return { id: r.rows[0]!.id };
+    },
+
+    async appendWebappMessage(params) {
+      const pool = getPool();
+      const r = await pool.query<{ id: string }>(
+        `INSERT INTO support_conversation_messages (
+          integrator_message_id, conversation_id, sender_role, message_type, text, source,
+          external_chat_id, external_message_id, delivery_status, created_at, delivered_at
+        ) VALUES ($1, $2::uuid, $3, 'text', $4, $5, NULL, NULL, NULL, $6::timestamptz, $6::timestamptz)
+        ON CONFLICT (integrator_message_id) DO NOTHING
+        RETURNING id`,
+        [
+          params.integratorMessageId,
+          params.conversationId,
+          params.senderRole,
+          params.text,
+          params.source,
+          params.createdAt,
+        ]
+      );
+      if (r.rows[0]?.id) {
+        await pool.query(
+          `UPDATE support_conversations SET last_message_at = GREATEST(last_message_at, $2::timestamptz), updated_at = now() WHERE id = $1::uuid`,
+          [params.conversationId, params.createdAt]
+        );
+        return { id: r.rows[0].id };
+      }
+      const ex = await pool.query<{ id: string }>(
+        "SELECT id FROM support_conversation_messages WHERE integrator_message_id = $1",
+        [params.integratorMessageId]
+      );
+      return { id: ex.rows[0]?.id ?? "" };
+    },
+
+    async listMessagesSince(conversationId, params) {
+      const pool = getPool();
+      const lim = Math.min(Math.max(params.limit, 1), 200);
+      if (params.sinceCreatedAt) {
+        const r = await pool.query(
+          `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
+                  external_chat_id, external_message_id, delivery_status, created_at::text,
+                  read_at::text, delivered_at::text, media_url, media_type
+           FROM support_conversation_messages
+           WHERE conversation_id = $1::uuid AND created_at > $2::timestamptz
+           ORDER BY created_at ASC
+           LIMIT $3`,
+          [conversationId, params.sinceCreatedAt, lim]
+        );
+        return r.rows.map((m) => mapMessageRow(m as Record<string, unknown>));
+      }
+      const r = await pool.query(
+        `SELECT id, integrator_message_id, conversation_id, sender_role, message_type, text, source,
+                external_chat_id, external_message_id, delivery_status, created_at::text,
+                read_at::text, delivered_at::text, media_url, media_type
+         FROM (
+           SELECT * FROM support_conversation_messages
+           WHERE conversation_id = $1::uuid
+           ORDER BY created_at DESC
+           LIMIT $2
+         ) sub
+         ORDER BY created_at ASC`,
+        [conversationId, lim]
+      );
+      return r.rows.map((m) => mapMessageRow(m as Record<string, unknown>));
+    },
+
+    async getConversationIfOwnedByUser(conversationId, platformUserId) {
+      const pool = getPool();
+      const r = await pool.query(
+        `SELECT id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
+                opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
+                created_at::text, updated_at::text
+         FROM support_conversations WHERE id = $1::uuid AND platform_user_id = $2::uuid`,
+        [conversationId, platformUserId]
+      );
+      if (r.rows.length === 0) return null;
+      const row = r.rows[0]!;
+      return {
+        id: row.id,
+        integratorConversationId: row.integrator_conversation_id,
+        platformUserId: row.platform_user_id,
+        integratorUserId: row.integrator_user_id,
+        source: row.source,
+        adminScope: row.admin_scope,
+        status: row.status,
+        openedAt: row.opened_at,
+        lastMessageAt: row.last_message_at,
+        closedAt: row.closed_at,
+        closeReason: row.close_reason,
+        channelCode: row.channel_code,
+        channelExternalId: row.channel_external_id,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      };
+    },
+
+    async markInboundReadForUser(conversationId, platformUserId) {
+      const pool = getPool();
+      const ok = await pool.query(
+        `SELECT 1 FROM support_conversations WHERE id = $1::uuid AND platform_user_id = $2::uuid`,
+        [conversationId, platformUserId]
+      );
+      if (ok.rows.length === 0) return;
+      await pool.query(
+        `UPDATE support_conversation_messages SET read_at = COALESCE(read_at, now())
+         WHERE conversation_id = $1::uuid AND sender_role <> 'user' AND read_at IS NULL`,
+        [conversationId]
+      );
+    },
+
+    async markUserMessagesReadByAdmin(conversationId) {
+      const pool = getPool();
+      await pool.query(
+        `UPDATE support_conversation_messages SET read_at = COALESCE(read_at, now())
+         WHERE conversation_id = $1::uuid AND sender_role = 'user' AND read_at IS NULL`,
+        [conversationId]
+      );
+    },
+
+    async countUnreadForUser(platformUserId) {
+      const pool = getPool();
+      const r = await pool.query<{ c: string }>(
+        `SELECT COUNT(*)::text AS c FROM support_conversation_messages m
+         JOIN support_conversations c ON c.id = m.conversation_id
+         WHERE c.platform_user_id = $1::uuid AND m.sender_role <> 'user' AND m.read_at IS NULL`,
+        [platformUserId]
+      );
+      return parseInt(r.rows[0]?.c ?? "0", 10);
+    },
+
+    async countUnreadUserMessagesForAdmin() {
+      const pool = getPool();
+      const r = await pool.query<{ c: string }>(
+        `SELECT COUNT(*)::text AS c FROM support_conversation_messages m
+         WHERE m.sender_role = 'user' AND m.read_at IS NULL`
+      );
+      return parseInt(r.rows[0]?.c ?? "0", 10);
     },
   };
 }

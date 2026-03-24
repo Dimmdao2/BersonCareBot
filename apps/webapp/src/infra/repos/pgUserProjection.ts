@@ -27,6 +27,10 @@ export type UserProjectionPort = {
     topics: { topicCode: string; isEnabled: boolean }[];
   }) => Promise<void>;
   updateRole: (platformUserId: string, role: string) => Promise<void>;
+  getProfileEmailFields: (platformUserId: string) => Promise<{
+    email: string | null;
+    emailVerifiedAt: string | null;
+  }>;
 };
 
 export const pgUserProjectionPort: UserProjectionPort = {
@@ -207,6 +211,22 @@ export const pgUserProjectionPort: UserProjectionPort = {
       throw new Error(`updateRole: user ${platformUserId} not found`);
     }
   },
+
+  async getProfileEmailFields(platformUserId) {
+    const pool = getPool();
+    const result = await pool.query<{ email: string | null; email_verified_at: Date | null }>(
+      "SELECT email, email_verified_at FROM platform_users WHERE id = $1",
+      [platformUserId]
+    );
+    if (result.rows.length === 0) {
+      return { email: null, emailVerifiedAt: null };
+    }
+    const row = result.rows[0];
+    return {
+      email: row.email,
+      emailVerifiedAt: row.email_verified_at ? row.email_verified_at.toISOString() : null,
+    };
+  },
 };
 
 export const inMemoryUserProjectionPort: UserProjectionPort = {
@@ -217,4 +237,5 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   updateProfileByPhone: async () => {},
   upsertNotificationTopics: async () => {},
   updateRole: async () => {},
+  getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
 };

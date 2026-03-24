@@ -35,6 +35,7 @@ export default async function DoctorClientProfilePage({ params }: Props) {
         messageDraft={messageDraft}
         messageHistory={messageHistory}
         userId={userId}
+        isAdmin={session.user.role === "admin"}
       />
       </div>
     </AppShell>

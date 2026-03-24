@@ -1,8 +1,71 @@
 # Этап 3: Доработка клиентского профиля
 
-> Приоритет: P1
-> Зависимости: Этап 2 (дизайн-система)
-> Риск: средний (email-верификация требует mailer)
+> Приоритет: P1  
+> Зависимости: **Этап 2** (дизайн-система: Tailwind, shadcn, общие компоненты)  
+> Риск: средний (email-верификация требует mailer; deep-link привязка — координация webapp + integrator)  
+
+---
+
+## Важно
+
+- **Не добавлять** новые глобальные классы в `globals.css` для задач этого этапа — стили полей профиля через **Tailwind + shadcn** (как в этапе 2).
+- **Не менять существующие миграции** — только новые файлы `NNN_*.sql` с `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` где уместно.
+- Перед пушем: **`pnpm run ci`** (полный пайплайн монорепо).
+- Новые API и миграции — с **Zod**-валидацией и понятными кодами ошибок (без утечки внутренних деталей).
+
+---
+
+## Контекст для агента
+
+**Перед началом прочитать:**
+
+- `README.md`, `docs/FULL_DEV_PLAN/ROADMAP.md` (правила агентов, CI).
+- `apps/webapp/ARCHITECTURE.md` (если есть).
+- Текущий профиль: `apps/webapp/src/app/app/patient/profile/ProfileForm.tsx`, `.../profile/actions.ts`, `.../profile/page.tsx`.
+
+**Правила этапа:**
+
+1. Один подэтап (3.1 … 3.5) ≈ **один логичный коммит**; сообщение: `feat(webapp): …` / `feat(integrator): …` / `chore(db): …` по смыслу.
+2. После каждого подэтапа — **`pnpm run ci`**.
+3. Тексты UI — **на русском**.
+
+---
+
+## Порядок работы (зависимости)
+
+| Подэтап | Зависит от | Примечание |
+|---------|------------|------------|
+| 3.1 | Этап 2 | UI только; без новых таблиц |
+| 3.2 | 3.1 желательно (единый вид полей) | миграции + API + почта |
+| 3.3 | — | можно параллельно с 3.2, но тогда согласовать поля `phone_challenges` / `email_challenges` |
+| 3.4 | Стабильный профиль / каналы | сложный; можно **сначала только Telegram**, Max/VK — отдельными мини-подэтапами |
+| 3.5 | 3.3 (OTP) | переиспользование `BindPhoneBlock` с новой логикой таймера/лимитов |
+
+Рекомендуемый порядок для «младшего» агента: **3.1 → 3.3 (часть backend + UI SMS) → 3.2 (email) → 3.5 → 3.4 (минимум TG)**.
+
+---
+
+## Якоря в репозитории (отправная точка)
+
+| Зона | Файлы / факты |
+|------|----------------|
+| Профиль (UI) | `apps/webapp/src/app/app/patient/profile/ProfileForm.tsx`, `page.tsx`, `actions.ts` |
+| Имя в сессии | Сейчас обновляется **`display_name`** через `updateDisplayName` → `userProjection.updateDisplayName`. В БД также есть **`first_name`**, **`last_name`** (миграция `014_rubitime_patient_branch.sql`), но **в профиле могут быть не подключены** — подэтап 3.1 должен явно заложить: либо два поля + репозиторий/сессия, либо одно поле «ФИО» = `display_name` (проще). |
+| Телефон | `BindPhoneBlock`: `apps/webapp/src/shared/ui/auth/BindPhoneBlock.tsx`; API `/api/auth/phone/start`, `/api/auth/phone/confirm` |
+| Таблица `phone_challenges` | `apps/webapp/migrations/007_*.sql` — схема **не** совпадает с псевдокодом «attempts» в старом тексте плана: есть `challenge_id`, `phone`, `expires_at`, `code`, `channel_context`. Для 3.3 нужна **новая миграция** `ALTER TABLE ... ADD COLUMN` (`attempts`, при необходимости `locked_until` / `last_attempt_at`). |
+| `platform_users` | `006`, `014` — при email-привязке может понадобиться **`email_verified_at TIMESTAMPTZ NULL`** (отдельная миграция, не править `014`). |
+| Каналы / карточки | `ConnectMessengersBlock.tsx`, `channel-preferences`, integrator `scripts.json` — см. этап 3.4 |
+| Следующий номер миграции | В репо уже есть `015_*.sql` → новые файлы с **`016_` и выше** (проверить список в `apps/webapp/migrations/` перед созданием). |
+
+---
+
+## Когда остановиться и запросить человека
+
+| Ситуация | Действие |
+|----------|----------|
+| SMTP / почтовый провайдер для prod | Зафиксировать в `.env.example` **имена переменных** без секретов; реальную отправку в dev можно заменить **логом** (как черновик в плане). |
+| Max / VK: точный формат deep-link | Сверить с актуальной документацией бота; при невозможности — реализовать **fallback «код в чат»** и описать в отчёте. |
+| Секреты integrator ↔ webapp | Не коммитить ключи; использовать существующие паттерны `env` из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (если описано). |
 
 ---
 
@@ -10,25 +73,31 @@
 
 **Задача:** все персональные данные (ФИО, телефон, email) в едином формате с кнопкой «изменить».
 
-**Файлы:**
+**Файлы (ориентир):**
+
+- Новый компонент, например `apps/webapp/src/shared/ui/InlineEditField.tsx` (или `src/components/` — не противоречить принятому в этапе 2).
 - `apps/webapp/src/app/app/patient/profile/ProfileForm.tsx`
-- `apps/webapp/src/app/globals.css`
+- Server actions: `apps/webapp/src/app/app/patient/profile/actions.ts` — расширить при появлении полей ФИО/email.
+- **Не** опираться на новые классы в `globals.css` — только Tailwind (+ при необходимости `cn()`).
 
 **Действия:**
+
 1. Создать переиспользуемый компонент `InlineEditField`:
    - Props: `label`, `value`, `onSave`, `placeholder`, `type ('text' | 'phone' | 'email')`.
-   - Режим просмотра: `label: value` — справа кнопка «Изменить» (или «Добавить» если пусто).
-   - Режим редактирования: инпут с текущим значением + кнопка «Сохранить» / «Отмена».
-   - Состояние сбрасывается при навигации.
-2. Применить к ФИО: first_name, last_name (через `InlineEditField`).
-3. Применить к телефону: `phone_normalized` (через `InlineEditField`).
-4. Применить к email: `email` (через `InlineEditField`).
-5. Если значения нет (null/empty): показываем только label + «Добавить».
+   - Режим просмотра: строка `label` + значение (или «не указано») — справа кнопка **«Изменить»** / **«Добавить»** если пусто.
+   - Режим редактирования: инпут + **«Сохранить»** / **«Отмена»**; отмена восстанавливает исходное значение.
+   - Состояние сбрасывается при смене пропа `value` (синхронизация после `router.refresh()`).
+2. **ФИО и БД:** зафиксировать в коммите одну из стратегий:
+   - **A (проще):** одно поле, маппится на `display_name` (как сейчас), без `first_name`/`last_name` в UI.
+   - **B:** два поля `first_name` / `last_name` — добавить методы в `userProjection`/репозиторий, обновление сессии при необходимости.
+3. Телефон: не дублировать всю логику SMS в `InlineEditField` — для смены номера по-прежнему использовать **`BindPhoneBlock`** в режиме редактирования (как в текущем профиле), обёрнутый в тот же визуальный ряд, что и `InlineEditField` (заголовок + «Изменить» → раскрытие блока).
+4. Email: до подэтапа 3.2 показать read-only + «Добавить» / заглушка «Подтверждение по коду — в следующем подэтапе», **или** сразу заготовить `InlineEditField` без сохранения на сервер (только UI).
 
 **Критерий:**
-- ФИО, телефон, email — однотипные поля.
-- Кнопки «Изменить» выровнены по правому краю.
-- При пустом значении — «Добавить».
+
+- ФИО (или display name), телефон, email — **единый визуальный паттерн** (выравнивание кнопок справа).
+- Пустое значение → **«Добавить»**.
+- `pnpm run ci` проходит.
 
 ---
 
@@ -37,128 +106,123 @@
 **Задача:** пользователь может привязать email с подтверждением кодом.
 
 **Файлы:**
-- Миграция: `apps/webapp/migrations/016_email_challenges.sql`
-- `apps/webapp/src/modules/auth/emailAuth.ts` (новый)
-- `apps/webapp/src/app/app/patient/profile/ProfileForm.tsx`
-- `apps/integrator/src/integrations/` — email delivery adapter
+
+- Новая миграция: например `apps/webapp/migrations/016_email_challenges.sql` (номер **проверить** по факту в папке).
+- Таблица `email_challenges` + при необходимости колонки в `platform_users` (`email_verified_at`).
+- `apps/webapp/src/modules/auth/emailAuth.ts` (или рядом с существующими auth-модулями) — бизнес-логика, не раздувать route handlers.
+- Роуты: `apps/webapp/src/app/api/auth/email/start/route.ts`, `.../confirm/route.ts` (или аналогичная структура проекта).
+- `ProfileForm.tsx` — шаг ввода кода (переиспользовать паттерн `SmsCodeForm`, если уместно, вынести **общий OtpCodeInput** при дублировании).
 
 **Действия:**
-1. Миграция:
-   ```sql
-   CREATE TABLE IF NOT EXISTS email_challenges (
-     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     user_id UUID NOT NULL REFERENCES platform_users(id) ON DELETE CASCADE,
-     email TEXT NOT NULL,
-     code_hash TEXT NOT NULL,
-     expires_at TIMESTAMPTZ NOT NULL,
-     attempts SMALLINT NOT NULL DEFAULT 0,
-     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-   );
-   CREATE INDEX idx_email_challenges_user ON email_challenges(user_id);
-   CREATE INDEX idx_email_challenges_expires ON email_challenges(expires_at);
-   ```
-2. Backend flow:
-   - `POST /api/auth/email/start` → генерация 6-значного кода, хэширование, сохранение в email_challenges, отправка кода на email через integrator.
-   - `POST /api/auth/email/confirm` → проверка кода, обновление `platform_users.email`, `email_verified_at = now()`.
-3. UI: при нажатии «Привязать» для email — появляется инпут кода подтверждения (как для телефона).
-4. Integrator: использовать nodemailer для отправки (настроить SMTP provider позже; для тестов — console log).
+
+1. Миграция (эскиз — уточнить типы под стиль проекта):
+   - `email_challenges`: `id`, `user_id` → `platform_users(id)`, `email`, `code_hash`, `expires_at`, `attempts`, `created_at`, индексы по `user_id`, `expires_at`.
+2. Backend:
+   - `POST /api/auth/email/start` — валидация email (Zod), rate-limit/анти-спам согласованно с 3.3.
+   - `POST /api/auth/email/confirm` — проверка кода, установка `platform_users.email`, `email_verified_at`.
+3. Отправка письма: интеграция с **integrator** или прямой SMTP из webapp — **зафиксировать в отчёте**, какой путь выбран; для CI допустим **mock / console**.
+4. UI: поток «email → код → успех» с отображением ошибок.
 
 **Критерий:**
-- Пользователь вводит email → получает код → вводит код → email привязан.
-- При неверном коде — ошибка.
-- Email отображается в профиле.
+
+- Happy path: email → код → профиль показывает привязанный email.
+- Неверный код — сообщение пользователю.
+- `pnpm run ci` проходит.
 
 ---
 
 ## Подэтап 3.3: OTP improvements
 
-**Задача:** таймер повторной отправки, блокировка после 3 попыток.
+**Задача:** таймер повторной отправки, блокировка после N попыток (согласовать **N=3** с продуктом; в плане ниже — как ориентир).
 
 **Файлы:**
-- `apps/webapp/src/shared/ui/SmsCodeForm.tsx` (или аналог)
-- `apps/webapp/src/modules/auth/phoneAuth.ts`
-- `apps/webapp/src/infra/repos/pgPhoneChallengeRepo.ts` (или аналог)
+
+- `apps/webapp/src/shared/ui/auth/SmsCodeForm.tsx` (или фактическое имя в репо).
+- Репозиторий челленджей: `pgPhoneChallengeRepo` / аналог.
+- Новая миграция: дополнить `phone_challenges` полями под попытки и cooldown (не выдумывать имена — сверить с существующим репозиторием).
 
 **Действия:**
-1. UI: после отправки кода — таймер 60 сек. Кнопка «Отправить повторно» неактивна, рядом обратный отсчёт.
-2. UI: после 3 неудачных попыток ввода — сообщение «Слишком много попыток. Попробуйте через 10 минут.»
-3. Backend: в `phone_challenges` (и `email_challenges`):
-   - Поле `attempts` — инкрементировать при неудачной проверке.
-   - При `attempts >= 3` — отклонять с ошибкой `too_many_attempts`.
-   - Новый challenge нельзя создать, если предыдущий < 60 сек назад.
+
+1. UI: после отправки кода — **таймер 60 с**; кнопка «Отправить повторно» disabled + обратный отсчёт.
+2. UI: после 3 неудачных попыток ввода — сообщение в духе: «Слишком много попыток. Попробуйте через 10 минут.» (текст можно вынести в константу).
+3. Backend:
+   - Инкремент `attempts` при неверном коде.
+   - При `attempts >= 3` — ответ с кодом ошибки (`too_many_attempts`), блокировка нового ввода на стороне UI.
+   - Ограничение частоты **нового** challenge (например нельзя создать чаще чем раз в 60 с) — в одном месте (хелпер), использовать и для email при 3.2.
 
 **Критерий:**
-- Кнопка «Отправить повторно» неактивна 60 сек после отправки.
-- После 3 неудачных попыток — блокировка 10 мин.
-- На backend невозможно запросить код чаще раз в минуту.
+
+- Таймер и блокировки согласованы между SMS и (после 3.2) email.
+- `pnpm run ci` проходит.
 
 ---
 
 ## Подэтап 3.4: Привязка мессенджеров через deep-link
 
-**Задача:** при нажатии «Подключить» в профиле генерируется одноразовый секрет и передаётся мессенджеру.
+**Задача:** по «Подключить» генерируется одноразовый секрет и передаётся мессенджеру.
 
 **Файлы:**
-- `apps/webapp/src/shared/ui/ConnectMessengersBlock.tsx`
-- `apps/webapp/src/modules/auth/` (или integrator API)
-- `apps/integrator/src/content/telegram/user/scripts.json`
-- `apps/integrator/src/integrations/` — link secret handling
 
-**Действия:**
-1. Webapp backend: эндпоинт `POST /api/auth/channel-link/start`:
-   - Генерирует `link_secret` (UUID или crypto random, 32 символа).
-   - Сохраняет в БД: `channel_link_secrets (user_id, secret_hash, channel, expires_at, used)`.
-   - Миграция для таблицы.
-   - Возвращает URL: `https://t.me/BersonCareBot?start=link_{secret}` (для Telegram).
-2. Integrator: сценарий `message.received` с match `/start link_*`:
-   - Извлечь secret из команды.
-   - Проверить в webapp API (или в integrator DB) — валиден ли, не истёк.
-   - Привязать identity к user.
-   - Сбросить secret (пометить used).
-   - Ответить: «Аккаунт успешно привязан!».
-3. UI: кнопка «Подключить» → запрашивает secret → открывает deep-link.
-4. **Max:** проверить, поддерживает ли Max Bot API параметр `?start=`. Если нет — альтернатива: показать код в UI, пользователь вводит код в чат боту.
-5. **VK:** VK-боты поддерживают `ref` параметр через `vk.me/bot_name?ref=...`. Реализовать аналогично TG.
+- `apps/webapp/src/shared/ui/ConnectMessengersBlock.tsx`
+- `apps/integrator/src/content/telegram/user/scripts.json` (+ Max при необходимости)
+- Новая миграция: `channel_link_secrets` (или согласованное имя), webapp API `POST /api/auth/channel-link/start`
+
+**Действия (разбить на микро-шаги в коммитах):**
+
+1. Миграция + модель хранения `link_secret` (hash, срок, `used`, `user_id`, `channel`).
+2. Webapp: эндпоинт start → возврат URL для **Telegram** (`t.me/...?start=link_...` — имя бота взять из **конфига/env**, не хардкодить без проверки репо).
+3. Integrator: обработка `/start link_*`, проверка секрета, привязка `user_channel_bindings`, idempotent ответ.
+4. UI: кнопка «Подключить» вызывает start → `window.open` / deep-link.
+5. **Max / VK** — отдельные подпункты; при неясности API — только документированный fallback (код в чат).
 
 **Критерий:**
-- Telegram: нажатие «Подключить» → открывается бот → привязка автоматическая.
-- Max: определён рабочий метод привязки (deep-link или код).
-- В профиле статус мессенджера обновляется.
+
+- Минимум: **Telegram** работает end-to-end на dev.
+- Профиль обновляет статус канала после привязки (через `router.refresh` / существующий загрузчик карточек).
 
 ---
 
 ## Подэтап 3.5: Переиспользуемый BindPhoneBlock
 
-**Задача:** вынести блок привязки телефона в shared для использования в профиле, записях, уведомлениях.
+**Задача:** один компонент привязки телефона на профиле, записях, уведомлениях.
 
 **Файлы:**
-- `apps/webapp/src/shared/ui/BindPhoneBlock.tsx` (уже существует)
-- Страницы: profile, notifications, appointments
+
+- Фактический путь: **`apps/webapp/src/shared/ui/auth/BindPhoneBlock.tsx`** (не `shared/ui/BindPhoneBlock.tsx`).
+- Страницы: `cabinet`, `notifications`, `profile` — проверить guard «нужен телефон» из `patientPathsRequiringPhone` / аналогов.
 
 **Действия:**
-1. Проверить текущий `BindPhoneBlock` — содержит ли всё необходимое:
-   - Поле ввода телефона.
-   - Кнопка «Привязать».
-   - Поле ввода кода.
-   - Таймер повторной отправки.
-   - Состояние «уже привязан».
-2. Если нет — дополнить (ресурсы из подэтапа 3.3).
-3. Использовать на:
-   - Странице «Мои записи» (если нет телефона).
-   - Странице «Настройки уведомлений» (для SMS-канала).
-   - Странице профиля.
+
+1. Аудит `BindPhoneBlock`: пропсы (`channel`, `chatId`, `nextPathOverride`, `onBindSuccess`), соответствие 3.3.
+2. Вынести дублирующую разметку в маленькие подкомпоненты только если файл **> ~250 строк**.
+3. Встроить в страницы условно: `if (!session.user.phone) { <BindPhoneBlock ... /> }` — не ломать SSR.
 
 **Критерий:**
-- Один компонент `BindPhoneBlock` используется на 3+ страницах.
-- Логика OTP (таймер, блокировка) работает везде одинаково.
+
+- Один импорт `BindPhoneBlock` на **3+** страницах пациента.
+- OTP везде ведёт себя одинаково (таймер/лимиты из 3.3).
+
+---
+
+## Тесты и качество
+
+- Юнит-тесты: `getDoctorScreenTitle`-подобная логика **не** обязательна; желательны тесты на **валидацию** email, **хелпер rate-limit** attempt counter.
+- Интеграционные/e2e: сценарий профиля (открыть → изменить имя → сохранить) при наличии e2e-инфраструктуры в репо.
+- После каждого подэтапа: **`pnpm run ci`**.
 
 ---
 
 ## Общий критерий завершения этапа 3
 
-- [ ] Профиль: ФИО, телефон, email — единообразные inline-edit поля.
-- [ ] Email-привязка с кодом подтверждения работает.
-- [ ] OTP: таймер 60 сек, блокировка после 3 попыток.
-- [ ] Deep-link привязка Telegram работает.
-- [ ] BindPhoneBlock переиспользуется на 3+ страницах.
-- [ ] `pnpm run ci` проходит.
+- [ ] Профиль: ФИО (или display name), телефон, email — единообразные inline-edit / блоки.
+- [ ] Email-привязка с кодом подтверждения работает (или задокументирован mock для dev).
+- [ ] OTP: таймер 60 сек, блокировка после 3 попыток, cooldown повторной отправки на backend.
+- [ ] Deep-link привязка **Telegram** работает на dev; Max/VK — по плану выше или в backlog.
+- [ ] `BindPhoneBlock` используется на 3+ страницах.
+- [ ] `pnpm run ci` проходит без ошибок.
+
+---
+
+## Отчёт агента (рекомендуется)
+
+Кратко: выбранная стратегия ФИО (A или B); номера миграций; как тестировалась почта (log/SMTP); статус Telegram/Max/VK; ссылки на PR/коммиты.

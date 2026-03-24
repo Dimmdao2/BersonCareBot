@@ -10,6 +10,8 @@ export type PhoneChallengePayload = {
   expiresAt: number;
   /** Код подтверждения (если задан — проверка в вебапп по этому полю). */
   code?: string;
+  /** Неудачные попытки ввода кода (OTP). */
+  verifyAttempts?: number;
   /** Контекст канала, зафиксированный на start (только trusted). При отсутствии — web. */
   channelContext?: ChannelContext;
 };
@@ -18,4 +20,6 @@ export type PhoneChallengeStore = {
   set(challengeId: string, payload: PhoneChallengePayload): Promise<void>;
   get(challengeId: string): Promise<PhoneChallengePayload | null>;
   delete(challengeId: string): Promise<void>;
+  /** Удалить все челленджи для номера (новая отправка кода). */
+  deleteByPhone?(phone: string): Promise<void>;
 };

@@ -22,19 +22,21 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
     async set(challengeId: string, payload: PhoneChallengePayload): Promise<void> {
       const pool = getPool();
       await pool.query(
-        `INSERT INTO phone_challenges (challenge_id, phone, expires_at, code, channel_context)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO phone_challenges (challenge_id, phone, expires_at, code, channel_context, verify_attempts)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (challenge_id) DO UPDATE SET
            phone = EXCLUDED.phone,
            expires_at = EXCLUDED.expires_at,
            code = EXCLUDED.code,
-           channel_context = EXCLUDED.channel_context`,
+           channel_context = EXCLUDED.channel_context,
+           verify_attempts = EXCLUDED.verify_attempts`,
         [
           challengeId,
           payload.phone,
           payload.expiresAt,
           payload.code ?? null,
           payload.channelContext ? JSON.stringify(payload.channelContext) : null,
+          payload.verifyAttempts ?? 0,
         ]
       );
     },
@@ -42,7 +44,7 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       const pool = getPool();
       const now = Math.floor(Date.now() / 1000);
       const r = await pool.query(
-        "SELECT phone, expires_at, code, channel_context FROM phone_challenges WHERE challenge_id = $1",
+        "SELECT phone, expires_at, code, channel_context, verify_attempts FROM phone_challenges WHERE challenge_id = $1",
         [challengeId]
       );
       if (r.rows.length === 0) return null;
@@ -57,12 +59,17 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
         phone: row.phone,
         expiresAt,
         code: row.code ?? undefined,
+        verifyAttempts: Number(row.verify_attempts ?? 0),
         channelContext,
       };
     },
     async delete(challengeId: string): Promise<void> {
       const pool = getPool();
       await pool.query("DELETE FROM phone_challenges WHERE challenge_id = $1", [challengeId]);
+    },
+    async deleteByPhone(phone: string): Promise<void> {
+      const pool = getPool();
+      await pool.query("DELETE FROM phone_challenges WHERE phone = $1", [phone]);
     },
   };
 }

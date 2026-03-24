@@ -91,6 +91,10 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       externalMessageId: params.externalMessageId ?? null,
       deliveryStatus: params.deliveryStatus ?? null,
       createdAt: params.createdAt,
+      readAt: null,
+      deliveredAt: null,
+      mediaUrl: null,
+      mediaType: null,
     };
     messages.set(id, row);
     return { id };
@@ -255,6 +259,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
         .filter((m) => m.conversationId === c.id)
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
       return {
+        conversationId: c.id,
         integratorConversationId: c.integratorConversationId,
         source: c.source,
         integratorUserId: c.integratorUserId,
@@ -285,6 +290,7 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       .filter((m) => m.conversationId === c.id && m.senderRole === "user" && m.externalChatId != null)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     return {
+      conversationId: c.id,
       integratorConversationId: c.integratorConversationId,
       source: c.source,
       integratorUserId: c.integratorUserId,
@@ -338,5 +344,122 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
     if (!q) return null;
     return { id: q.integratorQuestionId, answered: q.status === "answered" };
+  },
+
+  async ensureWebappConversationForUser(platformUserId) {
+    const key = `webapp:platform:${platformUserId}`;
+    let c = Array.from(conversations.values()).find((x) => x.integratorConversationId === key);
+    if (!c) {
+      const id = nextId("conv", ++conversationIdSeq);
+      c = {
+        id,
+        integratorConversationId: key,
+        platformUserId,
+        integratorUserId: null,
+        source: "webapp",
+        adminScope: "support",
+        status: "open",
+        openedAt: new Date().toISOString(),
+        lastMessageAt: new Date().toISOString(),
+        closedAt: null,
+        closeReason: null,
+        channelCode: null,
+        channelExternalId: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      conversations.set(id, c);
+    } else if (c.platformUserId !== platformUserId) {
+      c.platformUserId = platformUserId;
+    }
+    return { id: c.id };
+  },
+
+  async appendWebappMessage(params) {
+    const existing = Array.from(messages.values()).find((m) => m.integratorMessageId === params.integratorMessageId);
+    if (existing) return { id: existing.id };
+    const id = nextId("msg", ++messageIdSeq);
+    const row: SupportConversationMessageRow = {
+      id,
+      integratorMessageId: params.integratorMessageId,
+      conversationId: params.conversationId,
+      senderRole: params.senderRole,
+      messageType: "text",
+      text: params.text,
+      source: params.source,
+      externalChatId: null,
+      externalMessageId: null,
+      deliveryStatus: null,
+      createdAt: params.createdAt,
+      readAt: null,
+      deliveredAt: null,
+      mediaUrl: null,
+      mediaType: null,
+    };
+    messages.set(id, row);
+    const conv = conversations.get(params.conversationId);
+    if (conv) {
+      conv.lastMessageAt = params.createdAt;
+      conv.updatedAt = new Date().toISOString();
+    }
+    return { id };
+  },
+
+  async listMessagesSince(conversationId, params) {
+    let list = Array.from(messages.values()).filter((m) => m.conversationId === conversationId);
+    if (params.sinceCreatedAt) {
+      list = list.filter((m) => new Date(m.createdAt).getTime() > new Date(params.sinceCreatedAt!).getTime());
+      list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      return list.slice(0, params.limit);
+    }
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    list = list.slice(0, params.limit);
+    list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return list;
+  },
+
+  async getConversationIfOwnedByUser(conversationId, platformUserId) {
+    const c = conversations.get(conversationId);
+    if (!c || c.platformUserId !== platformUserId) return null;
+    return c;
+  },
+
+  async markInboundReadForUser(conversationId, platformUserId) {
+    const c = conversations.get(conversationId);
+    if (!c || c.platformUserId !== platformUserId) return;
+    for (const m of messages.values()) {
+      if (m.conversationId === conversationId && m.senderRole !== "user" && m.readAt == null) {
+        m.readAt = new Date().toISOString();
+      }
+    }
+  },
+
+  async markUserMessagesReadByAdmin(conversationId) {
+    for (const m of messages.values()) {
+      if (m.conversationId === conversationId && m.senderRole === "user" && m.readAt == null) {
+        m.readAt = new Date().toISOString();
+      }
+    }
+  },
+
+  async countUnreadForUser(platformUserId) {
+    const convIds = new Set(
+      Array.from(conversations.values())
+        .filter((c) => c.platformUserId === platformUserId)
+        .map((c) => c.id)
+    );
+    let n = 0;
+    for (const m of messages.values()) {
+      if (convIds.has(m.conversationId) && m.senderRole !== "user" && m.readAt == null) n += 1;
+    }
+    return n;
+  },
+
+  async countUnreadUserMessagesForAdmin() {
+    let n = 0;
+    for (const m of messages.values()) {
+      if (m.senderRole === "user" && m.readAt == null) n += 1;
+    }
+    return n;
   },
 };

@@ -1,275 +1,347 @@
-# Этап 11: Модуль ЛФК (справочник + конструктор)
+## Архив исходного плана
 
-> Приоритет: P2–P3
-> Зависимости: Этап 6 (справочники, расширенные дневники)
-> Риск: высокий (сложный UI, drag-and-drop, много таблиц)
+# Этап 11: Модуль ЛФК (справочник упражнений + шаблоны + назначения)
 
----
-
-## Подэтап 11.1: DB — exercises, media
-
-**Задача:** таблицы для справочника упражнений.
-
-**Файлы:**
-- Миграция: `apps/webapp/migrations/025_exercises.sql`
-
-**Действия:**
-```sql
-CREATE TABLE IF NOT EXISTS exercises (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT,
-  instructions TEXT,
-  contraindications TEXT,
-  load_type_ref_id UUID REFERENCES reference_items(id),
-  region_ref_ids JSONB NOT NULL DEFAULT '[]',
-  tags TEXT[] DEFAULT '{}',
-  difficulty_1_10 SMALLINT CHECK (difficulty_1_10 BETWEEN 1 AND 10),
-  created_by UUID NOT NULL REFERENCES platform_users(id),
-  is_archived BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_exercises_archived ON exercises(is_archived) WHERE NOT is_archived;
-
-CREATE TABLE IF NOT EXISTS exercise_media (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  exercise_id UUID NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
-  media_file_id UUID REFERENCES media_files(id),
-  url TEXT,
-  media_type TEXT NOT NULL CHECK (media_type IN ('video', 'photo')),
-  sort_order INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_exercise_media ON exercise_media(exercise_id, sort_order);
-```
-
-**Критерий:** таблицы созданы, миграция идемпотентна.
+> Приоритет: P2–P3  
+> Зависимости: Этап 6 (дневники и справочники), Этап 10 (медиа)  
+> Риск: высокий (новая схема, сложный doctor UI, связь с дневником пациента)
 
 ---
 
-## Подэтап 11.2: DB — complex templates
+## Шаг 11.1: Ввести схему справочника упражнений
 
-**Задача:** таблицы для шаблонов комплексов.
-
-**Файлы:**
-- Миграция: `apps/webapp/migrations/026_lfk_templates.sql`
-
-**Действия:**
-```sql
-CREATE TABLE IF NOT EXISTS lfk_complex_templates (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT,
-  region_ref_id UUID REFERENCES reference_items(id),
-  diagnosis_ref_ids JSONB NOT NULL DEFAULT '[]',
-  stage_ref_id UUID REFERENCES reference_items(id),
-  purpose_ref_id UUID REFERENCES reference_items(id),
-  difficulty_1_10 SMALLINT CHECK (difficulty_1_10 BETWEEN 1 AND 10),
-  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'archived')),
-  schedule_json JSONB,
-  recommendations TEXT,
-  contraindications TEXT,
-  max_pain_0_10 SMALLINT CHECK (max_pain_0_10 BETWEEN 0 AND 10),
-  time_of_day TEXT CHECK (time_of_day IN ('morning', 'afternoon', 'evening')),
-  created_by UUID NOT NULL REFERENCES platform_users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS lfk_complex_template_exercises (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  template_id UUID NOT NULL REFERENCES lfk_complex_templates(id) ON DELETE CASCADE,
-  exercise_id UUID NOT NULL REFERENCES exercises(id),
-  sort_order INT NOT NULL DEFAULT 0,
-  reps INT,
-  sets INT,
-  left_reps INT,
-  left_sets INT,
-  right_reps INT,
-  right_sets INT,
-  max_pain_0_10 SMALLINT CHECK (max_pain_0_10 BETWEEN 0 AND 10),
-  comment TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_template_exercises ON lfk_complex_template_exercises(template_id, sort_order);
-
-CREATE TABLE IF NOT EXISTS patient_lfk_assignments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  patient_user_id UUID NOT NULL REFERENCES platform_users(id) ON DELETE CASCADE,
-  template_id UUID REFERENCES lfk_complex_templates(id),
-  complex_id UUID REFERENCES lfk_complexes(id),
-  stage_ref_id UUID REFERENCES reference_items(id),
-  rehab_step TEXT,
-  schedule_json_override JSONB,
-  recommendations_override TEXT,
-  max_pain_override SMALLINT,
-  time_of_day_override TEXT,
-  assigned_by UUID NOT NULL REFERENCES platform_users(id),
-  assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_assignments_patient ON patient_lfk_assignments(patient_user_id, is_active);
-```
-
-**Критерий:** таблицы созданы, связи корректны.
+1. **Цель шага**  
+   Добавить минимально достаточную БД-модель для упражнений и их медиа.
+2. **Точная область изменений**  
+   Только `apps/webapp/migrations/030_lfk_exercises.sql`.
+3. **Конкретные действия**  
+   - Создать таблицы `lfk_exercises` и `lfk_exercise_media` (если `media_files` уже введена на этапе 10, использовать FK на неё; если нет — хранить `url` как nullable fallback).  
+   - Добавить ограничения: `difficulty_1_10`, `media_type`, `is_archived`.  
+   - Добавить индексы: по `is_archived`, `updated_at`, `exercise_id + sort_order`.
+4. **Проверки после шага**  
+   - Миграция идемпотентна (повторный запуск не падает).  
+   - FK/constraints отрабатывают на некорректных данных.
+5. **Критерий успешного выполнения**  
+   Схема готова для CRUD упражнений без затрагивания существующих таблиц дневников (`lfk_complexes`, `lfk_sessions`).
+6. **Тесты**  
+   - Добавить migration smoke test (если в проекте есть шаблон проверки миграций).  
+   - E2E не требуется на этом шаге.
+7. **Обновление документации**  
+   Обновить описание схемы ЛФК в `apps/webapp/src/modules/diaries/` (файл `README`/`*.md` рядом с модулем).
 
 ---
 
-## Подэтап 11.3: API — упражнения CRUD
+## Шаг 11.2: Ввести схему шаблонов комплексов и назначений
 
-**Задача:** серверные действия для справочника упражнений.
-
-**Файлы:**
-- Модуль: `apps/webapp/src/modules/exercises/`
-
-**Действия:**
-1. `listExercises(filters)` — с фильтрацией по региону, типу, диагнозу, тегам.
-2. `getExercise(id)` — полная информация + медиа.
-3. `createExercise(data)` — doctor-only.
-4. `updateExercise(id, data)` — doctor-only.
-5. `archiveExercise(id)` — soft-delete.
-6. Валидация через Zod.
-
-**Критерий:** CRUD работает, фильтры корректны.
-
----
-
-## Подэтап 11.4: UI — справочник упражнений
-
-**Задача:** страница со списком упражнений.
-
-**Файлы:**
-- Страница: `/app/doctor/exercises`
-- Компоненты
-
-**Действия:**
-1. Наверху: строка поиска + фильтры (регион, тип, диагноз, период) — через `ReferenceSelect`.
-2. Список: карточки с названием, регионом, типом, тегами, сложностью.
-3. Клик → детальная страница упражнения.
-4. Кнопка «Создать упражнение» → форма.
-
-**Критерий:** список с поиском и фильтрами, навигация.
+1. **Цель шага**  
+   Разделить “справочник шаблонов” и “персональные комплексы пациента”.
+2. **Точная область изменений**  
+   Только `apps/webapp/migrations/031_lfk_templates_and_assignments.sql`.
+3. **Конкретные действия**  
+   - Создать `lfk_complex_templates`, `lfk_complex_template_exercises`, `patient_lfk_assignments`.  
+   - В `patient_lfk_assignments` хранить ссылки на `patient_user_id`, `template_id`, `complex_id`, `assigned_by`, `assigned_at`, `is_active`.  
+   - Добавить индексы: `patient_user_id + is_active`, `template_id + sort_order`.
+4. **Проверки после шага**  
+   - Все FK указывают на существующие таблицы (`platform_users`, `lfk_complexes`, `lfk_exercises`).  
+   - `ON DELETE` поведение соответствует требованиям (назначения не теряют историю без явной причины).
+5. **Критерий успешного выполнения**  
+   БД поддерживает полный контур: шаблон -> назначение -> экземпляр в дневнике пациента.
+6. **Тесты**  
+   - Migration smoke test на создание/удаление записей по цепочке FK.  
+   - E2E не требуется на этом шаге.
+7. **Обновление документации**  
+   Зафиксировать новые таблицы в модульной документации ЛФК и плане этапа.
 
 ---
 
-## Подэтап 11.5: UI — форма упражнения
+## Шаг 11.3: Реализовать backend-порт и сервис для упражнений
 
-**Задача:** создание/редактирование упражнения.
-
-**Файлы:**
-- Компонент `ExerciseForm.tsx`
-
-**Действия:**
-1. Поля: название, описание (RichTextEditor), инструкция, противопоказания.
-2. Тип нагрузки (`ReferenceSelect` category=`load_type`).
-3. Регионы (мульти-выбор из справочника).
-4. Теги (текстовый ввод с chips).
-5. Сложность (ползунок 1–10).
-6. Медиа: `MediaUploader` для видео и фото.
-7. Кнопка «Сохранить».
-
-**Критерий:** форма сохраняет упражнение с медиа.
-
----
-
-## Подэтап 11.6: API — комплексы CRUD
-
-**Задача:** серверные действия для шаблонов комплексов.
-
-**Файлы:**
-- Модуль: `apps/webapp/src/modules/lfk-templates/`
-
-**Действия:**
-1. `listTemplates(filters)` — с фильтрацией.
-2. `getTemplate(id)` — с упражнениями.
-3. `createTemplate(data)` — включая список упражнений с порядком.
-4. `updateTemplate(id, data)` — обновление порядка, добавление/удаление упражнений.
-5. `publishTemplate(id)` — проверка обязательных полей.
-6. `archiveTemplate(id)`.
-7. `assignToPatient(templateId, patientId, overrides)`.
-
-**Критерий:** полный CRUD + назначение.
+1. **Цель шага**  
+   Получить типобезопасный CRUD упражнений без логики в page-компонентах.
+2. **Точная область изменений**  
+   Только `apps/webapp/src/modules/lfk-exercises/*` (новый модуль), `apps/webapp/src/infra/repos/pgLfkExercises.ts` (новый), `apps/webapp/src/app-layer/di/buildAppDeps.ts`.
+3. **Конкретные действия**  
+   - Создать типы, порт и сервис: `listExercises`, `getExercise`, `createExercise`, `updateExercise`, `archiveExercise`.  
+   - Включить фильтры по `region_ref_id`, `load_type_ref_id`, `difficulty`, `tags`.  
+   - Проверить права: запись только для `doctor/admin`, чтение — doctor UI.
+4. **Проверки после шага**  
+   - DI собирается в `buildAppDeps` без циклических импортов.  
+   - Сервис корректно возвращает archived/non-archived по флагу.
+5. **Критерий успешного выполнения**  
+   CRUD упражнений доступен как модульный сервис и подключён в composition root.
+6. **Тесты**  
+   - Unit: `lfk-exercises/service.test.ts` (валидация, фильтры, архив).  
+   - Integration: `pgLfkExercises` test на SQL-мэппинг.  
+   - E2E не требуется на этом шаге.
+7. **Обновление документации**  
+   Создать `apps/webapp/src/modules/lfk-exercises/lfk-exercises.md`.
 
 ---
 
-## Подэтап 11.7: UI — конструктор комплекса
+## Шаг 11.4: Реализовать doctor UI для справочника упражнений
 
-**Задача:** создание комплекса с выбором упражнений и drag-and-drop.
-
-**Файлы:**
-- `pnpm --filter webapp add @dnd-kit/core @dnd-kit/sortable`
-- Компоненты конструктора
-
-**Действия:**
-1. Форма комплекса: название, описание, регион, диагноз, стадия, сложность, назначение.
-2. Список упражнений в комплексе — drag-and-drop (@dnd-kit/sortable).
-3. Попап выбора упражнений:
-   - Почти на весь экран, затемнённые края.
-   - Поиск + фильтры (как на странице справочника).
-   - Галочки для мульти-выбора.
-   - Кнопки: «Добавить выбранные», «Создать новое».
-   - Выбор сохраняется при смене фильтров.
-4. Для каждого упражнения в комплексе: повторения, подходы, лево/право, боль.
-5. Рекомендации: расписание, время суток, макс боль, текстовые рекомендации.
-6. Кнопки: «Сохранить черновик», «Опубликовать».
-
-**Критерий:**
-- Drag-and-drop работает.
-- Попап выбора не сбрасывает состояние при фильтрации.
-- Публикация требует заполнения всех полей.
+1. **Цель шага**  
+   Дать врачу экран поиска и редактирования упражнений.
+2. **Точная область изменений**  
+   Только `apps/webapp/src/app/app/doctor/exercises/*` (новые страницы), `apps/webapp/src/shared/ui/ReferenceSelect.tsx` (только при необходимости для новых режимов), `apps/webapp/src/shared/ui/DoctorHeader.tsx` (добавление пункта меню).
+3. **Конкретные действия**  
+   - Добавить страницы: список `/app/doctor/exercises`, создание `/app/doctor/exercises/new`, редактирование `/app/doctor/exercises/[id]`.  
+   - На списке реализовать поиск и фильтры, на форме — обязательные поля и архивирование.  
+   - Использовать уже существующие стили/компоненты, не вводить отдельную дизайн-систему для ЛФК.
+4. **Проверки после шага**  
+   - Навигация из doctor menu работает.  
+   - После сохранения/архивации список обновляется корректно.
+5. **Критерий успешного выполнения**  
+   Врач может найти, создать, изменить и архивировать упражнение через web UI.
+6. **Тесты**  
+   - Component/integration тесты страниц doctor exercises.  
+   - Обновить `doctorScreenTitles.test.ts`, если добавлен новый route title.  
+   - E2E: добавить сценарий “create + edit + archive exercise”.
+7. **Обновление документации**  
+   Обновить `apps/webapp/src/shared/ui/doctorScreenTitles.ts` комментариями/карточкой маршрута и модульную доку.
 
 ---
 
-## Подэтап 11.8: API + UI — назначение пациенту
+## Шаг 11.5: Реализовать backend для шаблонов комплексов ЛФК
 
-**Задача:** врач назначает комплекс пациенту.
-
-**Файлы:**
-- Страница назначения в карточке клиента
-- API
-
-**Действия:**
-1. В карточке пациента: кнопка «Назначить комплекс ЛФК».
-2. Экран назначения — вкладки:
-   - «Готовые комплексы» — список с фильтрами → выбор.
-   - «Конструктор» — создание индивидуального.
-3. Поля назначения: стадия/цели, этап реабилитации, расписание, рекомендации.
-4. Кнопка «Назначить» → `patient_lfk_assignments` + создание `lfk_complexes` у пациента.
-5. У пациента: комплекс появляется в дневнике ЛФК (origin='assigned_by_specialist').
-
-**Критерий:**
-- Назначение создаётся.
-- Пациент видит назначенный комплекс.
-- Расписание отображается.
+1. **Цель шага**  
+   Вынести управление шаблонами в отдельный сервис, не смешивая с `modules/diaries/lfk-service.ts`.
+2. **Точная область изменений**  
+   Только `apps/webapp/src/modules/lfk-templates/*` (новый модуль), `apps/webapp/src/infra/repos/pgLfkTemplates.ts` (новый), `buildAppDeps.ts`.
+3. **Конкретные действия**  
+   - Реализовать операции: `listTemplates`, `getTemplate`, `createTemplate`, `updateTemplate`, `publishTemplate`, `archiveTemplate`.  
+   - В `publishTemplate` ввести чёткие проверки обязательных полей (название, минимум 1 упражнение, валидный статус).  
+   - Хранить порядок упражнений через `sort_order` в `lfk_complex_template_exercises`.
+4. **Проверки после шага**  
+   - Попытка публикации неполного шаблона возвращает явную ошибку.  
+   - Обновление состава сохраняет порядок и не создаёт дубликаты.
+5. **Критерий успешного выполнения**  
+   Шаблоны ЛФК управляются через сервис с детерминированными правилами статусов.
+6. **Тесты**  
+   - Unit: `lfk-templates/service.test.ts` на статусы и валидации публикации.  
+   - Integration: репозиторий `pgLfkTemplates` (CRUD + order).  
+   - E2E не требуется на этом шаге.
+7. **Обновление документации**  
+   Создать `apps/webapp/src/modules/lfk-templates/lfk-templates.md`.
 
 ---
 
-## Подэтап 11.9: UI — список комплексов
+## Шаг 11.6: Реализовать doctor UI-конструктор комплекса
 
-**Задача:** страница со всеми комплексами.
+1. **Цель шага**  
+   Дать врачу визуальный конструктор состава шаблона.
+2. **Точная область изменений**  
+   Только `apps/webapp/src/app/app/doctor/lfk-templates/*` (новые страницы/компоненты), `apps/webapp/package.json` (dnd зависимости), без изменений patient diary.
+3. **Конкретные действия**  
+   - Добавить список шаблонов `/app/doctor/lfk-templates`.  
+   - Добавить редактор шаблона с выбором упражнений и сортировкой (`@dnd-kit/core`, `@dnd-kit/sortable`).  
+   - Для каждого элемента списка задать поля дозировки (reps/sets/left/right/max_pain/comment).  
+   - Кнопки действия: “Сохранить черновик”, “Опубликовать”, “Архивировать”.
+4. **Проверки после шага**  
+   - Drag-and-drop стабилен после reload (порядок сохраняется).  
+   - Нельзя опубликовать шаблон без обязательных полей.
+5. **Критерий успешного выполнения**  
+   Конструктор шаблонов полностью работает из doctor UI без ручного SQL/API.
+6. **Тесты**  
+   - Component test для списка упражнений с reorder.  
+   - Integration test на submit payload с корректным `sort_order`.  
+   - E2E: сценарий “создать шаблон, отсортировать упражнения, опубликовать”.
+7. **Обновление документации**  
+   Обновить модульную документацию doctor cabinet (раздел ЛФК шаблоны).
 
-**Файлы:**
-- Страница `/app/doctor/lfk-templates`
+---
 
-**Действия:**
-1. Список: название, краткое описание, статус (draft/published/archived).
-2. Клик → две вкладки: «Информация» (настройки + метрики) и «Состав» (упражнения).
-3. Метрики: назначен клиенту (N), куплен (N), выполнен (N), % пропусков.
-4. Править/архивировать — только снятые с публикации.
+## Шаг 11.7: Реализовать назначение шаблона пациенту и проекцию в дневник
 
-**Критерий:**
-- Список отображается с метриками.
-- Управление статусом работает.
+1. **Цель шага**  
+   Связать doctor-контур с существующим дневником ЛФК пациента (`modules/diaries`).
+2. **Точная область изменений**  
+   Только `apps/webapp/src/modules/lfk-assignments/*` (новый модуль), `apps/webapp/src/app/app/doctor/clients/*` (точка назначения), `apps/webapp/src/modules/diaries/lfk-service.ts` (только метод интеграции), `apps/webapp/src/infra/repos/pgLfkDiary.ts`.
+3. **Конкретные действия**  
+   - Реализовать `assignTemplateToPatient` с транзакцией: запись в `patient_lfk_assignments` + создание/обновление `lfk_complexes` у пациента с `origin='assigned_by_specialist'`.  
+   - В doctor UI карточки клиента добавить явную кнопку назначения и форму override-полей.  
+   - В patient diary отображать назначенные комплексы без изменения текущих ручных комплексов.
+4. **Проверки после шага**  
+   - Повторное назначение шаблона не создаёт неконтролируемые дубликаты (правило идемпотентности зафиксировать в сервисе).  
+   - Назначенный комплекс отображается в `/app/patient/diary?tab=lfk`.
+5. **Критерий успешного выполнения**  
+   Врач назначает шаблон, пациент видит и отмечает его как обычный комплекс ЛФК.
+6. **Тесты**  
+   - Unit/integration для `lfk-assignments/service` (транзакция, идемпотентность, origin).  
+   - Обновить `modules/diaries/lfk-service.test.ts` на сценарий assigned complex.  
+   - E2E: сценарий “doctor assigns -> patient opens diary and marks session”.
+7. **Обновление документации**  
+   Обновить `apps/webapp/src/modules/diaries/` документацию и doctor client-flow документацию.
 
 ---
 
 ## Общий критерий завершения этапа 11
 
-- [ ] Таблицы: exercises, exercise_media, lfk_complex_templates, template_exercises, assignments.
-- [ ] Справочник упражнений с поиском и фильтрами.
-- [ ] Конструктор комплексов с drag-and-drop.
-- [ ] Назначение пациенту.
-- [ ] Пациент видит назначенные комплексы.
+- [ ] Добавлены таблицы упражнений, шаблонов и назначений.
+- [ ] Реализован backend CRUD упражнений и шаблонов через отдельные модули.
+- [ ] Doctor UI имеет разделы “Упражнения” и “Шаблоны ЛФК”.
+- [ ] Работает назначение пациенту с проекцией в существующий дневник ЛФК.
+- [ ] Все новые и изменённые функции покрыты unit/integration тестами.
+- [ ] Добавлены e2e для ключевых doctor->patient сценариев ЛФК.
 - [ ] `pnpm run ci` проходит.
+
+---
+
+## Новая рабочая версия плана (для auto-агента)
+
+### Цель этапа
+Ввести управляемый LFK-контур для врача: справочник упражнений, шаблоны комплексов и назначение пациенту с корректной проекцией в уже существующий дневник ЛФК.
+
+### Зона изменений этапа
+- Только `apps/webapp` (миграции, `modules`, `infra/repos`, `app/app/doctor/*`, `app/app/patient/diary/*`, тесты, модульная документация).
+- Не менять integrator, deployment и этапы вне файлов планов.
+
+### Последовательность действий для автоагента
+
+#### Шаг 11.1 — Схема БД упражнений и медиа упражнений
+1. **Цель шага**: подготовить таблицы под CRUD упражнений.
+2. **Точная область изменений**: только новая миграция `apps/webapp/migrations/030_lfk_exercises.sql`.
+3. **Конкретные действия**:
+   - добавить `lfk_exercises` с полями фильтрации и архивирования;
+   - добавить `lfk_exercise_media` с `sort_order` и типом медиа;
+   - добавить индексы для doctor-list фильтров.
+4. **Что проверить и при необходимости изменить (сущности)**:
+   - связи с `platform_users`, `reference_items`, `media_files` (если используется);
+   - ограничения `CHECK` для сложности и типа медиа.
+5. **Проверки после шага**:
+   - миграция запускается повторно без ошибок;
+   - ограничения не позволяют некорректные значения.
+6. **Критерий успешного выполнения шага**: таблицы готовы для безопасного CRUD без ручных правок SQL.
+7. **Тесты**:
+   - migration smoke test;
+   - e2e: не требуется.
+8. **Обновление документации**: обновить модульный документ по структуре данных ЛФК.
+
+#### Шаг 11.2 — Схема БД шаблонов и назначений
+1. **Цель шага**: разделить шаблоны врача и персональные назначения пациента.
+2. **Точная область изменений**: только новая миграция `apps/webapp/migrations/031_lfk_templates_and_assignments.sql`.
+3. **Конкретные действия**:
+   - создать `lfk_complex_templates`, `lfk_complex_template_exercises`, `patient_lfk_assignments`;
+   - добавить FK на `lfk_exercises`, `lfk_complexes`, `platform_users`;
+   - добавить индексы для выборки шаблонов и активных назначений пациента.
+4. **Что проверить и при необходимости изменить (сущности)**:
+   - поля статуса шаблона (`draft/published/archived`);
+   - состав шаблона (`sort_order`, дозировки, лимит боли).
+5. **Проверки после шага**:
+   - FK-связи корректны;
+   - выборка активных назначений пациента индексирована.
+6. **Критерий успешного выполнения шага**: БД поддерживает полный контур шаблон -> назначение -> дневник.
+7. **Тесты**:
+   - migration smoke test цепочки FK;
+   - e2e: не требуется.
+8. **Обновление документации**: добавить/обновить схему в документации ЛФК-модуля.
+
+#### Шаг 11.3 — Backend сервис и репозиторий упражнений
+1. **Цель шага**: реализовать типобезопасный слой бизнес-логики упражнений.
+2. **Точная область изменений**: `apps/webapp/src/modules/lfk-exercises/*` (новый), `apps/webapp/src/infra/repos/pgLfkExercises.ts` (новый), `apps/webapp/src/app-layer/di/buildAppDeps.ts`.
+3. **Конкретные действия**:
+   - реализовать `list/get/create/update/archive` для упражнений;
+   - добавить валидацию входных данных и фильтров;
+   - подключить сервис в DI.
+4. **Что проверить и при необходимости изменить (сущности)**:
+   - типы DTO и порт модуля;
+   - SQL-мэппинг репозитория;
+   - зависимости в `buildAppDeps`.
+5. **Проверки после шага**:
+   - сервис возвращает ожидаемую структуру;
+   - архивные записи не попадают в обычный список.
+6. **Критерий успешного выполнения шага**: CRUD упражнений доступен через единый сервис.
+7. **Тесты**:
+   - unit: сервис упражнений;
+   - integration: `pgLfkExercises`;
+   - e2e: не требуется.
+8. **Обновление документации**: создать `apps/webapp/src/modules/lfk-exercises/lfk-exercises.md`.
+
+#### Шаг 11.4 — Doctor UI справочника упражнений
+1. **Цель шага**: дать врачу интерфейс управления упражнениями.
+2. **Точная область изменений**: `apps/webapp/src/app/app/doctor/exercises/*` (новые routes), `apps/webapp/src/shared/ui/DoctorHeader.tsx`, `apps/webapp/src/shared/ui/doctorScreenTitles.ts`.
+3. **Конкретные действия**:
+   - добавить страницы списка, создания и редактирования;
+   - подключить поиск/фильтры и архивирование;
+   - добавить пункт навигации в doctor menu.
+4. **Что проверить и при необходимости изменить (сущности)**:
+   - маршруты `/app/doctor/exercises*`;
+   - заголовки экранов `doctorScreenTitles`;
+   - формы ввода и валидации.
+5. **Проверки после шага**:
+   - навигация работает;
+   - изменения в упражнениях сразу видны в списке.
+6. **Критерий успешного выполнения шага**: врач полностью управляет упражнениями через UI.
+7. **Тесты**:
+   - component/integration тесты страниц;
+   - обновить `doctorScreenTitles.test.ts`;
+   - e2e: обязателен сценарий create/edit/archive.
+8. **Обновление документации**: обновить модульную доку doctor-кабинета (раздел упражнений).
+
+#### Шаг 11.5 — Backend сервис и репозиторий шаблонов ЛФК
+1. **Цель шага**: реализовать отдельный модуль управления шаблонами.
+2. **Точная область изменений**: `apps/webapp/src/modules/lfk-templates/*` (новый), `apps/webapp/src/infra/repos/pgLfkTemplates.ts` (новый), `buildAppDeps.ts`.
+3. **Конкретные действия**:
+   - реализовать CRUD + publish/archive шаблона;
+   - enforce обязательные поля публикации;
+   - сохранить детерминированный порядок упражнений.
+4. **Что проверить и при необходимости изменить (сущности)**:
+   - статус шаблона и transitions;
+   - таблица состава шаблона;
+   - ошибки валидации на publish.
+5. **Проверки после шага**:
+   - неполный шаблон не публикуется;
+   - порядок упражнений сохраняется корректно.
+6. **Критерий успешного выполнения шага**: модуль шаблонов работает независимо от diary service.
+7. **Тесты**:
+   - unit: сервис шаблонов;
+   - integration: `pgLfkTemplates`;
+   - e2e: не требуется.
+8. **Обновление документации**: создать `apps/webapp/src/modules/lfk-templates/lfk-templates.md`.
+
+#### Шаг 11.6 — Doctor UI конструктора шаблонов
+1. **Цель шага**: предоставить врачу визуальный конструктор шаблонов.
+2. **Точная область изменений**: `apps/webapp/src/app/app/doctor/lfk-templates/*` (новые страницы/компоненты), `apps/webapp/package.json` (dnd зависимости).
+3. **Конкретные действия**:
+   - реализовать список шаблонов и редактор шаблона;
+   - добавить reorder упражнений через dnd-kit;
+   - реализовать действия сохранения/публикации/архива.
+4. **Что проверить и при необходимости изменить (сущности)**:
+   - payload сохранения порядка упражнений;
+   - UI-поля дозировок и ограничений;
+   - маршруты `/app/doctor/lfk-templates*`.
+5. **Проверки после шага**:
+   - reorder не ломается после перезагрузки;
+   - кнопка publish активна только для валидного шаблона.
+6. **Критерий успешного выполнения шага**: шаблон можно полностью собрать и опубликовать из UI.
+7. **Тесты**:
+   - component тест на reorder;
+   - integration тест на submit payload;
+   - e2e: обязателен сценарий draft->publish.
+8. **Обновление документации**: обновить раздел doctor ЛФК в модульной документации.
+
+#### Шаг 11.7 — Назначение шаблона пациенту и проекция в дневник
+1. **Цель шага**: связать doctor назначения с текущим дневником пациента.
+2. **Точная область изменений**: `apps/webapp/src/modules/lfk-assignments/*` (новый), `apps/webapp/src/app/app/doctor/clients/*`, `apps/webapp/src/modules/diaries/lfk-service.ts`, `apps/webapp/src/infra/repos/pgLfkDiary.ts`.
+3. **Конкретные действия**:
+   - реализовать сервис назначения с транзакцией;
+   - создавать/обновлять `lfk_complexes` с `origin='assigned_by_specialist'`;
+   - добавить doctor UI назначения в карточке клиента.
+4. **Что проверить и при необходимости изменить (сущности)**:
+   - `patient_lfk_assignments`;
+   - методы diary service (`createComplex`, `listComplexes`, `addLfkSession`);
+   - patient route `/app/patient/diary?tab=lfk`.
+5. **Проверки после шага**:
+   - назначенный комплекс появляется у пациента;
+   - повторное назначение обрабатывается по заданному правилу идемпотентности.
+6. **Критерий успешного выполнения шага**: end-to-end doctor->patient сценарий назначения стабилен.
+7. **Тесты**:
+   - unit/integration тесты сервиса назначения;
+   - обновить `apps/webapp/src/modules/diaries/lfk-service.test.ts`;
+   - e2e: обязателен сценарий assign->patient diary->mark session.
+8. **Обновление документации**: обновить документацию `modules/diaries` и doctor clients flow.
+
+### Финальный критерий этапа 11
+- Все шаги 11.1–11.7 закрыты.
+- Для всех новых/изменённых функций есть тесты.
+- `pnpm run ci` проходит.

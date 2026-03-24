@@ -9,6 +9,8 @@ describe("channel-preferences service", () => {
         { channelCode: "telegram", isEnabledForMessages: true, isEnabledForNotifications: true },
         { channelCode: "max", isEnabledForMessages: false, isEnabledForNotifications: true },
         { channelCode: "vk", isEnabledForMessages: true, isEnabledForNotifications: true },
+        { channelCode: "sms", isEnabledForMessages: true, isEnabledForNotifications: true },
+        { channelCode: "email", isEnabledForMessages: true, isEnabledForNotifications: true },
       ];
     },
     async upsertPreference(params) {
@@ -27,13 +29,21 @@ describe("channel-preferences service", () => {
       maxId: undefined,
       vkId: undefined,
     });
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(5);
     expect(cards[0].code).toBe("telegram");
     expect(cards[0].isLinked).toBe(true);
     expect(cards[0].isEnabledForMessages).toBe(true);
     expect(cards[1].code).toBe("max");
     expect(cards[1].isLinked).toBe(false);
     expect(cards[1].isEnabledForMessages).toBe(false);
+    expect(cards[3].code).toBe("sms");
+    expect(cards[3].isLinked).toBe(false);
+    const withPhone = await service.getChannelCards(
+      "user-1",
+      { telegramId: "123", maxId: undefined, vkId: undefined },
+      { phone: "+79001234567", emailVerified: false }
+    );
+    expect(withPhone.find((c) => c.code === "sms")?.isLinked).toBe(true);
   });
 
   it("updatePreference calls port", async () => {
