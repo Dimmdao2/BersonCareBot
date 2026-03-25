@@ -5,6 +5,7 @@ import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorAppointmentActions } from "./DoctorAppointmentActions";
 
 export default async function DoctorAppointmentsPage() {
   const session = await requireDoctorAccess();
@@ -32,9 +33,12 @@ export default async function DoctorAppointmentsPage() {
           <ul id="doctor-appointments-upcoming-list" className="list">
             {appointments.map((a) => (
               <li key={a.id} id={`doctor-appointments-item-${a.id}`} className="list-item">
-                <Link href={`/app/doctor/clients/${a.clientUserId}`}>
-                  {a.time} — {a.clientLabel} ({a.type}, {a.status})
-                </Link>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <Link href={`/app/doctor/clients/${a.clientUserId}`}>
+                    {a.time} — {a.clientLabel} ({a.type}, {a.status})
+                  </Link>
+                  <DoctorAppointmentActions recordId={a.id} />
+                </div>
               </li>
             ))}
           </ul>

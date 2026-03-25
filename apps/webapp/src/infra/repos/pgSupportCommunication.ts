@@ -23,6 +23,11 @@ export type SupportConversationRow = {
   updatedAt: string;
 };
 
+export type SupportConversationRelayInfo = Pick<
+  SupportConversationRow,
+  "id" | "platformUserId" | "channelCode" | "channelExternalId"
+>;
+
 export type SupportConversationMessageRow = {
   id: string;
   integratorMessageId: string;
@@ -188,6 +193,8 @@ export type SupportCommunicationPort = {
     createdAt: string;
   }): Promise<{ id: string }>;
   listMessagesSince(conversationId: string, params: { sinceCreatedAt?: string | null; limit: number }): Promise<SupportConversationMessageRow[]>;
+  conversationExists(conversationId: string): Promise<boolean>;
+  getConversationRelayInfo(conversationId: string): Promise<SupportConversationRelayInfo | null>;
   getConversationIfOwnedByUser(conversationId: string, platformUserId: string): Promise<SupportConversationRow | null>;
   markInboundReadForUser(conversationId: string, platformUserId: string): Promise<void>;
   markUserMessagesReadByAdmin(conversationId: string): Promise<void>;
@@ -846,6 +853,36 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         [conversationId, lim]
       );
       return r.rows.map((m) => mapMessageRow(m as Record<string, unknown>));
+    },
+
+    async conversationExists(conversationId) {
+      const pool = getPool();
+      const r = await pool.query("SELECT 1 FROM support_conversations WHERE id = $1::uuid LIMIT 1", [conversationId]);
+      return r.rows.length > 0;
+    },
+
+    async getConversationRelayInfo(conversationId) {
+      const pool = getPool();
+      const r = await pool.query<{
+        id: string;
+        platform_user_id: string | null;
+        channel_code: string | null;
+        channel_external_id: string | null;
+      }>(
+        `SELECT id, platform_user_id, channel_code, channel_external_id
+         FROM support_conversations
+         WHERE id = $1::uuid
+         LIMIT 1`,
+        [conversationId]
+      );
+      const row = r.rows[0];
+      if (!row) return null;
+      return {
+        id: row.id,
+        platformUserId: row.platform_user_id,
+        channelCode: row.channel_code,
+        channelExternalId: row.channel_external_id,
+      };
     },
 
     async getConversationIfOwnedByUser(conversationId, platformUserId) {

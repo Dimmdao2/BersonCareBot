@@ -18,4 +18,5 @@ export type AppSession = {
   user: SessionUser;
   issuedAt: number;
   expiresAt: number;
+  adminMode?: boolean;
 };

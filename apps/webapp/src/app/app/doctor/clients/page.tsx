@@ -3,6 +3,8 @@
  */
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { redirect } from "next/navigation";
+import { z } from "zod";
 import { AppShell } from "@/shared/ui/AppShell";
 import { CreateClientFromRecordStub } from "./CreateClientFromRecordStub";
 import { ClientProfileCard } from "./ClientProfileCard";
@@ -25,6 +27,9 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
   const deps = buildAppDeps();
   const params = await searchParams;
   const selected = params.selected;
+  if (selected && !z.string().uuid().safeParse(selected).success) {
+    redirect(BASE);
+  }
   const [allClients, selectedData] = await Promise.all([
     deps.doctorClients.listClients({ onlyWithAppointmentRecords: true }),
     selected
@@ -45,14 +50,17 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
   return (
     <AppShell title="Клиенты" user={session.user} variant="doctor">
       <CreateClientFromRecordStub />
-      <div id="doctor-clients-master-detail" className="master-detail">
-        <div id="doctor-clients-list-column" className="master-detail__list">
-          <section id="doctor-clients-list-section" className="panel stack">
+      <div id="doctor-clients-master-detail" className="md:grid md:grid-cols-[1fr_2fr] md:gap-4">
+        <div id="doctor-clients-list-column">
+          <section
+            id="doctor-clients-list-section"
+            className="rounded-xl border border-border/60 bg-background p-4 shadow-sm flex flex-col gap-4"
+          >
             <DoctorClientsPanel allClients={allClients} urlParams={params} basePath={BASE} />
           </section>
         </div>
         {selectedProfile ? (
-          <div id="doctor-clients-detail-column" className="master-detail__detail">
+          <div id="doctor-clients-detail-column" className="hidden md:block">
             <ClientProfileCard
               profile={selectedProfile}
               messageDraft={selectedMessageDraft}

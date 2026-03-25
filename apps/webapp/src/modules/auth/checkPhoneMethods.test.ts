@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
-import {
-  __testSetOauthProviders,
-  inMemoryOAuthBindingsPort,
-} from "@/infra/repos/inMemoryOAuthBindings";
+import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
 import { resolveAuthMethodsForPhone } from "./checkPhoneMethods";
 
 describe("resolveAuthMethodsForPhone", () => {
@@ -16,9 +13,11 @@ describe("resolveAuthMethodsForPhone", () => {
     });
     expect(r.exists).toBe(false);
     expect(r.methods.sms).toBe(true);
+    // OAuth не включается в методы (скрыт до production-готовности)
+    expect(r.methods.oauth).toBeUndefined();
   });
 
-  it("returns pin and channels when user has data", async () => {
+  it("returns pin and messenger channels when user has data (no oauth in response)", async () => {
     const phone = "+79990000222";
     await inMemoryUserByPhonePort.createOrBind(phone, {
       channel: "telegram",
@@ -28,7 +27,6 @@ describe("resolveAuthMethodsForPhone", () => {
     const u = await inMemoryUserByPhonePort.findByPhone(phone);
     expect(u).not.toBeNull();
     await inMemoryUserPinsPort.upsertPinHash(u!.userId, "dummy-hash-not-verified");
-    __testSetOauthProviders(u!.userId, ["yandex"]);
 
     const r = await resolveAuthMethodsForPhone(phone, {
       userByPhonePort: inMemoryUserByPhonePort,
@@ -38,6 +36,7 @@ describe("resolveAuthMethodsForPhone", () => {
     expect(r.exists).toBe(true);
     expect(r.methods.pin).toBe(true);
     expect(r.methods.telegram).toBe(true);
-    expect(r.methods.oauth?.yandex).toBe(true);
+    // OAuth не включается в UI-методы (скрыт до production-готовности)
+    expect(r.methods.oauth).toBeUndefined();
   });
 });

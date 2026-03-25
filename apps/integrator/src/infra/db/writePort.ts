@@ -584,7 +584,7 @@ export function createDbWritePort(input: {
               daysMask,
               contentMode: contentMode as never,
             });
-            const payload = {
+            const keyPayload = {
               integratorRuleId: id,
               integratorUserId: userId,
               category,
@@ -596,11 +596,11 @@ export function createDbWritePort(input: {
               windowEndMinute,
               daysMask,
               contentMode,
-              updatedAt,
             };
+            const payload = { ...keyPayload, updatedAt };
             await enqueueProjectionEvent(txDb, {
               eventType: REMINDER_RULE_UPSERTED,
-              idempotencyKey: projectionIdempotencyKey(REMINDER_RULE_UPSERTED, id, hashPayload(payload)),
+              idempotencyKey: projectionIdempotencyKey(REMINDER_RULE_UPSERTED, id, hashPayload(keyPayload)),
               occurredAt: updatedAt,
               payload,
             });

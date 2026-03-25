@@ -1,5 +1,82 @@
-import { describe, expect, it } from 'vitest';
-import { rubitimeIncomingToEvent } from './connector.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const syncAppointmentToCalendarMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../google-calendar/sync.js', () => ({
+  syncAppointmentToCalendar: (...args: unknown[]) => syncAppointmentToCalendarMock(...args),
+}));
+
+import {
+  buildUserEmailAutobindWebappEvent,
+  rubitimeIncomingToEvent,
+  syncRubitimeWebhookBodyToGoogleCalendar,
+} from './connector.js';
+
+describe('Rubitime email autobind webapp event', () => {
+  it('emits user.email.autobind for event-create-record with phone+email', () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-create-record' as const,
+      data: {
+        record: { id: '1', phone: '+79990001122', email: 'ivan@example.com' },
+      },
+    };
+    const ev = buildUserEmailAutobindWebappEvent(body);
+    expect(ev?.eventType).toBe('user.email.autobind');
+    expect(ev?.payload).toEqual({ phoneNormalized: '+79990001122', email: 'ivan@example.com' });
+    expect(ev?.idempotencyKey).toContain('rubitime:email-autobind:');
+  });
+
+  it('returns null for event-update-record', () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-update-record' as const,
+      data: {
+        record: { id: '1', phone: '+79990001122', email: 'ivan@example.com' },
+      },
+    };
+    expect(buildUserEmailAutobindWebappEvent(body)).toBeNull();
+  });
+});
+
+describe('rubitime Google Calendar sync (connector)', () => {
+  beforeEach(() => {
+    syncAppointmentToCalendarMock.mockReset();
+  });
+
+  it('invokes calendar sync from validated webhook body (connector layer)', async () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-create-record' as const,
+      data: {
+        record: {
+          id: '99',
+          record: '2026-01-01 10:00:00',
+          name: 'Test',
+        },
+      },
+    };
+    await syncRubitimeWebhookBodyToGoogleCalendar(body);
+    expect(syncAppointmentToCalendarMock).toHaveBeenCalledTimes(1);
+    expect(syncAppointmentToCalendarMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'created',
+        rubRecordId: '99',
+        recordAt: '2026-01-01 10:00:00',
+      }),
+    );
+  });
+
+  it('does not call sync when record id is missing', async () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-create-record' as const,
+      data: { record: { record: '2026-01-01 10:00:00' } },
+    };
+    await syncRubitimeWebhookBodyToGoogleCalendar(body);
+    expect(syncAppointmentToCalendarMock).not.toHaveBeenCalled();
+  });
+});
 
 describe('rubitimeIncomingToEvent', () => {
   it('maps validated body into normalized incoming payload for orchestrator', () => {

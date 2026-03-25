@@ -102,6 +102,10 @@ Examples:
 - `diary.lfk.complex.created` — payload: `userId`, `title`, optional `origin` (`manual` | `assigned_by_specialist`)
 - `diary.lfk.session.created` — payload: `userId`, `complexId`, `completedAt` (ISO), optional
 
+**Rubitime / профиль:**
+
+- `user.email.autobind` — payload: `phoneNormalized`, `email`. Эмитится интегратором при `event-create-record`, если в записи есть телефон и email. В webapp: невалидный email → пропуск; уже есть подтверждённый email → пропуск; email занят другим пользователем → конфликт (лог), автопривязка не выполняется; иначе email сохраняется как неподтверждённый.
+
 ### `POST /api/integrator/reminders/dispatch`
 
 Purpose:
@@ -186,6 +190,136 @@ Canonical linking rules:
 - `503`: `{ "ok": false, "error": "service_unconfigured" }` — не задан секрет
 
 **Сценарий интегратора:** получение запроса от bersoncare → проверка подписи → вызов SMSC (или заглушки) с текстом вида «Ваш код BersonCare: {code}». Повторная проверка кода и привязка номера — только в вебапп.
+
+---
+
+## Flow 5: BersonCare → Integrator (send email code)
+
+**Направление:** webapp (bersoncare) вызывает integrator для отправки email с OTP-кодом подтверждения. Генерация и проверка кода остаются на стороне webapp.
+
+### Запрос от webapp к integrator
+
+**Метод и URL:** `POST {INTEGRATOR_API_URL}/api/bersoncare/send-email`
+
+**Заголовки:**
+
+- `Content-Type: application/json`
+- `X-Bersoncare-Timestamp` — Unix timestamp (секунды), строка
+- `X-Bersoncare-Signature` — подпись: `HMAC-SHA256(secret, timestamp + "." + rawBody)` в base64url
+
+**Тело (JSON):**
+
+```json
+{
+  "to": "patient@example.com",
+  "subject": "Ваш код BersonCare",
+  "code": "123456",
+  "templateId": "otp-default"
+}
+```
+
+Поля:
+
+- `to` — email получателя (обязательно)
+- `code` — OTP-код (обязательно)
+- `subject` — тема письма (опционально)
+- `templateId` — идентификатор шаблона для будущего расширения (опционально)
+
+**Ответы integrator:**
+
+- `200 { "ok": true }` — письмо принято к отправке
+- `400 { "ok": false, "error": "missing_headers" | "invalid_payload" }`
+- `401 { "ok": false, "error": "invalid_signature" }`
+- `503 { "ok": false, "error": "email_not_configured" }` — SMTP/mailer не настроен
+
+---
+
+## Flow 6: BersonCare → Integrator (relay-outbound)
+
+**Направление:** webapp (bersoncare) вызывает integrator для доставки сообщения врача пациенту через его мессенджер-канал.
+
+### Запрос от webapp к integrator
+
+**Метод и URL:** `POST {INTEGRATOR_API_URL}/api/bersoncare/relay-outbound`
+
+**Заголовки:**
+
+- `Content-Type: application/json`
+- `X-Bersoncare-Timestamp` — Unix timestamp (секунды), строка
+- `X-Bersoncare-Signature` — подпись: `HMAC-SHA256(secret, timestamp + "." + rawBody)` в base64url
+
+**Тело (JSON):**
+
+```json
+{
+  "messageId": "webapp-msg:uuid",
+  "channel": "telegram" | "max" | "sms" | "email",
+  "recipient": "chatId или phoneNormalized",
+  "text": "Текст сообщения",
+  "idempotencyKey": "messageId:channel:recipient",
+  "metadata": { "optional": "meta" }
+}
+```
+
+**Idempotency key:** `${messageId}:${channel}:${recipient}` — TTL 24 часа (in-memory).
+
+**Ответы integrator:**
+
+- `200 { ok: true, status: "accepted" }` — принято, доставлено в канал.
+- `200 { ok: true, status: "duplicate" }` — idempotency hit, уже обрабатывалось.
+- `400 { ok: false, error: "invalid_payload" | "missing_headers" }` — невалидный запрос.
+- `401 { ok: false, error: "invalid_signature" }` — неверная подпись.
+- `502 { ok: false, error: "dispatch_failed" }` — ошибка доставки в канал.
+- `503 { ok: false, error: "service_unconfigured" }` — не задан секрет.
+
+### Retry-политика webapp
+
+Клиент `relayOutbound` в webapp делает до 4 попыток с задержками: `0s → 10s → 60s → 5min`.
+
+### dev_mode guard
+
+Если в `system_settings` включён `dev_mode` (scope: admin), relay отправляется только для userId из whitelist `integration_test_ids`. Проверка выполняется через `systemSettingsService.shouldDispatch(userId)`.
+
+### Каналы dispatch
+
+| channel | recipient | Адаптер integrator |
+|---------|-----------|-------------------|
+| `telegram` | chatId (string/number) | `createTelegramDeliveryAdapter` |
+| `max` | chatId (string/number) | `createMaxDeliveryAdapter` |
+| `sms` | phoneNormalized | `createSmscDeliveryAdapter` |
+| `email` | не реализован | пропуск с логом |
+
+---
+
+## Flow: BersonCare → Integrator (Rubitime record reverse API)
+
+**Направление:** вебапп (сессия врача) вызывает интегратор; интегратор — `POST https://rubitime.ru/api2/update-record` / `remove-record` с API-ключом Rubitime.
+
+### `POST {INTEGRATOR_API_URL}/api/bersoncare/rubitime/update-record`
+
+**Заголовки:** как Flow 4 (`X-Bersoncare-Timestamp`, `X-Bersoncare-Signature`, raw JSON body).
+
+**Тело:**
+
+```json
+{
+  "recordId": "79379",
+  "patch": { "status": 4 }
+}
+```
+
+`patch` — дополнительные поля Rubitime API (кроме `id`/`rk`, они подставляются интегратором).
+
+### `POST {INTEGRATOR_API_URL}/api/bersoncare/rubitime/remove-record`
+
+**Тело:** `{ "recordId": "79379" }` (или числовой `recordId`).
+
+**Webapp proxy (doctor):**
+
+- `POST /api/doctor/appointments/rubitime/update`
+- `POST /api/doctor/appointments/rubitime/cancel`
+
+Те же подписи к integrator формируются на стороне webapp через общий webhook secret.
 
 ---
 

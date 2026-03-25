@@ -211,35 +211,11 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
     };
   }, [step, messengerToken, nextParam, router]);
 
-  const startYandex = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/oauth/start", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "yandex" }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        authUrl?: string;
-        message?: string;
-      };
-      if (res.status === 501 || !data.ok || !data.authUrl) {
-        toast.error(data.message ?? "OAuth сейчас недоступен");
-        return;
-      }
-      window.location.href = data.authUrl;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const onMethod = (m: "pin" | "sms" | "telegram" | "max" | "oauth_yandex") => {
     if (m === "pin") setStep("pin");
     else if (m === "sms") void startSms();
     else if (m === "telegram") void startMessenger("telegram");
     else if (m === "max") void startMessenger("max");
-    else if (m === "oauth_yandex") void startYandex();
   };
 
   if (step === "phone") {

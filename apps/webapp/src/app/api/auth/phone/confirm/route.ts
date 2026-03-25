@@ -1,24 +1,26 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+
+const bodySchema = z.object({
+  challengeId: z.string().trim().min(1),
+  code: z.string().trim().min(1),
+});
 
 /**
  * Confirm phone code. Channel/chatId/displayName are never read from body;
  * binding uses only the context stored in the challenge at start.
  */
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as {
-    challengeId?: string;
-    code?: string;
-  } | null;
-
-  const challengeId = typeof body?.challengeId === "string" ? body.challengeId.trim() : "";
-  const code = typeof body?.code === "string" ? body.code.trim() : "";
-  if (!challengeId || !code) {
+  const raw = (await request.json().catch(() => null)) as unknown;
+  const parsed = bodySchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json(
       { ok: false, error: "challenge_id_and_code_required", message: "Код подтверждения обязателен" },
       { status: 400 }
     );
   }
+  const { challengeId, code } = parsed.data;
 
   const deps = buildAppDeps();
   const result = await deps.auth.confirmPhoneAuth(challengeId, code);

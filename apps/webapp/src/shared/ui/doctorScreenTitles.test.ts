@@ -23,6 +23,16 @@ describe("getDoctorScreenTitle", () => {
   it("returns news and motivation title", () => {
     expect(getDoctorScreenTitle("/app/doctor/content/news")).toBe("Новости и мотивация");
   });
+  it("returns exercises titles", () => {
+    expect(getDoctorScreenTitle("/app/doctor/exercises")).toBe("Упражнения ЛФК");
+    expect(getDoctorScreenTitle("/app/doctor/exercises/new")).toBe("Новое упражнение");
+    expect(getDoctorScreenTitle("/app/doctor/exercises/abc")).toBe("Редактирование упражнения");
+  });
+  it("returns lfk template titles", () => {
+    expect(getDoctorScreenTitle("/app/doctor/lfk-templates")).toBe("Шаблоны ЛФК");
+    expect(getDoctorScreenTitle("/app/doctor/lfk-templates/new")).toBe("Новый шаблон ЛФК");
+    expect(getDoctorScreenTitle("/app/doctor/lfk-templates/abc")).toBe("Конструктор шаблона ЛФК");
+  });
   it("normalizes trailing slash on overview", () => {
     expect(getDoctorScreenTitle("/app/doctor/")).toBe("Обзор");
   });

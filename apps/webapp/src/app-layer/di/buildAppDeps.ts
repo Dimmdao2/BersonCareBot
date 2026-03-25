@@ -4,6 +4,7 @@
  * хранилища в БД (дневники, настройки каналов), иначе — хранилища в памяти.
  */
 
+import { cache } from "react";
 import {
   getCurrentSession,
   exchangeIntegratorToken,
@@ -78,6 +79,10 @@ import { createPatientMessagingService } from "@/modules/messaging/patientMessag
 import { createDoctorSupportMessagingService } from "@/modules/messaging/doctorSupportMessagingService";
 import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjection";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
+import { createPgReminderRulesPort } from "@/infra/repos/pgReminderRules";
+import { createInMemoryReminderRulesPort } from "@/infra/repos/inMemoryReminderRules";
+import { createRemindersService } from "@/modules/reminders/service";
+import { notifyIntegratorRuleUpdated } from "@/modules/reminders/notifyIntegrator";
 import { createPgAppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
 import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
 import { createPgDoctorNotesPort } from "@/infra/repos/pgDoctorNotes";
@@ -85,7 +90,19 @@ import { inMemoryDoctorNotesPort } from "@/infra/repos/inMemoryDoctorNotes";
 import { createPgBranchesProjectionPort } from "@/infra/repos/pgBranches";
 import { createPgSubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
 import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemorySubscriptionMailingProjection";
-import { checkDbHealth, getPool } from "@/infra/db/client";
+import { createPgSystemSettingsPort } from "@/infra/repos/pgSystemSettings";
+import { inMemorySystemSettingsPort } from "@/infra/repos/inMemorySystemSettings";
+import { createSystemSettingsService } from "@/modules/system-settings/service";
+import { createLfkExercisesService } from "@/modules/lfk-exercises/service";
+import { pgLfkExercisesPort } from "@/infra/repos/pgLfkExercises";
+import { inMemoryLfkExercisesPort } from "@/infra/repos/inMemoryLfkExercises";
+import { createLfkTemplatesService } from "@/modules/lfk-templates/service";
+import { pgLfkTemplatesPort } from "@/infra/repos/pgLfkTemplates";
+import { inMemoryLfkTemplatesPort } from "@/infra/repos/inMemoryLfkTemplates";
+import { createLfkAssignmentsService } from "@/modules/lfk-assignments/service";
+import type { LfkAssignmentsPort } from "@/modules/lfk-assignments/ports";
+import { pgLfkAssignmentsPort } from "@/infra/repos/pgLfkAssignments";
+import { checkDbHealth } from "@/infra/db/client";
 import { env, integratorWebhookSecret } from "@/config/env";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
@@ -112,6 +129,12 @@ const supportCommunicationPort = env.DATABASE_URL
 const reminderProjectionPort = env.DATABASE_URL
   ? createPgReminderProjectionPort()
   : inMemoryReminderProjectionPort;
+const reminderRulesPort = env.DATABASE_URL
+  ? createPgReminderRulesPort()
+  : createInMemoryReminderRulesPort();
+const remindersService = createRemindersService(reminderRulesPort, {
+  notifyIntegrator: notifyIntegratorRuleUpdated,
+});
 const appointmentProjectionPort = env.DATABASE_URL
   ? createPgAppointmentProjectionPort()
   : inMemoryAppointmentProjectionPort;
@@ -125,10 +148,31 @@ const referencesPort = env.DATABASE_URL ? pgReferencesPort : inMemoryReferencesP
 const doctorNotesPort = env.DATABASE_URL ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
 
+const systemSettingsPort = env.DATABASE_URL ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
+const systemSettingsService = createSystemSettingsService(systemSettingsPort);
+
+const lfkExercisesPort = env.DATABASE_URL ? pgLfkExercisesPort : inMemoryLfkExercisesPort;
+const lfkExercisesService = createLfkExercisesService(lfkExercisesPort);
+
+const lfkTemplatesPort = env.DATABASE_URL ? pgLfkTemplatesPort : inMemoryLfkTemplatesPort;
+const lfkTemplatesService = createLfkTemplatesService(lfkTemplatesPort);
+
+const lfkAssignmentsStubPort: LfkAssignmentsPort = {
+  async assignPublishedTemplateToPatient() {
+    throw new Error("Назначение шаблона ЛФК доступно только при подключённой базе данных.");
+  },
+};
+const lfkAssignmentsPortResolved: LfkAssignmentsPort = env.DATABASE_URL
+  ? pgLfkAssignmentsPort
+  : lfkAssignmentsStubPort;
+const lfkAssignmentsService = createLfkAssignmentsService(lfkAssignmentsPortResolved);
+
 const patientMessagingService = createPatientMessagingService(supportCommunicationPort, {
   isUserMessagingBlocked: (uid) => doctorClientsPort.isClientMessagingBlocked(uid),
 });
-const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort);
+const doctorSupportMessagingService = createDoctorSupportMessagingService(supportCommunicationPort, {
+  shouldDispatch: (userId: string) => systemSettingsService.shouldDispatch(userId),
+});
 
 function linkFromPayload(payload: Record<string, unknown>): string | null {
   const link = payload?.link;
@@ -160,13 +204,8 @@ const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]>
   env.DATABASE_URL && appointmentProjectionPort
     ? async (userId: string) => {
         try {
-          const pool = getPool();
-          const res = await pool.query<{ phone_normalized: string | null }>(
-            "SELECT phone_normalized FROM platform_users WHERE id = $1",
-            [userId]
-          );
-          const phone = res.rows[0]?.phone_normalized;
-          if (!phone || typeof phone !== "string") return [];
+          const phone = await userByPhonePort.getPhoneByUserId(userId);
+          if (!phone) return [];
           const rows = await appointmentProjectionPort.listActiveByPhoneNormalized(phone);
           return rows.map((row) => ({
             id: row.integratorRecordId,
@@ -216,11 +255,13 @@ async function listAppointmentHistoryForPhone(phone: string | null): Promise<Cli
     label: row.recordAt
       ? `${new Date(row.recordAt).toLocaleString("ru-RU")} · ${row.status}`
       : row.status,
+    lastEvent: row.lastEvent,
+    updatedAt: row.updatedAt,
   }));
 }
 
 /** Возвращает объект со всеми сервисами приложения для использования на страницах и в API. */
-export function buildAppDeps() {
+function _buildAppDeps() {
   const doctorClients = createDoctorClientsService({
     clientsPort: doctorClientsPort,
     getUpcomingAppointments,
@@ -361,6 +402,7 @@ export function buildAppDeps() {
       upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
       updateRole: userProjectionPort.updateRole,
       getProfileEmailFields: userProjectionPort.getProfileEmailFields,
+      applyRubitimeEmailAutobind: userProjectionPort.applyRubitimeEmailAutobind,
     },
     supportCommunication: supportCommunicationPort,
     /** Поддержка: чат webapp ↔ админ (этап 8). */
@@ -368,6 +410,7 @@ export function buildAppDeps() {
       patient: patientMessagingService,
       doctorSupport: doctorSupportMessagingService,
     },
+    reminders: remindersService,
     reminderProjection: reminderProjectionPort,
     appointmentProjection: appointmentProjectionPort,
     branches: branchesProjectionPort ?? undefined,
@@ -377,5 +420,15 @@ export function buildAppDeps() {
     userPins: userPinsPort,
     oauthBindings: oauthBindingsPort,
     loginTokens: loginTokensPort,
+    systemSettings: systemSettingsService,
+    lfkExercises: lfkExercisesService,
+    lfkTemplates: lfkTemplatesService,
+    lfkAssignments: lfkAssignmentsService,
   };
 }
+
+/**
+ * Одна мемоизированная сборка на один server request (React.cache в Next RSC).
+ * В юнит-тестах без request-scope повторные вызовы могут давать разные объекты.
+ */
+export const buildAppDeps = cache(_buildAppDeps);

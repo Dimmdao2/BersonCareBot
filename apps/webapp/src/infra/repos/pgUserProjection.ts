@@ -31,6 +31,13 @@ export type UserProjectionPort = {
     email: string | null;
     emailVerifiedAt: string | null;
   }>;
+  /** Rubitime webhook → user.email.autobind (USER_TODO_STAGE: invalid skip, verified skip, conflict warn). */
+  applyRubitimeEmailAutobind: (params: {
+    phoneNormalized: string;
+    email: string;
+  }) => Promise<{
+    outcome: "applied" | "skipped_no_user" | "skipped_invalid_email" | "skipped_verified" | "skipped_conflict";
+  }>;
 };
 
 export const pgUserProjectionPort: UserProjectionPort = {
@@ -212,6 +219,47 @@ export const pgUserProjectionPort: UserProjectionPort = {
     }
   },
 
+  async applyRubitimeEmailAutobind(params) {
+    const emailNorm = params.email.trim();
+    const basic =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm) && emailNorm.length <= 320;
+    if (!basic) {
+      return { outcome: "skipped_invalid_email" as const };
+    }
+    const phone = params.phoneNormalized.trim();
+    const pool = getPool();
+    const row = await pool.query<{ id: string; email_verified_at: Date | null }>(
+      "SELECT id, email_verified_at FROM platform_users WHERE phone_normalized = $1",
+      [phone]
+    );
+    if (row.rows.length === 0) {
+      return { outcome: "skipped_no_user" as const };
+    }
+    const u = row.rows[0];
+    if (u.email_verified_at) {
+      return { outcome: "skipped_verified" as const };
+    }
+    const conflict = await pool.query<{ id: string }>(
+      `SELECT id FROM platform_users
+       WHERE id <> $1 AND email IS NOT NULL AND lower(trim(email)) = lower(trim($2))`,
+      [u.id, emailNorm]
+    );
+    if (conflict.rows.length > 0) {
+      console.warn("[user.email.autobind:conflict]", {
+        phoneNormalized: phone,
+        email: emailNorm,
+        conflictingUserId: conflict.rows[0].id,
+      });
+      return { outcome: "skipped_conflict" as const };
+    }
+    await pool.query(
+      `UPDATE platform_users SET email = $1, email_verified_at = NULL, updated_at = now()
+       WHERE id = $2`,
+      [emailNorm, u.id]
+    );
+    return { outcome: "applied" as const };
+  },
+
   async getProfileEmailFields(platformUserId) {
     const pool = getPool();
     const result = await pool.query<{ email: string | null; email_verified_at: Date | null }>(
@@ -238,4 +286,5 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   upsertNotificationTopics: async () => {},
   updateRole: async () => {},
   getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
+  applyRubitimeEmailAutobind: async () => ({ outcome: "skipped_no_user" }),
 };

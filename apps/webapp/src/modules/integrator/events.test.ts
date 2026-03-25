@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { handleIntegratorEvent, type IntegratorEventsDeps } from "./events";
+import {
+  handleIntegratorEvent,
+  setEmailAutobindConflictReporter,
+  type IntegratorEventsDeps,
+} from "./events";
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
 import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
@@ -16,6 +20,41 @@ const mockDeps: IntegratorEventsDeps = {
 };
 
 describe("handleIntegratorEvent", () => {
+  it("reports conflict for user.email.autobind skipped_conflict", async () => {
+    const reporter = vi.fn();
+    setEmailAutobindConflictReporter(reporter);
+    const applyRubitimeEmailAutobind = vi.fn().mockResolvedValue({ outcome: "skipped_conflict" });
+
+    try {
+      const result = await handleIntegratorEvent(
+        {
+          eventType: "user.email.autobind",
+          payload: { phoneNormalized: "+79991112233", email: "a@b.co" },
+        },
+        {
+          ...mockDeps,
+          users: {
+            upsertFromProjection: vi.fn(),
+            findByIntegratorId: vi.fn(),
+            updatePhone: vi.fn(),
+            updateProfileByPhone: vi.fn(),
+            applyRubitimeEmailAutobind,
+          },
+        }
+      );
+
+      expect(result.accepted).toBe(true);
+      expect(reporter).toHaveBeenCalledWith({
+        phoneNormalized: "+79991112233",
+        email: "a@b.co",
+      });
+    } finally {
+      setEmailAutobindConflictReporter((ctx) => {
+        console.warn("[user.email.autobind:conflict]", ctx);
+      });
+    }
+  });
+
   it("accepts diary.symptom.tracking.created with valid payload", async () => {
     const deps = buildAppDeps();
     const result = await handleIntegratorEvent(
@@ -731,6 +770,10 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       listRulesByIntegratorUserId: vi.fn().mockResolvedValue([]),
       getRuleByIntegratorUserIdAndCategory: vi.fn().mockResolvedValue(null),
       listHistoryByIntegratorUserId: vi.fn().mockResolvedValue([]),
+      getUnseenCount: vi.fn().mockResolvedValue(0),
+      getStats: vi.fn().mockResolvedValue({ total: 0, seen: 0, unseen: 0, failed: 0 }),
+      markSeen: vi.fn().mockResolvedValue(undefined),
+      markAllSeen: vi.fn().mockResolvedValue(undefined),
     };
     const depsContent: IntegratorEventsDeps = { ...mockDeps, reminderProjection: mockRp };
     const payload = {
@@ -1223,5 +1266,30 @@ describe("handleIntegratorEvent: Stage 11 subscription/mailing projection ingest
     );
     expect(result.accepted).toBe(false);
     expect(result.reason).toContain("not implemented");
+  });
+
+  it("accepts user.email.autobind and calls applyRubitimeEmailAutobind", async () => {
+    const applyRubitimeEmailAutobind = vi.fn().mockResolvedValue({ outcome: "applied" });
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "user.email.autobind",
+        payload: { phoneNormalized: "+79991112233", email: "a@b.co" },
+      },
+      {
+        ...mockDeps,
+        users: {
+          upsertFromProjection: vi.fn(),
+          findByIntegratorId: vi.fn(),
+          updatePhone: vi.fn(),
+          updateProfileByPhone: vi.fn(),
+          applyRubitimeEmailAutobind,
+        },
+      }
+    );
+    expect(result.accepted).toBe(true);
+    expect(applyRubitimeEmailAutobind).toHaveBeenCalledWith({
+      phoneNormalized: "+79991112233",
+      email: "a@b.co",
+    });
   });
 });

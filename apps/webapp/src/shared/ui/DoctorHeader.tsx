@@ -20,10 +20,11 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
-import { useDoctorSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
+import { useDoctorSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
+  adminMode?: boolean;
 };
 
 const DOCTOR_SHEET_LINK_CLASS = cn(
@@ -39,11 +40,13 @@ const DOCTOR_MENU_LINKS: { id: string; label: string; href: string }[] = [
   { id: "messages", label: "Сообщения", href: "/app/doctor/messages" },
   { id: "broadcasts", label: "Рассылки", href: "/app/doctor/broadcasts" },
   { id: "references", label: "Справочники", href: "/app/doctor/references" },
+  { id: "exercises", label: "Упражнения", href: "/app/doctor/exercises" },
+  { id: "lfk-templates", label: "Шаблоны ЛФК", href: "/app/doctor/lfk-templates" },
   { id: "content", label: "CMS", href: "/app/doctor/content" },
   { id: "stats", label: "Статистика", href: "/app/doctor/stats" },
 ];
 
-export function DoctorHeader({ userDisplayName }: DoctorHeaderProps) {
+export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? "/app/doctor";
   const title = getDoctorScreenTitle(pathname);
@@ -61,7 +64,10 @@ export function DoctorHeader({ userDisplayName }: DoctorHeaderProps) {
     <>
       <header
         id="doctor-header"
-        className="fixed top-0 right-0 left-0 z-50 border-b border-border/70 bg-background/95 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80"
+        className={cn(
+          "fixed top-0 right-0 left-0 z-50 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80",
+          adminMode ? "bg-destructive/10" : "bg-background/95"
+        )}
       >
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 md:px-4">
           <div className="flex min-w-0 shrink-0 items-center gap-1">
@@ -88,12 +94,19 @@ export function DoctorHeader({ userDisplayName }: DoctorHeaderProps) {
             </Link>
           </div>
 
-          <p
-            className="min-w-0 flex-1 truncate text-center text-sm font-medium text-muted-foreground"
-            title={title}
-          >
-            {title}
-          </p>
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
+            <p
+              className="min-w-0 truncate text-center text-sm font-medium text-muted-foreground"
+              title={title}
+            >
+              {title}
+            </p>
+            {adminMode ? (
+              <span className="shrink-0 rounded bg-destructive px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive-foreground">
+                ADMIN MODE
+              </span>
+            ) : null}
+          </div>
 
           <div className="flex shrink-0 items-center gap-0.5">
             <Link

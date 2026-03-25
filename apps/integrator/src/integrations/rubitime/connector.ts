@@ -1,4 +1,5 @@
-import type { IncomingEvent } from '../../kernel/contracts/index.js';
+import type { IncomingEvent, WebappEventBody } from '../../kernel/contracts/index.js';
+import { syncAppointmentToCalendar, type RubitimeCalendarSyncEvent } from '../google-calendar/sync.js';
 import type { RubitimeWebhookBodyValidated } from './schema.js';
 
 type RubitimeIncomingPayload = {
@@ -137,6 +138,49 @@ function buildRubitimeDedupFingerprint(incoming: RubitimeIncomingPayload): Recor
     recordAt: incoming.recordAt ?? null,
     updatedAt: incoming.updatedAt ?? null,
   };
+}
+
+/** Событие для webapp: автопривязка email из Rubitime (только event-create-record, см. USER_TODO_STAGE). */
+export function buildUserEmailAutobindWebappEvent(body: RubitimeWebhookBodyValidated): WebappEventBody | null {
+  if (body.event !== 'event-create-record') return null;
+  const inc = toRubitimeIncoming(body);
+  const email = inc.clientEmail?.trim();
+  const phone = inc.phone?.trim();
+  if (!email || !phone) return null;
+  const rid = inc.recordId?.trim() ?? '';
+  const idem = `rubitime:email-autobind:${rid || phone}:${email}`;
+  return {
+    eventType: 'user.email.autobind',
+    idempotencyKey: idem.slice(0, 240),
+    payload: { phoneNormalized: phone, email },
+  };
+}
+
+/**
+ * Google Calendar projection: вызывается из Rubitime ingress (webhook) один раз на обработанное тело.
+ * Слой sync по EXEC — connector, не дублировать вызов из других мест на тот же webhook.
+ */
+export async function syncRubitimeWebhookBodyToGoogleCalendar(body: RubitimeWebhookBodyValidated): Promise<void> {
+  const incoming = toRubitimeIncoming(body);
+  if (
+    incoming.action !== 'created'
+    && incoming.action !== 'updated'
+    && incoming.action !== 'canceled'
+  ) {
+    return;
+  }
+  const recordId = incoming.recordId;
+  if (typeof recordId !== 'string' || recordId.trim().length === 0) {
+    return;
+  }
+  const syncPayload: RubitimeCalendarSyncEvent = {
+    action: incoming.action,
+    rubRecordId: recordId.trim(),
+  };
+  if (incoming.recordAt !== undefined) syncPayload.recordAt = incoming.recordAt;
+  if (incoming.record !== undefined) syncPayload.record = incoming.record;
+  if (incoming.clientName !== undefined) syncPayload.clientName = incoming.clientName;
+  await syncAppointmentToCalendar(syncPayload);
 }
 
 /** Оборачивает валидированный Rubitime webhook в универсальный IncomingEvent. */

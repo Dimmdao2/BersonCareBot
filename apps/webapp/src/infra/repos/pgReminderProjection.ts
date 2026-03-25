@@ -87,6 +87,28 @@ export type ReminderProjectionPort = {
     integratorUserId: string,
     limit?: number
   ): Promise<ReminderOccurrenceHistoryItem[]>;
+  /**
+   * Кол-во непросмотренных occurrence для пользователя (webapp platform_user_id).
+   * Колонка seen_at добавляется в миграции 032. До миграции — всегда 0.
+   */
+  getUnseenCount(platformUserId: string): Promise<number>;
+  /**
+   * Статистика occurrence за N дней для пользователя (webapp platform_user_id).
+   * Добавляется в D.5; до миграции — нулевые агрегаты.
+   */
+  getStats(
+    platformUserId: string,
+    days: number
+  ): Promise<{ total: number; seen: number; unseen: number; failed: number }>;
+  /**
+   * Отмечает occurrence как просмотренные (seen_at = now()) для текущего пользователя.
+   * Добавляется в D.5.
+   */
+  markSeen(platformUserId: string, occurrenceIds: string[]): Promise<void>;
+  /**
+   * Отмечает ВСЕ непросмотренные occurrence текущего пользователя как просмотренные.
+   */
+  markAllSeen(platformUserId: string): Promise<void>;
 };
 
 function resolvePlatformUserId(
@@ -325,6 +347,82 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         errorCode: row.error_code,
         occurredAt: row.occurred_at,
       }));
+    },
+
+    async getUnseenCount(platformUserId: string) {
+      const pool = getPool();
+      try {
+        const r = await pool.query<{ cnt: string }>(
+          `SELECT COUNT(*)::text AS cnt
+           FROM reminder_occurrence_history roh
+           JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
+           WHERE pu.id = $1 AND roh.seen_at IS NULL`,
+          [platformUserId],
+        );
+        return parseInt(r.rows[0]?.cnt ?? "0", 10);
+      } catch {
+        // seen_at column doesn't exist yet (migration 032 pending)
+        return 0;
+      }
+    },
+
+    async getStats(platformUserId: string, days: number) {
+      const pool = getPool();
+      try {
+        const r = await pool.query<{
+          total: string;
+          seen: string;
+          unseen: string;
+          failed: string;
+        }>(
+          `SELECT
+             COUNT(*)::text AS total,
+             COUNT(*) FILTER (WHERE roh.seen_at IS NOT NULL)::text AS seen,
+             COUNT(*) FILTER (WHERE roh.seen_at IS NULL)::text AS unseen,
+             COUNT(*) FILTER (WHERE roh.status = 'failed')::text AS failed
+           FROM reminder_occurrence_history roh
+           JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
+           WHERE pu.id = $1
+             AND roh.occurred_at >= now() - make_interval(days => $2)`,
+          [platformUserId, days],
+        );
+        const row = r.rows[0];
+        return {
+          total: parseInt(row?.total ?? "0", 10),
+          seen: parseInt(row?.seen ?? "0", 10),
+          unseen: parseInt(row?.unseen ?? "0", 10),
+          failed: parseInt(row?.failed ?? "0", 10),
+        };
+      } catch {
+        return { total: 0, seen: 0, unseen: 0, failed: 0 };
+      }
+    },
+
+    async markSeen(platformUserId: string, occurrenceIds: string[]) {
+      if (occurrenceIds.length === 0) return;
+      const pool = getPool();
+      await pool.query(
+        `UPDATE reminder_occurrence_history
+         SET seen_at = now()
+         WHERE integrator_occurrence_id = ANY($1)
+           AND integrator_user_id IN (
+             SELECT integrator_user_id FROM platform_users WHERE id = $2
+           )`,
+        [occurrenceIds, platformUserId],
+      );
+    },
+
+    async markAllSeen(platformUserId: string) {
+      const pool = getPool();
+      await pool.query(
+        `UPDATE reminder_occurrence_history
+         SET seen_at = now()
+         WHERE seen_at IS NULL
+           AND integrator_user_id IN (
+             SELECT integrator_user_id FROM platform_users WHERE id = $1
+           )`,
+        [platformUserId],
+      );
     },
   };
 }

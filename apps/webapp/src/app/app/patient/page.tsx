@@ -59,7 +59,7 @@ export default async function PatientHomePage() {
   ]);
 
   if (session?.user && homeNews) {
-    await incrementNewsViews(homeNews.id);
+    void incrementNewsViews(homeNews.id);
   }
 
   return (

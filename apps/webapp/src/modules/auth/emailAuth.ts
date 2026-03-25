@@ -1,7 +1,8 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { getPool } from "@/infra/db/client";
 import { env, integratorWebhookSecret } from "@/config/env";
 import { OTP_LOCK_DURATION_SEC, OTP_MAX_VERIFY_ATTEMPTS, OTP_RESEND_COOLDOWN_SEC } from "@/modules/auth/otpConstants";
+import { sendEmailCodeViaIntegrator } from "@/infra/integrations/email/integratorEmailAdapter";
 
 const CHALLENGE_TTL_SEC = 600; // 10 min
 
@@ -29,7 +30,7 @@ function generateEmailCode(): string {
 
 export type EmailStartResult =
   | { ok: true; challengeId: string; retryAfterSeconds?: number }
-  | { ok: false; code: "invalid_email" | "rate_limited" | "too_many_attempts"; retryAfterSeconds?: number };
+  | { ok: false; code: "invalid_email" | "rate_limited" | "too_many_attempts" | "email_send_failed"; retryAfterSeconds?: number };
 
 export type EmailConfirmResult =
   | { ok: true }
@@ -46,7 +47,11 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
     const challengeId = randomUUID();
     const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
     memEmailChallenges.set(challengeId, { userId, email, code, expiresAt, attempts: 0 });
-    console.info(`[emailAuth] (no DB) OTP for ${email}: ${code}`);
+    const sent = await sendEmailCodeViaIntegrator(email, code);
+    if (!sent.ok) {
+      memEmailChallenges.delete(challengeId);
+      return { ok: false, code: "email_send_failed" };
+    }
     return { ok: true, challengeId, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
   }
 
@@ -80,15 +85,17 @@ export async function startEmailChallenge(userId: string, emailRaw: string): Pro
     [userId, email, codeHash, expiresAt]
   );
   const challengeId = ins.rows[0].id;
-
+  const sent = await sendEmailCodeViaIntegrator(email, code);
+  if (!sent.ok) {
+    await pool.query("DELETE FROM email_challenges WHERE id = $1", [challengeId]);
+    return { ok: false, code: "email_send_failed" };
+  }
   await pool.query(
     `INSERT INTO email_send_cooldowns (user_id, email_normalized, last_sent_at)
      VALUES ($1, $2, now())
      ON CONFLICT (user_id, email_normalized) DO UPDATE SET last_sent_at = now()`,
     [userId, email]
   );
-
-  console.info(`[emailAuth] OTP for ${email} (user ${userId}): ${code}`);
 
   return { ok: true, challengeId, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
 }

@@ -16,7 +16,8 @@ import {
 import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
-import { usePatientSupportUnreadCount } from "@/modules/messaging/hooks/useSupportUnreadPolling";
+import { usePatientSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
+import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 
 /** Единый стиль пунктов бокового меню (Sheet). */
 const SHEET_NAV_LINK_CLASS = cn(
@@ -27,6 +28,7 @@ const SHEET_NAV_LINK_CLASS = cn(
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
   { id: "profile", label: "Мой профиль", href: "/app/patient/profile" },
   { id: "cabinet", label: "Мои записи", href: "/app/patient/cabinet" },
+  { id: "reminders", label: "Напоминания", href: "/app/patient/reminders" },
   { id: "notifications", label: "Настройки уведомлений", href: "/app/patient/notifications" },
 ];
 
@@ -48,6 +50,7 @@ export function PatientHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMessengerMiniApp, setIsMessengerMiniApp] = useState(false);
   const supportUnread = usePatientSupportUnreadCount();
+  const reminderUnread = useReminderUnreadCount();
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -139,9 +142,19 @@ export function PatientHeader({
                 </span>
               ) : null}
             </Link>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="Уведомления" disabled>
-              <Bell className="size-5 opacity-50" aria-hidden />
-            </Button>
+            <Link
+              href={routePaths.patientReminders}
+              prefetch={false}
+              aria-label="Напоминания"
+              className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "relative")}
+            >
+              <Bell className="size-5" aria-hidden />
+              {reminderUnread > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+                  {reminderUnread > 99 ? "99+" : reminderUnread}
+                </span>
+              ) : null}
+            </Link>
             <Button
               type="button"
               id="patient-menu-toggle"

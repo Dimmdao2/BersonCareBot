@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { env } from "@/config/env";
+import { env, isProduction } from "@/config/env";
+
+const OAUTH_STATE_COOKIE = "oauth_state_yandex";
+const OAUTH_STATE_TTL_SECONDS = 600; // 10 минут
 
 const bodySchema = z.object({
   provider: z.enum(["yandex", "google", "apple"]),
 });
 
 /**
- * Старт OAuth. Яндекс — при наличии env; иначе предсказуемый ответ «отключено».
- * Google/Apple — отдельные PR (этап 5.5).
+ * Старт OAuth. Яндекс — при наличии env: генерирует state, сохраняет в httpOnly cookie,
+ * возвращает authUrl с state. Google/Apple — отложено (этап 5.5).
  */
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -37,14 +40,22 @@ export async function POST(request: Request) {
     );
   }
 
+  const state = crypto.randomUUID();
+
   const authUrl = new URL("https://oauth.yandex.ru/authorize");
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("scope", "login:info login:email");
+  authUrl.searchParams.set("state", state);
 
-  return NextResponse.json({
-    ok: true,
-    authUrl: authUrl.toString(),
+  const res = NextResponse.json({ ok: true, authUrl: authUrl.toString() });
+  res.cookies.set(OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: OAUTH_STATE_TTL_SECONDS,
   });
+  return res;
 }

@@ -46,22 +46,47 @@ export async function incrementNewsViews(newsId: string): Promise<void> {
   }
 }
 
+/** Ключ календарного дня UTC для выбора цитаты (тестируемая детерминированность). */
+export function quoteDayKeyUtc(referenceDate: Date): string {
+  return referenceDate.toISOString().slice(0, 10);
+}
+
+/** Индекс цитаты для пары (seed, день); совпадает с логикой `getQuoteForDay`. */
+export function quoteIndexForDaySeed(daySeed: string, dayKey: string, total: number): number {
+  if (total <= 0) return 0;
+  const h = createHash("sha256").update(`${daySeed}:${dayKey}`).digest();
+  return h.readUInt32BE(0) % total;
+}
+
 /** Детерминированная «цитата дня» из активных записей (стабильна в пределах суток UTC). */
-export async function getQuoteForDay(daySeed: string): Promise<HomeQuote | null> {
+export async function getQuoteForDay(
+  daySeed: string,
+  referenceDate: Date = new Date()
+): Promise<HomeQuote | null> {
   if (!env.DATABASE_URL) return null;
   try {
     const pool = getPool();
-    const r = await pool.query<{ id: string; body_text: string; author: string | null }>(
-      `SELECT id, body_text, author FROM motivational_quotes
-       WHERE is_active = true AND archived_at IS NULL
-       ORDER BY sort_order ASC, id ASC`
+    const countResult = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM motivational_quotes
+       WHERE is_active = true AND archived_at IS NULL`
     );
-    const rows = r.rows;
-    if (rows.length === 0) return null;
-    const dayKey = new Date().toISOString().slice(0, 10);
-    const h = createHash("sha256").update(`${daySeed}:${dayKey}`).digest();
-    const idx = h.readUInt32BE(0) % rows.length;
-    const row = rows[idx]!;
+    const total = parseInt(countResult.rows[0]?.count ?? "0", 10);
+    if (total <= 0) return null;
+
+    const dayKey = quoteDayKeyUtc(referenceDate);
+    const idx = quoteIndexForDaySeed(daySeed, dayKey, total);
+
+    const rowResult = await pool.query<{ id: string; body_text: string; author: string | null }>(
+      `SELECT id, body_text, author
+       FROM motivational_quotes
+       WHERE is_active = true AND archived_at IS NULL
+       ORDER BY sort_order ASC, id ASC
+       LIMIT 1 OFFSET $1`,
+      [idx]
+    );
+    const row = rowResult.rows[0];
+    if (!row) return null;
     return { id: row.id, body: row.body_text, author: row.author };
   } catch {
     return null;

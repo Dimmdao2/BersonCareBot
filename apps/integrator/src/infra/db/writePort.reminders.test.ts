@@ -152,7 +152,7 @@ describe('writePort reminder/content projection events', () => {
     expect((ev.payload as Record<string, unknown>).integratorGrantId).toBe('grant-1');
   });
 
-  it('reminder.rule.upsert idempotency key has no random component', async () => {
+  it('reminder.rule.upsert idempotency key is deterministic', async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
@@ -172,8 +172,25 @@ describe('writePort reminder/content projection events', () => {
         contentMode: 'none',
       },
     });
+    await writePort.writeDb({
+      type: 'reminders.rule.upsert',
+      params: {
+        id: 'rule-2',
+        userId: '43',
+        category: 'water',
+        isEnabled: false,
+        scheduleType: 'twice_daily',
+        timezone: 'UTC',
+        intervalMinutes: 120,
+        windowStartMinute: 0,
+        windowEndMinute: 1440,
+        daysMask: '1111111',
+        contentMode: 'none',
+      },
+    });
     const key = capture.projectionInserts[0]!.idempotencyKey;
-    expect(key).not.toMatch(/[0-9]{13,}/);
+    const keySecond = capture.projectionInserts[1]!.idempotencyKey;
+    expect(key).toBe(keySecond);
     expect(key.startsWith(REMINDER_RULE_UPSERTED)).toBe(true);
   });
 });

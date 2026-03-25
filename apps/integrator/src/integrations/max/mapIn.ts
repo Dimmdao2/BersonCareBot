@@ -25,6 +25,13 @@ function getActionFromText(text: string): string {
   return MESSAGE_TEXT_TO_ACTION[t] ?? '';
 }
 
+function parseStartLinkToken(value: string): string | null {
+  const trimmed = value.trim();
+  const asCommand = trimmed.match(/^\/start\s+(link_[A-Za-z0-9_-]+)$/i);
+  if (asCommand?.[1]) return asCommand[1];
+  return /^link_[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;
+}
+
 function getChatIdFromMessage(msg: MaxUpdateValidated['message']): number | null {
   if (!msg) return null;
   const r = msg.recipient;
@@ -126,13 +133,16 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
     const userId = getUserIdFromMessage(msg);
     if (chatId === null || userId == null) return null;
     const contactPhone = getContactPhoneFromMaxMessage(msg);
+    const startLinkToken = parseStartLinkToken(text);
+    const action = startLinkToken ? 'start.link' : getActionFromText(text);
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
       channelId: String(userId),
       ...(getMessageIdFromMessage(msg) ? { messageId: getMessageIdFromMessage(msg) as string } : {}),
       text,
-      action: getActionFromText(text),
+      action,
+      ...(startLinkToken ? { linkSecret: startLinkToken } : {}),
       ...(contactPhone ? { phone: contactPhone } : {}),
       ...(getRelayMessageTypeFromMaxMessage(msg) ? { relayMessageType: getRelayMessageTypeFromMaxMessage(msg) as SupportRelayMessageType } : {}),
       ...(typeof msg.sender?.username === 'string' ? { channelUsername: msg.sender.username } : {}),
@@ -149,12 +159,18 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
     const chatId = msg ? getChatIdFromMessage(msg) : (body.chat_id ?? body.user?.user_id ?? null);
     const userId = msg ? getUserIdFromMessage(msg) : (body.user?.user_id ?? null);
     if (chatId === null || userId == null) return null;
+    const payloadRaw =
+      (typeof body.payload === 'string' && body.payload.trim().length > 0 ? body.payload : null)
+      ?? (typeof body.data === 'string' && body.data.trim().length > 0 ? body.data : null)
+      ?? (typeof msg?.body?.text === 'string' ? msg.body.text : null);
+    const startLinkToken = payloadRaw ? parseStartLinkToken(payloadRaw) : null;
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
       channelId: String(userId),
-      text: '/start',
-      action: '',
+      text: startLinkToken ? `/start ${startLinkToken}` : '/start',
+      action: startLinkToken ? 'start.link' : '',
+      ...(startLinkToken ? { linkSecret: startLinkToken } : {}),
       ...(typeof (msg?.sender?.username ?? body.user?.username) === 'string' ? { channelUsername: (msg?.sender?.username ?? body.user?.username) as string } : {}),
       ...(typeof (msg?.sender?.first_name ?? body.user?.first_name) === 'string' ? { channelFirstName: (msg?.sender?.first_name ?? body.user?.first_name) as string } : {}),
       ...(typeof (msg?.sender?.last_name ?? body.user?.last_name) === 'string' ? { channelLastName: (msg?.sender?.last_name ?? body.user?.last_name) as string } : {}),

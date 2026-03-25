@@ -20,6 +20,8 @@ export const routePaths = {
   patientHelp: "/app/patient/help",
   /** Установка PWA / приложения (заглушка). */
   patientInstall: "/app/patient/install",
+  /** Напоминания пациента. */
+  patientReminders: "/app/patient/reminders",
 } as const;
 
 /** Маршруты пациента, для которых нужна привязка номера телефона (личные данные, записи, дневники, покупки). Остальное (меню, уроки, скорая, контент) — без обязательного телефона. */

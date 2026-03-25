@@ -27,6 +27,7 @@ import type {
   EventGateway,
   IdempotencyPort,
   QueuePort,
+  WebappEventsPort,
 } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
@@ -72,6 +73,7 @@ export type RubitimeRoutesRegistrar = (
   app: FastifyInstance,
   deps: {
     eventGateway: EventGateway;
+    webappEventsPort: WebappEventsPort;
   },
 ) => Promise<void> | void;
 
@@ -110,6 +112,7 @@ export type AppDeps = {
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerRubitimeWebhookRoutes?: RubitimeRoutesRegistrar;
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
+  webappEventsPort: WebappEventsPort;
 };
 
 /** Собирает полностью связанный набор зависимостей app-слоя. */
@@ -233,6 +236,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     contentCatalogPort,
     contextQueryPort,
     eventGateway,
+    webappEventsPort,
     ...(telegramRegistrar !== undefined ? { registerTelegramWebhookRoutes: telegramRegistrar } : {}),
     registerRubitimeWebhookRoutes: input.registerRubitimeWebhookRoutes ?? registerRubitimeWebhookRoutes,
     ...(maxRegistrar !== undefined ? { registerMaxWebhookRoutes: maxRegistrar } : {}),

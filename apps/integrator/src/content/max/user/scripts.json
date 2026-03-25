@@ -26,6 +26,25 @@
     ]
   },
   {
+    "id": "max.start.link",
+    "source": "max",
+    "event": "message.received",
+    "match": {
+      "input": { "action": "start.link" }
+    },
+    "steps": [
+      {
+        "action": "webapp.channelLink.complete",
+        "mode": "sync",
+        "params": {
+          "linkToken": "{{input.linkSecret}}",
+          "channelCode": "max",
+          "externalId": "{{actor.channelUserId}}"
+        }
+      }
+    ]
+  },
+  {
     "id": "max.start",
     "source": "max",
     "event": "message.received",

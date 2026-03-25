@@ -3,8 +3,9 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Интервальный опрос (например для новых сообщений). Запросы выполняются только при
- * `document.visibilityState === "visible"`, чтобы не создавать шторм при неактивной вкладке.
+ * Интервальный опрос (например для новых сообщений). Интервал активен только пока
+ * `document.visibilityState === "visible"`. При уходе на другую вкладку интервал
+ * снимается; при возврате — запускается заново и немедленно стреляет один раз.
  */
 export function useMessagePolling(onTick: () => void | Promise<void>, enabled: boolean, intervalMs = 16000) {
   const ref = useRef(onTick);
@@ -14,15 +15,41 @@ export function useMessagePolling(onTick: () => void | Promise<void>, enabled: b
 
   useEffect(() => {
     if (!enabled) return;
-    const tick = () => {
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const startInterval = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
       void ref.current();
+      intervalId = setInterval(() => void ref.current(), intervalMs);
     };
-    const id = setInterval(tick, intervalMs);
-    document.addEventListener("visibilitychange", tick);
+
+    const stopInterval = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        startInterval();
+      } else {
+        stopInterval();
+      }
+    };
+
+    if (document.visibilityState === "visible") {
+      startInterval();
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", tick);
+      stopInterval();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [enabled, intervalMs]);
 }

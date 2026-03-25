@@ -14,6 +14,7 @@ describe("deliveryTargetsApi", () => {
     userByPhonePort: {
       findByPhone: vi.fn().mockResolvedValue(null),
       findByUserId: vi.fn().mockResolvedValue(null),
+      getPhoneByUserId: vi.fn().mockResolvedValue(null),
       createOrBind: vi.fn().mockResolvedValue(mockUser),
     },
     identityResolutionPort: {

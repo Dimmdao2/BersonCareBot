@@ -35,5 +35,6 @@ export async function POST(request: Request) {
     ok: true,
     url: result.url,
     expiresAt: result.expiresAtIso,
+    ...(result.manualCommand ? { manualCommand: result.manualCommand } : {}),
   });
 }

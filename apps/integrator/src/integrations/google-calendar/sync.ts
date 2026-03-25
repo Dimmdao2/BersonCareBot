@@ -1,0 +1,111 @@
+import { env } from '../../config/env.js';
+import { createGoogleCalendarClient, type GoogleCalendarClient, type GoogleCalendarEventInput } from './client.js';
+import { googleCalendarConfig, isGoogleCalendarConfigured, type GoogleCalendarConfig } from './config.js';
+
+export type RubitimeCalendarSyncEvent = {
+  action: 'created' | 'updated' | 'canceled';
+  rubRecordId: string;
+  recordAt?: string;
+  record?: Record<string, unknown>;
+  clientName?: string;
+};
+
+type SyncDeps = {
+  client?: GoogleCalendarClient;
+  config?: GoogleCalendarConfig;
+};
+
+const rubRecordToGoogleEventId = new Map<string, string>();
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function asNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+/** ISO with explicit zone is parsed as-is; naive `YYYY-MM-DD HH:mm:ss` / `T` without zone uses business offset (env). */
+function parseRecordAtToIso(recordAt: string): string | null {
+  const trimmed = recordAt.trim();
+  const hasExplicitZone = /Z$/i.test(trimmed) || /[+-]\d{2}:\d{2}$/.test(trimmed);
+  if (hasExplicitZone) {
+    const date = new Date(trimmed);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  }
+  const naiveLocal = /^\d{4}-\d{2}-\d{2}(?: |T)\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(trimmed);
+  if (naiveLocal) {
+    const isoLocal = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
+    const offsetMin = env.RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES;
+    const sign = offsetMin >= 0 ? '+' : '-';
+    const abs = Math.abs(offsetMin);
+    const oh = String(Math.floor(abs / 60)).padStart(2, '0');
+    const om = String(abs % 60).padStart(2, '0');
+    const date = new Date(`${isoLocal}${sign}${oh}:${om}`);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  }
+  const date = new Date(trimmed);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function extractDurationMinutes(record: Record<string, unknown> | undefined): number {
+  if (!record) return 60;
+  return (
+    asNumber(record.duration_minutes)
+    ?? asNumber(record.duration)
+    ?? asNumber(record.service_duration)
+    ?? 60
+  );
+}
+
+function extractServiceTitle(record: Record<string, unknown> | undefined): string | undefined {
+  if (!record) return undefined;
+  return (
+    asString(record.service_title)
+    ?? asString(record.service_name)
+    ?? asString(record.service)
+  );
+}
+
+export function mapRubitimeEventToGoogleEvent(input: RubitimeCalendarSyncEvent): GoogleCalendarEventInput | null {
+  if (!input.recordAt) return null;
+  const startIso = parseRecordAtToIso(input.recordAt);
+  if (!startIso) return null;
+  const durationMinutes = extractDurationMinutes(input.record);
+  const endIso = new Date(new Date(startIso).getTime() + durationMinutes * 60_000).toISOString();
+  const serviceTitle = extractServiceTitle(input.record);
+  const summary = `${input.clientName ?? 'Клиент'}${serviceTitle ? ` — ${serviceTitle}` : ''}`;
+  return {
+    summary,
+    startDateTime: startIso,
+    endDateTime: endIso,
+    description: `Rubitime record: ${input.rubRecordId}`,
+  };
+}
+
+export async function syncAppointmentToCalendar(input: RubitimeCalendarSyncEvent, deps: SyncDeps = {}): Promise<void> {
+  const config = deps.config ?? googleCalendarConfig;
+  if (!isGoogleCalendarConfigured(config)) {
+    return;
+  }
+  const client = deps.client ?? createGoogleCalendarClient();
+  const existingGoogleEventId = rubRecordToGoogleEventId.get(input.rubRecordId) ?? null;
+  if (input.action === 'canceled') {
+    if (!existingGoogleEventId) return;
+    await client.deleteEvent(existingGoogleEventId);
+    rubRecordToGoogleEventId.delete(input.rubRecordId);
+    return;
+  }
+  const event = mapRubitimeEventToGoogleEvent(input);
+  if (!event) return;
+  const upsertedId = await client.upsertEvent(existingGoogleEventId, event);
+  rubRecordToGoogleEventId.set(input.rubRecordId, upsertedId);
+}

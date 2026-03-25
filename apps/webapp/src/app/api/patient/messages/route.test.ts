@@ -160,4 +160,19 @@ describe("POST /api/patient/messages", () => {
     const data = (await res.json()) as { ok: boolean };
     expect(data.ok).toBe(true);
   });
+
+  it("returns 403 when messaging is blocked for user", async () => {
+    getSessionMock.mockResolvedValue({
+      user: { userId: "u1", role: "client", bindings: {} },
+    });
+    sendTextMock.mockResolvedValue({ ok: false, error: "blocked" });
+    const res = await POST(
+      new Request("http://localhost/api/patient/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "hi", conversationId: "00000000-0000-4000-8000-000000000002" }),
+      })
+    );
+    expect(res.status).toBe(403);
+  });
 });

@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
+const bodySchema = z.object({
+  token: z.string().trim().min(1),
+});
+
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as { token?: string } | null;
-  const token = body?.token?.trim();
-  if (!token) {
+  const raw = (await request.json().catch(() => null)) as unknown;
+  const parsed = bodySchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "token is required" }, { status: 400 });
   }
+  const { token } = parsed.data;
 
   const deps = buildAppDeps();
   const result = await deps.auth.exchangeIntegratorToken(token);

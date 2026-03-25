@@ -3,6 +3,7 @@ import type { ChannelCard } from "@/modules/channel-preferences/types";
 import type { LfkComplex, LfkSession, SymptomEntry, SymptomTracking } from "@/modules/diaries/types";
 import type { DoctorClientsFilters, DoctorClientsPort } from "./ports";
 import type { ClientIdentity, ClientListItem } from "./ports";
+import { countCancellations30d, lastVisitLabelFromHistory } from "./appointmentStatsFromHistory";
 
 /** Строка истории записей на приём (этап 9, `appointment_records`). */
 export type ClientAppointmentHistoryItem = {
@@ -10,6 +11,8 @@ export type ClientAppointmentHistoryItem = {
   recordAt: string | null;
   status: string;
   label: string;
+  lastEvent: string;
+  updatedAt: string;
 };
 
 export type ClientProfile = {
@@ -79,6 +82,7 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
 
       const appointments = Array.isArray(upcomingAppointments) ? upcomingAppointments : [];
       const nextLabel = appointments.length > 0 ? appointments[0].label : null;
+      const nowMs = Date.now();
 
       return {
         identity,
@@ -87,8 +91,8 @@ export function createDoctorClientsService(deps: DoctorClientsServiceDeps) {
         appointmentHistory,
         appointmentStats: {
           total: appointments.length,
-          cancellations30d: 0,
-          lastVisitLabel: null,
+          cancellations30d: countCancellations30d(appointmentHistory, nowMs),
+          lastVisitLabel: lastVisitLabelFromHistory(appointmentHistory, nowMs),
           nextVisitLabel: nextLabel,
         },
         symptomTrackings,

@@ -7,6 +7,7 @@ import type { ClientProfile } from "@/modules/doctor-clients/service";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import type { PrepareDraftResult } from "@/modules/doctor-messaging/service";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
+import { AssignLfkTemplatePanel } from "./AssignLfkTemplatePanel";
 import { AdminDangerActions } from "./AdminDangerActions";
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
 import { SendMessageForm } from "./[userId]/SendMessageForm";
@@ -20,6 +21,8 @@ type ClientProfileCardProps = {
   /** База списка для ссылки «назад» (подписчики или клиенты). */
   listBasePath?: string;
   isAdmin?: boolean;
+  publishedLfkTemplates?: { id: string; title: string }[];
+  assignLfkEnabled?: boolean;
 };
 
 export function ClientProfileCard({
@@ -29,6 +32,8 @@ export function ClientProfileCard({
   userId,
   listBasePath = "/app/doctor/clients",
   isAdmin = false,
+  publishedLfkTemplates = [],
+  assignLfkEnabled = false,
 }: ClientProfileCardProps) {
   const {
     identity,
@@ -76,7 +81,7 @@ export function ClientProfileCard({
           <p>Телефон не указан</p>
         )}
         <p className="eyebrow">Каналы</p>
-        <ul id="doctor-client-channels-list" className="list" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <ul id="doctor-client-channels-list" className="list list-none p-0 m-0">
           {channelCards.map((ch) => (
             <li key={ch.code} id={`doctor-client-channel-item-${ch.code}`}>
               {ch.isLinked && ch.openUrl ? (
@@ -174,6 +179,11 @@ export function ClientProfileCard({
             )}
           </>
         )}
+        <AssignLfkTemplatePanel
+          patientUserId={userId}
+          templates={publishedLfkTemplates}
+          disabled={!assignLfkEnabled}
+        />
       </section>
 
       <DoctorNotesPanel userId={userId} />
@@ -194,7 +204,7 @@ export function ClientProfileCard({
         ) : (
           <p className="empty-state">Невозможно отправить сообщение (клиент не найден).</p>
         )}
-        <h3 style={{ marginTop: 16, marginBottom: 8 }}>История сообщений</h3>
+        <h3 className="mt-4 mb-2">История сообщений</h3>
         {messageHistory.length === 0 ? (
           <p className="empty-state">Сообщений пока нет.</p>
         ) : (

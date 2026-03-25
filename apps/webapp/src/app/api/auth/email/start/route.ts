@@ -25,7 +25,12 @@ export async function POST(request: Request) {
 
   const result = await startEmailChallenge(session.user.userId, parsed.data.email);
   if (!result.ok) {
-    const status = result.code === "rate_limited" || result.code === "too_many_attempts" ? 429 : 400;
+    const status =
+      result.code === "rate_limited" || result.code === "too_many_attempts"
+        ? 429
+        : result.code === "email_send_failed"
+          ? 503
+          : 400;
     return NextResponse.json(
       {
         ok: false,
@@ -57,6 +62,8 @@ function errMsg(code: string): string {
       return "Слишком частые запросы. Подождите перед повторной отправкой.";
     case "too_many_attempts":
       return "Превышено число попыток.";
+    case "email_send_failed":
+      return "Не удалось отправить код на email";
     default:
       return "Не удалось отправить код";
   }

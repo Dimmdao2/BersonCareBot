@@ -57,7 +57,8 @@ export default async function ContentSlugPage({ params }: Props) {
     <AppShell title={item.title} user={session?.user ?? null} backHref={backHref} backLabel="Назад" variant="patient">
       <article id={`patient-content-article-${slug}`} className="panel stack">
         {item.imageUrl && (
-          <img src={item.imageUrl} alt="" style={{ maxWidth: "100%", height: "auto" }} />
+          // eslint-disable-next-line @next/next/no-img-element -- CMS-provided images have unknown dimensions; next/image requires explicit width/height
+          <img src={item.imageUrl} alt="" className="max-w-full h-auto" />
         )}
         <MarkdownContent
           text={item.bodyText}

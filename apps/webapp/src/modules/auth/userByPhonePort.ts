@@ -10,6 +10,8 @@ export type UserByPhonePort = {
   findByPhone(normalizedPhone: string): Promise<SessionUser | null>;
   /** Загрузка сессионного пользователя по id платформы (для messenger login и др.). */
   findByUserId(userId: string): Promise<SessionUser | null>;
+  /** Нормализованный телефон платформенного пользователя без загрузки привязок. */
+  getPhoneByUserId(userId: string): Promise<string | null>;
   /** Создаёт пользователя с номером и привязкой канала или обновляет привязку у существующего. */
   createOrBind(phone: string, context: ChannelContext): Promise<SessionUser>;
 };

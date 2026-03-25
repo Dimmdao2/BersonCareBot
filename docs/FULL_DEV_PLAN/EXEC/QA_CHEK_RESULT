@@ -1,0 +1,51 @@
+# QA_CHEK_RESULT
+
+Дата проверки: 2026-03-25
+Источник: `docs/FULL_DEV_PLAN/EXEC/QA_CHECKLIST.md`
+
+## Что проверено
+
+- Полный gate: `pnpm run ci` (lint, typecheck, test, test:webapp, webapp:typecheck, build, build:webapp, audit).
+- Финальная секция checklist (imports/dead code, миграции, contract, server conventions, env examples).
+- Сверка отчётов:
+  - `docs/FULL_DEV_PLAN/finsl_fix_report.md`
+  - `docs/FULL_DEV_PLAN/FIX_PLAN_EXECUTION_REPORT.md`
+
+## Фактический результат
+
+- `pnpm run ci`: PASS
+- Integrator tests: 386 passed, 6 skipped
+- Webapp tests: 631 passed, 5 skipped
+- build/typecheck/lint/audit: PASS
+
+## Найденные проблемы и недоделки
+
+1. **`.env.example` не полон для integrator**
+   - В `apps/integrator/src/config/env.ts` есть новые ключи, которых нет в root `.env.example`:
+     - `GOOGLE_CALENDAR_ENABLED`
+     - `GOOGLE_CLIENT_ID`
+     - `GOOGLE_CLIENT_SECRET`
+     - `GOOGLE_REDIRECT_URI`
+     - `GOOGLE_CALENDAR_ID`
+     - `GOOGLE_REFRESH_TOKEN`
+     - `RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES`
+
+2. **`apps/webapp/.env.example` не синхронизирован с env schema**
+   - В `apps/webapp/src/config/env.ts` есть `ALLOWED_MAX_IDS`, но в `apps/webapp/.env.example` ключ отсутствует.
+
+3. **Policy "важных сообщений" (вариант B) не реализована**
+   - Пункт checklist остаётся вне scope Pack D (зафиксирован как отдельная задача).
+
+## Обновления документации, сделанные по QA
+
+- Обновлён `docs/FULL_DEV_PLAN/EXEC/QA_CHECKLIST.md`:
+  - закрыты подтверждённые пункты;
+  - обновлён диапазон миграций до `031–035`;
+  - оставлен открытым пункт про `.env.example` с ссылкой на этот отчёт.
+- Обновлён `docs/FULL_DEV_PLAN/finsl_fix_report.md` (добавлен блок QA sweep).
+- Обновлён `docs/FULL_DEV_PLAN/FIX_PLAN_EXECUTION_REPORT.md` (добавлен QA Checkpoint).
+
+## Итоговый статус
+
+- По функционалу и качественным гейтам: **PASS**.
+- По документации/env-примерам: **Needs Follow-up** (пункты 1-2 выше).

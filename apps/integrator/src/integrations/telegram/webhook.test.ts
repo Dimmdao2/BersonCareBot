@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { mapBodyToIncoming } from './webhook.js';
+import { describe, expect, it, vi } from 'vitest';
+import Fastify from 'fastify';
+import { mapBodyToIncoming, registerTelegramWebhookRoutes } from './webhook.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
+
+vi.mock('./setupMenuButton.js', () => ({
+  setupTelegramMenuButton: vi.fn(async () => undefined),
+  ensureNoMenuButtonForUser: vi.fn(async () => undefined),
+}));
 
 describe('mapBodyToIncoming', () => {
   it('includes contactPhone only when contact.user_id === from.id (own contact)', () => {
@@ -76,5 +82,50 @@ describe('mapBodyToIncoming', () => {
       expect(incoming.action).not.toBe('start.setphone');
       expect((incoming as { phone?: string }).phone).toBeUndefined();
     }
+  });
+
+  it('parses /start link_<secret> to start.link with linkSecret', () => {
+    const body: TelegramWebhookBodyValidated = {
+      message: {
+        from: { id: 321, is_bot: false, first_name: 'Link' },
+        chat: { id: 321 },
+        text: '/start link_abC123-_',
+      },
+    };
+    const incoming = mapBodyToIncoming(body);
+    expect(incoming).not.toBeNull();
+    if (incoming?.kind === 'message') {
+      expect(incoming.action).toBe('start.link');
+      expect((incoming as { linkSecret?: string }).linkSecret).toBe('link_abC123-_');
+    }
+  });
+});
+
+describe('registerTelegramWebhookRoutes', () => {
+  it('returns 200 and emits event for valid /webhook/telegram payload', async () => {
+    const handleIncomingEvent = vi.fn().mockResolvedValue({ status: 'accepted' });
+    const app = Fastify();
+    await registerTelegramWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/telegram',
+      payload: {
+        update_id: 11,
+        message: {
+          message_id: 7,
+          from: { id: 101, is_bot: false, first_name: 'U' },
+          chat: { id: 101, type: 'private' },
+          text: '/start',
+        },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ ok: true });
+    expect(handleIncomingEvent).toHaveBeenCalledTimes(1);
+    const event = handleIncomingEvent.mock.calls[0]?.[0] as { meta: { source: string } };
+    expect(event.meta.source).toBe('telegram');
   });
 });

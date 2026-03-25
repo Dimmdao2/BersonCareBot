@@ -22,6 +22,16 @@ function rowToBindings(rows: { channel_code: string; external_id: string }[]): C
 }
 
 export const pgUserByPhonePort: UserByPhonePort = {
+  async getPhoneByUserId(userId: string): Promise<string | null> {
+    const pool = getPool();
+    const res = await pool.query<{ phone_normalized: string | null }>(
+      "SELECT phone_normalized FROM platform_users WHERE id = $1",
+      [userId]
+    );
+    const p = res.rows[0]?.phone_normalized;
+    return typeof p === "string" && p.trim() ? p : null;
+  },
+
   async findByUserId(userId: string): Promise<SessionUser | null> {
     const pool = getPool();
     const userRow = await pool.query(

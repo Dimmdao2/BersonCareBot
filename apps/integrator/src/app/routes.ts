@@ -1,5 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { registerBersoncareSendSmsRoute } from '../integrations/bersoncare/sendSmsRoute.js';
+import { registerBersoncareSendEmailRoute } from '../integrations/bersoncare/sendEmailRoute.js';
+import { registerBersoncareRelayOutboundRoute } from '../integrations/bersoncare/relayOutboundRoute.js';
+import { registerRubitimeRecordM2mRoutes } from '../integrations/rubitime/recordM2mRoute.js';
 import { integratorWebhookSecret } from '../config/env.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
 
@@ -45,6 +48,19 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     sharedSecret: integratorWebhookSecret(),
   });
 
+  await registerBersoncareSendEmailRoute(app, {
+    sharedSecret: integratorWebhookSecret(),
+  });
+
+  await registerBersoncareRelayOutboundRoute(app, {
+    dispatchPort: deps.dispatchPort,
+    sharedSecret: integratorWebhookSecret(),
+  });
+
+  await registerRubitimeRecordM2mRoutes(app, {
+    sharedSecret: integratorWebhookSecret(),
+  });
+
   if (deps.registerTelegramWebhookRoutes) {
     app.register(async (instance) => {
       await deps.registerTelegramWebhookRoutes?.(instance, {
@@ -57,6 +73,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     app.register(async (instance) => {
       await deps.registerRubitimeWebhookRoutes?.(instance, {
         eventGateway: deps.eventGateway,
+        webappEventsPort: deps.webappEventsPort,
       });
     });
   }

@@ -18,6 +18,25 @@ const MAILING_TOPIC_UPSERTED = "mailing.topic.upserted";
 const USER_SUBSCRIPTION_UPSERTED = "user.subscription.upserted";
 const MAILING_LOG_SENT = "mailing.log.sent";
 
+type EmailAutobindConflictContext = {
+  phoneNormalized: string;
+  email: string;
+};
+
+/**
+ * TODO(E-R3.2): connect to admin/user notifications pipeline.
+ * For now we keep structured warning to avoid silent conflicts.
+ */
+let reportEmailAutobindConflict: (ctx: EmailAutobindConflictContext) => void = (ctx) => {
+  console.warn("[user.email.autobind:conflict]", ctx);
+};
+
+export function setEmailAutobindConflictReporter(
+  fn: (ctx: EmailAutobindConflictContext) => void
+): void {
+  reportEmailAutobindConflict = fn;
+}
+
 export type IntegratorEventBody = {
   eventType: string;
   eventId?: string;
@@ -91,6 +110,12 @@ export type IntegratorEventsDeps = {
       email?: string | null;
       displayName?: string | null;
     }) => Promise<void>;
+    applyRubitimeEmailAutobind?: (params: {
+      phoneNormalized: string;
+      email: string;
+    }) => Promise<{
+      outcome: "applied" | "skipped_no_user" | "skipped_invalid_email" | "skipped_verified" | "skipped_conflict";
+    }>;
   };
   branches?: BranchesProjectionPort;
   preferences?: {
@@ -749,6 +774,24 @@ export async function handleIntegratorEvent(
       const reason = err instanceof Error ? err.message : "unknown error";
       return { accepted: false, reason: `user.subscription.upserted: ${reason}` };
     }
+  }
+
+  if (event.eventType === "user.email.autobind") {
+    const payload = event.payload ?? {};
+    const phoneNormalized =
+      typeof payload.phoneNormalized === "string" ? payload.phoneNormalized.trim() : "";
+    const email = typeof payload.email === "string" ? payload.email.trim() : "";
+    if (!phoneNormalized || !email) {
+      return { accepted: false, reason: "user.email.autobind: phoneNormalized and email required" };
+    }
+    if (!deps.users?.applyRubitimeEmailAutobind) {
+      return { accepted: false, reason: "user.email.autobind: applyRubitimeEmailAutobind not configured" };
+    }
+    const result = await deps.users.applyRubitimeEmailAutobind({ phoneNormalized, email });
+    if (result.outcome === "skipped_conflict") {
+      reportEmailAutobindConflict({ phoneNormalized, email });
+    }
+    return { accepted: true };
   }
 
   if (smp && event.eventType === MAILING_LOG_SENT) {

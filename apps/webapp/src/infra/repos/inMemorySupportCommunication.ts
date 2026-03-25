@@ -418,6 +418,21 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return list;
   },
 
+  async conversationExists(conversationId) {
+    return conversations.has(conversationId);
+  },
+
+  async getConversationRelayInfo(conversationId) {
+    const c = conversations.get(conversationId);
+    if (!c) return null;
+    return {
+      id: c.id,
+      platformUserId: c.platformUserId,
+      channelCode: c.channelCode,
+      channelExternalId: c.channelExternalId,
+    };
+  },
+
   async getConversationIfOwnedByUser(conversationId, platformUserId) {
     const c = conversations.get(conversationId);
     if (!c || c.platformUserId !== platformUserId) return null;

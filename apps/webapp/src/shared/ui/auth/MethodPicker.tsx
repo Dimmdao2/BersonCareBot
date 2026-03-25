@@ -59,17 +59,6 @@ export function MethodPicker({ methods, disabled, onChoose }: MethodPickerProps)
           Max
         </Button>
       ) : null}
-      {methods.oauth?.yandex ? (
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={disabled}
-          aria-label="Войти через Яндекс"
-          onClick={() => onChoose("oauth_yandex")}
-        >
-          Яндекс
-        </Button>
-      ) : null}
       <Button
         type="button"
         variant="default"

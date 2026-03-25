@@ -47,4 +47,31 @@ describe('max webhook', () => {
     expect(event.type).toBe('message.received');
     expect(event.meta.source).toBe('max');
   });
+
+  it('maps link payload to start.link action', async () => {
+    const eventGateway = vi.fn().mockResolvedValue({ status: 'accepted' });
+    const app = Fastify();
+    await registerMaxWebhookRoutes(app, { eventGateway: { handleIncomingEvent: eventGateway } });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/webhook/max',
+      payload: {
+        update_type: 'message_created',
+        timestamp: 1739184000000,
+        message: {
+          recipient: { chat_id: 100 },
+          body: { text: '/start link_abC123-_' },
+          sender: { user_id: 100 },
+        },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const calls = eventGateway.mock.calls;
+    const call = calls[0] as [unknown] | undefined;
+    expect(call).toBeDefined();
+    const event = call![0] as { payload?: { incoming?: { action?: string; linkSecret?: string } } };
+    expect(event.payload?.incoming?.action).toBe('start.link');
+    expect(event.payload?.incoming?.linkSecret).toBe('link_abC123-_');
+  });
 });

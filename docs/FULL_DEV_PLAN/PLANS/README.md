@@ -2,6 +2,7 @@
 
 Каждая папка = один этап дорожной карты, пронумерован по порядку выполнения.
 Внутри — файл `PLAN.md` с детальной инструкцией для авто-агента.
+Отложенные задачи после стабилизации prod: `docs/FULL_DEV_PLAN/POST_PROD_TODO.md`.
 
 ## Структура
 
@@ -24,12 +25,12 @@ PLANS/
 │
 ├── STAGE_12_REMINDERS/          ← Бот заботы, пуш (в будущем)
 ├── STAGE_13_INTEGRATIONS/       ← Email, deep-link, Google Calendar
-├── STAGE_14_PWA/                ← ⏸ ОТЛОЖЕН
-├── STAGE_15_SETTINGS_ADMIN/     ← Настройки, режим админа
-├── STAGE_16_REFERRALS/          ← Реферальная система (пока пустой)
-├── STAGE_17_PATIENT_CARD/       ← Карта пациента (пока пустой)
+├── STAGE_14_SETTINGS_ADMIN/     ← Настройки, режим админа
+├── STAGE_15_PWA/                ← ⏸ ОТЛОЖЕН
+├── STAGE_16_REFERRALS/          ← Реферальная система (ожидает декомпозицию)
+├── STAGE_17_PATIENT_CARD/       ← Карта пациента (ожидает декомпозицию)
 ├── STAGE_18_SERVER_MIGRATION/   ← 🔒 Ответственность владельца
-├── STAGE_19_SCENARIOS_DB/       ← Сценарии в БД (пока пустой)
+├── STAGE_19_SCENARIOS_DB/       ← Сценарии в БД (ожидает декомпозицию)
 └── STAGE_20_MULTITENANT/        ← Мультитенант + платежи (пока пустой)
 ```
 
@@ -52,8 +53,8 @@ PLANS/
 | **✓** | **CSS CLEANUP** | **Дочистить globals.css, убрать все старые классы** |
 | 12 | `STAGE_12_REMINDERS/` | Напоминания, колокольчик |
 | 13 | `STAGE_13_INTEGRATIONS/` | Email, deep-link, Google Calendar, Rubitime |
-| 14 | `STAGE_14_PWA/` | ⏸ Отложен |
-| 15 | `STAGE_15_SETTINGS_ADMIN/` | Настройки, режим админа |
+| 14 | `STAGE_14_SETTINGS_ADMIN/` | Настройки, режим админа |
+| 15 | `STAGE_15_PWA/` | ⏸ Отложен |
 | 16–20 | Будущее | Рефералы, карта пациента, сервер, сценарии, мультитенант |
 
 ## Правило Tailwind

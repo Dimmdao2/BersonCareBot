@@ -12,6 +12,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       listRulesByIntegratorUserId: vi.fn(),
       getRuleByIntegratorUserIdAndCategory: vi.fn(),
       listHistoryByIntegratorUserId: mockListHistory,
+      getUnseenCount: vi.fn().mockResolvedValue(0),
+      getStats: vi.fn().mockResolvedValue({ total: 0, seen: 0, unseen: 0, failed: 0 }),
+      markSeen: vi.fn().mockResolvedValue(undefined),
+      markAllSeen: vi.fn().mockResolvedValue(undefined),
     },
   }),
 }));

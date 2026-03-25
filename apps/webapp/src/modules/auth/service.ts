@@ -80,7 +80,12 @@ function parseIntegratorToken(token: string): IntegratorTokenPayload | null {
   if (!payload || !signature) return null;
   if (!safeEqual(signature, sign(payload, integratorWebappEntrySecret()))) return null;
 
-  const parsed = JSON.parse(decodeBase64Url(payload)) as IntegratorTokenPayload;
+  let parsed: IntegratorTokenPayload;
+  try {
+    parsed = JSON.parse(decodeBase64Url(payload)) as IntegratorTokenPayload;
+  } catch {
+    return null;
+  }
   const now = Math.floor(Date.now() / 1000);
   if (parsed.purpose !== "webapp-entry" || parsed.exp <= now) return null;
   return parsed;
@@ -194,7 +199,7 @@ function validateTelegramInitData(initData: string): { telegramId: string; role:
 
   const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
   const computedHash = createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
-  if (computedHash !== hash) return null;
+  if (!safeEqual(computedHash, hash.toLowerCase())) return null;
 
   const userJson = params.get("user");
   if (!userJson) return null;
@@ -404,6 +409,27 @@ export async function clearSession(): Promise<void> {
     path: "/",
     maxAge: 0,
   });
+}
+
+/** Переключает adminMode в текущей сессии (только для role === 'admin'). */
+export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: boolean }> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const session = raw ? decodeSession(raw) : null;
+  if (!session || session.user.role !== "admin") return { ok: false };
+
+  const nextAdminMode = !session.adminMode;
+  const nextSession: AppSession = { ...session, adminMode: nextAdminMode };
+
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(nextSession), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: cookieMaxAgeSeconds(nextSession),
+  });
+
+  return { ok: true, adminMode: nextAdminMode };
 }
 
 /** Устанавливает сессию по пользователю (для входа по SMS и др.). */

@@ -23,6 +23,18 @@ const parsed = z
     INTEGRATOR_WEBAPP_ENTRY_SECRET: z.string().min(16).optional(),
     /** Secret for webhook HMAC (outbound to webapp, inbound from webapp e.g. send-sms). Prefer over INTEGRATOR_SHARED_SECRET when set. */
     INTEGRATOR_WEBHOOK_SECRET: z.string().min(16).optional(),
+    GOOGLE_CALENDAR_ENABLED: z
+      .string()
+      .optional()
+      .default('false')
+      .transform((value) => value.toLowerCase() === 'true'),
+    GOOGLE_CLIENT_ID: z.string().optional().default(''),
+    GOOGLE_CLIENT_SECRET: z.string().optional().default(''),
+    GOOGLE_REDIRECT_URI: z.string().optional().default(''),
+    GOOGLE_CALENDAR_ID: z.string().optional().default(''),
+    GOOGLE_REFRESH_TOKEN: z.string().optional().default(''),
+    /** Rubitime `YYYY-MM-DD HH:mm:ss` without zone: interpret as this UTC offset (minutes). Default MSK (+180). */
+    RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES: z.coerce.number().optional().default(180),
   })
   .parse(process.env);
 

@@ -57,8 +57,6 @@ export function createDoctorStatsService(deps: DoctorStatsServiceDeps) {
         deps.listClients({}),
       ]);
 
-      const withTelegram = (await deps.listClients({ hasTelegram: true })).length;
-      const withMax = (await deps.listClients({ hasMax: true })).length;
       let withNoChannels = 0;
       let withOneChannel = 0;
       let withMultipleChannels = 0;

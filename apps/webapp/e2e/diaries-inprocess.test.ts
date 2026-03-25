@@ -36,6 +36,13 @@ describe("diaries e2e (in-process)", () => {
     expect(items.length).toBeGreaterThan(0);
   });
 
+  it("buildAppDeps exposes lfkAssignments", async () => {
+    const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
+    const deps = buildAppDeps();
+    expect(deps.lfkAssignments).toBeDefined();
+    expect(typeof deps.lfkAssignments.assignTemplateToPatient).toBe("function");
+  });
+
   it("buildAppDeps diaries createLfkComplex + addLfkSession + listLfkSessions roundtrip", async () => {
     const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
     const deps = buildAppDeps();

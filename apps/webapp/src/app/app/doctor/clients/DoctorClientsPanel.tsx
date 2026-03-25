@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import { Input } from "@/components/ui/input";
 import { pluralizeRu } from "@/shared/lib/pluralize";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import { ClientsFilters } from "./ClientsFilters";
@@ -92,14 +93,16 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
         onSubmit={(e) => e.preventDefault()}
         className="stack mb-2"
       >
-        <input
+        <Input
           type="search"
-          className="auth-input"
           placeholder="Поиск (от 3 символов)…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Поиск в списке"
         />
+        {search.length > 0 && search.trim().length < 3 ? (
+          <p className="text-muted-foreground text-xs">Введите еще {3 - search.trim().length} симв.</p>
+        ) : null}
       </form>
 
       <ClientsFilters

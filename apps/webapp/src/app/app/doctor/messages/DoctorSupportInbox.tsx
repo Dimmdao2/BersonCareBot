@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
@@ -42,16 +43,22 @@ export function DoctorSupportInbox() {
       setError("Не удалось загрузить диалоги");
       return;
     }
-    setList(
-      data.conversations.map((c) => ({
-        conversationId: c.conversationId,
-        displayName: c.displayName,
-        phoneNormalized: c.phoneNormalized,
-        lastMessageAt: c.lastMessageAt,
-        lastMessageText: c.lastMessageText,
-        lastSenderRole: c.lastSenderRole,
-      }))
-    );
+    const rows = data.conversations.map((c) => ({
+      conversationId: c.conversationId,
+      displayName: c.displayName,
+      phoneNormalized: c.phoneNormalized,
+      lastMessageAt: c.lastMessageAt,
+      lastMessageText: c.lastMessageText,
+      lastSenderRole: c.lastSenderRole,
+    }));
+    // 8.5.2: диалоги с последним сообщением от пользователя — сверху (требуют ответа)
+    rows.sort((a, b) => {
+      const aUser = a.lastSenderRole === "user" ? 0 : 1;
+      const bUser = b.lastSenderRole === "user" ? 0 : 1;
+      if (aUser !== bUser) return aUser - bUser;
+      return b.lastMessageAt.localeCompare(a.lastMessageAt);
+    });
+    setList(rows);
   }, []);
 
   const loadMessages = useCallback(async (conversationId: string) => {
@@ -142,7 +149,7 @@ export function DoctorSupportInbox() {
   }
 
   return (
-    <section id="doctor-support-inbox" className="panel stack gap-4">
+    <section id="doctor-support-inbox" className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Поддержка (чат)</h2>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr]">
@@ -186,8 +193,8 @@ export function DoctorSupportInbox() {
               emptyText="Нет сообщений в этом диалоге."
               composer={
                 <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3">
-                  <textarea
-                    className="auth-input min-h-[88px] w-full resize-y rounded-lg px-3 py-2 text-sm"
+                  <Textarea
+                    className="min-h-[88px] resize-y"
                     placeholder="Ответ…"
                     value={draft}
                     maxLength={4000}

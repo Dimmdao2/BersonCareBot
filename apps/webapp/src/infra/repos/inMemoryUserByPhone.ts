@@ -16,6 +16,15 @@ function mergeBindings(bindings: ChannelBindings, context: ChannelContext): Chan
 }
 
 export const inMemoryUserByPhonePort: UserByPhonePort = {
+  async getPhoneByUserId(userId: string): Promise<string | null> {
+    for (const u of usersByPhone.values()) {
+      if (u.userId === userId) {
+        return u.phone ?? null;
+      }
+    }
+    return null;
+  },
+
   async findByUserId(userId: string): Promise<SessionUser | null> {
     for (const u of usersByPhone.values()) {
       if (u.userId === userId) {

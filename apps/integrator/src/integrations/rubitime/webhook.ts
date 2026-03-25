@@ -1,14 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
-import type { EventGateway, GatewayResult } from '../../kernel/contracts/index.js';
+import type { EventGateway, GatewayResult, WebappEventsPort } from '../../kernel/contracts/index.js';
 import { fetchRubitimeRecordById } from './client.js';
-import { rubitimeIncomingToEvent } from './connector.js';
+import {
+  buildUserEmailAutobindWebappEvent,
+  rubitimeIncomingToEvent,
+  syncRubitimeWebhookBodyToGoogleCalendar,
+} from './connector.js';
 import { rubitimeConfig } from './config.js';
 import { parseRubitimeBody } from './schema.js';
 
 /** Dependencies for Rubitime webhook handler registration. */
 export type RubitimeWebhookDeps = {
   eventGateway: EventGateway;
+  webappEventsPort: WebappEventsPort;
 };
 
 async function processRubitimeBody(input: {
@@ -17,6 +22,7 @@ async function processRubitimeBody(input: {
   eventId: string;
   requestId: string;
   eventGateway: EventGateway;
+  webappEventsPort: WebappEventsPort;
 }): Promise<GatewayResult> {
   const reqLogger = getRequestLogger(input.requestId, {
     correlationId: input.correlationId,
@@ -44,6 +50,27 @@ async function processRubitimeBody(input: {
     },
     '[rubitime] mapped to event',
   );
+
+  try {
+    await syncRubitimeWebhookBodyToGoogleCalendar(input.body);
+  } catch (err) {
+    reqLogger.warn({ err }, '[rubitime] google calendar sync failed');
+  }
+
+  const autobind = buildUserEmailAutobindWebappEvent(input.body);
+  if (autobind) {
+    try {
+      const emitResult = await input.webappEventsPort.emit(autobind);
+      if (!emitResult.ok) {
+        reqLogger.warn(
+          { status: emitResult.status, error: emitResult.error },
+          '[rubitime] user.email.autobind emit failed',
+        );
+      }
+    } catch (err) {
+      reqLogger.warn({ err }, '[rubitime] user.email.autobind emit threw');
+    }
+  }
 
   return input.eventGateway.handleIncomingEvent(incomingEvent);
 }
@@ -83,6 +110,7 @@ export async function registerRubitimeWebhookRoutes(
         eventId,
         requestId: request.id,
         eventGateway: deps.eventGateway,
+        webappEventsPort: deps.webappEventsPort,
       });
       if (result?.status === 'rejected') {
         reqLogger.warn({ reason: result.reason }, 'rubitime webhook pipeline rejected');
@@ -125,6 +153,7 @@ export async function registerRubitimeWebhookRoutes(
         eventId,
         requestId: request.id,
         eventGateway: deps.eventGateway,
+        webappEventsPort: deps.webappEventsPort,
       });
       if (result?.status === 'rejected') {
         reqLogger.warn({ reason: result.reason }, 'rubitime record_success pipeline rejected');

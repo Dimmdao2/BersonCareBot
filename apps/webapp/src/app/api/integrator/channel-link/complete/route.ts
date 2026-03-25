@@ -5,7 +5,7 @@ import { completeChannelLinkFromIntegrator } from "@/modules/auth/channelLink";
 
 const bodySchema = z.object({
   linkToken: z.string().min(4).max(500),
-  channelCode: z.literal("telegram"),
+  channelCode: z.enum(["telegram", "max"]),
   externalId: z.string().min(1).max(64),
 });
 
@@ -41,6 +41,13 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
+    if (result.code === "used_token") {
+      // Idempotent completion for repeated webhook deliveries.
+      return NextResponse.json({ ok: true, status: "already_used" });
+    }
+    if (result.code === "conflict") {
+      return NextResponse.json({ ok: false, error: "conflict" }, { status: 409 });
+    }
     return NextResponse.json({ ok: false, error: result.code }, { status: 400 });
   }
 

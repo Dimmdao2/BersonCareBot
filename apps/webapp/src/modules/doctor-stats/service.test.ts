@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createDoctorStatsService } from "./service";
 
 describe("doctor-stats service", () => {
@@ -49,5 +49,31 @@ describe("doctor-stats service", () => {
     expect(m.appointments.futureActive).toBe(7);
     expect(m.appointments.recordsInMonthTotal).toBe(12);
     expect(m.appointments.cancellationsInMonth).toBe(1);
+  });
+
+  it("getStats requests clients list only once", async () => {
+    const listClients = vi.fn(async () => [
+      { userId: "u1", bindings: { telegramId: "tg1", maxId: "m1" } },
+      { userId: "u2", bindings: { telegramId: "tg2" } },
+      { userId: "u3", bindings: {} },
+    ]);
+    const optimizedService = createDoctorStatsService({
+      getAppointmentStats: async () => ({ total: 0, cancellations: 0, cancellations30d: 0, reschedules: 0 }),
+      listClients,
+      getDashboardPatientMetrics: async () => ({
+        totalClients: 0,
+        onSupportCount: 0,
+        visitedThisCalendarMonthCount: 0,
+      }),
+      getDashboardAppointmentMetrics: async () => ({
+        futureActiveCount: 0,
+        recordsInCalendarMonthTotal: 0,
+        cancellationsInCalendarMonth: 0,
+      }),
+    });
+
+    await optimizedService.getStats();
+    expect(listClients).toHaveBeenCalledTimes(1);
+    expect(listClients).toHaveBeenCalledWith({});
   });
 });

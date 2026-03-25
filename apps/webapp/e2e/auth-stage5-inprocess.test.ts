@@ -18,6 +18,16 @@ import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 import { hashLoginTokenPlain } from "@/modules/auth/messengerLoginToken";
 import { __testConfirmLoginTokenByHash } from "@/infra/repos/inMemoryLoginTokens";
 
+function tokenFromDeepLink(deepLink: string | null | undefined): string {
+  if (!deepLink) return "";
+  try {
+    const url = new URL(deepLink);
+    return url.searchParams.get("start") ?? "";
+  } catch {
+    return "";
+  }
+}
+
 describe("auth stage 5 (in-process)", () => {
   it("POST check-phone returns 400 on empty body", async () => {
     const res = await POST_CHECK(
@@ -57,18 +67,19 @@ describe("auth stage 5 (in-process)", () => {
       })
     );
     expect(startRes.status).toBe(200);
-    const startJson = (await startRes.json()) as { ok?: boolean; token?: string };
+    const startJson = (await startRes.json()) as { ok?: boolean; deepLink?: string | null };
     expect(startJson.ok).toBe(true);
-    expect(startJson.token).toBeDefined();
+    const token = tokenFromDeepLink(startJson.deepLink);
+    expect(token).not.toBe("");
 
-    const h = hashLoginTokenPlain(startJson.token!);
+    const h = hashLoginTokenPlain(token);
     expect(__testConfirmLoginTokenByHash(h)).toBe(true);
 
     const pollRes = await POST_MPOLL(
       new Request("http://localhost/api/auth/messenger/poll", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: startJson.token }),
+        body: JSON.stringify({ token }),
       })
     );
     expect(pollRes.status).toBe(200);
@@ -81,7 +92,7 @@ describe("auth stage 5 (in-process)", () => {
       new Request("http://localhost/api/auth/messenger/poll", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ token: startJson.token }),
+        body: JSON.stringify({ token }),
       })
     );
     expect(poll2.status).toBe(200);

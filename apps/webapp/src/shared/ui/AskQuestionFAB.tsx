@@ -30,18 +30,18 @@ export function AskQuestionFAB({ visible }: AskQuestionFABProps) {
   if (pathname?.startsWith(routePaths.patientMessages)) return null;
 
   const hideInMessenger = miniAppEnv === "mini";
-  const shellOpacity = hideInMessenger ? 0 : miniAppEnv === "unknown" ? 0 : 1;
-  const shellPointer = hideInMessenger || miniAppEnv === "unknown" ? "none" : "auto";
+  const isReady = miniAppEnv !== "unknown";
 
   return (
     <div
-      className="ask-question-fab-root"
-      style={{
-        opacity: shellOpacity,
-        pointerEvents: shellPointer as "none" | "auto",
-        transition: "opacity 0.2s ease",
-        visibility: hideInMessenger ? "hidden" : "visible",
-      }}
+      className={[
+        "ask-question-fab-root",
+        "transition-opacity duration-200",
+        isReady && !hideInMessenger ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+        hideInMessenger ? "invisible" : "visible",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       aria-hidden={hideInMessenger}
     >
       <button

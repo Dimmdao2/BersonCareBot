@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { uploadMock, sessionMock } = vi.hoisted(() => ({
   uploadMock: vi.fn(),
@@ -18,6 +18,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { POST } from "./route";
 
 describe("POST /api/media/upload", () => {
+  beforeEach(() => {
+    uploadMock.mockReset();
+    sessionMock.mockReset();
+  });
+
   it("returns 403 without doctor session", async () => {
     sessionMock.mockResolvedValue(null);
     const fd = new FormData();
@@ -58,7 +63,7 @@ describe("POST /api/media/upload", () => {
       url: "/api/media/mid-1",
     });
     const fd = new FormData();
-    fd.set("file", new File([new Uint8Array([1, 2, 3])], "a.jpg", { type: "image/jpeg" }));
+    fd.set("file", new File([new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 0x00])], "a.jpg", { type: "image/jpeg" }));
     const res = await POST(
       new Request("http://localhost/api/media/upload", { method: "POST", body: fd })
     );
@@ -67,5 +72,18 @@ describe("POST /api/media/upload", () => {
     expect(json.ok).toBe(true);
     expect(json.url).toBe("/api/media/mid-1");
     expect(uploadMock).toHaveBeenCalled();
+  });
+
+  it("returns 415 when MIME does not match magic bytes", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
+    const fd = new FormData();
+    fd.set("file", new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])], "a.jpg", { type: "image/jpeg" }));
+    const res = await POST(
+      new Request("http://localhost/api/media/upload", { method: "POST", body: fd })
+    );
+    expect(res.status).toBe(415);
+    const json = (await res.json()) as { error: string };
+    expect(json.error).toBe("file_signature_mismatch");
+    expect(uploadMock).not.toHaveBeenCalled();
   });
 });

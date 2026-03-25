@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { buttonVariants } from "@/components/ui/button";
 import { AppShell } from "@/shared/ui/AppShell";
 
 export default async function DoctorPage() {
@@ -75,22 +76,45 @@ export default async function DoctorPage() {
         </p>
       </section>
 
-      <section id="doctor-dashboard-quick-actions" className="panel stack">
+      <section
+        id="doctor-dashboard-quick-actions"
+        className="rounded-xl border border-border/60 bg-background p-4 shadow-sm flex flex-col gap-3"
+      >
         <h2 className="text-lg font-semibold">Быстрые действия</h2>
-        <div className="feature-grid feature-grid--compact">
-          <Link id="doctor-dashboard-action-subscribers" href="/app/doctor/subscribers" className="button">
+        <div className="flex flex-wrap gap-2">
+          <Link
+            id="doctor-dashboard-action-subscribers"
+            href="/app/doctor/subscribers"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
             Подписчики
           </Link>
-          <Link id="doctor-dashboard-action-clients" href="/app/doctor/clients" className="button">
+          <Link
+            id="doctor-dashboard-action-clients"
+            href="/app/doctor/clients"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
             Клиенты
           </Link>
-          <Link id="doctor-dashboard-action-appointments" href="/app/doctor/appointments" className="button">
+          <Link
+            id="doctor-dashboard-action-appointments"
+            href="/app/doctor/appointments"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
             Записи
           </Link>
-          <Link id="doctor-dashboard-action-messages" href="/app/doctor/messages" className="button">
+          <Link
+            id="doctor-dashboard-action-messages"
+            href="/app/doctor/messages"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
             Сообщения
           </Link>
-          <Link id="doctor-dashboard-action-stats" href="/app/doctor/stats" className="button">
+          <Link
+            id="doctor-dashboard-action-stats"
+            href="/app/doctor/stats"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
             Статистика
           </Link>
         </div>

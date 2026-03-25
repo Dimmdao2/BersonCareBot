@@ -7,6 +7,7 @@ export type AuthMethodsPayload = {
   pin?: boolean;
   telegram?: boolean;
   max?: boolean;
+  /** OAuth-методы скрыты из UI до полной реализации. Поле зарезервировано. */
   oauth?: {
     yandex?: boolean;
     google?: boolean;
@@ -26,19 +27,11 @@ export async function resolveAuthMethodsForPhone(
   if (!user) {
     return {
       exists: false,
-      methods: {
-        sms: true,
-        oauth: {},
-      },
+      methods: { sms: true },
     };
   }
 
   const pinRow = await ports.userPinsPort.getByUserId(user.userId);
-  const oauthList = await ports.oauthBindingsPort.listProvidersForUser(user.userId);
-  const oauth: NonNullable<AuthMethodsPayload["oauth"]> = {};
-  if (oauthList.includes("yandex")) oauth.yandex = true;
-  if (oauthList.includes("google")) oauth.google = true;
-  if (oauthList.includes("apple")) oauth.apple = true;
 
   return {
     exists: true,
@@ -47,7 +40,7 @@ export async function resolveAuthMethodsForPhone(
       pin: !!pinRow,
       telegram: !!user.bindings?.telegramId,
       max: !!user.bindings?.maxId,
-      oauth,
+      // OAuth не включается в UI пока flow не готов к production.
     },
   };
 }

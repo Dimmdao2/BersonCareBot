@@ -113,6 +113,9 @@ export default async function PatientDiaryPage() {
             {complexes.map((c) => (
               <li key={c.id} id={`patient-lfk-complex-item-${c.id}`} className="list-item">
                 <strong>{c.title ?? "—"}</strong>
+                {c.origin === "assigned_by_specialist" ? (
+                  <span className="status-pill ml-2">Назначен врачом</span>
+                ) : null}
               </li>
             ))}
           </ul>

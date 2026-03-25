@@ -117,4 +117,20 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
       );
     return items;
   },
+
+  async getUnseenCount(_platformUserId: string) {
+    return 0;
+  },
+
+  async getStats(_platformUserId: string, _days: number) {
+    return { total: 0, seen: 0, unseen: 0, failed: 0 };
+  },
+
+  async markSeen(_platformUserId: string, _occurrenceIds: string[]) {
+    // no-op in memory
+  },
+
+  async markAllSeen(_platformUserId: string) {
+    // no-op in memory
+  },
 };

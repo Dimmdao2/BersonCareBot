@@ -2,7 +2,6 @@
  * Сообщения поддержки для пациента (webapp thread `webapp:platform:{userId}`).
  */
 import type { SupportCommunicationPort, SupportConversationMessageRow } from "@/infra/repos/pgSupportCommunication";
-import { maybeRelayOutbound } from "./relayOutbound";
 
 const MAX_LEN = 4000;
 
@@ -61,7 +60,6 @@ export function createPatientMessagingService(
         source: "webapp",
         createdAt: now,
       });
-      await maybeRelayOutbound({ kind: "patient", text: trimmed });
       return { ok: true };
     },
 

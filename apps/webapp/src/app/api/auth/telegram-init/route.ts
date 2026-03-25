@@ -1,27 +1,29 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+
+const bodySchema = z.object({
+  initData: z.string().trim().min(1),
+});
 
 /**
  * Authenticates using Telegram Web App initData (when user opens Mini App from menu/button without ?t= token).
  * Validates initData signature, checks ALLOWED_TELEGRAM_IDS / ADMIN_TELEGRAM_ID, creates session.
  */
 export async function POST(request: Request) {
-  console.log("[auth/telegram-init] POST request received");
-  const body = (await request.json().catch(() => null)) as { initData?: string } | null;
-  const initData = typeof body?.initData === "string" ? body.initData.trim() : "";
-  if (!initData) {
-    console.log("[auth/telegram-init] POST missing initData -> 400");
+  const raw = (await request.json().catch(() => null)) as unknown;
+  const parsed = bodySchema.safeParse(raw);
+  if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "initData is required" }, { status: 400 });
   }
+  const { initData } = parsed.data;
 
   const deps = buildAppDeps();
   const result = await deps.auth.exchangeTelegramInitData(initData);
   if (!result) {
-    console.log("[auth/telegram-init] POST initData len=%d validation/allowlist failed -> 403", initData.length);
     return NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
   }
 
-  console.log("[auth/telegram-init] POST initData len=%d role=%s -> 200 redirectTo=%s", initData.length, result.session.user.role, result.redirectTo);
   return NextResponse.json({
     ok: true,
     role: result.session.user.role,

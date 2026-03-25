@@ -7,6 +7,8 @@ import type {
   DoctorDashboardAppointmentMetrics,
 } from "@/modules/doctor-appointments/ports";
 
+export const CANCELLATION_LAST_EVENT_EXCLUSION_SQL = "last_event NOT IN ('event-remove-record', 'event-delete-record')";
+
 function formatRecordAt(recordAt: Date | null): string {
   if (!recordAt) return "";
   const d = new Date(recordAt);
@@ -101,7 +103,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
       }>(
         `SELECT
           COUNT(*)::text AS total,
-          COUNT(*) FILTER (WHERE status = 'canceled' AND last_event NOT IN ('event-remove-record', 'event-delete-record'))::text AS cancellations,
+          COUNT(*) FILTER (WHERE status = 'canceled' AND ${CANCELLATION_LAST_EVENT_EXCLUSION_SQL})::text AS cancellations,
           COUNT(*) FILTER (WHERE status = 'updated')::text AS reschedules
          FROM appointment_records
          WHERE record_at >= $1::timestamptz AND record_at <= $2::timestamptz`,
@@ -111,7 +113,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         `SELECT COUNT(*)::text AS count
          FROM appointment_records
          WHERE status = 'canceled'
-           AND last_event NOT IN ('event-remove-record', 'event-delete-record')
+           AND ${CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
            AND updated_at >= NOW() - INTERVAL '30 days'`
       );
       const row = rangeResult.rows[0];
@@ -143,6 +145,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
           `SELECT COUNT(*)::text AS c FROM appointment_records
            WHERE deleted_at IS NULL
              AND status = 'canceled'
+             AND ${CANCELLATION_LAST_EVENT_EXCLUSION_SQL}
              AND updated_at >= date_trunc('month', NOW())
              AND updated_at < date_trunc('month', NOW()) + interval '1 month'`
         ),

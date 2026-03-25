@@ -18,6 +18,16 @@ import { __testConfirmLoginTokenByHash } from "@/infra/repos/inMemoryLoginTokens
 import { POST as POST_POLL } from "./route";
 import { POST as POST_START } from "../start/route";
 
+function tokenFromDeepLink(deepLink: string | null | undefined): string {
+  if (!deepLink) return "";
+  try {
+    const url = new URL(deepLink);
+    return url.searchParams.get("start") ?? "";
+  } catch {
+    return "";
+  }
+}
+
 describe("POST /api/auth/messenger/poll", () => {
   it("second poll returns resumed without calling setSession again", async () => {
     setSessionFromUserMock.mockClear();
@@ -35,7 +45,9 @@ describe("POST /api/auth/messenger/poll", () => {
         body: JSON.stringify({ phone, method: "telegram" }),
       })
     );
-    const { token } = (await startRes.json()) as { token: string };
+    const { deepLink } = (await startRes.json()) as { deepLink?: string | null };
+    const token = tokenFromDeepLink(deepLink);
+    expect(token).not.toBe("");
     const h = hashLoginTokenPlain(token);
     expect(__testConfirmLoginTokenByHash(h)).toBe(true);
 
