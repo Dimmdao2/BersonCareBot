@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { SessionUser } from "@/shared/types/session";
 import type { ChannelContext } from "./channelContext";
 import type { PhoneChallengeStore } from "./phoneChallengeStore";
-import type { SmsPort } from "./smsPort";
+import type { PhoneOtpDelivery, SmsPort } from "./smsPort";
 import type { UserByPhonePort } from "./userByPhonePort";
 import { getRedirectPathForRole } from "./redirectPolicy";
 import { normalizePhone } from "./phoneNormalize";
+import { isValidRuMobileNormalized } from "./phoneValidation";
 
 export { normalizePhone } from "./phoneNormalize";
 
@@ -27,20 +28,30 @@ export type StartPhoneAuthResult =
   | { ok: false; code: string; retryAfterSeconds?: number };
 
 export type ConfirmPhoneAuthResult =
-  | { ok: true; user: SessionUser; redirectTo: string }
+  | {
+      ok: true;
+      user: SessionUser;
+      redirectTo: string;
+      deliveryChannel?: "sms" | "telegram" | "max" | "email";
+    }
   | { ok: false; code: string; retryAfterSeconds?: number };
+
+export type StartPhoneAuthOptions = {
+  delivery?: PhoneOtpDelivery;
+};
 
 export async function startPhoneAuth(
   phone: string,
   context: ChannelContext,
-  deps: PhoneAuthDeps
+  deps: PhoneAuthDeps,
+  options?: StartPhoneAuthOptions
 ): Promise<StartPhoneAuthResult> {
   const normalized = normalizePhone(phone);
-  if (normalized.length < 10) {
+  if (!isValidRuMobileNormalized(normalized)) {
     return { ok: false, code: "invalid_phone" };
   }
 
-  const sendResult = await deps.smsPort.sendCode(normalized, CHALLENGE_TTL_SEC);
+  const sendResult = await deps.smsPort.sendCode(normalized, CHALLENGE_TTL_SEC, options?.delivery);
   if (!sendResult.ok) {
     return {
       ok: false,
@@ -78,6 +89,8 @@ export async function confirmPhoneAuth(
     return { ok: false, code: "expired_code" };
   }
 
+  const deliveryChannel = challenge.deliveryChannel ?? "sms";
+
   const verifyResult = await deps.smsPort.verifyCode(challengeId, code);
   if (!verifyResult.ok) {
     return {
@@ -87,9 +100,12 @@ export async function confirmPhoneAuth(
     };
   }
 
-  await deps.challengeStore.delete(challengeId);
-
   const context = challenge.channelContext ?? defaultWebContext();
   const user = await deps.userByPhonePort.createOrBind(challenge.phone, context);
-  return { ok: true, user, redirectTo: getRedirectPathForRole(user.role) };
+  return {
+    ok: true,
+    user,
+    redirectTo: getRedirectPathForRole(user.role),
+    deliveryChannel,
+  };
 }

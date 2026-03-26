@@ -25,6 +25,10 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
     return null;
   },
 
+  async getVerifiedEmailForUser(_userId: string): Promise<string | null> {
+    return null;
+  },
+
   async findByUserId(userId: string): Promise<SessionUser | null> {
     for (const u of usersByPhone.values()) {
       if (u.userId === userId) {
@@ -70,7 +74,7 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
 function normalizePhone(phone: string): string {
   let digits = phone.replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("8")) digits = "7" + digits.slice(1);
-  if (digits.length >= 10 && digits.startsWith("7")) return `+${digits}`;
-  if (digits.length >= 10) return `+7${digits}`;
+  if (digits.length === 11 && digits.startsWith("7")) return `+${digits}`;
+  if (digits.length === 10 && digits.startsWith("9")) return `+7${digits}`;
   return `+${digits}`;
 }

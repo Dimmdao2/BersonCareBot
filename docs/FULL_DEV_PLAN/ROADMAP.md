@@ -2,6 +2,7 @@
 
 > Дата: 2026-03-22 (обновлено 2026-03-23)
 > На основе: `RAW_PLAN.md` + `ANALYSIS.md` + ревью владельца продукта
+> Pre-prod обязательные задачи: `docs/FULL_DEV_PLAN/PRE_PROD_TODO.md`
 > Отложенные post-prod задачи: `docs/FULL_DEV_PLAN/POST_PROD_TODO.md`
 
 ---

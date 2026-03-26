@@ -21,9 +21,16 @@ export type VerifyCodeResult =
   | { ok: true }
   | { ok: false; code: SmsErrorCode; retryAfterSeconds?: number };
 
+/** Куда доставить OTP (код всегда в phone challenge store). */
+export type PhoneOtpDelivery =
+  | { channel: "sms" }
+  | { channel: "telegram"; recipientId: string }
+  | { channel: "max"; recipientId: string }
+  | { channel: "email"; email: string };
+
 export type SmsPort = {
   /** Генерирует код и challengeId, сохраняет в store (с code), отправляет SMS (через интегратор или заглушку). */
-  sendCode(phone: string, ttlSec: number): Promise<SendCodeResult>;
+  sendCode(phone: string, ttlSec: number, delivery?: PhoneOtpDelivery): Promise<SendCodeResult>;
   /** Проверка кода только в вебапп (по данным из store). */
   verifyCode(challengeId: string, code: string): Promise<VerifyCodeResult>;
 };

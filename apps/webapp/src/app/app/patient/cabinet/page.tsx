@@ -71,7 +71,7 @@ export default async function PatientCabinetPage() {
         </div>
 
         <div className="stack gap-2">
-          <h2 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">История записей</h2>
+          <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">История записей</h2>
           {past.length === 0 ? (
             <p className="text-muted-foreground text-sm">
               История прошедших записей появится после интеграции с системой записи (Rubitime).

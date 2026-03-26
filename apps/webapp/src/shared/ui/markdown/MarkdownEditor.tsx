@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useId, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { insertLinePrefix, insertSnippet, wrapSelection } from "./markdownInsert";
 import { MediaUploader } from "./MediaUploader";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -50,40 +51,44 @@ export function MarkdownEditor({
         таблицы).
       </p>
       <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Вставки Markdown">
-        <button
+        <Button
           type="button"
-          className="button button-outline text-sm"
+          variant="outline"
+          size="sm"
           onClick={() =>
             apply((t, s, e) => wrapSelection(t, s, e, "**"))
           }
         >
           Жирный
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="button button-outline text-sm"
+          variant="outline"
+          size="sm"
           onClick={() =>
             apply((t, s, e) => wrapSelection(t, s, e, "`"))
           }
         >
           Код
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="button button-outline text-sm"
+          variant="outline"
+          size="sm"
           onClick={() =>
             apply((t, s, e) => insertSnippet(t, s, e, "[текст](https://)"))
           }
         >
           Ссылка
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="button button-outline text-sm"
+          variant="outline"
+          size="sm"
           onClick={() => apply((t, s) => insertLinePrefix(t, s, "- "))}
         >
           Список
-        </button>
+        </Button>
         <MediaUploader
           onUploaded={(url, filename) => {
             const safeName = filename.replace(/[[\]]/g, "");

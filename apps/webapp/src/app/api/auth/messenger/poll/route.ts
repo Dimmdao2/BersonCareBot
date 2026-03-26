@@ -63,7 +63,11 @@ export async function POST(request: Request) {
   }
 
   if (row.status === "confirmed") {
-    const envRole = resolveRoleFromEnv({ phone: user.phone });
+    const envRole = resolveRoleFromEnv({
+      phone: user.phone,
+      telegramId: user.bindings?.telegramId,
+      maxId: user.bindings?.maxId,
+    });
     const effectiveRole = user.role !== envRole ? envRole : user.role;
     const redirectTo = getRedirectPathForRole(effectiveRole);
 

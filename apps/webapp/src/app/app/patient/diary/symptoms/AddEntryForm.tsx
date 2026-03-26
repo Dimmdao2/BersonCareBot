@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useTransition } from "react";
+import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { addSymptomEntry } from "./actions";
+import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./symptomEntryDedup";
 
 type TrackingOption = { id: string; symptomTitle: string | null };
 
-/** Градиент от зелёного (0) к жёлтому (5) к бордовому (10) — как в плане этапа 1. */
 function getScoreColor(score: number): string {
   if (score <= 5) {
     const t = score / 5;
@@ -24,6 +26,8 @@ function getScoreColor(score: number): string {
 
 export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
   const [selectedValue, setSelectedValue] = useState<number | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const lastSavedRef = useRef<LastSymptomSaveMeta | null>(null);
 
   if (trackings.length === 0) {
     return null;
@@ -32,7 +36,43 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
   const single = trackings.length === 1;
 
   return (
-    <form action={addSymptomEntry} className="stack">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const fd = new FormData(form);
+        const trackingId = String(fd.get("trackingId") ?? "").trim();
+        const entryTypeRaw = fd.get("entryType");
+        const et = entryTypeRaw === "daily" ? "daily" : "instant";
+
+        if (!trackingId) return;
+        if (selectedValue === null) {
+          toast.error("Выберите интенсивность");
+          return;
+        }
+
+        if (shouldConfirmInstantDuplicate(lastSavedRef.current, trackingId, et)) {
+          if (
+            !window.confirm("Вы только что сделали такую запись. Сохранить ещё одну?")
+          ) {
+            return;
+          }
+        }
+
+        startTransition(async () => {
+          const result = await addSymptomEntry(fd);
+          if (result.ok) {
+            toast.success("Запись сохранена");
+            lastSavedRef.current = { trackingId, entryType: et, at: Date.now() };
+            form.reset();
+            setSelectedValue(null);
+          } else {
+            toast.error("Не удалось сохранить");
+          }
+        });
+      }}
+      className="stack"
+    >
       {single ? (
         <input type="hidden" name="trackingId" value={trackings[0].id} />
       ) : (
@@ -97,9 +137,9 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
         <span className="eyebrow">Заметки (необязательно)</span>
         <textarea id="symptom-entry-notes" name="notes" className="auth-input" rows={3} />
       </label>
-      <button type="submit" className="button" disabled={selectedValue === null}>
-        Сохранить запись
-      </button>
+      <Button type="submit" disabled={isPending || selectedValue === null}>
+        {isPending ? "Сохраняю…" : "Сохранить запись"}
+      </Button>
     </form>
   );
 }

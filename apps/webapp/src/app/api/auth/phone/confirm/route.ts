@@ -43,7 +43,9 @@ export async function POST(request: Request) {
     );
   }
 
-  await deps.auth.setSessionFromUser(result.user);
+  await deps.auth.setSessionFromUser(result.user, {
+    postLoginHints: { phoneOtpChannel: result.deliveryChannel ?? "sms" },
+  });
 
   return NextResponse.json({
     ok: true,

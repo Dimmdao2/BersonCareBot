@@ -80,6 +80,8 @@
 
 ## Шаг D.2 — Patient UI: `/app/patient/reminders`
 
+> Источник: RAW_PLAN §5 — "Выбор каналов напоминаний. Выбор расписания и о чем напоминать. Статистика."
+
 **Файлы:**
 - `apps/webapp/src/app/app/patient/reminders/page.tsx` (новый)
 - `apps/webapp/src/app/app/patient/reminders/actions.ts` (новый)
@@ -92,8 +94,13 @@
 3. Client Component: список категорий с toggle enabled, настройки расписания (interval, window, days).
 4. Server Actions: `updateReminderRule` с Zod-валидацией.
 5. shadcn: `Card`, `Switch`, `Select`, `Input` (числовой для minutes), `Button`.
-6. Добавить пункт в меню пациента (ссылка в `PatientHeader` или боковое меню).
+6. Добавить пункт в меню пациента (ссылка в `PatientHeader` или боковое меню). В RAW_PLAN кнопка «Бот заботы» в блоке «Кабинет» на главной.
 7. Тексты на русском: "Напоминания", "Запись на приём", "ЛФК", "Расписание", "Тихие часы".
+
+**UI-стандарты (из Pack I — выполняется ДО Pack D):**
+- Кнопки: единый стиль из I.1 (скругление, active-состояние).
+- Размеры: из I.2 (шрифты, поля, отступы, input h-10/h-11 text-base).
+- Для гостя: GuestPlaceholder из I.10.
 
 **Тесты:**
 - Integration: server action valid update → success.
@@ -101,7 +108,7 @@
 - Integration: unauthorized → redirect.
 - E2E: patient opens reminders, toggles category → saved.
 
-**DoD:** Пациент управляет правилами reminders через отдельный экран. CI зелёный.
+**DoD:** Пациент управляет правилами reminders через отдельный экран: каналы, расписание, toggle. CI зелёный.
 
 ---
 

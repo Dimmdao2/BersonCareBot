@@ -32,6 +32,9 @@ const DOCTOR_SHEET_LINK_CLASS = cn(
   "h-auto w-full justify-start px-3 py-2 font-normal",
 );
 
+/** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
+const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-11 shrink-0");
+
 const DOCTOR_MENU_LINKS: { id: string; label: string; href: string }[] = [
   { id: "overview", label: "Обзор", href: "/app/doctor" },
   { id: "subscribers", label: "Подписчики", href: "/app/doctor/subscribers" },
@@ -69,28 +72,29 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
           adminMode ? "bg-destructive/10" : "bg-background/95"
         )}
       >
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 md:px-4">
-          <div className="flex min-w-0 shrink-0 items-center gap-1">
+        <div className="mx-auto flex min-h-14 max-w-7xl items-center gap-2 px-3 py-2.5 md:px-4">
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
             {showBack ? (
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
+                className={HEADER_ICON_CLASS}
                 aria-label="Назад"
                 onClick={goBack}
               >
-                <ArrowLeft className="size-5" aria-hidden />
+                <ArrowLeft className="size-6" aria-hidden />
               </Button>
             ) : (
-              <span className="inline-flex w-8 shrink-0" aria-hidden />
+              <span className="inline-flex w-11 shrink-0" aria-hidden />
             )}
             <Link
               href="/app/doctor"
               prefetch={false}
               aria-label="Дашборд"
-              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+              className={HEADER_ICON_CLASS}
             >
-              <Home className="size-5" aria-hidden />
+              <Home className="size-6" aria-hidden />
             </Link>
           </div>
 
@@ -108,22 +112,22 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
             ) : null}
           </div>
 
-          <div className="flex shrink-0 items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-1.5">
             <Link
               href="/app/doctor/subscribers"
               prefetch={false}
               aria-label="Подписчики"
-              className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+              className={HEADER_ICON_CLASS}
             >
-              <Users className="size-5" aria-hidden />
+              <Users className="size-6" aria-hidden />
             </Link>
             <Link
               href="/app/doctor/messages"
               prefetch={false}
               aria-label="Сообщения"
-              className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "relative")}
+              className={cn(HEADER_ICON_CLASS, "relative")}
             >
-              <MessageCircle className="size-5" aria-hidden />
+              <MessageCircle className="size-6" aria-hidden />
               {supportUnread > 0 ? (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
                   {supportUnread > 99 ? "99+" : supportUnread}
@@ -134,12 +138,13 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
               type="button"
               id="doctor-menu-toggle"
               variant="ghost"
-              size="icon-sm"
+              size="icon"
+              className={HEADER_ICON_CLASS}
               aria-label="Меню"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
             >
-              <Menu className="size-5" aria-hidden />
+              <Menu className="size-6" aria-hidden />
             </Button>
           </div>
         </div>

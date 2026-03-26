@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
+import { isValidRuMobileNormalized } from "@/modules/auth/phoneValidation";
 import { cn } from "@/lib/utils";
 
 type PhoneInputProps = {
@@ -29,8 +30,8 @@ export function PhoneInput({
     e.preventDefault();
     setError(null);
     const n = normalizePhone(value.trim());
-    if (n.length < 10) {
-      setError("Введите корректный номер");
+    if (!isValidRuMobileNormalized(n)) {
+      setError("Введите корректный номер (10 цифр)");
       return;
     }
     onNormalized?.(n);

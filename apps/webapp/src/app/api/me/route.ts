@@ -17,5 +17,6 @@ export async function GET() {
     security: {
       hasPin: pinRow != null,
     },
+    postLoginHints: session.postLoginHints,
   });
 }

@@ -18,8 +18,8 @@ export function PinSection() {
       toast.error("PIN не совпадает");
       return;
     }
-    if (!/^\d{4,6}$/.test(pin)) {
-      toast.error("Введите 4–6 цифр");
+    if (!/^\d{4}$/.test(pin)) {
+      toast.error("Введите 4 цифры");
       return;
     }
     setLoading(true);
@@ -57,9 +57,9 @@ export function PinSection() {
           type="password"
           inputMode="numeric"
           autoComplete="new-password"
-          maxLength={6}
+          maxLength={4}
           value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
           disabled={loading}
           aria-label="Новый PIN"
         />
@@ -76,9 +76,9 @@ export function PinSection() {
           type="password"
           inputMode="numeric"
           autoComplete="new-password"
-          maxLength={6}
+          maxLength={4}
           value={pinConfirm}
-          onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 4))}
           disabled={loading}
           aria-label="Повторите PIN"
         />

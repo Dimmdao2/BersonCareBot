@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useActionState } from "react";
+import { Button } from "@/components/ui/button";
 import type { ChannelBindings } from "@/shared/types/session";
 import { sendMessageAction, type SendMessageResult } from "./actions";
 
@@ -99,9 +100,7 @@ export function SendMessageForm({
       )}
       {state?.error ? <p style={{ color: "#9c4242", margin: 0 }}>{state.error}</p> : null}
       {state?.success ? <p style={{ color: "#16a34a", margin: 0 }}>Сообщение отправлено.</p> : null}
-      <button type="submit" className="button">
-        Отправить
-      </button>
+      <Button type="submit">Отправить</Button>
     </form>
   );
 }

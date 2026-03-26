@@ -8,4 +8,4 @@ export const OTP_MAX_VERIFY_ATTEMPTS = 3;
 export const OTP_LOCK_DURATION_SEC = 600;
 
 export const OTP_TOO_MANY_ATTEMPTS_MESSAGE =
-  "Слишком много попыток. Попробуйте через 10 минут.";
+  "Превышено количество попыток. Запросите новый код через 10 минут.";

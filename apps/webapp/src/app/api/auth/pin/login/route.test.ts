@@ -41,6 +41,17 @@ describe("POST /api/auth/pin/login", () => {
     expect(res.status).toBe(400);
   });
 
+  it("returns 400 when PIN has 6 digits (only 4 allowed)", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/auth/pin/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: "+79998887766", pin: "123456" }),
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("returns 401 for wrong PIN", async () => {
     const phone = "+79998887766";
     await inMemoryUserByPhonePort.createOrBind(phone, {

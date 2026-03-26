@@ -7,8 +7,8 @@ import { channelToBindingKey } from "@/modules/auth/channelContext";
 function normalizePhone(phone: string): string {
   let digits = phone.replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("8")) digits = "7" + digits.slice(1);
-  if (digits.length >= 10 && digits.startsWith("7")) return `+${digits}`;
-  if (digits.length >= 10) return `+7${digits}`;
+  if (digits.length === 11 && digits.startsWith("7")) return `+${digits}`;
+  if (digits.length === 10 && digits.startsWith("9")) return `+7${digits}`;
   return `+${digits}`;
 }
 
@@ -30,6 +30,16 @@ export const pgUserByPhonePort: UserByPhonePort = {
     );
     const p = res.rows[0]?.phone_normalized;
     return typeof p === "string" && p.trim() ? p : null;
+  },
+
+  async getVerifiedEmailForUser(userId: string): Promise<string | null> {
+    const pool = getPool();
+    const res = await pool.query<{ email: string | null }>(
+      "SELECT email FROM platform_users WHERE id = $1 AND email_verified_at IS NOT NULL",
+      [userId]
+    );
+    const e = res.rows[0]?.email;
+    return typeof e === "string" && e.trim() ? e.trim() : null;
   },
 
   async findByUserId(userId: string): Promise<SessionUser | null> {

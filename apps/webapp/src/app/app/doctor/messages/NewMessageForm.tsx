@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useActionState, useState } from "react";
+import { Button } from "@/components/ui/button";
 import type { ChannelBindings } from "@/shared/types/session";
 import type { PrepareDraftResult } from "@/modules/doctor-messaging/service";
 import { sendMessageAction, type SendMessageResult } from "@/app/app/doctor/clients/[userId]/actions";
@@ -141,9 +142,7 @@ export function NewMessageForm({ clients }: NewMessageFormProps) {
           )}
           {state?.error ? <p style={{ color: "#9c4242", margin: 0 }}>{state.error}</p> : null}
           {state?.success ? <p style={{ color: "#16a34a", margin: 0 }}>Сообщение отправлено.</p> : null}
-          <button type="submit" className="button">
-            Отправить
-          </button>
+          <Button type="submit">Отправить</Button>
         </form>
       ) : selectedUserId && !draft && !loading ? (
         <p className="empty-state">Не удалось загрузить данные клиента.</p>

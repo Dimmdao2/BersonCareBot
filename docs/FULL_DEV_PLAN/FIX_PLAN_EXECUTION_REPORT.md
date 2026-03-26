@@ -1,7 +1,7 @@
 # Отчёт о выполнении FIX_PLAN для всех этапов
 
 **Дата:** 2026-03-25  
-**Статус проверок:** полный `pnpm run ci` — **PASS** (включая code review Pack G 2026-03-25).
+**Статус проверок:** полный `pnpm run ci` — **PASS** (включая Pack I.4 — роль admin в мессенджере, 2026-03-25).
 
 ---
 
@@ -221,3 +221,95 @@ FIX_PLAN §1: добавить сценарий `POST /api/media/upload` → `sa
 2. Policy «важных сообщений» (вариант B) остаётся за пределами scope Pack D (отдельная задача).
 
 Детальный список проблем вынесен в `docs/FULL_DEV_PLAN/EXEC/QA_CHEK_RESULT`.
+
+---
+
+## Code review — Pack H часть 1 (`EXEC_H_HOTFIX_UI_AUTH` H.1.1–H.3), 2026-03-25
+
+### Результат
+
+- Сверка с `EXEC_H_HOTFIX_UI_AUTH.md` и `QA_CHECKLIST.md`: закрыты пробелы по валидации телефона на всех входах API (не только `phone/start`), по WCAG touch-target в шапках, по тесту «нет фантомного cooldown» после ошибки интегратора.
+- Валидация нормализованного номера унифицирована: `isValidRuMobileNormalized` (`^\+7\d{10}$`) — эквивалент требованию «12 символов +7XXXXXXXXXX», строже наивного `length < 12` из EXEC для лишних цифр.
+- **`pnpm run ci` — PASS** после исправлений.
+
+### Изменённые файлы (итог review)
+
+- `apps/webapp/src/modules/auth/phoneValidation.ts`, `phoneValidation.test.ts`
+- `apps/webapp/src/shared/ui/auth/PhoneInput.tsx`, `apps/webapp/src/modules/auth/phoneAuth.ts`
+- `apps/webapp/src/app/api/auth/check-phone/route.ts`, `pin/login/route.ts`, `messenger/start/route.ts`
+- `apps/webapp/src/modules/auth/phoneNormalize.test.ts` (кейс `8(918)900-07-82`)
+- `apps/webapp/src/infra/integrations/sms/integratorSmsAdapter.test.ts`
+- `apps/webapp/src/shared/ui/PatientHeader.tsx`, `DoctorHeader.tsx`
+- Документация: `docs/FULL_DEV_PLAN/finsl_fix_report.md`, `docs/FULL_DEV_PLAN/EXEC/QA_CHECKLIST.md`
+
+---
+
+## Code review — Pack H часть 2 (`EXEC_H_HOTFIX_UI_AUTH` H.1.3–H.1.5), 2026-03-25
+
+### Результат
+
+- Сверка с `EXEC_H_HOTFIX_UI_AUTH.md` и `QA_CHECKLIST.md`: закрыты расхождения по H.1.5 (подсказка Telegram только при входе по SMS OTP), по UX fallback «отправить на СМС» (не сбрасывать challenge до успешного `phone/start`), по мелкому шрифту ссылки SMS в `ChannelPicker`.
+- Регрессия **не выявлена** для входа через Telegram Mini App: `AuthBootstrap` по-прежнему обрабатывает `?t=` / `telegram-init` до ветки `showPhoneFlow`; `AuthFlowV2` включается только при `NEXT_PUBLIC_AUTH_V2=1` и условии `showPhoneFlow`.
+- `INTEGRATOR_CONTRACT.md` содержит описание `POST /api/bersoncare/send-otp`.
+- **`pnpm run ci` — PASS** после исправлений.
+
+### Изменённые файлы (итог review)
+
+- `apps/webapp/src/shared/ui/auth/PostLoginSuggestion.tsx`
+- `apps/webapp/src/shared/ui/auth/AuthFlowV2.tsx`
+- `apps/webapp/src/shared/ui/auth/ChannelPicker.tsx`
+- `docs/FULL_DEV_PLAN/EXEC/QA_CHECKLIST.md`
+- `docs/FULL_DEV_PLAN/finsl_fix_report.md`
+
+---
+
+## Code review — Pack H часть 3 (`EXEC_H_HOTFIX_UI_AUTH` H.4, H.5, H.1.6), 2026-03-25
+
+### Результат
+
+- **H.4:** Секция «Кабинет» на `/app/patient` содержит только карточки «Дневник» и «Мои записи» (меню `diary` + `cabinet`, порядок в `PatientHomeCabinetSection`); отдельной секции «Дневники» нет, компонент `PatientHomeDiariesSection` удалён из кодовой базы.
+- **H.5:** `AUDIT_PAGES_VS_RAWPLAN.md` обновлён разделом о покрытии: основные экраны по RAW §7–18 и doctor §5–9 отражены; полный построчный обход каждого `page.tsx` (emergency, lessons, doctor/appointments, …) не выполнялся — зафиксировано в документе как пробел при необходимости второй итерации.
+- **H.1.6:** Тесты auth (`src/modules/auth` + `src/app/api/auth`) — **103 passed**; чеклист в конце `EXEC_H_HOTFIX_UI_AUTH.md` отмечен выполненным.
+- **`pnpm run ci`:** **PASS** (актуально на момент закрытия Pack H часть 3).
+
+### Документы
+
+- `docs/FULL_DEV_PLAN/EXEC/EXEC_H_HOTFIX_UI_AUTH.md` — контрольный чеклист (все пункты [x]).
+- `docs/FULL_DEV_PLAN/EXEC/AUDIT_PAGES_VS_RAWPLAN.md` — аудит + блок про покрытие.
+- `docs/FULL_DEV_PLAN/finsl_fix_report.md` — запись code review Pack H часть 3.
+
+---
+
+## Pack I — EXEC_I_UI_REVIEW (фрагменты)
+
+### I.1–I.3 (UI) + чеклист EXEC_I
+
+- Реализованы шаги I.1–I.3 (кнопки, размеры, PIN); по контрольному чеклисту в `EXEC_I_UI_REVIEW.md` пункты **1–4 и 22** (CI) закрыты в рамках этих шагов; пункты **5–21** относятся к I.5+ и не входили в объём I.1–I.3.
+- Детали и файлы: `docs/FULL_DEV_PLAN/finsl_fix_report.md` (секция Pack I).
+
+### I.4 — админ в Telegram/Max mini-app (`EXEC_I_UI_REVIEW.md`), 2026-03-25
+
+**Результат**
+
+- Роль из env определяется по `ADMIN_TELEGRAM_ID`, `DOCTOR_TELEGRAM_IDS`, `ADMIN_MAX_IDS`, `DOCTOR_MAX_IDS` в дополнение к телефонным спискам; исправлены `exchangeIntegratorToken`, `exchangeTelegramInitData`, `getCurrentSession` и сценарии с `resolveRoleFromEnv` только по телефону.
+- Добавлены тесты: `envRole.test.ts` (включая явный кейс «telegramId вне admin/doctor → `client`»), `exchangeIntegratorToken.messengerRole.test.ts` — три интеграционных кейса: admin tg, doctor tg, обычный пользователь в whitelist → **`client`** (роль пациента в коде — `client`, не строка `patient`).
+- **Code review I.4:** регрессий в обычном auth flow не выявлено; расширение тестов закрывает пробел «только admin в exchange».
+- **`pnpm run ci` — PASS** (после замены `exchangeIntegratorToken.adminRole.test.ts` на `messengerRole`).
+
+**Изменённые файлы**
+
+- `apps/webapp/src/modules/auth/envRole.ts`, `service.ts`
+- `apps/webapp/src/app-layer/di/buildAppDeps.ts`
+- `apps/webapp/src/app/api/auth/messenger/poll/route.ts`, `pin/login/route.ts`
+- `apps/webapp/src/modules/auth/envRole.test.ts`, `exchangeIntegratorToken.messengerRole.test.ts`
+- `docs/FULL_DEV_PLAN/finsl_fix_report.md`
+
+### I.5, I.6, I.12 — code review (`EXEC_I_UI_REVIEW.md` чеклист), 2026-03-25
+
+**Проверено по чеклисту (релевантные пункты):** одна «Дневник» на главной (кабинет) и в меню шапки; вкладки дневника sticky с подсветкой активной; FAB быстрого добавления только вне `/app/patient/diary*`, `bottom-6 right-6`; toast «Запись сохранена» и «Сохраняю…»; дедуп «в моменте» с confirm; форма нового симптома — по умолчанию только название + «Дополнительно» для расширенных полей.
+
+**Исправления при review:** смещение sticky вкладок `top-14` → `top-16` под высоту `PatientHeader`; добавлены unit-тесты `symptomEntryDedup.test.ts`; комментарий `FeatureCard` приведён к текущей модели «один Дневник».
+
+**Документы:** `docs/FULL_DEV_PLAN/finsl_fix_report.md` — блок Code review I.5/I.6/I.12.
+
+**`pnpm run ci`:** PASS после правок.

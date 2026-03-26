@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -46,7 +48,7 @@ export default async function DoctorContentNewsPage() {
       <section className="panel stack" style={{ gap: "1.5rem" }}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="m-0">Новости и цитаты для главной пациента</h2>
-          <Link href="/app/doctor/content" className="button button--ghost">
+          <Link href="/app/doctor/content" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
             К списку страниц
           </Link>
         </div>

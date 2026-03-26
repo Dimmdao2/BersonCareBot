@@ -6,8 +6,8 @@ import { isPinSetRateLimited } from "@/modules/auth/pinSetRateLimit";
 import { getCurrentSession } from "@/modules/auth/service";
 
 const bodySchema = z.object({
-  pin: z.string().regex(/^\d{4,6}$/),
-  pinConfirm: z.string().regex(/^\d{4,6}$/),
+  pin: z.string().regex(/^\d{4}$/),
+  pinConfirm: z.string().regex(/^\d{4}$/),
 });
 
 export async function POST(request: Request) {

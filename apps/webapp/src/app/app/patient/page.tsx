@@ -17,7 +17,6 @@ import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { PostLoginSuggestion } from "@/shared/ui/auth/PostLoginSuggestion";
 import { loadMiniStatsProps } from "./home/loadMiniStats";
 import { PatientHomeCabinetSection } from "./home/PatientHomeCabinetSection";
-import { PatientHomeDiariesSection } from "./home/PatientHomeDiariesSection";
 import { PatientHomeLessonsSection } from "./home/PatientHomeLessonsSection";
 import { PatientHomeMailingsSection } from "./home/PatientHomeMailingsSection";
 import { PatientHomeMotivationSection } from "./home/PatientHomeMotivationSection";
@@ -28,7 +27,6 @@ export default async function PatientHomePage() {
   const deps = buildAppDeps();
   const menu = deps.menu.getMenuForRole("client");
   const emergency = menu.find((i) => i.id === "emergency");
-  const lfkItem = menu.find((i) => i.id === "lfk");
   const lessons = await deps.lessons.listLessons();
 
   const emailFields =
@@ -59,7 +57,7 @@ export default async function PatientHomePage() {
   ]);
 
   if (session?.user && homeNews) {
-    void incrementNewsViews(homeNews.id);
+    void incrementNewsViews(homeNews.id, session.user.userId);
   }
 
   return (
@@ -67,7 +65,6 @@ export default async function PatientHomePage() {
       <div className="flex flex-col gap-10">
         {session?.user != null ? <PostLoginSuggestion /> : null}
         <PatientHomeCabinetSection items={menu} />
-        <PatientHomeDiariesSection lfkItem={lfkItem} />
         <PatientHomeLessonsSection emergency={emergency} lessons={lessons} />
         <PatientHomeNewsSection news={homeNews} banner={banner} />
         {session?.user && mailings.length > 0 ? (
@@ -80,7 +77,7 @@ export default async function PatientHomePage() {
           }
         />
         <section id="patient-home-stats-section" className="stack gap-3">
-          <h2 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">Статистика</h2>
+          <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">Статистика</h2>
           <MiniStats {...miniStats} />
         </section>
         {session?.user != null && channelCards.length > 0 && (

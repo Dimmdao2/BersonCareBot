@@ -158,11 +158,20 @@ export function EmailAccountPanel({ initialEmail, emailVerified }: Props) {
               ok?: boolean;
               challengeId?: string;
               retryAfterSeconds?: number;
+              error?: string;
+              message?: string;
             };
             if (data.ok && data.challengeId) {
               setEmailChallengeId(data.challengeId);
               setEmailRetrySec(data.retryAfterSeconds ?? 60);
+              return { kind: "ok" as const };
             }
+            if (res.status === 429 || data.error === "rate_limited") {
+              const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
+              setEmailRetrySec(sec);
+              return { kind: "rate_limited" as const, retryAfterSeconds: sec };
+            }
+            return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
           }}
           onBack={() => {
             setEmailStep("enter");

@@ -109,3 +109,24 @@
 - [x] Проверить: `SERVER CONVENTIONS.md` актуален (порты, пути, сервисы).
 - [x] Проверить: `INTEGRATOR_CONTRACT.md` описывает все M2M endpoints.
 - [ ] Проверить: `.env.example` содержит все новые переменные *(не хватает части ключей, см. `QA_CHEK_RESULT`)*.
+
+---
+
+## После Pack H (`EXEC_H_HOTFIX_UI_AUTH` — H.1.1, H.1.2, H.2, H.3)
+
+- [x] `normalizePhone`: покрыты варианты из EXEC + `8(918)900-07-82`; единая проверка `isValidRuMobileNormalized` (`+7` + 10 цифр) на клиенте, `phone/start`, `check-phone`, PIN, messenger.
+- [x] Rate limit UX: таймер при `rate_limited` в OTP/SMS flow; запись challenge в БД только после успеха интегратора; регрессионный тест `integratorSmsAdapter.test.ts`.
+- [x] Patient: `PatientHeader` и `AppShell` patient — горизонтальный padding `px-4` согласован.
+- [x] Шапки patient/doctor: иконки `size-6`, `gap-1.5` / `gap-2`; touch-area иконок — `size-11` (44px), т.к. базовый `size="icon"` = 32px.
+- [x] `pnpm run ci` зелёный после code review правок.
+
+---
+
+## После Pack H часть 2 (`EXEC_H_HOTFIX_UI_AUTH` — H.1.3, H.1.4, H.1.5)
+
+- [x] Auth flow: `phone` → `check-phone` → (`new_user_sms` → SMS) | (`pin` → forgot / 3× fail → `choose_channel`) | (`choose_channel` если нет PIN) → `code` → `phone/confirm` → redirect.
+- [x] `ChannelPicker`: Telegram / Max / Email только если `methods.*`; SMS — ссылка-стиль (link), мелкий шрифт.
+- [x] `phone/start` + `deliveryChannel`; интегратор `send-otp` (Telegram/Max), email через `send-email`; webapp stub при отсутствии integrator.
+- [x] `PostLoginSuggestion`: PIN — только после входа по SMS OTP и без PIN; Telegram — только после входа по SMS OTP и без `telegramId` (сверка EXEC H.1.5).
+- [x] `INTEGRATOR_CONTRACT.md` — раздел send-otp.
+- [x] Mini-app / `telegram-init` / `exchange` не затронуты `AuthFlowV2` (V2 только при `NEXT_PUBLIC_AUTH_V2=1` и `showPhoneFlow`).

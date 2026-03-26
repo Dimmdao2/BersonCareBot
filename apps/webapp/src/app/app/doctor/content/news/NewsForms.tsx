@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   toggleNewsArchive,
   toggleQuoteArchive,
@@ -60,16 +61,16 @@ export function NewsForms({ newsRows, quoteRows }: { newsRows: NewsRow[]; quoteR
                 Порядок
                 <input name="sort_order" type="number" className="auth-input" defaultValue={n.sort_order} />
               </label>
-              <button type="submit" className="button w-fit" disabled={newsPending}>
+              <Button type="submit" className="w-fit" disabled={newsPending}>
                 Сохранить
-              </button>
+              </Button>
             </form>
             <form action={toggleNewsArchive} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="id" value={n.id} />
               <input type="hidden" name="next_archived" value={n.archived_at ? "false" : "true"} />
-              <button type="submit" className="button button-outline">
+              <Button type="submit" variant="outline">
                 {n.archived_at ? "Из архива" : "В архив"}
-              </button>
+              </Button>
               {n.archived_at ? <span className="text-xs text-muted-foreground">В архиве</span> : null}
             </form>
           </div>
@@ -92,9 +93,9 @@ export function NewsForms({ newsRows, quoteRows }: { newsRows: NewsRow[]; quoteR
             Порядок
             <input name="sort_order" type="number" className="auth-input" defaultValue={0} />
           </label>
-          <button type="submit" className="button" disabled={newsPending}>
+          <Button type="submit" disabled={newsPending}>
             Добавить
-          </button>
+          </Button>
         </form>
       </section>
 
@@ -125,16 +126,16 @@ export function NewsForms({ newsRows, quoteRows }: { newsRows: NewsRow[]; quoteR
                 Порядок
                 <input name="sort_order" type="number" className="auth-input" defaultValue={q.sort_order} />
               </label>
-              <button type="submit" className="button w-fit" disabled={quotePending}>
+              <Button type="submit" className="w-fit" disabled={quotePending}>
                 Сохранить
-              </button>
+              </Button>
             </form>
             <form action={toggleQuoteArchive}>
               <input type="hidden" name="id" value={q.id} />
               <input type="hidden" name="next_archived" value={q.archived_at ? "false" : "true"} />
-              <button type="submit" className="button button-outline">
+              <Button type="submit" variant="outline">
                 {q.archived_at ? "Из архива" : "В архив"}
-              </button>
+              </Button>
             </form>
           </div>
         ))}
@@ -147,9 +148,9 @@ export function NewsForms({ newsRows, quoteRows }: { newsRows: NewsRow[]; quoteR
             Активна
           </label>
           <input name="sort_order" type="number" className="auth-input" defaultValue={0} />
-          <button type="submit" className="button" disabled={quotePending}>
+          <Button type="submit" disabled={quotePending}>
             Добавить
-          </button>
+          </Button>
         </form>
       </section>
     </div>

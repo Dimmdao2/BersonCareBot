@@ -19,4 +19,8 @@ export type AppSession = {
   issuedAt: number;
   expiresAt: number;
   adminMode?: boolean;
+  /** Подсказки UI сразу после входа (не для авторизации). */
+  postLoginHints?: {
+    phoneOtpChannel?: "sms" | "telegram" | "max" | "email";
+  };
 };

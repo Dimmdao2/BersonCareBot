@@ -4,6 +4,7 @@
 > Создан: opus4.6  
 > Source of truth для решений владельца: `docs/FULL_DEV_PLAN/USER_TODO_STAGE.md`
 > Нумерация этапов: `Stage 14 = Settings/Admin`, `Stage 15 = PWA`
+> Pre-prod обязательные: `docs/FULL_DEV_PLAN/PRE_PROD_TODO.md`
 > Post-prod backlog: `docs/FULL_DEV_PLAN/POST_PROD_TODO.md`
 
 ---
@@ -11,6 +12,8 @@
 ## Порядок выполнения и зависимости
 
 ```
+PACK H: Hotfix UI + Auth ────────────────── (СРОЧНО, нет зависимостей)
+    │
 PACK A: Quick Fixes ─────────────────────── (нет зависимостей)
     │
 PACK B: Settings/Admin (Stage 14) ──────── (фундамент для C, D, E)
@@ -32,6 +35,7 @@ PACK G: Final Stubs & E2E ──────────────── (по
 
 | Пакет | Файл инструкций | Сложность | Рекомендация по агенту | Шагов | Миграции |
 |-------|-----------------|-----------|----------------------|-------|----------|
+| **H** | `EXEC_H_HOTFIX_UI_AUTH.md` | Высокий | Auto; H.1.4 → API-модель | 5 секций (H.1–H.5) | — |
 | **A** | `EXEC_A_QUICK_FIXES.md` | Простой | Auto (пул) | 5 | — |
 | **B** | `EXEC_B_SETTINGS_ADMIN!!.md` | Высокий | Auto (пул); при проблемах → API-модель | 6 | `031_system_settings.sql` |
 | **C** | `EXEC_C_RELAY_OUTBOUND!.md` | Средний | Auto (пул) | 3 | — |
@@ -87,6 +91,8 @@ PACK G: Final Stubs & E2E ──────────────── (по
 
 | Пакет | Статус |
 |-------|--------|
+| **H** | **`in_progress`** — Hotfix UI + Auth flow (`EXEC_H_HOTFIX_UI_AUTH.md`) |
+| **I** | **`urgent`** — UI Review правки владельца (`EXEC_I_UI_REVIEW.md`) |
 | A | `todo` |
 | B | `todo` |
 | C | `todo` |

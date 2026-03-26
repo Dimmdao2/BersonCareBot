@@ -132,4 +132,30 @@ describe('createDefaultDispatchPort', () => {
 
     expect(send).toHaveBeenCalledTimes(1);
   });
+
+  it('redacts OTP payload in delivery logs', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const dispatchPort = createDefaultDispatchPort({ adapters: buildAdapters(), writePort: { writeDb } });
+    const intent: OutgoingIntent = {
+      type: 'message.send',
+      meta: { eventId: 'otp:telegram:test', occurredAt: '2026-03-03T00:00:00.000Z', source: 'telegram', correlationId: 'otp:123:654321' },
+      payload: {
+        recipient: { chatId: '123' },
+        message: { text: 'Код для входа в BersonCare: 654321' },
+        delivery: { channels: [channelPrimary], maxAttempts: 1 },
+      },
+    };
+
+    await dispatchPort.dispatchOutgoing(intent);
+
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'delivery.attempt.log',
+        params: expect.objectContaining({
+          correlationId: null,
+          payload: expect.objectContaining({ kind: 'otp_redacted' }),
+        }),
+      }),
+    );
+  });
 });

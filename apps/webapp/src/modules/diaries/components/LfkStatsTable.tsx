@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { formatDiaryDayShortRu } from "@/modules/diaries/stats/formatDiaryDay";
 import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from "./DiaryStatsPeriodBar";
 
@@ -219,22 +220,26 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
                 Стр. {detail.page} из {totalPages} ({detail.total} записей)
               </span>
               <div className="flex gap-1">
-                <button
+                <Button
                   type="button"
-                  className="button button-outline text-xs"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
                   disabled={detail.page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                 >
                   Назад
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="button button-outline text-xs"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
                   disabled={detail.page >= totalPages}
                   onClick={() => setPage((p) => p + 1)}
                 >
                   Вперёд
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}

@@ -2,6 +2,8 @@ import { getPool } from "@/infra/db/client";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import type { PhoneChallengePayload, PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
 
+const OTP_DELIVERY_KEYS = new Set(["sms", "telegram", "max", "email"]);
+
 function channelContextFromRow(row: { channel_context: unknown }): ChannelContext | undefined {
   const raw = row.channel_context;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
@@ -15,6 +17,26 @@ function channelContextFromRow(row: { channel_context: unknown }): ChannelContex
     chatId,
     displayName: typeof o.displayName === "string" ? o.displayName : undefined,
   };
+}
+
+function otpDeliveryFromRow(row: { channel_context: unknown }): PhoneChallengePayload["deliveryChannel"] {
+  const raw = row.channel_context;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const v = (raw as Record<string, unknown>).otpDelivery;
+  if (typeof v !== "string" || !OTP_DELIVERY_KEYS.has(v)) return undefined;
+  return v as PhoneChallengePayload["deliveryChannel"];
+}
+
+function mergeChannelContextJson(payload: PhoneChallengePayload): string | null {
+  if (!payload.channelContext && !payload.deliveryChannel) return null;
+  const o: Record<string, unknown> = {};
+  if (payload.channelContext) {
+    Object.assign(o, payload.channelContext as Record<string, unknown>);
+  }
+  if (payload.deliveryChannel) {
+    o.otpDelivery = payload.deliveryChannel;
+  }
+  return JSON.stringify(o);
 }
 
 export function createPgPhoneChallengeStore(): PhoneChallengeStore {
@@ -35,7 +57,7 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
           payload.phone,
           payload.expiresAt,
           payload.code ?? null,
-          payload.channelContext ? JSON.stringify(payload.channelContext) : null,
+          mergeChannelContextJson(payload),
           payload.verifyAttempts ?? 0,
         ]
       );
@@ -55,12 +77,14 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
         return null;
       }
       const channelContext = channelContextFromRow(row);
+      const deliveryChannel = otpDeliveryFromRow(row);
       return {
         phone: row.phone,
         expiresAt,
         code: row.code ?? undefined,
         verifyAttempts: Number(row.verify_attempts ?? 0),
         channelContext,
+        deliveryChannel,
       };
     },
     async delete(challengeId: string): Promise<void> {

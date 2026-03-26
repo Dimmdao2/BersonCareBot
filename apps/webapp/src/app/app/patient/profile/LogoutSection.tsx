@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 
 /** Скрывает кнопку выхода в Mini App мессенджера (Telegram / MAX). */
@@ -17,7 +19,13 @@ export function LogoutSection() {
 
   return (
     <section className="stack" style={{ marginTop: 16 }}>
-      <a href="/api/auth/logout" className="button button--danger-outline">
+      <a
+        href="/api/auth/logout"
+        className={cn(
+          buttonVariants({ variant: "outline", size: "default" }),
+          "border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive active:bg-destructive/15",
+        )}
+      >
         Выйти из аккаунта
       </a>
     </section>

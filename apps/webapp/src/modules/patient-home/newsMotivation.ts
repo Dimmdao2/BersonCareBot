@@ -33,14 +33,22 @@ export async function getHomeNews(): Promise<HomeNews | null> {
   }
 }
 
-export async function incrementNewsViews(newsId: string): Promise<void> {
+export async function incrementNewsViews(newsId: string, userId: string): Promise<void> {
   if (!env.DATABASE_URL) return;
   try {
     const pool = getPool();
-    await pool.query(
-      `UPDATE news_items SET views_count = views_count + 1, updated_at = now() WHERE id = $1::uuid`,
-      [newsId]
+    const insert = await pool.query(
+      `INSERT INTO news_item_views (news_id, user_id, viewed_at)
+       VALUES ($1::uuid, $2, now())
+       ON CONFLICT (news_id, user_id) DO NOTHING`,
+      [newsId, userId]
     );
+    if ((insert.rowCount ?? 0) > 0) {
+      await pool.query(
+        `UPDATE news_items SET views_count = views_count + 1, updated_at = now() WHERE id = $1::uuid`,
+        [newsId]
+      );
+    }
   } catch {
     /* ignore */
   }

@@ -29,7 +29,7 @@ export default async function RemindersPage() {
       {stats.total > 0 && (
         <Card className="mb-4">
           <CardContent className="pt-4 pb-4">
-            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+            <p className="text-sm font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
               За 30 дней
             </p>
             <div className="flex gap-6 text-sm">

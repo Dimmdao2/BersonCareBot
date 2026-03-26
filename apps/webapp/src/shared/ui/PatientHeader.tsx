@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Bell, Home, Menu, MessageCircle } from "lucide-react";
+import { Bell, ChevronLeft, Home, Menu, MessageCircle } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -25,9 +25,13 @@ const SHEET_NAV_LINK_CLASS = cn(
   "h-auto w-full justify-start px-3 py-2 font-normal",
 );
 
+/** Touch target ≥ 44px (WCAG); `size="icon"` в дизайн-системе = 32px — переопределяем. */
+const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-11 shrink-0");
+
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
   { id: "profile", label: "Мой профиль", href: "/app/patient/profile" },
   { id: "cabinet", label: "Мои записи", href: "/app/patient/cabinet" },
+  { id: "diary", label: "Дневник", href: routePaths.diary },
   { id: "reminders", label: "Напоминания", href: "/app/patient/reminders" },
   { id: "notifications", label: "Настройки уведомлений", href: "/app/patient/notifications" },
 ];
@@ -88,34 +92,34 @@ export function PatientHeader({
     <>
       <header
         id="patient-header"
-        className="sticky top-0 z-40 -mx-4 mb-4 border-b border-border/60 bg-[var(--patient-surface)] px-3 py-2 shadow-sm"
+        className="sticky top-0 z-40 -mx-5 mb-4 border-b border-border/60 bg-[var(--patient-surface)] px-5 py-2.5 shadow-sm"
       >
         <div
           id="patient-header-row"
           className="flex items-center gap-2"
         >
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-2">
             {showBack ? (
               <Button
                 type="button"
                 variant="ghost"
-                size="icon-sm"
-                className="shrink-0"
+                size="icon"
+                className={HEADER_ICON_CLASS}
                 onClick={goBack}
                 aria-label={backLabel}
               >
-                <span className="text-lg leading-none" aria-hidden>←</span>
+                <ChevronLeft className="size-6" aria-hidden />
               </Button>
             ) : (
-              <span className="inline-flex w-8 shrink-0" aria-hidden />
+              <span className="inline-flex w-10 shrink-0" aria-hidden />
             )}
             <Link
               href="/app/patient"
               prefetch={false}
               aria-label="Главное меню"
-              className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "shrink-0")}
+              className={HEADER_ICON_CLASS}
             >
-              <Home className="size-5" aria-hidden />
+              <Home className="size-6" aria-hidden />
             </Link>
           </div>
 
@@ -128,14 +132,14 @@ export function PatientHeader({
             </p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-1.5">
             <Link
               href={routePaths.patientMessages}
               prefetch={false}
               aria-label="Сообщения"
-              className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "relative")}
+              className={cn(HEADER_ICON_CLASS, "relative")}
             >
-              <MessageCircle className="size-5" aria-hidden />
+              <MessageCircle className="size-6" aria-hidden />
               {supportUnread > 0 ? (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
                   {supportUnread > 99 ? "99+" : supportUnread}
@@ -146,9 +150,9 @@ export function PatientHeader({
               href={routePaths.patientReminders}
               prefetch={false}
               aria-label="Напоминания"
-              className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }), "relative")}
+              className={cn(HEADER_ICON_CLASS, "relative")}
             >
-              <Bell className="size-5" aria-hidden />
+              <Bell className="size-6" aria-hidden />
               {reminderUnread > 0 ? (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
                   {reminderUnread > 99 ? "99+" : reminderUnread}
@@ -159,19 +163,20 @@ export function PatientHeader({
               type="button"
               id="patient-menu-toggle"
               variant="ghost"
-              size="icon-sm"
+              size="icon"
+              className={HEADER_ICON_CLASS}
               aria-label="Меню"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
             >
-              <Menu className="size-5" aria-hidden />
+              <Menu className="size-6" aria-hidden />
             </Button>
           </div>
         </div>
       </header>
 
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="right" className="flex w-[min(100vw,20rem)] flex-col px-4 sm:max-w-sm">
+        <SheetContent side="right" className="flex w-[min(100vw,17rem)] flex-col px-4 sm:max-w-[17rem]">
           <SheetHeader className="px-0 text-left">
             <SheetTitle>Меню</SheetTitle>
           </SheetHeader>

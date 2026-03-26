@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { Button } from "@/components/ui/button";
 import { AppShell } from "@/shared/ui/AppShell";
 import { AddEntryForm } from "./symptoms/AddEntryForm";
 import { CreateTrackingForm } from "./symptoms/CreateTrackingForm";
@@ -12,7 +13,6 @@ import { SymptomTrackingRow } from "./symptoms/SymptomTrackingRow";
 import { DiaryTabsClient } from "./DiaryTabsClient";
 import { LfkSessionForm } from "./lfk/LfkSessionForm";
 import { createLfkComplex } from "./lfk/actions";
-import { QuickAddPopup } from "./QuickAddPopup";
 import { SymptomChart } from "@/modules/diaries/components/SymptomChart";
 import { LfkStatsTable } from "@/modules/diaries/components/LfkStatsTable";
 
@@ -65,10 +65,14 @@ export default async function PatientDiaryPage() {
           <ul id="patient-symptoms-stats-list" className="list">
             {entries.map((entry) => (
               <li key={entry.id} id={`patient-symptoms-entry-item-${entry.id}`} className="list-item">
-                <strong>{entry.symptomTitle ?? "—"}</strong> — {entry.value0_10}/10
-                <span className="status-pill">{entry.entryType === "instant" ? "в моменте" : "за день"}</span>
-                {entry.notes ? ` (${entry.notes})` : null}
-                <span className="status-pill">{new Date(entry.recordedAt).toLocaleDateString("ru-RU")}</span>
+                <strong>{entry.symptomTitle ?? "—"}</strong> — {entry.value0_10}/10 ·{" "}
+                {new Date(entry.recordedAt).toLocaleString("ru-RU", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </li>
             ))}
           </ul>
@@ -96,9 +100,7 @@ export default async function PatientDiaryPage() {
                   placeholder="Название комплекса"
                   required
                 />
-                <button type="submit" className="button">
-                  Создать
-                </button>
+                <Button type="submit">Создать</Button>
               </div>
             </form>
           </div>
@@ -154,14 +156,6 @@ export default async function PatientDiaryPage() {
       backHref="/app/patient"
       backLabel="Меню"
       variant="patient"
-      patientFloatingSlot={
-        trackings.length > 0 || complexes.length > 0 ? (
-          <QuickAddPopup
-            trackings={trackings.map((t) => ({ id: t.id, title: t.symptomTitle ?? "—" }))}
-            complexes={complexes.map((c) => ({ id: c.id, title: c.title ?? "—" }))}
-          />
-        ) : null
-      }
     >
       <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Загрузка…</div>}>
         <DiaryTabsClient symptomsPanel={symptomsPanel} lfkPanel={lfkPanel} />

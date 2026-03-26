@@ -12,7 +12,11 @@ import {
   clearSession,
   setSessionFromUser,
 } from "@/modules/auth/service";
-import { startPhoneAuth as startPhoneAuthFlow, confirmPhoneAuth as confirmPhoneAuthFlow } from "@/modules/auth/phoneAuth";
+import {
+  startPhoneAuth as startPhoneAuthFlow,
+  confirmPhoneAuth as confirmPhoneAuthFlow,
+  type StartPhoneAuthOptions,
+} from "@/modules/auth/phoneAuth";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import { createIntegratorSmsAdapter } from "@/infra/integrations/sms/integratorSmsAdapter";
 import { createStubSmsAdapter } from "@/infra/integrations/sms/stubSmsAdapter";
@@ -282,19 +286,31 @@ function _buildAppDeps() {
         exchangeTelegramInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
       clearSession,
       setSessionFromUser,
-      startPhoneAuth: (phone: string, context: ChannelContext) =>
-        startPhoneAuthFlow(phone, context, phoneAuthDeps),
+      startPhoneAuth: (phone: string, context: ChannelContext, opts?: StartPhoneAuthOptions) =>
+        startPhoneAuthFlow(phone, context, phoneAuthDeps, opts),
       confirmPhoneAuth: async (challengeId: string, code: string) => {
         const result = await confirmPhoneAuthFlow(challengeId, code, phoneAuthDeps);
         if (!result.ok) return result;
-        const envRole = resolveRoleFromEnv({ phone: result.user.phone });
-        if (result.user.role === envRole) return result;
+        const envRole = resolveRoleFromEnv({
+          phone: result.user.phone,
+          telegramId: result.user.bindings?.telegramId,
+          maxId: result.user.bindings?.maxId,
+        });
+        if (result.user.role === envRole) {
+          return {
+            ok: true as const,
+            user: result.user,
+            redirectTo: getRedirectPathForRole(envRole),
+            deliveryChannel: result.deliveryChannel,
+          };
+        }
         await userProjectionPort.updateRole(result.user.userId, envRole);
         const user = { ...result.user, role: envRole };
         return {
           ok: true as const,
           user,
           redirectTo: getRedirectPathForRole(envRole),
+          deliveryChannel: result.deliveryChannel,
         };
       },
     },

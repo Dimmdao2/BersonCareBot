@@ -215,7 +215,7 @@ function validateTelegramInitData(initData: string): { telegramId: string; role:
   const allowed = getAllowedTelegramIds();
   if (!allowed.has(telegramId)) return null;
 
-  const role: UserRole = resolveRoleFromEnv({});
+  const role: UserRole = resolveRoleFromEnv({ telegramId });
   const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || undefined;
 
   return { telegramId, role, displayName };
@@ -272,6 +272,8 @@ export async function exchangeIntegratorToken(
 
   const envRole = resolveRoleFromEnv({
     phone: user.phone ?? parsed.phone,
+    telegramId: user.bindings?.telegramId ?? parsed.bindings?.telegramId,
+    maxId: user.bindings?.maxId ?? parsed.bindings?.maxId,
   });
   if (user.role !== envRole) {
     if (updateRoleFn) await updateRoleFn(user.userId, envRole);
@@ -320,7 +322,11 @@ export async function exchangeTelegramInitData(
     };
   }
 
-  const envRole = resolveRoleFromEnv({ phone: user.phone });
+  const envRole = resolveRoleFromEnv({
+    phone: user.phone,
+    telegramId: parsed.telegramId,
+    maxId: user.bindings?.maxId,
+  });
   if (user.role !== envRole) {
     if (updateRoleFn) await updateRoleFn(user.userId, envRole);
     user = { ...user, role: envRole };
@@ -343,9 +349,9 @@ export async function exchangeTelegramInitData(
 }
 
 /**
- * Если в сессии есть привязанный телефон, роль сверяется с ADMIN_PHONES / DOCTOR_PHONES.
- * Так пользователь мессенджера после привязки номера получает admin/doctor без повторного входа;
- * cookie и при наличии БД строка role в platform_users обновляются.
+ * Роль сверяется с env: телефон (ADMIN_PHONES / DOCTOR_PHONES), Telegram / Max ID
+ * (ADMIN_TELEGRAM_ID, DOCTOR_TELEGRAM_IDS, ADMIN_MAX_IDS, DOCTOR_MAX_IDS).
+ * Cookie и при наличии БД строка role в platform_users обновляются при расхождении.
  */
 export async function getCurrentSession(): Promise<AppSession | null> {
   const cookieStore = await cookies();
@@ -360,7 +366,11 @@ export async function getCurrentSession(): Promise<AppSession | null> {
 
   let session = decoded;
   if (session.user.role === "doctor") {
-    const slid = buildSession(session.user);
+    const slid: AppSession = {
+      ...buildSession(session.user),
+      postLoginHints: session.postLoginHints,
+      adminMode: session.adminMode,
+    };
     cookieStore.set(SESSION_COOKIE_NAME, encodeSession(slid), {
       httpOnly: true,
       sameSite: "lax",
@@ -372,13 +382,19 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   }
 
   const phone = session.user.phone?.trim();
-  if (!phone) return session;
+  const telegramId = session.user.bindings?.telegramId?.trim();
+  const maxId = session.user.bindings?.maxId?.trim();
+  if (!phone && !telegramId && !maxId) return session;
 
-  const envRole = resolveRoleFromEnv({ phone });
+  const envRole = resolveRoleFromEnv({ phone, telegramId, maxId });
   if (session.user.role === envRole) return session;
 
   const nextUser = { ...session.user, role: envRole };
-  const nextSession = buildSession(nextUser);
+  const nextSession: AppSession = {
+    ...buildSession(nextUser),
+    postLoginHints: session.postLoginHints,
+    adminMode: session.adminMode,
+  };
 
   if (env.DATABASE_URL) {
     try {
@@ -433,14 +449,18 @@ export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: bool
 }
 
 /** Устанавливает сессию по пользователю (для входа по SMS и др.). */
-export async function setSessionFromUser(user: SessionUser): Promise<void> {
+export async function setSessionFromUser(
+  user: SessionUser,
+  opts?: { postLoginHints?: AppSession["postLoginHints"] }
+): Promise<void> {
   const session = buildSession(user);
+  const full: AppSession = opts?.postLoginHints ? { ...session, postLoginHints: opts.postLoginHints } : session;
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(full), {
     httpOnly: true,
     sameSite: "lax",
     secure: isProduction,
     path: "/",
-    maxAge: cookieMaxAgeSeconds(session),
+    maxAge: cookieMaxAgeSeconds(full),
   });
 }

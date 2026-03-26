@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Button } from "@/components/ui/button";
 import { applyContentLifecycle, type LifecycleState } from "./lifecycleActions";
 
 type Row = {
@@ -26,9 +27,9 @@ export function ContentLifecycleForms({ page }: { page: Row }) {
         <form action={formAction}>
           <input type="hidden" name="id" value={page.id} />
           <input type="hidden" name="op" value="restore" />
-          <button type="submit" className="button button-outline text-xs" disabled={pending}>
+          <Button type="submit" variant="outline" size="sm" className="text-xs" disabled={pending}>
             Восстановить
-          </button>
+          </Button>
         </form>
       ) : (
         <>
@@ -36,42 +37,48 @@ export function ContentLifecycleForms({ page }: { page: Row }) {
             <form action={formAction}>
               <input type="hidden" name="id" value={page.id} />
               <input type="hidden" name="op" value="unpublish" />
-              <button type="submit" className="button button-outline text-xs" disabled={pending}>
+              <Button type="submit" variant="outline" size="sm" className="text-xs" disabled={pending}>
                 Снять с публикации
-              </button>
+              </Button>
             </form>
           ) : (
             <form action={formAction}>
               <input type="hidden" name="id" value={page.id} />
               <input type="hidden" name="op" value="publish" />
-              <button type="submit" className="button button-outline text-xs" disabled={pending}>
+              <Button type="submit" variant="outline" size="sm" className="text-xs" disabled={pending}>
                 Опубликовать
-              </button>
+              </Button>
             </form>
           )}
           {archived ? (
             <form action={formAction}>
               <input type="hidden" name="id" value={page.id} />
               <input type="hidden" name="op" value="unarchive" />
-              <button type="submit" className="button button-outline text-xs" disabled={pending}>
+              <Button type="submit" variant="outline" size="sm" className="text-xs" disabled={pending}>
                 Из архива
-              </button>
+              </Button>
             </form>
           ) : (
             <form action={formAction}>
               <input type="hidden" name="id" value={page.id} />
               <input type="hidden" name="op" value="archive" />
-              <button type="submit" className="button button-outline text-xs" disabled={pending}>
+              <Button type="submit" variant="outline" size="sm" className="text-xs" disabled={pending}>
                 В архив
-              </button>
+              </Button>
             </form>
           )}
           <form action={formAction}>
             <input type="hidden" name="id" value={page.id} />
             <input type="hidden" name="op" value="soft_delete" />
-            <button type="submit" className="button button-outline text-xs" disabled={pending} style={{ color: "#b91c1c" }}>
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              className="text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+              disabled={pending}
+            >
               Удалить
-            </button>
+            </Button>
           </form>
         </>
       )}

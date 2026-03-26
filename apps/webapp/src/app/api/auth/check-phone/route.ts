@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { resolveAuthMethodsForPhone } from "@/modules/auth/checkPhoneMethods";
 import { isCheckPhoneRateLimited } from "@/modules/auth/checkPhoneRateLimit";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
+import { isValidRuMobileNormalized } from "@/modules/auth/phoneValidation";
 
 const bodySchema = z.object({
   phone: z.string().min(1).max(32),
@@ -20,14 +21,14 @@ export async function POST(request: Request) {
   }
 
   const phone = normalizePhone(parsed.data.phone);
-  if (phone.length < 10) {
+  if (!isValidRuMobileNormalized(phone)) {
     return NextResponse.json(
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 }
     );
   }
 
-  if (isCheckPhoneRateLimited(phone)) {
+  if (await isCheckPhoneRateLimited(phone)) {
     return NextResponse.json(
       { ok: false, error: "rate_limited", message: "Слишком много запросов. Попробуйте позже." },
       { status: 429 }

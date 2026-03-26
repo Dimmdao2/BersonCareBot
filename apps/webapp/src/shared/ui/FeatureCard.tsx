@@ -3,7 +3,7 @@ import Link from "next/link";
 /**
  * Карточка раздела на главном экране: заголовок, описание, статус (доступно / скоро / заблокировано).
  * Может быть ссылкой или просто блоком. Компактный вариант — только заголовок, без описания.
- * Используется на главной пациента для блоков «Дневник симптомов», «ЛФК», «Уроки» и т.д.
+ * Используется на главной пациента для кабинета («Дневник», «Мои записи»), уроков и т.д.
  */
 
 type FeatureCardProps = {
@@ -50,7 +50,7 @@ export function FeatureCard({
     <Link
       href={href}
       id={containerId}
-      className={`feature-card feature-card--link ${compact ? "feature-card--compact" : ""}`}
+      className={`feature-card feature-card--link transition-transform active:scale-[0.98] ${compact ? "feature-card--compact" : ""}`}
     >
       {content}
     </Link>

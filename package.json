@@ -50,7 +50,12 @@
   },
   "packageManager": "pnpm@10.30.1",
   "pnpm": {
-    "onlyBuiltDependencies": ["argon2"]
+    "onlyBuiltDependencies": ["argon2"],
+    "overrides": {
+      "micromatch>picomatch": "2.3.2",
+      "@dotenvx/dotenvx>picomatch": "4.0.4",
+      "fdir>picomatch": "4.0.4"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

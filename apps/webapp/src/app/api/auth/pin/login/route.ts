@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { verifyPinForLogin } from "@/modules/auth/pinAuth";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
+import { isValidRuMobileNormalized } from "@/modules/auth/phoneValidation";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 
@@ -11,7 +12,7 @@ const GENERIC_PIN_FAIL = "Неверный номер или PIN";
 
 const bodySchema = z.object({
   phone: z.string().min(1).max(32),
-  pin: z.string().regex(/^\d{4,6}$/),
+  pin: z.string().regex(/^\d{4}$/),
 });
 
 export async function POST(request: Request) {
@@ -19,13 +20,13 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "invalid_body", message: "Номер и PIN обязательны (4–6 цифр)" },
+      { ok: false, error: "invalid_body", message: "Номер и PIN обязательны (ровно 4 цифры)" },
       { status: 400 }
     );
   }
 
   const phone = normalizePhone(parsed.data.phone);
-  if (phone.length < 10) {
+  if (!isValidRuMobileNormalized(phone)) {
     return NextResponse.json(
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 }
@@ -72,7 +73,11 @@ export async function POST(request: Request) {
   }
 
   let sessionUser = user;
-  const envRole = resolveRoleFromEnv({ phone: user.phone });
+  const envRole = resolveRoleFromEnv({
+    phone: user.phone,
+    telegramId: user.bindings?.telegramId,
+    maxId: user.bindings?.maxId,
+  });
   if (user.role !== envRole) {
     await deps.userProjection.updateRole(user.userId, envRole);
     sessionUser = { ...user, role: envRole };

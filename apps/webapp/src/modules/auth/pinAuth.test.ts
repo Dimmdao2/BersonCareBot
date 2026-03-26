@@ -4,12 +4,14 @@ import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
 import { PIN_MAX_ATTEMPTS, isValidPinFormat, verifyPinForLogin } from "./pinAuth";
 
 describe("isValidPinFormat", () => {
-  it("accepts 4–6 digits", () => {
+  it("accepts exactly 4 digits", () => {
     expect(isValidPinFormat("1234")).toBe(true);
-    expect(isValidPinFormat("123456")).toBe(true);
+    expect(isValidPinFormat("0000")).toBe(true);
   });
   it("rejects wrong length", () => {
     expect(isValidPinFormat("123")).toBe(false);
+    expect(isValidPinFormat("12345")).toBe(false);
+    expect(isValidPinFormat("123456")).toBe(false);
     expect(isValidPinFormat("1234567")).toBe(false);
     expect(isValidPinFormat("12ab")).toBe(false);
   });

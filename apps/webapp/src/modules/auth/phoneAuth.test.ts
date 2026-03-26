@@ -12,15 +12,9 @@ const deps = {
 
 const webContext = { channel: "web" as const, chatId: "test-web-1" };
 
-describe("normalizePhone", () => {
-  it("keeps +7 prefix", () => {
+describe("normalizePhone (via phoneAuth re-export)", () => {
+  it("delegates to shared helper", () => {
     expect(normalizePhone("+79991234567")).toBe("+79991234567");
-  });
-  it("adds +7 for 10 digits", () => {
-    expect(normalizePhone("9991234567")).toBe("+79991234567");
-  });
-  it("strips non-digits", () => {
-    expect(normalizePhone("8 (999) 123-45-67")).toBe("+79991234567");
   });
 });
 
@@ -37,6 +31,12 @@ describe("startPhoneAuth", () => {
 
   it("returns invalid_phone for too short input", async () => {
     const result = await startPhoneAuth("123", webContext, deps);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("invalid_phone");
+  });
+
+  it("returns invalid_phone when normalized length is not 12", async () => {
+    const result = await startPhoneAuth("+7999123456789", webContext, deps);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("invalid_phone");
   });

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ContentLifecycleForms } from "./ContentLifecycleForms";
@@ -43,10 +45,10 @@ export default async function DoctorContentPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
           <h2>Страницы контента</h2>
           <div className="flex flex-wrap gap-2">
-            <Link href="/app/doctor/content/news" className="button button-outline">
+            <Link href="/app/doctor/content/news" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
               Новости и мотивация
             </Link>
-            <Link href="/app/doctor/content/new" className="button">
+            <Link href="/app/doctor/content/new" className={cn(buttonVariants({ size: "sm" }))}>
               Создать страницу
             </Link>
           </div>
@@ -82,7 +84,10 @@ export default async function DoctorContentPage() {
                           <ContentLifecycleForms page={p} />
                         </td>
                         <td style={{ padding: "0.5rem" }}>
-                          <Link href={`/app/doctor/content/edit/${p.id}`} className="button button--ghost">
+                          <Link
+                            href={`/app/doctor/content/edit/${p.id}`}
+                            className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+                          >
                             Редактировать
                           </Link>
                         </td>

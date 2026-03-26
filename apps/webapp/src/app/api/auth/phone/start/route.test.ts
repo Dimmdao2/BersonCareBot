@@ -9,6 +9,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
         retryAfterSeconds: 60,
       }),
     },
+    userByPhone: {
+      findByPhone: vi.fn().mockResolvedValue(null),
+      getVerifiedEmailForUser: vi.fn().mockResolvedValue(null),
+    },
   }),
 }));
 

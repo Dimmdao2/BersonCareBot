@@ -26,12 +26,39 @@ function phoneInEnvList(phone: string | undefined, listRaw: string): boolean {
 }
 
 /**
- * Роль из env только по номеру телефона (совпадение после normalizePhone).
- * Приоритет: admin > doctor > client.
- * Telegram / Max ID в env для роли не используются.
+ * Роль из env: Telegram / Max ID (ADMIN_TELEGRAM_ID, DOCTOR_TELEGRAM_IDS, ADMIN_MAX_IDS, DOCTOR_MAX_IDS)
+ * и номера (ADMIN_PHONES / DOCTOR_PHONES после normalizePhone).
+ * Приоритет: admin (telegram → max → phone) → doctor (telegram → max → phone) → client.
  */
-export function resolveRoleFromEnv(ids: { phone?: string }): UserRole {
+export function resolveRoleFromEnv(ids: { phone?: string; telegramId?: string; maxId?: string }): UserRole {
+  const tid = ids.telegramId?.trim();
+  if (tid) {
+    if (typeof env.ADMIN_TELEGRAM_ID === "number" && String(env.ADMIN_TELEGRAM_ID) === tid) {
+      return "admin";
+    }
+  }
+
+  const mid = ids.maxId?.trim();
+  if (mid) {
+    for (const s of (env.ADMIN_MAX_IDS ?? "").split(",")) {
+      if (s.trim() === mid) return "admin";
+    }
+  }
+
   if (phoneInEnvList(ids.phone, env.ADMIN_PHONES ?? "")) return "admin";
+
+  if (tid) {
+    for (const s of (env.DOCTOR_TELEGRAM_IDS ?? "").split(",")) {
+      if (s.trim() === tid) return "doctor";
+    }
+  }
+
+  if (mid) {
+    for (const s of (env.DOCTOR_MAX_IDS ?? "").split(",")) {
+      if (s.trim() === mid) return "doctor";
+    }
+  }
+
   if (phoneInEnvList(ids.phone, env.DOCTOR_PHONES ?? "")) return "doctor";
   return "client";
 }

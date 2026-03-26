@@ -3,7 +3,9 @@
  * `/app/doctor/clients/[userId]` и при необходимости переиспользование.
  */
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
+import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import type { PrepareDraftResult } from "@/modules/doctor-messaging/service";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
@@ -241,7 +243,11 @@ export function ClientProfileCard({
       ) : null}
 
       <p id="doctor-client-back-link-container">
-        <Link id="doctor-client-back-link" href={listBasePath} className="button button--back">
+        <Link
+          id="doctor-client-back-link"
+          href={listBasePath}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "button--back shrink-0")}
+        >
           {backLabel}
         </Link>
       </p>

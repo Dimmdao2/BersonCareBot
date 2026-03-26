@@ -1,5 +1,8 @@
 "use client";
 
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
 /**
  * Заглушка сценария «Создать из записи» (этап 9.3.3, полная реализация — этап 17).
  */
@@ -11,7 +14,7 @@ export function CreateClientFromRecordStub() {
         Привязка карты пациента к записи будет добавлена на этапе 17. Сейчас откройте раздел записей и
         найдите нужного человека в списке клиентов ниже.
       </p>
-      <a href="/app/doctor/appointments" className="button w-fit">
+      <a href="/app/doctor/appointments" className={cn(buttonVariants({ size: "sm" }), "w-fit")}>
         Перейти к записям
       </a>
     </section>

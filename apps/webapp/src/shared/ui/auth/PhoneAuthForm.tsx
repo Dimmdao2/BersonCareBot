@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+
+type PhoneAuthSubmitResult =
+  | { ok: true; challengeId: string; retryAfterSeconds?: number }
+  | { ok: false; message: string; rateLimited?: boolean; retryAfterSeconds?: number };
 
 type PhoneAuthFormProps = {
-  onSubmit: (phone: string) => Promise<{ ok: true; challengeId: string; retryAfterSeconds?: number } | { ok: false; message: string }>;
+  onSubmit: (phone: string) => Promise<PhoneAuthSubmitResult>;
   onSuccess: (challengeId: string, retryAfterSeconds?: number, phone?: string) => void;
 };
 
@@ -11,6 +16,13 @@ export function PhoneAuthForm({ onSubmit, onSuccess }: PhoneAuthFormProps) {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [startCooldownSec, setStartCooldownSec] = useState(0);
+
+  useEffect(() => {
+    if (startCooldownSec <= 0) return;
+    const t = window.setTimeout(() => setStartCooldownSec((s) => Math.max(0, s - 1)), 1000);
+    return () => window.clearTimeout(t);
+  }, [startCooldownSec]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +36,11 @@ export function PhoneAuthForm({ onSubmit, onSuccess }: PhoneAuthFormProps) {
     try {
       const result = await onSubmit(raw);
       if (result.ok) {
+        setStartCooldownSec(0);
         onSuccess(result.challengeId, result.retryAfterSeconds, raw);
+      } else if (result.rateLimited && result.retryAfterSeconds != null) {
+        setError(null);
+        setStartCooldownSec(Math.max(1, Math.ceil(result.retryAfterSeconds)));
       } else {
         setError(result.message);
       }
@@ -50,15 +66,19 @@ export function PhoneAuthForm({ onSubmit, onSuccess }: PhoneAuthFormProps) {
         className="auth-input"
         aria-invalid={!!error}
       />
-      {error && <p className="empty-state" style={{ fontSize: 14, color: "#9c4242" }}>{error}</p>}
-      <button
+      {startCooldownSec > 0 ? (
+        <p className="empty-state" style={{ fontSize: 14, color: "#64748b" }}>
+          Повторная отправка возможна через {startCooldownSec} сек
+        </p>
+      ) : null}
+      {error ? <p className="empty-state" style={{ fontSize: 14, color: "#9c4242" }}>{error}</p> : null}
+      <Button
         type="submit"
-        className="button"
-        disabled={loading}
+        disabled={loading || startCooldownSec > 0}
         aria-label={loading ? "Отправка кода…" : "Получить код по SMS"}
       >
         <span aria-hidden>{loading ? "Отправка…" : "Получить код"}</span>
-      </button>
+      </Button>
     </form>
   );
 }

@@ -26,10 +26,23 @@ export function DiaryTabsClient({
       }}
       className="stack gap-4"
     >
-      <TabsList variant="line" className="w-full justify-start">
-        <TabsTrigger value="symptoms">Симптомы</TabsTrigger>
-        <TabsTrigger value="lfk">ЛФК</TabsTrigger>
-      </TabsList>
+      {/* top-16 ≈ высота PatientHeader (py-2.5 + ряд иконок size-11), чтобы табы прилипали сразу под шапкой */}
+      <div className="sticky top-16 z-30 -mx-5 border-b border-border/60 bg-[var(--patient-bg)] px-5 py-2 supports-[backdrop-filter]:backdrop-blur-sm">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg bg-muted/70 p-1">
+          <TabsTrigger
+            value="symptoms"
+            className="rounded-md py-2.5 text-muted-foreground shadow-none after:hidden data-active:bg-primary/10 data-active:font-semibold data-active:text-primary"
+          >
+            Симптомы
+          </TabsTrigger>
+          <TabsTrigger
+            value="lfk"
+            className="rounded-md py-2.5 text-muted-foreground shadow-none after:hidden data-active:bg-primary/10 data-active:font-semibold data-active:text-primary"
+          >
+            ЛФК
+          </TabsTrigger>
+        </TabsList>
+      </div>
       <TabsContent value="symptoms" className="stack gap-4">
         {symptomsPanel}
       </TabsContent>

@@ -1,19 +1,21 @@
 import { FeatureCard } from "@/shared/ui/FeatureCard";
 import type { MenuItem } from "@/modules/menu/service";
 
-const CABINET_IDS = new Set(["symptoms", "cabinet"]);
+/** Порядок карточек: Дневник → Мои записи (RAW §7). Пункт «Мои комплексы ЛФК» на главной скрыт. */
+const CABINET_ORDER = ["diary", "cabinet"] as const;
 
 type Props = {
   items: MenuItem[];
 };
 
-/** Секция «Кабинет»: дневник симптомов и мои записи (комплексы ЛФК на главной не показываем). */
+/** Секция «Кабинет»: Дневник (`/app/patient/diary`) и Мои записи. */
 export function PatientHomeCabinetSection({ items }: Props) {
-  const cards = items.filter((i) => CABINET_IDS.has(i.id));
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const cards = CABINET_ORDER.map((id) => byId.get(id)).filter((x): x is MenuItem => x != null);
   if (cards.length === 0) return null;
   return (
     <section id="patient-home-cabinet-section" className="stack gap-3">
-      <h2 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">Кабинет</h2>
+      <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">Кабинет</h2>
       <div className="feature-grid">
         {cards.map((item) => (
           <FeatureCard

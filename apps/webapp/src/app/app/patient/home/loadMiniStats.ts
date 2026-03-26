@@ -46,6 +46,6 @@ export async function loadMiniStatsProps(
     variant: "data",
     points: chartPoints,
     lfkDays,
-    statsLinkHref: routePaths.symptoms,
+    statsLinkHref: routePaths.diary,
   };
 }

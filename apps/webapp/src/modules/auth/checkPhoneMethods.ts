@@ -7,6 +7,7 @@ export type AuthMethodsPayload = {
   pin?: boolean;
   telegram?: boolean;
   max?: boolean;
+  email?: boolean;
   /** OAuth-методы скрыты из UI до полной реализации. Поле зарезервировано. */
   oauth?: {
     yandex?: boolean;
@@ -32,6 +33,7 @@ export async function resolveAuthMethodsForPhone(
   }
 
   const pinRow = await ports.userPinsPort.getByUserId(user.userId);
+  const verifiedEmail = await ports.userByPhonePort.getVerifiedEmailForUser(user.userId);
 
   return {
     exists: true,
@@ -40,6 +42,7 @@ export async function resolveAuthMethodsForPhone(
       pin: !!pinRow,
       telegram: !!user.bindings?.telegramId,
       max: !!user.bindings?.maxId,
+      email: !!verifiedEmail,
       // OAuth не включается в UI пока flow не готов к production.
     },
   };

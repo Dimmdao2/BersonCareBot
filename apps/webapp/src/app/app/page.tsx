@@ -9,6 +9,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { env } from "@/config/env";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -47,13 +49,13 @@ export default async function AppEntryPage({
               Войти в интерфейс без Telegram (только при ALLOW_DEV_AUTH_BYPASS=true):
             </p>
             <div id="app-entry-dev-bypass-actions" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-              <Link id="app-entry-dev-login-patient" href="/app?t=dev:client" className="button">
+              <Link id="app-entry-dev-login-patient" href="/app?t=dev:client" className={cn(buttonVariants({ size: "sm" }))}>
                 Как пациент
               </Link>
-              <Link id="app-entry-dev-login-doctor" href="/app?t=dev:admin" className="button">
+              <Link id="app-entry-dev-login-doctor" href="/app?t=dev:admin" className={cn(buttonVariants({ size: "sm" }))}>
                 Как врач / админ
               </Link>
-              <Link id="app-entry-dev-login-doctor-role" href="/app?t=dev:doctor" className="button">
+              <Link id="app-entry-dev-login-doctor-role" href="/app?t=dev:doctor" className={cn(buttonVariants({ size: "sm" }))}>
                 Как специалист
               </Link>
             </div>

@@ -1,23 +1,37 @@
 "use client";
 
-import type { OtpConfirmResult } from "./OtpCodeForm";
+import type { OtpConfirmResult, OtpResendOutcome } from "./OtpCodeForm";
 import { OtpCodeForm } from "./OtpCodeForm";
 
 type SmsCodeFormProps = {
   challengeId: string;
   retryAfterSeconds?: number;
+  description?: string;
+  smsFallbackLink?: boolean;
+  onRequestSms?: () => Promise<OtpResendOutcome>;
   onConfirm: (code: string) => Promise<OtpConfirmResult>;
-  onResend: () => void;
+  onResend: () => Promise<OtpResendOutcome>;
   onBack: () => void;
 };
 
-export function SmsCodeForm({ challengeId, retryAfterSeconds, onConfirm, onResend, onBack }: SmsCodeFormProps) {
+export function SmsCodeForm({
+  challengeId,
+  retryAfterSeconds,
+  description = "Код отправлен по SMS. Введите его ниже.",
+  smsFallbackLink,
+  onRequestSms,
+  onConfirm,
+  onResend,
+  onBack,
+}: SmsCodeFormProps) {
   return (
     <OtpCodeForm
       challengeId={challengeId}
       retryAfterSeconds={retryAfterSeconds}
-      description="Код отправлен в SMS. Введите его ниже."
+      description={description}
       submitLabel="Войти"
+      smsFallbackLink={smsFallbackLink}
+      onRequestSms={onRequestSms}
       onConfirm={onConfirm}
       onResend={onResend}
       onBack={onBack}
@@ -25,4 +39,4 @@ export function SmsCodeForm({ challengeId, retryAfterSeconds, onConfirm, onResen
   );
 }
 
-export type { OtpConfirmResult };
+export type { OtpConfirmResult, OtpResendOutcome };

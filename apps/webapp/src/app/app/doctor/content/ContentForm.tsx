@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Button } from "@/components/ui/button";
 import { MarkdownEditor } from "@/shared/ui/markdown/MarkdownEditor";
 import { saveContentPage, type SaveContentPageState } from "./actions";
 
@@ -126,9 +127,9 @@ export function ContentForm({ page }: { page?: ContentPage }) {
         />
       </label>
 
-      <button type="submit" className="button" disabled={pending}>
+      <Button type="submit" disabled={pending}>
         {pending ? "Сохранение…" : "Сохранить"}
-      </button>
+      </Button>
     </form>
   );
 }

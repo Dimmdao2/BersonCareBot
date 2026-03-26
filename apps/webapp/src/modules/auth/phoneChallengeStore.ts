@@ -12,6 +12,8 @@ export type PhoneChallengePayload = {
   code?: string;
   /** Неудачные попытки ввода кода (OTP). */
   verifyAttempts?: number;
+  /** Куда ушёл OTP (для подсказок после входа). */
+  deliveryChannel?: "sms" | "telegram" | "max" | "email";
   /** Контекст канала, зафиксированный на start (только trusted). При отсутствии — web. */
   channelContext?: ChannelContext;
 };

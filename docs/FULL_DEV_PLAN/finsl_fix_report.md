@@ -1083,3 +1083,265 @@
 
 - Functional/CI статус: **PASS**.
 - Документационный статус: **Needs Follow-up** (дополнить `*.env.example` новыми ключами).
+
+---
+
+## Pack H часть 1 (`EXEC_H_HOTFIX_UI_AUTH.md` — H.1.1, H.1.2, H.2, H.3) — 2026-03-25
+
+### H.1.1 — normalizePhone / валидация
+
+- Клиент: `PhoneInput.tsx` — `isValidRuMobileNormalized` после `normalizePhone` (эквивалент EXEC: 12 символов `+7` + 10 цифр), текст ошибки «10 цифр».
+- Сервер: `phoneAuth.ts` — та же проверка перед `sendCode`.
+- API: `check-phone`, `pin/login`, `messenger/start` — та же схема (code review: раньше `length < 10` пропускал лишние цифры).
+- Тесты: `phoneNormalize.test.ts` (все варианты EXEC + `8(918)900-07-82`), `phoneValidation.test.ts`, `phoneAuth.test.ts` — кейс «длина ≠ 12» и smoke re-export.
+
+### H.1.2 — rate limiting UX + cooldown после успешной отправки SMS
+
+- `OtpCodeForm`: `onResend` → `Promise<OtpResendOutcome>`; при `rate_limited` — обратный отсчёт, текст «Повторная отправка возможна через N сек» (вместо ошибки); обработка `rate_limited` в `onConfirm`; кнопка повтора с состоянием загрузки.
+- `SmsCodeForm`, `AuthFlowV2`, `AuthBootstrap`, `BindPhoneBlock`, `EmailAccountPanel` — согласованы с новым контрактом.
+- `AuthFlowV2`: таймер при `rate_limited` на первичном `phone/start` (new user / methods / pin forgot), сброс при «Другой номер» / успешной отправке.
+- `PhoneAuthForm`: таймер на первом шаге при `rate_limited` от API.
+- `integratorSmsAdapter`: запись challenge в store **после** успешного ответа интегратора — cooldown по БД не срабатывает при неуспешной отправке SMS.
+- `integratorSmsAdapter.test.ts` (после code review): регрессия «нет фантомного cooldown» после ошибки HTTP интегратора.
+- `otpConstants`: текст `OTP_TOO_MANY_ATTEMPTS_MESSAGE` по EXEC (новый код через 10 минут).
+
+### H.2 — padding
+
+- `PatientHeader`: `px-3` → `px-4` (ровно с `AppShell` patient `px-4`). Других проблемных `-mx-4` в patient-коде не найдено (кроме шапки и dialog).
+
+### H.3 — иконки шапки
+
+- `PatientHeader` / `DoctorHeader`: иконки `size-6`, кнопки `size="icon"` + `size-11` для touch ≥ 44px (WCAG), правый кластер `gap-1.5`, левый `gap-2`, вертикальный отступ шапки `py-2.5` (patient header; doctor — `py-2.5` на строке контента, `min-h-14` вместо фиксированного `h-14`).
+
+### Прочее (разблокировка CI)
+
+- `apps/integrator/package.json`: `fastify` `^5.8.2` → `^5.8.3` (GHSA-444r-cwp2-x5xf); обновлён `pnpm-lock.yaml`.
+
+### Команды
+
+- После правок: `pnpm install --no-frozen-lockfile` (обновление lockfile под fastify), затем `pnpm install --frozen-lockfile` и **`pnpm run ci` — PASS** (lint, typecheck, tests, build, audit).
+
+### Блокеры
+
+- Нет для scope H.1.1–H.3; дальше по EXEC — H.1.3+ (flow PIN/channel), H.4, H.5.
+
+### Code review Pack H (2026-03-25) — доработки
+
+**EXEC / QA сверка**
+
+| Пункт | Находка | Действие |
+|-------|---------|----------|
+| `normalizePhone` + варианты EXEC | Не было явного кейса `8(918)900-07-82` | Добавлен тест в `phoneNormalize.test.ts`. |
+| Валидация «`n.length < 12`» | Условие из EXEC не отсекает номер длиннее 12 символов; `check-phone` / PIN / messenger использовали `length < 10` — тоже пропускали «лишние» цифры | Введён `isValidRuMobileNormalized()` → `^\+7\d{10}$`; используется в `PhoneInput`, `phoneAuth`, `check-phone`, `pin/login`, `messenger/start`. |
+| Rate limit после коррекции | Логика integrator уже не пишет challenge до успеха; не хватало регрессионного теста | Добавлен `integratorSmsAdapter.test.ts` (после ошибки интегратора gate снова ok, второй `sendCode` успешен). |
+| Padding header ↔ shell | Совпадение `px-4` уже было | Подтверждено без изменений. |
+| Touch-target ≥ 44px | `size="icon"` в UI kit = `size-8` (32px) | В `PatientHeader` / `DoctorHeader`: класс `HEADER_ICON_CLASS` с `size-11` (44px), спейсер `w-11` без кнопки «Назад». |
+
+**Новые/существенно затронутые файлы review:** `phoneValidation.ts`, `phoneValidation.test.ts`, `integratorSmsAdapter.test.ts`, правки `check-phone/route.ts`, `pin/login/route.ts`, `messenger/start/route.ts`, `PatientHeader.tsx`, `DoctorHeader.tsx`, `PhoneInput.tsx`, `phoneAuth.ts`.
+
+**Проверка:** `pnpm run ci` — **PASS** после правок.
+
+---
+
+## Pack H часть 2 (`EXEC_H_HOTFIX_UI_AUTH.md` — H.1.3, H.1.4, H.1.5) — 2026-03-25
+
+### H.1.3 — flow: phone → PIN → choose_channel → code
+
+- Шаги: `phone` → `new_user_sms` | `pin` | `choose_channel` → `code` (убраны `methods`, `messenger_wait`).
+- PIN: 3 ошибки подряд → `choose_channel`; «Не помню PIN» → `choose_channel`.
+- `ChannelPicker` (бывший `MethodPicker`): Telegram / Max / Email кнопками; SMS — ссылкой «получить код по СМС».
+- `checkPhoneMethods.ts`: `email` в `AuthMethodsPayload` через `getVerifiedEmailForUser` (БД: `email_verified_at`).
+- Экран телефона: подсказка «Для входа или регистрации в приложении укажите номер телефона».
+
+### H.1.4 — OTP по каналу доставки
+
+- `POST /api/auth/phone/start`: поле `deliveryChannel` (`sms` | `telegram` | `max` | `email`); валидация привязок и email.
+- Webapp: `SmsPort.sendCode` + `integratorSmsAdapter` — SMS / `send-email` / новый `send-otp` на интеграторе.
+- Integrator: `POST /api/bersoncare/send-otp` (`sendOtpRoute.ts`), HMAC как send-sms, доставка через `dispatchPort` (текст «Код для входа в BersonCare: …»).
+- UI: тексты по каналу; после не-SMS — ссылка «отправить на СМС» в `OtpCodeForm`.
+- Сессия: `postLoginHints.phoneOtpChannel` при `phone/confirm` для подсказок.
+
+### H.1.5 — PostLoginSuggestion
+
+- `/api/me`: отдаёт `postLoginHints`.
+- Если последний вход по SMS и нет PIN — «Создайте PIN-код…»; если нет `telegramId` — «Привяжите Telegram…».
+
+### Команды
+
+- `pnpm install --frozen-lockfile` и **`pnpm run ci` — PASS** (после правок).
+
+### Блокеры
+
+- Нет.
+
+### Затронутые файлы (основные)
+
+- Webapp: `AuthFlowV2.tsx`, `ChannelPicker.tsx`, `PinInput.tsx`, `OtpCodeForm.tsx`, `SmsCodeForm.tsx`, `PostLoginSuggestion.tsx`, `phone/start`, `phone/confirm`, `api/me`, `checkPhoneMethods.ts`, `phoneAuth.ts`, `service.ts`, `session.ts`, `smsPort.ts`, `integratorSmsAdapter.ts`, `stubSmsAdapter.ts`, `pgPhoneChallengeStore.ts`, `phoneChallengeStore.ts`, `userByPhonePort.ts`, `pgUserByPhone.ts`, `inMemoryUserByPhone.ts`, `buildAppDeps.ts`, тесты `phone/start`, `deliveryTargetsApi.test.ts`; удалён `MethodPicker.tsx`.
+- Integrator: `sendOtpRoute.ts`, `routes.ts`.
+- Контракт: `apps/webapp/INTEGRATOR_CONTRACT.md` (раздел send-otp).
+
+### Code review Pack H часть 2 (2026-03-25)
+
+**Находки и исправления**
+
+| Пункт | Находка | Действие |
+|-------|---------|----------|
+| EXEC H.1.5 | Подсказка «Привяжите Telegram» показывалась при любом входе без Telegram (в т.ч. PIN), не только при входе по SMS | `PostLoginSuggestion`: `telegramLine` и PIN-строка завязаны на `postLoginHints.phoneOtpChannel === "sms"`. |
+| UX | `onRequestSms` обнулял `challengeId` до `startPhoneOtp`; при ошибке отправки SMS экран кода пропадал | Убран `setChallengeId(null)` перед `startPhoneOtp` в `AuthFlowV2`. |
+| EXEC H.1.3 | SMS на экране канала — «мелкий шрифт» | `ChannelPicker`: ссылка SMS `text-sm` → `text-xs`. |
+
+**Проверено**
+
+- Flow соответствует EXEC (новый пользователь — шаг с кнопкой «Получить код по SMS», не авто-отправка — осознанный UX/стоимость SMS).
+- `INTEGRATOR_CONTRACT.md` содержит send-otp.
+- Регрессия mini-app: `AuthBootstrap` по-прежнему сначала `exchange` / `telegram-init`; `AuthFlowV2` не перехватывает эти ветки.
+
+**Команда:** `pnpm run ci` — **PASS** после правок.
+
+---
+
+## Pack H часть 3 (`EXEC_H_HOTFIX_UI_AUTH.md` — H.4, H.5, H.1.6) — 2026-03-25
+
+### H.4 — главная пациента
+
+- Меню клиента: пункт `diary` «Дневник» (`/app/patient/diary`), убран отдельный пункт ЛФК с главной; порядок карточек в секции «Кабинет»: Дневник → Мои записи.
+- Удалена секция `PatientHomeDiariesSection`; компонент файл удалён.
+- Порядок блоков на `/app/patient`: PostLoginSuggestion → Кабинет → Уроки → Новости → Уведомления → Мотивашка → Статистика → ConnectMessengers (как в RAW §7 для перечисленных блоков).
+
+### H.5 — аудит vs RAW_PLAN
+
+- Новый файл: `docs/FULL_DEV_PLAN/EXEC/AUDIT_PAGES_VS_RAWPLAN.md` (только задачи/отклонения, без правок кода).
+
+### H.1.6 — тесты
+
+- `phoneNormalize.test.ts`: доп. кейсы (11 цифр с 7, unicode-пробел, короткий ввод).
+- `phoneOtpLimits.test.ts`: `assertPhoneCanStartChallenge` — cooldown на номере A не блокирует другой номер B.
+- `authFlow.integration.test.ts`: `resolveAuthMethodsForPhone` → неверный PIN → `startPhoneAuth` / `confirmPhoneAuth` (in-memory).
+
+### Команды
+
+- `pnpm install --frozen-lockfile` и **`pnpm run ci` — PASS** (после H.4; после H.5 + H.1.6).
+
+### Блокеры
+
+- Нет.
+
+### Затронутые файлы (основные)
+
+- `apps/webapp/src/modules/menu/service.ts`, `service.test.ts`
+- `apps/webapp/src/app/app/patient/page.tsx`, `home/PatientHomeCabinetSection.tsx`
+- удалён `home/PatientHomeDiariesSection.tsx`
+- `apps/webapp/src/modules/auth/phoneNormalize.test.ts`, `phoneOtpLimits.test.ts`, `authFlow.integration.test.ts`
+- `docs/FULL_DEV_PLAN/EXEC/AUDIT_PAGES_VS_RAWPLAN.md`, `docs/FULL_DEV_PLAN/finsl_fix_report.md`
+
+### Code review Pack H часть 3 (2026-03-25)
+
+**H.4 — главная**
+
+- Подтверждено: `getMenuForRole` содержит `diary` («Дневник») и `cabinet` («Мои записи»); `PatientHomeCabinetSection` фиксирует порядок `diary` → `cabinet`; импорт/рендер `PatientHomeDiariesSection` отсутствует, секции «Дневники» нет.
+
+**H.5 — аудит**
+
+- Добавлен блок «Покрытие vs EXEC H.5.2» в `AUDIT_PAGES_VS_RAWPLAN.md`: основные экраны RAW §7–18 и doctor §5–9 покрыты; не каждый вспомогательный `page.tsx` (emergency, lessons, doctor/appointments, …) разобран отдельной строкой — задокументировано как осознанный пробел.
+
+**H.1.6 — тесты auth**
+
+- `pnpm exec vitest run src/modules/auth src/app/api/auth` — **103 теста, PASS** (модули auth + API `/api/auth/*`).
+
+**Контрольный чеклист EXEC_H**
+
+- Все пункты секции «Контрольный чеклист» в `EXEC_H_HOTFIX_UI_AUTH.md` отмечены выполненными с примечаниями (в т.ч. валидация через `isValidRuMobileNormalized` вместо дословного `length < 12`).
+
+**Команда:** актуальный `pnpm run ci` — **PASS** на момент последней полной прогонки Pack H часть 3.
+
+---
+
+## Pack I — EXEC_I_UI_REVIEW шаги I.1, I.2, I.3 (2026-03-25)
+
+### I.1 — кнопки
+
+- `apps/webapp/src/components/ui/button.tsx`: радиус `rounded-md`, синие варианты с `text-white`, для всех вариантов `active:` с затемнением и `active:shadow-inner`; размеры default `h-9` / `px-3`, иконки пересчитаны.
+- Заменены устаревшие классы `.button` / `.button-outline` на `Button` и `buttonVariants` по webapp (в т.ч. `AppShell`, дневники, doctor content/messages/clients, markdown, dev-вход, `PostLoginSuggestion`, `PhoneAuthForm`, `LogoutSection`, `ClientsFilters` с `variant` default/outline).
+- `FeatureCard` (ссылка): `active:scale-[0.98]`.
+- Сопутствующее: `apps/integrator/src/integrations/bersoncare/sendOtpRoute.test.ts` — TS2532 на `mock.calls[0]`; корневой `package.json` — `pnpm.overrides` для `picomatch` (transitive), `pnpm-lock.yaml` обновлён — `pnpm audit --prod` в `ci` без находок.
+
+### I.2 — размеры
+
+- `globals.css`: `body` — `text-base`; `.eyebrow` — 0.875rem; `--patient-gap` — 24px; `.auth-input` — `min-height: 44px`.
+- `AppShell` (patient): `px-5`.
+- `PatientHeader`: `-mx-5` / `px-5`, иконка назад — `ChevronLeft` `size-6`, плейсхолдер без «назад» — `w-10`; Sheet — `w-[min(100vw,17rem)]`, `sm:max-w-[17rem]`.
+- `input.tsx`: `h-11`, `px-3`/`py-2`, без `md:text-sm`.
+- Заголовки секций пациента (`text-xs` → `text-sm` для h2 и блока напоминаний).
+- `LfkSessionForm`: дата и время в одной строке, `flex gap-2`, поля `flex-1` / `min-w-0`, без `auth-input w-auto` на date/time.
+
+### I.3 — PIN
+
+- `PinInput.tsx`: 4 поля `w-12 h-14`, `text-center text-2xl font-bold`, `gap-3`, ввод/Backspace/стрелки, paste из любого поля на 4 цифры, auto-submit при 4 цифрах, защита от двойного вызова `onSubmit`; `runSubmit` без `setError` внутри effect (eslint `react-hooks/set-state-in-effect`); вариант `link` у `Button` — `active:scale-[0.98]`.
+- Бэкенд и профиль: `pinAuth.ts`, `api/auth/pin/login`, `api/auth/pin/set`, `PinSection`, тесты `pinAuth.test.ts`, `pin/login/route.test.ts` — только **ровно 4 цифры** (`/^\d{4}$/`).
+
+### Проверки (I.1–I.3)
+
+- **`pnpm run ci` — PASS** (после доработок PinInput / link / code review).
+
+### Затронутые файлы (дополнительно к перечислению в I.1)
+
+- `apps/webapp/src/app/globals.css`, `AppShell.tsx`, `PatientHeader.tsx`, `components/ui/input.tsx`, секции `patient/home/*`, `patient/page.tsx`, `patient/cabinet/page.tsx`, `patient/reminders/page.tsx`, `diary/lfk/LfkSessionForm.tsx`, `shared/ui/auth/PinInput.tsx`, `profile/PinSection.tsx`, `modules/auth/pinAuth.ts`, `api/auth/pin/login/route.ts`, `api/auth/pin/set/route.ts`, тесты pin.
+
+---
+
+### I.4 — админ в Telegram / Max mini-app (КРИТИЧНЫЙ)
+
+**Причина:** `resolveRoleFromEnv` учитывал только `ADMIN_PHONES` / `DOCTOR_PHONES`. В `validateTelegramInitData` после whitelist вызывалось `resolveRoleFromEnv({})` → всегда `client`. При `exchangeIntegratorToken` в env-сверку не передавались `telegramId` / `maxId` из токена и пользователя.
+
+**Исправление:**
+
+- `envRole.ts`: `resolveRoleFromEnv({ phone?, telegramId?, maxId? })` — приоритет admin: telegram (`ADMIN_TELEGRAM_ID`) → max (`ADMIN_MAX_IDS`) → phone; затем doctor: `DOCTOR_TELEGRAM_IDS` → `DOCTOR_MAX_IDS` → phone.
+- `service.ts`: `validateTelegramInitData` → `resolveRoleFromEnv({ telegramId })`; `exchangeIntegratorToken` / `exchangeTelegramInitData` передают phone + bindings; `getCurrentSession` сверяет роль при наличии phone **или** `telegramId` **или** `maxId`.
+- `buildAppDeps.ts` (`confirmPhoneAuth`), `messenger/poll/route.ts`, `pin/login/route.ts` — в `resolveRoleFromEnv` добавлены `telegramId` / `maxId` из `SessionUser.bindings`.
+
+**Тесты:** `envRole.test.ts` (telegram/max списки, в т.ч. «чужой» `telegramId` → `client`); `exchangeIntegratorToken.messengerRole.test.ts` — три подписанных `webapp-entry` токена: admin tg → `admin`, doctor tg → `doctor`, обычный пользователь в `ALLOWED_TELEGRAM_IDS` → `client` (в типах сессии роль пациента — **`client`**, не `patient`).
+
+**Code review I.4:** маппинг admin/doctor/`client` подтверждён; полный путь `exchangeIntegratorToken` покрыт тремя кейсами; телефонный и прочий auth не затронут (изменения точечные в `resolveRoleFromEnv` и вызовах).
+
+**Проверки:** `pnpm run ci` — **PASS** (2026-03-25, после расширения тестов I.4).
+
+---
+
+### I.5, I.6, I.12 — дневники и симптомы (EXEC_I_UI_REVIEW), 2026-03-25
+
+**I.5 — навигация дневников**
+
+- Главная: одна карточка «Дневник» в кабинете уже была (`PatientHomeCabinetSection` + `getMenuForRole`); `PatientHomeDiariesSection` в коде отсутствует.
+- Меню шапки (`PatientHeader`): добавлен пункт «Дневник» → `routePaths.diary`.
+- Вкладки «Симптомы» / «ЛФК» (`DiaryTabsClient`): контейнер `sticky top-16 z-30` (под высоту `PatientHeader`), фон под шапкой; список табов — сетка; неактивный таб — `text-muted-foreground`, активный — `data-active:bg-primary/10`, `font-semibold`, `text-primary`.
+- Плюсик быстрого добавления: убран с `diary/page` (`patientFloatingSlot`); добавлен `PatientQuickAddFAB` в `AppShell` (пациент), скрывается на `pathname` под `/app/patient/diary`; данные — `GET /api/patient/diary/quick-add-context`; кнопка `fixed bottom-6 right-6 z-50`.
+- Мини-статистика на главной: ссылка ведёт на `routePaths.diary` (единая страница дневника).
+
+**I.6 — дневник симптомов**
+
+- После успешного сохранения записи: `toast.success("Запись сохранена")`; кнопка «Сохраняю…» + `disabled` на время запроса (`AddEntryForm`, `QuickAddPopup`).
+- `addSymptomEntry` возвращает `{ ok: boolean }`; дедупликация «в моменте»: при повторе того же `trackingId` и типа `instant` в течение 2 мин — `window.confirm` (логика в `symptomEntryDedup.ts`, общая для формы и QuickAdd).
+- Создание симптома: см. I.12. Журнал под статистикой: в списке записей только название, балл и дата/время (`toLocaleString`), без типа/заметок в строке.
+- Справочник диагноза: по-прежнему только выбор из `ReferenceSelect`; подпись, что новые позиции добавляет администратор.
+
+**I.12 — форма создания симптома**
+
+- По умолчанию: поле «Название» (обязательно, пока блок «Дополнительно» закрыт) и кнопка «Добавить».
+- Ссылка-кнопка «Дополнительно» раскрывает тип, регион, сторона, диагноз (текст + справочник), стадия.
+- `createSymptomTracking` возвращает `{ ok: boolean }`; при успехе — `toast.success("Симптом добавлен")`, при ошибке валидации — поясняющий toast.
+
+**Проверки:** `pnpm run ci` — **PASS** (2026-03-25).
+
+**Файлы (основные):** `PatientHeader.tsx`, `AppShell.tsx`, `app/app/patient/components/PatientQuickAddFAB.tsx`, `api/patient/diary/quick-add-context/route.ts`, `diary/DiaryTabsClient.tsx`, `diary/page.tsx`, `diary/QuickAddPopup.tsx`, `diary/symptoms/AddEntryForm.tsx`, `CreateTrackingForm.tsx`, `actions.ts`, `symptomEntryDedup.ts`, `symptomEntryDedup.test.ts`, `home/loadMiniStats.ts`.
+
+**Code review I.5 / I.6 / I.12** (сверка с чеклистом `EXEC_I_UI_REVIEW.md`, 2026-03-25):
+
+- **Одна кнопка «Дневник» на главной:** в секции «Кабинет» только `diary` + `cabinet` (`PatientHomeCabinetSection`, порядок `CABINET_ORDER`); в `getMenuForRole` нет отдельных пунктов «Дневник симптомов» / «ЛФК» для главной сетки. Дублирующей секции дневников нет.
+- **Меню:** один пункт «Дневник» в `PatientHeader` (`MENU_ITEMS`).
+- **Вкладки sticky + подсветка:** `DiaryTabsClient` — `sticky top-16`, `py-2`, фон; активная вкладка с фоновой подсветкой; неактивная — приглушённый текст.
+- **Плюсик:** `PatientQuickAddFAB` скрыт при `pathname.startsWith(routePaths.diary)` (включая вложенные пути); позиция кнопки в `QuickAddPopup` — `bottom-6 right-6`.
+- **Toast и «Сохраняю…»:** `AddEntryForm` и симптом в `QuickAddPopup` — `toast.success("Запись сохранена")`, disabled + подпись при pending.
+- **Дедупликация:** один и тот же `trackingId` + тип `instant` + интервал &lt; 2 мин → confirm; тип `daily` или другой симптом — не блокирует; покрыто тестами `symptomEntryDedup.test.ts`.
+- **Создание симптома (I.12):** в свёрнутом виде — поле названия (`placeholder` как в плане) и «Добавить»; `Button variant="link"` «Дополнительно»; расширенный блок по клику. Справочник диагноза — только выбор, без добавления в каталог на стороне пациента.
+
+**Доработка после review:** `top-14` → `top-16` для выравнивания под фактическую высоту шапки; тесты дедупа; актуализация комментария в `FeatureCard.tsx`.

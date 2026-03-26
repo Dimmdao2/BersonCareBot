@@ -234,6 +234,40 @@ Canonical linking rules:
 
 ---
 
+## Flow: BersonCare → Integrator (send OTP — Telegram / Max)
+
+**Направление:** webapp отправляет одноразовый код входа в привязанный мессенджер (не deep-link login). Подпись и заголовки — как в Flow 4 (send-sms) и Flow 6 (relay-outbound): `HMAC-SHA256(secret, timestamp + "." + rawBody)` в base64url.
+
+**Метод и URL:** `POST {INTEGRATOR_API_URL}/api/bersoncare/send-otp`
+
+**Заголовки:** как у Flow 4 (`Content-Type`, `X-Bersoncare-Timestamp`, `X-Bersoncare-Signature`).
+
+**Тело (JSON):**
+
+```json
+{
+  "channel": "telegram",
+  "recipientId": "123456789",
+  "code": "123456"
+}
+```
+
+- `channel` — `telegram` | `max`
+- `recipientId` — chat id в соответствующем боте
+- `code` — OTP (обычно 6 цифр)
+
+Текст пользователю: `Код для входа в BersonCare: {code}` (доставка через тот же dispatch, что и relay-outbound для канала).
+
+**Ответы integrator:**
+
+- `200 { "ok": true }` — сообщение принято к доставке
+- `400 { "ok": false, "error": "missing_headers" | "invalid_payload" | "dispatch_client_error" }`
+- `401 { "ok": false, "error": "invalid_signature" }`
+- `502 { "ok": false, "error": "dispatch_failed" }`
+- `503 { "ok": false, "error": "service_unconfigured" }` — не задан секрет
+
+---
+
 ## Flow 6: BersonCare → Integrator (relay-outbound)
 
 **Направление:** webapp (bersoncare) вызывает integrator для доставки сообщения врача пациенту через его мессенджер-канал.

@@ -4,7 +4,7 @@ import { verifyPinAgainstHash } from "./pinHash";
 export const PIN_MAX_ATTEMPTS = 5;
 export const PIN_LOCK_MINUTES = 15;
 
-const PIN_DIGITS_RE = /^\d{4,6}$/;
+const PIN_DIGITS_RE = /^\d{4}$/;
 
 export function isValidPinFormat(pin: string): boolean {
   return PIN_DIGITS_RE.test(pin);

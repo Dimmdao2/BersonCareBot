@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export type DiaryStatsPeriod = "week" | "month" | "all";
 
@@ -30,35 +31,41 @@ export function DiaryStatsPeriodBar({
     <div className="flex flex-wrap items-center gap-2">
       <div className="flex flex-wrap gap-1">
         {PERIOD_LABELS.map(([k, label]) => (
-          <button
+          <Button
             key={k}
             type="button"
-            className={`button text-xs ${period === k ? "" : "button-outline"}`}
+            size="sm"
+            variant={period === k ? "default" : "outline"}
+            className="text-xs"
             onClick={() => onPeriodChange(k)}
           >
             {label}
-          </button>
+          </Button>
         ))}
       </div>
       <div className="ml-auto flex items-center gap-1">
-        <button
+        <Button
           type="button"
-          className="button button-outline p-1"
+          variant="outline"
+          size="icon-sm"
+          className="p-1"
           aria-label="Предыдущий период"
           disabled={offset >= MAX_OFFSET}
           onClick={() => onOffsetChange(Math.min(MAX_OFFSET, offset + 1))}
         >
           <ChevronLeft className="h-4 w-4" />
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="button button-outline p-1"
+          variant="outline"
+          size="icon-sm"
+          className="p-1"
           aria-label="Следующий период"
           disabled={offset <= 0}
           onClick={() => onOffsetChange(Math.max(0, offset - 1))}
         >
           <ChevronRight className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );

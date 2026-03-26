@@ -14,13 +14,22 @@ export type OtpConfirmResult =
       retryAfterSeconds?: number;
     };
 
+/** Результат повторной отправки кода (SMS / email). */
+export type OtpResendOutcome =
+  | { kind: "ok" }
+  | { kind: "rate_limited"; retryAfterSeconds: number }
+  | { kind: "error"; message: string };
+
 type OtpCodeFormProps = {
   challengeId: string;
   retryAfterSeconds?: number;
   submitLabel?: string;
   description?: string;
+  /** Ссылка «отправить на СМС» после доставки через мессенджер/email */
+  smsFallbackLink?: boolean;
+  onRequestSms?: () => Promise<OtpResendOutcome>;
   onConfirm: (code: string) => Promise<OtpConfirmResult>;
-  onResend: () => void;
+  onResend: () => Promise<OtpResendOutcome>;
   onBack: () => void;
 };
 
@@ -29,12 +38,15 @@ export function OtpCodeForm({
   retryAfterSeconds = 60,
   submitLabel = "Подтвердить",
   description = "Введите код ниже.",
+  smsFallbackLink = false,
+  onRequestSms,
   onConfirm,
   onResend,
   onBack,
 }: OtpCodeFormProps) {
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendCountdown, setResendCountdown] = useState(retryAfterSeconds);
   const [canResend, setCanResend] = useState(false);
@@ -59,6 +71,46 @@ export function OtpCodeForm({
     return () => clearInterval(t);
   }, [resendCountdown, canResend]);
 
+  const handleResend = async () => {
+    if (hardBlocked || resendLoading) return;
+    setError(null);
+    setResendLoading(true);
+    try {
+      const outcome = await onResend();
+      if (outcome.kind === "rate_limited") {
+        const sec = Math.max(1, Math.ceil(outcome.retryAfterSeconds));
+        setCanResend(false);
+        setResendCountdown(sec);
+        return;
+      }
+      if (outcome.kind === "error") {
+        setError(outcome.message);
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const handleRequestSms = async () => {
+    if (!onRequestSms || hardBlocked || resendLoading) return;
+    setError(null);
+    setResendLoading(true);
+    try {
+      const outcome = await onRequestSms();
+      if (outcome.kind === "rate_limited") {
+        const sec = Math.max(1, Math.ceil(outcome.retryAfterSeconds));
+        setCanResend(false);
+        setResendCountdown(sec);
+        return;
+      }
+      if (outcome.kind === "error") {
+        setError(outcome.message);
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (hardBlocked) return;
@@ -77,6 +129,10 @@ export function OtpCodeForm({
       if (result.code === "too_many_attempts") {
         setHardBlocked(true);
         setError(OTP_TOO_MANY_ATTEMPTS_MESSAGE);
+      } else if (result.code === "rate_limited" && result.retryAfterSeconds != null) {
+        const sec = Math.max(1, Math.ceil(result.retryAfterSeconds));
+        setCanResend(false);
+        setResendCountdown(sec);
       } else {
         setError(result.message);
       }
@@ -114,13 +170,26 @@ export function OtpCodeForm({
           Назад
         </Button>
         {canResend && !hardBlocked ? (
-          <Button type="button" variant="ghost" size="sm" onClick={onResend} disabled={loading}>
-            Отправить код повторно
+          <Button type="button" variant="ghost" size="sm" onClick={() => void handleResend()} disabled={loading || resendLoading}>
+            {resendLoading ? "Отправка…" : "Отправить код повторно"}
           </Button>
         ) : !hardBlocked ? (
-          <span className="text-muted-foreground text-xs">Повторно через {resendCountdown} с</span>
+          <span className="text-muted-foreground text-sm">
+            Повторная отправка возможна через {resendCountdown} сек
+          </span>
         ) : null}
       </div>
+      {smsFallbackLink && onRequestSms ? (
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto min-h-0 px-0 py-0 text-xs font-normal"
+          onClick={() => void handleRequestSms()}
+          disabled={loading || resendLoading || hardBlocked}
+        >
+          {resendLoading ? "Отправка…" : "отправить на СМС"}
+        </Button>
+      ) : null}
     </form>
   );
 }

@@ -13,3 +13,5 @@
 Порты: **SmsPort** (sendCode, verifyCode), **PhoneChallengeStore**, **UserByPhonePort** (findByPhone, createOrBind). Stub-адаптер SMS и in-memory хранилища — в infra.
 
 Используется на странице входа и в API auth/exchange, auth/telegram-init, auth/phone/start, auth/phone/confirm, auth/logout.
+
+**Роль из env:** `resolveRoleFromEnv` сверяет телефон (`ADMIN_PHONES` / `DOCTOR_PHONES`), Telegram id (`ADMIN_TELEGRAM_ID`, `DOCTOR_TELEGRAM_IDS`) и Max id (`ADMIN_MAX_IDS`, `DOCTOR_MAX_IDS`) — нужно для mini-app и обмена integrator token без телефона в payload.

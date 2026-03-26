@@ -44,7 +44,7 @@ export function PatientHomeMailingsSection({ userId, items }: Props) {
 
   return (
     <section id="patient-home-mailings-section" className="stack gap-3">
-      <h2 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">Уведомления</h2>
+      <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">Уведомления</h2>
       <ul className="flex flex-col gap-2">
         {visible.map((row) => (
           <li

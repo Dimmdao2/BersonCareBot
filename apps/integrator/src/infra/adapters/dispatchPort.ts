@@ -11,6 +11,21 @@ type DeliveryPayload = {
   delivery?: { channels?: unknown; maxAttempts?: unknown };
 } & Record<string, unknown>;
 
+function isOtpIntent(intent: OutgoingIntent): boolean {
+  return typeof intent.meta.eventId === 'string' && intent.meta.eventId.startsWith('otp:');
+}
+
+function sanitizePayloadForLogs(intent: OutgoingIntent): Record<string, unknown> {
+  if (!isOtpIntent(intent)) {
+    return intent.payload as Record<string, unknown>;
+  }
+  // OTP-код не должен попадать в delivery_attempt_logs.
+  return {
+    kind: 'otp_redacted',
+    channel: readChannel(intent),
+  };
+}
+
 function readChannel(intent: OutgoingIntent): string | null {
   if (intent.type !== 'message.send') return intent.meta.source || null;
   const payload = intent.payload as DeliveryPayload;
@@ -44,17 +59,18 @@ async function logDeliveryAttempt(
   reason?: string,
 ): Promise<void> {
   if (!writePort) return;
+  const safeCorrelationId = isOtpIntent(intent) ? null : intent.meta.correlationId ?? null;
   await writePort.writeDb({
     type: 'delivery.attempt.log',
     params: {
       intentType: intent.type,
       intentEventId: intent.meta.eventId,
-      correlationId: intent.meta.correlationId ?? null,
+      correlationId: safeCorrelationId,
       channel,
       status,
       attempt,
       reason: reason ?? null,
-      payload: intent.payload,
+      payload: sanitizePayloadForLogs(intent),
       occurredAt: new Date().toISOString(),
     },
   });

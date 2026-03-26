@@ -1,6 +1,8 @@
 "use client";
 
 import { useId, useState, type ChangeEvent } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type Props = {
   /** Called with public path e.g. `/api/media/{uuid}` */
@@ -44,7 +46,10 @@ export function MediaUploader({ onUploaded }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <input id={inputId} type="file" className="sr-only" onChange={onPick} disabled={pending} />
-      <label htmlFor={inputId} className="button button-outline cursor-pointer text-sm">
+      <label
+        htmlFor={inputId}
+        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "cursor-pointer")}
+      >
         {pending ? "Загрузка…" : "Загрузить файл"}
       </label>
       {error ? (

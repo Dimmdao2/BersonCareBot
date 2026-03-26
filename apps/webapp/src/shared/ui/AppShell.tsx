@@ -8,9 +8,12 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientHeader } from "@/shared/ui/PatientHeader";
 import { AskQuestionFAB } from "@/shared/ui/AskQuestionFAB";
+import { PatientQuickAddFAB } from "@/app/app/patient/components/PatientQuickAddFAB";
+import { cn } from "@/lib/utils";
 
 type AppShellProps = {
   title: string;
@@ -42,7 +45,7 @@ export function AppShell({
     return (
       <div
         id="app-shell-patient"
-        className="app-shell--patient mx-auto flex min-h-screen w-full max-w-[480px] flex-col px-4"
+        className="app-shell--patient mx-auto flex min-h-screen w-full max-w-[480px] flex-col px-5"
       >
         <PatientHeader
           pageTitle={title}
@@ -54,6 +57,7 @@ export function AppShell({
           {children}
         </main>
         {patientFloatingSlot}
+        <PatientQuickAddFAB visible={user !== null} />
         <AskQuestionFAB visible={user !== null} />
       </div>
     );
@@ -82,7 +86,10 @@ export function AppShell({
         <div>
           <div id="app-shell-title-row" className="top-bar__title-row">
             {backHref ? (
-              <Link href={backHref} className="button button--back">
+              <Link
+                href={backHref}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "button--back shrink-0")}
+              >
                 {backLabel}
               </Link>
             ) : null}
@@ -99,7 +106,7 @@ export function AppShell({
               <span className="user-pill__role">{user.role}</span>
             </div>
           ) : null}
-          <Link href="/app/settings" className="button button--ghost">
+          <Link href="/app/settings" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
             Настройки
           </Link>
         </div>

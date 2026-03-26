@@ -12,6 +12,8 @@ export type UserByPhonePort = {
   findByUserId(userId: string): Promise<SessionUser | null>;
   /** Нормализованный телефон платформенного пользователя без загрузки привязок. */
   getPhoneByUserId(userId: string): Promise<string | null>;
+  /** Подтверждённый email для OTP (если есть). */
+  getVerifiedEmailForUser(userId: string): Promise<string | null>;
   /** Создаёт пользователя с номером и привязкой канала или обновляет привязку у существующего. */
   createOrBind(phone: string, context: ChannelContext): Promise<SessionUser>;
 };

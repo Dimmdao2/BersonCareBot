@@ -16,7 +16,7 @@ function parseSide(raw: unknown): "left" | "right" | "both" | null {
   return raw;
 }
 
-export async function addSymptomEntry(formData: FormData) {
+export async function addSymptomEntry(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccess(routePaths.diary);
   const deps = buildAppDeps();
   const trackingIdRaw = formData.get("trackingId");
@@ -25,28 +25,28 @@ export async function addSymptomEntry(formData: FormData) {
   const notesRaw = formData.get("notes");
 
   if (typeof trackingIdRaw !== "string" || !trackingIdRaw.trim()) {
-    return;
+    return { ok: false };
   }
   if (typeof valueRaw !== "string") {
-    return;
+    return { ok: false };
   }
   const value0_10 = Number.parseInt(valueRaw, 10);
   if (Number.isNaN(value0_10) || value0_10 < 0 || value0_10 > 10) {
-    return;
+    return { ok: false };
   }
   if (entryTypeRaw !== "instant" && entryTypeRaw !== "daily") {
-    return;
+    return { ok: false };
   }
 
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId);
   const trackingId = trackingIdRaw.trim();
   if (!trackings.some((t) => t.id === trackingId)) {
-    return;
+    return { ok: false };
   }
 
   const notes =
     typeof notesRaw === "string" && notesRaw.trim() ? notesRaw.trim() : null;
-  if (notes && notes.length > 2000) return;
+  if (notes && notes.length > 2000) return { ok: false };
 
   try {
     await deps.diaries.addSymptomEntry({
@@ -60,19 +60,20 @@ export async function addSymptomEntry(formData: FormData) {
     });
   } catch (err) {
     console.error("addSymptomEntry failed:", err);
-    return;
+    return { ok: false };
   }
   revalidatePath(routePaths.diary);
+  return { ok: true };
 }
 
-export async function createSymptomTracking(formData: FormData) {
+export async function createSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccess(routePaths.diary);
   const deps = buildAppDeps();
 
   const symptomTitleRaw = formData.get("symptomTitle");
   const title =
     typeof symptomTitleRaw === "string" ? symptomTitleRaw.trim() : "";
-  if (title.length > 200) return;
+  if (title.length > 200) return { ok: false };
 
   const symptomTypeRefId = parseOptionalId(formData.get("symptomTypeRefId"));
   const regionRefId = parseOptionalId(formData.get("regionRefId"));
@@ -86,7 +87,7 @@ export async function createSymptomTracking(formData: FormData) {
       : null;
 
   if (!title && !symptomTypeRefId) {
-    return;
+    return { ok: false };
   }
 
   let resolvedTitle = title;
@@ -109,9 +110,10 @@ export async function createSymptomTracking(formData: FormData) {
     });
   } catch (err) {
     console.error("createSymptomTracking failed:", err);
-    return;
+    return { ok: false };
   }
   revalidatePath(routePaths.diary);
+  return { ok: true };
 }
 
 export async function renameSymptomTracking(formData: FormData) {

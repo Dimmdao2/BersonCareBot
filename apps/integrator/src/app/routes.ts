@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { registerBersoncareSendSmsRoute } from '../integrations/bersoncare/sendSmsRoute.js';
 import { registerBersoncareSendEmailRoute } from '../integrations/bersoncare/sendEmailRoute.js';
 import { registerBersoncareRelayOutboundRoute } from '../integrations/bersoncare/relayOutboundRoute.js';
+import { registerBersoncareSendOtpRoute } from '../integrations/bersoncare/sendOtpRoute.js';
 import { registerRubitimeRecordM2mRoutes } from '../integrations/rubitime/recordM2mRoute.js';
 import { integratorWebhookSecret } from '../config/env.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
@@ -53,6 +54,11 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   });
 
   await registerBersoncareRelayOutboundRoute(app, {
+    dispatchPort: deps.dispatchPort,
+    sharedSecret: integratorWebhookSecret(),
+  });
+
+  await registerBersoncareSendOtpRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
   });

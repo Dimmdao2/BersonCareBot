@@ -30,7 +30,7 @@
   "dependencies": {
     "@maxhub/max-bot-api": "^0.2.2",
     "dotenv": "^17.3.1",
-    "fastify": "^5.8.2",
+    "fastify": "^5.8.3",
     "googleapis": "^171.4.0",
     "grammy": "^1.41.1",
     "node-fetch": "^3.3.2",

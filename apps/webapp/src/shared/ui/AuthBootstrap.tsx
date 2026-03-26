@@ -190,7 +190,7 @@ export function AuthBootstrap() {
             return { ok: false as const, message: data.message ?? "Ошибка входа" };
           }}
           onResend={async () => {
-            if (!phoneForResend) return;
+            if (!phoneForResend) return { kind: "error" as const, message: "Нет номера" };
             const chatId = getWebChatId();
             const res = await fetch("/api/auth/phone/start", {
               method: "POST",
@@ -202,11 +202,19 @@ export function AuthBootstrap() {
               challengeId?: string;
               retryAfterSeconds?: number;
               message?: string;
+              error?: string;
             };
             if (data.ok && data.challengeId) {
               setChallengeId(data.challengeId);
               setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
+              return { kind: "ok" as const };
             }
+            if (res.status === 429 || data.error === "rate_limited") {
+              const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
+              setRetryAfterSeconds(sec);
+              return { kind: "rate_limited" as const, retryAfterSeconds: sec };
+            }
+            return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
           }}
           onBack={() => {
             setPhoneStep("phone");
@@ -241,6 +249,14 @@ export function AuthBootstrap() {
             };
             if (data.ok && data.challengeId) {
               return { ok: true as const, challengeId: data.challengeId, retryAfterSeconds: data.retryAfterSeconds };
+            }
+            if (res.status === 429 || data.error === "rate_limited") {
+              return {
+                ok: false as const,
+                message: "",
+                rateLimited: true,
+                retryAfterSeconds: data.retryAfterSeconds ?? 60,
+              };
             }
             return { ok: false as const, message: data.message ?? "Не удалось отправить код" };
           }}

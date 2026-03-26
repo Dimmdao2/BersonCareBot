@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type ClientsFiltersProps = {
   defaults: { telegram?: boolean; max?: boolean; appointment?: boolean };
@@ -37,33 +39,39 @@ export function ClientsFilters({ defaults, onChange }: ClientsFiltersProps) {
       className="clients-filters"
       style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}
     >
-      <button
+      <Button
         type="button"
         id="doctor-clients-filter-telegram"
-        className={`button ${defaults.telegram ? "clients-filters__btn--active" : ""}`}
+        size="sm"
+        variant={defaults.telegram ? "default" : "outline"}
+        className={cn(!defaults.telegram && "border-dashed")}
         onClick={() => toggle("telegram")}
         aria-pressed={defaults.telegram}
       >
         С Telegram
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         id="doctor-clients-filter-max"
-        className={`button ${defaults.max ? "clients-filters__btn--active" : ""}`}
+        size="sm"
+        variant={defaults.max ? "default" : "outline"}
+        className={cn(!defaults.max && "border-dashed")}
         onClick={() => toggle("max")}
         aria-pressed={defaults.max}
       >
         С MAX
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         id="doctor-clients-filter-appointment"
-        className={`button ${defaults.appointment ? "clients-filters__btn--active" : ""}`}
+        size="sm"
+        variant={defaults.appointment ? "default" : "outline"}
+        className={cn(!defaults.appointment && "border-dashed")}
         onClick={() => toggle("appointment")}
         aria-pressed={defaults.appointment}
       >
         Есть запись
-      </button>
+      </Button>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { markLfkSession } from "./actions";
@@ -45,14 +46,14 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           </select>
         </label>
       )}
-      <div className="flex flex-wrap gap-2">
-        <label className="stack gap-1">
+      <div className="flex min-w-0 gap-2">
+        <label className="stack min-w-0 flex-1 gap-1">
           <span className="eyebrow">Дата</span>
-          <Input type="date" name="sessionDate" defaultValue={defaults.date} className="auth-input w-auto" />
+          <Input type="date" name="sessionDate" defaultValue={defaults.date} className="min-w-0" />
         </label>
-        <label className="stack gap-1">
+        <label className="stack min-w-0 flex-1 gap-1">
           <span className="eyebrow">Время</span>
-          <Input type="time" name="sessionTime" defaultValue={defaults.time} className="auth-input w-auto" />
+          <Input type="time" name="sessionTime" defaultValue={defaults.time} className="min-w-0" />
         </label>
       </div>
       <label className="stack gap-1">
@@ -79,9 +80,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         <span className="eyebrow">Комментарий</span>
         <Textarea name="comment" placeholder="Комментарий" maxLength={200} rows={3} className="auth-input" />
       </label>
-      <button type="submit" className="button">
-        Сохранить
-      </button>
+      <Button type="submit">Сохранить</Button>
     </form>
   );
 }

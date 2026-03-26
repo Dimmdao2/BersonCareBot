@@ -2,7 +2,9 @@
  * Компактная карточка подписчика: контакты, уведомления, счётчики по журналу сообщений.
  */
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
+import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AdminDangerActions } from "../clients/AdminDangerActions";
@@ -125,7 +127,10 @@ export function SubscriberProfileCard({
       ) : null}
 
       <p>
-        <Link href={listBasePath} className="button button--back">
+        <Link
+          href={listBasePath}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "button--back shrink-0")}
+        >
           К списку подписчиков
         </Link>
       </p>

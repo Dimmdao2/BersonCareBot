@@ -7,13 +7,18 @@ type Props = {
   lessons: LessonCard[];
 };
 
-/** Уроки: скорая помощь + до трёх карточек из каталога уроков. */
+const RAW_PLAN_LESSON_CATEGORIES = [
+  { id: "warmups", title: "Разминки", href: "/app/patient/lessons?category=warmups" },
+  { id: "workouts", title: "Тренировки", href: "/app/patient/lessons?category=workouts" },
+  { id: "materials", title: "Полезные материалы", href: "/app/patient/lessons?category=materials" },
+] as const;
+
+/** Уроки по RAW_PLAN: Скорая помощь + Разминки/Тренировки/Полезные материалы. */
 export function PatientHomeLessonsSection({ emergency, lessons }: Props) {
-  const topLessons = lessons.slice(0, 3);
-  if (!emergency && topLessons.length === 0) return null;
+  if (!emergency && lessons.length === 0) return null;
   return (
     <section id="patient-home-lessons-section" className="stack gap-3">
-      <h2 className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">Уроки</h2>
+      <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">Уроки</h2>
       <div className="feature-grid">
         {emergency ? (
           <FeatureCard
@@ -25,13 +30,13 @@ export function PatientHomeLessonsSection({ emergency, lessons }: Props) {
             compact
           />
         ) : null}
-        {topLessons.map((lesson) => (
+        {RAW_PLAN_LESSON_CATEGORIES.map((lesson) => (
           <FeatureCard
             key={lesson.id}
             containerId={`patient-home-lesson-card-${lesson.id}`}
             title={lesson.title}
-            href={`/app/patient/content/${lesson.id}`}
-            status={lesson.status}
+            href={lesson.href}
+            status="available"
             compact
           />
         ))}

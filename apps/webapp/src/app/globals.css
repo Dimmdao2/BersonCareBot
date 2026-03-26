@@ -25,7 +25,7 @@
   --patient-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   --patient-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
   --patient-touch: 44px;
-  --patient-gap: 12px;
+  --patient-gap: 24px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -238,7 +238,7 @@ a {
 
 /* Подзаголовок-метка над блоком (мелкий верхний регистр, серый). */
 .eyebrow {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #5f6f86;
@@ -308,8 +308,10 @@ a {
 
 .auth-input {
   width: 100%;
+  min-height: 44px;
   padding: 12px 16px;
   font-size: 1rem;
+  line-height: 1.4;
   border: 1px solid #dbe4f0;
   border-radius: var(--patient-radius, 12px);
   background: var(--patient-surface, #fff);
@@ -745,7 +747,7 @@ body.ask-question-panel-open .ask-question-overlay {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply text-foreground;
+    @apply text-base text-foreground;
     background: linear-gradient(180deg, #f5f7fb 0%, #edf2fb 100%);
   }
   html {
