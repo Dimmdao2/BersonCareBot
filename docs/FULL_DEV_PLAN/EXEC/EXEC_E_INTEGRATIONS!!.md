@@ -10,8 +10,21 @@
 
 ## Обязательные правила
 
-- После каждого шага: `pnpm run ci`.
+### Проверки
+- **После каждого шага** — только targeted-проверки затронутых файлов:
+  ```bash
+  # integrator
+  pnpm --dir apps/integrator exec tsc --noEmit
+  pnpm --dir apps/integrator exec vitest run <файлы>
+  pnpm --dir apps/integrator exec eslint <файлы>
+  # webapp (для E.2–E.6)
+  pnpm --dir apps/webapp exec tsc --noEmit
+  pnpm --dir apps/webapp exec vitest run <файлы>
+  ```
+- **Полный `pnpm run ci`** — только в конце пака (все шаги E.1–E.7 готовы) и перед push.
 - При FAIL: починить → повторить (до 3 попыток). После 3 → СТОП.
+
+### Прочее
 - **Не коммитить секреты** (API keys, tokens, passwords).
 - Обновлять `INTEGRATOR_CONTRACT.md` при каждом новом/изменённом M2M endpoint.
 - Отчёт: `docs/FULL_DEV_PLAN/finsl_fix_report.md`.

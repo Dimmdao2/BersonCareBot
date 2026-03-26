@@ -33,7 +33,7 @@ const DOCTOR_SHEET_LINK_CLASS = cn(
 );
 
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
-const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-11 shrink-0");
+const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
 
 const DOCTOR_MENU_LINKS: { id: string; label: string; href: string }[] = [
   { id: "overview", label: "Обзор", href: "/app/doctor" },
@@ -72,8 +72,8 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
           adminMode ? "bg-destructive/10" : "bg-background/95"
         )}
       >
-        <div className="mx-auto flex min-h-14 max-w-7xl items-center gap-2 px-3 py-2.5 md:px-4">
-          <div className="flex min-w-0 shrink-0 items-center gap-2">
+        <div className="mx-auto flex min-h-14 max-w-7xl items-center gap-1.5 px-3 py-2 md:px-4">
+          <div className="flex min-w-0 shrink-0 items-center gap-1">
             {showBack ? (
               <Button
                 type="button"
@@ -83,10 +83,10 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
                 aria-label="Назад"
                 onClick={goBack}
               >
-                <ArrowLeft className="size-6" aria-hidden />
+                <ArrowLeft className="size-[22px]" aria-hidden />
               </Button>
             ) : (
-              <span className="inline-flex w-11 shrink-0" aria-hidden />
+              <span className="inline-flex w-10 shrink-0" aria-hidden />
             )}
             <Link
               href="/app/doctor"
@@ -94,13 +94,13 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
               aria-label="Дашборд"
               className={HEADER_ICON_CLASS}
             >
-              <Home className="size-6" aria-hidden />
+              <Home className="size-[22px]" aria-hidden />
             </Link>
           </div>
 
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
             <p
-              className="min-w-0 truncate text-center text-sm font-medium text-muted-foreground"
+              className="min-w-0 truncate text-center text-[13px] font-medium text-muted-foreground"
               title={title}
             >
               {title}
@@ -112,14 +112,14 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
             ) : null}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1">
             <Link
               href="/app/doctor/subscribers"
               prefetch={false}
               aria-label="Подписчики"
               className={HEADER_ICON_CLASS}
             >
-              <Users className="size-6" aria-hidden />
+              <Users className="size-[22px]" aria-hidden />
             </Link>
             <Link
               href="/app/doctor/messages"
@@ -127,7 +127,7 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
               aria-label="Сообщения"
               className={cn(HEADER_ICON_CLASS, "relative")}
             >
-              <MessageCircle className="size-6" aria-hidden />
+              <MessageCircle className="size-[22px]" aria-hidden />
               {supportUnread > 0 ? (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
                   {supportUnread > 99 ? "99+" : supportUnread}
@@ -144,7 +144,7 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
             >
-              <Menu className="size-6" aria-hidden />
+              <Menu className="size-[22px]" aria-hidden />
             </Button>
           </div>
         </div>

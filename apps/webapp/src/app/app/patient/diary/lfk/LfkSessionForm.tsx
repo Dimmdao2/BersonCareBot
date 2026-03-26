@@ -204,7 +204,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         <span className="text-xs text-muted-foreground">минут</span>
       </label>
       <label className="stack gap-1">
-        <span className="eyebrow">Сложность выполнения: баллов из 10</span>
+        <span className="eyebrow">Сложность выполнения: {difficulty} баллов из 10</span>
         <input
           type="range"
           name="difficulty0_10_range"
@@ -213,12 +213,17 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           value={difficulty}
           onChange={(e) => setDifficulty(Number(e.target.value))}
           className="lfk-diary-range"
-          style={{ "--lfk-thumb": lfkThumbColor(difficulty) } as React.CSSProperties}
+          style={
+            {
+              "--lfk-thumb": lfkThumbColor(difficulty),
+              "--lfk-progress": `${(difficulty / 10) * 100}%`,
+            } as React.CSSProperties
+          }
           aria-valuenow={difficulty}
         />
       </label>
       <label className="stack gap-1">
-        <span className="eyebrow">Боль: баллов из 10</span>
+        <span className="eyebrow">Боль: {pain} баллов из 10</span>
         <input
           type="range"
           name="pain0_10_range"
@@ -227,7 +232,12 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           value={pain}
           onChange={(e) => setPain(Number(e.target.value))}
           className="lfk-diary-range"
-          style={{ "--lfk-thumb": lfkThumbColor(pain) } as React.CSSProperties}
+          style={
+            {
+              "--lfk-thumb": lfkThumbColor(pain),
+              "--lfk-progress": `${(pain / 10) * 100}%`,
+            } as React.CSSProperties
+          }
           aria-valuenow={pain}
         />
       </label>

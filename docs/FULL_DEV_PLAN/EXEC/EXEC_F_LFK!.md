@@ -10,8 +10,22 @@
 
 ## Обязательные правила
 
-- После каждого шага: `pnpm run ci`.
+### Проверки
+- **После каждого шага** — только targeted-проверки затронутых файлов:
+  ```bash
+  pnpm --dir apps/webapp exec tsc --noEmit
+  pnpm --dir apps/webapp exec vitest run <файлы>
+  pnpm --dir apps/webapp exec eslint <файлы>
+  ```
+- **Полный `pnpm run ci`** — только в конце пака (все шаги F.1–F.7 готовы) и перед push.
 - При FAIL: починить → повторить (до 3 попыток). После 3 → СТОП.
+
+### Миграция с globals.css на Tailwind + shadcn
+- При касании любого файла с UI (F.4, F.6, F.7): **заменить** legacy-классы из `globals.css` (`.button`, `.panel`, `.feature-card`, `.feature-grid`, `.auth-input` и т.д.) на Tailwind + shadcn (`Button`, `Card`, `Input`, `Slider`, `Badge`).
+- После замены: если класс больше нигде не используется — **удалить из `globals.css`**.
+- **Не добавлять** новые глобальные классы. Стили — только Tailwind + `cn()`.
+
+### Прочее
 - Новые модули в `modules/<name>/` по проектной конвенции.
 - Все тексты UI на русском.
 - DnD: `@dnd-kit/core` + `@dnd-kit/sortable` (уже в зависимостях или добавить).

@@ -10,8 +10,22 @@
 
 ## Обязательные правила
 
-- После каждого шага: `pnpm run ci`.
+### Проверки
+- **После каждого шага** — только targeted-проверки затронутых файлов:
+  ```bash
+  pnpm --dir apps/webapp exec tsc --noEmit
+  pnpm --dir apps/webapp exec vitest run <файлы>
+  pnpm --dir apps/webapp exec eslint <файлы>
+  ```
+- **Полный `pnpm run ci`** — только в конце пака (все шаги B.1–B.6 готовы) и перед push.
 - При FAIL: починить → повторить (до 3 попыток). После 3 → СТОП, записать в отчёт.
+
+### Миграция с globals.css на Tailwind + shadcn
+- При касании любого файла с UI: **заменить** legacy-классы из `globals.css` (`.button`, `.panel`, `.feature-card`, `.feature-grid`, `.auth-input`, `.badge`, `.top-bar`, `.kpi-grid`, `.status-pill` и т.д.) на Tailwind-утилиты + shadcn-компоненты (`Button`, `Card`, `Badge`, `Input`, `Switch`, `Select` и т.д.).
+- После замены: если класс больше нигде не используется (`rg "имя-класса" apps/webapp/src/` = 0) — **удалить его из `globals.css`**.
+- **Не добавлять** новые глобальные классы. Стили — только Tailwind + `cn()`.
+
+### Прочее
 - Все тексты UI на русском.
 - Не менять существующие миграции — только новые файлы.
 - Отчёт: `docs/FULL_DEV_PLAN/finsl_fix_report.md`.

@@ -26,7 +26,7 @@ const SHEET_NAV_LINK_CLASS = cn(
 );
 
 /** Touch target ≥ 44px (WCAG); `size="icon"` в дизайн-системе = 32px — переопределяем. */
-const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-11 shrink-0");
+const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
 
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
   { id: "profile", label: "Мой профиль", href: "/app/patient/profile" },
@@ -92,13 +92,13 @@ export function PatientHeader({
     <>
       <header
         id="patient-header"
-        className="patient-edge-bleed sticky top-0 z-40 mb-4 border-b border-border/60 bg-[var(--patient-surface)] py-2.5 shadow-sm"
+        className="patient-edge-bleed sticky top-0 z-40 mb-4 border-b border-border/60 bg-[var(--patient-surface)] py-2 shadow-sm"
       >
         <div
           id="patient-header-row"
-          className="flex items-center gap-2"
+          className="flex items-center gap-1.5"
         >
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1">
             {showBack ? (
               <Button
                 type="button"
@@ -108,7 +108,7 @@ export function PatientHeader({
                 onClick={goBack}
                 aria-label={backLabel}
               >
-                <ChevronLeft className="size-6" aria-hidden />
+                <ChevronLeft className="size-[22px]" aria-hidden />
               </Button>
             ) : (
               <span className="inline-flex w-10 shrink-0" aria-hidden />
@@ -119,27 +119,27 @@ export function PatientHeader({
               aria-label="Главное меню"
               className={HEADER_ICON_CLASS}
             >
-              <Home className="size-6" aria-hidden />
+              <Home className="size-[22px]" aria-hidden />
             </Link>
           </div>
 
           <div className="min-w-0 flex-1 text-center">
             <p
-              className="truncate text-sm font-medium text-muted-foreground"
+              className="truncate text-[13px] font-medium text-muted-foreground"
               title={pageTitle}
             >
               {pageTitle}
             </p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1">
             <Link
               href={routePaths.patientMessages}
               prefetch={false}
               aria-label="Сообщения"
               className={cn(HEADER_ICON_CLASS, "relative")}
             >
-              <MessageCircle className="size-6" aria-hidden />
+              <MessageCircle className="size-[22px]" aria-hidden />
               {supportUnread > 0 ? (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
                   {supportUnread > 99 ? "99+" : supportUnread}
@@ -152,7 +152,7 @@ export function PatientHeader({
               aria-label="Напоминания"
               className={cn(HEADER_ICON_CLASS, "relative")}
             >
-              <Bell className="size-6" aria-hidden />
+              <Bell className="size-[22px]" aria-hidden />
               {reminderUnread > 0 ? (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
                   {reminderUnread > 99 ? "99+" : reminderUnread}
@@ -169,7 +169,7 @@ export function PatientHeader({
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}
             >
-              <Menu className="size-6" aria-hidden />
+              <Menu className="size-[22px]" aria-hidden />
             </Button>
           </div>
         </div>

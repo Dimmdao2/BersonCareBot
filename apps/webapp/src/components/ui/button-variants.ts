@@ -10,10 +10,10 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-primary text-white hover:bg-primary/90 active:bg-primary/80 active:shadow-inner dark:text-white [a]:hover:bg-primary/90 [a]:active:bg-primary/80",
+          "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/80 active:text-primary-foreground active:shadow-inner dark:text-primary-foreground [a]:hover:bg-primary/90 [a]:active:bg-primary/80",
         /** Тёплый серо-синий primary (alias default) — для явного API дизайн-системы. */
         primary:
-          "bg-primary text-white hover:bg-primary/90 active:bg-primary/80 active:shadow-inner dark:text-white [a]:hover:bg-primary/90 [a]:active:bg-primary/80",
+          "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/80 active:text-primary-foreground active:shadow-inner dark:text-primary-foreground [a]:hover:bg-primary/90 [a]:active:bg-primary/80",
         outline:
           "border-border bg-background text-foreground hover:bg-muted hover:text-foreground active:bg-muted/85 active:shadow-inner aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50 dark:active:bg-input/60",
         secondary:

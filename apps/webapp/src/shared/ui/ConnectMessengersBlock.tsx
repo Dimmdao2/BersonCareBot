@@ -84,7 +84,10 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
                 href={card.openUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={cn(buttonVariants({ variant: "default", size: "sm" }), "w-fit")}
+                className={cn(
+                  buttonVariants({ variant: "default", size: "sm" }),
+                  "w-fit text-primary-foreground hover:text-primary-foreground active:text-primary-foreground"
+                )}
               >
                 Подключить
               </a>

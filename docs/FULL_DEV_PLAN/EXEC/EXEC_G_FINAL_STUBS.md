@@ -9,7 +9,14 @@
 
 ## Обязательные правила
 
-- После каждого шага: `pnpm run ci`.
+### Проверки
+- **После каждого шага** — только targeted-проверки затронутых файлов:
+  ```bash
+  pnpm --dir apps/webapp exec tsc --noEmit
+  pnpm --dir apps/webapp exec vitest run <файлы>
+  pnpm --dir apps/webapp exec eslint <файлы>
+  ```
+- **Полный `pnpm run ci`** — только в конце пака (все шаги G.1–G.2 готовы) и перед push.
 - Отчёт: `docs/FULL_DEV_PLAN/finsl_fix_report.md`.
 
 ---

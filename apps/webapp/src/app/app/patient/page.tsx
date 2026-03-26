@@ -62,7 +62,7 @@ export default async function PatientHomePage() {
 
   return (
     <AppShell title="Главное меню" user={session?.user ?? null} variant="patient">
-      <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-8">
         {session?.user != null ? <PostLoginSuggestion /> : null}
         <PatientHomeCabinetSection items={menu} />
         <PatientHomeLessonsSection emergency={emergency} lessons={lessons} />

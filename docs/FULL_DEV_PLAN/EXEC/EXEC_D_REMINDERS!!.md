@@ -10,8 +10,22 @@
 
 ## Обязательные правила
 
-- После каждого шага: `pnpm run ci`.
+### Проверки
+- **После каждого шага** — только targeted-проверки затронутых файлов:
+  ```bash
+  pnpm --dir apps/webapp exec tsc --noEmit
+  pnpm --dir apps/webapp exec vitest run <файлы>
+  pnpm --dir apps/webapp exec eslint <файлы>
+  ```
+- **Полный `pnpm run ci`** — только в конце пака (все шаги D.1–D.5 готовы) и перед push.
 - При FAIL: починить → повторить (до 3 попыток). После 3 → СТОП.
+
+### Миграция с globals.css на Tailwind + shadcn
+- При касании любого файла с UI (D.2, D.4): **заменить** legacy-классы из `globals.css` на Tailwind + shadcn.
+- После замены: если класс больше нигде не используется — **удалить из `globals.css`**.
+- **Не добавлять** новые глобальные классы. Стили — только Tailwind + `cn()`.
+
+### Прочее
 - Не менять integrator runtime-код напрямую — только через M2M контракт.
 - Отчёт: `docs/FULL_DEV_PLAN/finsl_fix_report.md`.
 

@@ -35,8 +35,8 @@ export function PatientHomeCabinetSection({ items }: Props) {
       <Link
         href={routePaths.patientBooking}
         className={cn(
-          buttonVariants({ size: "lg" }),
-          "inline-flex w-full justify-center text-center font-semibold shadow-sm"
+          buttonVariants({ variant: "default", size: "default" }),
+          "inline-flex min-h-11 w-full justify-center rounded-lg text-center font-semibold text-primary-foreground shadow-sm hover:text-primary-foreground active:text-primary-foreground"
         )}
       >
         Записаться на приём

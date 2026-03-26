@@ -9,8 +9,22 @@
 
 ## Обязательные правила
 
-- После каждого шага: `pnpm run ci`.
+### Проверки
+- **После каждого шага** — только targeted-проверки затронутых файлов:
+  ```bash
+  pnpm --dir apps/webapp exec tsc --noEmit          # typecheck
+  pnpm --dir apps/webapp exec vitest run <файлы>     # unit/integration тесты затронутых модулей
+  pnpm --dir apps/webapp exec eslint <файлы>         # lint изменённых файлов
+  ```
+- **Полный `pnpm run ci`** — только в конце пака (все шаги A.1–A.5 готовы) и перед push.
 - При FAIL: починить → повторить (до 3 попыток). После 3 → СТОП, записать в отчёт.
+
+### Миграция с globals.css на Tailwind + shadcn
+- При касании любого файла с UI: **заменить** legacy-классы из `globals.css` (`.button`, `.panel`, `.feature-card`, `.feature-grid`, `.master-detail`, `.auth-input`, `.badge`, `.kpi-grid`, `.status-pill`, `.list-item`, `.top-bar`, `.hero-card` и т.д.) на Tailwind-утилиты + shadcn-компоненты (`Button`, `Card`, `Badge`, `Input` и т.д.).
+- После замены: если класс больше нигде не используется в проекте (`rg "имя-класса" apps/webapp/src/` = 0 результатов) — **удалить его из `globals.css`**.
+- **Не добавлять** новые глобальные классы в `globals.css`. Стили — только через Tailwind + `cn()`.
+
+### Прочее
 - Решения владельца: `docs/FULL_DEV_PLAN/USER_TODO_STAGE.md`.
 - Отчёт: `docs/FULL_DEV_PLAN/finsl_fix_report.md`.
 
