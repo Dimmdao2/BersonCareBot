@@ -1,8 +1,34 @@
 # CLEAN STYLE: полный переход на Tailwind + shadcn
 
-## 1) Итог аудита текущего состояния
+**Источник истины по требованиям и DoD:** этот файл.  
+**Исторический аудит конкретной ветки миграции:** [TAILWIND_SHADCN_MIGRATION_EXECUTION_REPORT_cursor-bc-7b26404f-dcc5-4acd-9ab6-b9bee8761bd9-dbbe.md](TAILWIND_SHADCN_MIGRATION_EXECUTION_REPORT_cursor-bc-7b26404f-dcc5-4acd-9ab6-b9bee8761bd9-dbbe.md) — зафиксированное состояние на момент merge; для актуального `main` ориентироваться на раздел **«Current status on main»** ниже.
 
-Переход на `tailwind + shadcn` выполнен частично. В проекте одновременно живут:
+---
+
+## Current status on main (актуально)
+
+На ветке `main` миграция по чек-листу DoD **выполнена** (см. журнал §12 и команды §9).
+
+**Baseline-проверки** (последняя верификация: 2026-03-26, `main`, чистое дерево; при сомнениях перезапустите команды из §9):
+
+| Проверка | Результат |
+|----------|-----------|
+| Legacy `className` (паттерн из §9) | 0 совпадений |
+| `rg "style=\{\{"` в `apps/webapp/src/**/*.tsx` | только `app/global-error.tsx` (допустимо) |
+| `rg "<button\b"` в `apps/webapp/src/**/*.tsx` | только `app/global-error.tsx` (допустимо) |
+| Импорт `PageHeader` | 0; файл `shared/ui/PageHeader.tsx` **удалён** (замена: `SectionHeading` + разметка в `AppShell`) |
+
+**Safe-area:** в коде используются `safe-padding-patient`, `safe-bleed-x`, `safe-fab-br` (см. `globals.css`).
+
+**Режим работы агента:** если baseline совпадает с таблицей выше — не запускать заново фазы 0–5 миграции; только **регресс-контроль** (§9) при новых PR и правки документации при расхождении. Подробный runbook: [TAILWIND_SHADCN_MIGRATION_COMPOSER_1_5_EXECUTION_GUIDE.md](TAILWIND_SHADCN_MIGRATION_COMPOSER_1_5_EXECUTION_GUIDE.md).
+
+---
+
+## 1) Итог аудита состояния до миграции (исторический контекст)
+
+Ниже — снимок проблем **до** завершения работ (для понимания «почему так» и матрицы замен в §5). На текущем `main` эти цифры **не** отражают актуальное состояние кода.
+
+Переход на `tailwind + shadcn` на тот момент был частичным. В проекте одновременно жили:
 
 - `shadcn`-компоненты (`Button`, `Card`, `Dialog`, `Sheet`, `Input`, `Textarea`, `Select`, `Switch`, ...)
 - большой legacy-слой в `apps/webapp/src/app/globals.css` (~600 строк component-level CSS)
@@ -24,12 +50,12 @@
 | Raw заголовки `<h1..h6>` без унификации | 34 |
 | Класс `empty-state` | 17 |
 
-Дополнительно:
+Дополнительно (до миграции):
 
-- `PageHeader` компонент (`shared/ui/PageHeader.tsx`) существует, но **ни разу не импортирован** — мертвый код.
-- `Switch` из shadcn (`components/ui/switch.tsx`) существует, но **не используется** — вместо него два локальных Toggle.
+- `PageHeader` (`shared/ui/PageHeader.tsx`) не использовался — на `main` файл **удалён**, заголовки — через `SectionHeading` / разметка shell.
+- `Switch` из shadcn не использовался в settings — заменено на `LabeledSwitch` + shadcn `Switch`.
 
-### Ключевые проблемные зоны
+### Ключевые проблемные зоны (до миграции, не текущий `main`)
 
 1. **Дублирование элементов**
    - Два локальных `Toggle` (самописный switch на `<button role="switch">`) в:
@@ -195,7 +221,7 @@ a { color: inherit; text-decoration: none; }
 | `.top-bar` media query (max-width 720px) | 523-534 | → удалить вместе с top-bar |
 | `.ask-question-*` (весь блок) | 537-679 | → FAB больше не использует панель; кнопка → `Button` |
 
-**Итого:** из ~863 строк `globals.css` останется ~180 строк (tokens + base + markdown + range + safe-area utilities).
+**Итого:** из ~863 строк `globals.css` остаётся **минимальный слой** (tokens + base + markdown + range + safe-area utilities). Фактический размер файла на `main` **~270 строк** (в т.ч. расширенный `:root` с patient-токенами и комментарии) — ориентир «~180» был оценкой до фиксации токенов.
 
 ---
 
@@ -315,7 +341,7 @@ Variants:
 | `auth-plaque`, `auth-plaque__text` | `Card` или inline `rounded-2xl bg-muted p-4 border` |
 | `code-block` | `rounded-2xl bg-[#101521] text-[#eef4ff] p-4 overflow-auto text-sm` |
 | `ask-question-fab` | `Button` + Tailwind positioning |
-| `ask-question-panel*` (весь блок) | мертвый CSS, просто удалить |
+| `ask-question-panel*` (весь блок) | был мёртвым CSS; **на main:** удалён при чистке `globals.css` |
 
 ### 5.2 Inline style → Tailwind (шпаргалка)
 
@@ -352,52 +378,56 @@ Variants:
 
 ---
 
-## 6) Проверка похожих элементов (уже найдены несоответствия)
+## 6) Проверка похожих элементов (аудит до миграции, справочник)
+
+**На текущем `main` перечисленное ниже исправлено** (см. журнал §12). Текст сохранён для понимания замен и разбора регрессов.
 
 ### 6.1 Toggle/Switch
 
-Сейчас: два локальных `Toggle` в settings, хотя shadcn `Switch` (`components/ui/switch.tsx`) уже есть и даже поддерживает `size="sm" | "default"`.
+**Было до миграции:** два локальных `Toggle` в settings, хотя shadcn `Switch` (`components/ui/switch.tsx`) уже был и поддерживает `size="sm" | "default"`.
 
-→ Удалить локальные Toggle, использовать `Switch`.
+→ Удалить локальные Toggle, использовать `Switch` / `LabeledSwitch` (**сделано на main**).
 
 ### 6.2 Сегментированные кнопки и choice chips
 
-Сейчас: разные raw `<button>` группы с почти одинаковой логикой:
+**Было до миграции:** разные raw `<button>` группы с почти одинаковой логикой:
 - period bar (week/month/all) в `DiaryStatsPeriodBar.tsx`
 - side picker (left/right/both) в `CreateTrackingForm.tsx`
 - intensity chips (0..10) в `AddEntryForm.tsx` и `QuickAddPopup.tsx`
 
-→ `SegmentControl` для period/side, `NumericChipGroup` для 0..10.
+→ `SegmentControl` для period/side, `NumericChipGroup` для 0..10 (**сделано на main**).
 
 ### 6.3 Заголовки секций
 
-Сейчас: `h2/h3` + legacy `eyebrow` + inline размеры — полный разнобой.
-→ `SectionHeading` с 4 уровнями (см. 4.4).
+**Было:** `h2/h3` + legacy `eyebrow` + inline размеры — разнобой.
+→ `SectionHeading` с 4 уровнями (см. 4.4) (**сделано на main**).
 
 ### 6.4 Контейнеры секций
 
-Сейчас: `panel`, `hero-card`, `list-item`, вручную разные паддинги/радиусы.
-→ `PageSection` с variants (см. 4.5).
+**Было:** `panel`, `hero-card`, `list-item`, вручную разные паддинги/радиусы.
+→ `PageSection` с variants (см. 4.5) (**сделано на main**).
 
 ### 6.5 Класс `stack`
 
-Самый массовый legacy-класс — 61 файл! Это просто `display: grid; gap: 16px`.
+**Было:** самый массовый legacy-класс — 61 файл. Это просто `display: grid; gap: 16px`.
 → Заменить на `flex flex-col gap-4` (вертикальный стек) или `grid gap-4`.
 Часто встречается в комбинации `className="stack gap-6"` — в этом случае gap из Tailwind уже перезаписывает CSS, но `display: grid` из `.stack` остается. Замена: `flex flex-col gap-6`.
 
 ### 6.6 Класс `auth-input`
 
-21 файл. Это кастомная стилизация input/select/textarea с 44px min-height, 12px radius, свой border color.
+**Было:** 21 файл. Кастомная стилизация input/select/textarea с 44px min-height, 12px radius, свой border color.
 → Заменить на `Input`/`Textarea`/`Select` из shadcn.
 Для native `<select>` (там где shadcn `Select` не подходит): `className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base"`.
 
 ### 6.7 Класс `empty-state`
 
-17 файлов. Это просто `color: #5f6f86` — замена: `text-muted-foreground`.
+**Было:** 17 файлов, по сути `color: #5f6f86` — замена: `text-muted-foreground`.
 
-### 6.8 Мертвый CSS
+### 6.8 Мёртвый CSS (ask-question)
 
-Блок `.ask-question-panel*` (~100 строк) — панель вопроса. `AskQuestionFAB` сейчас просто навигирует на страницу сообщений, панель не используется. Весь CSS мертвый.
+**Было:** блок `.ask-question-panel*` (~100 строк); `AskQuestionFAB` навигирует на сообщения, панель не использовалась.
+
+**На main:** CSS удалён из `globals.css`; поведение FAB — по коду компонента.
 
 ---
 
@@ -410,13 +440,15 @@ Variants:
 | `LabeledSwitch` | локальные Toggle | `components/common/form/LabeledSwitch.tsx` |
 | `SegmentControl` | period tabs, side picker | `components/common/controls/SegmentControl.tsx` |
 | `NumericChipGroup` | шкалы 0..10 | `components/common/controls/NumericChipGroup.tsx` |
-| `StatusPill` | `status-pill--*`, `badge--*` | `components/common/feedback/StatusPill.tsx` |
+| `StatusPill` (опционально) | `status-pill--*`, `badge--*` | В плане изначально — отдельный компонент; **на `main` отдельного `StatusPill.tsx` нет** — используйте shadcn `Badge` (как в миграциях списков клиентов / сообщений). |
 
-Удалить мертвый `shared/ui/PageHeader.tsx` (0 импортов) — или начать использовать вместо raw `<h1>` в страницах врача.
+**На `main`:** `PageHeader` удалён; для страниц используются `SectionHeading` и при необходимости обёртки в `AppShell` / `PageSection`.
 
 ---
 
 ## 8) Пошаговая декомпозиция для junior-агента
+
+Использовать для **повторного прохода** или обучения. На актуальном `main` фазы 0–5 уже отражены в журнале §12; перед массовыми правками свериться с **«Current status on main»**.
 
 Выполнять строго по фазам, не смешивать. После каждой фазы — `pnpm --dir apps/webapp typecheck`.
 
@@ -424,7 +456,7 @@ Variants:
 
 1. Проверить `button-variants.ts` — убедиться в достаточности variants/sizes.
 2. Убедиться что `Switch` из `components/ui/switch.tsx` работает (есть, не сломан).
-3. Решить судьбу `shared/ui/PageHeader.tsx`: либо удалить, либо начать использовать.
+3. ~~Решить судьбу `shared/ui/PageHeader.tsx`~~ — **выполнено на `main`:** файл удалён, замена — `SectionHeading` + `AppShell`.
 
 ### Фаза 1. Создать reusable blocks
 
@@ -484,11 +516,9 @@ Item inactive: `rounded-sm bg-transparent text-muted-foreground hover:bg-muted/8
 
 Файл: `src/components/common/controls/NumericChipGroup.tsx`
 
-Props: `min: number`, `max: number`, `value: number | null`, `onChange: (v: number) => void`, `colorFn?: (v: number) => string`.
+Props: `min: number`, `max: number`, `value: number | null`, `onChange: (v: number) => void`, `colorFn?: (v: number) => string` (deprecated, для совместимости API).
 
-Chip: `size-9 rounded-full border-2 text-sm font-medium inline-flex items-center justify-center`.
-Active: `border-transparent text-white` + `style={{ backgroundColor, borderColor }}`.
-Inactive: `bg-transparent` + `style={{ borderColor, color }}`.
+Реализация на `main`: чипы на базе shadcn `Button`, дискретные классы Tailwind для шкалы 0–10 **без** `style={{...}}` (соответствие DoD §2.1).
 
 `aria-pressed` на каждом chip.
 
@@ -585,7 +615,7 @@ rg "className=\"[^\"]*(panel|hero-card|feature-card|feature-grid|list-item|eyebr
 
 ### Фаза 5. Финальная стандартизация
 
-1. Проверить все `h1..h3` — свести к `SectionHeading` / `PageHeader`.
+1. Проверить все `h1..h3` — свести к `SectionHeading` (и единым utility-классам).
 2. Проверить кнопки — нет raw `<button>` для типовых actions.
 3. Проверить формы — только `Input`/`Textarea`/`Select`/`Switch`.
 4. Запустить полный CI: `pnpm run ci`.
@@ -604,7 +634,7 @@ rg "style=\{\{" apps/webapp/src --glob "*.tsx"
 # 3. Raw buttons (кроме global-error и hidden form submits)
 rg "<button\b" apps/webapp/src --glob "*.tsx"
 
-# 4. Неиспользуемый PageHeader
+# 4. Убедиться, что PageHeader не вернулся (на main файла нет)
 rg "from ['\"]@/shared/ui/PageHeader['\"]" apps/webapp/src
 
 # 5. Полный CI
@@ -627,11 +657,15 @@ pnpm run ci
 
 ## 11) Ожидаемый результат по `globals.css`
 
-~180 строк вместо ~863:
+Цель — **не размер в строках**, а состав: только импорты, токены, base, сброс ссылок, `.markdown-preview*`, `.lfk-diary-range*`, `@layer utilities` с `safe-*`. Старый component-level слой (~600+ строк) удалён.
+
+Фактически на `main` файл **~270 строк** (расширенный `:root` с patient-переменными и разделители комментариев увеличивают объём относительно оценки «~180»).
+
+Структура:
 
 - framework imports (3 строки)
 - `@custom-variant dark` (1 строка)
-- `:root { ... }` tokens (~50 строк)
+- `:root { ... }` tokens (в т.ч. patient-токены — фактически больше «~50»)
 - `.dark { ... }` tokens (~35 строк)
 - `@theme inline { ... }` bridge (~40 строк)
 - `@layer base { ... }` (6 строк)
@@ -658,6 +692,7 @@ pnpm run ci
 | 2026-03-26 | Фаза 4: переименование safe-area: `AppShell` (patient), `PatientHeader`, `DiaryTabsClient`, `QuickAddPopup` переведены на классы `safe-*` | — |
 | 2026-03-26 | Фаза 5: `AppShell` default-вариант на Tailwind + `SectionHeading`; полный CI | `pnpm run ci` (успешно) |
 | 2026-03-26 | Исправление: скрипт замены `list` случайно повредил идентификаторы `list` в TS — восстановлены в `DoctorClientsPanel`, `content/page`, `exercises/page`, `lfk-templates/page`; в `SectionHeading` восстановлен ключ `eyebrow` | `pnpm --dir apps/webapp typecheck` |
+| 2026-03-26 | Доводка DoD §2.1 + §9: убраны оставшиеся inline-стили в `NumericChipGroup`; raw `<button>` заменены на `Button` / `<input type="submit">` где применимо | `pnpm run ci` (успешно, попытка 1) |
 
 ### 12.1 Проверка по чек-листу §9 (после доработки)
 
@@ -666,7 +701,5 @@ pnpm run ci
 | Legacy-классы | `rg "className=\"[^\"]*(panel\|…)" apps/webapp/src --glob "*.tsx"` | 0 совпадений |
 | Inline styles | `style={{` только вне `global-error.tsx` | исправлено: `NumericChipGroup` больше не использует `style` (дискретные классы Tailwind 0–10) |
 | Raw `<button>` | кроме `global-error.tsx` | исправлено: `SegmentControl` и `NumericChipGroup` → `Button`; `ReferenceSelect` → `Button`; DnD-handle в `TemplateEditor` → `Button`; скрытые submit в `SymptomTrackingRow` → `<input type="submit">`; остался только `global-error.tsx` |
-| PageHeader | импорт удалён | 0 совпадений |
+| PageHeader | файл удалён на `main`, импортов нет | `rg` → 0 |
 | Полный CI | `pnpm run ci` | зелёный (1-я попытка) |
-
-| 2026-03-26 | Доводка DoD §2.1 + §9: убраны оставшиеся inline-стили в `NumericChipGroup`; raw `<button>` заменены на `Button` / `<input type="submit">` где применимо | `pnpm run ci` (успешно, попытка 1) |

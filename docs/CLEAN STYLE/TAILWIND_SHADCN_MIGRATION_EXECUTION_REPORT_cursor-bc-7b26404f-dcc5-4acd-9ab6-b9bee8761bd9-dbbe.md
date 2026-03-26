@@ -1,10 +1,16 @@
 # Tailwind + shadcn migration: execution report (branch-specific)
 
+**Исторический документ:** зафиксированный аудит **только** указанной ниже ветки на дату отчёта. Факты по коммитам и чек-листу на ветке **не переписывать**.
+
+**Актуальное состояние на текущем `main`:** [TAILWIND_SHADCN_MIGRATION_REPORT_AND_PLAN.md](TAILWIND_SHADCN_MIGRATION_REPORT_AND_PLAN.md) — раздел **«Current status on main»**. Runbook для агента: [TAILWIND_SHADCN_MIGRATION_COMPOSER_1_5_EXECUTION_GUIDE.md](TAILWIND_SHADCN_MIGRATION_COMPOSER_1_5_EXECUTION_GUIDE.md).
+
+---
+
 Branch: `cursor/-bc-7b26404f-dcc5-4acd-9ab6-b9bee8761bd9-dbbe`  
 Base for comparison: `main`  
 Report date: 2026-03-26
 
-Primary plan/checklist:
+Primary plan/checklist (на момент отчёта):
 - `docs/CLEAN STYLE/TAILWIND_SHADCN_MIGRATION_REPORT_AND_PLAN.md`
 
 ---
@@ -147,17 +153,16 @@ Status: **DONE**
 1. `global-error.tsx` still has inline styles and raw button.  
    This is expected and accepted by plan exception.
 
-2. `shared/ui/PageHeader.tsx` has no imports (`pageheader_imports=0`).  
-   Plan allowed either:
-   - start using it, or
-   - remove as dead code.
-   On this branch it remains unused (technical cleanup candidate).
+2. `shared/ui/PageHeader.tsx` had no imports on this branch (`pageheader_imports=0`).  
+   Plan allowed either use or remove. **На состоянии ветки** файл оставался неиспользуемым (кандидат на cleanup). **На текущем `main` после merge:** файл удалён — см. основной план, **«Current status on main»**.
 
 ---
 
 ## 4) Final verdict for this branch
 
-For branch `cursor/-bc-7b26404f-dcc5-4acd-9ab6-b9bee8761bd9-dbbe` the migration checklist is effectively completed by current code state, with only explicit/allowed exception (`global-error.tsx`) and one optional cleanup decision left (`PageHeader` dead code handling).
+On the audited branch, the migration checklist was effectively complete for the code state at report time, with the **allowed** exception `global-error.tsx` (inline styles / raw button). **At audit time on the branch**, one **optional** item remained: unused `PageHeader` (use or remove).
+
+**После merge в `main` (справка, не аудит ветки):** optional по `PageHeader` закрыт — файл удалён, импортов нет; см. основной план, раздел **«Current status on main»**.
 
 DoD summary:
 - [x] no legacy classes (by checklist pattern)
@@ -166,5 +171,5 @@ DoD summary:
 - [x] local settings toggles replaced
 - [x] globals.css reduced to allowed minimal layers
 - [x] safe-area utilities renamed and wired
-- [ ] optional: resolve `PageHeader` dead code (use or remove)
+- [x] optional: `PageHeader` — **на ветке** оставался открытым; **на `main` после merge** удалён (см. справку в §4 выше и основной план)
 
