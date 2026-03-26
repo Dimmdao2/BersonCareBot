@@ -87,11 +87,34 @@ a {
   min-height: 100vh;
 }
 
-/* Ширина и горизонтальные отступы — в AppShell (Tailwind); снизу — запас под FAB. */
+/* Пациент: минимум 24px по бокам + safe-area, чтобы контент не прилипал к краю экрана. */
 .app-shell--patient {
-  padding: 0 0 max(72px, calc(52px + env(safe-area-inset-bottom)));
+  padding-top: 0;
+  padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+  padding-bottom: max(72px, calc(52px + env(safe-area-inset-bottom, 0px)));
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--patient-bg);
+}
+
+/**
+ * Full-bleed полоса внутри patient shell: компенсирует боковой padding родителя
+ * и возвращает тот же внутренний отступ для контента шапки/табов.
+ */
+.patient-edge-bleed {
+  margin-left: calc(-1 * max(1.5rem, env(safe-area-inset-left, 0px)));
+  margin-right: calc(-1 * max(1.5rem, env(safe-area-inset-right, 0px)));
+  padding-left: max(1.5rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1.5rem, env(safe-area-inset-right, 0px));
+}
+
+/* FAB «+» — отступ от выреза / края не меньше бокового gutter. */
+.patient-fab-quick-add {
+  position: fixed;
+  bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+  right: max(1.5rem, env(safe-area-inset-right, 0px));
+  z-index: 50;
 }
 .app-shell--patient .content-area {
   gap: var(--patient-gap);
@@ -517,8 +540,8 @@ a {
   left: 0;
   right: 0;
   z-index: 90;
-  padding: 18px 16px;
-  padding-bottom: max(18px, env(safe-area-inset-bottom));
+  padding: 18px max(1.5rem, env(safe-area-inset-left, 0px)) max(18px, env(safe-area-inset-bottom, 0px))
+    max(1.5rem, env(safe-area-inset-right, 0px));
   font-size: 1rem;
   font-weight: 500;
   color: #fff;
@@ -577,7 +600,7 @@ body.ask-question-panel-open .ask-question-overlay {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 16px 12px;
+  padding: 16px max(1.5rem, env(safe-area-inset-left, 0px)) 12px max(1.5rem, env(safe-area-inset-right, 0px));
   flex-shrink: 0;
 }
 
@@ -607,7 +630,7 @@ body.ask-question-panel-open .ask-question-overlay {
 }
 
 .ask-question-panel__body {
-  padding: 0 16px 16px;
+  padding: 0 max(1.5rem, env(safe-area-inset-left, 0px)) 16px max(1.5rem, env(safe-area-inset-right, 0px));
   display: flex;
   flex-direction: column;
   gap: 12px;

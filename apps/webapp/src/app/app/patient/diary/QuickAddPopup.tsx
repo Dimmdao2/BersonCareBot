@@ -32,7 +32,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
         type="button"
         size="icon-lg"
         variant="default"
-        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg"
+        className="patient-fab-quick-add h-14 w-14 rounded-full shadow-lg"
         aria-label="Быстрое добавление"
         onClick={() => setOpen(true)}
       >

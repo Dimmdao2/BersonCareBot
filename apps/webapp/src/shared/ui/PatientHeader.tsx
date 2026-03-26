@@ -92,7 +92,7 @@ export function PatientHeader({
     <>
       <header
         id="patient-header"
-        className="sticky top-0 z-40 -mx-5 mb-4 border-b border-border/60 bg-[var(--patient-surface)] px-5 py-2.5 shadow-sm"
+        className="patient-edge-bleed sticky top-0 z-40 mb-4 border-b border-border/60 bg-[var(--patient-surface)] py-2.5 shadow-sm"
       >
         <div
           id="patient-header-row"

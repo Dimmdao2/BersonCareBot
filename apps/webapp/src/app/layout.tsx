@@ -4,7 +4,7 @@
  * мини‑приложения Telegram (для открытия из бота). Отображается всегда — и для
  * пользователя (пациент/врач), и на любой странице.
  */
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import type { ReactNode } from "react";
 import "./globals.css";
@@ -18,6 +18,13 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 export const metadata: Metadata = {
   title: "BersonCare Webapp",
   description: "Patient and doctor web application for the BersonCare platform.",
+};
+
+/** Safe-area insets для мобильных (вырез, индикатор дома) — нужен viewport-fit=cover. */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 /** Рендерит общую обёртку страницы: тег html, тело и дочернее содержимое (конкретная страница). */

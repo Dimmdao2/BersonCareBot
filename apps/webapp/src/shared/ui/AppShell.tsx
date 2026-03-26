@@ -45,7 +45,7 @@ export function AppShell({
     return (
       <div
         id="app-shell-patient"
-        className="app-shell--patient mx-auto flex min-h-screen w-full max-w-[480px] flex-col px-5"
+        className="app-shell--patient mx-auto flex min-h-screen w-full max-w-[480px] flex-col"
       >
         <PatientHeader
           pageTitle={title}
@@ -71,7 +71,7 @@ export function AppShell({
     return (
       <div
         id="app-shell-doctor"
-        className="app-shell app-shell--doctor mx-auto w-full max-w-7xl px-3 pb-8 md:px-4"
+        className="app-shell app-shell--doctor mx-auto w-full max-w-7xl px-4 pb-8 md:px-6"
       >
         <main id="app-shell-content" className="content-area">
           {children}

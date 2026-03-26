@@ -27,7 +27,7 @@ export function DiaryTabsClient({
       className="stack gap-4"
     >
       {/* top-16 ≈ высота PatientHeader (py-2.5 + ряд иконок size-11), чтобы табы прилипали сразу под шапкой */}
-      <div className="sticky top-16 z-30 -mx-5 border-b border-border/60 bg-[var(--patient-bg)] px-5 py-2 supports-[backdrop-filter]:backdrop-blur-sm">
+      <div className="patient-edge-bleed sticky top-16 z-30 border-b border-border/60 bg-[var(--patient-bg)] py-2 supports-[backdrop-filter]:backdrop-blur-sm">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg bg-muted/70 p-1">
           <TabsTrigger
             value="symptoms"
