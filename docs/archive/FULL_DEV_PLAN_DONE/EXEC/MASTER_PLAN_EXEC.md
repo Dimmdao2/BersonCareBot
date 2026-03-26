@@ -91,12 +91,12 @@ PACK G: Final Stubs & E2E ──────────────── (по
 
 | Пакет | Статус |
 |-------|--------|
-| **H** | **`in_progress`** — Hotfix UI + Auth flow (`EXEC_H_HOTFIX_UI_AUTH.md`) |
-| **I** | **`urgent`** — UI Review правки владельца (`EXEC_I_UI_REVIEW.md`) |
-| A | `todo` |
-| B | `todo` |
-| C | `todo` |
-| D | `todo` |
-| E | `todo` |
-| F | `todo` |
-| G | `todo` |
+| **H** | **`done`** — Hotfix UI + Auth flow |
+| **I** | **`done`** — UI Review правки владельца — аудит PASS |
+| **A** | **`done`** — Quick Fixes (A.1–A.5) + code review |
+| **B** | **`done`** — Settings/Admin + code review |
+| **C** | **`done`** — Relay Outbound + code review + QA |
+| **D** | **`done`** — Reminders + code review + верификация D.3 |
+| **E** | **`done`** — Integrations + code review + 6 волн remediation |
+| **F** | **`done`** — LFK + code review + повторное выполнение |
+| **G** | **`done`** — Final Stubs & E2E + code review — финальная регрессия PASS |

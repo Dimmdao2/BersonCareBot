@@ -1446,3 +1446,24 @@
 **Исправление при аудите:** сегменты «Неделя / Месяц / Всё» в `DiaryStatsPeriodBar.tsx` — `active:scale-[0.98]` + transition (чеклист «реакция на нажатие»).
 
 **Verdict:** **ready** (пакет I по коду и CI; оговорки — I.11 данные и smoke внешних iframe).
+
+---
+
+## Pack A re-run (EXEC_A_QUICK_FIXES) — 2026-03-26
+
+### Контекст
+- Выполнена повторная проверка пакета A по инструкции `EXEC_A_QUICK_FIXES.md` с порядком шагов A.1 → A.5.
+- Новых кодовых правок не потребовалось: пункты A.1–A.5 уже присутствуют в репозитории.
+
+### Targeted проверки по шагам
+- **A.1**: `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec vitest run src/app-layer/di/buildAppDeps.test.ts`; `pnpm --dir apps/webapp exec eslint src/app-layer/di/buildAppDeps.ts` — PASS.
+- **A.2**: `pnpm --dir apps/webapp exec eslint src/shared/ui/PatientHeader.tsx src/shared/ui/DoctorHeader.tsx src/shared/hooks/useSupportUnreadPolling.ts` — PASS.
+- **A.3**: `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec vitest run src/modules/integrator/deliveryTargetsApi.test.ts src/app-layer/di/buildAppDeps.test.ts`; `pnpm --dir apps/webapp exec eslint src/app-layer/di/buildAppDeps.ts src/infra/repos/pgUserByPhone.ts src/infra/repos/inMemoryUserByPhone.ts src/modules/auth/userByPhonePort.ts` — PASS.
+- **A.4**: `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec vitest run src/modules/doctor-clients/appointmentStatsFromHistory.test.ts src/infra/repos/pgDoctorAppointments.test.ts src/modules/doctor-clients/service.test.ts`; `pnpm --dir apps/webapp exec eslint src/modules/doctor-clients/service.ts src/modules/doctor-clients/appointmentStatsFromHistory.ts src/infra/repos/pgDoctorAppointments.ts` — PASS.
+- **A.5**: `pnpm --dir apps/webapp exec tsc --noEmit`; `pnpm --dir apps/webapp exec vitest run src/app/api/patient/messages/route.test.ts src/app/api/doctor/messages/unread-count/route.test.ts src/app/api/admin/users/[userId]/archive/route.test.ts src/modules/patient-home/newsMotivation.test.ts`; `pnpm --dir apps/webapp exec eslint src/app/api/patient/messages/route.test.ts src/app/api/doctor/messages/unread-count/route.test.ts src/app/api/admin/users/[userId]/archive/route.test.ts src/modules/patient-home/newsMotivation.test.ts` — PASS.
+
+### Полный CI после последнего шага
+- `pnpm install --frozen-lockfile && pnpm run ci` — PASS.
+
+### Блокеры
+- Нет.
