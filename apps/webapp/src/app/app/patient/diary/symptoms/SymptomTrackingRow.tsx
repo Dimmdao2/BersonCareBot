@@ -53,9 +53,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
 
       <form id={archiveFormId} action={archiveSymptomTracking} className="hidden" aria-hidden>
         <input type="hidden" name="trackingId" value={id} />
-        <button type="submit" tabIndex={-1}>
-          submit
-        </button>
+        <input type="submit" tabIndex={-1} value="submit" className="sr-only" aria-hidden />
       </form>
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
@@ -108,7 +106,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
           </DialogFooter>
           <form id={deleteFormId} action={deleteSymptomTracking} className="sr-only" aria-hidden>
             <input type="hidden" name="trackingId" value={id} />
-            <button type="submit">Удалить</button>
+            <input type="submit" value="Удалить" className="sr-only" aria-hidden />
           </form>
         </DialogContent>
       </Dialog>

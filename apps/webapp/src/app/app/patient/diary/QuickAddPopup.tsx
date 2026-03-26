@@ -100,7 +100,6 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                     value={symValue}
                     onChange={setSymValue}
                     chipClassName="size-8 text-xs"
-                    colorFn={(v) => (symValue === v ? "var(--primary)" : "var(--muted-foreground)")}
                   />
                   <input type="hidden" name="value" value={symValue !== null ? String(symValue) : ""} />
                   <input type="hidden" name="entryType" value="instant" />

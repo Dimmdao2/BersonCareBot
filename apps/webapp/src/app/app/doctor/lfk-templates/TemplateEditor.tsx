@@ -113,15 +113,17 @@ function SortableRow({
       style={style}
       className="flex flex-col gap-2 rounded-lg border border-border/70 bg-card p-3 sm:flex-row sm:flex-wrap sm:items-end"
     >
-      <button
+      <Button
         type="button"
-        className="inline-flex h-9 w-9 shrink-0 cursor-grab items-center justify-center rounded-md border border-border text-muted-foreground"
+        variant="outline"
+        size="icon"
+        className="shrink-0 cursor-grab text-muted-foreground"
         aria-label="Перетащить"
         {...attributes}
         {...listeners}
       >
         <GripVertical className="size-4" />
-      </button>
+      </Button>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium leading-tight">{line.title}</p>
         <p className="text-xs text-muted-foreground">{line.exerciseId}</p>

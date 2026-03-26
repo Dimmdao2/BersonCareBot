@@ -658,3 +658,15 @@ pnpm run ci
 | 2026-03-26 | Фаза 4: переименование safe-area: `AppShell` (patient), `PatientHeader`, `DiaryTabsClient`, `QuickAddPopup` переведены на классы `safe-*` | — |
 | 2026-03-26 | Фаза 5: `AppShell` default-вариант на Tailwind + `SectionHeading`; полный CI | `pnpm run ci` (успешно) |
 | 2026-03-26 | Исправление: скрипт замены `list` случайно повредил идентификаторы `list` в TS — восстановлены в `DoctorClientsPanel`, `content/page`, `exercises/page`, `lfk-templates/page`; в `SectionHeading` восстановлен ключ `eyebrow` | `pnpm --dir apps/webapp typecheck` |
+
+### 12.1 Проверка по чек-листу §9 (после доработки)
+
+| Пункт | Команда / критерий | Результат |
+|-------|-------------------|-----------|
+| Legacy-классы | `rg "className=\"[^\"]*(panel\|…)" apps/webapp/src --glob "*.tsx"` | 0 совпадений |
+| Inline styles | `style={{` только вне `global-error.tsx` | исправлено: `NumericChipGroup` больше не использует `style` (дискретные классы Tailwind 0–10) |
+| Raw `<button>` | кроме `global-error.tsx` | исправлено: `SegmentControl` и `NumericChipGroup` → `Button`; `ReferenceSelect` → `Button`; DnD-handle в `TemplateEditor` → `Button`; скрытые submit в `SymptomTrackingRow` → `<input type="submit">`; остался только `global-error.tsx` |
+| PageHeader | импорт удалён | 0 совпадений |
+| Полный CI | `pnpm run ci` | зелёный (1-я попытка) |
+
+| 2026-03-26 | Доводка DoD §2.1 + §9: убраны оставшиеся inline-стили в `NumericChipGroup`; raw `<button>` заменены на `Button` / `<input type="submit">` где применимо | `pnpm run ci` (успешно, попытка 1) |

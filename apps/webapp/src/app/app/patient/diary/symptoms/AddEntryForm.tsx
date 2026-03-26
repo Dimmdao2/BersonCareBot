@@ -10,21 +10,6 @@ import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./sympt
 
 type TrackingOption = { id: string; symptomTitle: string | null };
 
-function getScoreColor(score: number): string {
-  if (score <= 5) {
-    const t = score / 5;
-    const h = 120 + (45 - 120) * t;
-    const s = 60 + (80 - 60) * t;
-    const l = 40 + (50 - 40) * t;
-    return `hsl(${h} ${s}% ${l}%)`;
-  }
-  const t = (score - 5) / 5;
-  const h = 45 + (0 - 45) * t;
-  const s = 80 + (70 - 80) * t;
-  const l = 50 + (35 - 50) * t;
-  return `hsl(${h} ${s}% ${l}%)`;
-}
-
 export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
   const [selectedValue, setSelectedValue] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -96,13 +81,7 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
       )}
       <div className="flex flex-col gap-4">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Интенсивность (0–10)</span>
-        <NumericChipGroup
-          min={0}
-          max={10}
-          value={selectedValue}
-          onChange={setSelectedValue}
-          colorFn={getScoreColor}
-        />
+        <NumericChipGroup min={0} max={10} value={selectedValue} onChange={setSelectedValue} />
         <input
           type="hidden"
           name="value"
