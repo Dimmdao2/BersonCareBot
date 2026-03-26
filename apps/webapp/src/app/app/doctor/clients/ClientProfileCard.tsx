@@ -66,7 +66,7 @@ export function ClientProfileCard({
         </div>
       ) : null}
 
-      <section id="doctor-client-contacts-section" className="panel stack">
+      <section id="doctor-client-contacts-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Контакты</h2>
         {identity.phone ? (
           tel ? (
@@ -82,8 +82,8 @@ export function ClientProfileCard({
         ) : (
           <p>Телефон не указан</p>
         )}
-        <p className="eyebrow">Каналы</p>
-        <ul id="doctor-client-channels-list" className="list list-none p-0 m-0">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Каналы</p>
+        <ul id="doctor-client-channels-list" className="m-0 list-none p-0">
           {channelCards.map((ch) => (
             <li key={ch.code} id={`doctor-client-channel-item-${ch.code}`}>
               {ch.isLinked && ch.openUrl ? (
@@ -99,7 +99,7 @@ export function ClientProfileCard({
             </li>
           ))}
         </ul>
-        <p className="eyebrow">Чат поддержки (веб-приложение)</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Чат поддержки (веб-приложение)</p>
         <p>
           <Link
             href="/app/doctor/messages"
@@ -109,21 +109,21 @@ export function ClientProfileCard({
             Открыть раздел сообщений
           </Link>
         </p>
-        <p className="eyebrow">Карта пациента</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Карта пациента</p>
         <p className="text-muted-foreground text-sm">
           Раздел «Карта» будет в этапе 17.{" "}
           <span className="opacity-70">(заглушка, без вызова API)</span>
         </p>
       </section>
 
-      <section id="doctor-client-appointments-section" className="panel stack">
+      <section id="doctor-client-appointments-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Ближайшие записи</h2>
         {upcomingAppointments.length === 0 ? (
-          <p className="empty-state">Нет предстоящих записей.</p>
+          <p className="text-muted-foreground">Нет предстоящих записей.</p>
         ) : (
-          <ul id="doctor-client-upcoming-appointments-list" className="list">
+          <ul id="doctor-client-upcoming-appointments-list" className="m-0 list-none space-y-3 p-0">
             {upcomingAppointments.map((a) => (
-              <li key={a.id} id={`doctor-client-upcoming-appointment-${a.id}`} className="list-item">
+              <li key={a.id} id={`doctor-client-upcoming-appointment-${a.id}`} className="rounded-lg border border-border bg-card p-3">
                 {a.link && /^https?:\/\//i.test(a.link) ? (
                   <a href={a.link} target="_blank" rel="noopener noreferrer">
                     {a.label}
@@ -135,19 +135,19 @@ export function ClientProfileCard({
             ))}
           </ul>
         )}
-        <p className="eyebrow">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Статистика: всего {appointmentStats.total}, отмен за 30 дн.: {appointmentStats.cancellations30d}
         </p>
       </section>
 
-      <section id="doctor-client-appointment-history-section" className="panel stack">
+      <section id="doctor-client-appointment-history-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>История записей</h2>
         {appointmentHistory.length === 0 ? (
-          <p className="empty-state">Нет записей в projection.</p>
+          <p className="text-muted-foreground">Нет записей в projection.</p>
         ) : (
-          <ul id="doctor-client-appointment-history-list" className="list">
+          <ul id="doctor-client-appointment-history-list" className="m-0 list-none space-y-3 p-0">
             {appointmentHistory.map((row) => (
-              <li key={row.id} className="list-item">
+              <li key={row.id} className="rounded-lg border border-border bg-card p-3">
                 {row.label}
               </li>
             ))}
@@ -155,10 +155,10 @@ export function ClientProfileCard({
         )}
       </section>
 
-      <section id="doctor-client-symptoms-section" className="panel stack">
+      <section id="doctor-client-symptoms-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Дневник симптомов</h2>
         {symptomTrackings.length === 0 ? (
-          <p className="empty-state">Нет отслеживаемых симптомов.</p>
+          <p className="text-muted-foreground">Нет отслеживаемых симптомов.</p>
         ) : (
           <>
             <p>Симптомы: {symptomTrackings.map((t) => t.symptomTitle).join(", ")}</p>
@@ -169,10 +169,10 @@ export function ClientProfileCard({
         )}
       </section>
 
-      <section id="doctor-client-lfk-section" className="panel stack">
+      <section id="doctor-client-lfk-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Дневник ЛФК</h2>
         {lfkComplexes.length === 0 ? (
-          <p className="empty-state">Нет комплексов ЛФК.</p>
+          <p className="text-muted-foreground">Нет комплексов ЛФК.</p>
         ) : (
           <>
             <p>Комплексы: {lfkComplexes.map((c) => c.title).join(", ")}</p>
@@ -195,7 +195,7 @@ export function ClientProfileCard({
         blockedReason={identity.blockedReason}
       />
 
-      <section id="doctor-client-communications-section" className="panel stack">
+      <section id="doctor-client-communications-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Коммуникации</h2>
         {messageDraft ? (
           <SendMessageForm
@@ -204,16 +204,16 @@ export function ClientProfileCard({
             channelBindings={messageDraft.channelBindings}
           />
         ) : (
-          <p className="empty-state">Невозможно отправить сообщение (клиент не найден).</p>
+          <p className="text-muted-foreground">Невозможно отправить сообщение (клиент не найден).</p>
         )}
         <h3 className="mt-4 mb-2">История сообщений</h3>
         {messageHistory.length === 0 ? (
-          <p className="empty-state">Сообщений пока нет.</p>
+          <p className="text-muted-foreground">Сообщений пока нет.</p>
         ) : (
-          <ul id="doctor-client-message-history-list" className="list">
+          <ul id="doctor-client-message-history-list" className="m-0 list-none space-y-3 p-0">
             {messageHistory.map((entry) => (
-              <li key={entry.id} id={`doctor-client-message-history-item-${entry.id}`} className="list-item">
-                <span className="eyebrow">
+              <li key={entry.id} id={`doctor-client-message-history-item-${entry.id}`} className="rounded-lg border border-border bg-card p-3">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {new Date(entry.sentAt).toLocaleString("ru")} · {entry.category}
                   {entry.outcome === "sent" ? (
                     <span className="ml-1.5 text-green-600 dark:text-green-500">доставлено</span>
@@ -228,7 +228,7 @@ export function ClientProfileCard({
                   {entry.text.length > 80 ? "…" : ""}
                 </p>
                 {Object.keys(entry.channelBindingsUsed).length > 0 ? (
-                  <span className="eyebrow text-xs opacity-80">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground text-xs opacity-80">
                     Каналы: {Object.keys(entry.channelBindingsUsed).join(", ")}
                   </span>
                 ) : null}
@@ -246,7 +246,7 @@ export function ClientProfileCard({
         <Link
           id="doctor-client-back-link"
           href={listBasePath}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "button--back shrink-0")}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
         >
           {backLabel}
         </Link>

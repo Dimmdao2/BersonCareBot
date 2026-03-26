@@ -27,7 +27,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
   const deleteFormId = `delete-tracking-${id}`;
 
   return (
-    <li id={`patient-symptoms-tracking-item-${id}`} className="list-item flex items-center justify-between gap-2">
+    <li id={`patient-symptoms-tracking-item-${id}`} className="rounded-lg border border-border bg-card p-3 flex items-center justify-between gap-2">
       <strong>{title ?? "—"}</strong>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -63,7 +63,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
           <DialogHeader>
             <DialogTitle>Переименовать симптом</DialogTitle>
           </DialogHeader>
-          <form action={renameSymptomTracking} className="stack gap-3">
+          <form action={renameSymptomTracking} className="flex flex-col gap-3">
             <input type="hidden" name="trackingId" value={id} />
             <Input
               name="newTitle"

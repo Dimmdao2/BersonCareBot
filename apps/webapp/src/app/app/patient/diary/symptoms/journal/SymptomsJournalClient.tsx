@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import type { SymptomEntry } from "@/modules/diaries/types";
@@ -59,7 +60,7 @@ export function SymptomsJournalClient(props: {
   };
 
   return (
-    <div className="stack gap-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <Link
           href={`${routePaths.diary}?tab=symptoms`}
@@ -73,7 +74,7 @@ export function SymptomsJournalClient(props: {
         <label className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Симптом</span>
           <select
-            className="auth-input min-w-[200px]"
+            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
             value={activeTrackingId}
             onChange={(e) => {
               router.push(trackingHref(e.target.value));
@@ -88,8 +89,8 @@ export function SymptomsJournalClient(props: {
         </label>
       ) : null}
 
-      <div className="stack gap-2">
-        <span className="eyebrow">Период (календарный месяц)</span>
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Период (календарный месяц)</span>
         <JournalMonthNav
           basePath={routePaths.diarySymptomsJournal}
           monthYm={monthYm}
@@ -102,11 +103,11 @@ export function SymptomsJournalClient(props: {
       {entries.length === 0 ? (
         <p className="text-muted-foreground text-sm">За этот месяц записей нет.</p>
       ) : (
-        <ul className="list">
+        <ul className="m-0 list-none space-y-3 p-0">
           {entries.map((e) => (
             <li
               key={e.id}
-              className="list-item flex flex-wrap items-start justify-between gap-2"
+              className="rounded-lg border border-border bg-card p-3 flex flex-wrap items-start justify-between gap-2"
             >
               <div className="min-w-0 flex-1">
                 <strong>{e.symptomTitle ?? "—"}</strong> — {e.value0_10}/10 ·{" "}
@@ -164,7 +165,7 @@ export function SymptomsJournalClient(props: {
           </DialogHeader>
           {editEntry ? (
             <form
-              className="stack gap-3"
+              className="flex flex-col gap-3"
               onSubmit={(ev) => {
                 ev.preventDefault();
                 const form = ev.currentTarget;
@@ -188,8 +189,8 @@ export function SymptomsJournalClient(props: {
                 });
               }}
             >
-              <label className="stack gap-1">
-                <span className="eyebrow">Интенсивность (0–10)</span>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Интенсивность (0–10)</span>
                 <Input
                   type="number"
                   name="value"
@@ -199,15 +200,15 @@ export function SymptomsJournalClient(props: {
                   defaultValue={editEntry.value0_10}
                 />
               </label>
-              <label className="stack gap-1">
-                <span className="eyebrow">Тип</span>
-                <select name="entryType" className="auth-input" required defaultValue={editEntry.entryType}>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Тип</span>
+                <select name="entryType" className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required defaultValue={editEntry.entryType}>
                   <option value="instant">В моменте</option>
                   <option value="daily">За день</option>
                 </select>
               </label>
-              <label className="stack gap-1">
-                <span className="eyebrow">Дата и время</span>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Дата и время</span>
                 <Input
                   type="datetime-local"
                   name="recordedAtLocal"
@@ -215,9 +216,9 @@ export function SymptomsJournalClient(props: {
                   defaultValue={toDatetimeLocalValue(editEntry.recordedAt)}
                 />
               </label>
-              <label className="stack gap-1">
-                <span className="eyebrow">Заметки</span>
-                <textarea name="notes" className="auth-input" rows={3} defaultValue={editEntry.notes ?? ""} />
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заметки</span>
+                <Textarea name="notes" rows={3} defaultValue={editEntry.notes ?? ""} />
               </label>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setEditEntry(null)}>

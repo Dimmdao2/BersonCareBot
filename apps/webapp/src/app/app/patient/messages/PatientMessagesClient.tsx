@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
@@ -114,7 +115,7 @@ export function PatientMessagesClient() {
   }
 
   return (
-    <section className="panel stack">
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <ChatView
         variant="patient"
@@ -122,8 +123,8 @@ export function PatientMessagesClient() {
         emptyText="Напишите сообщение поддержке — ответ появится здесь."
         composer={
           <div className="flex flex-col gap-2 border-t border-border pt-3">
-            <textarea
-              className="auth-input min-h-[88px] w-full resize-y rounded-lg px-3 py-2 text-sm"
+            <Textarea
+              className="min-h-[88px] resize-y text-sm"
               placeholder="Ваше сообщение…"
               value={draft}
               maxLength={4000}

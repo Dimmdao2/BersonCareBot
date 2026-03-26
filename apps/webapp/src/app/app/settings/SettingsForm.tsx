@@ -10,43 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 
 type SettingsFormProps = {
   patientLabel: string;
   smsFallbackEnabled: boolean;
 };
-
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (val: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-primary" : "bg-input"
-      )}
-    >
-      <span
-        className={cn(
-          "pointer-events-none inline-block size-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
-          checked ? "translate-x-5" : "translate-x-0"
-        )}
-      />
-    </button>
-  );
-}
 
 export function SettingsForm({ patientLabel, smsFallbackEnabled }: SettingsFormProps) {
   const [label, setLabel] = useState(patientLabel);
@@ -107,15 +76,13 @@ export function SettingsForm({ patientLabel, smsFallbackEnabled }: SettingsFormP
           </p>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium">SMS fallback</span>
-            <span className="text-xs text-muted-foreground">
-              Отправлять SMS, если нет подтверждения через мессенджер
-            </span>
-          </div>
-          <Toggle checked={smsFallback} onChange={setSmsFallback} disabled={isPending} />
-        </div>
+        <LabeledSwitch
+          label="SMS fallback"
+          hint="Отправлять SMS, если нет подтверждения через мессенджер"
+          checked={smsFallback}
+          onCheckedChange={setSmsFallback}
+          disabled={isPending}
+        />
 
         <div className="flex items-center gap-3">
           <Button onClick={handleSave} disabled={isPending}>

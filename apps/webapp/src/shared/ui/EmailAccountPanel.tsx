@@ -86,11 +86,11 @@ export function EmailAccountPanel({ initialEmail, emailVerified }: Props) {
 
       {emailStep === "enter" ? (
         <div className="flex max-w-md flex-col gap-2">
-          <label className="text-muted-foreground text-xs font-medium uppercase tracking-wide" htmlFor="email-panel">
+          <label className="text-muted-foreground text-xs font-medium uppercase tracking-wide" htmlFor="email-rounded-2xl border border-border bg-card p-4 shadow-sm">
             Email
           </label>
           <Input
-            id="email-panel"
+            id="email-rounded-2xl border border-border bg-card p-4 shadow-sm"
             type="email"
             autoComplete="email"
             value={emailDraft}

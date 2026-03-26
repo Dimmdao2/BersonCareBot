@@ -61,7 +61,7 @@ export function AdminDangerActions({ userId, sampleIntegratorRecordId }: Props) 
   }
 
   return (
-    <section className="panel stack border-destructive/40" aria-labelledby="admin-danger-heading">
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4 border-destructive/40" aria-labelledby="admin-danger-heading">
       <h2 id="admin-danger-heading" className="text-destructive">
         Администратор
       </h2>

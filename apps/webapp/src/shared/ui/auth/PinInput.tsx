@@ -120,7 +120,7 @@ export function PinInput({ disabled, onSubmit, onForgot }: PinInputProps) {
 
   return (
     <form className={cn("flex max-w-sm flex-col gap-2")} onSubmit={handleManualSubmit}>
-      <span className="eyebrow">PIN-код</span>
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">PIN-код</span>
       <div className="flex flex-row justify-center gap-3" role="group" aria-label="PIN-код из 4 цифр">
         {digits.map((value, i) => (
           <input

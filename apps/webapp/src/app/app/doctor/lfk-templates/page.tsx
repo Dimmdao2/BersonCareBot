@@ -31,11 +31,15 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
 
   return (
     <AppShell title="Шаблоны ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
-      <div className="stack gap-4">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <form method="get" className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted-foreground">Статус:</span>
-            <select name="status" className="auth-input h-9 text-sm" defaultValue={status ?? ""}>
+            <select
+              name="status"
+              className="h-9 w-auto min-w-[10rem] rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              defaultValue={status ?? ""}
+            >
               <option value="">Все</option>
               <option value="draft">Черновики</option>
               <option value="published">Опубликованные</option>
@@ -55,7 +59,7 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
         </div>
 
         {list.length === 0 ? (
-          <p className="empty-state">Шаблонов пока нет.</p>
+          <p className="text-muted-foreground">Шаблонов пока нет.</p>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {list.map((t) => (

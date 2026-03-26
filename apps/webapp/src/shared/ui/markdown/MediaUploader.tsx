@@ -53,7 +53,7 @@ export function MediaUploader({ onUploaded }: Props) {
         {pending ? "Загрузка…" : "Загрузить файл"}
       </label>
       {error ? (
-        <span role="alert" className="text-sm" style={{ color: "#b91c1c" }}>
+        <span role="alert" className="text-sm text-destructive">
           {error}
         </span>
       ) : null}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type PhoneAuthSubmitResult =
   | { ok: true; challengeId: string; retryAfterSeconds?: number }
@@ -50,11 +51,11 @@ export function PhoneAuthForm({ onSubmit, onSuccess }: PhoneAuthFormProps) {
   };
 
   return (
-    <form id="phone-auth-form" onSubmit={handleSubmit} className="stack" style={{ maxWidth: 320 }}>
-      <label className="eyebrow" htmlFor="phone-auth-phone">
+    <form id="phone-auth-form" onSubmit={handleSubmit} className="flex max-w-xs flex-col gap-4">
+      <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground" htmlFor="phone-auth-phone">
         Номер телефона
       </label>
-      <input
+      <Input
         id="phone-auth-phone"
         type="tel"
         inputMode="tel"
@@ -63,15 +64,14 @@ export function PhoneAuthForm({ onSubmit, onSuccess }: PhoneAuthFormProps) {
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         disabled={loading}
-        className="auth-input"
         aria-invalid={!!error}
       />
       {startCooldownSec > 0 ? (
-        <p className="empty-state" style={{ fontSize: 14, color: "#64748b" }}>
+        <p className="text-sm text-muted-foreground">
           Повторная отправка возможна через {startCooldownSec} сек
         </p>
       ) : null}
-      {error ? <p className="empty-state" style={{ fontSize: 14, color: "#9c4242" }}>{error}</p> : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <Button
         type="submit"
         disabled={loading || startCooldownSec > 0}

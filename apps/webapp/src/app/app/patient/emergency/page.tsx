@@ -17,7 +17,7 @@ export default async function EmergencyPage() {
 
   return (
     <AppShell title="Скорая помощь" user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <section id="patient-emergency-feature-grid-section" className="feature-grid">
+      <section id="patient-emergency-feature-grid-section" className="grid gap-4 md:grid-cols-2">
         {topics.map((topic) => (
           <FeatureCard
             key={topic.id}

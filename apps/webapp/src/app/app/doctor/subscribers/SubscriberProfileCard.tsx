@@ -44,7 +44,7 @@ export function SubscriberProfileCard({
 
   return (
     <>
-      <section className="panel stack" id="doctor-subscriber-compact-contacts">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4" id="doctor-subscriber-compact-contacts">
         <h2>Контакты</h2>
         {identity.phone ? (
           tel ? (
@@ -60,8 +60,8 @@ export function SubscriberProfileCard({
         ) : (
           <p className="text-muted-foreground">Телефон не указан</p>
         )}
-        <p className="eyebrow">Каналы</p>
-        <ul className="list flex flex-wrap gap-2" style={{ listStyle: "none", padding: 0 }}>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Каналы</p>
+        <ul className="m-0 flex flex-wrap list-none gap-2 p-0">
           {channelCards.map((ch) => (
             <li key={ch.code}>
               {ch.isLinked && ch.openUrl ? (
@@ -83,9 +83,9 @@ export function SubscriberProfileCard({
         </ul>
       </section>
 
-      <section className="panel stack" id="doctor-subscriber-notifications-summary">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4" id="doctor-subscriber-notifications-summary">
         <h2>Уведомления</h2>
-        <ul className="text-sm" style={{ listStyle: "none", padding: 0 }}>
+        <ul className="list-none p-0 text-sm">
           {channelCards.map((ch) => (
             <li key={`n-${ch.code}`}>
               {ch.title}: уведомления {ch.isEnabledForNotifications ? "вкл." : "выкл."}
@@ -94,7 +94,7 @@ export function SubscriberProfileCard({
         </ul>
       </section>
 
-      <section className="panel stack" id="doctor-subscriber-channel-msg-counts">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4" id="doctor-subscriber-channel-msg-counts">
         <h2>Сообщения специалиста (журнал)</h2>
         {Object.keys(counts).length === 0 ? (
           <p className="text-muted-foreground text-sm">Нет данных по каналам в последних сообщениях.</p>
@@ -109,7 +109,7 @@ export function SubscriberProfileCard({
         )}
       </section>
 
-      <section className="panel stack">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Чат поддержки</h2>
         <Link href="/app/doctor/messages" className="text-primary underline" id="doctor-open-support-chat-link">
           Открыть раздел сообщений
@@ -129,7 +129,7 @@ export function SubscriberProfileCard({
       <p>
         <Link
           href={listBasePath}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "button--back shrink-0")}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
         >
           К списку подписчиков
         </Link>

@@ -14,7 +14,7 @@ type Props = {
 export function PatientBindPhoneSection({ phoneChannel, phoneChatId, nextPath }: Props) {
   const router = useRouter();
   return (
-    <section id="patient-bind-phone-section" className="panel stack">
+    <section id="patient-bind-phone-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
       <h2>Привяжите номер телефона</h2>
       <p className="text-muted-foreground text-sm">
         Для доступа к этому разделу нужен подтверждённый номер или подключённый мессенджер из профиля.

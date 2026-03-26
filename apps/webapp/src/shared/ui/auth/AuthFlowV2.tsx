@@ -200,7 +200,7 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
   if (step === "phone") {
     return (
       <div id="auth-flow-v2-phone" className="flex flex-col gap-3">
-        <p className="eyebrow">Вход</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
         <p className="text-muted-foreground text-sm">
           Для входа или регистрации в приложении укажите номер телефона
         </p>

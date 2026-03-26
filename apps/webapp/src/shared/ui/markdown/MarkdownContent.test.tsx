@@ -21,7 +21,7 @@ describe("MarkdownContent", () => {
     expect(document.querySelector("script")).toBeNull();
   });
 
-  it("renders list markdown", () => {
+  it("renders markdown", () => {
     render(<MarkdownContent text={"- a\n- b"} bodyFormat="markdown" />);
     expect(screen.getByText("a")).toBeInTheDocument();
     expect(screen.getByText("b")).toBeInTheDocument();

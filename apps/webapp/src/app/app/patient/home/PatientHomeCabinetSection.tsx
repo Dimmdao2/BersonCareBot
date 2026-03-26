@@ -18,9 +18,9 @@ export function PatientHomeCabinetSection({ items }: Props) {
   const cards = CABINET_ORDER.map((id) => byId.get(id)).filter((x): x is MenuItem => x != null);
   if (cards.length === 0) return null;
   return (
-    <section id="patient-home-cabinet-section" className="stack gap-3">
+    <section id="patient-home-cabinet-section" className="flex flex-col gap-3">
       <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">Кабинет</h2>
-      <div className="feature-grid">
+      <div className="grid gap-4 md:grid-cols-2">
         {cards.map((item) => (
           <FeatureCard
             key={item.id}

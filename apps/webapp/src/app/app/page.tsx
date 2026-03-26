@@ -36,19 +36,22 @@ export default async function AppEntryPage({
 
   return (
     <AppShell title="Вход" user={null} variant="patient">
-      <div id="app-entry-content" className="stack">
-        <div id="app-entry-auth-plaque" className="auth-plaque">
-          <p className="auth-plaque__text">
+      <div id="app-entry-content" className="flex flex-col gap-4">
+        <div
+          id="app-entry-auth-plaque"
+          className="rounded-2xl border border-border bg-muted/80 p-4 shadow-sm"
+        >
+          <p className="m-0 text-sm leading-relaxed text-muted-foreground">
             Для полноценной работы в приложении зарегистрируйтесь.
           </p>
         </div>
         {allowDevBypass && (
-          <div id="app-entry-dev-bypass-panel" className="stack" style={{ marginTop: "0.5rem" }}>
-            <p className="eyebrow">Режим разработки</p>
-            <p className="empty-state" style={{ fontSize: "0.9rem" }}>
+          <div id="app-entry-dev-bypass-panel" className="mt-2 flex flex-col gap-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Режим разработки</p>
+            <p className="text-sm text-muted-foreground">
               Войти в интерфейс без Telegram (только при ALLOW_DEV_AUTH_BYPASS=true):
             </p>
-            <div id="app-entry-dev-bypass-actions" style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+            <div id="app-entry-dev-bypass-actions" className="flex flex-wrap gap-3">
               <Link id="app-entry-dev-login-patient" href="/app?t=dev:client" className={cn(buttonVariants({ size: "sm" }))}>
                 Как пациент
               </Link>
@@ -62,7 +65,7 @@ export default async function AppEntryPage({
           </div>
         )}
       </div>
-      <Suspense fallback={<p className="empty-state">Загрузка...</p>}>
+      <Suspense fallback={<p className="text-muted-foreground">Загрузка...</p>}>
         <AuthBootstrap />
       </Suspense>
     </AppShell>

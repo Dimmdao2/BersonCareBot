@@ -15,13 +15,13 @@ export default async function DoctorLfkTemplateNewPage() {
       variant="doctor"
       backHref="/app/doctor/lfk-templates"
     >
-      <section className="panel stack max-w-md gap-4">
+      <section className="flex max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
         <p className="text-sm text-muted-foreground">
           Задайте название черновика. После создания вы попадёте в конструктор, где можно добавить упражнения и
           опубликовать шаблон.
         </p>
-        <form action={createLfkTemplateDraft} className="stack gap-3">
-          <div className="stack gap-2">
+        <form action={createLfkTemplateDraft} className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="tpl-new-title">Название</Label>
             <Input id="tpl-new-title" name="title" placeholder="Новый шаблон" />
           </div>

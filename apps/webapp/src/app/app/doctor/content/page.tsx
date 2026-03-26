@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { buttonVariants } from "@/components/ui/button-variants";
+import { PageSection } from "@/components/common/layout/PageSection";
+import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -41,9 +43,9 @@ export default async function DoctorContentPage() {
 
   return (
     <AppShell title="Контент" user={session.user} variant="doctor">
-      <section id="doctor-content-section" className="panel stack">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
-          <h2>Страницы контента</h2>
+      <PageSection id="doctor-content-section" as="section" className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Страницы контента</h2>
           <div className="flex flex-wrap gap-2">
             <Link href="/app/doctor/content/news" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
               Новости и мотивация
@@ -54,36 +56,36 @@ export default async function DoctorContentPage() {
           </div>
         </div>
         {pages.length === 0 ? (
-          <p className="empty-state">Нет страниц контента.</p>
+          <p className="text-muted-foreground">Нет страниц контента.</p>
         ) : (
-          <div className="stack" style={{ gap: "1.5rem" }}>
+          <div className="flex flex-col gap-6">
             {[...grouped.entries()].map(([section, rows]) => (
-              <div key={section} className="stack" style={{ gap: "0.5rem" }}>
-                <h3 className="eyebrow" style={{ fontSize: "1rem", margin: 0 }}>
+              <div key={section} className="flex flex-col gap-2">
+                <SectionHeading level="subsection" className="m-0">
                   Раздел: {section}
-                </h3>
-                <table id={`doctor-content-table-${section}`} className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                </SectionHeading>
+                <table id={`doctor-content-table-${section}`} className="w-full border-collapse">
                   <thead>
                     <tr>
-                      <th style={{ textAlign: "left", padding: "0.5rem" }}>Заголовок</th>
-                      <th style={{ textAlign: "left", padding: "0.5rem" }}>Slug</th>
-                      <th style={{ textAlign: "left", padding: "0.5rem" }}>Статус</th>
-                      <th style={{ textAlign: "left", padding: "0.5rem" }}>Действия</th>
-                      <th style={{ padding: "0.5rem" }}></th>
+                      <th className="p-2 text-left">Заголовок</th>
+                      <th className="p-2 text-left">Slug</th>
+                      <th className="p-2 text-left">Статус</th>
+                      <th className="p-2 text-left">Действия</th>
+                      <th className="p-2" />
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((p) => (
                       <tr key={p.id}>
-                        <td style={{ padding: "0.5rem" }}>{p.title}</td>
-                        <td style={{ padding: "0.5rem" }}>
+                        <td className="p-2">{p.title}</td>
+                        <td className="p-2">
                           <code>{p.slug}</code>
                         </td>
-                        <td style={{ padding: "0.5rem" }}>{statusLabel(p)}</td>
-                        <td style={{ padding: "0.5rem" }}>
+                        <td className="p-2">{statusLabel(p)}</td>
+                        <td className="p-2">
                           <ContentLifecycleForms page={p} />
                         </td>
-                        <td style={{ padding: "0.5rem" }}>
+                        <td className="p-2">
                           <Link
                             href={`/app/doctor/content/edit/${p.id}`}
                             className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
@@ -99,7 +101,7 @@ export default async function DoctorContentPage() {
             ))}
           </div>
         )}
-      </section>
+      </PageSection>
     </AppShell>
   );
 }

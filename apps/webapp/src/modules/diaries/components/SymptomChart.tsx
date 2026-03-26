@@ -84,13 +84,13 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
   const chartRefreshing = loading && points.length > 0 && !error;
 
   return (
-    <div id="patient-symptom-chart" className="stack gap-3">
+    <div id="patient-symptom-chart" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         {trackings.length > 1 ? (
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Симптом</span>
             <select
-              className="auth-input min-w-[160px]"
+              className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[160px]"
               value={trackingId}
               onChange={(e) => {
                 setTrackingId(e.target.value);

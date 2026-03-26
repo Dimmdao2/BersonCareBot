@@ -2,6 +2,7 @@
 
 import React, { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import type { ChannelBindings } from "@/shared/types/session";
 import { sendMessageAction, type SendMessageResult } from "./actions";
 
@@ -37,29 +38,32 @@ export function SendMessageForm({
   }, [state]);
 
   return (
-    <form ref={formRef} id="doctor-client-send-message-form" action={formAction} className="stack" style={{ gap: 12 }}>
+    <form ref={formRef} id="doctor-client-send-message-form" action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="userId" value={userId} />
       <input type="hidden" name="channel_telegram_id" value={channelBindings.telegramId ?? ""} />
       <input type="hidden" name="channel_max_id" value={channelBindings.maxId ?? ""} />
       <input type="hidden" name="channel_vk_id" value={channelBindings.vkId ?? ""} />
       <div>
-        <label htmlFor="msg-text" className="eyebrow" style={{ display: "block", marginBottom: 4 }}>
+        <label htmlFor="msg-text" className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Текст сообщения
         </label>
-        <textarea
+        <Textarea
           id="msg-text"
           name="text"
-          className="auth-input"
           rows={4}
           required
           placeholder="Введите текст..."
         />
       </div>
       <div>
-        <label htmlFor="msg-category" className="eyebrow" style={{ display: "block", marginBottom: 4 }}>
+        <label htmlFor="msg-category" className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Категория
         </label>
-        <select id="msg-category" name="category" className="auth-input">
+        <select
+          id="msg-category"
+          name="category"
+          className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           {MESSAGE_CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>
               {c.label}
@@ -69,24 +73,24 @@ export function SendMessageForm({
       </div>
       {availableChannels.length > 0 ? (
         <div>
-          <span className="eyebrow" style={{ display: "block", marginBottom: 4 }}>
+          <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Каналы доставки
           </span>
-          <div id="doctor-client-send-message-channel-options" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <div id="doctor-client-send-message-channel-options" className="flex flex-wrap gap-2">
             {availableChannels.includes("telegram") && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label className="flex items-center gap-1.5">
                 <input type="checkbox" name="channel_telegram" value="1" />
                 Telegram
               </label>
             )}
             {availableChannels.includes("max") && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label className="flex items-center gap-1.5">
                 <input type="checkbox" name="channel_max" value="1" />
                 MAX
               </label>
             )}
             {availableChannels.includes("vk") && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label className="flex items-center gap-1.5">
                 <input type="checkbox" name="channel_vk" value="1" />
                 VK
               </label>
@@ -94,12 +98,10 @@ export function SendMessageForm({
           </div>
         </div>
       ) : (
-        <p className="eyebrow" style={{ color: "#9c4242" }}>
-          Нет доступных каналов для доставки.
-        </p>
+        <p className="text-destructive">Нет доступных каналов для доставки.</p>
       )}
-      {state?.error ? <p style={{ color: "#9c4242", margin: 0 }}>{state.error}</p> : null}
-      {state?.success ? <p style={{ color: "#16a34a", margin: 0 }}>Сообщение отправлено.</p> : null}
+      {state?.error ? <p className="m-0 text-destructive">{state.error}</p> : null}
+      {state?.success ? <p className="m-0 text-green-600">Сообщение отправлено.</p> : null}
       <Button type="submit">Отправить</Button>
     </form>
   );

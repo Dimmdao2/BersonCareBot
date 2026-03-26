@@ -7,7 +7,7 @@ export default async function DoctorExerciseNewPage() {
 
   return (
     <AppShell title="Новое упражнение" user={session.user} variant="doctor" backHref="/app/doctor/exercises">
-      <section className="panel stack">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <ExerciseForm />
       </section>
     </AppShell>

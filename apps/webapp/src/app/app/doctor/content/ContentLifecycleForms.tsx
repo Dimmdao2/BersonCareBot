@@ -17,9 +17,9 @@ export function ContentLifecycleForms({ page }: { page: Row }) {
   const archived = page.archivedAt != null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1" style={{ maxWidth: 320 }}>
+    <div className="flex max-w-xs flex-wrap items-center gap-1">
       {state?.error ? (
-        <span className="text-xs" style={{ color: "#b91c1c" }}>
+        <span className="text-xs text-destructive">
           {state.error}
         </span>
       ) : null}

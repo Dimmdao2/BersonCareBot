@@ -24,6 +24,7 @@ import type { Template } from "@/modules/lfk-templates/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -126,7 +127,7 @@ function SortableRow({
         <p className="text-xs text-muted-foreground">{line.exerciseId}</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <div className="stack gap-1">
+        <div className="flex flex-col gap-1">
           <Label className="text-xs">Повторы</Label>
           <Input
             className="h-8 w-16"
@@ -135,7 +136,7 @@ function SortableRow({
             onChange={(ev) => onChange(line.sortId, { reps: ev.target.value })}
           />
         </div>
-        <div className="stack gap-1">
+        <div className="flex flex-col gap-1">
           <Label className="text-xs">Подходы</Label>
           <Input
             className="h-8 w-16"
@@ -144,10 +145,10 @@ function SortableRow({
             onChange={(ev) => onChange(line.sortId, { sets: ev.target.value })}
           />
         </div>
-        <div className="stack gap-1">
+        <div className="flex flex-col gap-1">
           <Label className="text-xs">Сторона</Label>
           <select
-            className="auth-input h-8 text-sm"
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             value={line.side}
             onChange={(ev) => onChange(line.sortId, { side: ev.target.value })}
           >
@@ -157,7 +158,7 @@ function SortableRow({
             <option value="both">Обе</option>
           </select>
         </div>
-        <div className="stack gap-1">
+        <div className="flex flex-col gap-1">
           <Label className="text-xs">Боль max</Label>
           <Input
             className="h-8 w-16"
@@ -166,7 +167,7 @@ function SortableRow({
             onChange={(ev) => onChange(line.sortId, { maxPain: ev.target.value })}
           />
         </div>
-        <div className="stack min-w-[140px] flex-1 gap-1">
+        <div className="flex min-w-[140px] flex-1 flex-col gap-1">
           <Label className="text-xs">Комментарий</Label>
           <Input
             value={line.comment}
@@ -283,8 +284,8 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
   const archived = template.status === "archived";
 
   return (
-    <div className="stack max-w-4xl gap-6">
-      <div className="stack gap-2">
+    <div className="flex max-w-4xl flex-col gap-6">
+      <div className="flex flex-col gap-2">
         <Label htmlFor="tpl-title">Название</Label>
         <Input
           id="tpl-title"
@@ -293,11 +294,11 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
           disabled={archived}
         />
       </div>
-      <div className="stack gap-2">
+      <div className="flex flex-col gap-2">
         <Label htmlFor="tpl-desc">Описание</Label>
-        <textarea
+        <Textarea
           id="tpl-desc"
-          className="auth-input min-h-[80px] w-full"
+          className="min-h-[80px]"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={archived}
@@ -326,13 +327,14 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
               ) : (
                 filteredPick.map((e) => (
                   <li key={e.id}>
-                    <button
+                    <Button
                       type="button"
-                      className="w-full rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
+                      variant="ghost"
+                      className="h-auto w-full justify-start rounded-md px-2 py-2 text-left text-sm font-normal"
                       onClick={() => addExercise(e)}
                     >
                       {e.title}
-                    </button>
+                    </Button>
                   </li>
                 ))
               )}
@@ -343,7 +345,7 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
-          <ul className="stack gap-3">
+          <ul className="flex flex-col gap-3">
             {lines.map((line) => (
               <SortableRow key={line.sortId} line={line} onChange={updateLine} onRemove={removeLine} />
             ))}

@@ -18,7 +18,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
 
   return (
     <AppShell title="Редактировать страницу" user={session.user} variant="doctor" backHref="/app/doctor/content">
-      <section className="panel stack">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <ContentForm page={page} />
       </section>
     </AppShell>

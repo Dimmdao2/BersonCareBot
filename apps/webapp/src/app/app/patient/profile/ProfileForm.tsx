@@ -87,13 +87,14 @@ export function ProfileForm({
                 }}
               />
             </Suspense>
-            <button
+            <Button
               type="button"
-              className="text-muted-foreground text-sm underline-offset-4 hover:underline"
+              variant="link"
+              className="h-auto min-h-0 px-0 text-muted-foreground"
               onClick={() => setEditingPhone(false)}
             >
               Отмена
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>

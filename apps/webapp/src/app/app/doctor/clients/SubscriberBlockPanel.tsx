@@ -38,7 +38,7 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
   return (
     <section
       id="doctor-subscriber-block-section"
-      className="panel stack"
+      className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4"
       aria-labelledby="doctor-block-heading"
     >
       <h2 id="doctor-block-heading">Блокировка чата поддержки</h2>
@@ -61,7 +61,7 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
           Снять блокировку
         </Button>
       ) : (
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <label htmlFor="block-reason" className="text-sm">
             Причина (необязательно)
           </label>

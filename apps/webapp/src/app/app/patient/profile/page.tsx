@@ -30,7 +30,7 @@ export default async function PatientProfilePage() {
       backLabel="Меню"
       variant="patient"
     >
-      <section className="panel stack">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Личные данные</h2>
         <ProfileForm
           displayName={session.user.displayName}
@@ -42,12 +42,12 @@ export default async function PatientProfilePage() {
         />
       </section>
 
-      <section className="panel stack">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>PIN для входа</h2>
         <PinSection />
       </section>
 
-      <section className="panel stack">
+      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Привязанные каналы</h2>
         <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
       </section>

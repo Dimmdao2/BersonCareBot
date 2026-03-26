@@ -43,14 +43,14 @@ export default async function DoctorSubscribersPage({ searchParams }: Props) {
 
   return (
     <AppShell title="Подписчики" user={session.user} variant="doctor">
-      <div id="doctor-subscribers-master-detail" className="master-detail">
-        <div id="doctor-subscribers-list-column" className="master-detail__list">
-          <section id="doctor-subscribers-list-section" className="panel stack">
+      <div id="doctor-subscribers-master-detail" className="block md:grid md:grid-cols-[1fr_2fr] md:gap-4">
+        <div id="doctor-subscribers-list-column">
+          <section id="doctor-subscribers-list-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
             <DoctorClientsPanel allClients={allClients} urlParams={params} basePath={BASE} />
           </section>
         </div>
         {selectedProfile ? (
-          <div id="doctor-subscribers-detail-column" className="master-detail__detail">
+          <div id="doctor-subscribers-detail-column" className="hidden md:block">
             <ClientProfileCard
               profile={selectedProfile}
               messageDraft={selectedMessageDraft}

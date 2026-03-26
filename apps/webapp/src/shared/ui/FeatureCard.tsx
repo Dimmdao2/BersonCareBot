@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 /**
  * Карточка раздела на главном экране: заголовок, описание, статус (доступно / скоро / заблокировано).
  * Может быть ссылкой или просто блоком. Компактный вариант — только заголовок, без описания.
- * Используется на главной пациента для кабинета («Дневник», «Мои записи»), уроков и т.д.
  */
 
 type FeatureCardProps = {
@@ -17,6 +18,19 @@ type FeatureCardProps = {
   compact?: boolean;
 };
 
+const STATUS_LABEL: Record<NonNullable<FeatureCardProps["status"]>, string> = {
+  available: "доступно",
+  "coming-soon": "скоро",
+  locked: "заблокировано",
+};
+
+const STATUS_BADGE: Record<NonNullable<FeatureCardProps["status"]>, "default" | "secondary" | "outline" | "destructive"> =
+  {
+    available: "secondary",
+    "coming-soon": "outline",
+    locked: "destructive",
+  };
+
 /** Рендерит карточку: при наличии ссылки и статусе не «заблокировано» — кликабельная, иначе просто блок. */
 export function FeatureCard({
   title,
@@ -26,21 +40,31 @@ export function FeatureCard({
   containerId,
   compact,
 }: FeatureCardProps) {
+  const cardClass = cn(
+    "rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow",
+    compact && "flex min-h-[52px] items-center justify-center text-center",
+  );
+
+  const titleClass = cn(
+    "font-semibold",
+    compact ? "m-0 text-[0.95rem] font-medium" : "text-base",
+  );
+
   const content = (
     <>
       {!compact && (
-        <div className="feature-card__meta">
-          <span className={`status-pill status-pill--${status}`}>{status.replace("-", " ")}</span>
+        <div className="mb-3">
+          <Badge variant={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</Badge>
         </div>
       )}
-      <h2 className={compact ? "feature-card__title--compact" : undefined}>{title}</h2>
-      {!compact && description ? <p>{description}</p> : null}
+      <h2 className={titleClass}>{title}</h2>
+      {!compact && description ? <p className="mt-2 text-sm text-muted-foreground">{description}</p> : null}
     </>
   );
 
   if (!href || status === "locked") {
     return (
-      <article id={containerId} className={`feature-card ${compact ? "feature-card--compact" : ""}`}>
+      <article id={containerId} className={cardClass}>
         {content}
       </article>
     );
@@ -50,7 +74,10 @@ export function FeatureCard({
     <Link
       href={href}
       id={containerId}
-      className={`feature-card feature-card--link transition-transform active:scale-[0.98] ${compact ? "feature-card--compact" : ""}`}
+      className={cn(
+        cardClass,
+        "block hover:border-primary/30 hover:shadow-md active:scale-[0.98] md:hover:-translate-y-px",
+      )}
     >
       {content}
     </Link>

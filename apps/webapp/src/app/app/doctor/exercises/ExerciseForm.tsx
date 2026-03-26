@@ -6,6 +6,7 @@ import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -38,12 +39,12 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
   const tagsStr = exercise?.tags?.join(", ") ?? "";
 
   return (
-    <div className="stack max-w-2xl gap-6">
-      <form action={saveDoctorExercise} className="stack gap-4">
+    <div className="flex max-w-2xl flex-col gap-6">
+      <form action={saveDoctorExercise} className="flex flex-col gap-4">
         {exercise ? <input type="hidden" name="id" value={exercise.id} /> : null}
         <input type="hidden" name="regionRefId" value={regionRefId ?? ""} />
 
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <Label htmlFor="ex-title">Название</Label>
           <Input
             id="ex-title"
@@ -54,18 +55,18 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
           />
         </div>
 
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <Label htmlFor="ex-desc">Описание</Label>
-          <textarea
+          <Textarea
             id="ex-desc"
             name="description"
-            className="auth-input min-h-[100px] w-full"
+            className="min-h-[100px]"
             defaultValue={exercise?.description ?? ""}
             placeholder="Краткая техника выполнения"
           />
         </div>
 
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <span className="text-sm font-medium">Область тела</span>
           <ReferenceSelect
             categoryCode="body_region"
@@ -81,7 +82,7 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
           ) : null}
         </div>
 
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <Label>Тип нагрузки</Label>
           <input type="hidden" name="loadType" value={loadType} />
           <Select
@@ -103,7 +104,7 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
           </Select>
         </div>
 
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <Label htmlFor="ex-difficulty">Сложность (1–10)</Label>
           <div className="flex flex-wrap items-center gap-3">
             <input
@@ -120,22 +121,22 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
           </div>
         </div>
 
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <Label htmlFor="ex-contra">Противопоказания</Label>
-          <textarea
+          <Textarea
             id="ex-contra"
             name="contraindications"
-            className="auth-input min-h-[72px] w-full"
+            className="min-h-[72px]"
             defaultValue={exercise?.contraindications ?? ""}
           />
         </div>
 
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <Label htmlFor="ex-tags">Теги (через запятую)</Label>
           <Input id="ex-tags" name="tags" defaultValue={tagsStr} placeholder="колено, дома" />
         </div>
 
-        <div className="stack gap-2 rounded-lg border border-border/60 p-3">
+        <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
           <p className="text-sm font-medium">Медиа (опционально)</p>
           <Input
             name="mediaUrl"
@@ -147,7 +148,7 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
             <Label className="text-xs text-muted-foreground">Тип файла</Label>
             <select
               name="mediaType"
-              className="auth-input text-sm"
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               defaultValue={exercise?.media[0]?.mediaType ?? ""}
             >
               <option value="">—</option>

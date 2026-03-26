@@ -94,12 +94,12 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
   const showDetail = Boolean(!loading && !error && detail && detailComplexId);
 
   return (
-    <div id="patient-lfk-stats-table" className="stack gap-3">
+    <div id="patient-lfk-stats-table" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Режим</span>
           <select
-            className="auth-input min-w-[200px]"
+            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
             value={detailComplexId ?? ""}
             onChange={(e) => {
               const v = e.target.value;
@@ -170,7 +170,7 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
       ) : null}
 
       {showDetail && detail ? (
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">{detail.complex.title}</p>
           {detail.chartPoints.length === 0 ? (
             <p className="text-muted-foreground text-sm">Нет данных с оценками боли/сложности за выбранный период.</p>

@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { PlusIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NumericChipGroup } from "@/components/common/controls/NumericChipGroup";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { addSymptomEntry } from "./symptoms/actions";
 import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./symptoms/symptomEntryDedup";
@@ -32,7 +33,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
         type="button"
         size="icon-lg"
         variant="default"
-        className="patient-fab-quick-add h-14 w-14 rounded-full shadow-lg"
+        className="safe-fab-br h-14 w-14 rounded-full shadow-lg"
         aria-label="Быстрое добавление"
         onClick={() => setOpen(true)}
       >
@@ -43,12 +44,12 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
           <DialogHeader>
             <DialogTitle>Быстрое добавление</DialogTitle>
           </DialogHeader>
-          <div className="stack gap-6">
+          <div className="flex flex-col gap-6">
             {trackings.length > 0 ? (
-              <section className="stack gap-2">
+              <section className="flex flex-col gap-2">
                 <h3 className="text-sm font-medium">Симптом</h3>
                 <form
-                  className="stack gap-2"
+                  className="flex flex-col gap-2"
                   onSubmit={(e) => {
                     e.preventDefault();
                     const form = e.currentTarget;
@@ -85,7 +86,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   {trackings.length === 1 ? (
                     <input type="hidden" name="trackingId" value={trackings[0].id} />
                   ) : (
-                    <select name="trackingId" className="auth-input" required defaultValue={trackings[0]?.id}>
+                    <select name="trackingId" className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required defaultValue={trackings[0]?.id}>
                       {trackings.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.title}
@@ -93,18 +94,14 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                       ))}
                     </select>
                   )}
-                  <div className="flex flex-wrap gap-1">
-                    {Array.from({ length: 11 }, (_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className={`size-8 rounded-full border text-xs ${symValue === i ? "border-primary bg-primary/15" : ""}`}
-                        onClick={() => setSymValue(i)}
-                      >
-                        {i}
-                      </button>
-                    ))}
-                  </div>
+                  <NumericChipGroup
+                    min={0}
+                    max={10}
+                    value={symValue}
+                    onChange={setSymValue}
+                    chipClassName="size-8 text-xs"
+                    colorFn={(v) => (symValue === v ? "var(--primary)" : "var(--muted-foreground)")}
+                  />
                   <input type="hidden" name="value" value={symValue !== null ? String(symValue) : ""} />
                   <input type="hidden" name="entryType" value="instant" />
                   <Button type="submit" className="w-full" disabled={symValue === null || symPending}>
@@ -115,10 +112,10 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
             ) : null}
 
             {complexes.length > 0 ? (
-              <section className="stack gap-2">
+              <section className="flex flex-col gap-2">
                 <h3 className="text-sm font-medium">ЛФК</h3>
                 <form
-                  className="stack gap-2"
+                  className="flex flex-col gap-2"
                   onSubmit={(e) => {
                     e.preventDefault();
                     const fd = new FormData(e.currentTarget);
@@ -132,7 +129,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   {complexes.length === 1 ? (
                     <input type="hidden" name="complexId" value={complexes[0].id} />
                   ) : (
-                    <select name="complexId" className="auth-input" required>
+                    <select name="complexId" className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required>
                       {complexes.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.title}
