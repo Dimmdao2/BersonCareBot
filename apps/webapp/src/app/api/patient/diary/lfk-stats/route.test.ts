@@ -15,6 +15,7 @@ const { getSessionMock, buildAppDepsMock, getComplexMock, listComplexesMock, lis
         getLfkComplexForUser: getComplexMockInner,
         listLfkComplexes: listComplexesMockInner,
         listLfkSessionsInRange: listRangeMockInner,
+        minCompletedAtForLfkUser: vi.fn().mockResolvedValue(null),
       },
     })),
   };
@@ -105,15 +106,15 @@ describe("GET /api/patient/diary/lfk-stats", () => {
       },
     ]);
     const res = await GET(
-      new Request("http://localhost/api/patient/diary/lfk-stats?complexId=c1&period=week&offset=0&page=1&pageSize=10")
+      new Request("http://localhost/api/patient/diary/lfk-stats?complexId=c1&period=week&offset=0")
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
       ok: boolean;
-      detail: { sessions: unknown[]; total: number } | null;
+      detail: { chartPoints: { date: string; value: number }[]; total: number } | null;
     };
     expect(data.ok).toBe(true);
     expect(data.detail?.total).toBe(1);
-    expect(data.detail?.sessions.length).toBe(1);
+    expect(data.detail?.chartPoints.some((p) => p.date === "2025-03-01" && p.value >= 1)).toBe(true);
   });
 });

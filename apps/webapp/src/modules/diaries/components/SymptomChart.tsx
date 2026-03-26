@@ -1,12 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { routePaths } from "@/app-layer/routes/paths";
 import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from "./DiaryStatsPeriodBar";
 
 const RechartsSymptom = dynamic(() => import("./SymptomChartRecharts"), {
   ssr: false,
-  loading: () => <div className="bg-muted/50 h-[220px] w-full animate-pulse rounded-md" />,
+  loading: () => <div className="bg-muted/50 h-[240px] w-full animate-pulse rounded-md" />,
 });
 
 export type SymptomChartTrackingOption = { id: string; symptomTitle: string };
@@ -121,10 +125,21 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
       ) : null}
       {!showInitialSkeleton && points.length > 0 && !error ? (
         <div
-          className={chartRefreshing ? "opacity-60 transition-opacity" : ""}
+          className={`mt-6 ${chartRefreshing ? "opacity-60 transition-opacity" : ""}`}
           aria-busy={chartRefreshing}
         >
-          <RechartsSymptom points={points} />
+          <RechartsSymptom points={points} period={period} />
+        </div>
+      ) : null}
+
+      {trackingId ? (
+        <div className="mt-6">
+          <Link
+            href={`${routePaths.diarySymptomsJournal}?trackingId=${encodeURIComponent(trackingId)}&period=${period}&offset=${offset}`}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex text-xs")}
+          >
+            Открыть журнал
+          </Link>
         </div>
       ) : null}
     </div>

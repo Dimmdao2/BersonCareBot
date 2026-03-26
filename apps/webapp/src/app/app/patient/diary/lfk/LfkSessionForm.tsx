@@ -1,23 +1,62 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { markLfkSession } from "./actions";
 
 type Complex = { id: string; title: string };
 
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function todayDateParts(d = new Date()) {
+  return {
+    date: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`,
+    time: `${pad2(d.getHours())}:${pad2(d.getMinutes())}`,
+  };
+}
+
+/** Цвет «ручки» ползунка 0–10 (зелёный → жёлтый → красный). */
+function lfkThumbColor(score: number): string {
+  if (score <= 5) {
+    const t = score / 5;
+    const h = 120 + (45 - 120) * t;
+    const s = 60 + (80 - 60) * t;
+    const l = 40 + (50 - 40) * t;
+    return `hsl(${h} ${s}% ${l}%)`;
+  }
+  const t = (score - 5) / 5;
+  const h = 45 + (0 - 45) * t;
+  const s = 80 + (70 - 80) * t;
+  const l = 50 + (35 - 50) * t;
+  return `hsl(${h} ${s}% ${l}%)`;
+}
+
+function formatDateButton(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  if (!y || !m || !d) return isoDate;
+  return new Date(y, m - 1, d).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
-  const defaults = useMemo(() => {
-    const d = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return {
-      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-      time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
-    };
-  }, []);
+  const defaults = useMemo(() => todayDateParts(), []);
+  const [sessionDate, setSessionDate] = useState(defaults.date);
+  const [sessionTime, setSessionTime] = useState(defaults.time);
+  const [difficulty, setDifficulty] = useState(5);
+  const [pain, setPain] = useState(0);
+  const [dateOpen, setDateOpen] = useState(false);
+  const [timeOpen, setTimeOpen] = useState(false);
+  const [dateDraft, setDateDraft] = useState(defaults.date);
+  const [timeDraft, setTimeDraft] = useState(defaults.time);
 
   if (complexes.length === 0) return null;
 
@@ -46,16 +85,112 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           </select>
         </label>
       )}
+      <input type="hidden" name="sessionDate" value={sessionDate} />
+      <input type="hidden" name="sessionTime" value={sessionTime} />
+      <input type="hidden" name="difficulty0_10" value={difficulty} />
+      <input type="hidden" name="pain0_10" value={pain} />
+
       <div className="flex min-w-0 gap-2">
-        <label className="stack min-w-0 flex-1 gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="eyebrow">Дата</span>
-          <Input type="date" name="sessionDate" defaultValue={defaults.date} className="min-w-0" />
-        </label>
-        <label className="stack min-w-0 flex-1 gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 w-full min-w-0 justify-start font-normal"
+            onClick={() => {
+              setDateDraft(sessionDate);
+              setDateOpen(true);
+            }}
+          >
+            {formatDateButton(sessionDate)}
+          </Button>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="eyebrow">Время</span>
-          <Input type="time" name="sessionTime" defaultValue={defaults.time} className="min-w-0" />
-        </label>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 w-full min-w-0 justify-start font-normal"
+            onClick={() => {
+              setTimeDraft(sessionTime);
+              setTimeOpen(true);
+            }}
+          >
+            {sessionTime}
+          </Button>
+        </div>
       </div>
+
+      <Dialog open={dateOpen} onOpenChange={setDateOpen}>
+        <DialogContent
+          className="rounded-lg border border-border shadow-md sm:max-w-sm"
+          showCloseButton
+        >
+          <DialogHeader>
+            <DialogTitle>Дата занятия</DialogTitle>
+          </DialogHeader>
+          <Input
+            type="date"
+            value={dateDraft}
+            onChange={(e) => setDateDraft(e.target.value)}
+            className="auth-input"
+          />
+          <DialogFooter className="flex flex-row flex-wrap gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 sm:flex-none"
+              onClick={() => {
+                const t = todayDateParts();
+                setDateDraft(t.date);
+                setSessionDate(t.date);
+              }}
+            >
+              Сегодня
+            </Button>
+            <Button
+              type="button"
+              className="flex-1 sm:flex-none"
+              onClick={() => {
+                setSessionDate(dateDraft);
+                setDateOpen(false);
+              }}
+            >
+              Готово
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={timeOpen} onOpenChange={setTimeOpen}>
+        <DialogContent
+          className="rounded-lg border border-border shadow-md sm:max-w-sm"
+          showCloseButton={false}
+        >
+          <DialogHeader>
+            <DialogTitle>Время</DialogTitle>
+          </DialogHeader>
+          <Input
+            type="time"
+            value={timeDraft}
+            onChange={(e) => setTimeDraft(e.target.value)}
+            className="auth-input"
+          />
+          <DialogFooter>
+            <Button
+              type="button"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                setSessionTime(timeDraft);
+                setTimeOpen(false);
+              }}
+            >
+              Готово
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <label className="stack gap-1">
         <span className="eyebrow">Длительность (мин)</span>
         <Input
@@ -70,11 +205,31 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       </label>
       <label className="stack gap-1">
         <span className="eyebrow">Сложность выполнения: баллов из 10</span>
-        <input type="range" name="difficulty0_10" min={0} max={10} defaultValue={5} className="w-full" />
+        <input
+          type="range"
+          name="difficulty0_10_range"
+          min={0}
+          max={10}
+          value={difficulty}
+          onChange={(e) => setDifficulty(Number(e.target.value))}
+          className="lfk-diary-range"
+          style={{ "--lfk-thumb": lfkThumbColor(difficulty) } as React.CSSProperties}
+          aria-valuenow={difficulty}
+        />
       </label>
       <label className="stack gap-1">
         <span className="eyebrow">Боль: баллов из 10</span>
-        <input type="range" name="pain0_10" min={0} max={10} defaultValue={0} className="w-full" />
+        <input
+          type="range"
+          name="pain0_10_range"
+          min={0}
+          max={10}
+          value={pain}
+          onChange={(e) => setPain(Number(e.target.value))}
+          className="lfk-diary-range"
+          style={{ "--lfk-thumb": lfkThumbColor(pain) } as React.CSSProperties}
+          aria-valuenow={pain}
+        />
       </label>
       <label className="stack gap-1">
         <span className="eyebrow">Комментарий</span>

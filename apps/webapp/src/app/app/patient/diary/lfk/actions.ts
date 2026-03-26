@@ -84,3 +84,66 @@ export async function createLfkComplex(formData: FormData) {
   }
   revalidatePath(routePaths.diary);
 }
+
+export async function updateLfkJournalSession(formData: FormData): Promise<{ ok: boolean }> {
+  const session = await requirePatientAccess(routePaths.diaryLfkJournal);
+  const sessionIdRaw = formData.get("sessionId");
+  const sessionId = typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+  const completedAtVal = formData.get("completedAt");
+  const completedAtRaw = typeof completedAtVal === "string" ? completedAtVal.trim() : "";
+  if (!sessionId || !completedAtRaw) return { ok: false };
+  const completedAt = new Date(completedAtRaw);
+  if (Number.isNaN(completedAt.getTime())) return { ok: false };
+
+  const durationMinutes = parseOptionalInt(formData.get("durationMinutes"));
+  const difficulty0_10 = parseOptionalInt(formData.get("difficulty0_10"));
+  const pain0_10 = parseOptionalInt(formData.get("pain0_10"));
+  const commentRaw = formData.get("comment");
+  let comment: string | null = typeof commentRaw === "string" ? commentRaw.trim() : null;
+  if (comment && comment.length > 200) {
+    comment = comment.slice(0, 200);
+  }
+
+  const deps = buildAppDeps();
+  const userId = session.user.userId;
+  const existing = await deps.diaries.getLfkSessionForUser({ userId, sessionId });
+  if (!existing) return { ok: false };
+
+  try {
+    await deps.diaries.updateLfkSession({
+      userId,
+      sessionId,
+      completedAt: completedAt.toISOString(),
+      durationMinutes,
+      difficulty0_10: difficulty0_10 !== null ? Math.min(10, Math.max(0, difficulty0_10)) : null,
+      pain0_10: pain0_10 !== null ? Math.min(10, Math.max(0, pain0_10)) : null,
+      comment,
+    });
+  } catch (e) {
+    console.error("updateLfkJournalSession", e);
+    return { ok: false };
+  }
+  revalidatePath(routePaths.diary);
+  revalidatePath(routePaths.diaryLfkJournal);
+  return { ok: true };
+}
+
+export async function deleteLfkJournalSession(formData: FormData): Promise<{ ok: boolean }> {
+  const session = await requirePatientAccess(routePaths.diaryLfkJournal);
+  const sessionIdRaw = formData.get("sessionId");
+  const sessionId = typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+  if (!sessionId) return { ok: false };
+  const deps = buildAppDeps();
+  const userId = session.user.userId;
+  const existing = await deps.diaries.getLfkSessionForUser({ userId, sessionId });
+  if (!existing) return { ok: false };
+  try {
+    await deps.diaries.deleteLfkSession({ userId, sessionId });
+  } catch (e) {
+    console.error("deleteLfkJournalSession", e);
+    return { ok: false };
+  }
+  revalidatePath(routePaths.diary);
+  revalidatePath(routePaths.diaryLfkJournal);
+  return { ok: true };
+}

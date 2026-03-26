@@ -3,8 +3,9 @@
  */
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { DiarySectionGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui/patient/guestAccess";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/shared/ui/AppShell";
 import { AddEntryForm } from "./symptoms/AddEntryForm";
@@ -20,13 +21,23 @@ const EMPTY_STATS =
   "Скоро здесь будет ваша статистика. Для добавления записей в дневник воспользуйтесь кнопкой в меню бота.";
 
 export default async function PatientDiaryPage() {
-  const session = await requirePatientAccess(routePaths.diary);
-  requirePatientPhone(session, routePaths.diary);
+  const session = await getOptionalPatientSession();
+  if (!session || !patientHasPhoneOrMessenger(session)) {
+    return (
+      <AppShell
+        title="Дневник"
+        user={session?.user ?? null}
+        backHref="/app/patient"
+        backLabel="Меню"
+        variant="patient"
+      >
+        <DiarySectionGuestAccess session={session} returnTo={routePaths.diary} />
+      </AppShell>
+    );
+  }
   const deps = buildAppDeps();
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId);
-  const entries = await deps.diaries.listSymptomEntries(session.user.userId);
   const complexes = await deps.diaries.listLfkComplexes(session.user.userId);
-  const lfkSessions = await deps.diaries.listLfkSessions(session.user.userId);
 
   const symptomsPanel = (
     <>
@@ -58,24 +69,8 @@ export default async function PatientDiaryPage() {
           <SymptomChart
             trackings={trackings.map((t) => ({ id: t.id, symptomTitle: t.symptomTitle ?? "—" }))}
           />
-        ) : null}
-        {entries.length === 0 ? (
-          <p className="empty-state">{EMPTY_STATS}</p>
         ) : (
-          <ul id="patient-symptoms-stats-list" className="list">
-            {entries.map((entry) => (
-              <li key={entry.id} id={`patient-symptoms-entry-item-${entry.id}`} className="list-item">
-                <strong>{entry.symptomTitle ?? "—"}</strong> — {entry.value0_10}/10 ·{" "}
-                {new Date(entry.recordedAt).toLocaleString("ru-RU", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </li>
-            ))}
-          </ul>
+          <p className="empty-state">{EMPTY_STATS}</p>
         )}
       </section>
     </>
@@ -127,23 +122,8 @@ export default async function PatientDiaryPage() {
         <h2 className="text-lg font-semibold">Статистика</h2>
         {complexes.length > 0 ? (
           <LfkStatsTable complexes={complexes.map((c) => ({ id: c.id, title: c.title ?? "—" }))} />
-        ) : null}
-        {lfkSessions.length === 0 ? (
-          complexes.length === 0 ? (
-            <p className="empty-state">{EMPTY_STATS}</p>
-          ) : null
         ) : (
-          <ul id="patient-lfk-sessions-list" className="list">
-            {lfkSessions.map((s) => (
-              <li key={s.id} id={`patient-lfk-session-item-${s.id}`} className="list-item">
-                <strong>{s.complexTitle ?? "ЛФК"}</strong>
-                <span className="status-pill">{new Date(s.completedAt).toLocaleDateString("ru-RU")}</span>
-                {s.durationMinutes != null ? (
-                  <span className="status-pill">{s.durationMinutes} мин</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+          <p className="empty-state">{EMPTY_STATS}</p>
         )}
       </section>
     </>

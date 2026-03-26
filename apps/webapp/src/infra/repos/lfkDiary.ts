@@ -90,4 +90,37 @@ export const inMemoryLfkDiaryPort: LfkDiaryPort = {
         return { ...s, complexTitle: c?.title };
       });
   },
+
+  async minCompletedAtForUser(userId) {
+    let min: string | null = null;
+    for (const s of sessions) {
+      if (s.userId !== userId) continue;
+      if (!min || s.completedAt < min) min = s.completedAt;
+    }
+    return min;
+  },
+
+  async getSessionForUser(params) {
+    const s = sessions.find((x) => x.id === params.sessionId && x.userId === params.userId);
+    if (!s) return null;
+    const c = complexes.find((x) => x.id === s.complexId);
+    return { ...s, complexTitle: c?.title };
+  },
+
+  async updateSession(params) {
+    const s = sessions.find((x) => x.id === params.sessionId && x.userId === params.userId);
+    if (!s) return;
+    let comment = params.comment?.trim() ?? null;
+    if (comment && comment.length > 200) comment = comment.slice(0, 200);
+    s.completedAt = params.completedAt;
+    s.durationMinutes = params.durationMinutes ?? null;
+    s.difficulty0_10 = params.difficulty0_10 ?? null;
+    s.pain0_10 = params.pain0_10 ?? null;
+    s.comment = comment;
+  },
+
+  async deleteSession(params) {
+    const i = sessions.findIndex((x) => x.id === params.sessionId && x.userId === params.userId);
+    if (i >= 0) sessions.splice(i, 1);
+  },
 };

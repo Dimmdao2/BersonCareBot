@@ -1,0 +1,236 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import toast from "react-hot-toast";
+import Link from "next/link";
+import { MoreHorizontal } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { routePaths } from "@/app-layer/routes/paths";
+import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
+import type { SymptomEntry } from "@/modules/diaries/types";
+import { JournalMonthNav } from "../../JournalMonthNav";
+import { deleteSymptomJournalEntry, updateSymptomJournalEntry } from "../actions";
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+export function SymptomsJournalClient(props: {
+  entries: SymptomEntry[];
+  trackings: { id: string; symptomTitle: string }[];
+  activeTrackingId: string;
+  monthYm: string;
+  period: StatsPeriod;
+  offset: number;
+}) {
+  const { entries, trackings, activeTrackingId, monthYm, period, offset } = props;
+  const router = useRouter();
+  const [editEntry, setEditEntry] = useState<SymptomEntry | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const trackingHref = (id: string) => {
+    const p = new URLSearchParams();
+    p.set("trackingId", id);
+    p.set("month", monthYm);
+    p.set("period", period);
+    p.set("offset", String(offset));
+    return `${routePaths.diarySymptomsJournal}?${p.toString()}`;
+  };
+
+  return (
+    <div className="stack gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          href={`${routePaths.diary}?tab=symptoms`}
+          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex text-xs")}
+        >
+          ← К статистике
+        </Link>
+      </div>
+
+      {trackings.length > 1 ? (
+        <label className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Симптом</span>
+          <select
+            className="auth-input min-w-[200px]"
+            value={activeTrackingId}
+            onChange={(e) => {
+              router.push(trackingHref(e.target.value));
+            }}
+          >
+            {trackings.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.symptomTitle}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      <div className="stack gap-2">
+        <span className="eyebrow">Период (календарный месяц)</span>
+        <JournalMonthNav
+          basePath={routePaths.diarySymptomsJournal}
+          monthYm={monthYm}
+          period={period}
+          offset={offset}
+          trackingId={activeTrackingId}
+        />
+      </div>
+
+      {entries.length === 0 ? (
+        <p className="text-muted-foreground text-sm">За этот месяц записей нет.</p>
+      ) : (
+        <ul className="list">
+          {entries.map((e) => (
+            <li
+              key={e.id}
+              className="list-item flex flex-wrap items-start justify-between gap-2"
+            >
+              <div className="min-w-0 flex-1">
+                <strong>{e.symptomTitle ?? "—"}</strong> — {e.value0_10}/10 ·{" "}
+                {e.entryType === "daily" ? "за день" : "в моменте"}
+                <div className="text-muted-foreground text-sm">
+                  {new Date(e.recordedAt).toLocaleString("ru-RU", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
+                {e.notes ? <p className="mt-1 text-sm">{e.notes}</p> : null}
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-muted"
+                  aria-label="Действия"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setEditEntry(e)}>Редактировать</DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => {
+                      if (!window.confirm("Удалить эту запись?")) return;
+                      startTransition(async () => {
+                        const fd = new FormData();
+                        fd.set("entryId", e.id);
+                        const res = await deleteSymptomJournalEntry(fd);
+                        if (res.ok) {
+                          toast.success("Запись удалена");
+                          router.refresh();
+                        } else {
+                          toast.error("Не удалось удалить");
+                        }
+                      });
+                    }}
+                  >
+                    Удалить
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Dialog open={editEntry !== null} onOpenChange={(o) => !o && setEditEntry(null)}>
+        <DialogContent className="border border-border shadow-md sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Редактировать запись</DialogTitle>
+          </DialogHeader>
+          {editEntry ? (
+            <form
+              className="stack gap-3"
+              onSubmit={(ev) => {
+                ev.preventDefault();
+                const form = ev.currentTarget;
+                const fd = new FormData(form);
+                const local = fd.get("recordedAtLocal");
+                if (typeof local !== "string" || !local) {
+                  toast.error("Укажите дату и время");
+                  return;
+                }
+                fd.set("recordedAt", new Date(local).toISOString());
+                fd.set("entryId", editEntry.id);
+                startTransition(async () => {
+                  const res = await updateSymptomJournalEntry(fd);
+                  if (res.ok) {
+                    toast.success("Сохранено");
+                    setEditEntry(null);
+                    router.refresh();
+                  } else {
+                    toast.error("Не удалось сохранить");
+                  }
+                });
+              }}
+            >
+              <label className="stack gap-1">
+                <span className="eyebrow">Интенсивность (0–10)</span>
+                <Input
+                  type="number"
+                  name="value"
+                  min={0}
+                  max={10}
+                  required
+                  defaultValue={editEntry.value0_10}
+                />
+              </label>
+              <label className="stack gap-1">
+                <span className="eyebrow">Тип</span>
+                <select name="entryType" className="auth-input" required defaultValue={editEntry.entryType}>
+                  <option value="instant">В моменте</option>
+                  <option value="daily">За день</option>
+                </select>
+              </label>
+              <label className="stack gap-1">
+                <span className="eyebrow">Дата и время</span>
+                <Input
+                  type="datetime-local"
+                  name="recordedAtLocal"
+                  required
+                  defaultValue={toDatetimeLocalValue(editEntry.recordedAt)}
+                />
+              </label>
+              <label className="stack gap-1">
+                <span className="eyebrow">Заметки</span>
+                <textarea name="notes" className="auth-input" rows={3} defaultValue={editEntry.notes ?? ""} />
+              </label>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditEntry(null)}>
+                  Отмена
+                </Button>
+                <Button type="submit" disabled={pending}>
+                  Сохранить
+                </Button>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

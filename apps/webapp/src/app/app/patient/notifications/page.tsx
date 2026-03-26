@@ -1,11 +1,10 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { hasMessengerBinding, requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
-import { InfoBlock } from "@/shared/ui/InfoBlock";
-import { PatientBindPhoneSection } from "../PatientBindPhoneSection";
+import { NotificationsGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui/patient/guestAccess";
 import { ChannelNotificationToggles } from "./ChannelNotificationToggles";
 import { SubscriptionsList } from "./SubscriptionsList";
 
@@ -17,33 +16,22 @@ const SUBSCRIPTIONS = [
 ];
 
 export default async function NotificationsPage() {
-  const session = await requirePatientAccess(routePaths.notifications);
-  const deps = buildAppDeps();
-  const needsPhone = !session.user.phone?.trim() && !hasMessengerBinding(session);
-  const phoneChannel = session.user.bindings.telegramId ? ("telegram" as const) : ("web" as const);
-  const phoneChatId = session.user.bindings.telegramId ?? "";
-
-  if (needsPhone) {
+  const session = await getOptionalPatientSession();
+  if (!session || !patientHasPhoneOrMessenger(session)) {
     return (
       <AppShell
         title="Подписки на уведомления"
-        user={session.user}
+        user={session?.user ?? null}
         backHref={routePaths.patient}
         backLabel="Меню"
         variant="patient"
       >
-        <InfoBlock className="mb-4">
-          Для настройки уведомлений привяжите номер телефона или подключите мессенджер в профиле.
-        </InfoBlock>
-        <PatientBindPhoneSection
-          phoneChannel={phoneChannel}
-          phoneChatId={phoneChatId}
-          nextPath={routePaths.notifications}
-        />
+        <NotificationsGuestAccess session={session} />
       </AppShell>
     );
   }
 
+  const deps = buildAppDeps();
   const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
   const emailVerified = Boolean(emailFields.emailVerifiedAt);
 

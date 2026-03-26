@@ -179,6 +179,82 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     return result.rows.map(rowToEntry);
   },
 
+  async listEntriesForUserInRange(params) {
+    const pool = getPool();
+    const lim = Math.min(params.limit ?? 500, 2000);
+    const tid = params.trackingId?.trim();
+    const result = await pool.query(
+      `SELECT e.id, e.user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+              t.symptom_title
+       FROM symptom_entries e
+       JOIN symptom_trackings t ON t.id = e.tracking_id
+       WHERE e.user_id = $1
+         AND e.recorded_at >= $2::timestamptz AND e.recorded_at < $3::timestamptz
+         AND t.deleted_at IS NULL
+         ${tid ? "AND e.tracking_id = $5::uuid" : ""}
+       ORDER BY e.recorded_at DESC
+       LIMIT $4`,
+      tid
+        ? [params.userId, params.fromRecordedAt, params.toRecordedAtExclusive, lim, tid]
+        : [params.userId, params.fromRecordedAt, params.toRecordedAtExclusive, lim]
+    );
+    return result.rows.map(rowToEntry);
+  },
+
+  async minRecordedAtForTracking(params) {
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT MIN(e.recorded_at) AS m
+       FROM symptom_entries e
+       JOIN symptom_trackings t ON t.id = e.tracking_id
+       WHERE e.user_id = $1 AND e.tracking_id = $2 AND t.deleted_at IS NULL`,
+      [params.userId, params.trackingId]
+    );
+    const m = result.rows[0]?.m as Date | null | undefined;
+    return m ? m.toISOString() : null;
+  },
+
+  async getEntryForUser(params) {
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT e.id, e.user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+              t.symptom_title
+       FROM symptom_entries e
+       JOIN symptom_trackings t ON t.id = e.tracking_id
+       WHERE e.id = $1 AND e.user_id = $2 AND t.deleted_at IS NULL`,
+      [params.entryId, params.userId]
+    );
+    return result.rows[0] ? rowToEntry(result.rows[0]) : null;
+  },
+
+  async updateEntry(params) {
+    const pool = getPool();
+    await pool.query(
+      `UPDATE symptom_entries e
+       SET value_0_10 = $3, entry_type = $4, recorded_at = $5::timestamptz, notes = $6
+       FROM symptom_trackings t
+       WHERE e.id = $2 AND e.user_id = $1 AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
+      [
+        params.userId,
+        params.entryId,
+        params.value0_10,
+        params.entryType,
+        params.recordedAt,
+        params.notes,
+      ]
+    );
+  },
+
+  async deleteEntry(params) {
+    const pool = getPool();
+    await pool.query(
+      `DELETE FROM symptom_entries e
+       USING symptom_trackings t
+       WHERE e.id = $2 AND e.user_id = $1 AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
+      [params.userId, params.entryId]
+    );
+  },
+
   async updateTrackingTitle(params) {
     const pool = getPool();
     await pool.query(

@@ -41,7 +41,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  const { fromIso, toExclusiveIso } = statsPeriodWindowUtc(period, offset);
+  const earliestIso =
+    period === "all"
+      ? await deps.diaries.minRecordedAtForSymptomTracking({ userId, trackingId })
+      : null;
+  const { fromIso, toExclusiveIso } = statsPeriodWindowUtc(period, offset, { earliestIso });
   const entries = await deps.diaries.listSymptomEntriesForTrackingInRange({
     userId,
     trackingId,

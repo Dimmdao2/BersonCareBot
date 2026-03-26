@@ -35,6 +35,26 @@ export type SymptomDiaryPort = {
     fromRecordedAt: string;
     toRecordedAtExclusive: string;
   }): Promise<SymptomEntry[]>;
+  /** Все записи пользователя в окне дат (для журнала), только активные трекинги. */
+  listEntriesForUserInRange(params: {
+    userId: string;
+    fromRecordedAt: string;
+    toRecordedAtExclusive: string;
+    trackingId?: string | null;
+    limit?: number;
+  }): Promise<SymptomEntry[]>;
+  /** Минимальный `recorded_at` по трекингу или null, если записей нет. */
+  minRecordedAtForTracking(params: { userId: string; trackingId: string }): Promise<string | null>;
+  getEntryForUser(params: { userId: string; entryId: string }): Promise<SymptomEntry | null>;
+  updateEntry(params: {
+    userId: string;
+    entryId: string;
+    value0_10: number;
+    entryType: "instant" | "daily";
+    recordedAt: string;
+    notes: string | null;
+  }): Promise<void>;
+  deleteEntry(params: { userId: string; entryId: string }): Promise<void>;
   updateTrackingTitle(params: { userId: string; trackingId: string; symptomTitle: string }): Promise<void>;
   setTrackingActive(params: { userId: string; trackingId: string; isActive: boolean }): Promise<void>;
   softDeleteTracking(params: { userId: string; trackingId: string }): Promise<void>;
@@ -74,4 +94,16 @@ export type LfkDiaryPort = {
     complexId?: string | null;
     limit?: number;
   }): Promise<LfkSession[]>;
+  minCompletedAtForUser(userId: string): Promise<string | null>;
+  getSessionForUser(params: { userId: string; sessionId: string }): Promise<LfkSession | null>;
+  updateSession(params: {
+    userId: string;
+    sessionId: string;
+    completedAt: string;
+    durationMinutes?: number | null;
+    difficulty0_10?: number | null;
+    pain0_10?: number | null;
+    comment?: string | null;
+  }): Promise<void>;
+  deleteSession(params: { userId: string; sessionId: string }): Promise<void>;
 };

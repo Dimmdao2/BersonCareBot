@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientHeader } from "@/shared/ui/PatientHeader";
 import { AskQuestionFAB } from "@/shared/ui/AskQuestionFAB";
@@ -53,7 +53,10 @@ export function AppShell({
           backHref={backHref}
           backLabel={backLabel}
         />
-        <main id="app-shell-content" className="content-area">
+        <main
+          id="app-shell-content"
+          className="content-area flex min-h-0 flex-1 flex-col"
+        >
           {children}
         </main>
         {patientFloatingSlot}

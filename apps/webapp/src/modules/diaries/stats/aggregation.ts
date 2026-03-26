@@ -86,3 +86,30 @@ export function buildLfkOverviewMatrix(
   }
   return dayKeys.map((day) => complexIds.map((cid) => set.has(`${cid}:${day}`)));
 }
+
+export type LfkDayPoint = { date: string; value: number };
+
+/**
+ * По каждому UTC-календарному дню — максимум из доступных `pain0_10` и `difficulty0_10` (0–10).
+ * Дни без ни одного заданного значения пропускаются.
+ */
+export function aggregateLfkSessionsMetricByDay(
+  sessions: Pick<LfkSession, "completedAt" | "pain0_10" | "difficulty0_10">[]
+): LfkDayPoint[] {
+  const best = new Map<string, number>();
+  for (const s of sessions) {
+    const day = s.completedAt.slice(0, 10);
+    const pain = s.pain0_10;
+    const diff = s.difficulty0_10;
+    const candidates: number[] = [];
+    if (pain != null && Number.isFinite(pain)) candidates.push(Math.min(10, Math.max(0, pain)));
+    if (diff != null && Number.isFinite(diff)) candidates.push(Math.min(10, Math.max(0, diff)));
+    if (candidates.length === 0) continue;
+    const v = Math.max(...candidates);
+    const cur = best.get(day);
+    if (cur === undefined || v > cur) best.set(day, v);
+  }
+  return [...best.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, value]) => ({ date, value }));
+}

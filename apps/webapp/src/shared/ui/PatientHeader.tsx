@@ -84,9 +84,9 @@ export function PatientHeader({
   }, [closeMenu]);
 
   const openCabinetAddress = useCallback(() => {
-    window.open("https://dmitryberson.ru/adress", "_blank", "noopener,noreferrer");
+    router.push(routePaths.patientAddress);
     closeMenu();
-  }, [closeMenu]);
+  }, [closeMenu, router]);
 
   return (
     <>

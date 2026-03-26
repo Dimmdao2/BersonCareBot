@@ -202,4 +202,57 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     );
     return result.rows.map(rowToSession);
   },
+
+  async minCompletedAtForUser(userId) {
+    const pool = getPool();
+    const result = await pool.query(`SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = $1`, [
+      userId,
+    ]);
+    const m = result.rows[0]?.m as Date | null | undefined;
+    return m ? m.toISOString() : null;
+  },
+
+  async getSessionForUser(params) {
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT ${SESSION_SELECT}
+       FROM lfk_sessions s
+       JOIN lfk_complexes c ON c.id = s.complex_id
+       WHERE s.id = $1 AND s.user_id = $2`,
+      [params.sessionId, params.userId]
+    );
+    return result.rows[0] ? rowToSession(result.rows[0]) : null;
+  },
+
+  async updateSession(params) {
+    const pool = getPool();
+    let comment = params.comment?.trim() ?? null;
+    if (comment && comment.length > 200) comment = comment.slice(0, 200);
+    await pool.query(
+      `UPDATE lfk_sessions
+       SET completed_at = $3::timestamptz,
+           duration_minutes = $4,
+           difficulty_0_10 = $5,
+           pain_0_10 = $6,
+           comment = $7
+       WHERE id = $2 AND user_id = $1`,
+      [
+        params.userId,
+        params.sessionId,
+        params.completedAt,
+        params.durationMinutes ?? null,
+        params.difficulty0_10 ?? null,
+        params.pain0_10 ?? null,
+        comment,
+      ]
+    );
+  },
+
+  async deleteSession(params) {
+    const pool = getPool();
+    await pool.query(`DELETE FROM lfk_sessions WHERE id = $2 AND user_id = $1`, [
+      params.userId,
+      params.sessionId,
+    ]);
+  },
 };

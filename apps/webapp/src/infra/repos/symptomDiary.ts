@@ -101,6 +101,65 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
       .map((e) => ({ ...e, symptomTitle: t.symptomTitle }));
   },
 
+  async listEntriesForUserInRange(params) {
+    const fromMs = new Date(params.fromRecordedAt).getTime();
+    const toEx = new Date(params.toRecordedAtExclusive).getTime();
+    const lim = Math.min(params.limit ?? 500, 2000);
+    const tid = params.trackingId?.trim();
+    return entries
+      .filter((e) => {
+        if (e.userId !== params.userId) return false;
+        if (tid && e.trackingId !== tid) return false;
+        const t = trackings.find((x) => x.id === e.trackingId);
+        if (!t || t.deletedAt) return false;
+        const ts = new Date(e.recordedAt).getTime();
+        return ts >= fromMs && ts < toEx;
+      })
+      .sort((a, b) => (b.recordedAt > a.recordedAt ? 1 : -1))
+      .slice(0, lim)
+      .map((e) => {
+        const t = trackings.find((x) => x.id === e.trackingId);
+        return { ...e, symptomTitle: t?.symptomTitle };
+      });
+  },
+
+  async minRecordedAtForTracking(params) {
+    const t = trackings.find(
+      (x) => x.id === params.trackingId && x.userId === params.userId && !x.deletedAt
+    );
+    if (!t) return null;
+    let min: string | null = null;
+    for (const e of entries) {
+      if (e.userId !== params.userId || e.trackingId !== params.trackingId) continue;
+      if (!min || e.recordedAt < min) min = e.recordedAt;
+    }
+    return min;
+  },
+
+  async getEntryForUser(params) {
+    const e = entries.find((x) => x.id === params.entryId && x.userId === params.userId);
+    if (!e) return null;
+    const t = trackings.find((x) => x.id === e.trackingId);
+    if (!t || t.deletedAt) return null;
+    return { ...e, symptomTitle: t.symptomTitle };
+  },
+
+  async updateEntry(params) {
+    const e = entries.find((x) => x.id === params.entryId && x.userId === params.userId);
+    if (!e) return;
+    const t = trackings.find((x) => x.id === e.trackingId);
+    if (!t || t.deletedAt) return;
+    e.value0_10 = params.value0_10;
+    e.entryType = params.entryType;
+    e.recordedAt = params.recordedAt;
+    e.notes = params.notes;
+  },
+
+  async deleteEntry(params) {
+    const i = entries.findIndex((x) => x.id === params.entryId && x.userId === params.userId);
+    if (i >= 0) entries.splice(i, 1);
+  },
+
   async updateTrackingTitle(params) {
     const t = trackings.find((x) => x.id === params.trackingId && x.userId === params.userId);
     if (t && !t.deletedAt) {

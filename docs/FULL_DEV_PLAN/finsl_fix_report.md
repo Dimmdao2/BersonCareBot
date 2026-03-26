@@ -1345,3 +1345,104 @@
 - **Создание симптома (I.12):** в свёрнутом виде — поле названия (`placeholder` как в плане) и «Добавить»; `Button variant="link"` «Дополнительно»; расширенный блок по клику. Справочник диагноза — только выбор, без добавления в каталог на стороне пациента.
 
 **Доработка после review:** `top-14` → `top-16` для выравнивания под фактическую высоту шапки; тесты дедупа; актуализация комментария в `FeatureCard.tsx`.
+
+---
+
+### I.7, I.8 — ЛФК ползунки/попапы и статистика/журнал (EXEC_I_UI_REVIEW), 2026-03-25
+
+**I.7 — форма отметки ЛФК**
+
+- Ползунки боли и сложности: класс `.lfk-diary-range` в `globals.css` (градиент трека green→yellow→red, thumb 28px, цвет через `--lfk-thumb` из `lfkThumbColor`).
+- Дата и время: одна строка `flex gap-2`, поля `flex-1`; значения в скрытых `sessionDate` / `sessionTime`; открытие `Dialog` по центру (`border border-border shadow-md`).
+- Календарь: кнопка «Сегодня», «Готово» применяет выбранную дату.
+- Время: только «Готово» (применяет `timeDraft` и закрывает диалог).
+
+**I.8 — статистика и журнал**
+
+- `DiaryStatsPeriodBar`: сегментный переключатель (активный `bg-primary text-primary-foreground`).
+- Период «Всё»: в `symptom-stats` и `lfk-stats` передаётся `earliestIso` в `statsPeriodWindowUtc` (`minRecordedAtForSymptomTracking` / `minCompletedAtForLfkUser`).
+- График: `DiaryLineChartRecharts` + подписи оси по `formatDiaryChartTick.ts` (неделя — ПН/ВТ…, месяц — «1 мар», всё — месяцы); линия `strokeWidth={3}`, точки `r={4}`, `pb-8` у контейнера; `mt-6` перед графиком в симптомах.
+- Журнал: кнопки «Открыть журнал» → `/app/patient/diary/symptoms/journal` и `/app/patient/diary/lfk/journal`; списки записей с главной страницы дневника убраны. Журналы: навигация по месяцу (`JournalMonthNav`), фильтр по `trackingId` / `complexId`, меню «⋯» — редактирование / удаление (server actions в `symptoms/actions.ts`, `lfk/actions.ts`).
+- ЛФК детальный режим: API `lfk-stats` отдаёт `chartPoints` (агрегация `aggregateLfkSessionsMetricByDay`), таблица сессий под графиком убрана.
+- Вспомогательно: `listSymptomEntriesForUserInRange` с `trackingId` в сервисе и in-memory порте; тест `periodWindow` для `all` + `earliestIso`.
+
+**Проверки:** `pnpm install --frozen-lockfile && pnpm run ci` — **PASS** (2026-03-25).
+
+**Файлы (основные):** `globals.css`, `LfkSessionForm.tsx`, `DiaryStatsPeriodBar.tsx`, `DiaryLineChartRecharts.tsx`, `SymptomChartRecharts.tsx`, `SymptomChart.tsx`, `LfkStatsTable.tsx`, `lfk-stats/route.ts`, `symptom-stats/route.ts`, `aggregation.ts`, `formatDiaryChartTick.ts`, `journal/resolveJournalMonthYm.ts`, `JournalMonthNav.tsx`, `symptoms/journal/*`, `lfk/journal/*`, `paths.ts`, `diary/page.tsx`, `symptom-service.ts`, `symptomDiary.ts` (in-memory), тесты `periodWindow`, `lfk-stats`, `symptom-stats`.
+
+**Code review I.7 / I.8** (чеклист `EXEC_I_UI_REVIEW.md`, 2026-03-25, вторая итерация):
+
+- **I.7 ползунки:** `.lfk-diary-range` — thumb 28×28px, градиент `#22c55e` → `#eab308` → `#ef4444`, ручка по значению через `--lfk-thumb` — ок.
+- **I.7 попапы:** `Dialog` с `fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2` в `dialog.tsx` — по центру; добавлены явные `rounded-lg border border-border shadow-md` на обоих диалогах ЛФК.
+- **I.7 дата/время:** одна строка `flex gap-2`, колонки `flex-1` — ок.
+- **I.8 переключатель периода:** неактивный сегмент доведён до `bg-muted text-muted-foreground` (как в плане); активный — `bg-primary text-primary-foreground`.
+- **I.8 «Всё»:** окно через `earliestIso` + `minRecordedAtForSymptomTracking` / `minCompletedAtForLfkUser` — ок (левая граница по первой записи, не «бесконечность»).
+- **I.8 ось X (месяц):** подписи на **понедельниках UTC** + первый/последний день ряда (вместо каждого 7-го индекса точки) — ближе к «опорным датам недель».
+- **I.8 журнал:** отдельные маршруты журналов; подпись «Период (календарный месяц)» над навигацией месяца; ссылка «Открыть журнал» с query `period`/`offset`/`trackingId`/`complexId` — ок.
+- **I.8 отступы:** `mt-6` перед графиком симптомов; для ЛФК в режиме комплекса — `mt-6` вокруг блока графика перед кнопкой журнала.
+
+**Hotfix после review — `buttonVariants` и Server Components:** вызов `buttonVariants()` из RSC через модуль с `"use client"` (`button.tsx`) ломал кабинет врача/админа. Вынесены стили в `components/ui/button-variants.ts` (без `"use client"`); RSC импортируют оттуда; `button.tsx` реэкспортирует `buttonVariants` для клиентских модулей.
+
+**Проверки после доработок:** `pnpm run ci` — **PASS** (2026-03-25).
+
+---
+
+### I.9, I.10, I.11 — запись Rubitime/адрес, гостевые заглушки, бейдж чата (EXEC_I_UI_REVIEW), 2026-03-25
+
+**I.9**
+
+- Маршруты: `routePaths.patientBooking` (`/app/patient/booking`), `routePaths.patientAddress` (`/app/patient/address`) — полноэкранные iframe (Rubitime widget + `https://dmitryberson.ru/adress`), сессия через `getOptionalPatientSession` (без обязательного телефона).
+- «Мои записи»: кнопка «Записаться на приём» → booking; карточка «Информация» — ссылки «Как подготовиться» и «Адрес кабинета»; пустая история — текст «У вас нет записей»; встроенный `RubitimeWidget` и текст про «интеграцию Rubitime» убраны.
+- Главная: в секции кабинета — заметная кнопка «Записаться на приём» (`PatientHomeCabinetSection`).
+- Меню шапки: «Адрес кабинета» — `router.push(routePaths.patientAddress)` вместо внешнего окна.
+- `patientPathsRequiringPhone`: пункт `cabinet` исключён (запись без телефона; список записей по-прежнему только с телефоном/мессенджером).
+
+**I.10**
+
+- Компонент `GuestPlaceholder`: `bg-amber-50`, `border-amber-200` (+ тёмная тема), основное и опциональное действие-ссылки.
+- Общая логика: `shared/ui/patient/guestAccess.tsx` (`CabinetGuestAccess`, `DiarySectionGuestAccess`, `PurchasesGuestAccess`, `NotificationsGuestAccess`, `patientHasPhoneOrMessenger`).
+- Кабинет: без сессии или без телефона/мессенджера — заглушка + «Записаться на приём» (на booking); для авторизованных без телефона — вторичная ссылка на bind-phone (без inline-формы).
+- Дневник, журналы симптомов/ЛФК, покупки, уведомления: при блокировке — заглушка + «Зарегистрироваться» или «Подтвердить номер» на `/app?next=…` / bind-phone; `PatientBindPhoneSection` с этих экранов убран.
+- Страницы контента (`content/[slug]`) без формы телефона (без изменений по сути).
+
+**I.11**
+
+- Завышенный бейдж непрочитанных: ручной SQL и отказ от доработки расписания reminders в Pack I — зафиксировано в `docs/FULL_DEV_PLAN/POST_PROD_TODO.md` (§7).
+
+**Проверки:** `pnpm install --frozen-lockfile && pnpm run ci` — **PASS** (2026-03-25).
+
+**Файлы (основные):** `paths.ts`, `patient/booking/page.tsx`, `patient/address/page.tsx`, `patient/cabinet/page.tsx`, `patient/home/PatientHomeCabinetSection.tsx`, `PatientHeader.tsx`, `GuestPlaceholder.tsx`, `patient/guestAccess.tsx`, `diary/page.tsx`, `diary/symptoms/journal/page.tsx`, `diary/lfk/journal/page.tsx`, `purchases/page.tsx`, `notifications/page.tsx`, `AppShell.tsx`, `POST_PROD_TODO.md`, `finsl_fix_report.md`.
+
+**Code review I.9 / I.10 / I.11** (контрольный чеклист `EXEC_I_UI_REVIEW.md`, 2026-03-25):
+
+- **Чеклист §358–363:** отдельная страница записи с iframe (`/app/patient/booking`, URL совпадает с `RubitimeWidget`); кнопка «Записаться на приём» на главной (`PatientHomeCabinetSection`) и на «Мои записи»; адрес — отдельная страница `/app/patient/address` с iframe `dmitryberson.ru/adress`, плюс пункт меню и блок «Информация» на кабинете.
+- **Заглушки:** `GuestPlaceholder` — `bg-amber-50` / `border-amber-200`, заголовок + описание + кнопки; тексты кабинета и дневника для гостя приведены к формулировкам I.10 (в т.ч. «Здесь отображаются…», «Дневники помогают отслеживать…», подпись кнопки **«Записаться на приём»**).
+- **Контент:** `content/[slug]` — только `MarkdownContent` / медиа, без `BindPhone` / `PatientBindPhoneSection`.
+- **I.11:** счётчик непрочитанных в Pack I не менялся; reminders UI — в `POST_PROD_TODO.md` §7; при необходимости очистки бейджа — ручной SQL там же.
+- **Доработка при review:** у `AppShell` (variant patient) у `main.content-area` добавлены `flex min-h-0 flex-1 flex-col`, у booking/address iframe — явная высота `h-[calc(100dvh-9rem)]` (и `sm:`) для заполнения области под шапкой.
+
+**Проверки после review:** `pnpm run ci` — **PASS** (2026-03-25).
+
+---
+
+### Независимый аудит Pack I (EXEC_I + QA_CHECKLIST + USER_TODO), 2026-03-25
+
+**Метод:** сверка контрольного чеклиста `EXEC_I_UI_REVIEW.md` (стр. 338–363), блоков QA после Pack H (`QA_CHECKLIST.md` 115–132) и затронутых требований с кодом; `pnpm run ci` — **PASS**.
+
+**Critical:** не выявлено.
+
+**High:** не выявлено (admin по `telegramId` в exchange — тест `exchangeIntegratorToken.messengerRole.test.ts`; `resolveRoleFromEnv` в `envRole.ts`).
+
+**Medium (остаточные риски, не блокер релиза I):**
+
+- **I.11 / чат:** завышенный бейдж на prod — только ops/SQL или будущая кнопка «прочитано»; в Pack I не автоматизировано (`POST_PROD_TODO.md` §7).
+- **Внешние iframe:** Rubitime и сайт адреса не проверялись живым браузером в этом прогоне (зависит от сторонних сервисов/CSP).
+
+**Low:**
+
+- Наследие класса `button--back` рядом с `buttonVariants` в `AppShell` / карточках врача — косметический долг I.1, на работу кнопок не влияет.
+- `USER_TODO_STAGE.md` / `RAW_PLAN.md` — в основном продуктовые этапы 12–14; для границ Pack I достаточно EXEC_I + QA H.
+
+**Исправление при аудите:** сегменты «Неделя / Месяц / Всё» в `DiaryStatsPeriodBar.tsx` — `active:scale-[0.98]` + transition (чеклист «реакция на нажатие»).
+
+**Verdict:** **ready** (пакет I по коду и CI; оговорки — I.11 данные и smoke внешних iframe).

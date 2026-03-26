@@ -1,9 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { routePaths } from "@/app-layer/routes/paths";
 import { formatDiaryDayShortRu } from "@/modules/diaries/stats/formatDiaryDay";
 import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from "./DiaryStatsPeriodBar";
+
+const RechartsLfk = dynamic(() => import("./DiaryLineChartRecharts"), {
+  ssr: false,
+  loading: () => <div className="bg-muted/50 h-[240px] w-full animate-pulse rounded-md" />,
+});
 
 export type LfkStatsComplexOption = { id: string; title: string };
 
@@ -21,16 +30,7 @@ type DetailPayload = {
   overview: null;
   detail: {
     complex: { id: string; title: string };
-    sessions: Array<{
-      id: string;
-      completedAt: string;
-      durationMinutes?: number | null;
-      difficulty0_10?: number | null;
-      pain0_10?: number | null;
-      comment?: string | null;
-    }>;
-    page: number;
-    pageSize: number;
+    chartPoints: { date: string; value: number }[];
     total: number;
   };
   complexes: { id: string; title: string }[];
@@ -38,14 +38,10 @@ type DetailPayload = {
   offset: number;
 };
 
-/** Согласовано с `lfk-stats` route (pageSize по умолчанию на сервере). */
-const LFK_STATS_PAGE_SIZE = 20;
-
 export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[] }) {
   const [period, setPeriod] = useState<DiaryStatsPeriod>("week");
   const [offset, setOffset] = useState(0);
   const [detailComplexId, setDetailComplexId] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [overview, setOverview] = useState<OverviewPayload["overview"]>(null);
@@ -58,8 +54,6 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
       const qs = new URLSearchParams({
         period,
         offset: String(offset),
-        page: String(page),
-        pageSize: String(LFK_STATS_PAGE_SIZE),
       });
       if (detailComplexId) {
         qs.set("complexId", detailComplexId);
@@ -90,14 +84,11 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
     } finally {
       setLoading(false);
     }
-  }, [period, offset, detailComplexId, page]);
+  }, [period, offset, detailComplexId]);
 
   useEffect(() => {
     void load();
   }, [load]);
-
-  const totalPages =
-    detail && detail.pageSize > 0 ? Math.max(1, Math.ceil(detail.total / detail.pageSize)) : 1;
 
   const showOverview = Boolean(!loading && !error && overview && detailComplexId === null);
   const showDetail = Boolean(!loading && !error && detail && detailComplexId);
@@ -113,7 +104,6 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
             onChange={(e) => {
               const v = e.target.value;
               setDetailComplexId(v === "" ? null : v);
-              setPage(1);
               setOffset(0);
             }}
           >
@@ -131,7 +121,6 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
           onPeriodChange={(p) => {
             setPeriod(p);
             setOffset(0);
-            setPage(1);
           }}
           onOffsetChange={setOffset}
         />
@@ -183,66 +172,21 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
       {showDetail && detail ? (
         <div className="stack gap-2">
           <p className="text-sm font-medium">{detail.complex.title}</p>
-          <div className="max-w-full overflow-x-auto rounded-md border border-border">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-muted/40">
-                  <th className="border-border px-2 py-2 text-left">Дата</th>
-                  <th className="border-border px-2 py-2 text-right">Мин</th>
-                  <th className="border-border px-2 py-2 text-right">Сложн.</th>
-                  <th className="border-border px-2 py-2 text-right">Боль</th>
-                  <th className="border-border px-2 py-2 text-left">Комментарий</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.sessions.map((s) => (
-                  <tr key={s.id}>
-                    <td className="border-border px-2 py-1 whitespace-nowrap">
-                      {new Date(s.completedAt).toLocaleString("ru-RU", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })}
-                    </td>
-                    <td className="border-border px-2 py-1 text-right">{s.durationMinutes ?? "—"}</td>
-                    <td className="border-border px-2 py-1 text-right">{s.difficulty0_10 ?? "—"}</td>
-                    <td className="border-border px-2 py-1 text-right">{s.pain0_10 ?? "—"}</td>
-                    <td className="border-border text-muted-foreground max-w-[200px] truncate px-2 py-1">
-                      {s.comment ?? ""}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {detail.total > detail.pageSize ? (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-muted-foreground text-xs">
-                Стр. {detail.page} из {totalPages} ({detail.total} записей)
-              </span>
-              <div className="flex gap-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={detail.page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Назад
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={detail.page >= totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Вперёд
-                </Button>
-              </div>
+          {detail.chartPoints.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Нет данных с оценками боли/сложности за выбранный период.</p>
+          ) : (
+            <div className="mt-6">
+              <RechartsLfk points={detail.chartPoints} period={period} valueTooltipLabel="Боль / сложность" />
             </div>
-          ) : null}
+          )}
+          <div className="mt-6">
+            <Link
+              href={`${routePaths.diaryLfkJournal}?complexId=${encodeURIComponent(detail.complex.id)}&period=${period}&offset=${offset}`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "inline-flex text-xs")}
+            >
+              Открыть журнал
+            </Link>
+          </div>
         </div>
       ) : null}
     </div>

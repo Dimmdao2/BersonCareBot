@@ -10,20 +10,36 @@ export function utcNextMidnight(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1));
 }
 
+export type StatsPeriodWindowOpts = {
+  /** Для period=all: левая граница не раньше первой записи (ISO), иначе — как раньше (10 лет). */
+  earliestIso?: string | null;
+};
+
 /**
  * Rolling window ending at "today" UTC (inclusive), shifted back by `offset` full periods.
  * - week: 7 days
  * - month: 30 days
- * - all: from 10 years ago to end of today UTC (offset ignored)
+ * - all: от `earliestIso` (начало UTC-дня) или с 10 лет назад; offset игнорируется
  */
 export function statsPeriodWindowUtc(
   period: StatsPeriod,
-  offset: number
+  offset: number,
+  opts?: StatsPeriodWindowOpts
 ): { fromIso: string; toExclusiveIso: string } {
   const now = new Date();
   const todayEndExclusive = utcNextMidnight(now);
 
   if (period === "all") {
+    if (opts?.earliestIso) {
+      const d = new Date(opts.earliestIso);
+      if (!Number.isNaN(d.getTime())) {
+        const fromMs = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+        return {
+          fromIso: new Date(fromMs).toISOString(),
+          toExclusiveIso: todayEndExclusive.toISOString(),
+        };
+      }
+    }
     const start = new Date();
     start.setUTCFullYear(start.getUTCFullYear() - 10);
     return { fromIso: start.toISOString(), toExclusiveIso: todayEndExclusive.toISOString() };

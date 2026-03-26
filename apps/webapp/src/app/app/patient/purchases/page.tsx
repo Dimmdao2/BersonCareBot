@@ -5,9 +5,10 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess, requirePatientPhone } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
+import { patientHasPhoneOrMessenger, PurchasesGuestAccess } from "@/shared/ui/patient/guestAccess";
 
 /** Мок-данные для раздела покупок (курсы, доступы, подписки). */
 const MOCK_ITEMS = [
@@ -18,8 +19,14 @@ const MOCK_ITEMS = [
 
 /** Строит страницу покупок: описание и список карточек с типом, статусом и сроком действия. */
 export default async function PurchasesPage() {
-  const session = await requirePatientAccess(routePaths.purchases);
-  requirePatientPhone(session, routePaths.purchases);
+  const session = await getOptionalPatientSession();
+  if (!session || !patientHasPhoneOrMessenger(session)) {
+    return (
+      <AppShell title="Мои покупки" user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">
+        <PurchasesGuestAccess session={session} />
+      </AppShell>
+    );
+  }
   const deps = buildAppDeps();
   const state = deps.purchases.getPurchaseSectionState();
 

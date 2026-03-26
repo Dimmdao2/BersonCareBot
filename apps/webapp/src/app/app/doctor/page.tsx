@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { AppShell } from "@/shared/ui/AppShell";
 
 export default async function DoctorPage() {

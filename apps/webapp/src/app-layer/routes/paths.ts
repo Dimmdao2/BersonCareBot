@@ -6,6 +6,10 @@ export const routePaths = {
   lessons: "/app/patient/lessons",
   emergency: "/app/patient/emergency",
   cabinet: "/app/patient/cabinet",
+  /** Запись на приём (Rubitime), без обязательного телефона. */
+  patientBooking: "/app/patient/booking",
+  /** Адрес кабинета (iframe сайта клиники). */
+  patientAddress: "/app/patient/address",
   profile: "/app/patient/profile",
   notifications: "/app/patient/notifications",
   purchases: "/app/patient/purchases",
@@ -13,6 +17,10 @@ export const routePaths = {
   diary: "/app/patient/diary",
   symptoms: "/app/patient/diary?tab=symptoms",
   lfk: "/app/patient/diary?tab=lfk",
+  /** Журнал записей симптомов (I.8): фильтр по месяцу, редактирование записей. */
+  diarySymptomsJournal: "/app/patient/diary/symptoms/journal",
+  /** Журнал занятий ЛФК. */
+  diaryLfkJournal: "/app/patient/diary/lfk/journal",
   bindPhone: "/app/patient/bind-phone",
   /** Сообщения пациента (поддержка, webapp-чат). */
   patientMessages: "/app/patient/messages",
@@ -24,11 +32,12 @@ export const routePaths = {
   patientReminders: "/app/patient/reminders",
 } as const;
 
-/** Маршруты пациента, для которых нужна привязка номера телефона (личные данные, записи, дневники, покупки). Остальное (меню, уроки, скорая, контент) — без обязательного телефона. */
+/** Маршруты пациента, для которых нужна привязка номера телефона (дневники, покупки и т.д.). «Мои записи» и запись Rubitime — без обязательного телефона (заглушка в UI). Остальное (меню, уроки, скорая, контент) — без телефона. */
 export const patientPathsRequiringPhone: readonly string[] = [
-  routePaths.cabinet,
   routePaths.purchases,
   routePaths.diary,
   routePaths.symptoms,
   routePaths.lfk,
+  routePaths.diarySymptomsJournal,
+  routePaths.diaryLfkJournal,
 ];

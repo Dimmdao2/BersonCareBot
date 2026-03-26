@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export type DiaryStatsPeriod = "week" | "month" | "all";
 
@@ -14,7 +15,7 @@ const PERIOD_LABELS: readonly [DiaryStatsPeriod, string][] = [
 const MAX_OFFSET = 520;
 
 /**
- * Общие кнопки периода и смещения для SymptomChart / LfkStatsTable (lazy recharts отдельно).
+ * Переключатель периода (I.8): явный активный сегмент + стрелки смещения окна.
  */
 export function DiaryStatsPeriodBar({
   period,
@@ -29,19 +30,30 @@ export function DiaryStatsPeriodBar({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex flex-wrap gap-1">
-        {PERIOD_LABELS.map(([k, label]) => (
-          <Button
-            key={k}
-            type="button"
-            size="sm"
-            variant={period === k ? "default" : "outline"}
-            className="text-xs"
-            onClick={() => onPeriodChange(k)}
-          >
-            {label}
-          </Button>
-        ))}
+      <div
+        className="inline-flex rounded-md border border-border bg-muted/60 p-0.5"
+        role="group"
+        aria-label="Период статистики"
+      >
+        {PERIOD_LABELS.map(([k, label]) => {
+          const active = period === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              className={cn(
+                "rounded-sm px-3 py-1.5 text-xs font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.98]",
+                active
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+              )}
+              aria-pressed={active}
+              onClick={() => onPeriodChange(k)}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
       <div className="ml-auto flex items-center gap-1">
         <Button

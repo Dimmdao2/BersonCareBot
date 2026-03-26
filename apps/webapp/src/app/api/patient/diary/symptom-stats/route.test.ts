@@ -12,6 +12,7 @@ const { getSessionMock, buildAppDepsMock, getTrackingMock, listRangeMock } = vi.
       diaries: {
         getSymptomTrackingForUser: getTrackingMockInner,
         listSymptomEntriesForTrackingInRange: listRangeMockInner,
+        minRecordedAtForSymptomTracking: vi.fn().mockResolvedValue(null),
       },
     })),
   };

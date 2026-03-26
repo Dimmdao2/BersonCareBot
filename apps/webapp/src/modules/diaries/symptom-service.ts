@@ -82,6 +82,35 @@ export function createSymptomDiaryService(port: SymptomDiaryPort) {
     }): Promise<SymptomEntry[]> {
       return port.listEntriesForTrackingInRange(params);
     },
+    async listSymptomEntriesForUserInRange(params: {
+      userId: string;
+      fromRecordedAt: string;
+      toRecordedAtExclusive: string;
+      trackingId?: string | null;
+      limit?: number;
+    }): Promise<SymptomEntry[]> {
+      return port.listEntriesForUserInRange(params);
+    },
+    async minRecordedAtForSymptomTracking(params: { userId: string; trackingId: string }) {
+      return port.minRecordedAtForTracking(params);
+    },
+    async getSymptomEntryForUser(params: { userId: string; entryId: string }) {
+      return port.getEntryForUser(params);
+    },
+    async updateSymptomEntry(params: {
+      userId: string;
+      entryId: string;
+      value0_10: number;
+      entryType: "instant" | "daily";
+      recordedAt: string;
+      notes: string | null;
+    }): Promise<void> {
+      const value = Math.min(VALUE_MAX, Math.max(VALUE_MIN, Math.round(params.value0_10)));
+      await port.updateEntry({ ...params, value0_10: value });
+    },
+    async deleteSymptomEntry(params: { userId: string; entryId: string }): Promise<void> {
+      await port.deleteEntry(params);
+    },
     async renameTracking(params: { userId: string; trackingId: string; symptomTitle: string }): Promise<void> {
       const t = params.symptomTitle.trim();
       if (!t || t.length > 200) return;

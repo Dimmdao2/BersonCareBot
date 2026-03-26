@@ -23,6 +23,11 @@ describe("statsPeriodWindowUtc", () => {
     const w1 = statsPeriodWindowUtc("week", 1);
     expect(new Date(w0.toExclusiveIso).getTime()).toBeGreaterThan(new Date(w1.toExclusiveIso).getTime());
   });
+
+  it("all period uses earliestIso as left bound when valid", () => {
+    const w = statsPeriodWindowUtc("all", 0, { earliestIso: "2024-06-15T14:00:00.000Z" });
+    expect(w.fromIso).toBe("2024-06-15T00:00:00.000Z");
+  });
 });
 
 describe("enumerateUtcDayKeysInWindow", () => {

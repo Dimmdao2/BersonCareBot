@@ -179,3 +179,66 @@ export async function deleteSymptomTracking(formData: FormData) {
   }
   revalidatePath(routePaths.diary);
 }
+
+export async function updateSymptomJournalEntry(formData: FormData): Promise<{ ok: boolean }> {
+  const session = await requirePatientAccess(routePaths.diarySymptomsJournal);
+  const entryIdRaw = formData.get("entryId");
+  const entryId = typeof entryIdRaw === "string" ? entryIdRaw.trim() : "";
+  const recordedAtRawVal = formData.get("recordedAt");
+  const recordedAtRaw = typeof recordedAtRawVal === "string" ? recordedAtRawVal.trim() : "";
+  const valueRaw = formData.get("value");
+  const entryTypeRaw = formData.get("entryType");
+  const notesRaw = formData.get("notes");
+  if (!entryId || !recordedAtRaw) return { ok: false };
+  const at = new Date(recordedAtRaw);
+  if (Number.isNaN(at.getTime())) return { ok: false };
+  if (typeof valueRaw !== "string") return { ok: false };
+  const value0_10 = Number.parseInt(valueRaw, 10);
+  if (Number.isNaN(value0_10) || value0_10 < 0 || value0_10 > 10) return { ok: false };
+  if (entryTypeRaw !== "instant" && entryTypeRaw !== "daily") return { ok: false };
+  const notes =
+    typeof notesRaw === "string" && notesRaw.trim() ? notesRaw.trim() : null;
+  if (notes && notes.length > 2000) return { ok: false };
+
+  const deps = buildAppDeps();
+  const userId = session.user.userId;
+  const existing = await deps.diaries.getSymptomEntryForUser({ userId, entryId });
+  if (!existing) return { ok: false };
+
+  try {
+    await deps.diaries.updateSymptomEntry({
+      userId,
+      entryId,
+      value0_10,
+      entryType: entryTypeRaw,
+      recordedAt: at.toISOString(),
+      notes,
+    });
+  } catch (e) {
+    console.error("updateSymptomJournalEntry", e);
+    return { ok: false };
+  }
+  revalidatePath(routePaths.diary);
+  revalidatePath(routePaths.diarySymptomsJournal);
+  return { ok: true };
+}
+
+export async function deleteSymptomJournalEntry(formData: FormData): Promise<{ ok: boolean }> {
+  const session = await requirePatientAccess(routePaths.diarySymptomsJournal);
+  const entryIdRaw = formData.get("entryId");
+  const entryId = typeof entryIdRaw === "string" ? entryIdRaw.trim() : "";
+  if (!entryId) return { ok: false };
+  const deps = buildAppDeps();
+  const userId = session.user.userId;
+  const existing = await deps.diaries.getSymptomEntryForUser({ userId, entryId });
+  if (!existing) return { ok: false };
+  try {
+    await deps.diaries.deleteSymptomEntry({ userId, entryId });
+  } catch (e) {
+    console.error("deleteSymptomJournalEntry", e);
+    return { ok: false };
+  }
+  revalidatePath(routePaths.diary);
+  revalidatePath(routePaths.diarySymptomsJournal);
+  return { ok: true };
+}

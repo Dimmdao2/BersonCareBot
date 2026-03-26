@@ -3,7 +3,7 @@
  * `/app/doctor/clients/[userId]` и при необходимости переиспользование.
  */
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import { cn } from "@/lib/utils";
 import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";

@@ -1,3 +1,7 @@
+import Link from "next/link";
+import { routePaths } from "@/app-layer/routes/paths";
+import { buttonVariants } from "@/components/ui/button-variants";
+import { cn } from "@/lib/utils";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
 import type { MenuItem } from "@/modules/menu/service";
 
@@ -28,6 +32,15 @@ export function PatientHomeCabinetSection({ items }: Props) {
           />
         ))}
       </div>
+      <Link
+        href={routePaths.patientBooking}
+        className={cn(
+          buttonVariants({ size: "lg" }),
+          "inline-flex w-full justify-center text-center font-semibold shadow-sm"
+        )}
+      >
+        Записаться на приём
+      </Link>
     </section>
   );
 }

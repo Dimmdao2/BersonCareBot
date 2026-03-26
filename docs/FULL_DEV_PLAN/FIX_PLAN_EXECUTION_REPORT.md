@@ -313,3 +313,36 @@ FIX_PLAN §1: добавить сценарий `POST /api/media/upload` → `sa
 **Документы:** `docs/FULL_DEV_PLAN/finsl_fix_report.md` — блок Code review I.5/I.6/I.12.
 
 **`pnpm run ci`:** PASS после правок.
+
+### I.7, I.8 — code review + `buttonVariants` (Server Components), 2026-03-25
+
+**Чеклист EXEC_I (I.7):** ползунки 28px и градиент трека; попапы модальные по центру; дата «Сегодня»/«Готово»; время только «Готово»; после review — явные `rounded-lg` на контенте диалогов ЛФК.
+
+**Чеклист EXEC_I (I.8):** переключатель периода с явным неактивным `bg-muted`; «Всё» ограничено `earliestIso`; ось X месяца — метки по понедельникам UTC; журнал на отдельных URL с месячной навигацией и подписью периода; `mt-6` у графика ЛФК в детальном режиме.
+
+**Исправление:** `buttonVariants` вынесен в `apps/webapp/src/components/ui/button-variants.ts` (без `"use client"`); Server Components (`AppShell`, страницы врача/контента, карточки клиента/подписчика, журналы дневника и др.) импортируют `buttonVariants` из `button-variants`; `button.tsx` реэкспортирует для клиентских файлов.
+
+**`pnpm run ci`:** PASS после правок.
+
+### I.9, I.10, I.11 — code review (`EXEC_I_UI_REVIEW.md` чеклист), 2026-03-25
+
+**Проверено:** отдельные `/app/patient/booking` и `/app/patient/address` с iframe на высоту viewport минус шапка; кнопка записи на главной и в кабинете; блок «Информация» и «У вас нет записей»; заглушки гостя — янтарный блок + описание + действия; контент-страницы без формы телефона; I.11 (бейдж/SQL, reminders) — по `POST_PROD_TODO.md` §7 без изменений кода счётчика.
+
+**Правки при review:** выравнивание копирайта I.10 в `guestAccess.tsx` (в т.ч. «Записаться на приём»); `AppShell` patient: `main` с `flex-1 min-h-0 flex-col`; iframe booking/address — `h-[calc(100dvh-9rem)]`.
+
+**Документы:** `docs/FULL_DEV_PLAN/finsl_fix_report.md` — блок Code review I.9/I.10/I.11.
+
+**`pnpm run ci`:** PASS после правок.
+
+### Независимый аудит Pack I (2026-03-25)
+
+Сверка `EXEC_I_UI_REVIEW.md` (чеклист), `QA_CHECKLIST.md` (Pack H: normalize, auth flow, UI), выборочно `USER_TODO_STAGE.md` / `RAW_PLAN.md` (scope I не конфликтует).
+
+- **Auth V2:** `AuthFlowV2.tsx` — phone → check-phone → new_user_sms | pin | choose_channel → code; PIN 4 цифры (`PinInput`, `pinAuth`), 3× fail или «Не помню PIN» → choose_channel.
+- **normalizePhone:** `phoneNormalize.ts` + тесты; `PhoneInput`, маршруты `check-phone`, `phone/start`, `messenger/start`, `pin/login` + `isValidRuMobileNormalized`.
+- **Admin в мессенджере:** `envRole.ts` + `exchangeIntegratorToken.messengerRole.test.ts`.
+- **Кнопки / размеры / дневники / статистика / запись / заглушки:** как в чеклисте I и в секциях I.5–I.10 выше; доп. правка аудита: `DiaryStatsPeriodBar.tsx` — `active:scale-[0.98]` на сегментах периода.
+
+**Verdict:** **ready**; остаточно: I.11 данные в БД, ручной smoke внешних iframe.
+
+**`pnpm run ci`:** PASS.

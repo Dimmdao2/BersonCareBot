@@ -1,14 +1,14 @@
 /**
  * GET /api/patient/diary/lfk-stats — статистика ЛФК за период.
  * Без `complexId`: обзорная матрица «день × комплекс».
- * С `complexId`: детальная таблица сессий (пагинация), только владелец комплекса.
- * Query: period=week|month|all, offset, complexId?, page?, pageSize?
+ * С `complexId`: график по дням (`chartPoints`) и счётчик записей, только владелец комплекса.
+ * Query: period=week|month|all, offset, complexId? (page/pageSize устарели, игнорируются).
  * Ответы: 401 — нет сессии; 403 — не роль пациента; 404 — чужой complexId; 400 — query.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { buildLfkOverviewMatrix } from "@/modules/diaries/stats/aggregation";
+import { aggregateLfkSessionsMetricByDay, buildLfkOverviewMatrix } from "@/modules/diaries/stats/aggregation";
 import { enumerateUtcDayKeysInWindow, statsPeriodWindowUtc } from "@/modules/diaries/stats/periodWindow";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
@@ -36,11 +36,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
   }
 
-  const { period, offset, complexId, page, pageSize } = parsed.data;
+  const { period, offset, complexId } = parsed.data;
   const deps = buildAppDeps();
   const userId = session.user.userId;
 
-  const { fromIso, toExclusiveIso } = statsPeriodWindowUtc(period, offset);
+  const earliestIso = period === "all" ? await deps.diaries.minCompletedAtForLfkUser(userId) : null;
+  const { fromIso, toExclusiveIso } = statsPeriodWindowUtc(period, offset, { earliestIso });
   const complexes = await deps.diaries.listLfkComplexes(userId, true);
   const complexList = complexes.map((c) => ({ id: c.id, title: c.title }));
 
@@ -57,9 +58,8 @@ export async function GET(request: Request) {
       complexId,
       limit: 5000,
     });
+    const chartPoints = aggregateLfkSessionsMetricByDay(sessions);
     const total = sessions.length;
-    const start = (page - 1) * pageSize;
-    const pageRows = sessions.slice(start, start + pageSize);
 
     return NextResponse.json({
       ok: true,
@@ -70,9 +70,7 @@ export async function GET(request: Request) {
       overview: null,
       detail: {
         complex: { id: complex.id, title: complex.title },
-        sessions: pageRows,
-        page,
-        pageSize,
+        chartPoints,
         total,
       },
     });

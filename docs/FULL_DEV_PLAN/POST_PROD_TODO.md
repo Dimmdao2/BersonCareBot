@@ -88,3 +88,29 @@ Pre-prod задачи (ключи/whitelist → admin, durable dispatch): см. 
 - Stage 19 (Scenarios DB)
 
 Перед запуском реализации обязательна декомпозиция уровня `PLAN.md` + `FIX_PLAN_STAGE_XX.md` по образцу Stages 11–14.
+
+---
+
+## 7) Pack I — отложено после prod (EXEC_I, 2026-03-25)
+
+### 7.1 Напоминания: полноценное расписание (EXEC_D / RAW §5)
+
+В Pack I **не** реализовывать UI/логику «расписания» напоминаний (календарь, привязка ко времени суток, визуальный таймлайн и т.п.) поверх текущей страницы `/app/patient/reminders`. Текущий экран — правила по категориям и статистика за 30 дней. Расширение до полного расписания — отдельная задача post-prod (согласовать с `EXEC_D_REMINDERS!!.md`).
+
+### 7.2 Бейдж непрочитанных в чате поддержки (I.11)
+
+Счётчик в шапке пациента: `countUnreadForUser` в `pgSupportCommunication.ts` — входящие сообщения **не** от `sender_role = 'user'` с `read_at IS NULL`. Если на prod отображается завышенное число (тестовый бэкфилл, дубли), **не** править логику подсчёта в Pack I; при необходимости ops вручную помечает сообщения прочитанными (только после проверки данных):
+
+```sql
+-- ОПАСНО: затронет все непрочитанные входящие от «не user» для пользователя.
+-- Замените :platform_user_id на uuid из platform_users.
+UPDATE support_conversation_messages m
+SET read_at = COALESCE(read_at, now())
+FROM support_conversations c
+WHERE c.id = m.conversation_id
+  AND c.platform_user_id = :platform_user_id::uuid
+  AND m.sender_role <> 'user'
+  AND m.read_at IS NULL;
+```
+
+Предпочтительно в будущем: точечная кнопка «Отметить прочитанным» / синхронизация `read_at` при открытии диалога (отдельная задача).

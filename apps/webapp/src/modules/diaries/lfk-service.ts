@@ -82,5 +82,29 @@ export function createLfkDiaryService(port: LfkDiaryPort) {
     }): Promise<LfkSession[]> {
       return port.listSessionsInRange(params);
     },
+    async minCompletedAtForUser(userId: string): Promise<string | null> {
+      return port.minCompletedAtForUser(userId);
+    },
+    async getLfkSessionForUser(params: { userId: string; sessionId: string }): Promise<LfkSession | null> {
+      return port.getSessionForUser(params);
+    },
+    async updateLfkSession(params: {
+      userId: string;
+      sessionId: string;
+      completedAt: string;
+      durationMinutes?: number | null;
+      difficulty0_10?: number | null;
+      pain0_10?: number | null;
+      comment?: string | null;
+    }): Promise<void> {
+      let comment = params.comment?.trim() ?? null;
+      if (comment && comment.length > COMMENT_MAX) {
+        comment = comment.slice(0, COMMENT_MAX);
+      }
+      await port.updateSession({ ...params, comment });
+    },
+    async deleteLfkSession(params: { userId: string; sessionId: string }): Promise<void> {
+      await port.deleteSession(params);
+    },
   };
 }

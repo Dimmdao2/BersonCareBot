@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";

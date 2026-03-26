@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
