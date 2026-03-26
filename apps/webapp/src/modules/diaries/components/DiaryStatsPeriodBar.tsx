@@ -2,7 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { SegmentControl } from "@/components/common/controls/SegmentControl";
 
 export type DiaryStatsPeriod = "week" | "month" | "all";
 
@@ -30,31 +30,12 @@ export function DiaryStatsPeriodBar({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div
-        className="inline-flex rounded-md border border-border bg-muted/60 p-0.5"
-        role="group"
+      <SegmentControl
+        options={PERIOD_LABELS.map(([value, label]) => ({ value, label }))}
+        value={period}
+        onChange={(v) => onPeriodChange(v as DiaryStatsPeriod)}
         aria-label="Период статистики"
-      >
-        {PERIOD_LABELS.map(([k, label]) => {
-          const active = period === k;
-          return (
-            <button
-              key={k}
-              type="button"
-              className={cn(
-                "rounded-sm px-3 py-1.5 text-xs font-medium transition-[color,background-color,transform] duration-150 active:scale-[0.98]",
-                active
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-              )}
-              aria-pressed={active}
-              onClick={() => onPeriodChange(k)}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
+      />
       <div className="ml-auto flex items-center gap-1">
         <Button
           type="button"

@@ -14,11 +14,11 @@ export default async function DoctorBroadcastsPage() {
   const audit = await deps.doctorBroadcasts.listAudit(5);
   return (
     <AppShell title="Рассылки" user={session.user} variant="doctor">
-      <section id="doctor-broadcasts-overview-section" className="panel stack">
-        <p className="empty-state">
+      <section id="doctor-broadcasts-overview-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+        <p className="text-muted-foreground">
           Массовые рассылки во втором релизе: категория, выбор аудитории, предпросмотр и журнал отправок.
         </p>
-        <p className="text-secondary" style={{ fontSize: "0.9rem" }}>
+        <p className="text-sm text-secondary">
           Категории: {categories.join(", ")}. Журнал рассылок: {audit.length} записей.
         </p>
       </section>

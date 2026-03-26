@@ -8,6 +8,7 @@
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { PageSection } from "@/components/common/layout/PageSection";
 import { AppShell } from "@/shared/ui/AppShell";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 
@@ -55,7 +56,7 @@ export default async function ContentSlugPage({ params }: Props) {
   const backHref = "/app/patient";
   return (
     <AppShell title={item.title} user={session?.user ?? null} backHref={backHref} backLabel="Назад" variant="patient">
-      <article id={`patient-content-article-${slug}`} className="panel stack">
+      <article id={`patient-content-article-${slug}`} className="flex flex-col gap-4">
         {item.imageUrl && (
           // eslint-disable-next-line @next/next/no-img-element -- CMS-provided images have unknown dimensions; next/image requires explicit width/height
           <img src={item.imageUrl} alt="" className="max-w-full h-auto" />
@@ -65,28 +66,28 @@ export default async function ContentSlugPage({ params }: Props) {
           bodyFormat={item.bodyFormat ?? "markdown"}
         />
         {videoPlayableUrl ? (
-          <section id={`patient-content-video-section-${slug}`} className="stack" style={{ marginTop: "1rem" }}>
-            <h3>Видео</h3>
+          <PageSection as="section" id={`patient-content-video-section-${slug}`} className="mt-4 flex flex-col gap-2">
+            <h3 className="text-base font-medium">Видео</h3>
             {youtubeEmbedSrc ? (
-              <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, overflow: "hidden", borderRadius: 8 }}>
+              <div className="relative aspect-video overflow-hidden rounded-lg">
                 <iframe
                   src={youtubeEmbedSrc}
-                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+                  className="absolute inset-0 size-full border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                   title={item.title}
                 />
               </div>
             ) : (
-              <video controls preload="metadata" style={{ maxWidth: "100%", borderRadius: 8 }}>
+              <video controls preload="metadata" className="max-w-full rounded-lg">
                 <source src={videoPlayableUrl} />
               </video>
             )}
-          </section>
+          </PageSection>
         ) : (
-          <section id={`patient-content-video-section-${slug}`} className="stack" style={{ marginTop: "1rem" }}>
-            <p className="empty-state">Видео будет добавлено в ближайшее время.</p>
-          </section>
+          <PageSection as="section" id={`patient-content-video-section-${slug}`} className="mt-4 flex flex-col gap-2">
+            <p className="text-muted-foreground">Видео будет добавлено в ближайшее время.</p>
+          </PageSection>
         )}
       </article>
     </AppShell>

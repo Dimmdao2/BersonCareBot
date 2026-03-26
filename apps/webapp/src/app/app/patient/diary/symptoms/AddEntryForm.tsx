@@ -3,26 +3,12 @@
 import { useRef, useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
+import { NumericChipGroup } from "@/components/common/controls/NumericChipGroup";
 import { addSymptomEntry } from "./actions";
 import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./symptomEntryDedup";
 
 type TrackingOption = { id: string; symptomTitle: string | null };
-
-function getScoreColor(score: number): string {
-  if (score <= 5) {
-    const t = score / 5;
-    const h = 120 + (45 - 120) * t;
-    const s = 60 + (80 - 60) * t;
-    const l = 40 + (50 - 40) * t;
-    return `hsl(${h} ${s}% ${l}%)`;
-  }
-  const t = (score - 5) / 5;
-  const h = 45 + (0 - 45) * t;
-  const s = 80 + (70 - 80) * t;
-  const l = 50 + (35 - 50) * t;
-  return `hsl(${h} ${s}% ${l}%)`;
-}
 
 export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
   const [selectedValue, setSelectedValue] = useState<number | null>(null);
@@ -71,17 +57,17 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
           }
         });
       }}
-      className="stack"
+      className="flex flex-col gap-4"
     >
       {single ? (
         <input type="hidden" name="trackingId" value={trackings[0].id} />
       ) : (
-        <label className="stack">
-          <span className="eyebrow">Симптом</span>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Симптом</span>
           <select
             id="symptom-entry-tracking"
             name="trackingId"
-            className="auth-input"
+            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
             required
             defaultValue={trackings[0]?.id}
           >
@@ -93,49 +79,25 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
           </select>
         </label>
       )}
-      <div className="stack">
-        <span className="eyebrow">Интенсивность (0–10)</span>
-        <div className="flex flex-wrap gap-2">
-          {Array.from({ length: 11 }, (_, i) => {
-            const color = getScoreColor(i);
-            const active = selectedValue === i;
-            return (
-              <button
-                key={i}
-                type="button"
-                className={cn(
-                  "inline-flex size-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors",
-                  active ? "border-transparent text-white" : "border-solid bg-transparent",
-                )}
-                style={
-                  active
-                    ? { backgroundColor: color, borderColor: color }
-                    : { borderColor: color, color }
-                }
-                onClick={() => setSelectedValue(i)}
-                aria-pressed={active}
-              >
-                {i}
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex flex-col gap-4">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Интенсивность (0–10)</span>
+        <NumericChipGroup min={0} max={10} value={selectedValue} onChange={setSelectedValue} />
         <input
           type="hidden"
           name="value"
           value={selectedValue !== null ? String(selectedValue) : ""}
         />
       </div>
-      <label className="stack">
-        <span className="eyebrow">Тип записи</span>
-        <select id="symptom-entry-type" name="entryType" className="auth-input" required defaultValue="instant">
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Тип записи</span>
+        <select id="symptom-entry-type" name="entryType" className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required defaultValue="instant">
           <option value="instant">В моменте</option>
           <option value="daily">За день</option>
         </select>
       </label>
-      <label className="stack">
-        <span className="eyebrow">Заметки (необязательно)</span>
-        <textarea id="symptom-entry-notes" name="notes" className="auth-input" rows={3} />
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заметки (необязательно)</span>
+        <Textarea id="symptom-entry-notes" name="notes" rows={3} />
       </label>
       <Button type="submit" disabled={isPending || selectedValue === null}>
         {isPending ? "Сохраняю…" : "Сохранить запись"}

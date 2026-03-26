@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  */
 export function CreateClientFromRecordStub() {
   return (
-    <section id="doctor-clients-create-from-record-stub" className="panel stack mb-4">
+    <section id="doctor-clients-create-from-record-stub" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4 mb-4">
       <h2 className="text-lg font-semibold">Создать из записи на приём</h2>
       <p className="text-sm text-muted-foreground">
         Привязка карты пациента к записи будет добавлена на этапе 17. Сейчас откройте раздел записей и

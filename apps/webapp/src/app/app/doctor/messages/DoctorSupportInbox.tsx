@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { ChatView } from "@/modules/messaging/components/ChatView";
 import { useMessagePolling } from "@/modules/messaging/hooks/useMessagePolling";
 import type { SerializedSupportMessage } from "@/modules/messaging/serializeSupportMessage";
@@ -159,26 +158,26 @@ export function DoctorSupportInbox() {
           ) : (
             list.map((c) => (
               <li key={c.conversationId}>
-                <button
+                <Button
                   type="button"
-                  className={cn(
-                    "w-full rounded-md px-2 py-2 text-left text-sm transition-colors",
+                  variant="ghost"
+                  className={
                     selectedId === c.conversationId
-                      ? "bg-muted font-medium"
-                      : "hover:bg-muted/60"
-                  )}
+                      ? "h-auto w-full flex-col items-stretch gap-0.5 rounded-md px-2 py-2 text-left text-sm font-normal"
+                      : "h-auto w-full flex-col items-stretch gap-0.5 rounded-md px-2 py-2 text-left text-sm font-normal hover:bg-muted/60"
+                  }
                   onClick={() => {
                     setSelectedId(c.conversationId);
                     setMessages([]);
                   }}
                 >
-                  <span className="block truncate">{c.displayName || "Без имени"}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="block w-full truncate font-medium">{c.displayName || "Без имени"}</span>
+                  <span className="block w-full text-xs text-muted-foreground">
                     {c.lastSenderRole === "user" ? "Пациент · " : ""}
                     {(c.lastMessageText ?? "").slice(0, 80)}
                     {(c.lastMessageText?.length ?? 0) > 80 ? "…" : ""}
                   </span>
-                </button>
+                </Button>
               </li>
             ))
           )}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { pluralizeRu } from "@/shared/lib/pluralize";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
@@ -91,7 +92,7 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
       <form
         id="doctor-clients-search-form"
         onSubmit={(e) => e.preventDefault()}
-        className="stack mb-2"
+        className="flex flex-col gap-4 mb-2"
       >
         <Input
           type="search"
@@ -115,31 +116,39 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
       />
 
       {filtered.length === 0 ? (
-        <p className="empty-state">Нет записей по текущим фильтрам.</p>
+        <p className="text-muted-foreground">Нет записей по текущим фильтрам.</p>
       ) : (
-        <ul id="doctor-clients-list" className="list">
+        <ul id="doctor-clients-list" className="m-0 list-none space-y-3 p-0">
           {filtered.map((c) => (
-            <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="list-item p-0">
+            <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="rounded-lg border border-border bg-card p-0">
               <Link
                 id={`doctor-clients-card-${c.userId}`}
                 href={`${basePath}/${c.userId}`}
                 onClick={onRowClick(c.userId)}
-                className="client-row block w-full rounded-md px-3 py-3 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-3 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <div>
                   <span className="font-semibold text-foreground">{c.displayName}</span>
-                  {c.phone ? <span className="eyebrow mt-0.5 block">{c.phone}</span> : null}
+                  {c.phone ? <span className="mt-0.5 block text-xs font-medium uppercase tracking-wide text-muted-foreground">{c.phone}</span> : null}
                   {c.nextAppointmentLabel ? (
-                    <span className="eyebrow mt-0.5 block text-muted-foreground">{c.nextAppointmentLabel}</span>
+                    <span className="mt-0.5 block text-xs font-medium uppercase tracking-wide text-muted-foreground">{c.nextAppointmentLabel}</span>
                   ) : null}
                 </div>
-                <div className="client-row__badges">
-                  {c.bindings.telegramId ? <span className="badge badge--channel">TG</span> : null}
-                  {c.bindings.maxId ? <span className="badge badge--channel">MAX</span> : null}
+                <div className="flex shrink-0 flex-wrap gap-1.5">
+                  {c.bindings.telegramId ? (
+                    <Badge variant="secondary" className="font-normal">
+                      TG
+                    </Badge>
+                  ) : null}
+                  {c.bindings.maxId ? (
+                    <Badge variant="secondary" className="font-normal">
+                      MAX
+                    </Badge>
+                  ) : null}
                   {c.cancellationCount30d > 0 ? (
-                    <span className="badge badge--warning">
+                    <Badge variant="destructive" className="font-normal">
                       {c.cancellationCount30d} {pluralizeRu(c.cancellationCount30d, "отмена", "отмены", "отмен")}
-                    </span>
+                    </Badge>
                   ) : null}
                 </div>
               </Link>

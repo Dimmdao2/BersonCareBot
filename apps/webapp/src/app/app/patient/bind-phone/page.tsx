@@ -24,7 +24,7 @@ export default async function BindPhonePage({ searchParams }: Props) {
 
   return (
     <AppShell title="Привязка телефона" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
-      <section id="patient-bind-phone-section" className="panel stack">
+      <section id="patient-bind-phone-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <BindPhoneBlock channel={channel} chatId={chatId} />
       </section>
     </AppShell>

@@ -2,6 +2,7 @@
 
 import { useCallback, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { insertLinePrefix, insertSnippet, wrapSelection } from "./markdownInsert";
 import { MediaUploader } from "./MediaUploader";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -44,9 +45,9 @@ export function MarkdownEditor({
   );
 
   return (
-    <div className="stack" style={{ gap: "0.75rem" }}>
-      <span className="eyebrow">{label}</span>
-      <p className="text-muted-foreground text-sm" style={{ margin: 0 }}>
+    <div className="flex flex-col gap-3">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <p className="m-0 text-sm text-muted-foreground">
         До {maxLength.toLocaleString("ru-RU")} символов. Поддерживается Markdown (заголовки, списки, ссылки,
         таблицы).
       </p>
@@ -100,25 +101,22 @@ export function MarkdownEditor({
           }}
         />
       </div>
-      <div
-        className="grid gap-4 md:grid-cols-2"
-        style={{ alignItems: "start" }}
-      >
-        <label className="stack" style={{ gap: "0.25rem" }} htmlFor={id}>
+      <div className="grid items-start gap-4 md:grid-cols-2">
+        <label className="flex flex-col gap-1" htmlFor={id}>
           <span className="sr-only">Редактор</span>
-          <textarea
+          <Textarea
             ref={taRef}
             id={id}
             name={name}
-            className="auth-input font-mono text-sm"
+            className="min-h-[320px] font-mono text-sm"
             rows={14}
             value={value}
             maxLength={maxLength}
             onChange={(e) => setValue(e.target.value.slice(0, maxLength))}
           />
         </label>
-        <div className="stack rounded border border-border p-3" style={{ gap: "0.5rem" }}>
-          <span className="eyebrow text-xs">Предпросмотр</span>
+        <div className="flex flex-col gap-2 rounded border border-border p-3">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Предпросмотр</span>
           <MarkdownPreview markdown={value} />
         </div>
       </div>

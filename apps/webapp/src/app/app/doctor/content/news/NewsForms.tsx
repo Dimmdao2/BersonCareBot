@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   toggleNewsArchive,
   toggleQuoteArchive,
@@ -33,33 +35,33 @@ export function NewsForms({ newsRows, quoteRows }: { newsRows: NewsRow[]; quoteR
   const [quoteState, quoteAction, quotePending] = useActionState(upsertMotivationQuote, null as NewsActionState | null);
 
   return (
-    <div className="stack" style={{ gap: "2rem" }}>
-      <section className="stack" style={{ gap: "0.75rem" }}>
-        <h3 className="eyebrow m-0">Новости</h3>
+    <div className="flex flex-col gap-8">
+      <section className="flex flex-col gap-3">
+        <h3 className="m-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">Новости</h3>
         {newsState?.error ? (
-          <p role="alert" style={{ color: "#b91c1c" }}>
+          <p role="alert" className="text-destructive">
             {newsState.error}
           </p>
         ) : null}
         {newsRows.map((n) => (
-          <div key={n.id} className="rounded border border-border p-3 stack" style={{ gap: "0.5rem" }}>
-            <form action={newsAction} className="stack" style={{ gap: "0.5rem" }}>
+          <div key={n.id} className="flex flex-col gap-2 rounded border border-border p-3">
+            <form action={newsAction} className="flex flex-col gap-2">
               <input type="hidden" name="id" value={n.id} />
-              <label className="stack text-sm" style={{ gap: "0.25rem" }}>
+              <label className="flex flex-col gap-1 text-sm">
                 Заголовок
-                <input name="title" className="auth-input" defaultValue={n.title} required />
+                <Input name="title" defaultValue={n.title} required />
               </label>
-              <label className="stack text-sm" style={{ gap: "0.25rem" }}>
+              <label className="flex flex-col gap-1 text-sm">
                 Текст (Markdown)
-                <textarea name="body_md" className="auth-input font-mono text-sm" rows={4} defaultValue={n.body_md} />
+                <Textarea name="body_md" className="font-mono text-sm" rows={4} defaultValue={n.body_md} />
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="is_visible" defaultChecked={n.is_visible} />
                 Видна пациенту
               </label>
-              <label className="stack text-sm" style={{ gap: "0.25rem" }}>
+              <label className="flex flex-col gap-1 text-sm">
                 Порядок
-                <input name="sort_order" type="number" className="auth-input" defaultValue={n.sort_order} />
+                <Input name="sort_order" type="number" defaultValue={n.sort_order} />
               </label>
               <Button type="submit" className="w-fit" disabled={newsPending}>
                 Сохранить
@@ -75,23 +77,23 @@ export function NewsForms({ newsRows, quoteRows }: { newsRows: NewsRow[]; quoteR
             </form>
           </div>
         ))}
-        <form action={newsAction} className="rounded border border-dashed border-border p-3 stack" style={{ gap: "0.5rem" }}>
+        <form action={newsAction} className="flex flex-col gap-2 rounded border border-dashed border-border p-3">
           <strong className="text-sm">Новая новость</strong>
-          <label className="stack text-sm" style={{ gap: "0.25rem" }}>
+          <label className="flex flex-col gap-1 text-sm">
             Заголовок
-            <input name="title" className="auth-input" />
+            <Input name="title" />
           </label>
-          <label className="stack text-sm" style={{ gap: "0.25rem" }}>
+          <label className="flex flex-col gap-1 text-sm">
             Текст (Markdown)
-            <textarea name="body_md" className="auth-input font-mono text-sm" rows={3} />
+            <Textarea name="body_md" className="font-mono text-sm" rows={3} />
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="is_visible" />
             Видна пациенту
           </label>
-          <label className="stack text-sm" style={{ gap: "0.25rem" }}>
+          <label className="flex flex-col gap-1 text-sm">
             Порядок
-            <input name="sort_order" type="number" className="auth-input" defaultValue={0} />
+            <Input name="sort_order" type="number" defaultValue={0} />
           </label>
           <Button type="submit" disabled={newsPending}>
             Добавить
@@ -99,32 +101,32 @@ export function NewsForms({ newsRows, quoteRows }: { newsRows: NewsRow[]; quoteR
         </form>
       </section>
 
-      <section className="stack" style={{ gap: "0.75rem" }}>
-        <h3 className="eyebrow m-0">Мотивационные цитаты</h3>
+      <section className="flex flex-col gap-3">
+        <h3 className="m-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">Мотивационные цитаты</h3>
         {quoteState?.error ? (
-          <p role="alert" style={{ color: "#b91c1c" }}>
+          <p role="alert" className="text-destructive">
             {quoteState.error}
           </p>
         ) : null}
         {quoteRows.map((q) => (
-          <div key={q.id} className="rounded border border-border p-3 stack" style={{ gap: "0.5rem" }}>
-            <form action={quoteAction} className="stack" style={{ gap: "0.5rem" }}>
+          <div key={q.id} className="flex flex-col gap-2 rounded border border-border p-3">
+            <form action={quoteAction} className="flex flex-col gap-2">
               <input type="hidden" name="id" value={q.id} />
-              <label className="stack text-sm" style={{ gap: "0.25rem" }}>
+              <label className="flex flex-col gap-1 text-sm">
                 Текст
-                <textarea name="body_text" className="auth-input text-sm" rows={3} defaultValue={q.body_text} required />
+                <Textarea name="body_text" className="text-sm" rows={3} defaultValue={q.body_text} required />
               </label>
-              <label className="stack text-sm" style={{ gap: "0.25rem" }}>
+              <label className="flex flex-col gap-1 text-sm">
                 Автор
-                <input name="author" className="auth-input" defaultValue={q.author ?? ""} />
+                <Input name="author" defaultValue={q.author ?? ""} />
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="is_active" defaultChecked={q.is_active} />
                 Активна
               </label>
-              <label className="stack text-sm" style={{ gap: "0.25rem" }}>
+              <label className="flex flex-col gap-1 text-sm">
                 Порядок
-                <input name="sort_order" type="number" className="auth-input" defaultValue={q.sort_order} />
+                <Input name="sort_order" type="number" defaultValue={q.sort_order} />
               </label>
               <Button type="submit" className="w-fit" disabled={quotePending}>
                 Сохранить
@@ -139,15 +141,15 @@ export function NewsForms({ newsRows, quoteRows }: { newsRows: NewsRow[]; quoteR
             </form>
           </div>
         ))}
-        <form action={quoteAction} className="rounded border border-dashed border-border p-3 stack" style={{ gap: "0.5rem" }}>
+        <form action={quoteAction} className="flex flex-col gap-2 rounded border border-dashed border-border p-3">
           <strong className="text-sm">Новая цитата</strong>
-          <textarea name="body_text" className="auth-input text-sm" rows={2} placeholder="Текст" />
-          <input name="author" className="auth-input" placeholder="Автор (необязательно)" />
+          <Textarea name="body_text" className="text-sm" rows={2} placeholder="Текст" />
+          <Input name="author" placeholder="Автор (необязательно)" />
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="is_active" defaultChecked />
             Активна
           </label>
-          <input name="sort_order" type="number" className="auth-input" defaultValue={0} />
+          <Input name="sort_order" type="number" defaultValue={0} />
           <Button type="submit" disabled={quotePending}>
             Добавить
           </Button>

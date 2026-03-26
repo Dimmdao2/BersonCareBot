@@ -15,7 +15,7 @@ type ChannelPickerProps = {
 export function ChannelPicker({ methods, disabled, onChoose, onChooseSms }: ChannelPickerProps) {
   return (
     <div className={cn("flex max-w-sm flex-col gap-2")} role="group" aria-label="Способ получения кода">
-      <p className="eyebrow">Выберите, где вам удобно получить код для входа:</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Выберите, где вам удобно получить код для входа:</p>
       {methods.telegram ? (
         <Button
           type="button"

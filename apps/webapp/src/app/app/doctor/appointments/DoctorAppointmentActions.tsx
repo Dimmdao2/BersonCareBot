@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 type Props = {
   recordId: string;
@@ -50,27 +51,31 @@ export function DoctorAppointmentActions({ recordId }: Props) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
+    <div className="flex flex-col gap-1.5">
+      <div className="flex gap-2">
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={onReschedule}
           disabled={pending !== null}
           aria-label={`doctor-appointment-reschedule-${recordId}`}
         >
           Перенести
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={onCancel}
           disabled={pending !== null}
           aria-label={`doctor-appointment-cancel-${recordId}`}
         >
           Отменить
-        </button>
+        </Button>
       </div>
       {note ? (
-        <span style={{ fontSize: 12, opacity: 0.85 }} aria-live="polite">
+        <span className="text-xs text-muted-foreground" aria-live="polite">
           {note}
         </span>
       ) : null}

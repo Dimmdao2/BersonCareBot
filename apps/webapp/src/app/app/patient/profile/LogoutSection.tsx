@@ -18,7 +18,7 @@ export function LogoutSection() {
   if (hideLogout) return null;
 
   return (
-    <section className="stack" style={{ marginTop: 16 }}>
+    <section className="mt-4 flex flex-col gap-4">
       <a
         href="/api/auth/logout"
         className={cn(

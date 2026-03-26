@@ -7,6 +7,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { Badge } from "@/components/ui/badge";
 import { AppShell } from "@/shared/ui/AppShell";
 import { patientHasPhoneOrMessenger, PurchasesGuestAccess } from "@/shared/ui/patient/guestAccess";
 
@@ -32,17 +33,19 @@ export default async function PurchasesPage() {
 
   return (
     <AppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
-      <section id="patient-purchases-hero-section" className="hero-card stack">
+      <section id="patient-purchases-hero-section" className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col gap-4">
         <p>{state.description}</p>
       </section>
-      <section id="patient-purchases-items-section" className="panel stack">
+      <section id="patient-purchases-items-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Курсы, доступы и подписки</h2>
-        <ul id="patient-purchases-items-list" className="list">
+        <ul id="patient-purchases-items-list" className="m-0 list-none space-y-3 p-0">
           {MOCK_ITEMS.map((item) => (
-            <li key={item.id} id={`patient-purchases-item-${item.id}`} className="list-item">
+            <li key={item.id} id={`patient-purchases-item-${item.id}`} className="rounded-lg border border-border bg-card p-3">
               <strong>{item.title}</strong>
-              <span className="status-pill status-pill--available">{item.type}</span>
-              <span style={{ fontSize: "0.9rem", color: "#5f6f86" }}>{item.status} · {item.expiresAt}</span>
+              <Badge variant="secondary" className="font-normal">
+                {item.type}
+              </Badge>
+              <span className="text-sm text-muted-foreground">{item.status} · {item.expiresAt}</span>
             </li>
           ))}
         </ul>

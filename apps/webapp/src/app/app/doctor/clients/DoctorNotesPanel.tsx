@@ -65,11 +65,11 @@ export function DoctorNotesPanel({ userId }: Props) {
   }
 
   return (
-    <section id="doctor-client-notes-section" className="panel stack" aria-labelledby="doctor-notes-heading">
+    <section id="doctor-client-notes-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4" aria-labelledby="doctor-notes-heading">
       <h2 id="doctor-notes-heading">Заметки врача</h2>
       {loading ? <p className="text-muted-foreground">Загрузка…</p> : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      <ul id="doctor-notes-list" className="list space-y-2" style={{ listStyle: "none", padding: 0 }}>
+      <ul id="doctor-notes-list" className="m-0 list-none space-y-2 p-0">
         {notes.map((n) => (
           <li key={n.id} id={`doctor-note-${n.id}`} className="rounded-md border border-border p-2 text-sm">
             <span className="text-muted-foreground text-xs">
@@ -79,7 +79,7 @@ export function DoctorNotesPanel({ userId }: Props) {
           </li>
         ))}
       </ul>
-      <form onSubmit={onSubmit} className="stack gap-2">
+      <form onSubmit={onSubmit} className="flex flex-col gap-2">
         <label htmlFor="doctor-note-text" className="sr-only">
           Новая заметка
         </label>

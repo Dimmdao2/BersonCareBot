@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { loadReferenceItems, type ReferenceItemDto } from "@/modules/references/referenceCache";
@@ -97,9 +98,10 @@ export function ReferenceSelect({
         >
           {filtered.map((i) => (
             <li key={i.id}>
-              <button
+              <Button
                 type="button"
-                className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                variant="ghost"
+                className="h-auto w-full justify-start rounded-none px-3 py-2 text-left text-sm font-normal"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   onChange(i.id, i.title);
@@ -108,7 +110,7 @@ export function ReferenceSelect({
                 }}
               >
                 {i.title}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

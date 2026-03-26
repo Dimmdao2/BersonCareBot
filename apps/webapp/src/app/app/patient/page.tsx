@@ -76,7 +76,7 @@ export default async function PatientHomePage() {
             "Двигайтесь в комфортном темпе и прислушивайтесь к ощущениям — это помогает устойчиво закреплять привычки."
           }
         />
-        <section id="patient-home-stats-section" className="stack gap-3">
+        <section id="patient-home-stats-section" className="flex flex-col gap-3">
           <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">Статистика</h2>
           <MiniStats {...miniStats} />
         </section>

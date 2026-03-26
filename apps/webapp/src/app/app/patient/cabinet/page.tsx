@@ -48,8 +48,8 @@ export default async function PatientCabinetPage() {
       backLabel="Меню"
       variant="patient"
     >
-      <section className="stack gap-6">
-        <div className="stack gap-2">
+      <section className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
           <Link
             href={routePaths.patientBooking}
             className={cn(
@@ -65,7 +65,7 @@ export default async function PatientCabinetPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Информация</CardTitle>
           </CardHeader>
-          <CardContent className="stack gap-2 text-sm">
+          <CardContent className="flex flex-col gap-2 text-sm">
             <Link
               href={routePaths.patientHelp}
               className="text-primary font-medium underline-offset-2 hover:underline"
@@ -81,11 +81,11 @@ export default async function PatientCabinetPage() {
           </CardContent>
         </Card>
 
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <CabinetUpcomingAppointments appointments={appointments} />
         </div>
 
-        <div className="stack gap-2">
+        <div className="flex flex-col gap-2">
           <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">История записей</h2>
           {past.length === 0 ? (
             <p className="text-muted-foreground text-sm">У вас нет записей.</p>

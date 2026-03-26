@@ -27,7 +27,7 @@ export function GuestPlaceholder({
   illustration,
 }: GuestPlaceholderProps) {
   return (
-    <div className="stack gap-4">
+    <div className="flex flex-col gap-4">
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-foreground dark:border-amber-900/40 dark:bg-amber-950/25">
         {illustration ? <div className="mb-3">{illustration}</div> : null}
         <h2 className="text-base font-semibold">{title}</h2>

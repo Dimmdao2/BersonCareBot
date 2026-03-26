@@ -5,6 +5,7 @@
  */
 
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
@@ -48,7 +49,7 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   if (cards.length === 0) return null;
 
   return (
-    <section id="connect-messengers-section" className={showHeading ? "panel stack mt-4" : "flex flex-col gap-3"}>
+    <section id="connect-messengers-section" className={showHeading ? "rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4 mt-4" : "flex flex-col gap-3"}>
       {showHeading ? (
         <h2 className="h3">
           {linkedCount === 0
@@ -59,7 +60,7 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
         </h2>
       ) : null}
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      <div id="connect-messengers-grid" className="feature-grid grid grid-cols-2 gap-3">
+      <div id="connect-messengers-grid" className="grid grid-cols-2 gap-3 md:grid-cols-2">
         {cards.map((card) => (
           <div
             key={card.code}
@@ -68,7 +69,9 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
           >
             <strong>{card.title}</strong>
             {card.isLinked ? (
-              <span className="status-pill w-fit cursor-default opacity-90">Уже подключено</span>
+              <Badge variant="secondary" className="w-fit cursor-default font-normal opacity-90">
+                Уже подключено
+              </Badge>
             ) : card.code === "telegram" ? (
               <Button
                 type="button"

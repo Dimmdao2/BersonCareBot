@@ -24,10 +24,10 @@ export function DiaryTabsClient({
         const next = v === "lfk" ? "lfk" : "symptoms";
         router.replace(`/app/patient/diary?tab=${next}`, { scroll: false });
       }}
-      className="stack gap-4"
+      className="flex flex-col gap-4"
     >
       {/* top-16 ≈ высота PatientHeader (py-2.5 + ряд иконок size-11), чтобы табы прилипали сразу под шапкой */}
-      <div className="patient-edge-bleed sticky top-16 z-30 border-b border-border/60 bg-[var(--patient-bg)] py-2 supports-[backdrop-filter]:backdrop-blur-sm">
+      <div className="safe-bleed-x sticky top-16 z-30 border-b border-border/60 bg-[var(--patient-bg)] py-2 supports-[backdrop-filter]:backdrop-blur-sm">
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg bg-muted/70 p-1">
           <TabsTrigger
             value="symptoms"
@@ -43,10 +43,10 @@ export function DiaryTabsClient({
           </TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent value="symptoms" className="stack gap-4">
+      <TabsContent value="symptoms" className="flex flex-col gap-4">
         {symptomsPanel}
       </TabsContent>
-      <TabsContent value="lfk" className="stack gap-4">
+      <TabsContent value="lfk" className="flex flex-col gap-4">
         {lfkPanel}
       </TabsContent>
     </Tabs>

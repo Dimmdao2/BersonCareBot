@@ -639,3 +639,34 @@ pnpm run ci
 - `.markdown-preview { ... }` (~20 строк)
 - `.lfk-diary-range { ... }` (~30 строк)
 - `@layer utilities { .safe-* }` (~15 строк)
+
+---
+
+## 12) Журнал выполнения (агент)
+
+Формат: дата (UTC), действие, результат проверки (если было).
+
+| Дата | Действие | Проверка |
+|------|----------|----------|
+| 2026-03-26 | Фаза 0: проверены `button-variants.ts` (variants/sizes достаточно), `Switch` из `components/ui/switch.tsx` | — |
+| 2026-03-26 | Фаза 0: удалён неиспользуемый `shared/ui/PageHeader.tsx` (0 импортов; замена — `SectionHeading` + разметка в `AppShell`) | — |
+| 2026-03-26 | Фаза 1: добавлены `SectionHeading`, `PageSection`, `LabeledSwitch`, `SegmentControl`, `NumericChipGroup` | `pnpm --dir apps/webapp typecheck` |
+| 2026-03-26 | Фаза 2: raw `<button>` заменены на `Button` где требуется планом (`AskQuestionFAB`, `DoctorAppointmentActions`, `DoctorSupportInbox`, picker в `TemplateEditor`, «Отмена» в `ProfileForm`); drag-handle в `TemplateEditor` оставлен raw | — |
+| 2026-03-26 | Фаза 2: убраны inline `style={{...}}` из `apps/webapp/src` кроме `global-error.tsx` (по плану) | `rg "style=\\{\\{" apps/webapp/src --glob "*.tsx"` → только `global-error.tsx` |
+| 2026-03-26 | Фаза 3: массовая замена legacy-классов (`stack`, `panel`, `hero-card`, `eyebrow`, `auth-input`, `empty-state`, `list`/`list-item`, бейджи и т.д.) на Tailwind/shadcn; обновлён `FeatureCard.tsx`; `DoctorClientsPanel`/`messages` — `Badge` | — |
+| 2026-03-26 | Фаза 4: `globals.css` сокращён до токенов + `@theme` + `@layer base` + сброс ссылок + `.markdown-preview` + `.lfk-diary-range` + `@layer utilities` с `.safe-padding-patient`, `.safe-bleed-x`, `.safe-fab-br`; удалён legacy component-level CSS | — |
+| 2026-03-26 | Фаза 4: переименование safe-area: `AppShell` (patient), `PatientHeader`, `DiaryTabsClient`, `QuickAddPopup` переведены на классы `safe-*` | — |
+| 2026-03-26 | Фаза 5: `AppShell` default-вариант на Tailwind + `SectionHeading`; полный CI | `pnpm run ci` (успешно) |
+| 2026-03-26 | Исправление: скрипт замены `list` случайно повредил идентификаторы `list` в TS — восстановлены в `DoctorClientsPanel`, `content/page`, `exercises/page`, `lfk-templates/page`; в `SectionHeading` восстановлен ключ `eyebrow` | `pnpm --dir apps/webapp typecheck` |
+
+### 12.1 Проверка по чек-листу §9 (после доработки)
+
+| Пункт | Команда / критерий | Результат |
+|-------|-------------------|-----------|
+| Legacy-классы | `rg "className=\"[^\"]*(panel\|…)" apps/webapp/src --glob "*.tsx"` | 0 совпадений |
+| Inline styles | `style={{` только вне `global-error.tsx` | исправлено: `NumericChipGroup` больше не использует `style` (дискретные классы Tailwind 0–10) |
+| Raw `<button>` | кроме `global-error.tsx` | исправлено: `SegmentControl` и `NumericChipGroup` → `Button`; `ReferenceSelect` → `Button`; DnD-handle в `TemplateEditor` → `Button`; скрытые submit в `SymptomTrackingRow` → `<input type="submit">`; остался только `global-error.tsx` |
+| PageHeader | импорт удалён | 0 совпадений |
+| Полный CI | `pnpm run ci` | зелёный (1-я попытка) |
+
+| 2026-03-26 | Доводка DoD §2.1 + §9: убраны оставшиеся inline-стили в `NumericChipGroup`; raw `<button>` заменены на `Button` / `<input type="submit">` где применимо | `pnpm run ci` (успешно, попытка 1) |

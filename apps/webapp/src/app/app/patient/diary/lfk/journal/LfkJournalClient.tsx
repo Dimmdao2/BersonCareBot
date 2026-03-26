@@ -59,7 +59,7 @@ export function LfkJournalClient(props: {
   };
 
   return (
-    <div className="stack gap-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <Link
           href={`${routePaths.diary}?tab=lfk`}
@@ -73,7 +73,7 @@ export function LfkJournalClient(props: {
         <label className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Комплекс</span>
           <select
-            className="auth-input min-w-[200px]"
+            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
             value={activeComplexId}
             onChange={(e) => {
               router.push(complexHref(e.target.value));
@@ -88,8 +88,8 @@ export function LfkJournalClient(props: {
         </label>
       ) : null}
 
-      <div className="stack gap-2">
-        <span className="eyebrow">Период (календарный месяц)</span>
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Период (календарный месяц)</span>
         <JournalMonthNav
           basePath={routePaths.diaryLfkJournal}
           monthYm={monthYm}
@@ -102,11 +102,11 @@ export function LfkJournalClient(props: {
       {sessions.length === 0 ? (
         <p className="text-muted-foreground text-sm">За этот месяц занятий нет.</p>
       ) : (
-        <ul className="list">
+        <ul className="m-0 list-none space-y-3 p-0">
           {sessions.map((s) => (
             <li
               key={s.id}
-              className="list-item flex flex-wrap items-start justify-between gap-2"
+              className="rounded-lg border border-border bg-card p-3 flex flex-wrap items-start justify-between gap-2"
             >
               <div className="min-w-0 flex-1">
                 <strong>{s.complexTitle ?? "ЛФК"}</strong>
@@ -168,7 +168,7 @@ export function LfkJournalClient(props: {
           </DialogHeader>
           {editSession ? (
             <form
-              className="stack gap-3"
+              className="flex flex-col gap-3"
               onSubmit={(ev) => {
                 ev.preventDefault();
                 const form = ev.currentTarget;
@@ -192,8 +192,8 @@ export function LfkJournalClient(props: {
                 });
               }}
             >
-              <label className="stack gap-1">
-                <span className="eyebrow">Дата и время</span>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Дата и время</span>
                 <Input
                   type="datetime-local"
                   name="completedAtLocal"
@@ -201,8 +201,8 @@ export function LfkJournalClient(props: {
                   defaultValue={toDatetimeLocalValue(editSession.completedAt)}
                 />
               </label>
-              <label className="stack gap-1">
-                <span className="eyebrow">Длительность (мин)</span>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Длительность (мин)</span>
                 <Input
                   type="number"
                   name="durationMinutes"
@@ -212,8 +212,8 @@ export function LfkJournalClient(props: {
                   defaultValue={editSession.durationMinutes ?? ""}
                 />
               </label>
-              <label className="stack gap-1">
-                <span className="eyebrow">Сложность 0–10</span>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Сложность 0–10</span>
                 <Input
                   type="number"
                   name="difficulty0_10"
@@ -223,8 +223,8 @@ export function LfkJournalClient(props: {
                   defaultValue={editSession.difficulty0_10 ?? ""}
                 />
               </label>
-              <label className="stack gap-1">
-                <span className="eyebrow">Боль 0–10</span>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Боль 0–10</span>
                 <Input
                   type="number"
                   name="pain0_10"
@@ -234,11 +234,11 @@ export function LfkJournalClient(props: {
                   defaultValue={editSession.pain0_10 ?? ""}
                 />
               </label>
-              <label className="stack gap-1">
-                <span className="eyebrow">Комментарий</span>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Комментарий</span>
                 <textarea
                   name="comment"
-                  className="auth-input"
+                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   rows={3}
                   maxLength={200}
                   defaultValue={editSession.comment ?? ""}

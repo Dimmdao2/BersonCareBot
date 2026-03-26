@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 
 type AdminSettings = {
   devMode: boolean;
@@ -13,37 +13,6 @@ type AdminSettings = {
 };
 
 type AdminSettingsSectionProps = AdminSettings;
-
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (val: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "bg-destructive" : "bg-input"
-      )}
-    >
-      <span
-        className={cn(
-          "pointer-events-none inline-block size-5 rounded-full bg-background shadow-lg ring-0 transition-transform",
-          checked ? "translate-x-5" : "translate-x-0"
-        )}
-      />
-    </button>
-  );
-}
 
 async function patchAdminSetting(key: string, value: unknown): Promise<boolean> {
   const res = await fetch("/api/admin/settings", {
@@ -108,25 +77,23 @@ export function AdminSettingsSection({
         <CardTitle className="text-destructive">Настройки администратора</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Dev mode</span>
-            <span className="text-xs text-muted-foreground">
-              При включении рассылки уходят только на тестовые аккаунты
-            </span>
-          </div>
-          <Toggle checked={devModeVal} onChange={setDevModeVal} disabled={isPending} />
-        </div>
+        <LabeledSwitch
+          label="Dev mode"
+          hint="При включении рассылки уходят только на тестовые аккаунты"
+          checked={devModeVal}
+          onCheckedChange={setDevModeVal}
+          disabled={isPending}
+          switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
+        />
 
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Debug: пересылать входящие админу</span>
-            <span className="text-xs text-muted-foreground">
-              Пересылать все входящие сообщения администратору для отладки
-            </span>
-          </div>
-          <Toggle checked={debugForward} onChange={setDebugForward} disabled={isPending} />
-        </div>
+        <LabeledSwitch
+          label="Debug: пересылать входящие админу"
+          hint="Пересылать все входящие сообщения администратору для отладки"
+          checked={debugForward}
+          onCheckedChange={setDebugForward}
+          disabled={isPending}
+          switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
+        />
 
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium" htmlFor="test-ids-textarea">

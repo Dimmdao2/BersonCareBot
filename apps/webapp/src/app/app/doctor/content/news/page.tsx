@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { PageSection } from "@/components/common/layout/PageSection";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { env } from "@/config/env";
@@ -45,7 +46,7 @@ export default async function DoctorContentNewsPage() {
 
   return (
     <AppShell title="Новости и мотивация" user={session.user} variant="doctor" backHref="/app/doctor/content">
-      <section className="panel stack" style={{ gap: "1.5rem" }}>
+      <PageSection as="section" className="flex flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="m-0">Новости и цитаты для главной пациента</h2>
           <Link href="/app/doctor/content" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
@@ -53,11 +54,11 @@ export default async function DoctorContentNewsPage() {
           </Link>
         </div>
         {!env.DATABASE_URL ? (
-          <p className="empty-state">Нужна база данных для управления новостями.</p>
+          <p className="text-muted-foreground">Нужна база данных для управления новостями.</p>
         ) : (
           <NewsForms newsRows={newsRows} quoteRows={quoteRows} />
         )}
-      </section>
+      </PageSection>
     </AppShell>
   );
 }

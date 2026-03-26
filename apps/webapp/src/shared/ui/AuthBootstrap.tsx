@@ -160,8 +160,8 @@ export function AuthBootstrap() {
 
   if (showPhoneFlow && phoneStep === "code" && challengeId) {
     return (
-      <div id="auth-bootstrap-code-step" className="stack">
-        <p className="eyebrow">Вход по номеру телефона</p>
+      <div id="auth-bootstrap-code-step" className="flex flex-col gap-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход по номеру телефона</p>
         <SmsCodeForm
           challengeId={challengeId}
           retryAfterSeconds={retryAfterSeconds}
@@ -227,10 +227,10 @@ export function AuthBootstrap() {
 
   if (showPhoneFlow) {
     return (
-      <div id="auth-bootstrap-phone-step" className="stack">
-        <p className="eyebrow">Вход по номеру телефона</p>
+      <div id="auth-bootstrap-phone-step" className="flex flex-col gap-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход по номеру телефона</p>
         {state === "error" && error && (
-          <p className="empty-state" style={{ fontSize: 14, color: "#9c4242" }}>{error}</p>
+          <p className="text-sm text-destructive">{error}</p>
         )}
         <PhoneAuthForm
           onSubmit={async (phone) => {
@@ -279,7 +279,7 @@ export function AuthBootstrap() {
           ? "initData: нет (открыто не в Mini App или Telegram не передал)"
           : "initData: проверяем…";
     return (
-      <p className="empty-state" style={{ fontSize: 14, wordBreak: "break-all" }}>
+      <p className="break-all text-sm text-muted-foreground">
         [debug] Нет токена в URL. Ожидается ?t=... или вход через Telegram (initData).
         <br />
         {initLabel}
@@ -292,9 +292,9 @@ export function AuthBootstrap() {
   if (state === "error" && error) {
     return (
       <>
-        <p className="empty-state">{error}</p>
+        <p className="text-muted-foreground">{error}</p>
         {debug && debugInfo && (
-          <pre className="empty-state" style={{ fontSize: 12, textAlign: "left", whiteSpace: "pre-wrap" }}>
+          <pre className="whitespace-pre-wrap text-left text-xs text-muted-foreground">
             [debug] status: {debugInfo.status ?? "—"} {debugInfo.message ?? ""}
           </pre>
         )}
@@ -304,10 +304,10 @@ export function AuthBootstrap() {
 
   return (
     <>
-      <p className="empty-state">
+      <p className="text-muted-foreground">
         {token ? "Проверяем токен интегратора и создаем сессию..." : "Проверяем вход..."}
       </p>
-      {debug && <p className="empty-state" style={{ fontSize: 12 }}>[debug] state: {state}</p>}
+      {debug && <p className="text-xs text-muted-foreground">[debug] state: {state}</p>}
     </>
   );
 }

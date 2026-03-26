@@ -33,7 +33,7 @@ export function ChatView({ variant, messages, emptyText, composer }: ChatViewPro
     <div className="flex min-h-[50vh] flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto pb-4">
         {messages.length === 0 ? (
-          <p className="empty-state text-center text-muted-foreground">{emptyText ?? "Пока нет сообщений."}</p>
+          <p className="text-muted-foreground text-center text-muted-foreground">{emptyText ?? "Пока нет сообщений."}</p>
         ) : (
           groups.map((g) => (
             <div key={g.dayKey}>

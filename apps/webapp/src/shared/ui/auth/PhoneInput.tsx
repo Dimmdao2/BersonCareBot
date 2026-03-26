@@ -40,7 +40,7 @@ export function PhoneInput({
 
   return (
     <form className={cn("flex max-w-sm flex-col gap-2")} onSubmit={handleSubmit}>
-      <label className="eyebrow" htmlFor={id}>
+      <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground" htmlFor={id}>
         Номер телефона
       </label>
       <Input

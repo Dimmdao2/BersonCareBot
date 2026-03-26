@@ -15,7 +15,7 @@ export default async function DoctorPage() {
 
   return (
     <AppShell title="Обзор" user={session.user} variant="doctor">
-      <section id="doctor-dashboard-patients" className="stack mb-6">
+      <section id="doctor-dashboard-patients" className="flex flex-col gap-4 mb-6">
         <h2 className="text-base font-semibold text-muted-foreground">Пациенты</h2>
         <div
           id="doctor-dashboard-patient-tiles"
@@ -44,7 +44,7 @@ export default async function DoctorPage() {
         </div>
       </section>
 
-      <section id="doctor-dashboard-appointments" className="stack mb-8">
+      <section id="doctor-dashboard-appointments" className="flex flex-col gap-4 mb-8">
         <h2 className="text-base font-semibold text-muted-foreground">Записи на приём</h2>
         <div
           id="doctor-dashboard-appointment-tiles"
@@ -140,7 +140,7 @@ function DashboardTile({
     <Link
       id={id}
       href={href}
-      className="panel flex flex-col justify-between gap-1 rounded-xl border border-border/60 p-4 shadow-sm transition-colors hover:bg-muted/40"
+      className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col justify-between gap-1 rounded-xl border border-border/60 p-4 shadow-sm transition-colors hover:bg-muted/40"
     >
       <span className="text-2xl font-semibold tabular-nums text-foreground">{value}</span>
       <span className="text-xs font-medium leading-tight text-muted-foreground">{label}</span>

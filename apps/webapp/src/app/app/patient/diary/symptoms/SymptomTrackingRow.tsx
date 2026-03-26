@@ -27,7 +27,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
   const deleteFormId = `delete-tracking-${id}`;
 
   return (
-    <li id={`patient-symptoms-tracking-item-${id}`} className="list-item flex items-center justify-between gap-2">
+    <li id={`patient-symptoms-tracking-item-${id}`} className="rounded-lg border border-border bg-card p-3 flex items-center justify-between gap-2">
       <strong>{title ?? "—"}</strong>
       <DropdownMenu>
         <DropdownMenuTrigger
@@ -53,9 +53,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
 
       <form id={archiveFormId} action={archiveSymptomTracking} className="hidden" aria-hidden>
         <input type="hidden" name="trackingId" value={id} />
-        <button type="submit" tabIndex={-1}>
-          submit
-        </button>
+        <input type="submit" tabIndex={-1} value="submit" className="sr-only" aria-hidden />
       </form>
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
@@ -63,7 +61,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
           <DialogHeader>
             <DialogTitle>Переименовать симптом</DialogTitle>
           </DialogHeader>
-          <form action={renameSymptomTracking} className="stack gap-3">
+          <form action={renameSymptomTracking} className="flex flex-col gap-3">
             <input type="hidden" name="trackingId" value={id} />
             <Input
               name="newTitle"
@@ -108,7 +106,7 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
           </DialogFooter>
           <form id={deleteFormId} action={deleteSymptomTracking} className="sr-only" aria-hidden>
             <input type="hidden" name="trackingId" value={id} />
-            <button type="submit">Удалить</button>
+            <input type="submit" value="Удалить" className="sr-only" aria-hidden />
           </form>
         </DialogContent>
       </Dialog>

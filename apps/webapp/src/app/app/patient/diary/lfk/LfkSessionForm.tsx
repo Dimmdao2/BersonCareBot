@@ -65,7 +65,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
   return (
     <form
       id="patient-lfk-mark-session-form"
-      className="stack gap-3"
+      className="flex flex-col gap-3"
       action={async (fd) => {
         await markLfkSession(fd);
         toast.success("Запись добавлена");
@@ -74,9 +74,9 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       {single ? (
         <input type="hidden" name="complexId" value={complexes[0].id} />
       ) : (
-        <label className="stack gap-1">
-          <span className="eyebrow">Комплекс</span>
-          <select name="complexId" required className="auth-input">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Комплекс</span>
+          <select name="complexId" required className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {complexes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.title ?? "—"}
@@ -92,7 +92,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
 
       <div className="flex min-w-0 gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="eyebrow">Дата</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Дата</span>
           <Button
             type="button"
             variant="outline"
@@ -106,7 +106,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           </Button>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="eyebrow">Время</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Время</span>
           <Button
             type="button"
             variant="outline"
@@ -133,7 +133,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
             type="date"
             value={dateDraft}
             onChange={(e) => setDateDraft(e.target.value)}
-            className="auth-input"
+            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <DialogFooter className="flex flex-row flex-wrap gap-2 sm:justify-between">
             <Button
@@ -174,7 +174,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
             type="time"
             value={timeDraft}
             onChange={(e) => setTimeDraft(e.target.value)}
-            className="auth-input"
+            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <DialogFooter>
             <Button
@@ -191,20 +191,20 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
         </DialogContent>
       </Dialog>
 
-      <label className="stack gap-1">
-        <span className="eyebrow">Длительность (мин)</span>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Длительность (мин)</span>
         <Input
           type="number"
           name="durationMinutes"
           min={1}
           max={600}
           placeholder="длительность выполнения"
-          className="auth-input"
+          className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <span className="text-xs text-muted-foreground">минут</span>
       </label>
-      <label className="stack gap-1">
-        <span className="eyebrow">Сложность выполнения: {difficulty} баллов из 10</span>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Сложность выполнения: {difficulty} баллов из 10</span>
         <input
           type="range"
           name="difficulty0_10_range"
@@ -222,8 +222,8 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           aria-valuenow={difficulty}
         />
       </label>
-      <label className="stack gap-1">
-        <span className="eyebrow">Боль: {pain} баллов из 10</span>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Боль: {pain} баллов из 10</span>
         <input
           type="range"
           name="pain0_10_range"
@@ -241,9 +241,9 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           aria-valuenow={pain}
         />
       </label>
-      <label className="stack gap-1">
-        <span className="eyebrow">Комментарий</span>
-        <Textarea name="comment" placeholder="Комментарий" maxLength={200} rows={3} className="auth-input" />
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Комментарий</span>
+        <Textarea name="comment" placeholder="Комментарий" maxLength={200} rows={3} />
       </label>
       <Button type="submit">Сохранить</Button>
     </form>

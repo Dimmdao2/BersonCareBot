@@ -46,16 +46,16 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
 
   return (
     <AppShell title="Упражнения ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
-      <div className="stack gap-4">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end gap-3">
           <form method="get" className="flex flex-wrap items-end gap-2">
-            <div className="stack gap-1">
+            <div className="flex flex-col gap-1">
               <label className="text-xs text-muted-foreground" htmlFor="ex-q">
                 Поиск по названию
               </label>
               <Input id="ex-q" name="q" defaultValue={q} placeholder="Название" className="w-56" />
             </div>
-            <div className="stack gap-1">
+            <div className="flex flex-col gap-1">
               <label className="text-xs text-muted-foreground" htmlFor="ex-region">
                 ID области (справочник)
               </label>
@@ -67,14 +67,14 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
                 className="w-64 font-mono text-xs"
               />
             </div>
-            <div className="stack gap-1">
+            <div className="flex flex-col gap-1">
               <label className="text-xs text-muted-foreground" htmlFor="ex-load">
                 Тип нагрузки
               </label>
               <select
                 id="ex-load"
                 name="load"
-                className="auth-input h-9 text-sm"
+                className="h-9 w-auto min-w-[10rem] rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 defaultValue={loadType ?? ""}
               >
                 <option value="">Все</option>
@@ -99,7 +99,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         </div>
 
         {list.length === 0 ? (
-          <p className="empty-state">Нет упражнений по заданным фильтрам.</p>
+          <p className="text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {list.map((ex) => (
@@ -115,7 +115,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
                       </Link>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="stack gap-2 text-sm">
+                  <CardContent className="flex flex-col gap-2 text-sm">
                     <div className="flex flex-wrap gap-1">
                       {ex.loadType ? (
                         <Badge variant="secondary">{LOAD_LABEL[ex.loadType]}</Badge>

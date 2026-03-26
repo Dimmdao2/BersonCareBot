@@ -13,6 +13,7 @@ import type { SessionUser } from "@/shared/types/session";
 import { PatientHeader } from "@/shared/ui/PatientHeader";
 import { AskQuestionFAB } from "@/shared/ui/AskQuestionFAB";
 import { PatientQuickAddFAB } from "@/app/app/patient/components/PatientQuickAddFAB";
+import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
@@ -45,7 +46,7 @@ export function AppShell({
     return (
       <div
         id="app-shell-patient"
-        className="app-shell--patient mx-auto flex min-h-screen w-full max-w-[480px] flex-col"
+        className="safe-padding-patient mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col bg-[var(--patient-surface)] pt-0"
       >
         <PatientHeader
           pageTitle={title}
@@ -55,7 +56,7 @@ export function AppShell({
         />
         <main
           id="app-shell-content"
-          className="content-area flex min-h-0 flex-1 flex-col"
+          className="flex min-h-0 flex-1 flex-col gap-[var(--patient-gap)]"
         >
           {children}
         </main>
@@ -71,9 +72,9 @@ export function AppShell({
     return (
       <div
         id="app-shell-doctor"
-        className="app-shell app-shell--doctor mx-auto w-full max-w-7xl px-4 pb-8 md:px-6"
+        className="mx-auto w-full max-w-7xl px-4 pb-8 md:px-6"
       >
-        <main id="app-shell-content" className="content-area">
+        <main id="app-shell-content" className="flex flex-col gap-4">
           {children}
         </main>
       </div>
@@ -83,38 +84,40 @@ export function AppShell({
   return (
     <div
       id="app-shell-default"
-      className={`app-shell ${titleSmall ? "app-shell--title-small" : ""}`}
+      className="mx-auto max-w-[600px] min-h-screen px-4 pb-12 pt-6"
     >
-      <header id="app-shell-top-bar" className="top-bar">
+      <header
+        id="app-shell-top-bar"
+        className="mb-6 flex flex-col gap-4 rounded-[20px] border border-border/80 bg-card/95 px-5 py-5 shadow-sm backdrop-blur-md max-[720px]:items-start md:flex-row md:items-center md:justify-between"
+      >
         <div>
-          <div id="app-shell-title-row" className="top-bar__title-row">
+          <div id="app-shell-title-row" className="flex items-center gap-4">
             {backHref ? (
-              <Link
-                href={backHref}
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "button--back shrink-0")}
-              >
+              <Link href={backHref} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}>
                 {backLabel}
               </Link>
             ) : null}
             <div>
-              <div className="eyebrow">BersonCare Platform</div>
-              <h1 className={backHref ? "top-bar__h1--with-back" : undefined}>{title}</h1>
+              <SectionHeading level="eyebrow">BersonCare Platform</SectionHeading>
+              <h1 className={titleSmall || backHref ? "text-xl font-semibold tracking-tight" : "text-[1.75rem] font-semibold leading-tight"}>
+                {title}
+              </h1>
             </div>
           </div>
         </div>
-        <div id="app-shell-top-bar-actions" className="top-bar__actions">
+        <div id="app-shell-top-bar-actions" className="flex w-full flex-wrap items-center gap-3 max-[720px]:justify-between md:w-auto">
           {user ? (
-            <div className="user-pill">
+            <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-2 text-sm text-foreground">
               <span>{user.displayName}</span>
-              <span className="user-pill__role">{user.role}</span>
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{user.role}</span>
             </div>
           ) : null}
-          <Link href="/app/settings" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+          <Link href="/app/settings" className={buttonVariants({ variant: "ghost", size: "sm" })}>
             Настройки
           </Link>
         </div>
       </header>
-      <main id="app-shell-content" className="content-area">
+      <main id="app-shell-content" className="flex flex-col gap-4">
         {children}
       </main>
     </div>

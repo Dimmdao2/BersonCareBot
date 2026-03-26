@@ -34,11 +34,7 @@ export function ClientsFilters({ defaults, onChange }: ClientsFiltersProps) {
   };
 
   return (
-    <div
-      id="doctor-clients-filters"
-      className="clients-filters"
-      style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}
-    >
+    <div id="doctor-clients-filters" className="mb-4 flex flex-wrap gap-2">
       <Button
         type="button"
         id="doctor-clients-filter-telegram"

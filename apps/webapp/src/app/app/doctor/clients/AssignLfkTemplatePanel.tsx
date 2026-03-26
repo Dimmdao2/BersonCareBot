@@ -32,11 +32,11 @@ export function AssignLfkTemplatePanel({
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-md border border-border/60 p-3 sm:flex-row sm:flex-wrap sm:items-end">
-      <div className="stack min-w-[200px] flex-1 gap-1">
+      <div className="flex min-w-[200px] flex-1 flex-col gap-1">
         <Label htmlFor={`assign-lfk-${patientUserId}`}>Шаблон</Label>
         <select
           id={`assign-lfk-${patientUserId}`}
-          className="auth-input text-sm"
+          className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring text-sm"
           value={templateId}
           onChange={(e) => setTemplateId(e.target.value)}
         >

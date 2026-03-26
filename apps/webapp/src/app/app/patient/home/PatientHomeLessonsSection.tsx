@@ -17,9 +17,9 @@ const RAW_PLAN_LESSON_CATEGORIES = [
 export function PatientHomeLessonsSection({ emergency, lessons }: Props) {
   if (!emergency && lessons.length === 0) return null;
   return (
-    <section id="patient-home-lessons-section" className="stack gap-3">
+    <section id="patient-home-lessons-section" className="flex flex-col gap-3">
       <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">Уроки</h2>
-      <div className="feature-grid">
+      <div className="grid gap-4 md:grid-cols-2">
         {emergency ? (
           <FeatureCard
             key={emergency.id}
