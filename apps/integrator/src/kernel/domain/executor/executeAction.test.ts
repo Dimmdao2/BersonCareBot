@@ -1020,6 +1020,47 @@ describe('executeAction', () => {
       },
     });
 
+    const replyKeyboardWithWebAppResult = await executeAction({
+      id: 'a14webapp',
+      type: 'message.replyKeyboard.show',
+      mode: 'async',
+      params: {
+        chatId: 321,
+        templateKey: 'telegram:chooseMenu',
+        keyboard: [[{ textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappHomeUrl' }]],
+        resizeKeyboard: true,
+      },
+    }, {
+      ...ctx,
+      base: {
+        ...ctx.base,
+        facts: { links: { webappHomeUrl: 'https://webapp.example/app?ctx=bot' } },
+      },
+    }, {
+      templatePort: {
+        renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
+          text: templateId === 'chooseMenu'
+            ? 'Выберите действие'
+            : templateId === 'menu.more'
+              ? '⚙️ Меню'
+              : '',
+        })),
+      },
+    });
+
+    expect(replyKeyboardWithWebAppResult.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 321 },
+        message: { text: 'Выберите действие' },
+        replyMarkup: {
+          keyboard: [[{ text: '⚙️ Меню', web_app: { url: 'https://webapp.example/app?ctx=bot' } }]],
+          resize_keyboard: true,
+          one_time_keyboard: false,
+        },
+      },
+    });
+
     const replyKeyboardWithPhoneResult = await executeAction({
       id: 'a14b',
       type: 'message.replyKeyboard.show',

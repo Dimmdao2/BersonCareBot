@@ -6,15 +6,15 @@ import { describe, expect, it } from 'vitest';
 const dir = dirname(fileURLToPath(import.meta.url));
 
 describe('telegram user static content', () => {
-  it('replyMenu: три строки — запись, дневник, меню (столбиком)', () => {
+  it('replyMenu: одна строка — запись, дневник и меню; diary/menu открывают webapp сразу', () => {
     const rows = JSON.parse(readFileSync(join(dir, 'replyMenu.json'), 'utf8')) as Array<
-      Array<{ textTemplateKey: string }>
+      Array<{ textTemplateKey: string; webAppUrlFact?: string }>
     >;
-    expect(rows).toHaveLength(3);
-    expect(rows.map((r) => r[0]?.textTemplateKey)).toEqual([
-      'telegram:menu.book',
-      'telegram:menu.diary',
-      'telegram:menu.more',
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual([
+      { textTemplateKey: 'telegram:menu.book' },
+      { textTemplateKey: 'telegram:menu.diary', webAppUrlFact: 'links.webappDiaryUrl' },
+      { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappHomeUrl' },
     ]);
   });
 

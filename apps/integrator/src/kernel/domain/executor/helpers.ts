@@ -331,12 +331,20 @@ export async function buildReplyMarkup(input: {
   vars?: unknown;
 }): Promise<unknown> {
   if (Array.isArray(input.params.keyboard)) {
+    const facts = asRecord(input.ctx.base?.facts ?? {});
     const keyboard = await Promise.all(input.params.keyboard.map(async (row) => {
       if (!Array.isArray(row)) return [];
       return Promise.all(row.map(async (item) => {
         const button = asRecord(item);
+        const text = await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars });
+        const webAppUrlFact = asString(button.webAppUrlFact);
+        const webAppUrl = webAppUrlFact
+          ? (getFactByPath(facts, webAppUrlFact) as string | undefined)
+          : undefined;
+        const webAppUrlString = typeof webAppUrl === 'string' && webAppUrl.trim().length > 0 ? webAppUrl.trim() : null;
         return {
-          text: await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars }),
+          text,
+          ...(webAppUrlString ? { web_app: { url: webAppUrlString } } : {}),
           ...(isPhoneRequestButton(button) ? { request_contact: true } : {}),
         };
       }));

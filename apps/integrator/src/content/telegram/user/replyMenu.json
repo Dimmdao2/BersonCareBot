@@ -1,5 +1,7 @@
 [
-  [{ "textTemplateKey": "telegram:menu.book" }],
-  [{ "textTemplateKey": "telegram:menu.diary" }],
-  [{ "textTemplateKey": "telegram:menu.more" }]
+  [
+    { "textTemplateKey": "telegram:menu.book" },
+    { "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
+    { "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+  ]
 ]
