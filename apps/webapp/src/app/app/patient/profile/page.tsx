@@ -1,6 +1,7 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { LogoutSection } from "./LogoutSection";
@@ -9,6 +10,8 @@ import { ProfileForm } from "./ProfileForm";
 
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
+  const platformEntry = await getPlatformEntry();
+  const showPinSection = platformEntry !== "bot";
   const deps = buildAppDeps();
   const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
   const channelCards = await deps.channelPreferences.getChannelCards(
@@ -42,10 +45,12 @@ export default async function PatientProfilePage() {
         />
       </section>
 
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <h2>PIN для входа</h2>
-        <PinSection />
-      </section>
+      {showPinSection ? (
+        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+          <h2>PIN для входа</h2>
+          <PinSection />
+        </section>
+      ) : null}
 
       <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Привязанные каналы</h2>

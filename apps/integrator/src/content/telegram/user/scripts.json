@@ -484,7 +484,14 @@
 					"recipient": { "chatId": "{{actor.chatId}}" },
 					"message": {},
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:bookingMessage"
+					"templateKey": "telegram:bookingMessage",
+					"inlineKeyboard": [
+						[
+							{ "textTemplateKey": "telegram:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" },
+							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
+							{ "textTemplateKey": "telegram:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }
+						]
+					]
 				}
 			}
 		]
