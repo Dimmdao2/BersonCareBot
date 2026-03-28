@@ -69,9 +69,9 @@ export function InlineEditField({
         {!editing ? (
           <Button
             type="button"
-            variant="ghost"
+            variant="link"
             size="sm"
-            className="h-8 shrink-0 px-2 text-xs"
+            className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-medium"
             disabled={disabled}
             onClick={() => {
               setEditing(true);

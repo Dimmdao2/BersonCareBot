@@ -49,7 +49,7 @@ export function ProfileForm({
         onSave={handleSaveName}
       />
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 border-t border-border pt-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Телефон</span>
           {!phone ? (

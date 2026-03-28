@@ -8,13 +8,15 @@
 import {
   createContext,
   useLayoutEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import type { PlatformEntry, PlatformMode } from "@/shared/lib/platform";
 import {
   DESKTOP_BREAKPOINT,
-  serializePlatformBotCookie,
+  serializePlatformCookie,
 } from "@/shared/lib/platform";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 
@@ -34,7 +36,9 @@ function initialModeFromHint(hint: PlatformEntry): PlatformMode {
 }
 
 export function PlatformProvider({ serverHint, children }: Props) {
+  const router = useRouter();
   const [mode, setMode] = useState<PlatformMode>(() => initialModeFromHint(serverHint));
+  const syncedEntryRef = useRef<PlatformEntry | null>(null);
 
   useLayoutEffect(() => {
     let cancelled = false;
@@ -43,10 +47,15 @@ export function PlatformProvider({ serverHint, children }: Props) {
     const syncFromEnvironment = () => {
       if (cancelled) return;
       const inMini = isMessengerMiniAppHost();
-      if (inMini) {
-        if (serverHint !== "bot") {
-          document.cookie = serializePlatformBotCookie({ secure: isSecureClient() });
+      const desiredEntry: PlatformEntry = inMini ? "bot" : "standalone";
+      if (serverHint !== desiredEntry) {
+        document.cookie = serializePlatformCookie(desiredEntry, { secure: isSecureClient() });
+        if (syncedEntryRef.current !== desiredEntry) {
+          syncedEntryRef.current = desiredEntry;
+          router.refresh();
         }
+      }
+      if (inMini) {
         setMode("bot");
         return;
       }
@@ -65,7 +74,7 @@ export function PlatformProvider({ serverHint, children }: Props) {
       cancelled = true;
       mq.removeEventListener("change", onViewportChange);
     };
-  }, [serverHint]);
+  }, [router, serverHint]);
 
   return (
     <PlatformContext.Provider value={mode}>{children}</PlatformContext.Provider>

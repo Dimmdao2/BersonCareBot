@@ -22,8 +22,15 @@ export type PlatformCookieSerializeOptions = {
  * Строка Set-Cookie-подобных атрибутов для `document.cookie` (fallback в Mini App).
  * В production: SameSite=None; Secure. Локально по http — Lax без Secure.
  */
-export function serializePlatformBotCookie(opts: PlatformCookieSerializeOptions): string {
+export function serializePlatformCookie(
+  entry: PlatformEntry,
+  opts: PlatformCookieSerializeOptions,
+): string {
   const sameSite = opts.secure ? "None" : "Lax";
   const securePart = opts.secure ? "; Secure" : "";
-  return `${PLATFORM_COOKIE_NAME}=bot; Path=/; Max-Age=${PLATFORM_COOKIE_MAX_AGE}; SameSite=${sameSite}${securePart}`;
+  return `${PLATFORM_COOKIE_NAME}=${entry}; Path=/; Max-Age=${PLATFORM_COOKIE_MAX_AGE}; SameSite=${sameSite}${securePart}`;
+}
+
+export function serializePlatformBotCookie(opts: PlatformCookieSerializeOptions): string {
+  return serializePlatformCookie("bot", opts);
 }

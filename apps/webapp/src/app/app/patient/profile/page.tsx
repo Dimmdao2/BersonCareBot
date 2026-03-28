@@ -57,7 +57,7 @@ export default async function PatientProfilePage() {
         <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
       </section>
 
-      <LogoutSection />
+      {platformEntry !== "bot" ? <LogoutSection /> : null}
     </AppShell>
   );
 }
