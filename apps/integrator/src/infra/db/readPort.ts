@@ -9,7 +9,7 @@ import type {
 } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { getAdminStats } from './repos/adminStats.js';
-import { getIdentityIdByResourceAndExternalId, getLinkDataByIdentity, getNotificationSettings } from './repos/channelUsers.js';
+import { getChannelIdsByUserId, getIdentityIdByResourceAndExternalId, getLinkDataByIdentity, getNotificationSettings } from './repos/channelUsers.js';
 import {
   getDueReminderOccurrences,
   getEnabledReminderRules,
@@ -202,6 +202,11 @@ export function createDbReadPort(input: {
           if (!userIdParam) return [] as T;
           if (!subscriptionMailingReadsPort) return [] as T;
           return (await subscriptionMailingReadsPort.getSubscriptionsByUserId(userIdParam)) as T;
+        }
+        case 'identities.allByUserId': {
+          const userIdParam = asNonEmptyString(query.params.userId);
+          if (!userIdParam) return [] as T;
+          return (await getChannelIdsByUserId(db, userIdParam)) as T;
         }
         default:
           return null as T;

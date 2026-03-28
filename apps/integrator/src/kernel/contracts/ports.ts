@@ -37,7 +37,8 @@ export type DbReadQueryType =
   | 'reminders.occurrences.due'
   | 'delivery.pending'
   | 'mailing.topics.list'
-  | 'subscriptions.byUser';
+  | 'subscriptions.byUser'
+  | 'identities.allByUserId';
 
 /** Категории write-мутаций к хранилищу. */
 export type DbWriteMutationType =

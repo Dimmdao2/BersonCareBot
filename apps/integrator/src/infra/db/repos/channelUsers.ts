@@ -457,6 +457,32 @@ export async function getLinkDataByIdentity(
   }
 }
 
+/** Returns all channel identities for a given userId (telegram + max). */
+export async function getChannelIdsByUserId(
+  db: DbPort,
+  userId: string,
+): Promise<Array<{ resource: string; externalId: string; chatId: number }>> {
+  const query = `
+    SELECT i.resource, i.external_id::text AS external_id
+    FROM identities i
+    WHERE i.user_id = $1 AND i.resource IN ('telegram', 'max')
+    ORDER BY i.resource ASC
+  `;
+  try {
+    const res = await db.query<{ resource: string; external_id: string }>(query, [userId]);
+    return res.rows.map((row) => {
+      const chatId = Number(row.external_id);
+      return {
+        resource: row.resource,
+        externalId: row.external_id,
+        chatId: Number.isFinite(chatId) ? chatId : 0,
+      };
+    }).filter((row) => row.chatId > 0);
+  } catch {
+    return [];
+  }
+}
+
 /** Returns identity id by (resource, external_id) for use when drafting needs it. */
 export async function getIdentityIdByResourceAndExternalId(
   db: DbPort,

@@ -138,11 +138,13 @@ export async function handleReminders(
     const items = Array.isArray(dueList) ? dueList : [];
     const writes: import('../../../contracts/index.js').DbWriteMutation[] = [];
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+
     for (const occ of items) {
       writes.push({
         type: 'reminders.occurrence.markQueued',
         params: { occurrenceId: occ.id, deliveryJobId: null },
       });
+
       const templateKey = REMINDER_BY_CATEGORY[occ.category] ?? 'telegram:reminder.exercise';
       const text = deps.templatePort
         ? (await deps.templatePort.renderTemplate({
@@ -152,21 +154,56 @@ export async function handleReminders(
           audience: 'user',
         })).text
         : 'Пора подвигаться';
-      intents.push({
-        type: 'message.send',
-        meta: {
-          eventId: `${ctx.event.meta.eventId}:reminder:${occ.id}`,
-          occurredAt: dueNowIso,
-          source: 'scheduler',
-          userId: occ.userId,
-        },
-        payload: {
-          recipient: { chatId: occ.chatId },
-          message: { text },
-          delivery: { channels: ['telegram'], maxAttempts: 1 },
-        },
+
+      // Look up all available channel identities for this user (telegram + max)
+      type ChannelIdentity = { resource: string; externalId: string; chatId: number };
+      const allIdentities = await deps.readPort.readDb<ChannelIdentity[]>({
+        type: 'identities.allByUserId',
+        params: { userId: occ.userId },
       });
+
+      // Use telegram identity from the occurrence (already confirmed valid), then add max if available
+      const channelsToSend: Array<{ channel: 'telegram' | 'max'; chatId: number; externalId: string }> = [];
+      if (occ.chatId > 0) {
+        channelsToSend.push({ channel: 'telegram', chatId: occ.chatId, externalId: String(occ.chatId) });
+      }
+      if (Array.isArray(allIdentities)) {
+        for (const identity of allIdentities) {
+          if (identity.resource === 'max' && identity.chatId > 0) {
+            channelsToSend.push({ channel: 'max', chatId: identity.chatId, externalId: identity.externalId });
+          }
+        }
+      }
+
+      for (const { channel, chatId, externalId } of channelsToSend) {
+        const deliveryLogId = `rdl:${occ.id}:${channel}`;
+        intents.push({
+          type: 'message.send',
+          meta: {
+            eventId: `${ctx.event.meta.eventId}:reminder:${occ.id}:${channel}`,
+            occurredAt: dueNowIso,
+            source: 'scheduler',
+            userId: occ.userId,
+          },
+          payload: {
+            recipient: { chatId },
+            message: { text },
+            delivery: { channels: [channel], maxAttempts: 1 },
+          },
+        });
+        writes.push({
+          type: 'reminders.delivery.log',
+          params: {
+            id: deliveryLogId,
+            occurrenceId: occ.id,
+            channel,
+            status: 'success',
+            payloadJson: { chatId: externalId, text },
+          },
+        });
+      }
     }
+
     await persistWrites(deps.writePort, writes);
     return { actionId: action.id, status: 'success', writes, intents };
   }
