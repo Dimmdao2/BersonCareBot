@@ -101,9 +101,9 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
             <EllipsisVertical className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-52">
-            <DropdownMenuLabel>Действия</DropdownMenuLabel>
-            <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              <DropdownMenuLabel>Действия</DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => router.push(`/app/doctor/content/edit/${id}`)}>
                 Редактировать
               </DropdownMenuItem>

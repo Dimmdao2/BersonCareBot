@@ -131,9 +131,9 @@ function SortableNewsRow({
             <EllipsisVertical className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuLabel>Действия</DropdownMenuLabel>
-            <DropdownMenuSeparator />
             <DropdownMenuGroup>
+              <DropdownMenuLabel>Действия</DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => onToggleExpand(n.id)}>
                 {expanded ? "Свернуть" : "Изменить"}
               </DropdownMenuItem>
