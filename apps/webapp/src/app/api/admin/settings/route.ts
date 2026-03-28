@@ -8,6 +8,7 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { ALLOWED_KEYS } from "@/modules/system-settings/types";
+import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
 
 const ADMIN_SCOPE_KEYS = [
   "sms_fallback_enabled",
@@ -15,6 +16,23 @@ const ADMIN_SCOPE_KEYS = [
   "dev_mode",
   "important_fallback_delay_minutes",
   "integration_test_ids",
+  // Pack B1: non-secret runtime config keys
+  "integrator_api_url",
+  "booking_url",
+  "telegram_bot_username",
+  "google_calendar_enabled",
+  "google_calendar_id",
+  "yandex_oauth_redirect_uri",
+  // Pack B2: whitelist IDs
+  "allowed_telegram_ids",
+  "allowed_max_ids",
+  "admin_telegram_ids",
+  "doctor_telegram_ids",
+  "admin_max_ids",
+  "doctor_max_ids",
+  "admin_phones",
+  "doctor_phones",
+  "allowed_phones",
 ] as const;
 
 const patchSchema = z.object({
@@ -70,5 +88,9 @@ export async function PATCH(request: Request) {
     parsed.data.value,
     session.user.userId
   );
+
+  // Invalidate configAdapter cache for updated key
+  invalidateConfigKey(parsed.data.key);
+
   return NextResponse.json({ ok: true, setting });
 }
