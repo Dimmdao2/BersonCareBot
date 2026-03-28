@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import type { AuthMethodsPayload } from "@/modules/auth/checkPhoneMethods";
+import { isOtpChannelAvailable, OTP_OTHER_CHANNELS_ORDER, pickPrimaryOtpChannel } from "@/modules/auth/otpChannelUi";
 import { isSafeNext } from "@/modules/auth/redirectPolicy";
 import { ChannelPicker } from "@/shared/ui/auth/ChannelPicker";
 import { OtpCodeForm, type OtpAlternativeEntry, type OtpResendOutcome } from "@/shared/ui/auth/OtpCodeForm";
@@ -32,13 +33,6 @@ type Step = "phone" | "new_user_sms" | "pin" | "choose_channel" | "code" | "set_
 
 type OtpChannel = "sms" | "telegram" | "max" | "email";
 
-function pickPrimaryChannel(methods: AuthMethodsPayload): OtpChannel {
-  if (methods.telegram) return "telegram";
-  if (methods.max) return "max";
-  if (methods.email) return "email";
-  return "sms";
-}
-
 function otpDescription(channel: OtpChannel, emailAddress?: string): string {
   switch (channel) {
     case "telegram":
@@ -58,36 +52,41 @@ function buildAlternatives(
   onChoose: (ch: OtpChannel) => Promise<OtpResendOutcome>,
 ): OtpAlternativeEntry[] {
   const result: OtpAlternativeEntry[] = [];
-  if (methods.telegram && currentChannel !== "telegram") {
-    result.push({
-      label: "Получить код в Telegram",
-      onClick: async () => {
-        await onChoose("telegram");
-      },
-    });
-  }
-  if (methods.max && currentChannel !== "max") {
-    result.push({
-      label: "Получить код в Max",
-      onClick: async () => {
-        await onChoose("max");
-      },
-    });
-  }
-  if (methods.email && currentChannel !== "email") {
+  for (const ch of OTP_OTHER_CHANNELS_ORDER) {
+    if (ch === currentChannel) continue;
+    if (!isOtpChannelAvailable(methods, ch)) continue;
+    if (ch === "sms") {
+      result.push({
+        label: "Получить код по SMS",
+        asText: true,
+        onClick: async () => {
+          await onChoose("sms");
+        },
+      });
+      continue;
+    }
+    if (ch === "telegram") {
+      result.push({
+        label: "Получить код в Telegram",
+        onClick: async () => {
+          await onChoose("telegram");
+        },
+      });
+      continue;
+    }
+    if (ch === "max") {
+      result.push({
+        label: "Получить код в Max",
+        onClick: async () => {
+          await onChoose("max");
+        },
+      });
+      continue;
+    }
     result.push({
       label: `Получить код на email${methods.emailAddress ? ` (${methods.emailAddress})` : ""}`,
       onClick: async () => {
         await onChoose("email");
-      },
-    });
-  }
-  if (currentChannel !== "sms") {
-    result.push({
-      label: "Получить код по SMS",
-      asText: true,
-      onClick: async () => {
-        await onChoose("sms");
       },
     });
   }
@@ -193,7 +192,7 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
       } else if (data.methods.pin) {
         setStep("pin");
       } else {
-        const primary = pickPrimaryChannel(data.methods);
+        const primary = pickPrimaryOtpChannel(data.methods);
         const outcome = await startPhoneOtp(primary, "auto");
         if (outcome.kind !== "ok") {
           setStep("choose_channel");

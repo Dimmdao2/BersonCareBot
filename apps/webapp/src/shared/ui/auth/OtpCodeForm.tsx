@@ -20,7 +20,7 @@ export type OtpResendOutcome =
   | { kind: "rate_limited"; retryAfterSeconds: number }
   | { kind: "error"; message: string };
 
-/** Варианты в блоке «Другие варианты» (доставка кода другим каналом). */
+/** Варианты в блоке «Другие способы» (доставка кода другим каналом). */
 export type OtpAlternativeEntry = {
   label: string;
   /** true — текстовая ссылка вместо кнопки */
@@ -33,7 +33,7 @@ type OtpCodeFormProps = {
   retryAfterSeconds?: number;
   submitLabel?: string;
   description?: string;
-  /** Ссылка «отправить на СМС» после доставки через мессенджер/email */
+  /** Раскрывающийся «Другие способы» с переотправкой на СМС (когда нет списка alternatives). */
   smsFallbackLink?: boolean;
   onRequestSms?: () => Promise<OtpResendOutcome>;
   /** Раскрывающийся список альтернативных каналов + ссылка в поддержку */
@@ -63,6 +63,7 @@ export function OtpCodeForm({
   const [canResend, setCanResend] = useState(false);
   const [hardBlocked, setHardBlocked] = useState(false);
   const [altExpanded, setAltExpanded] = useState(false);
+  const [smsFallbackExpanded, setSmsFallbackExpanded] = useState(false);
 
   /** Новый challenge / интервал после повторной отправки — сброс поля и таймера. */
   useEffect(() => {
@@ -72,6 +73,7 @@ export function OtpCodeForm({
     setResendCountdown(retryAfterSeconds);
     setCanResend(false);
     setAltExpanded(false);
+    setSmsFallbackExpanded(false);
   }, [challengeId, retryAfterSeconds]);
 
   useEffect(() => {
@@ -193,15 +195,27 @@ export function OtpCodeForm({
         ) : null}
       </div>
       {smsFallbackLink && onRequestSms ? (
-        <Button
-          type="button"
-          variant="link"
-          className="h-auto min-h-0 px-0 py-0 text-xs font-normal"
-          onClick={() => void handleRequestSms()}
-          disabled={loading || resendLoading || hardBlocked}
-        >
-          {resendLoading ? "Отправка…" : "отправить на СМС"}
-        </Button>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            className="w-fit text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            onClick={() => setSmsFallbackExpanded((v) => !v)}
+            disabled={loading || hardBlocked}
+            aria-expanded={smsFallbackExpanded}
+          >
+            Другие способы
+          </button>
+          {smsFallbackExpanded ? (
+            <button
+              type="button"
+              className="w-fit pl-1 text-left text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+              onClick={() => void handleRequestSms()}
+              disabled={loading || resendLoading || hardBlocked}
+            >
+              {resendLoading ? "Отправка…" : "Получить код по SMS"}
+            </button>
+          ) : null}
+        </div>
       ) : null}
       {alternatives !== undefined ? (
         <div className="flex flex-col gap-2">
@@ -209,10 +223,12 @@ export function OtpCodeForm({
             <>
               <button
                 type="button"
-                className="w-fit text-sm text-muted-foreground underline hover:text-foreground"
+                className="w-fit text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                 onClick={() => setAltExpanded((v) => !v)}
+                disabled={loading || resendLoading || hardBlocked}
+                aria-expanded={altExpanded}
               >
-                Другие варианты
+                Другие способы
               </button>
               {altExpanded ? (
                 <div className="flex flex-col gap-2 pl-1">

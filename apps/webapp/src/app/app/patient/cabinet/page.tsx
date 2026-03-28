@@ -53,7 +53,7 @@ export default async function PatientCabinetPage() {
             href={routePaths.patientBooking}
             className={cn(
               buttonVariants({ variant: "default", size: "default" }),
-              "min-h-11 w-full justify-center rounded-lg text-center text-primary-foreground hover:text-primary-foreground active:text-primary-foreground"
+              "min-h-11 w-full justify-center rounded-lg text-center",
             )}
           >
             Записаться на приём

@@ -10,6 +10,7 @@
  * который нельзя выразить утилитами (markdown из HTML, range pseudo-elements, safe-area).
  */
 
+
 :root {
   color-scheme: light;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -56,11 +57,6 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
 }
 
 /*---break---
@@ -120,7 +116,8 @@ a {
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
   --primary: hsl(215 38% 58%);
-  --primary-foreground: hsl(215 25% 12%);
+  /* Единый контраст с primary-кнопками: светлый текст на «синих» surface (как в light). */
+  --primary-foreground: hsl(0 0% 100%);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -150,6 +147,14 @@ a {
  */
 
 @layer base {
+  /**
+   * Ссылки без underline по умолчанию; color: inherit в слое base,
+   * чтобы классы вроде text-primary-foreground на <Link> не перебивались без слоя.
+   */
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
   * {
     @apply border-border outline-ring/50;
   }
