@@ -71,11 +71,11 @@ function parseIdListFromDbValue(raw: string): string[] {
     if (Array.isArray(parsed)) {
       return parsed.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
     }
+    // JSON.parse succeeded but not an array — treat raw as comma-separated
   } catch {
-    // raw is a plain comma-separated string fallback
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+    // raw is not valid JSON — treat as comma-separated
   }
-  return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 function idInList(id: string, list: string[]): boolean {

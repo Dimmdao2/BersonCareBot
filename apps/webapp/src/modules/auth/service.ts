@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { env, integratorWebappEntrySecret, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
-import { resolveRoleFromEnv, getNormalizedWhitelistedPhonesFromEnv } from "./envRole";
+import { resolveRoleAsync, isWhitelistedAsync } from "./envRole";
 import type { IdentityResolutionPort } from "./identityResolutionPort";
 import { normalizePhone } from "./phoneAuth";
 import { getRedirectPathForRole } from "./redirectPolicy";
@@ -128,55 +128,17 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
   return presets[token] ?? null;
 }
 
-function getAllowedTelegramIds(): Set<string> {
-  const ids = new Set<string>();
-  const raw = env.ALLOWED_TELEGRAM_IDS?.trim() ?? "";
-  for (const s of raw.split(",")) {
-    const t = s.trim();
-    if (t) ids.add(t);
-  }
-  if (typeof env.ADMIN_TELEGRAM_ID === "number") {
-    ids.add(String(env.ADMIN_TELEGRAM_ID));
-  }
-  const doctorRaw = env.DOCTOR_TELEGRAM_IDS?.trim() ?? "";
-  for (const s of doctorRaw.split(",")) {
-    const t = s.trim();
-    if (t) ids.add(t);
-  }
-  return ids;
-}
 
-function getAllowedMaxIds(): Set<string> {
-  const ids = new Set<string>();
-  const raw = env.ALLOWED_MAX_IDS?.trim() ?? "";
-  for (const s of raw.split(",")) {
-    const t = s.trim();
-    if (t) ids.add(t);
-  }
-  for (const s of (env.ADMIN_MAX_IDS ?? "").split(",")) {
-    const t = s.trim();
-    if (t) ids.add(t);
-  }
-  for (const s of (env.DOCTOR_MAX_IDS ?? "").split(",")) {
-    const t = s.trim();
-    if (t) ids.add(t);
-  }
-  return ids;
-}
-
-function isAllowedByWhitelist(parsed: IntegratorTokenPayload): boolean {
+async function isAllowedByWhitelist(parsed: IntegratorTokenPayload): Promise<boolean> {
   if (parsed.role === "admin") return true;
   const telegramId = parsed.bindings?.telegramId;
   const maxId = parsed.bindings?.maxId;
-  if (telegramId && getAllowedTelegramIds().has(telegramId)) return true;
-  if (maxId && getAllowedMaxIds().has(maxId)) return true;
   const phone = parsed.phone?.trim();
-  if (phone && getNormalizedWhitelistedPhonesFromEnv().has(normalizePhone(phone))) return true;
-  return false;
+  return isWhitelistedAsync({ telegramId, maxId, phone });
 }
 
 /** Validates Telegram Web App initData (from window.Telegram.WebApp.initData). Returns user id and role or null. */
-function validateTelegramInitData(initData: string): { telegramId: string; role: UserRole; displayName?: string } | null {
+async function validateTelegramInitData(initData: string): Promise<{ telegramId: string; role: UserRole; displayName?: string } | null> {
   const botToken = env.TELEGRAM_BOT_TOKEN;
   if (!botToken?.trim()) return null;
 
@@ -212,10 +174,9 @@ function validateTelegramInitData(initData: string): { telegramId: string; role:
   const telegramId = user.id != null ? String(user.id) : "";
   if (!telegramId) return null;
 
-  const allowed = getAllowedTelegramIds();
-  if (!allowed.has(telegramId)) return null;
+  if (!(await isWhitelistedAsync({ telegramId }))) return null;
 
-  const role: UserRole = resolveRoleFromEnv({ telegramId });
+  const role: UserRole = await resolveRoleAsync({ telegramId });
   const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || undefined;
 
   return { telegramId, role, displayName };
@@ -251,7 +212,7 @@ export async function exchangeIntegratorToken(
   const parsed = devParsed ?? parseIntegratorToken(token);
   if (!parsed) return null;
 
-  if (!devParsed && !isAllowedByWhitelist(parsed)) return null;
+  if (!devParsed && !(await isAllowedByWhitelist(parsed))) return null;
 
   let user: SessionUser;
   if (identityResolutionPort && !devParsed) {
@@ -270,7 +231,7 @@ export async function exchangeIntegratorToken(
     user = tokenToUser(parsed);
   }
 
-  const envRole = resolveRoleFromEnv({
+  const envRole = await resolveRoleAsync({
     phone: user.phone ?? parsed.phone,
     telegramId: user.bindings?.telegramId ?? parsed.bindings?.telegramId,
     maxId: user.bindings?.maxId ?? parsed.bindings?.maxId,
@@ -302,7 +263,7 @@ export async function exchangeTelegramInitData(
   identityResolutionPort?: IdentityResolutionPort | null,
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
-  const parsed = validateTelegramInitData(initData);
+  const parsed = await validateTelegramInitData(initData);
   if (!parsed) return null;
 
   let user: SessionUser;
@@ -322,7 +283,7 @@ export async function exchangeTelegramInitData(
     };
   }
 
-  const envRole = resolveRoleFromEnv({
+  const envRole = await resolveRoleAsync({
     phone: user.phone,
     telegramId: parsed.telegramId,
     maxId: user.bindings?.maxId,
@@ -386,7 +347,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   const maxId = session.user.bindings?.maxId?.trim();
   if (!phone && !telegramId && !maxId) return session;
 
-  const envRole = resolveRoleFromEnv({ phone, telegramId, maxId });
+  const envRole = await resolveRoleAsync({ phone, telegramId, maxId });
   if (session.user.role === envRole) return session;
 
   const nextUser = { ...session.user, role: envRole };
