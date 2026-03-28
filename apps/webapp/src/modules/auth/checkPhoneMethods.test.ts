@@ -34,6 +34,8 @@ describe("resolveAuthMethodsForPhone", () => {
       oauthBindingsPort: inMemoryOAuthBindingsPort,
     });
     expect(r.exists).toBe(true);
+    if (!r.exists) throw new Error("expected exists");
+    expect(r.userId).toBe(u!.userId);
     expect(r.methods.pin).toBe(true);
     expect(r.methods.telegram).toBe(true);
     // OAuth не включается в UI-методы (скрыт до production-готовности)
@@ -63,6 +65,8 @@ describe("resolveAuthMethodsForPhone", () => {
       oauthBindingsPort: inMemoryOAuthBindingsPort,
     });
     expect(r.exists).toBe(true);
+    if (!r.exists) throw new Error("expected exists");
+    expect(r.userId).toBe(u!.userId);
     expect(r.methods.email).toBe(true);
     expect(r.methods.emailAddress).toBe("user@test.example");
   });

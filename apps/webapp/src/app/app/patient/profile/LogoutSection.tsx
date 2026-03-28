@@ -22,15 +22,17 @@ export function LogoutSection() {
 
   return (
     <section className="mt-4 flex flex-col gap-4">
-      <a
-        href="/api/auth/logout"
-        className={cn(
-          buttonVariants({ variant: "outline", size: "default" }),
-          "border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive active:bg-destructive/15",
-        )}
-      >
-        Выйти из профиля
-      </a>
+      <form action="/api/auth/logout" method="post">
+        <button
+          type="submit"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "default" }),
+            "w-full border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive active:bg-destructive/15",
+          )}
+        >
+          Выйти из профиля
+        </button>
+      </form>
     </section>
   );
 }

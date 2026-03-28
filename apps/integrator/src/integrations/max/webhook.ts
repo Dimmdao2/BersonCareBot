@@ -26,7 +26,8 @@ function buildMaxLinks(data: MaxUpdateValidated): Record<string, unknown> {
     ...(displayName ? { displayName } : {}),
   });
   if (!webappEntryUrl) return {};
-  return { links: { webappEntryUrl } };
+  const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
+  return { links: { webappEntryUrl: baseWebappUrl } };
 }
 
 function buildMaxFacts(data: MaxUpdateValidated): Record<string, unknown> {

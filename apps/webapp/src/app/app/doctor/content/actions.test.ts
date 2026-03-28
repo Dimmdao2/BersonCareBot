@@ -99,6 +99,21 @@ describe("saveContentPage", () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
+  it("rejects slug consisting only of hyphens", async () => {
+    const fd = formWith({
+      section: "lessons",
+      slug: "---",
+      title: "T",
+      summary: "S",
+      body_md: "# x",
+      sort_order: "0",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("дефис");
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown section slug", async () => {
     getBySlugMock.mockResolvedValue(null);
     const fd = formWith({

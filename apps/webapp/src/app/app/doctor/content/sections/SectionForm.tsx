@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { saveContentSection, type SaveContentSectionState } from "./actions";
 
 type SectionRow = {
@@ -17,6 +18,9 @@ type SectionRow = {
 export function SectionForm({ section }: { section?: SectionRow }) {
   const [state, formAction, pending] = useActionState(saveContentSection, null as SaveContentSectionState | null);
   const isEdit = Boolean(section);
+  const [titleValue, setTitleValue] = useState(section?.title ?? "");
+  const [slugValue, setSlugValue] = useState("");
+  const slugManualRef = useRef(false);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -31,35 +35,76 @@ export function SectionForm({ section }: { section?: SectionRow }) {
         </p>
       ) : null}
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>
-        {isEdit ? (
+      {isEdit ? (
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>
           <>
             <input type="hidden" name="slug" value={section!.slug} />
             <Input type="text" value={section!.slug} disabled readOnly />
           </>
+        </label>
+      ) : null}
+
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заголовок</span>
+        {isEdit ? (
+          <Input
+            type="text"
+            name="title"
+            required
+            defaultValue={section?.title ?? ""}
+            key={`title-${section?.slug ?? "new"}`}
+          />
         ) : (
           <Input
             type="text"
-            name="slug"
+            name="title"
             required
-            pattern="[a-z0-9-]+"
-            placeholder="например warmups"
-            key="slug-new"
+            value={titleValue}
+            onChange={(e) => {
+              const t = e.target.value;
+              setTitleValue(t);
+              if (!slugManualRef.current) {
+                const s = slugFromTitle(t);
+                setSlugValue(s ?? fallbackSlug());
+              }
+            }}
           />
         )}
       </label>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заголовок</span>
-        <Input
-          type="text"
-          name="title"
-          required
-          defaultValue={section?.title ?? ""}
-          key={`title-${section?.slug ?? "new"}`}
-        />
-      </label>
+      {!isEdit ? (
+        <label className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              type="text"
+              name="slug"
+              required
+              className="min-w-[12rem] flex-1"
+              value={slugValue}
+              placeholder="например warmups"
+              onChange={(e) => {
+                slugManualRef.current = true;
+                setSlugValue(e.target.value);
+              }}
+              pattern="[a-z0-9-]+"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => {
+                slugManualRef.current = false;
+                const s = slugFromTitle(titleValue);
+                setSlugValue(s ?? fallbackSlug());
+              }}
+            >
+              Сгенерировать
+            </Button>
+          </div>
+        </label>
+      ) : null}
 
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Описание</span>

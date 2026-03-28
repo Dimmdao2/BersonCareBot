@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import { resolveAuthMethodsForPhone } from "@/modules/auth/checkPhoneMethods";
 import { isCheckPhoneRateLimited } from "@/modules/auth/checkPhoneRateLimit";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
@@ -42,9 +43,15 @@ export async function POST(request: Request) {
     oauthBindingsPort: deps.oauthBindings,
   });
 
+  let preferredOtpChannel: OtpUiChannel | null = null;
+  if (result.exists) {
+    preferredOtpChannel = await deps.channelPreferences.getPreferredAuthOtpChannel(result.userId);
+  }
+
   return NextResponse.json({
     ok: true,
     exists: result.exists,
     methods: result.methods,
+    ...(result.exists ? { preferredOtpChannel } : {}),
   });
 }

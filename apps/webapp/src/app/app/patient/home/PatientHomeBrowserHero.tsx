@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { routePaths } from "@/app-layer/routes/paths";
-import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
 /**
- * Верхняя зона главной: кабинет, дневник, запись — общая для браузера и мини-приложения в боте.
+ * Верхняя зона главной: кабинет и дневник. Запись на приём — пункт меню (гамбургер / сетка).
  */
 export function PatientHomeBrowserHero() {
   const cardClass = cn(
@@ -32,15 +31,6 @@ export function PatientHomeBrowserHero() {
           <p className="mt-2 text-sm text-muted-foreground">Управление дневниками и статистика</p>
         </Link>
       </div>
-      <Link
-        href={routePaths.patientBooking}
-        className={cn(
-          buttonVariants({ variant: "default", size: "default" }),
-          "inline-flex min-h-11 w-full justify-center rounded-lg text-center font-semibold shadow-sm",
-        )}
-      >
-        Записаться на приём
-      </Link>
     </section>
   );
 }

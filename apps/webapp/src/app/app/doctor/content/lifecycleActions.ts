@@ -48,3 +48,8 @@ export async function applyContentLifecycle(_prev: LifecycleState | null, formDa
   revalidatePath("/app/patient/content");
   return { ok: true };
 }
+
+/** Для `<form action={…}>` без `useActionState` (один аргумент FormData). */
+export async function applyContentLifecycleForm(formData: FormData): Promise<void> {
+  await applyContentLifecycle(null, formData);
+}

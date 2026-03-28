@@ -12,6 +12,8 @@ type PinInputProps = {
   forgotLabel?: string;
   /** Скрыть ссылку (например при первом вводе PIN в профиле) */
   forgotHidden?: boolean;
+  /** Текст кнопки отправки; по умолчанию «Войти» */
+  submitLabel?: string;
 };
 
 const CELL =
@@ -28,6 +30,7 @@ export function PinInput({
   onForgot,
   forgotLabel,
   forgotHidden = false,
+  submitLabel = "Войти",
 }: PinInputProps) {
   const [digits, setDigits] = useState(["", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
@@ -129,9 +132,14 @@ export function PinInput({
   };
 
   return (
-    <form className={cn("flex max-w-sm flex-col gap-2")} onSubmit={handleManualSubmit}>
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">PIN-код</span>
-      <div className="flex w-full flex-row justify-start gap-3" role="group" aria-label="PIN-код из 4 цифр">
+    <form
+      className={cn("mx-auto flex w-full max-w-sm flex-col items-center gap-3")}
+      onSubmit={handleManualSubmit}
+    >
+      <span className="text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        PIN-код
+      </span>
+      <div className="flex w-full flex-row justify-center gap-3" role="group" aria-label="PIN-код из 4 цифр">
         {digits.map((value, i) => (
           <input
             key={`pin-slot-${i}`}
@@ -155,15 +163,15 @@ export function PinInput({
           />
         ))}
       </div>
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
-      <Button type="submit" disabled={disabled} aria-label="Войти">
-        {disabled ? "Проверка…" : "Войти"}
+      {error ? <p className="text-center text-destructive text-sm">{error}</p> : null}
+      <Button type="submit" disabled={disabled} aria-label={submitLabel} className="w-full max-w-sm">
+        {disabled ? "Проверка…" : submitLabel}
       </Button>
       {!forgotHidden ? (
         <Button
           type="button"
           variant="link"
-          className="h-auto min-h-0 px-0 py-0 text-sm font-normal"
+          className="h-auto min-h-0 px-0 py-0 text-center text-sm font-normal"
           onClick={onForgot}
         >
           {forgotLabel ?? "Не помню PIN"}

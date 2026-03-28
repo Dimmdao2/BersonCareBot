@@ -1,7 +1,14 @@
 import { CHANNEL_LIST } from "./constants";
 import type { ChannelPreferencesPort } from "./ports";
 import type { ChannelCard, ChannelCode } from "./types";
+import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import type { ChannelBindings } from "@/shared/types/session";
+
+function channelCodeToOtpUi(code: ChannelCode | null): OtpUiChannel | null {
+  if (!code || code === "vk") return null;
+  if (code === "telegram" || code === "max" || code === "email" || code === "sms") return code;
+  return null;
+}
 
 export type ChannelDeliveryContext = {
   /** Нормализованный телефон из сессии — для канала SMS. */
@@ -44,6 +51,7 @@ export function createChannelPreferencesService(port: ChannelPreferencesPort) {
         isImplemented: ch.implemented,
         isEnabledForMessages: byCode.get(ch.code)?.isEnabledForMessages ?? true,
         isEnabledForNotifications: byCode.get(ch.code)?.isEnabledForNotifications ?? true,
+        isPreferredForAuth: byCode.get(ch.code)?.isPreferredForAuth ?? false,
       }));
     },
     async updatePreference(
@@ -57,6 +65,13 @@ export function createChannelPreferencesService(port: ChannelPreferencesPort) {
         isEnabledForMessages: patch.isEnabledForMessages,
         isEnabledForNotifications: patch.isEnabledForNotifications,
       });
+    },
+    async getPreferredAuthOtpChannel(userId: string): Promise<OtpUiChannel | null> {
+      const raw = await port.getPreferredAuthChannelCode(userId);
+      return channelCodeToOtpUi(raw);
+    },
+    async setPreferredAuthOtpChannel(userId: string, channel: OtpUiChannel | null): Promise<void> {
+      await port.setPreferredAuthChannel(userId, channel);
     },
   };
 }

@@ -22,6 +22,9 @@ export async function saveContentPage(
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return { ok: false, error: "Slug: только латиница, цифры и дефис" };
   }
+  if (/^-+$/.test(slug)) {
+    return { ok: false, error: "Slug не может состоять только из дефисов" };
+  }
   const title = (formData.get("title") as string)?.trim() || "";
   const summary = (formData.get("summary") as string)?.trim() || "";
   const bodyMd = (formData.get("body_md") as string) ?? "";

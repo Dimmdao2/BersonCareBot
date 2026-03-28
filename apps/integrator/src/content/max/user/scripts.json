@@ -436,7 +436,7 @@
           "messageId": "{{input.messageId}}",
           "templateKey": "max:assistant.webapp.prompt",
           "inlineKeyboard": [
-            [{ "textTemplateKey": "max:assistant.webapp.openButton", "url": "{{facts.links.webappEntryUrl}}" }],
+            [{ "textTemplateKey": "max:assistant.webapp.openButton", "webAppUrlFact": "links.webappEntryUrl" }],
             [{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
           ],
           "delivery": { "channels": ["max"], "maxAttempts": 1 }

@@ -2,23 +2,32 @@ import { describe, expect, it } from "vitest";
 import { createChannelPreferencesService } from "./service";
 import type { ChannelPreferencesPort } from "./ports";
 
+const basePrefs = [
+  { channelCode: "telegram" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
+  { channelCode: "max" as const, isEnabledForMessages: false, isEnabledForNotifications: true, isPreferredForAuth: false },
+  { channelCode: "vk" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
+  { channelCode: "sms" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
+  { channelCode: "email" as const, isEnabledForMessages: true, isEnabledForNotifications: true, isPreferredForAuth: false },
+];
+
 describe("channel-preferences service", () => {
   const mockPort: ChannelPreferencesPort = {
     async getPreferences() {
-      return [
-        { channelCode: "telegram", isEnabledForMessages: true, isEnabledForNotifications: true },
-        { channelCode: "max", isEnabledForMessages: false, isEnabledForNotifications: true },
-        { channelCode: "vk", isEnabledForMessages: true, isEnabledForNotifications: true },
-        { channelCode: "sms", isEnabledForMessages: true, isEnabledForNotifications: true },
-        { channelCode: "email", isEnabledForMessages: true, isEnabledForNotifications: true },
-      ];
+      return [...basePrefs];
     },
     async upsertPreference(params) {
       return {
         channelCode: params.channelCode,
         isEnabledForMessages: params.isEnabledForMessages,
         isEnabledForNotifications: params.isEnabledForNotifications,
+        isPreferredForAuth: false,
       };
+    },
+    async getPreferredAuthChannelCode() {
+      return null;
+    },
+    async setPreferredAuthChannel() {
+      /* noop */
     },
   };
 
@@ -33,6 +42,7 @@ describe("channel-preferences service", () => {
     expect(cards[0].code).toBe("telegram");
     expect(cards[0].isLinked).toBe(true);
     expect(cards[0].isEnabledForMessages).toBe(true);
+    expect(cards[0].isPreferredForAuth).toBe(false);
     expect(cards[1].code).toBe("max");
     expect(cards[1].isLinked).toBe(false);
     expect(cards[1].isEnabledForMessages).toBe(false);
@@ -53,5 +63,27 @@ describe("channel-preferences service", () => {
       isEnabledForNotifications: false,
     });
     // port is mock; just ensure no throw
+  });
+
+  it("getPreferredAuthOtpChannel maps telegram from port", async () => {
+    const port: ChannelPreferencesPort = {
+      ...mockPort,
+      async getPreferredAuthChannelCode() {
+        return "telegram";
+      },
+    };
+    const service = createChannelPreferencesService(port);
+    expect(await service.getPreferredAuthOtpChannel("u1")).toBe("telegram");
+  });
+
+  it("getPreferredAuthOtpChannel returns null for vk", async () => {
+    const port: ChannelPreferencesPort = {
+      ...mockPort,
+      async getPreferredAuthChannelCode() {
+        return "vk";
+      },
+    };
+    const service = createChannelPreferencesService(port);
+    expect(await service.getPreferredAuthOtpChannel("u1")).toBeNull();
   });
 });

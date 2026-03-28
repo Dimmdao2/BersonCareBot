@@ -32,6 +32,8 @@ export type ContentPagesPort = {
   listAll: () => Promise<ContentPageRow[]>;
   upsert: (page: Omit<ContentPageRow, "id" | "archivedAt" | "deletedAt"> & { id?: string }) => Promise<string>;
   updateLifecycle: (id: string, patch: ContentPageLifecyclePatch) => Promise<void>;
+  /** Устанавливает sort_order по порядку id (0..n-1) только для строк с данным section. */
+  reorderInSection: (section: string, orderedIds: string[]) => Promise<void>;
 };
 
 const SELECT_COLS = `id, section, slug, title, summary, body_md, body_html, sort_order, is_published,
@@ -112,6 +114,43 @@ export function createPgContentPagesPort(): ContentPagesPort {
         vals
       );
     },
+    async reorderInSection(section, orderedIds) {
+      if (orderedIds.length === 0) return;
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const check = await client.query<{ id: string }>(
+          `SELECT id::text AS id FROM content_pages WHERE section = $1`,
+          [section],
+        );
+        const inDb = new Set(check.rows.map((r) => r.id));
+        if (inDb.size !== orderedIds.length) {
+          throw new Error("reorder: count mismatch");
+        }
+        for (const id of orderedIds) {
+          if (!inDb.has(id)) {
+            throw new Error("reorder: unknown id");
+          }
+        }
+        for (let i = 0; i < orderedIds.length; i++) {
+          await client.query(
+            `UPDATE content_pages SET sort_order = $1, updated_at = now() WHERE id = $2::uuid AND section = $3`,
+            [i, orderedIds[i], section],
+          );
+        }
+        await client.query("COMMIT");
+      } catch (e) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          /* ignore */
+        }
+        throw e;
+      } finally {
+        client.release();
+      }
+    },
   };
 }
 
@@ -143,4 +182,5 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
   listAll: async () => [],
   upsert: async () => "",
   updateLifecycle: async () => {},
+  reorderInSection: async () => {},
 };

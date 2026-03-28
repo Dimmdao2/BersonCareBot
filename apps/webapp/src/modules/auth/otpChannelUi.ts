@@ -23,3 +23,15 @@ export function isOtpChannelAvailable(methods: AuthMethodsPayload, ch: OtpUiChan
   if (ch === "max") return !!methods.max;
   return !!methods.email;
 }
+
+/**
+ * Если пользователь выбрал канал в профиле и он доступен — используем его;
+ * иначе стандартный приоритет Telegram → Max → email → SMS.
+ */
+export function pickOtpChannelWithPreference(
+  methods: AuthMethodsPayload,
+  preferred: OtpUiChannel | null | undefined
+): OtpUiChannel {
+  if (preferred && isOtpChannelAvailable(methods, preferred)) return preferred;
+  return pickPrimaryOtpChannel(methods);
+}

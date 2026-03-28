@@ -28,10 +28,22 @@ describe("deliveryTargetsApi", () => {
     },
     preferencesPort: {
       getPreferences: vi.fn().mockResolvedValue([
-        { userId: "user-1", channelCode: "telegram", isEnabledForMessages: true, isEnabledForNotifications: true },
-        { userId: "user-1", channelCode: "max", isEnabledForMessages: true, isEnabledForNotifications: true },
+        {
+          channelCode: "telegram" as const,
+          isEnabledForMessages: true,
+          isEnabledForNotifications: true,
+          isPreferredForAuth: false,
+        },
+        {
+          channelCode: "max" as const,
+          isEnabledForMessages: true,
+          isEnabledForNotifications: true,
+          isPreferredForAuth: false,
+        },
       ]),
       upsertPreference: vi.fn(),
+      getPreferredAuthChannelCode: vi.fn().mockResolvedValue(null),
+      setPreferredAuthChannel: vi.fn(),
     },
   };
 

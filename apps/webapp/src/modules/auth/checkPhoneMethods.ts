@@ -25,7 +25,10 @@ export async function resolveAuthMethodsForPhone(
     userPinsPort: UserPinsPort;
     oauthBindingsPort: OAuthBindingsPort;
   }
-): Promise<{ exists: boolean; methods: AuthMethodsPayload }> {
+): Promise<
+  | { exists: false; methods: AuthMethodsPayload }
+  | { exists: true; userId: string; methods: AuthMethodsPayload }
+> {
   const user = await ports.userByPhonePort.findByPhone(normalizedPhone);
   if (!user) {
     return {
@@ -39,6 +42,7 @@ export async function resolveAuthMethodsForPhone(
 
   return {
     exists: true,
+    userId: user.userId,
     methods: {
       sms: true,
       pin: !!pinRow,

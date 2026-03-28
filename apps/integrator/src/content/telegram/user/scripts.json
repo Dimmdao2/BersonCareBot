@@ -1230,7 +1230,7 @@
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:assistant.webapp.prompt",
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:assistant.webapp.openButton", "url": "{{facts.links.webappEntryUrl}}" }],
+						[{ "textTemplateKey": "telegram:assistant.webapp.openButton", "webAppUrlFact": "links.webappEntryUrl" }],
 						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
 					]
 				}

@@ -60,6 +60,7 @@ describe("content-catalog resolver", () => {
       listAll: async () => [],
       upsert: async () => "",
       updateLifecycle: async () => {},
+      reorderInSection: async () => {},
     };
     const resolver = createContentCatalogResolver({ contentPages: port });
     const item = await resolver.getBySlug("md-test");
@@ -93,6 +94,7 @@ describe("content-catalog resolver", () => {
       listAll: async () => [],
       upsert: async () => "",
       updateLifecycle: async () => {},
+      reorderInSection: async () => {},
     };
     const resolver = createContentCatalogResolver({ contentPages: port });
     const item = await resolver.getBySlug("legacy");

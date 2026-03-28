@@ -25,6 +25,9 @@ export async function saveContentSection(
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return { ok: false, error: "Slug: только латиница, цифры и дефис" };
   }
+  if (/^-+$/.test(slug)) {
+    return { ok: false, error: "Slug не может состоять только из дефисов" };
+  }
   if (title.length > 500) return { ok: false, error: "Заголовок слишком длинный" };
   if (description.length > 2000) return { ok: false, error: "Описание слишком длинное" };
 

@@ -68,3 +68,10 @@
 6. `/app/patient/lessons` и `/app/patient/emergency` — редирект на `/sections/...`.
 7. Главная пациента (блок «Уроки») — карточки разделов из БД.
 8. `pnpm run ci` — зелёный.
+
+## Дополнения (пациент: вход, PIN, меню, бот)
+
+- **Mini App из Telegram/MAX:** в сценариях `assistant.open` кнопка открытия webapp через `webAppUrlFact` (не `url`); для MAX в facts к URL добавлен `ctx=bot` (как в Telegram). См. `apps/integrator/src/content/*/user/scripts.json`, `apps/integrator/src/integrations/max/webhook.ts`.
+- **Профиль — PIN:** при уже созданном PIN показывается статус «PIN-код создан» и «Сбросить PIN»; установка/смена — два шага с подтверждением. См. `apps/webapp/src/app/app/patient/profile/PinSection.tsx`.
+- **Профиль — канал OTP:** блок «Подтверждение входа»; сохранение в `user_channel_preferences.is_preferred_for_auth` (миграция `040_auth_preferred_channel.sql`); `check-phone` отдаёт `preferredOtpChannel`, `AuthFlowV2` использует `pickOtpChannelWithPreference`.
+- **Запись на приём:** убрана с главной (`PatientHomeBrowserHero`); пункт в гамбургер-меню (`PatientHeader`) и в `getMenuForRole` (`menu/service.ts`).

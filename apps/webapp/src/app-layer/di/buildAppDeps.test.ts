@@ -34,6 +34,8 @@ describe("buildAppDeps", () => {
     const deps = buildAppDeps();
     expect(typeof deps.channelPreferences.getChannelCards).toBe("function");
     expect(typeof deps.channelPreferences.updatePreference).toBe("function");
+    expect(typeof deps.channelPreferences.getPreferredAuthOtpChannel).toBe("function");
+    expect(typeof deps.channelPreferences.setPreferredAuthOtpChannel).toBe("function");
     const cards = await deps.channelPreferences.getChannelCards("user-1", {
       telegramId: undefined,
       maxId: undefined,
@@ -49,6 +51,7 @@ describe("buildAppDeps", () => {
       isImplemented: expect.any(Boolean),
       isEnabledForMessages: expect.any(Boolean),
       isEnabledForNotifications: expect.any(Boolean),
+      isPreferredForAuth: expect.any(Boolean),
     });
   });
 

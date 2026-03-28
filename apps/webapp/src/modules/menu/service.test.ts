@@ -5,6 +5,8 @@ describe("menu service", () => {
   it("returns patient menu for client without hardcoded lesson links", () => {
     const items = getMenuForRole("client");
     expect(items.length).toBeGreaterThan(0);
+    expect(items.some((i) => i.id === "booking")).toBe(true);
+    expect(items.find((i) => i.id === "booking")?.href).toBe("/app/patient/booking");
     expect(items.some((i) => i.id === "cabinet")).toBe(true);
     expect(items.some((i) => i.id === "diary")).toBe(true);
     expect(items.some((i) => i.id === "lfk")).toBe(false);

@@ -41,6 +41,7 @@ const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }),
 
 const MENU_ITEMS: { id: string; label: string; href: string }[] = [
   { id: "profile", label: "Мой профиль", href: "/app/patient/profile" },
+  { id: "booking", label: "Записаться на приём", href: routePaths.patientBooking },
   { id: "cabinet", label: "Мои записи", href: "/app/patient/cabinet" },
   { id: "diary", label: "Дневник", href: routePaths.diary },
   { id: "reminders", label: "Напоминания", href: "/app/patient/reminders" },
@@ -70,11 +71,12 @@ export function PatientHeader({
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const goBack = useCallback(() => {
-    if (backHref) {
-      router.push(backHref);
+    const fallback = backHref ?? routePaths.patient;
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
       return;
     }
-    router.back();
+    router.push(fallback);
   }, [router, backHref]);
 
   const shareWithFriend = useCallback(async () => {
@@ -285,18 +287,17 @@ export function PatientHeader({
               {nav.showLogout ? (
                 <>
                   <Separator className="my-2" />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    id="patient-menu-logout"
-                    className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => {
-                      closeMenu();
-                      window.location.href = "/api/auth/logout";
-                    }}
-                  >
-                    Выйти
-                  </Button>
+                  <form action="/api/auth/logout" method="post" className="w-full">
+                    <Button
+                      type="submit"
+                      variant="ghost"
+                      id="patient-menu-logout"
+                      className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={closeMenu}
+                    >
+                      Выйти
+                    </Button>
+                  </form>
                 </>
               ) : null}
             </nav>

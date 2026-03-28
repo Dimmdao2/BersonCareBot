@@ -64,4 +64,12 @@ describe("saveContentSection", () => {
     expect(res.ok).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
   });
+
+  it("rejects slug consisting only of hyphens", async () => {
+    const fd = formWith({ slug: "---", title: "T", description: "" });
+    const res = await saveContentSection(null, fd);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("дефис");
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
 });

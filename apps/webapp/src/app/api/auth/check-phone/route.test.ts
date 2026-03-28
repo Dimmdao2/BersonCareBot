@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
 import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
 import { POST } from "./route";
@@ -52,5 +53,33 @@ describe("POST /api/auth/check-phone", () => {
     const data = (await res.json()) as { ok: boolean; exists: boolean; methods: { pin?: boolean } };
     expect(data.exists).toBe(true);
     expect(data.methods.pin).toBe(true);
+  });
+
+  it("returns preferredOtpChannel when set in channel preferences", async () => {
+    const phone = "+79991112233";
+    await inMemoryUserByPhonePort.createOrBind(phone, {
+      channel: "web",
+      chatId: "web-pref-otp-1",
+      displayName: "Pref",
+    });
+    const u = await inMemoryUserByPhonePort.findByPhone(phone);
+    expect(u).not.toBeNull();
+    await inMemoryChannelPreferencesPort.setPreferredAuthChannel(u!.userId, "email");
+
+    const res = await POST(
+      new Request("http://localhost/api/auth/check-phone", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      ok: boolean;
+      exists: boolean;
+      preferredOtpChannel?: string | null;
+    };
+    expect(data.exists).toBe(true);
+    expect(data.preferredOtpChannel).toBe("email");
   });
 });

@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownEditor } from "@/shared/ui/markdown/MarkdownEditor";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
+import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { saveContentPage, type SaveContentPageState } from "./actions";
 
 type ContentPage = {
@@ -27,6 +28,10 @@ type ContentPage = {
 
 export function ContentForm({ page, sections }: { page?: ContentPage; sections: ContentSectionRow[] }) {
   const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
+  const isNew = !page;
+  const [titleValue, setTitleValue] = useState(page?.title ?? "");
+  const [slugValue, setSlugValue] = useState(page?.slug ?? "");
+  const slugManualRef = useRef(false);
 
   if (!page && sections.length === 0) {
     return (
@@ -57,13 +62,30 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
 
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заголовок</span>
-        <Input
-          type="text"
-          name="title"
-          required
-          defaultValue={page?.title ?? ""}
-          key={`title-${page?.id ?? "new"}`}
-        />
+        {isNew ? (
+          <Input
+            type="text"
+            name="title"
+            required
+            value={titleValue}
+            onChange={(e) => {
+              const t = e.target.value;
+              setTitleValue(t);
+              if (!slugManualRef.current) {
+                const s = slugFromTitle(t);
+                setSlugValue(s ?? fallbackSlug());
+              }
+            }}
+          />
+        ) : (
+          <Input
+            type="text"
+            name="title"
+            required
+            defaultValue={page?.title ?? ""}
+            key={`title-${page?.id ?? "new"}`}
+          />
+        )}
       </label>
 
       <label className="flex flex-col gap-1">
@@ -92,14 +114,43 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
 
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>
-        <Input
-          type="text"
-          name="slug"
-          required
-          defaultValue={page?.slug ?? ""}
-          readOnly={!!page}
-          key={`slug-${page?.id ?? "new"}`}
-        />
+        {isNew ? (
+          <div className="flex flex-wrap gap-2">
+            <Input
+              type="text"
+              name="slug"
+              required
+              className="min-w-[12rem] flex-1"
+              value={slugValue}
+              onChange={(e) => {
+                slugManualRef.current = true;
+                setSlugValue(e.target.value);
+              }}
+              pattern="[a-z0-9-]+"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => {
+                slugManualRef.current = false;
+                const s = slugFromTitle(titleValue);
+                setSlugValue(s ?? fallbackSlug());
+              }}
+            >
+              Сгенерировать
+            </Button>
+          </div>
+        ) : (
+          <Input
+            type="text"
+            name="slug"
+            required
+            defaultValue={page?.slug ?? ""}
+            readOnly
+            key={`slug-${page?.id ?? "new"}`}
+          />
+        )}
       </label>
 
       <label className="flex flex-col gap-1">

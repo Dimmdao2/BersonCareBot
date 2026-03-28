@@ -10,7 +10,11 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import type { AuthMethodsPayload } from "@/modules/auth/checkPhoneMethods";
-import { isOtpChannelAvailable, OTP_OTHER_CHANNELS_ORDER, pickPrimaryOtpChannel } from "@/modules/auth/otpChannelUi";
+import {
+  isOtpChannelAvailable,
+  OTP_OTHER_CHANNELS_ORDER,
+  pickOtpChannelWithPreference,
+} from "@/modules/auth/otpChannelUi";
 import { isSafeNext } from "@/modules/auth/redirectPolicy";
 import { ChannelPicker } from "@/shared/ui/auth/ChannelPicker";
 import { OtpCodeForm, type OtpAlternativeEntry, type OtpResendOutcome } from "@/shared/ui/auth/OtpCodeForm";
@@ -29,7 +33,7 @@ function getWebChatId(): string {
   return id;
 }
 
-type Step = "phone" | "new_user_sms" | "pin" | "choose_channel" | "code" | "set_pin";
+export type AuthFlowStep = "phone" | "new_user_sms" | "pin" | "choose_channel" | "code" | "set_pin";
 
 type OtpChannel = "sms" | "telegram" | "max" | "email";
 
@@ -95,11 +99,13 @@ function buildAlternatives(
 
 type AuthFlowV2Props = {
   nextParam: string | null;
+  /** Сообщает родителю о текущем шаге (плашка на /app только для `phone`). */
+  onStepChange?: (step: AuthFlowStep) => void;
 };
 
-export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
+export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("phone");
+  const [step, setStep] = useState<AuthFlowStep>("phone");
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState<string | null>(null);
   const [methods, setMethods] = useState<AuthMethodsPayload | null>(null);
@@ -118,6 +124,10 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
     const t = window.setTimeout(() => setSmsStartCooldownSec((s) => Math.max(0, s - 1)), 1000);
     return () => window.clearTimeout(t);
   }, [smsStartCooldownSec]);
+
+  useEffect(() => {
+    onStepChange?.(step);
+  }, [step, onStepChange]);
 
   const redirectOk = (redirectTo: string) => {
     const target = isSafeNext(nextParam) ? nextParam! : redirectTo;
@@ -178,6 +188,7 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
         ok?: boolean;
         exists?: boolean;
         methods?: AuthMethodsPayload;
+        preferredOtpChannel?: OtpChannel | null;
       };
       if (!res.ok || !data.ok || !data.methods) {
         toast.error("Не удалось проверить номер");
@@ -192,7 +203,7 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
       } else if (data.methods.pin) {
         setStep("pin");
       } else {
-        const primary = pickPrimaryOtpChannel(data.methods);
+        const primary = pickOtpChannelWithPreference(data.methods, data.preferredOtpChannel);
         const outcome = await startPhoneOtp(primary, "auto");
         if (outcome.kind !== "ok") {
           setStep("choose_channel");
@@ -252,7 +263,7 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
 
   if (step === "phone") {
     return (
-      <div id="auth-flow-v2-phone" className="flex flex-col gap-3">
+      <div id="auth-flow-v2-phone" className="flex flex-col gap-4 py-3">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
         <p className="text-muted-foreground text-sm">
           Для входа или регистрации в приложении укажите номер телефона
@@ -328,7 +339,7 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
 
   if (step === "pin" && phone) {
     return (
-      <div id="auth-flow-v2-pin" className="flex flex-col gap-2">
+      <div id="auth-flow-v2-pin" className="flex flex-col items-center gap-4 py-3">
         {smsStartCooldownSec > 0 ? (
           <p className="text-muted-foreground text-sm" role="status">
             Повторная отправка возможна через {smsStartCooldownSec} сек
@@ -342,7 +353,7 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
         <Button
           type="button"
           variant="link"
-          className="h-auto min-h-0 px-0 py-0 text-sm font-normal"
+          className="h-auto min-h-0 self-center px-0 py-0 text-center text-sm font-normal"
           onClick={() => {
             setSmsStartCooldownSec(0);
             setStep("phone");

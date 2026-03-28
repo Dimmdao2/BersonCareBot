@@ -4,6 +4,8 @@ export type ChannelPreference = {
   channelCode: ChannelCode;
   isEnabledForMessages: boolean;
   isEnabledForNotifications: boolean;
+  /** Единственный канал с true на пользователя — приоритет для OTP при входе. */
+  isPreferredForAuth: boolean;
 };
 
 export type ChannelCard = {
@@ -14,4 +16,5 @@ export type ChannelCard = {
   isImplemented: boolean;
   isEnabledForMessages: boolean;
   isEnabledForNotifications: boolean;
+  isPreferredForAuth?: boolean;
 };
