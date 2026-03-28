@@ -2,9 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
-import { Bell, ChevronLeft, Home, Menu, MessageCircle } from "lucide-react";
+import {
+  Bell,
+  ChevronLeft,
+  CircleHelp,
+  Home,
+  Menu,
+  MessageCircle,
+  Settings,
+} from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -14,8 +22,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { routePaths } from "@/app-layer/routes/paths";
+import {
+  patientNavByPlatform,
+  type HeaderIconId,
+} from "@/app-layer/routes/navigation";
 import { cn } from "@/lib/utils";
-import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { usePlatform } from "@/shared/hooks/usePlatform";
 import { usePatientSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 
@@ -51,18 +63,13 @@ export function PatientHeader({
   backLabel = "Назад",
 }: PatientHeaderProps) {
   const router = useRouter();
+  const platform = usePlatform();
+  const nav = patientNavByPlatform[platform];
   const [menuOpen, setMenuOpen] = useState(false);
-  const [isMessengerMiniApp, setIsMessengerMiniApp] = useState(false);
   const supportUnread = usePatientSupportUnreadCount();
   const reminderUnread = useReminderUnreadCount();
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      setIsMessengerMiniApp(isMessengerMiniAppHost());
-    });
-  }, []);
 
   const goBack = useCallback(() => {
     if (backHref) {
@@ -87,6 +94,87 @@ export function PatientHeader({
     router.push(routePaths.patientAddress);
     closeMenu();
   }, [closeMenu, router]);
+
+  const iconSet = new Set(nav.headerRightIcons);
+
+  const renderHeaderIcon = (id: HeaderIconId) => {
+    switch (id) {
+      case "messages":
+        return (
+          <Link
+            key="messages"
+            href={routePaths.patientMessages}
+            prefetch={false}
+            aria-label="Сообщения"
+            className={cn(HEADER_ICON_CLASS, "relative")}
+          >
+            <MessageCircle className="size-[22px]" aria-hidden />
+            {supportUnread > 0 ? (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+                {supportUnread > 99 ? "99+" : supportUnread}
+              </span>
+            ) : null}
+          </Link>
+        );
+      case "reminders":
+        return (
+          <Link
+            key="reminders"
+            href={routePaths.patientReminders}
+            prefetch={false}
+            aria-label="Напоминания"
+            className={cn(HEADER_ICON_CLASS, "relative")}
+          >
+            <Bell className="size-[22px]" aria-hidden />
+            {reminderUnread > 0 ? (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+                {reminderUnread > 99 ? "99+" : reminderUnread}
+              </span>
+            ) : null}
+          </Link>
+        );
+      case "menu":
+        return (
+          <Button
+            key="menu"
+            type="button"
+            id="patient-menu-toggle"
+            variant="ghost"
+            size="icon"
+            className={HEADER_ICON_CLASS}
+            aria-label="Меню"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(true)}
+          >
+            <Menu className="size-[22px]" aria-hidden />
+          </Button>
+        );
+      case "help":
+        return (
+          <Link
+            key="help"
+            href={routePaths.patientHelp}
+            prefetch={false}
+            aria-label="Справка"
+            className={HEADER_ICON_CLASS}
+          >
+            <CircleHelp className="size-[22px]" aria-hidden />
+          </Link>
+        );
+      case "settings":
+        return (
+          <Link
+            key="settings"
+            href="/app/settings"
+            prefetch={false}
+            aria-label="Настройки"
+            className={HEADER_ICON_CLASS}
+          >
+            <Settings className="size-[22px]" aria-hidden />
+          </Link>
+        );
+    }
+  };
 
   return (
     <>
@@ -133,126 +221,95 @@ export function PatientHeader({
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            <Link
-              href={routePaths.patientMessages}
-              prefetch={false}
-              aria-label="Сообщения"
-              className={cn(HEADER_ICON_CLASS, "relative")}
-            >
-              <MessageCircle className="size-[22px]" aria-hidden />
-              {supportUnread > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
-                  {supportUnread > 99 ? "99+" : supportUnread}
-                </span>
-              ) : null}
-            </Link>
-            <Link
-              href={routePaths.patientReminders}
-              prefetch={false}
-              aria-label="Напоминания"
-              className={cn(HEADER_ICON_CLASS, "relative")}
-            >
-              <Bell className="size-[22px]" aria-hidden />
-              {reminderUnread > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
-                  {reminderUnread > 99 ? "99+" : reminderUnread}
-                </span>
-              ) : null}
-            </Link>
-            <Button
-              type="button"
-              id="patient-menu-toggle"
-              variant="ghost"
-              size="icon"
-              className={HEADER_ICON_CLASS}
-              aria-label="Меню"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen(true)}
-            >
-              <Menu className="size-[22px]" aria-hidden />
-            </Button>
+            {nav.headerRightIcons.map(renderHeaderIcon)}
           </div>
         </div>
       </header>
 
-      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-        <SheetContent side="right" className="flex w-[min(100vw,17rem)] flex-col px-4 sm:max-w-[17rem]">
-          <SheetHeader className="px-0 text-left">
-            <SheetTitle>Меню</SheetTitle>
-          </SheetHeader>
-          <nav id="patient-menu-nav" className="flex flex-col gap-1 py-2" aria-label="Навигация">
-            <Link
-              id="patient-menu-link-messages"
-              href={routePaths.patientMessages}
-              onClick={closeMenu}
-              className={SHEET_NAV_LINK_CLASS}
-            >
-              Сообщения
-            </Link>
-            {MENU_ITEMS.map((item) => (
+      {nav.hasSheetMenu ? (
+        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+          <SheetContent side="right" className="flex w-[min(100vw,17rem)] flex-col px-4 sm:max-w-[17rem]">
+            <SheetHeader className="px-0 text-left">
+              <SheetTitle>Меню</SheetTitle>
+            </SheetHeader>
+            <nav id="patient-menu-nav" className="flex flex-col gap-1 py-2" aria-label="Навигация">
+              {iconSet.has("messages") ? (
+                <Link
+                  id="patient-menu-link-messages"
+                  href={routePaths.patientMessages}
+                  onClick={closeMenu}
+                  className={SHEET_NAV_LINK_CLASS}
+                >
+                  Сообщения
+                </Link>
+              ) : null}
+              {MENU_ITEMS.map((item) => (
+                <Link
+                  key={item.id}
+                  id={`patient-menu-link-${item.id}`}
+                  href={item.href}
+                  onClick={closeMenu}
+                  className={SHEET_NAV_LINK_CLASS}
+                >
+                  {item.label}
+                </Link>
+              ))}
+              <Separator className="my-2" />
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-auto w-full justify-start px-3 py-2 font-normal"
+                onClick={openCabinetAddress}
+              >
+                Адрес кабинета
+              </Button>
               <Link
-                key={item.id}
-                id={`patient-menu-link-${item.id}`}
-                href={item.href}
+                id="patient-menu-link-help"
+                href={routePaths.patientHelp}
                 onClick={closeMenu}
                 className={SHEET_NAV_LINK_CLASS}
               >
-                {item.label}
+                Справка
               </Link>
-            ))}
-            <Separator className="my-2" />
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-auto w-full justify-start px-3 py-2 font-normal"
-              onClick={openCabinetAddress}
-            >
-              Адрес кабинета
-            </Button>
-            <Link
-              id="patient-menu-link-help"
-              href={routePaths.patientHelp}
-              onClick={closeMenu}
-              className={SHEET_NAV_LINK_CLASS}
-            >
-              Справка
-            </Link>
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-auto w-full justify-start px-3 py-2 font-normal"
-              onClick={shareWithFriend}
-            >
-              Поделиться с другом
-            </Button>
-            <Link
-              id="patient-menu-link-install"
-              href={routePaths.patientInstall}
-              onClick={closeMenu}
-              className={SHEET_NAV_LINK_CLASS}
-            >
-              Установить приложение
-            </Link>
-            {!isMessengerMiniApp ? (
-              <>
-                <Separator className="my-2" />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  id="patient-menu-logout"
-                  className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => {
-                    closeMenu();
-                    window.location.href = "/api/auth/logout";
-                  }}
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-auto w-full justify-start px-3 py-2 font-normal"
+                onClick={shareWithFriend}
+              >
+                Поделиться с другом
+              </Button>
+              {nav.showInstallPrompt ? (
+                <Link
+                  id="patient-menu-link-install"
+                  href={routePaths.patientInstall}
+                  onClick={closeMenu}
+                  className={SHEET_NAV_LINK_CLASS}
                 >
-                  Выйти
-                </Button>
-              </>
-            ) : null}
-          </nav>
-        </SheetContent>
-      </Sheet>
+                  Установить приложение
+                </Link>
+              ) : null}
+              {nav.showLogout ? (
+                <>
+                  <Separator className="my-2" />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    id="patient-menu-logout"
+                    className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => {
+                      closeMenu();
+                      window.location.href = "/api/auth/logout";
+                    }}
+                  >
+                    Выйти
+                  </Button>
+                </>
+              ) : null}
+            </nav>
+          </SheetContent>
+        </Sheet>
+      ) : null}
     </>
   );
 }

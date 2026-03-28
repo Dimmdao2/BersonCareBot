@@ -39,4 +39,31 @@ describe("resolveAuthMethodsForPhone", () => {
     // OAuth не включается в UI-методы (скрыт до production-готовности)
     expect(r.methods.oauth).toBeUndefined();
   });
+
+  it("returns emailAddress when verified email exists (port override)", async () => {
+    const phone = "+79990000333";
+    await inMemoryUserByPhonePort.createOrBind(phone, {
+      channel: "web",
+      chatId: "web-email-1",
+      displayName: "E",
+    });
+    const u = await inMemoryUserByPhonePort.findByPhone(phone);
+    expect(u).not.toBeNull();
+
+    const userByPhoneWithEmail = {
+      ...inMemoryUserByPhonePort,
+      async getVerifiedEmailForUser(userId: string) {
+        return userId === u!.userId ? "user@test.example" : null;
+      },
+    };
+
+    const r = await resolveAuthMethodsForPhone(phone, {
+      userByPhonePort: userByPhoneWithEmail,
+      userPinsPort: inMemoryUserPinsPort,
+      oauthBindingsPort: inMemoryOAuthBindingsPort,
+    });
+    expect(r.exists).toBe(true);
+    expect(r.methods.email).toBe(true);
+    expect(r.methods.emailAddress).toBe("user@test.example");
+  });
 });

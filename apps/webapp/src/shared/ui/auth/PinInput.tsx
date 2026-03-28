@@ -8,6 +8,10 @@ type PinInputProps = {
   disabled?: boolean;
   onSubmit: (pin: string) => void | Promise<void>;
   onForgot: () => void;
+  /** Текст ссылки под формой; по умолчанию «Не помню PIN» */
+  forgotLabel?: string;
+  /** Скрыть ссылку (например при первом вводе PIN в профиле) */
+  forgotHidden?: boolean;
 };
 
 const CELL =
@@ -18,7 +22,13 @@ function digitsOnly(s: string): string {
 }
 
 /** Ввод PIN (ровно 4 цифры), без хранения в sessionStorage. */
-export function PinInput({ disabled, onSubmit, onForgot }: PinInputProps) {
+export function PinInput({
+  disabled,
+  onSubmit,
+  onForgot,
+  forgotLabel,
+  forgotHidden = false,
+}: PinInputProps) {
   const [digits, setDigits] = useState(["", "", "", ""]);
   const [error, setError] = useState<string | null>(null);
   const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
@@ -149,9 +159,16 @@ export function PinInput({ disabled, onSubmit, onForgot }: PinInputProps) {
       <Button type="submit" disabled={disabled} aria-label="Войти">
         {disabled ? "Проверка…" : "Войти"}
       </Button>
-      <Button type="button" variant="link" className="h-auto min-h-0 px-0 py-0 text-sm font-normal" onClick={onForgot}>
-        Не помню PIN
-      </Button>
+      {!forgotHidden ? (
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto min-h-0 px-0 py-0 text-sm font-normal"
+          onClick={onForgot}
+        >
+          {forgotLabel ?? "Не помню PIN"}
+        </Button>
+      ) : null}
     </form>
   );
 }

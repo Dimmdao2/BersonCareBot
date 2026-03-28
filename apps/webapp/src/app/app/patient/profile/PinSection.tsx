@@ -2,90 +2,77 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { PinInput } from "@/shared/ui/auth/PinInput";
 
-/** Установка PIN после входа (сессия обязательна). */
+/** Установка PIN после входа (сессия обязательна). Два шага: ввод и подтверждение, 4 ячейки. */
 export function PinSection() {
-  const [pin, setPin] = useState("");
-  const [pinConfirm, setPinConfirm] = useState("");
+  const [stage, setStage] = useState<"first" | "second">("first");
+  const [firstPin, setFirstPin] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pin !== pinConfirm) {
-      toast.error("PIN не совпадает");
-      return;
-    }
-    if (!/^\d{4}$/.test(pin)) {
-      toast.error("Введите 4 цифры");
-      return;
-    }
+  const submitPin = async (pin: string, confirmPin: string) => {
     setLoading(true);
     try {
       const res = await fetch("/api/auth/pin/set", {
         method: "POST",
         headers: { "content-type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ pin, pinConfirm }),
+        body: JSON.stringify({ pin, pinConfirm: confirmPin }),
       });
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; message?: string };
       if (!res.ok) {
         toast.error(data.message ?? "Не удалось сохранить PIN");
+        setStage("first");
+        setFirstPin(null);
         return;
       }
       toast.success("PIN сохранён");
-      setPin("");
-      setPinConfirm("");
+      setStage("first");
+      setFirstPin(null);
     } finally {
       setLoading(false);
     }
   };
 
+  if (stage === "first") {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-muted-foreground text-sm">
+          Задайте PIN для быстрого входа по номеру телефона.
+        </p>
+        <PinInput
+          disabled={loading}
+          onSubmit={(pin) => {
+            setFirstPin(pin);
+            setStage("second");
+          }}
+          onForgot={() => {}}
+          forgotHidden
+        />
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={submit} className={cn("flex max-w-sm flex-col gap-3")}>
-      <p className="text-muted-foreground text-sm">
-        Задайте PIN для быстрого входа по номеру (после проверки телефона).
-      </p>
-      <div className="flex flex-col gap-1.5">
-        <label className="text-muted-foreground text-xs font-medium uppercase tracking-wide" htmlFor="profile-pin">
-          Новый PIN
-        </label>
-        <Input
-          id="profile-pin"
-          type="password"
-          inputMode="numeric"
-          autoComplete="new-password"
-          maxLength={4}
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
-          disabled={loading}
-          aria-label="Новый PIN"
-        />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label
-          className="text-muted-foreground text-xs font-medium uppercase tracking-wide"
-          htmlFor="profile-pin-confirm"
-        >
-          Повторите PIN
-        </label>
-        <Input
-          id="profile-pin-confirm"
-          type="password"
-          inputMode="numeric"
-          autoComplete="new-password"
-          maxLength={4}
-          value={pinConfirm}
-          onChange={(e) => setPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 4))}
-          disabled={loading}
-          aria-label="Повторите PIN"
-        />
-      </div>
-      <Button type="submit" disabled={loading}>
-        {loading ? "Сохранение…" : "Сохранить PIN"}
-      </Button>
-    </form>
+    <div className="flex flex-col gap-3">
+      <p className="text-muted-foreground text-sm">Повторите PIN-код.</p>
+      <PinInput
+        disabled={loading}
+        onSubmit={async (confirmPin) => {
+          if (confirmPin !== firstPin) {
+            toast.error("PIN не совпадает. Введите снова.");
+            setStage("first");
+            setFirstPin(null);
+            return;
+          }
+          await submitPin(firstPin!, confirmPin);
+        }}
+        onForgot={() => {
+          setStage("first");
+          setFirstPin(null);
+        }}
+        forgotLabel="Назад"
+      />
+    </div>
   );
 }

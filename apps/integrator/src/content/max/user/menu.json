@@ -5,10 +5,11 @@
     [{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
   ],
   "main": [
+    [{ "textTemplateKey": "max:moreMenu.myDiary", "callbackData": "diary.open" }],
+    [{ "textTemplateKey": "max:moreMenu.myBookings", "callbackData": "bookings.show" }],
     [{ "textTemplateKey": "max:moreMenu.emergencyHelp", "callbackData": "content.emergency_help" }],
     [{ "textTemplateKey": "max:moreMenu.personalAssistant", "callbackData": "assistant.open" }],
     [{ "textTemplateKey": "max:moreMenu.usefulLessons", "callbackData": "content.useful_lessons" }],
-    [{ "textTemplateKey": "max:moreMenu.myBookings", "callbackData": "bookings.show" }],
     [{ "textTemplateKey": "max:moreMenu.notifications", "callbackData": "notifications.show" }]
   ]
 }

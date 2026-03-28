@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Поток входа v2: телефон → check-phone → PIN (если есть) → выбор канала → код.
- * Включается только при NEXT_PUBLIC_AUTH_V2=1 (см. AuthBootstrap).
+ * Поток входа: телефон → check-phone → PIN (если есть) → авто-отправка OTP по приоритету
+ * (Telegram → Max → email → SMS) или выбор канала после ошибки PIN → код → при необходимости установка PIN.
  */
 
 import { useEffect, useState } from "react";
@@ -12,10 +12,9 @@ import { Button } from "@/components/ui/button";
 import type { AuthMethodsPayload } from "@/modules/auth/checkPhoneMethods";
 import { isSafeNext } from "@/modules/auth/redirectPolicy";
 import { ChannelPicker } from "@/shared/ui/auth/ChannelPicker";
+import { OtpCodeForm, type OtpAlternativeEntry, type OtpResendOutcome } from "@/shared/ui/auth/OtpCodeForm";
 import { PhoneInput } from "@/shared/ui/auth/PhoneInput";
 import { PinInput } from "@/shared/ui/auth/PinInput";
-import { SmsCodeForm } from "@/shared/ui/auth/SmsCodeForm";
-import type { OtpResendOutcome } from "@/shared/ui/auth/OtpCodeForm";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
@@ -29,21 +28,70 @@ function getWebChatId(): string {
   return id;
 }
 
-type Step = "phone" | "new_user_sms" | "pin" | "choose_channel" | "code";
+type Step = "phone" | "new_user_sms" | "pin" | "choose_channel" | "code" | "set_pin";
 
 type OtpChannel = "sms" | "telegram" | "max" | "email";
 
-function otpDescription(channel: OtpChannel): string {
+function pickPrimaryChannel(methods: AuthMethodsPayload): OtpChannel {
+  if (methods.telegram) return "telegram";
+  if (methods.max) return "max";
+  if (methods.email) return "email";
+  return "sms";
+}
+
+function otpDescription(channel: OtpChannel, emailAddress?: string): string {
   switch (channel) {
     case "telegram":
-      return "Код отправлен в Telegram. Введите его ниже.";
+      return "Введите код, отправленный вам в Telegram.";
     case "max":
-      return "Код отправлен в Max. Введите его ниже.";
+      return "Введите код, отправленный вам в Max.";
     case "email":
-      return "Код отправлен на email. Введите его ниже.";
+      return `Введите код, отправленный вам${emailAddress ? ` на ${emailAddress}` : " на email"}.`;
     default:
-      return "Код отправлен по SMS. Введите его ниже.";
+      return "Введите код, отправленный вам по SMS.";
   }
+}
+
+function buildAlternatives(
+  methods: AuthMethodsPayload,
+  currentChannel: OtpChannel,
+  onChoose: (ch: OtpChannel) => Promise<OtpResendOutcome>,
+): OtpAlternativeEntry[] {
+  const result: OtpAlternativeEntry[] = [];
+  if (methods.telegram && currentChannel !== "telegram") {
+    result.push({
+      label: "Получить код в Telegram",
+      onClick: async () => {
+        await onChoose("telegram");
+      },
+    });
+  }
+  if (methods.max && currentChannel !== "max") {
+    result.push({
+      label: "Получить код в Max",
+      onClick: async () => {
+        await onChoose("max");
+      },
+    });
+  }
+  if (methods.email && currentChannel !== "email") {
+    result.push({
+      label: `Получить код на email${methods.emailAddress ? ` (${methods.emailAddress})` : ""}`,
+      onClick: async () => {
+        await onChoose("email");
+      },
+    });
+  }
+  if (currentChannel !== "sms") {
+    result.push({
+      label: "Получить код по SMS",
+      asText: true,
+      onClick: async () => {
+        await onChoose("sms");
+      },
+    });
+  }
+  return result;
 }
 
 type AuthFlowV2Props = {
@@ -61,8 +109,10 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
   const [smsStartCooldownSec, setSmsStartCooldownSec] = useState(0);
   const [otpChannel, setOtpChannel] = useState<OtpChannel>("sms");
-  const [otpEntrySource, setOtpEntrySource] = useState<"registration" | "channel" | null>(null);
+  const [otpEntrySource, setOtpEntrySource] = useState<"registration" | "channel" | "auto" | null>(null);
   const [pinFailCount, setPinFailCount] = useState(0);
+  const [pinSetRedirectTo, setPinSetRedirectTo] = useState<string | null>(null);
+  const [pinSetFirstPin, setPinSetFirstPin] = useState<string | null>(null);
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -75,42 +125,9 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
     router.replace(target);
   };
 
-  const runCheckPhone = async (normalized: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/check-phone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: normalized }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        exists?: boolean;
-        methods?: AuthMethodsPayload;
-      };
-      if (!res.ok || !data.ok || !data.methods) {
-        toast.error("Не удалось проверить номер");
-        return;
-      }
-      setPhone(normalized);
-      setExists(Boolean(data.exists));
-      setMethods(data.methods);
-      setPinFailCount(0);
-      if (!data.exists) {
-        setStep("new_user_sms");
-      } else if (data.methods.pin) {
-        setStep("pin");
-      } else {
-        setStep("choose_channel");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const startPhoneOtp = async (
     deliveryChannel: OtpChannel,
-    entry: "registration" | "channel"
+    entry: "registration" | "channel" | "auto",
   ): Promise<OtpResendOutcome> => {
     if (!phone) return { kind: "error", message: "Нет номера телефона" };
     setLoading(true);
@@ -145,6 +162,43 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
       setOtpEntrySource(entry);
       setStep("code");
       return { kind: "ok" };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runCheckPhone = async (normalized: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/check-phone", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: normalized }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        exists?: boolean;
+        methods?: AuthMethodsPayload;
+      };
+      if (!res.ok || !data.ok || !data.methods) {
+        toast.error("Не удалось проверить номер");
+        return;
+      }
+      setPhone(normalized);
+      setExists(Boolean(data.exists));
+      setMethods(data.methods);
+      setPinFailCount(0);
+      if (!data.exists) {
+        setStep("new_user_sms");
+      } else if (data.methods.pin) {
+        setStep("pin");
+      } else {
+        const primary = pickPrimaryChannel(data.methods);
+        const outcome = await startPhoneOtp(primary, "auto");
+        if (outcome.kind !== "ok") {
+          setStep("choose_channel");
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -303,16 +357,73 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
     );
   }
 
-  if (step === "code" && challengeId) {
-    const showSmsFallback = otpChannel !== "sms";
+  if (step === "set_pin" && pinSetRedirectTo) {
+    if (!pinSetFirstPin) {
+      return (
+        <div id="auth-flow-v2-set-pin-1" className="flex flex-col gap-3">
+          <p className="text-muted-foreground text-sm">
+            Придумайте PIN-код для быстрого входа без кода подтверждения.
+          </p>
+          <PinInput
+            disabled={loading}
+            onSubmit={(pin) => {
+              setPinSetFirstPin(pin);
+            }}
+            onForgot={() => redirectOk(pinSetRedirectTo)}
+            forgotLabel="Войти без PIN-кода"
+          />
+        </div>
+      );
+    }
+    return (
+      <div id="auth-flow-v2-set-pin-2" className="flex flex-col gap-3">
+        <p className="text-muted-foreground text-sm">Повторите PIN-код.</p>
+        <PinInput
+          disabled={loading}
+          onSubmit={async (confirmPin) => {
+            if (confirmPin !== pinSetFirstPin) {
+              toast.error("PIN не совпадает. Введите снова.");
+              setPinSetFirstPin(null);
+              return;
+            }
+            setLoading(true);
+            try {
+              const res = await fetch("/api/auth/pin/set", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ pin: pinSetFirstPin, pinConfirm: confirmPin }),
+              });
+              if (!res.ok) {
+                const d = (await res.json().catch(() => ({}))) as { message?: string };
+                toast.error(d.message ?? "Не удалось сохранить PIN");
+                return;
+              }
+              redirectOk(pinSetRedirectTo);
+            } finally {
+              setLoading(false);
+            }
+          }}
+          onForgot={() => {
+            setPinSetFirstPin(null);
+          }}
+          forgotLabel="Назад"
+        />
+      </div>
+    );
+  }
+
+  if (step === "code" && challengeId && methods) {
+    const alternatives = buildAlternatives(methods, otpChannel, (ch) => startPhoneOtp(ch, "channel"));
+
     return (
       <div id="auth-flow-v2-code" className="flex flex-col gap-3">
-        <SmsCodeForm
+        <OtpCodeForm
           challengeId={challengeId}
           retryAfterSeconds={retryAfterSeconds}
-          description={otpDescription(otpChannel)}
-          smsFallbackLink={showSmsFallback}
-          onRequestSms={async () => startPhoneOtp("sms", otpEntrySource ?? "channel")}
+          submitLabel="Войти"
+          description={otpDescription(otpChannel, methods.emailAddress)}
+          alternatives={alternatives}
           onConfirm={async (code) => {
             const chatId = getWebChatId();
             const res = await fetch("/api/auth/phone/confirm", {
@@ -328,6 +439,11 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
               retryAfterSeconds?: number;
             };
             if (data.ok && data.redirectTo) {
+              if (!methods.pin) {
+                setPinSetRedirectTo(data.redirectTo);
+                setStep("set_pin");
+                return { ok: true as const, redirectTo: data.redirectTo };
+              }
               redirectOk(data.redirectTo);
               return { ok: true as const, redirectTo: data.redirectTo };
             }
@@ -375,7 +491,7 @@ export function AuthFlowV2({ nextParam }: AuthFlowV2Props) {
           }}
           onBack={() => {
             if (otpEntrySource === "registration") setStep("new_user_sms");
-            else if (otpEntrySource === "channel") setStep("choose_channel");
+            else if (otpEntrySource === "channel" || otpEntrySource === "auto") setStep("choose_channel");
             else if (exists) setStep("choose_channel");
             else setStep("new_user_sms");
           }}

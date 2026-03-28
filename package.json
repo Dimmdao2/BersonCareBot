@@ -54,7 +54,8 @@
     "overrides": {
       "micromatch>picomatch": "2.3.2",
       "@dotenvx/dotenvx>picomatch": "4.0.4",
-      "fdir>picomatch": "4.0.4"
+      "fdir>picomatch": "4.0.4",
+      "path-to-regexp": ">=8.4.0"
     }
   },
   "devDependencies": {

@@ -20,6 +20,14 @@ export type OtpResendOutcome =
   | { kind: "rate_limited"; retryAfterSeconds: number }
   | { kind: "error"; message: string };
 
+/** Варианты в блоке «Другие варианты» (доставка кода другим каналом). */
+export type OtpAlternativeEntry = {
+  label: string;
+  /** true — текстовая ссылка вместо кнопки */
+  asText?: boolean;
+  onClick: () => void | Promise<void>;
+};
+
 type OtpCodeFormProps = {
   challengeId: string;
   retryAfterSeconds?: number;
@@ -28,6 +36,8 @@ type OtpCodeFormProps = {
   /** Ссылка «отправить на СМС» после доставки через мессенджер/email */
   smsFallbackLink?: boolean;
   onRequestSms?: () => Promise<OtpResendOutcome>;
+  /** Раскрывающийся список альтернативных каналов + ссылка в поддержку */
+  alternatives?: OtpAlternativeEntry[];
   onConfirm: (code: string) => Promise<OtpConfirmResult>;
   onResend: () => Promise<OtpResendOutcome>;
   onBack: () => void;
@@ -40,6 +50,7 @@ export function OtpCodeForm({
   description = "Введите код ниже.",
   smsFallbackLink = false,
   onRequestSms,
+  alternatives,
   onConfirm,
   onResend,
   onBack,
@@ -51,6 +62,7 @@ export function OtpCodeForm({
   const [resendCountdown, setResendCountdown] = useState(retryAfterSeconds);
   const [canResend, setCanResend] = useState(false);
   const [hardBlocked, setHardBlocked] = useState(false);
+  const [altExpanded, setAltExpanded] = useState(false);
 
   /** Новый challenge / интервал после повторной отправки — сброс поля и таймера. */
   useEffect(() => {
@@ -59,6 +71,7 @@ export function OtpCodeForm({
     setHardBlocked(false);
     setResendCountdown(retryAfterSeconds);
     setCanResend(false);
+    setAltExpanded(false);
   }, [challengeId, retryAfterSeconds]);
 
   useEffect(() => {
@@ -189,6 +202,58 @@ export function OtpCodeForm({
         >
           {resendLoading ? "Отправка…" : "отправить на СМС"}
         </Button>
+      ) : null}
+      {alternatives !== undefined ? (
+        <div className="flex flex-col gap-2">
+          {alternatives.length > 0 ? (
+            <>
+              <button
+                type="button"
+                className="w-fit text-sm text-muted-foreground underline hover:text-foreground"
+                onClick={() => setAltExpanded((v) => !v)}
+              >
+                Другие варианты
+              </button>
+              {altExpanded ? (
+                <div className="flex flex-col gap-2 pl-1">
+                  {alternatives.map((alt, i) =>
+                    alt.asText ? (
+                      <button
+                        key={i}
+                        type="button"
+                        className="w-fit text-left text-sm text-muted-foreground underline"
+                        onClick={() => void alt.onClick()}
+                        disabled={loading || resendLoading || hardBlocked}
+                      >
+                        {alt.label}
+                      </button>
+                    ) : (
+                      <Button
+                        key={i}
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void alt.onClick()}
+                        disabled={loading || resendLoading || hardBlocked}
+                      >
+                        {alt.label}
+                      </Button>
+                    ),
+                  )}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {/* TODO: брать URL из system_settings */}
+          <a
+            href="https://t.me/BersonCareSupport"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-fit text-sm text-muted-foreground underline"
+          >
+            Написать в поддержку
+          </a>
+        </div>
       ) : null}
     </form>
   );

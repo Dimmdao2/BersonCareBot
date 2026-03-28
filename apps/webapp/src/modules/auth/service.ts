@@ -11,9 +11,9 @@ import { getRedirectPathForRole } from "./redirectPolicy";
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
 const SESSION_COOKIE_NAME = "bersoncare_webapp_session";
-const SESSION_TTL_SECONDS = 60 * 60 * 12;
-/** Доктор: до 7 суток + продление при активности (см. getCurrentSession). */
-const SESSION_TTL_DOCTOR_SECONDS = 60 * 60 * 24 * 7;
+const SESSION_TTL_SECONDS = 60 * 60 * 24 * 90; // 90 дней (пациент / client)
+/** Доктор: 90 суток в браузере, как и пациент (слетающая сессия мешает работе). */
+const SESSION_TTL_DOCTOR_SECONDS = 60 * 60 * 24 * 90;
 
 type IntegratorTokenPayload = {
   sub: string;

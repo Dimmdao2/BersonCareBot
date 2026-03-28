@@ -1,32 +1,17 @@
 "use client";
 
 /**
- * Блок входа: обмен токена из ссылки на сессию, вход через Telegram initData или по номеру телефона (SMS).
+ * Блок входа: обмен токена из ссылки на сессию, вход через Telegram initData или по номеру телефона (AuthFlowV2).
  * Если в адресе есть токен (t или token) — обмен на сессию. Если нет — пробует initData Telegram;
- * при отсутствии или ошибке — показывает форму входа по номеру и коду из SMS.
+ * при отсутствии или ошибке — форма входа по номеру (check-phone, PIN, OTP).
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isSafeNext } from "@/modules/auth/redirectPolicy";
 import { AuthFlowV2 } from "@/shared/ui/auth/AuthFlowV2";
-import { PhoneAuthForm } from "@/shared/ui/auth/PhoneAuthForm";
-import { SmsCodeForm } from "@/shared/ui/auth/SmsCodeForm";
 
 type BootstrapState = "idle" | "loading" | "error";
-type PhoneStep = "phone" | "code";
-
-const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
-
-function getWebChatId(): string {
-  if (typeof window === "undefined") return "";
-  let id = sessionStorage.getItem(WEB_CHAT_ID_KEY);
-  if (!id) {
-    id = crypto.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    sessionStorage.setItem(WEB_CHAT_ID_KEY, id);
-  }
-  return id;
-}
 
 declare global {
   interface Window {
@@ -36,7 +21,7 @@ declare global {
   }
 }
 
-/** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — форма по SMS. */
+/** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — AuthFlowV2. */
 export function AuthBootstrap() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,11 +33,6 @@ export function AuthBootstrap() {
   const [debugInfo, setDebugInfo] = useState<{ status?: number; message?: string } | null>(null);
   const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("unknown");
   const initDataTried = useRef(false);
-
-  const [phoneStep, setPhoneStep] = useState<PhoneStep>("phone");
-  const [challengeId, setChallengeId] = useState<string | null>(null);
-  const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
-  const [phoneForResend, setPhoneForResend] = useState<string>("");
 
   // Обмен токена из адреса на сессию и редирект
   useEffect(() => {
@@ -93,7 +73,7 @@ export function AuthBootstrap() {
     };
   }, [router, token, debug, nextParam]);
 
-  // Определить наличие initData (для показа формы по SMS, когда нет Telegram)
+  // Определить наличие initData (для показа формы телефона, когда нет Telegram)
   useEffect(() => {
     if (token || typeof window === "undefined") return;
     const raw = window.Telegram?.WebApp?.initData?.trim() ?? "";
@@ -101,19 +81,7 @@ export function AuthBootstrap() {
   }, [token]);
 
   const showPhoneFlow =
-    !token &&
-    (initDataStatus === "no" || state === "error") &&
-    state !== "loading" &&
-    !!nextParam;
-
-  const authV2Enabled = process.env.NEXT_PUBLIC_AUTH_V2 === "1";
-  const redirectToGuestMenu =
-    !token && (initDataStatus === "no" || state === "error") && state !== "loading" && !nextParam;
-
-  // Без токена и без next= — увести в гостевое меню, не показывать форму телефона
-  useEffect(() => {
-    if (redirectToGuestMenu) router.replace("/app/patient");
-  }, [router, redirectToGuestMenu]);
+    !token && (initDataStatus === "no" || state === "error") && state !== "loading";
 
   // Если токена в URL нет — пробуем войти по данным Mini App Telegram (открыто из бота)
   useEffect(() => {
@@ -152,123 +120,8 @@ export function AuthBootstrap() {
       });
   }, [router, token, debug, nextParam]);
 
-  if (redirectToGuestMenu) return null;
-
-  if (authV2Enabled && showPhoneFlow) {
-    return <AuthFlowV2 nextParam={nextParam} />;
-  }
-
-  if (showPhoneFlow && phoneStep === "code" && challengeId) {
-    return (
-      <div id="auth-bootstrap-code-step" className="flex flex-col gap-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход по номеру телефона</p>
-        <SmsCodeForm
-          challengeId={challengeId}
-          retryAfterSeconds={retryAfterSeconds}
-          onConfirm={async (code) => {
-            const chatId = getWebChatId();
-            const res = await fetch("/api/auth/phone/confirm", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                challengeId,
-                code,
-                channel: "web",
-                chatId,
-              }),
-            });
-            const data = (await res.json().catch(() => ({}))) as {
-              ok?: boolean;
-              redirectTo?: string;
-              message?: string;
-            };
-            if (data.ok && data.redirectTo) {
-              const target = isSafeNext(nextParam) ? nextParam : data.redirectTo;
-              router.replace(target);
-              return { ok: true as const, redirectTo: target };
-            }
-            return { ok: false as const, message: data.message ?? "Ошибка входа" };
-          }}
-          onResend={async () => {
-            if (!phoneForResend) return { kind: "error" as const, message: "Нет номера" };
-            const chatId = getWebChatId();
-            const res = await fetch("/api/auth/phone/start", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ phone: phoneForResend, channel: "web", chatId }),
-            });
-            const data = (await res.json().catch(() => ({}))) as {
-              ok?: boolean;
-              challengeId?: string;
-              retryAfterSeconds?: number;
-              message?: string;
-              error?: string;
-            };
-            if (data.ok && data.challengeId) {
-              setChallengeId(data.challengeId);
-              setRetryAfterSeconds(data.retryAfterSeconds ?? 60);
-              return { kind: "ok" as const };
-            }
-            if (res.status === 429 || data.error === "rate_limited") {
-              const sec = Math.max(1, Math.ceil(data.retryAfterSeconds ?? 60));
-              setRetryAfterSeconds(sec);
-              return { kind: "rate_limited" as const, retryAfterSeconds: sec };
-            }
-            return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
-          }}
-          onBack={() => {
-            setPhoneStep("phone");
-            setChallengeId(null);
-          }}
-        />
-      </div>
-    );
-  }
-
   if (showPhoneFlow) {
-    return (
-      <div id="auth-bootstrap-phone-step" className="flex flex-col gap-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход по номеру телефона</p>
-        {state === "error" && error && (
-          <p className="text-sm text-destructive">{error}</p>
-        )}
-        <PhoneAuthForm
-          onSubmit={async (phone) => {
-            const chatId = getWebChatId();
-            const res = await fetch("/api/auth/phone/start", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ phone, channel: "web", chatId }),
-            });
-            const data = (await res.json().catch(() => ({}))) as {
-              ok?: boolean;
-              challengeId?: string;
-              retryAfterSeconds?: number;
-              error?: string;
-              message?: string;
-            };
-            if (data.ok && data.challengeId) {
-              return { ok: true as const, challengeId: data.challengeId, retryAfterSeconds: data.retryAfterSeconds };
-            }
-            if (res.status === 429 || data.error === "rate_limited") {
-              return {
-                ok: false as const,
-                message: "",
-                rateLimited: true,
-                retryAfterSeconds: data.retryAfterSeconds ?? 60,
-              };
-            }
-            return { ok: false as const, message: data.message ?? "Не удалось отправить код" };
-          }}
-          onSuccess={(cid, retry, phone) => {
-            if (phone) setPhoneForResend(phone);
-            setChallengeId(cid);
-            setRetryAfterSeconds(retry ?? 60);
-            setPhoneStep("code");
-          }}
-        />
-      </div>
-    );
+    return <AuthFlowV2 nextParam={nextParam} />;
   }
 
   if (debug && !token) {

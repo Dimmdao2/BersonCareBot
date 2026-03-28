@@ -8,6 +8,8 @@ export type AuthMethodsPayload = {
   telegram?: boolean;
   max?: boolean;
   email?: boolean;
+  /** Верифицированный email; только когда email: true */
+  emailAddress?: string;
   /** OAuth-методы скрыты из UI до полной реализации. Поле зарезервировано. */
   oauth?: {
     yandex?: boolean;
@@ -43,6 +45,7 @@ export async function resolveAuthMethodsForPhone(
       telegram: !!user.bindings?.telegramId,
       max: !!user.bindings?.maxId,
       email: !!verifiedEmail,
+      emailAddress: verifiedEmail ?? undefined,
       // OAuth не включается в UI пока flow не готов к production.
     },
   };

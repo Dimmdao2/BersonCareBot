@@ -12,6 +12,8 @@ import { Geist } from "next/font/google";
 import { ClientToaster } from "@/components/ClientToaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
+import { PlatformProvider } from "@/shared/ui/PlatformProvider";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -28,7 +30,8 @@ export const viewport: Viewport = {
 };
 
 /** Рендерит общую обёртку страницы: тег html, тело и дочернее содержимое (конкретная страница). */
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const platformEntry = await getPlatformEntry();
   return (
     <html lang="ru" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body>
@@ -39,7 +42,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
             src="https://telegram.org/js/telegram-web-app.js"
             strategy="beforeInteractive"
           />
-          {children}
+          <PlatformProvider serverHint={platformEntry}>{children}</PlatformProvider>
         </TooltipProvider>
       </body>
     </html>
