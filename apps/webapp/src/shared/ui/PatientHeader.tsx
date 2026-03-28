@@ -67,7 +67,7 @@ export function PatientHeader({
   const nav = patientNavByPlatform[platform];
   const [menuOpen, setMenuOpen] = useState(false);
   const supportUnread = usePatientSupportUnreadCount();
-  const reminderUnread = useReminderUnreadCount();
+  const reminderUnread = useReminderUnreadCount(nav.headerRightIcons.includes("reminders"));
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 

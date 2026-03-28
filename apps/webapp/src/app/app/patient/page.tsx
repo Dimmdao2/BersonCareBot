@@ -2,6 +2,7 @@
  * Главное меню пациента («/app/patient»).
  * Доступно без входа (гость): общие блоки; персональные секции — при наличии сессии.
  * Набор блоков фильтруется по PlatformEntry (bot vs standalone).
+ * В браузере сверху — две колонки «Кабинет» и «Дневник» (см. PatientHomeBrowserHero).
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
@@ -19,6 +20,7 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { PostLoginSuggestion } from "@/shared/ui/auth/PostLoginSuggestion";
 import { loadMiniStatsProps } from "./home/loadMiniStats";
+import { PatientHomeBrowserHero } from "./home/PatientHomeBrowserHero";
 import { PatientHomeCabinetSection } from "./home/PatientHomeCabinetSection";
 import { PatientHomeLessonsSection } from "./home/PatientHomeLessonsSection";
 import { PatientHomeMailingsSection } from "./home/PatientHomeMailingsSection";
@@ -30,6 +32,8 @@ export default async function PatientHomePage() {
     getOptionalPatientSession(),
     getPlatformEntry(),
   ]);
+
+  const isBrowserStandalone = platformEntry === "standalone";
 
   const blocks = new Set<HomeBlockId>(
     platformEntry === "bot"
@@ -79,7 +83,10 @@ export default async function PatientHomePage() {
     <AppShell title="Главное меню" user={session?.user ?? null} variant="patient">
       <div className="flex flex-col gap-8">
         {session?.user != null ? <PostLoginSuggestion /> : null}
-        {blocks.has("cabinet") ? <PatientHomeCabinetSection items={menu} /> : null}
+        {isBrowserStandalone ? <PatientHomeBrowserHero /> : null}
+        {!isBrowserStandalone && blocks.has("cabinet") ? (
+          <PatientHomeCabinetSection items={menu} />
+        ) : null}
         {blocks.has("materials") ? (
           <PatientHomeLessonsSection emergency={emergency} lessons={lessons} />
         ) : null}

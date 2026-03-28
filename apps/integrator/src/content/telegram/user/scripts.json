@@ -481,6 +481,12 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
+					"_when": {
+						"and": [
+							{ "path": "facts.links.webappCabinetUrl", "truthy": true },
+							{ "path": "facts.links.webappAddressUrl", "truthy": true }
+						]
+					},
 					"recipient": { "chatId": "{{actor.chatId}}" },
 					"message": {},
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
@@ -490,6 +496,24 @@
 							{ "textTemplateKey": "telegram:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" },
 							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
 							{ "textTemplateKey": "telegram:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }
+						]
+					]
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"_when": { "path": "facts.links.webappCabinetUrl", "truthy": false },
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"message": {},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"templateKey": "telegram:bookingMessage",
+					"inlineKeyboard": [
+						[
+							{ "textTemplateKey": "telegram:bookingMenu.my", "callbackData": "bookings.show" },
+							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
+							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
 						]
 					]
 				}

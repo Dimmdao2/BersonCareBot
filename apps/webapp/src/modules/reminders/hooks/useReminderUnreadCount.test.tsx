@@ -80,4 +80,13 @@ describe("useReminderUnreadCount", () => {
     });
     expect(result.current).toBe(0);
   });
+
+  it("does not fetch when disabled", async () => {
+    const { result } = renderHook(() => useReminderUnreadCount(false));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current).toBe(0);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
 });

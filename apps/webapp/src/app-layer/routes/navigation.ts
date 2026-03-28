@@ -20,14 +20,15 @@ export const patientNavByPlatform: Record<PlatformMode, PatientNavConfig> = {
     showLogout: false,
     showInstallPrompt: false,
   },
+  /** Браузер (и PWA): шапка отличается от мини-приложения в боте — справка и остальные разделы в гамбургере справа. */
   mobile: {
-    headerRightIcons: ["messages", "reminders", "menu"],
+    headerRightIcons: ["messages", "help", "menu"],
     hasSheetMenu: true,
     showLogout: true,
     showInstallPrompt: true,
   },
   desktop: {
-    headerRightIcons: ["messages", "reminders", "menu"],
+    headerRightIcons: ["messages", "help", "menu"],
     hasSheetMenu: true,
     showLogout: true,
     showInstallPrompt: false,

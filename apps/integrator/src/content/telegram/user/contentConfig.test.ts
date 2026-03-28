@@ -11,7 +11,9 @@ describe('telegram user static content', () => {
       Array<{ textTemplateKey: string }>
     >;
     expect(rows).toHaveLength(1);
-    expect(rows[0].map((b) => b.textTemplateKey)).toEqual([
+    const row0 = rows[0];
+    expect(row0).toBeDefined();
+    expect(row0!.map((b) => b.textTemplateKey)).toEqual([
       'telegram:menu.book',
       'telegram:menu.diary',
       'telegram:menu.more',
@@ -25,7 +27,10 @@ describe('telegram user static content', () => {
     }>;
     const booking = scripts.find((s) => s.id === 'telegram.booking.open');
     expect(booking).toBeTruthy();
-    const sendStep = booking?.steps?.find((step) => step.action === 'message.send');
+    const sendStep = booking?.steps?.find((step) =>
+      step.action === 'message.send'
+      && (step.params as { _when?: { and?: Array<{ path?: string; truthy?: boolean }> } })?._when?.and?.[0]?.path === 'facts.links.webappCabinetUrl'
+    );
     expect(sendStep?.params?.inlineKeyboard).toEqual([
       [
         { textTemplateKey: 'telegram:bookingMenu.my', webAppUrlFact: 'links.webappCabinetUrl' },

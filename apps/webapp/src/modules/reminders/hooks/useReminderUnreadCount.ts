@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 const POLL_INTERVAL_MS = 60_000;
 
 /** Кол-во непросмотренных напоминаний, polling каждые 60 сек, пауза при скрытом вкладке. */
-export function useReminderUnreadCount() {
+export function useReminderUnreadCount(enabled = true) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
 
     const run = async () => {
@@ -34,7 +35,7 @@ export function useReminderUnreadCount() {
       clearInterval(t);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, []);
+  }, [enabled]);
 
   return count;
 }

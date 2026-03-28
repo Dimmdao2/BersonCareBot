@@ -37,10 +37,11 @@ function buildLinksFromBody(body: TelegramWebhookBodyValidated): Record<string, 
       ...(displayName !== undefined && displayName !== '' ? { displayName } : {}),
     });
     if (webappEntryUrl) {
-      links.webappEntryUrl = webappEntryUrl;
+      const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
+      links.webappEntryUrl = baseWebappUrl;
       const enc = (p: string) => encodeURIComponent(p);
-      links.webappCabinetUrl = `${webappEntryUrl}&next=${enc('/app/patient/cabinet')}`;
-      links.webappAddressUrl = `${webappEntryUrl}&next=${enc('/app/patient/address')}`;
+      links.webappCabinetUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
+      links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;
     }
   }
   return Object.keys(links).length > 0 ? { links } : {};

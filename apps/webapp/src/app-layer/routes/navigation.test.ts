@@ -25,10 +25,10 @@ describe("patientNavByPlatform", () => {
     expect(patientNavByPlatform.bot.showLogout).toBe(false);
   });
 
-  it("mobile and desktop share header icons", () => {
+  it("mobile and desktop share header icons (browser: messages, help, hamburger menu)", () => {
     expect(patientNavByPlatform.mobile.headerRightIcons).toEqual([
       "messages",
-      "reminders",
+      "help",
       "menu",
     ]);
     expect(patientNavByPlatform.desktop.headerRightIcons).toEqual(
