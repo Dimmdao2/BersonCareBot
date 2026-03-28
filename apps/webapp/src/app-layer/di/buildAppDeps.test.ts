@@ -58,10 +58,11 @@ describe("buildAppDeps", () => {
     expect(typeof deps.media.getById).toBe("function");
   });
 
-  it("patientCabinet has getPatientCabinetState and getUpcomingAppointments", async () => {
+  it("patientCabinet has getPatientCabinetState, getUpcomingAppointments, getPastAppointments", async () => {
     const deps = buildAppDeps();
     expect(typeof deps.patientCabinet.getPatientCabinetState).toBe("function");
     expect(typeof deps.patientCabinet.getUpcomingAppointments).toBe("function");
+    expect(typeof deps.patientCabinet.getPastAppointments).toBe("function");
     const state = await deps.patientCabinet.getPatientCabinetState("user-1");
     expect(state).toHaveProperty("enabled");
     expect(state).toHaveProperty("reason");
@@ -89,7 +90,7 @@ describe("buildAppDeps", () => {
     const deps = buildAppDeps();
     expect(typeof deps.doctorAppointments.listAppointmentsForSpecialist).toBe("function");
     expect(typeof deps.doctorAppointments.getAppointmentStats).toBe("function");
-    const list = await deps.doctorAppointments.listAppointmentsForSpecialist({ range: "today" });
+    const list = await deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "range", range: "today" });
     const stats = await deps.doctorAppointments.getAppointmentStats({ range: "today" });
     expect(Array.isArray(list)).toBe(true);
     expect(stats).toHaveProperty("total");

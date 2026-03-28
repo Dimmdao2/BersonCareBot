@@ -5,7 +5,7 @@ import type { DoctorAppointmentsPort } from "./ports";
 describe("doctor-appointments service", () => {
   const mockPort: DoctorAppointmentsPort = {
     async listAppointmentsForSpecialist(filter) {
-      if (filter.range === "today") {
+      if (filter.kind === "range" && filter.range === "today") {
         return [
           {
             id: "apt-1",
@@ -42,14 +42,14 @@ describe("doctor-appointments service", () => {
   const service = createDoctorAppointmentsService({ appointmentsPort: mockPort });
 
   it("listAppointmentsForSpecialist returns port result", async () => {
-    const list = await service.listAppointmentsForSpecialist({ range: "today" });
+    const list = await service.listAppointmentsForSpecialist({ kind: "range", range: "today" });
     expect(list).toHaveLength(1);
     expect(list[0].clientLabel).toBe("Иван");
     expect(list[0].time).toBe("10:00");
   });
 
   it("listAppointmentsForSpecialist returns empty for tomorrow", async () => {
-    const list = await service.listAppointmentsForSpecialist({ range: "tomorrow" });
+    const list = await service.listAppointmentsForSpecialist({ kind: "range", range: "tomorrow" });
     expect(list).toHaveLength(0);
   });
 

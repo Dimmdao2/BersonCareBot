@@ -16,6 +16,7 @@ type Props = {
     telegram?: string;
     max?: string;
     appointment?: string;
+    visitedMonth?: string;
     selected?: string;
   }>;
 };
@@ -31,7 +32,10 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
     redirect(BASE);
   }
   const [allClients, selectedData] = await Promise.all([
-    deps.doctorClients.listClients({ onlyWithAppointmentRecords: true }),
+    deps.doctorClients.listClients({
+      onlyWithAppointmentRecords: true,
+      visitedThisCalendarMonth: params.visitedMonth === "1",
+    }),
     selected
       ? Promise.all([
           deps.doctorClients.getClientProfile(selected),

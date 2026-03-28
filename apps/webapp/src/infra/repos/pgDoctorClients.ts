@@ -44,12 +44,12 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
       const upcomingPhones = await pool.query<{ phone_normalized: string }>(
         `SELECT DISTINCT phone_normalized
-         FROM appointment_records
-         WHERE phone_normalized IS NOT NULL
-           AND deleted_at IS NULL
-           AND record_at IS NOT NULL
-           AND record_at >= NOW()
-           AND status IN ('created', 'updated')`
+         FROM appointment_records ar
+         WHERE ar.phone_normalized IS NOT NULL
+           AND ar.deleted_at IS NULL
+           AND ar.status IN ('created', 'updated')
+           AND ar.record_at IS NOT NULL
+           AND ar.record_at >= NOW()`
       );
       const phoneHasUpcoming = new Set(
         upcomingPhones.rows.map((row) => row.phone_normalized).filter(Boolean) as string[],
@@ -99,6 +99,23 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         );
         list = list.filter((item) => Boolean(item.phone) && phoneSet.has(item.phone!));
       }
+      if (filters.visitedThisCalendarMonth === true) {
+        const visited = await pool.query<{ id: string }>(
+          `SELECT DISTINCT pu.id
+           FROM platform_users pu
+           INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
+           WHERE pu.role = 'client'
+             AND COALESCE(pu.is_archived, false) = false
+             AND ar.record_at IS NOT NULL
+             AND ar.record_at >= date_trunc('month', NOW())
+             AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
+             AND ar.record_at < NOW()
+             AND ar.status IN ('created', 'updated')
+             AND ar.deleted_at IS NULL`
+        );
+        const idSet = new Set(visited.rows.map((r) => r.id));
+        list = list.filter((item) => idSet.has(item.userId));
+      }
       return list;
     },
 
@@ -114,7 +131,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
            WHERE pu.role = 'client'
              AND COALESCE(pu.is_archived, false) = false
-             AND ar.record_at IS NOT NULL AND ar.record_at > NOW()
+             AND ar.record_at IS NOT NULL
+             AND ar.record_at >= NOW()
              AND ar.status IN ('created', 'updated')
              AND ar.deleted_at IS NULL`
         ),
@@ -127,6 +145,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
              AND ar.record_at IS NOT NULL
              AND ar.record_at >= date_trunc('month', NOW())
              AND ar.record_at < date_trunc('month', NOW()) + interval '1 month'
+             AND ar.record_at < NOW()
              AND ar.status IN ('created', 'updated')
              AND ar.deleted_at IS NULL`
         ),

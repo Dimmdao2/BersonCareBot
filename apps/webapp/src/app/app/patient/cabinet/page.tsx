@@ -7,7 +7,6 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { CabinetGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui/patient/guestAccess";
-import { getPastAppointments } from "@/modules/appointments/service";
 import { AppShell } from "@/shared/ui/AppShell";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +36,7 @@ export default async function PatientCabinetPage() {
 
   const [appointments, past] = await Promise.all([
     deps.patientCabinet.getUpcomingAppointments(userId),
-    Promise.resolve(getPastAppointments(userId)),
+    deps.patientCabinet.getPastAppointments(userId),
   ]);
 
   return (

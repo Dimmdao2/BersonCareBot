@@ -53,4 +53,16 @@ describe("pgDoctorAppointments cancellation rules", () => {
     expect(rangeQuery).toContain(CANCELLATION_LAST_EVENT_EXCLUSION_SQL);
     expect(last30Query).toContain(CANCELLATION_LAST_EVENT_EXCLUSION_SQL);
   });
+
+  it("getAppointmentStats excludes soft-deleted rows", async () => {
+    const port = createPgDoctorAppointmentsPort();
+    await port.getAppointmentStats({ range: "week" });
+
+    const queries = queryMock.mock.calls.map((call) => String(call[0]));
+    const rangeQuery = queries.find((sql) => sql.includes("COUNT(*) FILTER (WHERE status = 'canceled'"));
+    const last30Query = queries.find((sql) => sql.includes("NOW() - INTERVAL '30 days'"));
+
+    expect(rangeQuery).toContain("deleted_at IS NULL");
+    expect(last30Query).toContain("deleted_at IS NULL");
+  });
 });

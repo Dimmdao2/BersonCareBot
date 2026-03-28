@@ -8,6 +8,11 @@ export type DoctorClientsFilters = {
   hasMax?: boolean;
   /** Только пользователи с хотя бы одной строкой в `appointment_records` (JOIN по phone). Этап 9. */
   onlyWithAppointmentRecords?: boolean;
+  /**
+   * Клиенты с прошедшим слотом created/updated в текущем UTC-месяце (как плитка дашборда «Были на приёме»).
+   * См. docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md.
+   */
+  visitedThisCalendarMonth?: boolean;
 };
 
 /** Строка клиента в списке. */
@@ -38,9 +43,9 @@ export type ClientIdentity = {
 export type DoctorDashboardPatientMetrics = {
   /** `COUNT(*)` WHERE `role = 'client'`. */
   totalClients: number;
-  /** Есть хотя бы одна будущая запись (appointment_records, created/updated). */
+  /** Есть хотя бы одна будущая запись (created/updated, `record_at >= now()`). */
   onSupportCount: number;
-  /** Хотя бы одна запись с `record_at` в текущем UTC-месяце (created/updated). */
+  /** Уникальные клиенты с прошедшим слотом created/updated в текущем UTC-месяце (`record_at < now()`). */
   visitedThisCalendarMonthCount: number;
 };
 

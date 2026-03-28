@@ -33,7 +33,7 @@ export function getUpcomingAppointments(_userId: string): AppointmentSummary[] {
 }
 
 /**
- * Прошедшие записи. Пока нет API — пустой массив (история Rubitime / integrator: TODO).
+ * Заглушка без БД. С `DATABASE_URL` история подгружается через `patientCabinet.getPastAppointments` в DI.
  */
 export function getPastAppointments(_userId: string): PastAppointmentSummary[] {
   void _userId;

@@ -1,4 +1,4 @@
-import type { AppointmentSummary } from "@/modules/appointments/service";
+import type { AppointmentSummary, PastAppointmentSummary } from "@/modules/appointments/service";
 
 export type PatientCabinetState = {
   enabled: boolean;
@@ -7,6 +7,7 @@ export type PatientCabinetState = {
 };
 
 export type GetUpcomingAppointmentsPort = (userId: string) => Promise<AppointmentSummary[]>;
+export type GetPastAppointmentsPort = (userId: string) => Promise<PastAppointmentSummary[]>;
 
 function computeCabinetState(appointmentCount: number): PatientCabinetState {
   const hasAppointments = appointmentCount > 0;
@@ -25,9 +26,11 @@ function computeCabinetState(appointmentCount: number): PatientCabinetState {
  */
 export function createPatientCabinetService(deps: {
   getUpcomingAppointments: GetUpcomingAppointmentsPort;
+  getPastAppointments: GetPastAppointmentsPort;
 }): {
   getPatientCabinetState: (userId: string) => Promise<PatientCabinetState>;
   getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]>;
+  getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]>;
 } {
   return {
     async getPatientCabinetState(userId: string) {
@@ -35,6 +38,7 @@ export function createPatientCabinetService(deps: {
       return computeCabinetState(list.length);
     },
     getUpcomingAppointments: deps.getUpcomingAppointments,
+    getPastAppointments: deps.getPastAppointments,
   };
 }
 

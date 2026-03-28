@@ -53,6 +53,7 @@ import {
   getUpcomingAppointments as getUpcomingAppointmentsMock,
   type AppointmentRecordStatus,
   type AppointmentSummary,
+  type PastAppointmentSummary,
 } from "@/modules/appointments/service";
 import { createMediaService } from "@/modules/media/service";
 import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
@@ -227,6 +228,40 @@ const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]>
       }
     : async (userId: string) => getUpcomingAppointmentsMock(userId);
 
+function isStillUpcomingSlot(row: { recordAt: string | null; status: string }): boolean {
+  const st = row.status.toLowerCase();
+  if (st !== "created" && st !== "updated") return false;
+  const nowMs = Date.now();
+  if (row.recordAt == null) return true;
+  return new Date(row.recordAt).getTime() >= nowMs;
+}
+
+const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]> =
+  env.DATABASE_URL && appointmentProjectionPort
+    ? async (userId: string) => {
+        try {
+          const phone = await userByPhonePort.getPhoneByUserId(userId);
+          if (!phone) return [];
+          const rows = await appointmentProjectionPort.listHistoryByPhoneNormalized(phone, 80);
+          return rows
+            .filter((row) => !isStillUpcomingSlot(row))
+            .map((row) => ({
+              id: row.integratorRecordId,
+              label: row.recordAt
+                ? `Запись ${new Date(row.recordAt).toLocaleString("ru-RU")}`
+                : "Запись",
+              link: linkFromPayload(row.payloadJson),
+              status: mapRecordStatus(row.status),
+              occurredAtLabel: row.recordAt
+                ? new Date(row.recordAt).toLocaleString("ru-RU")
+                : "—",
+            }));
+        } catch {
+          return [];
+        }
+      }
+    : async () => [];
+
 const symptomDiaryService = createSymptomDiaryService(symptomDiaryPort);
 const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
 const channelPreferencesService = createChannelPreferencesService(channelPreferencesPort);
@@ -328,6 +363,7 @@ function _buildAppDeps() {
     },
     patientCabinet: createPatientCabinetService({
       getUpcomingAppointments,
+      getPastAppointments,
     }),
     doctorCabinet: {
       getDoctorWorkspaceState,

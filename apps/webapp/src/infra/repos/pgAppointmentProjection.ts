@@ -32,6 +32,7 @@ export type AppointmentProjectionPort = {
     branchId?: string | null;
   }): Promise<void>;
   getRecordByIntegratorId(integratorRecordId: string): Promise<AppointmentRecordRow | null>;
+  /** Активные предстоящие: статус created/updated, слот в будущем или без времени, не soft-delete. */
   listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]>;
   /** Все записи по телефону для истории (исключая soft-delete). */
   listHistoryByPhoneNormalized(phoneNormalized: string, limit?: number): Promise<AppointmentRecordRow[]>;
@@ -141,6 +142,7 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
          FROM appointment_records
          WHERE phone_normalized = $1 AND status IN ('created', 'updated')
            AND deleted_at IS NULL
+           AND (record_at IS NULL OR record_at >= now())
          ORDER BY record_at ASC NULLS LAST`,
         [phoneNormalized]
       );

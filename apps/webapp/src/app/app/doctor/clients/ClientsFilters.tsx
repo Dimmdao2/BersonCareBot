@@ -4,30 +4,46 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type ClientsFiltersProps = {
-  defaults: { telegram?: boolean; max?: boolean; appointment?: boolean };
-  /** Если задан — мержит все флаги и обновляет URL одним replace (без потери остальных query). */
-  onChange?: (next: { telegram: boolean; max: boolean; appointment: boolean }) => void;
+type FilterDefaults = {
+  telegram?: boolean;
+  max?: boolean;
+  appointment?: boolean;
+  visitedMonth?: boolean;
 };
 
-export function ClientsFilters({ defaults, onChange }: ClientsFiltersProps) {
+type ClientsFiltersProps = {
+  defaults: FilterDefaults;
+  /** Если задан — мержит все флаги и обновляет URL одним replace (без потери остальных query). */
+  onChange?: (next: {
+    telegram: boolean;
+    max: boolean;
+    appointment: boolean;
+    visitedMonth: boolean;
+  }) => void;
+  /** Только на странице «Клиенты» (не подписчики): фильтр совпадает с плиткой дашборда. */
+  showVisitedMonthFilter?: boolean;
+};
+
+export function ClientsFilters({ defaults, onChange, showVisitedMonthFilter }: ClientsFiltersProps) {
   const router = useRouter();
 
-  const toggle = (param: "telegram" | "max" | "appointment") => {
+  const toggle = (param: "telegram" | "max" | "appointment" | "visitedMonth") => {
     if (onChange) {
       onChange({
         telegram: param === "telegram" ? !defaults.telegram : !!defaults.telegram,
         max: param === "max" ? !defaults.max : !!defaults.max,
         appointment: param === "appointment" ? !defaults.appointment : !!defaults.appointment,
+        visitedMonth: param === "visitedMonth" ? !defaults.visitedMonth : !!defaults.visitedMonth,
       });
       return;
     }
     const params = new URLSearchParams(window.location.search);
-    const current = params.get(param) === "1";
+    const key = param === "visitedMonth" ? "visitedMonth" : param;
+    const current = params.get(key) === "1";
     if (current) {
-      params.delete(param);
+      params.delete(key);
     } else {
-      params.set(param, "1");
+      params.set(key, "1");
     }
     const query = params.toString();
     router.push(`/app/doctor/clients${query ? `?${query}` : ""}`);
@@ -68,6 +84,19 @@ export function ClientsFilters({ defaults, onChange }: ClientsFiltersProps) {
       >
         Есть запись
       </Button>
+      {showVisitedMonthFilter ? (
+        <Button
+          type="button"
+          id="doctor-clients-filter-visited-month"
+          size="sm"
+          variant={defaults.visitedMonth ? "default" : "outline"}
+          className={cn(!defaults.visitedMonth && "border-dashed")}
+          onClick={() => toggle("visitedMonth")}
+          aria-pressed={defaults.visitedMonth}
+        >
+          Приём в этом месяце
+        </Button>
+      ) : null}
     </div>
   );
 }

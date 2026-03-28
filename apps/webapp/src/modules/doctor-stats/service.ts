@@ -1,5 +1,8 @@
 /** Операционная статистика для кабинета специалиста. */
-import type { DoctorDashboardAppointmentMetrics } from "@/modules/doctor-appointments/ports";
+import type {
+  DoctorAppointmentStatsFilter,
+  DoctorDashboardAppointmentMetrics,
+} from "@/modules/doctor-appointments/ports";
 import type { DoctorDashboardPatientMetrics } from "@/modules/doctor-clients/ports";
 
 export type DoctorStatsState = {
@@ -19,8 +22,7 @@ export type DoctorStatsState = {
 
 /**
  * Плитки главной `/app/doctor` (этап 9).
- * Пациенты: total — все role=client; onSupport — есть будущая запись; visitedThisMonth — визит в текущем месяце (по record_at).
- * Записи: см. `DoctorDashboardAppointmentMetrics`.
+ * Определения метрик: docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md.
  */
 export type DoctorDashboardMetrics = {
   patients: {
@@ -36,7 +38,7 @@ export type DoctorDashboardMetrics = {
 };
 
 export type DoctorStatsServiceDeps = {
-  getAppointmentStats: (filter: { range: "today" | "tomorrow" | "week" }) => Promise<{
+  getAppointmentStats: (filter: DoctorAppointmentStatsFilter) => Promise<{
     total: number;
     cancellations: number;
     cancellations30d: number;

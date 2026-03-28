@@ -41,6 +41,9 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     if (filters.onlyWithAppointmentRecords === true) {
       list = [];
     }
+    if (filters.visitedThisCalendarMonth === true) {
+      list = [];
+    }
     return list;
   },
 

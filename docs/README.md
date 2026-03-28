@@ -28,6 +28,7 @@ Cutover/backfill/reconcile env для prod/dev: **docs/ARCHITECTURE/SERVER CONVE
 | **DB_STRUCTURE_AND_RECOMMENDATIONS.md** | Модель БД integrator (users, identities, contacts). |
 | **MESSAGING_CONTRACT.md** | Контракт message.send / message.edit: payload, parse_mode, ссылки. |
 | **SPECIALIST_CABINET_STRUCTURE.md** | Продуктовая структура кабинета специалиста. |
+| **DOCTOR_DASHBOARD_METRICS.md** | Метрики плиток `/app/doctor`, SQL и deep links (webapp). |
 | **MAX_CAPABILITY_MATRIX.md** | Матрица Telegram vs MAX: механики, уведомления, Web App. |
 | **MAX_SETUP.md** | Подключение MAX: env, webhook, smoke-тесты. |
 | **LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md** | Low-level аудит auth, DI, composition roots (2026-03). |
@@ -43,6 +44,7 @@ Cutover/backfill/reconcile env для prod/dev: **docs/ARCHITECTURE/SERVER CONVE
 | **DB_MIGRATION_STAGE2_PATIENT_MASTER.md** | Stage 2: patient master domain — projection, schema, emitters. |
 | **STAGE2_REMEDIATION_PLAN.md** | План исправления ошибок Stage 2: durable projection, id contract, out-of-order. |
 | **STAGE2_REMEDIATION_TASKS_FOR_JUNIOR_AGENT.md** | Атомарные задачи T1–T6 для авто-агента (эталонный формат). |
+| **DOCTOR_DASHBOARD_METRICS_CHANGELOG.md** | Лог правок метрик дашборда врача и навигации (webapp). |
 | **REMINDERS_ROADMAP.md** | Roadmap напоминаний: фазы 1–4. |
 | **plan-channel-from-context.md** | План: канал доставки из контекста вместо hardcode. |
 

@@ -1,16 +1,17 @@
 import type {
   AppointmentRow,
   AppointmentStats,
-  DoctorAppointmentsFilter,
+  DoctorAppointmentStatsFilter,
+  DoctorAppointmentsListFilter,
   DoctorAppointmentsPort,
   DoctorDashboardAppointmentMetrics,
 } from "@/modules/doctor-appointments/ports";
 
 export const inMemoryDoctorAppointmentsPort: DoctorAppointmentsPort = {
-  async listAppointmentsForSpecialist(_filter: DoctorAppointmentsFilter): Promise<AppointmentRow[]> {
+  async listAppointmentsForSpecialist(_filter: DoctorAppointmentsListFilter): Promise<AppointmentRow[]> {
     return []; // branchName included in AppointmentRow when using pg port
   },
-  async getAppointmentStats(_filter: DoctorAppointmentsFilter): Promise<AppointmentStats> {
+  async getAppointmentStats(_filter: DoctorAppointmentStatsFilter): Promise<AppointmentStats> {
     return {
       total: 0,
       cancellations: 0,

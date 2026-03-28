@@ -14,6 +14,7 @@ type UrlParams = {
   telegram?: string;
   max?: string;
   appointment?: string;
+  visitedMonth?: string;
   selected?: string;
 };
 
@@ -37,9 +38,17 @@ function matchesSearch(item: ClientListItem, query: string): boolean {
   );
 }
 
+function appendListQueryParams(params: URLSearchParams, urlParams: UrlParams): void {
+  if (urlParams.telegram === "1") params.set("telegram", "1");
+  if (urlParams.max === "1") params.set("max", "1");
+  if (urlParams.appointment === "1") params.set("appointment", "1");
+  if (urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
+}
+
 export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_BASE }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState(urlParams.q ?? "");
+  const showVisitedMonthFilter = basePath === DEFAULT_BASE;
 
   const filtered = useMemo(() => {
     const q = search.trim();
@@ -60,11 +69,12 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
   }, [allClients, search, urlParams.telegram, urlParams.max, urlParams.appointment]);
 
   const onFiltersChange = useCallback(
-    (next: { telegram: boolean; max: boolean; appointment: boolean }) => {
+    (next: { telegram: boolean; max: boolean; appointment: boolean; visitedMonth: boolean }) => {
       const params = new URLSearchParams();
       if (next.telegram) params.set("telegram", "1");
       if (next.max) params.set("max", "1");
       if (next.appointment) params.set("appointment", "1");
+      if (next.visitedMonth) params.set("visitedMonth", "1");
       if (urlParams.selected) params.set("selected", urlParams.selected);
       const query = params.toString();
       router.replace(`${basePath}${query ? `?${query}` : ""}`);
@@ -77,14 +87,12 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
       if (typeof window !== "undefined" && window.innerWidth >= 768) {
         e.preventDefault();
         const params = new URLSearchParams();
-        if (urlParams.telegram === "1") params.set("telegram", "1");
-        if (urlParams.max === "1") params.set("max", "1");
-        if (urlParams.appointment === "1") params.set("appointment", "1");
+        appendListQueryParams(params, urlParams);
         params.set("selected", userId);
         router.push(`${basePath}?${params.toString()}`);
       }
     },
-    [router, basePath, urlParams.telegram, urlParams.max, urlParams.appointment],
+    [router, basePath, urlParams],
   );
 
   return (
@@ -111,8 +119,10 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
           telegram: urlParams.telegram === "1",
           max: urlParams.max === "1",
           appointment: urlParams.appointment === "1",
+          visitedMonth: urlParams.visitedMonth === "1",
         }}
         onChange={onFiltersChange}
+        showVisitedMonthFilter={showVisitedMonthFilter}
       />
 
       {filtered.length === 0 ? (

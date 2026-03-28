@@ -29,7 +29,7 @@ describe("AppointmentProjectionPort (in-memory contract)", () => {
     await port.upsertRecordFromProjection({
       integratorRecordId: "rec-list-a-1",
       phoneNormalized: "+79991111111",
-      recordAt: "2025-06-01T09:00:00.000Z",
+      recordAt: "2030-06-01T09:00:00.000Z",
       status: "created",
       payloadJson: {},
       lastEvent: "create",
@@ -38,7 +38,7 @@ describe("AppointmentProjectionPort (in-memory contract)", () => {
     await port.upsertRecordFromProjection({
       integratorRecordId: "rec-list-b-1",
       phoneNormalized: "+79992222222",
-      recordAt: "2025-06-01T10:00:00.000Z",
+      recordAt: "2030-06-01T10:00:00.000Z",
       status: "updated",
       payloadJson: {},
       lastEvent: "update",
@@ -50,6 +50,23 @@ describe("AppointmentProjectionPort (in-memory contract)", () => {
     const listB = await port.listActiveByPhoneNormalized("+79992222222");
     expect(listB.length).toBe(1);
     expect(listB[0].integratorRecordId).toBe("rec-list-b-1");
+  });
+
+  it("past slot with created/updated is not active but remains in history list", async () => {
+    const port = inMemoryAppointmentProjectionPort;
+    await port.upsertRecordFromProjection({
+      integratorRecordId: "rec-past-active-status",
+      phoneNormalized: "+79994444444",
+      recordAt: "2020-01-01T12:00:00.000Z",
+      status: "updated",
+      payloadJson: {},
+      lastEvent: "update",
+      updatedAt: new Date().toISOString(),
+    });
+    const active = await port.listActiveByPhoneNormalized("+79994444444");
+    expect(active.length).toBe(0);
+    const hist = await port.listHistoryByPhoneNormalized("+79994444444", 10);
+    expect(hist.some((r) => r.integratorRecordId === "rec-past-active-status")).toBe(true);
   });
 
   it("canceled does not appear in listActiveByPhoneNormalized", async () => {

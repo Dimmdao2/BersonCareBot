@@ -70,12 +70,15 @@ export const inMemoryAppointmentProjectionPort: AppointmentProjectionPort = {
   },
 
   async listActiveByPhoneNormalized(phoneNormalized: string): Promise<AppointmentRecordRow[]> {
+    const nowMs = Date.now();
     const list: AppointmentRecordRow[] = [];
     for (const [key, v] of recordsByIntegratorId) {
+      const slotOk = v.recordAt == null || new Date(v.recordAt).getTime() >= nowMs;
       if (
         !v.deletedAt &&
         v.phoneNormalized === phoneNormalized &&
-        (v.status === "created" || v.status === "updated")
+        (v.status === "created" || v.status === "updated") &&
+        slotOk
       ) {
         list.push(toRow(key, v));
       }

@@ -36,10 +36,10 @@ export default async function DoctorPage() {
           />
           <DashboardTile
             id="doctor-dashboard-tile-patients-month"
-            href="/app/doctor/clients"
-            label="Приходили в этом месяце"
+            href="/app/doctor/clients?visitedMonth=1"
+            label="Были на приёме (месяц)"
             value={dashboard.patients.visitedThisMonth}
-            hint="По записям в календарном месяце"
+            hint="Прошедший слот в текущем UTC-месяце"
           />
         </div>
       </section>
@@ -52,21 +52,23 @@ export default async function DoctorPage() {
         >
           <DashboardTile
             id="doctor-dashboard-tile-appt-future"
-            href="/app/doctor/appointments"
+            href="/app/doctor/appointments?view=future"
             label="Активные (будущие)"
             value={dashboard.appointments.futureActive}
           />
           <DashboardTile
             id="doctor-dashboard-tile-appt-month"
-            href="/app/doctor/appointments"
+            href="/app/doctor/appointments?view=month"
             label="Всего за месяц"
             value={dashboard.appointments.recordsInMonthTotal}
+            hint="По дате приёма, все статусы"
           />
           <DashboardTile
             id="doctor-dashboard-tile-appt-cancel"
-            href="/app/doctor/stats"
+            href="/app/doctor/appointments?view=cancellationsMonth"
             label="Отмен за месяц"
             value={dashboard.appointments.cancellationsInMonth}
+            hint="По дате фиксации отмены"
           />
         </div>
         <p className="text-sm">

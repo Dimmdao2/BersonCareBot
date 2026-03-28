@@ -13,6 +13,7 @@ type Props = {
     telegram?: string;
     max?: string;
     appointment?: string;
+    visitedMonth?: string;
     selected?: string;
   }>;
 };
