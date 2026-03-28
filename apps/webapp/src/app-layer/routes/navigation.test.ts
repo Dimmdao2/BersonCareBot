@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   patientHomeBlocksByPlatform,
+  patientHomeBlocksCanonical,
+  patientHomeBlocksForEntry,
   patientNavByPlatform,
 } from "@/app-layer/routes/navigation";
 import type { PlatformMode } from "@/shared/lib/platform";
@@ -50,24 +52,25 @@ describe("patientHomeBlocksByPlatform", () => {
     }
   });
 
-  it("bot shows cabinet, materials, assistant, purchases, lfk-complexes, patient-card", () => {
-    expect(patientHomeBlocksByPlatform.bot).toEqual([
-      "cabinet",
-      "materials",
-      "assistant",
-      "purchases",
-      "lfk-complexes",
-      "patient-card",
-    ]);
+  it("bot is canonical list minus blocks hidden in mini-app (news, mailings, motivation, stats, channels)", () => {
+    expect(patientHomeBlocksByPlatform.bot).toEqual(
+      patientHomeBlocksCanonical.filter((id) =>
+        !["news", "mailings", "motivation", "stats", "channels"].includes(id),
+      ),
+    );
   });
 
-  it("bot includes cabinet block (diary + records) to compensate for missing reply keyboard in Max", () => {
+  it("bot includes cabinet block (как на веб-главной)", () => {
     expect(patientHomeBlocksByPlatform.bot).toContain("cabinet");
   });
 
-  it("mobile and desktop lists match", () => {
-    expect(patientHomeBlocksByPlatform.mobile).toEqual(
-      patientHomeBlocksByPlatform.desktop,
-    );
+  it("mobile and desktop lists match canonical", () => {
+    expect(patientHomeBlocksByPlatform.mobile).toEqual(patientHomeBlocksCanonical);
+    expect(patientHomeBlocksByPlatform.desktop).toEqual(patientHomeBlocksCanonical);
+  });
+
+  it("patientHomeBlocksForEntry mirrors bot vs standalone", () => {
+    expect(patientHomeBlocksForEntry("standalone")).toEqual(patientHomeBlocksCanonical);
+    expect(patientHomeBlocksForEntry("bot")).toEqual(patientHomeBlocksByPlatform.bot);
   });
 });

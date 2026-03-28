@@ -4,8 +4,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
 /**
- * Верхняя зона главной пациента только для браузера (не мини-приложение бота):
- * две колонки — кабинет и дневник.
+ * Верхняя зона главной: кабинет, дневник, запись — общая для браузера и мини-приложения в боте.
  */
 export function PatientHomeBrowserHero() {
   const cardClass = cn(

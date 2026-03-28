@@ -11,7 +11,6 @@ import type { ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientHeader } from "@/shared/ui/PatientHeader";
-import { AskQuestionFAB } from "@/shared/ui/AskQuestionFAB";
 import { PatientQuickAddFAB } from "@/app/app/patient/components/PatientQuickAddFAB";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
@@ -46,7 +45,7 @@ export function AppShell({
     return (
       <div
         id="app-shell-patient"
-        className="safe-padding-patient mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col bg-[var(--patient-surface)] pt-0"
+        className="safe-padding-patient mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col gap-3 bg-[var(--patient-surface)] pt-[max(0px,env(safe-area-inset-top,0px))]"
       >
         <PatientHeader
           pageTitle={title}
@@ -56,13 +55,12 @@ export function AppShell({
         />
         <main
           id="app-shell-content"
-          className="flex min-h-0 flex-1 flex-col gap-[var(--patient-gap)]"
+          className="flex min-h-0 flex-1 flex-col gap-[var(--patient-gap)] pt-1"
         >
           {children}
         </main>
         {patientFloatingSlot}
         <PatientQuickAddFAB visible={user !== null} />
-        <AskQuestionFAB visible={user !== null} />
       </div>
     );
   }

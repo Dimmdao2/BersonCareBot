@@ -250,7 +250,8 @@ a {
   .safe-padding-patient {
     padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
     padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
-    padding-bottom: max(68px, calc(48px + env(safe-area-inset-bottom, 0px)));
+    /* Запас под плавающую кнопку «+» (быстрое добавление в дневнике), без нижней полосы «Сообщения». */
+    padding-bottom: max(5.5rem, calc(3.5rem + env(safe-area-inset-bottom, 0px)));
   }
 
   .safe-bleed-x {

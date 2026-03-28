@@ -28,7 +28,6 @@ import {
 } from "@/app-layer/routes/navigation";
 import { cn } from "@/lib/utils";
 import { usePlatform } from "@/shared/hooks/usePlatform";
-import { usePatientSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
 
 /** Единый стиль пунктов бокового меню (Sheet). */
@@ -66,7 +65,6 @@ export function PatientHeader({
   const platform = usePlatform();
   const nav = patientNavByPlatform[platform];
   const [menuOpen, setMenuOpen] = useState(false);
-  const supportUnread = usePatientSupportUnreadCount();
   const reminderUnread = useReminderUnreadCount(nav.headerRightIcons.includes("reminders"));
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -106,14 +104,9 @@ export function PatientHeader({
             href={routePaths.patientMessages}
             prefetch={false}
             aria-label="Сообщения"
-            className={cn(HEADER_ICON_CLASS, "relative")}
+            className={HEADER_ICON_CLASS}
           >
             <MessageCircle className="size-[22px]" aria-hidden />
-            {supportUnread > 0 ? (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
-                {supportUnread > 99 ? "99+" : supportUnread}
-              </span>
-            ) : null}
           </Link>
         );
       case "reminders":
@@ -180,7 +173,7 @@ export function PatientHeader({
     <>
       <header
         id="patient-header"
-        className="safe-bleed-x sticky top-0 z-40 mb-4 border-b border-border/60 bg-[var(--patient-surface)] py-2 shadow-sm"
+        className="safe-bleed-x sticky top-0 z-40 shrink-0 border-b border-border/60 bg-[var(--patient-surface)] py-2 shadow-sm"
       >
         <div
           id="patient-header-row"

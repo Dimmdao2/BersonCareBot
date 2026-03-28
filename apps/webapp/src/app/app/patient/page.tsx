@@ -2,12 +2,12 @@
  * Главное меню пациента («/app/patient»).
  * Доступно без входа (гость): общие блоки; персональные секции — при наличии сессии.
  * Набор блоков фильтруется по PlatformEntry (bot vs standalone).
- * В браузере сверху — две колонки «Кабинет» и «Дневник» (см. PatientHomeBrowserHero).
+ * Сверху — карточки «Кабинет» / «Дневник» и запись (см. PatientHomeBrowserHero), и в браузере, и в мини-приложении бота.
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
-import { patientHomeBlocksByPlatform, type HomeBlockId } from "@/app-layer/routes/navigation";
+import { patientHomeBlocksForEntry, type HomeBlockId } from "@/app-layer/routes/navigation";
 import { MiniStats } from "@/modules/diaries/components/MiniStats";
 import {
   getHomeNews,
@@ -21,7 +21,7 @@ import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { PostLoginSuggestion } from "@/shared/ui/auth/PostLoginSuggestion";
 import { loadMiniStatsProps } from "./home/loadMiniStats";
 import { PatientHomeBrowserHero } from "./home/PatientHomeBrowserHero";
-import { PatientHomeCabinetSection } from "./home/PatientHomeCabinetSection";
+import { PatientHomeExtraBlocks } from "./home/PatientHomeExtraBlocks";
 import { PatientHomeLessonsSection } from "./home/PatientHomeLessonsSection";
 import { PatientHomeMailingsSection } from "./home/PatientHomeMailingsSection";
 import { PatientHomeMotivationSection } from "./home/PatientHomeMotivationSection";
@@ -33,13 +33,7 @@ export default async function PatientHomePage() {
     getPlatformEntry(),
   ]);
 
-  const isBrowserStandalone = platformEntry === "standalone";
-
-  const blocks = new Set<HomeBlockId>(
-    platformEntry === "bot"
-      ? patientHomeBlocksByPlatform.bot
-      : patientHomeBlocksByPlatform.mobile,
-  );
+  const blocks = new Set<HomeBlockId>(patientHomeBlocksForEntry(platformEntry));
 
   const deps = buildAppDeps();
   const menu = deps.menu.getMenuForRole("client");
@@ -83,13 +77,11 @@ export default async function PatientHomePage() {
     <AppShell title="Главное меню" user={session?.user ?? null} variant="patient">
       <div className="flex flex-col gap-8">
         {session?.user != null ? <PostLoginSuggestion /> : null}
-        {isBrowserStandalone ? <PatientHomeBrowserHero /> : null}
-        {!isBrowserStandalone && blocks.has("cabinet") ? (
-          <PatientHomeCabinetSection items={menu} />
-        ) : null}
+        {blocks.has("cabinet") ? <PatientHomeBrowserHero /> : null}
         {blocks.has("materials") ? (
           <PatientHomeLessonsSection emergency={emergency} lessons={lessons} />
         ) : null}
+        <PatientHomeExtraBlocks blocks={blocks} />
         {blocks.has("news") ? (
           <PatientHomeNewsSection news={homeNews} banner={banner} />
         ) : null}

@@ -49,11 +49,9 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary" },
-							{ "textTemplateKey": "telegram:menu.more" }
-						]
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.diary" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
 					],
 					"resizeKeyboard": true
 				}
@@ -155,11 +153,9 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary" },
-							{ "textTemplateKey": "telegram:menu.more" }
-						]
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.diary" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
 					],
 					"resizeKeyboard": true
 				}
@@ -225,11 +221,9 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:welcome",
 					"keyboard": [
-						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary" },
-							{ "textTemplateKey": "telegram:menu.more" }
-						]
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.diary" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
 					],
 					"resizeKeyboard": true
 				}
@@ -492,11 +486,9 @@
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
 					"templateKey": "telegram:bookingMessage",
 					"inlineKeyboard": [
-						[
-							{ "textTemplateKey": "telegram:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" },
-							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
-							{ "textTemplateKey": "telegram:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }
-						]
+						[{ "textTemplateKey": "telegram:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }]
 					]
 				}
 			},
@@ -510,11 +502,9 @@
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
 					"templateKey": "telegram:bookingMessage",
 					"inlineKeyboard": [
-						[
-							{ "textTemplateKey": "telegram:bookingMenu.my", "callbackData": "bookings.show" },
-							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
-							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
-						]
+						[{ "textTemplateKey": "telegram:bookingMenu.my", "callbackData": "bookings.show" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }]
 					]
 				}
 			}
@@ -712,11 +702,9 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary" },
-							{ "textTemplateKey": "telegram:menu.more" }
-						]
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.diary" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
 					],
 					"resizeKeyboard": true
 				}
@@ -747,11 +735,9 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary" },
-							{ "textTemplateKey": "telegram:menu.more" }
-						]
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.diary" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
 					],
 					"resizeKeyboard": true
 				}
@@ -796,12 +782,28 @@
 		},
 		"steps": [
 			{
-				"action": "message.inlineKeyboard.show",
+				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:menu.main.heading",
-					"menu": "main"
+					"_when": { "path": "facts.links.webappHomeUrl", "truthy": true },
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"message": {},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"templateKey": "telegram:menu.webapp.prompt",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:menu.webapp.openButton", "webAppUrlFact": "links.webappHomeUrl" }]
+					]
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"_when": { "path": "facts.links.webappHomeUrl", "truthy": false },
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"message": {},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"templateKey": "telegram:notImplemented"
 				}
 			}
 		]
@@ -821,11 +823,9 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:cabinet.placeholder",
 					"keyboard": [
-						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary" },
-							{ "textTemplateKey": "telegram:menu.more" }
-						]
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.diary" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
 					],
 					"resizeKeyboard": true
 				}
@@ -847,11 +847,9 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:cabinet.placeholder",
 					"keyboard": [
-						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary" },
-							{ "textTemplateKey": "telegram:menu.more" }
-						]
+						[{ "textTemplateKey": "telegram:menu.book" }],
+						[{ "textTemplateKey": "telegram:menu.diary" }],
+						[{ "textTemplateKey": "telegram:menu.more" }]
 					],
 					"resizeKeyboard": true
 				}
@@ -869,18 +867,33 @@
 		"id": "telegram.diary.open",
 		"source": "telegram",
 		"event": "message.received",
-		"enabled": false,
 		"match": {
 			"input": { "action": "diary.open" }
 		},
 		"steps": [
 			{
-				"action": "message.inlineKeyboard.show",
+				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:diary.choose",
-					"menu": "diary"
+					"_when": { "path": "facts.links.webappDiaryUrl", "truthy": true },
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"message": {},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"templateKey": "telegram:diary.webapp.prompt",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:diary.webapp.openButton", "webAppUrlFact": "links.webappDiaryUrl" }]
+					]
+				}
+			},
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"_when": { "path": "facts.links.webappDiaryUrl", "truthy": false },
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"message": {},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"templateKey": "telegram:notImplemented"
 				}
 			}
 		]

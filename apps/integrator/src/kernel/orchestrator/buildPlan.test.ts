@@ -474,7 +474,7 @@ describe('orchestrator buildPlan', () => {
           source: 'telegram',
           event: 'message.received',
           match: { input: { action: 'menu.more' } },
-          steps: [{ action: 'message.inlineKeyboard.show', mode: 'async', params: { menu: 'main' } }],
+          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'telegram:menu.webapp.prompt' } }],
         },
       ]),
       getTemplate: vi.fn().mockResolvedValue(null),
@@ -488,8 +488,8 @@ describe('orchestrator buildPlan', () => {
 
     expect(plan).toHaveLength(1);
     expect(plan[0]).toMatchObject({
-      kind: 'message.inlineKeyboard.show',
-      payload: { menu: 'main' },
+      kind: 'message.send',
+      payload: { templateKey: 'telegram:menu.webapp.prompt' },
     });
   });
 

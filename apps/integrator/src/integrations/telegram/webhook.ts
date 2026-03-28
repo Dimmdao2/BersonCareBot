@@ -40,6 +40,8 @@ function buildLinksFromBody(body: TelegramWebhookBodyValidated): Record<string, 
       const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
       links.webappEntryUrl = baseWebappUrl;
       const enc = (p: string) => encodeURIComponent(p);
+      links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;
+      links.webappDiaryUrl = `${baseWebappUrl}&next=${enc('/app/patient/diary?tab=symptoms')}`;
       links.webappCabinetUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
       links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;
     }
