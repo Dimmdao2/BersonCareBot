@@ -1,9 +1,10 @@
 /**
  * Меню главного экрана: список пунктов по роли пользователя.
- * Для врача — кабинет и настройки; для пациента — скорая помощь, уроки, дневники и т.д.
+ * Для врача — кабинет и настройки; для пациента — разделы контента из БД, кабинет, дневник.
  * Используется на странице /app/patient для отображения сетки карточек.
  */
 
+import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import type { UserRole } from "@/shared/types/session";
 
 export type MenuItem = {
@@ -13,8 +14,13 @@ export type MenuItem = {
   status: "available" | "locked" | "coming-soon";
 };
 
+export type GetMenuForRoleOptions = {
+  /** Разделы из `content_sections` (видимые пациенту). */
+  contentSections?: ContentSectionRow[];
+};
+
 /** Возвращает список пунктов меню в зависимости от роли (пациент или врач). */
-export function getMenuForRole(role: UserRole): MenuItem[] {
+export function getMenuForRole(role: UserRole, options?: GetMenuForRoleOptions): MenuItem[] {
   if (role === "doctor" || role === "admin") {
     return [
       {
@@ -32,9 +38,15 @@ export function getMenuForRole(role: UserRole): MenuItem[] {
     ];
   }
 
+  const sectionItems: MenuItem[] = (options?.contentSections ?? []).map((s) => ({
+    id: s.slug,
+    title: s.title,
+    href: `/app/patient/sections/${encodeURIComponent(s.slug)}`,
+    status: "available" as const,
+  }));
+
   return [
-    { id: "emergency", title: "Скорая помощь", href: "/app/patient/emergency", status: "available" },
-    { id: "lessons", title: "Полезные уроки", href: "/app/patient/lessons", status: "available" },
+    ...sectionItems,
     { id: "cabinet", title: "Мои записи", href: "/app/patient/cabinet", status: "available" },
     // Единый «Дневник» (вкладки на `/app/patient/diary`); отдельная карточка ЛФК на главной не показывается (RAW §7).
     { id: "diary", title: "Дневник", href: "/app/patient/diary", status: "available" },

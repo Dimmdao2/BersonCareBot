@@ -3,8 +3,8 @@ export const routePaths = {
   patient: "/app/patient",
   doctor: "/app/doctor",
   settings: "/app/settings",
-  lessons: "/app/patient/lessons",
-  emergency: "/app/patient/emergency",
+  lessons: "/app/patient/sections/lessons",
+  emergency: "/app/patient/sections/emergency",
   cabinet: "/app/patient/cabinet",
   /** Запись на приём (Rubitime), без обязательного телефона. */
   patientBooking: "/app/patient/booking",

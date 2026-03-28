@@ -20,6 +20,7 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("media");
     expect(deps).toHaveProperty("channelPreferences");
     expect(deps).toHaveProperty("contentCatalog");
+    expect(deps).toHaveProperty("contentSections");
   });
 
   it("contentCatalog.getBySlug resolves known slug", async () => {

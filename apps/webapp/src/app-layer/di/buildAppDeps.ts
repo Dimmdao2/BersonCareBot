@@ -27,7 +27,7 @@ import { inMemoryIdentityResolutionPort } from "@/infra/repos/inMemoryIdentityRe
 import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
 import { pgIdentityResolutionPort } from "@/infra/repos/pgIdentityResolution";
 import { getCurrentUser } from "@/modules/users/service";
-import { getMenuForRole } from "@/modules/menu/service";
+import { getMenuForRole as getMenuForRoleImpl } from "@/modules/menu/service";
 import { listLessons } from "@/modules/lessons/service";
 import { listEmergencyTopics } from "@/modules/emergency/service";
 import { createPatientCabinetService } from "@/modules/patient-cabinet/service";
@@ -78,6 +78,7 @@ import { inMemoryLoginTokensPort } from "@/infra/repos/inMemoryLoginTokens";
 import { pgReferencesPort } from "@/infra/repos/pgReferences";
 import { inMemoryReferencesPort } from "@/infra/repos/inMemoryReferences";
 import { createPgContentPagesPort, inMemoryContentPagesPort } from "@/infra/repos/pgContentPages";
+import { createPgContentSectionsPort, inMemoryContentSectionsPort } from "@/infra/repos/pgContentSections";
 import { createPgSupportCommunicationPort } from "@/infra/repos/pgSupportCommunication";
 import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
 import { createPatientMessagingService } from "@/modules/messaging/patientMessagingService";
@@ -148,6 +149,7 @@ const subscriptionMailingProjectionPort = env.DATABASE_URL
   ? createPgSubscriptionMailingProjectionPort()
   : inMemorySubscriptionMailingProjectionPort;
 const contentPagesPort = env.DATABASE_URL ? createPgContentPagesPort() : inMemoryContentPagesPort;
+const contentSectionsPort = env.DATABASE_URL ? createPgContentSectionsPort() : inMemoryContentSectionsPort;
 const mediaStoragePort = env.DATABASE_URL ? createPgMediaStoragePort() : mockMediaStoragePort;
 const referencesPort = env.DATABASE_URL ? pgReferencesPort : inMemoryReferencesPort;
 const doctorNotesPort = env.DATABASE_URL ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
@@ -353,7 +355,7 @@ function _buildAppDeps() {
       getCurrentUser,
     },
     menu: {
-      getMenuForRole,
+      getMenuForRole: getMenuForRoleImpl,
     },
     lessons: {
       listLessons: () => listLessons(contentPagesPort),
@@ -477,6 +479,7 @@ function _buildAppDeps() {
     branches: branchesProjectionPort ?? undefined,
     subscriptionMailingProjection: subscriptionMailingProjectionPort,
     contentPages: contentPagesPort,
+    contentSections: contentSectionsPort,
     userByPhone: userByPhonePort,
     userPins: userPinsPort,
     oauthBindings: oauthBindingsPort,

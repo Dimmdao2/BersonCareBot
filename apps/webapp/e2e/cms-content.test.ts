@@ -4,10 +4,11 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const { uploadMock, upsertMock, sessionMock } = vi.hoisted(() => ({
+const { uploadMock, upsertMock, sessionMock, getSectionBySlugMock } = vi.hoisted(() => ({
   uploadMock: vi.fn(),
   upsertMock: vi.fn(),
   sessionMock: vi.fn(),
+  getSectionBySlugMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -22,6 +23,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     media: { upload: uploadMock },
     contentPages: { upsert: upsertMock },
+    contentSections: { getBySlug: getSectionBySlugMock },
   }),
 }));
 
@@ -40,6 +42,15 @@ describe("CMS e2e: upload → saveContentPage (in-process)", () => {
     uploadMock.mockReset();
     upsertMock.mockReset();
     sessionMock.mockReset();
+    getSectionBySlugMock.mockReset();
+    getSectionBySlugMock.mockResolvedValue({
+      id: "sec-1",
+      slug: "lessons",
+      title: "Уроки",
+      description: "",
+      sortOrder: 0,
+      isVisible: true,
+    });
   });
 
   it("upload valid JPEG → returns mediaId and url", async () => {

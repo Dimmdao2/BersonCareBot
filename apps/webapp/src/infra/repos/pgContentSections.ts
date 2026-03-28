@@ -1,0 +1,155 @@
+import { getPool } from "@/infra/db/client";
+
+export type ContentSectionRow = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  sortOrder: number;
+  isVisible: boolean;
+};
+
+export type ContentSectionsPort = {
+  listVisible: () => Promise<ContentSectionRow[]>;
+  listAll: () => Promise<ContentSectionRow[]>;
+  getBySlug: (slug: string) => Promise<ContentSectionRow | null>;
+  upsert: (section: Omit<ContentSectionRow, "id"> & { id?: string }) => Promise<string>;
+  update: (
+    slug: string,
+    patch: Partial<Pick<ContentSectionRow, "title" | "description" | "sortOrder" | "isVisible">>,
+  ) => Promise<void>;
+};
+
+const SELECT_COLS = `id, slug, title, description, sort_order, is_visible`;
+
+export function createPgContentSectionsPort(): ContentSectionsPort {
+  return {
+    async listVisible() {
+      const pool = getPool();
+      const res = await pool.query(
+        `SELECT ${SELECT_COLS} FROM content_sections
+         WHERE is_visible = true
+         ORDER BY sort_order, title`,
+      );
+      return res.rows.map(mapRow);
+    },
+    async listAll() {
+      const pool = getPool();
+      const res = await pool.query(
+        `SELECT ${SELECT_COLS} FROM content_sections ORDER BY sort_order, title`,
+      );
+      return res.rows.map(mapRow);
+    },
+    async getBySlug(slug) {
+      const pool = getPool();
+      const res = await pool.query(`SELECT ${SELECT_COLS} FROM content_sections WHERE slug = $1`, [slug]);
+      return res.rows[0] ? mapRow(res.rows[0]) : null;
+    },
+    async upsert(section) {
+      const pool = getPool();
+      const res = await pool.query(
+        `INSERT INTO content_sections (slug, title, description, sort_order, is_visible)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (slug) DO UPDATE SET
+           title = EXCLUDED.title,
+           description = EXCLUDED.description,
+           sort_order = EXCLUDED.sort_order,
+           is_visible = EXCLUDED.is_visible,
+           updated_at = now()
+         RETURNING id`,
+        [section.slug, section.title, section.description, section.sortOrder, section.isVisible],
+      );
+      return res.rows[0].id as string;
+    },
+    async update(slug, patch) {
+      const pool = getPool();
+      const sets: string[] = [];
+      const vals: unknown[] = [];
+      let n = 1;
+      if (patch.title !== undefined) {
+        sets.push(`title = $${n++}`);
+        vals.push(patch.title);
+      }
+      if (patch.description !== undefined) {
+        sets.push(`description = $${n++}`);
+        vals.push(patch.description);
+      }
+      if (patch.sortOrder !== undefined) {
+        sets.push(`sort_order = $${n++}`);
+        vals.push(patch.sortOrder);
+      }
+      if (patch.isVisible !== undefined) {
+        sets.push(`is_visible = $${n++}`);
+        vals.push(patch.isVisible);
+      }
+      if (sets.length === 0) return;
+      vals.push(slug);
+      await pool.query(
+        `UPDATE content_sections SET ${sets.join(", ")}, updated_at = now() WHERE slug = $${n}`,
+        vals,
+      );
+    },
+  };
+}
+
+function mapRow(row: Record<string, unknown>): ContentSectionRow {
+  return {
+    id: row.id as string,
+    slug: row.slug as string,
+    title: row.title as string,
+    description: (row.description as string) ?? "",
+    sortOrder: row.sort_order as number,
+    isVisible: row.is_visible as boolean,
+  };
+}
+
+/** Пустой порт без БД (как `inMemoryContentPagesPort`). */
+export const inMemoryContentSectionsPort: ContentSectionsPort = {
+  listVisible: async () => [],
+  listAll: async () => [],
+  getBySlug: async () => null,
+  upsert: async () => "",
+  update: async () => {},
+};
+
+/** Изолированный in-memory порт для unit-тестов. */
+export function createInMemoryContentSectionsPort(): ContentSectionsPort {
+  const memory = new Map<string, ContentSectionRow>();
+  return {
+    async listVisible() {
+      return [...memory.values()]
+        .filter((r) => r.isVisible)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
+    },
+    async listAll() {
+      return [...memory.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
+    },
+    async getBySlug(slug) {
+      return memory.get(slug) ?? null;
+    },
+    async upsert(section) {
+      const id = section.id ?? `mem-${section.slug}`;
+      const row: ContentSectionRow = {
+        id,
+        slug: section.slug,
+        title: section.title,
+        description: section.description,
+        sortOrder: section.sortOrder,
+        isVisible: section.isVisible,
+      };
+      memory.set(section.slug, row);
+      return id;
+    },
+    async update(slug, patch) {
+      const cur = memory.get(slug);
+      if (!cur) return;
+      memory.set(slug, {
+        ...cur,
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.description !== undefined ? { description: patch.description } : {}),
+        ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
+        ...(patch.isVisible !== undefined ? { isVisible: patch.isVisible } : {}),
+      });
+    },
+  };
+}

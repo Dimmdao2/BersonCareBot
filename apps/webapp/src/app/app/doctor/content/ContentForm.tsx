@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownEditor } from "@/shared/ui/markdown/MarkdownEditor";
+import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import { saveContentPage, type SaveContentPageState } from "./actions";
 
 type ContentPage = {
@@ -18,12 +20,27 @@ type ContentPage = {
   sortOrder: number;
   isPublished: boolean;
   videoUrl: string | null;
+  imageUrl?: string | null;
   archivedAt?: string | null;
   deletedAt?: string | null;
 };
 
-export function ContentForm({ page }: { page?: ContentPage }) {
+export function ContentForm({ page, sections }: { page?: ContentPage; sections: ContentSectionRow[] }) {
   const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
+
+  if (!page && sections.length === 0) {
+    return (
+      <div className="flex flex-col gap-2 text-sm">
+        <p className="text-muted-foreground">Нет разделов в базе. Сначала создайте раздел.</p>
+        <Link href="/app/doctor/content/sections" className="text-primary underline">
+          Управление разделами
+        </Link>
+      </div>
+    );
+  }
+
+  const sectionTitleForEdit =
+    (page && sections.find((s) => s.slug === page.section)?.title) ?? page?.section ?? "";
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -54,17 +71,21 @@ export function ContentForm({ page }: { page?: ContentPage }) {
         {page ? (
           <>
             <input type="hidden" name="section" value={page.section} />
-            <Input type="text" value={page.section} disabled readOnly />
+            <Input type="text" value={sectionTitleForEdit} disabled readOnly />
           </>
         ) : (
           <select
             id="content-section"
             name="section"
+            required
             className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            defaultValue="lessons"
+            defaultValue={sections[0]?.slug ?? ""}
           >
-            <option value="lessons">lessons</option>
-            <option value="emergency">emergency</option>
+            {sections.map((s) => (
+              <option key={s.slug} value={s.slug}>
+                {s.title}
+              </option>
+            ))}
           </select>
         )}
       </label>
@@ -117,6 +138,16 @@ export function ContentForm({ page }: { page?: ContentPage }) {
           key={`pub-${page?.id ?? "new"}`}
         />
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Опубликовано</span>
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">URL картинки</span>
+        <Input
+          type="text"
+          name="image_url"
+          defaultValue={page?.imageUrl ?? ""}
+          key={`image-${page?.id ?? "new"}`}
+        />
       </label>
 
       <label className="flex flex-col gap-1">

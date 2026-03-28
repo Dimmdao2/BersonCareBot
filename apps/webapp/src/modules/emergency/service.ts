@@ -1,3 +1,6 @@
+/**
+ * @deprecated Для списков на пациентских страницах используйте `/app/patient/sections/[slug]` и `content_pages`.
+ */
 import type { ContentPagesPort } from "@/infra/repos/pgContentPages";
 
 export type EmergencyTopic = {

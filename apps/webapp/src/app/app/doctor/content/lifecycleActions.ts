@@ -44,8 +44,7 @@ export async function applyContentLifecycle(_prev: LifecycleState | null, formDa
   }
 
   revalidatePath("/app/doctor/content");
-  revalidatePath("/app/patient/lessons");
-  revalidatePath("/app/patient/emergency");
+  revalidatePath("/app/patient/sections", "layout");
   revalidatePath("/app/patient/content");
   return { ok: true };
 }

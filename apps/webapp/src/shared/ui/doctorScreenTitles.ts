@@ -13,6 +13,8 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/broadcasts": "Рассылки",
     "/app/doctor/stats": "Статистика",
     "/app/doctor/content": "Контент",
+    "/app/doctor/content/sections": "Разделы контента",
+    "/app/doctor/content/sections/new": "Новый раздел",
     "/app/doctor/content/news": "Новости и мотивация",
     "/app/doctor/references": "Справочники",
     "/app/doctor/exercises": "Упражнения ЛФК",
@@ -27,6 +29,7 @@ export function getDoctorScreenTitle(pathname: string): string {
   if (p.startsWith("/app/doctor/exercises/") && p !== "/app/doctor/exercises/new") return "Редактирование упражнения";
   if (p.startsWith("/app/doctor/lfk-templates/") && p !== "/app/doctor/lfk-templates/new")
     return "Конструктор шаблона ЛФК";
+  if (p.startsWith("/app/doctor/content/sections/edit/")) return "Редактировать раздел";
   if (p.startsWith("/app/doctor/content/new")) return "Новая страница";
   if (p.includes("/app/doctor/content/edit")) return "Редактировать страницу";
 

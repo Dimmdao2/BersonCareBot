@@ -47,6 +47,9 @@ export default async function DoctorContentPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Страницы контента</h2>
           <div className="flex flex-wrap gap-2">
+            <Link href="/app/doctor/content/sections" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+              Разделы
+            </Link>
             <Link href="/app/doctor/content/news" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
               Новости и мотивация
             </Link>

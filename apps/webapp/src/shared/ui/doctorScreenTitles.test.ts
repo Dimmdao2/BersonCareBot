@@ -23,6 +23,11 @@ describe("getDoctorScreenTitle", () => {
   it("returns news and motivation title", () => {
     expect(getDoctorScreenTitle("/app/doctor/content/news")).toBe("Новости и мотивация");
   });
+  it("returns content sections titles", () => {
+    expect(getDoctorScreenTitle("/app/doctor/content/sections")).toBe("Разделы контента");
+    expect(getDoctorScreenTitle("/app/doctor/content/sections/new")).toBe("Новый раздел");
+    expect(getDoctorScreenTitle("/app/doctor/content/sections/edit/warmups")).toBe("Редактировать раздел");
+  });
   it("returns exercises titles", () => {
     expect(getDoctorScreenTitle("/app/doctor/exercises")).toBe("Упражнения ЛФК");
     expect(getDoctorScreenTitle("/app/doctor/exercises/new")).toBe("Новое упражнение");

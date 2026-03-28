@@ -13,11 +13,11 @@ export async function saveContentPage(
   await requireDoctorAccess();
   const deps = buildAppDeps();
 
-  const section = (formData.get("section") as string)?.trim() || "lessons";
+  const section = (formData.get("section") as string)?.trim() || "";
   const slug = (formData.get("slug") as string)?.trim() || "";
-  const ALLOWED_SECTIONS = ["lessons", "emergency"];
-  if (!ALLOWED_SECTIONS.includes(section)) {
-    return { ok: false, error: "Недопустимый раздел" };
+  const sectionRow = await deps.contentSections.getBySlug(section);
+  if (!sectionRow) {
+    return { ok: false, error: "Раздел не найден. Создайте раздел в «Контент → Разделы»." };
   }
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return { ok: false, error: "Slug: только латиница, цифры и дефис" };
@@ -36,8 +36,10 @@ export async function saveContentPage(
   const sortOrder = parseInt(formData.get("sort_order") as string, 10) || 0;
   const isPublished = formData.get("is_published") === "on";
   const videoUrl = (formData.get("video_url") as string)?.trim() || null;
+  const imageUrl = (formData.get("image_url") as string)?.trim() || null;
 
   if (!slug || !title) return { ok: false, error: "Заполните заголовок и slug" };
+  if (!section) return { ok: false, error: "Выберите раздел" };
 
   let videoType: string | null = null;
   if (videoUrl) {
@@ -59,7 +61,7 @@ export async function saveContentPage(
       isPublished,
       videoUrl,
       videoType,
-      imageUrl: null,
+      imageUrl,
     });
   } catch (err) {
     console.error("saveContentPage failed:", err);
@@ -68,7 +70,6 @@ export async function saveContentPage(
 
   revalidatePath("/app/doctor/content");
   revalidatePath(`/app/patient/content/${slug}`);
-  revalidatePath("/app/patient/lessons");
-  revalidatePath("/app/patient/emergency");
+  revalidatePath("/app/patient/sections", "layout");
   return { ok: true };
 }

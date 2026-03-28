@@ -16,10 +16,17 @@ export default async function DoctorContentEditPage({ params }: Props) {
   const page = await deps.contentPages.getById(id);
   if (!page) notFound();
 
+  let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
+  try {
+    sections = await deps.contentSections.listAll();
+  } catch {
+    /* port unavailable */
+  }
+
   return (
     <AppShell title="Редактировать страницу" user={session.user} variant="doctor" backHref="/app/doctor/content">
       <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <ContentForm page={page} />
+        <ContentForm page={page} sections={sections} />
       </section>
     </AppShell>
   );

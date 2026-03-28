@@ -36,10 +36,12 @@ export default async function PatientHomePage() {
   const blocks = new Set<HomeBlockId>(patientHomeBlocksForEntry(platformEntry));
 
   const deps = buildAppDeps();
-  const menu = deps.menu.getMenuForRole("client");
-  const emergency = menu.find((i) => i.id === "emergency");
-  const lessons = await deps.lessons.listLessons();
-
+  let contentSections: Awaited<ReturnType<typeof deps.contentSections.listVisible>> = [];
+  try {
+    contentSections = await deps.contentSections.listVisible();
+  } catch {
+    /* port unavailable */
+  }
   const emailFields =
     session?.user != null
       ? await deps.userProjection.getProfileEmailFields(session.user.userId)
@@ -78,9 +80,7 @@ export default async function PatientHomePage() {
       <div className="flex flex-col gap-8">
         {session?.user != null ? <PostLoginSuggestion /> : null}
         {blocks.has("cabinet") ? <PatientHomeBrowserHero /> : null}
-        {blocks.has("materials") ? (
-          <PatientHomeLessonsSection emergency={emergency} lessons={lessons} />
-        ) : null}
+        {blocks.has("materials") ? <PatientHomeLessonsSection sections={contentSections} /> : null}
         <PatientHomeExtraBlocks blocks={blocks} />
         {blocks.has("news") ? (
           <PatientHomeNewsSection news={homeNews} banner={banner} />

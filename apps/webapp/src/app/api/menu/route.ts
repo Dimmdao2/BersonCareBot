@@ -9,8 +9,18 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
+  const role = session.user.role;
+  let contentSections: Awaited<ReturnType<typeof deps.contentSections.listVisible>> = [];
+  if (role === "client") {
+    try {
+      contentSections = await deps.contentSections.listVisible();
+    } catch {
+      /* port unavailable */
+    }
+  }
+
   return NextResponse.json({
     ok: true,
-    items: deps.menu.getMenuForRole(session.user.role),
+    items: deps.menu.getMenuForRole(role, { contentSections }),
   });
 }
