@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
 const exchangeIntegratorTokenMock = vi.fn();
 
@@ -64,5 +65,31 @@ describe("POST /api/auth/exchange", () => {
       role: "doctor",
       redirectTo: "/app/doctor",
     });
+  });
+
+  it("sets bot platform cookie for messenger exchange", async () => {
+    exchangeIntegratorTokenMock.mockResolvedValueOnce({
+      session: {
+        user: {
+          userId: "u2",
+          role: "client",
+          displayName: "Client",
+          bindings: { telegramId: "12345" },
+        },
+        issuedAt: 1,
+        expiresAt: 2,
+      },
+      redirectTo: "/app/patient",
+    });
+    const res = await POST(
+      new Request("http://localhost/api/auth/exchange", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: "ok-token" }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain(`${PLATFORM_COOKIE_NAME}=bot`);
   });
 });
