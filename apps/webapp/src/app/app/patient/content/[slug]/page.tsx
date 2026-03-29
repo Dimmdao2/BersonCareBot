@@ -50,6 +50,10 @@ export default async function ContentSlugPage({ params }: Props) {
   const videoPlayableUrl =
     item.videoSource?.type === "url" && item.videoSource.url.trim()
       ? item.videoSource.url.trim()
+      : item.videoSource?.type === "api" && item.videoSource.mediaId.trim()
+        ? item.videoSource.mediaId.startsWith("/api/media/")
+          ? item.videoSource.mediaId
+          : `/api/media/${item.videoSource.mediaId}`
       : undefined;
   const youtubeEmbedSrc = videoPlayableUrl ? toYoutubeEmbedSrc(videoPlayableUrl) : null;
 

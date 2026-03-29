@@ -6,6 +6,13 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 export type SaveContentPageState = { ok: boolean; error?: string };
 
+const API_MEDIA_URL_RE =
+  /^\/api\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isLegacyAbsoluteUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
+}
+
 export async function saveContentPage(
   _prev: SaveContentPageState | null,
   formData: FormData,
@@ -38,18 +45,30 @@ export async function saveContentPage(
   if (slug.length > 200) return { ok: false, error: "Slug слишком длинный" };
   const sortOrder = parseInt(formData.get("sort_order") as string, 10) || 0;
   const isPublished = formData.get("is_published") === "on";
-  const videoUrl = (formData.get("video_url") as string)?.trim() || null;
-  const imageUrl = (formData.get("image_url") as string)?.trim() || null;
+  const videoUrlRaw = (formData.get("video_url") as string)?.trim() || "";
+  const imageUrlRaw = (formData.get("image_url") as string)?.trim() || "";
+  const videoUrl = videoUrlRaw.length ? videoUrlRaw : null;
+  const imageUrl = imageUrlRaw.length ? imageUrlRaw : null;
 
   if (!slug || !title) return { ok: false, error: "Заполните заголовок и slug" };
   if (!section) return { ok: false, error: "Выберите раздел" };
+  if (imageUrl && !(API_MEDIA_URL_RE.test(imageUrl) || isLegacyAbsoluteUrl(imageUrl))) {
+    return { ok: false, error: "Картинка должна быть выбрана из библиотеки файлов" };
+  }
+  if (videoUrl && !(API_MEDIA_URL_RE.test(videoUrl) || isLegacyAbsoluteUrl(videoUrl))) {
+    return { ok: false, error: "Видео должно быть выбрано из библиотеки файлов" };
+  }
 
   let videoType: string | null = null;
   if (videoUrl) {
-    videoType =
-      videoUrl.includes("youtube") || videoUrl.includes("youtu.be")
-        ? "youtube"
-        : "url";
+    if (API_MEDIA_URL_RE.test(videoUrl)) {
+      videoType = "api";
+    } else {
+      videoType =
+        videoUrl.includes("youtube") || videoUrl.includes("youtu.be")
+          ? "youtube"
+          : "url";
+    }
   }
 
   try {

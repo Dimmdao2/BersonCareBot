@@ -2,7 +2,7 @@
  * Port for uploading and resolving media (images, audio, video).
  * Implementations: mock (in-memory), later S3/disk with stable URLs.
  */
-import type { MediaRecord } from "./types";
+import type { MediaListParams, MediaRecord, MediaUsageRef } from "./types";
 
 export type UploadMediaParams = {
   /** File content. */
@@ -26,4 +26,7 @@ export type MediaStoragePort = {
   getById(id: string): Promise<MediaRecord | null>;
   /** Returns URL for the media id, or null if not found. */
   getUrl(id: string): Promise<string | null>;
+  list(params: MediaListParams): Promise<MediaRecord[]>;
+  findUsage(mediaId: string): Promise<MediaUsageRef[]>;
+  deleteHard(mediaId: string): Promise<boolean>;
 };

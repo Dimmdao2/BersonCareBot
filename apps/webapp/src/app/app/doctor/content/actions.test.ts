@@ -148,4 +148,40 @@ describe("saveContentPage", () => {
       }),
     );
   });
+
+  it("stores api video as videoType=api", async () => {
+    upsertMock.mockResolvedValue(undefined);
+    const fd = formWith({
+      section: "lessons",
+      slug: "with-api-video",
+      title: "T",
+      summary: "S",
+      body_md: "# x",
+      sort_order: "0",
+      video_url: "/api/media/11111111-1111-4111-8111-111111111111",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(true);
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        videoUrl: "/api/media/11111111-1111-4111-8111-111111111111",
+        videoType: "api",
+      }),
+    );
+  });
+
+  it("rejects invalid local media url", async () => {
+    const fd = formWith({
+      section: "lessons",
+      slug: "invalid-media",
+      title: "T",
+      summary: "S",
+      body_md: "# x",
+      sort_order: "0",
+      image_url: "/api/media/not-uuid",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(false);
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
 });

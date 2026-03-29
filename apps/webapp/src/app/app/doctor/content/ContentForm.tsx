@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { MarkdownEditor } from "@/shared/ui/markdown/MarkdownEditor";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
+import { MediaLibraryPickerDialog } from "./MediaLibraryPickerDialog";
 import { saveContentPage, type SaveContentPageState } from "./actions";
 
 type ContentPage = {
@@ -31,6 +32,8 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
   const isNew = !page;
   const [titleValue, setTitleValue] = useState(page?.title ?? "");
   const [slugValue, setSlugValue] = useState(page?.slug ?? "");
+  const [imageUrlValue, setImageUrlValue] = useState(page?.imageUrl ?? "");
+  const [videoUrlValue, setVideoUrlValue] = useState(page?.videoUrl ?? "");
   const slugManualRef = useRef(false);
 
   if (!page && sections.length === 0) {
@@ -191,25 +194,17 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Опубликовано</span>
       </label>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">URL картинки</span>
-        <Input
-          type="text"
-          name="image_url"
-          defaultValue={page?.imageUrl ?? ""}
-          key={`image-${page?.id ?? "new"}`}
-        />
-      </label>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Картинка</span>
+        <input type="hidden" name="image_url" value={imageUrlValue} />
+        <MediaLibraryPickerDialog kind="image" value={imageUrlValue} onChange={setImageUrlValue} />
+      </div>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">URL видео</span>
-        <Input
-          type="text"
-          name="video_url"
-          defaultValue={page?.videoUrl ?? ""}
-          key={`video-${page?.id ?? "new"}`}
-        />
-      </label>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Видео</span>
+        <input type="hidden" name="video_url" value={videoUrlValue} />
+        <MediaLibraryPickerDialog kind="video" value={videoUrlValue} onChange={setVideoUrlValue} />
+      </div>
 
       <Button type="submit" disabled={pending}>
         {pending ? "Сохранение…" : "Сохранить"}

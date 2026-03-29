@@ -76,6 +76,11 @@ export default async function DoctorContentPage() {
               Разделы
             </Link>
           </div>
+          <div className="flex w-full gap-2 sm:gap-3">
+            <Link href="/app/doctor/content/library" className={hubBtnClass}>
+              Библиотека файлов
+            </Link>
+          </div>
         </div>
 
         {pages.length === 0 ? (
