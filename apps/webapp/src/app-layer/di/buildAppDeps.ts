@@ -55,6 +55,11 @@ import {
   type AppointmentSummary,
   type PastAppointmentSummary,
 } from "@/modules/appointments/service";
+import {
+  appointmentRowLabel,
+  formatRuAppointmentDate,
+  formatRuAppointmentTime,
+} from "@/modules/appointments/appointmentLabels";
 import { createMediaService } from "@/modules/media/service";
 import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
 import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
@@ -214,16 +219,20 @@ const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]>
           const phone = await userByPhonePort.getPhoneByUserId(userId);
           if (!phone) return [];
           const rows = await appointmentProjectionPort.listActiveByPhoneNormalized(phone);
-          return rows.map((row) => ({
-            id: row.integratorRecordId,
-            label: row.recordAt
-              ? `Запись ${new Date(row.recordAt).toLocaleString("ru-RU")}`
-              : "Запись",
-            link: linkFromPayload(row.payloadJson),
-            status: mapRecordStatus(row.status),
-            cancelReason: cancelReasonFromPayload(row.payloadJson),
-            startsAt: row.recordAt,
-          }));
+          return rows.map((row) => {
+            const dateLabel = formatRuAppointmentDate(row.recordAt);
+            const timeLabel = formatRuAppointmentTime(row.recordAt);
+            return {
+              id: row.integratorRecordId,
+              dateLabel,
+              timeLabel,
+              label: appointmentRowLabel(dateLabel, timeLabel),
+              link: linkFromPayload(row.payloadJson),
+              status: mapRecordStatus(row.status),
+              cancelReason: cancelReasonFromPayload(row.payloadJson),
+              startsAt: row.recordAt,
+            };
+          });
         } catch {
           return [];
         }
@@ -247,17 +256,18 @@ const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]>
           const rows = await appointmentProjectionPort.listHistoryByPhoneNormalized(phone, 80);
           return rows
             .filter((row) => !isStillUpcomingSlot(row))
-            .map((row) => ({
-              id: row.integratorRecordId,
-              label: row.recordAt
-                ? `Запись ${new Date(row.recordAt).toLocaleString("ru-RU")}`
-                : "Запись",
-              link: linkFromPayload(row.payloadJson),
-              status: mapRecordStatus(row.status),
-              occurredAtLabel: row.recordAt
-                ? new Date(row.recordAt).toLocaleString("ru-RU")
-                : "—",
-            }));
+            .map((row) => {
+              const dateLabel = formatRuAppointmentDate(row.recordAt);
+              const timeLabel = formatRuAppointmentTime(row.recordAt);
+              return {
+                id: row.integratorRecordId,
+                dateLabel,
+                timeLabel,
+                label: appointmentRowLabel(dateLabel, timeLabel),
+                link: linkFromPayload(row.payloadJson),
+                status: mapRecordStatus(row.status),
+              };
+            });
         } catch {
           return [];
         }

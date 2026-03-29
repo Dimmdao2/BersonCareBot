@@ -7,6 +7,11 @@ export type AppointmentRecordStatus = "created" | "confirmed" | "rescheduled" | 
 
 export type AppointmentSummary = {
   id: string;
+  /** Дата без времени (слева в строке). */
+  dateLabel: string;
+  /** Время без секунд (по центру). */
+  timeLabel: string;
+  /** Совмещённая подпись для экранов, где нужна одна строка (например, кабинет врача). */
   label: string;
   link: string | null;
   status: AppointmentRecordStatus;
@@ -17,10 +22,11 @@ export type AppointmentSummary = {
 
 export type PastAppointmentSummary = {
   id: string;
+  dateLabel: string;
+  timeLabel: string;
   label: string;
   link: string | null;
   status: AppointmentRecordStatus;
-  occurredAtLabel: string;
 };
 
 /**

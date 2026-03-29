@@ -48,7 +48,7 @@ export function getMenuForRole(role: UserRole, options?: GetMenuForRoleOptions):
   return [
     ...sectionItems,
     { id: "booking", title: "Записаться на приём", href: "/app/patient/booking", status: "available" },
-    { id: "cabinet", title: "Мои записи", href: "/app/patient/cabinet", status: "available" },
+    { id: "cabinet", title: "Мои приёмы", href: "/app/patient/cabinet", status: "available" },
     // Единый «Дневник» (вкладки на `/app/patient/diary`); отдельная карточка ЛФК на главной не показывается (RAW §7).
     { id: "diary", title: "Дневник", href: "/app/patient/diary", status: "available" },
   ];

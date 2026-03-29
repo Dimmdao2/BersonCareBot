@@ -8,7 +8,7 @@ export function CabinetGuestAccess({ session }: { session: AppSession | null }) 
   if (!session) {
     return (
       <GuestPlaceholder
-        title="Мои записи"
+        title="Мои приёмы"
         description="Здесь отображаются ваши записи на приём и их история. Записаться можно без регистрации; чтобы видеть свои записи в списке — войдите и подтвердите номер телефона."
         actionLabel="Записаться на приём"
         actionHref={routePaths.patientBooking}
@@ -19,7 +19,7 @@ export function CabinetGuestAccess({ session }: { session: AppSession | null }) 
   }
   return (
     <GuestPlaceholder
-      title="Мои записи"
+      title="Мои приёмы"
       description="Здесь отображаются ваши записи на приём и их история. Чтобы видеть список, нужен подтверждённый номер или подключённый мессенджер."
       actionLabel="Записаться на приём"
       actionHref={routePaths.patientBooking}

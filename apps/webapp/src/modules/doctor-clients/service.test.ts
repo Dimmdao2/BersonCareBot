@@ -43,7 +43,14 @@ describe("doctor-clients service", () => {
   const service = createDoctorClientsService({
     clientsPort: mockPort,
     getUpcomingAppointments: () => [
-      { id: "apt-1", label: "Консультация", link: null, status: "confirmed" as const },
+      {
+        id: "apt-1",
+        dateLabel: "15.03.2026",
+        timeLabel: "14:30",
+        label: "15.03.2026 14:30",
+        link: null,
+        status: "confirmed" as const,
+      },
     ],
     listAppointmentHistoryForPhone: async () => [],
     listSymptomTrackings: async () => [],
@@ -82,7 +89,9 @@ describe("doctor-clients service", () => {
     expect(profile!.identity.phone).toBe("+79001234567");
     expect(profile!.channelCards).toHaveLength(1);
     expect(profile!.upcomingAppointments).toHaveLength(1);
-    expect(profile!.upcomingAppointments[0].label).toBe("Консультация");
+    expect(profile!.upcomingAppointments[0].label).toBe("15.03.2026 14:30");
+    expect(profile!.upcomingAppointments[0].dateLabel).toBe("15.03.2026");
+    expect(profile!.upcomingAppointments[0].timeLabel).toBe("14:30");
     expect(profile!.appointmentStats.total).toBe(1);
     expect(profile!.appointmentStats.cancellations30d).toBe(0);
     expect(profile!.symptomTrackings).toEqual([]);

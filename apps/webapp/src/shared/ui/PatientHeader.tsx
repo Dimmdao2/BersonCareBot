@@ -228,7 +228,7 @@ export function PatientHeader({
                 onClick={closeMenu}
                 className={SHEET_NAV_LINK_CLASS}
               >
-                Мои записи
+                Мои приёмы
               </Link>
               <Link
                 id="patient-menu-link-address"

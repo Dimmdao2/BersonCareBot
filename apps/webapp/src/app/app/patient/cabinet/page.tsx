@@ -20,7 +20,7 @@ export default async function PatientCabinetPage() {
   if (!session || !patientHasPhoneOrMessenger(session)) {
     return (
       <AppShell
-        title="Мои записи"
+        title="Мои приёмы"
         user={session?.user ?? null}
         backHref={routePaths.patient}
         backLabel="Меню"
@@ -41,7 +41,7 @@ export default async function PatientCabinetPage() {
 
   return (
     <AppShell
-      title="Мои записи"
+      title="Мои приёмы"
       user={session.user}
       backHref={routePaths.patient}
       backLabel="Меню"
@@ -85,22 +85,26 @@ export default async function PatientCabinetPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">История записей</h2>
+          <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">История</h2>
           {past.length === 0 ? (
-            <p className="text-muted-foreground text-sm">У вас нет записей.</p>
+            <p className="text-muted-foreground text-sm">Пока пусто.</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-left text-sm">
+              <table className="w-full table-fixed text-sm">
                 <tbody>
                   {past.map((row, i) => (
                     <tr
                       key={row.id}
                       className={i % 2 === 0 ? "bg-muted/30" : "bg-background"}
                     >
-                      <td className="px-3 py-2">{row.occurredAtLabel}</td>
-                      <td className="px-3 py-2">{row.label}</td>
-                      <td className="px-3 py-2">
-                        <AppointmentStatusBadge status={row.status} />
+                      <td className="w-[36%] px-3 py-2 text-left align-middle tabular-nums">
+                        {row.dateLabel}
+                      </td>
+                      <td className="w-[28%] px-3 py-2 text-center align-middle tabular-nums">
+                        {row.timeLabel}
+                      </td>
+                      <td className="w-[36%] px-3 py-2 text-right align-middle">
+                        <AppointmentStatusBadge mode="history" status={row.status} />
                       </td>
                     </tr>
                   ))}

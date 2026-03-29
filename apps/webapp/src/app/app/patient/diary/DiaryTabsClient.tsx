@@ -31,13 +31,13 @@ export function DiaryTabsClient({
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg bg-muted/70 p-1">
           <TabsTrigger
             value="symptoms"
-            className="rounded-md py-2.5 text-muted-foreground shadow-none after:hidden data-active:bg-primary/10 data-active:font-semibold data-active:text-primary"
+            className="h-auto rounded-md py-2.5 text-muted-foreground shadow-none after:hidden aria-selected:bg-primary/10 aria-selected:font-semibold aria-selected:text-primary"
           >
             Симптомы
           </TabsTrigger>
           <TabsTrigger
             value="lfk"
-            className="rounded-md py-2.5 text-muted-foreground shadow-none after:hidden data-active:bg-primary/10 data-active:font-semibold data-active:text-primary"
+            className="h-auto rounded-md py-2.5 text-muted-foreground shadow-none after:hidden aria-selected:bg-primary/10 aria-selected:font-semibold aria-selected:text-primary"
           >
             ЛФК
           </TabsTrigger>

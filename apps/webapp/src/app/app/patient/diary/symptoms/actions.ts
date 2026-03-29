@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import {
+  getUtcDayRange,
+  hasInstantDuplicateInWindow,
+  SYMPTOM_INSTANT_DEDUP_MS,
+} from "./symptomEntryDedup";
 
 function parseOptionalId(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -16,7 +21,9 @@ function parseSide(raw: unknown): "left" | "right" | "both" | null {
   return raw;
 }
 
-export async function addSymptomEntry(formData: FormData): Promise<{ ok: boolean }> {
+export async function addSymptomEntry(
+  formData: FormData,
+): Promise<{ ok: boolean; reason?: "duplicate_instant" | "duplicate_daily" }> {
   const session = await requirePatientAccess(routePaths.diary);
   const deps = buildAppDeps();
   const trackingIdRaw = formData.get("trackingId");
@@ -48,13 +55,45 @@ export async function addSymptomEntry(formData: FormData): Promise<{ ok: boolean
     typeof notesRaw === "string" && notesRaw.trim() ? notesRaw.trim() : null;
   if (notes && notes.length > 2000) return { ok: false };
 
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  if (entryTypeRaw === "instant") {
+    const from = new Date(now - SYMPTOM_INSTANT_DEDUP_MS).toISOString();
+    const recentEntries = await deps.diaries.listSymptomEntriesForTrackingInRange({
+      userId: session.user.userId,
+      trackingId,
+      fromRecordedAt: from,
+      toRecordedAtExclusive: nowIso,
+    });
+    if (
+      hasInstantDuplicateInWindow(recentEntries, {
+        recordedAtMs: now,
+        value0_10,
+        notes,
+      })
+    ) {
+      return { ok: false, reason: "duplicate_instant" };
+    }
+  } else {
+    const dayRange = getUtcDayRange(now);
+    const dayEntries = await deps.diaries.listSymptomEntriesForTrackingInRange({
+      userId: session.user.userId,
+      trackingId,
+      fromRecordedAt: dayRange.fromRecordedAt,
+      toRecordedAtExclusive: dayRange.toRecordedAtExclusive,
+    });
+    if (dayEntries.some((entry) => entry.entryType === "daily")) {
+      return { ok: false, reason: "duplicate_daily" };
+    }
+  }
+
   try {
     await deps.diaries.addSymptomEntry({
       userId: session.user.userId,
       trackingId,
       value0_10,
       entryType: entryTypeRaw,
-      recordedAt: new Date().toISOString(),
+      recordedAt: nowIso,
       source: "webapp",
       notes,
     });

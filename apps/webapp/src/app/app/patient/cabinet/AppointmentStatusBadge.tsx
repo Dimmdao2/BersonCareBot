@@ -7,6 +7,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 type Props = {
   status: AppointmentRecordStatus;
   cancelReason?: string | null;
+  /** Предстоящие: зелёный «Записан» для активных; в истории плашки только у отмены и переноса. */
+  mode?: "upcoming" | "history";
 };
 
 const LABEL: Record<AppointmentRecordStatus, string> = {
@@ -17,11 +19,19 @@ const LABEL: Record<AppointmentRecordStatus, string> = {
 };
 
 /**
- * Бейдж статуса записи. Для tooltip при отмене — обёрнут в `TooltipProvider` родителем (см. `CabinetUpcomingAppointments`).
+ * Бейдж статуса. Для tooltip при отмене — обёрнут в `TooltipProvider` родителем (см. `CabinetUpcomingAppointments`).
  */
-export function AppointmentStatusBadge({ status, cancelReason }: Props) {
-  const tone =
-    status === "cancelled"
+export function AppointmentStatusBadge({ status, cancelReason, mode = "upcoming" }: Props) {
+  if (mode === "history" && status !== "cancelled" && status !== "rescheduled") {
+    return null;
+  }
+
+  const isUpcomingBooked = mode === "upcoming" && (status === "created" || status === "confirmed");
+  const displayLabel = isUpcomingBooked ? "Записан" : LABEL[status];
+
+  const tone = isUpcomingBooked
+    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
+    : status === "cancelled"
       ? "bg-destructive/15 text-destructive border-destructive/30"
       : status === "rescheduled"
         ? "border-purple-500/40 bg-purple-500/10 text-purple-800 dark:text-purple-200"
@@ -34,7 +44,7 @@ export function AppointmentStatusBadge({ status, cancelReason }: Props) {
         tone
       )}
     >
-      {LABEL[status]}
+      {displayLabel}
     </span>
   );
 

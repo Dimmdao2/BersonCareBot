@@ -11,7 +11,9 @@ describe("appointments service", () => {
   it("fixture shape for UI tests when populated from integration", () => {
     const fixture = {
       id: "apt-1",
-      label: "Консультация",
+      dateLabel: "15.03.2026",
+      timeLabel: "14:30",
+      label: "15.03.2026 14:30",
       link: "https://example.com/",
       status: "confirmed" as const,
     };

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  getUtcDayRange,
+  hasInstantDuplicateInWindow,
   SYMPTOM_INSTANT_DEDUP_MS,
   shouldConfirmInstantDuplicate,
   type LastSymptomSaveMeta,
@@ -44,5 +46,74 @@ describe("shouldConfirmInstantDuplicate (I.6)", () => {
       at: Date.now() - 10_000,
     };
     expect(shouldConfirmInstantDuplicate(last, "t2", "instant")).toBe(false);
+  });
+});
+
+describe("hasInstantDuplicateInWindow", () => {
+  it("returns true when same value and notes are saved in dedup window", () => {
+    const now = Date.now();
+    const entries = [
+      {
+        entryType: "instant" as const,
+        value0_10: 7,
+        notes: "утро",
+        recordedAt: new Date(now - 20_000).toISOString(),
+      },
+    ];
+    expect(
+      hasInstantDuplicateInWindow(entries, {
+        recordedAtMs: now,
+        value0_10: 7,
+        notes: "утро",
+      }),
+    ).toBe(true);
+  });
+
+  it("returns false when value differs", () => {
+    const now = Date.now();
+    const entries = [
+      {
+        entryType: "instant" as const,
+        value0_10: 6,
+        notes: "утро",
+        recordedAt: new Date(now - 20_000).toISOString(),
+      },
+    ];
+    expect(
+      hasInstantDuplicateInWindow(entries, {
+        recordedAtMs: now,
+        value0_10: 7,
+        notes: "утро",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns false when only daily entry exists", () => {
+    const now = Date.now();
+    const entries = [
+      {
+        entryType: "daily" as const,
+        value0_10: 7,
+        notes: "утро",
+        recordedAt: new Date(now - 20_000).toISOString(),
+      },
+    ];
+    expect(
+      hasInstantDuplicateInWindow(entries, {
+        recordedAtMs: now,
+        value0_10: 7,
+        notes: "утро",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("getUtcDayRange", () => {
+  it("returns UTC day bounds", () => {
+    const at = Date.parse("2026-03-29T14:20:00.000Z");
+    expect(getUtcDayRange(at)).toEqual({
+      fromRecordedAt: "2026-03-29T00:00:00.000Z",
+      toRecordedAtExclusive: "2026-03-30T00:00:00.000Z",
+    });
   });
 });

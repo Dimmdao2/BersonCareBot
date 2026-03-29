@@ -52,6 +52,10 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
             lastSavedRef.current = { trackingId, entryType: et, at: Date.now() };
             form.reset();
             setSelectedValue(null);
+          } else if (result.reason === "duplicate_instant") {
+            toast.error("Похожая запись в моменте уже сохранена только что");
+          } else if (result.reason === "duplicate_daily") {
+            toast.error("Запись «за день» по этому симптому уже есть сегодня");
           } else {
             toast.error("Не удалось сохранить");
           }
