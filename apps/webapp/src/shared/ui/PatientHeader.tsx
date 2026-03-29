@@ -39,14 +39,6 @@ const SHEET_NAV_LINK_CLASS = cn(
 /** Touch target ≥ 44px (WCAG); `size="icon"` в дизайн-системе = 32px — переопределяем. */
 const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
 
-const MENU_ITEMS: { id: string; label: string; href: string }[] = [
-  { id: "profile", label: "Мой профиль", href: "/app/patient/profile" },
-  { id: "booking", label: "Записаться на приём", href: routePaths.patientBooking },
-  { id: "cabinet", label: "Мои записи", href: "/app/patient/cabinet" },
-  { id: "diary", label: "Дневник", href: routePaths.diary },
-  { id: "reminders", label: "Напоминания", href: "/app/patient/reminders" },
-  { id: "notifications", label: "Настройки уведомлений", href: "/app/patient/notifications" },
-];
 
 type PatientHeaderProps = {
   /** Заголовок экрана в шапке (не дублировать в main). */
@@ -89,13 +81,6 @@ export function PatientHeader({
     }
     closeMenu();
   }, [closeMenu]);
-
-  const openCabinetAddress = useCallback(() => {
-    router.push(routePaths.patientAddress);
-    closeMenu();
-  }, [closeMenu, router]);
-
-  const iconSet = new Set(nav.headerRightIcons);
 
   const renderHeaderIcon = (id: HeaderIconId) => {
     switch (id) {
@@ -228,43 +213,62 @@ export function PatientHeader({
               <SheetTitle>Меню</SheetTitle>
             </SheetHeader>
             <nav id="patient-menu-nav" className="flex flex-col gap-1 py-2" aria-label="Навигация">
-              {iconSet.has("messages") ? (
-                <Link
-                  id="patient-menu-link-messages"
-                  href={routePaths.patientMessages}
-                  onClick={closeMenu}
-                  className={SHEET_NAV_LINK_CLASS}
-                >
-                  Сообщения
-                </Link>
-              ) : null}
-              {MENU_ITEMS.map((item) => (
-                <Link
-                  key={item.id}
-                  id={`patient-menu-link-${item.id}`}
-                  href={item.href}
-                  onClick={closeMenu}
-                  className={SHEET_NAV_LINK_CLASS}
-                >
-                  {item.label}
-                </Link>
-              ))}
-              <Separator className="my-2" />
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-auto w-full justify-start px-3 py-2 font-normal"
-                onClick={openCabinetAddress}
-              >
-                Адрес кабинета
-              </Button>
+              {/* Блок 1: запись и визиты */}
               <Link
-                id="patient-menu-link-help"
-                href={routePaths.patientHelp}
+                id="patient-menu-link-booking"
+                href={routePaths.patientBooking}
                 onClick={closeMenu}
                 className={SHEET_NAV_LINK_CLASS}
               >
-                Справка
+                Записаться на приём
+              </Link>
+              <Link
+                id="patient-menu-link-cabinet"
+                href={routePaths.cabinet}
+                onClick={closeMenu}
+                className={SHEET_NAV_LINK_CLASS}
+              >
+                Мои записи
+              </Link>
+              <Link
+                id="patient-menu-link-address"
+                href={routePaths.patientAddress}
+                onClick={closeMenu}
+                className={SHEET_NAV_LINK_CLASS}
+              >
+                Адрес кабинета
+              </Link>
+
+              <Separator className="my-2" />
+
+              {/* Блок 2: дневник и помощник */}
+              <Link
+                id="patient-menu-link-diary"
+                href={routePaths.diary}
+                onClick={closeMenu}
+                className={SHEET_NAV_LINK_CLASS}
+              >
+                Дневник
+              </Link>
+              <Link
+                id="patient-menu-link-assistant"
+                href={routePaths.patientReminders}
+                onClick={closeMenu}
+                className={SHEET_NAV_LINK_CLASS}
+              >
+                Помощник
+              </Link>
+
+              <Separator className="my-2" />
+
+              {/* Блок 3: профиль и действия */}
+              <Link
+                id="patient-menu-link-profile"
+                href={routePaths.profile}
+                onClick={closeMenu}
+                className={SHEET_NAV_LINK_CLASS}
+              >
+                Мой профиль
               </Link>
               <Button
                 type="button"
@@ -274,16 +278,7 @@ export function PatientHeader({
               >
                 Поделиться с другом
               </Button>
-              {nav.showInstallPrompt ? (
-                <Link
-                  id="patient-menu-link-install"
-                  href={routePaths.patientInstall}
-                  onClick={closeMenu}
-                  className={SHEET_NAV_LINK_CLASS}
-                >
-                  Установить приложение
-                </Link>
-              ) : null}
+
               {nav.showLogout ? (
                 <>
                   <Separator className="my-2" />

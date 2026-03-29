@@ -3,7 +3,7 @@
  */
 import type { LfkSession } from "../types";
 
-/** Состояние точки ЛФК на мини-графике (должно совпадать с miniStatsTypes.LfkDotState). */
+/** Состояние отметки ЛФК по дню (для компактных индикаторов / матриц). */
 export type LfkDotState = "done" | "none" | "partial";
 
 export type SymptomDayPoint = {

@@ -1,5 +1,5 @@
 /**
- * UTC rolling windows for diary stats APIs and {@link loadMiniStatsProps}.
+ * UTC rolling windows for diary stats APIs (графики симптомов / ЛФК).
  * End boundary is exclusive (next midnight UTC after the last included day).
  */
 

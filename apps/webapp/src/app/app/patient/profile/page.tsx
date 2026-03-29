@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -5,9 +7,11 @@ import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { AuthOtpChannelPreference } from "./AuthOtpChannelPreference";
 import { LogoutSection } from "./LogoutSection";
 import { PinSection } from "./PinSection";
+import { ProfileAccordionSection } from "./ProfileAccordionSection";
 import { ProfileForm } from "./ProfileForm";
 
 const AUTH_OTP_ORDER: OtpUiChannel[] = ["telegram", "max", "email", "sms"];
@@ -44,6 +48,12 @@ export default async function PatientProfilePage() {
     savedPreferred && authOtpOptions.some((o) => o.code === savedPreferred) ? savedPreferred : "auto";
   const showAuthOtpBindHint = !authOtpOptions.some((o) => o.code !== "sms");
 
+  const pinStatusIcon = hasPin ? (
+    <CheckCircle2 className="size-4 shrink-0 text-green-500" aria-label="PIN создан" />
+  ) : (
+    <AlertCircle className="size-4 shrink-0 text-destructive" aria-label="PIN не задан" />
+  );
+
   return (
     <AppShell
       title="Мой профиль"
@@ -52,40 +62,54 @@ export default async function PatientProfilePage() {
       backLabel="Меню"
       variant="patient"
     >
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <h2>Личные данные</h2>
-        <ProfileForm
-          displayName={session.user.displayName}
-          phone={session.user.phone ?? null}
-          phoneChannel={phoneChannel}
-          phoneChatId={phoneChatId}
-          initialEmail={emailFields.email}
-          emailVerified={Boolean(emailFields.emailVerifiedAt)}
-        />
-      </section>
+      <div className="flex flex-col gap-3">
+        <ProfileAccordionSection id="patient-profile-personal" title="Личные данные">
+          <ProfileForm
+            displayName={session.user.displayName}
+            phone={session.user.phone ?? null}
+            phoneChannel={phoneChannel}
+            phoneChatId={phoneChatId}
+            initialEmail={emailFields.email}
+            emailVerified={Boolean(emailFields.emailVerifiedAt)}
+          />
+        </ProfileAccordionSection>
 
-      {showPinSection ? (
-        <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-          <h2>PIN для входа</h2>
-          <PinSection hasPin={hasPin} />
-        </section>
-      ) : null}
+        {showPinSection ? (
+          <ProfileAccordionSection
+            id="patient-profile-pin"
+            title="PIN для входа"
+            statusIcon={pinStatusIcon}
+          >
+            <PinSection hasPin={hasPin} />
+          </ProfileAccordionSection>
+        ) : null}
 
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <h2>Подтверждение входа</h2>
-        <AuthOtpChannelPreference
-          options={authOtpOptions}
-          initialSelection={initialAuthOtpSelection}
-          showBindHint={showAuthOtpBindHint}
-        />
-      </section>
+        <ProfileAccordionSection id="patient-profile-otp" title="Подтверждение входа">
+          <AuthOtpChannelPreference
+            options={authOtpOptions}
+            initialSelection={initialAuthOtpSelection}
+            showBindHint={showAuthOtpBindHint}
+          />
+        </ProfileAccordionSection>
 
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <h2>Привязанные каналы</h2>
-        <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
-      </section>
+        <ProfileAccordionSection id="patient-profile-channels" title="Привязанные каналы">
+          <ConnectMessengersBlock channelCards={channelCards} showHeading={false} />
+        </ProfileAccordionSection>
 
-      {platformEntry !== "bot" ? <LogoutSection /> : null}
+        <ProfileAccordionSection id="patient-profile-notifications" title="Уведомления">
+          <p className="text-muted-foreground text-sm">
+            Настройте каналы доставки и темы рассылок: напоминания о приёме, упражнениях, симптомах и новостях.
+          </p>
+          <Link
+            href={routePaths.notifications}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            Настройки уведомлений
+          </Link>
+        </ProfileAccordionSection>
+
+        {platformEntry !== "bot" ? <LogoutSection /> : null}
+      </div>
     </AppShell>
   );
 }

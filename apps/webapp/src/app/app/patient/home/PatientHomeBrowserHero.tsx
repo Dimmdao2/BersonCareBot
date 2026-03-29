@@ -3,7 +3,8 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { cn } from "@/lib/utils";
 
 /**
- * Верхняя зона главной: кабинет и дневник. Запись на приём — пункт меню (гамбургер / сетка).
+ * Верхняя зона главной: кабинет, дневник, личный помощник.
+ * Запись на приём — пункт меню (гамбургер / сетка).
  */
 export function PatientHomeBrowserHero() {
   const cardClass = cn(
@@ -12,7 +13,7 @@ export function PatientHomeBrowserHero() {
   );
 
   return (
-    <section id="patient-home-browser-hero" className="flex flex-col gap-4">
+    <section id="patient-home-browser-hero" className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-3">
         <Link
           href={routePaths.cabinet}
@@ -28,9 +29,17 @@ export function PatientHomeBrowserHero() {
           className={cardClass}
         >
           <h2 className="text-base font-semibold">Дневник</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Управление дневниками и статистика</p>
+          <p className="mt-2 text-sm text-muted-foreground">Управление дневниками</p>
         </Link>
       </div>
+      <Link
+        href={routePaths.patientReminders}
+        id="patient-home-browser-link-assistant"
+        className={cardClass}
+      >
+        <h2 className="text-base font-semibold">Личный помощник</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Напоминания и уведомления</p>
+      </Link>
     </section>
   );
 }

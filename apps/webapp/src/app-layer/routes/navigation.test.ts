@@ -52,10 +52,10 @@ describe("patientHomeBlocksByPlatform", () => {
     }
   });
 
-  it("bot is canonical list minus blocks hidden in mini-app (news, mailings, motivation, stats, channels)", () => {
+  it("bot is canonical list minus blocks hidden in mini-app (news, mailings, motivation, channels)", () => {
     expect(patientHomeBlocksByPlatform.bot).toEqual(
       patientHomeBlocksCanonical.filter((id) =>
-        !["news", "mailings", "motivation", "stats", "channels"].includes(id),
+        !["news", "mailings", "motivation", "channels"].includes(id),
       ),
     );
   });

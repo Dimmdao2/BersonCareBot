@@ -54,7 +54,6 @@ export function PinSection({ hasPin: initialHasPin }: PinSectionProps) {
   if (!showPinForm) {
     return (
       <div id="patient-profile-pin-created" className="flex flex-col gap-3">
-        <p className="text-sm font-medium">PIN-код создан</p>
         <p className="text-muted-foreground text-sm">
           Вы можете войти по номеру телефона и PIN без кода из SMS или мессенджера.
         </p>

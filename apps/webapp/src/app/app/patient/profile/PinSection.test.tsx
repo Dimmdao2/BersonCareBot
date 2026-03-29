@@ -32,7 +32,7 @@ describe("PinSection", () => {
 
   it("when hasPin: shows created state and hides PIN inputs until reset", () => {
     render(<PinSection hasPin />);
-    expect(screen.getByText("PIN-код создан")).toBeInTheDocument();
+    expect(screen.getByText(/Вы можете войти по номеру телефона и PIN/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Цифра 1 из 4")).not.toBeInTheDocument();
   });
 

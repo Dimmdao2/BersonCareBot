@@ -49,7 +49,6 @@ export type HomeBlockId =
   | "news"
   | "mailings"
   | "motivation"
-  | "stats"
   | "channels";
 
 /**
@@ -63,7 +62,6 @@ export const patientHomeBlocksCanonical: HomeBlockId[] = [
   "news",
   "mailings",
   "motivation",
-  "stats",
   "channels",
 ];
 
@@ -71,7 +69,6 @@ const PATIENT_HOME_BLOCKS_HIDDEN_IN_BOT: ReadonlySet<HomeBlockId> = new Set([
   "news",
   "mailings",
   "motivation",
-  "stats",
   "channels",
 ]);
 

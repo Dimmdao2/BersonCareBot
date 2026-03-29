@@ -8,7 +8,6 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { patientHomeBlocksForEntry, type HomeBlockId } from "@/app-layer/routes/navigation";
-import { MiniStats } from "@/modules/diaries/components/MiniStats";
 import {
   getHomeNews,
   getQuoteForDay,
@@ -19,7 +18,6 @@ import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { PostLoginSuggestion } from "@/shared/ui/auth/PostLoginSuggestion";
-import { loadMiniStatsProps } from "./home/loadMiniStats";
 import { PatientHomeBrowserHero } from "./home/PatientHomeBrowserHero";
 import { PatientHomeExtraBlocks } from "./home/PatientHomeExtraBlocks";
 import { PatientHomeLessonsSection } from "./home/PatientHomeLessonsSection";
@@ -59,13 +57,12 @@ export default async function PatientHomePage() {
         )
       : [];
 
-  const [homeNews, banner, mailings, miniStats, motivationQuote] = await Promise.all([
+  const [homeNews, banner, mailings, motivationQuote] = await Promise.all([
     blocks.has("news") ? getHomeNews() : Promise.resolve(null),
     blocks.has("news") ? getPatientHomeBannerTopic() : Promise.resolve(null),
     blocks.has("mailings") && session?.user
       ? listRecentMailingLogsForPlatformUser(session.user.userId)
       : Promise.resolve([]),
-    blocks.has("stats") ? loadMiniStatsProps(deps, session) : Promise.resolve({ variant: "guest" as const }),
     blocks.has("motivation")
       ? getQuoteForDay(session?.user?.userId ?? "guest")
       : Promise.resolve(null),
@@ -95,12 +92,6 @@ export default async function PatientHomePage() {
               "Двигайтесь в комфортном темпе и прислушивайтесь к ощущениям — это помогает устойчиво закреплять привычки."
             }
           />
-        ) : null}
-        {blocks.has("stats") ? (
-          <section id="patient-home-stats-section" className="flex flex-col gap-3">
-            <h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">Статистика</h2>
-            <MiniStats {...miniStats} />
-          </section>
         ) : null}
         {blocks.has("channels") && session?.user != null && channelCards.length > 0 && (
           <ConnectMessengersBlock channelCards={channelCards} implementedOnly />
