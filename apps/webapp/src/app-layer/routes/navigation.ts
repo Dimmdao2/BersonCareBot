@@ -11,7 +11,6 @@ export type PatientNavConfig = {
   headerRightIcons: HeaderIconId[];
   hasSheetMenu: boolean;
   showLogout: boolean;
-  showInstallPrompt: boolean;
 };
 
 export const patientNavByPlatform: Record<PlatformMode, PatientNavConfig> = {
@@ -19,20 +18,17 @@ export const patientNavByPlatform: Record<PlatformMode, PatientNavConfig> = {
     headerRightIcons: ["settings"],
     hasSheetMenu: false,
     showLogout: false,
-    showInstallPrompt: false,
   },
-  /** Браузер (и PWA): шапка отличается от мини-приложения в боте — справка и остальные разделы в гамбургере справа. */
+  /** Браузер (и PWA): шапка отличается от мини-приложения в боте — сообщения и разделы в гамбургере справа. */
   mobile: {
     headerRightIcons: ["messages", "menu"],
     hasSheetMenu: true,
     showLogout: true,
-    showInstallPrompt: true,
   },
   desktop: {
     headerRightIcons: ["messages", "menu"],
     hasSheetMenu: true,
     showLogout: true,
-    showInstallPrompt: false,
   },
 };
 

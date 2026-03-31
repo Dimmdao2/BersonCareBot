@@ -17,7 +17,6 @@ describe("patientNavByPlatform", () => {
       expect(Array.isArray(cfg.headerRightIcons)).toBe(true);
       expect(typeof cfg.hasSheetMenu).toBe("boolean");
       expect(typeof cfg.showLogout).toBe("boolean");
-      expect(typeof cfg.showInstallPrompt).toBe("boolean");
     }
   });
 
@@ -34,10 +33,6 @@ describe("patientNavByPlatform", () => {
     );
   });
 
-  it("desktop hides install prompt vs mobile", () => {
-    expect(patientNavByPlatform.mobile.showInstallPrompt).toBe(true);
-    expect(patientNavByPlatform.desktop.showInstallPrompt).toBe(false);
-  });
 });
 
 describe("patientHomeBlocksByPlatform", () => {
