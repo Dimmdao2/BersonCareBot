@@ -45,6 +45,10 @@ describe("patientNavByPlatform", () => {
 });
 
 describe("patientHomeBlocksByPlatform", () => {
+  it("canonical blocks list does not include purchases", () => {
+    expect(patientHomeBlocksCanonical).not.toContain("purchases");
+  });
+
   it("defines blocks for every platform mode", () => {
     for (const mode of modes) {
       expect(Array.isArray(patientHomeBlocksByPlatform[mode])).toBe(true);

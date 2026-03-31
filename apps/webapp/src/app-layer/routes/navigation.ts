@@ -41,11 +41,6 @@ export type HomeBlockId =
   | "cabinet"
   | "materials"
   | "assistant"
-  /**
-   * Показывается только тем, у кого есть покупки — добавляется условно в page.tsx
-   * после проверки через deps.purchases, когда модуль будет реальным.
-   */
-  | "purchases"
   | "news"
   | "mailings"
   | "motivation"
@@ -58,7 +53,6 @@ export type HomeBlockId =
 export const patientHomeBlocksCanonical: HomeBlockId[] = [
   "cabinet",
   "materials",
-  // "purchases" — не включён по умолчанию: показывается только при наличии покупок (условная инъекция в page.tsx)
   "news",
   "mailings",
   "motivation",
