@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,13 +29,8 @@ export function CabinetBookingEntry({ defaultName, defaultPhone }: Props) {
   const router = useRouter();
   const selectionState = useBookingSelection();
 
-  const slotsState = useBookingSlots(selectionState.selection, selectedDate);
-
-  useEffect(() => {
-    if (selectedDate) return;
-    if (slotsState.availableDates.length === 0) return;
-    setSelectedDate(slotsState.availableDates[0] ?? null);
-  }, [selectedDate, slotsState.availableDates]);
+  const slotsState = useBookingSlots(selectionState.selection);
+  const effectiveDate = selectedDate ?? slotsState.availableDates[0] ?? null;
 
   const headerLabel = useMemo(() => {
     const selection = selectionState.selection;
@@ -66,7 +61,7 @@ export function CabinetBookingEntry({ defaultName, defaultPhone }: Props) {
       {selectionState.selection ? (
         <BookingCalendar
           availableDates={slotsState.availableDates}
-          selectedDate={selectedDate}
+          selectedDate={effectiveDate}
           onSelectDate={(date) => {
             setSelectedDate(date);
             setSelectedSlot(null);
@@ -84,9 +79,9 @@ export function CabinetBookingEntry({ defaultName, defaultPhone }: Props) {
         </div>
       ) : null}
 
-      {selectionState.selection && selectedDate ? (
+      {selectionState.selection && effectiveDate ? (
         <BookingSlotList
-          slots={slotsState.slotsForSelectedDate}
+          slots={slotsState.slotsForDate(effectiveDate)}
           selectedSlot={selectedSlot}
           onSelectSlot={setSelectedSlot}
         />

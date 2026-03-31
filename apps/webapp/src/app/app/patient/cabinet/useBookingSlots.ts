@@ -19,7 +19,7 @@ function buildQuery(selection: BookingSelection, date?: string): string {
   return params.toString();
 }
 
-export function useBookingSlots(selection: BookingSelection | null, selectedDate: string | null) {
+export function useBookingSlots(selection: BookingSelection | null) {
   const [state, setState] = useState<State>({
     loading: false,
     error: null,
@@ -28,8 +28,8 @@ export function useBookingSlots(selection: BookingSelection | null, selectedDate
 
   const query = useMemo(() => {
     if (!selection) return null;
-    return buildQuery(selection, selectedDate ?? undefined);
-  }, [selection, selectedDate]);
+    return buildQuery(selection, undefined);
+  }, [selection]);
 
   const load = useCallback(async () => {
     if (!query) {
@@ -55,21 +55,24 @@ export function useBookingSlots(selection: BookingSelection | null, selectedDate
   }, [query]);
 
   useEffect(() => {
-    void load();
+    const timer = setTimeout(() => {
+      void load();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [load]);
 
   const availableDates = useMemo(() => state.data.map((row) => row.date), [state.data]);
 
-  const slotsForSelectedDate = useMemo<BookingSlot[]>(() => {
+  const slotsForDate = useCallback((selectedDate: string | null): BookingSlot[] => {
     if (!selectedDate) return [];
     const row = state.data.find((x) => x.date === selectedDate);
     return row?.slots ?? [];
-  }, [selectedDate, state.data]);
+  }, [state.data]);
 
   return {
     ...state,
     availableDates,
-    slotsForSelectedDate,
+    slotsForDate,
     reload: load,
   };
 }
