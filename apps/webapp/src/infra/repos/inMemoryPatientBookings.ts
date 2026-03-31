@@ -1,11 +1,31 @@
 import { randomUUID } from "node:crypto";
 import type { PatientBookingsPort } from "@/modules/patient-booking/ports";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import { intervalsOverlap } from "@/modules/patient-booking/slotOverlap";
 
 const byId = new Map<string, PatientBookingRecord>();
 
+/** Test-only: clear all in-memory bookings. */
+export function resetInMemoryPatientBookingsStore(): void {
+  byId.clear();
+}
+
+const BLOCKING_STATUSES = ["confirmed", "rescheduled"] as const;
+
+function hasGlobalSlotOverlap(slotStart: string, slotEnd: string, excludeBookingId?: string): boolean {
+  for (const row of byId.values()) {
+    if (excludeBookingId !== undefined && row.id === excludeBookingId) continue;
+    if (!BLOCKING_STATUSES.includes(row.status as (typeof BLOCKING_STATUSES)[number])) continue;
+    if (intervalsOverlap(slotStart, slotEnd, row.slotStart, row.slotEnd)) return true;
+  }
+  return false;
+}
+
 export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   async createPending(input) {
+    if (hasGlobalSlotOverlap(input.slotStart, input.slotEnd)) {
+      throw new Error("slot_overlap");
+    }
     const now = new Date().toISOString();
     const row: PatientBookingRecord = {
       id: randomUUID(),
@@ -35,6 +55,9 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   async markConfirmed(bookingId, rubitimeId) {
     const row = byId.get(bookingId);
     if (!row) return null;
+    if (hasGlobalSlotOverlap(row.slotStart, row.slotEnd, bookingId)) {
+      throw new Error("slot_overlap");
+    }
     const next = { ...row, status: "confirmed" as const, rubitimeId: rubitimeId ?? row.rubitimeId, updatedAt: new Date().toISOString() };
     byId.set(bookingId, next);
     return next;
@@ -44,6 +67,14 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     const row = byId.get(bookingId);
     if (!row) return;
     byId.set(bookingId, { ...row, status: "failed_sync", updatedAt: new Date().toISOString() });
+  },
+
+  async markCancelling(bookingId) {
+    const row = byId.get(bookingId);
+    if (!row) return null;
+    const next = { ...row, status: "cancelling" as const, updatedAt: new Date().toISOString() };
+    byId.set(bookingId, next);
+    return next;
   },
 
   async markCancelled(input) {
@@ -91,7 +122,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     const nowMs = new Date(nowIso).getTime();
     return [...byId.values()]
       .filter((row) => row.userId === userId)
-      .filter((row) => ["creating", "confirmed", "rescheduled"].includes(row.status))
+      .filter((row) => ["creating", "confirmed", "rescheduled", "cancelling", "cancel_failed"].includes(row.status))
       .filter((row) => new Date(row.slotStart).getTime() >= nowMs)
       .sort((a, b) => a.slotStart.localeCompare(b.slotStart));
   },
@@ -100,7 +131,11 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     const nowMs = new Date(nowIso).getTime();
     return [...byId.values()]
       .filter((row) => row.userId === userId)
-      .filter((row) => new Date(row.slotStart).getTime() < nowMs || ["cancelled", "completed", "no_show", "failed_sync"].includes(row.status))
+      .filter(
+        (row) =>
+          new Date(row.slotStart).getTime() < nowMs ||
+          ["cancelled", "completed", "no_show", "failed_sync"].includes(row.status),
+      )
       .sort((a, b) => b.slotStart.localeCompare(a.slotStart));
   },
 };

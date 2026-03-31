@@ -17,6 +17,8 @@ function statusLabel(status: PatientBookingRecord["status"]): string {
   if (status === "rescheduled") return "Перенесена";
   if (status === "no_show") return "Неявка";
   if (status === "failed_sync") return "Ошибка";
+  if (status === "cancel_failed") return "Не удалось отменить";
+  if (status === "cancelling") return "Отмена…";
   if (status === "creating") return "Создается";
   return "Подтверждена";
 }

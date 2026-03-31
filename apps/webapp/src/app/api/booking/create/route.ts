@@ -46,6 +46,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, booking }, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "create_failed";
+    if (message === "slot_overlap") {
+      return NextResponse.json({ ok: false, error: "slot_overlap" }, { status: 409 });
+    }
+    if (message === "booking_confirm_failed") {
+      return NextResponse.json({ ok: false, error: "booking_confirm_failed" }, { status: 503 });
+    }
     return NextResponse.json({ ok: false, error: message }, { status: 503 });
   }
 }

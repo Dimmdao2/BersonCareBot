@@ -11,7 +11,14 @@ import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsP
 import type { DispatchPort } from '../../kernel/contracts/index.js';
 import { createRubitimeRecord, fetchRubitimeSlots, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
 import { rubitimeConfig } from './config.js';
-import { parseRubitimeSlotsQuery } from './schema.js';
+import { getBookingDisplayTimezone } from '../../infra/db/repos/bookingDisplayTimezone.js';
+import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
+import {
+  parseBookingLifecycleEvent,
+  parseRubitimeSlotsQuery,
+  type BookingLifecycleEventValidated,
+  type BookingLifecyclePayloadValidated,
+} from './schema.js';
 import { telegramConfig } from '../telegram/config.js';
 import { maxConfig } from '../max/config.js';
 
@@ -66,25 +73,6 @@ export type RubitimeRecordM2mDeps = {
   dispatchPort: DispatchPort;
 };
 
-type BookingLifecycleEventBody = {
-  eventType: 'booking.created' | 'booking.cancelled';
-  idempotencyKey?: string;
-  payload?: {
-    bookingId?: string;
-    userId?: string;
-    rubitimeId?: string | null;
-    bookingType?: string;
-    city?: string | null;
-    category?: string;
-    slotStart?: string;
-    slotEnd?: string;
-    contactName?: string;
-    contactPhone?: string;
-    contactEmail?: string | null;
-    reason?: string;
-  };
-};
-
 const bookingEventDedup = new Map<string, number>();
 const BOOKING_EVENT_DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -106,41 +94,31 @@ function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
-function formatRuDateTime(value: string | null): string {
-  if (!value) return 'без даты';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('ru-RU', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
-}
-
-function patientCreatedText(payload: NonNullable<BookingLifecycleEventBody['payload']>): string {
-  const dateLabel = formatRuDateTime(asNonEmptyString(payload.slotStart));
+function patientCreatedText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
+  const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const typeLabel = payload.bookingType === 'online' ? 'Онлайн' : 'Очный приём';
   const city = asNonEmptyString(payload.city);
   const citySuffix = city ? ` (${city})` : '';
   return `Запись подтверждена: ${dateLabel}\n${typeLabel}${citySuffix}`;
 }
 
-function patientCancelledText(payload: NonNullable<BookingLifecycleEventBody['payload']>): string {
-  const dateLabel = formatRuDateTime(asNonEmptyString(payload.slotStart));
+function patientCancelledText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
+  const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const reason = asNonEmptyString(payload.reason);
   return reason
     ? `Запись на ${dateLabel} отменена.\nПричина: ${reason}`
     : `Запись на ${dateLabel} отменена.`;
 }
 
-function doctorCreatedText(payload: NonNullable<BookingLifecycleEventBody['payload']>): string {
-  const dateLabel = formatRuDateTime(asNonEmptyString(payload.slotStart));
+function doctorCreatedText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
+  const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const name = asNonEmptyString(payload.contactName) ?? 'Пациент';
   const phone = asNonEmptyString(payload.contactPhone) ?? 'без телефона';
   return `Новая запись: ${name}, ${phone}\nДата: ${dateLabel}`;
 }
 
-function doctorCancelledText(payload: NonNullable<BookingLifecycleEventBody['payload']>): string {
-  const dateLabel = formatRuDateTime(asNonEmptyString(payload.slotStart));
+function doctorCancelledText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
+  const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const name = asNonEmptyString(payload.contactName) ?? 'Пациент';
   return `Отмена записи: ${name}\nДата: ${dateLabel}`;
 }
@@ -240,6 +218,7 @@ async function scheduleBookingReminders(input: {
   slotStartIso: string;
   phoneNormalized: string | null;
   patientName: string | null;
+  timeZone: string;
 }): Promise<void> {
   const deliveryTargets = createDeliveryTargetsPort();
   const bindings = input.phoneNormalized
@@ -260,7 +239,7 @@ async function scheduleBookingReminders(input: {
   if (!Number.isFinite(startMs)) return;
   const db = createDbPort();
   const patientLabel = input.patientName ?? 'Пациент';
-  const dateLabel = formatRuDateTime(input.slotStartIso);
+  const dateLabel = formatBookingRuDateTime(input.slotStartIso, input.timeZone);
   const reminders = [
     { code: '24h', offsetMs: 24 * 60 * 60 * 1000, text: `Напоминание: приём ${dateLabel} (через 24 часа).` },
     { code: '2h', offsetMs: 2 * 60 * 60 * 1000, text: `Напоминание: приём ${dateLabel} (через 2 часа).` },
@@ -300,52 +279,50 @@ async function scheduleBookingReminders(input: {
 }
 
 async function handleBookingLifecycleEvent(
-  body: BookingLifecycleEventBody,
+  body: BookingLifecycleEventValidated,
   dispatchPort: DispatchPort,
 ): Promise<void> {
-  const payload = body.payload ?? {};
-  const bookingId = asNonEmptyString(payload.bookingId);
-  if (!bookingId) {
-    throw new Error('booking_id_required');
-  }
+  const { payload, eventType } = body;
+  const bookingId = payload.bookingId;
   const contactPhone = asNonEmptyString(payload.contactPhone);
   const patientName = asNonEmptyString(payload.contactName);
-  const slotStart = asNonEmptyString(payload.slotStart);
-  const dedupKey = asNonEmptyString(body.idempotencyKey) ?? `${body.eventType}:${bookingId}`;
+  const dedupKey = asNonEmptyString(body.idempotencyKey) ?? `${eventType}:${bookingId}`;
   if (isBookingEventDuplicate(dedupKey)) return;
 
-  if (body.eventType === 'booking.created') {
-    const patientText = patientCreatedText(payload);
+  const dbPort = createDbPort();
+  const timeZone = await getBookingDisplayTimezone(dbPort);
+
+  if (eventType === 'booking.created') {
+    const patientText = patientCreatedText(payload, timeZone);
     await sendLinkedChannelMessage({
       dispatchPort,
       phoneNormalized: contactPhone,
       text: patientText,
       eventId: `booking-created:${bookingId}`,
     });
-    await sendDoctorMessage(dispatchPort, doctorCreatedText(payload), `booking-created:${bookingId}`);
+    await sendDoctorMessage(dispatchPort, doctorCreatedText(payload, timeZone), `booking-created:${bookingId}`);
     await cancelPendingBookingReminders(bookingId);
-    if (slotStart) {
-      await scheduleBookingReminders({
-        bookingId,
-        slotStartIso: slotStart,
-        phoneNormalized: contactPhone,
-        patientName,
-      });
-    }
+    await scheduleBookingReminders({
+      bookingId,
+      slotStartIso: payload.slotStart,
+      phoneNormalized: contactPhone,
+      patientName,
+      timeZone,
+    });
     rememberBookingEventKey(dedupKey);
     return;
   }
 
-  if (body.eventType === 'booking.cancelled') {
+  if (eventType === 'booking.cancelled') {
     await cancelPendingBookingReminders(bookingId);
-    const patientText = patientCancelledText(payload);
+    const patientText = patientCancelledText(payload, timeZone);
     await sendLinkedChannelMessage({
       dispatchPort,
       phoneNormalized: contactPhone,
       text: patientText,
       eventId: `booking-cancelled:${bookingId}`,
     });
-    await sendDoctorMessage(dispatchPort, doctorCancelledText(payload), `booking-cancelled:${bookingId}`);
+    await sendDoctorMessage(dispatchPort, doctorCancelledText(payload, timeZone), `booking-cancelled:${bookingId}`);
     rememberBookingEventKey(dedupKey);
     return;
   }
@@ -477,14 +454,13 @@ export async function registerRubitimeRecordM2mRoutes(
     if (!g.ok) {
       return reply.code(g.code).send({ ok: false, error: g.err });
     }
-    const body = typeof request.body === 'object' && request.body !== null
-      ? (request.body as BookingLifecycleEventBody)
-      : null;
-    if (!body || (body.eventType !== 'booking.created' && body.eventType !== 'booking.cancelled')) {
+    const parsed = parseBookingLifecycleEvent(request.body);
+    if (!parsed.success) {
+      logger.warn({ err: parsed.error.flatten() }, 'rubitime booking-event validation failed');
       return reply.code(400).send({ ok: false, error: 'invalid_booking_event' });
     }
     try {
-      await handleBookingLifecycleEvent(body, dispatchPort);
+      await handleBookingLifecycleEvent(parsed.data, dispatchPort);
       return reply.code(200).send({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

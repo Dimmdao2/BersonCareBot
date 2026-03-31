@@ -9,6 +9,7 @@ export const ALLOWED_KEYS = [
   // Non-secret runtime config keys (Pack B1)
   "integrator_api_url",
   "booking_url",
+  "booking_display_timezone",
   "telegram_bot_username",
   "google_calendar_enabled",
   "google_calendar_id",

@@ -8,8 +8,8 @@ type Props = {
 };
 
 function statusToBadgeVariant(status: PatientBookingRecord["status"]): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "cancelled" || status === "failed_sync") return "destructive";
-  if (status === "rescheduled") return "secondary";
+  if (status === "cancelled" || status === "failed_sync" || status === "cancel_failed") return "destructive";
+  if (status === "rescheduled" || status === "cancelling") return "secondary";
   return "outline";
 }
 
@@ -17,6 +17,8 @@ function statusLabel(status: PatientBookingRecord["status"]): string {
   if (status === "creating") return "Создается";
   if (status === "confirmed") return "Подтверждена";
   if (status === "cancelled") return "Отменена";
+  if (status === "cancelling") return "Отмена…";
+  if (status === "cancel_failed") return "Не удалось отменить";
   if (status === "rescheduled") return "Перенесена";
   if (status === "completed") return "Завершена";
   if (status === "no_show") return "Неявка";
@@ -61,7 +63,10 @@ export function CabinetActiveBookings({ bookings }: Props) {
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">{bookingTypeLabel(row)}</p>
-            {(row.status === "confirmed" || row.status === "rescheduled" || row.status === "creating") ? (
+            {(row.status === "confirmed" ||
+              row.status === "rescheduled" ||
+              row.status === "creating" ||
+              row.status === "cancel_failed") ? (
               <BookingCardActions booking={row} />
             ) : null}
           </CardContent>

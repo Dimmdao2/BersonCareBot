@@ -25,12 +25,12 @@ function buildActorFromBody(body: TelegramWebhookBodyValidated): Record<string, 
   return displayName ? { actor: { displayName } } : {};
 }
 
-function buildLinksFromBody(body: TelegramWebhookBodyValidated): Record<string, unknown> {
+/** Exported for tests: resolves booking deep-link (native cabinet vs BOOKING_URL fallback). */
+export function buildLinksFromBody(body: TelegramWebhookBodyValidated): Record<string, unknown> {
   const from = body.callback_query?.from ?? body.message?.from;
   const displayName = from ? joinDisplayName(from) : undefined;
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
   const links: Record<string, unknown> = {};
-  if (env.BOOKING_URL) links.bookingUrl = env.BOOKING_URL;
   if (typeof chatId === 'number') {
     const webappEntryUrl = buildWebappEntryUrl({
       chatId,
@@ -44,7 +44,11 @@ function buildLinksFromBody(body: TelegramWebhookBodyValidated): Record<string, 
       links.webappDiaryUrl = `${baseWebappUrl}&next=${enc('/app/patient/diary?tab=symptoms')}`;
       links.webappCabinetUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
       links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;
+      links.bookingUrl = links.webappCabinetUrl;
     }
+  }
+  if (typeof links.bookingUrl !== 'string' && env.BOOKING_URL) {
+    links.bookingUrl = env.BOOKING_URL;
   }
   return Object.keys(links).length > 0 ? { links } : {};
 }

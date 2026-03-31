@@ -4,6 +4,8 @@ export type BookingCategory = "rehab_lfk" | "nutrition" | "general";
 export type PatientBookingStatus =
   | "creating"
   | "confirmed"
+  | "cancelling"
+  | "cancel_failed"
   | "cancelled"
   | "rescheduled"
   | "completed"

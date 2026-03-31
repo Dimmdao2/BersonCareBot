@@ -44,6 +44,7 @@ Cutover/backfill/reconcile env для prod/dev: **docs/ARCHITECTURE/SERVER CONVE
 | **MAX_CAPABILITY_MATRIX.md** | Матрица Telegram vs MAX: механики, уведомления, Web App. |
 | **MAX_SETUP.md** | Подключение MAX: env, webhook, smoke-тесты. |
 | **LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md** | Low-level аудит auth, DI, composition roots (2026-03). |
+| **CONFIGURATION_ENV_VS_DATABASE.md** | Где хранить настройки: env (секреты, DSN, процесс) vs `system_settings` в БД (несекретная runtime-конфигурация). |
 | **CONTENT_CMS_REPORT.md** (`docs/CONTENT_CMS_REPORT.md`) | CMS: разделы `content_sections`, маршруты пациента и врача, медиа-библиотека и выбор файлов в форме контента. |
 
 ### MIGRATION/ — текущий план переноса данных и задачи

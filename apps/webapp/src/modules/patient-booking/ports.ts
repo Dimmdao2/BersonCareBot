@@ -54,6 +54,7 @@ export type PatientBookingsPort = {
   createPending(input: CreatePatientBookingInput): Promise<PatientBookingRecord>;
   markConfirmed(bookingId: string, rubitimeId: string | null): Promise<PatientBookingRecord | null>;
   markFailedSync(bookingId: string): Promise<void>;
+  markCancelling(bookingId: string): Promise<PatientBookingRecord | null>;
   markCancelled(input: {
     bookingId: string;
     reason?: string;
@@ -74,7 +75,10 @@ export type PatientBookingsPort = {
 export type PatientBookingService = {
   getSlots(query: BookingSlotsQuery): Promise<BookingSlotsByDate[]>;
   createBooking(input: CreatePatientBookingInput): Promise<PatientBookingRecord>;
-  cancelBooking(input: CancelPatientBookingInput): Promise<{ ok: true } | { ok: false; error: "not_found" | "sync_failed" }>;
+  cancelBooking(input: CancelPatientBookingInput): Promise<
+    | { ok: true }
+    | { ok: false; error: "not_found" | "sync_failed" | "already_cancelled" }
+  >;
   listMyBookings(userId: string): Promise<{
     upcoming: PatientBookingRecord[];
     history: PatientBookingRecord[];

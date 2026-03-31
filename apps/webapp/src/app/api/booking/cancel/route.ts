@@ -34,6 +34,9 @@ export async function POST(request: Request) {
     if (result.error === "not_found") {
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
+    if (result.error === "already_cancelled") {
+      return NextResponse.json({ ok: false, error: "already_cancelled" }, { status: 409 });
+    }
     return NextResponse.json({ ok: false, error: "sync_failed" }, { status: 502 });
   }
   return NextResponse.json({ ok: true }, { status: 200 });

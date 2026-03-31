@@ -59,6 +59,10 @@ export default async function SettingsPage() {
     ? {
         integratorApiUrl: String(getValueJson(adminSettingsList.find((x) => x.key === "integrator_api_url")?.valueJson, "") ?? ""),
         bookingUrl: String(getValueJson(adminSettingsList.find((x) => x.key === "booking_url")?.valueJson, "") ?? ""),
+        bookingDisplayTimezone: String(
+          getValueJson(adminSettingsList.find((x) => x.key === "booking_display_timezone")?.valueJson, "Europe/Moscow") ??
+            "Europe/Moscow",
+        ),
         telegramBotUsername: String(getValueJson(adminSettingsList.find((x) => x.key === "telegram_bot_username")?.valueJson, "") ?? ""),
         allowedTelegramIds: idArrayToString(adminSettingsList, "allowed_telegram_ids"),
         allowedMaxIds: idArrayToString(adminSettingsList, "allowed_max_ids"),

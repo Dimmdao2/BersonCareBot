@@ -71,3 +71,39 @@ export function parseRubitimeSlotsQuery(raw: unknown): {
   if (result.success) return { success: true, data: result.data };
   return { success: false, error: result.error };
 }
+
+const BookingLifecyclePayloadSchema = z.object({
+  bookingId: z.string().uuid(),
+  userId: z.string().min(1),
+  rubitimeId: z.string().nullable().optional(),
+  bookingType: z.enum(['in_person', 'online']),
+  city: z.string().nullable().optional(),
+  category: z.enum(['rehab_lfk', 'nutrition', 'general']),
+  slotStart: z.string().min(1),
+  slotEnd: z.string().min(1),
+  contactName: z.string().min(1),
+  contactPhone: z.string().min(1),
+  contactEmail: z.union([z.string().email(), z.null()]).optional(),
+  reason: z.string().optional(),
+});
+
+export const BookingLifecycleEventSchema = z.object({
+  eventType: z.enum(['booking.created', 'booking.cancelled']),
+  idempotencyKey: z.string().optional(),
+  payload: BookingLifecyclePayloadSchema,
+});
+
+export type BookingLifecycleEventValidated = z.infer<typeof BookingLifecycleEventSchema>;
+export type BookingLifecyclePayloadValidated = z.infer<typeof BookingLifecyclePayloadSchema>;
+
+export function parseBookingLifecycleEvent(raw: unknown): {
+  success: true;
+  data: BookingLifecycleEventValidated;
+} | {
+  success: false;
+  error: z.ZodError;
+} {
+  const result = BookingLifecycleEventSchema.safeParse(raw);
+  if (result.success) return { success: true, data: result.data };
+  return { success: false, error: result.error };
+}

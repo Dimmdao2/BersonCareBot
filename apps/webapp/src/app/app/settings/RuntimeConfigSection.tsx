@@ -5,9 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+const BOOKING_DISPLAY_TZ_PATTERN = /^[A-Za-z_]+(\/[A-Za-z_]+)*$/;
+
 type RuntimeConfigValues = {
   integratorApiUrl: string;
   bookingUrl: string;
+  /** IANA timezone for booking notification text (integrator reads system_settings). */
+  bookingDisplayTimezone: string;
   telegramBotUsername: string;
   /** JSON-array strings */
   allowedTelegramIds: string;
@@ -44,6 +48,7 @@ type Props = RuntimeConfigValues;
 export function RuntimeConfigSection({
   integratorApiUrl,
   bookingUrl,
+  bookingDisplayTimezone,
   telegramBotUsername,
   allowedTelegramIds,
   allowedMaxIds,
@@ -55,6 +60,7 @@ export function RuntimeConfigSection({
   const [vals, setVals] = useState({
     integratorApiUrl,
     bookingUrl,
+    bookingDisplayTimezone,
     telegramBotUsername,
     allowedTelegramIds,
     allowedMaxIds,
@@ -76,9 +82,16 @@ export function RuntimeConfigSection({
     setError(null);
     startTransition(async () => {
       try {
+        const tzRaw = vals.bookingDisplayTimezone.trim();
+        const tz = tzRaw.length > 0 ? tzRaw : "Europe/Moscow";
+        if (!BOOKING_DISPLAY_TZ_PATTERN.test(tz)) {
+          setError("Некорректный часовой пояс (IANA, например Europe/Moscow)");
+          return;
+        }
         const results = await Promise.all([
           patchSetting("integrator_api_url", vals.integratorApiUrl.trim()),
           patchSetting("booking_url", vals.bookingUrl.trim()),
+          patchSetting("booking_display_timezone", tz),
           patchSetting("telegram_bot_username", vals.telegramBotUsername.trim()),
           patchSetting("allowed_telegram_ids", parseIdArray(vals.allowedTelegramIds)),
           patchSetting("allowed_max_ids", parseIdArray(vals.allowedMaxIds)),
@@ -129,6 +142,19 @@ export function RuntimeConfigSection({
               onChange={set("bookingUrl")}
               disabled={isPending}
             />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Booking display timezone (IANA)</span>
+            <Input
+              type="text"
+              placeholder="Europe/Moscow"
+              value={vals.bookingDisplayTimezone}
+              onChange={set("bookingDisplayTimezone")}
+              disabled={isPending}
+            />
+            <span className="text-xs text-muted-foreground">
+              Текст напоминаний и уведомлений о записи в integrator. Пустое поле при сохранении → Europe/Moscow.
+            </span>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Telegram bot @username</span>

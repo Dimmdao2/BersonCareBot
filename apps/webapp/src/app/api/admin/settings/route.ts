@@ -19,6 +19,7 @@ const ADMIN_SCOPE_KEYS = [
   // Pack B1: non-secret runtime config keys
   "integrator_api_url",
   "booking_url",
+  "booking_display_timezone",
   "telegram_bot_username",
   "google_calendar_enabled",
   "google_calendar_id",

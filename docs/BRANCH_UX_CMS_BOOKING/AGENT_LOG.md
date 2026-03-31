@@ -444,6 +444,18 @@
 
 ---
 
+## Phase 2 remediation (AUDIT_PHASE_2)
+
+- **Статус:** done
+- **Дата:** 2026-03-31
+- **Документ задач:** `docs/BRANCH_UX_CMS_BOOKING/PHASE_2_FIX_TASKS.md`
+- **Изменения (кратко):**
+  - Webapp: миграции `041_patient_bookings_no_overlap.sql`, `042_patient_bookings_cancelling_status.sql`; overlap helper + inMemory/PG; `create`/`cancel` flow и API 409/503; UI статусы `cancelling`/`cancel_failed`
+  - Integrator: `booking_display_timezone` из БД (`bookingDisplayTimezone.ts`), `bookingNotificationFormat.ts`, строгий Zod для `booking-event`, тесты M2M; Telegram `bookingUrl` → cabinet
+- **CI:** `pnpm run ci` (после merge в main)
+
+---
+
 ## Аудит Фазы 2
 
 - **Аудитор:**

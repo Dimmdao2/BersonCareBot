@@ -100,6 +100,19 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     );
   },
 
+  async markCancelling(bookingId) {
+    const pool = getPool();
+    const result = await pool.query<Row>(
+      `UPDATE patient_bookings
+       SET status = 'cancelling', updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [bookingId],
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
   async markCancelled(input) {
     const pool = getPool();
     const status = input.status ?? "cancelled";
@@ -162,7 +175,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     const result = await pool.query<Row>(
       `SELECT * FROM patient_bookings
        WHERE platform_user_id = $1
-         AND status IN ('creating', 'confirmed', 'rescheduled')
+         AND status IN ('creating', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
          AND slot_start >= $2::timestamptz
        ORDER BY slot_start ASC`,
       [userId, nowIso],

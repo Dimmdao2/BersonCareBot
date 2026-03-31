@@ -37,6 +37,10 @@ function cacheKey(query: BookingSlotsQuery): string {
   });
 }
 
+function isPostgresExclusionViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
+}
+
 export function createPatientBookingService(input: {
   bookingsPort: PatientBookingsPort;
   syncPort: BookingSyncPort;
@@ -61,8 +65,9 @@ export function createPatientBookingService(input: {
     async createBooking(rawInput) {
       const createInput = validateCreateInput(rawInput);
       const pending = await input.bookingsPort.createPending(createInput);
+      let sync: { rubitimeId: string | null; raw: Record<string, unknown> };
       try {
-        const sync = await input.syncPort.createRecord({
+        sync = await input.syncPort.createRecord({
           type: createInput.type,
           city: createInput.city,
           category: createInput.category,
@@ -72,44 +77,73 @@ export function createPatientBookingService(input: {
           contactPhone: createInput.contactPhone,
           contactEmail: createInput.contactEmail,
         });
-        const confirmed = await input.bookingsPort.markConfirmed(pending.id, sync.rubitimeId);
-        const finalized = confirmed ?? pending;
-        try {
-          await input.syncPort.emitBookingEvent({
-            eventType: "booking.created",
-            idempotencyKey: `booking.created:${pending.id}`,
-            payload: {
-              bookingId: finalized.id,
-              userId: finalized.userId,
-              rubitimeId: finalized.rubitimeId,
-              bookingType: finalized.bookingType,
-              city: finalized.city ?? undefined,
-              category: finalized.category,
-              slotStart: finalized.slotStart,
-              slotEnd: finalized.slotEnd,
-              contactName: finalized.contactName,
-              contactPhone: finalized.contactPhone,
-              contactEmail: finalized.contactEmail ?? undefined,
-            },
-          });
-        } catch {
-          // Integration notifications/reminders are best-effort and must not fail booking confirmation.
-        }
-        if (confirmed) return confirmed;
-        return pending;
-      } catch {
+      } catch (err) {
         await input.bookingsPort.markFailedSync(pending.id);
         throw new Error("booking_sync_failed");
       }
+      let confirmed: Awaited<ReturnType<PatientBookingsPort["markConfirmed"]>>;
+      try {
+        confirmed = await input.bookingsPort.markConfirmed(pending.id, sync.rubitimeId);
+      } catch (err) {
+        const slotOverlap =
+          (err instanceof Error && err.message === "slot_overlap") || isPostgresExclusionViolation(err);
+        if (slotOverlap) {
+          await input.bookingsPort.markCancelled({
+            bookingId: pending.id,
+            reason: "slot_overlap",
+            status: "cancelled",
+          });
+          throw new Error("slot_overlap");
+        }
+        console.error("[patient-booking] booking confirm failed after rubitime create", {
+          bookingId: pending.id,
+          rubitimeId: sync.rubitimeId,
+          err,
+        });
+        throw new Error("booking_confirm_failed");
+      }
+      const finalized = confirmed ?? pending;
+      try {
+        await input.syncPort.emitBookingEvent({
+          eventType: "booking.created",
+          idempotencyKey: `booking.created:${pending.id}`,
+          payload: {
+            bookingId: finalized.id,
+            userId: finalized.userId,
+            rubitimeId: finalized.rubitimeId,
+            bookingType: finalized.bookingType,
+            city: finalized.city ?? undefined,
+            category: finalized.category,
+            slotStart: finalized.slotStart,
+            slotEnd: finalized.slotEnd,
+            contactName: finalized.contactName,
+            contactPhone: finalized.contactPhone,
+            contactEmail: finalized.contactEmail ?? undefined,
+          },
+        });
+      } catch {
+        // Integration notifications/reminders are best-effort and must not fail booking confirmation.
+      }
+      if (confirmed) return confirmed;
+      return pending;
     },
 
     async cancelBooking(cancelInput) {
       const row = await input.bookingsPort.getByIdForUser(cancelInput.bookingId, cancelInput.userId);
       if (!row) return { ok: false, error: "not_found" };
+      if (row.status === "cancelled" || row.status === "cancelling") {
+        return { ok: false, error: "already_cancelled" };
+      }
+      await input.bookingsPort.markCancelling(row.id);
       if (row.rubitimeId) {
         try {
           await input.syncPort.cancelRecord(row.rubitimeId);
         } catch {
+          await input.bookingsPort.markCancelled({
+            bookingId: row.id,
+            reason: "cancel_sync_failed",
+            status: "cancel_failed",
+          });
           return { ok: false, error: "sync_failed" };
         }
       }
