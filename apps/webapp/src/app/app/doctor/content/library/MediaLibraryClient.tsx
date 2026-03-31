@@ -130,18 +130,23 @@ export function MediaLibraryClient() {
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
-    const savedView = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-    if (savedView === "grid" || savedView === "table") {
-      setViewMode(savedView);
-    } else {
-      setViewMode(mq.matches ? "grid" : "table");
-    }
-    const apply = () => {
-      setIsMobileUploadUi(mq.matches);
+    const applyViewport = () => {
+      const mobile = mq.matches;
+      setIsMobileUploadUi(mobile);
+      if (mobile) {
+        setViewMode("grid");
+      } else {
+        const savedView = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+        if (savedView === "grid" || savedView === "table") {
+          setViewMode(savedView);
+        } else {
+          setViewMode("table");
+        }
+      }
     };
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
+    applyViewport();
+    mq.addEventListener("change", applyViewport);
+    return () => mq.removeEventListener("change", applyViewport);
   }, []);
 
   function onChangeViewMode(nextMode: ViewMode) {

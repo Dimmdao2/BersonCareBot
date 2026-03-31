@@ -4,11 +4,12 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const { uploadMock, upsertMock, sessionMock, getSectionBySlugMock } = vi.hoisted(() => ({
+const { uploadMock, upsertMock, sessionMock, getSectionBySlugMock, listAllMock } = vi.hoisted(() => ({
   uploadMock: vi.fn(),
   upsertMock: vi.fn(),
   sessionMock: vi.fn(),
   getSectionBySlugMock: vi.fn(),
+  listAllMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -22,7 +23,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     media: { upload: uploadMock },
-    contentPages: { upsert: upsertMock },
+    contentPages: { upsert: upsertMock, listAll: listAllMock },
     contentSections: { getBySlug: getSectionBySlugMock },
   }),
 }));
@@ -43,6 +44,8 @@ describe("CMS e2e: upload → saveContentPage (in-process)", () => {
     upsertMock.mockReset();
     sessionMock.mockReset();
     getSectionBySlugMock.mockReset();
+    listAllMock.mockReset();
+    listAllMock.mockResolvedValue([]);
     getSectionBySlugMock.mockResolvedValue({
       id: "sec-1",
       slug: "lessons",

@@ -1,6 +1,6 @@
 /**
- * Страница «Мои покупки» («/app/patient/purchases»).
- * Только для пациента. Описание раздела и список курсов/доступов/подписок (пока на мок-данных).
+ * Страница «Мои покупки» (`/app/patient/purchases`).
+ * Только для пациента: текст раздела из `getPurchaseSectionState()` и пустое состояние списка до платёжного модуля.
  * Кнопка «Назад» — в главное меню пациента.
  */
 
@@ -10,7 +10,7 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { patientHasPhoneOrMessenger, PurchasesGuestAccess } from "@/shared/ui/patient/guestAccess";
 
-/** Строит страницу покупок: описание и список карточек с типом, статусом и сроком действия. */
+/** Рендерит страницу покупок: hero с описанием и блок «Курсы, доступы и подписки» с empty-state. */
 export default async function PurchasesPage() {
   const session = await getOptionalPatientSession();
   if (!session || !patientHasPhoneOrMessenger(session)) {

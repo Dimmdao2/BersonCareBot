@@ -70,7 +70,17 @@ export async function saveContentPage(
     }
   }
 
-  const allPages = (await deps.contentPages.listAll?.()) ?? [];
+  let allPages: Awaited<ReturnType<typeof deps.contentPages.listAll>>;
+  try {
+    allPages = await deps.contentPages.listAll();
+  } catch (err) {
+    console.error("saveContentPage listAll failed:", err);
+    return {
+      ok: false,
+      error: "Не удалось загрузить список страниц. Попробуйте ещё раз.",
+    };
+  }
+
   const existingPage = allPages.find((p) => p.section === section && p.slug === slug);
   const sortOrder = existingPage
     ? existingPage.sortOrder

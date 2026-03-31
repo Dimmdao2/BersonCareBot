@@ -215,4 +215,19 @@ describe("saveContentPage", () => {
     expect(res.ok).toBe(true);
     expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 7 }));
   });
+
+  it("returns error when listAll fails", async () => {
+    listAllMock.mockRejectedValue(new Error("db unavailable"));
+    const fd = formWith({
+      section: "lessons",
+      slug: "any",
+      title: "T",
+      summary: "S",
+      body_md: "# x",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/список страниц/i);
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
 });

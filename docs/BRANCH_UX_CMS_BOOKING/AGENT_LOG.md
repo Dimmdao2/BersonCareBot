@@ -324,10 +324,23 @@
 
 ## Аудит Фазы 1
 
-- **Аудитор:**
-- **Дата:**
-- **Результат:**
-- **Замечания:**
+- **Аудитор:** GPT-5.3 Codex
+- **Дата:** 2026-03-31
+- **Результат:** pass (после доработок по `AUDIT_PHASE_1.md`)
+- **CI:** green (`pnpm run ci`)
+- **Замечания:** см. `docs/BRANCH_UX_CMS_BOOKING/AUDIT_PHASE_1.md`
+
+---
+
+## Доработки после аудита Фазы 1 (2026-03-31)
+
+Закрытие findings из `AUDIT_PHASE_1.md`:
+
+- **`MediaCard.tsx`** — убраны вложенные интерактивные элементы в кнопке превью; отдельная кнопка «Предпросмотр» для video/audio/file.
+- **`actions.ts` / `actions.test.ts`** — обязательный `listAll` + `try/catch`; тест `listAll fails`.
+- **`e2e/cms-content.test.ts`** — в мок `buildAppDeps` добавлен `listAll`.
+- **`MediaLibraryClient.tsx`** — на mobile viewport всегда старт в `grid`; desktop читает `localStorage`.
+- **`MediaLibraryPickerDialog.tsx`** — `useSyncExternalStore` для mobile/desktop вместо `useEffect` + `setState` (ESLint).
 
 ---
 

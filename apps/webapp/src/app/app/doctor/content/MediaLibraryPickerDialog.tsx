@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,6 +8,20 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { MediaPickerList, type MediaListItem } from "./MediaPickerList";
 
 type MediaKind = "image" | "video";
+
+function subscribeMobileViewport(onStoreChange: () => void) {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return () => {};
+  }
+  const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
+  mq.addEventListener("change", onStoreChange);
+  return () => mq.removeEventListener("change", onStoreChange);
+}
+
+function getMobileViewportSnapshot(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(max-width: 767px), (pointer: coarse)").matches;
+}
 
 type Props = {
   kind: MediaKind;
@@ -21,7 +35,7 @@ export function MediaLibraryPickerDialog({ kind, value, onChange }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<MediaListItem[]>([]);
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
 
   const url = useMemo(() => {
     const p = new URLSearchParams();
@@ -32,18 +46,6 @@ export function MediaLibraryPickerDialog({ kind, value, onChange }: Props) {
     p.set("limit", "80");
     return `/api/admin/media?${p.toString()}`;
   }, [kind, query]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-      setIsMobileViewport(false);
-      return;
-    }
-    const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
-    const apply = () => setIsMobileViewport(mq.matches);
-    apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
 
   useEffect(() => {
     if (!open) return;
