@@ -163,7 +163,13 @@ export async function registerRubitimeRecordM2mRoutes(
       return reply.code(400).send({ ok: false, error: 'invalid_slots_query' });
     }
     try {
-      const raw = await fetchRubitimeSlots({ query: parsed.data });
+      const query = {
+        type: parsed.data.type,
+        category: parsed.data.category,
+        ...(parsed.data.city ? { city: parsed.data.city } : {}),
+        ...(parsed.data.date ? { date: parsed.data.date } : {}),
+      };
+      const raw = await fetchRubitimeSlots({ query });
       return reply.code(200).send({ ok: true, slots: toSlotsResponse(raw) });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
