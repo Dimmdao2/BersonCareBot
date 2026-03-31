@@ -15,8 +15,6 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/content": "Контент",
     "/app/doctor/content/sections": "Разделы контента",
     "/app/doctor/content/sections/new": "Новый раздел",
-    "/app/doctor/content/news": "Новости",
-    "/app/doctor/content/motivation": "Мотивация",
     "/app/doctor/exercises": "Упражнения ЛФК",
     "/app/doctor/exercises/new": "Новое упражнение",
     "/app/doctor/lfk-templates": "Шаблоны ЛФК",
