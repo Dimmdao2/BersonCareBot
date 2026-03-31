@@ -21,18 +21,14 @@ describe("patientNavByPlatform", () => {
     }
   });
 
-  it("bot has help then settings, no sheet menu", () => {
-    expect(patientNavByPlatform.bot.headerRightIcons).toEqual(["help", "settings"]);
+  it("bot has only settings icon and no sheet menu", () => {
+    expect(patientNavByPlatform.bot.headerRightIcons).toEqual(["settings"]);
     expect(patientNavByPlatform.bot.hasSheetMenu).toBe(false);
     expect(patientNavByPlatform.bot.showLogout).toBe(false);
   });
 
-  it("mobile and desktop share header icons (browser: messages, help, hamburger menu)", () => {
-    expect(patientNavByPlatform.mobile.headerRightIcons).toEqual([
-      "messages",
-      "help",
-      "menu",
-    ]);
+  it("mobile and desktop share header icons (browser: messages, hamburger menu)", () => {
+    expect(patientNavByPlatform.mobile.headerRightIcons).toEqual(["messages", "menu"]);
     expect(patientNavByPlatform.desktop.headerRightIcons).toEqual(
       patientNavByPlatform.mobile.headerRightIcons,
     );

@@ -7,7 +7,6 @@ import toast from "react-hot-toast";
 import {
   Bell,
   ChevronLeft,
-  CircleHelp,
   Home,
   Menu,
   MessageCircle,
@@ -128,18 +127,6 @@ export function PatientHeader({
           >
             <Menu className="size-[22px]" aria-hidden />
           </Button>
-        );
-      case "help":
-        return (
-          <Link
-            key="help"
-            href={routePaths.patientHelp}
-            prefetch={false}
-            aria-label="Справка"
-            className={HEADER_ICON_CLASS}
-          >
-            <CircleHelp className="size-[22px]" aria-hidden />
-          </Link>
         );
       case "settings":
         return (

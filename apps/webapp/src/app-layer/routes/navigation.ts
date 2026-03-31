@@ -5,7 +5,7 @@
 
 import type { PlatformEntry, PlatformMode } from "@/shared/lib/platform";
 
-export type HeaderIconId = "settings" | "help" | "messages" | "reminders" | "menu";
+export type HeaderIconId = "settings" | "messages" | "reminders" | "menu";
 
 export type PatientNavConfig = {
   headerRightIcons: HeaderIconId[];
@@ -16,20 +16,20 @@ export type PatientNavConfig = {
 
 export const patientNavByPlatform: Record<PlatformMode, PatientNavConfig> = {
   bot: {
-    headerRightIcons: ["help", "settings"],
+    headerRightIcons: ["settings"],
     hasSheetMenu: false,
     showLogout: false,
     showInstallPrompt: false,
   },
   /** Браузер (и PWA): шапка отличается от мини-приложения в боте — справка и остальные разделы в гамбургере справа. */
   mobile: {
-    headerRightIcons: ["messages", "help", "menu"],
+    headerRightIcons: ["messages", "menu"],
     hasSheetMenu: true,
     showLogout: true,
     showInstallPrompt: true,
   },
   desktop: {
-    headerRightIcons: ["messages", "help", "menu"],
+    headerRightIcons: ["messages", "menu"],
     hasSheetMenu: true,
     showLogout: true,
     showInstallPrompt: false,
