@@ -25,6 +25,15 @@ vi.mock("@/config/env", async (importOriginal) => {
   };
 });
 
+/** CI may have DATABASE_URL + system_settings rows that override env; force env fallback like local tests. */
+vi.mock("@/modules/system-settings/configAdapter", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/modules/system-settings/configAdapter")>();
+  return {
+    ...mod,
+    getConfigValue: async (_key: string, envFallback: string) => envFallback,
+  };
+});
+
 import { integratorWebappEntrySecret } from "@/config/env";
 import type { IdentityResolutionPort } from "./identityResolutionPort";
 import { exchangeIntegratorToken } from "./service";
