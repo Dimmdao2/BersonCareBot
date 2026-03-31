@@ -71,6 +71,7 @@ export async function POST(request: Request) {
     supportCommunication: deps.supportCommunication,
     reminderProjection: deps.reminderProjection,
     appointmentProjection: deps.appointmentProjection,
+    patientBooking: deps.patientBooking,
     branches: deps.branches,
     subscriptionMailingProjection: deps.subscriptionMailingProjection,
   });

@@ -8,6 +8,7 @@ import type { SupportCommunicationPort } from "@/infra/repos/pgSupportCommunicat
 import type { AppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
 import type { SubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
 import type { BranchesProjectionPort } from "@/infra/repos/pgBranches";
+import type { PatientBookingService } from "@/modules/patient-booking/ports";
 
 const REMINDER_RULE_UPSERTED = "reminder.rule.upserted";
 const REMINDER_OCCURRENCE_FINALIZED = "reminder.occurrence.finalized";
@@ -127,6 +128,7 @@ export type IntegratorEventsDeps = {
   supportCommunication?: SupportCommunicationPort;
   reminderProjection?: ReminderProjectionPort;
   appointmentProjection?: AppointmentProjectionPort;
+  patientBooking?: Pick<PatientBookingService, "applyRubitimeUpdate">;
   subscriptionMailingProjection?: SubscriptionMailingProjectionPort;
 };
 
@@ -715,6 +717,12 @@ export async function handleIntegratorEvent(
         lastEvent,
         updatedAt,
         branchId,
+      });
+      const rubitimeId = integratorRecordId;
+      await deps.patientBooking?.applyRubitimeUpdate({
+        rubitimeId,
+        status: status.includes("cancel") ? "cancelled" : status.includes("resched") ? "rescheduled" : "confirmed",
+        slotStart: recordAt,
       });
       return { accepted: true };
     } catch (err) {
