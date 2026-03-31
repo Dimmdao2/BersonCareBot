@@ -73,6 +73,28 @@ export function createPatientBookingService(input: {
           contactEmail: createInput.contactEmail,
         });
         const confirmed = await input.bookingsPort.markConfirmed(pending.id, sync.rubitimeId);
+        const finalized = confirmed ?? pending;
+        try {
+          await input.syncPort.emitBookingEvent({
+            eventType: "booking.created",
+            idempotencyKey: `booking.created:${pending.id}`,
+            payload: {
+              bookingId: finalized.id,
+              userId: finalized.userId,
+              rubitimeId: finalized.rubitimeId,
+              bookingType: finalized.bookingType,
+              city: finalized.city ?? undefined,
+              category: finalized.category,
+              slotStart: finalized.slotStart,
+              slotEnd: finalized.slotEnd,
+              contactName: finalized.contactName,
+              contactPhone: finalized.contactPhone,
+              contactEmail: finalized.contactEmail ?? undefined,
+            },
+          });
+        } catch {
+          // Integration notifications/reminders are best-effort and must not fail booking confirmation.
+        }
         if (confirmed) return confirmed;
         return pending;
       } catch {
@@ -96,6 +118,28 @@ export function createPatientBookingService(input: {
         reason: cancelInput.reason,
         status: "cancelled",
       });
+      try {
+        await input.syncPort.emitBookingEvent({
+          eventType: "booking.cancelled",
+          idempotencyKey: `booking.cancelled:${row.id}`,
+          payload: {
+            bookingId: row.id,
+            userId: row.userId,
+            rubitimeId: row.rubitimeId,
+            bookingType: row.bookingType,
+            city: row.city ?? undefined,
+            category: row.category,
+            slotStart: row.slotStart,
+            slotEnd: row.slotEnd,
+            contactName: row.contactName,
+            contactPhone: row.contactPhone,
+            contactEmail: row.contactEmail ?? undefined,
+            reason: cancelInput.reason,
+          },
+        });
+      } catch {
+        // Booking cancellation state is primary; event fan-out is best-effort.
+      }
       return { ok: true };
     },
 

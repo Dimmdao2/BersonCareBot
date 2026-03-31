@@ -102,5 +102,16 @@ export function createBookingSyncPort(): BookingSyncPort {
         throw new Error("rubitime_cancel_failed");
       }
     },
+
+    async emitBookingEvent(input): Promise<void> {
+      const { status, json } = await postSigned("/api/bersoncare/rubitime/booking-event", {
+        eventType: input.eventType,
+        idempotencyKey: input.idempotencyKey,
+        payload: input.payload,
+      });
+      if (status >= 400 || json.ok !== true) {
+        throw new Error("booking_event_failed");
+      }
+    },
   };
 }

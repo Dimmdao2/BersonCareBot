@@ -30,6 +30,24 @@ export type BookingSyncPort = {
   fetchSlots(query: BookingSlotsQuery): Promise<BookingSlotsByDate[]>;
   createRecord(input: CreateBookingSyncInput): Promise<{ rubitimeId: string | null; raw: Record<string, unknown> }>;
   cancelRecord(rubitimeId: string): Promise<void>;
+  emitBookingEvent(input: {
+    eventType: "booking.created" | "booking.cancelled";
+    idempotencyKey: string;
+    payload: {
+      bookingId: string;
+      userId: string;
+      rubitimeId?: string | null;
+      bookingType: BookingType;
+      city?: string;
+      category: BookingCategory;
+      slotStart: string;
+      slotEnd: string;
+      contactName: string;
+      contactPhone: string;
+      contactEmail?: string;
+      reason?: string;
+    };
+  }): Promise<void>;
 };
 
 export type PatientBookingsPort = {

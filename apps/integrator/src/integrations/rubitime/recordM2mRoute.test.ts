@@ -23,10 +23,11 @@ function makeHeaders(rawBody: string) {
 
 async function buildApp() {
   const app = Fastify();
+  const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
   vi.spyOn(mailer, 'isMailerConfigured').mockReturnValue(true);
   vi.spyOn(mailer, 'sendMail').mockResolvedValue({ accepted: [], rejected: [], messageId: 'x' });
   await registerBersoncareSendEmailRoute(app, { sharedSecret: TEST_SECRET });
-  await registerRubitimeRecordM2mRoutes(app, { sharedSecret: TEST_SECRET });
+  await registerRubitimeRecordM2mRoutes(app, { sharedSecret: TEST_SECRET, dispatchPort: { dispatchOutgoing } });
   return app;
 }
 

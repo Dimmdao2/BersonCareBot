@@ -65,6 +65,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
 
   await registerRubitimeRecordM2mRoutes(app, {
     sharedSecret: integratorWebhookSecret(),
+    dispatchPort: deps.dispatchPort,
   });
 
   if (deps.registerTelegramWebhookRoutes) {
