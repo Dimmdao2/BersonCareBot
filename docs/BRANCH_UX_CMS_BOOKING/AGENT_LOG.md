@@ -467,7 +467,96 @@
 
 ## Фаза 3 — UX кабинета врача
 
-*(записи добавляются по мере декомпозиции — 6 задач, см. PLAN.md)*
+### 3.1 — Единый список клиентов/подписчиков с фильтром `scope`
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/clients/page.tsx` — добавлен режим `scope=all|appointments`, единая загрузка данных и master-detail для обоих сценариев
+  - `apps/webapp/src/app/app/doctor/clients/DoctorClientsPanel.tsx` — добавлен UI-переключатель scope, сохранение scope в URL, совместимость с текущими фильтрами
+  - `apps/webapp/src/app/app/doctor/subscribers/page.tsx` — legacy route переведён на redirect в `/app/doctor/clients?scope=all`
+  - `apps/webapp/src/app/app/doctor/subscribers/[userId]/page.tsx` — карточка подписчика переведена на redirect в единый профиль клиента
+  - `apps/webapp/src/shared/ui/DoctorHeader.tsx` — убран отдельный пункт «Подписчики», единый пункт «Клиенты и подписчики»
+  - `apps/webapp/src/shared/ui/doctorScreenTitles.ts` — обновлены title-rules под объединённый список
+  - `apps/webapp/src/app/app/doctor/page.tsx` — обновлены deep links плиток на новый маршрут с `scope`
+  - `apps/webapp/src/app/app/doctor/clients/[userId]/page.tsx` — учтён `scope` для возврата в нужный режим списка
+- **Тесты:** regression через полный `pnpm run ci`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 3.2 — Dropdown области тела вместо UUID-поля в упражнениях
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/exercises/ExercisesFiltersForm.tsx` — создан client-form фильтров с `ReferenceSelect` (`body_region`)
+  - `apps/webapp/src/app/app/doctor/exercises/page.tsx` — список упражнений переведён на новый фильтр области тела через справочник
+- **Тесты:** regression через полный `pnpm run ci`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 3.3 — Пагинация журнала сообщений врача
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/modules/doctor-messaging/ports.ts` — добавлен paged-контракт (`MessageLogListParams/Result`)
+  - `apps/webapp/src/modules/doctor-messaging/service.ts` — добавлена нормализация page/pageSize
+  - `apps/webapp/src/infra/repos/pgMessageLog.ts` — добавлены SQL `LIMIT/OFFSET` + `COUNT(*)`
+  - `apps/webapp/src/infra/repos/inMemoryMessageLog.ts` — синхронизирована paged-логика in-memory
+  - `apps/webapp/src/app/app/doctor/messages/DoctorMessagesLogPager.tsx` — добавлен UI пагинации журнала
+  - `apps/webapp/src/app/app/doctor/messages/page.tsx` — журнал переведён на paged-рендер
+- **Тесты:** обновлены unit/e2e тесты для doctorMessaging/buildAppDeps; regression через полный `pnpm run ci`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 3.4 — Фильтры журнала сообщений (клиент, дата, категория)
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/modules/doctor-messaging/ports.ts` — добавлены фильтры `userId/category/dateFrom/dateTo`
+  - `apps/webapp/src/infra/repos/pgMessageLog.ts` — добавлена фильтрация в SQL where-clause
+  - `apps/webapp/src/infra/repos/inMemoryMessageLog.ts` — добавлена эквивалентная фильтрация в памяти
+  - `apps/webapp/src/app/app/doctor/messages/DoctorMessagesLogFilters.tsx` — добавлена форма фильтров журнала
+  - `apps/webapp/src/app/app/doctor/messages/page.tsx` — подключены фильтры с URL-параметрами и reset-flow
+- **Тесты:** regression через полный `pnpm run ci`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 3.5 — Карточная визуализация статистики врача
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/stats/DoctorStatCard.tsx` — создан переиспользуемый KPI-card компонент
+  - `apps/webapp/src/app/app/doctor/stats/page.tsx` — списки `<li>` заменены на grid карточек для блоков «Записи» и «Клиенты»
+- **Тесты:** regression через полный `pnpm run ci`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 3.6 — Контекстные виджеты на дашборде врача
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/DoctorDashboardContextWidgets.tsx` — добавлены виджеты «Ближайший приём» и «Непрочитанные сообщения»
+  - `apps/webapp/src/app/app/doctor/page.tsx` — подключена серверная загрузка ближайшей записи и рендер context-widgets
+- **Тесты:** regression через полный `pnpm run ci`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ---
 
