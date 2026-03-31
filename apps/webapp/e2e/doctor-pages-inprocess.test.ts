@@ -56,11 +56,12 @@ describe("doctor pages e2e (in-process)", () => {
     });
   });
 
-  it("buildAppDeps doctorMessaging listAllMessages returns array", async () => {
+  it("buildAppDeps doctorMessaging listAllMessages returns paged result", async () => {
     const { buildAppDeps } = await import("@/app-layer/di/buildAppDeps");
     const deps = buildAppDeps();
-    const list = await deps.doctorMessaging.listAllMessages(50);
-    expect(Array.isArray(list)).toBe(true);
+    const list = await deps.doctorMessaging.listAllMessages({ pageSize: 50 });
+    expect(Array.isArray(list.items)).toBe(true);
+    expect(typeof list.total).toBe("number");
   });
 
   it("NewMessageForm and SendMessageForm are client components", async () => {

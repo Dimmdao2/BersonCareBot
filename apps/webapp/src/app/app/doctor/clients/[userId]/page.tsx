@@ -10,14 +10,20 @@ import { ClientProfileCard } from "../ClientProfileCard";
 
 type Props = { params: Promise<{ userId: string }> };
 
-export default async function DoctorClientProfilePage({ params }: Props) {
+type SearchParams = Promise<{ scope?: string }>;
+
+export default async function DoctorClientProfilePage({
+  params,
+  searchParams,
+}: Props & { searchParams: SearchParams }) {
   const session = await requireDoctorAccess();
   const { userId } = await params;
+  const { scope } = await searchParams;
   const deps = buildAppDeps();
   const [profile, messageDraft, messageHistory, publishedLfkTemplates] = await Promise.all([
     deps.doctorClients.getClientProfile(userId),
     deps.doctorMessaging.prepareMessageDraft({ userId }),
-    deps.doctorMessaging.listMessageHistory(userId, 10),
+    deps.doctorMessaging.listMessageHistory({ userId, pageSize: 10 }),
     deps.lfkTemplates.listTemplates({ status: "published" }),
   ]);
 
@@ -27,7 +33,7 @@ export default async function DoctorClientProfilePage({ params }: Props) {
     <AppShell
       title={profile.identity.displayName}
       user={session.user}
-      backHref="/app/doctor/clients"
+      backHref={scope === "all" ? "/app/doctor/clients?scope=all" : "/app/doctor/clients?scope=appointments"}
       backLabel="Клиенты"
       variant="doctor"
     >
@@ -35,8 +41,9 @@ export default async function DoctorClientProfilePage({ params }: Props) {
       <ClientProfileCard
         profile={profile}
         messageDraft={messageDraft}
-        messageHistory={messageHistory}
+        messageHistory={messageHistory.items}
         userId={userId}
+        listBasePath={scope === "all" ? "/app/doctor/clients?scope=all" : "/app/doctor/clients?scope=appointments"}
         isAdmin={session.user.role === "admin"}
         publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}
         assignLfkEnabled={Boolean(env.DATABASE_URL)}

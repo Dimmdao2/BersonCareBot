@@ -109,8 +109,8 @@ describe("buildAppDeps", () => {
     expect(typeof deps.doctorMessaging.listAllMessages).toBe("function");
     const draft = await deps.doctorMessaging.prepareMessageDraft({ userId: "unknown" });
     expect(draft).toBeNull();
-    const allMessages = await deps.doctorMessaging.listAllMessages(50);
-    expect(Array.isArray(allMessages)).toBe(true);
+    const allMessages = await deps.doctorMessaging.listAllMessages({ pageSize: 50 });
+    expect(Array.isArray(allMessages.items)).toBe(true);
   });
 
   it("doctorStats has getStats", async () => {

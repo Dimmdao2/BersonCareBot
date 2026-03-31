@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MessageLogEntry } from "./ports";
+import type { MessageLogEntry, MessageLogListResult } from "./ports";
 import { createDoctorMessagingService } from "./service";
 
 describe("doctor-messaging service", () => {
@@ -28,11 +28,12 @@ describe("doctor-messaging service", () => {
       log.push(e);
       return e;
     },
-    async listByUser(userId: string): Promise<MessageLogEntry[]> {
-      return log.filter((e) => e.userId === userId);
+    async listByUser(userId: string): Promise<MessageLogListResult> {
+      const items = log.filter((e) => e.userId === userId);
+      return { items, total: items.length, page: 1, pageSize: 20 };
     },
-    async listAll(): Promise<MessageLogEntry[]> {
-      return [...log];
+    async listAll(): Promise<MessageLogListResult> {
+      return { items: [...log], total: log.length, page: 1, pageSize: 20 };
     },
   };
 
@@ -78,12 +79,13 @@ describe("doctor-messaging service", () => {
   });
 
   it("listMessageHistory returns entries for user", async () => {
-    const list = await service.listMessageHistory("user-1");
-    expect(Array.isArray(list)).toBe(true);
+    const list = await service.listMessageHistory({ userId: "user-1" });
+    expect(Array.isArray(list.items)).toBe(true);
   });
 
-  it("listAllMessages returns array from port.listAll", async () => {
-    const list = await service.listAllMessages(50);
-    expect(Array.isArray(list)).toBe(true);
+  it("listAllMessages returns paged result from port.listAll", async () => {
+    const list = await service.listAllMessages({ pageSize: 50 });
+    expect(Array.isArray(list.items)).toBe(true);
+    expect(typeof list.total).toBe("number");
   });
 });

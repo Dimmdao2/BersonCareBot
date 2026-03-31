@@ -1,5 +1,5 @@
 import type { ChannelBindings } from "@/shared/types/session";
-import type { MessageLogPort } from "./ports";
+import type { MessageLogListParams, MessageLogPort } from "./ports";
 
 export type PrepareDraftParams = { userId: string };
 export type PrepareDraftResult = {
@@ -22,6 +22,15 @@ export type DoctorMessagingServiceDeps = {
   getDeliveryTargets: (params: { phone?: string; telegramId?: string; maxId?: string }) => Promise<{ channelBindings: ChannelBindings } | null>;
   messageLogPort: MessageLogPort;
 };
+
+function normalizeListParams(params?: MessageLogListParams): Required<Pick<MessageLogListParams, "page" | "pageSize">> & {
+  filters: NonNullable<MessageLogListParams["filters"]>;
+} {
+  const page = Math.max(1, Math.floor(params?.page ?? 1));
+  const pageSize = Math.min(100, Math.max(1, Math.floor(params?.pageSize ?? 20)));
+  const filters = params?.filters ?? {};
+  return { page, pageSize, filters };
+}
 
 function bindingsToChannelList(b: ChannelBindings): string[] {
   const out: string[] = [];
@@ -65,12 +74,13 @@ export function createDoctorMessagingService(deps: DoctorMessagingServiceDeps) {
       return { success: outcome !== "failed", entry: { id: entry.id } };
     },
 
-    async listMessageHistory(userId: string, limit?: number) {
-      return deps.messageLogPort.listByUser(userId, limit);
+    async listMessageHistory(params: { userId: string; page?: number; pageSize?: number }) {
+      const normalized = normalizeListParams({ page: params.page, pageSize: params.pageSize });
+      return deps.messageLogPort.listByUser(params.userId, normalized);
     },
 
-    async listAllMessages(limit?: number) {
-      return deps.messageLogPort.listAll(limit);
+    async listAllMessages(params?: MessageLogListParams) {
+      return deps.messageLogPort.listAll(normalizeListParams(params));
     },
   };
 }
