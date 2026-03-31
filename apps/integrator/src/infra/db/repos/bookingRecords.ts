@@ -9,6 +9,7 @@ export type UpsertBookingRecordInput = {
   phoneNormalized: string | null;
   recordAt: string | Date | null;
   status: BookingRecordStatus;
+  gcalEventId?: string | null;
   payloadJson: unknown;
   lastEvent: string;
 };
@@ -47,17 +48,19 @@ export async function upsertRecord(db: DbPort, input: UpsertBookingRecordInput):
       phone_normalized,
       record_at,
       status,
+      gcal_event_id,
       payload_json,
       last_event,
       created_at,
       updated_at
     )
-    VALUES ($1, $2, $3, $4, $5::jsonb, $6, NOW(), NOW())
+    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, NOW(), NOW())
     ON CONFLICT (rubitime_record_id)
     DO UPDATE SET
       phone_normalized = EXCLUDED.phone_normalized,
       record_at = EXCLUDED.record_at,
       status = EXCLUDED.status,
+      gcal_event_id = EXCLUDED.gcal_event_id,
       payload_json = EXCLUDED.payload_json,
       last_event = EXCLUDED.last_event,
       updated_at = NOW()
@@ -70,6 +73,7 @@ export async function upsertRecord(db: DbPort, input: UpsertBookingRecordInput):
       input.phoneNormalized,
       recordAt,
       input.status,
+      input.gcalEventId ?? null,
       JSON.stringify(input.payloadJson),
       input.lastEvent,
     ]);

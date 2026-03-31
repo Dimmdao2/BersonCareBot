@@ -1,6 +1,13 @@
 import { env } from '../../config/env.js';
 import { createGoogleCalendarClient, type GoogleCalendarClient, type GoogleCalendarEventInput } from './client.js';
 import { googleCalendarConfig, isGoogleCalendarConfigured, type GoogleCalendarConfig } from './config.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import { createDbPort } from '../../infra/db/client.js';
+import {
+  deleteBookingCalendarMap,
+  getGoogleEventIdByRubitimeRecordId,
+  upsertBookingCalendarMap,
+} from '../../infra/db/repos/bookingCalendarMap.js';
 
 export type RubitimeCalendarSyncEvent = {
   action: 'created' | 'updated' | 'canceled';
@@ -13,9 +20,8 @@ export type RubitimeCalendarSyncEvent = {
 type SyncDeps = {
   client?: GoogleCalendarClient;
   config?: GoogleCalendarConfig;
+  db?: DbPort;
 };
-
-const rubRecordToGoogleEventId = new Map<string, string>();
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
@@ -91,21 +97,26 @@ export function mapRubitimeEventToGoogleEvent(input: RubitimeCalendarSyncEvent):
   };
 }
 
-export async function syncAppointmentToCalendar(input: RubitimeCalendarSyncEvent, deps: SyncDeps = {}): Promise<void> {
+export async function syncAppointmentToCalendar(
+  input: RubitimeCalendarSyncEvent,
+  deps: SyncDeps = {},
+): Promise<string | null> {
   const config = deps.config ?? googleCalendarConfig;
   if (!isGoogleCalendarConfigured(config)) {
-    return;
+    return null;
   }
+  const db = deps.db ?? createDbPort();
   const client = deps.client ?? createGoogleCalendarClient();
-  const existingGoogleEventId = rubRecordToGoogleEventId.get(input.rubRecordId) ?? null;
+  const existingGoogleEventId = await getGoogleEventIdByRubitimeRecordId(db, input.rubRecordId);
   if (input.action === 'canceled') {
-    if (!existingGoogleEventId) return;
+    if (!existingGoogleEventId) return null;
     await client.deleteEvent(existingGoogleEventId);
-    rubRecordToGoogleEventId.delete(input.rubRecordId);
-    return;
+    await deleteBookingCalendarMap(db, input.rubRecordId);
+    return null;
   }
   const event = mapRubitimeEventToGoogleEvent(input);
-  if (!event) return;
+  if (!event) return existingGoogleEventId;
   const upsertedId = await client.upsertEvent(existingGoogleEventId, event);
-  rubRecordToGoogleEventId.set(input.rubRecordId, upsertedId);
+  await upsertBookingCalendarMap(db, { rubitimeRecordId: input.rubRecordId, gcalEventId: upsertedId });
+  return upsertedId;
 }

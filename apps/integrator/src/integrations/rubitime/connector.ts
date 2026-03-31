@@ -20,6 +20,7 @@ type RubitimeIncomingPayload = {
   clientLastName?: string;
   integratorBranchId?: string;
   branchName?: string;
+  gcalEventId?: string;
 };
 
 /** Форматирует дату/время в ДД.ММ.ГГГГ в ЧЧ:ММ. Вход: "2026-03-04 18:00:00" или ISO. */
@@ -160,18 +161,20 @@ export function buildUserEmailAutobindWebappEvent(body: RubitimeWebhookBodyValid
  * Google Calendar projection: вызывается из Rubitime ingress (webhook) один раз на обработанное тело.
  * Слой sync по EXEC — connector, не дублировать вызов из других мест на тот же webhook.
  */
-export async function syncRubitimeWebhookBodyToGoogleCalendar(body: RubitimeWebhookBodyValidated): Promise<void> {
+export async function syncRubitimeWebhookBodyToGoogleCalendar(
+  body: RubitimeWebhookBodyValidated,
+): Promise<string | null> {
   const incoming = toRubitimeIncoming(body);
   if (
     incoming.action !== 'created'
     && incoming.action !== 'updated'
     && incoming.action !== 'canceled'
   ) {
-    return;
+    return null;
   }
   const recordId = incoming.recordId;
   if (typeof recordId !== 'string' || recordId.trim().length === 0) {
-    return;
+    return null;
   }
   const syncPayload: RubitimeCalendarSyncEvent = {
     action: incoming.action,
@@ -180,7 +183,7 @@ export async function syncRubitimeWebhookBodyToGoogleCalendar(body: RubitimeWebh
   if (incoming.recordAt !== undefined) syncPayload.recordAt = incoming.recordAt;
   if (incoming.record !== undefined) syncPayload.record = incoming.record;
   if (incoming.clientName !== undefined) syncPayload.clientName = incoming.clientName;
-  await syncAppointmentToCalendar(syncPayload);
+  return syncAppointmentToCalendar(syncPayload);
 }
 
 /** Оборачивает валидированный Rubitime webhook в универсальный IncomingEvent. */
@@ -188,8 +191,12 @@ export function rubitimeIncomingToEvent(input: {
   body: RubitimeWebhookBodyValidated;
   correlationId: string;
   eventId: string;
+  gcalEventId?: string | null;
 }): IncomingEvent {
   const incoming = toRubitimeIncoming(input.body);
+  if (typeof input.gcalEventId === 'string' && input.gcalEventId.trim().length > 0) {
+    incoming.gcalEventId = input.gcalEventId.trim();
+  }
   return {
     type: 'webhook.received',
     meta: {

@@ -52,6 +52,7 @@ type BookingUpsertParams = {
   patientEmail?: unknown;
   integratorBranchId?: unknown;
   branchName?: unknown;
+  gcalEventId?: unknown;
 };
 
 function asNonEmptyString(value: unknown): string | null {
@@ -131,6 +132,7 @@ export function createDbWritePort(input: {
             asNullableString(params.branchName) ??
             asNullableString(payloadJson.branch_name) ??
             asNullableString(payloadJson.branch_title);
+          const gcalEventId = asNullableString(params.gcalEventId);
           const nameFromPayload = asNullableString(payloadJson.name);
           const parsedFromName = nameFromPayload
             ? parseNameToFirstLast(nameFromPayload)
@@ -145,6 +147,7 @@ export function createDbWritePort(input: {
               phoneNormalized,
               recordAt,
               status,
+              gcalEventId,
               payloadJson,
               lastEvent,
             });

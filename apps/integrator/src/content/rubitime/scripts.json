@@ -44,7 +44,8 @@
           "status": "created",
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
-          "lastEvent": "{{input.action}}"
+          "lastEvent": "{{input.action}}",
+          "gcalEventId": "{{input.gcalEventId}}"
         }
       },
       {
@@ -139,7 +140,8 @@
           "status": "updated",
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
-          "lastEvent": "{{input.action}}"
+          "lastEvent": "{{input.action}}",
+          "gcalEventId": "{{input.gcalEventId}}"
         }
       },
       {
@@ -234,7 +236,8 @@
           "status": "canceled",
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
-          "lastEvent": "{{input.action}}"
+          "lastEvent": "{{input.action}}",
+          "gcalEventId": "{{input.gcalEventId}}"
         }
       },
       {
@@ -329,7 +332,8 @@
           "status": "updated",
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
-          "lastEvent": "{{input.action}}"
+          "lastEvent": "{{input.action}}",
+          "gcalEventId": "{{input.gcalEventId}}"
         }
       },
       {
@@ -424,7 +428,8 @@
           "status": "updated",
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
-          "lastEvent": "{{input.action}}"
+          "lastEvent": "{{input.action}}",
+          "gcalEventId": "{{input.gcalEventId}}"
         }
       },
       {
@@ -512,7 +517,8 @@
           "status": "canceled",
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
-          "lastEvent": "{{input.action}}"
+          "lastEvent": "{{input.action}}",
+          "gcalEventId": "{{input.gcalEventId}}"
         }
       },
       {

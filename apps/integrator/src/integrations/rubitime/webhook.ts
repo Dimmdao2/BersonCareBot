@@ -33,10 +33,18 @@ async function processRubitimeBody(input: {
     '[rubitime] webhook received',
   );
 
+  let gcalEventId: string | null = null;
+  try {
+    gcalEventId = await syncRubitimeWebhookBodyToGoogleCalendar(input.body);
+  } catch (err) {
+    reqLogger.warn({ err }, '[rubitime] google calendar sync failed');
+  }
+
   const incomingEvent = rubitimeIncomingToEvent({
     body: input.body,
     correlationId: input.correlationId,
     eventId: input.eventId,
+    gcalEventId,
   });
 
   const incoming = (incomingEvent.payload as { incoming?: unknown }).incoming;
@@ -47,15 +55,10 @@ async function processRubitimeBody(input: {
       status: (incoming as Record<string, unknown>)?.status,
       phone: (incoming as Record<string, unknown>)?.phone,
       recordId: (incoming as Record<string, unknown>)?.recordId,
+      gcalEventId: (incoming as Record<string, unknown>)?.gcalEventId,
     },
     '[rubitime] mapped to event',
   );
-
-  try {
-    await syncRubitimeWebhookBodyToGoogleCalendar(input.body);
-  } catch (err) {
-    reqLogger.warn({ err }, '[rubitime] google calendar sync failed');
-  }
 
   const autobind = buildUserEmailAutobindWebappEvent(input.body);
   if (autobind) {
