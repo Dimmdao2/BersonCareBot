@@ -424,15 +424,42 @@ function _buildAppDeps() {
     }),
     doctorBroadcasts: createDoctorBroadcastsService({
       resolveAudienceSize: async (filter: BroadcastAudienceFilter) => {
-        const filters =
-          filter === "with_telegram"
-            ? { hasTelegram: true }
-            : filter === "with_max"
-              ? { hasMax: true }
-              : filter === "with_upcoming_appointment" || filter === "active_clients"
-                ? { hasUpcomingAppointment: true }
-                : {};
-        const list = await doctorClientsPort.listClients(filters);
+        if (filter === "with_telegram") {
+          const list = await doctorClientsPort.listClients({ hasTelegram: true });
+          return list.length;
+        }
+        if (filter === "with_max") {
+          const list = await doctorClientsPort.listClients({ hasMax: true });
+          return list.length;
+        }
+        if (filter === "with_upcoming_appointment") {
+          const list = await doctorClientsPort.listClients({ hasUpcomingAppointment: true });
+          return list.length;
+        }
+        if (filter === "active_clients") {
+          const list = await doctorClientsPort.listClients({ onlyWithAppointmentRecords: true });
+          return list.length;
+        }
+        if (filter === "without_appointment") {
+          // Clients without an upcoming appointment = all − with_upcoming_appointment.
+          const [all, withUpcoming] = await Promise.all([
+            doctorClientsPort.listClients({}),
+            doctorClientsPort.listClients({ hasUpcomingAppointment: true }),
+          ]);
+          return all.length - withUpcoming.length;
+        }
+        if (filter === "inactive") {
+          // TODO: add lastEventBefore filter to DoctorClientsPort when inactivity tracking lands.
+          const list = await doctorClientsPort.listClients({});
+          return list.length;
+        }
+        if (filter === "sms_only") {
+          // TODO: add smsOnly filter to DoctorClientsPort when channel-attribute tracking lands.
+          const list = await doctorClientsPort.listClients({});
+          return list.length;
+        }
+        // filter === "all"
+        const list = await doctorClientsPort.listClients({});
         return list.length;
       },
       broadcastAuditPort,
