@@ -27,20 +27,26 @@ export function DiaryTabsClient({
       className="flex flex-col gap-4"
     >
       {/* top-14 (3.5rem) ≈ высота PatientHeader (py-2 + ряд иконок size-10) */}
-      <div className="safe-bleed-x sticky top-14 z-30 py-2">
+      <div
+        className="safe-bleed-x sticky top-14 z-30 py-2"
+        style={{
+          background:
+            "linear-gradient(to bottom, var(--patient-bg) 0%, var(--patient-bg) 78%, rgba(255,255,255,0) 100%)",
+        }}
+      >
         <TabsList
           variant="line"
           className="grid h-auto w-full grid-cols-2 gap-2 rounded-none bg-transparent p-0"
         >
           <TabsTrigger
             value="symptoms"
-            className="h-auto rounded-lg bg-transparent py-2.5 text-muted-foreground shadow-none after:hidden data-active:bg-primary/20 data-active:font-semibold data-active:text-primary data-active:shadow-none dark:data-active:bg-primary/25"
+            className="h-auto rounded-lg bg-transparent py-2.5 text-base text-muted-foreground shadow-none after:hidden data-active:bg-primary/20 data-active:font-semibold data-active:text-primary data-active:shadow-none dark:data-active:bg-primary/25"
           >
             Симптомы
           </TabsTrigger>
           <TabsTrigger
             value="lfk"
-            className="h-auto rounded-lg bg-transparent py-2.5 text-muted-foreground shadow-none after:hidden data-active:bg-primary/20 data-active:font-semibold data-active:text-primary data-active:shadow-none dark:data-active:bg-primary/25"
+            className="h-auto rounded-lg bg-transparent py-2.5 text-base text-muted-foreground shadow-none after:hidden data-active:bg-primary/20 data-active:font-semibold data-active:text-primary data-active:shadow-none dark:data-active:bg-primary/25"
           >
             ЛФК
           </TabsTrigger>
