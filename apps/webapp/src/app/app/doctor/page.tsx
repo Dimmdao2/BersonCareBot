@@ -142,7 +142,7 @@ function DashboardTile({
     <Link
       id={id}
       href={href}
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col justify-between gap-1 rounded-xl border border-border/60 p-4 shadow-sm transition-colors hover:bg-muted/40"
+      className="rounded-xl border border-border/60 bg-card p-4 shadow-sm flex flex-col justify-between gap-1 transition-colors hover:bg-muted/40"
     >
       <span className="text-2xl font-semibold tabular-nums text-foreground">{value}</span>
       <span className="text-xs font-medium leading-tight text-muted-foreground">{label}</span>
