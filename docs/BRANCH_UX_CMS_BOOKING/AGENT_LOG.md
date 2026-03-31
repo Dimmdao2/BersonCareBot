@@ -147,22 +147,55 @@
 
 ### 1.1 — Множественная загрузка файлов
 
-- **Статус:** pending
-- **Агент/модель:**
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
 - **Изменённые файлы:**
-- **CI:**
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx` — включён множественный выбор файлов и batch-обработка
+  - `apps/webapp/src/app/api/media/upload/route.ts` — добавлен приём нескольких файлов (`file`, `files`, `files[]`) с backward compatibility
+  - `apps/webapp/src/app/api/media/upload/route.test.ts` — добавлены тесты multi-upload и mixed-batch ошибки
+- **Тесты:** обновлены unit-тесты upload-route
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.2 — Прогресс-бар загрузки
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/library/uploadWithProgress.ts` — добавлен XHR helper с `onprogress` и типизированной ошибкой `UploadRequestError`
+  - `apps/webapp/src/app/app/doctor/content/library/uploadWithProgress.test.ts` — добавлены unit-тесты helper (success/error)
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx` — последовательная batch-загрузка с общим прогрессом и статусом текущего файла
+- **Тесты:** добавлены unit-тесты `uploadWithProgress.test.ts`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.3 — Drag-and-drop загрузка
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx` — добавлена drop-zone с drag state, desktop DnD-загрузка и window-level protection от случайного drop открытия файла
+- **Тесты:** manual regression (desktop drag-and-drop + кнопка выбора файлов)
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.4 — Мобильный capture
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx` — добавлены mobile upload actions: «Снять фото/видео» (`accept` + `capture`) и «Выбрать из файлов»; desktop flow сохранён отдельно
+- **Тесты:** manual mobile checks (capture/files paths), lint после каждой задачи
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.5 — Grid-режим просмотра
 

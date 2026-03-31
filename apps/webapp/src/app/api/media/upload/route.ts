@@ -58,6 +58,63 @@ function isAllowedByMagicBytes(mime: string, bytes: Uint8Array): boolean {
   return false;
 }
 
+type UploadCandidate = {
+  file: File;
+  filename: string;
+  mime: string;
+  body: ArrayBuffer;
+};
+
+type UploadCandidateMeta = {
+  file: File;
+  filename: string;
+  mime: string;
+};
+
+function collectFilesFromForm(form: FormData): File[] {
+  const fromSingle = form.get("file");
+  const fromFiles = form.getAll("files");
+  const fromFilesArray = form.getAll("files[]");
+  const all = [fromSingle, ...fromFiles, ...fromFilesArray];
+  return all.filter((entry): entry is File => entry instanceof File);
+}
+
+function validateFile(
+  file: File,
+  index: number,
+): { ok: true; value: UploadCandidateMeta } | { ok: false; status: number; payload: Record<string, unknown> } {
+  if (file.size > MAX_BYTES) {
+    return {
+      ok: false,
+      status: 413,
+      payload: { error: "file_too_large", maxBytes: MAX_BYTES, index, filename: file.name || "upload" },
+    };
+  }
+  if (file.size === 0) {
+    return {
+      ok: false,
+      status: 400,
+      payload: { error: "empty_file", index, filename: file.name || "upload" },
+    };
+  }
+  const mime = (file.type || "application/octet-stream").toLowerCase();
+  if (!ALLOWED_MIME.has(mime)) {
+    return {
+      ok: false,
+      status: 415,
+      payload: { error: "mime_not_allowed", mime, index, filename: file.name || "upload" },
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      file,
+      filename: file.name || "upload",
+      mime,
+    },
+  };
+}
+
 export async function POST(request: Request) {
   const session = await getCurrentSession();
   if (!session || !canAccessDoctor(session.user.role)) {
@@ -76,40 +133,72 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  const file = form.get("file");
-  if (!(file instanceof File)) {
+  const files = collectFilesFromForm(form);
+  if (files.length === 0) {
     return NextResponse.json({ error: "missing_file" }, { status: 400 });
   }
 
-  const buf = await file.arrayBuffer();
-  if (buf.byteLength > MAX_BYTES) {
-    return NextResponse.json({ error: "file_too_large", maxBytes: MAX_BYTES }, { status: 413 });
-  }
-  if (buf.byteLength === 0) {
-    return NextResponse.json({ error: "empty_file" }, { status: 400 });
-  }
-  const bytes = new Uint8Array(buf);
-
-  const mime = (file.type || "application/octet-stream").toLowerCase();
-  if (!ALLOWED_MIME.has(mime)) {
-    return NextResponse.json({ error: "mime_not_allowed", mime }, { status: 415 });
-  }
-  if (!isAllowedByMagicBytes(mime, bytes)) {
-    return NextResponse.json({ error: "file_signature_mismatch", mime }, { status: 415 });
+  const candidates: UploadCandidate[] = [];
+  for (let i = 0; i < files.length; i += 1) {
+    const file = files[i]!;
+    const validation = validateFile(file, i);
+    if (!validation.ok) {
+      return NextResponse.json(validation.payload, { status: validation.status });
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!isAllowedByMagicBytes(validation.value.mime, bytes)) {
+      return NextResponse.json(
+        {
+          error: "file_signature_mismatch",
+          mime: validation.value.mime,
+          index: i,
+          filename: validation.value.filename,
+        },
+        { status: 415 },
+      );
+    }
+    candidates.push({
+      ...validation.value,
+      body: bytes.buffer,
+    });
   }
 
   const deps = buildAppDeps();
+  const uploaded: Array<{
+    mediaId: string;
+    url: string;
+    filename: string;
+    mimeType: string;
+    size: number;
+  }> = [];
   try {
-    const result = await deps.media.upload({
-      body: buf,
-      filename: file.name || "upload",
-      mimeType: mime,
-      userId: session.user.userId,
-    });
+    for (const candidate of candidates) {
+      const result = await deps.media.upload({
+        body: candidate.body,
+        filename: candidate.filename,
+        mimeType: candidate.mime,
+        userId: session.user.userId,
+      });
+      uploaded.push({
+        mediaId: result.record.id,
+        url: result.url,
+        filename: candidate.filename,
+        mimeType: candidate.mime,
+        size: candidate.file.size,
+      });
+    }
+    if (uploaded.length === 1) {
+      const single = uploaded[0]!;
+      return NextResponse.json({
+        ok: true as const,
+        mediaId: single.mediaId,
+        url: single.url,
+        uploaded,
+      });
+    }
     return NextResponse.json({
       ok: true as const,
-      mediaId: result.record.id,
-      url: result.url,
+      uploaded,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "upload_failed";

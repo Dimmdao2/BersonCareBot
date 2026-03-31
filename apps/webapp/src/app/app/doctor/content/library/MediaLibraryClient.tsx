@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
 type SortBy = "date" | "size" | "type";
@@ -22,6 +23,12 @@ type UsageRef = {
   pageId: string;
   pageSlug: string;
   field: "image_url" | "video_url" | "body_md" | "body_html";
+};
+
+type UploadOkResponse = {
+  ok: boolean;
+  error?: string;
+  filename?: string;
 };
 
 function formatSize(bytes: number): string {
@@ -55,8 +62,15 @@ export function MediaLibraryClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [isMobileUploadUi, setIsMobileUploadUi] = useState(false);
+  const [isDragActive, setIsDragActive] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const desktopUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileFilesInputRef = useRef<HTMLInputElement | null>(null);
+  const mobileCaptureInputRef = useRef<HTMLInputElement | null>(null);
 
   const searchParams = useMemo(() => {
     const p = new URLSearchParams();
@@ -88,29 +102,97 @@ export function MediaLibraryClient() {
     };
   }, [searchParams, reloadKey]);
 
-  async function onUploadFile(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
+    const apply = () => setIsMobileUploadUi(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
+  useEffect(() => {
+    if (isMobileUploadUi) return undefined;
+    const onWindowDragOver = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes("Files")) return;
+      event.preventDefault();
+    };
+    const onWindowDrop = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes("Files")) return;
+      event.preventDefault();
+      setIsDragActive(false);
+    };
+    window.addEventListener("dragover", onWindowDragOver);
+    window.addEventListener("drop", onWindowDrop);
+    return () => {
+      window.removeEventListener("dragover", onWindowDragOver);
+      window.removeEventListener("drop", onWindowDrop);
+    };
+  }, [isMobileUploadUi]);
+
+  async function uploadBatch(files: File[]) {
+    if (files.length === 0) return;
     setUploading(true);
+    setUploadPercent(0);
+    setUploadStatus(null);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.set("file", file);
-      const res = await fetch("/api/media/upload", {
-        method: "POST",
-        body: fd,
-        credentials: "same-origin",
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) throw new Error(data.error ?? "upload_failed");
+      const totalBytes = files.reduce((acc, file) => acc + Math.max(file.size, 1), 0);
+      let uploadedBytes = 0;
+      for (let i = 0; i < files.length; i += 1) {
+        const file = files[i]!;
+        setUploadStatus(`Файл ${i + 1}/${files.length}: ${file.name}`);
+        const fd = new FormData();
+        fd.set("file", file);
+        await uploadWithProgress<UploadOkResponse>({
+          url: "/api/media/upload",
+          formData: fd,
+          withCredentials: true,
+          onProgress: (loaded) => {
+            const next = Math.round(((uploadedBytes + loaded) / totalBytes) * 100);
+            setUploadPercent(Math.max(0, Math.min(100, next)));
+          },
+        });
+        uploadedBytes += Math.max(file.size, 1);
+        const next = Math.round((uploadedBytes / totalBytes) * 100);
+        setUploadPercent(Math.max(0, Math.min(100, next)));
+      }
+      setUploadStatus(`Загрузка завершена: ${files.length} файлов`);
       setReloadKey((x) => x + 1);
-    } catch {
-      setError("Не удалось загрузить файл");
+    } catch (e) {
+      if (e instanceof UploadRequestError) {
+        const payload = (e.data ?? {}) as { error?: string; filename?: string };
+        if (payload.filename) {
+          setError(`Не удалось загрузить файл: ${payload.filename}`);
+        } else if (payload.error === "network_error") {
+          setError("Сетевая ошибка при загрузке");
+        } else {
+          setError("Не удалось загрузить файл");
+        }
+      } else {
+        setError("Не удалось загрузить файл");
+      }
+      setUploadStatus("Загрузка остановлена из-за ошибки");
     } finally {
       setUploading(false);
+      setTimeout(() => {
+        setUploadPercent(null);
+        setUploadStatus(null);
+      }, 1200);
     }
+  }
+
+  async function onUploadFile(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    await uploadBatch(files);
+  }
+
+  function onDropZoneDrop(event: ReactDragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDragActive(false);
+    if (uploading) return;
+    const files = Array.from(event.dataTransfer.files ?? []);
+    void uploadBatch(files);
   }
 
   async function onDelete(item: MediaItem) {
@@ -144,6 +226,26 @@ export function MediaLibraryClient() {
 
   return (
     <div className="flex flex-col gap-4">
+      <input ref={desktopUploadInputRef} type="file" multiple className="sr-only" onChange={onUploadFile} disabled={uploading} />
+      <input
+        ref={mobileFilesInputRef}
+        type="file"
+        multiple
+        accept="image/*,video/*,audio/*,application/pdf"
+        className="sr-only"
+        onChange={onUploadFile}
+        disabled={uploading}
+      />
+      <input
+        ref={mobileCaptureInputRef}
+        type="file"
+        accept="image/*,video/*"
+        capture="environment"
+        className="sr-only"
+        onChange={onUploadFile}
+        disabled={uploading}
+      />
+
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
           <span className="text-xs text-muted-foreground">Тип</span>
@@ -194,15 +296,81 @@ export function MediaLibraryClient() {
           />
         </label>
 
-        <label className="inline-flex h-10 items-center">
-          <input type="file" className="sr-only" onChange={onUploadFile} disabled={uploading} />
-          <span className="cursor-pointer rounded-md border border-input px-3 py-2 text-sm">
-            {uploading ? "Загрузка..." : "Загрузить файл"}
-          </span>
-        </label>
+        {isMobileUploadUi ? (
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10"
+              disabled={uploading}
+              onClick={() => mobileCaptureInputRef.current?.click()}
+            >
+              Снять фото/видео
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10"
+              disabled={uploading}
+              onClick={() => mobileFilesInputRef.current?.click()}
+            >
+              {uploading ? "Загрузка..." : "Выбрать из файлов"}
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10"
+            disabled={uploading}
+            onClick={() => desktopUploadInputRef.current?.click()}
+          >
+            {uploading ? "Загрузка..." : "Загрузить файлы"}
+          </Button>
+        )}
       </div>
 
+      {!isMobileUploadUi ? (
+        <label
+          onDragEnter={(e) => {
+            if (!e.dataTransfer.types.includes("Files")) return;
+            e.preventDefault();
+            setIsDragActive(true);
+          }}
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes("Files")) return;
+            e.preventDefault();
+            if (!isDragActive) setIsDragActive(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+              setIsDragActive(false);
+            }
+          }}
+          onDrop={onDropZoneDrop}
+          className={`rounded-md border border-dashed p-3 text-sm transition-colors ${
+            isDragActive ? "border-primary bg-primary/10" : "border-border/70 bg-muted/20"
+          }`}
+        >
+          <p className="text-foreground">Перетащите файлы сюда для загрузки</p>
+          <p className="text-xs text-muted-foreground">
+            Desktop: drag-and-drop поддерживается для фото, видео, аудио и PDF
+          </p>
+        </label>
+      ) : null}
+
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {uploadPercent !== null ? (
+        <div className="flex flex-col gap-1 rounded-md border border-border/70 bg-muted/20 p-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">{uploadStatus ?? "Загрузка..."}</span>
+            <span className="font-medium">{uploadPercent}%</span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded bg-muted">
+            <div className="h-full bg-primary transition-all" style={{ width: `${uploadPercent}%` }} />
+          </div>
+        </div>
+      ) : null}
       {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
 
       {!loading && (
