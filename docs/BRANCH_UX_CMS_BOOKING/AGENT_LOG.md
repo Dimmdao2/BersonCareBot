@@ -346,7 +346,64 @@
 
 ## Фаза 2 — Нативный модуль записи
 
-*(записи добавляются по мере декомпозиции — 24 задачи, см. PLAN.md)*
+### 2.1 — Сервис слотов Rubitime + M2M endpoint'ы integrator
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/integrator/src/integrations/rubitime/client.ts` — добавлены методы `create-record` и `get-slots`
+  - `apps/integrator/src/integrations/rubitime/schema.ts` — добавлены схемы и парсер query для slots
+  - `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` — добавлены маршруты `/api/bersoncare/rubitime/create-record` и `/api/bersoncare/rubitime/slots`
+- **Тесты:** локально прогнаны `client.test.ts`, `recordM2mRoute.test.ts`, `schema.test.ts`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 2.2 — Базовый booking-модуль + локальное хранилище в webapp
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/modules/patient-booking/{types.ts,ports.ts,service.ts,patient-booking.md}` — добавлен модуль native booking
+  - `apps/webapp/src/infra/repos/{pgPatientBookings.ts,inMemoryPatientBookings.ts}` — добавлены PG/in-memory адаптеры
+  - `apps/webapp/migrations/040_patient_bookings.sql` — создана таблица `patient_bookings` и индексы
+  - `apps/webapp/src/modules/integrator/bookingM2mApi.ts` — реализован M2M sync-порт webapp -> integrator
+  - `apps/webapp/src/app-layer/di/buildAppDeps.ts` — подключён `patientBooking` сервис
+- **Тесты:** модуль и адаптеры проверены через общий прогон CI
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 2.3 — API endpoints booking в webapp
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/api/booking/slots/route.ts` — `GET /api/booking/slots`
+  - `apps/webapp/src/app/api/booking/create/route.ts` — `POST /api/booking/create`
+  - `apps/webapp/src/app/api/booking/cancel/route.ts` — `POST /api/booking/cancel`
+  - `apps/webapp/src/app/api/booking/my/route.ts` — `GET /api/booking/my`
+  - `apps/webapp/src/app/api/booking/*/route.test.ts` — добавлены route-тесты для новых endpoint'ов
+- **Тесты:** локально прогнаны route-тесты `booking/*`; вошли в общий CI
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 2.4 — Reconciliation: синхронизация patient_bookings из webhook-проекции
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/modules/integrator/events.ts` — добавлен вызов `patientBooking.applyRubitimeUpdate` для `appointment.record.upserted`
+  - `apps/webapp/src/app/api/integrator/events/route.ts` — в deps обработчика добавлен `patientBooking`
+- **Тесты:** покрыто интеграционным прогоном `pnpm run ci`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ---
 
