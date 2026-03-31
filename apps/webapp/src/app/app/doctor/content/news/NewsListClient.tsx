@@ -134,11 +134,11 @@ function SortableNewsRow({
             <DropdownMenuGroup>
               <DropdownMenuLabel>Действия</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onToggleExpand(n.id)}>
+              <DropdownMenuItem onClick={() => onToggleExpand(n.id)}>
                 {expanded ? "Свернуть" : "Изменить"}
               </DropdownMenuItem>
               <DropdownMenuItem
-                onSelect={(e) => {
+                onClick={(e) => {
                   e.preventDefault();
                   void setNewsArchived(n.id, !archived);
                 }}

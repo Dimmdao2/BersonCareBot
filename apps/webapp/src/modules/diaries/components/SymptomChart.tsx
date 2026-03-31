@@ -100,6 +100,14 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
   const showInitialSkeleton = loading && points.length === 0 && !error;
   const chartRefreshing = loading && points.length > 0 && !error;
 
+  if (trackings.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Нет отслеживаемых симптомов. Добавьте симптом выше.
+      </p>
+    );
+  }
+
   return (
     <div id="patient-symptom-chart" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">

@@ -140,10 +140,10 @@ export function LfkJournalClient(props: {
                   <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setEditSession(s)}>Редактировать</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setEditSession(s)}>Редактировать</DropdownMenuItem>
                   <DropdownMenuItem
                     variant="destructive"
-                    onSelect={() => {
+                    onClick={() => {
                       if (!window.confirm("Удалить эту запись?")) return;
                       startTransition(async () => {
                         const fd = new FormData();

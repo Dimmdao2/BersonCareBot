@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { isValidPinFormat, verifyPinForLogin } from "@/modules/auth/pinAuth";
+import { verifyPinForLogin } from "@/modules/auth/pinAuth";
 import { getCurrentSession, setDiaryPurgePinReauth } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
 
@@ -31,9 +31,6 @@ export async function POST(request: Request) {
   }
 
   const pin = parsed.data.pin;
-  if (!isValidPinFormat(pin)) {
-    return NextResponse.json({ ok: false, error: "invalid_pin", message: "Неверный формат PIN" }, { status: 400 });
-  }
 
   const deps = buildAppDeps();
   const v = await verifyPinForLogin(session.user.userId, pin, deps.userPins);

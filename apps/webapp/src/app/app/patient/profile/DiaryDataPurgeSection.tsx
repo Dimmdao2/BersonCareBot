@@ -72,7 +72,7 @@ export function DiaryDataPurgeSection({ hasPin, phoneMasked }: Props) {
   }
 
   return (
-    <div id="patient-profile-diary-purge" className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {step === "intro" ? (
         <>
           <p className="text-muted-foreground text-sm">

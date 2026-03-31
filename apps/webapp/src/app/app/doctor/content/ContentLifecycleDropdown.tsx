@@ -104,7 +104,7 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
             <DropdownMenuGroup>
               <DropdownMenuLabel>Действия</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => router.push(`/app/doctor/content/edit/${id}`)}>
+              <DropdownMenuItem onClick={() => router.push(`/app/doctor/content/edit/${id}`)}>
                 Редактировать
               </DropdownMenuItem>
               {deleted ? (

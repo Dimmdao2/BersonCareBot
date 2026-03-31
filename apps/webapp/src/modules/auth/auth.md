@@ -8,10 +8,11 @@
 - **exchangeTelegramInitData** — вход по данным Telegram Mini App (initData): проверка подписи и срока, создание/привязка пользователя и сессия.
 - **clearSession** — выход (удаление cookie).
 - **setSessionFromUser** — установка сессии по пользователю (для входа по SMS и др.).
-- **startPhoneAuth** / **confirmPhoneAuth** — вход по номеру телефона с подтверждением SMS: отправка кода через порт интегратора, проверка кода, поиск/создание пользователя по номеру и привязка канала (telegram/vk/max/web), создание сессии. Контекст канала передаётся с клиента (channel, chatId).
+- **startPhoneAuth** / **confirmPhoneAuth** — в `phoneAuth.ts`: вход по номеру телефона с подтверждением SMS (отправка кода через порт интегратора, проверка кода, поиск/создание пользователя по номеру и привязка канала telegram/vk/max/web, создание сессии). Контекст канала передаётся с клиента (channel, chatId).
+- **Повторная проверка PIN для опасных действий** (например, удаление дневниковых данных): `POST /api/auth/pin/verify` вызывает **verifyPinForLogin** из `pinAuth.ts` и при успехе выставляет в сессии краткоживущий re-auth через **setDiaryPurgePinReauth**; проверка перед purge — **isDiaryPurgePinReauthValid**, сброс — **clearDiaryPurgeReauth** (всё в `service.ts`).
 
 Порты: **SmsPort** (sendCode, verifyCode), **PhoneChallengeStore**, **UserByPhonePort** (findByPhone, createOrBind). Stub-адаптер SMS и in-memory хранилища — в infra.
 
-Используется на странице входа и в API auth/exchange, auth/telegram-init, auth/phone/start, auth/phone/confirm, auth/logout (POST — очистка сессии и редирект на `/app`; GET — только редирект на `/app`).
+Используется на странице входа и в API auth/exchange, auth/telegram-init, auth/phone/start, auth/phone/confirm, auth/pin/verify, auth/logout (**POST и GET** — очистка сессии и редирект на `/app`).
 
 **Роль из env:** `resolveRoleFromEnv` сверяет телефон (`ADMIN_PHONES` / `DOCTOR_PHONES`), Telegram id (`ADMIN_TELEGRAM_ID`, `DOCTOR_TELEGRAM_IDS`) и Max id (`ADMIN_MAX_IDS`, `DOCTOR_MAX_IDS`) — нужно для mini-app и обмена integrator token без телефона в payload.

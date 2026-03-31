@@ -131,11 +131,11 @@ function SortableQuoteRow({
             <DropdownMenuGroup>
               <DropdownMenuLabel>Действия</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => onToggleExpand(q.id)}>
+              <DropdownMenuItem onClick={() => onToggleExpand(q.id)}>
                 {expanded ? "Свернуть" : "Изменить"}
               </DropdownMenuItem>
               <DropdownMenuItem
-                onSelect={(e) => {
+                onClick={(e) => {
                   e.preventDefault();
                   void setQuoteArchived(q.id, !archived);
                 }}

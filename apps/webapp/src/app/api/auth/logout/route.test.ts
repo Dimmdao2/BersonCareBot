@@ -27,12 +27,12 @@ describe("/api/auth/logout", () => {
     expect(clearSessionMock).toHaveBeenCalledTimes(1);
   });
 
-  it("GET redirects to /app without clearing session", async () => {
+  it("GET clears session and redirects to /app", async () => {
     clearSessionMock.mockClear();
     const req = new NextRequest("http://localhost/api/auth/logout", { method: "GET" });
     const res = await GET(req);
     expect([302, 307]).toContain(res.status);
     expect(res.headers.get("location")).toMatch(/\/app$/);
-    expect(clearSessionMock).not.toHaveBeenCalled();
+    expect(clearSessionMock).toHaveBeenCalledTimes(1);
   });
 });

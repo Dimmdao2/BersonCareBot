@@ -11,7 +11,9 @@ export async function POST(request: NextRequest) {
   return NextResponse.redirect(new URL(LOGIN_PATH, request.url));
 }
 
-/** GET без побочных эффектов — чтобы закладка на URL не показывала пустой ответ. */
+/** GET также очищает сессию (закладка на URL не оставляет пользователя залогиненным). */
 export async function GET(request: NextRequest) {
+  const deps = buildAppDeps();
+  await deps.auth.clearSession();
   return NextResponse.redirect(new URL(LOGIN_PATH, request.url));
 }

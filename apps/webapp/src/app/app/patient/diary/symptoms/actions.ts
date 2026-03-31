@@ -163,17 +163,17 @@ export async function createSymptomTracking(formData: FormData): Promise<CreateS
   }
 }
 
-export async function renameSymptomTracking(formData: FormData) {
+export async function renameSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccess(routePaths.diary);
   const trackingId = parseOptionalId(formData.get("trackingId"));
   const newTitleRaw = formData.get("newTitle");
-  if (!trackingId || typeof newTitleRaw !== "string") return;
+  if (!trackingId || typeof newTitleRaw !== "string") return { ok: false };
   const newTitle = newTitleRaw.trim();
-  if (!newTitle || newTitle.length > 200) return;
+  if (!newTitle || newTitle.length > 200) return { ok: false };
   const deps = buildAppDeps();
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId, false);
   const t = trackings.find((x) => x.id === trackingId);
-  if (!t || t.deletedAt) return;
+  if (!t || t.deletedAt) return { ok: false };
   try {
     await deps.diaries.renameSymptomTracking({
       userId: session.user.userId,
@@ -182,19 +182,20 @@ export async function renameSymptomTracking(formData: FormData) {
     });
   } catch (e) {
     console.error("renameSymptomTracking", e);
-    return;
+    return { ok: false };
   }
   revalidatePath(routePaths.diary);
+  return { ok: true };
 }
 
-export async function archiveSymptomTracking(formData: FormData) {
+export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
   const session = await requirePatientAccess(routePaths.diary);
   const trackingId = parseOptionalId(formData.get("trackingId"));
-  if (!trackingId) return;
+  if (!trackingId) return { ok: false };
   const deps = buildAppDeps();
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId, false);
   const t = trackings.find((x) => x.id === trackingId);
-  if (!t || t.deletedAt) return;
+  if (!t || t.deletedAt) return { ok: false };
   try {
     await deps.diaries.archiveSymptomTracking({
       userId: session.user.userId,
@@ -202,29 +203,10 @@ export async function archiveSymptomTracking(formData: FormData) {
     });
   } catch (e) {
     console.error("archiveSymptomTracking", e);
-    return;
+    return { ok: false };
   }
   revalidatePath(routePaths.diary);
-}
-
-export async function deleteSymptomTracking(formData: FormData) {
-  const session = await requirePatientAccess(routePaths.diary);
-  const trackingId = parseOptionalId(formData.get("trackingId"));
-  if (!trackingId) return;
-  const deps = buildAppDeps();
-  const trackings = await deps.diaries.listSymptomTrackings(session.user.userId, false);
-  const t = trackings.find((x) => x.id === trackingId);
-  if (!t || t.deletedAt) return;
-  try {
-    await deps.diaries.deleteSymptomTracking({
-      userId: session.user.userId,
-      trackingId,
-    });
-  } catch (e) {
-    console.error("deleteSymptomTracking", e);
-    return;
-  }
-  revalidatePath(routePaths.diary);
+  return { ok: true };
 }
 
 export async function updateSymptomJournalEntry(formData: FormData): Promise<{ ok: boolean }> {

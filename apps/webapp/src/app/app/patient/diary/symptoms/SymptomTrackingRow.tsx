@@ -63,16 +63,20 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
             <MoreVerticalIcon className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setRenameOpen(true)}>Переименовать</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setRenameOpen(true)}>Переименовать</DropdownMenuItem>
             <DropdownMenuItem
-              onSelect={() => {
+              onClick={() => {
                 startTransition(async () => {
                   const fd = new FormData();
                   fd.set("trackingId", id);
                   try {
-                    await archiveSymptomTracking(fd);
-                    toast.success("Симптом архивирован");
-                    router.refresh();
+                    const result = await archiveSymptomTracking(fd);
+                    if (result.ok) {
+                      toast.success("Симптом архивирован");
+                      router.refresh();
+                    } else {
+                      toast.error("Не удалось архивировать");
+                    }
                   } catch {
                     toast.error("Не удалось архивировать");
                   }
@@ -176,10 +180,14 @@ export function SymptomTrackingRow({ id, title }: { id: string; title: string })
                 fd.set("trackingId", id);
                 fd.set("newTitle", trimmed);
                 try {
-                  await renameSymptomTracking(fd);
-                  toast.success("Название обновлено");
-                  setRenameOpen(false);
-                  router.refresh();
+                  const result = await renameSymptomTracking(fd);
+                  if (result.ok) {
+                    toast.success("Название обновлено");
+                    setRenameOpen(false);
+                    router.refresh();
+                  } else {
+                    toast.error("Не удалось переименовать");
+                  }
                 } catch {
                   toast.error("Не удалось переименовать");
                 }
