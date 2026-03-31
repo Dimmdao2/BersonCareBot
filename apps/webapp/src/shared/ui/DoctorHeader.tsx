@@ -41,7 +41,6 @@ const DOCTOR_MENU_LINKS: { id: string; label: string; href: string }[] = [
   { id: "clients", label: "Клиенты", href: "/app/doctor/clients" },
   { id: "appointments", label: "Записи", href: "/app/doctor/appointments" },
   { id: "messages", label: "Сообщения", href: "/app/doctor/messages" },
-  { id: "broadcasts", label: "Рассылки", href: "/app/doctor/broadcasts" },
   { id: "exercises", label: "Упражнения", href: "/app/doctor/exercises" },
   { id: "lfk-templates", label: "Шаблоны ЛФК", href: "/app/doctor/lfk-templates" },
   { id: "content", label: "CMS", href: "/app/doctor/content" },
