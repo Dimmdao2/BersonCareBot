@@ -7,6 +7,8 @@ type SmsCodeFormProps = {
   challengeId: string;
   retryAfterSeconds?: number;
   description?: string;
+  /** Подпись кнопки отправки кода (по умолчанию «Войти»). */
+  submitLabel?: string;
   smsFallbackLink?: boolean;
   onRequestSms?: () => Promise<OtpResendOutcome>;
   onConfirm: (code: string) => Promise<OtpConfirmResult>;
@@ -18,6 +20,7 @@ export function SmsCodeForm({
   challengeId,
   retryAfterSeconds,
   description = "Код отправлен по SMS. Введите его ниже.",
+  submitLabel = "Войти",
   smsFallbackLink,
   onRequestSms,
   onConfirm,
@@ -29,7 +32,7 @@ export function SmsCodeForm({
       challengeId={challengeId}
       retryAfterSeconds={retryAfterSeconds}
       description={description}
-      submitLabel="Войти"
+      submitLabel={submitLabel}
       smsFallbackLink={smsFallbackLink}
       onRequestSms={onRequestSms}
       onConfirm={onConfirm}

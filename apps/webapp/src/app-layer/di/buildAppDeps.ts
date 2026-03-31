@@ -71,6 +71,9 @@ import { inMemorySymptomDiaryPort } from "@/infra/repos/symptomDiary";
 import { inMemoryLfkDiaryPort } from "@/infra/repos/lfkDiary";
 import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
 import { pgLfkDiaryPort } from "@/infra/repos/pgLfkDiary";
+import { purgeAllDiaryDataForUserPg } from "@/infra/repos/pgDiaryPurge";
+import { purgeInMemoryLfkDiaryForUser } from "@/infra/repos/lfkDiary";
+import { purgeInMemorySymptomDiaryForUser } from "@/infra/repos/symptomDiary";
 import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
 import { pgChannelPreferencesPort } from "@/infra/repos/pgChannelPreferences";
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from "@/infra/repos/pgUserProjection";
@@ -450,6 +453,14 @@ function _buildAppDeps() {
       getLfkSessionForUser: lfkDiaryService.getLfkSessionForUser,
       updateLfkSession: lfkDiaryService.updateLfkSession,
       deleteLfkSession: lfkDiaryService.deleteLfkSession,
+      purgeAllDiaryDataForUser: async (userId: string) => {
+        if (env.DATABASE_URL) {
+          await purgeAllDiaryDataForUserPg(userId);
+        } else {
+          purgeInMemorySymptomDiaryForUser(userId);
+          purgeInMemoryLfkDiaryForUser(userId);
+        }
+      },
     },
     references: referencesPort,
     health: {

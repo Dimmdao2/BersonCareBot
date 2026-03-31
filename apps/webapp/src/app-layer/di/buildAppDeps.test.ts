@@ -182,6 +182,7 @@ describe("buildAppDeps", () => {
     expect(deps.diaries).toHaveProperty("listSymptomEntriesForTrackingInRange");
     expect(deps.diaries).toHaveProperty("getLfkComplexForUser");
     expect(deps.diaries).toHaveProperty("listLfkSessionsInRange");
+    expect(deps.diaries).toHaveProperty("purgeAllDiaryDataForUser");
     expect(typeof deps.diaries.listSymptomEntries).toBe("function");
     expect(typeof deps.diaries.createSymptomTracking).toBe("function");
     expect(typeof deps.diaries.listSymptomTrackings).toBe("function");
@@ -194,6 +195,7 @@ describe("buildAppDeps", () => {
     expect(typeof deps.diaries.listSymptomEntriesForTrackingInRange).toBe("function");
     expect(typeof deps.diaries.getLfkComplexForUser).toBe("function");
     expect(typeof deps.diaries.listLfkSessionsInRange).toBe("function");
+    expect(typeof deps.diaries.purgeAllDiaryDataForUser).toBe("function");
   });
 
   it("diaries list methods return Promise resolving to array", async () => {

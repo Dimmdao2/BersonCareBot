@@ -13,6 +13,13 @@ export type SymptomDayPoint = {
   entryType?: "instant" | "daily";
 };
 
+/** По дню — отдельный максимум для «в моменте» и «за день» (null, если записей этого типа не было). */
+export type SymptomDayPointSplit = {
+  date: string;
+  instant: number | null;
+  daily: number | null;
+};
+
 /**
  * For each UTC calendar day, keep the **maximum** `value0_10` among entries on that day.
  * If two entries tie, the later `recordedAt` wins for `entryType` metadata.
@@ -44,6 +51,37 @@ export function aggregateSymptomEntriesByDay(
   return [...best.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, v]) => ({ date, value: v.value, entryType: v.entryType }));
+}
+
+/**
+ * По каждому UTC-календарному дню — отдельный максимум для instant и для daily.
+ */
+export function aggregateSymptomEntriesByDaySplit(
+  entries: Array<{
+    recordedAt: string;
+    value0_10: number;
+    entryType: "instant" | "daily";
+  }>
+): SymptomDayPointSplit[] {
+  const byDay = new Map<string, { instant?: number; daily?: number }>();
+  for (const e of entries) {
+    const day = e.recordedAt.slice(0, 10);
+    const cur = byDay.get(day) ?? {};
+    if (e.entryType === "instant") {
+      cur.instant =
+        cur.instant === undefined ? e.value0_10 : Math.max(cur.instant, e.value0_10);
+    } else {
+      cur.daily = cur.daily === undefined ? e.value0_10 : Math.max(cur.daily, e.value0_10);
+    }
+    byDay.set(day, cur);
+  }
+  return [...byDay.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, v]) => ({
+      date,
+      instant: v.instant ?? null,
+      daily: v.daily ?? null,
+    }));
 }
 
 /** Last 7 UTC calendar days, oldest → newest; maps session counts to LfkDotState. */

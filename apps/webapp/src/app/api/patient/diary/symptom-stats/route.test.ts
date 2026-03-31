@@ -95,12 +95,16 @@ describe("GET /api/patient/diary/symptom-stats", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
       ok: boolean;
-      points: { date: string; value: number }[];
+      points: { date: string; instant: number | null; daily: number | null }[];
       period: string;
     };
     expect(data.ok).toBe(true);
     expect(data.period).toBe("month");
-    expect(data.points.some((p) => p.date === "2025-03-01" && p.value === 4)).toBe(true);
+    expect(
+      data.points.some(
+        (p) => p.date === "2025-03-01" && p.instant === 4 && p.daily === null
+      )
+    ).toBe(true);
   });
 
   it("returns 400 for invalid period", async () => {

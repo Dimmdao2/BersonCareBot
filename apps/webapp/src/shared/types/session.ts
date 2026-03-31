@@ -23,4 +23,12 @@ export type AppSession = {
   postLoginHints?: {
     phoneOtpChannel?: "sms" | "telegram" | "max" | "email";
   };
+  /**
+   * Повторное подтверждение для чувствительных действий (TTL на сервере).
+   * Unix seconds (epoch), не секрет.
+   */
+  reauth?: {
+    /** PIN подтверждён для удаления дневниковых данных — действителен до timestamp включительно. */
+    diaryPurgePinVerifiedUntil?: number;
+  };
 };

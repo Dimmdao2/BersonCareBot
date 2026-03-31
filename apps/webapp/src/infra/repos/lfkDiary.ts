@@ -124,3 +124,18 @@ export const inMemoryLfkDiaryPort: LfkDiaryPort = {
     if (i >= 0) sessions.splice(i, 1);
   },
 };
+
+/** In-memory purge для dev/tests без БД. */
+export function purgeInMemoryLfkDiaryForUser(userId: string): void {
+  const cIds = new Set(complexes.filter((c) => c.userId === userId).map((c) => c.id));
+  for (let i = sessions.length - 1; i >= 0; i--) {
+    if (sessions[i]!.userId === userId || cIds.has(sessions[i]!.complexId)) {
+      sessions.splice(i, 1);
+    }
+  }
+  for (let i = complexes.length - 1; i >= 0; i--) {
+    if (complexes[i]!.userId === userId) {
+      complexes.splice(i, 1);
+    }
+  }
+}

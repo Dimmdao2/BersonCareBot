@@ -185,3 +185,18 @@ export const inMemorySymptomDiaryPort: SymptomDiaryPort = {
     }
   },
 };
+
+/** In-memory purge для dev/tests без БД. */
+export function purgeInMemorySymptomDiaryForUser(userId: string): void {
+  const tIds = new Set(trackings.filter((t) => t.userId === userId).map((t) => t.id));
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (entries[i]!.userId === userId || tIds.has(entries[i]!.trackingId)) {
+      entries.splice(i, 1);
+    }
+  }
+  for (let i = trackings.length - 1; i >= 0; i--) {
+    if (trackings[i]!.userId === userId) {
+      trackings.splice(i, 1);
+    }
+  }
+}

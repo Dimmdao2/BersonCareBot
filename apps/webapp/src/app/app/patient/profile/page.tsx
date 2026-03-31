@@ -9,12 +9,20 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { AuthOtpChannelPreference } from "./AuthOtpChannelPreference";
+import { DiaryDataPurgeSection } from "./DiaryDataPurgeSection";
 import { LogoutSection } from "./LogoutSection";
 import { PinSection } from "./PinSection";
 import { ProfileAccordionSection } from "./ProfileAccordionSection";
 import { ProfileForm } from "./ProfileForm";
 
 const AUTH_OTP_ORDER: OtpUiChannel[] = ["telegram", "max", "email", "sms"];
+
+function maskPhoneTail(phone: string | null | undefined): string | null {
+  if (!phone?.trim()) return null;
+  const digits = phone.replace(/\D/g, "");
+  const tail = digits.slice(-4);
+  return tail ? `•••• ${tail}` : phone;
+}
 
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
@@ -107,6 +115,12 @@ export default async function PatientProfilePage() {
             Настройки уведомлений
           </Link>
         </ProfileAccordionSection>
+
+        {showPinSection ? (
+          <ProfileAccordionSection id="patient-profile-diary-purge" title="Данные дневника">
+            <DiaryDataPurgeSection hasPin={hasPin} phoneMasked={maskPhoneTail(session.user.phone)} />
+          </ProfileAccordionSection>
+        ) : null}
 
         {platformEntry !== "bot" ? <LogoutSection /> : null}
       </div>

@@ -9,7 +9,6 @@ import { DiarySectionGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AppShell } from "@/shared/ui/AppShell";
-import { AddEntryForm } from "./symptoms/AddEntryForm";
 import { SymptomsTrackingSectionClient } from "./symptoms/SymptomsTrackingSectionClient";
 import { DiaryTabsClient } from "./DiaryTabsClient";
 import { LfkSessionForm } from "./lfk/LfkSessionForm";
@@ -42,14 +41,6 @@ export default async function PatientDiaryPage() {
   const symptomsPanel = (
     <>
       <SymptomsTrackingSectionClient trackings={trackings} />
-      <section id="patient-symptoms-diary-hero-section" className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col gap-4">
-        <h2 className="text-lg font-semibold">Добавить запись</h2>
-        {trackings.length > 0 ? (
-          <AddEntryForm trackings={trackings} />
-        ) : (
-          <p className="text-muted-foreground">Добавьте отслеживание симптома выше, чтобы вносить записи.</p>
-        )}
-      </section>
       <section id="patient-symptoms-stats-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Статистика</h2>
         {trackings.length > 0 ? (

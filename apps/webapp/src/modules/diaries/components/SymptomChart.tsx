@@ -11,14 +11,14 @@ import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from "./DiaryStatsPeriodBa
 
 const RechartsSymptom = dynamic(() => import("./SymptomChartRecharts"), {
   ssr: false,
-  loading: () => <div className="bg-muted/50 h-[240px] w-full animate-pulse rounded-md" />,
+  loading: () => <div className="bg-muted/50 h-[260px] w-full animate-pulse rounded-md" />,
 });
 
 export type SymptomChartTrackingOption = { id: string; symptomTitle: string };
 
 type ApiOk = {
   ok: true;
-  points: { date: string; value: number; entryType?: string }[];
+  points: { date: string; instant: number | null; daily: number | null }[];
   period: string;
   offset: number;
 };
@@ -27,7 +27,9 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
   const [trackingId, setTrackingId] = useState(trackings[0]?.id ?? "");
   const [period, setPeriod] = useState<DiaryStatsPeriod>("week");
   const [offset, setOffset] = useState(0);
-  const [points, setPoints] = useState<{ date: string; value: number }[]>([]);
+  const [points, setPoints] = useState<
+    { date: string; instant: number | null; daily: number | null }[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,7 +70,13 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
         setPoints([]);
         return;
       }
-      setPoints(data.points.map((p) => ({ date: p.date, value: p.value })));
+      setPoints(
+        data.points.map((p) => ({
+          date: p.date,
+          instant: p.instant,
+          daily: p.daily,
+        }))
+      );
     } catch {
       setError("Сеть недоступна");
       setPoints([]);
@@ -127,7 +135,7 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       {showInitialSkeleton ? (
-        <div className="bg-muted/50 h-[220px] w-full animate-pulse rounded-md" />
+        <div className="bg-muted/50 h-[260px] w-full animate-pulse rounded-md" />
       ) : null}
       {!showInitialSkeleton && points.length === 0 && !error ? (
         <p className="text-muted-foreground text-sm">Нет записей за выбранный период.</p>

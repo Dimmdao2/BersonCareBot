@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateSymptomEntriesByDay,
+  aggregateSymptomEntriesByDaySplit,
   buildLfkOverviewMatrix,
   lfkDotsLast7DaysFromSessions,
 } from "../aggregation";
@@ -29,6 +30,36 @@ describe("aggregateSymptomEntriesByDay", () => {
   it("sorts days ascending", () => {
     const pts = aggregateSymptomEntriesByDay([
       { recordedAt: "2025-03-02T10:00:00.000Z", value0_10: 1, entryType: "instant" },
+      { recordedAt: "2025-03-01T10:00:00.000Z", value0_10: 2, entryType: "instant" },
+    ]);
+    expect(pts.map((p) => p.date)).toEqual(["2025-03-01", "2025-03-02"]);
+  });
+});
+
+describe("aggregateSymptomEntriesByDaySplit", () => {
+  it("returns empty for empty input", () => {
+    expect(aggregateSymptomEntriesByDaySplit([])).toEqual([]);
+  });
+
+  it("keeps separate max per day for instant and daily", () => {
+    const pts = aggregateSymptomEntriesByDaySplit([
+      { recordedAt: "2025-03-01T10:00:00.000Z", value0_10: 3, entryType: "instant" },
+      { recordedAt: "2025-03-01T18:00:00.000Z", value0_10: 7, entryType: "daily" },
+    ]);
+    expect(pts).toEqual([{ date: "2025-03-01", instant: 3, daily: 7 }]);
+  });
+
+  it("takes max within same type on same day", () => {
+    const pts = aggregateSymptomEntriesByDaySplit([
+      { recordedAt: "2025-03-01T10:00:00.000Z", value0_10: 2, entryType: "instant" },
+      { recordedAt: "2025-03-01T20:00:00.000Z", value0_10: 5, entryType: "instant" },
+    ]);
+    expect(pts).toEqual([{ date: "2025-03-01", instant: 5, daily: null }]);
+  });
+
+  it("sorts days ascending", () => {
+    const pts = aggregateSymptomEntriesByDaySplit([
+      { recordedAt: "2025-03-02T10:00:00.000Z", value0_10: 1, entryType: "daily" },
       { recordedAt: "2025-03-01T10:00:00.000Z", value0_10: 2, entryType: "instant" },
     ]);
     expect(pts.map((p) => p.date)).toEqual(["2025-03-01", "2025-03-02"]);

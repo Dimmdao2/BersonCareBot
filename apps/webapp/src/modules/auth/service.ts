@@ -352,6 +352,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
       ...buildSession(session.user),
       postLoginHints: session.postLoginHints,
       adminMode: session.adminMode,
+      reauth: session.reauth,
     };
     cookieStore.set(SESSION_COOKIE_NAME, encodeSession(slid), {
       httpOnly: true,
@@ -376,6 +377,7 @@ export async function getCurrentSession(): Promise<AppSession | null> {
     ...buildSession(nextUser),
     postLoginHints: session.postLoginHints,
     adminMode: session.adminMode,
+    reauth: session.reauth,
   };
 
   if (env.DATABASE_URL) {
@@ -444,5 +446,47 @@ export async function setSessionFromUser(
     secure: isProduction,
     path: "/",
     maxAge: cookieMaxAgeSeconds(full),
+  });
+}
+
+/** TTL повторного подтверждения PIN перед удалением дневников (секунды). */
+export const DIARY_PURGE_PIN_REAUTH_TTL_SEC = 600;
+
+export function isDiaryPurgePinReauthValid(session: AppSession | null): boolean {
+  if (!session?.reauth?.diaryPurgePinVerifiedUntil) return false;
+  return Math.floor(Date.now() / 1000) <= session.reauth.diaryPurgePinVerifiedUntil;
+}
+
+export async function setDiaryPurgePinReauth(): Promise<void> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const session = raw ? decodeSession(raw) : null;
+  if (!session) return;
+  const until = Math.floor(Date.now() / 1000) + DIARY_PURGE_PIN_REAUTH_TTL_SEC;
+  const next: AppSession = {
+    ...session,
+    reauth: { ...session.reauth, diaryPurgePinVerifiedUntil: until },
+  };
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(next), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: cookieMaxAgeSeconds(next),
+  });
+}
+
+export async function clearDiaryPurgeReauth(): Promise<void> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const session = raw ? decodeSession(raw) : null;
+  if (!session) return;
+  const next: AppSession = { ...session, reauth: undefined };
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(next), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: cookieMaxAgeSeconds(next),
   });
 }

@@ -1,12 +1,13 @@
 /**
  * GET /api/patient/diary/symptom-stats — агрегированные точки симптома для графика (только владелец tracking).
  * Query: trackingId (обяз.), period=week|month|all, offset (целое ≥0).
+ * Ответ points: по дню даты `instant` и `daily` (0–10 или null) — отдельные максимумы по типу записи.
  * Ответы: 401 — нет сессии; 403 — не роль пациента; 404 — нет tracking у пользователя; 400 — query.
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { aggregateSymptomEntriesByDay } from "@/modules/diaries/stats/aggregation";
+import { aggregateSymptomEntriesByDaySplit } from "@/modules/diaries/stats/aggregation";
 import { statsPeriodWindowUtc } from "@/modules/diaries/stats/periodWindow";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
@@ -53,14 +54,14 @@ export async function GET(request: Request) {
     toRecordedAtExclusive: toExclusiveIso,
   });
 
-  const points = aggregateSymptomEntriesByDay(entries);
+  const points = aggregateSymptomEntriesByDaySplit(entries);
 
   return NextResponse.json({
     ok: true,
     points: points.map((p) => ({
       date: p.date,
-      value: p.value,
-      entryType: p.entryType,
+      instant: p.instant,
+      daily: p.daily,
     })),
     period,
     offset,
