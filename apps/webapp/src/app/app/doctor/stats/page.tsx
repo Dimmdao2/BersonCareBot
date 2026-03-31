@@ -2,10 +2,10 @@
  * Статистика кабинета специалиста («/app/doctor/stats»).
  * Агрегаты по записям — окно «неделя» от UTC-полуночи сегодня; см. DOCTOR_DASHBOARD_METRICS.md.
  */
-import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorStatCard } from "./DoctorStatCard";
 
 export default async function DoctorStatsPage() {
   const session = await requireDoctorAccess();
@@ -20,29 +20,53 @@ export default async function DoctorStatsPage() {
           Интервал: с начала сегодняшнего UTC-дня по конец 7-го дня. Учитываются только строки без soft-delete. «Всего» включает
           отменённые слоты в этом окне; «Отмен» — подмножество с учётом фильтра по last_event.
         </p>
-        <ul id="doctor-stats-appointments-list" className="m-0 list-none space-y-3 p-0">
-          <li id="doctor-stats-appointments-total">Всего записей: {stats.appointments.total}</li>
-          <li id="doctor-stats-appointments-cancellations">Отмен в окне: {stats.appointments.cancellations}</li>
-          <li id="doctor-stats-appointments-cancellations-30d">Отмен за 30 дн.: {stats.appointments.cancellations30d}</li>
-          <li id="doctor-stats-appointments-reschedules">Переносов (status updated): {stats.appointments.reschedules}</li>
-        </ul>
-        <p className="text-sm">
-          <Link
+        <div id="doctor-stats-appointments-cards" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <DoctorStatCard
+            id="doctor-stats-appointments-total"
+            title="Всего записей"
+            value={stats.appointments.total}
+          />
+          <DoctorStatCard
+            id="doctor-stats-appointments-cancellations"
+            title="Отмен в окне"
+            value={stats.appointments.cancellations}
+            tone="warning"
+          />
+          <DoctorStatCard
+            id="doctor-stats-appointments-cancellations-30d"
+            title="Отмен за 30 дн."
+            value={stats.appointments.cancellations30d}
+            tone="warning"
             href="/app/doctor/appointments?view=cancellationsMonth"
-            className="text-primary underline underline-offset-2"
-          >
-            Список отмен за текущий месяц
-          </Link>
-        </p>
+          />
+          <DoctorStatCard
+            id="doctor-stats-appointments-reschedules"
+            title="Переносов (updated)"
+            value={stats.appointments.reschedules}
+          />
+        </div>
       </section>
       <section id="doctor-stats-clients-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Клиенты</h2>
-        <ul id="doctor-stats-clients-list" className="m-0 list-none space-y-3 p-0">
-          <li id="doctor-stats-clients-total">Всего: {stats.clients.total}</li>
-          <li id="doctor-stats-clients-without-channels">Без каналов связи: {stats.clients.withNoChannels}</li>
-          <li id="doctor-stats-clients-with-one-channel">С одним каналом: {stats.clients.withOneChannel}</li>
-          <li id="doctor-stats-clients-with-multiple-channels">С несколькими каналами: {stats.clients.withMultipleChannels}</li>
-        </ul>
+        <div id="doctor-stats-clients-cards" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <DoctorStatCard id="doctor-stats-clients-total" title="Всего клиентов" value={stats.clients.total} />
+          <DoctorStatCard
+            id="doctor-stats-clients-without-channels"
+            title="Без каналов связи"
+            value={stats.clients.withNoChannels}
+            tone="warning"
+          />
+          <DoctorStatCard
+            id="doctor-stats-clients-with-one-channel"
+            title="С одним каналом"
+            value={stats.clients.withOneChannel}
+          />
+          <DoctorStatCard
+            id="doctor-stats-clients-with-multiple-channels"
+            title="С несколькими каналами"
+            value={stats.clients.withMultipleChannels}
+          />
+        </div>
       </section>
     </AppShell>
   );
