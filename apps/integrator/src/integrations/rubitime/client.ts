@@ -13,10 +13,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 async function postRubitimeApi2(input: {
-  method: 'get-record' | 'update-record' | 'remove-record';
+  method: 'get-record' | 'update-record' | 'remove-record' | 'create-record' | 'get-slots';
   body: Record<string, unknown>;
   fetchImpl?: typeof globalThis.fetch;
-}): Promise<RubitimeRecordPayload> {
+}): Promise<unknown> {
   const fetchImpl = input.fetchImpl ?? globalThis.fetch;
   const url = `https://rubitime.ru/api2/${input.method}`;
   const response = await fetchImpl(url, {
@@ -48,7 +48,10 @@ async function postRubitimeApi2(input: {
     }
     return data;
   }
-  return data ?? {};
+  if (input.method === 'update-record' || input.method === 'remove-record' || input.method === 'create-record') {
+    return data ?? {};
+  }
+  return parsed.data ?? [];
 }
 
 export async function fetchRubitimeRecordById(input: {
@@ -62,7 +65,7 @@ export async function fetchRubitimeRecordById(input: {
     body: { id: Number.isFinite(numericId) ? numericId : id },
   };
   if (input.fetchImpl !== undefined) req.fetchImpl = input.fetchImpl;
-  return postRubitimeApi2(req);
+  return postRubitimeApi2(req) as Promise<RubitimeRecordPayload>;
 }
 
 /** Rubitime API2 `update-record` — требуются `id` и `rk`; остальные поля по документации Rubitime. */
@@ -78,7 +81,7 @@ export async function updateRubitimeRecord(input: {
     body: { id: Number.isFinite(numericId) ? numericId : id, ...input.data },
   };
   if (input.fetchImpl !== undefined) req.fetchImpl = input.fetchImpl;
-  return postRubitimeApi2(req);
+  return postRubitimeApi2(req) as Promise<RubitimeRecordPayload>;
 }
 
 /** Rubitime API2 `remove-record` (отмена/удаление записи). */
@@ -91,6 +94,43 @@ export async function removeRubitimeRecord(input: {
   const req: Parameters<typeof postRubitimeApi2>[0] = {
     method: 'remove-record',
     body: { id: Number.isFinite(numericId) ? numericId : id },
+  };
+  if (input.fetchImpl !== undefined) req.fetchImpl = input.fetchImpl;
+  return postRubitimeApi2(req) as Promise<RubitimeRecordPayload>;
+}
+
+/** Rubitime API2 `create-record`. */
+export async function createRubitimeRecord(input: {
+  data: Record<string, unknown>;
+  fetchImpl?: typeof globalThis.fetch;
+}): Promise<RubitimeRecordPayload> {
+  const req: Parameters<typeof postRubitimeApi2>[0] = {
+    method: 'create-record',
+    body: { ...input.data },
+  };
+  if (input.fetchImpl !== undefined) req.fetchImpl = input.fetchImpl;
+  return postRubitimeApi2(req) as Promise<RubitimeRecordPayload>;
+}
+
+export type RubitimeSlotsRequest = {
+  type: 'in_person' | 'online';
+  city?: string;
+  category: 'rehab_lfk' | 'nutrition' | 'general';
+  date?: string;
+};
+
+export async function fetchRubitimeSlots(input: {
+  query: RubitimeSlotsRequest;
+  fetchImpl?: typeof globalThis.fetch;
+}): Promise<unknown> {
+  const req: Parameters<typeof postRubitimeApi2>[0] = {
+    method: 'get-slots',
+    body: {
+      type: input.query.type,
+      city: input.query.city,
+      category: input.query.category,
+      date: input.query.date,
+    },
   };
   if (input.fetchImpl !== undefined) req.fetchImpl = input.fetchImpl;
   return postRubitimeApi2(req);

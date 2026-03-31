@@ -5,8 +5,9 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { logger } from '../../infra/observability/logger.js';
-import { removeRubitimeRecord, updateRubitimeRecord } from './client.js';
+import { createRubitimeRecord, fetchRubitimeSlots, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
 import { rubitimeConfig } from './config.js';
+import { parseRubitimeSlotsQuery } from './schema.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -30,6 +31,28 @@ function parseJsonRecordId(body: unknown): string | null {
   if (typeof id === 'number' && Number.isFinite(id)) return String(Math.trunc(id));
   if (typeof id === 'string' && id.trim().length > 0) return id.trim();
   return null;
+}
+
+function toSlotsResponse(raw: unknown): { date: string; slots: { startAt: string; endAt: string }[] }[] {
+  if (!Array.isArray(raw)) return [];
+  const out: { date: string; slots: { startAt: string; endAt: string }[] }[] = [];
+  for (const row of raw) {
+    if (typeof row !== 'object' || row === null) continue;
+    const date = (row as Record<string, unknown>).date;
+    const slots = (row as Record<string, unknown>).slots;
+    if (typeof date !== 'string' || !Array.isArray(slots)) continue;
+    const normalized = slots
+      .map((slot) => {
+        if (typeof slot !== 'object' || slot === null) return null;
+        const startAt = (slot as Record<string, unknown>).startAt;
+        const endAt = (slot as Record<string, unknown>).endAt;
+        if (typeof startAt !== 'string' || typeof endAt !== 'string') return null;
+        return { startAt, endAt };
+      })
+      .filter((slot): slot is { startAt: string; endAt: string } => slot !== null);
+    out.push({ date, slots: normalized });
+  }
+  return out;
 }
 
 export type RubitimeRecordM2mDeps = {
@@ -105,6 +128,46 @@ export async function registerRubitimeRecordM2mRoutes(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.warn({ err, recordId }, 'rubitime remove-record failed');
+      return reply.code(502).send({ ok: false, error: msg });
+    }
+  });
+
+  app.post('/api/bersoncare/rubitime/create-record', async (request, reply) => {
+    const g = guard(request);
+    if (!g.ok) {
+      return reply.code(g.code).send({ ok: false, error: g.err });
+    }
+    const data = typeof request.body === 'object' && request.body !== null
+      ? (request.body as Record<string, unknown>)
+      : {};
+    try {
+      const result = await createRubitimeRecord({ data });
+      const recordId = (typeof result.id === 'string' || typeof result.id === 'number')
+        ? String(result.id)
+        : null;
+      return reply.code(200).send({ ok: true, recordId, data: result });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn({ err }, 'rubitime create-record failed');
+      return reply.code(502).send({ ok: false, error: msg });
+    }
+  });
+
+  app.post('/api/bersoncare/rubitime/slots', async (request, reply) => {
+    const g = guard(request);
+    if (!g.ok) {
+      return reply.code(g.code).send({ ok: false, error: g.err });
+    }
+    const parsed = parseRubitimeSlotsQuery(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ ok: false, error: 'invalid_slots_query' });
+    }
+    try {
+      const raw = await fetchRubitimeSlots({ query: parsed.data });
+      return reply.code(200).send({ ok: true, slots: toSlotsResponse(raw) });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn({ err }, 'rubitime slots failed');
       return reply.code(502).send({ ok: false, error: msg });
     }
   });
