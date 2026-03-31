@@ -121,6 +121,10 @@ import { env, integratorWebhookSecret } from "@/config/env";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
+import { createPatientBookingService } from "@/modules/patient-booking/service";
+import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
+import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
+import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
 
 const symptomDiaryPort = env.DATABASE_URL ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
 const lfkDiaryPort = env.DATABASE_URL ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
@@ -152,6 +156,13 @@ const remindersService = createRemindersService(reminderRulesPort, {
 const appointmentProjectionPort = env.DATABASE_URL
   ? createPgAppointmentProjectionPort()
   : inMemoryAppointmentProjectionPort;
+const patientBookingsPort = env.DATABASE_URL
+  ? pgPatientBookingsPort
+  : inMemoryPatientBookingsPort;
+const patientBookingService = createPatientBookingService({
+  bookingsPort: patientBookingsPort,
+  syncPort: createBookingSyncPort(),
+});
 const branchesProjectionPort = env.DATABASE_URL ? createPgBranchesProjectionPort() : null;
 const subscriptionMailingProjectionPort = env.DATABASE_URL
   ? createPgSubscriptionMailingProjectionPort()
@@ -380,6 +391,7 @@ function _buildAppDeps() {
       getUpcomingAppointments,
       getPastAppointments,
     }),
+    patientBooking: patientBookingService,
     doctorCabinet: {
       getDoctorWorkspaceState,
       getOverviewState,

@@ -1,0 +1,197 @@
+import { randomUUID } from "node:crypto";
+import { getPool } from "@/infra/db/client";
+import type { PatientBookingsPort } from "@/modules/patient-booking/ports";
+import type { PatientBookingRecord, PatientBookingStatus } from "@/modules/patient-booking/types";
+
+type Row = {
+  id: string;
+  platform_user_id: string;
+  booking_type: string;
+  city: string | null;
+  category: string;
+  slot_start: Date;
+  slot_end: Date;
+  status: string;
+  cancelled_at: Date | null;
+  cancel_reason: string | null;
+  rubitime_id: string | null;
+  gcal_event_id: string | null;
+  contact_phone: string;
+  contact_email: string | null;
+  contact_name: string;
+  reminder_24h_sent: boolean;
+  reminder_2h_sent: boolean;
+  created_at: Date;
+  updated_at: Date;
+};
+
+function mapRow(row: Row): PatientBookingRecord {
+  return {
+    id: row.id,
+    userId: row.platform_user_id,
+    bookingType: row.booking_type as PatientBookingRecord["bookingType"],
+    city: row.city,
+    category: row.category as PatientBookingRecord["category"],
+    slotStart: row.slot_start.toISOString(),
+    slotEnd: row.slot_end.toISOString(),
+    status: row.status as PatientBookingRecord["status"],
+    cancelledAt: row.cancelled_at ? row.cancelled_at.toISOString() : null,
+    cancelReason: row.cancel_reason,
+    rubitimeId: row.rubitime_id,
+    gcalEventId: row.gcal_event_id,
+    contactPhone: row.contact_phone,
+    contactEmail: row.contact_email,
+    contactName: row.contact_name,
+    reminder24hSent: row.reminder_24h_sent,
+    reminder2hSent: row.reminder_2h_sent,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+export const pgPatientBookingsPort: PatientBookingsPort = {
+  async createPending(input) {
+    const pool = getPool();
+    const id = randomUUID();
+    const result = await pool.query<Row>(
+      `INSERT INTO patient_bookings (
+        id, platform_user_id, booking_type, city, category, slot_start, slot_end, status,
+        contact_phone, contact_email, contact_name
+      ) VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, 'creating', $8, $9, $10)
+      RETURNING *`,
+      [
+        id,
+        input.userId,
+        input.type,
+        input.city ?? null,
+        input.category,
+        input.slotStart,
+        input.slotEnd,
+        input.contactPhone,
+        input.contactEmail ?? null,
+        input.contactName,
+      ],
+    );
+    return mapRow(result.rows[0] as Row);
+  },
+
+  async markConfirmed(bookingId, rubitimeId) {
+    const pool = getPool();
+    const result = await pool.query<Row>(
+      `UPDATE patient_bookings
+       SET status = 'confirmed',
+           rubitime_id = COALESCE($2, rubitime_id),
+           updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [bookingId, rubitimeId],
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
+  async markFailedSync(bookingId) {
+    const pool = getPool();
+    await pool.query(
+      `UPDATE patient_bookings
+       SET status = 'failed_sync', updated_at = now()
+       WHERE id = $1`,
+      [bookingId],
+    );
+  },
+
+  async markCancelled(input) {
+    const pool = getPool();
+    const status = input.status ?? "cancelled";
+    const result = await pool.query<Row>(
+      `UPDATE patient_bookings
+       SET status = $2,
+           cancelled_at = now(),
+           cancel_reason = COALESCE($3, cancel_reason),
+           updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [input.bookingId, status, input.reason ?? null],
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
+  async getByIdForUser(bookingId, userId) {
+    const pool = getPool();
+    const result = await pool.query<Row>(
+      `SELECT * FROM patient_bookings WHERE id = $1 AND platform_user_id = $2 LIMIT 1`,
+      [bookingId, userId],
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
+  async getByRubitimeId(rubitimeId) {
+    const pool = getPool();
+    const result = await pool.query<Row>(
+      `SELECT * FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
+      [rubitimeId],
+    );
+    const row = result.rows[0];
+    return row ? mapRow(row) : null;
+  },
+
+  async upsertFromRubitime(input) {
+    const pool = getPool();
+    const existing = await pool.query<{ id: string }>(
+      `SELECT id FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
+      [input.rubitimeId],
+    );
+    const bookingId = existing.rows[0]?.id;
+    if (!bookingId) return;
+    await pool.query(
+      `UPDATE patient_bookings
+       SET status = $2,
+           slot_start = COALESCE($3::timestamptz, slot_start),
+           slot_end = COALESCE($4::timestamptz, slot_end),
+           cancelled_at = CASE WHEN $2 IN ('cancelled', 'rescheduled') THEN now() ELSE cancelled_at END,
+           updated_at = now()
+       WHERE id = $1`,
+      [bookingId, input.status, input.slotStart ?? null, input.slotEnd ?? null],
+    );
+  },
+
+  async listUpcomingByUser(userId, nowIso) {
+    const pool = getPool();
+    const result = await pool.query<Row>(
+      `SELECT * FROM patient_bookings
+       WHERE platform_user_id = $1
+         AND status IN ('creating', 'confirmed', 'rescheduled')
+         AND slot_start >= $2::timestamptz
+       ORDER BY slot_start ASC`,
+      [userId, nowIso],
+    );
+    return result.rows.map(mapRow);
+  },
+
+  async listHistoryByUser(userId, nowIso) {
+    const pool = getPool();
+    const result = await pool.query<Row>(
+      `SELECT * FROM patient_bookings
+       WHERE platform_user_id = $1
+         AND (
+           slot_start < $2::timestamptz
+           OR status IN ('cancelled', 'completed', 'no_show', 'failed_sync')
+         )
+       ORDER BY slot_start DESC
+       LIMIT 100`,
+      [userId, nowIso],
+    );
+    return result.rows.map(mapRow);
+  },
+};
+
+export function mapRubitimeStatusToPatientBookingStatus(rawStatus: string): PatientBookingStatus {
+  const x = rawStatus.toLowerCase();
+  if (x.includes("cancel")) return "cancelled";
+  if (x.includes("resched")) return "rescheduled";
+  if (x.includes("complete")) return "completed";
+  if (x.includes("no_show")) return "no_show";
+  return "confirmed";
+}
