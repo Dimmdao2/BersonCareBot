@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
+import { MediaCard } from "./MediaCard";
+import { MediaLightbox } from "./MediaLightbox";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
 type SortBy = "date" | "size" | "type";
@@ -30,6 +32,19 @@ type UploadOkResponse = {
   error?: string;
   filename?: string;
 };
+
+type MediaListResponse = {
+  ok?: boolean;
+  items?: MediaItem[];
+  error?: string;
+  hasMore?: boolean;
+  nextOffset?: number;
+};
+
+type ViewMode = "grid" | "table";
+
+const VIEW_MODE_STORAGE_KEY = "doctor-media-library-view";
+const PAGE_SIZE = 24;
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -65,7 +80,13 @@ export function MediaLibraryClient() {
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [isMobileUploadUi, setIsMobileUploadUi] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [isDragActive, setIsDragActive] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextOffset, setNextOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const desktopUploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -85,11 +106,16 @@ export function MediaLibraryClient() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/admin/media?${searchParams}`, { credentials: "same-origin" })
+    fetch(`/api/admin/media?${searchParams}&limit=${PAGE_SIZE}&offset=0`, { credentials: "same-origin" })
       .then(async (res) => {
-        const data = (await res.json()) as { ok?: boolean; items?: MediaItem[]; error?: string };
+        const data = (await res.json()) as MediaListResponse;
         if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
-        if (!cancelled) setItems(data.items ?? []);
+        if (!cancelled) {
+          setItems(data.items ?? []);
+          setHasMore(Boolean(data.hasMore));
+          setNextOffset(data.nextOffset ?? (data.items?.length ?? 0));
+          setLightboxIndex(null);
+        }
       })
       .catch(() => {
         if (!cancelled) setError("Не удалось загрузить библиотеку");
@@ -104,11 +130,79 @@ export function MediaLibraryClient() {
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
-    const apply = () => setIsMobileUploadUi(mq.matches);
+    const savedView = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    if (savedView === "grid" || savedView === "table") {
+      setViewMode(savedView);
+    } else {
+      setViewMode(mq.matches ? "grid" : "table");
+    }
+    const apply = () => {
+      setIsMobileUploadUi(mq.matches);
+    };
     apply();
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, []);
+
+  function onChangeViewMode(nextMode: ViewMode) {
+    setViewMode(nextMode);
+    window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, nextMode);
+  }
+
+  function openLightboxByItemId(itemId: string) {
+    const index = items.findIndex((item) => item.id === itemId);
+    if (index >= 0) setLightboxIndex(index);
+  }
+
+  const lightboxItem = lightboxIndex !== null ? (items[lightboxIndex] ?? null) : null;
+
+  async function onLoadMore() {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/media?${searchParams}&limit=${PAGE_SIZE}&offset=${nextOffset}`, {
+        credentials: "same-origin",
+      });
+      const data = (await res.json()) as MediaListResponse;
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "load_more_failed");
+      const incoming = data.items ?? [];
+      setItems((prev) => {
+        const known = new Set(prev.map((item) => item.id));
+        const unique = incoming.filter((item) => !known.has(item.id));
+        return [...prev, ...unique];
+      });
+      setHasMore(Boolean(data.hasMore));
+      setNextOffset(data.nextOffset ?? (nextOffset + incoming.length));
+    } catch {
+      setError("Не удалось загрузить следующую страницу");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  async function onCopyUrl(item: MediaItem) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(item.url);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = item.url;
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        textArea.remove();
+      }
+      setCopiedItemId(item.id);
+      window.setTimeout(() => {
+        setCopiedItemId((current) => (current === item.id ? null : current));
+      }, 1500);
+    } catch {
+      setError("Не удалось скопировать URL");
+    }
+  }
 
   useEffect(() => {
     if (isMobileUploadUi) return undefined;
@@ -247,6 +341,27 @@ export function MediaLibraryClient() {
       />
 
       <div className="flex flex-wrap items-end gap-2">
+        <div className="flex h-10 items-center rounded-md border border-input bg-background p-1">
+          <Button
+            type="button"
+            variant={viewMode === "grid" ? "default" : "ghost"}
+            size="sm"
+            className="h-8"
+            onClick={() => onChangeViewMode("grid")}
+          >
+            Плитки
+          </Button>
+          <Button
+            type="button"
+            variant={viewMode === "table" ? "default" : "ghost"}
+            size="sm"
+            className="h-8"
+            onClick={() => onChangeViewMode("table")}
+          >
+            Таблица
+          </Button>
+        </div>
+
         <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
           <span className="text-xs text-muted-foreground">Тип</span>
           <select
@@ -373,67 +488,124 @@ export function MediaLibraryClient() {
       ) : null}
       {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
 
-      {!loading && (
-        <div className="overflow-auto rounded-md border border-border">
-          <table className="w-full min-w-[52rem] border-collapse text-sm">
-            <thead className="bg-muted/40 text-left">
-              <tr>
-                <th className="px-3 py-2">Файл</th>
-                <th className="px-3 py-2">Тип</th>
-                <th className="px-3 py-2">Размер</th>
-                <th className="px-3 py-2">Дата загрузки</th>
-                <th className="px-3 py-2">Просмотр</th>
-                <th className="px-3 py-2">Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id} className="border-t border-border align-top">
-                  <td className="px-3 py-2">{item.filename}</td>
-                  <td className="px-3 py-2">{item.kind}</td>
-                  <td className="px-3 py-2">{formatSize(item.size)}</td>
-                  <td className="px-3 py-2">{formatDate(item.createdAt)}</td>
-                  <td className="px-3 py-2">
-                    {item.kind === "image" ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.url} alt="" className="max-h-16 max-w-28 rounded border border-border object-cover" />
-                    ) : item.kind === "video" ? (
-                      <video className="max-h-16 max-w-28 rounded border border-border" controls preload="metadata">
-                        <source src={item.url} />
-                      </video>
-                    ) : item.kind === "audio" ? (
-                      <audio controls preload="metadata" className="h-8">
-                        <source src={item.url} />
-                      </audio>
-                    ) : (
-                      <a className="text-primary underline" href={item.url} target="_blank" rel="noreferrer">
-                        Открыть
-                      </a>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      disabled={deletingId === item.id}
-                      onClick={() => onDelete(item)}
-                    >
-                      {deletingId === item.id ? "Удаление..." : "Удалить"}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {items.length === 0 ? (
+      {!loading &&
+        (viewMode === "grid" ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {items.map((item) => (
+              <MediaCard
+                key={item.id}
+                item={item}
+                deleting={deletingId === item.id}
+                copied={copiedItemId === item.id}
+                onOpenPreview={() => openLightboxByItemId(item.id)}
+                onDelete={() => void onDelete(item)}
+                onCopyUrl={() => void onCopyUrl(item)}
+                formatSize={formatSize}
+                formatDate={formatDate}
+              />
+            ))}
+            {items.length === 0 ? (
+              <div className="rounded-md border border-border px-3 py-6 text-center text-sm text-muted-foreground">
+                Файлы не найдены
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="overflow-auto rounded-md border border-border">
+            <table className="w-full min-w-[52rem] border-collapse text-sm">
+              <thead className="bg-muted/40 text-left">
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
-                    Файлы не найдены
-                  </td>
+                  <th className="px-3 py-2">Файл</th>
+                  <th className="px-3 py-2">Тип</th>
+                  <th className="px-3 py-2">Размер</th>
+                  <th className="px-3 py-2">Дата загрузки</th>
+                  <th className="px-3 py-2">Просмотр</th>
+                  <th className="px-3 py-2">Действия</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} className="border-t border-border align-top">
+                    <td className="px-3 py-2">{item.filename}</td>
+                    <td className="px-3 py-2">{item.kind}</td>
+                    <td className="px-3 py-2">{formatSize(item.size)}</td>
+                    <td className="px-3 py-2">{formatDate(item.createdAt)}</td>
+                    <td className="px-3 py-2">
+                      {item.kind === "image" ? (
+                        <button type="button" onClick={() => openLightboxByItemId(item.id)} className="rounded border border-border">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={item.url} alt="" className="max-h-16 max-w-28 rounded object-cover" />
+                        </button>
+                      ) : item.kind === "video" ? (
+                        <button type="button" onClick={() => openLightboxByItemId(item.id)} className="rounded border border-border">
+                          <video className="max-h-16 max-w-28 rounded" preload="metadata">
+                            <source src={item.url} />
+                          </video>
+                        </button>
+                      ) : item.kind === "audio" ? (
+                        <button type="button" onClick={() => openLightboxByItemId(item.id)} className="text-primary underline">
+                          Прослушать
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => openLightboxByItemId(item.id)} className="text-primary underline">
+                          Открыть
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => void onCopyUrl(item)}>
+                          {copiedItemId === item.id ? "URL скопирован" : "Скопировать URL"}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={deletingId === item.id}
+                          onClick={() => void onDelete(item)}
+                        >
+                          {deletingId === item.id ? "Удаление..." : "Удалить"}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
+                      Файлы не найдены
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+      <MediaLightbox
+        open={lightboxIndex !== null && lightboxItem !== null}
+        item={lightboxItem}
+        onOpenChange={(open) => {
+          if (!open) setLightboxIndex(null);
+        }}
+        onPrev={
+          lightboxIndex !== null && lightboxIndex > 0
+            ? () => setLightboxIndex((idx) => (idx === null ? null : Math.max(0, idx - 1)))
+            : undefined
+        }
+        onNext={
+          lightboxIndex !== null && lightboxIndex < items.length - 1
+            ? () => setLightboxIndex((idx) => (idx === null ? null : Math.min(items.length - 1, idx + 1)))
+            : undefined
+        }
+      />
+
+      {!loading && items.length > 0 ? (
+        <div className="flex justify-center">
+          <Button type="button" variant="outline" onClick={() => void onLoadMore()} disabled={!hasMore || loadingMore}>
+            {!hasMore ? "Больше файлов нет" : loadingMore ? "Загрузка..." : "Загрузить ещё"}
+          </Button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

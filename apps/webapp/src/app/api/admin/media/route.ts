@@ -40,17 +40,23 @@ export async function GET(request: Request) {
   } as const;
 
   const deps = buildAppDeps();
+  const limit = parsed.data.limit ?? 50;
+  const offset = parsed.data.offset ?? 0;
   const items = await deps.media.list({
     kind: parsed.data.kind ?? "all",
     query: parsed.data.q ?? "",
     sortBy: parsed.data.sortBy ? sortByMap[parsed.data.sortBy] : "createdAt",
     sortDir: parsed.data.sortDir ?? "desc",
-    limit: parsed.data.limit ?? 50,
-    offset: parsed.data.offset ?? 0,
+    limit,
+    offset,
   });
 
   return NextResponse.json({
     ok: true,
+    limit,
+    offset,
+    hasMore: items.length === limit,
+    nextOffset: offset + items.length,
     items: items.map((item) => ({
       ...item,
       url: `/api/media/${item.id}`,

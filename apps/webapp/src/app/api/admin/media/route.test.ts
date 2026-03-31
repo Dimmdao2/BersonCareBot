@@ -58,9 +58,20 @@ describe("GET /api/admin/media", () => {
       new Request("http://localhost/api/admin/media?kind=image&sortBy=size&sortDir=asc&limit=10&offset=5")
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; items: Array<{ url: string }> };
+    const body = (await res.json()) as {
+      ok: boolean;
+      items: Array<{ url: string }>;
+      hasMore: boolean;
+      nextOffset: number;
+      limit: number;
+      offset: number;
+    };
     expect(body.ok).toBe(true);
     expect(body.items[0]?.url).toBe("/api/media/11111111-1111-4111-8111-111111111111");
+    expect(body.limit).toBe(10);
+    expect(body.offset).toBe(5);
+    expect(body.nextOffset).toBe(6);
+    expect(body.hasMore).toBe(false);
     expect(listMock).toHaveBeenCalledWith({
       kind: "image",
       query: "",

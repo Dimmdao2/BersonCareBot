@@ -199,23 +199,69 @@
 
 ### 1.5 — Grid-режим просмотра
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/library/MediaCard.tsx` — добавлен карточный рендер элемента библиотеки
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx` — интегрирован grid-view и mobile-first карточный режим
+- **Тесты:** manual regression (mobile grid, desktop table)
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.6 — Переключатель grid/table
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx` — добавлен переключатель `Плитки/Таблица` и сохранение режима в `localStorage`
+- **Тесты:** manual regression (toggle + persistence after refresh)
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.7 — Lightbox
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLightbox.tsx` — добавлен полноэкранный просмотр медиа (image/video/audio/file fallback)
+  - `apps/webapp/src/app/app/doctor/content/library/MediaCard.tsx` — карточка открывает lightbox по клику на превью
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx` — добавлено управление open/prev/next для lightbox
+- **Тесты:** manual regression (open/close and next/prev navigation)
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.8 — Пагинация
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/api/admin/media/route.ts` — добавлены метаданные пагинации (`limit`, `offset`, `hasMore`, `nextOffset`)
+  - `apps/webapp/src/app/api/admin/media/route.test.ts` — обновлены unit-тесты контракта списка с метаданными
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx` — внедрена постраничная загрузка и кнопка «Загрузить ещё»
+- **Тесты:** обновлены unit-тесты `GET /api/admin/media`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.9 — Кнопка «Скопировать URL»
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/library/MediaCard.tsx` — добавлена кнопка «Скопировать URL» в карточках
+  - `apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx` — добавлено копирование URL в таблице и карточках + fallback без Clipboard API
+- **Тесты:** manual regression (copy in grid/table, fallback path)
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.10 — Модальный picker
 
