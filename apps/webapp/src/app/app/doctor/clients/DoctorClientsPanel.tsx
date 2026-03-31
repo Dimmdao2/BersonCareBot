@@ -4,10 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { pluralizeRu } from "@/shared/lib/pluralize";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import { ClientsFilters } from "./ClientsFilters";
+
+type ClientsScope = "all" | "appointments";
 
 type UrlParams = {
   q?: string;
@@ -16,6 +19,7 @@ type UrlParams = {
   appointment?: string;
   visitedMonth?: string;
   selected?: string;
+  scope?: string;
 };
 
 type Props = {
@@ -39,16 +43,19 @@ function matchesSearch(item: ClientListItem, query: string): boolean {
 }
 
 function appendListQueryParams(params: URLSearchParams, urlParams: UrlParams): void {
+  const scope: ClientsScope = urlParams.scope === "all" ? "all" : "appointments";
+  params.set("scope", scope);
   if (urlParams.telegram === "1") params.set("telegram", "1");
   if (urlParams.max === "1") params.set("max", "1");
   if (urlParams.appointment === "1") params.set("appointment", "1");
-  if (urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
+  if (scope === "appointments" && urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
 }
 
 export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_BASE }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState(urlParams.q ?? "");
-  const showVisitedMonthFilter = basePath === DEFAULT_BASE;
+  const scope: ClientsScope = urlParams.scope === "all" ? "all" : "appointments";
+  const showVisitedMonthFilter = scope === "appointments";
 
   const filtered = useMemo(() => {
     const q = search.trim();
@@ -71,15 +78,40 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
   const onFiltersChange = useCallback(
     (next: { telegram: boolean; max: boolean; appointment: boolean; visitedMonth: boolean }) => {
       const params = new URLSearchParams();
+      params.set("scope", scope);
       if (next.telegram) params.set("telegram", "1");
       if (next.max) params.set("max", "1");
       if (next.appointment) params.set("appointment", "1");
-      if (next.visitedMonth) params.set("visitedMonth", "1");
+      if (scope === "appointments" && next.visitedMonth) params.set("visitedMonth", "1");
       if (urlParams.selected) params.set("selected", urlParams.selected);
       const query = params.toString();
       router.replace(`${basePath}${query ? `?${query}` : ""}`);
     },
-    [router, urlParams.selected, basePath],
+    [router, scope, urlParams.selected, basePath],
+  );
+
+  const onScopeChange = useCallback(
+    (nextScope: ClientsScope) => {
+      if (nextScope === scope) return;
+      const params = new URLSearchParams();
+      params.set("scope", nextScope);
+      if (urlParams.telegram === "1") params.set("telegram", "1");
+      if (urlParams.max === "1") params.set("max", "1");
+      if (urlParams.appointment === "1") params.set("appointment", "1");
+      if (nextScope === "appointments" && urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
+      if (urlParams.selected) params.set("selected", urlParams.selected);
+      router.replace(`${basePath}?${params.toString()}`);
+    },
+    [
+      basePath,
+      router,
+      scope,
+      urlParams.appointment,
+      urlParams.max,
+      urlParams.selected,
+      urlParams.telegram,
+      urlParams.visitedMonth,
+    ],
   );
 
   const onRowClick = useCallback(
@@ -102,6 +134,26 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
         onSubmit={(e) => e.preventDefault()}
         className="flex flex-col gap-4 mb-2"
       >
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={scope === "appointments" ? "default" : "outline"}
+            onClick={() => onScopeChange("appointments")}
+            id="doctor-clients-scope-appointments"
+          >
+            Клиенты с записями
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={scope === "all" ? "default" : "outline"}
+            onClick={() => onScopeChange("all")}
+            id="doctor-clients-scope-all"
+          >
+            Все подписчики
+          </Button>
+        </div>
         <Input
           type="search"
           placeholder="Поиск (от 3 символов)…"
@@ -133,7 +185,7 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
             <li key={c.userId} id={`doctor-clients-item-${c.userId}`} className="rounded-lg border border-border bg-card p-0">
               <Link
                 id={`doctor-clients-card-${c.userId}`}
-                href={`${basePath}/${c.userId}`}
+                href={`${basePath}/${c.userId}?scope=${scope}`}
                 onClick={onRowClick(c.userId)}
                 className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-3 text-left no-underline transition-colors hover:bg-muted/50 focus-visible:outline focus-visible:ring-2 focus-visible:ring-ring"
               >

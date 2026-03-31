@@ -37,8 +37,7 @@ const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }),
 
 const DOCTOR_MENU_LINKS: { id: string; label: string; href: string }[] = [
   { id: "overview", label: "Обзор", href: "/app/doctor" },
-  { id: "subscribers", label: "Подписчики", href: "/app/doctor/subscribers" },
-  { id: "clients", label: "Клиенты", href: "/app/doctor/clients" },
+  { id: "clients", label: "Клиенты и подписчики", href: "/app/doctor/clients?scope=appointments" },
   { id: "appointments", label: "Записи", href: "/app/doctor/appointments" },
   { id: "messages", label: "Сообщения", href: "/app/doctor/messages" },
   { id: "exercises", label: "Упражнения", href: "/app/doctor/exercises" },
@@ -112,9 +111,9 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
 
           <div className="flex shrink-0 items-center gap-1">
             <Link
-              href="/app/doctor/subscribers"
+              href="/app/doctor/clients?scope=all"
               prefetch={false}
-              aria-label="Подписчики"
+              aria-label="Клиенты и подписчики"
               className={HEADER_ICON_CLASS}
             >
               <Users className="size-[22px]" aria-hidden />

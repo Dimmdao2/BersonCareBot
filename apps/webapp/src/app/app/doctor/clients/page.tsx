@@ -10,6 +10,8 @@ import { CreateClientFromRecordStub } from "./CreateClientFromRecordStub";
 import { ClientProfileCard } from "./ClientProfileCard";
 import { DoctorClientsPanel } from "./DoctorClientsPanel";
 
+type ClientsScope = "all" | "appointments";
+
 type Props = {
   searchParams: Promise<{
     q?: string;
@@ -18,6 +20,7 @@ type Props = {
     appointment?: string;
     visitedMonth?: string;
     selected?: string;
+    scope?: string;
   }>;
 };
 
@@ -27,22 +30,27 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
   const params = await searchParams;
+  const scope: ClientsScope = params.scope === "all" ? "all" : "appointments";
   const selected = params.selected;
   if (selected && !z.string().uuid().safeParse(selected).success) {
-    redirect(BASE);
+    redirect(scope === "all" ? `${BASE}?scope=all` : BASE);
   }
   const [allClients, selectedData] = await Promise.all([
-    deps.doctorClients.listClients({
-      onlyWithAppointmentRecords: true,
-      visitedThisCalendarMonth: params.visitedMonth === "1",
-    }),
+    deps.doctorClients.listClients(
+      scope === "all"
+        ? {}
+        : {
+            onlyWithAppointmentRecords: true,
+            visitedThisCalendarMonth: params.visitedMonth === "1",
+          },
+    ),
     selected
       ? Promise.all([
           deps.doctorClients.getClientProfile(selected),
           deps.doctorMessaging.prepareMessageDraft({ userId: selected }),
-          deps.doctorMessaging.listMessageHistory(selected, 10),
+          deps.doctorMessaging.listMessageHistory({ userId: selected, pageSize: 10 }),
         ]).then(([profile, messageDraft, messageHistory]) =>
-          profile ? { profile, messageDraft, messageHistory } : null,
+          profile ? { profile, messageDraft, messageHistory: messageHistory.items } : null,
         )
       : Promise.resolve(null),
   ]);
@@ -53,7 +61,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
 
   return (
     <AppShell title="Клиенты" user={session.user} variant="doctor">
-      <CreateClientFromRecordStub />
+      {scope === "appointments" ? <CreateClientFromRecordStub /> : null}
       <div id="doctor-clients-master-detail" className="md:grid md:grid-cols-[1fr_2fr] md:gap-4">
         <div id="doctor-clients-list-column">
           <section

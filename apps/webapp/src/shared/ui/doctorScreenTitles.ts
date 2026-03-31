@@ -6,7 +6,6 @@ export function getDoctorScreenTitle(pathname: string): string {
   if (p === "/app/doctor") return "Обзор";
 
   const exact: Record<string, string> = {
-    "/app/doctor/subscribers": "Подписчики",
     "/app/doctor/clients": "Клиенты",
     "/app/doctor/appointments": "Записи",
     "/app/doctor/messages": "Сообщения",
@@ -22,7 +21,8 @@ export function getDoctorScreenTitle(pathname: string): string {
   };
   if (exact[p]) return exact[p]!;
 
-  if (p.startsWith("/app/doctor/subscribers/") && p !== "/app/doctor/subscribers") return "Подписчик";
+  if (p === "/app/doctor/subscribers") return "Клиенты";
+  if (p.startsWith("/app/doctor/subscribers/")) return "Клиент";
   if (p.startsWith("/app/doctor/clients/") && p !== "/app/doctor/clients") return "Клиент";
   if (p.startsWith("/app/doctor/exercises/") && p !== "/app/doctor/exercises/new") return "Редактирование упражнения";
   if (p.startsWith("/app/doctor/lfk-templates/") && p !== "/app/doctor/lfk-templates/new")
