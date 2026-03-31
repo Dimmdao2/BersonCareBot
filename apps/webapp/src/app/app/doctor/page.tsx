@@ -6,14 +6,28 @@ import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
+import { DoctorDashboardContextWidgets } from "./DoctorDashboardContextWidgets";
 
 export default async function DoctorPage() {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
-  const dashboard = await deps.doctorStats.getDashboardMetrics();
+  const [dashboard, futureAppointments] = await Promise.all([
+    deps.doctorStats.getDashboardMetrics(),
+    deps.doctorAppointments.listAppointmentsForSpecialist({ kind: "futureActive" }),
+  ]);
+  const nearestAppointment = futureAppointments[0]
+    ? {
+        id: futureAppointments[0].id,
+        clientUserId: futureAppointments[0].clientUserId,
+        clientLabel: futureAppointments[0].clientLabel,
+        time: futureAppointments[0].time,
+        type: futureAppointments[0].type,
+      }
+    : null;
 
   return (
     <AppShell title="Обзор" user={session.user} variant="doctor">
+      <DoctorDashboardContextWidgets nearestAppointment={nearestAppointment} />
       <section id="doctor-dashboard-patients" className="flex flex-col gap-4 mb-6">
         <h2 className="text-base font-semibold text-muted-foreground">Пациенты</h2>
         <div
@@ -22,20 +36,20 @@ export default async function DoctorPage() {
         >
           <DashboardTile
             id="doctor-dashboard-tile-patients-total"
-            href="/app/doctor/subscribers"
+            href="/app/doctor/clients?scope=all"
             label="Всего в базе"
             value={dashboard.patients.total}
           />
           <DashboardTile
             id="doctor-dashboard-tile-patients-support"
-            href="/app/doctor/subscribers?appointment=1"
+            href="/app/doctor/clients?scope=all&appointment=1"
             label="На сопровождении"
             value={dashboard.patients.onSupport}
             hint="Есть будущая запись"
           />
           <DashboardTile
             id="doctor-dashboard-tile-patients-month"
-            href="/app/doctor/clients?visitedMonth=1"
+            href="/app/doctor/clients?scope=appointments&visitedMonth=1"
             label="Были на приёме (месяц)"
             value={dashboard.patients.visitedThisMonth}
             hint="Прошедший слот в текущем UTC-месяце"
