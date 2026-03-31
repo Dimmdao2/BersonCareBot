@@ -405,6 +405,43 @@
 - **CI:** green (`pnpm run ci`)
 - **Замечания аудита:**
 
+### 2.5 — Frontend блока 2.B: native booking UI в кабинете пациента
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/patient/cabinet/page.tsx` — кабинет переведён на новый каркас block 2.B (активные/история/entrypoint записи)
+  - `apps/webapp/src/app/app/patient/cabinet/CabinetBookingEntry.tsx` — mobile-first flow записи в `Sheet` (mobile) / `Dialog` (desktop)
+  - `apps/webapp/src/app/app/patient/cabinet/{BookingCategoryGrid.tsx,BookingCalendar.tsx,BookingSlotList.tsx,BookingConfirmationForm.tsx}` — UI шаги выбора формата, даты, времени и подтверждения
+  - `apps/webapp/src/app/app/patient/cabinet/{CabinetActiveBookings.tsx,BookingCardActions.tsx,useCancelBooking.ts}` — карточки активных записей и отмена из UI
+  - `apps/webapp/src/app/app/patient/cabinet/{CabinetPastBookings.tsx,CabinetInfoLinks.tsx}` — блок истории (accordion) и инфо-ссылки
+  - `apps/webapp/src/app/app/patient/cabinet/{useBookingSelection.ts,useBookingSlots.ts,useCreateBooking.ts,useMobileViewport.ts}` — client hooks/state для booking flow
+  - `apps/webapp/src/app/app/patient/cabinet/cabinet.md` — обновлена документация экрана
+- **Тесты:** регресс подтверждён общим прогоном CI
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 2.6 — Integration блока 2.C: уведомления, напоминания, Rubitime/Google Calendar sync
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/modules/patient-booking/{ports.ts,service.ts}` — добавлен emit lifecycle-событий `booking.created`/`booking.cancelled` после create/cancel
+  - `apps/webapp/src/modules/integrator/bookingM2mApi.ts` — добавлен signed M2M endpoint-вызов `/api/bersoncare/rubitime/booking-event`
+  - `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` — добавлен endpoint `POST /api/bersoncare/rubitime/booking-event` (пациентские и doctor-уведомления через Telegram/MAX, планирование/removal reminder jobs 24ч/2ч)
+  - `apps/integrator/src/app/routes.ts` — прокинут `dispatchPort` в Rubitime M2M routes
+  - `apps/integrator/src/infra/db/repos/bookingCalendarMap.ts` + `apps/integrator/src/integrations/rubitime/db/migrations/20260331_0003_booking_calendar_map.sql` — persistent mapping `rubitime_record_id -> gcal_event_id`
+  - `apps/integrator/src/integrations/google-calendar/sync.ts` — убран in-memory map, sync переведён на DB-backed mapping
+  - `apps/integrator/src/integrations/rubitime/{connector.ts,webhook.ts}` + `apps/integrator/src/content/rubitime/scripts.json` + `apps/integrator/src/infra/db/{repos/bookingRecords.ts,writePort.ts}` — прокинут/сохранён `gcalEventId` в booking projection
+  - `apps/webapp/src/app/app/patient/booking/page.tsx` — legacy iframe route переведён на redirect в native cabinet flow
+- **Тесты:** регресс подтверждён общим прогоном CI
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
 ---
 
 ## Аудит Фазы 2
