@@ -558,11 +558,107 @@
 - **CI:** green (`pnpm run ci`)
 - **Замечания аудита:**
 
+### Phase 3 rework (AUDIT_PHASE_3)
+
+- **Статус:** done
+- **Агент/модель:** agent auto
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/clients/page.tsx` — `listBasePathWithScope` для master-detail
+  - `apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx` — метка «назад» при `scope=all`
+  - `apps/webapp/src/app/app/doctor/messages/page.tsx` — редирект при невалидном `clientId`, сохранение прочих параметров
+  - `apps/webapp/src/app/app/doctor/messages/parseMessagesLogClientId.ts` — парсинг/валидация UUID
+  - `apps/webapp/src/modules/doctor-messaging/service.ts` — санация `filters.userId` перед репозиторием
+  - `apps/webapp/src/app/app/doctor/exercises/ExercisesFiltersForm.tsx` — `flushSync` + `requestSubmit` на сброс области
+- **Новые тесты:**
+  - `parseMessagesLogClientId.test.ts`, `service.test.ts` (invalid `userId`), `pgMessageLog.test.ts`, `ExercisesFiltersForm.test.tsx`, `ClientProfileCard.backLink.test.tsx`, `e2e/doctor-clients-scope-redirects.test.ts`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:** закрыты findings #1–#4 в `AUDIT_PHASE_3.md` → **pass**
+- **Доработки:** см. rework-план Phase3 Audit Rework (без правок файла плана)
+
 ---
 
 ## Фаза 4 — Рассылки
 
-*(записи добавляются по мере декомпозиции — 4 задачи, см. PLAN.md)*
+### 4.1 — Server Actions для рассылок + исправить resolveAudienceSize
+
+- **Статус:** done
+- **Агент/модель:** claude-4.6-sonnet-medium
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/broadcasts/actions.ts` — создан модуль `"use server"` с тремя Actions: `previewBroadcastAction`, `executeBroadcastAction`, `listBroadcastAuditAction`
+  - `apps/webapp/src/app/app/doctor/broadcasts/actions.test.ts` — unit-тесты с моком `buildAppDeps`
+  - `apps/webapp/src/app-layer/di/buildAppDeps.ts` — `resolveAudienceSize` переписан с явными ветками per-filter; `without_appointment` считается как `all − with_upcoming_appointment`; `inactive` и `sms_only` — с TODO-комментарием
+  - `apps/webapp/src/shared/ui/DoctorHeader.tsx` — восстановлен пункт меню «Рассылки»
+- **Тесты:** добавлены unit-тесты `actions.test.ts`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 4.2 — Компонент `BroadcastAudienceSelect` + `labels.ts`
+
+- **Статус:** done
+- **Агент/модель:** claude-4.6-sonnet-medium
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/broadcasts/labels.ts` — `AUDIENCE_LABELS`, `CATEGORY_LABELS`, `formatAudienceLabel`, `formatCategoryLabel`, `formatBroadcastDate`
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastAudienceSelect.tsx` — контролируемый select с 8 сегментами, placeholder, поддержка `disabled`
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastAudienceSelect.test.tsx` — RTL-тесты (рендер опций, onChange, disabled)
+- **Тесты:** добавлены component-тесты
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 4.3 — Форма создания рассылки с предпросмотром (`BroadcastForm`)
+
+- **Статус:** done
+- **Агент/модель:** claude-4.6-sonnet-medium
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastForm.tsx` — клиентская форма (категория, аудитория, заголовок, текст); стейт-машина `idle/previewing/previewed/confirming/sent/error`; вызов `previewBroadcastAction`
+- **Тесты:** manual regression; стейт-машина покрыта интеграционными тестами через `BroadcastConfirmStep.test.tsx`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 4.4 — Двухшаговое подтверждение и отправка (`BroadcastConfirmStep`)
+
+- **Статус:** done
+- **Агент/модель:** claude-4.6-sonnet-medium
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastConfirmStep.tsx` — карточка summary (категория, аудитория, заголовок, N получателей), предупреждение, кнопки «Отправить N получателям» / «Назад», блокировка при `isLoading`, режим `result` для success-state
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastConfirmStep.test.tsx` — RTL-тесты (onConfirm, onCancel, isLoading, result)
+- **Тесты:** добавлены component-тесты
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 4.5 — Журнал рассылок (`BroadcastAuditLog`)
+
+- **Статус:** done
+- **Агент/модель:** claude-4.6-sonnet-medium
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastAuditLog.tsx` — таблица записей: дата, категория, аудитория, заголовок, охват, отправлено; пустое состояние; колонка ошибок скрыта если `errorCount === 0` у всех
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastAuditLog.test.tsx` — RTL-тесты (empty-state, строки, форматирование даты, скрытие колонки ошибок)
+- **Тесты:** добавлены component-тесты
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
+
+### 4.6 — Интеграция в `broadcasts/page.tsx`
+
+- **Статус:** done
+- **Агент/модель:** claude-4.6-sonnet-medium
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/broadcasts/page.tsx` — удалён placeholder-баннер; Server Component вызывает `listBroadcastAuditAction(50)` и рендерит секции «Новая рассылка» + «Журнал рассылок»
+- **Тесты:** regression через `pnpm run ci`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ---
 
