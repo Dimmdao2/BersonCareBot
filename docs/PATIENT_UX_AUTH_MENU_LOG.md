@@ -37,3 +37,23 @@
 
 - Если в БД ещё не применена миграция `040`, PG-запросы к `is_preferred_for_auth` упадут — нужен deploy migrate.
 - `preferredOtpChannel` из `check-phone` не перепроверяется против «устаревшей» привязки; основная валидация — при сохранении в профиле.
+
+---
+
+Дата: 2026-03-31
+
+## Лог выполнения (дневники и безопасность)
+
+| STEP | FILES | RATIONALE | TESTS | STATUS |
+|------|-------|-----------|-------|--------|
+| F1 | `app/patient/diary/symptoms/SymptomTrackingRow.tsx` | Добавление записи по кнопке `+` в строке симптома (без отдельной формы на странице) | vitest webapp + ci | done |
+| F2 | `app/patient/diary/page.tsx`, удалён `AddEntryForm.tsx` | Убран дублирующий блок «Добавить запись» на общей странице дневника | vitest webapp + ci | done |
+| F3 | `modules/diaries/stats/aggregation.ts`, `api/patient/diary/symptom-stats/*`, `SymptomChart*.tsx` | Статистика симптома: две линии разного цвета («в моменте»/«за день») | unit + route tests + ci | done |
+| F4 | `api/auth/pin/verify/*`, `api/patient/diary/purge*/*`, `infra/repos/pgDiaryPurge.ts`, `profile/DiaryDataPurgeSection.tsx` | Безопасное удаление только дневниковых данных (PIN + SMS + транзакция) | route tests + ci | done |
+
+## Итоговый отчёт (2026-03-31)
+
+1. Единая страница дневника больше не показывает общий блок «Добавить запись».
+2. Добавление симптома выполняется из строки трекинга и обновляет статистику/журнал по клиентскому событию.
+3. График симптома показывает две отдельные серии (`instant`, `daily`) с легендой и разными цветами.
+4. В профиле добавлен destructive-flow удаления дневниковых данных с двумя факторами подтверждения (PIN и SMS OTP), без удаления профиля пользователя.

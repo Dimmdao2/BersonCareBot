@@ -69,6 +69,27 @@
 7. Главная пациента (блок «Уроки») — карточки разделов из БД.
 8. `pnpm run ci` — зелёный.
 
+## Медиа-библиотека и выбор файлов в CMS
+
+Цель: не вводить вручную URL картинок и видео; выбирать из загруженных в систему файлов, с возможностью загрузки и администрирования.
+
+### API (webapp)
+
+- `GET /api/admin/media` — список медиа (фильтры/сортировка на стороне сервера по согласованной с UI модели).
+- `DELETE /api/admin/media/[id]` — если файл используется в контенте, ответ `409` с телом `usage`; повтор запроса с query `confirmUsed=true` выполняет жёсткое удаление.
+- Загрузка медиа через существующий контракт upload (см. `apps/webapp/src/app/api/media/` и модули `modules/media`).
+
+### Интерфейс врача
+
+- Страница библиотеки: **`/app/doctor/content/library`** — просмотр, фильтры, сортировка, загрузка, удаление с учётом использования.
+- В форме контента (**`ContentForm`**) поля изображения и видео переведены на выбор из библиотеки (диалог выбора вместо «сырых» URL); для видео тип `api` согласован с server action и отображением на странице пациента.
+
+### Тесты
+
+- Route-обработчики admin media покрыты тестами в `apps/webapp/src/app/api/admin/media/` (`route.test.ts`, `[id]/route.test.ts`).
+
+---
+
 ## Дополнения (пациент: вход, PIN, меню, бот)
 
 - **Mini App из Telegram/MAX:** в сценариях `assistant.open` кнопка открытия webapp через `webAppUrlFact` (не `url`); для MAX в facts к URL добавлен `ctx=bot` (как в Telegram). См. `apps/integrator/src/content/*/user/scripts.json`, `apps/integrator/src/integrations/max/webhook.ts`.

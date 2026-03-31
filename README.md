@@ -85,4 +85,4 @@ pnpm run worker:dev
 
 ## Деплой
 
-Деплой на хост через GitHub Actions: `push` в `main` запускает workflow и выполнение `deploy/host/deploy-prod.sh` на сервере. Подробности: `deploy/HOST_DEPLOY_README.md`.
+Проверки и деплой на хост: workflow `.github/workflows/ci.yml` — job проверок (`pnpm run ci`) и, после успеха на `main`, job **Deploy** по SSH (`deploy/host/deploy-prod.sh` на сервере). Подробности и operational runbook: `deploy/HOST_DEPLOY_README.md`.

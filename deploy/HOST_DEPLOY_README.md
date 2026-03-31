@@ -32,6 +32,15 @@
 | Public webapp URL | `https://webapp.bersonservices.ru` |
 | Backup script | `/opt/backups/scripts/postgres-backup.sh` |
 
+### GitHub Actions (репозиторий)
+
+В `.github/workflows/ci.yml` задано два job:
+
+1. **Lint, typecheck & build** — на `push` (в т.ч. `main`) и на `pull_request`: `pnpm install --frozen-lockfile`, затем `pnpm run ci` (как в правилах репозитория: lint, typecheck, тесты integrator и webapp, сборки, audit).
+2. **Deploy** — только после успешного первого job, только при `push` в `ref` `main`: по SSH на хост выполняется `bash <DEPLOY_PATH>/deploy/host/deploy-prod.sh` (секреты: `DEPLOY_SSH_KEY`, `DEPLOY_USER`, `DEPLOY_HOST`, `DEPLOY_PATH`).
+
+Отдельный workflow `deploy-host.yml` в репозитории **нет** (ранее мог существовать; актуальный путь деплоя — job **Deploy** внутри `ci.yml`).
+
 ---
 
 ## Что реально работает на хосте

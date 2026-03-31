@@ -2,7 +2,7 @@
 
 ## Порты и инфраструктура (источник истины)
 
-**Порты BersonCareBot:** см. **SERVER CONVENTIONS.md** в корне репозитория.
+**Порты BersonCareBot:** см. **docs/ARCHITECTURE/SERVER CONVENTIONS.md**.
 
 | Служба   | Dev  | Prod |
 |----------|------|------|
@@ -11,6 +11,18 @@
 
 Деплой, nginx, БД, systemd: **deploy/HOST_DEPLOY_README.md**.
 Cutover/backfill/reconcile env для prod/dev: **docs/ARCHITECTURE/SERVER CONVENTIONS.md** и **deploy/env/README.md**.
+
+---
+
+## Недавние изменения (факт по репозиторию, 2026-03)
+
+- **CMS и медиа:** библиотека файлов для врача (`/app/doctor/content/library`), API `GET/DELETE /api/admin/media`, выбор картинки/видео в форме контента из библиотеки — см. **docs/CONTENT_CMS_REPORT.md** (раздел «Медиа-библиотека»).
+- **CI:** единый workflow `.github/workflows/ci.yml` — job проверок (`pnpm run ci`) и job **Deploy** на `main` по SSH (`deploy/host/deploy-prod.sh`); отдельный workflow `deploy-host.yml` **удалён** (дублирование не используется).
+- **Тесты webapp:** для стабильности `exchangeIntegratorToken.maxWhitelist` в CI замокан `configAdapter` (`getConfigValue` → env fallback), чтобы настройки из БД не переопределяли whitelist в тестах.
+- **Дневник симптомов (пациент):** доработки журнала и трекинга, клиентские события (`symptomDiaryClientEvents`), отдельные клиентские компоненты — см. `apps/webapp/src/modules/diaries/diaries.md`.
+- **Дневник симптомов (2026-03-31):** форма «Добавить запись» на общей странице дневника удалена; добавление идёт через `+` в строке симптома и быстрые сценарии. График симптома теперь двухлинейный: отдельные серии «в моменте» и «за день» (`/api/patient/diary/symptom-stats` -> `instant`/`daily`).
+- **Профиль / безопасность (2026-03-31):** добавлен destructive-flow удаления только дневниковых данных пациента (PIN + SMS OTP + транзакционный purge), API: `/api/auth/pin/verify`, `/api/patient/diary/purge-otp/start`, `/api/patient/diary/purge`.
+- **Integrator:** в `writePort` доработан сценарий upsert пользователя; добавлен тест `writePort.userUpsert.test.ts`.
 
 ---
 
@@ -32,7 +44,7 @@ Cutover/backfill/reconcile env для prod/dev: **docs/ARCHITECTURE/SERVER CONVE
 | **MAX_CAPABILITY_MATRIX.md** | Матрица Telegram vs MAX: механики, уведомления, Web App. |
 | **MAX_SETUP.md** | Подключение MAX: env, webhook, smoke-тесты. |
 | **LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md** | Low-level аудит auth, DI, composition roots (2026-03). |
-| **CONTENT_CMS_REPORT.md** | CMS: динамические разделы (`content_sections`), маршруты пациента и врача. |
+| **CONTENT_CMS_REPORT.md** (`docs/CONTENT_CMS_REPORT.md`) | CMS: разделы `content_sections`, маршруты пациента и врача, медиа-библиотека и выбор файлов в форме контента. |
 
 ### MIGRATION/ — текущий план переноса данных и задачи
 
@@ -68,7 +80,7 @@ Cutover/backfill/reconcile env для prod/dev: **docs/ARCHITECTURE/SERVER CONVE
 |------|------------|
 | **README.md** | Запуск, конфиг, команды, endpoints. |
 | **ARCHITECTURE.md** | Контракт: слои, запреты, pipeline, изоляция. |
-| **SERVER CONVENTIONS.md** | Порты, БД, пользователи PostgreSQL, nginx, systemd. |
+| **docs/ARCHITECTURE/SERVER CONVENTIONS.md** | Порты, БД, пользователи PostgreSQL, nginx, systemd. |
 | **SCENARIO_LOGIC_SUMMARY.md** | Логика сценариев (Telegram, Rubitime). |
 
 ---
