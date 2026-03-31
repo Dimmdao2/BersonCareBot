@@ -1,0 +1,221 @@
+"use client";
+
+import { useTransition, useState } from "react";
+import type {
+  BroadcastAuditEntry,
+  BroadcastAudienceFilter,
+  BroadcastCategory,
+  BroadcastCommand,
+  BroadcastPreviewResult,
+} from "@/modules/doctor-broadcasts/ports";
+import { CATEGORY_LABELS } from "./labels";
+import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
+import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
+import { previewBroadcastAction, executeBroadcastAction } from "./actions";
+
+type Stage = "idle" | "previewing" | "previewed" | "confirming" | "sent" | "error";
+
+const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS) as [BroadcastCategory, string][];
+
+type Props = {
+  onBroadcastSent?: (entry: BroadcastAuditEntry) => void;
+};
+
+export function BroadcastForm({ onBroadcastSent }: Props) {
+  const [isPending, startTransition] = useTransition();
+  const [stage, setStage] = useState<Stage>("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [preview, setPreview] = useState<BroadcastPreviewResult | null>(null);
+  const [sentEntry, setSentEntry] = useState<BroadcastAuditEntry | null>(null);
+
+  const [category, setCategory] = useState<BroadcastCategory | "">("");
+  const [audience, setAudience] = useState<BroadcastAudienceFilter | "">("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+
+  const isFormLocked = stage === "previewing" || stage === "confirming";
+
+  function buildCommand(): Omit<BroadcastCommand, "actorId"> | null {
+    if (!category || !audience || !title.trim() || body.trim().length < 10) return null;
+    return {
+      category,
+      audienceFilter: audience,
+      message: { title: title.trim(), body: body.trim() },
+    };
+  }
+
+  const isPreviewValid = Boolean(category && audience && title.trim() && body.trim().length >= 10);
+
+  function handlePreview() {
+    const command = buildCommand();
+    if (!command) return;
+    setErrorMsg(null);
+    setStage("previewing");
+    startTransition(async () => {
+      try {
+        const result = await previewBroadcastAction(command);
+        setPreview(result);
+        setStage("previewed");
+      } catch {
+        setStage("error");
+        setErrorMsg("Ошибка при получении предпросмотра. Попробуйте ещё раз.");
+      }
+    });
+  }
+
+  function handleConfirm() {
+    const command = buildCommand();
+    if (!command || !preview) return;
+    setStage("confirming");
+    startTransition(async () => {
+      try {
+        const { auditEntry } = await executeBroadcastAction(command);
+        setSentEntry(auditEntry);
+        setStage("sent");
+        onBroadcastSent?.(auditEntry);
+      } catch {
+        setStage("error");
+        setErrorMsg("Ошибка при отправке рассылки. Попробуйте ещё раз.");
+      }
+    });
+  }
+
+  function handleCancelConfirm() {
+    setPreview(null);
+    setStage("idle");
+  }
+
+  function handleReset() {
+    setCategory("");
+    setAudience("");
+    setTitle("");
+    setBody("");
+    setPreview(null);
+    setSentEntry(null);
+    setErrorMsg(null);
+    setStage("idle");
+  }
+
+  if (stage === "sent" && preview && sentEntry) {
+    return (
+      <div className="flex flex-col gap-4">
+        <BroadcastConfirmStep
+          preview={preview}
+          command={buildCommand() ?? { category: sentEntry.category, audienceFilter: sentEntry.audienceFilter, message: { title: sentEntry.messageTitle, body: "" } }}
+          onConfirm={handleConfirm}
+          onCancel={handleCancelConfirm}
+          isLoading={false}
+          result={sentEntry}
+        />
+        <button
+          type="button"
+          onClick={handleReset}
+          className="self-start rounded-md border border-border px-4 py-2 text-sm"
+        >
+          Создать новую рассылку
+        </button>
+      </div>
+    );
+  }
+
+  if ((stage === "previewed" || stage === "confirming") && preview) {
+    const command = buildCommand();
+    if (!command) return null;
+    return (
+      <BroadcastConfirmStep
+        preview={preview}
+        command={command}
+        onConfirm={handleConfirm}
+        onCancel={handleCancelConfirm}
+        isLoading={isPending || stage === "confirming"}
+        result={null}
+      />
+    );
+  }
+
+  return (
+    <div id="broadcast-form" className="flex flex-col gap-4">
+      {(stage === "error" || errorMsg) && (
+        <p id="broadcast-error" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {errorMsg ?? "Произошла ошибка."}
+        </p>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="broadcast-category" className="text-sm font-medium">
+          Категория <span aria-hidden>*</span>
+        </label>
+        <select
+          id="broadcast-category"
+          value={category}
+          disabled={isFormLocked}
+          onChange={(e) => setCategory(e.target.value as BroadcastCategory)}
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="" disabled>
+            — выберите категорию —
+          </option>
+          {CATEGORY_OPTIONS.map(([v, label]) => (
+            <option key={v} value={v}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="broadcast-audience" className="text-sm font-medium">
+          Аудитория <span aria-hidden>*</span>
+        </label>
+        <BroadcastAudienceSelect
+          id="broadcast-audience"
+          value={audience}
+          onChange={setAudience}
+          disabled={isFormLocked}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="broadcast-title" className="text-sm font-medium">
+          Заголовок <span aria-hidden>*</span>
+        </label>
+        <input
+          id="broadcast-title"
+          type="text"
+          value={title}
+          maxLength={200}
+          disabled={isFormLocked}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Заголовок сообщения"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="broadcast-body" className="text-sm font-medium">
+          Текст сообщения <span aria-hidden>*</span>
+        </label>
+        <textarea
+          id="broadcast-body"
+          value={body}
+          disabled={isFormLocked}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Текст рассылки (минимум 10 символов)"
+          rows={5}
+          className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        <p className="text-xs text-muted-foreground text-right">{body.length} символов</p>
+      </div>
+
+      <button
+        type="button"
+        id="broadcast-preview-button"
+        onClick={handlePreview}
+        disabled={!isPreviewValid || isFormLocked || isPending}
+        className="self-start rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+      >
+        {stage === "previewing" ? "Загрузка…" : "Предпросмотр"}
+      </button>
+    </div>
+  );
+}
