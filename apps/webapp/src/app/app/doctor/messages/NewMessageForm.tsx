@@ -63,7 +63,7 @@ export function NewMessageForm({ clients }: NewMessageFormProps) {
         </label>
         <select
           id="msg-recipient"
-          className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
           value={selectedUserId}
           onChange={handleClientChange}
           aria-label="Выберите клиента"
@@ -104,7 +104,7 @@ export function NewMessageForm({ clients }: NewMessageFormProps) {
             <select
               id="msg-category"
               name="category"
-              className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {MESSAGE_CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>

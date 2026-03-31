@@ -27,17 +27,20 @@ export function DiaryTabsClient({
       className="flex flex-col gap-4"
     >
       {/* top-14 (3.5rem) ≈ высота PatientHeader (py-2 + ряд иконок size-10) */}
-      <div className="safe-bleed-x sticky top-14 z-30 border-b border-border/60 bg-[var(--patient-bg)] py-2 supports-[backdrop-filter]:backdrop-blur-sm">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg bg-muted/70 p-1">
+      <div className="safe-bleed-x sticky top-14 z-30 py-2">
+        <TabsList
+          variant="line"
+          className="grid h-auto w-full grid-cols-2 gap-2 rounded-none bg-transparent p-0"
+        >
           <TabsTrigger
             value="symptoms"
-            className="h-auto rounded-md py-2.5 text-muted-foreground shadow-none after:hidden aria-selected:bg-primary/10 aria-selected:font-semibold aria-selected:text-primary"
+            className="h-auto rounded-lg bg-transparent py-2.5 text-muted-foreground shadow-none after:hidden data-active:bg-primary/20 data-active:font-semibold data-active:text-primary data-active:shadow-none dark:data-active:bg-primary/25"
           >
             Симптомы
           </TabsTrigger>
           <TabsTrigger
             value="lfk"
-            className="h-auto rounded-md py-2.5 text-muted-foreground shadow-none after:hidden aria-selected:bg-primary/10 aria-selected:font-semibold aria-selected:text-primary"
+            className="h-auto rounded-lg bg-transparent py-2.5 text-muted-foreground shadow-none after:hidden data-active:bg-primary/20 data-active:font-semibold data-active:text-primary data-active:shadow-none dark:data-active:bg-primary/25"
           >
             ЛФК
           </TabsTrigger>

@@ -99,7 +99,7 @@ export function LfkStatsTable({ complexes }: { complexes: LfkStatsComplexOption[
         <label className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Режим</span>
           <select
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
+            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
             value={detailComplexId ?? ""}
             onChange={(e) => {
               const v = e.target.value;

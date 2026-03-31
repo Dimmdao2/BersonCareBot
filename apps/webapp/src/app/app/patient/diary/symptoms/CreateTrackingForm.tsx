@@ -15,7 +15,9 @@ const SIDE_OPTIONS: { value: SymptomSide; label: string }[] = [
   { value: "both", label: "Обе" },
 ];
 
-export function CreateTrackingForm() {
+export function CreateTrackingForm({
+  onSuccess,
+}: { onSuccess?: (tracking: { id: string; symptomTitle: string }) => void } = {}) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [symptomTypeRefId, setSymptomTypeRefId] = useState<string | null>(null);
   const [regionRefId, setRegionRefId] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export function CreateTrackingForm() {
         startTransition(async () => {
           const result = await createSymptomTracking(fd);
           if (result.ok) {
-            toast.success("Симптом добавлен");
+            toast.success("Отслеживание добавлено");
             form.reset();
             setShowAdvanced(false);
             setSymptomTypeRefId(null);
@@ -41,6 +43,7 @@ export function CreateTrackingForm() {
             setDiagnosisRefId(null);
             setStageRefId(null);
             setSide(null);
+            onSuccess?.(result.tracking);
           } else {
             toast.error("Укажите название или выберите тип в блоке «Дополнительно»");
           }

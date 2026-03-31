@@ -9,6 +9,7 @@ import {
   hasInstantDuplicateInWindow,
   SYMPTOM_INSTANT_DEDUP_MS,
 } from "./symptomEntryDedup";
+import { isSymptomJournalEntryEditable } from "./symptomJournalEditWindow";
 
 function parseOptionalId(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -105,7 +106,11 @@ export async function addSymptomEntry(
   return { ok: true };
 }
 
-export async function createSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
+export type CreateSymptomTrackingResult =
+  | { ok: false }
+  | { ok: true; tracking: { id: string; symptomTitle: string } };
+
+export async function createSymptomTracking(formData: FormData): Promise<CreateSymptomTrackingResult> {
   const session = await requirePatientAccess(routePaths.diary);
   const deps = buildAppDeps();
 
@@ -137,7 +142,7 @@ export async function createSymptomTracking(formData: FormData): Promise<{ ok: b
   if (!resolvedTitle) resolvedTitle = "—";
 
   try {
-    await deps.diaries.createSymptomTracking({
+    const created = await deps.diaries.createSymptomTracking({
       userId: session.user.userId,
       symptomTitle: resolvedTitle,
       symptomTypeRefId,
@@ -147,12 +152,15 @@ export async function createSymptomTracking(formData: FormData): Promise<{ ok: b
       diagnosisRefId,
       stageRefId,
     });
+    revalidatePath(routePaths.diary);
+    return {
+      ok: true,
+      tracking: { id: created.id, symptomTitle: created.symptomTitle ?? "—" },
+    };
   } catch (err) {
     console.error("createSymptomTracking failed:", err);
     return { ok: false };
   }
-  revalidatePath(routePaths.diary);
-  return { ok: true };
 }
 
 export async function renameSymptomTracking(formData: FormData) {
@@ -226,7 +234,6 @@ export async function updateSymptomJournalEntry(formData: FormData): Promise<{ o
   const recordedAtRawVal = formData.get("recordedAt");
   const recordedAtRaw = typeof recordedAtRawVal === "string" ? recordedAtRawVal.trim() : "";
   const valueRaw = formData.get("value");
-  const entryTypeRaw = formData.get("entryType");
   const notesRaw = formData.get("notes");
   if (!entryId || !recordedAtRaw) return { ok: false };
   const at = new Date(recordedAtRaw);
@@ -234,7 +241,6 @@ export async function updateSymptomJournalEntry(formData: FormData): Promise<{ o
   if (typeof valueRaw !== "string") return { ok: false };
   const value0_10 = Number.parseInt(valueRaw, 10);
   if (Number.isNaN(value0_10) || value0_10 < 0 || value0_10 > 10) return { ok: false };
-  if (entryTypeRaw !== "instant" && entryTypeRaw !== "daily") return { ok: false };
   const notes =
     typeof notesRaw === "string" && notesRaw.trim() ? notesRaw.trim() : null;
   if (notes && notes.length > 2000) return { ok: false };
@@ -243,13 +249,14 @@ export async function updateSymptomJournalEntry(formData: FormData): Promise<{ o
   const userId = session.user.userId;
   const existing = await deps.diaries.getSymptomEntryForUser({ userId, entryId });
   if (!existing) return { ok: false };
+  if (!isSymptomJournalEntryEditable(existing.recordedAt)) return { ok: false };
 
   try {
     await deps.diaries.updateSymptomEntry({
       userId,
       entryId,
       value0_10,
-      entryType: entryTypeRaw,
+      entryType: existing.entryType,
       recordedAt: at.toISOString(),
       notes,
     });

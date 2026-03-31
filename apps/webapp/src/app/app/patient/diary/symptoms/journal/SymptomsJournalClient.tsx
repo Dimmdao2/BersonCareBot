@@ -27,6 +27,7 @@ import type { StatsPeriod } from "@/modules/diaries/stats/periodWindow";
 import type { SymptomEntry } from "@/modules/diaries/types";
 import { JournalMonthNav } from "../../JournalMonthNav";
 import { deleteSymptomJournalEntry, updateSymptomJournalEntry } from "../actions";
+import { isSymptomJournalEntryEditable } from "../symptomJournalEditWindow";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -74,7 +75,7 @@ export function SymptomsJournalClient(props: {
         <label className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Симптом</span>
           <select
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
+            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
             value={activeTrackingId}
             onChange={(e) => {
               router.push(trackingHref(e.target.value));
@@ -104,7 +105,9 @@ export function SymptomsJournalClient(props: {
         <p className="text-muted-foreground text-sm">За этот месяц записей нет.</p>
       ) : (
         <ul className="m-0 list-none space-y-3 p-0">
-          {entries.map((e) => (
+          {entries.map((e) => {
+            const canEdit = isSymptomJournalEntryEditable(e.recordedAt);
+            return (
             <li
               key={e.id}
               className="rounded-lg border border-border bg-card p-3 flex flex-wrap items-start justify-between gap-2"
@@ -131,10 +134,16 @@ export function SymptomsJournalClient(props: {
                   <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => setEditEntry(e)}>Редактировать</DropdownMenuItem>
+                  {canEdit ? (
+                    <DropdownMenuItem onClick={() => setEditEntry(e)}>Редактировать</DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem disabled title="Редактирование доступно в течение 24 часов с момента времени записи">
+                      Редактировать
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     variant="destructive"
-                    onSelect={() => {
+                    onClick={() => {
                       if (!window.confirm("Удалить эту запись?")) return;
                       startTransition(async () => {
                         const fd = new FormData();
@@ -154,7 +163,8 @@ export function SymptomsJournalClient(props: {
                 </DropdownMenuContent>
               </DropdownMenu>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 
@@ -164,71 +174,77 @@ export function SymptomsJournalClient(props: {
             <DialogTitle>Редактировать запись</DialogTitle>
           </DialogHeader>
           {editEntry ? (
-            <form
-              className="flex flex-col gap-3"
-              onSubmit={(ev) => {
-                ev.preventDefault();
-                const form = ev.currentTarget;
-                const fd = new FormData(form);
-                const local = fd.get("recordedAtLocal");
-                if (typeof local !== "string" || !local) {
-                  toast.error("Укажите дату и время");
-                  return;
-                }
-                fd.set("recordedAt", new Date(local).toISOString());
-                fd.set("entryId", editEntry.id);
-                startTransition(async () => {
-                  const res = await updateSymptomJournalEntry(fd);
-                  if (res.ok) {
-                    toast.success("Сохранено");
-                    setEditEntry(null);
-                    router.refresh();
-                  } else {
-                    toast.error("Не удалось сохранить");
+            !isSymptomJournalEntryEditable(editEntry.recordedAt) ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Редактирование доступно только в течение 24 часов с момента времени записи.
+                </p>
+                <DialogFooter>
+                  <Button type="button" onClick={() => setEditEntry(null)}>
+                    Закрыть
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <form
+                className="flex flex-col gap-3"
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  const form = ev.currentTarget;
+                  const fd = new FormData(form);
+                  const local = fd.get("recordedAtLocal");
+                  if (typeof local !== "string" || !local) {
+                    toast.error("Укажите дату и время");
+                    return;
                   }
-                });
-              }}
-            >
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Интенсивность (0–10)</span>
-                <Input
-                  type="number"
-                  name="value"
-                  min={0}
-                  max={10}
-                  required
-                  defaultValue={editEntry.value0_10}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Тип</span>
-                <select name="entryType" className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required defaultValue={editEntry.entryType}>
-                  <option value="instant">В моменте</option>
-                  <option value="daily">За день</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Дата и время</span>
-                <Input
-                  type="datetime-local"
-                  name="recordedAtLocal"
-                  required
-                  defaultValue={toDatetimeLocalValue(editEntry.recordedAt)}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заметки</span>
-                <Textarea name="notes" rows={3} defaultValue={editEntry.notes ?? ""} />
-              </label>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setEditEntry(null)}>
-                  Отмена
-                </Button>
-                <Button type="submit" disabled={pending}>
-                  Сохранить
-                </Button>
-              </DialogFooter>
-            </form>
+                  fd.set("recordedAt", new Date(local).toISOString());
+                  fd.set("entryId", editEntry.id);
+                  startTransition(async () => {
+                    const res = await updateSymptomJournalEntry(fd);
+                    if (res.ok) {
+                      toast.success("Сохранено");
+                      setEditEntry(null);
+                      router.refresh();
+                    } else {
+                      toast.error("Не удалось сохранить");
+                    }
+                  });
+                }}
+              >
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Интенсивность (0–10)</span>
+                  <Input
+                    type="number"
+                    name="value"
+                    min={0}
+                    max={10}
+                    required
+                    defaultValue={editEntry.value0_10}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Дата и время</span>
+                  <Input
+                    type="datetime-local"
+                    name="recordedAtLocal"
+                    required
+                    defaultValue={toDatetimeLocalValue(editEntry.recordedAt)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заметки</span>
+                  <Textarea name="notes" rows={3} defaultValue={editEntry.notes ?? ""} />
+                </label>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setEditEntry(null)}>
+                    Отмена
+                  </Button>
+                  <Button type="submit" disabled={pending}>
+                    Сохранить
+                  </Button>
+                </DialogFooter>
+              </form>
+            )
           ) : null}
         </DialogContent>
       </Dialog>

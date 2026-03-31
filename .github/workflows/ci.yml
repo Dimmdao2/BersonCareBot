@@ -9,22 +9,45 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # Этап 1: линт, проверка типов и сборка (должен пройти перед deploy)
   lint-typecheck-build:
+    name: Lint, typecheck & build
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      # Устанавливаем pnpm (берёт версию из package.json)
       - uses: pnpm/action-setup@v4
 
-      # Устанавливаем Node и включаем кэш pnpm
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      # Один скрипт = те же проверки, что и локально (lint, typecheck, test, test:webapp, webapp:typecheck, build, audit)
       - run: pnpm run ci
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: lint-typecheck-build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Deploy to host
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "bash ${{ secrets.DEPLOY_PATH }}/deploy/host/deploy-prod.sh"

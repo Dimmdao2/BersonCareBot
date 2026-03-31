@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { NumericChipGroup } from "@/components/common/controls/NumericChipGroup";
 import { addSymptomEntry } from "./actions";
+import { notifyDiarySymptomEntrySaved } from "@/modules/diaries/symptomDiaryClientEvents";
 import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./symptomEntryDedup";
 
 type TrackingOption = { id: string; symptomTitle: string | null };
@@ -52,6 +53,7 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
             lastSavedRef.current = { trackingId, entryType: et, at: Date.now() };
             form.reset();
             setSelectedValue(null);
+            notifyDiarySymptomEntrySaved();
           } else if (result.reason === "duplicate_instant") {
             toast.error("Похожая запись в моменте уже сохранена только что");
           } else if (result.reason === "duplicate_daily") {
@@ -71,7 +73,7 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
           <select
             id="symptom-entry-tracking"
             name="trackingId"
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
             required
             defaultValue={trackings[0]?.id}
           >
@@ -94,7 +96,7 @@ export function AddEntryForm({ trackings }: { trackings: TrackingOption[] }) {
       </div>
       <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Тип записи</span>
-        <select id="symptom-entry-type" name="entryType" className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required defaultValue="instant">
+        <select id="symptom-entry-type" name="entryType" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required defaultValue="instant">
           <option value="instant">В моменте</option>
           <option value="daily">За день</option>
         </select>

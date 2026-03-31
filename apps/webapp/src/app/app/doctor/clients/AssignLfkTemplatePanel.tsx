@@ -36,7 +36,7 @@ export function AssignLfkTemplatePanel({
         <Label htmlFor={`assign-lfk-${patientUserId}`}>Шаблон</Label>
         <select
           id={`assign-lfk-${patientUserId}`}
-          className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring text-sm"
+          className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring text-sm"
           value={templateId}
           onChange={(e) => setTemplateId(e.target.value)}
         >

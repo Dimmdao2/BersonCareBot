@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * Блок «Подключите удобный вам мессенджер»: Telegram (deep-link с одноразовым секретом), MAX — статическая ссылка.
+ * Блок «Подключите удобный вам мессенджер»: Telegram/MAX через одноразовый link-token.
+ * Для MAX дополнительно показывается команда `/start link_...`, если deep-link не подставился автоматически.
  */
 
 import { useState } from "react";
@@ -25,18 +26,38 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   const linkedCount = cards.filter((c) => c.isLinked).length;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [maxManualCommand, setMaxManualCommand] = useState<string | null>(null);
 
-  async function openTelegramLink(): Promise<void> {
+  async function copyMaxCommand(cmd: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(cmd);
+    } catch {
+      // no-op: browser clipboard may be blocked; command remains visible in UI
+    }
+  }
+
+  async function startChannelLink(channelCode: "telegram" | "max"): Promise<void> {
     setError(null);
-    setBusy("telegram");
+    setBusy(channelCode);
     try {
       const res = await fetch("/api/auth/channel-link/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ channelCode: "telegram" }),
+        body: JSON.stringify({ channelCode }),
       });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        url?: string;
+        manualCommand?: string;
+        error?: string;
+      };
       if (data.ok && data.url) {
+        if (channelCode === "max") {
+          setMaxManualCommand(data.manualCommand ?? null);
+          if (data.manualCommand) {
+            await copyMaxCommand(data.manualCommand);
+          }
+        }
         window.open(data.url, "_blank", "noopener,noreferrer");
       } else {
         setError("Не удалось получить ссылку. Попробуйте позже.");
@@ -78,10 +99,36 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
                 size="sm"
                 className="w-fit"
                 disabled={busy === "telegram"}
-                onClick={() => void openTelegramLink()}
+                onClick={() => void startChannelLink("telegram")}
               >
                 {busy === "telegram" ? "…" : "Подключить"}
               </Button>
+            ) : card.code === "max" ? (
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="w-fit"
+                  disabled={busy === "max"}
+                  onClick={() => void startChannelLink("max")}
+                >
+                  {busy === "max" ? "…" : "Подключить"}
+                </Button>
+                {maxManualCommand ? (
+                  <div className="text-xs text-muted-foreground">
+                    <p className="m-0">В чате с ботом MAX отправьте команду:</p>
+                    <code className="block rounded bg-muted px-2 py-1">{maxManualCommand}</code>
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto min-h-0 px-0 py-0 text-xs font-normal"
+                      onClick={() => void copyMaxCommand(maxManualCommand)}
+                    >
+                      Скопировать команду
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
             ) : (
               <a
                 href={card.openUrl}

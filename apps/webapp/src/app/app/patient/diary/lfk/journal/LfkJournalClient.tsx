@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -73,7 +74,7 @@ export function LfkJournalClient(props: {
         <label className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted-foreground">Комплекс</span>
           <select
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
+            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px]"
             value={activeComplexId}
             onChange={(e) => {
               router.push(complexHref(e.target.value));
@@ -109,7 +110,12 @@ export function LfkJournalClient(props: {
               className="rounded-lg border border-border bg-card p-3 flex flex-wrap items-start justify-between gap-2"
             >
               <div className="min-w-0 flex-1">
-                <strong>{s.complexTitle ?? "ЛФК"}</strong>
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong>{s.complexTitle ?? "ЛФК"}</strong>
+                  <Badge variant="secondary" className="font-normal">
+                    Завершен
+                  </Badge>
+                </div>
                 <div className="text-muted-foreground text-sm">
                   {new Date(s.completedAt).toLocaleString("ru-RU", {
                     day: "2-digit",
@@ -238,7 +244,7 @@ export function LfkJournalClient(props: {
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Комментарий</span>
                 <textarea
                   name="comment"
-                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   rows={3}
                   maxLength={200}
                   defaultValue={editSession.comment ?? ""}

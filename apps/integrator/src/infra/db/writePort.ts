@@ -194,36 +194,49 @@ export function createDbWritePort(input: {
         }
         case 'user.upsert': {
           const resource = readResource(mutation.params);
-          if (resource !== 'telegram') return;
+          if (resource !== 'telegram' && resource !== 'max') return;
           const externalId = asNonEmptyString(
             mutation.params.externalId
             ?? mutation.params.channelUserId
             ?? mutation.params.channelId,
           );
-          const parsedId = externalId ? Number(externalId) : Number.NaN;
-          if (!Number.isFinite(parsedId)) return;
           const username = asNullableString(mutation.params.username);
           const firstName = asNullableString(mutation.params.firstName);
           const lastName = asNullableString(mutation.params.lastName);
-          const userPayload = {
-            id: Math.trunc(parsedId),
-            ...(username ? { username } : {}),
-            ...(firstName ? { first_name: firstName } : {}),
-            ...(lastName ? { last_name: lastName } : {}),
-          };
-          const projectionPayload: Record<string, unknown> = {
-            integratorUserId: String(Math.trunc(parsedId)),
-            channelCode: resource,
-            externalId,
-            displayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
-          };
+          if (!externalId) return;
           await db.tx(async (txDb) => {
-            await upsertUser(txDb, userPayload);
+            let integratorUserId: string | null;
+            if (resource === 'telegram') {
+              const parsedId = Number(externalId);
+              if (!Number.isFinite(parsedId)) return;
+              const userPayload = {
+                id: Math.trunc(parsedId),
+                ...(username ? { username } : {}),
+                ...(firstName ? { first_name: firstName } : {}),
+                ...(lastName ? { last_name: lastName } : {}),
+              };
+              const row = await upsertUser(txDb, userPayload);
+              integratorUserId = row?.id ?? null;
+            } else {
+              await ensureIdentityForMessenger(txDb, { resource: 'max', externalId });
+              const identityRes = await txDb.query<{ user_id: string }>(
+                "SELECT user_id::text AS user_id FROM identities WHERE resource = $1 AND external_id = $2 LIMIT 1",
+                [resource, externalId]
+              );
+              integratorUserId = identityRes.rows[0]?.user_id ?? null;
+            }
+            if (!integratorUserId) return;
+            const projectionPayload: Record<string, unknown> = {
+              integratorUserId,
+              channelCode: resource,
+              externalId,
+              displayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
+            };
             await enqueueProjectionEvent(txDb, {
               eventType: 'user.upserted',
               idempotencyKey: projectionIdempotencyKey(
                 'user.upserted',
-                String(Math.trunc(parsedId)),
+                integratorUserId,
                 hashPayload(projectionPayload),
               ),
               occurredAt: new Date().toISOString(),

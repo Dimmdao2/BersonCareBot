@@ -76,7 +76,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
       ) : (
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Комплекс</span>
-          <select name="complexId" required className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <select name="complexId" required className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {complexes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.title ?? "—"}
@@ -133,7 +133,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
             type="date"
             value={dateDraft}
             onChange={(e) => setDateDraft(e.target.value)}
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <DialogFooter className="flex flex-row flex-wrap gap-2 sm:justify-between">
             <Button
@@ -174,7 +174,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
             type="time"
             value={timeDraft}
             onChange={(e) => setTimeDraft(e.target.value)}
-            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <DialogFooter>
             <Button
@@ -199,7 +199,7 @@ export function LfkSessionForm({ complexes }: { complexes: Complex[] }) {
           min={1}
           max={600}
           placeholder="длительность выполнения"
-          className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         <span className="text-xs text-muted-foreground">минут</span>
       </label>

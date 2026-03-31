@@ -28,6 +28,13 @@ type AppShellProps = {
   variant?: "default" | "patient" | "doctor";
   /** Доп. плавающий UI для пациента (например QuickAdd на дневнике). */
   patientFloatingSlot?: ReactNode;
+  /** Скрыть круглую кнопку быстрого добавления в дневник (FAB) внизу справа. */
+  hidePatientQuickAddFAB?: boolean;
+  /**
+   * Режим встраиваемого контента на всю ширину (например iframe записи): без зазора под шапкой,
+   * компактный нижний отступ (без поля под FAB).
+   */
+  patientEmbedMain?: boolean;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -40,12 +47,19 @@ export function AppShell({
   titleSmall,
   variant = "default",
   patientFloatingSlot,
+  hidePatientQuickAddFAB = false,
+  patientEmbedMain = false,
 }: AppShellProps) {
   if (variant === "patient") {
     return (
       <div
         id="app-shell-patient"
-        className="safe-padding-patient mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col gap-3 bg-[var(--patient-surface)] pt-[max(0px,env(safe-area-inset-top,0px))]"
+        className={cn(
+          "mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col bg-[var(--patient-surface)] pt-[max(0px,env(safe-area-inset-top,0px))]",
+          patientEmbedMain
+            ? "gap-0 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+            : "safe-padding-patient gap-3",
+        )}
       >
         <PatientHeader
           pageTitle={title}
@@ -55,12 +69,15 @@ export function AppShell({
         />
         <main
           id="app-shell-content"
-          className="flex min-h-0 flex-1 flex-col gap-[var(--patient-gap)] pt-1"
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            patientEmbedMain ? "gap-0 pt-0" : "gap-[var(--patient-gap)] pt-1",
+          )}
         >
           {children}
         </main>
         {patientFloatingSlot}
-        <PatientQuickAddFAB visible={user !== null} />
+        {hidePatientQuickAddFAB ? null : <PatientQuickAddFAB visible={user !== null} />}
       </div>
     );
   }

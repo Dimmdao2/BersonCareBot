@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AppShell } from "@/shared/ui/AppShell";
 import { AddEntryForm } from "./symptoms/AddEntryForm";
-import { CreateTrackingForm } from "./symptoms/CreateTrackingForm";
-import { SymptomTrackingRow } from "./symptoms/SymptomTrackingRow";
+import { SymptomsTrackingSectionClient } from "./symptoms/SymptomsTrackingSectionClient";
 import { DiaryTabsClient } from "./DiaryTabsClient";
 import { LfkSessionForm } from "./lfk/LfkSessionForm";
 import { createLfkComplex } from "./lfk/actions";
@@ -42,28 +41,15 @@ export default async function PatientDiaryPage() {
 
   const symptomsPanel = (
     <>
+      <SymptomsTrackingSectionClient trackings={trackings} />
       <section id="patient-symptoms-diary-hero-section" className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Добавить запись</h2>
         {trackings.length > 0 ? (
           <AddEntryForm trackings={trackings} />
         ) : (
-          <p className="text-muted-foreground">Добавьте симптом для начала отслеживания.</p>
+          <p className="text-muted-foreground">Добавьте отслеживание симптома выше, чтобы вносить записи.</p>
         )}
       </section>
-      <section id="patient-symptoms-add-tracking-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <h2 className="text-lg font-semibold">Добавить симптом</h2>
-        <CreateTrackingForm />
-      </section>
-      {trackings.length > 0 ? (
-        <section id="patient-symptoms-tracking-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">Отслеживаемые симптомы</h2>
-          <ul id="patient-symptoms-tracking-list" className="m-0 list-none space-y-3 p-0">
-            {trackings.map((t) => (
-              <SymptomTrackingRow key={t.id} id={t.id} title={t.symptomTitle ?? "—"} />
-            ))}
-          </ul>
-        </section>
-      ) : null}
       <section id="patient-symptoms-stats-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Статистика</h2>
         {trackings.length > 0 ? (
@@ -92,7 +78,7 @@ export default async function PatientDiaryPage() {
                 <input
                   type="text"
                   name="complexTitle"
-                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px] flex-1"
+                  className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[200px] flex-1"
                   placeholder="Название комплекса"
                   required
                 />

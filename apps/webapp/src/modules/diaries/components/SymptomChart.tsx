@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { routePaths } from "@/app-layer/routes/paths";
+import { DIARY_SYMPTOM_ENTRY_SAVED_EVENT } from "@/modules/diaries/symptomDiaryClientEvents";
 import { DiaryStatsPeriodBar, type DiaryStatsPeriod } from "./DiaryStatsPeriodBar";
 
 const RechartsSymptom = dynamic(() => import("./SymptomChartRecharts"), {
@@ -80,6 +81,14 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const onEntrySaved = () => {
+      void load();
+    };
+    window.addEventListener(DIARY_SYMPTOM_ENTRY_SAVED_EVENT, onEntrySaved);
+    return () => window.removeEventListener(DIARY_SYMPTOM_ENTRY_SAVED_EVENT, onEntrySaved);
+  }, [load]);
+
   const showInitialSkeleton = loading && points.length === 0 && !error;
   const chartRefreshing = loading && points.length > 0 && !error;
 
@@ -90,7 +99,7 @@ export function SymptomChart({ trackings }: { trackings: SymptomChartTrackingOpt
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Симптом</span>
             <select
-              className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[160px]"
+              className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring min-w-[160px]"
               value={trackingId}
               onChange={(e) => {
                 setTrackingId(e.target.value);

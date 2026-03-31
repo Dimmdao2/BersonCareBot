@@ -129,12 +129,33 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
 }
 
 
-async function isAllowedByWhitelist(parsed: IntegratorTokenPayload): Promise<boolean> {
+async function isAllowedByWhitelist(
+  parsed: IntegratorTokenPayload,
+  identityResolutionPort?: IdentityResolutionPort | null
+): Promise<boolean> {
   if (parsed.role === "admin") return true;
-  const telegramId = parsed.bindings?.telegramId;
-  const maxId = parsed.bindings?.maxId;
-  const phone = parsed.phone?.trim();
-  return isWhitelistedAsync({ telegramId, maxId, phone });
+  const tokenIds = {
+    telegramId: parsed.bindings?.telegramId,
+    maxId: parsed.bindings?.maxId,
+    phone: parsed.phone?.trim(),
+  };
+  if (await isWhitelistedAsync(tokenIds)) return true;
+
+  // For messenger entry tokens (especially MAX), token may not contain phone.
+  // If binding already exists, re-check whitelist against canonical user ids + phone.
+  if (!identityResolutionPort) return false;
+  const binding = firstBinding(parsed);
+  if (!binding) return false;
+  const existing = await identityResolutionPort.findByChannelBinding({
+    channelCode: binding.channelCode,
+    externalId: binding.externalId,
+  });
+  if (!existing) return false;
+  return isWhitelistedAsync({
+    telegramId: existing.bindings?.telegramId ?? tokenIds.telegramId,
+    maxId: existing.bindings?.maxId ?? tokenIds.maxId,
+    phone: existing.phone?.trim() || tokenIds.phone,
+  });
 }
 
 /** Validates Telegram Web App initData (from window.Telegram.WebApp.initData). Returns user id and role or null. */
@@ -212,7 +233,7 @@ export async function exchangeIntegratorToken(
   const parsed = devParsed ?? parseIntegratorToken(token);
   if (!parsed) return null;
 
-  if (!devParsed && !(await isAllowedByWhitelist(parsed))) return null;
+  if (!devParsed && !(await isAllowedByWhitelist(parsed, identityResolutionPort))) return null;
 
   let user: SessionUser;
   if (identityResolutionPort && !devParsed) {

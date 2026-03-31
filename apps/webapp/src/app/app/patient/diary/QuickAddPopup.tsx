@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { NumericChipGroup } from "@/components/common/controls/NumericChipGroup";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { addSymptomEntry } from "./symptoms/actions";
+import { notifyDiarySymptomEntrySaved } from "@/modules/diaries/symptomDiaryClientEvents";
 import { shouldConfirmInstantDuplicate, type LastSymptomSaveMeta } from "./symptoms/symptomEntryDedup";
 import { markLfkSession } from "./lfk/actions";
 
@@ -76,6 +77,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                           entryType: "instant",
                           at: Date.now(),
                         };
+                        notifyDiarySymptomEntrySaved();
                         setOpen(false);
                       } else {
                         toast.error("Не удалось сохранить");
@@ -86,7 +88,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   {trackings.length === 1 ? (
                     <input type="hidden" name="trackingId" value={trackings[0].id} />
                   ) : (
-                    <select name="trackingId" className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required defaultValue={trackings[0]?.id}>
+                    <select name="trackingId" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required defaultValue={trackings[0]?.id}>
                       {trackings.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.title}
@@ -128,7 +130,7 @@ export function QuickAddPopup({ trackings, complexes }: Props) {
                   {complexes.length === 1 ? (
                     <input type="hidden" name="complexId" value={complexes[0].id} />
                   ) : (
-                    <select name="complexId" className="h-11 w-full rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required>
+                    <select name="complexId" className="h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring" required>
                       {complexes.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.title}
