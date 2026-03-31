@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const upsertMock = vi.fn();
 const getBySlugMock = vi.fn();
+const listAllMock = vi.fn();
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -13,7 +14,7 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    contentPages: { upsert: upsertMock },
+    contentPages: { upsert: upsertMock, listAll: listAllMock },
     contentSections: { getBySlug: getBySlugMock },
   }),
 }));
@@ -31,6 +32,8 @@ function formWith(entries: Record<string, string>) {
 describe("saveContentPage", () => {
   beforeEach(() => {
     upsertMock.mockClear();
+    listAllMock.mockReset();
+    listAllMock.mockResolvedValue([]);
     getBySlugMock.mockReset();
     getBySlugMock.mockResolvedValue({
       id: "s1",
@@ -50,7 +53,6 @@ describe("saveContentPage", () => {
       title: "T",
       summary: "S",
       body_md: "# Hello",
-      sort_order: "0",
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
@@ -72,7 +74,6 @@ describe("saveContentPage", () => {
       summary: "S",
       body_md: "",
       body_html: "<p>old</p>",
-      sort_order: "0",
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(true);
@@ -92,7 +93,6 @@ describe("saveContentPage", () => {
       title: "T",
       summary: "S",
       body_md: long,
-      sort_order: "0",
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
@@ -106,7 +106,6 @@ describe("saveContentPage", () => {
       title: "T",
       summary: "S",
       body_md: "# x",
-      sort_order: "0",
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
@@ -122,7 +121,6 @@ describe("saveContentPage", () => {
       title: "T",
       summary: "S",
       body_md: "# x",
-      sort_order: "0",
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
@@ -137,7 +135,6 @@ describe("saveContentPage", () => {
       title: "T",
       summary: "S",
       body_md: "# x",
-      sort_order: "0",
       image_url: "https://example.com/a.png",
     });
     const res = await saveContentPage(null, fd);
@@ -157,7 +154,6 @@ describe("saveContentPage", () => {
       title: "T",
       summary: "S",
       body_md: "# x",
-      sort_order: "0",
       video_url: "/api/media/11111111-1111-4111-8111-111111111111",
     });
     const res = await saveContentPage(null, fd);
@@ -177,11 +173,46 @@ describe("saveContentPage", () => {
       title: "T",
       summary: "S",
       body_md: "# x",
-      sort_order: "0",
       image_url: "/api/media/not-uuid",
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
     expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("saves new page without sort_order and appends to section end", async () => {
+    upsertMock.mockResolvedValue(undefined);
+    listAllMock.mockResolvedValue([
+      { section: "lessons", slug: "a", sortOrder: 2 },
+      { section: "lessons", slug: "b", sortOrder: 4 },
+    ]);
+    const fd = formWith({
+      section: "lessons",
+      slug: "new-one",
+      title: "New",
+      summary: "",
+      body_md: "Body",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(true);
+    expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 5 }));
+  });
+
+  it("keeps existing sort order when editing without sort_order field", async () => {
+    upsertMock.mockResolvedValue(undefined);
+    listAllMock.mockResolvedValue([
+      { section: "lessons", slug: "existing", sortOrder: 7 },
+      { section: "lessons", slug: "other", sortOrder: 1 },
+    ]);
+    const fd = formWith({
+      section: "lessons",
+      slug: "existing",
+      title: "Edited",
+      summary: "",
+      body_md: "Body",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(true);
+    expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 7 }));
   });
 });

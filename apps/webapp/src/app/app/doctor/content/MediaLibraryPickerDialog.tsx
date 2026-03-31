@@ -3,18 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { MediaPickerList, type MediaListItem } from "./MediaPickerList";
 
 type MediaKind = "image" | "video";
-
-type MediaListItem = {
-  id: string;
-  kind: "image" | "video" | "audio" | "file";
-  filename: string;
-  mimeType: string;
-  size: number;
-  createdAt: string;
-  url: string;
-};
 
 type Props = {
   kind: MediaKind;
@@ -22,20 +15,13 @@ type Props = {
   onChange: (nextUrl: string) => void;
 };
 
-function shortDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString("ru-RU");
-  } catch {
-    return iso;
-  }
-}
-
 export function MediaLibraryPickerDialog({ kind, value, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<MediaListItem[]>([]);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   const url = useMemo(() => {
     const p = new URLSearchParams();
@@ -46,6 +32,18 @@ export function MediaLibraryPickerDialog({ kind, value, onChange }: Props) {
     p.set("limit", "80");
     return `/api/admin/media?${p.toString()}`;
   }, [kind, query]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      setIsMobileViewport(false);
+      return;
+    }
+    const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
+    const apply = () => setIsMobileViewport(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -68,6 +66,32 @@ export function MediaLibraryPickerDialog({ kind, value, onChange }: Props) {
   }, [open, url]);
 
   const isApiMedia = value.startsWith("/api/media/");
+
+  const pickerBody = (
+    <div className="flex flex-col gap-3">
+      <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm">
+        <span className="text-xs text-muted-foreground">Поиск по имени</span>
+        <Input
+          value={query}
+          onChange={(e) => {
+            setLoading(true);
+            setError(null);
+            setQuery(e.target.value);
+          }}
+          placeholder="Введите часть имени файла"
+        />
+      </label>
+      <MediaPickerList
+        items={items}
+        loading={loading}
+        error={error}
+        onSelect={(item) => {
+          onChange(item.url);
+          setOpen(false);
+        }}
+      />
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
@@ -104,73 +128,25 @@ export function MediaLibraryPickerDialog({ kind, value, onChange }: Props) {
         <p className="text-sm text-muted-foreground">Файл не выбран</p>
       )}
 
-      {open ? (
-        <div className="rounded-md border border-border bg-background p-3">
-          <div className="mb-2 flex items-end gap-2">
-            <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm">
-              <span className="text-xs text-muted-foreground">Поиск по имени</span>
-              <Input
-                value={query}
-                onChange={(e) => {
-                  setLoading(true);
-                  setError(null);
-                  setQuery(e.target.value);
-                }}
-                placeholder="Введите часть имени файла"
-              />
-            </label>
-            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-              Закрыть
-            </Button>
-          </div>
-
-          {error ? <p className="mb-2 text-sm text-destructive">{error}</p> : null}
-          {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
-
-          {!loading ? (
-            <div className="max-h-80 overflow-auto rounded border border-border">
-              <table className="w-full min-w-[36rem] text-sm">
-                <thead className="bg-muted/40 text-left">
-                  <tr>
-                    <th className="px-2 py-1">Имя</th>
-                    <th className="px-2 py-1">Тип</th>
-                    <th className="px-2 py-1">Дата</th>
-                    <th className="px-2 py-1">Действие</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item.id} className="border-t border-border">
-                      <td className="px-2 py-1">{item.filename}</td>
-                      <td className="px-2 py-1">{item.kind}</td>
-                      <td className="px-2 py-1">{shortDate(item.createdAt)}</td>
-                      <td className="px-2 py-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => {
-                            onChange(item.url);
-                            setOpen(false);
-                          }}
-                        >
-                          Выбрать
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                  {items.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-2 py-4 text-center text-muted-foreground">
-                        Нет файлов
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {isMobileViewport ? (
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetContent side="bottom" className="max-h-[90vh] overflow-auto">
+            <SheetHeader>
+              <SheetTitle>Библиотека файлов</SheetTitle>
+            </SheetHeader>
+            <div className="mt-3">{pickerBody}</div>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-h-[85vh] overflow-auto">
+            <DialogHeader>
+              <DialogTitle>Библиотека файлов</DialogTitle>
+            </DialogHeader>
+            {pickerBody}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

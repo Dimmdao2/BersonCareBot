@@ -265,19 +265,60 @@
 
 ### 1.10 — Модальный picker
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/MediaLibraryPickerDialog.tsx` — inline picker заменён на Dialog (desktop) / Sheet (mobile)
+  - `apps/webapp/src/app/app/doctor/content/MediaPickerList.tsx` — вынесен список выбора файлов в переиспользуемый компонент
+- **Тесты:** manual regression (mobile sheet + desktop dialog)
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.11 — Предпросмотр контент-страницы
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/ContentPreview.tsx` — добавлен patient-like preview контента (markdown/image/video)
+  - `apps/webapp/src/app/app/doctor/content/ContentForm.tsx` — добавлен toggle-предпросмотр и синхронизация данных формы в preview
+  - `apps/webapp/src/app/app/doctor/content/ContentForm.test.tsx` — добавлен тест на рендер preview
+- **Тесты:** обновлены unit-тесты `ContentForm.test.tsx`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.12 — Убрать sort_order из ContentForm
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/ContentForm.tsx` — удалено поле `sort_order` из UI формы
+  - `apps/webapp/src/app/app/doctor/content/actions.ts` — sortOrder вычисляется на сервере (append для new, сохранение existing)
+  - `apps/webapp/src/app/app/doctor/content/actions.test.ts` — добавлены кейсы без `sort_order` и на сохранение порядка при edit
+- **Тесты:** обновлены unit-тесты `actions.test.ts`
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ### 1.13 — Объединить news/motivation
 
-- **Статус:** pending
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/content/page.tsx` — удалены кнопки входа в отдельные `news/motivation` маршруты
+  - `apps/webapp/src/app/app/doctor/content/news/page.tsx` — маршрут переведён в redirect на общий `/app/doctor/content`
+  - `apps/webapp/src/app/app/doctor/content/motivation/page.tsx` — маршрут переведён в redirect на общий `/app/doctor/content`
+  - `apps/webapp/src/shared/ui/doctorScreenTitles.test.ts` — удалены ожидания отдельных screen-title для `news/motivation`
+  - `apps/webapp/src/modules/patient-home/README.md` — обновлено описание точки управления новостями/цитатами
+- **Тесты:** regression через `pnpm run ci` (включая webapp tests/build)
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:**
 
 ---
 

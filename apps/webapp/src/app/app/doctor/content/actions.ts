@@ -43,7 +43,6 @@ export async function saveContentPage(
   const bodyMdStored = bodyMd.length > 0 ? bodyMd : "";
   const bodyHtmlStored = bodyMd.length > 0 ? "" : bodyHtmlLegacy;
   if (slug.length > 200) return { ok: false, error: "Slug слишком длинный" };
-  const sortOrder = parseInt(formData.get("sort_order") as string, 10) || 0;
   const isPublished = formData.get("is_published") === "on";
   const videoUrlRaw = (formData.get("video_url") as string)?.trim() || "";
   const imageUrlRaw = (formData.get("image_url") as string)?.trim() || "";
@@ -70,6 +69,14 @@ export async function saveContentPage(
           : "url";
     }
   }
+
+  const allPages = (await deps.contentPages.listAll?.()) ?? [];
+  const existingPage = allPages.find((p) => p.section === section && p.slug === slug);
+  const sortOrder = existingPage
+    ? existingPage.sortOrder
+    : allPages
+        .filter((p) => p.section === section)
+        .reduce((max, pageRow) => Math.max(max, pageRow.sortOrder), -1) + 1;
 
   try {
     await deps.contentPages.upsert({

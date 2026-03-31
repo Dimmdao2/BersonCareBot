@@ -41,4 +41,16 @@ describe("ContentForm", () => {
     render(<ContentForm sections={testSections} />);
     expect(document.querySelector('input[name="image_url"]')).not.toBeNull();
   });
+
+  it("does not include legacy sort_order input", () => {
+    render(<ContentForm sections={testSections} />);
+    expect(document.querySelector('input[name="sort_order"]')).toBeNull();
+  });
+
+  it("shows page preview block when toggled", async () => {
+    const user = userEvent.setup();
+    render(<ContentForm sections={testSections} />);
+    await user.click(screen.getByRole("button", { name: /показать предпросмотр/i }));
+    expect(screen.getByText(/предпросмотр для пациента/i)).toBeInTheDocument();
+  });
 });

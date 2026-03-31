@@ -9,6 +9,7 @@ import { MarkdownEditor } from "@/shared/ui/markdown/MarkdownEditor";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { MediaLibraryPickerDialog } from "./MediaLibraryPickerDialog";
+import { ContentPreview } from "./ContentPreview";
 import { saveContentPage, type SaveContentPageState } from "./actions";
 
 type ContentPage = {
@@ -30,7 +31,12 @@ type ContentPage = {
 export function ContentForm({ page, sections }: { page?: ContentPage; sections: ContentSectionRow[] }) {
   const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
   const isNew = !page;
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [titleValue, setTitleValue] = useState(page?.title ?? "");
+  const [summaryValue, setSummaryValue] = useState(page?.summary ?? "");
+  const [bodyMdValue, setBodyMdValue] = useState(
+    page ? (page.bodyMd.trim().length > 0 ? page.bodyMd : page.bodyHtml) : "",
+  );
   const [slugValue, setSlugValue] = useState(page?.slug ?? "");
   const [imageUrlValue, setImageUrlValue] = useState(page?.imageUrl ?? "");
   const [videoUrlValue, setVideoUrlValue] = useState(page?.videoUrl ?? "");
@@ -51,7 +57,17 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
     (page && sections.find((s) => s.slug === page.section)?.title) ?? page?.section ?? "";
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form
+      action={formAction}
+      className="flex flex-col gap-4"
+      onInput={(e) => {
+        const target = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
+        if (!target) return;
+        if (target.name === "title") setTitleValue(target.value);
+        if (target.name === "summary") setSummaryValue(target.value);
+        if (target.name === "body_md") setBodyMdValue(target.value);
+      }}
+    >
       {state?.error ? (
         <p role="alert" className="text-destructive">
           {state.error}
@@ -174,16 +190,6 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
         key={`body-${page?.id ?? "new"}`}
       />
 
-      <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Порядок сортировки</span>
-        <Input
-          type="number"
-          name="sort_order"
-          defaultValue={page?.sortOrder ?? 0}
-          key={`sort-${page?.id ?? "new"}`}
-        />
-      </label>
-
       <label className="flex items-center gap-2">
         <input
           type="checkbox"
@@ -204,6 +210,21 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Видео</span>
         <input type="hidden" name="video_url" value={videoUrlValue} />
         <MediaLibraryPickerDialog kind="video" value={videoUrlValue} onChange={setVideoUrlValue} />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Button type="button" variant="outline" onClick={() => setPreviewOpen((v) => !v)}>
+          {previewOpen ? "Скрыть предпросмотр" : "Показать предпросмотр"}
+        </Button>
+        {previewOpen ? (
+          <ContentPreview
+            title={titleValue}
+            summary={summaryValue}
+            bodyMd={bodyMdValue}
+            imageUrl={imageUrlValue}
+            videoUrl={videoUrlValue}
+          />
+        ) : null}
       </div>
 
       <Button type="submit" disabled={pending}>
