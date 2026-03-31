@@ -2,13 +2,12 @@ import Link from "next/link";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
-import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
+import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 
 const LOAD_LABEL: Record<ExerciseLoadType, string> = {
   strength: "Силовая",
@@ -48,47 +47,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
     <AppShell title="Упражнения ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end gap-3">
-          <form method="get" className="flex flex-wrap items-end gap-2">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground" htmlFor="ex-q">
-                Поиск по названию
-              </label>
-              <Input id="ex-q" name="q" defaultValue={q} placeholder="Название" className="w-56" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground" htmlFor="ex-region">
-                ID области (справочник)
-              </label>
-              <Input
-                id="ex-region"
-                name="region"
-                defaultValue={regionRefId ?? ""}
-                placeholder="uuid области тела"
-                className="w-64 font-mono text-xs"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-muted-foreground" htmlFor="ex-load">
-                Тип нагрузки
-              </label>
-              <select
-                id="ex-load"
-                name="load"
-                className="h-9 w-auto min-w-[10rem] rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                defaultValue={loadType ?? ""}
-              >
-                <option value="">Все</option>
-                <option value="strength">Силовая</option>
-                <option value="stretch">Растяжка</option>
-                <option value="balance">Баланс</option>
-                <option value="cardio">Кардио</option>
-                <option value="other">Другое</option>
-              </select>
-            </div>
-            <Button type="submit" variant="secondary">
-              Применить
-            </Button>
-          </form>
+          <ExercisesFiltersForm q={q} regionRefId={regionRefId} loadType={loadType} />
           <Link
             href="/app/doctor/exercises/new"
             className={cn(buttonVariants(), "ml-auto")}
