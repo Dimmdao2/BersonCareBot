@@ -660,6 +660,30 @@
 - **CI:** green (`pnpm run ci`)
 - **Замечания аудита:**
 
+### Phase 4 rework (AUDIT_PHASE_4)
+
+- **Статус:** done
+- **Агент/модель:** agent auto
+- **Дата начала:** 2026-03-31
+- **Дата завершения:** 2026-03-31
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/app/doctor/broadcasts/actions.ts` — после успешного `execute` вызывается `revalidatePath("/app/doctor/broadcasts")`
+  - `apps/webapp/src/app/app/doctor/broadcasts/actions.test.ts` — мок `next/cache.revalidatePath`, проверка вызова после execute
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastForm.test.tsx` — RTL по спеке 4.3 + предупреждение аудитории + sent-flow
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastForm.tsx` — предупреждение под селектом для `inactive`/`sms_only`; sent-state через `BroadcastSentMessage`
+  - `apps/webapp/src/app/app/doctor/broadcasts/labels.ts` — `BROADCAST_AUDIENCE_FILTERS_ORDER`, `isAudienceEstimateApproximate`, `getAudienceOptionLabel`
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastAudienceSelect.tsx` — подписи опций через `getAudienceOptionLabel`
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastAudienceSelect.test.tsx` — тесты суффикса для приблизительных сегментов
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastConfirmStep.tsx` — только шаг подтверждения; предупреждение о грубой оценке для `inactive`/`sms_only`
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastConfirmStep.test.tsx` — без `result`-prop; тесты estimate-warning
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastSentMessage.tsx` — отдельный success-блок
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastSentMessage.test.tsx` — RTL success-copy
+  - `apps/webapp/src/app/app/doctor/broadcasts/BroadcastAuditLog.tsx` — убрана директива `"use client"` (Server Component)
+- **Закрытые findings:** #1–#7 в `AUDIT_PHASE_4.md` → **pass (re-audit)**
+- **Тесты:** обновлены/добавлены перечисленные файлы
+- **CI:** green (`pnpm run ci`)
+- **Замечания аудита:** см. обновлённый `AUDIT_PHASE_4.md`
+
 ---
 
 ## Итоговый аудит ветки

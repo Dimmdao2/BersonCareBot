@@ -1,7 +1,7 @@
 "use client";
 
-import type { BroadcastAuditEntry, BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
-import { formatAudienceLabel, formatCategoryLabel } from "./labels";
+import type { BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
+import { formatAudienceLabel, formatCategoryLabel, isAudienceEstimateApproximate } from "./labels";
 
 type Props = {
   preview: BroadcastPreviewResult;
@@ -9,24 +9,9 @@ type Props = {
   onConfirm: () => void;
   onCancel: () => void;
   isLoading: boolean;
-  result: BroadcastAuditEntry | null;
 };
 
-export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, isLoading, result }: Props) {
-  if (result) {
-    return (
-      <div
-        id="broadcast-sent-message"
-        className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3"
-      >
-        <p className="font-medium text-sm">Рассылка запущена. Журнал обновится автоматически.</p>
-        <p className="text-xs text-muted-foreground">
-          Аудитория: {preview.audienceSize} получателей
-        </p>
-      </div>
-    );
-  }
-
+export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, isLoading }: Props) {
   return (
     <div
       id="broadcast-confirm-step"
@@ -44,6 +29,15 @@ export function BroadcastConfirmStep({ preview, command, onConfirm, onCancel, is
         <dt className="text-muted-foreground">Получателей</dt>
         <dd id="broadcast-audience-size" className="font-semibold">{preview.audienceSize}</dd>
       </dl>
+
+      {isAudienceEstimateApproximate(command.audienceFilter) ? (
+        <p
+          id="broadcast-preview-estimate-warning"
+          className="text-xs text-amber-700 dark:text-amber-500"
+        >
+          Число получателей — грубая оценка (все клиенты); точный сегмент будет доступен позже.
+        </p>
+      ) : null}
 
       <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
         После подтверждения рассылка будет запущена и её нельзя отменить.

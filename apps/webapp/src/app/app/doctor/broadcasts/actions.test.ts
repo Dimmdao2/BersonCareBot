@@ -7,6 +7,11 @@ import type {
 const previewMock = vi.fn();
 const executeMock = vi.fn();
 const listAuditMock = vi.fn();
+const revalidatePathMock = vi.fn();
+
+vi.mock("next/cache", () => ({
+  revalidatePath: (...args: unknown[]) => revalidatePathMock(...args),
+}));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
   requireDoctorAccess: vi.fn().mockResolvedValue({ user: { userId: "doctor-1" } }),
@@ -53,7 +58,10 @@ describe("previewBroadcastAction", () => {
 });
 
 describe("executeBroadcastAction", () => {
-  beforeEach(() => executeMock.mockClear());
+  beforeEach(() => {
+    executeMock.mockClear();
+    revalidatePathMock.mockClear();
+  });
 
   it("calls execute with actorId injected and returns auditEntry", async () => {
     const auditEntry: BroadcastAuditEntry = {
@@ -74,6 +82,7 @@ describe("executeBroadcastAction", () => {
 
     expect(executeMock).toHaveBeenCalledWith({ ...baseCommand, actorId: "doctor-1" });
     expect(result.auditEntry).toEqual(auditEntry);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/app/doctor/broadcasts");
   });
 });
 

@@ -8,9 +8,10 @@ import type {
   BroadcastCommand,
   BroadcastPreviewResult,
 } from "@/modules/doctor-broadcasts/ports";
-import { CATEGORY_LABELS } from "./labels";
+import { CATEGORY_LABELS, isAudienceEstimateApproximate } from "./labels";
 import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
+import { BroadcastSentMessage } from "./BroadcastSentMessage";
 import { previewBroadcastAction, executeBroadcastAction } from "./actions";
 
 type Stage = "idle" | "previewing" | "previewed" | "confirming" | "sent" | "error";
@@ -99,14 +100,7 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
   if (stage === "sent" && preview && sentEntry) {
     return (
       <div className="flex flex-col gap-4">
-        <BroadcastConfirmStep
-          preview={preview}
-          command={buildCommand() ?? { category: sentEntry.category, audienceFilter: sentEntry.audienceFilter, message: { title: sentEntry.messageTitle, body: "" } }}
-          onConfirm={handleConfirm}
-          onCancel={handleCancelConfirm}
-          isLoading={false}
-          result={sentEntry}
-        />
+        <BroadcastSentMessage preview={preview} />
         <button
           type="button"
           onClick={handleReset}
@@ -128,7 +122,6 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
         onConfirm={handleConfirm}
         onCancel={handleCancelConfirm}
         isLoading={isPending || stage === "confirming"}
-        result={null}
       />
     );
   }
@@ -173,6 +166,14 @@ export function BroadcastForm({ onBroadcastSent }: Props) {
           onChange={setAudience}
           disabled={isFormLocked}
         />
+        {audience && isAudienceEstimateApproximate(audience) ? (
+          <p
+            id="broadcast-audience-form-warning"
+            className="text-xs text-amber-700 dark:text-amber-500"
+          >
+            Для этой аудитории число получателей пока считается как «все клиенты», пока не появится фильтр в списке клиентов.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">

@@ -149,16 +149,21 @@
 
 ---
 
-## Решение: **rework**
+## Решение (первичный аудит): **rework**
 
-Обязательно (блокирует merge):
-1. `executeBroadcastAction` → добавить `revalidatePath("/app/doctor/broadcasts")` (#1)
-2. Создать `BroadcastForm.test.tsx` с 4 тест-кейсами из спека (#3)
+---
 
-Рекомендовано (не блокирует, но снижает UX-риск):
-3. Исправить UX для `inactive`/`sms_only` — предупреждение или скрытие (#4)
+## Rework (2026-03-31) — статус findings
 
-Опционально:
-4. Удалить `"use client"` из `BroadcastAuditLog` (#6)
-5. Убрать dead code в строке 104 `BroadcastForm` (#7)
-6. Рефакторинг `BroadcastConfirmStep` result-prop (#5)
+| # | Severity | Статус | Как закрыто |
+|---|----------|--------|-------------|
+| 1 | critical | **closed** | `executeBroadcastAction` → `revalidatePath("/app/doctor/broadcasts")` + тест в `actions.test.ts` |
+| 2 | critical | **closed** | Не требует отдельного кода: после #1 журнал обновляется; `onBroadcastSent` остаётся опциональным |
+| 3 | major | **closed** | `BroadcastForm.test.tsx`: 4 кейса из спеки + sent-flow |
+| 4 | major | **closed** | Суффикс опций + предупреждения в форме и на шаге подтверждения для `inactive`/`sms_only` |
+| 5 | minor | **closed** | `BroadcastSentMessage.tsx` отделён от `BroadcastConfirmStep` |
+| 6 | minor | **closed** | Удалён `"use client"` из `BroadcastAuditLog.tsx` |
+| 7 | minor | **closed** | Sent-ветка рендерит только `BroadcastSentMessage` без `buildCommand() ?? …` |
+
+**Повторный аудит:** **approve**  
+**CI после rework:** green (`pnpm run ci`)

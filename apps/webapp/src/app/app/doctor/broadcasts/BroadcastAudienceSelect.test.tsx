@@ -4,15 +4,23 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BroadcastAudienceSelect } from "./BroadcastAudienceSelect";
-import { AUDIENCE_LABELS } from "./labels";
+import { BROADCAST_AUDIENCE_FILTERS_ORDER, getAudienceOptionLabel } from "./labels";
 
 describe("BroadcastAudienceSelect", () => {
   it("renders placeholder and all 8 audience options", () => {
     render(<BroadcastAudienceSelect value="" onChange={vi.fn()} />);
     expect(screen.getByRole("option", { name: /выберите аудиторию/i })).toBeInTheDocument();
-    for (const label of Object.values(AUDIENCE_LABELS)) {
-      expect(screen.getByRole("option", { name: label })).toBeInTheDocument();
+    for (const filter of BROADCAST_AUDIENCE_FILTERS_ORDER) {
+      expect(screen.getByRole("option", { name: getAudienceOptionLabel(filter) })).toBeInTheDocument();
     }
+  });
+
+  it("marks inactive and sms_only options with approximate-estimate suffix", () => {
+    render(<BroadcastAudienceSelect value="" onChange={vi.fn()} />);
+    const approxOptions = screen.getAllByRole("option", { name: /оценка, фильтр в разработке/i });
+    expect(approxOptions.length).toBe(2);
+    expect(getAudienceOptionLabel("inactive")).toContain("оценка");
+    expect(getAudienceOptionLabel("sms_only")).toContain("оценка");
   });
 
   it("calls onChange with correct filter value when option is selected", async () => {

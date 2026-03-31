@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BroadcastConfirmStep } from "./BroadcastConfirmStep";
-import type { BroadcastAuditEntry, BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
+import type { BroadcastCommand, BroadcastPreviewResult } from "@/modules/doctor-broadcasts/ports";
 
 const preview: BroadcastPreviewResult = {
   audienceSize: 42,
@@ -27,7 +27,6 @@ describe("BroadcastConfirmStep", () => {
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
         isLoading={false}
-        result={null}
       />
     );
     expect(screen.getByText("42")).toBeInTheDocument();
@@ -42,7 +41,6 @@ describe("BroadcastConfirmStep", () => {
         onConfirm={onConfirm}
         onCancel={vi.fn()}
         isLoading={false}
-        result={null}
       />
     );
     await userEvent.click(screen.getByRole("button", { name: /отправить/i }));
@@ -58,7 +56,6 @@ describe("BroadcastConfirmStep", () => {
         onConfirm={vi.fn()}
         onCancel={onCancel}
         isLoading={false}
-        result={null}
       />
     );
     await userEvent.click(screen.getByRole("button", { name: /назад/i }));
@@ -73,26 +70,31 @@ describe("BroadcastConfirmStep", () => {
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
         isLoading={true}
-        result={null}
       />
     );
     expect(screen.getByRole("button", { name: /отправка/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /назад/i })).toBeDisabled();
   });
 
-  it("shows sent message when result is provided", () => {
-    const auditEntry: BroadcastAuditEntry = {
-      id: "e1",
-      actorId: "doc-1",
-      category: "reminder",
-      audienceFilter: "with_telegram",
-      messageTitle: "Заголовок теста",
-      executedAt: new Date().toISOString(),
-      previewOnly: false,
-      audienceSize: 42,
-      sentCount: 0,
-      errorCount: 0,
+  it("shows estimate warning for inactive audience segment", () => {
+    const inactiveCommand: Omit<BroadcastCommand, "actorId"> = {
+      ...command,
+      audienceFilter: "inactive",
     };
+    render(
+      <BroadcastConfirmStep
+        preview={{ ...preview, audienceFilter: "inactive" }}
+        command={inactiveCommand}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+        isLoading={false}
+      />
+    );
+    expect(document.getElementById("broadcast-preview-estimate-warning")).toBeInTheDocument();
+    expect(screen.getByText(/грубая оценка/i)).toBeInTheDocument();
+  });
+
+  it("does not show estimate warning for with_telegram", () => {
     render(
       <BroadcastConfirmStep
         preview={preview}
@@ -100,9 +102,8 @@ describe("BroadcastConfirmStep", () => {
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
         isLoading={false}
-        result={auditEntry}
       />
     );
-    expect(screen.getByText(/рассылка запущена/i)).toBeInTheDocument();
+    expect(document.getElementById("broadcast-preview-estimate-warning")).not.toBeInTheDocument();
   });
 });

@@ -1,9 +1,7 @@
 "use client";
 
 import type { BroadcastAudienceFilter } from "@/modules/doctor-broadcasts/ports";
-import { AUDIENCE_LABELS } from "./labels";
-
-const AUDIENCE_OPTIONS = Object.entries(AUDIENCE_LABELS) as [BroadcastAudienceFilter, string][];
+import { BROADCAST_AUDIENCE_FILTERS_ORDER, getAudienceOptionLabel } from "./labels";
 
 type Props = {
   value: BroadcastAudienceFilter | "";
@@ -27,9 +25,9 @@ export function BroadcastAudienceSelect({ value, onChange, disabled, id }: Props
       <option value="" disabled>
         — выберите аудиторию —
       </option>
-      {AUDIENCE_OPTIONS.map(([v, label]) => (
+      {BROADCAST_AUDIENCE_FILTERS_ORDER.map((v) => (
         <option key={v} value={v}>
-          {label}
+          {getAudienceOptionLabel(v)}
         </option>
       ))}
     </select>

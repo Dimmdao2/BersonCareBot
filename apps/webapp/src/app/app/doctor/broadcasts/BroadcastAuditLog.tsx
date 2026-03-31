@@ -1,5 +1,3 @@
-"use client";
-
 import type { BroadcastAuditEntry } from "@/modules/doctor-broadcasts/ports";
 import { formatAudienceLabel, formatBroadcastDate, formatCategoryLabel } from "./labels";
 
