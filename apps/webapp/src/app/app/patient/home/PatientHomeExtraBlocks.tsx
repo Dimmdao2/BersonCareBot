@@ -1,15 +1,10 @@
-import { routePaths } from "@/app-layer/routes/paths";
 import { type HomeBlockId } from "@/app-layer/routes/navigation";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
 
-const EXTRA_BLOCK_META: Partial<Record<HomeBlockId, { title: string; href: string }>> = {
-  purchases: { title: "Мои покупки", href: routePaths.purchases },
-};
+const EXTRA_BLOCK_META: Partial<Record<HomeBlockId, { title: string; href: string }>> = {};
 
 /**
  * Карточки блоков главной, не покрытые hero / уроками / новостями.
- * «purchases» не входит в canonical-список и добавляется в blocks условно из page.tsx
- * (только для пользователей с покупками).
  */
 export function PatientHomeExtraBlocks({ blocks }: { blocks: Set<HomeBlockId> }) {
   const items = [...blocks].flatMap((id) => {

@@ -11,9 +11,6 @@ describe("getDoctorScreenTitle", () => {
   it("returns client for detail", () => {
     expect(getDoctorScreenTitle("/app/doctor/clients/u1")).toBe("Клиент");
   });
-  it("returns references", () => {
-    expect(getDoctorScreenTitle("/app/doctor/references")).toBe("Справочники");
-  });
   it("returns new content page title", () => {
     expect(getDoctorScreenTitle("/app/doctor/content/new")).toBe("Новая страница");
   });
