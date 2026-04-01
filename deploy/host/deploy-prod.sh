@@ -78,6 +78,11 @@ pnpm install --frozen-lockfile
 rm -rf dist
 
 pnpm build
+
+# Drop previous Next output so `next build` does not traverse nested standalone/**/.next and hit EACCES on unlink (e.g. root-owned dirs from a prior sudo run or a root webapp process).
+if [ -d apps/webapp/.next ]; then
+  rm -rf apps/webapp/.next || fail "Cannot remove apps/webapp/.next (likely root-owned). As root on the host: systemctl stop ${WEBAPP_SERVICE} && rm -rf ${PROJECT_ROOT}/apps/webapp/.next — then redeploy as deploy. See SERVER CONVENTIONS.md."
+fi
 pnpm build:webapp
 
 # Standalone server.js does not bundle .next/static — must copy after every webapp build (same as deploy-webapp-prod.sh).

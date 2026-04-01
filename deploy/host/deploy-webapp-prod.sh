@@ -60,6 +60,10 @@ require_sudo_rule "webapp status check" /bin/systemctl is-active --quiet "${WEBA
 
 export CI=true
 pnpm install --frozen-lockfile
+
+if [ -d apps/webapp/.next ]; then
+  rm -rf apps/webapp/.next || fail "Cannot remove apps/webapp/.next (likely root-owned). As root on the host: systemctl stop ${WEBAPP_SERVICE} && rm -rf ${PROJECT_ROOT}/apps/webapp/.next — then redeploy as deploy. See SERVER CONVENTIONS.md."
+fi
 pnpm --dir apps/webapp build
 
 # Copy static assets into the standalone output so standalone server.js can serve them.
