@@ -106,4 +106,17 @@ describe("pgPatientBookingsPort", () => {
     expect(rows[0]!.branchServiceId).toBe("bs1");
     expect(rows[0]!.cityCodeSnapshot).toBe("moscow");
   });
+
+  it("listHistoryByUser returns mixed legacy and v2 rows (dual-read history)", async () => {
+    const leg = legacyRow("leg-h");
+    const v2 = v2Row("v2-h");
+    queryMock.mockResolvedValueOnce({ rows: [v2, leg] });
+    const rows = await pgPatientBookingsPort.listHistoryByUser("u1", "2026-06-01T00:00:00.000Z");
+    expect(rows).toHaveLength(2);
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId["leg-h"]!.branchServiceId).toBeNull();
+    expect(byId["leg-h"]!.city).toBe("moscow");
+    expect(byId["v2-h"]!.branchServiceId).toBe("bs1");
+    expect(byId["v2-h"]!.serviceTitleSnapshot).toBe("Сеанс");
+  });
 });

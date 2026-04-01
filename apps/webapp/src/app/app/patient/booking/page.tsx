@@ -6,5 +6,5 @@ import { routePaths } from "@/app-layer/routes/paths";
  * Native booking flow lives in patient cabinet.
  */
 export default async function PatientBookingPage() {
-  redirect(routePaths.cabinet);
+  redirect(routePaths.bookingNew);
 }

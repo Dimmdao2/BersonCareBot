@@ -490,4 +490,183 @@ describe('POST /api/bersoncare/rubitime/create-record', () => {
     });
     expect(res.statusCode).toBe(502);
   });
+
+  it('v2 create-record uses explicit IDs and does not call resolveBookingProfile', async () => {
+    resolveBookingProfile.mockClear();
+    const spy = vi.spyOn(rubitimeClient, 'createRubitimeRecord').mockResolvedValue({ id: 99 });
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: '10',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      patient: { name: 'Ivan', phone: '+79990001122' },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(resolveBookingProfile).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          branch_id: 10,
+          cooperator_id: 20,
+          service_id: 30,
+          name: 'Ivan',
+          phone: '+79990001122',
+        }),
+      }),
+    );
+  });
+
+  it('v2 create-record returns 400 when rubitime ids are not numeric', async () => {
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: 'x',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      patient: { name: 'Ivan', phone: '+79990001122' },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('invalid_rubitime_ids');
+  });
+});
+
+describe('POST /api/bersoncare/rubitime/slots (v2 explicit IDs)', () => {
+  afterEach(() => {
+    _resetScheduleMappingCache();
+    resetRubitimeRuntimeConfigCache();
+  });
+
+  it('returns 200 and does not call resolveBookingProfile for v2 body', async () => {
+    resolveBookingProfile.mockClear();
+    const fetchSpy = vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockResolvedValue({
+      '2026-04-10': { '10:00': { available: true } },
+    });
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: '10',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotDurationMinutes: 60,
+      dateFrom: '2026-04-10',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(resolveBookingProfile).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: { branchId: 10, cooperatorId: 20, serviceId: 30 },
+      }),
+    );
+  });
+
+  it('returns 400 invalid_rubitime_ids for v2 slots when ids are not numeric', async () => {
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: 'bad',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotDurationMinutes: 60,
+      dateFrom: '2026-04-10',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('invalid_rubitime_ids');
+  });
+
+  it('returns 502 when Rubitime schedule fetch throws for v2 slots', async () => {
+    vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockRejectedValue(new Error('RUBITIME_HTTP_503'));
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: '10',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotDurationMinutes: 60,
+      dateFrom: '2026-04-10',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(502);
+  });
+});
+
+describe('legacy profile resolve disabled', () => {
+  const prev = process.env.RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED;
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED;
+    else process.env.RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED = prev;
+    _resetScheduleMappingCache();
+    resetRubitimeRuntimeConfigCache();
+  });
+
+  it('returns 400 legacy_resolve_disabled for v1 slots when env is false', async () => {
+    resolveBookingProfile.mockClear();
+    process.env.RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED = 'false';
+    const app = await buildApp();
+    const body = JSON.stringify({ type: 'online', category: 'general' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('legacy_resolve_disabled');
+    expect(resolveBookingProfile).not.toHaveBeenCalled();
+  });
+
+  it('v2 slots still work when legacy resolve is disabled', async () => {
+    process.env.RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED = 'false';
+    vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockResolvedValue({
+      '2026-04-11': { '09:00': { available: true } },
+    });
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: '10',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotDurationMinutes: 60,
+      dateFrom: '2026-04-11',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+  });
 });

@@ -12,6 +12,8 @@ import { CabinetInfoLinks } from "./CabinetInfoLinks";
 import { CabinetBookingEntry } from "./CabinetBookingEntry";
 import { mergePastBookingHistory } from "./cabinetPastBookingsMerge";
 import { CabinetPastBookings } from "./CabinetPastBookings";
+import { CabinetIntakeHistory } from "./CabinetIntakeHistory";
+import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 
 export default async function PatientCabinetPage() {
   const session = await getOptionalPatientSession();
@@ -35,6 +37,9 @@ export default async function PatientCabinetPage() {
   const projectionPast = await deps.patientCabinet.getPastAppointments(session.user.userId);
   const pastItems = mergePastBookingHistory(records.history, projectionPast);
 
+  const intakeService = getOnlineIntakeService();
+  const intakeResult = await intakeService.listMyRequests({ userId: session.user.userId, limit: 10 }).catch(() => ({ items: [] }));
+
   return (
     <AppShell
       title="Мои приёмы"
@@ -46,10 +51,8 @@ export default async function PatientCabinetPage() {
       <section className="flex flex-col gap-6">
         <CabinetActiveBookings bookings={records.upcoming} />
         <CabinetInfoLinks />
-        <CabinetBookingEntry
-          defaultName={session.user.displayName}
-          defaultPhone={session.user.phone ?? ""}
-        />
+        <CabinetBookingEntry />
+        <CabinetIntakeHistory items={intakeResult.items} />
         <CabinetPastBookings items={pastItems} />
       </section>
     </AppShell>

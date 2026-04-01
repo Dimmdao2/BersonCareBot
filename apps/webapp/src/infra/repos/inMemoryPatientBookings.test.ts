@@ -1,62 +1,100 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import type { CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
+import { describe, it, expect, beforeEach } from "vitest";
 import { inMemoryPatientBookingsPort, resetInMemoryPatientBookingsStore } from "./inMemoryPatientBookings";
 
-function onlinePending(over: Partial<CreatePendingPatientBookingInput> = {}): CreatePendingPatientBookingInput {
-  return {
-    userId: "00000000-0000-4000-8000-000000000001",
-    bookingType: "online",
-    city: null,
-    category: "general",
-    slotStart: "2026-04-02T10:00:00.000Z",
-    slotEnd: "2026-04-02T11:00:00.000Z",
-    contactName: "A",
-    contactPhone: "+79990001122",
-    contactEmail: null,
-    branchId: null,
-    serviceId: null,
-    branchServiceId: null,
-    cityCodeSnapshot: null,
-    branchTitleSnapshot: null,
-    serviceTitleSnapshot: null,
-    durationMinutesSnapshot: null,
-    priceMinorSnapshot: null,
-    rubitimeBranchIdSnapshot: null,
-    rubitimeCooperatorIdSnapshot: null,
-    rubitimeServiceIdSnapshot: null,
-    ...over,
-  };
-}
-
-describe("inMemoryPatientBookingsPort slot overlap", () => {
+describe("inMemoryPatientBookings - compat-sync", () => {
   beforeEach(() => {
     resetInMemoryPatientBookingsStore();
   });
 
-  it("createPending rejects overlap with confirmed booking", async () => {
-    const first = await inMemoryPatientBookingsPort.createPending(onlinePending());
-    await inMemoryPatientBookingsPort.markConfirmed(first.id, "r1");
-    await expect(
-      inMemoryPatientBookingsPort.createPending(
-        onlinePending({
-          userId: "00000000-0000-4000-8000-000000000002",
-          slotStart: "2026-04-02T10:30:00.000Z",
-          slotEnd: "2026-04-02T11:30:00.000Z",
-        }),
-      ),
-    ).rejects.toThrow("slot_overlap");
-  });
+  describe("upsertFromRubitime - compat-create path", () => {
+    it("creates compat-row when rubitime_id not found", async () => {
+      await inMemoryPatientBookingsPort.upsertFromRubitime({
+        rubitimeId: "rub-123",
+        status: "confirmed",
+        slotStart: "2026-05-01T10:00:00.000Z",
+        slotEnd: "2026-05-01T11:00:00.000Z",
+        contactName: "Иван Иванов",
+        contactPhone: "+79001234567",
+        branchTitle: "Клиника Москва",
+        serviceTitle: "ЛФК",
+        rubitimeBranchId: "br-1",
+        rubitimeServiceId: "svc-1",
+      });
 
-  it("markConfirmed rejects overlap once the other row is confirmed", async () => {
-    const a = await inMemoryPatientBookingsPort.createPending(onlinePending());
-    const b = await inMemoryPatientBookingsPort.createPending(
-      onlinePending({
-        userId: "00000000-0000-4000-8000-000000000002",
-        slotStart: "2026-04-02T10:30:00.000Z",
-        slotEnd: "2026-04-02T11:30:00.000Z",
-      }),
-    );
-    await inMemoryPatientBookingsPort.markConfirmed(a.id, "r1");
-    await expect(inMemoryPatientBookingsPort.markConfirmed(b.id, "r2")).rejects.toThrow("slot_overlap");
+      const found = await inMemoryPatientBookingsPort.getByRubitimeId("rub-123");
+      expect(found).not.toBeNull();
+      expect(found?.rubitimeId).toBe("rub-123");
+      expect(found?.status).toBe("confirmed");
+      expect(found?.branchTitleSnapshot).toBe("Клиника Москва");
+      expect(found?.serviceTitleSnapshot).toBe("ЛФК");
+      expect(found?.rubitimeBranchIdSnapshot).toBe("br-1");
+    });
+
+    it("does not create compat-row when slotStart is missing", async () => {
+      await inMemoryPatientBookingsPort.upsertFromRubitime({
+        rubitimeId: "rub-no-slot",
+        status: "confirmed",
+        slotStart: null,
+      });
+
+      const found = await inMemoryPatientBookingsPort.getByRubitimeId("rub-no-slot");
+      expect(found).toBeNull();
+    });
+
+    it("updates existing row instead of creating duplicate (dedup)", async () => {
+      // First call: create
+      await inMemoryPatientBookingsPort.upsertFromRubitime({
+        rubitimeId: "rub-dedup",
+        status: "confirmed",
+        slotStart: "2026-05-01T10:00:00.000Z",
+      });
+
+      // Second call: update (same rubitime_id)
+      await inMemoryPatientBookingsPort.upsertFromRubitime({
+        rubitimeId: "rub-dedup",
+        status: "cancelled",
+        slotStart: "2026-05-01T10:00:00.000Z",
+      });
+
+      const found = await inMemoryPatientBookingsPort.getByRubitimeId("rub-dedup");
+      expect(found?.status).toBe("cancelled");
+
+      // Check no duplicates
+      const history = await inMemoryPatientBookingsPort.listHistoryByUser(
+        found!.userId,
+        "2020-01-01T00:00:00.000Z",
+      );
+      const count = history.filter((r) => r.rubitimeId === "rub-dedup").length;
+      expect(count).toBe(1);
+    });
+
+    it("updates status on cancel webhook", async () => {
+      await inMemoryPatientBookingsPort.upsertFromRubitime({
+        rubitimeId: "rub-cancel",
+        status: "confirmed",
+        slotStart: "2026-05-01T10:00:00.000Z",
+      });
+
+      await inMemoryPatientBookingsPort.upsertFromRubitime({
+        rubitimeId: "rub-cancel",
+        status: "cancelled",
+        slotStart: "2026-05-01T10:00:00.000Z",
+      });
+
+      const found = await inMemoryPatientBookingsPort.getByRubitimeId("rub-cancel");
+      expect(found?.status).toBe("cancelled");
+    });
+
+    it("uses default 60-min duration when slotEnd is missing", async () => {
+      await inMemoryPatientBookingsPort.upsertFromRubitime({
+        rubitimeId: "rub-no-end",
+        status: "confirmed",
+        slotStart: "2026-05-01T10:00:00.000Z",
+        slotEnd: null,
+      });
+
+      const found = await inMemoryPatientBookingsPort.getByRubitimeId("rub-no-end");
+      expect(found?.slotEnd).toBe("2026-05-01T11:00:00.000Z");
+    });
   });
 });

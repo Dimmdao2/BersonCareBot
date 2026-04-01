@@ -11,6 +11,8 @@
 Webapp резолвит Rubitime IDs из локального каталога (`booking_branch_services`) и передаёт их в integrator явно.  
 Integrator **не резолвит** `city`, `category` или `bookingProfileId` самостоятельно для in-person v2.
 
+**NOTE (дискриминант v2):** в теле M2M нет поля `type: "in_person"`. Ветка v2 определяется только полем `"version": "v2"`. Поля `category` / `city` в v2 **не передаются** и не используются integrator для резолва. Очный поток на стороне webapp — единственный источник вызовов с `version: "v2"` (online остаётся на непомеченном v1 body).
+
 ---
 
 ## 1. POST /api/bersoncare/rubitime/slots (v2)
@@ -34,8 +36,9 @@ x-bersoncare-signature: <hmac_sha256>
   "rubitimeBranchId": "17356",
   "rubitimeCooperatorId": "34729",
   "rubitimeServiceId": "67591",
+  "slotDurationMinutes": 60,
   "dateFrom": "2026-04-10",
-  "dateTo": "2026-04-24"
+  "dateTo": "2026-04-10"
 }
 ```
 
@@ -45,10 +48,13 @@ x-bersoncare-signature: <hmac_sha256>
 | `rubitimeBranchId` | `string` | да | ID филиала в Rubitime |
 | `rubitimeCooperatorId` | `string` | да | ID сотрудника в Rubitime |
 | `rubitimeServiceId` | `string` | да | ID услуги в Rubitime |
-| `dateFrom` | `string` (YYYY-MM-DD) | нет | Начало диапазона (по умолчанию: сегодня) |
-| `dateTo` | `string` (YYYY-MM-DD) | нет | Конец диапазона (по умолчанию: +14 дней) |
+| `slotDurationMinutes` | `number` (int > 0) | да | Длительность слота (мин.) для нормализации ответа Rubitime на стороне webapp/integrator |
+| `dateFrom` | `string` (YYYY-MM-DD) | нет | Фильтр одного дня или начало диапазона (webapp для одного дня шлёт `dateFrom` = `dateTo`) |
+| `dateTo` | `string` (YYYY-MM-DD) | нет | Конец диапазона |
 
 **Не входит в v2 body:** `city`, `category`, `bookingType`, `bookingProfileId`.
+
+**Ответ integrator:** фактическая реализация возвращает нормализованный массив `slots` с полями `date` и вложенными `slots[]` (`startAt`/`endAt` в формате нормализатора); webapp принимает как контракт v1-формы слотов, если нет массива `times[]`. См. `bookingM2mApi.ts`.
 
 ### Response (success)
 
@@ -148,7 +154,7 @@ x-bersoncare-signature: <hmac_sha256>
 
 **Не входит в v2 body:** `city`, `category`, `bookingType`, `bookingProfileId`, `slotEnd`.
 
-> **Вычисление `slotEnd`:** webapp не передаёт `slotEnd`. Integrator вычисляет время окончания самостоятельно на основе длительности услуги, полученной из Rubitime API по `rubitimeServiceId`. Если Rubitime API не возвращает длительность — integrator использует `duration_minutes` из тела ответа на `/slots` (если был предварительный запрос) или запрашивает отдельно. Это поведение реализуется в задаче 2.D2.
+> **Реализация:** в v2 M2M `slotEnd` не передаётся. Integrator формирует вызов Rubitime `create-record` с полем `record` из даты/времени `slotStart` (см. `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`). Отображаемая длительность слота на стороне webapp опирается на каталог (`durationMinutes` услуги), а не на отдельное поле в этом запросе.
 
 ### Response (success)
 
@@ -220,15 +226,16 @@ x-bersoncare-signature: <hmac_sha256>
 
 ---
 
-## 4. HMAC подпись (без изменений)
+## 4. HMAC подпись (без изменений по смыслу)
 
-Механизм подписи не меняется относительно существующего M2M:
+Механизм подписи тот же, что у остальных M2M-эндпоинтов integrator (см. `recordM2mRoute.ts`):
 
 ```
-signature = HMAC-SHA256(secret, timestamp + "." + canonical_body)
+payload = timestamp + "." + raw_body
+signature = base64url( HMAC-SHA256(secret, payload) )
 ```
 
-- `x-bersoncare-timestamp` — unix timestamp в миллисекундах
-- `x-bersoncare-signature` — hex HMAC
-- Window: ±30 секунд (по умолчанию)
-- Secret: из `system_settings` scope `admin` (не из env)
+- `x-bersoncare-timestamp` — unix timestamp в **секундах** (строка)
+- `x-bersoncare-signature` — **base64url** digest
+- Window: **±300 секунд** от текущего времени сервера integrator
+- Secret: значение, согласованное с webapp (в продакшене — из admin settings / общий M2M secret; не логировать)

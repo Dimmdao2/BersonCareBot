@@ -194,23 +194,94 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     return row ? mapRow(row) : null;
   },
 
+  /**
+   * Sync from Rubitime projections / webhooks.
+   * - If row exists by `rubitime_id`: update status/slots (snapshot columns preserved for native rows).
+   * - If row not found: create compat-row with source='rubitime_projection' and best-effort fields.
+   * Dedup: second call with same rubitime_id always hits UPDATE path (no duplicate INSERT).
+   */
   async upsertFromRubitime(input) {
     const pool = getPool();
-    const existing = await pool.query<{ id: string }>(
-      `SELECT id FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
+    const existing = await pool.query<{ id: string; source: string }>(
+      `SELECT id, source FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
       [input.rubitimeId],
     );
-    const bookingId = existing.rows[0]?.id;
-    if (!bookingId) return;
+    const existingRow = existing.rows[0];
+
+    if (existingRow) {
+      // UPDATE path: update status and slot times; do not overwrite snapshots for native rows.
+      await pool.query(
+        `UPDATE patient_bookings
+         SET status = $2,
+             slot_start = COALESCE($3::timestamptz, slot_start),
+             slot_end   = COALESCE($4::timestamptz, slot_end),
+             cancelled_at = CASE WHEN $2 IN ('cancelled', 'rescheduled') THEN now() ELSE cancelled_at END,
+             branch_title_snapshot   = CASE WHEN source = 'rubitime_projection' AND $5 IS NOT NULL THEN $5 ELSE branch_title_snapshot END,
+             service_title_snapshot  = CASE WHEN source = 'rubitime_projection' AND $6 IS NOT NULL THEN $6 ELSE service_title_snapshot END,
+             rubitime_branch_id_snapshot   = CASE WHEN source = 'rubitime_projection' AND $7 IS NOT NULL THEN $7 ELSE rubitime_branch_id_snapshot END,
+             rubitime_service_id_snapshot  = CASE WHEN source = 'rubitime_projection' AND $8 IS NOT NULL THEN $8 ELSE rubitime_service_id_snapshot END,
+             compat_quality = CASE WHEN source = 'rubitime_projection' THEN $9 ELSE compat_quality END,
+             updated_at = now()
+         WHERE id = $1`,
+        [
+          existingRow.id,
+          input.status,
+          input.slotStart ?? null,
+          input.slotEnd ?? null,
+          input.branchTitle ?? null,
+          input.serviceTitle ?? null,
+          input.rubitimeBranchId ?? null,
+          input.rubitimeServiceId ?? null,
+          computeCompatQuality(input),
+        ],
+      );
+      return;
+    }
+
+    // CREATE compat-row path: external Rubitime record without a native booking row.
+    if (!input.slotStart) return; // Cannot create a meaningful row without start time.
+
+    const compatQuality = computeCompatQuality(input);
+    const slotEnd = input.slotEnd ?? computeFallbackSlotEnd(input.slotStart);
+    const userId = input.userId ?? null;
+    const id = randomUUID();
+
     await pool.query(
-      `UPDATE patient_bookings
-       SET status = $2,
-           slot_start = COALESCE($3::timestamptz, slot_start),
-           slot_end = COALESCE($4::timestamptz, slot_end),
-           cancelled_at = CASE WHEN $2 IN ('cancelled', 'rescheduled') THEN now() ELSE cancelled_at END,
-           updated_at = now()
-       WHERE id = $1`,
-      [bookingId, input.status, input.slotStart ?? null, input.slotEnd ?? null],
+      `INSERT INTO patient_bookings (
+         id, platform_user_id, booking_type, city, category,
+         slot_start, slot_end, status,
+         rubitime_id,
+         contact_phone, contact_email, contact_name,
+         branch_title_snapshot, service_title_snapshot,
+         rubitime_branch_id_snapshot, rubitime_service_id_snapshot,
+         source, compat_quality,
+         created_at, updated_at
+       ) VALUES (
+         $1, $2, 'in_person', NULL, 'general',
+         $3::timestamptz, $4::timestamptz, $5,
+         $6,
+         $7, NULL, $8,
+         $9, $10,
+         $11, $12,
+         'rubitime_projection', $13,
+         now(), now()
+       )
+       ON CONFLICT (rubitime_id) DO NOTHING`,
+      [
+        id,
+        userId,
+        input.slotStart,
+        slotEnd,
+        input.status,
+        input.rubitimeId,
+        input.contactPhone ?? "",
+        input.contactName ?? "",
+        input.branchTitle ?? null,
+        input.serviceTitle ?? null,
+        input.rubitimeBranchId ?? null,
+        input.rubitimeServiceId ?? null,
+        compatQuality,
+      ],
     );
   },
 
@@ -243,6 +314,30 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     return result.rows.map(mapRow);
   },
 };
+
+/** Default slot duration for compat-rows when slotEnd is not available from webhook. */
+const DEFAULT_COMPAT_SLOT_DURATION_MINUTES = 60;
+
+function computeFallbackSlotEnd(slotStart: string): string {
+  const start = new Date(slotStart);
+  if (Number.isNaN(start.getTime())) return slotStart;
+  return new Date(start.getTime() + DEFAULT_COMPAT_SLOT_DURATION_MINUTES * 60_000).toISOString();
+}
+
+function computeCompatQuality(input: {
+  slotEnd?: string | null;
+  branchTitle?: string | null;
+  serviceTitle?: string | null;
+  rubitimeBranchId?: string | null;
+  rubitimeServiceId?: string | null;
+}): "full" | "partial" | "minimal" {
+  const hasSlotEnd = !!input.slotEnd;
+  const hasBranch = !!(input.branchTitle ?? input.rubitimeBranchId);
+  const hasService = !!(input.serviceTitle ?? input.rubitimeServiceId);
+  if (hasSlotEnd && hasBranch && hasService) return "full";
+  if (hasBranch || hasService) return "partial";
+  return "minimal";
+}
 
 export function mapRubitimeStatusToPatientBookingStatus(rawStatus: string): PatientBookingStatus {
   const x = rawStatus.toLowerCase();

@@ -11,18 +11,26 @@ import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsP
 import type { DispatchPort } from '../../kernel/contracts/index.js';
 import { createRubitimeRecord, fetchRubitimeSchedule, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
 import { resolveScheduleParams } from './bookingScheduleMapping.js';
+import { isLegacyBookingProfileResolveEnabled } from './legacyResolveFlag.js';
 import { normalizeRubitimeSchedule } from './scheduleNormalizer.js';
 import { getBookingDisplayTimezone } from '../../infra/db/repos/bookingDisplayTimezone.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
+import type { z } from 'zod';
 import {
   parseBookingLifecycleEvent,
+  RubitimeCreateRecordV1Schema,
+  RubitimeSlotsQueryV1Schema,
   parseRubitimeSlotsQuery,
   parseRubitimeCreateRecordInput,
   type BookingLifecycleEventValidated,
   type BookingLifecyclePayloadValidated,
 } from './schema.js';
+
+type RubitimeCreateRecordV1 = z.infer<typeof RubitimeCreateRecordV1Schema>;
+type RubitimeSlotsQueryV1 = z.infer<typeof RubitimeSlotsQueryV1Schema>;
 import { telegramConfig } from '../telegram/config.js';
 import { maxConfig } from '../max/config.js';
+import { ERR_LEGACY_RESOLVE_DISABLED } from './internalContract.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -75,10 +83,19 @@ function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
+/** Rubitime API2 expects integer IDs; webapp sends string/number from catalog. */
+function parseRubitimeNumericId(raw: string): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
+}
+
 function patientCreatedText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
   const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const typeLabel = payload.bookingType === 'online' ? 'Онлайн' : 'Очный приём';
-  const city = asNonEmptyString(payload.city);
+  const city =
+    asNonEmptyString(payload.cityCodeSnapshot) ??
+    asNonEmptyString(payload.city);
   const citySuffix = city ? ` (${city})` : '';
   return `Запись подтверждена: ${dateLabel}\n${typeLabel}${citySuffix}`;
 }
@@ -392,42 +409,78 @@ export async function registerRubitimeRecordM2mRoutes(
     }
     const input = parsed.data;
 
-    // Resolve Rubitime IDs from booking profile in DB
-    const scheduleParams = await resolveScheduleParams({
-      type: input.type,
-      category: input.category,
-      ...(input.city ? { city: input.city } : {}),
-    });
-    if (!scheduleParams) {
-      logger.warn({ type: input.type, category: input.category, city: input.city }, 'rubitime create-record: no booking profile for query');
-      return reply.code(400).send({ ok: false, error: 'slots_mapping_not_configured' });
-    }
+    if ('version' in input && input.version === 'v2') {
+      const branchId = parseRubitimeNumericId(input.rubitimeBranchId);
+      const cooperatorId = parseRubitimeNumericId(input.rubitimeCooperatorId);
+      const serviceId = parseRubitimeNumericId(input.rubitimeServiceId);
+      if (branchId === null || cooperatorId === null || serviceId === null) {
+        return reply.code(400).send({ ok: false, error: 'invalid_rubitime_ids' });
+      }
+      const rubitimeDatetime = input.slotStart.slice(0, 19).replace('T', ' ');
+      const rubitimePayload: Record<string, unknown> = {
+        branch_id: branchId,
+        cooperator_id: cooperatorId,
+        service_id: serviceId,
+        record: rubitimeDatetime,
+        name: input.patient.name,
+        phone: input.patient.phone,
+      };
+      const email = input.patient.email?.trim();
+      if (email) {
+        rubitimePayload.email = email;
+      }
+      try {
+        const result = await createRubitimeRecord({ data: rubitimePayload });
+        const recordId = (typeof result.id === 'string' || typeof result.id === 'number')
+          ? String(result.id)
+          : null;
+        return reply.code(200).send({ ok: true, recordId, data: result });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn({ err }, 'rubitime create-record failed (v2)');
+        return reply.code(502).send({ ok: false, error: msg });
+      }
+    } else {
+      const v1 = input as RubitimeCreateRecordV1;
+      if (!isLegacyBookingProfileResolveEnabled()) {
+        return reply.code(400).send({ ok: false, error: ERR_LEGACY_RESOLVE_DISABLED });
+      }
 
-    // Convert ISO slotStart to Rubitime datetime format: "YYYY-MM-DD HH:mm:ss"
-    const rubitimeDatetime = input.slotStart.slice(0, 19).replace('T', ' ');
+      const scheduleParams = await resolveScheduleParams({
+        type: v1.type,
+        category: v1.category,
+        ...(v1.city ? { city: v1.city } : {}),
+      });
+      if (!scheduleParams) {
+        logger.warn({ type: v1.type, category: v1.category, city: v1.city }, 'rubitime create-record: no booking profile for query');
+        return reply.code(400).send({ ok: false, error: 'slots_mapping_not_configured' });
+      }
 
-    const rubitimePayload: Record<string, unknown> = {
-      branch_id:     scheduleParams.branchId,
-      cooperator_id: scheduleParams.cooperatorId,
-      service_id:    scheduleParams.serviceId,
-      record:        rubitimeDatetime,
-      name:          input.contactName,
-      phone:         input.contactPhone,
-    };
-    if (input.contactEmail && input.contactEmail.trim()) {
-      rubitimePayload.email = input.contactEmail.trim();
-    }
+      const rubitimeDatetime = v1.slotStart.slice(0, 19).replace('T', ' ');
 
-    try {
-      const result = await createRubitimeRecord({ data: rubitimePayload });
-      const recordId = (typeof result.id === 'string' || typeof result.id === 'number')
-        ? String(result.id)
-        : null;
-      return reply.code(200).send({ ok: true, recordId, data: result });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logger.warn({ err, type: input.type, category: input.category }, 'rubitime create-record failed');
-      return reply.code(502).send({ ok: false, error: msg });
+      const rubitimePayload: Record<string, unknown> = {
+        branch_id:     scheduleParams.branchId,
+        cooperator_id: scheduleParams.cooperatorId,
+        service_id:    scheduleParams.serviceId,
+        record:        rubitimeDatetime,
+        name:          v1.contactName,
+        phone:         v1.contactPhone,
+      };
+      if (v1.contactEmail && v1.contactEmail.trim()) {
+        rubitimePayload.email = v1.contactEmail.trim();
+      }
+
+      try {
+        const result = await createRubitimeRecord({ data: rubitimePayload });
+        const recordId = (typeof result.id === 'string' || typeof result.id === 'number')
+          ? String(result.id)
+          : null;
+        return reply.code(200).send({ ok: true, recordId, data: result });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn({ err, type: v1.type, category: v1.category }, 'rubitime create-record failed');
+        return reply.code(502).send({ ok: false, error: msg });
+      }
     }
   });
 
@@ -440,27 +493,60 @@ export async function registerRubitimeRecordM2mRoutes(
     if (!parsed.success) {
       return reply.code(400).send({ ok: false, error: 'invalid_slots_query' });
     }
-    const scheduleParams = await resolveScheduleParams({
-      type: parsed.data.type,
-      category: parsed.data.category,
-      ...(parsed.data.city ? { city: parsed.data.city } : {}),
-    });
-    if (!scheduleParams) {
-      logger.warn({ query: parsed.data }, 'rubitime slots: no schedule mapping for query');
-      return reply.code(400).send({ ok: false, error: 'slots_mapping_not_configured' });
-    }
-    try {
-      const raw = await fetchRubitimeSchedule({ params: scheduleParams });
-      const slots = normalizeRubitimeSchedule(raw, scheduleParams.durationMinutes, parsed.data.date);
-      return reply.code(200).send({ ok: true, slots });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.startsWith('RUBITIME_SCHEDULE_MALFORMED_DATA')) {
-        logger.warn({ err }, 'rubitime slots: malformed schedule data from Rubitime API');
-        return reply.code(502).send({ ok: false, error: 'rubitime_schedule_malformed' });
+    const q = parsed.data;
+
+    if ('version' in q && q.version === 'v2') {
+      const branchId = parseRubitimeNumericId(q.rubitimeBranchId);
+      const cooperatorId = parseRubitimeNumericId(q.rubitimeCooperatorId);
+      const serviceId = parseRubitimeNumericId(q.rubitimeServiceId);
+      if (branchId === null || cooperatorId === null || serviceId === null) {
+        return reply.code(400).send({ ok: false, error: 'invalid_rubitime_ids' });
       }
-      logger.warn({ err }, 'rubitime slots failed');
-      return reply.code(502).send({ ok: false, error: msg });
+      const durationMinutes = q.slotDurationMinutes;
+      const dateFilter = q.dateFrom ?? q.dateTo;
+      try {
+        const raw = await fetchRubitimeSchedule({
+          params: { branchId, cooperatorId, serviceId },
+        });
+        const slots = normalizeRubitimeSchedule(raw, durationMinutes, dateFilter);
+        return reply.code(200).send({ ok: true, slots });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.startsWith('RUBITIME_SCHEDULE_MALFORMED_DATA')) {
+          logger.warn({ err }, 'rubitime slots: malformed schedule data from Rubitime API');
+          return reply.code(502).send({ ok: false, error: 'rubitime_schedule_malformed' });
+        }
+        logger.warn({ err }, 'rubitime slots failed (v2)');
+        return reply.code(502).send({ ok: false, error: msg });
+      }
+    } else {
+      const v1 = q as RubitimeSlotsQueryV1;
+      if (!isLegacyBookingProfileResolveEnabled()) {
+        return reply.code(400).send({ ok: false, error: ERR_LEGACY_RESOLVE_DISABLED });
+      }
+
+      const scheduleParams = await resolveScheduleParams({
+        type: v1.type,
+        category: v1.category,
+        ...(v1.city ? { city: v1.city } : {}),
+      });
+      if (!scheduleParams) {
+        logger.warn({ query: v1 }, 'rubitime slots: no schedule mapping for query');
+        return reply.code(400).send({ ok: false, error: 'slots_mapping_not_configured' });
+      }
+      try {
+        const raw = await fetchRubitimeSchedule({ params: scheduleParams });
+        const slots = normalizeRubitimeSchedule(raw, scheduleParams.durationMinutes, v1.date);
+        return reply.code(200).send({ ok: true, slots });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.startsWith('RUBITIME_SCHEDULE_MALFORMED_DATA')) {
+          logger.warn({ err }, 'rubitime slots: malformed schedule data from Rubitime API');
+          return reply.code(502).send({ ok: false, error: 'rubitime_schedule_malformed' });
+        }
+        logger.warn({ err }, 'rubitime slots failed');
+        return reply.code(502).send({ ok: false, error: msg });
+      }
     }
   });
 

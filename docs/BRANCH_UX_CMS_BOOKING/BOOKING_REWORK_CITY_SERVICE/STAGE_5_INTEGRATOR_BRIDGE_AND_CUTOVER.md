@@ -14,7 +14,7 @@
 3. Старый `category/city` оставить как deprecated (временно).
 
 **Тесты:**
-- [ ] schema parsing tests v1/v2
+- [x] schema parsing tests v1/v2
 
 **Критерии готовности:**
 - Контракт integrator формально поддерживает новый формат.
@@ -35,8 +35,8 @@
 4. Сохранить стандартизированный error mapping.
 
 **Тесты:**
-- [ ] route tests: accepts explicit IDs
-- [ ] route tests: rejects missing IDs for in-person v2
+- [x] route tests: accepts explicit IDs
+- [x] route tests: rejects missing IDs for in-person v2
 
 **Критерии готовности:**
 - Integrator не зависит от catalog данных для v2 runtime.
@@ -58,12 +58,26 @@
 3. Добавить feature switch для отключения legacy-resolve.
 
 **Тесты:**
-- [ ] fallback compatibility tests
+- [x] fallback compatibility tests
 
 **Критерии готовности:**
 - Есть контролируемый путь полного отключения legacy.
 
 **Лог:** `S5.T03`.
+
+---
+
+## POLICY: Когда можно отключить legacy-resolve глобально
+
+**Нельзя выставить `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` до:**
+
+1. Online LFK и nutrition переведены на intake-сценарий (Stage 12 завершён).
+2. В integrator-логах нет v1-запросов типа `online` минимум 7 дней.
+3. Все активные online-клиенты уведомлены / перенаправлены на новый flow.
+
+**Резюме:** legacy-off scope = только после завершения Stage 8–12. Глобальное отключение сломает online v1 pathway.
+
+Подробнее: `CUTOVER_RUNBOOK.md §6`.
 
 ---
 
@@ -79,7 +93,7 @@
 3. Проверить cancel/update цепочку.
 
 **Тесты:**
-- [ ] lifecycle tests booking.created/booking.cancelled with v2 data
+- [x] lifecycle tests booking.created/booking.cancelled with v2 data
 
 **Критерии готовности:**
 - Синхронизация не зависит от legacy mapping.

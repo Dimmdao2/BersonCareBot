@@ -111,6 +111,7 @@ export function createBookingSyncPort(): BookingSyncPort {
           rubitimeBranchId: query.rubitimeBranchId,
           rubitimeCooperatorId: query.rubitimeCooperatorId,
           rubitimeServiceId: query.rubitimeServiceId,
+          slotDurationMinutes: query.slotDurationMinutes,
         };
         if (query.date) {
           payload.dateFrom = query.date;
@@ -131,9 +132,14 @@ export function createBookingSyncPort(): BookingSyncPort {
         throw new Error(integratorErrorCode(json));
       }
 
-      if (query.version === "v2" || isV2TimesShape(json)) {
-        const duration = query.version === "v2" ? query.slotDurationMinutes : 60;
-        return normalizeV2SlotsPayload(json.slots, duration, DEFAULT_SLOT_TZ);
+      if (query.version === "v2") {
+        if (isV2TimesShape(json)) {
+          return normalizeV2SlotsPayload(json.slots, query.slotDurationMinutes, DEFAULT_SLOT_TZ);
+        }
+        return validateV1SlotsContract(json);
+      }
+      if (isV2TimesShape(json)) {
+        return normalizeV2SlotsPayload(json.slots, 60, DEFAULT_SLOT_TZ);
       }
       return validateV1SlotsContract(json);
     },

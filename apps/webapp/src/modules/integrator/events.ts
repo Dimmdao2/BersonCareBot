@@ -720,13 +720,46 @@ export async function handleIntegratorEvent(
         branchId,
       });
       const rubitimeId = integratorRecordId;
+      // Extract enriched fields for compat-sync create path (Stage 11).
+      // Top-level fields from projection payload take precedence over payloadJson fallbacks.
+      const payloadServiceTitle =
+        coerceToString(p.serviceName) ??
+        coerceToString(payloadJson.service_name) ??
+        coerceToString(payloadJson.service_title);
+      const payloadSlotEnd =
+        coerceToString(p.dateTimeEnd) ??
+        coerceToString(payloadJson.datetime_end) ??
+        coerceToString(payloadJson.date_time_end);
+      const payloadPhone = phoneNormalized ?? coerceToString(payloadJson.phone);
+      const payloadContactName =
+        coerceToString(p.patientFirstName) ??
+        coerceToString(payloadJson.name) ??
+        ([coerceToString(p.patientLastName), coerceToString(p.patientFirstName)].filter(Boolean).join(" ") || null);
+
+      // Resolve userId by phone for compat-create linking (best-effort: skip if users dep absent).
+      let resolvedUserId: string | null = null;
+      if (deps.users && payloadPhone) {
+        try {
+          const found = await deps.users.findByIntegratorId(integratorRecordId).catch(() => null);
+          // findByIntegratorId may not resolve phone-based lookup; userId may stay null for compat rows.
+          resolvedUserId = found?.platformUserId ?? null;
+        } catch {
+          // best-effort
+        }
+      }
+
       await deps.patientBooking?.applyRubitimeUpdate({
         rubitimeId,
         status: mapRubitimeStatusToPatientBookingStatus(status),
         slotStart: recordAt ?? null,
-        // slotEnd is not present in appointment.record.upserted projection payload.
-        // Decision A: update-only for native rows; slot_end stays via COALESCE in SQL.
-        slotEnd: null,
+        slotEnd: payloadSlotEnd,
+        userId: resolvedUserId,
+        contactPhone: payloadPhone,
+        contactName: payloadContactName,
+        branchTitle: branchName,
+        serviceTitle: payloadServiceTitle,
+        rubitimeBranchId: integratorBranchId,
+        rubitimeServiceId: coerceToString(p.serviceId) ?? coerceToString(payloadJson.service_id),
       });
       return { accepted: true };
     } catch (err) {

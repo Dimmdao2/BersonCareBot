@@ -19,6 +19,8 @@ export default async function globalSetup() {
   if (!dbUrl || dbUrl === "") {
     return;
   }
+  const failOnMigrationError =
+    process.env.CI === "true" || process.env.VITEST_REQUIRE_DB_MIGRATIONS === "true";
   try {
     execSync("node scripts/run-migrations.mjs", {
       encoding: "utf-8",
@@ -26,6 +28,11 @@ export default async function globalSetup() {
       env: { ...process.env, DATABASE_URL: dbUrl },
     });
   } catch (e) {
+    if (failOnMigrationError) {
+      throw new Error("vitest globalSetup: migrations failed while DB migrations are required", {
+        cause: e,
+      });
+    }
     console.warn("vitest globalSetup: migrations failed (DB may be down). Tests may use in-memory.", e);
   }
 }

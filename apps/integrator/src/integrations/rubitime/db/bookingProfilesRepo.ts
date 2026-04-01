@@ -4,7 +4,9 @@
  * Таблицы:
  *   rubitime_branches, rubitime_services, rubitime_cooperators, rubitime_booking_profiles
  *
- * Источник истины для маппинга (type/category/city) -> Rubitime IDs.
+ * **Legacy runtime mapping:** `resolveBookingProfile` maps (type/category/city) → Rubitime IDs
+ * for **v1** M2M only. Очная запись v2 получает ID из webapp-каталога и не использует этот
+ * lookup в hot path. Сохраняется для online v1 и отката / совместимости.
  */
 import type { DbPort } from '../../../kernel/contracts/index.js';
 

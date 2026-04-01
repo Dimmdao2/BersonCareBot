@@ -34,16 +34,49 @@ export function parseRubitimeBody(raw: unknown): {
   return { success: false, error: result.error };
 }
 
-/** Описание входного запроса слотов из webapp к integrator M2M. */
-export const RubitimeSlotsQuerySchema = z.object({
+const idLike = z.union([z.string().min(1), z.number().finite()]).transform((v) => String(v).trim());
+
+/** v2: explicit Rubitime IDs from webapp catalog — no category/city resolve in integrator. */
+export const RubitimeSlotsQueryV2Schema = z.object({
+  version: z.literal('v2'),
+  rubitimeBranchId: idLike,
+  rubitimeCooperatorId: idLike,
+  rubitimeServiceId: idLike,
+  slotDurationMinutes: z.number().int().positive(),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+/** @deprecated v1 — category (+ city for in_person) resolved via legacy booking profiles. */
+export const RubitimeSlotsQueryV1Schema = z.object({
   type: z.enum(['in_person', 'online']),
   city: z.string().trim().optional(),
   category: z.enum(['rehab_lfk', 'nutrition', 'general']),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
-/** Входящий запрос создания записи из webapp к integrator M2M. */
-export const RubitimeCreateRecordInputSchema = z.object({
+export const RubitimeSlotsQuerySchema = z.union([RubitimeSlotsQueryV2Schema, RubitimeSlotsQueryV1Schema]);
+
+export type RubitimeSlotsQueryValidated = z.infer<typeof RubitimeSlotsQuerySchema>;
+
+const patientBlockSchema = z.object({
+  name: z.string().min(1),
+  phone: z.string().min(1),
+  email: z.union([z.string().email(), z.literal('')]).optional(),
+});
+
+export const RubitimeCreateRecordV2Schema = z.object({
+  version: z.literal('v2'),
+  rubitimeBranchId: idLike,
+  rubitimeCooperatorId: idLike,
+  rubitimeServiceId: idLike,
+  slotStart: z.string().min(1),
+  patient: patientBlockSchema,
+  localBookingId: z.string().uuid().optional(),
+});
+
+/** @deprecated v1 — flat contact fields + profile resolve. */
+export const RubitimeCreateRecordV1Schema = z.object({
   type: z.enum(['in_person', 'online']),
   city: z.string().trim().optional(),
   category: z.enum(['rehab_lfk', 'nutrition', 'general']),
@@ -53,6 +86,8 @@ export const RubitimeCreateRecordInputSchema = z.object({
   contactPhone: z.string().min(1),
   contactEmail: z.union([z.string().email(), z.literal('')]).optional(),
 });
+
+export const RubitimeCreateRecordInputSchema = z.union([RubitimeCreateRecordV2Schema, RubitimeCreateRecordV1Schema]);
 
 export type RubitimeCreateRecordInputValidated = z.infer<typeof RubitimeCreateRecordInputSchema>;
 
@@ -67,8 +102,6 @@ export function parseRubitimeCreateRecordInput(raw: unknown): {
   if (result.success) return { success: true, data: result.data };
   return { success: false, error: result.error };
 }
-
-export type RubitimeSlotsQueryValidated = z.infer<typeof RubitimeSlotsQuerySchema>;
 
 /** Нормализованный слот для webapp API. */
 export const RubitimeSlotSchema = z.object({
@@ -111,6 +144,9 @@ const BookingLifecyclePayloadSchema = z.object({
   contactPhone: z.string().min(1),
   contactEmail: z.union([z.string().email(), z.null()]).optional(),
   reason: z.string().optional(),
+  branchServiceId: z.string().uuid().nullable().optional(),
+  cityCodeSnapshot: z.string().nullable().optional(),
+  serviceTitleSnapshot: z.string().nullable().optional(),
 });
 
 export const BookingLifecycleEventSchema = z.object({

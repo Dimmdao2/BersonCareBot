@@ -11,6 +11,8 @@ type RubitimeIncomingPayload = {
   phone?: string;
   recordAt?: string;
   recordAtFormatted?: string;
+  /** ISO datetime end of the appointment slot (for compat-sync slotEnd). */
+  dateTimeEnd?: string;
   updatedAt?: string;
   record: Record<string, unknown>;
   /** Patient profile from Rubitime card (for scripts and projection). */
@@ -20,6 +22,9 @@ type RubitimeIncomingPayload = {
   clientLastName?: string;
   integratorBranchId?: string;
   branchName?: string;
+  /** Rubitime service metadata for compat-sync create path. */
+  serviceId?: string;
+  serviceName?: string;
   gcalEventId?: string;
 };
 
@@ -106,6 +111,11 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
   const integratorBranchId =
     asString(source.branch_id) ?? (source.branch_id != null ? String(source.branch_id) : undefined);
   const branchName = asString(source.branch_name) ?? asString(source.branch_title);
+  // Stage 11: enrich with service metadata for compat-sync create path.
+  const serviceId =
+    asString(source.service_id) ?? (source.service_id != null ? String(source.service_id) : undefined);
+  const serviceName = asString(source.service_name) ?? asString(source.service_title);
+  const dateTimeEnd = asString(source.datetime_end) ?? asString(source.date_time_end);
   const { firstName: clientFirstName, lastName: clientLastName } = clientName
     ? parseNameToFirstLast(clientName)
     : {};
@@ -127,6 +137,9 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
     ...(clientLastName ? { clientLastName } : {}),
     ...(integratorBranchId ? { integratorBranchId } : {}),
     ...(branchName ? { branchName } : {}),
+    ...(serviceId ? { serviceId } : {}),
+    ...(serviceName ? { serviceName } : {}),
+    ...(dateTimeEnd ? { dateTimeEnd } : {}),
   };
 }
 

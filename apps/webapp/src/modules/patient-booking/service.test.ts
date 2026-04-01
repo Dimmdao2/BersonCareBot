@@ -275,6 +275,48 @@ describe("createPatientBookingService", () => {
     });
   });
 
+  it("createBooking: in_person slot overlap rolls back rubitime and cancels pending (v2 regression)", async () => {
+    const r = resolvedFixture();
+    resolveBranchServiceMock.mockResolvedValue(r);
+    const pending = sampleRow({
+      id: "p-overlap-ip",
+      status: "creating",
+      rubitimeId: null,
+      bookingType: "in_person",
+      city: "moscow",
+      branchServiceId: r.branchService.id,
+    });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rub-ip", raw: {} });
+    bookingsPort.markConfirmed.mockRejectedValue(new Error("slot_overlap"));
+    bookingsPort.markCancelled.mockResolvedValue({ ...pending, status: "cancelled" });
+    syncPort.cancelRecord.mockResolvedValue(undefined);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: catalogWithResolve(),
+    });
+    await expect(
+      svc.createBooking({
+        userId: pending.userId,
+        type: "in_person",
+        branchServiceId: r.branchService.id,
+        cityCode: "moscow",
+        slotStart: pending.slotStart,
+        slotEnd: pending.slotEnd,
+        contactName: pending.contactName,
+        contactPhone: pending.contactPhone,
+      }),
+    ).rejects.toThrow("slot_overlap");
+    expect(syncPort.cancelRecord).toHaveBeenCalledWith("rub-ip");
+    expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
+      bookingId: pending.id,
+      reason: "slot_overlap",
+      status: "cancelled",
+    });
+  });
+
   it("getSlots: in_person calls catalog resolve and integrator v2", async () => {
     const r = resolvedFixture();
     resolveBranchServiceMock.mockResolvedValue(r);
@@ -325,6 +367,12 @@ describe("createPatientBookingService", () => {
       rubitimeId: null,
       bookingType: "in_person",
       city: "moscow",
+      branchServiceId: r.branchService.id,
+      branchId: r.branch.id,
+      serviceId: r.service.id,
+      cityCodeSnapshot: r.city.code,
+      branchTitleSnapshot: r.branch.title,
+      serviceTitleSnapshot: r.service.title,
     });
     bookingsPort.createPending.mockResolvedValue(pending);
     syncPort.createRecord.mockResolvedValue({ rubitimeId: "rx", raw: {} });
@@ -351,6 +399,54 @@ describe("createPatientBookingService", () => {
         version: "v2",
         localBookingId: "p3",
         rubitimeBranchId: "17356",
+      }),
+    );
+    expect(syncPort.emitBookingEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "booking.created",
+        payload: expect.objectContaining({
+          branchServiceId: r.branchService.id,
+          cityCodeSnapshot: "moscow",
+          serviceTitleSnapshot: "Сеанс",
+        }),
+      }),
+    );
+  });
+
+  it("cancelBooking: emit booking.cancelled includes v2 snapshot fields for in_person", async () => {
+    const row = sampleRow({
+      status: "confirmed",
+      rubitimeId: "r1",
+      bookingType: "in_person",
+      branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      cityCodeSnapshot: "moscow",
+      serviceTitleSnapshot: "Сеанс",
+    });
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
+    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancelled" });
+    syncPort.cancelRecord.mockResolvedValue(undefined);
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+    });
+    const result = await svc.cancelBooking({
+      userId: row.userId,
+      bookingId: row.id,
+      reason: "plan changed",
+    });
+    expect(result).toEqual({ ok: true });
+    expect(syncPort.emitBookingEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "booking.cancelled",
+        payload: expect.objectContaining({
+          branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+          cityCodeSnapshot: "moscow",
+          serviceTitleSnapshot: "Сеанс",
+        }),
       }),
     );
   });

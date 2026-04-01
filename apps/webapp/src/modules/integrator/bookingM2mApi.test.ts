@@ -99,6 +99,7 @@ describe("createBookingSyncPort.fetchSlots", () => {
       expect(body.rubitimeBranchId).toBe("b1");
       expect(body.rubitimeCooperatorId).toBe("c1");
       expect(body.rubitimeServiceId).toBe("s1");
+      expect(body.slotDurationMinutes).toBe(30);
       return {
         status: 200,
         json: () =>
@@ -120,6 +121,23 @@ describe("createBookingSyncPort.fetchSlots", () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.slots).toHaveLength(1);
     expect(result[0]!.slots[0]!.startAt).toContain("2026-04-10T10:00:00+03:00");
+  });
+
+  it("fetchSlots v2 accepts integrator normalized slots (v1-shaped array) without times[]", async () => {
+    const slots = [
+      { date: "2026-04-10", slots: [{ startAt: "2026-04-10T10:00:00", endAt: "2026-04-10T11:00:00" }] },
+    ];
+    mockFetch({ ok: true, slots });
+    const port = createBookingSyncPort();
+    const result = await port.fetchSlots({
+      version: "v2",
+      rubitimeBranchId: "b1",
+      rubitimeCooperatorId: "c1",
+      rubitimeServiceId: "s1",
+      slotDurationMinutes: 60,
+      date: "2026-04-10",
+    });
+    expect(result).toEqual(slots);
   });
 
   it("createRecord v2 posts patient + localBookingId and reads rubitimeRecordId", async () => {

@@ -8,6 +8,12 @@ export const routePaths = {
   cabinet: "/app/patient/cabinet",
   /** Запись на приём (Rubitime), без обязательного телефона. */
   patientBooking: "/app/patient/booking",
+  /** Wizard: шаг 1 — формат. */
+  bookingNew: "/app/patient/booking/new",
+  bookingNewCity: "/app/patient/booking/new/city",
+  bookingNewService: "/app/patient/booking/new/service",
+  bookingNewSlot: "/app/patient/booking/new/slot",
+  bookingNewConfirm: "/app/patient/booking/new/confirm",
   /** Адрес кабинета (iframe сайта клиники). */
   patientAddress: "/app/patient/address",
   profile: "/app/patient/profile",
@@ -30,6 +36,12 @@ export const routePaths = {
   patientInstall: "/app/patient/install",
   /** Напоминания пациента. */
   patientReminders: "/app/patient/reminders",
+  /** Online intake — LFK (online-only flow). */
+  intakeLfk: "/app/patient/intake/lfk",
+  /** Online intake — Nutrition questionnaire. */
+  intakeNutrition: "/app/patient/intake/nutrition",
+  /** Doctor online-intake inbox. */
+  doctorOnlineIntake: "/app/doctor/online-intake",
 } as const;
 
 /** Маршруты пациента, для которых нужна привязка номера телефона (дневники, покупки и т.д.). «Мои записи» и запись Rubitime — без обязательного телефона (заглушка в UI). Остальное (меню, уроки, скорая, контент) — без телефона. */

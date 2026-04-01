@@ -377,35 +377,530 @@
 ## Stage 5
 
 ### S5.T01 - Обновить integrator M2M contracts на explicit IDs
-- Status: pending
+- Status: done
+- Agent/model: claude (sonnet)
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/integrator/src/integrations/rubitime/internalContract.ts` — v1/v2 типы, `ERR_LEGACY_RESOLVE_DISABLED`
+  - `apps/integrator/src/integrations/rubitime/schema.ts` — union v1/v2 для slots/create, lifecycle payload + snapshot поля
+  - `apps/integrator/src/integrations/rubitime/schema.test.ts` — парсинг v1/v2
+- Tests: vitest `schema.test.ts`
+- CI: `pnpm run ci` — passed ✓
 
 ### S5.T02 - Упростить recordM2mRoute для slots/create
-- Status: pending
+- Status: done
+- Agent/model: claude (sonnet)
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` — v2 без `resolveScheduleParams`; v1 под флагом legacy; подпись/ошибки
+  - `apps/webapp/src/modules/integrator/bookingM2mApi.ts` — `slotDurationMinutes` в body v2 slots; v2 ответ без `times[]` → v1 contract
+  - `apps/webapp/src/modules/integrator/bookingM2mApi.test.ts` — slotDurationMinutes + нормализованный ответ
+- Tests: vitest integrator `recordM2mRoute.test.ts`, webapp `bookingM2mApi.test.ts`
+- CI: `pnpm run ci` — passed ✓
 
 ### S5.T03 - Изолировать legacy bookingProfilesRepo от runtime path
-- Status: pending
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/integrator/src/integrations/rubitime/legacyResolveFlag.ts` — `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED`
+  - `apps/integrator/src/integrations/rubitime/bookingScheduleMapping.ts` — комментарии deprecation / v2
+  - `apps/integrator/src/integrations/rubitime/db/bookingProfilesRepo.ts` — пометка legacy
+  - `apps/integrator/src/integrations/rubitime/LEGACY_BOOKING_PROFILES.md` — краткая операторская заметка
+  - `apps/integrator/src/integrations/rubitime/recordM2mRoute.test.ts` — legacy off + v2
+- Tests: vitest `recordM2mRoute.test.ts` (legacy)
+- CI: `pnpm run ci` — passed ✓
 
 ### S5.T04 - Обновить webhook update logic под v2 snapshots
-- Status: pending
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` — `patientCreatedText` использует `cityCodeSnapshot`
+  - `apps/webapp/src/infra/repos/pgPatientBookings.ts` — комментарий к `upsertFromRubitime` (match по `rubitime_id`, snapshots не трогаем)
+  - `apps/webapp/src/modules/patient-booking/service.test.ts` — emit `booking.created` / `booking.cancelled` с v2 snapshot полями
+- Tests: vitest `service.test.ts`
+- CI: `pnpm run ci` — passed ✓
 
 ### S5.T05 - Подготовить cutover runbook
-- Status: pending
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/CUTOVER_RUNBOOK.md` — создан
+- Tests: не требуются
+- CI: `pnpm run ci` — passed ✓ (после завершения Stage 5)
+
+### Stage 5 — audit remediation (post–Stage 5 review)
+- Status: done
+- Finished at: 2026-04-01
+- Изменения:
+  - `API_CONTRACT_V2.md` — NOTE про дискриминант `version: "v2"` без `type` в M2M; поля `slotDurationMinutes`, фактический ответ слотов; корректировка HMAC (base64url, ±300s, timestamp в секундах); NOTE про `slotEnd` в v2 с отсылкой к коду
+  - `STAGE_5_INTEGRATOR_BRIDGE_AND_CUTOVER.md` — чекбоксы тестов [x]
+  - `CUTOVER_RUNBOOK.md` — явная команда `pnpm --filter webapp run migrate`; примечание про env vs `system_settings` для флага legacy
+  - `internalContract.ts` — ссылка на `API_CONTRACT_V2.md`
+- Tests / CI: `pnpm run ci` — passed ✓
 
 ---
 
 ## Stage 6
 
 ### S6.T01 - Добавить тест-матрицу e2e сценариев очной записи
-- Status: pending
+- Status: done
+- Agent/model: claude (sonnet)
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/TEST_MATRIX.md` — happy-path Москва/СПб, негативы (нет связки, city_mismatch, Rubitime 5xx/malformed, slot_overlap), смешанные legacy/v2 после backfill; таблица покрытия API/UI/sync/migration; **§6 Matrix ID → автотесты** (post–audit)
+- Tests: не требуются (документ-матрица)
+- CI: см. S6.T05
+- Notes: traceability §5–§6
 
 ### S6.T02 - Реализовать unit/integration тесты webapp v2
-- Status: pending
+- Status: done
+- Agent/model: claude (sonnet)
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/modules/patient-booking/service.test.ts` — регрессия `slot_overlap` для `in_person` (откат Rubitime + cancel pending)
+  - `apps/webapp/src/app/api/booking/create/route.test.ts` — 409 `slot_overlap` для in_person
+  - `apps/webapp/src/infra/repos/pgPatientBookings.test.ts` — `listHistoryByUser` mixed legacy + v2
+  - `apps/webapp/src/app/app/patient/cabinet/cabinetPastBookingsMerge.test.ts` — смешанная история в merge
+- Tests: vitest перечисленных файлов; полный CI
+- CI: см. S6.T05
+- Notes: онлайн overlap уже был; добавлено зеркало для v2
 
 ### S6.T03 - Реализовать unit/integration тесты integrator v2
-- Status: pending
+- Status: done
+- Agent/model: claude (sonnet)
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/integrator/src/integrations/rubitime/schema.test.ts` — `localBookingId` optional UUID / отказ при невалидном UUID
+  - `apps/integrator/src/integrations/rubitime/recordM2mRoute.test.ts` — v2 slots: `invalid_rubitime_ids`, 502 при падении fetch (явные ID без legacy resolve)
+- Tests: vitest integrator
+- CI: см. S6.T05
+- Notes: существующие v2 create/slots + legacy flag сохранены
 
 ### S6.T04 - Провести аудит этапов и закрыть замечания
-- Status: pending
+- Status: done
+- Agent/model: claude (sonnet)
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/AUDIT_STAGE_2_6.md` — сверка с MIGRATION/API контрактами, severity, финальный статус **approve**; **§2 реестр этапов 1–5** и закрытие minor m-1/m-2 (post–audit remediation)
+- Tests: не требуются
+- CI: см. S6.T05 и Stage 6 audit remediation
+- Notes: critical открытых нет
 
 ### S6.T05 - Финальный pre-release check
-- Status: pending
+- Status: done
+- Agent/model: claude (sonnet)
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md` — этот лог
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/CHECKLISTS.md` — release checklist
+- Tests: `pnpm run ci` (полный)
+- CI: `pnpm run ci` — passed ✓
+- Notes:
+  - **Release readiness: ready** (код + доки + CI green; production cutover — по операторскому runbook)
+  - **Blockers:** нет
+
+### Stage 6 — audit remediation (внешнее ревью test/audit/release)
+- Status: done
+- Finished at: 2026-04-01
+- Цель: закрыть оставшиеся замечания по матрице (ID→тесты), реестру аудита 1–5, воспроизводимости CI.
+- Files changed:
+  - `AUDIT_STAGE_2_6.md` — §2 реестр этапов 1–5; §4 minor закрыты; §4.1 пост-ремедиация Stage 6
+  - `TEST_MATRIX.md` — §6 Matrix ID → автотесты
+  - `EXECUTION_LOG.md`, `CHECKLISTS.md` — CI+SHA, уточнения чеклиста
+- CI: `pnpm run ci` — passed ✓ **дважды** (2026-04-01): до и после правок документации remediation
+- **Commit (`git rev-parse HEAD` на момент зелёного CI):** `0a1f20e36c00d41d2af9f86d85de3d4bd1838067` — после `git commit` этих файлов обновить SHA в логе и при необходимости перезапустить CI
+
+---
+
+## Stage 7 — Booking wizard (URL-страницы)
+
+### S7.T01 — Маршруты и redirect
+- Status: done
+- Agent/model: Cursor agent
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app-layer/routes/paths.ts` — `bookingNew`, `bookingNewCity`, `bookingNewService`, `bookingNewSlot`, `bookingNewConfirm`
+  - `apps/webapp/src/app/app/patient/booking/page.tsx` — redirect на `bookingNew` (не в `patientPathsRequiringPhone`)
+- Tests: навигация smoke через роуты
+- CI: см. S7.T09
+- Notes: `patientBooking` сохранён для обратной совместимости; `/app/patient/booking` → `/app/patient/booking/new`
+
+### S7.T02 — BookingWizardShell
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/booking/new/BookingWizardShell.tsx` — AppShell patient, «Шаг N из M», children
+- CI: см. S7.T09
+
+### S7.T03 — Шаг 1 (формат)
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/booking/new/page.tsx`
+  - `apps/webapp/src/app/app/patient/booking/new/FormatStepClient.tsx`
+  - `apps/webapp/src/app/app/patient/booking/new/FormatStepClient.test.tsx`
+- CI: см. S7.T09
+
+### S7.T04 — Шаг 2 (город)
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/booking/new/city/page.tsx`
+  - `apps/webapp/src/app/app/patient/booking/new/city/CityStepClient.tsx` — `useBookingCatalogCities(true)`
+  - `apps/webapp/src/app/app/patient/booking/new/city/CityStepClient.test.tsx` — см. Stage 7 audit remediation
+- CI: см. S7.T09
+
+### S7.T05 — Шаг 3 (услуга)
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/booking/new/service/page.tsx` — guard `cityCode`
+  - `apps/webapp/src/app/app/patient/booking/new/service/ServiceStepClient.tsx`
+  - `apps/webapp/src/app/app/patient/booking/new/service/ServiceStepClient.test.tsx` — см. Stage 7 audit remediation
+- CI: см. S7.T09
+
+### S7.T06 — Шаг 4 (слот)
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/booking/new/slot/page.tsx` — guards type / in_person / online
+  - `apps/webapp/src/app/app/patient/booking/new/slot/SlotStepClient.tsx`
+  - `apps/webapp/src/app/app/patient/booking/new/slot/SlotStepClient.test.tsx`
+- Notes: в query на confirm добавлен `slotEnd` (обязателен для API: `slotEnd` > `slotStart`)
+
+### S7.T07 — Шаг 5 (подтверждение)
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/booking/new/confirm/page.tsx`
+  - `apps/webapp/src/app/app/patient/booking/new/confirm/ConfirmStepClient.tsx`
+  - `apps/webapp/src/app/app/patient/booking/new/confirm/ConfirmStepClient.test.tsx`
+
+### S7.T08 — CabinetBookingEntry
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/cabinet/CabinetBookingEntry.tsx` — Link + `buttonVariants`, без Dialog/Sheet
+  - `apps/webapp/src/app/app/patient/cabinet/page.tsx` — без props у entry
+  - `apps/webapp/src/app/app/patient/cabinet/CabinetBookingEntry.test.tsx`
+
+### S7.T09 — Тесты и CI
+- Status: done
+- Finished at: 2026-04-01
+- Files changed: см. тесты выше
+- Tests: vitest (wizard + cabinet entry); полный монорепо
+- CI: `pnpm run ci` — passed ✓
+
+### Stage 7 — audit remediation (post–Stage 7 review, verdict rework)
+- Status: done
+- Agent/model: Cursor agent
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Цель: закрыть замечания аудита Stage 7 — схема query (`date`/`slot`/`slotEnd`, ISO), паттерн Server/Client без обязательного `useSearchParams`, шаги 1–2 без query, unit-тесты City/Service, S7.T08 и эквивалент `Button asChild` для Base UI.
+- Files changed:
+  - `STAGE_7_BOOKING_WIZARD_PAGES.md` — актуализированы § Search params, § Паттерн Server/Client, S7.T06–S7.T09, S7.T08 (Link + `buttonVariants`)
+  - `apps/webapp/src/app/app/patient/booking/new/city/CityStepClient.test.tsx` — loading + navigation
+  - `apps/webapp/src/app/app/patient/booking/new/service/ServiceStepClient.test.tsx` — navigation + empty state
+- Tests: vitest новых файлов + полный `pnpm run ci`
+- CI: `pnpm run ci` — passed ✓ (2026-04-01, после remediation)
+- Notes: `CabinetBookingEntry.tsx` без изменений относительно рабочей версии (Link + `buttonVariants`); соответствие этапу зафиксировано в `STAGE_7_BOOKING_WIZARD_PAGES.md` (Base UI без `asChild`).
+
+---
+
+## Итог ветки (Stages 1–7, in-person rework)
+
+- **Статус:** `ready`
+- **Blockers:** нет
+- **SHA:** `0a1f20e36c00d41d2af9f86d85de3d4bd1838067`
+- **Последний полный CI:** `pnpm run ci` — green (2026-04-01)
+
+---
+
+## Stage 8
+
+### S8.T01 — Зафиксировать policy legacy-off
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `STAGE_5_INTEGRATOR_BRIDGE_AND_CUTOVER.md` — добавлен раздел POLICY с условиями безопасного отключения legacy-resolve
+  - `CUTOVER_RUNBOOK.md §6` — добавлен explicit online-safe gate с чек-листом перед глобальным legacy-off
+- Notes: legacy-off не делается глобально до закрытия Stage 12 (online intake); online v1 остаётся активным до тех пор
+
+### S8.T02 — Синхронизировать Stage 7 в индексах
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `README.md` — добавлены Stage 7 и Stages 8–15 в порядок этапов
+  - `CHECKLISTS.md §6` — обновлён release-block с Stage 1-7; добавлен §7 (Stages 8–15 online intake + compat-sync)
+
+### S8.T03 — Устранить CI/SHA двусмысленность
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `EXECUTION_LOG.md` — итоговый раздел Stages 1–7 обновлён с явным SHA `0a1f20e36c00d41d2af9f86d85de3d4bd1838067`
+- Notes: шаблон фиксации — в конце каждого Stage CI-запуска добавлять строку `SHA: <git rev-parse HEAD>`
+
+### S8.T04 — Добавить Stage 8 в промпты
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `PROMPTS_EXEC_AUDIT_FIX.md` — добавлены STAGE 8–15 EXEC/AUDIT/FIX шаблоны
+
+### S8.T05 — Создать COMPATIBILITY_RUBITIME_WEBAPP.md
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `COMPATIBILITY_RUBITIME_WEBAPP.md` — создан (новый файл): definition of done совместимости, обязательные/optional поля, правила compat-sync
+
+### S8.T06 — Лог этапа
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Notes: все задачи S8.T01–S8.T05 зафиксированы выше
+
+---
+
+## Stage 9
+
+### S9.T01 — Спека online-потоков
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Started at: 2026-04-01
+- Finished at: 2026-04-01
+- Files changed:
+  - `STAGE_9_ONLINE_INTAKE.md` — создан: спека LFK (description + attachments/urls) и Nutrition (пошаговая анкета q1-q5)
+
+### S9.T02–S9.T03 — API и migration контракты
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Files changed:
+  - `API_CONTRACT_ONLINE_INTAKE_V1.md` — создан: все patient + doctor/admin эндпоинты
+  - `MIGRATION_CONTRACT_ONLINE_INTAKE_V1.md` — создан: DDL для 4 таблиц
+
+### S9.T04–S9.T06 — Privacy, notifications, тест-матрица
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Files changed:
+  - `STAGE_9_ONLINE_INTAKE.md` §S9.T04–S9.T06 — описаны права, notification routing, TEST_MATRIX happy/negative/security
+
+---
+
+## Stage 10
+
+### S10.T01–S10.T04 — Миграция БД
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/migrations/048_online_intake.sql` — 4 таблицы + индексы + constraints
+
+### S10.T05–S10.T06 — Репозитории и service layer
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/modules/online-intake/types.ts` — типы IntakeRequest, IntakeAnswer, IntakeAttachment, constants
+  - `apps/webapp/src/modules/online-intake/ports.ts` — OnlineIntakePort, OnlineIntakeService, IntakeNotificationPort
+  - `apps/webapp/src/modules/online-intake/service.ts` — createOnlineIntakeService с validation + rate limit + notifications
+  - `apps/webapp/src/infra/repos/inMemoryOnlineIntake.ts` — in-memory реализация для тестов
+  - `apps/webapp/src/infra/repos/pgOnlineIntake.ts` — pg реализация с транзакциями
+  - `apps/webapp/src/app-layer/di/onlineIntakeDeps.ts` — DI getter
+
+### S10.T07–S10.T08 — API patient и doctor/admin
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/api/patient/online-intake/route.ts` — GET list own
+  - `apps/webapp/src/app/api/patient/online-intake/lfk/route.ts` — POST submit LFK
+  - `apps/webapp/src/app/api/patient/online-intake/nutrition/route.ts` — POST submit nutrition
+  - `apps/webapp/src/app/api/doctor/online-intake/route.ts` — GET list all (doctor/admin)
+  - `apps/webapp/src/app/api/doctor/online-intake/[id]/route.ts` — GET details
+  - `apps/webapp/src/app/api/doctor/online-intake/[id]/status/route.ts` — PATCH status
+
+### S10.T09 — Тесты
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Tests: vitest 10/10 passed (service.test.ts — submitLfk, submitNutrition, changeStatus, listMyRequests)
+
+---
+
+## Stage 11
+
+### S11.T01 — Спека правил синхронизации
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Files changed:
+  - `COMPATIBILITY_RUBITIME_WEBAPP.md` — создан в Stage 8, покрывает DoD совместимости
+
+### S11.T02–S11.T03 — Payload extraction и projection enrich
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/integrator/src/integrations/rubitime/connector.ts` — добавлены serviceId, serviceName, dateTimeEnd в RubitimeIncomingPayload и toRubitimeIncoming()
+  - `apps/integrator/src/infra/db/writePort.ts` — BookingUpsertParams расширен serviceId/serviceName/dateTimeEnd; projection payload обогащён этими полями
+
+### S11.T04 — Webapp ingest mapping
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/modules/integrator/events.ts` — APPOINTMENT_RECORD_UPSERTED handler расширен: читает serviceTitle/slotEnd/serviceId из top-level + payloadJson fallback; передаёт в applyRubitimeUpdate
+
+### S11.T05–S11.T09 — Compat upsert/create + dedup + lifecycle
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/modules/patient-booking/ports.ts` — расширены upsertFromRubitime + applyRubitimeUpdate с новыми optional полями
+  - `apps/webapp/src/infra/repos/pgPatientBookings.ts` — upsertFromRubitime: UPDATE path + CREATE compat-row path + computeCompatQuality + computeFallbackSlotEnd
+  - `apps/webapp/src/infra/repos/inMemoryPatientBookings.ts` — аналогично in-memory
+
+### S11.T10 — Миграция
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/migrations/049_patient_bookings_compat_source.sql` — source + compat_quality поля + индексы
+
+### S11.T11 — Tests
+- Status: done
+- Finished at: 2026-04-01
+- Tests: vitest 5/5 passed (inMemoryPatientBookings.test.ts — compat-create, no-slot, dedup, cancel, fallback-duration)
+
+---
+
+## Stage 12
+
+### S12.T01 — FormatStepClient обновлён
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/booking/new/FormatStepClient.tsx` — кнопки онлайн ведут в /intake/lfk и /intake/nutrition
+  - `apps/webapp/src/app-layer/routes/paths.ts` — добавлены intakeLfk, intakeNutrition, doctorOnlineIntake
+
+### S12.T02 — LFK intake page
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/intake/lfk/page.tsx`
+  - `apps/webapp/src/app/app/patient/intake/lfk/LfkIntakeClient.tsx` — форма с description + url attachment, submit -> API
+
+### S12.T03 — Nutrition questionnaire engine
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/intake/nutrition/page.tsx`
+  - `apps/webapp/src/app/app/patient/intake/nutrition/NutritionIntakeClient.tsx` — 5 вопросов пошагово, draft в state, submit -> API
+
+### S12.T06 — Patient history integration
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/patient/cabinet/CabinetIntakeHistory.tsx` — блок истории онлайн-заявок
+  - `apps/webapp/src/app/app/patient/cabinet/page.tsx` — подключён CabinetIntakeHistory
+
+### S12.T07 — Tests
+- Status: done
+- Finished at: 2026-04-01
+- Tests: FormatStepClient.test.tsx 3/3 — intake/lfk + intake/nutrition navigation
+
+---
+
+## Stage 13
+
+### S13.T01–S13.T03 — Doctor inbox list + status actions
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/app/app/doctor/online-intake/page.tsx`
+  - `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` — фильтр new/in_review/all, карточки с status actions
+
+### S13.T04 — Notification bridge (TG/MAX)
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `apps/webapp/src/modules/online-intake/intakeNotificationRelay.ts` — `IntakeNotificationPort` через `relayOutbound` (admin+doctor TG/MAX из `system_settings`)
+  - `apps/webapp/src/app-layer/di/onlineIntakeDeps.ts` — подключён `createIntakeNotificationRelay()`
+  - `apps/webapp/src/modules/system-settings/supportContactConstants.ts` — дефолт `https://t.me/BersonCareBot`
+- Tests: `intakeNotificationRelay.test.ts` (5 кейсов), `service.test.ts` (+3 кейса notification port)
+- CI: `pnpm run ci` — green (2026-04-01)
+- SHA (HEAD на момент записи): `0a1f20e36c00d41d2af9f86d85de3d4bd1838067`
+
+### S13.T05 — Security
+- Status: done
+- Notes: canAccessDoctor guard на page.tsx + API routes /api/doctor/online-intake/* (Stage 10)
+
+---
+
+## Stage 14
+
+### S14.T01 — CHECKLISTS release block обновлён
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `CHECKLISTS.md` — добавлен §7 с gate-пунктами для online intake + compat sync
+
+### S14.T02 — CUTOVER_RUNBOOK обновлён
+- Status: done
+- Finished at: 2026-04-01
+- Files changed:
+  - `CUTOVER_RUNBOOK.md` — добавлены §7 (compat-sync включение), monitoring queries для compat rows + duplicates + online intake, known limitations
+
+### S14.T03–S14.T04 — Monitoring + rollback
+- Status: done
+- Notes: SQL monitoring queries в CUTOVER_RUNBOOK.md §Проверки консистентности; rollback описан в §Known limitations
+
+### S14.T05 — Known limitations задокументированы
+- Status: done
+- Notes: CUTOVER_RUNBOOK.md §Known limitations + COMPATIBILITY_RUBITIME_WEBAPP.md §Known limitations
+
+---
+
+## Stage 15
+
+### S15.T05 — Full CI
+- Status: done
+- Agent/model: claude-4.6-sonnet-medium-thinking
+- CI: pnpm run ci — green ✓ (2026-04-01, повтор после S13.T04)
+- Tests: 1013 passed, 5 skipped (227 test files)
+- Build: успешен (lint + typecheck + test + webapp:typecheck + build + build:webapp + audit --prod)
+- Notes: исправлена TS ошибка в events.ts (??/|| mix) и Next.js 16 dynamic params Promise в API routes; S13.T04 — intake relay + support default BersonCareBot
+
+---
+
+## Итог ветки (Stages 8–15, online intake + compat-sync)
+
+- **Статус:** `ready`
+- **Blockers:** нет (S13.T04 закрыт)
+- **CI:** `pnpm run ci` — green (2026-04-01); webapp tests: 1013 passed, 5 skipped
+- **SHA-base (HEAD):** `0a1f20e36c00d41d2af9f86d85de3d4bd1838067` (рабочее дерево содержит незакоммиченные изменения)
+
+### Post-log remediation (2026-04-01) — DB migration consistency
+- Status: done
+- Files changed:
+  - `apps/webapp/migrations/048_online_intake.sql` — FK corrected: `users(id)` -> `platform_users(id)` for `online_intake_requests.user_id` and `online_intake_status_history.changed_by`
+  - `apps/webapp/vitest.globalSetup.ts` — CI now fails fast on migration errors (`CI=true` or `VITEST_REQUIRE_DB_MIGRATIONS=true`) to prevent silent green on broken DB migrations
+  - `MIGRATION_CONTRACT_ONLINE_INTAKE_V1.md`, `STAGE_9_ONLINE_INTAKE.md`, `CUTOVER_RUNBOOK.md`, `CHECKLISTS.md` — docs aligned with actual DB schema and current readiness
+- Notes: устраняет падение `048_online_intake.sql` с ошибкой `relation "users" does not exist` на БД, где canonical user table — `platform_users`

@@ -12,6 +12,9 @@
  * Webapp mirrors these types in:
  *   apps/webapp/src/modules/integrator/bookingM2mApi.ts
  *
+ * Human-readable v2 contract (in-person, explicit IDs, no category/city in body):
+ *   `API_CONTRACT_V2.md` in the booking rework city-service docs folder.
+ *
  * External Rubitime API contract (webhook body, schedule response, etc.)
  * lives in schema.ts and client.ts in the same folder.
  */
@@ -21,16 +24,42 @@
 export type BookingQueryType = 'online' | 'in_person';
 export type BookingCategoryCode = 'rehab_lfk' | 'nutrition' | 'general';
 
-export type InternalSlotsQuery = {
+/**
+ * @deprecated Legacy v1 — `category` (+ optional `city` for in_person) resolved via
+ * `rubitime_booking_profiles` / `resolveScheduleParams`. Prefer {@link InternalSlotsQueryV2}.
+ */
+export type InternalSlotsQueryV1 = {
   type: BookingQueryType;
   category: BookingCategoryCode;
+  /** @deprecated Legacy — in-person v2 uses explicit Rubitime IDs from webapp instead. */
   city?: string;
   date?: string; // YYYY-MM-DD, optional filter
 };
 
-export type InternalCreateRecordInput = {
+/**
+ * In-person (and future) v2: webapp supplies Rubitime IDs from booking catalog; integrator does not resolve category/city.
+ */
+export type InternalSlotsQueryV2 = {
+  version: 'v2';
+  rubitimeBranchId: string;
+  rubitimeCooperatorId: string;
+  rubitimeServiceId: string;
+  /** Duration for expanding Rubitime `times[]` into slot end times. */
+  slotDurationMinutes: number;
+  /** Single-day filter (same semantics as v1 `date`). */
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type InternalSlotsQuery = InternalSlotsQueryV1 | InternalSlotsQueryV2;
+
+/**
+ * @deprecated Legacy v1 — resolved via DB booking profiles.
+ */
+export type InternalCreateRecordInputV1 = {
   type: BookingQueryType;
   category: BookingCategoryCode;
+  /** @deprecated Legacy — in-person v2 uses explicit IDs. */
   city?: string;
   slotStart: string; // ISO datetime
   slotEnd: string;   // ISO datetime
@@ -38,6 +67,19 @@ export type InternalCreateRecordInput = {
   contactPhone: string;
   contactEmail?: string;
 };
+
+/** v2 create: explicit Rubitime IDs; contact block matches webapp `bookingM2mApi` body. */
+export type InternalCreateRecordInputV2 = {
+  version: 'v2';
+  rubitimeBranchId: string;
+  rubitimeCooperatorId: string;
+  rubitimeServiceId: string;
+  slotStart: string;
+  patient: { name: string; phone: string; email?: string };
+  localBookingId?: string;
+};
+
+export type InternalCreateRecordInput = InternalCreateRecordInputV1 | InternalCreateRecordInputV2;
 
 // ---- Slots response (integrator -> webapp) ----
 
@@ -67,6 +109,11 @@ export type ResolvedScheduleParams = {
  * Admin needs to configure rubitime_booking_profiles.
  */
 export const ERR_SLOTS_MAPPING_NOT_CONFIGURED = 'slots_mapping_not_configured';
+
+/**
+ * v1 legacy resolve was disabled via env toggle (see integrator `legacyResolveFlag.ts`, cutover).
+ */
+export const ERR_LEGACY_RESOLVE_DISABLED = 'legacy_resolve_disabled';
 
 /**
  * Rubitime API returned a response that cannot be parsed as a schedule.

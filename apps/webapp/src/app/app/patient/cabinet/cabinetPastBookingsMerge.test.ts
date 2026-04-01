@@ -73,4 +73,36 @@ describe("mergePastBookingHistory", () => {
     const rows = mergePastBookingHistory([older, newer], [proj]);
     expect(rows.map((r) => (r.kind === "native" ? r.booking.id : r.past.id))).toEqual(["n", "p-only", "o"]);
   });
+
+  it("keeps legacy and v2 native rows in one merged list (mixed history)", () => {
+    const legacy = makeNative({
+      id: "legacy-1",
+      bookingType: "in_person",
+      city: "spb",
+      branchServiceId: null,
+      serviceTitleSnapshot: null,
+      slotStart: "2025-04-01T10:00:00.000Z",
+    });
+    const v2 = makeNative({
+      id: "v2-1",
+      bookingType: "in_person",
+      city: "moscow",
+      branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      cityCodeSnapshot: "moscow",
+      serviceTitleSnapshot: "Сеанс",
+      slotStart: "2025-05-01T10:00:00.000Z",
+    });
+    const rows = mergePastBookingHistory([legacy, v2], []);
+    expect(rows).toHaveLength(2);
+    const first = rows[0];
+    const second = rows[1];
+    expect(first?.kind).toBe("native");
+    expect(second?.kind).toBe("native");
+    if (first?.kind === "native" && second?.kind === "native") {
+      expect(first.booking.id).toBe("v2-1");
+      expect(first.booking.serviceTitleSnapshot).toBe("Сеанс");
+      expect(second.booking.id).toBe("legacy-1");
+      expect(second.booking.branchServiceId).toBeNull();
+    }
+  });
 });

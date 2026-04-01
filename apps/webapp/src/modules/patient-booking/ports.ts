@@ -134,6 +134,14 @@ export type PatientBookingsPort = {
     status: PatientBookingStatus;
     slotStart?: string | null;
     slotEnd?: string | null;
+    /** Enriched fields from Rubitime webhook payload for compat-sync create path. */
+    userId?: string | null;
+    contactPhone?: string | null;
+    contactName?: string | null;
+    branchTitle?: string | null;
+    serviceTitle?: string | null;
+    rubitimeBranchId?: string | null;
+    rubitimeServiceId?: string | null;
   }): Promise<void>;
   listUpcomingByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
   listHistoryByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
@@ -155,5 +163,12 @@ export type PatientBookingService = {
     status: PatientBookingStatus;
     slotStart?: string | null;
     slotEnd?: string | null;
+    userId?: string | null;
+    contactPhone?: string | null;
+    contactName?: string | null;
+    branchTitle?: string | null;
+    serviceTitle?: string | null;
+    rubitimeBranchId?: string | null;
+    rubitimeServiceId?: string | null;
   }): Promise<void>;
 };

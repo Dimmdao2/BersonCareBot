@@ -392,6 +392,7 @@ docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_6_TEST_AUDIT_RELEAS
 - docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_4_PATIENT_FLOW_IN_PERSON.md
 - docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_5_INTEGRATOR_BRIDGE_AND_CUTOVER.md
 - docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_6_TEST_AUDIT_RELEASE.md
+- docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_7_BOOKING_WIZARD_PAGES.md
 - docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md
 - docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/CHECKLISTS.md
 - docs/BRANCH_UX_CMS_BOOKING/FUTURE_SETTINGS_TOCHKA_ZDOROVYA.md
@@ -429,3 +430,486 @@ Scope:
 2) Подготовь короткий отчет:
    - замечание -> исправление -> подтверждение тестом/проверкой.
 ```
+
+---
+
+## STAGE 7 - EXEC
+
+**Рекомендуемая модель:** Composer/Auto agent
+
+```text
+Выполни этап строго по документу:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_7_BOOKING_WIZARD_PAGES.md
+
+Контекст:
+- Цель: убрать Dialog/Sheet попап из кабинета пациента, перевести booking flow
+  в самостоятельные URL-ориентированные страницы под /app/patient/booking/new/.
+- Онлайн-поток также переводится в wizard (не сохранять диалог для online).
+- Хуки (useBookingCatalogCities, useBookingCatalogServices, useBookingSlots, useCreateBooking)
+  остаются в cabinet/ — импортируй из текущего расположения.
+- Не трогать API, integrator, DB, seed, cutover — только frontend UX.
+
+Задачи:
+1) Выполни S7.T01–S7.T09 последовательно.
+2) После каждой задачи обновляй статус в:
+   docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md
+3) На каждом шаге:
+   - Server Component для page.tsx (guard + redirect при невалидных params).
+   - Client Component для *StepClient.tsx (hooks, router.push, интерактивность).
+   - URL search params — единственный транспорт состояния между шагами.
+4) После S7.T09 прогони: pnpm run ci.
+
+Ограничения:
+- Не добавлять глобальный state (zustand, context) для wizard.
+- Не переносить хуки cabinet/ в другие директории в этом этапе.
+- CabinetBookingEntry после S7.T08 — только Link кнопка, без диалога.
+
+Вывод:
+- список выполненных задач S7.T0X + статус + ключевые созданные/изменённые файлы.
+```
+
+## STAGE 7 - AUDIT
+
+**Рекомендуемая модель:** GPT 5.3 Codex
+
+```text
+Проведи аудит выполненного этапа:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_7_BOOKING_WIZARD_PAGES.md
+
+Проверь:
+1) Соответствие каждой задаче S7.T01–S7.T09:
+   - Все 5 шагов wizard реализованы как отдельные страницы.
+   - routePaths содержит все новые константы.
+   - CabinetBookingEntry не содержит Dialog/Sheet/local state.
+2) URL-state корректность:
+   - Каждый page.tsx читает searchParams и redirect при невалидных params.
+   - Search params схема соответствует документу (type, cityCode, cityTitle, branchServiceId, serviceTitle, category, date, slot).
+3) Server/Client разделение:
+   - page.tsx — Server Component (нет "use client", нет browser hooks).
+   - *StepClient.tsx — "use client" с useSearchParams/useRouter.
+4) Покрытие форматов:
+   - in_person path: format → city → service → slot → confirm работает.
+   - online path: format → slot → confirm работает.
+5) Тесты и CI статус (S7.T09).
+6) Заполненность EXECUTION_LOG.md задачами S7.T01–S7.T09.
+
+Формат:
+- verdict: approve | rework
+- замечания с severity (critical/major/minor) + файл + как исправить
+```
+
+## STAGE 7 - FIX
+
+```text
+Исправь замечания аудита для этапа:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_7_BOOKING_WIZARD_PAGES.md
+
+Вход:
+- Последний audit-report по Stage 7 (verdict=rework, список замечаний).
+
+Сделай:
+1) Исправь все замечания без изменения архитектурных решений этапа
+   (URL-driven state, Server/Client split, хуки остаются в cabinet/).
+2) Не добавляй новый scope сверх замечаний.
+3) Обнови статусы в:
+   docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md
+4) Повторно прогони: pnpm run ci.
+
+Результат:
+- список исправлений в формате "замечание -> фикс -> файл".
+```
+
+---
+
+## STAGE 8 - EXEC
+
+**Рекомендуемая модель:** Sonnet (docs-sync, policy)
+
+```text
+Выполни Stage 8 — Audit Remediation строго по документу:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_8_AUDIT_REMEDIATION.md
+
+Контекст:
+- Закрываем замечания финального аудита, фиксируем legacy-off policy, синхронизируем индексы.
+- Не трогаем код integrator/webapp в этом этапе.
+
+Задачи:
+1) Выполни S8.T01–S8.T06 последовательно.
+2) После каждой задачи обновляй статус в EXECUTION_LOG.md.
+3) Фиксируй SHA после CI: git rev-parse HEAD → добавить в итог Stage 8.
+
+Результат:
+- список выполненных S8.Txx + файлы + SHA.
+```
+
+## STAGE 8 - AUDIT
+
+```text
+Проведи аудит Stage 8 — Audit Remediation:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_8_AUDIT_REMEDIATION.md
+
+Проверь:
+1) README.md содержит все Stages 1–15 с корректными ссылками.
+2) CHECKLISTS.md §6 обновлён до Stage 1-7; §7 добавлен с gate-пунктами.
+3) CUTOVER_RUNBOOK.md §6 содержит online-safe gate с явными условиями.
+4) STAGE_5 содержит POLICY-блок с условиями безопасного legacy-off.
+5) EXECUTION_LOG.md содержит SHA для последнего CI Stages 1–7.
+6) COMPATIBILITY_RUBITIME_WEBAPP.md создан с definition of done и обязательными полями.
+
+Формат:
+- verdict: approve | rework
+- замечания с severity (critical/major/minor)
+```
+
+## STAGE 8 - FIX
+
+```text
+Исправь замечания аудита Stage 8.
+
+Сделай только фиксы из audit-report, без добавления нового scope.
+Обнови EXECUTION_LOG.md.
+```
+
+---
+
+## STAGE 9 - EXEC
+
+**Рекомендуемая модель:** Sonnet (спека + контракты)
+
+```text
+Выполни Stage 9 — Online Intake Model строго по документу:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_9_ONLINE_INTAKE.md
+
+Контекст:
+- Online больше не записывает в Rubitime напрямую.
+- LFK: свободное описание проблемы + вложения/ссылки -> уведомление врачу.
+- Nutrition: пошаговая анкета -> уведомление врачу.
+- Данные остаются в patient history.
+
+Задачи:
+1) Выполни S9.T01–S9.T07 последовательно.
+2) Обновляй EXECUTION_LOG.md после каждой задачи.
+
+Ограничения:
+- Только спека и контракты; код не пишем (Stage 10).
+- Не изменять in_person flow.
+```
+
+## STAGE 9 - AUDIT
+
+```text
+Проведи аудит Stage 9 — Online Intake Model:
+
+Проверь:
+1) STAGE_9_ONLINE_INTAKE.md описывает оба сценария (LFK + nutrition).
+2) API_CONTRACT_ONLINE_INTAKE_V1.md содержит submit/list/read/status-change эндпоинты.
+3) MIGRATION_CONTRACT_ONLINE_INTAKE_V1.md содержит все таблицы (requests/answers/attachments).
+4) Privacy/retention policy описана.
+5) Notification routing к врачу задокументирован.
+6) TEST_MATRIX_STAGE9.md содержит happy/negative/security cases.
+
+Формат: verdict + замечания с severity.
+```
+
+## STAGE 9 - FIX
+
+```text
+Исправь замечания аудита Stage 9 — только scope контрактов и спек.
+Обнови EXECUTION_LOG.md.
+```
+
+---
+
+## STAGE 10 - EXEC
+
+**Рекомендуемая модель:** Sonnet (DB + API)
+
+```text
+Выполни Stage 10 — DB + Repositories для intake:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_10_INTAKE_DB_API.md
+
+Задачи S10.T01–S10.T10:
+1) Создать SQL миграции для online_intake_requests / online_intake_answers / online_intake_attachments.
+2) Создать репозитории + порты в webapp.
+3) Создать service layer use-cases.
+4) Создать API endpoints: patient submit + list; doctor/admin read + status-change.
+5) Написать unit/integration тесты.
+6) После S10.T09 прогони: pnpm run ci. Зафиксировать SHA в EXECUTION_LOG.
+
+Ограничения:
+- Не трогать in_person flow и integrator.
+- Не изменять существующие миграции.
+```
+
+## STAGE 10 - AUDIT
+
+```text
+Проведи аудит Stage 10 — DB + Repositories:
+
+Проверь:
+1) Все три таблицы созданы с корректными FK/индексами.
+2) Репозитории покрывают все use-cases из контракта.
+3) API эндпоинты соответствуют API_CONTRACT_ONLINE_INTAKE_V1.md.
+4) Авторизация: patient read own only; doctor/admin read all + status write.
+5) Тесты покрывают happy path + authz + errors.
+6) pnpm run ci green.
+
+Формат: verdict + замечания.
+```
+
+## STAGE 10 - FIX
+
+```text
+Исправь замечания аудита Stage 10.
+Обнови EXECUTION_LOG.md. Повтори pnpm run ci.
+```
+
+---
+
+## STAGE 11 - EXEC
+
+**Рекомендуемая модель:** Sonnet (compat-bridge)
+
+```text
+Выполни Stage 11 — Rubitime Compatibility Bridge:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_11_RUBITIME_COMPAT_BRIDGE.md
+
+Контекст:
+- Ручные записи в Rubitime должны появляться в patient_bookings.
+- Источник: webhook -> integrator -> appointment_records -> compat-sync -> patient_bookings.
+- Нельзя создавать дубли при повторных webhook.
+
+Задачи S11.T01–S11.T12:
+1) Расширить payload extraction в connector.ts.
+2) Обогатить projection payload в writePort.ts.
+3) Добавить mapping в webapp events.ts.
+4) Расширить pgPatientBookings.upsertFromRubitime — добавить create compat-row при отсутствии.
+5) Реализовать dedup + lifecycle mapping.
+6) Написать тесты: create/update/dedup/cancel.
+7) После S11.T11 прогони: pnpm run ci. Зафиксировать SHA.
+
+Ограничения:
+- Snapshot columns native bookings не перетираются.
+- Source field = 'rubitime_projection' для compat-rows.
+```
+
+## STAGE 11 - AUDIT
+
+```text
+Проведи аудит Stage 11 — Rubitime Compatibility Bridge:
+
+Проверь:
+1) connector.ts извлекает branch/service/title/time поля из webhook.
+2) pgPatientBookings.upsertFromRubitime создаёт compat-row при отсутствии rubitime_id.
+3) Нет дублей при повторном webhook с тем же rubitime_id.
+4) Cancel/update меняет status существующей записи.
+5) Тесты покрывают все 4 сценария (create/update/dedup/cancel).
+6) pnpm run ci green.
+7) COMPATIBILITY_RUBITIME_WEBAPP.md DoD выполнен.
+
+Формат: verdict + замечания с severity.
+```
+
+## STAGE 11 - FIX
+
+```text
+Исправь замечания аудита Stage 11.
+Обнови EXECUTION_LOG.md. Повтори pnpm run ci.
+```
+
+---
+
+## STAGE 12 - EXEC
+
+**Рекомендуемая модель:** Sonnet (UI)
+
+```text
+Выполни Stage 12 — Patient Wizard Online:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_12_PATIENT_WIZARD_ONLINE.md
+
+Контекст:
+- Online format кнопки ведут в intake flow, а не в slots.
+- LFK: форма с описанием + file attach + ссылки.
+- Nutrition: пошаговый questionnaire engine.
+- После submit: intake request создаётся через Stage 10 API.
+- Patient history: intake requests отображаются в кабинете.
+
+Задачи S12.T01–S12.T08:
+1) Обновить FormatStepClient для online -> intake flow.
+2) Создать LFK request page.
+3) Создать nutrition questionnaire engine (draft persistence).
+4) Валидация + submit UX.
+5) Success state с четким messaging.
+6) Patient history integration.
+7) RTL тесты steps/validation/submit.
+8) pnpm run ci. Зафиксировать SHA.
+
+Ограничения:
+- Не менять in_person wizard.
+- Server/Client split сохранять.
+```
+
+## STAGE 12 - AUDIT
+
+```text
+Проведи аудит Stage 12 — Patient Wizard Online.
+
+Проверь:
+1) Online format button ведёт в /intake и не через /slot.
+2) LFK форма: description required, attachments optional.
+3) Nutrition: пошаговый flow с draft, все вопросы заданы.
+4) Submit вызывает Stage 10 API, не старый Rubitime v1 API.
+5) Patient cabinet показывает intake requests.
+6) RTL тесты green.
+7) pnpm run ci green.
+
+Формат: verdict + замечания.
+```
+
+## STAGE 12 - FIX
+
+```text
+Исправь замечания аудита Stage 12.
+Обнови EXECUTION_LOG.md. Повтори pnpm run ci.
+```
+
+---
+
+## STAGE 13 - EXEC
+
+**Рекомендуемая модель:** Sonnet (admin inbox)
+
+```text
+Выполни Stage 13 — Doctor/Admin Inbox:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_13_DOCTOR_ADMIN_INBOX.md
+
+Задачи S13.T01–S13.T07:
+1) Inbox list: список новых online заявок с фильтрами.
+2) Request details page: полный просмотр анкеты/описания/вложений.
+3) Status actions: in_review/contacted/closed с audit trail.
+4) Notification bridge: уведомление врачу TG/MAX + deep-link.
+5) Security: только doctor/admin доступ; patient read own only.
+6) Тесты: API authz + UI smoke + status transitions.
+7) pnpm run ci. Зафиксировать SHA.
+```
+
+## STAGE 13 - AUDIT
+
+```text
+Проведи аудит Stage 13 — Doctor/Admin Inbox.
+
+Проверь:
+1) Inbox list доступен только doctor/admin role.
+2) Patient не может видеть чужие заявки.
+3) Все три статуса переходят корректно с audit trail.
+4) Уведомление отправляется в TG/MAX.
+5) API authz тесты green.
+6) pnpm run ci green.
+
+Формат: verdict + замечания.
+```
+
+## STAGE 13 - FIX
+
+```text
+Исправь замечания аудита Stage 13.
+Обнови EXECUTION_LOG.md. Повтори pnpm run ci.
+```
+
+---
+
+## STAGE 14 - EXEC
+
+**Рекомендуемая модель:** Sonnet (hardening)
+
+```text
+Выполни Stage 14 — Release Hardening:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_14_RELEASE_HARDENING.md
+
+Задачи S14.T01–S14.T06:
+1) Обновить CHECKLISTS.md release block с gates online intake + compat sync.
+2) Обновить CUTOVER_RUNBOOK.md: последовательность включения compat-sync, мониторинг, rollback.
+3) Документировать monitoring SQL-queries (count compat rows, duplicates, null fields, lag).
+4) Rollback playbook: отключение compat-create feature switch.
+5) Known limitations: best-effort поля, возможные null в legacy-origin данных.
+6) Заполнить EXECUTION_LOG.md S14.*.
+```
+
+## STAGE 14 - AUDIT
+
+```text
+Проведи аудит Stage 14 — Release Hardening.
+
+Проверь:
+1) CUTOVER_RUNBOOK.md содержит compat-sync gate и порядок включения.
+2) Monitoring queries документированы и корректны.
+3) Rollback playbook понятен и исполним.
+4) Known limitations задокументированы.
+
+Формат: verdict + замечания.
+```
+
+## STAGE 14 - FIX
+
+```text
+Исправь замечания аудита Stage 14. Обнови EXECUTION_LOG.md.
+```
+
+---
+
+## STAGE 15 - EXEC
+
+**Рекомендуемая модель:** Sonnet (final)
+
+```text
+Выполни Stage 15 — Final Test/Audit/Release:
+docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_15_FINAL_TEST_AUDIT_RELEASE.md
+
+Задачи S15.T01–S15.T08:
+1) Расширить TEST_MATRIX.md: online-intake + rubitime-manual-booking.
+2) Integrator test suite: webhook payload variants.
+3) Webapp test suite: compat-create/update/dedup/history merge.
+4) E2E smoke: in_person booking + online LFK submit + online nutrition submit + manual Rubitime -> patient history.
+5) pnpm run ci. Зафиксировать финальный SHA.
+6) Global audit по всем docs Stages 1–15.
+7) Global fix (только scope аудита).
+8) Final readiness log: ready/not-ready + blockers + SHA + дата.
+```
+
+## STAGE 15 - AUDIT (GLOBAL AUDIT)
+
+```text
+Проведи финальный глобальный аудит всего rework (Stages 1–15):
+
+Обязательные документы:
+- docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/README.md
+- docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/CHECKLISTS.md
+- docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md
+- docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/CUTOVER_RUNBOOK.md
+- docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/COMPATIBILITY_RUBITIME_WEBAPP.md
+- apps/integrator/src/integrations/rubitime/connector.ts
+- apps/webapp/src/infra/repos/pgPatientBookings.ts
+- apps/webapp/src/modules/integrator/events.ts
+
+Проверь:
+1) Все stages 1–15 завершены и залогированы в EXECUTION_LOG.md.
+2) CI green на финальном SHA.
+3) Online intake работает по новой модели (LFK + nutrition).
+4) Ручные записи из Rubitime видны в patient history.
+5) Нет дублей и lifecycle корректен.
+6) legacy-off условия либо выполнены, либо явно задокументирован gate.
+
+Формат:
+- verdict: approve_for_merge | rework_required
+- findings по severity
+- mandatory fixes если rework
+```
+
+## STAGE 15 - FIX (GLOBAL FIX)
+
+```text
+Исправь замечания финального глобального аудита.
+Только scope аудита, без нового функционала.
+Обнови EXECUTION_LOG.md. Прогони pnpm run ci. Зафиксируй финальный SHA.
+```
+

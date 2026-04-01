@@ -44,6 +44,8 @@ type BookingUpsertParams = {
   externalRecordId?: unknown;
   phoneNormalized?: unknown;
   recordAt?: unknown;
+  /** ISO datetime end of the appointment slot (Stage 11 compat-sync). */
+  dateTimeEnd?: unknown;
   status?: unknown;
   payloadJson?: unknown;
   lastEvent?: unknown;
@@ -52,6 +54,9 @@ type BookingUpsertParams = {
   patientEmail?: unknown;
   integratorBranchId?: unknown;
   branchName?: unknown;
+  /** Rubitime service metadata (Stage 11 compat-sync). */
+  serviceId?: unknown;
+  serviceName?: unknown;
   gcalEventId?: unknown;
 };
 
@@ -133,6 +138,19 @@ export function createDbWritePort(input: {
             asNullableString(payloadJson.branch_name) ??
             asNullableString(payloadJson.branch_title);
           const gcalEventId = asNullableString(params.gcalEventId);
+          // Stage 11 compat-sync enrichment fields.
+          const rawServiceId =
+            asNullableString(params.serviceId) ??
+            asNullableString(payloadJson.service_id) ??
+            (payloadJson.service_id != null ? String(payloadJson.service_id) : null);
+          const rawServiceName =
+            asNullableString(params.serviceName) ??
+            asNullableString(payloadJson.service_name) ??
+            asNullableString(payloadJson.service_title);
+          const rawDateTimeEnd =
+            asNullableString(params.dateTimeEnd) ??
+            asNullableString(payloadJson.datetime_end) ??
+            asNullableString(payloadJson.date_time_end);
           const nameFromPayload = asNullableString(payloadJson.name);
           const parsedFromName = nameFromPayload
             ? parseNameToFirstLast(nameFromPayload)
@@ -155,6 +173,7 @@ export function createDbWritePort(input: {
               integratorRecordId: externalRecordId,
               phoneNormalized: phoneNormalized ?? null,
               recordAt: recordAt ?? null,
+              dateTimeEnd: rawDateTimeEnd ?? null,
               status,
               payloadJson,
               lastEvent,
@@ -164,6 +183,8 @@ export function createDbWritePort(input: {
               patientEmail: rawEmail ?? null,
               integratorBranchId: rawBranchId ?? null,
               branchName: rawBranchName ?? null,
+              serviceId: rawServiceId ?? null,
+              serviceName: rawServiceName ?? null,
             };
             await enqueueProjectionEvent(txDb, {
               eventType: APPOINTMENT_RECORD_UPSERTED,

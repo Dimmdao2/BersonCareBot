@@ -113,4 +113,27 @@ describe("POST /api/booking/create", () => {
     const body = await response.json();
     expect(body.error).toBe("city_mismatch");
   });
+
+  it("returns 409 slot_overlap for in_person when service throws", async () => {
+    getCurrentSessionMock.mockResolvedValue({
+      user: { userId: "u1", role: "client" },
+    });
+    createBookingMock.mockRejectedValue(new Error("slot_overlap"));
+    const response = await POST(new Request("http://localhost/api/booking/create", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "in_person",
+        branchServiceId: "11111111-1111-4111-8111-111111111111",
+        cityCode: "moscow",
+        slotStart: "2026-04-01T07:00:00.000Z",
+        slotEnd: "2026-04-01T08:00:00.000Z",
+        contactName: "Ivan",
+        contactPhone: "+79990001122",
+      }),
+      headers: { "content-type": "application/json" },
+    }));
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.error).toBe("slot_overlap");
+  });
 });

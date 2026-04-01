@@ -1,10 +1,13 @@
 /**
  * Booking schedule resolver: доменный query (type/category/city) -> Rubitime params.
  *
- * Источник истины — таблица rubitime_booking_profiles в DB.
- * env-переменная RUBITIME_SCHEDULE_MAPPING больше не используется.
+ * **Legacy (v1) compatibility path:** used only when webapp sends the old M2M body without
+ * explicit `version: "v2"` Rubitime IDs. In-person production traffic should use v2 from
+ * the booking catalog; this resolver reads `rubitime_booking_profiles` in integrator DB.
  *
- * Публичный интерфейс сохранён для совместимости с остальным кодом.
+ * **Deprecation:** disable at cutover via the flag in `legacyResolveFlag.ts`; v2 routes do not call this module.
+ *
+ * env-переменная RUBITIME_SCHEDULE_MAPPING больше не используется.
  */
 import { createDbPort } from '../../infra/db/client.js';
 import { resolveBookingProfile } from './db/bookingProfilesRepo.js';

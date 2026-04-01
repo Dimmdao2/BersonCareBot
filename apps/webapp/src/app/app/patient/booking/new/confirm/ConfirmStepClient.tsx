@@ -1,0 +1,144 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { routePaths } from "@/app-layer/routes/paths";
+import type { BookingCategory } from "@/modules/patient-booking/types";
+import type { BookingSlot } from "@/modules/patient-booking/types";
+import type { BookingSelection } from "../../../cabinet/useBookingSelection";
+import { useCreateBooking } from "../../../cabinet/useCreateBooking";
+
+type Props = {
+  type: "in_person" | "online";
+  cityCode?: string;
+  cityTitle?: string;
+  branchServiceId?: string;
+  serviceTitle?: string;
+  category?: string;
+  date: string;
+  slotStart: string;
+  slotEnd: string;
+  defaultName: string;
+  defaultPhone: string;
+};
+
+function formatDateRu(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function formatTimeFromIso(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+}
+
+export function ConfirmStepClient({
+  type,
+  cityCode,
+  cityTitle,
+  branchServiceId,
+  serviceTitle,
+  category,
+  date,
+  slotStart,
+  slotEnd,
+  defaultName,
+  defaultPhone,
+}: Props) {
+  const router = useRouter();
+  const [name, setName] = useState(defaultName);
+  const [phone, setPhone] = useState(defaultPhone);
+  const [email, setEmail] = useState("");
+  const { submitting, error, createBooking } = useCreateBooking();
+
+  const selection: BookingSelection | null = useMemo(() => {
+    if (type === "in_person" && cityCode && cityTitle && branchServiceId && serviceTitle) {
+      return {
+        type: "in_person",
+        cityCode,
+        cityTitle,
+        branchServiceId,
+        serviceTitle,
+      };
+    }
+    if (type === "online" && category) {
+      return { type: "online", category: category as BookingCategory };
+    }
+    return null;
+  }, [type, cityCode, cityTitle, branchServiceId, serviceTitle, category]);
+
+  const slot: BookingSlot = useMemo(
+    () => ({ startAt: slotStart, endAt: slotEnd }),
+    [slotStart, slotEnd],
+  );
+
+  const formatLabel =
+    type === "in_person"
+      ? `Очный приём · ${cityTitle ?? ""} · ${serviceTitle ?? ""}`
+      : category === "rehab_lfk"
+        ? "Онлайн — Реабилитация (ЛФК)"
+        : category === "nutrition"
+          ? "Онлайн — Нутрициология"
+          : "Онлайн";
+
+  const canSubmit = Boolean(selection && name.trim() && phone.trim() && !submitting);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-border bg-card p-4 text-sm shadow-sm">
+        <p className="font-semibold">Сводка</p>
+        <ul className="mt-2 list-inside list-disc text-muted-foreground">
+          <li>{formatLabel}</li>
+          {type === "in_person" && cityCode ? <li>Код города: {cityCode}</li> : null}
+          <li>
+            Дата и время: {formatDateRu(date)} · {formatTimeFromIso(slotStart)} — {formatTimeFromIso(slotEnd)}
+          </li>
+        </ul>
+      </div>
+
+      <form
+        className="flex flex-col gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!selection) return;
+          void createBooking({
+            selection,
+            slot,
+            contactName: name.trim(),
+            contactPhone: phone.trim(),
+            contactEmail: email.trim() || undefined,
+          }).then((ok) => {
+            if (ok) router.push(routePaths.cabinet);
+          });
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold">Контакты</h2>
+          <Badge variant="outline">Шаг 5</Badge>
+        </div>
+
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Имя</span>
+          <Input value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Телефон</span>
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} required />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Email (опционально)</span>
+          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </label>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <Button type="submit" disabled={!canSubmit}>
+          {submitting ? "Создаём запись..." : "Подтвердить запись"}
+        </Button>
+      </form>
+    </div>
+  );
+}

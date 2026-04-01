@@ -125,8 +125,47 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
         slotEnd: input.slotEnd ?? row.slotEnd,
         updatedAt: new Date().toISOString(),
       });
-      break;
+      return;
     }
+    // Compat-create path: external Rubitime record without a native booking row.
+    if (!input.slotStart) return;
+    const now = new Date().toISOString();
+    const slotEnd =
+      input.slotEnd ??
+      new Date(new Date(input.slotStart).getTime() + 60 * 60_000).toISOString();
+    const newRow: PatientBookingRecord = {
+      id: randomUUID(),
+      userId: input.userId ?? "compat-unknown",
+      bookingType: "in_person",
+      city: null,
+      category: "general",
+      slotStart: input.slotStart,
+      slotEnd,
+      status: input.status,
+      cancelledAt: null,
+      cancelReason: null,
+      rubitimeId: input.rubitimeId,
+      gcalEventId: null,
+      contactPhone: input.contactPhone ?? "",
+      contactEmail: null,
+      contactName: input.contactName ?? "",
+      reminder24hSent: false,
+      reminder2hSent: false,
+      createdAt: now,
+      updatedAt: now,
+      branchServiceId: null,
+      branchId: null,
+      serviceId: null,
+      cityCodeSnapshot: null,
+      branchTitleSnapshot: input.branchTitle ?? null,
+      serviceTitleSnapshot: input.serviceTitle ?? null,
+      durationMinutesSnapshot: null,
+      priceMinorSnapshot: null,
+      rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? null,
+      rubitimeCooperatorIdSnapshot: null,
+      rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? null,
+    };
+    byId.set(newRow.id, newRow);
   },
 
   async listUpcomingByUser(userId, nowIso) {
