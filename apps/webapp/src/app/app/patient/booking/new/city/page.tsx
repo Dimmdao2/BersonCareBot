@@ -14,7 +14,7 @@ export default async function BookingNewCityPage() {
     <BookingWizardShell
       title="Выберите город"
       step={2}
-      totalSteps={5}
+      totalSteps={4}
       backHref={routePaths.bookingNew}
       user={session.user}
     >

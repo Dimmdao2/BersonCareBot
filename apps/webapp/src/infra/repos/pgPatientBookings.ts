@@ -215,7 +215,11 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
          SET status = $2,
              slot_start = COALESCE($3::timestamptz, slot_start),
              slot_end   = COALESCE($4::timestamptz, slot_end),
-             cancelled_at = CASE WHEN $2 IN ('cancelled', 'rescheduled') THEN now() ELSE cancelled_at END,
+             cancelled_at = CASE
+               WHEN $2 = 'cancelled' THEN now()
+               WHEN $2 = 'rescheduled' THEN NULL
+               ELSE cancelled_at
+             END,
              branch_title_snapshot   = CASE WHEN source = 'rubitime_projection' AND $5 IS NOT NULL THEN $5 ELSE branch_title_snapshot END,
              service_title_snapshot  = CASE WHEN source = 'rubitime_projection' AND $6 IS NOT NULL THEN $6 ELSE service_title_snapshot END,
              rubitime_branch_id_snapshot   = CASE WHEN source = 'rubitime_projection' AND $7 IS NOT NULL THEN $7 ELSE rubitime_branch_id_snapshot END,

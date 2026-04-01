@@ -56,7 +56,7 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
   if (type === "in_person") {
     const branchServiceId = first(raw.branchServiceId)?.trim();
     if (!branchServiceId) {
-      redirect(routePaths.bookingNewCity);
+      redirect(routePaths.bookingNew);
     }
   } else {
     if (!first(raw.category)?.trim()) {
@@ -69,8 +69,8 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
   return (
     <BookingWizardShell
       title="Подтверждение записи"
-      step={5}
-      totalSteps={5}
+      step={4}
+      totalSteps={4}
       backHref={backHref}
       user={session.user}
     >

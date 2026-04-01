@@ -22,7 +22,8 @@
     "smsc:check": "tsx src/infra/scripts/check-smsc.ts",
     "s3:check": "tsx src/infra/scripts/check-s3.ts",
     "mail:check": "tsx src/infra/scripts/check-mail.ts",
-    "projection-health": "node scripts/projection-health.mjs"
+    "projection-health": "node scripts/projection-health.mjs",
+    "rubitime:compare-records": "tsx src/infra/scripts/compare-rubitime-records.ts"
   },
   "engines": {
     "node": ">=20"

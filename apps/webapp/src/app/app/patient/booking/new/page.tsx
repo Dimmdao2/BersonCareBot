@@ -14,7 +14,7 @@ export default async function BookingNewFormatPage() {
     <BookingWizardShell
       title="Запись на приём"
       step={1}
-      totalSteps={5}
+      totalSteps={4}
       backHref={routePaths.cabinet}
       user={session.user}
     >

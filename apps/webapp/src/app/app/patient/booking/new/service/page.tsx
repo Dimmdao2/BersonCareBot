@@ -18,15 +18,15 @@ export default async function BookingNewServicePage({ searchParams }: Props) {
   const cityCode = sp.cityCode?.trim();
   const cityTitle = sp.cityTitle ?? "";
   if (!cityCode) {
-    redirect(routePaths.bookingNewCity);
+    redirect(routePaths.bookingNew);
   }
 
   return (
     <BookingWizardShell
       title="Выберите услугу"
-      step={3}
-      totalSteps={5}
-      backHref={routePaths.bookingNewCity}
+      step={2}
+      totalSteps={4}
+      backHref={routePaths.bookingNew}
       user={session.user}
     >
       <ServiceStepClient cityCode={cityCode} cityTitle={cityTitle} />

@@ -119,7 +119,7 @@ export function ConfirmStepClient({
       >
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold">Контакты</h2>
-          <Badge variant="outline">Шаг 5</Badge>
+          <Badge variant="outline">Шаг 4</Badge>
         </div>
 
         <label className="flex flex-col gap-1">

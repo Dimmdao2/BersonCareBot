@@ -28,7 +28,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
   if (type === "in_person") {
     const branchServiceId = first(raw.branchServiceId)?.trim();
     if (!branchServiceId) {
-      redirect(routePaths.bookingNewCity);
+      redirect(routePaths.bookingNew);
     }
     const cityCode = first(raw.cityCode) ?? "";
     const cityTitle = first(raw.cityTitle) ?? "";
@@ -39,8 +39,8 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
     return (
       <BookingWizardShell
         title="Выберите дату и время"
-        step={4}
-        totalSteps={5}
+        step={3}
+        totalSteps={4}
         backHref={backHref}
         user={session.user}
       >
@@ -63,8 +63,8 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
   return (
     <BookingWizardShell
       title="Выберите дату и время"
-      step={4}
-      totalSteps={5}
+      step={3}
+      totalSteps={4}
       backHref={routePaths.bookingNew}
       user={session.user}
     >

@@ -19,7 +19,7 @@ export function ServiceStepClient({ cityCode, cityTitle }: Props) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-semibold">Услуга</h2>
-        <Badge variant="outline">Шаг 3</Badge>
+        <Badge variant="outline">Шаг 2</Badge>
       </div>
       {catalogServices.loading ? <p className="text-sm text-muted-foreground">Загрузка услуг…</p> : null}
       {catalogServices.error ? (

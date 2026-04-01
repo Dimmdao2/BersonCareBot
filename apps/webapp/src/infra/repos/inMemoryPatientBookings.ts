@@ -118,11 +118,18 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   async upsertFromRubitime(input) {
     for (const [id, row] of byId.entries()) {
       if (row.rubitimeId !== input.rubitimeId) continue;
+      const cancelledAt =
+        input.status === "cancelled"
+          ? new Date().toISOString()
+          : input.status === "rescheduled"
+            ? null
+            : row.cancelledAt;
       byId.set(id, {
         ...row,
         status: input.status,
         slotStart: input.slotStart ?? row.slotStart,
         slotEnd: input.slotEnd ?? row.slotEnd,
+        cancelledAt,
         updatedAt: new Date().toISOString(),
       });
       return;
