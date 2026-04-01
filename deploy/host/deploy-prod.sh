@@ -80,6 +80,18 @@ rm -rf dist
 pnpm build
 pnpm build:webapp
 
+# Standalone server.js does not bundle .next/static — must copy after every webapp build (same as deploy-webapp-prod.sh).
+WEBAPP_STANDALONE_DIR=apps/webapp/.next/standalone/apps/webapp
+mkdir -p "${WEBAPP_STANDALONE_DIR}/.next"
+rm -rf "${WEBAPP_STANDALONE_DIR}/.next/static" "${WEBAPP_STANDALONE_DIR}/public"
+cp -r apps/webapp/.next/static "${WEBAPP_STANDALONE_DIR}/.next/static"
+cp -r apps/webapp/public "${WEBAPP_STANDALONE_DIR}/public"
+WEBAPP_STANDALONE_CHUNKS="${WEBAPP_STANDALONE_DIR}/.next/static/chunks"
+chunk_js_count=$(find "${WEBAPP_STANDALONE_CHUNKS}" -maxdepth 1 -type f -name "*.js" 2>/dev/null | wc -l | tr -d " ")
+if [ "${chunk_js_count}" -lt 1 ]; then
+  fail "Standalone has no JS under ${WEBAPP_STANDALONE_CHUNKS} after copy. Webapp build may have failed."
+fi
+
 set -a
 source "${ENV_FILE}"
 set +a

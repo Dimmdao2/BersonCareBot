@@ -944,3 +944,13 @@
 - Files changed:
   - `apps/webapp/src/app/global-error.tsx` — расширенная детекция chunk / dynamic import сбоев
   - `EXECUTION_LOG.md` — эта запись
+
+### NGINX.T01 — Документация: кэш HTML и `/_next/static/` для webapp
+- Status: done
+- Finished at: 2026-04-01
+- **Задача:** зафиксировать в runbook проверку и рекомендации для nginx/CDN (короткий/отсутствующий edge-кэш для HTML, долгий immutable для `/_next/static/`), без выдуманных путей к конфигам на хосте.
+- Files changed:
+  - `deploy/HOST_DEPLOY_README.md` — блок «Кэширование (Next.js, мини-приложение)» под vhost Webapp: поведение upstream Next, антипаттерны nginx, CDN, команды `curl -sI`
+  - `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — ссылка на блок в HOST_DEPLOY_README
+  - `EXECUTION_LOG.md` — эта запись
+- Notes: фактические заголовки production остаются для подтверждения оператором на хосте/CDN

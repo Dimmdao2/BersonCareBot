@@ -65,8 +65,17 @@ pnpm --dir apps/webapp build
 # Copy static assets into the standalone output so standalone server.js can serve them.
 # Required because Next.js does not copy .next/static/ and public/ into standalone automatically.
 STANDALONE_DIR=apps/webapp/.next/standalone/apps/webapp
+mkdir -p "${STANDALONE_DIR}/.next"
+# Replace, do not nest: if destination exists, `cp -r static dest/` copies into dest/static/ (broken second deploy).
+rm -rf "${STANDALONE_DIR}/.next/static" "${STANDALONE_DIR}/public"
 cp -r apps/webapp/.next/static "${STANDALONE_DIR}/.next/static"
 cp -r apps/webapp/public "${STANDALONE_DIR}/public"
+
+STANDALONE_CHUNKS="${STANDALONE_DIR}/.next/static/chunks"
+chunk_js_count=$(find "${STANDALONE_CHUNKS}" -maxdepth 1 -type f -name "*.js" 2>/dev/null | wc -l | tr -d " ")
+if [ "${chunk_js_count}" -lt 1 ]; then
+  fail "Standalone has no JS under ${STANDALONE_CHUNKS} after copy. Run full webapp build first; paths must match apps/webapp/.next/standalone/apps/webapp"
+fi
 
 # Run webapp DB migrations (DATABASE_URL from webapp.prod)
 set -a

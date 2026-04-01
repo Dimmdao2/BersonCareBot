@@ -224,6 +224,24 @@ mc cors set myminio/bersonservices-public /path/to/cors.json
 
 Проверка: `curl -I https://fs.bersonservices.ru/bersonservices-public/` — не `connection refused`. Env webapp: см. `S3_*` в `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
 
+**Кэширование (Next.js, мини-приложение):** после деплоя клиент должен получать **актуальный HTML** (со ссылками на новые hashed-чанки), а **`/_next/static/*`** — кэшироваться долго.
+
+- **Upstream (Next.js production):** для `/_next/static/` обычно отдаётся `Cache-Control: public, max-age=31536000, immutable`; для динамических HTML-страниц приложения — ограничения кэша (`no-store` / `private, no-cache` и аналоги). Это не зафиксировано отдельным audit’ом заголовков на хосте — оператор проверяет фактические `curl -I` ниже.
+- **nginx без `proxy_cache`:** достаточно проксировать на `127.0.0.1:6200` и **не** задавать на весь `location /` глобальные `expires …` или `add_header Cache-Control "public"` — иначе можно закэшировать HTML и получить рассинхрон «старый document → новые чанки» → ошибки загрузки чанков в WebView.
+- **nginx с `proxy_cache`:** не кэшируйте HTML (`text/html`) и API так же, как статику; долгий кэш только для `/_next/static/` (или отключите кэш для путей `/app`, `/api`, корня документов — по фактической схеме vhost).
+- **CDN перед `webapp.bersonservices.ru`:** для маршрутов документов (`/` и префиксы вроде `/app`) — **Bypass** / TTL ≈ 0 / строго **уважать `Cache-Control` origin** без принудительного длинного edge-cache; для `/_next/static/*` — длинный TTL и поддержка **`immutable`**, либо полное следование заголовкам от origin.
+
+Проверка:
+
+```bash
+curl -sI "https://webapp.bersonservices.ru/app" | tr -d '\r' | grep -i cache
+BASE="https://webapp.bersonservices.ru"
+CHUNK=$(curl -sL "$BASE/app" | grep -oE '/_next/static/chunks/[A-Za-z0-9._-]+\.js' | head -1)
+curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
+```
+
+Ожидание: у ответа HTML — нет многодневного публичного `max-age` «для всего сайта»; у чанка — `immutable` (или эквивалентно долгий `max-age` вместе с `immutable`).
+
 ### Важно
 
 - nginx слушает `80` и `443`;
@@ -532,11 +550,38 @@ sudo -u postgres psql -At -F $'\t' -c "SELECT rolname FROM pg_roles ORDER BY rol
 
 ### 2. Webapp стартует через `next start` с warning про standalone
 
-В логах `bersoncarebot-webapp-prod.service`:
+На части хостов в логах раньше встречалось:
 
 - `next start does not work with output: standalone`
 
-Это не ломает текущий runtime, но является техническим долгом.
+Актуальный unit в репозитории запускает **`server.js` из standalone** (см. `deploy/systemd/bersoncarebot-webapp-prod.service`). Если на хосте всё ещё `pnpm next start` — привести unit к шаблону из репо.
+
+### 3. 404 на `/_next/static/chunks/*.js` при живом `server.js`
+
+**Симптом:** файл есть в `apps/webapp/.next/static/chunks/`, но **нет** в `apps/webapp/.next/standalone/apps/webapp/.next/static/chunks/`; `curl -sI http://127.0.0.1:6200/_next/static/chunks/….js` → `404`.
+
+**Причина:** после `pnpm --dir apps/webapp build` не скопировали артефакты в дерево standalone. Скрипты **`deploy/host/deploy-webapp-prod.sh`** и **`deploy/host/deploy-prod.sh`** после сборки делают `cp -r` `.next/static` и `public` в `standalone` (и проверяют наличие `chunks/*.js`). Ручной build без этих шагов оставляет процесс без чанков → мини-приложение ловит `Failed to load chunk`.
+
+**Разовое исправление от root** (пути как на prod из `SERVER CONVENTIONS.md`):
+
+```bash
+cd /opt/projects/bersoncarebot
+mkdir -p apps/webapp/.next/standalone/apps/webapp/.next
+rm -rf apps/webapp/.next/standalone/apps/webapp/.next/static apps/webapp/.next/standalone/apps/webapp/public
+cp -r apps/webapp/.next/static apps/webapp/.next/standalone/apps/webapp/.next/static
+cp -r apps/webapp/public apps/webapp/.next/standalone/apps/webapp/public
+systemctl restart bersoncarebot-webapp-prod.service
+```
+
+Проверка (первый чанк из дерева + HEAD к backend):
+
+```bash
+CH=$(ls apps/webapp/.next/standalone/apps/webapp/.next/static/chunks/*.js | head -1)
+echo "chunk=$(basename "$CH")"
+curl -sI -H "Host: webapp.bersonservices.ru" "http://127.0.0.1:6200/_next/static/chunks/$(basename "$CH")" | head -1
+```
+
+Дальше: полный деплой через **`bash deploy/host/deploy-prod.sh`** (CI) или **`bash deploy/host/deploy-webapp-prod.sh`**; либо после каждого production build вручную повторять те же `rm -rf` + `cp` из блока выше.
 
 ---
 
