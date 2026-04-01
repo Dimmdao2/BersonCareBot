@@ -49,7 +49,7 @@ export function BookingConfirmationForm({
     >
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-semibold">Подтверждение записи</h3>
-        <Badge variant="outline">Шаг 4</Badge>
+        <Badge variant="outline">Шаг 5</Badge>
       </div>
 
       <label className="flex flex-col gap-1">

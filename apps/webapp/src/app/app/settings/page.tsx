@@ -7,6 +7,7 @@ import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsSection } from "./AdminSettingsSection";
 import { RuntimeConfigSection } from "./RuntimeConfigSection";
+import { BookingCatalogHelp } from "./BookingCatalogHelp";
 import { RubitimeSection } from "./RubitimeSection";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
@@ -99,7 +100,8 @@ export default async function SettingsPage() {
             </div>
           )}
           {isAdmin && adminMode && (
-            <div className="mt-6">
+            <div className="mt-6 space-y-6">
+              <BookingCatalogHelp />
               <RubitimeSection />
             </div>
           )}

@@ -304,9 +304,9 @@ CREATE INDEX idx_bookings_rubitime_id ON bookings(rubitime_id);
 
 ### Шаги
 
-1. Реализовать backend (блок 2.A) и frontend (блок 2.B)
+1. Реализовать DB/каталог и репозитории (блок 2.A), Admin UI (блок 2.B), patient flow v2 (блок 2.C), integrator bridge (блок 2.D) — см. `PHASE_2_TASKS.md`
 2. Переключить маршрут `/app/patient/cabinet` на новый UI
-3. Удалить `/app/patient/booking` (iframe) 
+3. Удалить `/app/patient/booking` (iframe)
 4. Обновить Telegram-бот: кнопка «Записаться» → webapp URL нового экрана
 5. Оставить Rubitime webhook для обратной совместимости (записи через сайт Rubitime)
 
@@ -326,3 +326,73 @@ CREATE INDEX idx_bookings_rubitime_id ON bookings(rubitime_id);
 3. **Длительность слотов** — фиксированная (60 мин) или зависит от типа?
 4. **Города** — только Москва и СПб, или список расширяемый?
 5. **Категории онлайн** — «Реабилитация (ЛФК)» и «Нутрициология» — это разные специалисты/расписания или один врач?
+
+---
+
+## 11. In-person v2 — очный приём (city + service)
+
+> **Статус:** активная спецификация для booking rework (BRANCH_UX_CMS_BOOKING).  
+> Заменяет legacy-подход `city + category` для очного приёма.
+
+### 11.1. Non-goals (scope этого раздела)
+
+- **Online-запись не входит** в этот этап. Всё, что описано ниже, относится исключительно к `booking_type = 'in_person'`.
+- Изменения не затрагивают существующий online-поток.
+
+### 11.2. Пользовательский flow (in-person v2)
+
+```
+1. Пациент открывает кабинет
+2. Выбирает город (например: Москва / СПб)
+3. Выбирает услугу (например: Сеанс 60 мин / Сеанс 90 мин)
+4. Видит доступные слоты для выбранной связки (city → service → branch → specialist)
+5. Подтверждает слот (телефон/имя предзаполнены из профиля)
+6. Backend создаёт запись в Rubitime с явными IDs
+```
+
+Переход `city → service` соответствует каталогу `booking_branches` / `booking_services` / `booking_branch_services`.
+
+### 11.3. Обязательный payload integrator (in-person v2)
+
+При создании записи webapp отправляет в integrator **явные IDs** без резолва на стороне integrator:
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `rubitimeBranchId` | `string` | ID филиала в Rubitime (из каталога) |
+| `rubitimeCooperatorId` | `string` | ID сотрудника в Rubitime (из каталога) |
+| `rubitimeServiceId` | `string` | ID услуги в Rubitime (из каталога) |
+| `slotStart` | `string` (ISO 8601) | Дата и время начала слота |
+
+Integrator **не резолвит** `category` или `city` самостоятельно — все ID передаются webapp из каталога.
+
+### 11.4. Изменения схемы БД (in-person v2)
+
+Для поддержки нового flow в `patient_bookings` добавляются FK-поля и snapshot:
+
+- `branch_id UUID` — FK → `booking_branches.id`
+- `service_id UUID` — FK → `booking_services.id`
+- `branch_service_id UUID` — FK → `booking_branch_services.id` (несёт specialist через связку)
+- `rubitime_branch_id_snapshot TEXT` — snapshot на момент записи
+- `rubitime_cooperator_id_snapshot TEXT` — snapshot на момент записи
+- `rubitime_service_id_snapshot TEXT` — snapshot на момент записи
+
+> Прямая FK `specialist_id` в `patient_bookings` не добавляется — specialist определяется через `branch_service_id` (JOIN на `booking_branch_services.specialist_id`). Полный DDL в `MIGRATION_CONTRACT_V2.md`.
+
+Поле `category TEXT` для очного v2 **не используется**. Совместимость legacy-записей обеспечивается через dual-read (поле остается nullable).
+
+### 11.5. Каталог сущностей
+
+Новые таблицы каталога (подробно в `MIGRATION_CONTRACT_V2.md`):
+
+- `booking_cities` — города присутствия
+- `booking_branches` — филиалы, каждый привязан к городу
+- `booking_specialists` — сотрудники, каждый привязан к филиалу
+- `booking_services` — услуги (глобальные)
+- `booking_branch_services` — связка: какая услуга доступна в каком филиале у какого сотрудника (с Rubitime IDs)
+
+### 11.6. Критерии готовности in-person v2
+
+- [ ] Нет требования `category` в flow очного v2
+- [ ] Payload integrator содержит только `rubitimeBranchId`, `rubitimeCooperatorId`, `rubitimeServiceId`, `slotStart`
+- [ ] Каталог позволяет динамически добавлять города и услуги без деплоя
+- [ ] Online-поток не затронут

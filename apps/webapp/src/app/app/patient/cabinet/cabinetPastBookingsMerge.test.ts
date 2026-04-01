@@ -22,6 +22,17 @@ function makeNative(partial: Partial<PatientBookingRecord> & Pick<PatientBooking
     createdAt: "2025-01-01T00:00:00.000Z",
     updatedAt: "2025-01-01T00:00:00.000Z",
     rubitimeId: null,
+    branchServiceId: null,
+    branchId: null,
+    serviceId: null,
+    cityCodeSnapshot: null,
+    branchTitleSnapshot: null,
+    serviceTitleSnapshot: null,
+    durationMinutesSnapshot: null,
+    priceMinorSnapshot: null,
+    rubitimeBranchIdSnapshot: null,
+    rubitimeCooperatorIdSnapshot: null,
+    rubitimeServiceIdSnapshot: null,
     ...partial,
   };
 }

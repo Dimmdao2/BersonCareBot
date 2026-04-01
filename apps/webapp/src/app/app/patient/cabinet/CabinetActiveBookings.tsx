@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { BookingCardActions } from "./BookingCardActions";
+import { nativeBookingSubtitle } from "./patientBookingLabels";
 
 type Props = {
   bookings: PatientBookingRecord[];
@@ -23,15 +24,6 @@ function statusLabel(status: PatientBookingRecord["status"]): string {
   if (status === "completed") return "Завершена";
   if (status === "no_show") return "Неявка";
   return "Ошибка синхронизации";
-}
-
-function bookingTypeLabel(row: PatientBookingRecord): string {
-  if (row.bookingType === "online") {
-    if (row.category === "rehab_lfk") return "Онлайн - Реабилитация (ЛФК)";
-    if (row.category === "nutrition") return "Онлайн - Нутрициология";
-    return "Онлайн консультация";
-  }
-  return `Очный приём${row.city ? ` - ${row.city === "moscow" ? "Москва" : row.city === "spb" ? "СПб" : row.city}` : ""}`;
 }
 
 export function CabinetActiveBookings({ bookings }: Props) {
@@ -62,7 +54,7 @@ export function CabinetActiveBookings({ bookings }: Props) {
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <p className="text-sm text-muted-foreground">{bookingTypeLabel(row)}</p>
+            <p className="text-sm text-muted-foreground">{nativeBookingSubtitle(row)}</p>
             {(row.status === "confirmed" ||
               row.status === "rescheduled" ||
               row.status === "creating" ||

@@ -22,6 +22,10 @@ export type BookingSlotsByDate = {
   slots: BookingSlot[];
 };
 
+/**
+ * Native booking row. For in-person v2, `category` is kept as DB placeholder (`general`);
+ * user-facing copy uses `serviceTitleSnapshot` / `cityCodeSnapshot` when present.
+ */
 export type PatientBookingRecord = {
   id: string;
   userId: string;
@@ -42,19 +46,44 @@ export type PatientBookingRecord = {
   reminder2hSent: boolean;
   createdAt: string;
   updatedAt: string;
+  branchServiceId: string | null;
+  branchId: string | null;
+  serviceId: string | null;
+  cityCodeSnapshot: string | null;
+  branchTitleSnapshot: string | null;
+  serviceTitleSnapshot: string | null;
+  durationMinutesSnapshot: number | null;
+  priceMinorSnapshot: number | null;
+  rubitimeBranchIdSnapshot: string | null;
+  rubitimeCooperatorIdSnapshot: string | null;
+  rubitimeServiceIdSnapshot: string | null;
 };
 
-export type CreatePatientBookingInput = {
-  userId: string;
-  type: BookingType;
-  city?: string;
-  category: BookingCategory;
-  slotStart: string;
-  slotEnd: string;
-  contactName: string;
-  contactPhone: string;
-  contactEmail?: string;
-};
+/** API / UI input for creating a booking (discriminated by `type`). */
+export type CreatePatientBookingInput =
+  | {
+      userId: string;
+      type: "online";
+      category: BookingCategory;
+      slotStart: string;
+      slotEnd: string;
+      contactName: string;
+      contactPhone: string;
+      contactEmail?: string;
+    }
+  | {
+      userId: string;
+      type: "in_person";
+      /** Catalog row `booking_branch_services.id` */
+      branchServiceId: string;
+      /** IANA-ish code from `booking_cities.code` (e.g. moscow, spb) */
+      cityCode: string;
+      slotStart: string;
+      slotEnd: string;
+      contactName: string;
+      contactPhone: string;
+      contactEmail?: string;
+    };
 
 export type CancelPatientBookingInput = {
   userId: string;

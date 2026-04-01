@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/infra/db/client";
-import type { PatientBookingsPort } from "@/modules/patient-booking/ports";
+import type { PatientBookingsPort, CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
 import type { PatientBookingRecord, PatientBookingStatus } from "@/modules/patient-booking/types";
 
 type Row = {
@@ -23,6 +23,17 @@ type Row = {
   reminder_2h_sent: boolean;
   created_at: Date;
   updated_at: Date;
+  branch_id?: string | null;
+  service_id?: string | null;
+  branch_service_id?: string | null;
+  city_code_snapshot?: string | null;
+  branch_title_snapshot?: string | null;
+  service_title_snapshot?: string | null;
+  duration_minutes_snapshot?: number | null;
+  price_minor_snapshot?: number | null;
+  rubitime_branch_id_snapshot?: string | null;
+  rubitime_cooperator_id_snapshot?: string | null;
+  rubitime_service_id_snapshot?: string | null;
 };
 
 function mapRow(row: Row): PatientBookingRecord {
@@ -46,30 +57,63 @@ function mapRow(row: Row): PatientBookingRecord {
     reminder2hSent: row.reminder_2h_sent,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    branchServiceId: row.branch_service_id ?? null,
+    branchId: row.branch_id ?? null,
+    serviceId: row.service_id ?? null,
+    cityCodeSnapshot: row.city_code_snapshot ?? null,
+    branchTitleSnapshot: row.branch_title_snapshot ?? null,
+    serviceTitleSnapshot: row.service_title_snapshot ?? null,
+    durationMinutesSnapshot: row.duration_minutes_snapshot ?? null,
+    priceMinorSnapshot: row.price_minor_snapshot ?? null,
+    rubitimeBranchIdSnapshot: row.rubitime_branch_id_snapshot ?? null,
+    rubitimeCooperatorIdSnapshot: row.rubitime_cooperator_id_snapshot ?? null,
+    rubitimeServiceIdSnapshot: row.rubitime_service_id_snapshot ?? null,
   };
 }
 
 export const pgPatientBookingsPort: PatientBookingsPort = {
-  async createPending(input) {
+  async createPending(input: CreatePendingPatientBookingInput) {
     const pool = getPool();
     const id = randomUUID();
     const result = await pool.query<Row>(
       `INSERT INTO patient_bookings (
         id, platform_user_id, booking_type, city, category, slot_start, slot_end, status,
-        contact_phone, contact_email, contact_name
-      ) VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, 'creating', $8, $9, $10)
+        contact_phone, contact_email, contact_name,
+        branch_id, service_id, branch_service_id,
+        city_code_snapshot, branch_title_snapshot, service_title_snapshot,
+        duration_minutes_snapshot, price_minor_snapshot,
+        rubitime_branch_id_snapshot, rubitime_cooperator_id_snapshot, rubitime_service_id_snapshot
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, 'creating',
+        $8, $9, $10,
+        $11, $12, $13,
+        $14, $15, $16,
+        $17, $18,
+        $19, $20, $21
+      )
       RETURNING *`,
       [
         id,
         input.userId,
-        input.type,
-        input.city ?? null,
+        input.bookingType,
+        input.city,
         input.category,
         input.slotStart,
         input.slotEnd,
         input.contactPhone,
-        input.contactEmail ?? null,
+        input.contactEmail,
         input.contactName,
+        input.branchId,
+        input.serviceId,
+        input.branchServiceId,
+        input.cityCodeSnapshot,
+        input.branchTitleSnapshot,
+        input.serviceTitleSnapshot,
+        input.durationMinutesSnapshot,
+        input.priceMinorSnapshot,
+        input.rubitimeBranchIdSnapshot,
+        input.rubitimeCooperatorIdSnapshot,
+        input.rubitimeServiceIdSnapshot,
       ],
     );
     return mapRow(result.rows[0] as Row);

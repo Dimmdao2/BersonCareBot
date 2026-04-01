@@ -75,6 +75,15 @@ Cutover/backfill/reconcile env для prod/dev: **docs/ARCHITECTURE/SERVER CONVE
 | **AGENT_LOG.md** | Лог выполнения задач (заполняется агентами). |
 | **PROMPTS.md** | Готовые промпты для каждого этапа (copy-paste). |
 
+#### REMINDERS_PHASE/ — механика напоминаний (2026-04)
+
+| Файл | Назначение |
+|------|------------|
+| **README.md** | Контекст, цели, зависимости, что уже есть. |
+| **PLAN.md** | Мастер-план: стадии S1–S5, 41 задача, 9–12 дней. |
+| **PROMPTS_EXEC_AUDIT_FIX.md** | Готовые промпты для каждого шага (copy-paste). |
+| **EXECUTION_LOG.md** | Лог выполнения и pre-release checklist. |
+
 ### REPORTS/ — аналитические отчёты
 
 | Файл | Назначение |

@@ -12,9 +12,13 @@ type State = {
 
 function buildQuery(selection: BookingSelection, date?: string): string {
   const params = new URLSearchParams();
-  params.set("type", selection.type);
-  params.set("category", selection.category);
-  if (selection.city) params.set("city", selection.city);
+  if (selection.type === "online") {
+    params.set("type", "online");
+    params.set("category", selection.category);
+  } else {
+    params.set("type", "in_person");
+    params.set("branchServiceId", selection.branchServiceId);
+  }
   if (date) params.set("date", date);
   return params.toString();
 }

@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ResolvedBranchService } from "@/modules/booking-catalog/types";
+import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import type { PatientBookingRecord } from "./types";
 import { createPatientBookingService } from "./service";
 
@@ -22,6 +24,74 @@ const syncPort = vi.hoisted(() => ({
   emitBookingEvent: vi.fn(),
 }));
 
+const resolveBranchServiceMock = vi.hoisted(() => vi.fn());
+
+function resolvedFixture(): ResolvedBranchService {
+  return {
+    branchService: {
+      id: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      branchId: "brbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      serviceId: "svbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      specialistId: "spbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      rubitimeServiceId: "67591",
+      isActive: true,
+      sortOrder: 0,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+    branch: {
+      id: "brbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      cityId: "ccbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      title: "Филиал 1",
+      address: null,
+      rubitimeBranchId: "17356",
+      isActive: true,
+      sortOrder: 0,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+    service: {
+      id: "svbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      title: "Сеанс",
+      description: null,
+      durationMinutes: 60,
+      priceMinor: 0,
+      isActive: true,
+      sortOrder: 0,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+    specialist: {
+      id: "spbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      branchId: "brbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      fullName: "Специалист",
+      description: null,
+      rubitimeCooperatorId: "34729",
+      isActive: true,
+      sortOrder: 0,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+    city: {
+      id: "ccbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      code: "moscow",
+      title: "Москва",
+      isActive: true,
+      sortOrder: 0,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    },
+  };
+}
+
+function catalogWithResolve(): BookingCatalogService {
+  return {
+    listCitiesForPatient: vi.fn(),
+    listServicesByCity: vi.fn(),
+    resolveBranchService: resolveBranchServiceMock,
+  };
+}
+
 function sampleRow(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
     id: "b1111111-1111-4111-8111-111111111111",
@@ -43,6 +113,17 @@ function sampleRow(over: Partial<PatientBookingRecord> = {}): PatientBookingReco
     reminder2hSent: false,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
+    branchServiceId: null,
+    branchId: null,
+    serviceId: null,
+    cityCodeSnapshot: null,
+    branchTitleSnapshot: null,
+    serviceTitleSnapshot: null,
+    durationMinutesSnapshot: null,
+    priceMinorSnapshot: null,
+    rubitimeBranchIdSnapshot: null,
+    rubitimeCooperatorIdSnapshot: null,
+    rubitimeServiceIdSnapshot: null,
     ...over,
   };
 }
@@ -63,6 +144,7 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
+      bookingCatalog: null,
     });
     const result = await svc.cancelBooking({
       userId: row.userId,
@@ -88,6 +170,7 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
+      bookingCatalog: null,
     });
     const result = await svc.cancelBooking({ userId: row.userId, bookingId: row.id });
     expect(result).toEqual({ ok: false, error: "sync_failed" });
@@ -104,6 +187,7 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
+      bookingCatalog: null,
     });
     const result = await svc.cancelBooking({ userId: row.userId, bookingId: row.id });
     expect(result).toEqual({ ok: false, error: "already_cancelled" });
@@ -118,6 +202,7 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
+      bookingCatalog: null,
     });
     await expect(
       svc.createBooking({
@@ -129,7 +214,7 @@ describe("createPatientBookingService", () => {
         contactName: pending.contactName,
         contactPhone: pending.contactPhone,
       }),
-    ).rejects.toThrow("booking_sync_failed");
+    ).rejects.toThrow("rubitime down");
     expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("p1");
   });
 
@@ -142,6 +227,7 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
+      bookingCatalog: null,
     });
     await expect(
       svc.createBooking({
@@ -168,6 +254,7 @@ describe("createPatientBookingService", () => {
     const svc = createPatientBookingService({
       bookingsPort: bookingsPort as never,
       syncPort: syncPort as never,
+      bookingCatalog: null,
     });
     await expect(
       svc.createBooking({
@@ -186,5 +273,131 @@ describe("createPatientBookingService", () => {
       reason: "slot_overlap",
       status: "cancelled",
     });
+  });
+
+  it("getSlots: in_person calls catalog resolve and integrator v2", async () => {
+    const r = resolvedFixture();
+    resolveBranchServiceMock.mockResolvedValue(r);
+    syncPort.fetchSlots.mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: catalogWithResolve(),
+    });
+    const slots = await svc.getSlots({
+      type: "in_person",
+      branchServiceId: r.branchService.id,
+      date: "2026-05-01",
+    });
+    expect(slots).toHaveLength(1);
+    expect(resolveBranchServiceMock).toHaveBeenCalledWith(r.branchService.id);
+    expect(syncPort.fetchSlots).toHaveBeenCalledWith({
+      version: "v2",
+      rubitimeBranchId: "17356",
+      rubitimeCooperatorId: "34729",
+      rubitimeServiceId: "67591",
+      slotDurationMinutes: 60,
+      date: "2026-05-01",
+    });
+  });
+
+  it("getSlots: in_person without catalog throws catalog_unavailable", async () => {
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+    });
+    await expect(
+      svc.getSlots({
+        type: "in_person",
+        branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+      }),
+    ).rejects.toThrow("catalog_unavailable");
+  });
+
+  it("createBooking: in_person uses v2 createRecord with localBookingId", async () => {
+    const r = resolvedFixture();
+    resolveBranchServiceMock.mockResolvedValue(r);
+    const pending = sampleRow({
+      id: "p3",
+      status: "creating",
+      rubitimeId: null,
+      bookingType: "in_person",
+      city: "moscow",
+    });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rx", raw: {} });
+    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "rx" });
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: catalogWithResolve(),
+    });
+    await svc.createBooking({
+      userId: pending.userId,
+      type: "in_person",
+      branchServiceId: r.branchService.id,
+      cityCode: "moscow",
+      slotStart: pending.slotStart,
+      slotEnd: pending.slotEnd,
+      contactName: pending.contactName,
+      contactPhone: pending.contactPhone,
+    });
+    expect(syncPort.createRecord).toHaveBeenCalledWith(
+      expect.objectContaining({
+        version: "v2",
+        localBookingId: "p3",
+        rubitimeBranchId: "17356",
+      }),
+    );
+  });
+
+  it("createBooking: inactive branch service (not found) propagates", async () => {
+    resolveBranchServiceMock.mockRejectedValue(new Error("branch_service_not_found"));
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: catalogWithResolve(),
+    });
+    await expect(
+      svc.createBooking({
+        userId: "u1111111-1111-4111-8111-111111111111",
+        type: "in_person",
+        branchServiceId: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb",
+        cityCode: "moscow",
+        slotStart: "2026-05-01T10:00:00.000Z",
+        slotEnd: "2026-05-01T11:00:00.000Z",
+        contactName: "T",
+        contactPhone: "+7000",
+      }),
+    ).rejects.toThrow("branch_service_not_found");
+    expect(bookingsPort.createPending).not.toHaveBeenCalled();
+  });
+
+  it("createBooking: in_person rejects cityCode that does not match catalog city", async () => {
+    const r = resolvedFixture();
+    resolveBranchServiceMock.mockResolvedValue(r);
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: catalogWithResolve(),
+    });
+    await expect(
+      svc.createBooking({
+        userId: "u1111111-1111-4111-8111-111111111111",
+        type: "in_person",
+        branchServiceId: r.branchService.id,
+        cityCode: "spb",
+        slotStart: "2026-05-01T10:00:00.000Z",
+        slotEnd: "2026-05-01T11:00:00.000Z",
+        contactName: "T",
+        contactPhone: "+7000",
+      }),
+    ).rejects.toThrow("city_mismatch");
+    expect(bookingsPort.createPending).not.toHaveBeenCalled();
+    expect(syncPort.createRecord).not.toHaveBeenCalled();
   });
 });

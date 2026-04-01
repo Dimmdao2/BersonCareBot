@@ -125,6 +125,8 @@ import { createPatientBookingService } from "@/modules/patient-booking/service";
 import { createBookingSyncPort } from "@/modules/integrator/bookingM2mApi";
 import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
 import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
+import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
+import { createBookingCatalogService } from "@/modules/booking-catalog/service";
 
 const symptomDiaryPort = env.DATABASE_URL ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
 const lfkDiaryPort = env.DATABASE_URL ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
@@ -159,9 +161,14 @@ const appointmentProjectionPort = env.DATABASE_URL
 const patientBookingsPort = env.DATABASE_URL
   ? pgPatientBookingsPort
   : inMemoryPatientBookingsPort;
+const bookingCatalogPort = env.DATABASE_URL ? createPgBookingCatalogPort() : null;
+const bookingCatalogService = bookingCatalogPort
+  ? createBookingCatalogService(bookingCatalogPort)
+  : null;
 const patientBookingService = createPatientBookingService({
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
+  bookingCatalog: bookingCatalogService,
 });
 const branchesProjectionPort = env.DATABASE_URL ? createPgBranchesProjectionPort() : null;
 const subscriptionMailingProjectionPort = env.DATABASE_URL
@@ -552,6 +559,9 @@ function _buildAppDeps() {
     lfkExercises: lfkExercisesService,
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,
+    bookingCatalog: bookingCatalogService,
+    /** Raw PG port for admin booking-catalog API (null without DATABASE_URL). */
+    bookingCatalogPort,
   };
 }
 

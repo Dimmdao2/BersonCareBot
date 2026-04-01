@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PatientBookingsPort } from "@/modules/patient-booking/ports";
+import type { PatientBookingsPort, CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { intervalsOverlap } from "@/modules/patient-booking/slotOverlap";
 
@@ -22,7 +22,7 @@ function hasGlobalSlotOverlap(slotStart: string, slotEnd: string, excludeBooking
 }
 
 export const inMemoryPatientBookingsPort: PatientBookingsPort = {
-  async createPending(input) {
+  async createPending(input: CreatePendingPatientBookingInput) {
     if (hasGlobalSlotOverlap(input.slotStart, input.slotEnd)) {
       throw new Error("slot_overlap");
     }
@@ -30,8 +30,8 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     const row: PatientBookingRecord = {
       id: randomUUID(),
       userId: input.userId,
-      bookingType: input.type,
-      city: input.city ?? null,
+      bookingType: input.bookingType,
+      city: input.city,
       category: input.category,
       slotStart: input.slotStart,
       slotEnd: input.slotEnd,
@@ -41,12 +41,23 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       rubitimeId: null,
       gcalEventId: null,
       contactPhone: input.contactPhone,
-      contactEmail: input.contactEmail ?? null,
+      contactEmail: input.contactEmail,
       contactName: input.contactName,
       reminder24hSent: false,
       reminder2hSent: false,
       createdAt: now,
       updatedAt: now,
+      branchServiceId: input.branchServiceId,
+      branchId: input.branchId,
+      serviceId: input.serviceId,
+      cityCodeSnapshot: input.cityCodeSnapshot,
+      branchTitleSnapshot: input.branchTitleSnapshot,
+      serviceTitleSnapshot: input.serviceTitleSnapshot,
+      durationMinutesSnapshot: input.durationMinutesSnapshot,
+      priceMinorSnapshot: input.priceMinorSnapshot,
+      rubitimeBranchIdSnapshot: input.rubitimeBranchIdSnapshot,
+      rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorIdSnapshot,
+      rubitimeServiceIdSnapshot: input.rubitimeServiceIdSnapshot,
     };
     byId.set(row.id, row);
     return row;

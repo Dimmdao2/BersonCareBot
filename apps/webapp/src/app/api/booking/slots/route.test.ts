@@ -32,4 +32,19 @@ describe("GET /api/booking/slots", () => {
     const body = await response.json();
     expect(body).toMatchObject({ ok: true, slots: expect.any(Array) });
   });
+
+  it("returns 404 when branch_service_not_found for in_person", async () => {
+    getCurrentSessionMock.mockResolvedValue({
+      user: { userId: "u1", role: "client" },
+    });
+    getSlotsMock.mockRejectedValue(new Error("branch_service_not_found"));
+    const response = await GET(
+      new Request(
+        "http://localhost/api/booking/slots?type=in_person&branchServiceId=11111111-1111-4111-8111-111111111111",
+      ),
+    );
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.error).toBe("branch_service_not_found");
+  });
 });

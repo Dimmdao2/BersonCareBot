@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import type { CabinetPastRow } from "./cabinetPastBookingsMerge";
+import { nativeBookingSubtitle } from "./patientBookingLabels";
 
 type Props = {
   items: CabinetPastRow[];
@@ -67,9 +68,7 @@ export function CabinetPastBookings({ items }: Props) {
                         timeStyle: "short",
                       })}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {row.booking.bookingType === "online" ? "Онлайн" : "Очный"} приём
-                    </p>
+                    <p className="truncate text-xs text-muted-foreground">{nativeBookingSubtitle(row.booking)}</p>
                   </div>
                   <Badge variant="outline">{statusLabel(row.booking.status)}</Badge>
                 </div>

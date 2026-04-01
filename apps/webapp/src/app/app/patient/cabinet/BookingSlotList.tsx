@@ -21,7 +21,7 @@ export function BookingSlotList({ slots, selectedSlot, onSelectSlot }: Props) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-semibold">Выбор времени</h3>
-        <Badge variant="outline">Шаг 3</Badge>
+        <Badge variant="outline">Шаг 4</Badge>
       </div>
       {slots.length === 0 ? (
         <p className="text-sm text-muted-foreground">На выбранную дату слоты не найдены.</p>

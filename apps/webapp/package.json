@@ -25,7 +25,9 @@
     "reconcile-appointments-domain": "node scripts/reconcile-appointments-domain.mjs",
     "backfill-subscription-mailing-domain": "node scripts/backfill-subscription-mailing-domain.mjs",
     "reconcile-subscription-mailing-domain": "node scripts/reconcile-subscription-mailing-domain.mjs",
-    "seed-content": "node scripts/seed-content-pages.mjs"
+    "seed-content": "node scripts/seed-content-pages.mjs",
+    "seed-booking-catalog": "tsx scripts/seed-booking-catalog-tochka-zdorovya.ts",
+    "backfill-patient-bookings-v2": "tsx scripts/backfill-patient-bookings-v2.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1021.0",

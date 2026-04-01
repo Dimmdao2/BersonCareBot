@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { BookingCategoryGrid } from "./BookingCategoryGrid";
+import { BookingFormatGrid } from "./BookingFormatGrid";
 import { BookingCalendar } from "./BookingCalendar";
 import { BookingSlotList } from "./BookingSlotList";
 import { BookingConfirmationForm } from "./BookingConfirmationForm";
 import { useBookingSelection } from "./useBookingSelection";
 import { useBookingSlots } from "./useBookingSlots";
+import { useBookingCatalogCities, useBookingCatalogServices } from "./useBookingCatalog";
 import { useMobileViewport } from "./useMobileViewport";
 import type { BookingSlot } from "@/modules/patient-booking/types";
 
@@ -29,25 +30,39 @@ export function CabinetBookingEntry({ defaultName, defaultPhone }: Props) {
   const router = useRouter();
   const selectionState = useBookingSelection();
 
+  const catalogCities = useBookingCatalogCities(open);
+  const catalogServices = useBookingCatalogServices(
+    selectionState.inPersonDraft?.cityCode ?? null,
+    open && Boolean(selectionState.inPersonDraft),
+  );
+
   const slotsState = useBookingSlots(selectionState.selection);
   const effectiveDate = selectedDate ?? slotsState.availableDates[0] ?? null;
 
   const headerLabel = useMemo(() => {
-    const selection = selectionState.selection;
-    if (!selection) return "Сначала выберите формат и категорию";
-    const type = selection.type === "online" ? "Онлайн" : "Очный";
-    const city = selection.city ? `, ${selection.city === "moscow" ? "Москва" : selection.city === "spb" ? "СПб" : selection.city}` : "";
-    return `${type}${city}`;
-  }, [selectionState.selection]);
+    const sel = selectionState.selection;
+    if (!sel) {
+      if (selectionState.inPersonMode && !selectionState.inPersonDraft) return "Очный приём: выберите город";
+      if (selectionState.inPersonDraft) return `Очный приём: ${selectionState.inPersonDraft.cityTitle} — выберите услугу`;
+      return "Сначала выберите формат приёма";
+    }
+    if (sel.type === "online") {
+      const cat =
+        sel.category === "rehab_lfk" ? "Онлайн, ЛФК" : sel.category === "nutrition" ? "Онлайн, нутрициология" : "Онлайн";
+      return cat;
+    }
+    return `Очный: ${sel.cityTitle} · ${sel.serviceTitle}`;
+  }, [selectionState.selection, selectionState.inPersonMode, selectionState.inPersonDraft]);
 
   const bookingBody = (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">{headerLabel}</p>
 
-      <BookingCategoryGrid
+      <BookingFormatGrid
         selection={selectionState.selection}
-        onSelectInPerson={(city) => {
-          selectionState.selectInPerson(city);
+        inPersonMode={selectionState.inPersonMode}
+        onStartInPerson={() => {
+          selectionState.startInPerson();
           setSelectedDate(null);
           setSelectedSlot(null);
         }}
@@ -57,6 +72,86 @@ export function CabinetBookingEntry({ defaultName, defaultPhone }: Props) {
           setSelectedSlot(null);
         }}
       />
+
+      {selectionState.inPersonMode && !selectionState.inPersonDraft && !selectionState.selection ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">Город</h3>
+            <Badge variant="outline">Шаг 2</Badge>
+          </div>
+          {catalogCities.loading ? <p className="text-sm text-muted-foreground">Загрузка городов…</p> : null}
+          {catalogCities.error ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-destructive">{catalogCities.error}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void catalogCities.reload()}>
+                Повторить
+              </Button>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {catalogCities.cities.map((c) => (
+              <Button
+                key={c.id}
+                type="button"
+                variant={
+                  selectionState.inPersonDraft?.cityCode === c.code ? "default" : "outline"
+                }
+                size="sm"
+                onClick={() => {
+                  selectionState.selectInPersonCity(c.code, c.title);
+                  setSelectedDate(null);
+                  setSelectedSlot(null);
+                }}
+              >
+                {c.title}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {selectionState.inPersonDraft && !selectionState.selection ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">Услуга</h3>
+            <Badge variant="outline">Шаг 3</Badge>
+          </div>
+          {catalogServices.loading ? <p className="text-sm text-muted-foreground">Загрузка услуг…</p> : null}
+          {catalogServices.error ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-destructive">{catalogServices.error}</p>
+              <Button type="button" variant="outline" size="sm" onClick={() => void catalogServices.reload()}>
+                Повторить
+              </Button>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-2">
+            {catalogServices.services.map((s) => {
+              const title = s.service?.title ?? "Услуга";
+              const dur = s.service?.durationMinutes;
+              const label = dur != null ? `${title} (${dur} мин.)` : title;
+              return (
+                <Button
+                  key={s.id}
+                  type="button"
+                  variant="outline"
+                  className="h-auto min-h-11 justify-start whitespace-normal text-left"
+                  onClick={() => {
+                    selectionState.selectInPersonService(s.id, title);
+                    setSelectedDate(null);
+                    setSelectedSlot(null);
+                  }}
+                >
+                  {label}
+                </Button>
+              );
+            })}
+          </div>
+          {catalogServices.services.length === 0 && !catalogServices.loading && !catalogServices.error ? (
+            <p className="text-sm text-muted-foreground">Нет доступных услуг в этом городе.</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {selectionState.selection ? (
         <BookingCalendar
@@ -69,8 +164,10 @@ export function CabinetBookingEntry({ defaultName, defaultPhone }: Props) {
         />
       ) : null}
 
-      {slotsState.loading ? <p className="text-sm text-muted-foreground">Загрузка слотов...</p> : null}
-      {slotsState.error ? (
+      {selectionState.selection ? (
+        slotsState.loading ? <p className="text-sm text-muted-foreground">Загрузка слотов...</p> : null
+      ) : null}
+      {selectionState.selection && slotsState.error ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-destructive">{slotsState.error}</p>
           <Button type="button" variant="outline" size="sm" onClick={() => void slotsState.reload()}>

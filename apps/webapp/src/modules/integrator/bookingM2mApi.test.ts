@@ -91,4 +91,67 @@ describe("createBookingSyncPort.fetchSlots", () => {
     const port = createBookingSyncPort();
     await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow();
   });
+
+  it("fetchSlots v2 posts explicit Rubitime IDs and normalizes times[] with duration", async () => {
+    globalFetchMock.mockImplementationOnce(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+      expect(body.version).toBe("v2");
+      expect(body.rubitimeBranchId).toBe("b1");
+      expect(body.rubitimeCooperatorId).toBe("c1");
+      expect(body.rubitimeServiceId).toBe("s1");
+      return {
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            ok: true,
+            slots: [{ date: "2026-04-10", times: ["10:00"] }],
+          }),
+      };
+    });
+    const port = createBookingSyncPort();
+    const result = await port.fetchSlots({
+      version: "v2",
+      rubitimeBranchId: "b1",
+      rubitimeCooperatorId: "c1",
+      rubitimeServiceId: "s1",
+      slotDurationMinutes: 30,
+      date: "2026-04-10",
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0]!.slots).toHaveLength(1);
+    expect(result[0]!.slots[0]!.startAt).toContain("2026-04-10T10:00:00+03:00");
+  });
+
+  it("createRecord v2 posts patient + localBookingId and reads rubitimeRecordId", async () => {
+    globalFetchMock.mockImplementationOnce(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+      expect(body.version).toBe("v2");
+      expect(body.localBookingId).toBe("local-uuid");
+      expect(body).not.toHaveProperty("category");
+      return {
+        status: 200,
+        json: () => Promise.resolve({ ok: true, rubitimeRecordId: "rec-v2" }),
+      };
+    });
+    const port = createBookingSyncPort();
+    const out = await port.createRecord({
+      version: "v2",
+      rubitimeBranchId: "b1",
+      rubitimeCooperatorId: "c1",
+      rubitimeServiceId: "s1",
+      slotStart: "2026-04-10T10:00:00+03:00",
+      contactName: "Ann",
+      contactPhone: "+79990001122",
+      localBookingId: "local-uuid",
+    });
+    expect(out.rubitimeId).toBe("rec-v2");
+  });
+
+  it("propagates structured integrator error code from JSON error.code", async () => {
+    mockFetch({ ok: false, error: { code: "rubitime_timeout", message: "slow" } }, 504);
+    const port = createBookingSyncPort();
+    await expect(
+      port.fetchSlots({ version: "v2", rubitimeBranchId: "b", rubitimeCooperatorId: "c", rubitimeServiceId: "s", slotDurationMinutes: 60 }),
+    ).rejects.toThrow("rubitime_timeout");
+  });
 });

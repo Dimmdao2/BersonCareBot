@@ -8,26 +8,90 @@ import type {
   PatientBookingStatus,
 } from "./types";
 
-export type BookingSlotsQuery = {
-  type: BookingType;
-  city?: string;
-  category: BookingCategory;
-  date?: string;
-};
+/** Patient-facing slots query (cabinet / public booking API). */
+export type BookingSlotsQuery =
+  | {
+      type: "online";
+      category: BookingCategory;
+      date?: string;
+    }
+  | {
+      type: "in_person";
+      branchServiceId: string;
+      date?: string;
+    };
 
-export type CreateBookingSyncInput = {
-  type: BookingType;
-  city?: string;
+/**
+ * Payload to integrator `/rubitime/slots`.
+ * v1: online only. v2: explicit Rubitime IDs + slot duration to expand `times[]`.
+ */
+export type BookingSlotsIntegratorQuery =
+  | {
+      version?: undefined;
+      type: "online";
+      category: BookingCategory;
+      city?: string;
+      date?: string;
+    }
+  | {
+      version: "v2";
+      rubitimeBranchId: string;
+      rubitimeCooperatorId: string;
+      rubitimeServiceId: string;
+      slotDurationMinutes: number;
+      date?: string;
+    };
+
+export type CreateBookingSyncInput =
+  | {
+      version?: undefined;
+      type: BookingType;
+      city?: string;
+      category: BookingCategory;
+      slotStart: string;
+      slotEnd: string;
+      contactName: string;
+      contactPhone: string;
+      contactEmail?: string;
+    }
+  | {
+      version: "v2";
+      rubitimeBranchId: string;
+      rubitimeCooperatorId: string;
+      rubitimeServiceId: string;
+      slotStart: string;
+      contactName: string;
+      contactPhone: string;
+      contactEmail?: string;
+      localBookingId: string;
+    };
+
+/** Flat row written by `createPending` (service maps from API + catalog). */
+export type CreatePendingPatientBookingInput = {
+  userId: string;
+  bookingType: BookingType;
+  city: string | null;
   category: BookingCategory;
   slotStart: string;
   slotEnd: string;
   contactName: string;
   contactPhone: string;
-  contactEmail?: string;
+  contactEmail: string | null;
+  branchId: string | null;
+  serviceId: string | null;
+  branchServiceId: string | null;
+  cityCodeSnapshot: string | null;
+  branchTitleSnapshot: string | null;
+  serviceTitleSnapshot: string | null;
+  durationMinutesSnapshot: number | null;
+  priceMinorSnapshot: number | null;
+  rubitimeBranchIdSnapshot: string | null;
+  rubitimeCooperatorIdSnapshot: string | null;
+  rubitimeServiceIdSnapshot: string | null;
 };
 
 export type BookingSyncPort = {
-  fetchSlots(query: BookingSlotsQuery): Promise<BookingSlotsByDate[]>;
+  fetchSlots(query: BookingSlotsIntegratorQuery): Promise<BookingSlotsByDate[]>;
   createRecord(input: CreateBookingSyncInput): Promise<{ rubitimeId: string | null; raw: Record<string, unknown> }>;
   cancelRecord(rubitimeId: string): Promise<void>;
   emitBookingEvent(input: {
@@ -46,12 +110,15 @@ export type BookingSyncPort = {
       contactPhone: string;
       contactEmail?: string;
       reason?: string;
+      branchServiceId?: string | null;
+      cityCodeSnapshot?: string | null;
+      serviceTitleSnapshot?: string | null;
     };
   }): Promise<void>;
 };
 
 export type PatientBookingsPort = {
-  createPending(input: CreatePatientBookingInput): Promise<PatientBookingRecord>;
+  createPending(input: CreatePendingPatientBookingInput): Promise<PatientBookingRecord>;
   markConfirmed(bookingId: string, rubitimeId: string | null): Promise<PatientBookingRecord | null>;
   markFailedSync(bookingId: string): Promise<void>;
   markCancelling(bookingId: string): Promise<PatientBookingRecord | null>;

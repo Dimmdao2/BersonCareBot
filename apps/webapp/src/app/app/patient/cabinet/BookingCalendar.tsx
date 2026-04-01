@@ -25,7 +25,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold">Выбор даты</h3>
-          <Badge variant="outline">Шаг 2</Badge>
+          <Badge variant="outline">Шаг 4</Badge>
         </div>
         <p className="text-sm text-muted-foreground">Нет доступных дат для выбранного формата.</p>
       </div>
@@ -36,7 +36,7 @@ export function BookingCalendar({ availableDates, selectedDate, onSelectDate }: 
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-semibold">Выбор даты</h3>
-        <Badge variant="outline">Шаг 2</Badge>
+        <Badge variant="outline">Шаг 4</Badge>
       </div>
 
       <div className="flex flex-wrap gap-2">

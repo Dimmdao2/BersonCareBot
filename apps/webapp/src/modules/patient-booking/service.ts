@@ -1,49 +1,83 @@
-import type { PatientBookingService, PatientBookingsPort, BookingSyncPort, BookingSlotsQuery } from "./ports";
+import type {
+  PatientBookingService,
+  PatientBookingsPort,
+  BookingSyncPort,
+  BookingSlotsQuery,
+  CreatePendingPatientBookingInput,
+} from "./ports";
 import type { CreatePatientBookingInput } from "./types";
-
-function ensureIso(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) {
-    throw new Error("invalid_datetime");
-  }
-  return d.toISOString();
-}
-
-function validateCreateInput(input: CreatePatientBookingInput): CreatePatientBookingInput {
-  const slotStart = ensureIso(input.slotStart);
-  const slotEnd = ensureIso(input.slotEnd);
-  if (new Date(slotEnd).getTime() <= new Date(slotStart).getTime()) {
-    throw new Error("invalid_slot_range");
-  }
-  if (!input.contactName.trim()) throw new Error("invalid_contact_name");
-  if (!input.contactPhone.trim()) throw new Error("invalid_contact_phone");
-  return {
-    ...input,
-    slotStart,
-    slotEnd,
-    city: input.city?.trim() || undefined,
-    contactName: input.contactName.trim(),
-    contactPhone: input.contactPhone.trim(),
-    contactEmail: input.contactEmail?.trim() || undefined,
-  };
-}
-
-function cacheKey(query: BookingSlotsQuery): string {
-  return JSON.stringify({
-    type: query.type,
-    city: query.city ?? "",
-    category: query.category,
-    date: query.date ?? "",
-  });
-}
+import type { BookingCatalogService } from "@/modules/booking-catalog/service";
+import { validateCreatePatientBookingInput } from "./createInputValidation";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
 }
 
+function cacheKey(query: BookingSlotsQuery): string {
+  if (query.type === "online") {
+    return JSON.stringify({ type: query.type, category: query.category, date: query.date ?? "" });
+  }
+  return JSON.stringify({ type: query.type, branchServiceId: query.branchServiceId, date: query.date ?? "" });
+}
+
+function toPendingRowOnline(input: CreatePatientBookingInput & { type: "online" }): CreatePendingPatientBookingInput {
+  return {
+    userId: input.userId,
+    bookingType: "online",
+    city: null,
+    category: input.category,
+    slotStart: input.slotStart,
+    slotEnd: input.slotEnd,
+    contactName: input.contactName,
+    contactPhone: input.contactPhone,
+    contactEmail: input.contactEmail ?? null,
+    branchId: null,
+    serviceId: null,
+    branchServiceId: null,
+    cityCodeSnapshot: null,
+    branchTitleSnapshot: null,
+    serviceTitleSnapshot: null,
+    durationMinutesSnapshot: null,
+    priceMinorSnapshot: null,
+    rubitimeBranchIdSnapshot: null,
+    rubitimeCooperatorIdSnapshot: null,
+    rubitimeServiceIdSnapshot: null,
+  };
+}
+
+function toPendingRowInPerson(
+  input: CreatePatientBookingInput & { type: "in_person" },
+  resolved: Awaited<ReturnType<BookingCatalogService["resolveBranchService"]>>,
+): CreatePendingPatientBookingInput {
+  const { branch, service, branchService, specialist, city } = resolved;
+  return {
+    userId: input.userId,
+    bookingType: "in_person",
+    city: city.code,
+    category: "general",
+    slotStart: input.slotStart,
+    slotEnd: input.slotEnd,
+    contactName: input.contactName,
+    contactPhone: input.contactPhone,
+    contactEmail: input.contactEmail ?? null,
+    branchId: branch.id,
+    serviceId: service.id,
+    branchServiceId: branchService.id,
+    cityCodeSnapshot: city.code,
+    branchTitleSnapshot: branch.title,
+    serviceTitleSnapshot: service.title,
+    durationMinutesSnapshot: service.durationMinutes,
+    priceMinorSnapshot: service.priceMinor,
+    rubitimeBranchIdSnapshot: branch.rubitimeBranchId,
+    rubitimeCooperatorIdSnapshot: specialist.rubitimeCooperatorId,
+    rubitimeServiceIdSnapshot: branchService.rubitimeServiceId,
+  };
+}
+
 export function createPatientBookingService(input: {
   bookingsPort: PatientBookingsPort;
   syncPort: BookingSyncPort;
+  bookingCatalog: BookingCatalogService | null;
   slotsTtlMs?: number;
 }): PatientBookingService {
   const slotsTtlMs = input.slotsTtlMs ?? 5 * 60 * 1000;
@@ -57,29 +91,86 @@ export function createPatientBookingService(input: {
       if (cached && cached.expiresAt > now) {
         return cached.value;
       }
-      const value = await input.syncPort.fetchSlots(query);
+
+      let value: Awaited<ReturnType<BookingSyncPort["fetchSlots"]>>;
+      if (query.type === "online") {
+        value = await input.syncPort.fetchSlots({
+          type: "online",
+          category: query.category,
+          date: query.date,
+        });
+      } else {
+        if (!input.bookingCatalog) {
+          throw new Error("catalog_unavailable");
+        }
+        const resolved = await input.bookingCatalog.resolveBranchService(query.branchServiceId);
+        value = await input.syncPort.fetchSlots({
+          version: "v2",
+          rubitimeBranchId: resolved.branch.rubitimeBranchId,
+          rubitimeCooperatorId: resolved.specialist.rubitimeCooperatorId,
+          rubitimeServiceId: resolved.branchService.rubitimeServiceId,
+          slotDurationMinutes: resolved.service.durationMinutes,
+          date: query.date,
+        });
+      }
+
       slotsCache.set(key, { value, expiresAt: now + slotsTtlMs });
       return value;
     },
 
     async createBooking(rawInput) {
-      const createInput = validateCreateInput(rawInput);
-      const pending = await input.bookingsPort.createPending(createInput);
+      const createInput = validateCreatePatientBookingInput(rawInput);
+
+      let pendingRow: CreatePendingPatientBookingInput;
+      let resolved: Awaited<ReturnType<BookingCatalogService["resolveBranchService"]>> | undefined;
+
+      if (createInput.type === "online") {
+        pendingRow = toPendingRowOnline(createInput);
+      } else {
+        if (!input.bookingCatalog) {
+          throw new Error("catalog_unavailable");
+        }
+        resolved = await input.bookingCatalog.resolveBranchService(createInput.branchServiceId);
+        const expectedCity = resolved.city.code.trim().toLowerCase();
+        const clientCity = createInput.cityCode.trim().toLowerCase();
+        if (clientCity !== expectedCity) {
+          throw new Error("city_mismatch");
+        }
+        pendingRow = toPendingRowInPerson(createInput, resolved);
+      }
+
+      const pending = await input.bookingsPort.createPending(pendingRow);
+
       let sync: { rubitimeId: string | null; raw: Record<string, unknown> };
       try {
-        sync = await input.syncPort.createRecord({
-          type: createInput.type,
-          city: createInput.city,
-          category: createInput.category,
-          slotStart: createInput.slotStart,
-          slotEnd: createInput.slotEnd,
-          contactName: createInput.contactName,
-          contactPhone: createInput.contactPhone,
-          contactEmail: createInput.contactEmail,
-        });
+        if (createInput.type === "online") {
+          sync = await input.syncPort.createRecord({
+            type: "online",
+            category: createInput.category,
+            slotStart: createInput.slotStart,
+            slotEnd: createInput.slotEnd,
+            contactName: createInput.contactName,
+            contactPhone: createInput.contactPhone,
+            contactEmail: createInput.contactEmail,
+          });
+        } else {
+          if (!resolved) throw new Error("catalog_unavailable");
+          sync = await input.syncPort.createRecord({
+            version: "v2",
+            rubitimeBranchId: resolved.branch.rubitimeBranchId,
+            rubitimeCooperatorId: resolved.specialist.rubitimeCooperatorId,
+            rubitimeServiceId: resolved.branchService.rubitimeServiceId,
+            slotStart: createInput.slotStart,
+            contactName: createInput.contactName,
+            contactPhone: createInput.contactPhone,
+            contactEmail: createInput.contactEmail,
+            localBookingId: pending.id,
+          });
+        }
       } catch (err) {
         await input.bookingsPort.markFailedSync(pending.id);
-        throw new Error("booking_sync_failed");
+        const code = err instanceof Error ? err.message : "rubitime_create_failed";
+        throw new Error(code);
       }
       let confirmed: Awaited<ReturnType<PatientBookingsPort["markConfirmed"]>>;
       try {
@@ -130,6 +221,9 @@ export function createPatientBookingService(input: {
             contactName: finalized.contactName,
             contactPhone: finalized.contactPhone,
             contactEmail: finalized.contactEmail ?? undefined,
+            branchServiceId: finalized.branchServiceId,
+            cityCodeSnapshot: finalized.cityCodeSnapshot,
+            serviceTitleSnapshot: finalized.serviceTitleSnapshot,
           },
         });
       } catch {
@@ -180,6 +274,9 @@ export function createPatientBookingService(input: {
             contactPhone: row.contactPhone,
             contactEmail: row.contactEmail ?? undefined,
             reason: cancelInput.reason,
+            branchServiceId: row.branchServiceId,
+            cityCodeSnapshot: row.cityCodeSnapshot,
+            serviceTitleSnapshot: row.serviceTitleSnapshot,
           },
         });
       } catch {
