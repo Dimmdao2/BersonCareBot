@@ -925,3 +925,22 @@
 ### UXFIX.T04 — тесты FormatStepClient обновлены
 - Status: done
 - Changes: `FormatStepClient.test.tsx` — мок `useBookingCatalogCities`, сценарии Москва / ЛФК / нутрициология / загрузка городов
+
+---
+
+## Mini app / deploy: chunk load recovery (2026-04-01)
+
+### CHUNK.T01 — Диагностика «Failed to load chunk» в Telegram WebView
+- Status: done
+- Agent/model: (текущий чат)
+- Started at: 2026-04-01
+- **Проблема:** в мини-приложении «Берсон • Бот Заботы» падает клиентская загрузка чанка Next.js (`Failed to load chunk …/_next/static/chunks/….js from module …`). Типичные причины: новый деплой удалил старые hashed-чанки при уже открытой сессии; обрыв сети; редко — несогласованный кэш HTML и статики. Это не баг бизнес-логики booking city/service, а рассинхрон клиента и артефактов сборки.
+- **План:**
+  1. Сохранить текущее поведение «Обновить приложение» (hard reload с query `_v` для обхода кэша).
+  2. Расширить эвристику chunk-ошибок: сообщения про dynamic import, `ChunkLoadError` / имя с `chunkload`, разбор `error.cause`.
+  3. Прогнать CI (`pnpm run ci`).
+- **Выполнение:** обновлён `apps/webapp/src/app/global-error.tsx` — `isChunkLoadFailure` принимает `Error`, проверяет `name`, `message`, вложенный `cause`.
+- **Проверка:** `pnpm run ci` — green ✓ (2026-04-01); webapp tests 1014 passed, 5 skipped; integrator 452 passed, 6 skipped
+- Files changed:
+  - `apps/webapp/src/app/global-error.tsx` — расширенная детекция chunk / dynamic import сбоев
+  - `EXECUTION_LOG.md` — эта запись

@@ -7,13 +7,30 @@
  */
 import type { ReactNode } from "react";
 
-function isChunkLoadFailure(message: string): boolean {
+function messageLooksLikeChunkFailure(message: string): boolean {
   const m = message.toLowerCase();
   return (
     m.includes("failed to load chunk") ||
     m.includes("loading chunk") ||
-    m.includes("chunkloaderror")
+    m.includes("chunkloaderror") ||
+    m.includes("dynamically imported module") ||
+    m.includes("importing a module script failed") ||
+    m.includes("error loading dynamically imported module") ||
+    m.includes("failed to fetch dynamically imported module")
   );
+}
+
+function isChunkLoadFailure(error: Error): boolean {
+  const n = (error.name || "").toLowerCase();
+  if (n.includes("chunkload")) return true;
+  if (messageLooksLikeChunkFailure(error.message)) return true;
+  const c = error.cause;
+  if (c instanceof Error) {
+    const cn = (c.name || "").toLowerCase();
+    if (cn.includes("chunkload")) return true;
+    if (messageLooksLikeChunkFailure(c.message)) return true;
+  }
+  return false;
 }
 
 function hardReloadApp(): void {
@@ -31,7 +48,7 @@ export default function GlobalError({
   reset: () => void;
 }): ReactNode {
   const message = error.message || "Не удалось загрузить страницу.";
-  const isChunkError = isChunkLoadFailure(message);
+  const isChunkError = isChunkLoadFailure(error);
 
   return (
     <html lang="ru">
