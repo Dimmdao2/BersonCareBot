@@ -100,7 +100,7 @@ async function upsertSetting(client, key, value, force) {
   if (force) {
     await client.query(
       `INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
-       VALUES ($1, 'admin', jsonb_build_object('value', $2), now(), NULL)
+       VALUES ($1, 'admin', jsonb_build_object('value', $2::text), now(), NULL)
        ON CONFLICT (key, scope) DO UPDATE
          SET value_json = EXCLUDED.value_json,
              updated_at = now(),
@@ -129,7 +129,7 @@ async function upsertSetting(client, key, value, force) {
 
   await client.query(
     `INSERT INTO system_settings (key, scope, value_json, updated_at, updated_by)
-     VALUES ($1, 'admin', jsonb_build_object('value', $2), now(), NULL)
+     VALUES ($1, 'admin', jsonb_build_object('value', $2::text), now(), NULL)
      ON CONFLICT (key, scope) DO UPDATE
        SET value_json = EXCLUDED.value_json,
            updated_at = now(),
