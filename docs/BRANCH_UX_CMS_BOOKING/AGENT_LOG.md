@@ -764,3 +764,16 @@
   - `apps/integrator`: rubitime/max/smsc целевые тесты
 - **Замечания:**
   - `*_webhook_uri` ключи остаются сохранёнными и редактируемыми в админке, но runtime-use в integrator пока не реализован (исторический residual из предыдущего аудита).
+
+---
+
+## Hotfix: seed-system-settings-from-env.mjs — PostgreSQL type inference
+
+- **Статус:** done
+- **Дата:** 2026-04-01
+- **CI run (failed):** `23831622923` — шаг `Deploy to host`, job `69466564403`
+- **Причина падения:** PostgreSQL не мог вывести тип параметра `$2` в `jsonb_build_object('value', $2)` → ошибка `could not determine data type of parameter $2`.
+- **Исправление:** добавлен явный каст `$2::text` → `jsonb_build_object('value', $2::text)` в `apps/webapp/scripts/seed-system-settings-from-env.mjs`.
+- **Коммит:** `fa2111b`
+- **CI run (passed):** `23831771310` — все шаги (lint/typecheck/build + deploy) зелёные.
+- **Итог:** деплой на хосте прошёл успешно; `system_settings` засеяны из env-файлов без ошибок.

@@ -48,3 +48,10 @@
 - В booking create-flow добавлен best-effort rollback внешней записи Rubitime, если локальное подтверждение падает по `slot_overlap`.
 - Добавлен unit-тест rollback-сценария (`patient-booking/service.test.ts`).
 - Устранены lint `no-secrets` блокеры для ошибок отсутствующего ключа в integrator (`MAX/SMSC` runtime path).
+
+## Deploy hotfix (2026-04-01)
+
+- GitHub Actions CI `23831622923` упал на `Deploy to host`: PostgreSQL не мог определить тип `$2` в `jsonb_build_object('value', $2)` в `seed-system-settings-from-env.mjs`.
+- Исправлено: `$2::text`. Коммит `fa2111b` (push в `origin/main`).
+- Повторный CI `23831771310` — **green** (lint + typecheck + build + deploy).
+- Хост задеплоен успешно; `system_settings` засеяны.
