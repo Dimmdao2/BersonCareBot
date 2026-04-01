@@ -1,5 +1,23 @@
 # SERVER CONVENTIONS
 
+---
+
+## ⛔ КРИТИЧНО: ПОЛЬЗОВАТЕЛЬ `deploy` НЕ ИМЕЕТ ОБЩЕГО `sudo` В SSH
+
+**Никогда не давать агенту команды с `sudo` для выполнения от имени `deploy` в SSH-терминале.**
+
+Пользователь `deploy` имеет `NOPASSWD sudo` **только** для строго перечисленных команд (systemctl restart/daemon-reload/is-active для bersoncarebot-сервисов, backup-скрипт, install для unit-файлов). Всё остальное — `sudo: permission denied`.
+
+**Практические следствия:**
+- `sudo rm`, `sudo chown`, `sudo tee`, `sudo cp` — **не работают** от `deploy`.
+- Если нужно почистить root-owned артефакты (например, `.next/` после `cp` от root) — это должен делать **root** в отдельной сессии, или задача должна быть переформулирована так, чтобы deploy-пользователь не создавал root-owned файлы изначально.
+- Не предлагать `sudo install` для произвольных файлов вне unit-файлов сервисов.
+- Никаких `sudo chown`, `sudo mkdir`, `sudo rm` в инструкциях для деплоя.
+
+Если требуется root-операция (очистка `/opt/`, смена владельца, ручная правка `/etc/`): явно сказать «выполнить от root», не от deploy.
+
+---
+
 Этот документ хранит только подтвержденные данные по текущему состоянию `BersonCareBot`.
 
 - Источник: audit хоста от `2026-03-19`.
@@ -64,10 +82,12 @@
 #### Webapp
 
 - Unit: `bersoncarebot-webapp-prod.service`
-- WorkingDirectory: `/opt/projects/bersoncarebot`
+- WorkingDirectory: `/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp`
 - EnvironmentFile: `/opt/env/bersoncarebot/webapp.prod`
-- ExecStart: `/usr/bin/pnpm --dir /opt/projects/bersoncarebot/apps/webapp start`
+- Environment: `PORT=6200`, `HOSTNAME=127.0.0.1`
+- ExecStart: `/usr/bin/node /opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp/server.js`
 - Port: `127.0.0.1:6200`
+- Режим: Next.js standalone (`output: "standalone"` в `next.config.ts`)
 
 ### Ports
 
@@ -373,7 +393,7 @@ grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/cutover.prod 2>/dev/nu
 ## Важные текущие отклонения
 
 - На прод-хосте в репозитории есть неотслеживаемый каталог `webapp/`, но production webapp unit запускает приложение из `apps/webapp`.
-- `bersoncarebot-webapp-prod.service` сейчас запускает `next start`, и в логах есть предупреждение про `output: standalone`.
+- `bersoncarebot-webapp-prod.service` запускает Next.js standalone сервер напрямую через `node server.js`. Предупреждение про `output: standalone` устранено (подтверждено 2026-04-01).
 - На хосте есть активные nginx/vhost и процессы других проектов, но они не относятся к `BersonCareBot` и в этот документ не включаются.
 
 ---
