@@ -165,6 +165,18 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
             <Link href="/app/settings" onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
               Профиль и настройки
             </Link>
+            <Separator className="my-2" />
+            <form action="/api/auth/logout" method="post" className="w-full">
+              <Button
+                type="submit"
+                variant="ghost"
+                id="doctor-menu-logout"
+                className="h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={closeMenu}
+              >
+                Выйти
+              </Button>
+            </form>
           </nav>
         </SheetContent>
       </Sheet>
