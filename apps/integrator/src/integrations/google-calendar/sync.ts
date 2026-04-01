@@ -1,6 +1,7 @@
 import { env } from '../../config/env.js';
 import { createGoogleCalendarClient, type GoogleCalendarClient, type GoogleCalendarEventInput } from './client.js';
-import { googleCalendarConfig, isGoogleCalendarConfigured, type GoogleCalendarConfig } from './config.js';
+import { isGoogleCalendarConfigured, type GoogleCalendarConfig } from './config.js';
+import { getGoogleCalendarConfig } from './runtimeConfig.js';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { createDbPort } from '../../infra/db/client.js';
 import {
@@ -101,7 +102,7 @@ export async function syncAppointmentToCalendar(
   input: RubitimeCalendarSyncEvent,
   deps: SyncDeps = {},
 ): Promise<string | null> {
-  const config = deps.config ?? googleCalendarConfig;
+  const config = deps.config ?? await getGoogleCalendarConfig();
   if (!isGoogleCalendarConfigured(config)) {
     return null;
   }

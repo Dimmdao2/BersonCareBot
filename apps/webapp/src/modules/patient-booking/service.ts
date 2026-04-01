@@ -88,6 +88,17 @@ export function createPatientBookingService(input: {
         const slotOverlap =
           (err instanceof Error && err.message === "slot_overlap") || isPostgresExclusionViolation(err);
         if (slotOverlap) {
+          if (sync.rubitimeId) {
+            try {
+              await input.syncPort.cancelRecord(sync.rubitimeId);
+            } catch (cancelErr) {
+              console.error("[patient-booking] failed to rollback rubitime record after slot overlap", {
+                bookingId: pending.id,
+                rubitimeId: sync.rubitimeId,
+                cancelErr,
+              });
+            }
+          }
           await input.bookingsPort.markCancelled({
             bookingId: pending.id,
             reason: "slot_overlap",

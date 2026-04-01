@@ -1,7 +1,7 @@
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
-import { maxConfig } from './config.js';
 import * as maxClient from './client.js';
+import { getMaxApiKey } from './runtimeConfig.js';
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown };
@@ -54,8 +54,6 @@ function toMaxInlineKeyboard(replyMarkup: unknown): AttachmentRequest[] | undefi
 }
 
 export function createMaxDeliveryAdapter(): DeliveryAdapter {
-  const config = { apiKey: maxConfig.apiKey };
-
   return {
     canHandle(intent: OutgoingIntent): boolean {
       if (intent.type === 'message.send') return readChannel(intent) === 'max';
@@ -65,6 +63,9 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
       return false;
     },
     async send(intent: OutgoingIntent): Promise<void> {
+      const apiKey = await getMaxApiKey();
+      if (!apiKey) throw new Error('max api key missing');
+      const config = { apiKey };
       const payload = intent.payload as DeliveryPayload;
       const text = asNonEmptyString(payload.message?.text);
       const rawChatId = payload.recipient?.chatId;

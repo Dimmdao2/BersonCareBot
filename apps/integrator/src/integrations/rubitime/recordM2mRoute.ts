@@ -9,8 +9,9 @@ import { createDbPort } from '../../infra/db/client.js';
 import { enqueueMessageRetryJob } from '../../infra/db/repos/jobQueue.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
 import type { DispatchPort } from '../../kernel/contracts/index.js';
-import { createRubitimeRecord, fetchRubitimeSlots, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
-import { rubitimeConfig } from './config.js';
+import { createRubitimeRecord, fetchRubitimeSchedule, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
+import { resolveScheduleParams } from './bookingScheduleMapping.js';
+import { normalizeRubitimeSchedule } from './scheduleNormalizer.js';
 import { getBookingDisplayTimezone } from '../../infra/db/repos/bookingDisplayTimezone.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
 import {
@@ -46,27 +47,6 @@ function parseJsonRecordId(body: unknown): string | null {
   return null;
 }
 
-function toSlotsResponse(raw: unknown): { date: string; slots: { startAt: string; endAt: string }[] }[] {
-  if (!Array.isArray(raw)) return [];
-  const out: { date: string; slots: { startAt: string; endAt: string }[] }[] = [];
-  for (const row of raw) {
-    if (typeof row !== 'object' || row === null) continue;
-    const date = (row as Record<string, unknown>).date;
-    const slots = (row as Record<string, unknown>).slots;
-    if (typeof date !== 'string' || !Array.isArray(slots)) continue;
-    const normalized = slots
-      .map((slot) => {
-        if (typeof slot !== 'object' || slot === null) return null;
-        const startAt = (slot as Record<string, unknown>).startAt;
-        const endAt = (slot as Record<string, unknown>).endAt;
-        if (typeof startAt !== 'string' || typeof endAt !== 'string') return null;
-        return { startAt, endAt };
-      })
-      .filter((slot): slot is { startAt: string; endAt: string } => slot !== null);
-    out.push({ date, slots: normalized });
-  }
-  return out;
-}
 
 export type RubitimeRecordM2mDeps = {
   sharedSecret: string;
@@ -348,9 +328,6 @@ export async function registerRubitimeRecordM2mRoutes(
       logger.warn({}, 'rubitime m2m: webhook secret not set');
       return { ok: false, code: 503, err: 'service_unconfigured' };
     }
-    if (!rubitimeConfig.apiKey) {
-      return { ok: false, code: 503, err: 'rubitime_not_configured' };
-    }
     if (!verifySignature(timestamp, rawBody, signature, sharedSecret)) {
       return { ok: false, code: 401, err: 'invalid_signature' };
     }
@@ -433,17 +410,25 @@ export async function registerRubitimeRecordM2mRoutes(
     if (!parsed.success) {
       return reply.code(400).send({ ok: false, error: 'invalid_slots_query' });
     }
+    const scheduleParams = await resolveScheduleParams({
+      type: parsed.data.type,
+      category: parsed.data.category,
+      ...(parsed.data.city ? { city: parsed.data.city } : {}),
+    });
+    if (!scheduleParams) {
+      logger.warn({ query: parsed.data }, 'rubitime slots: no schedule mapping for query');
+      return reply.code(400).send({ ok: false, error: 'slots_mapping_not_configured' });
+    }
     try {
-      const query = {
-        type: parsed.data.type,
-        category: parsed.data.category,
-        ...(parsed.data.city ? { city: parsed.data.city } : {}),
-        ...(parsed.data.date ? { date: parsed.data.date } : {}),
-      };
-      const raw = await fetchRubitimeSlots({ query });
-      return reply.code(200).send({ ok: true, slots: toSlotsResponse(raw) });
+      const raw = await fetchRubitimeSchedule({ params: scheduleParams });
+      const slots = normalizeRubitimeSchedule(raw, scheduleParams.durationMinutes, parsed.data.date);
+      return reply.code(200).send({ ok: true, slots });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      if (msg.startsWith('RUBITIME_SCHEDULE_MALFORMED_DATA')) {
+        logger.warn({ err }, 'rubitime slots: malformed schedule data from Rubitime API');
+        return reply.code(502).send({ ok: false, error: 'rubitime_schedule_malformed' });
+      }
       logger.warn({ err }, 'rubitime slots failed');
       return reply.code(502).send({ ok: false, error: msg });
     }

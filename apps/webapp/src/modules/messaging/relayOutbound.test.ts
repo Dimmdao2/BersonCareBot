@@ -6,19 +6,21 @@ const INSTANT_DELAYS = [0, 0, 0, 0];
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
-// Mock env
-vi.mock("@/config/env", () => ({
-  env: {
-    INTEGRATOR_API_URL: "http://integrator.test",
-    INTEGRATOR_WEBHOOK_SECRET: "test-webhook-secret-16",
-    INTEGRATOR_SHARED_SECRET: undefined,
-  },
+const runtimeConfig = vi.hoisted(() => ({
+  baseUrl: "http://integrator.test",
+  secret: "test-webhook-secret-16",
+}));
+vi.mock("@/modules/system-settings/integrationRuntime", () => ({
+  getIntegratorApiUrl: async () => runtimeConfig.baseUrl,
+  getIntegratorWebhookSecret: async () => runtimeConfig.secret,
 }));
 
 // Reset module cache to reset warnedMissingUrl flag between tests
 beforeEach(() => {
   fetchMock.mockReset();
   vi.resetModules();
+  runtimeConfig.baseUrl = "http://integrator.test";
+  runtimeConfig.secret = "test-webhook-secret-16";
 });
 
 afterEach(() => {
@@ -164,14 +166,7 @@ describe("relayOutbound", () => {
   });
 
   it("нет INTEGRATOR_API_URL → warn + ok: false reason: no_integrator_url", async () => {
-    vi.resetModules();
-    vi.doMock("@/config/env", () => ({
-      env: {
-        INTEGRATOR_API_URL: "",
-        INTEGRATOR_WEBHOOK_SECRET: "test-secret-16chars",
-        INTEGRATOR_SHARED_SECRET: undefined,
-      },
-    }));
+    runtimeConfig.baseUrl = "";
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     const { relayOutbound } = await import("./relayOutbound");

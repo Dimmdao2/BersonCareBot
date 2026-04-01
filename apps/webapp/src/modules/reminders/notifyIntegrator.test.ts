@@ -1,11 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-// Mock env
-const mockEnv = vi.hoisted(() => ({
-  INTEGRATOR_API_URL: "https://integrator.example",
-  INTEGRATOR_WEBHOOK_SECRET: "test-secret",
+const runtimeConfig = vi.hoisted(() => ({
+  baseUrl: "https://integrator.example",
+  secret: "test-secret",
 }));
-vi.mock("@/config/env", () => ({ env: mockEnv }));
+vi.mock("@/modules/system-settings/integrationRuntime", () => ({
+  getIntegratorApiUrl: async () => runtimeConfig.baseUrl,
+  getIntegratorWebhookSecret: async () => runtimeConfig.secret,
+}));
 
 // Mock fetch
 const mockFetch = vi.hoisted(() => vi.fn());
@@ -31,10 +33,8 @@ describe("notifyIntegratorRuleUpdated", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockResolvedValue({ ok: true });
-    Object.assign(mockEnv, {
-      INTEGRATOR_API_URL: "https://integrator.example",
-      INTEGRATOR_WEBHOOK_SECRET: "test-secret",
-    });
+    runtimeConfig.baseUrl = "https://integrator.example";
+    runtimeConfig.secret = "test-secret";
   });
 
   it("posts signed payload to integrator reminders/rules endpoint", async () => {
@@ -61,7 +61,7 @@ describe("notifyIntegratorRuleUpdated", () => {
   });
 
   it("skips and warns when INTEGRATOR_API_URL not set", async () => {
-    mockEnv.INTEGRATOR_API_URL = "";
+    runtimeConfig.baseUrl = "";
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     await notifyIntegratorRuleUpdated(baseRule);
     expect(mockFetch).not.toHaveBeenCalled();

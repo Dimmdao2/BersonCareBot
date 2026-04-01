@@ -1,12 +1,13 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { env, integratorWebappEntrySecret, isProduction } from "@/config/env";
+import { env, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
 import { resolveRoleAsync, isWhitelistedAsync } from "./envRole";
 import type { IdentityResolutionPort } from "./identityResolutionPort";
 import { normalizePhone } from "./phoneAuth";
 import { getRedirectPathForRole } from "./redirectPolicy";
+import { getIntegratorWebappEntrySecret, getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -75,10 +76,11 @@ function decodeSession(raw: string): AppSession | null {
   return parsed.expiresAt > now ? parsed : null;
 }
 
-function parseIntegratorToken(token: string): IntegratorTokenPayload | null {
+async function parseIntegratorToken(token: string): Promise<IntegratorTokenPayload | null> {
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
-  if (!safeEqual(signature, sign(payload, integratorWebappEntrySecret()))) return null;
+  const entrySecret = (await getIntegratorWebappEntrySecret()).trim();
+  if (!entrySecret || !safeEqual(signature, sign(payload, entrySecret))) return null;
 
   let parsed: IntegratorTokenPayload;
   try {
@@ -160,7 +162,7 @@ async function isAllowedByWhitelist(
 
 /** Validates Telegram Web App initData (from window.Telegram.WebApp.initData). Returns user id and role or null. */
 async function validateTelegramInitData(initData: string): Promise<{ telegramId: string; role: UserRole; displayName?: string } | null> {
-  const botToken = env.TELEGRAM_BOT_TOKEN;
+  const botToken = (await getTelegramBotToken()).trim();
   if (!botToken?.trim()) return null;
 
   const params = new URLSearchParams(initData.trim());
@@ -230,7 +232,7 @@ export async function exchangeIntegratorToken(
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
   const devParsed = parseDevBypassToken(token);
-  const parsed = devParsed ?? parseIntegratorToken(token);
+  const parsed = devParsed ?? (await parseIntegratorToken(token));
   if (!parsed) return null;
 
   if (!devParsed && !(await isAllowedByWhitelist(parsed, identityResolutionPort))) return null;

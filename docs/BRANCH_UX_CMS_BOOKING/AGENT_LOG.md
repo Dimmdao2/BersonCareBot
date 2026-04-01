@@ -681,6 +681,47 @@
 
 ---
 
+## Fix: Rubitime slots integration + patient_bookings sync (auto-agent)
+
+- **Статус:** done
+- **Агент/модель:** claude-4.6-sonnet-medium
+- **Дата начала:** 2026-04-01
+- **Дата завершения:** 2026-04-01
+- **Scope:** исправить native booking: перейти на реальный Rubitime schedule API, ввести единый normalizer, убрать silent-empty деградацию, довести sync `patient_bookings` до консистентности.
+
+**Гипотеза причины:** код вызывал несуществующий endpoint `api2/get-slots` с доменными полями `type/city/category`. Реальный Rubitime API использует `api2/get-schedule` с `branch_id/cooperator_id/service_id`. Нормализатор ждал `Array.isArray(data)`, тогда как `get-schedule` возвращает объект `{"YYYY-MM-DD": {"HH:MM": {"available": bool}}}`. Итог: `toSlotsResponse(raw)` всегда возвращал `[]` → пустой UI без ошибки.
+
+**Целевые файлы:**
+- `apps/integrator/src/integrations/rubitime/client.ts`
+- `apps/integrator/src/integrations/rubitime/config.ts`
+- `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts`
+- `apps/integrator/src/integrations/rubitime/schema.ts`
+- (новый) `apps/integrator/src/integrations/rubitime/bookingScheduleMapping.ts`
+- (новый) `apps/integrator/src/integrations/rubitime/scheduleNormalizer.ts`
+- `apps/webapp/src/modules/integrator/bookingM2mApi.ts`
+- `apps/webapp/src/modules/integrator/events.ts`
+- `apps/webapp/src/infra/repos/pgPatientBookings.ts`
+- `.env.example`
+
+**DB sync decision (Decision A):** поддерживаем только update существующих `patient_bookings` строк по `rubitime_id`. Записи, созданные вне native-flow (через Rubitime напрямую), обновляются только если у них уже есть `rubitime_id` в таблице. Обоснование: без `platform_user_id` нельзя создать корректную строку; вставка без owner сломает auth invariants. Зафиксировано явно в коде и документации.
+
+**Выполненные этапы (результат):**
+- Этап 0 (DB-first config): добавлены ключи интеграций в `system_settings` (`scope=admin`), migration `045_system_settings_integration_keys.sql`, deploy auto-seed `env -> DB` (fill-empty-only), обновлены `.cursor/rules/*` на запрет env-хранения integration keys/URI.
+- Integrator Rubitime runtime config переведён на DB-first accessor (`runtimeConfig.ts`): `rubitime_api_key`, `rubitime_webhook_token`, `rubitime_schedule_mapping` читаются из `system_settings` с env fallback на миграционный период.
+- Этапы 1–3 (slots contract + API + parser): integrator переведён на Rubitime `get-schedule`; добавлены `bookingScheduleMapping.ts` и `scheduleNormalizer.ts`; route `/api/bersoncare/rubitime/slots` возвращает controlled errors (`slots_mapping_not_configured`, `rubitime_schedule_malformed`) вместо silent-empty.
+- Этап 3 (webapp contract): `bookingM2mApi.fetchSlots` теперь валидирует integrator-contract и не скрывает malformed ответ.
+- Этап 4 (patient_bookings sync): `events.ts` использует `mapRubitimeStatusToPatientBookingStatus`, передаёт `slotEnd: null` явно (COALESCE в SQL сохраняет актуальное значение).
+- Этап 5 (tests): добавлены/обновлены unit+contract тесты для mapping/normalizer/client/route и webapp client/sync.
+- Этапы 6–7 (docs/checklist): обновлён host deploy doc для auto-seed; финальная проверка пройдена.
+
+**Тесты и проверки:**
+- `apps/integrator`: `vitest` (rubitime client/route/mapping/normalizer) — green, `41 passed`.
+- `apps/webapp`: `vitest` (bookingM2mApi/auth/notifyIntegrator/relayOutbound/events) — green, `85 passed`.
+- `apps/webapp`: `pnpm typecheck` — green.
+- `apps/integrator`: `pnpm typecheck` — green.
+
+---
+
 ## Итоговый аудит ветки
 
 - **Аудитор:** agent (Cursor), финальный отчёт в `docs/BRANCH_UX_CMS_BOOKING/FINAL_AUDIT.md`
@@ -702,3 +743,24 @@
   - Страницы `patient/help`, `patient/install`, `doctor/references` — полезный контент без «Раздел в разработке»; `PlaceholderPage` без этой фразы; `ClientProfileCard` — нейтральный текст про «Карту».
   - TODO в коде привязаны к `AUDIT-BACKLOG-*` (см. `TODO_BACKLOG.md`).
 - **CI:** green (`pnpm run ci`)
+
+---
+
+## Remediation: audit follow-up (booking + config security)
+
+- **Статус:** done
+- **Агент/модель:** GPT-5.3 Codex
+- **Дата:** 2026-04-01
+- **Изменённые файлы:**
+  - `apps/webapp/src/app/api/admin/settings/route.ts` — добавлены redaction для secret-like ключей в audit-логах; PATCH теперь нормализует payload в `{ value: ... }`
+  - `apps/webapp/src/app/api/admin/settings/route.test.ts` — обновлено ожидание `updateSetting(..., { value: ... })`
+  - `apps/webapp/src/modules/patient-booking/service.ts` — при `slot_overlap` добавлен best-effort rollback: `syncPort.cancelRecord(rubitimeId)` перед локальной отменой
+  - `apps/webapp/src/modules/patient-booking/service.test.ts` — добавлен тест rollback-сценария при `slot_overlap`
+  - `apps/integrator/src/integrations/max/deliveryAdapter.ts` — смягчён текст ошибки отсутствующего ключа (lint no-secrets)
+  - `apps/integrator/src/integrations/smsc/client.ts` — смягчён текст ошибки отсутствующего ключа (lint no-secrets)
+  - `apps/integrator/src/infra/scripts/check-smsc.ts` — смягчён текст ошибки отсутствующего ключа (lint no-secrets)
+- **Тесты:**
+  - `apps/webapp`: `route.test.ts`, `service.test.ts` + связанные booking/admin тесты
+  - `apps/integrator`: rubitime/max/smsc целевые тесты
+- **Замечания:**
+  - `*_webhook_uri` ключи остаются сохранёнными и редактируемыми в админке, но runtime-use в integrator пока не реализован (исторический residual из предыдущего аудита).

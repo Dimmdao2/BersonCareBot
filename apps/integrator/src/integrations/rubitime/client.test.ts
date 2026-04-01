@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchRubitimeRecordById, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
+import { fetchRubitimeRecordById, fetchRubitimeSchedule, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
 
 describe('fetchRubitimeRecordById', () => {
   it('fetches booking data by record id from Rubitime API', async () => {
@@ -89,5 +89,70 @@ describe('updateRubitimeRecord / removeRubitimeRecord', () => {
       'https://rubitime.ru/api2/remove-record',
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+});
+
+describe('fetchRubitimeSchedule', () => {
+  it('calls api2/get-schedule with branch_id/cooperator_id/service_id and only_available=1', async () => {
+    const scheduleData = {
+      '2026-04-10': { '10:00': { available: true }, '11:00': { available: false } },
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'ok', message: 'Success', data: scheduleData }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const result = await fetchRubitimeSchedule({
+      params: { branchId: 1, cooperatorId: 2, serviceId: 3 },
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://rubitime.ru/api2/get-schedule',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const call = fetchImpl.mock.calls[0]![1] as { body: string };
+    const body = JSON.parse(call.body);
+    expect(body.branch_id).toBe(1);
+    expect(body.cooperator_id).toBe(2);
+    expect(body.service_id).toBe(3);
+    expect(body.only_available).toBe(1);
+    // domain fields must NOT be in body
+    expect(body.type).toBeUndefined();
+    expect(body.category).toBeUndefined();
+    expect(body.city).toBeUndefined();
+    expect(result).toEqual(scheduleData);
+  });
+
+  it('throws RUBITIME_API_ERROR when Rubitime returns status error', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'error', message: 'Forbidden' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    await expect(
+      fetchRubitimeSchedule({ params: { branchId: 1, cooperatorId: 2, serviceId: 3 }, fetchImpl }),
+    ).rejects.toThrow('RUBITIME_API_ERROR');
+  });
+
+  it('throws RUBITIME_HTTP_* when HTTP status is non-ok', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response('Service Unavailable', { status: 503, headers: { 'content-type': 'text/plain' } }),
+    );
+    await expect(
+      fetchRubitimeSchedule({ params: { branchId: 1, cooperatorId: 2, serviceId: 3 }, fetchImpl }),
+    ).rejects.toThrow('RUBITIME_HTTP_503');
+  });
+
+  it('throws RUBITIME_INVALID_JSON when Rubitime returns non-JSON', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response('not json', { status: 200, headers: { 'content-type': 'text/html' } }),
+    );
+    await expect(
+      fetchRubitimeSchedule({ params: { branchId: 1, cooperatorId: 2, serviceId: 3 }, fetchImpl }),
+    ).rejects.toThrow('RUBITIME_INVALID_JSON');
   });
 });

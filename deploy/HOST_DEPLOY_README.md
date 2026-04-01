@@ -256,6 +256,7 @@ mc cors set myminio/bersonservices-public /path/to/cors.json
 - `MAX_WEBHOOK_SECRET=...`
 - `RUBITIME_WEBHOOK_TOKEN=...`
 - `RUBITIME_API_KEY=...`
+- `RUBITIME_SCHEDULE_MAPPING=...` — JSON-массив маппинга booking query → Rubitime schedule params. Формат: `[{"type":"online","category":"general","branchId":1,"cooperatorId":2,"serviceId":3,"durationMinutes":60}, ...]`. Обязателен для работы отображения слотов записи.
 - `SMSC_ENABLED=true`
 - `SMSC_API_KEY=...`
 - `SMSC_BASE_URL=https://smsc.ru/sys/send.php`
@@ -351,6 +352,7 @@ bash deploy/host/deploy-webapp-prod.sh
 - `pnpm --dir apps/webapp build`
 - перед миграциями: вызов backup (`BACKUP_SCRIPT` pre-migrations). Требуется наличие скрипта и sudo-прав (см. Sudoers). Скрипт backup должен быть тем же, что в full prod deploy (`/opt/backups/scripts/postgres-backup.sh`), или эквивалентным; контракт аргумента и каталога см. в разделе «Backup contract (pre-migrations)» ниже.
 - `pnpm --dir apps/webapp run migrate`
+- `pnpm --dir apps/webapp run seed:system-settings:from-env -- --webapp-env /opt/env/bersoncarebot/webapp.prod --api-env /opt/env/bersoncarebot/api.prod` (автосидинг integration keys/URI в `system_settings` scope=`admin`, режим fill-empty-only)
 - restart webapp
 - health check `http://127.0.0.1:6200/api/health`
 
@@ -463,6 +465,8 @@ bash deploy/host/bootstrap-systemd-prod.sh
 cd /opt/projects/bersoncarebot
 bash deploy/host/deploy-prod.sh
 ```
+
+После `webapp` миграций `deploy-prod.sh` автоматически запускает сидинг `system_settings` из `api.prod` + `webapp.prod` (ключи интеграций и webhook URI), чтобы не переносить значения руками при первичной установке.
 
 ---
 

@@ -42,6 +42,7 @@ import { createSmscClient } from '../integrations/smsc/client.js';
 import { smscConfig } from '../integrations/smsc/config.js';
 import { createSmscDeliveryAdapter } from '../integrations/smsc/deliveryAdapter.js';
 import { createSmscStub } from '../integrations/smsc/stub.js';
+import { getSmscApiKey } from '../integrations/smsc/runtimeConfig.js';
 import type { SmsClient } from '../integrations/smsc/types.js';
 import { maxConfig } from '../integrations/max/config.js';
 import { createMaxDeliveryAdapter } from '../integrations/max/deliveryAdapter.js';
@@ -118,18 +119,12 @@ export type AppDeps = {
 /** Собирает полностью связанный набор зависимостей app-слоя. */
 export function buildDeps(input: BuildDepsInput = {}): AppDeps {
   const smsClient: SmsClient = smscConfig.enabled
-    ? smscConfig.apiKey
-      ? createSmscClient({
-          apiKey: smscConfig.apiKey,
-          baseUrl: smscConfig.baseUrl,
-          log: logger,
-        })
-      : createSmscStub(logger)
+    ? createSmscClient({
+        getApiKey: getSmscApiKey,
+        baseUrl: smscConfig.baseUrl,
+        log: logger,
+      })
     : createSmscStub(logger);
-
-  if (smscConfig.enabled && !smscConfig.apiKey) {
-    logger.warn({ smscEnabled: smscConfig.enabled }, 'smsc enabled but api key is not set, using stub');
-  }
 
   const dbPort = createDbPort();
   const communicationReadsPort = createCommunicationReadsPort();
@@ -223,7 +218,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     : undefined;
 
   const maxRegistrar =
-    maxConfig.enabled && maxConfig.apiKey
+    maxConfig.enabled
       ? (input.registerMaxWebhookRoutes ?? registerMaxWebhookRoutes)
       : undefined;
 

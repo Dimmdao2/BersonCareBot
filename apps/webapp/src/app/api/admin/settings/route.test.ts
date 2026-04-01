@@ -132,7 +132,7 @@ describe("PATCH /api/admin/settings", () => {
         body: JSON.stringify({ key: "dev_mode", value: false }),
       })
     );
-    expect(updateSettingMock).toHaveBeenCalledWith("dev_mode", "admin", false, "admin-uuid");
+    expect(updateSettingMock).toHaveBeenCalledWith("dev_mode", "admin", { value: false }, "admin-uuid");
   });
 
   it("returns 401 when no session on PATCH", async () => {

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isProduction } from "@/config/env";
+import {
+  getYandexOauthClientId,
+  getYandexOauthClientSecret,
+  getYandexOauthRedirectUri,
+} from "@/modules/system-settings/integrationRuntime";
 
 const OAUTH_STATE_COOKIE = "oauth_state_yandex";
 const OAUTH_STATE_TTL_SECONDS = 600; // 10 минут
@@ -30,9 +35,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const clientId = env.YANDEX_OAUTH_CLIENT_ID?.trim();
-  const redirectUri = env.YANDEX_OAUTH_REDIRECT_URI?.trim();
-  const secret = env.YANDEX_OAUTH_CLIENT_SECRET?.trim();
+  const clientId = (await getYandexOauthClientId()).trim();
+  const redirectUri = (await getYandexOauthRedirectUri()).trim();
+  const secret = (await getYandexOauthClientSecret()).trim();
   if (!clientId || !redirectUri || !secret) {
     return NextResponse.json(
       { ok: false, error: "oauth_disabled", message: "OAuth не настроен" },

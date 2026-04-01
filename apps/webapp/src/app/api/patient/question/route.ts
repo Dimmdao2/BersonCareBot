@@ -9,6 +9,7 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
 import { env } from "@/config/env";
 import { routePaths } from "@/app-layer/routes/paths";
+import { getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";
 
 function isBrowserOnly(bindings: { telegramId?: string; maxId?: string }): boolean {
   return !bindings.telegramId?.trim() && !bindings.maxId?.trim();
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const token = env.TELEGRAM_BOT_TOKEN;
+  const token = (await getTelegramBotToken()).trim();
   const adminId = env.ADMIN_TELEGRAM_ID;
   if (!token || adminId == null) {
     return NextResponse.json(

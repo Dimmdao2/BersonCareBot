@@ -1,4 +1,5 @@
 import { smscConfig } from '../../integrations/smsc/config.js';
+import { getSmscApiKey } from '../../integrations/smsc/runtimeConfig.js';
 
 type BalanceResponse = {
   balance?: string | number;
@@ -49,8 +50,12 @@ async function requestJson<T>(url: string): Promise<T> {
 
 async function main(): Promise<void> {
   const { phone, message } = parseArgs(process.argv.slice(2));
+  const apiKey = await getSmscApiKey();
+  if (!apiKey) {
+    throw new Error('smsc api key missing');
+  }
   const common = new URLSearchParams({
-    apikey: smscConfig.apiKey,
+    apikey: apiKey,
     fmt: '3',
     charset: 'utf-8',
   });

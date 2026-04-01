@@ -1,0 +1,25 @@
+---
+description: CRITICAL: integration keys and webhook URIs must be stored in DB system_settings (admin), never introduced as new env vars.
+alwaysApply: true
+---
+
+# CRITICAL: DO NOT PUT INTEGRATION CONFIG INTO ENV
+
+## Absolute rule for all agents
+
+- **Do not add or use new env vars for integration configuration.**
+- **Do not store integration API keys/tokens in env.**
+- **Do not store integration webhook URLs/URIs in env.**
+- **Use `system_settings` (scope `admin`) as the source of truth.**
+
+## Mandatory storage target
+
+- Store integration config in webapp DB table `system_settings` with `scope='admin'`.
+- Keys must be included in `apps/webapp/src/modules/system-settings/types.ts` (`ALLOWED_KEYS`).
+- Values must be editable via admin settings flow (`/api/admin/settings` + Settings UI).
+
+## Integrator/webapp implementation rule
+
+- Integrator and webapp must read integration keys/URIs from DB-backed config accessors.
+- Env can remain only for process bootstrap/infra (`DATABASE_URL`, `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`) and temporary backward-compat fallback during migration.
+- Any new integration feature that proposes env vars for keys/URIs is considered invalid and must be redesigned to DB config.

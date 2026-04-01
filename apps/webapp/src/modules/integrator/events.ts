@@ -9,6 +9,7 @@ import type { AppointmentProjectionPort } from "@/infra/repos/pgAppointmentProje
 import type { SubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscriptionMailingProjection";
 import type { BranchesProjectionPort } from "@/infra/repos/pgBranches";
 import type { PatientBookingService } from "@/modules/patient-booking/ports";
+import { mapRubitimeStatusToPatientBookingStatus } from "@/infra/repos/pgPatientBookings";
 
 const REMINDER_RULE_UPSERTED = "reminder.rule.upserted";
 const REMINDER_OCCURRENCE_FINALIZED = "reminder.occurrence.finalized";
@@ -721,8 +722,11 @@ export async function handleIntegratorEvent(
       const rubitimeId = integratorRecordId;
       await deps.patientBooking?.applyRubitimeUpdate({
         rubitimeId,
-        status: status.includes("cancel") ? "cancelled" : status.includes("resched") ? "rescheduled" : "confirmed",
-        slotStart: recordAt,
+        status: mapRubitimeStatusToPatientBookingStatus(status),
+        slotStart: recordAt ?? null,
+        // slotEnd is not present in appointment.record.upserted projection payload.
+        // Decision A: update-only for native rows; slot_end stays via COALESCE in SQL.
+        slotEnd: null,
       });
       return { accepted: true };
     } catch (err) {

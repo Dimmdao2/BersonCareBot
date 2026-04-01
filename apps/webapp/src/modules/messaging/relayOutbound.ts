@@ -5,7 +5,7 @@
  * Idempotency key: `${messageId}:${channel}:${recipient}`.
  */
 import { createHmac } from "node:crypto";
-import { env } from "@/config/env";
+import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 
 export type RelayResult =
   | { ok: true; status: "accepted" | "duplicate" }
@@ -36,10 +36,6 @@ export type RelayOutboundDeps = {
 const DEFAULT_RETRY_DELAYS_MS = [0, 10_000, 60_000, 300_000];
 
 let warnedMissingUrl = false;
-
-function getSecret(): string {
-  return env.INTEGRATOR_WEBHOOK_SECRET?.trim() || env.INTEGRATOR_SHARED_SECRET?.trim() || "";
-}
 
 function signPayload(timestamp: string, rawBody: string, secret: string): string {
   return createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("base64url");
@@ -90,7 +86,7 @@ export async function relayOutbound(
   const { messageId, channel, recipient, text, userId } = params;
   const { shouldDispatch, retryDelaysMs = DEFAULT_RETRY_DELAYS_MS } = deps;
 
-  const integratorUrl = env.INTEGRATOR_API_URL?.trim();
+  const integratorUrl = (await getIntegratorApiUrl()).trim();
   if (!integratorUrl) {
     if (!warnedMissingUrl) {
       warnedMissingUrl = true;
@@ -110,7 +106,7 @@ export async function relayOutbound(
     }
   }
 
-  const secret = getSecret();
+  const secret = (await getIntegratorWebhookSecret()).trim();
   const idempotencyKey = `${messageId}:${channel}:${recipient}`;
   const url = `${integratorUrl.replace(/\/$/, "")}/api/bersoncare/relay-outbound`;
 

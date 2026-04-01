@@ -2,15 +2,20 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHmac } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { encodeBase64Url } from "@/shared/utils/base64url";
-import { integratorWebappEntrySecret } from "@/config/env";
 import { exchangeIntegratorToken } from "./service";
+
+const TEST_ENTRY_SECRET = "test-integrator-entry-secret";
+vi.mock("@/modules/system-settings/integrationRuntime", () => ({
+  getIntegratorWebappEntrySecret: async () => TEST_ENTRY_SECRET,
+  getTelegramBotToken: async () => "",
+}));
 
 const serviceSourcePath = join(dirname(fileURLToPath(import.meta.url)), "service.ts");
 
 function signPayload(payload: string): string {
-  return createHmac("sha256", integratorWebappEntrySecret()).update(payload).digest("base64url");
+  return createHmac("sha256", TEST_ENTRY_SECRET).update(payload).digest("base64url");
 }
 
 describe("auth service", () => {

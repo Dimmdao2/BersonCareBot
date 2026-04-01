@@ -7,7 +7,7 @@ import {
   rubitimeIncomingToEvent,
   syncRubitimeWebhookBodyToGoogleCalendar,
 } from './connector.js';
-import { rubitimeConfig } from './config.js';
+import { getRubitimeWebhookToken } from './runtimeConfig.js';
 import { parseRubitimeBody } from './schema.js';
 
 /** Dependencies for Rubitime webhook handler registration. */
@@ -93,7 +93,8 @@ export async function registerRubitimeWebhookRoutes(
 
     try {
       const params = request.params as { token?: string };
-      if (params.token !== rubitimeConfig.webhookToken) {
+      const webhookToken = await getRubitimeWebhookToken();
+      if (params.token !== webhookToken) {
         reqLogger.warn('rubitime webhook token mismatch');
         return reply.code(200).send({ ok: false, error: 'Forbidden' });
       }
@@ -132,7 +133,8 @@ export async function registerRubitimeWebhookRoutes(
     const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
     const params = request.query as { record_success?: string; token?: string };
-    if (params.token !== rubitimeConfig.webhookToken) {
+    const webhookToken = await getRubitimeWebhookToken();
+    if (params.token !== webhookToken) {
       reqLogger.warn('rubitime record_success token mismatch');
       return reply.code(200).send({ ok: false, error: 'Missing or invalid token' });
     }

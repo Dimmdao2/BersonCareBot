@@ -1,12 +1,12 @@
 import { createHmac } from "node:crypto";
-import { env, integratorWebhookSecret } from "@/config/env";
+import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 
 export async function postIntegratorSignedJson(
   path: string,
   body: unknown
 ): Promise<{ ok: boolean; status: number; json: unknown; text?: string }> {
-  const base = env.INTEGRATOR_API_URL?.trim();
-  const secret = integratorWebhookSecret();
+  const base = (await getIntegratorApiUrl()).trim();
+  const secret = (await getIntegratorWebhookSecret()).trim();
   if (!base || !secret) {
     return { ok: false, status: 0, json: { error: "integrator_not_configured" } };
   }

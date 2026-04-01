@@ -6,6 +6,7 @@ import { maxConfig } from './config.js';
 import { maxIncomingToEvent } from './connector.js';
 import { fromMax } from './mapIn.js';
 import { parseMaxUpdate } from './schema.js';
+import { getMaxWebhookSecret } from './runtimeConfig.js';
 import { setupMaxCommands } from './setupCommands.js';
 import type { MaxUpdateValidated } from './schema.js';
 
@@ -48,7 +49,7 @@ function buildMaxFacts(data: MaxUpdateValidated): Record<string, unknown> {
 
 /**
  * Registers MAX webhook route. Flow: secret check -> validate -> map -> eventGateway.
- * Production: set MAX_WEBHOOK_SECRET and ensure HTTPS endpoint is registered with MAX (POST /subscriptions).
+ * Production: set MAX webhook secret in admin system_settings and ensure HTTPS endpoint is registered with MAX (POST /subscriptions).
  * Blocker: MAX only delivers to HTTPS on port 443; for dev use fixture/long-polling until public URL is ready.
  */
 export async function registerMaxWebhookRoutes(
@@ -63,9 +64,10 @@ export async function registerMaxWebhookRoutes(
     const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
     try {
-      if (maxConfig.webhookSecret) {
+      const webhookSecret = await getMaxWebhookSecret();
+      if (webhookSecret) {
         const headerSecret = request.headers['x-max-bot-api-secret'];
-        if (headerSecret !== maxConfig.webhookSecret) {
+        if (headerSecret !== webhookSecret) {
           reqLogger.warn('max webhook secret mismatch');
           return reply.code(200).send({ ok: false, error: 'Forbidden' });
         }

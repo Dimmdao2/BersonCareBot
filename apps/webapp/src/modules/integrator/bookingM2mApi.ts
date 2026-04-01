@@ -1,27 +1,23 @@
 import { createHmac } from "node:crypto";
-import { env, integratorWebhookSecret } from "@/config/env";
+import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 import type { BookingSlotsByDate } from "@/modules/patient-booking/types";
 import type { BookingSlotsQuery, BookingSyncPort, CreateBookingSyncInput } from "@/modules/patient-booking/ports";
 
-function normalizeBaseUrl(): string | null {
-  const base = env.INTEGRATOR_API_URL?.trim();
+async function normalizeBaseUrl(): Promise<string | null> {
+  const base = (await getIntegratorApiUrl()).trim();
   if (!base) return null;
   return base.replace(/\/$/, "");
 }
 
-function signBody(timestamp: string, rawBody: string): string {
-  return createHmac("sha256", integratorWebhookSecret()).update(`${timestamp}.${rawBody}`).digest("base64url");
-}
-
 async function postSigned(path: string, body: Record<string, unknown>): Promise<{ status: number; json: Record<string, unknown> }> {
-  const base = normalizeBaseUrl();
-  const secret = integratorWebhookSecret();
+  const base = await normalizeBaseUrl();
+  const secret = (await getIntegratorWebhookSecret()).trim();
   if (!base || !secret) {
     throw new Error("integrator_not_configured");
   }
   const raw = JSON.stringify(body);
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const signature = signBody(timestamp, raw);
+  const signature = createHmac("sha256", secret).update(`${timestamp}.${raw}`).digest("base64url");
   const res = await fetch(`${base}${path}`, {
     method: "POST",
     headers: {
@@ -35,27 +31,18 @@ async function postSigned(path: string, body: Record<string, unknown>): Promise<
   return { status: res.status, json };
 }
 
-function normalizeSlots(json: Record<string, unknown>): BookingSlotsByDate[] {
+/**
+ * Проверяет, что integrator вернул корректный контракт слотов.
+ * Integrator отвечает за нормализацию raw Rubitime response;
+ * webapp только валидирует что `slots` — массив.
+ * Если integrator вернул ok: true, но slots не массив — это ошибка integrator contract.
+ */
+function validateSlotsContract(json: Record<string, unknown>): BookingSlotsByDate[] {
   const raw = json.slots;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((row) => {
-      if (typeof row !== "object" || row === null) return null;
-      const date = (row as Record<string, unknown>).date;
-      const slots = (row as Record<string, unknown>).slots;
-      if (typeof date !== "string" || !Array.isArray(slots)) return null;
-      const normalizedSlots = slots
-        .map((slot) => {
-          if (typeof slot !== "object" || slot === null) return null;
-          const startAt = (slot as Record<string, unknown>).startAt;
-          const endAt = (slot as Record<string, unknown>).endAt;
-          if (typeof startAt !== "string" || typeof endAt !== "string") return null;
-          return { startAt, endAt };
-        })
-        .filter((slot): slot is { startAt: string; endAt: string } => slot !== null);
-      return { date, slots: normalizedSlots };
-    })
-    .filter((row): row is BookingSlotsByDate => row !== null);
+  if (!Array.isArray(raw)) {
+    throw new Error("rubitime_slots_contract_broken: slots is not an array in integrator response");
+  }
+  return raw as BookingSlotsByDate[];
 }
 
 export function createBookingSyncPort(): BookingSyncPort {
@@ -68,9 +55,10 @@ export function createBookingSyncPort(): BookingSyncPort {
         date: query.date,
       });
       if (status >= 400 || json.ok !== true) {
-        throw new Error("rubitime_slots_failed");
+        const error = typeof json.error === "string" ? json.error : "rubitime_slots_failed";
+        throw new Error(error);
       }
-      return normalizeSlots(json);
+      return validateSlotsContract(json);
     },
 
     async createRecord(input: CreateBookingSyncInput): Promise<{ rubitimeId: string | null; raw: Record<string, unknown> }> {

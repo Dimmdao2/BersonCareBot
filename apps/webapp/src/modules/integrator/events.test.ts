@@ -982,6 +982,61 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     expect(mockAp.upsertRecordFromProjection).toHaveBeenNthCalledWith(2, expectedArg);
   });
 
+  it("appointment.record.upserted calls applyRubitimeUpdate with mapped status and null slotEnd", async () => {
+    const applyRubitimeUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const stubPatientBooking = {
+      getSlots: vi.fn().mockResolvedValue([]),
+      createBooking: vi.fn(),
+      cancelBooking: vi.fn(),
+      listMyBookings: vi.fn().mockResolvedValue({ upcoming: [], history: [] }),
+      applyRubitimeUpdate,
+    };
+    const deps: IntegratorEventsDeps = {
+      ...mockDeps,
+      appointmentProjection: mockAp,
+      patientBooking: stubPatientBooking,
+    };
+
+    const testCases: Array<{ rubiStatus: string; expectedStatus: string }> = [
+      { rubiStatus: "cancel_requested", expectedStatus: "cancelled" },
+      { rubiStatus: "rescheduled", expectedStatus: "rescheduled" },
+      { rubiStatus: "completed", expectedStatus: "completed" },
+      { rubiStatus: "no_show", expectedStatus: "no_show" },
+      { rubiStatus: "created", expectedStatus: "confirmed" },
+      { rubiStatus: "updated", expectedStatus: "confirmed" },
+    ];
+
+    for (const { rubiStatus, expectedStatus } of testCases) {
+      applyRubitimeUpdate.mockClear();
+      await handleIntegratorEvent(
+        {
+          eventType: "appointment.record.upserted",
+          payload: {
+            integratorRecordId: "rec-status-test",
+            status: rubiStatus,
+            recordAt: "2025-08-01T12:00:00.000Z",
+          },
+        },
+        deps,
+      );
+      expect(applyRubitimeUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rubitimeId: "rec-status-test",
+          status: expectedStatus,
+          slotStart: "2025-08-01T12:00:00.000Z",
+          slotEnd: null,
+        }),
+      );
+    }
+  });
+
   it("appointment.record.upserted accepts update (e.g. status cancelled) and calls upsert with new payload", async () => {
     const mockAp = {
       getRecordByIntegratorId: vi.fn(),

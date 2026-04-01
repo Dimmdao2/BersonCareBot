@@ -7,7 +7,8 @@ type WarnLogger = {
 };
 
 type SmscClientConfig = {
-  apiKey: string;
+  apiKey?: string;
+  getApiKey?: () => Promise<string>;
   baseUrl?: string;
   timeoutMs?: number;
   log: WarnLogger;
@@ -33,8 +34,13 @@ export function createSmscClient(config: SmscClientConfig): SmsClient {
         return { ok: false, error: 'SMSC_INVALID_INPUT' };
       }
 
+      const apiKey = config.getApiKey ? await config.getApiKey() : (config.apiKey ?? '');
+      if (!apiKey) {
+        return { ok: false, error: 'smsc api key missing' };
+      }
+
       const params = new URLSearchParams({
-        apikey: config.apiKey,
+        apikey: apiKey,
         phones: input.toPhone,
         mes: input.message,
         charset: 'utf-8',

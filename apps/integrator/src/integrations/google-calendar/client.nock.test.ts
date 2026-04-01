@@ -1,19 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import nock from 'nock';
-
-vi.mock('./config.js', () => ({
-  googleCalendarConfig: {
-    enabled: true,
-    clientId: 'test-client-id',
-    clientSecret: 'test-client-secret',
-    redirectUri: 'http://localhost/oauth',
-    calendarId: 'cal-test-id',
-    refreshToken: 'test-refresh-token',
-  },
-  isGoogleCalendarConfigured: () => true,
-}));
+import type { GoogleCalendarConfig } from './config.js';
 
 import { createGoogleCalendarClient } from './client.js';
+
+const testConfig: GoogleCalendarConfig = {
+  enabled: true,
+  clientId: 'test-client-id',
+  clientSecret: 'test-client-secret',
+  redirectUri: 'http://localhost/oauth',
+  calendarId: 'cal-test-id',
+  refreshToken: 'test-refresh-token',
+};
 
 const sampleEvent = {
   summary: 'Test',
@@ -37,7 +35,7 @@ describe('Google Calendar client (nock)', () => {
       .post(/\/calendar\/v3\/calendars\/[^/]+\/events$/)
       .reply(200, { id: 'evt-created' });
 
-    const client = createGoogleCalendarClient();
+    const client = createGoogleCalendarClient(globalThis.fetch, async () => testConfig);
     const id = await client.upsertEvent(null, sampleEvent);
     expect(id).toBe('evt-created');
   });
@@ -45,7 +43,7 @@ describe('Google Calendar client (nock)', () => {
   it('token refresh failure does not call Calendar API', async () => {
     nock('https://oauth2.googleapis.com').post('/token').reply(400, { error: 'invalid_grant' });
 
-    const client = createGoogleCalendarClient();
+    const client = createGoogleCalendarClient(globalThis.fetch, async () => testConfig);
     await expect(client.upsertEvent(null, sampleEvent)).rejects.toThrow(/GOOGLE_TOKEN_HTTP_400/);
   });
 
@@ -55,7 +53,7 @@ describe('Google Calendar client (nock)', () => {
       .patch(/\/calendar\/v3\/calendars\/[^/]+\/events\/evt-patch-1$/)
       .reply(200, { id: 'evt-patch-1' });
 
-    const client = createGoogleCalendarClient();
+    const client = createGoogleCalendarClient(globalThis.fetch, async () => testConfig);
     const id = await client.upsertEvent('evt-patch-1', sampleEvent);
     expect(id).toBe('evt-patch-1');
   });
@@ -66,7 +64,7 @@ describe('Google Calendar client (nock)', () => {
       .delete(/\/calendar\/v3\/calendars\/[^/]+\/events\/missing-event$/)
       .reply(404);
 
-    const client = createGoogleCalendarClient();
+    const client = createGoogleCalendarClient(globalThis.fetch, async () => testConfig);
     await expect(client.deleteEvent('missing-event')).resolves.toBeUndefined();
   });
 
@@ -76,7 +74,7 @@ describe('Google Calendar client (nock)', () => {
       .delete(/\/calendar\/v3\/calendars\/[^/]+\/events\/bad-event$/)
       .reply(500);
 
-    const client = createGoogleCalendarClient();
+    const client = createGoogleCalendarClient(globalThis.fetch, async () => testConfig);
     await expect(client.deleteEvent('bad-event')).rejects.toThrow(/GOOGLE_CALENDAR_DELETE_HTTP_500/);
   });
 });

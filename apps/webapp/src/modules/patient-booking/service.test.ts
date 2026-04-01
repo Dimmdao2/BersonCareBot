@@ -156,4 +156,35 @@ describe("createPatientBookingService", () => {
     ).rejects.toThrow("booking_confirm_failed");
     expect(bookingsPort.markFailedSync).not.toHaveBeenCalled();
   });
+
+  it("createBooking: slot overlap cancels remote rubitime record and local pending booking", async () => {
+    const pending = sampleRow({ id: "p2", status: "creating", rubitimeId: null });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "rub-2", raw: {} });
+    bookingsPort.markConfirmed.mockRejectedValue(new Error("slot_overlap"));
+    bookingsPort.markCancelled.mockResolvedValue({ ...pending, status: "cancelled" });
+    syncPort.cancelRecord.mockResolvedValue(undefined);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+    });
+    await expect(
+      svc.createBooking({
+        userId: pending.userId,
+        type: "online",
+        category: "general",
+        slotStart: pending.slotStart,
+        slotEnd: pending.slotEnd,
+        contactName: pending.contactName,
+        contactPhone: pending.contactPhone,
+      }),
+    ).rejects.toThrow("slot_overlap");
+    expect(syncPort.cancelRecord).toHaveBeenCalledWith("rub-2");
+    expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
+      bookingId: pending.id,
+      reason: "slot_overlap",
+      status: "cancelled",
+    });
+  });
 });

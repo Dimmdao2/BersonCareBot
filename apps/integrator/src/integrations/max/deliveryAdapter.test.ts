@@ -8,7 +8,7 @@ vi.mock('./client.js', () => ({
   answerMaxCallback: (...args: unknown[]) => answerMaxCallbackMock(...args),
   editMaxMessage: (...args: unknown[]) => editMaxMessageMock(...args),
 }));
-vi.mock('./config.js', () => ({ maxConfig: { apiKey: 'test-key' } }));
+vi.mock('./runtimeConfig.js', () => ({ getMaxApiKey: async () => 'test-key' }));
 
 import { createMaxDeliveryAdapter } from './deliveryAdapter.js';
 

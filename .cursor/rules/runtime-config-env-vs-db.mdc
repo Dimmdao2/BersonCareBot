@@ -1,6 +1,6 @@
 ---
-description: Где хранить настройки — env только для секретов/DSN/процесса; несекретное — system_settings (БД).
-alwaysApply: false
+description: Runtime config policy: integration keys and webhook URIs in DB (admin system_settings), not env.
+alwaysApply: true
 ---
 
 # Runtime config: env vs database
@@ -9,18 +9,18 @@ When adding or moving configuration:
 
 ## Use environment variables only for
 
-- Secrets and credentials (tokens, API keys, HMAC secrets, passwords).
 - Infrastructure connection strings (e.g. `DATABASE_URL`).
 - Process-level deploy defaults that must not be tenant-specific: `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`.
 
 ## Use webapp `system_settings` (scope `admin`) for
 
-- Non-secret operational values editable without redeploy: public URLs, feature flags, **IANA timezones for business-facing text**, whitelists, etc.
+- Integration API keys/tokens and integration webhook URLs/URIs.
+- Operational values editable without redeploy: public URLs, feature flags, **IANA timezones for business-facing text**, whitelists, etc.
 - Keys must be added to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` and exposed in admin Settings UI when user-facing.
 
 ## Integrator
 
 - May read `system_settings` via SQL if integrator’s `DATABASE_URL` points at the same PostgreSQL where webapp migrations created `system_settings`. Document the assumption if introducing new readers.
-- Do not add new env vars for values that belong in `system_settings` unless they are secrets or true process-only defaults.
+- Do not add new env vars for values that belong in `system_settings`.
 
 See `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.

@@ -1,4 +1,5 @@
-import { googleCalendarConfig } from './config.js';
+import { getGoogleCalendarConfig } from './runtimeConfig.js';
+import type { GoogleCalendarConfig } from './config.js';
 
 export type GoogleCalendarEventInput = {
   summary: string;
@@ -25,17 +26,20 @@ function eventBody(event: GoogleCalendarEventInput): Record<string, unknown> {
   };
 }
 
-export function createGoogleCalendarClient(fetchImpl: typeof fetch = globalThis.fetch): GoogleCalendarClient {
-  async function getAccessToken(): Promise<string> {
+export function createGoogleCalendarClient(
+  fetchImpl: typeof fetch = globalThis.fetch,
+  getConfig: () => Promise<GoogleCalendarConfig> = getGoogleCalendarConfig,
+): GoogleCalendarClient {
+  async function getAccessToken(config: GoogleCalendarConfig): Promise<string> {
     const tokenRes = await fetchImpl('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: googleCalendarConfig.clientId,
-        client_secret: googleCalendarConfig.clientSecret,
-        refresh_token: googleCalendarConfig.refreshToken,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        refresh_token: config.refreshToken,
         grant_type: 'refresh_token',
-        redirect_uri: googleCalendarConfig.redirectUri,
+        redirect_uri: config.redirectUri,
       }),
     });
     if (!tokenRes.ok) {
@@ -50,8 +54,9 @@ export function createGoogleCalendarClient(fetchImpl: typeof fetch = globalThis.
   }
 
   async function upsertEvent(googleEventId: string | null, event: GoogleCalendarEventInput): Promise<string> {
-    const accessToken = await getAccessToken();
-    const calendarId = encodeURIComponent(googleCalendarConfig.calendarId);
+    const config = await getConfig();
+    const accessToken = await getAccessToken(config);
+    const calendarId = encodeURIComponent(config.calendarId);
     const isUpdate = typeof googleEventId === 'string' && googleEventId.trim().length > 0;
     const path = isUpdate
       ? `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(googleEventId)}`
@@ -76,8 +81,9 @@ export function createGoogleCalendarClient(fetchImpl: typeof fetch = globalThis.
   }
 
   async function deleteEvent(googleEventId: string): Promise<void> {
-    const accessToken = await getAccessToken();
-    const calendarId = encodeURIComponent(googleCalendarConfig.calendarId);
+    const config = await getConfig();
+    const accessToken = await getAccessToken(config);
+    const calendarId = encodeURIComponent(config.calendarId);
     const response = await fetchImpl(
       `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(googleEventId)}`,
       {

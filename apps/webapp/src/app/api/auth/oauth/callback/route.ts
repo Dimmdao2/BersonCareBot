@@ -6,6 +6,11 @@ import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
 import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
+import {
+  getYandexOauthClientId,
+  getYandexOauthClientSecret,
+  getYandexOauthRedirectUri,
+} from "@/modules/system-settings/integrationRuntime";
 
 const OAUTH_STATE_COOKIE = "oauth_state_yandex";
 
@@ -46,9 +51,9 @@ export async function GET(request: Request) {
     );
   }
 
-  const clientId = env.YANDEX_OAUTH_CLIENT_ID?.trim();
-  const redirectUri = env.YANDEX_OAUTH_REDIRECT_URI?.trim();
-  const secret = env.YANDEX_OAUTH_CLIENT_SECRET?.trim();
+  const clientId = (await getYandexOauthClientId()).trim();
+  const redirectUri = (await getYandexOauthRedirectUri()).trim();
+  const secret = (await getYandexOauthClientSecret()).trim();
 
   if (!clientId || !redirectUri || !secret) {
     return NextResponse.redirect(

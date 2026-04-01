@@ -1,4 +1,4 @@
-import { rubitimeConfig } from './config.js';
+import { getRubitimeApiKey } from './runtimeConfig.js';
 
 type RubitimeApiEnvelope<TData> = {
   status?: string;
@@ -13,16 +13,20 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 async function postRubitimeApi2(input: {
-  method: 'get-record' | 'update-record' | 'remove-record' | 'create-record' | 'get-slots';
+  method: 'get-record' | 'update-record' | 'remove-record' | 'create-record' | 'get-schedule';
   body: Record<string, unknown>;
   fetchImpl?: typeof globalThis.fetch;
 }): Promise<unknown> {
+  const apiKey = (await getRubitimeApiKey()).trim();
+  if (!apiKey) {
+    throw new Error('RUBITIME_API_KEY_NOT_CONFIGURED');
+  }
   const fetchImpl = input.fetchImpl ?? globalThis.fetch;
   const url = `https://rubitime.ru/api2/${input.method}`;
   const response = await fetchImpl(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ rk: rubitimeConfig.apiKey, ...input.body }),
+    body: JSON.stringify({ rk: apiKey, ...input.body }),
   });
 
   const raw = await response.text();
@@ -51,7 +55,8 @@ async function postRubitimeApi2(input: {
   if (input.method === 'update-record' || input.method === 'remove-record' || input.method === 'create-record') {
     return data ?? {};
   }
-  return parsed.data ?? [];
+  // get-schedule: data is an object keyed by date, not an array
+  return parsed.data ?? {};
 }
 
 export async function fetchRubitimeRecordById(input: {
@@ -112,24 +117,29 @@ export async function createRubitimeRecord(input: {
   return postRubitimeApi2(req) as Promise<RubitimeRecordPayload>;
 }
 
-export type RubitimeSlotsRequest = {
-  type: 'in_person' | 'online';
-  city?: string;
-  category: 'rehab_lfk' | 'nutrition' | 'general';
-  date?: string;
+export type RubitimeScheduleRequest = {
+  branchId: number;
+  cooperatorId: number;
+  serviceId: number;
 };
 
-export async function fetchRubitimeSlots(input: {
-  query: RubitimeSlotsRequest;
+/**
+ * Получает доступное расписание через Rubitime api2/get-schedule.
+ * Возвращает сырой объект `data` из Rubitime envelope.
+ * Форма: { "YYYY-MM-DD": { "HH:MM": { available: bool } } }
+ * Парсинг и нормализацию выполняет scheduleNormalizer.ts.
+ */
+export async function fetchRubitimeSchedule(input: {
+  params: RubitimeScheduleRequest;
   fetchImpl?: typeof globalThis.fetch;
 }): Promise<unknown> {
   const req: Parameters<typeof postRubitimeApi2>[0] = {
-    method: 'get-slots',
+    method: 'get-schedule',
     body: {
-      type: input.query.type,
-      city: input.query.city,
-      category: input.query.category,
-      date: input.query.date,
+      branch_id: input.params.branchId,
+      cooperator_id: input.params.cooperatorId,
+      service_id: input.params.serviceId,
+      only_available: 1,
     },
   };
   if (input.fetchImpl !== undefined) req.fetchImpl = input.fetchImpl;

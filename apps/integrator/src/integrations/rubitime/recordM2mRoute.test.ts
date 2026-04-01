@@ -1,9 +1,11 @@
 import { createHmac } from 'node:crypto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { registerBersoncareSendEmailRoute } from '../bersoncare/sendEmailRoute.js';
 import * as mailer from '../email/mailer.js';
 import * as rubitimeClient from './client.js';
+import { _resetScheduleMappingCache } from './bookingScheduleMapping.js';
+import { resetRubitimeRuntimeConfigCache } from './runtimeConfig.js';
 
 const enqueueMessageRetryJob = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const dbQuery = vi.hoisted(() => vi.fn().mockResolvedValue({ rows: [] }));
@@ -70,6 +72,17 @@ function bookingEventBody(over: Record<string, unknown> = {}) {
     },
   };
 }
+
+const TEST_SCHEDULE_MAPPING = JSON.stringify([
+  {
+    type: 'online',
+    category: 'general',
+    branchId: 10,
+    cooperatorId: 20,
+    serviceId: 30,
+    durationMinutes: 60,
+  },
+]);
 
 describe('Rubitime record M2M routes', () => {
   beforeEach(() => {
@@ -244,5 +257,110 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     expect((doctorCalls[0]![0] as { payload?: { recipient?: { chatId?: number } } }).payload?.recipient?.chatId).toBe(
       telegramConfig.adminTelegramId,
     );
+  });
+});
+
+describe('POST /api/bersoncare/rubitime/slots', () => {
+  afterEach(() => {
+    _resetScheduleMappingCache();
+    resetRubitimeRuntimeConfigCache();
+    delete process.env.RUBITIME_SCHEDULE_MAPPING;
+  });
+
+  it('returns 200 with normalized slots for valid query and configured mapping', async () => {
+    process.env.RUBITIME_SCHEDULE_MAPPING = TEST_SCHEDULE_MAPPING;
+    const scheduleData = {
+      '2026-04-10': { '10:00': { available: true }, '11:00': { available: false } },
+      '2026-04-11': { '09:00': { available: true } },
+    };
+    vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockResolvedValue(scheduleData);
+    const app = await buildApp();
+    const body = JSON.stringify({ type: 'online', category: 'general' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.ok).toBe(true);
+    expect(Array.isArray(json.slots)).toBe(true);
+    expect(json.slots).toHaveLength(2);
+    expect(json.slots[0].date).toBe('2026-04-10');
+    expect(json.slots[0].slots).toHaveLength(1);
+  });
+
+  it('returns 400 when schedule mapping is not configured for query', async () => {
+    process.env.RUBITIME_SCHEDULE_MAPPING = TEST_SCHEDULE_MAPPING;
+    vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockResolvedValue({});
+    const app = await buildApp();
+    const body = JSON.stringify({ type: 'online', category: 'nutrition' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('slots_mapping_not_configured');
+  });
+
+  it('returns 400 for invalid slots query body', async () => {
+    const app = await buildApp();
+    const body = JSON.stringify({ type: 'unknown_type', category: 'general' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('invalid_slots_query');
+  });
+
+  it('returns 401 when signature is invalid', async () => {
+    const app = await buildApp();
+    const body = JSON.stringify({ type: 'online', category: 'general' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: {
+        'content-type': 'application/json',
+        'x-bersoncare-timestamp': String(Math.floor(Date.now() / 1000)),
+        'x-bersoncare-signature': 'bad-sig',
+      },
+      body,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 502 when Rubitime returns malformed schedule data (array instead of object)', async () => {
+    process.env.RUBITIME_SCHEDULE_MAPPING = TEST_SCHEDULE_MAPPING;
+    vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockResolvedValue([]);
+    const app = await buildApp();
+    const body = JSON.stringify({ type: 'online', category: 'general' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(502);
+    expect(JSON.parse(res.body).error).toBe('rubitime_schedule_malformed');
+  });
+
+  it('returns 502 when Rubitime call itself throws', async () => {
+    process.env.RUBITIME_SCHEDULE_MAPPING = TEST_SCHEDULE_MAPPING;
+    vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockRejectedValue(new Error('RUBITIME_HTTP_503: down'));
+    const app = await buildApp();
+    const body = JSON.stringify({ type: 'online', category: 'general' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(502);
   });
 });

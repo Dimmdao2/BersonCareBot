@@ -4,20 +4,16 @@
  * При ошибке — warn; БД-состояние является source of truth.
  */
 import { createHmac } from "node:crypto";
-import { env } from "@/config/env";
+import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
 import type { ReminderRule } from "./types";
-
-function getSecret(): string {
-  return env.INTEGRATOR_WEBHOOK_SECRET?.trim() || env.INTEGRATOR_SHARED_SECRET?.trim() || "";
-}
 
 function signPayload(timestamp: string, rawBody: string, secret: string): string {
   return createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("base64url");
 }
 
 export async function notifyIntegratorRuleUpdated(rule: ReminderRule): Promise<void> {
-  const baseUrl = env.INTEGRATOR_API_URL?.trim();
-  const secret = getSecret();
+  const baseUrl = (await getIntegratorApiUrl()).trim();
+  const secret = (await getIntegratorWebhookSecret()).trim();
 
   if (!baseUrl || !secret) {
     console.warn("[reminders] notifyIntegrator: INTEGRATOR_API_URL or secret not configured, skipping");

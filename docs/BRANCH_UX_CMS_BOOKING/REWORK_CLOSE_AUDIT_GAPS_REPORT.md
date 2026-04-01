@@ -41,3 +41,10 @@
 | nginx на хосте                                    | manual-prod |
 
 
+## Audit follow-up remediation (2026-04-01)
+
+- Закрыт риск логирования секретов в `PATCH /api/admin/settings`: значения secret-like ключей редактируются в БД, но в audit-логе пишутся как `[REDACTED]`.
+- Нормализован формат PATCH value: сервер приводит вход к `{ value: ... }`, что устраняет рассинхрон с `configAdapter` чтением.
+- В booking create-flow добавлен best-effort rollback внешней записи Rubitime, если локальное подтверждение падает по `slot_overlap`.
+- Добавлен unit-тест rollback-сценария (`patient-booking/service.test.ts`).
+- Устранены lint `no-secrets` блокеры для ошибок отсутствующего ключа в integrator (`MAX/SMSC` runtime path).

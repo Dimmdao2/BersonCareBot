@@ -22,6 +22,27 @@ type RuntimeConfigValues = {
   doctorTelegramIds: string;
   adminMaxIds: string;
   doctorMaxIds: string;
+  integratorWebhookSecret: string;
+  integratorWebappEntrySecret: string;
+  telegramBotToken: string;
+  googleCalendarEnabled: string;
+  googleCalendarId: string;
+  googleClientId: string;
+  googleClientSecret: string;
+  googleRedirectUri: string;
+  googleRefreshToken: string;
+  yandexOauthClientId: string;
+  yandexOauthClientSecret: string;
+  yandexOauthRedirectUri: string;
+  rubitimeApiKey: string;
+  rubitimeWebhookToken: string;
+  rubitimeScheduleMapping: string;
+  rubitimeWebhookUri: string;
+  maxApiKey: string;
+  maxWebhookSecret: string;
+  maxWebhookUri: string;
+  smscApiKey: string;
+  smscWebhookUri: string;
 };
 
 async function patchSetting(key: string, value: unknown): Promise<boolean> {
@@ -59,6 +80,27 @@ export function RuntimeConfigSection({
   doctorTelegramIds,
   adminMaxIds,
   doctorMaxIds,
+  integratorWebhookSecret,
+  integratorWebappEntrySecret,
+  telegramBotToken,
+  googleCalendarEnabled,
+  googleCalendarId,
+  googleClientId,
+  googleClientSecret,
+  googleRedirectUri,
+  googleRefreshToken,
+  yandexOauthClientId,
+  yandexOauthClientSecret,
+  yandexOauthRedirectUri,
+  rubitimeApiKey,
+  rubitimeWebhookToken,
+  rubitimeScheduleMapping,
+  rubitimeWebhookUri,
+  maxApiKey,
+  maxWebhookSecret,
+  maxWebhookUri,
+  smscApiKey,
+  smscWebhookUri,
 }: Props) {
   const [vals, setVals] = useState({
     integratorApiUrl,
@@ -72,6 +114,27 @@ export function RuntimeConfigSection({
     doctorTelegramIds,
     adminMaxIds,
     doctorMaxIds,
+    integratorWebhookSecret,
+    integratorWebappEntrySecret,
+    telegramBotToken,
+    googleCalendarEnabled,
+    googleCalendarId,
+    googleClientId,
+    googleClientSecret,
+    googleRedirectUri,
+    googleRefreshToken,
+    yandexOauthClientId,
+    yandexOauthClientSecret,
+    yandexOauthRedirectUri,
+    rubitimeApiKey,
+    rubitimeWebhookToken,
+    rubitimeScheduleMapping,
+    rubitimeWebhookUri,
+    maxApiKey,
+    maxWebhookSecret,
+    maxWebhookUri,
+    smscApiKey,
+    smscWebhookUri,
   });
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +180,27 @@ export function RuntimeConfigSection({
           patchSetting("doctor_telegram_ids", parseIdArray(vals.doctorTelegramIds)),
           patchSetting("admin_max_ids", parseIdArray(vals.adminMaxIds)),
           patchSetting("doctor_max_ids", parseIdArray(vals.doctorMaxIds)),
+          patchSetting("integrator_webhook_secret", vals.integratorWebhookSecret.trim()),
+          patchSetting("integrator_webapp_entry_secret", vals.integratorWebappEntrySecret.trim()),
+          patchSetting("telegram_bot_token", vals.telegramBotToken.trim()),
+          patchSetting("google_calendar_enabled", vals.googleCalendarEnabled.trim()),
+          patchSetting("google_calendar_id", vals.googleCalendarId.trim()),
+          patchSetting("google_client_id", vals.googleClientId.trim()),
+          patchSetting("google_client_secret", vals.googleClientSecret.trim()),
+          patchSetting("google_redirect_uri", vals.googleRedirectUri.trim()),
+          patchSetting("google_refresh_token", vals.googleRefreshToken.trim()),
+          patchSetting("yandex_oauth_client_id", vals.yandexOauthClientId.trim()),
+          patchSetting("yandex_oauth_client_secret", vals.yandexOauthClientSecret.trim()),
+          patchSetting("yandex_oauth_redirect_uri", vals.yandexOauthRedirectUri.trim()),
+          patchSetting("rubitime_api_key", vals.rubitimeApiKey.trim()),
+          patchSetting("rubitime_webhook_token", vals.rubitimeWebhookToken.trim()),
+          patchSetting("rubitime_schedule_mapping", vals.rubitimeScheduleMapping.trim()),
+          patchSetting("rubitime_webhook_uri", vals.rubitimeWebhookUri.trim()),
+          patchSetting("max_api_key", vals.maxApiKey.trim()),
+          patchSetting("max_webhook_secret", vals.maxWebhookSecret.trim()),
+          patchSetting("max_webhook_uri", vals.maxWebhookUri.trim()),
+          patchSetting("smsc_api_key", vals.smscApiKey.trim()),
+          patchSetting("smsc_webhook_uri", vals.smscWebhookUri.trim()),
         ]);
         if (results.some((r) => !r)) {
           setError("Не удалось сохранить часть настроек");
@@ -197,6 +281,44 @@ export function RuntimeConfigSection({
               disabled={isPending}
             />
           </label>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Интеграции: ключи и webhook URI</h3>
+          {([
+            ["integratorWebhookSecret", "INTEGRATOR_WEBHOOK_SECRET"],
+            ["integratorWebappEntrySecret", "INTEGRATOR_WEBAPP_ENTRY_SECRET"],
+            ["telegramBotToken", "TELEGRAM_BOT_TOKEN"],
+            ["googleCalendarEnabled", "GOOGLE_CALENDAR_ENABLED"],
+            ["googleCalendarId", "GOOGLE_CALENDAR_ID"],
+            ["googleClientId", "GOOGLE_CLIENT_ID"],
+            ["googleClientSecret", "GOOGLE_CLIENT_SECRET"],
+            ["googleRedirectUri", "GOOGLE_REDIRECT_URI"],
+            ["googleRefreshToken", "GOOGLE_REFRESH_TOKEN"],
+            ["yandexOauthClientId", "YANDEX_OAUTH_CLIENT_ID"],
+            ["yandexOauthClientSecret", "YANDEX_OAUTH_CLIENT_SECRET"],
+            ["yandexOauthRedirectUri", "YANDEX_OAUTH_REDIRECT_URI"],
+            ["rubitimeApiKey", "RUBITIME_API_KEY"],
+            ["rubitimeWebhookToken", "RUBITIME_WEBHOOK_TOKEN"],
+            ["rubitimeScheduleMapping", "RUBITIME_SCHEDULE_MAPPING"],
+            ["rubitimeWebhookUri", "RUBITIME_WEBHOOK_URI"],
+            ["maxApiKey", "MAX_API_KEY"],
+            ["maxWebhookSecret", "MAX_WEBHOOK_SECRET"],
+            ["maxWebhookUri", "MAX_WEBHOOK_URI"],
+            ["smscApiKey", "SMSC_API_KEY"],
+            ["smscWebhookUri", "SMSC_WEBHOOK_URI"],
+          ] as [keyof typeof vals, string][]).map(([k, label]) => (
+            <label key={k} className="flex flex-col gap-1">
+              <span className="text-xs font-medium">{label}</span>
+              <Input
+                type="text"
+                value={vals[k]}
+                onChange={set(k)}
+                disabled={isPending}
+                autoComplete="off"
+              />
+            </label>
+          ))}
         </div>
 
         <div className="flex flex-col gap-4">
