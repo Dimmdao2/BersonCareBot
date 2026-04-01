@@ -1,22 +1,17 @@
-import {
-  getAdminSettingString,
-  resetAdminRuntimeConfigCache,
-} from '../../infra/db/repos/adminRuntimeConfig.js';
 import { rubitimeConfig } from './config.js';
 
 export function resetRubitimeRuntimeConfigCache(): void {
-  resetAdminRuntimeConfigCache();
+  // no-op: retained for test compatibility
 }
 
 export async function getRubitimeApiKey(): Promise<string> {
-  return getAdminSettingString('rubitime_api_key', rubitimeConfig.apiKey);
+  return rubitimeConfig.apiKey;
 }
 
 export async function getRubitimeWebhookToken(): Promise<string> {
-  return getAdminSettingString('rubitime_webhook_token', rubitimeConfig.webhookToken);
+  return rubitimeConfig.webhookToken;
 }
 
-export async function getRubitimeScheduleMappingRaw(): Promise<string> {
-  const fallback = process.env.RUBITIME_SCHEDULE_MAPPING?.trim() ?? '';
-  return getAdminSettingString('rubitime_schedule_mapping', fallback);
-}
+// NOTE: RUBITIME_SCHEDULE_MAPPING env var has been removed.
+// Booking profile mapping (type/category/city -> Rubitime IDs) is now stored in DB.
+// See: apps/integrator/src/integrations/rubitime/db/bookingProfilesRepo.ts

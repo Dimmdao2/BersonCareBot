@@ -17,6 +17,7 @@ import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
 import {
   parseBookingLifecycleEvent,
   parseRubitimeSlotsQuery,
+  parseRubitimeCreateRecordInput,
   type BookingLifecycleEventValidated,
   type BookingLifecyclePayloadValidated,
 } from './schema.js';
@@ -385,18 +386,47 @@ export async function registerRubitimeRecordM2mRoutes(
     if (!g.ok) {
       return reply.code(g.code).send({ ok: false, error: g.err });
     }
-    const data = typeof request.body === 'object' && request.body !== null
-      ? (request.body as Record<string, unknown>)
-      : {};
+    const parsed = parseRubitimeCreateRecordInput(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ ok: false, error: 'invalid_create_record_input' });
+    }
+    const input = parsed.data;
+
+    // Resolve Rubitime IDs from booking profile in DB
+    const scheduleParams = await resolveScheduleParams({
+      type: input.type,
+      category: input.category,
+      ...(input.city ? { city: input.city } : {}),
+    });
+    if (!scheduleParams) {
+      logger.warn({ type: input.type, category: input.category, city: input.city }, 'rubitime create-record: no booking profile for query');
+      return reply.code(400).send({ ok: false, error: 'slots_mapping_not_configured' });
+    }
+
+    // Convert ISO slotStart to Rubitime datetime format: "YYYY-MM-DD HH:mm:ss"
+    const rubitimeDatetime = input.slotStart.slice(0, 19).replace('T', ' ');
+
+    const rubitimePayload: Record<string, unknown> = {
+      branch_id:     scheduleParams.branchId,
+      cooperator_id: scheduleParams.cooperatorId,
+      service_id:    scheduleParams.serviceId,
+      record:        rubitimeDatetime,
+      name:          input.contactName,
+      phone:         input.contactPhone,
+    };
+    if (input.contactEmail && input.contactEmail.trim()) {
+      rubitimePayload.email = input.contactEmail.trim();
+    }
+
     try {
-      const result = await createRubitimeRecord({ data });
+      const result = await createRubitimeRecord({ data: rubitimePayload });
       const recordId = (typeof result.id === 'string' || typeof result.id === 'number')
         ? String(result.id)
         : null;
       return reply.code(200).send({ ok: true, recordId, data: result });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      logger.warn({ err }, 'rubitime create-record failed');
+      logger.warn({ err, type: input.type, category: input.category }, 'rubitime create-record failed');
       return reply.code(502).send({ ok: false, error: msg });
     }
   });

@@ -3,7 +3,6 @@ set -euo pipefail
 
 PROJECT_ROOT=/opt/projects/bersoncarebot
 ENV_FILE=/opt/env/bersoncarebot/webapp.prod
-API_ENV_FILE=/opt/env/bersoncarebot/api.prod
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 WEBAPP_PORT=6200
@@ -72,9 +71,6 @@ set +a
 sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
 pnpm --dir apps/webapp run migrate
-# Seed integration keys/URIs into webapp system_settings (admin) from env files (fill-empty-only).
-# api.prod is optional for webapp-only deploy; script handles missing file.
-pnpm --dir apps/webapp run seed:system-settings:from-env -- --webapp-env "${ENV_FILE}" --api-env "${API_ENV_FILE}"
 
 sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
 sleep 3

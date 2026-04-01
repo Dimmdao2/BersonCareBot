@@ -31,19 +31,6 @@ function loadMaxConfigFromEnv(): z.input<typeof MaxConfigSchema> {
       ? Number(adminUserIdRaw)
       : undefined;
 
-  if (enabled && !apiKey && process.env.NODE_ENV === 'production' && typeof process.emitWarning === 'function') {
-    process.emitWarning(
-      'MAX_ENABLED=true and MAX_API_KEY is empty in env. Runtime will read MAX API key from admin system_settings with env fallback.',
-      'MaxConfig',
-    );
-  }
-  if (enabled && apiKey && !webhookSecret && process.env.NODE_ENV === 'production' && typeof process.emitWarning === 'function') {
-    process.emitWarning(
-      'MAX_WEBHOOK_SECRET is empty in env. Runtime will read webhook secret from admin system_settings with env fallback.',
-      'MaxConfig',
-    );
-  }
-
   return {
     enabled,
     apiKey,

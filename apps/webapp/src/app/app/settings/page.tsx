@@ -7,6 +7,7 @@ import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsSection } from "./AdminSettingsSection";
 import { RuntimeConfigSection } from "./RuntimeConfigSection";
+import { RubitimeSection } from "./RubitimeSection";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -58,45 +59,17 @@ export default async function SettingsPage() {
 
   const runtimeConfig = isAdmin && adminMode
     ? {
-        integratorApiUrl: String(getValueJson(adminSettingsList.find((x) => x.key === "integrator_api_url")?.valueJson, "") ?? ""),
-        bookingUrl: String(getValueJson(adminSettingsList.find((x) => x.key === "booking_url")?.valueJson, "") ?? ""),
         supportContactUrl: (() => {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "support_contact_url")?.valueJson, "");
           const s = typeof raw === "string" ? raw.trim() : "";
           return s.length > 0 ? s : DEFAULT_SUPPORT_CONTACT_URL;
         })(),
-        bookingDisplayTimezone: String(
-          getValueJson(adminSettingsList.find((x) => x.key === "booking_display_timezone")?.valueJson, "Europe/Moscow") ??
-            "Europe/Moscow",
-        ),
-        telegramBotUsername: String(getValueJson(adminSettingsList.find((x) => x.key === "telegram_bot_username")?.valueJson, "") ?? ""),
         allowedTelegramIds: idArrayToString(adminSettingsList, "allowed_telegram_ids"),
         allowedMaxIds: idArrayToString(adminSettingsList, "allowed_max_ids"),
         adminTelegramIds: idArrayToString(adminSettingsList, "admin_telegram_ids"),
         doctorTelegramIds: idArrayToString(adminSettingsList, "doctor_telegram_ids"),
         adminMaxIds: idArrayToString(adminSettingsList, "admin_max_ids"),
         doctorMaxIds: idArrayToString(adminSettingsList, "doctor_max_ids"),
-        integratorWebhookSecret: String(getValueJson(adminSettingsList.find((x) => x.key === "integrator_webhook_secret")?.valueJson, "") ?? ""),
-        integratorWebappEntrySecret: String(getValueJson(adminSettingsList.find((x) => x.key === "integrator_webapp_entry_secret")?.valueJson, "") ?? ""),
-        telegramBotToken: String(getValueJson(adminSettingsList.find((x) => x.key === "telegram_bot_token")?.valueJson, "") ?? ""),
-        googleCalendarEnabled: String(getValueJson(adminSettingsList.find((x) => x.key === "google_calendar_enabled")?.valueJson, "") ?? ""),
-        googleCalendarId: String(getValueJson(adminSettingsList.find((x) => x.key === "google_calendar_id")?.valueJson, "") ?? ""),
-        googleClientId: String(getValueJson(adminSettingsList.find((x) => x.key === "google_client_id")?.valueJson, "") ?? ""),
-        googleClientSecret: String(getValueJson(adminSettingsList.find((x) => x.key === "google_client_secret")?.valueJson, "") ?? ""),
-        googleRedirectUri: String(getValueJson(adminSettingsList.find((x) => x.key === "google_redirect_uri")?.valueJson, "") ?? ""),
-        googleRefreshToken: String(getValueJson(adminSettingsList.find((x) => x.key === "google_refresh_token")?.valueJson, "") ?? ""),
-        yandexOauthClientId: String(getValueJson(adminSettingsList.find((x) => x.key === "yandex_oauth_client_id")?.valueJson, "") ?? ""),
-        yandexOauthClientSecret: String(getValueJson(adminSettingsList.find((x) => x.key === "yandex_oauth_client_secret")?.valueJson, "") ?? ""),
-        yandexOauthRedirectUri: String(getValueJson(adminSettingsList.find((x) => x.key === "yandex_oauth_redirect_uri")?.valueJson, "") ?? ""),
-        rubitimeApiKey: String(getValueJson(adminSettingsList.find((x) => x.key === "rubitime_api_key")?.valueJson, "") ?? ""),
-        rubitimeWebhookToken: String(getValueJson(adminSettingsList.find((x) => x.key === "rubitime_webhook_token")?.valueJson, "") ?? ""),
-        rubitimeScheduleMapping: String(getValueJson(adminSettingsList.find((x) => x.key === "rubitime_schedule_mapping")?.valueJson, "") ?? ""),
-        rubitimeWebhookUri: String(getValueJson(adminSettingsList.find((x) => x.key === "rubitime_webhook_uri")?.valueJson, "") ?? ""),
-        maxApiKey: String(getValueJson(adminSettingsList.find((x) => x.key === "max_api_key")?.valueJson, "") ?? ""),
-        maxWebhookSecret: String(getValueJson(adminSettingsList.find((x) => x.key === "max_webhook_secret")?.valueJson, "") ?? ""),
-        maxWebhookUri: String(getValueJson(adminSettingsList.find((x) => x.key === "max_webhook_uri")?.valueJson, "") ?? ""),
-        smscApiKey: String(getValueJson(adminSettingsList.find((x) => x.key === "smsc_api_key")?.valueJson, "") ?? ""),
-        smscWebhookUri: String(getValueJson(adminSettingsList.find((x) => x.key === "smsc_webhook_uri")?.valueJson, "") ?? ""),
       }
     : null;
 
@@ -123,6 +96,11 @@ export default async function SettingsPage() {
           {isAdmin && adminMode && runtimeConfig && (
             <div className="mt-6">
               <RuntimeConfigSection {...runtimeConfig} />
+            </div>
+          )}
+          {isAdmin && adminMode && (
+            <div className="mt-6">
+              <RubitimeSection />
             </div>
           )}
         </div>

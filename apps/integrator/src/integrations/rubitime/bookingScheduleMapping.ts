@@ -1,34 +1,15 @@
 /**
- * Маппинг доменного booking query (type/city/category) -> Rubitime schedule params.
+ * Booking schedule resolver: доменный query (type/category/city) -> Rubitime params.
  *
- * Конфигурируется через admin setting в `system_settings`,
- * с env fallback на миграционный период.
- * Формат элемента:
- * {
- *   "type": "in_person" | "online",
- *   "city": "moscow" | "spb" | ... (optional, required for in_person),
- *   "category": "rehab_lfk" | "nutrition" | "general",
- *   "branchId": 1,         // branch_id в Rubitime API
- *   "cooperatorId": 1,     // cooperator_id (специалист)
- *   "serviceId": 1,        // service_id (услуга)
- *   "durationMinutes": 60  // длительность слота для вычисления endAt
- * }
+ * Источник истины — таблица rubitime_booking_profiles в DB.
+ * env-переменная RUBITIME_SCHEDULE_MAPPING больше не используется.
  *
- * Значение env должно быть JSON-массивом mapping entries.
+ * Публичный интерфейс сохранён для совместимости с остальным кодом.
  */
-import { getRubitimeScheduleMappingRaw } from './runtimeConfig.js';
+import { createDbPort } from '../../infra/db/client.js';
+import { resolveBookingProfile } from './db/bookingProfilesRepo.js';
 
 export type BookingScheduleParams = {
-  branchId: number;
-  cooperatorId: number;
-  serviceId: number;
-  durationMinutes: number;
-};
-
-type MappingEntry = {
-  type: 'in_person' | 'online';
-  city?: string;
-  category: string;
   branchId: number;
   cooperatorId: number;
   serviceId: number;
@@ -41,68 +22,28 @@ type BookingSlotsQueryInput = {
   category: string;
 };
 
-function isValidEntry(e: unknown): e is MappingEntry {
-  if (typeof e !== 'object' || e === null) return false;
-  const x = e as Record<string, unknown>;
-  return (
-    (x.type === 'in_person' || x.type === 'online') &&
-    typeof x.category === 'string' &&
-    typeof x.branchId === 'number' &&
-    Number.isFinite(x.branchId) &&
-    typeof x.cooperatorId === 'number' &&
-    Number.isFinite(x.cooperatorId) &&
-    typeof x.serviceId === 'number' &&
-    Number.isFinite(x.serviceId) &&
-    typeof x.durationMinutes === 'number' &&
-    Number.isFinite(x.durationMinutes) &&
-    x.durationMinutes > 0
-  );
-}
-
-function parseScheduleMapping(raw: string | undefined): MappingEntry[] {
-  if (!raw || !raw.trim()) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidEntry);
-  } catch {
-    return [];
-  }
-}
-
-let _cachedMapping: MappingEntry[] | null = null;
-
-/** @internal for tests */
+/** @internal — kept for test compatibility; no-op in DB-backed mode. */
 export function _resetScheduleMappingCache(): void {
-  _cachedMapping = null;
-}
-
-async function getScheduleMapping(): Promise<MappingEntry[]> {
-  if (_cachedMapping !== null) return _cachedMapping;
-  _cachedMapping = parseScheduleMapping(await getRubitimeScheduleMappingRaw());
-  return _cachedMapping;
+  // no-op: no longer cache-based
 }
 
 /**
- * Преобразует доменный booking query в Rubitime schedule params.
- * Возвращает null, если маппинг не найден.
+ * Преобразует доменный booking query в Rubitime schedule params через DB.
+ * Возвращает null, если активный профиль не найден.
  */
 export async function resolveScheduleParams(query: BookingSlotsQueryInput): Promise<BookingScheduleParams | null> {
-  const entries = await getScheduleMapping();
-  const match = entries.find((e) => {
-    if (e.type !== query.type) return false;
-    if (e.category !== query.category) return false;
-    if (query.type === 'in_person') {
-      if (!query.city) return false;
-      if (e.city && e.city !== query.city) return false;
-    }
-    return true;
-  });
-  if (!match) return null;
+  const db = createDbPort();
+  const dbQuery: { type: 'in_person' | 'online'; category: string; city?: string } = {
+    type: query.type,
+    category: query.category,
+  };
+  if (query.city !== undefined) dbQuery.city = query.city;
+  const profile = await resolveBookingProfile(db, dbQuery);
+  if (!profile) return null;
   return {
-    branchId: match.branchId,
-    cooperatorId: match.cooperatorId,
-    serviceId: match.serviceId,
-    durationMinutes: match.durationMinutes,
+    branchId: profile.rubitimeBranchId,
+    cooperatorId: profile.rubitimeCooperatorId,
+    serviceId: profile.rubitimeServiceId,
+    durationMinutes: profile.durationMinutes,
   };
 }

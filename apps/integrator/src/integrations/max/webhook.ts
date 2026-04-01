@@ -49,7 +49,7 @@ function buildMaxFacts(data: MaxUpdateValidated): Record<string, unknown> {
 
 /**
  * Registers MAX webhook route. Flow: secret check -> validate -> map -> eventGateway.
- * Production: set MAX webhook secret in admin system_settings and ensure HTTPS endpoint is registered with MAX (POST /subscriptions).
+ * Production: set MAX webhook secret in env (MAX_WEBHOOK_SECRET) and ensure HTTPS endpoint is registered with MAX (POST /subscriptions).
  * Blocker: MAX only delivers to HTTPS on port 443; for dev use fixture/long-polling until public URL is ready.
  */
 export async function registerMaxWebhookRoutes(

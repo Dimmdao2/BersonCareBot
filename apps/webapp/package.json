@@ -15,7 +15,6 @@
     "test:e2e:live": "E2E_LIVE_DEV=1 vitest --run e2e/live-dev.test.ts",
     "test:with-db": "USE_REAL_DATABASE=1 vitest --run",
     "migrate": "node scripts/run-migrations.mjs",
-    "seed:system-settings:from-env": "node scripts/seed-system-settings-from-env.mjs",
     "backfill-person-domain": "node scripts/backfill-person-domain.mjs",
     "backfill-communication-history": "node scripts/backfill-communication-history.mjs",
     "reconcile-person-domain": "node scripts/reconcile-person-domain.mjs",

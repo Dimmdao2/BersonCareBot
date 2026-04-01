@@ -20,32 +20,32 @@ describe("configAdapter", () => {
     const mockPool = { query: vi.fn().mockResolvedValue({ rows: [] }) };
     vi.mocked(getPool).mockReturnValue(mockPool as never);
 
-    const result = await getConfigValue("integrator_api_url", "http://localhost:4200");
-    expect(result).toBe("http://localhost:4200");
+    const result = await getConfigValue("support_contact_url", "https://t.me/default_support");
+    expect(result).toBe("https://t.me/default_support");
   });
 
   it("returns DB value over env fallback when DB has a non-empty value", async () => {
     const mockPool = {
       query: vi.fn().mockResolvedValue({
-        rows: [{ value_json: { value: "http://prod-integrator.example.com" } }],
+        rows: [{ value_json: { value: "https://t.me/prod_support" } }],
       }),
     };
     vi.mocked(getPool).mockReturnValue(mockPool as never);
 
-    const result = await getConfigValue("integrator_api_url", "http://localhost:4200");
-    expect(result).toBe("http://prod-integrator.example.com");
+    const result = await getConfigValue("support_contact_url", "https://t.me/default_support");
+    expect(result).toBe("https://t.me/prod_support");
   });
 
   it("uses cache on second call within TTL", async () => {
     const mockPool = {
       query: vi.fn().mockResolvedValue({
-        rows: [{ value_json: { value: "http://cached-value.example.com" } }],
+        rows: [{ value_json: { value: "https://t.me/cached_support" } }],
       }),
     };
     vi.mocked(getPool).mockReturnValue(mockPool as never);
 
-    await getConfigValue("integrator_api_url", "fallback");
-    await getConfigValue("integrator_api_url", "fallback");
+    await getConfigValue("support_contact_url", "fallback");
+    await getConfigValue("support_contact_url", "fallback");
 
     expect(mockPool.query).toHaveBeenCalledTimes(1);
   });
@@ -58,18 +58,18 @@ describe("configAdapter", () => {
     };
     vi.mocked(getPool).mockReturnValue(mockPool as never);
 
-    await getConfigValue("integrator_api_url", "fallback");
-    await getConfigValue("booking_url", "fallback2");
+    await getConfigValue("support_contact_url", "fallback");
+    await getConfigValue("admin_telegram_ids", "fallback2");
     expect(mockPool.query).toHaveBeenCalledTimes(2);
 
-    invalidateConfigKey("integrator_api_url");
+    invalidateConfigKey("support_contact_url");
 
-    await getConfigValue("integrator_api_url", "fallback");
-    await getConfigValue("booking_url", "fallback2"); // should use cache
+    await getConfigValue("support_contact_url", "fallback");
+    await getConfigValue("admin_telegram_ids", "fallback2"); // should use cache
     expect(mockPool.query).toHaveBeenCalledTimes(3);
   });
 
-  it("getConfigBool returns true for 'true' string", async () => {
+  it("getConfigBool returns true for boolean true in DB", async () => {
     const mockPool = {
       query: vi.fn().mockResolvedValue({
         rows: [{ value_json: { value: true } }],
@@ -77,7 +77,7 @@ describe("configAdapter", () => {
     };
     vi.mocked(getPool).mockReturnValue(mockPool as never);
 
-    const result = await getConfigBool("google_calendar_enabled", false);
+    const result = await getConfigBool("dev_mode", false);
     expect(result).toBe(true);
   });
 
@@ -85,7 +85,7 @@ describe("configAdapter", () => {
     const mockPool = { query: vi.fn().mockResolvedValue({ rows: [] }) };
     vi.mocked(getPool).mockReturnValue(mockPool as never);
 
-    const result = await getConfigBool("google_calendar_enabled", false);
+    const result = await getConfigBool("dev_mode", false);
     expect(result).toBe(false);
   });
 
@@ -95,7 +95,7 @@ describe("configAdapter", () => {
     };
     vi.mocked(getPool).mockReturnValue(mockPool as never);
 
-    const result = await getConfigValue("integrator_api_url", "http://fallback.example.com");
-    expect(result).toBe("http://fallback.example.com");
+    const result = await getConfigValue("support_contact_url", "https://t.me/fallback_support");
+    expect(result).toBe("https://t.me/fallback_support");
   });
 });

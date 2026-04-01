@@ -5,16 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const BOOKING_DISPLAY_TZ_PATTERN = /^[A-Za-z_]+(\/[A-Za-z_]+)*$/;
-
 type RuntimeConfigValues = {
-  integratorApiUrl: string;
-  bookingUrl: string;
   /** HTTPS ссылка поддержки (t.me и т.п.), см. getSupportContactUrl. */
   supportContactUrl: string;
-  /** IANA timezone for booking notification text (integrator reads system_settings). */
-  bookingDisplayTimezone: string;
-  telegramBotUsername: string;
   /** JSON-array strings */
   allowedTelegramIds: string;
   allowedMaxIds: string;
@@ -22,27 +15,6 @@ type RuntimeConfigValues = {
   doctorTelegramIds: string;
   adminMaxIds: string;
   doctorMaxIds: string;
-  integratorWebhookSecret: string;
-  integratorWebappEntrySecret: string;
-  telegramBotToken: string;
-  googleCalendarEnabled: string;
-  googleCalendarId: string;
-  googleClientId: string;
-  googleClientSecret: string;
-  googleRedirectUri: string;
-  googleRefreshToken: string;
-  yandexOauthClientId: string;
-  yandexOauthClientSecret: string;
-  yandexOauthRedirectUri: string;
-  rubitimeApiKey: string;
-  rubitimeWebhookToken: string;
-  rubitimeScheduleMapping: string;
-  rubitimeWebhookUri: string;
-  maxApiKey: string;
-  maxWebhookSecret: string;
-  maxWebhookUri: string;
-  smscApiKey: string;
-  smscWebhookUri: string;
 };
 
 async function patchSetting(key: string, value: unknown): Promise<boolean> {
@@ -69,72 +41,22 @@ function parseIdArray(raw: string): string[] {
 type Props = RuntimeConfigValues;
 
 export function RuntimeConfigSection({
-  integratorApiUrl,
-  bookingUrl,
   supportContactUrl,
-  bookingDisplayTimezone,
-  telegramBotUsername,
   allowedTelegramIds,
   allowedMaxIds,
   adminTelegramIds,
   doctorTelegramIds,
   adminMaxIds,
   doctorMaxIds,
-  integratorWebhookSecret,
-  integratorWebappEntrySecret,
-  telegramBotToken,
-  googleCalendarEnabled,
-  googleCalendarId,
-  googleClientId,
-  googleClientSecret,
-  googleRedirectUri,
-  googleRefreshToken,
-  yandexOauthClientId,
-  yandexOauthClientSecret,
-  yandexOauthRedirectUri,
-  rubitimeApiKey,
-  rubitimeWebhookToken,
-  rubitimeScheduleMapping,
-  rubitimeWebhookUri,
-  maxApiKey,
-  maxWebhookSecret,
-  maxWebhookUri,
-  smscApiKey,
-  smscWebhookUri,
 }: Props) {
   const [vals, setVals] = useState({
-    integratorApiUrl,
-    bookingUrl,
     supportContactUrl,
-    bookingDisplayTimezone,
-    telegramBotUsername,
     allowedTelegramIds,
     allowedMaxIds,
     adminTelegramIds,
     doctorTelegramIds,
     adminMaxIds,
     doctorMaxIds,
-    integratorWebhookSecret,
-    integratorWebappEntrySecret,
-    telegramBotToken,
-    googleCalendarEnabled,
-    googleCalendarId,
-    googleClientId,
-    googleClientSecret,
-    googleRedirectUri,
-    googleRefreshToken,
-    yandexOauthClientId,
-    yandexOauthClientSecret,
-    yandexOauthRedirectUri,
-    rubitimeApiKey,
-    rubitimeWebhookToken,
-    rubitimeScheduleMapping,
-    rubitimeWebhookUri,
-    maxApiKey,
-    maxWebhookSecret,
-    maxWebhookUri,
-    smscApiKey,
-    smscWebhookUri,
   });
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,12 +71,6 @@ export function RuntimeConfigSection({
     setError(null);
     startTransition(async () => {
       try {
-        const tzRaw = vals.bookingDisplayTimezone.trim();
-        const tz = tzRaw.length > 0 ? tzRaw : "Europe/Moscow";
-        if (!BOOKING_DISPLAY_TZ_PATTERN.test(tz)) {
-          setError("Некорректный часовой пояс (IANA, например Europe/Moscow)");
-          return;
-        }
         const supportRaw = vals.supportContactUrl.trim();
         if (supportRaw.length > 0) {
           try {
@@ -169,38 +85,13 @@ export function RuntimeConfigSection({
           }
         }
         const results = await Promise.all([
-          patchSetting("integrator_api_url", vals.integratorApiUrl.trim()),
-          patchSetting("booking_url", vals.bookingUrl.trim()),
           patchSetting("support_contact_url", supportRaw),
-          patchSetting("booking_display_timezone", tz),
-          patchSetting("telegram_bot_username", vals.telegramBotUsername.trim()),
           patchSetting("allowed_telegram_ids", parseIdArray(vals.allowedTelegramIds)),
           patchSetting("allowed_max_ids", parseIdArray(vals.allowedMaxIds)),
           patchSetting("admin_telegram_ids", parseIdArray(vals.adminTelegramIds)),
           patchSetting("doctor_telegram_ids", parseIdArray(vals.doctorTelegramIds)),
           patchSetting("admin_max_ids", parseIdArray(vals.adminMaxIds)),
           patchSetting("doctor_max_ids", parseIdArray(vals.doctorMaxIds)),
-          patchSetting("integrator_webhook_secret", vals.integratorWebhookSecret.trim()),
-          patchSetting("integrator_webapp_entry_secret", vals.integratorWebappEntrySecret.trim()),
-          patchSetting("telegram_bot_token", vals.telegramBotToken.trim()),
-          patchSetting("google_calendar_enabled", vals.googleCalendarEnabled.trim()),
-          patchSetting("google_calendar_id", vals.googleCalendarId.trim()),
-          patchSetting("google_client_id", vals.googleClientId.trim()),
-          patchSetting("google_client_secret", vals.googleClientSecret.trim()),
-          patchSetting("google_redirect_uri", vals.googleRedirectUri.trim()),
-          patchSetting("google_refresh_token", vals.googleRefreshToken.trim()),
-          patchSetting("yandex_oauth_client_id", vals.yandexOauthClientId.trim()),
-          patchSetting("yandex_oauth_client_secret", vals.yandexOauthClientSecret.trim()),
-          patchSetting("yandex_oauth_redirect_uri", vals.yandexOauthRedirectUri.trim()),
-          patchSetting("rubitime_api_key", vals.rubitimeApiKey.trim()),
-          patchSetting("rubitime_webhook_token", vals.rubitimeWebhookToken.trim()),
-          patchSetting("rubitime_schedule_mapping", vals.rubitimeScheduleMapping.trim()),
-          patchSetting("rubitime_webhook_uri", vals.rubitimeWebhookUri.trim()),
-          patchSetting("max_api_key", vals.maxApiKey.trim()),
-          patchSetting("max_webhook_secret", vals.maxWebhookSecret.trim()),
-          patchSetting("max_webhook_uri", vals.maxWebhookUri.trim()),
-          patchSetting("smsc_api_key", vals.smscApiKey.trim()),
-          patchSetting("smsc_webhook_uri", vals.smscWebhookUri.trim()),
         ]);
         if (results.some((r) => !r)) {
           setError("Не удалось сохранить часть настроек");
@@ -214,37 +105,17 @@ export function RuntimeConfigSection({
   }
 
   return (
-    <Card className="border-amber-500/40 ring-amber-500/20">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-amber-700 dark:text-amber-400">Runtime конфиг (DB override)</CardTitle>
+        <CardTitle>Runtime конфиг (DB)</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Переопределяет соответствующие переменные из .env. Пустое поле — использовать env-значение. Изменения применяются в течение 60 сек (TTL кэш).
+          Изменения применяются сразу. Интеграционные ключи и секреты управляются через env.
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
 
         <div className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">URL-адреса</h3>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">INTEGRATOR_API_URL</span>
-            <Input
-              type="url"
-              placeholder="https://integrator.example.com"
-              value={vals.integratorApiUrl}
-              onChange={set("integratorApiUrl")}
-              disabled={isPending}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Booking URL</span>
-            <Input
-              type="url"
-              placeholder="https://booking.example.com"
-              value={vals.bookingUrl}
-              onChange={set("bookingUrl")}
-              disabled={isPending}
-            />
-          </label>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Контакты</h3>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Support contact URL (HTTPS)</span>
             <Input
@@ -258,67 +129,6 @@ export function RuntimeConfigSection({
               Ссылка «Написать в поддержку» в формах OTP и на странице справки. Пустое — дефолт из кода.
             </span>
           </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Booking display timezone (IANA)</span>
-            <Input
-              type="text"
-              placeholder="Europe/Moscow"
-              value={vals.bookingDisplayTimezone}
-              onChange={set("bookingDisplayTimezone")}
-              disabled={isPending}
-            />
-            <span className="text-xs text-muted-foreground">
-              Текст напоминаний и уведомлений о записи в integrator. Пустое поле при сохранении → Europe/Moscow.
-            </span>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Telegram bot @username</span>
-            <Input
-              type="text"
-              placeholder="MyBot"
-              value={vals.telegramBotUsername}
-              onChange={set("telegramBotUsername")}
-              disabled={isPending}
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Интеграции: ключи и webhook URI</h3>
-          {([
-            ["integratorWebhookSecret", "INTEGRATOR_WEBHOOK_SECRET"],
-            ["integratorWebappEntrySecret", "INTEGRATOR_WEBAPP_ENTRY_SECRET"],
-            ["telegramBotToken", "TELEGRAM_BOT_TOKEN"],
-            ["googleCalendarEnabled", "GOOGLE_CALENDAR_ENABLED"],
-            ["googleCalendarId", "GOOGLE_CALENDAR_ID"],
-            ["googleClientId", "GOOGLE_CLIENT_ID"],
-            ["googleClientSecret", "GOOGLE_CLIENT_SECRET"],
-            ["googleRedirectUri", "GOOGLE_REDIRECT_URI"],
-            ["googleRefreshToken", "GOOGLE_REFRESH_TOKEN"],
-            ["yandexOauthClientId", "YANDEX_OAUTH_CLIENT_ID"],
-            ["yandexOauthClientSecret", "YANDEX_OAUTH_CLIENT_SECRET"],
-            ["yandexOauthRedirectUri", "YANDEX_OAUTH_REDIRECT_URI"],
-            ["rubitimeApiKey", "RUBITIME_API_KEY"],
-            ["rubitimeWebhookToken", "RUBITIME_WEBHOOK_TOKEN"],
-            ["rubitimeScheduleMapping", "RUBITIME_SCHEDULE_MAPPING"],
-            ["rubitimeWebhookUri", "RUBITIME_WEBHOOK_URI"],
-            ["maxApiKey", "MAX_API_KEY"],
-            ["maxWebhookSecret", "MAX_WEBHOOK_SECRET"],
-            ["maxWebhookUri", "MAX_WEBHOOK_URI"],
-            ["smscApiKey", "SMSC_API_KEY"],
-            ["smscWebhookUri", "SMSC_WEBHOOK_URI"],
-          ] as [keyof typeof vals, string][]).map(([k, label]) => (
-            <label key={k} className="flex flex-col gap-1">
-              <span className="text-xs font-medium">{label}</span>
-              <Input
-                type="text"
-                value={vals[k]}
-                onChange={set(k)}
-                disabled={isPending}
-                autoComplete="off"
-              />
-            </label>
-          ))}
         </div>
 
         <div className="flex flex-col gap-4">
@@ -345,8 +155,8 @@ export function RuntimeConfigSection({
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="border-amber-500/50" onClick={handleSave} disabled={isPending}>
-            {isPending ? "Сохранение…" : "Сохранить runtime конфиг"}
+          <Button variant="outline" onClick={handleSave} disabled={isPending}>
+            {isPending ? "Сохранение…" : "Сохранить"}
           </Button>
           {saved && <span className="text-sm text-green-600">Сохранено</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}

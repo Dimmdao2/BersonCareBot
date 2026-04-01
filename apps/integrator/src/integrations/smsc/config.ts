@@ -20,12 +20,6 @@ function loadSmscConfigFromEnv(): z.input<typeof SmscConfigSchema> {
   const enabled = enabledRaw === 'false' || enabledRaw === '0' ? false : true;
   const apiKey = process.env.SMSC_API_KEY?.trim() ?? '';
   const baseUrlRaw = process.env.SMSC_BASE_URL?.trim() || 'https://smsc.ru/sys/send.php';
-  if (enabled && !apiKey && typeof process !== 'undefined' && process.emitWarning) {
-    process.emitWarning(
-      'SMSC_ENABLED=true and SMSC_API_KEY is empty in env. Runtime will read SMSC API key from admin system_settings with env fallback.',
-      'SMSCConfig',
-    );
-  }
   return {
     enabled,
     apiKey,

@@ -35,6 +35,8 @@ const parsed = z
     GOOGLE_REFRESH_TOKEN: z.string().optional().default(''),
     /** Rubitime `YYYY-MM-DD HH:mm:ss` without zone: interpret as this UTC offset (minutes). Default MSK (+180). */
     RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES: z.coerce.number().optional().default(180),
+    /** IANA timezone for booking notification text. Default: Europe/Moscow. */
+    BOOKING_DISPLAY_TIMEZONE: z.string().optional().default('Europe/Moscow'),
   })
   .parse(process.env);
 

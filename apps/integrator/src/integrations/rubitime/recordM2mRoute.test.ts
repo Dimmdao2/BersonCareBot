@@ -10,6 +10,7 @@ import { resetRubitimeRuntimeConfigCache } from './runtimeConfig.js';
 const enqueueMessageRetryJob = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const dbQuery = vi.hoisted(() => vi.fn().mockResolvedValue({ rows: [] }));
 const getTargetsByPhone = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+const resolveBookingProfile = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
 vi.mock('../../infra/db/repos/jobQueue.js', () => ({
   enqueueMessageRetryJob,
@@ -19,6 +20,10 @@ vi.mock('../../infra/db/client.js', () => ({
   createDbPort: () => ({
     query: dbQuery,
   }),
+}));
+
+vi.mock('./db/bookingProfilesRepo.js', () => ({
+  resolveBookingProfile,
 }));
 
 vi.mock('../../infra/adapters/deliveryTargetsPort.js', () => ({
@@ -73,16 +78,12 @@ function bookingEventBody(over: Record<string, unknown> = {}) {
   };
 }
 
-const TEST_SCHEDULE_MAPPING = JSON.stringify([
-  {
-    type: 'online',
-    category: 'general',
-    branchId: 10,
-    cooperatorId: 20,
-    serviceId: 30,
-    durationMinutes: 60,
-  },
-]);
+const TEST_PROFILE = {
+  rubitimeBranchId: 10,
+  rubitimeCooperatorId: 20,
+  rubitimeServiceId: 30,
+  durationMinutes: 60,
+};
 
 describe('Rubitime record M2M routes', () => {
   beforeEach(() => {
@@ -90,6 +91,7 @@ describe('Rubitime record M2M routes', () => {
     enqueueMessageRetryJob.mockClear();
     dbQuery.mockClear();
     getTargetsByPhone.mockResolvedValue(null);
+    resolveBookingProfile.mockResolvedValue(null);
   });
 
   it('update-record returns 200 when Rubitime client succeeds', async () => {
@@ -264,11 +266,10 @@ describe('POST /api/bersoncare/rubitime/slots', () => {
   afterEach(() => {
     _resetScheduleMappingCache();
     resetRubitimeRuntimeConfigCache();
-    delete process.env.RUBITIME_SCHEDULE_MAPPING;
   });
 
-  it('returns 200 with normalized slots for valid query and configured mapping', async () => {
-    process.env.RUBITIME_SCHEDULE_MAPPING = TEST_SCHEDULE_MAPPING;
+  it('returns 200 with normalized slots when booking profile exists in DB', async () => {
+    resolveBookingProfile.mockResolvedValueOnce(TEST_PROFILE);
     const scheduleData = {
       '2026-04-10': { '10:00': { available: true }, '11:00': { available: false } },
       '2026-04-11': { '09:00': { available: true } },
@@ -291,9 +292,8 @@ describe('POST /api/bersoncare/rubitime/slots', () => {
     expect(json.slots[0].slots).toHaveLength(1);
   });
 
-  it('returns 400 when schedule mapping is not configured for query', async () => {
-    process.env.RUBITIME_SCHEDULE_MAPPING = TEST_SCHEDULE_MAPPING;
-    vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockResolvedValue({});
+  it('returns 400 when no booking profile found in DB for query', async () => {
+    resolveBookingProfile.mockResolvedValueOnce(null);
     const app = await buildApp();
     const body = JSON.stringify({ type: 'online', category: 'nutrition' });
     const res = await app.inject({
@@ -336,7 +336,7 @@ describe('POST /api/bersoncare/rubitime/slots', () => {
   });
 
   it('returns 502 when Rubitime returns malformed schedule data (array instead of object)', async () => {
-    process.env.RUBITIME_SCHEDULE_MAPPING = TEST_SCHEDULE_MAPPING;
+    resolveBookingProfile.mockResolvedValueOnce(TEST_PROFILE);
     vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockResolvedValue([]);
     const app = await buildApp();
     const body = JSON.stringify({ type: 'online', category: 'general' });
@@ -351,13 +351,140 @@ describe('POST /api/bersoncare/rubitime/slots', () => {
   });
 
   it('returns 502 when Rubitime call itself throws', async () => {
-    process.env.RUBITIME_SCHEDULE_MAPPING = TEST_SCHEDULE_MAPPING;
+    resolveBookingProfile.mockResolvedValueOnce(TEST_PROFILE);
     vi.spyOn(rubitimeClient, 'fetchRubitimeSchedule').mockRejectedValue(new Error('RUBITIME_HTTP_503: down'));
     const app = await buildApp();
     const body = JSON.stringify({ type: 'online', category: 'general' });
     const res = await app.inject({
       method: 'POST',
       url: '/api/bersoncare/rubitime/slots',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(502);
+  });
+});
+
+describe('POST /api/bersoncare/rubitime/create-record', () => {
+  afterEach(() => {
+    _resetScheduleMappingCache();
+    resetRubitimeRuntimeConfigCache();
+  });
+
+  it('returns 200 and builds correct Rubitime payload from booking profile', async () => {
+    resolveBookingProfile.mockResolvedValueOnce(TEST_PROFILE);
+    const spy = vi.spyOn(rubitimeClient, 'createRubitimeRecord').mockResolvedValue({ id: 42 });
+    const app = await buildApp();
+    const body = JSON.stringify({
+      type: 'online',
+      category: 'general',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      slotEnd: '2026-04-10T11:00:00.000Z',
+      contactName: 'Ivan Ivanov',
+      contactPhone: '+79990001122',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    const json = JSON.parse(res.body);
+    expect(json.ok).toBe(true);
+    expect(json.recordId).toBe('42');
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          branch_id: 10,
+          cooperator_id: 20,
+          service_id: 30,
+          record: '2026-04-10 10:00:00',
+          name: 'Ivan Ivanov',
+          phone: '+79990001122',
+        }),
+      }),
+    );
+  });
+
+  it('includes email in Rubitime payload when provided', async () => {
+    resolveBookingProfile.mockResolvedValueOnce(TEST_PROFILE);
+    const spy = vi.spyOn(rubitimeClient, 'createRubitimeRecord').mockResolvedValue({ id: 55 });
+    const app = await buildApp();
+    const body = JSON.stringify({
+      type: 'online',
+      category: 'general',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      slotEnd: '2026-04-10T11:00:00.000Z',
+      contactName: 'Ivan',
+      contactPhone: '+79990001122',
+      contactEmail: 'ivan@example.com',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'ivan@example.com',
+        }),
+      }),
+    );
+  });
+
+  it('returns 400 when no booking profile found for query', async () => {
+    resolveBookingProfile.mockResolvedValueOnce(null);
+    const app = await buildApp();
+    const body = JSON.stringify({
+      type: 'online',
+      category: 'nutrition',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      slotEnd: '2026-04-10T11:00:00.000Z',
+      contactName: 'Ivan',
+      contactPhone: '+79990001122',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('slots_mapping_not_configured');
+  });
+
+  it('returns 400 when body is invalid (missing required fields)', async () => {
+    const app = await buildApp();
+    const body = JSON.stringify({ type: 'online', category: 'general' });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toBe('invalid_create_record_input');
+  });
+
+  it('returns 502 when Rubitime API call fails', async () => {
+    resolveBookingProfile.mockResolvedValueOnce(TEST_PROFILE);
+    vi.spyOn(rubitimeClient, 'createRubitimeRecord').mockRejectedValue(new Error('RUBITIME_API_ERROR: forbidden'));
+    const app = await buildApp();
+    const body = JSON.stringify({
+      type: 'online',
+      category: 'general',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      slotEnd: '2026-04-10T11:00:00.000Z',
+      contactName: 'Ivan',
+      contactPhone: '+79990001122',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
       headers: makeHeaders(body),
       body,
     });

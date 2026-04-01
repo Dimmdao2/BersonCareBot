@@ -16,34 +16,8 @@ const ADMIN_SCOPE_KEYS = [
   "dev_mode",
   "important_fallback_delay_minutes",
   "integration_test_ids",
-  // Pack B1: non-secret runtime config keys
-  "integrator_api_url",
-  "booking_url",
   "support_contact_url",
-  "booking_display_timezone",
-  "telegram_bot_username",
-  "google_calendar_enabled",
-  "google_calendar_id",
-  "google_client_id",
-  "google_client_secret",
-  "google_redirect_uri",
-  "google_refresh_token",
-  "yandex_oauth_redirect_uri",
-  "yandex_oauth_client_id",
-  "yandex_oauth_client_secret",
-  "telegram_bot_token",
-  "integrator_webhook_secret",
-  "integrator_webapp_entry_secret",
-  "rubitime_api_key",
-  "rubitime_webhook_token",
-  "rubitime_schedule_mapping",
-  "rubitime_webhook_uri",
-  "max_api_key",
-  "max_webhook_secret",
-  "max_webhook_uri",
-  "smsc_api_key",
-  "smsc_webhook_uri",
-  // Pack B2: whitelist IDs
+  // Whitelist IDs
   "allowed_telegram_ids",
   "allowed_max_ids",
   "admin_telegram_ids",
@@ -60,19 +34,7 @@ const patchSchema = z.object({
   value: z.unknown(),
 });
 
-const SECRET_LIKE_KEYS = new Set<string>([
-  "telegram_bot_token",
-  "integrator_webhook_secret",
-  "integrator_webapp_entry_secret",
-  "rubitime_api_key",
-  "rubitime_webhook_token",
-  "max_api_key",
-  "max_webhook_secret",
-  "smsc_api_key",
-  "yandex_oauth_client_secret",
-  "google_client_secret",
-  "google_refresh_token",
-]);
+const SECRET_LIKE_KEYS = new Set<string>([]);
 
 function normalizeValueJson(value: unknown): { value: unknown } {
   if (value !== null && typeof value === "object" && "value" in (value as Record<string, unknown>)) {

@@ -42,6 +42,32 @@ export const RubitimeSlotsQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+/** Входящий запрос создания записи из webapp к integrator M2M. */
+export const RubitimeCreateRecordInputSchema = z.object({
+  type: z.enum(['in_person', 'online']),
+  city: z.string().trim().optional(),
+  category: z.enum(['rehab_lfk', 'nutrition', 'general']),
+  slotStart: z.string().min(1),
+  slotEnd: z.string().min(1),
+  contactName: z.string().min(1),
+  contactPhone: z.string().min(1),
+  contactEmail: z.union([z.string().email(), z.literal('')]).optional(),
+});
+
+export type RubitimeCreateRecordInputValidated = z.infer<typeof RubitimeCreateRecordInputSchema>;
+
+export function parseRubitimeCreateRecordInput(raw: unknown): {
+  success: true;
+  data: RubitimeCreateRecordInputValidated;
+} | {
+  success: false;
+  error: z.ZodError;
+} {
+  const result = RubitimeCreateRecordInputSchema.safeParse(raw);
+  if (result.success) return { success: true, data: result.data };
+  return { success: false, error: result.error };
+}
+
 export type RubitimeSlotsQueryValidated = z.infer<typeof RubitimeSlotsQuerySchema>;
 
 /** Нормализованный слот для webapp API. */

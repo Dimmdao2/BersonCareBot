@@ -101,8 +101,6 @@ if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]
   source "${WEBAPP_ENV_FILE}"
   set +a
   pnpm --dir apps/webapp run migrate
-  # Seed integration keys/URIs into webapp system_settings (admin) from env files (fill-empty-only).
-  pnpm --dir apps/webapp run seed:system-settings:from-env -- --webapp-env "${WEBAPP_ENV_FILE}" --api-env "${ENV_FILE}"
 fi
 
 sudo -n /bin/systemctl restart "${API_SERVICE}"

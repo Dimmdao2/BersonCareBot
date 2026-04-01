@@ -1,63 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DbPort } from '../../../kernel/contracts/ports.js';
 import {
   DEFAULT_BOOKING_DISPLAY_TIMEZONE,
   getBookingDisplayTimezone,
   resetBookingDisplayTimezoneCache,
 } from './bookingDisplayTimezone.js';
 
+vi.mock('../../../config/env.js', () => ({
+  env: { BOOKING_DISPLAY_TIMEZONE: 'Europe/Moscow' },
+}));
+
+import { env } from '../../../config/env.js';
+
 describe('getBookingDisplayTimezone', () => {
   beforeEach(() => {
     resetBookingDisplayTimezoneCache();
+    vi.clearAllMocks();
   });
 
-  it('returns string from value_json.value when valid', async () => {
-    const db: DbPort = {
-      query: vi.fn().mockResolvedValue({
-        rows: [{ value_json: { value: 'Europe/Kiev' } }],
-      }),
-      tx: vi.fn(),
-    };
-    const tz = await getBookingDisplayTimezone(db);
+  it('returns valid timezone from env', async () => {
+    (env as Record<string, unknown>).BOOKING_DISPLAY_TIMEZONE = 'Europe/Kiev';
+    const tz = await getBookingDisplayTimezone();
     expect(tz).toBe('Europe/Kiev');
   });
 
-  it('returns default when row missing', async () => {
-    const db: DbPort = {
-      query: vi.fn().mockResolvedValue({ rows: [] }),
-      tx: vi.fn(),
-    };
-    const tz = await getBookingDisplayTimezone(db);
+  it('returns default when env is missing', async () => {
+    (env as Record<string, unknown>).BOOKING_DISPLAY_TIMEZONE = '';
+    const tz = await getBookingDisplayTimezone();
     expect(tz).toBe(DEFAULT_BOOKING_DISPLAY_TIMEZONE);
   });
 
-  it('returns default when value fails IANA-like pattern', async () => {
-    const db: DbPort = {
-      query: vi.fn().mockResolvedValue({
-        rows: [{ value_json: { value: 'not a zone!!!' } }],
-      }),
-      tx: vi.fn(),
-    };
-    const tz = await getBookingDisplayTimezone(db);
+  it('returns default when env fails IANA-like pattern', async () => {
+    (env as Record<string, unknown>).BOOKING_DISPLAY_TIMEZONE = 'not a zone!!!';
+    const tz = await getBookingDisplayTimezone();
     expect(tz).toBe(DEFAULT_BOOKING_DISPLAY_TIMEZONE);
   });
 
-  it('returns default on query error', async () => {
-    const db: DbPort = {
-      query: vi.fn().mockRejectedValue(new Error('db down')),
-      tx: vi.fn(),
-    };
-    const tz = await getBookingDisplayTimezone(db);
-    expect(tz).toBe(DEFAULT_BOOKING_DISPLAY_TIMEZONE);
-  });
-
-  it('uses cache within TTL (single query)', async () => {
-    const query = vi.fn().mockResolvedValue({
-      rows: [{ value_json: { value: 'Europe/Moscow' } }],
-    });
-    const db: DbPort = { query, tx: vi.fn() };
-    await getBookingDisplayTimezone(db);
-    await getBookingDisplayTimezone(db);
-    expect(query).toHaveBeenCalledTimes(1);
+  it('ignores db argument (backward compat)', async () => {
+    (env as Record<string, unknown>).BOOKING_DISPLAY_TIMEZONE = 'Asia/Yekaterinburg';
+    const tz = await getBookingDisplayTimezone({ query: vi.fn(), tx: vi.fn() });
+    expect(tz).toBe('Asia/Yekaterinburg');
   });
 });
