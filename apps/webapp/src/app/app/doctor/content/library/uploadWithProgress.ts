@@ -57,3 +57,49 @@ export function uploadWithProgress<T>({
   });
 }
 
+type PutWithProgressArgs = {
+  url: string;
+  body: Blob;
+  contentType: string;
+  onProgress?: (loaded: number, total: number) => void;
+};
+
+/** Direct PUT to presigned S3 URL (no credentials — cross-origin to MinIO). */
+export function putWithProgress({
+  url,
+  body,
+  contentType,
+  onProgress,
+}: PutWithProgressArgs): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType);
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      onProgress?.(event.loaded, event.total);
+    };
+
+    xhr.onerror = () => {
+      reject(new UploadRequestError(0, { error: "network_error" }));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+      let parsed: unknown = {};
+      try {
+        parsed = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+      } catch {
+        parsed = { raw: xhr.responseText };
+      }
+      reject(new UploadRequestError(xhr.status, parsed));
+    };
+
+    xhr.send(body);
+  });
+}
+

@@ -1,5 +1,6 @@
+import { z } from "zod";
 import type { ChannelBindings } from "@/shared/types/session";
-import type { MessageLogListParams, MessageLogPort } from "./ports";
+import type { MessageLogListFilters, MessageLogListParams, MessageLogPort } from "./ports";
 
 export type PrepareDraftParams = { userId: string };
 export type PrepareDraftResult = {
@@ -23,12 +24,21 @@ export type DoctorMessagingServiceDeps = {
   messageLogPort: MessageLogPort;
 };
 
+function sanitizeMessageLogFilters(filters: MessageLogListFilters): MessageLogListFilters {
+  const out = { ...filters };
+  const uid = out.userId?.trim();
+  if (uid && !z.string().uuid().safeParse(uid).success) {
+    delete out.userId;
+  }
+  return out;
+}
+
 function normalizeListParams(params?: MessageLogListParams): Required<Pick<MessageLogListParams, "page" | "pageSize">> & {
   filters: NonNullable<MessageLogListParams["filters"]>;
 } {
   const page = Math.max(1, Math.floor(params?.page ?? 1));
   const pageSize = Math.min(100, Math.max(1, Math.floor(params?.pageSize ?? 20)));
-  const filters = params?.filters ?? {};
+  const filters = sanitizeMessageLogFilters(params?.filters ?? {});
   return { page, pageSize, filters };
 }
 

@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import type { CabinetPastRow } from "./cabinetPastBookingsMerge";
 
 type Props = {
-  bookings: PatientBookingRecord[];
+  items: CabinetPastRow[];
 };
 
 function statusLabel(status: PatientBookingRecord["status"]): string {
@@ -23,8 +25,16 @@ function statusLabel(status: PatientBookingRecord["status"]): string {
   return "Подтверждена";
 }
 
-export function CabinetPastBookings({ bookings }: Props) {
-  const [open, setOpen] = useState(false);
+function projectionStatusLabel(status: string): string {
+  const s = status.toLowerCase();
+  if (s === "cancelled") return "Отменена";
+  if (s === "confirmed" || s === "created") return "Подтверждена";
+  if (s === "rescheduled") return "Перенесена";
+  return status;
+}
+
+export function CabinetPastBookings({ items }: Props) {
+  const [open, setOpen] = useState(() => items.length > 0);
 
   return (
     <Card>
@@ -41,20 +51,49 @@ export function CabinetPastBookings({ bookings }: Props) {
       </CardHeader>
       {open ? (
         <CardContent className="flex flex-col gap-2">
-          {bookings.length === 0 ? (
+          {items.length === 0 ? (
             <p className="text-sm text-muted-foreground">Пока пусто.</p>
           ) : (
-            bookings.map((row) => (
-              <div key={row.id} className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {new Date(row.slotStart).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">{row.bookingType === "online" ? "Онлайн" : "Очный"} приём</p>
+            items.map((row) =>
+              row.kind === "native" ? (
+                <div
+                  key={`native-${row.booking.id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {new Date(row.booking.slotStart).toLocaleString("ru-RU", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {row.booking.bookingType === "online" ? "Онлайн" : "Очный"} приём
+                    </p>
+                  </div>
+                  <Badge variant="outline">{statusLabel(row.booking.status)}</Badge>
                 </div>
-                <Badge variant="outline">{statusLabel(row.status)}</Badge>
-              </div>
-            ))
+              ) : (
+                <div
+                  key={`proj-${row.past.id}`}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{row.past.label}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {row.past.link ? (
+                        <Link href={row.past.link} className="text-primary underline-offset-4 hover:underline">
+                          Открыть в расписании
+                        </Link>
+                      ) : (
+                        "Запись из расписания"
+                      )}
+                    </p>
+                  </div>
+                  <Badge variant="outline">{projectionStatusLabel(row.past.status)}</Badge>
+                </div>
+              ),
+            )
           )}
         </CardContent>
       ) : null}

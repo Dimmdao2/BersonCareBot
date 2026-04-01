@@ -76,6 +76,12 @@ describe("GET /api/patient/diary/lfk-stats", () => {
     expect(data.ok).toBe(true);
     expect(data.overview).not.toBeNull();
     expect(Array.isArray(data.overview?.days)).toBe(true);
+    const days = data.overview!.days;
+    if (days.length >= 2) {
+      for (let i = 1; i < days.length; i += 1) {
+        expect(days[i - 1]! >= days[i]!).toBe(true);
+      }
+    }
   });
 
   it("returns detail with sessions when complexId owned", async () => {

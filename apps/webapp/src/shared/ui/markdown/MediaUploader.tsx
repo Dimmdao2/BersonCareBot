@@ -30,7 +30,7 @@ export function MediaUploader({ onUploaded }: Props) {
       });
       const data = (await res.json()) as { ok?: boolean; url?: string; error?: string; mime?: string };
       if (!res.ok) {
-        setError(data.error === "file_too_large" ? "Файл больше 50 МБ" : data.error ?? "Ошибка загрузки");
+        setError(data.error === "file_too_large" ? "Файл слишком большой" : data.error ?? "Ошибка загрузки");
         return;
       }
       if (data.ok && data.url) {

@@ -14,7 +14,7 @@ export type ChannelLinkConflictContext = {
 };
 
 /**
- * TODO(E-R1.1): wire to admin + user notification pipeline (USER_TODO_STAGE: конфликт привязки).
+ * TODO(AUDIT-BACKLOG-023): wire to admin + user notification pipeline (legacy E-R1.1; USER_TODO_STAGE: конфликт привязки).
  * Replace in DI/bootstrap when notifications exist.
  */
 let reportChannelLinkBindingConflict: (ctx: ChannelLinkConflictContext) => void = (ctx) => {

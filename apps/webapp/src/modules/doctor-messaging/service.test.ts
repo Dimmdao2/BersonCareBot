@@ -18,6 +18,7 @@ describe("doctor-messaging service", () => {
   };
 
   const log: MessageLogEntry[] = [];
+  let lastListAllFilters: import("./ports").MessageLogListFilters | undefined;
   const messageLogPort = {
     async append(entry: Omit<MessageLogEntry, "id" | "sentAt">): Promise<MessageLogEntry> {
       const e: MessageLogEntry = {
@@ -32,7 +33,8 @@ describe("doctor-messaging service", () => {
       const items = log.filter((e) => e.userId === userId);
       return { items, total: items.length, page: 1, pageSize: 20 };
     },
-    async listAll(): Promise<MessageLogListResult> {
+    async listAll(p?: import("./ports").MessageLogListParams): Promise<MessageLogListResult> {
+      lastListAllFilters = p?.filters;
       return { items: [...log], total: log.length, page: 1, pageSize: 20 };
     },
   };
@@ -87,5 +89,18 @@ describe("doctor-messaging service", () => {
     const list = await service.listAllMessages({ pageSize: 50 });
     expect(Array.isArray(list.items)).toBe(true);
     expect(typeof list.total).toBe("number");
+  });
+
+  it("listAllMessages drops invalid filters.userId before port", async () => {
+    await service.listAllMessages({
+      filters: { userId: "not-a-uuid", category: "reminder" },
+    });
+    expect(lastListAllFilters).toEqual({ category: "reminder" });
+  });
+
+  it("listAllMessages keeps valid uuid filters.userId", async () => {
+    const uid = "550e8400-e29b-41d4-a716-446655440000";
+    await service.listAllMessages({ filters: { userId: uid } });
+    expect(lastListAllFilters).toEqual({ userId: uid });
   });
 });

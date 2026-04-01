@@ -84,6 +84,31 @@ const envSchema = z.object({
   MEDIA_TEST_VIDEO_URL: z.string().optional().default(""),
   /** Directory for uploaded CMS media files (disk). Empty → `var/media` under cwd. */
   MEDIA_STORAGE_DIR: z.string().optional().default(""),
+  /** MinIO / S3 API endpoint (e.g. https://fs.example.com). Empty → disk-only media port. */
+  S3_ENDPOINT: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
+  S3_ACCESS_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
+  S3_SECRET_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
+  S3_PUBLIC_BUCKET: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
+  S3_REGION: z
+    .string()
+    .optional()
+    .transform((v) => ((v ?? "").trim() || "us-east-1")),
+  S3_FORCE_PATH_STYLE: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
   /** Имя Telegram-бота без @ для deep-link t.me/… (привязка канала). */
   TELEGRAM_BOT_USERNAME: z.string().min(1).default("bersoncare_bot"),
   /** Яндекс OAuth (этап 5). Пусто — режим отключён. */
@@ -116,6 +141,12 @@ const parsed = envSchema.parse({
   TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
   MEDIA_TEST_VIDEO_URL: process.env.MEDIA_TEST_VIDEO_URL ?? "",
   MEDIA_STORAGE_DIR: process.env.MEDIA_STORAGE_DIR ?? "",
+  S3_ENDPOINT: process.env.S3_ENDPOINT,
+  S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
+  S3_SECRET_KEY: process.env.S3_SECRET_KEY,
+  S3_PUBLIC_BUCKET: process.env.S3_PUBLIC_BUCKET,
+  S3_REGION: process.env.S3_REGION,
+  S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
   TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME?.trim() || "bersoncare_bot",
   YANDEX_OAUTH_CLIENT_ID: process.env.YANDEX_OAUTH_CLIENT_ID,
   YANDEX_OAUTH_CLIENT_SECRET: process.env.YANDEX_OAUTH_CLIENT_SECRET,
@@ -123,6 +154,13 @@ const parsed = envSchema.parse({
 });
 
 export type EnvParsed = z.infer<typeof envSchema>;
+
+/** CMS media: S3 presign + PutObject when all required S3 env vars are set. */
+export function isS3MediaEnabled(e: EnvParsed): boolean {
+  return Boolean(
+    e.S3_ENDPOINT && e.S3_ACCESS_KEY && e.S3_SECRET_KEY && e.S3_PUBLIC_BUCKET,
+  );
+}
 
 /** Throws if any secret matches repo-known insecure value. No-op when isTest. Used at startup and in tests. */
 export function checkInsecureSecretsForStartup(env: EnvParsed, isTestEnv: boolean): void {

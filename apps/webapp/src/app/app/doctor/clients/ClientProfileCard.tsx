@@ -51,7 +51,10 @@ export function ClientProfileCard({
 
   const tel = phoneToTelHref(identity.phone);
   const sampleRecordId = appointmentHistory[0]?.id ?? null;
-  const backLabel = listBasePath.includes("subscribers") ? "К списку подписчиков" : "К списку клиентов";
+  const backLabel =
+    listBasePath.includes("subscribers") || listBasePath.includes("scope=all")
+      ? "К списку подписчиков"
+      : "К списку клиентов";
 
   return (
     <>
@@ -111,8 +114,7 @@ export function ClientProfileCard({
         </p>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Карта пациента</p>
         <p className="text-muted-foreground text-sm">
-          Раздел «Карта» будет в этапе 17.{" "}
-          <span className="opacity-70">(заглушка, без вызова API)</span>
+          Обзор визуализаций и связей по пациенту будет добавлен в отдельном этапе. Сейчас используйте данные блоков выше и раздел «Карта» позже появится в кабинете.
         </p>
       </section>
 

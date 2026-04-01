@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
@@ -13,11 +14,12 @@ type Props = {
 };
 
 export function ExercisesFiltersForm({ q, regionRefId, loadType }: Props) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
   const [selectedRegionLabel, setSelectedRegionLabel] = useState("");
 
   return (
-    <form method="get" className="flex flex-wrap items-end gap-2">
+    <form ref={formRef} method="get" className="flex flex-wrap items-end gap-2">
       <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground" htmlFor="ex-q">
           Поиск по названию
@@ -66,8 +68,11 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType }: Props) {
           type="button"
           variant="ghost"
           onClick={() => {
-            setSelectedRegionRefId(null);
-            setSelectedRegionLabel("");
+            flushSync(() => {
+              setSelectedRegionRefId(null);
+              setSelectedRegionLabel("");
+            });
+            formRef.current?.requestSubmit();
           }}
         >
           Сбросить область

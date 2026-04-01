@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   const deps = buildAppDeps();
   const limit = parsed.data.limit ?? 50;
   const offset = parsed.data.offset ?? 0;
-  const items = await deps.media.list({
+  const records = await deps.media.list({
     kind: parsed.data.kind ?? "all",
     query: parsed.data.q ?? "",
     sortBy: parsed.data.sortBy ? sortByMap[parsed.data.sortBy] : "createdAt",
@@ -51,15 +51,17 @@ export async function GET(request: Request) {
     offset,
   });
 
+  const items = records.map((item) => ({
+    ...item,
+    url: item.url ?? `/api/media/${item.id}`,
+  }));
+
   return NextResponse.json({
     ok: true,
     limit,
     offset,
-    hasMore: items.length === limit,
-    nextOffset: offset + items.length,
-    items: items.map((item) => ({
-      ...item,
-      url: `/api/media/${item.id}`,
-    })),
+    hasMore: records.length === limit,
+    nextOffset: offset + records.length,
+    items,
   });
 }

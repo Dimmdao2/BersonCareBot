@@ -10,6 +10,7 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { CabinetActiveBookings } from "./CabinetActiveBookings";
 import { CabinetInfoLinks } from "./CabinetInfoLinks";
 import { CabinetBookingEntry } from "./CabinetBookingEntry";
+import { mergePastBookingHistory } from "./cabinetPastBookingsMerge";
 import { CabinetPastBookings } from "./CabinetPastBookings";
 
 export default async function PatientCabinetPage() {
@@ -31,6 +32,8 @@ export default async function PatientCabinetPage() {
 
   const deps = buildAppDeps();
   const records = await deps.patientBooking.listMyBookings(session.user.userId);
+  const projectionPast = await deps.patientCabinet.getPastAppointments(session.user.userId);
+  const pastItems = mergePastBookingHistory(records.history, projectionPast);
 
   return (
     <AppShell
@@ -47,7 +50,7 @@ export default async function PatientCabinetPage() {
           defaultName={session.user.displayName}
           defaultPhone={session.user.phone ?? ""}
         />
-        <CabinetPastBookings bookings={records.history} />
+        <CabinetPastBookings items={pastItems} />
       </section>
     </AppShell>
   );

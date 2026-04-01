@@ -14,6 +14,7 @@ import { LogoutSection } from "./LogoutSection";
 import { PinSection } from "./PinSection";
 import { ProfileAccordionSection } from "./ProfileAccordionSection";
 import { ProfileForm } from "./ProfileForm";
+import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 
 const AUTH_OTP_ORDER: OtpUiChannel[] = ["telegram", "max", "email", "sms"];
 
@@ -29,6 +30,7 @@ export default async function PatientProfilePage() {
   const platformEntry = await getPlatformEntry();
   const showPinSection = platformEntry !== "bot";
   const deps = buildAppDeps();
+  const supportContactHref = await getSupportContactUrl();
   const pinRow = await deps.userPins.getByUserId(session.user.userId);
   const hasPin = pinRow != null;
   const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
@@ -77,6 +79,7 @@ export default async function PatientProfilePage() {
             phone={session.user.phone ?? null}
             phoneChannel={phoneChannel}
             phoneChatId={phoneChatId}
+            supportContactHref={supportContactHref}
             initialEmail={emailFields.email}
             emailVerified={Boolean(emailFields.emailVerifiedAt)}
           />

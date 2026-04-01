@@ -10,6 +10,8 @@ const BOOKING_DISPLAY_TZ_PATTERN = /^[A-Za-z_]+(\/[A-Za-z_]+)*$/;
 type RuntimeConfigValues = {
   integratorApiUrl: string;
   bookingUrl: string;
+  /** HTTPS ссылка поддержки (t.me и т.п.), см. getSupportContactUrl. */
+  supportContactUrl: string;
   /** IANA timezone for booking notification text (integrator reads system_settings). */
   bookingDisplayTimezone: string;
   telegramBotUsername: string;
@@ -48,6 +50,7 @@ type Props = RuntimeConfigValues;
 export function RuntimeConfigSection({
   integratorApiUrl,
   bookingUrl,
+  supportContactUrl,
   bookingDisplayTimezone,
   telegramBotUsername,
   allowedTelegramIds,
@@ -60,6 +63,7 @@ export function RuntimeConfigSection({
   const [vals, setVals] = useState({
     integratorApiUrl,
     bookingUrl,
+    supportContactUrl,
     bookingDisplayTimezone,
     telegramBotUsername,
     allowedTelegramIds,
@@ -88,9 +92,23 @@ export function RuntimeConfigSection({
           setError("Некорректный часовой пояс (IANA, например Europe/Moscow)");
           return;
         }
+        const supportRaw = vals.supportContactUrl.trim();
+        if (supportRaw.length > 0) {
+          try {
+            const u = new URL(supportRaw);
+            if (u.protocol !== "https:" && u.protocol !== "http:") {
+              setError("Ссылка поддержки: только http(s)://");
+              return;
+            }
+          } catch {
+            setError("Ссылка поддержки: укажите валидный URL (например https://t.me/…)");
+            return;
+          }
+        }
         const results = await Promise.all([
           patchSetting("integrator_api_url", vals.integratorApiUrl.trim()),
           patchSetting("booking_url", vals.bookingUrl.trim()),
+          patchSetting("support_contact_url", supportRaw),
           patchSetting("booking_display_timezone", tz),
           patchSetting("telegram_bot_username", vals.telegramBotUsername.trim()),
           patchSetting("allowed_telegram_ids", parseIdArray(vals.allowedTelegramIds)),
@@ -142,6 +160,19 @@ export function RuntimeConfigSection({
               onChange={set("bookingUrl")}
               disabled={isPending}
             />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Support contact URL (HTTPS)</span>
+            <Input
+              type="url"
+              placeholder="https://t.me/your_support"
+              value={vals.supportContactUrl}
+              onChange={set("supportContactUrl")}
+              disabled={isPending}
+            />
+            <span className="text-xs text-muted-foreground">
+              Ссылка «Написать в поддержку» в формах OTP и на странице справки. Пустое — дефолт из кода.
+            </span>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Booking display timezone (IANA)</span>

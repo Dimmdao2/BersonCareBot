@@ -15,6 +15,7 @@ import type {
   OrchestratorPlan,
   OrchestratorPlanStep,
 } from '../contracts/index.js';
+import { logger } from '../../infra/observability/logger.js';
 
 type StepWhen = {
   path?: string;
@@ -271,9 +272,12 @@ async function runContextQueries(
 
 function toPlanStep(step: ScriptStep, input: OrchestratorInput, index: number, vars: Record<string, unknown>): OrchestratorPlanStep {
   const interpolated = interpolate(step.params ?? {}, vars) as Record<string, unknown>;
-  // Логгирование параметров шага для callback-сценариев
+  // Логгирование параметров шага для callback-сценариев (debug, уровень LOG_LEVEL)
   if (input.event.type === 'callback.received') {
-    console.log('[orchestrator][toPlanStep] step', index, 'action:', step.action, 'params:', interpolated);
+    logger.debug(
+      { stepIndex: index, action: step.action, params: interpolated },
+      '[orchestrator][toPlanStep]',
+    );
   }
   return {
     id: `step:${input.event.meta.eventId}:${index}`,
@@ -326,9 +330,8 @@ export async function buildPlan(
   input: OrchestratorInput,
   deps: { contentPort: ContentPort; contextQueryPort: ContextQueryPort },
 ): Promise<OrchestratorPlan> {
-  // Логирование для отладки сценариев по нажатию кнопок
   if (input.event.type === 'callback.received') {
-    console.log('[orchestrator][buildPlan] input:', JSON.stringify(input, null, 2));
+    logger.debug({ input }, '[orchestrator][buildPlan] input');
   }
   const selected = await resolveBusinessScript(input, deps.contentPort);
   if (!selected) return [];
@@ -342,7 +345,7 @@ export async function buildPlan(
     ...normalizeMatchVars(input),
   } as Record<string, unknown>;
   if (input.event.type === 'callback.received') {
-    console.log('[orchestrator][buildPlan] baseVars:', JSON.stringify(baseVars, null, 2));
+    logger.debug({ baseVars }, '[orchestrator][buildPlan] baseVars');
   }
 
   const queryResults = await runContextQueries(script.conditions, baseVars, deps.contextQueryPort);
@@ -351,7 +354,7 @@ export async function buildPlan(
     queries: queryResults,
   };
   if (input.event.type === 'callback.received') {
-    console.log('[orchestrator][buildPlan] vars after queries:', JSON.stringify(vars, null, 2));
+    logger.debug({ vars }, '[orchestrator][buildPlan] vars after queries');
   }
 
   const steps: OrchestratorPlanStep[] = [];
@@ -373,7 +376,7 @@ export async function buildPlan(
       }
     }
     if (input.event.type === 'callback.received') {
-      console.log('[orchestrator][buildPlan] step', index, 'interpolated:', JSON.stringify(stepResult, null, 2));
+      logger.debug({ stepIndex: index, stepResult }, '[orchestrator][buildPlan] step interpolated');
     }
     steps.push(stepResult);
   }

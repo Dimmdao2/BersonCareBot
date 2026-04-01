@@ -22,12 +22,13 @@ declare global {
 }
 
 type AuthBootstrapProps = {
+  supportContactHref?: string;
   /** Только для потока по телефону: текущий шаг AuthFlowV2 (плашка на `/app`). */
   onAuthStepChange?: (step: AuthFlowStep) => void;
 };
 
 /** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — AuthFlowV2. */
-export function AuthBootstrap({ onAuthStepChange }: AuthBootstrapProps) {
+export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBootstrapProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("t") ?? searchParams.get("token");
@@ -126,7 +127,9 @@ export function AuthBootstrap({ onAuthStepChange }: AuthBootstrapProps) {
   }, [router, token, debug, nextParam]);
 
   if (showPhoneFlow) {
-    return <AuthFlowV2 nextParam={nextParam} onStepChange={onAuthStepChange} />;
+    return (
+      <AuthFlowV2 nextParam={nextParam} supportContactHref={supportContactHref} onStepChange={onAuthStepChange} />
+    );
   }
 
   if (debug && !token) {

@@ -84,6 +84,8 @@ export async function GET(request: Request) {
   });
 
   const dayKeys = enumerateUtcDayKeysInWindow(fromIso, toExclusiveIso);
+  /** Новые дни сверху (было: от старых к новым). */
+  dayKeys.reverse();
   const ids = complexes.map((c) => c.id);
   const matrix = buildLfkOverviewMatrix(dayKeys, ids, sessions);
 

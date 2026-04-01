@@ -58,6 +58,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
   const selectedProfile = selectedData?.profile ?? null;
   const selectedMessageDraft = selectedData?.messageDraft ?? null;
   const selectedMessageHistory = selectedData?.messageHistory ?? [];
+  const listBasePathWithScope = scope === "all" ? `${BASE}?scope=all` : `${BASE}?scope=appointments`;
 
   return (
     <AppShell title="Клиенты" user={session.user} variant="doctor">
@@ -78,7 +79,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
               messageDraft={selectedMessageDraft}
               messageHistory={selectedMessageHistory}
               userId={selected!}
-              listBasePath={BASE}
+              listBasePath={listBasePathWithScope}
             />
           </div>
         ) : null}

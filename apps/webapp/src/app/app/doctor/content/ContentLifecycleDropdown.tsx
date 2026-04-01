@@ -49,8 +49,7 @@ function LifecycleMenuItem({
 }) {
   return (
     <DropdownMenuItem
-      onSelect={(e) => {
-        e.preventDefault();
+      onClick={() => {
         submitFormById(formId);
       }}
     >
@@ -82,16 +81,30 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
       )}
 
       <div className="flex shrink-0 items-center gap-1">
-        <span
-          className="inline-flex size-8 items-center justify-center rounded-full border border-border/80"
-          title={published ? "Опубликовано" : "Не опубликовано"}
-        >
-          {published ? (
-            <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
-          ) : (
+        {!deleted ? (
+          <button
+            type="button"
+            className="inline-flex size-8 items-center justify-center rounded-full border border-border/80 hover:bg-muted"
+            title={published ? "Снять с публикации" : "Опубликовать"}
+            aria-label={published ? "Снять с публикации" : "Опубликовать"}
+            onClick={() =>
+              submitFormById(`content-lifecycle-${id}-${published ? "unpublish" : "publish"}`)
+            }
+          >
+            {published ? (
+              <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
+            ) : (
+              <EyeOff className="size-4 text-muted-foreground" aria-hidden />
+            )}
+          </button>
+        ) : (
+          <span
+            className="inline-flex size-8 items-center justify-center rounded-full border border-border/80"
+            title="Удалено"
+          >
             <EyeOff className="size-4 text-muted-foreground" aria-hidden />
-          )}
-        </span>
+          </span>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -111,11 +124,6 @@ export function ContentLifecycleDropdown({ page }: { page: Page }) {
                 <LifecycleMenuItem formId={`content-lifecycle-${id}-restore`} label="Восстановить" />
               ) : (
                 <>
-                  {published ? (
-                    <LifecycleMenuItem formId={`content-lifecycle-${id}-unpublish`} label="Снять с публикации" />
-                  ) : (
-                    <LifecycleMenuItem formId={`content-lifecycle-${id}-publish`} label="Опубликовать" />
-                  )}
                   {archived ? (
                     <LifecycleMenuItem formId={`content-lifecycle-${id}-unarchive`} label="Из архива" />
                   ) : (

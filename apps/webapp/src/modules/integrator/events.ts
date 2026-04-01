@@ -25,7 +25,7 @@ type EmailAutobindConflictContext = {
 };
 
 /**
- * TODO(E-R3.2): connect to admin/user notifications pipeline.
+ * TODO(AUDIT-BACKLOG-020): connect to admin/user notifications pipeline (legacy E-R3.2).
  * For now we keep structured warning to avoid silent conflicts.
  */
 let reportEmailAutobindConflict: (ctx: EmailAutobindConflictContext) => void = (ctx) => {

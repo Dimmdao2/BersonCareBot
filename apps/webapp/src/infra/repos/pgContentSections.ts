@@ -18,6 +18,8 @@ export type ContentSectionsPort = {
     slug: string,
     patch: Partial<Pick<ContentSectionRow, "title" | "description" | "sortOrder" | "isVisible">>,
   ) => Promise<void>;
+  /** Выставить `sort_order` по порядку slug (0..n-1) в одной транзакции. */
+  reorderSlugs: (orderedSlugs: string[]) => Promise<void>;
 };
 
 const SELECT_COLS = `id, slug, title, description, sort_order, is_visible`;
@@ -89,6 +91,27 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         vals,
       );
     },
+    async reorderSlugs(orderedSlugs) {
+      const slugs = orderedSlugs.map((s) => String(s).trim()).filter(Boolean);
+      if (slugs.length === 0) return;
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        for (let i = 0; i < slugs.length; i += 1) {
+          await client.query(
+            `UPDATE content_sections SET sort_order = $1, updated_at = now() WHERE slug = $2`,
+            [i, slugs[i]],
+          );
+        }
+        await client.query("COMMIT");
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
+    },
   };
 }
 
@@ -110,6 +133,7 @@ export const inMemoryContentSectionsPort: ContentSectionsPort = {
   getBySlug: async () => null,
   upsert: async () => "",
   update: async () => {},
+  reorderSlugs: async () => {},
 };
 
 /** Изолированный in-memory порт для unit-тестов. */
@@ -150,6 +174,14 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
         ...(patch.isVisible !== undefined ? { isVisible: patch.isVisible } : {}),
       });
+    },
+    async reorderSlugs(orderedSlugs) {
+      const slugs = orderedSlugs.map((s) => String(s).trim()).filter(Boolean);
+      for (let i = 0; i < slugs.length; i += 1) {
+        const slug = slugs[i]!;
+        const cur = memory.get(slug);
+        if (cur) memory.set(slug, { ...cur, sortOrder: i });
+      }
     },
   };
 }

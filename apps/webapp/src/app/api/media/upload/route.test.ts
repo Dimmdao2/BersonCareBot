@@ -15,7 +15,20 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+vi.mock("@/modules/media/uploadAllowedMime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/media/uploadAllowedMime")>();
+  return {
+    ...actual,
+    /** Тест 413: реальный размер файла > лимита без подмены size на Blob */
+    MAX_PROXY_UPLOAD_BYTES: 100,
+  };
+});
+
+import { MAX_PROXY_UPLOAD_BYTES } from "@/modules/media/uploadAllowedMime";
 import { POST } from "./route";
+
+/** Minimal valid PNG signature + padding for magic-byte check */
+const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00];
 
 describe("POST /api/media/upload", () => {
   beforeEach(() => {
@@ -44,16 +57,53 @@ describe("POST /api/media/upload", () => {
     expect(uploadMock).not.toHaveBeenCalled();
   });
 
-  it("returns 413 when file exceeds 50MB", async () => {
+  it("returns 413 when file exceeds MAX_PROXY_UPLOAD_BYTES", async () => {
+    expect(MAX_PROXY_UPLOAD_BYTES).toBe(100);
     sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
-    const big = new Uint8Array(50 * 1024 * 1024 + 1);
+    const buf = new Uint8Array(101);
+    buf.set([0xff, 0xd8, 0xff, 0xdb, 0x00], 0);
+    const file = new File([buf], "big.jpg", { type: "image/jpeg" });
     const fd = new FormData();
-    fd.set("file", new File([big], "big.jpg", { type: "image/jpeg" }));
+    fd.set("file", file);
     const res = await POST(
       new Request("http://localhost/api/media/upload", { method: "POST", body: fd })
     );
     expect(res.status).toBe(413);
     expect(uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("uploads PNG when magic bytes match", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
+    uploadMock.mockResolvedValue({
+      record: { id: "mid-png" },
+      url: "/api/media/mid-png",
+    });
+    const fd = new FormData();
+    fd.set("file", new File([new Uint8Array(PNG_MAGIC)], "x.png", { type: "image/png" }));
+    const res = await POST(new Request("http://localhost/api/media/upload", { method: "POST", body: fd }));
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { ok: boolean; url: string };
+    expect(json.ok).toBe(true);
+    expect(json.url).toBe("/api/media/mid-png");
+    expect(uploadMock).toHaveBeenCalled();
+  });
+
+  it("uploads MOV when declared as video/quicktime and ftyp magic present", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
+    uploadMock.mockResolvedValue({
+      record: { id: "mid-mov" },
+      url: "/api/media/mid-mov",
+    });
+    const movBody = new Uint8Array(12);
+    movBody.set([0x00, 0x00, 0x00, 0x0c, 0x66, 0x74, 0x79, 0x70], 0);
+    const fd = new FormData();
+    fd.set("file", new File([movBody], "clip.mov", { type: "video/quicktime" }));
+    const res = await POST(new Request("http://localhost/api/media/upload", { method: "POST", body: fd }));
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { ok: boolean; url: string };
+    expect(json.ok).toBe(true);
+    expect(json.url).toBe("/api/media/mid-mov");
+    expect(uploadMock).toHaveBeenCalled();
   });
 
   it("uploads and returns url for allowed image", async () => {

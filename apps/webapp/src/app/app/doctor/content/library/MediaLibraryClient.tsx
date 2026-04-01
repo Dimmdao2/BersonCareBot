@@ -2,8 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
+import { putWithProgress, UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
 import { MediaCard } from "./MediaCard";
 import { MediaLightbox } from "./MediaLightbox";
 
@@ -62,11 +70,10 @@ function formatDate(iso: string): string {
   }
 }
 
-function usageMessage(usage: UsageRef[]): string {
-  const lines = usage.slice(0, 8).map((u) => `- ${u.pageSlug} (${u.field})`);
-  const extra = usage.length > 8 ? `\n...и еще ${usage.length - 8}` : "";
-  return `Файл используется в CMS:\n${lines.join("\n")}${extra}\n\nУдалить все равно?`;
-}
+type DeleteDialogState =
+  | null
+  | { item: MediaItem; phase: "confirm" }
+  | { item: MediaItem; phase: "in_use"; usage: UsageRef[] };
 
 export function MediaLibraryClient() {
   const [kind, setKind] = useState<MediaKindFilter>("all");
@@ -88,6 +95,7 @@ export function MediaLibraryClient() {
   const [nextOffset, setNextOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const desktopUploadInputRef = useRef<HTMLInputElement | null>(null);
   const mobileFilesInputRef = useRef<HTMLInputElement | null>(null);
@@ -240,17 +248,60 @@ export function MediaLibraryClient() {
       for (let i = 0; i < files.length; i += 1) {
         const file = files[i]!;
         setUploadStatus(`Файл ${i + 1}/${files.length}: ${file.name}`);
-        const fd = new FormData();
-        fd.set("file", file);
-        await uploadWithProgress<UploadOkResponse>({
-          url: "/api/media/upload",
-          formData: fd,
-          withCredentials: true,
-          onProgress: (loaded) => {
-            const next = Math.round(((uploadedBytes + loaded) / totalBytes) * 100);
-            setUploadPercent(Math.max(0, Math.min(100, next)));
-          },
+        const mime = (file.type || "application/octet-stream").toLowerCase();
+
+        const presignRes = await fetch("/api/media/presign", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            filename: file.name || "upload",
+            mimeType: mime,
+            size: file.size,
+          }),
         });
+        const presignData = (await presignRes.json().catch(() => ({}))) as {
+          ok?: boolean;
+          uploadUrl?: string;
+          mediaId?: string;
+          error?: string;
+        };
+
+        if (presignRes.status === 501 || presignData.error === "s3_not_configured") {
+          const fd = new FormData();
+          fd.set("file", file);
+          await uploadWithProgress<UploadOkResponse>({
+            url: "/api/media/upload",
+            formData: fd,
+            withCredentials: true,
+            onProgress: (loaded) => {
+              const next = Math.round(((uploadedBytes + loaded) / totalBytes) * 100);
+              setUploadPercent(Math.max(0, Math.min(100, next)));
+            },
+          });
+        } else if (!presignRes.ok || !presignData.ok || !presignData.uploadUrl || !presignData.mediaId) {
+          throw new UploadRequestError(presignRes.status, presignData);
+        } else {
+          await putWithProgress({
+            url: presignData.uploadUrl,
+            body: file,
+            contentType: mime,
+            onProgress: (loaded) => {
+              const next = Math.round(((uploadedBytes + loaded) / totalBytes) * 100);
+              setUploadPercent(Math.max(0, Math.min(100, next)));
+            },
+          });
+          const confirmRes = await fetch("/api/media/confirm", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ mediaId: presignData.mediaId }),
+          });
+          const confirmData = (await confirmRes.json().catch(() => ({}))) as { ok?: boolean };
+          if (!confirmRes.ok || !confirmData.ok) {
+            throw new UploadRequestError(confirmRes.status, confirmData);
+          }
+        }
         uploadedBytes += Math.max(file.size, 1);
         const next = Math.round((uploadedBytes / totalBytes) * 100);
         setUploadPercent(Math.max(0, Math.min(100, next)));
@@ -294,27 +345,29 @@ export function MediaLibraryClient() {
     void uploadBatch(files);
   }
 
-  async function onDelete(item: MediaItem) {
+  function openDeleteDialog(item: MediaItem) {
+    setDeleteDialog({ item, phase: "confirm" });
+  }
+
+  async function executeDelete(force: boolean) {
+    if (!deleteDialog) return;
+    const item = deleteDialog.item;
     setDeletingId(item.id);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/media/${item.id}`, {
+      const q = force ? "?confirmDelete=true&confirmUsed=true" : "?confirmDelete=true";
+      const res = await fetch(`/api/admin/media/${item.id}${q}`, {
         method: "DELETE",
         credentials: "same-origin",
       });
-      if (res.status === 409) {
+      if (res.status === 409 && !force) {
         const data = (await res.json()) as { usage?: UsageRef[] };
         const usage = data.usage ?? [];
-        const confirmDelete = window.confirm(usageMessage(usage));
-        if (!confirmDelete) return;
-        const resForce = await fetch(`/api/admin/media/${item.id}?confirmUsed=true`, {
-          method: "DELETE",
-          credentials: "same-origin",
-        });
-        if (!resForce.ok) throw new Error("delete_failed");
-      } else if (!res.ok) {
-        throw new Error("delete_failed");
+        setDeleteDialog({ item, phase: "in_use", usage });
+        return;
       }
+      if (!res.ok) throw new Error("delete_failed");
+      setDeleteDialog(null);
       setReloadKey((x) => x + 1);
     } catch {
       setError("Не удалось удалить файл");
@@ -323,9 +376,88 @@ export function MediaLibraryClient() {
     }
   }
 
+  const deleteItem = deleteDialog?.item ?? null;
+  const deletePhase = deleteDialog?.phase;
+
   return (
     <div className="flex flex-col gap-4">
-      <input ref={desktopUploadInputRef} type="file" multiple className="sr-only" onChange={onUploadFile} disabled={uploading} />
+      <Dialog
+        open={deleteDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton={deletingId === null}>
+          {deleteItem && deletePhase === "confirm" ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Удалить файл?</DialogTitle>
+                <DialogDescription>
+                  Файл «{deleteItem.filename}» будет удалён из библиотеки и из хранилища. Это действие необратимо.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setDeleteDialog(null)} disabled={deletingId !== null}>
+                  Отмена
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={deletingId !== null}
+                  onClick={() => void executeDelete(false)}
+                >
+                  {deletingId === deleteItem.id ? "Удаление..." : "Удалить"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+          {deleteItem && deletePhase === "in_use" && deleteDialog && deleteDialog.phase === "in_use" ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Файл используется в CMS</DialogTitle>
+                <DialogDescription>
+                  Этот файл всё ещё указан на страницах контента. Удаление может сломать ссылки.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 text-sm">
+                <ul className="max-h-40 list-disc space-y-1 overflow-y-auto pl-4 text-foreground">
+                  {deleteDialog.usage.slice(0, 12).map((u) => (
+                    <li key={`${u.pageId}-${u.field}`}>
+                      {u.pageSlug} ({u.field})
+                    </li>
+                  ))}
+                </ul>
+                {deleteDialog.usage.length > 12 ? (
+                  <p className="text-xs text-muted-foreground">…и ещё {deleteDialog.usage.length - 12}</p>
+                ) : null}
+                <p className="font-medium text-foreground">Удалить всё равно?</p>
+              </div>
+              <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setDeleteDialog(null)} disabled={deletingId !== null}>
+                  Отмена
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={deletingId !== null}
+                  onClick={() => void executeDelete(true)}
+                >
+                  {deletingId === deleteItem.id ? "Удаление..." : "Удалить всё равно"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <input
+        ref={desktopUploadInputRef}
+        type="file"
+        multiple
+        accept="image/*,video/*,audio/*,application/pdf"
+        className="sr-only"
+        onChange={onUploadFile}
+        disabled={uploading}
+      />
       <input
         ref={mobileFilesInputRef}
         type="file"
@@ -503,7 +635,7 @@ export function MediaLibraryClient() {
                 deleting={deletingId === item.id}
                 copied={copiedItemId === item.id}
                 onOpenPreview={() => openLightboxByItemId(item.id)}
-                onDelete={() => void onDelete(item)}
+                onDelete={() => openDeleteDialog(item)}
                 onCopyUrl={() => void onCopyUrl(item)}
                 formatSize={formatSize}
                 formatDate={formatDate}
@@ -563,10 +695,12 @@ export function MediaLibraryClient() {
                           {copiedItemId === item.id ? "URL скопирован" : "Скопировать URL"}
                         </Button>
                         <Button
-                          variant="destructive"
+                          type="button"
+                          variant="outline"
                           size="sm"
+                          className="border-destructive text-destructive hover:bg-destructive/10"
                           disabled={deletingId === item.id}
-                          onClick={() => void onDelete(item)}
+                          onClick={() => openDeleteDialog(item)}
                         >
                           {deletingId === item.id ? "Удаление..." : "Удалить"}
                         </Button>

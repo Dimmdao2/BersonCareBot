@@ -7,6 +7,7 @@ import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
 import { NotificationsGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui/patient/guestAccess";
 import { ChannelNotificationToggles } from "./ChannelNotificationToggles";
 import { SubscriptionsList } from "./SubscriptionsList";
+import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 
 const SUBSCRIPTIONS = [
   { id: "exercise_reminders", title: "Напоминания об упражнениях" },
@@ -32,6 +33,7 @@ export default async function NotificationsPage() {
   }
 
   const deps = buildAppDeps();
+  const supportContactHref = await getSupportContactUrl();
   const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
   const emailVerified = Boolean(emailFields.emailVerifiedAt);
 
@@ -70,6 +72,7 @@ export default async function NotificationsPage() {
           <EmailAccountPanel
             initialEmail={emailFields.email}
             emailVerified={emailVerified}
+            supportContactHref={supportContactHref}
           />
         </section>
       </div>

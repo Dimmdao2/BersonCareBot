@@ -136,10 +136,10 @@
 
 ## Аудит Фазы 0
 
-- **Аудитор:**
-- **Дата:**
-- **Результат:** (pass / fail)
-- **Замечания:**
+- **Аудитор:** agent (Cursor)
+- **Дата:** 2026-03-31
+- **Результат:** pass (см. `AUDIT_PHASE_0.md`; minor по комментарию в purchases учтён в remediation)
+- **Замечания:** устаревший комментарий в `purchases/page.tsx` не воспроизводится в текущем виде файла; пользовательские «заглушки» help/install обновлены в remediation TODO/audit.
 
 ---
 
@@ -306,19 +306,14 @@
 
 ### 1.13 — Объединить news/motivation
 
-- **Статус:** done
-- **Агент/модель:** GPT-5.3 Codex
-- **Дата начала:** 2026-03-31
-- **Дата завершения:** 2026-03-31
-- **Изменённые файлы:**
+- **Статус:** superseded (2026-04-01)
+- **Примечание:** первоначальная запись ниже описывала redirect-only модель. **Текущая целевая модель продукта** — отдельные страницы «Новости» и «Мотивация» с хаб-кнопками на `/app/doctor/content` (см. `REWORK_CLOSE_AUDIT_GAPS_REPORT.md`). Не использовать эту запись как source of truth для маршрутизации CMS.
+- **Историческая запись (2026-03-31, отменена продуктовым решением):**
   - `apps/webapp/src/app/app/doctor/content/page.tsx` — удалены кнопки входа в отдельные `news/motivation` маршруты
-  - `apps/webapp/src/app/app/doctor/content/news/page.tsx` — маршрут переведён в redirect на общий `/app/doctor/content`
-  - `apps/webapp/src/app/app/doctor/content/motivation/page.tsx` — маршрут переведён в redirect на общий `/app/doctor/content`
+  - `apps/webapp/src/app/app/doctor/content/news/page.tsx` — redirect на общий `/app/doctor/content`
+  - `apps/webapp/src/app/app/doctor/content/motivation/page.tsx` — redirect на общий `/app/doctor/content`
   - `apps/webapp/src/shared/ui/doctorScreenTitles.test.ts` — удалены ожидания отдельных screen-title для `news/motivation`
-  - `apps/webapp/src/modules/patient-home/README.md` — обновлено описание точки управления новостями/цитатами
-- **Тесты:** regression через `pnpm run ci` (включая webapp tests/build)
-- **CI:** green (`pnpm run ci`)
-- **Замечания аудита:**
+- **Актуально после rework:** восстановлены отдельные страницы и заголовки; плоский список разделов; см. отчёт closure.
 
 ---
 
@@ -458,10 +453,10 @@
 
 ## Аудит Фазы 2
 
-- **Аудитор:**
-- **Дата:**
-- **Результат:**
-- **Замечания:**
+- **Аудитор:** agent (Cursor)
+- **Дата:** 2026-03-31
+- **Результат:** pass после remediation (`PHASE_2_FIX_TASKS`, коммит на базе с overlap/timezone и т.д.; см. `AUDIT_PHASE_2.md` как исторический снимок findings)
+- **Замечания:** первичный аудит фиксировал риски до remediation; актуальное состояние — по коду на `HEAD` и зелёному CI.
 
 ---
 
@@ -688,8 +683,22 @@
 
 ## Итоговый аудит ветки
 
-- **Аудитор:**
-- **Дата:**
-- **CI финальный:**
-- **Регресс-тесты:**
-- **Решение:** merge / доработка
+- **Аудитор:** agent (Cursor), финальный отчёт в `docs/BRANCH_UX_CMS_BOOKING/FINAL_AUDIT.md`
+- **Дата:** 2026-03-31
+- **CI финальный:** green (`pnpm run ci` — lint, typecheck, test, test:webapp, webapp:typecheck, build, audit --prod)
+- **Регресс-тесты:** зелёные в составе `pnpm run ci` (integrator + webapp vitest)
+- **Решение:** **merge** — все фазы 0–4 по `AGENT_LOG` закрыты; аудиты фаз 1–4 в статусе pass/approve. После remediation TODO/audit: трекинг `AUDIT-BACKLOG-*` в `TODO_BACKLOG.md`, `logger.debug` в orchestrator, support URL из БД, обновлены help/install/references и копирайт «Карты» (см. `FINAL_AUDIT.md`).
+
+---
+
+## Remediation: TODO и аудиты (auto-agent)
+
+- **Статус:** done
+- **Дата:** 2026-03-31
+- **Документы:** `TODO_BACKLOG.md`, обновлён `FINAL_AUDIT.md`
+- **Код (кратко):**
+  - Integrator: `resolver.ts` — отладочный вывод callback-плана через `logger.debug` вместо `console.log`.
+  - Webapp: ключ `support_contact_url` (`system_settings`), `getSupportContactUrl()`, константа `DEFAULT_SUPPORT_CONTACT_URL` в `supportContactConstants.ts` (без импорта `pg` в client bundle); OTP/справка/bind-phone; Runtime Config в админке.
+  - Страницы `patient/help`, `patient/install`, `doctor/references` — полезный контент без «Раздел в разработке»; `PlaceholderPage` без этой фразы; `ClientProfileCard` — нейтральный текст про «Карту».
+  - TODO в коде привязаны к `AUDIT-BACKLOG-*` (см. `TODO_BACKLOG.md`).
+- **CI:** green (`pnpm run ci`)

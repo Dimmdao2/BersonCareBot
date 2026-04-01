@@ -31,6 +31,6 @@ describe("MediaUploader", () => {
     render(<MediaUploader onUploaded={() => {}} />);
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     await user.upload(input, new File([new Uint8Array([1])], "a.jpg", { type: "image/jpeg" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Файл больше 50 МБ");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Файл слишком большой");
   });
 });

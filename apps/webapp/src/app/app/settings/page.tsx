@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
 import { DoctorHeader } from "@/shared/ui/DoctorHeader";
 import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
@@ -59,6 +60,11 @@ export default async function SettingsPage() {
     ? {
         integratorApiUrl: String(getValueJson(adminSettingsList.find((x) => x.key === "integrator_api_url")?.valueJson, "") ?? ""),
         bookingUrl: String(getValueJson(adminSettingsList.find((x) => x.key === "booking_url")?.valueJson, "") ?? ""),
+        supportContactUrl: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "support_contact_url")?.valueJson, "");
+          const s = typeof raw === "string" ? raw.trim() : "";
+          return s.length > 0 ? s : DEFAULT_SUPPORT_CONTACT_URL;
+        })(),
         bookingDisplayTimezone: String(
           getValueJson(adminSettingsList.find((x) => x.key === "booking_display_timezone")?.valueJson, "Europe/Moscow") ??
             "Europe/Moscow",

@@ -31,7 +31,7 @@ export type UserProjectionPort = {
     email: string | null;
     emailVerifiedAt: string | null;
   }>;
-  /** Rubitime webhook → user.email.autobind (USER_TODO_STAGE: invalid skip, verified skip, conflict warn). */
+  /** Rubitime webhook → user.email.autobind (USER_TODO_STAGE; см. AUDIT-BACKLOG-024). */
   applyRubitimeEmailAutobind: (params: {
     phoneNormalized: string;
     email: string;

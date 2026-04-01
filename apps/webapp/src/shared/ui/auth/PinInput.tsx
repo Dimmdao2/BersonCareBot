@@ -60,11 +60,14 @@ export function PinInput({
     [disabled, onSubmit],
   );
 
+  /** Only reset auto-submit tracking when the digit string changes — not when `disabled` toggles (avoids triple-submit on loading). */
+  const prevPinRef = useRef<string>("");
   useEffect(() => {
-    if (disabled || !/^\d{4}$/.test(pin)) {
+    if (prevPinRef.current !== pin) {
+      prevPinRef.current = pin;
       autoSubmittedForRef.current = null;
-      return;
     }
+    if (disabled || !/^\d{4}$/.test(pin)) return;
     if (autoSubmittedForRef.current === pin) return;
     autoSubmittedForRef.current = pin;
     runSubmit(pin);

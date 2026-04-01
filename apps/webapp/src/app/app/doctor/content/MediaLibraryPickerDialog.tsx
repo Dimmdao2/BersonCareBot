@@ -67,7 +67,8 @@ export function MediaLibraryPickerDialog({ kind, value, onChange }: Props) {
     };
   }, [open, url]);
 
-  const isApiMedia = value.startsWith("/api/media/");
+  const isApiMedia =
+    value.startsWith("/api/media/") || /^https?:\/\//i.test(value.trim());
 
   const pickerBody = (
     <div className="flex flex-col gap-3">

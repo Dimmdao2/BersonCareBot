@@ -24,9 +24,9 @@ export const routePaths = {
   bindPhone: "/app/patient/bind-phone",
   /** Сообщения пациента (поддержка, webapp-чат). */
   patientMessages: "/app/patient/messages",
-  /** Справка (заглушка). */
+  /** Справка (не в основном меню; прямой URL). */
   patientHelp: "/app/patient/help",
-  /** Установка PWA / приложения (заглушка). */
+  /** Установка PWA / приложения (не в основном меню; прямой URL). */
   patientInstall: "/app/patient/install",
   /** Напоминания пациента. */
   patientReminders: "/app/patient/reminders",

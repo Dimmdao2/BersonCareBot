@@ -3,6 +3,7 @@
  * Поддержка: чаты с пациентами (webapp) + журнал рассылок.
  */
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,9 @@ import { DoctorSupportInbox } from "./DoctorSupportInbox";
 import { DoctorMessagesLogFilters } from "./DoctorMessagesLogFilters";
 import { DoctorMessagesLogPager } from "./DoctorMessagesLogPager";
 import { NewMessageForm } from "./NewMessageForm";
+import { parseMessagesLogClientId } from "./parseMessagesLogClientId";
+
+const MESSAGES_PATH = "/app/doctor/messages";
 
 type Props = {
   searchParams?: Promise<{
@@ -46,7 +50,20 @@ export default async function DoctorMessagesPage({ searchParams }: Props) {
   const page = parsePositiveInt(params.page, 1);
   const pageSize = Math.min(100, parsePositiveInt(params.pageSize, 20));
 
-  const clientId = resetRequested ? "" : (params.clientId ?? "").trim();
+  const { clientId: parsedClientId, invalidClientIdPresent } = parseMessagesLogClientId(
+    params.clientId,
+    resetRequested,
+  );
+  if (invalidClientIdPresent) {
+    const sp = new URLSearchParams();
+    if (params.page) sp.set("page", params.page);
+    if (params.pageSize) sp.set("pageSize", params.pageSize);
+    if (params.category?.trim()) sp.set("category", params.category.trim());
+    if (params.dateFrom?.trim()) sp.set("dateFrom", params.dateFrom.trim());
+    if (params.dateTo?.trim()) sp.set("dateTo", params.dateTo.trim());
+    redirect(sp.size > 0 ? `${MESSAGES_PATH}?${sp.toString()}` : MESSAGES_PATH);
+  }
+  const clientId = parsedClientId;
   const category = resetRequested ? "" : (params.category ?? "").trim();
   const dateFromRaw = resetRequested ? "" : (params.dateFrom ?? "").trim();
   const dateToRaw = resetRequested ? "" : (params.dateTo ?? "").trim();

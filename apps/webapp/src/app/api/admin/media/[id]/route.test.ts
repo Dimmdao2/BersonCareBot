@@ -54,7 +54,7 @@ describe("DELETE /api/admin/media/[id]", () => {
   it("returns 409 when media is used and no confirmation", async () => {
     getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
     findUsageMock.mockResolvedValue([{ pageId: "p1", pageSlug: "slug-1", field: "image_url" }]);
-    const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}`), {
+    const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true`), {
       params: Promise.resolve({ id: mediaId }),
     });
     expect(res.status).toBe(409);
@@ -65,9 +65,12 @@ describe("DELETE /api/admin/media/[id]", () => {
     getSessionMock.mockResolvedValue({ user: { role: "admin" } });
     findUsageMock.mockResolvedValue([{ pageId: "p1", pageSlug: "slug-1", field: "video_url" }]);
     deleteHardMock.mockResolvedValue(true);
-    const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}?confirmUsed=true`), {
+    const res = await DELETE(
+      new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true&confirmUsed=true`),
+      {
       params: Promise.resolve({ id: mediaId }),
-    });
+      },
+    );
     expect(res.status).toBe(200);
     expect(deleteHardMock).toHaveBeenCalledWith(mediaId);
   });
@@ -76,9 +79,19 @@ describe("DELETE /api/admin/media/[id]", () => {
     getSessionMock.mockResolvedValue({ user: { role: "admin" } });
     findUsageMock.mockResolvedValue([]);
     deleteHardMock.mockResolvedValue(false);
-    const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}`), {
+    const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}?confirmDelete=true`), {
       params: Promise.resolve({ id: mediaId }),
     });
     expect(res.status).toBe(404);
+  });
+
+  it("returns 409 when confirmDelete is missing", async () => {
+    getSessionMock.mockResolvedValue({ user: { role: "admin" } });
+    const res = await DELETE(new Request(`http://localhost/api/admin/media/${mediaId}`), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+    expect(res.status).toBe(409);
+    expect(findUsageMock).not.toHaveBeenCalled();
+    expect(deleteHardMock).not.toHaveBeenCalled();
   });
 });

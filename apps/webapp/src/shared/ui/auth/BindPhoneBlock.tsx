@@ -20,13 +20,14 @@ function getWebChatId(): string {
 type BindPhoneBlockProps = {
   channel: "telegram" | "web";
   chatId: string;
+  supportContactHref?: string;
   /** Если задан — используется вместо query `?next=` (встраивание в профиль и т.п.). */
   nextPathOverride?: string;
   /** После успешной привязки без `router.replace` (например, остаться в профиле). */
   onBindSuccess?: () => void;
 };
 
-export function BindPhoneBlock({ channel, chatId, nextPathOverride, onBindSuccess }: BindPhoneBlockProps) {
+export function BindPhoneBlock({ channel, chatId, supportContactHref, nextPathOverride, onBindSuccess }: BindPhoneBlockProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = nextPathOverride?.trim() || searchParams.get("next")?.trim() || "/app/patient";
@@ -45,6 +46,7 @@ export function BindPhoneBlock({ channel, chatId, nextPathOverride, onBindSucces
         <SmsCodeForm
           challengeId={challengeId}
           retryAfterSeconds={retryAfterSeconds}
+          supportContactHref={supportContactHref}
           onConfirm={async (code) => {
             const res = await fetch("/api/auth/phone/confirm", {
               method: "POST",

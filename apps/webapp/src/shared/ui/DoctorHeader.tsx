@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
-import { useDoctorSupportUnreadCount } from "@/shared/hooks/useSupportUnreadPolling";
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
@@ -52,7 +51,6 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
   const pathname = usePathname() ?? "/app/doctor";
   const title = getDoctorScreenTitle(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
-  const supportUnread = useDoctorSupportUnreadCount();
   const showBack = pathname !== "/app/doctor" && pathname !== "/app/doctor/";
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -123,14 +121,9 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
               href="/app/doctor/messages"
               prefetch={false}
               aria-label="Сообщения"
-              className={cn(HEADER_ICON_CLASS, "relative")}
+              className={HEADER_ICON_CLASS}
             >
               <MessageCircle className="size-[22px]" aria-hidden />
-              {supportUnread > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
-                  {supportUnread > 99 ? "99+" : supportUnread}
-                </span>
-              ) : null}
             </Link>
             <Button
               type="button"

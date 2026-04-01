@@ -35,7 +35,8 @@ export async function GET(request: Request) {
   try {
     const slots = await deps.patientBooking.getSlots(parsed.data);
     return NextResponse.json({ ok: true, slots }, { status: 200 });
-  } catch {
+  } catch (err) {
+    console.error("[booking/slots] getSlots failed:", err);
     return NextResponse.json({ ok: false, error: "slots_unavailable" }, { status: 503 });
   }
 }

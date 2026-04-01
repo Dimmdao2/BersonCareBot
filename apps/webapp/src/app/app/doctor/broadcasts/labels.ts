@@ -34,7 +34,7 @@ export const CATEGORY_LABELS: Record<BroadcastCategory, string> = {
   survey: "Опрос",
 };
 
-/** Сегменты без полноценного фильтра в `DoctorClientsPort`: число получателей = все клиенты (TODO в buildAppDeps). */
+/** Сегменты без полноценного фильтра в `DoctorClientsPort`: число получателей = все клиенты (см. TODO AUDIT-BACKLOG-010/011 в buildAppDeps). */
 export function isAudienceEstimateApproximate(filter: BroadcastAudienceFilter): boolean {
   return filter === "inactive" || filter === "sms_only";
 }

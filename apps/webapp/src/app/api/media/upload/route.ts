@@ -1,19 +1,8 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { ALLOWED_MEDIA_MIME, MAX_PROXY_UPLOAD_BYTES } from "@/modules/media/uploadAllowedMime";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
-
-const MAX_BYTES = 50 * 1024 * 1024;
-const ALLOWED_MIME = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "video/mp4",
-  "audio/mpeg",
-  "audio/wav",
-  "application/pdf",
-]);
 
 function hasPrefix(bytes: Uint8Array, prefix: number[]): boolean {
   if (bytes.length < prefix.length) return false;
@@ -36,7 +25,8 @@ function isAllowedByMagicBytes(mime: string, bytes: Uint8Array): boolean {
   if (mime === "image/webp") {
     return bytes.length >= 12 && hasPrefix(bytes, [0x52, 0x49, 0x46, 0x46]) && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
   }
-  if (mime === "video/mp4") {
+  if (mime === "video/mp4" || mime === "video/quicktime") {
+    /* ISO BMFF: size + "ftyp" — типично и для .mp4, и для .mov (QuickTime). */
     return bytes.length >= 8 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
   }
   if (mime === "audio/mpeg") {
@@ -83,11 +73,11 @@ function validateFile(
   file: File,
   index: number,
 ): { ok: true; value: UploadCandidateMeta } | { ok: false; status: number; payload: Record<string, unknown> } {
-  if (file.size > MAX_BYTES) {
+  if (file.size > MAX_PROXY_UPLOAD_BYTES) {
     return {
       ok: false,
       status: 413,
-      payload: { error: "file_too_large", maxBytes: MAX_BYTES, index, filename: file.name || "upload" },
+      payload: { error: "file_too_large", maxBytes: MAX_PROXY_UPLOAD_BYTES, index, filename: file.name || "upload" },
     };
   }
   if (file.size === 0) {
@@ -98,7 +88,7 @@ function validateFile(
     };
   }
   const mime = (file.type || "application/octet-stream").toLowerCase();
-  if (!ALLOWED_MIME.has(mime)) {
+  if (!ALLOWED_MEDIA_MIME.has(mime)) {
     return {
       ok: false,
       status: 415,

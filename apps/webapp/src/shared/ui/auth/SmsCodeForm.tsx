@@ -10,6 +10,7 @@ type SmsCodeFormProps = {
   /** Подпись кнопки отправки кода (по умолчанию «Войти»). */
   submitLabel?: string;
   smsFallbackLink?: boolean;
+  supportContactHref?: string;
   onRequestSms?: () => Promise<OtpResendOutcome>;
   onConfirm: (code: string) => Promise<OtpConfirmResult>;
   onResend: () => Promise<OtpResendOutcome>;
@@ -22,6 +23,7 @@ export function SmsCodeForm({
   description = "Код отправлен по SMS. Введите его ниже.",
   submitLabel = "Войти",
   smsFallbackLink,
+  supportContactHref,
   onRequestSms,
   onConfirm,
   onResend,
@@ -34,6 +36,7 @@ export function SmsCodeForm({
       description={description}
       submitLabel={submitLabel}
       smsFallbackLink={smsFallbackLink}
+      supportContactHref={supportContactHref}
       onRequestSms={onRequestSms}
       onConfirm={onConfirm}
       onResend={onResend}

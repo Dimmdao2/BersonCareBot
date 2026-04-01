@@ -41,4 +41,14 @@ describe("createInMemoryContentSectionsPort", () => {
     expect(await p.listVisible()).toEqual([]);
     expect((await p.listAll()).length).toBe(1);
   });
+
+  it("reorderSlugs updates sort_order indices", async () => {
+    const p = createInMemoryContentSectionsPort();
+    await p.upsert({ slug: "a", title: "A", description: "", sortOrder: 0, isVisible: true });
+    await p.upsert({ slug: "b", title: "B", description: "", sortOrder: 1, isVisible: true });
+    await p.reorderSlugs(["b", "a"]);
+    const all = await p.listAll();
+    expect(all.find((r) => r.slug === "b")?.sortOrder).toBe(0);
+    expect(all.find((r) => r.slug === "a")?.sortOrder).toBe(1);
+  });
 });

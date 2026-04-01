@@ -19,9 +19,10 @@ export function shouldShowRegistrationPlaque(authStep: AuthFlowStep | null): boo
 
 type AppEntryLoginContentProps = {
   allowDevBypass: boolean;
+  supportContactHref: string;
 };
 
-export function AppEntryLoginContent({ allowDevBypass }: AppEntryLoginContentProps) {
+export function AppEntryLoginContent({ allowDevBypass, supportContactHref }: AppEntryLoginContentProps) {
   const [authStep, setAuthStep] = useState<AuthFlowStep | null>(null);
   const onAuthStepChange = useCallback((step: AuthFlowStep) => {
     setAuthStep(step);
@@ -75,7 +76,7 @@ export function AppEntryLoginContent({ allowDevBypass }: AppEntryLoginContentPro
         ) : null}
       </div>
       <Suspense fallback={<p className="text-muted-foreground">Загрузка...</p>}>
-        <AuthBootstrap onAuthStepChange={onAuthStepChange} />
+        <AuthBootstrap supportContactHref={supportContactHref} onAuthStepChange={onAuthStepChange} />
       </Suspense>
     </>
   );

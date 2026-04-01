@@ -5,6 +5,7 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 
 const querySchema = z.object({
+  confirmDelete: z.enum(["true", "false"]).optional(),
   confirmUsed: z.enum(["true", "false"]).optional(),
 });
 
@@ -28,12 +29,17 @@ export async function DELETE(
 
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
+    confirmDelete: url.searchParams.get("confirmDelete") ?? undefined,
     confirmUsed: url.searchParams.get("confirmUsed") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
   }
+  const confirmDelete = parsed.data.confirmDelete === "true";
   const confirmUsed = parsed.data.confirmUsed === "true";
+  if (!confirmDelete) {
+    return NextResponse.json({ ok: false, error: "confirm_required" }, { status: 409 });
+  }
 
   const deps = buildAppDeps();
   const usage = await deps.media.findUsage(id);

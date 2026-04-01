@@ -197,6 +197,33 @@
 - host: `webapp.bersonservices.ru`
 - upstream: `http://127.0.0.1:6200`
 
+**Загрузка файлов (CMS / `POST /api/media/upload`):** в server-блоке vhost webapp задайте лимит тела запроса, иначе nginx ответит `413 Request Entity Too Large` до Next.js (дефолт nginx часто 1m). Рекомендация:
+
+```nginx
+client_max_body_size 55m;
+```
+
+(Чуть выше лимита приложения ~50 MiB на файл; фактическую строку смотрите в `sudo nginx -T`.)
+
+**CMS медиа и S3 (MinIO):** основная загрузка идёт **напрямую в MinIO** (presigned PUT на `S3_ENDPOINT`), минуя nginx webapp. Для этого на бакете публичных файлов нужны **public-read** (скачивание) и **CORS** (браузерный PUT с `https://webapp.bersonservices.ru`). Без CORS presigned PUT из CMS упадёт с сетевой ошибкой.
+
+Пример (MinIO Client `mc`; ключи — те же, что `S3_ACCESS_KEY` / `S3_SECRET_KEY` в env webapp):
+
+```bash
+mc alias set myminio https://fs.bersonservices.ru "<ACCESS_KEY>" "<SECRET_KEY>"
+mc anonymous set download myminio/bersonservices-public
+```
+
+CORS (разрешить origin webapp, методы PUT/GET/HEAD): файл `cors.json` с правилом `CORSRules` (см. AWS-формат), затем:
+
+```bash
+mc cors set myminio/bersonservices-public /path/to/cors.json
+```
+
+Либо MinIO Console: Bucket → `bersonservices-public` → Access / CORS.
+
+Проверка: `curl -I https://fs.bersonservices.ru/bersonservices-public/` — не `connection refused`. Env webapp: см. `S3_*` в `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
+
 ### Важно
 
 - nginx слушает `80` и `443`;

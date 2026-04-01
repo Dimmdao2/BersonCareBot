@@ -95,6 +95,10 @@
 - nginx слушает `80` и `443`;
 - webapp использует отдельный vhost `bersoncarebot-webapp`.
 
+**Загрузка файлов:** для vhost webapp при **прокси-загрузке** (`POST /api/media/upload`, например markdown-тулбар) нужен `client_max_body_size` (рекомендация `55m` — см. `deploy/HOST_DEPLOY_README.md`). Основная библиотека медиа грузит файлы **напрямую в MinIO** (presigned URL); лимит nginx webapp на эти запросы не действует.
+
+**S3 / MinIO (webapp):** при заданных `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PUBLIC_BUCKET` медиа пишется в публичный бакет; в БД хранятся метаданные и `s3_key`. Ключи env (имена): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PUBLIC_BUCKET`, `S3_REGION` (часто `us-east-1`), `S3_FORCE_PATH_STYLE` (`true` для MinIO). На бакете: **public-read** для GET и **CORS** с origin `https://webapp.bersonservices.ru` и методами `PUT`, `GET`, `HEAD` — иначе браузерная загрузка не сработает. Подробные команды: `deploy/HOST_DEPLOY_README.md` (Nginx → Webapp, блок про MinIO).
+
 ### Production env: подтвержденные ключи
 
 #### `/opt/env/bersoncarebot/api.prod`

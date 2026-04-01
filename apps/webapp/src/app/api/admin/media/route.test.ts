@@ -41,7 +41,7 @@ describe("GET /api/admin/media", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns media list for doctor", async () => {
+  it("returns media list for doctor using url from list()", async () => {
     getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
     listMock.mockResolvedValue([
       {
@@ -52,6 +52,7 @@ describe("GET /api/admin/media", () => {
         size: 10,
         userId: null,
         createdAt: "2026-01-01T00:00:00.000Z",
+        url: "/api/media/11111111-1111-4111-8111-111111111111",
       },
     ]);
     const res = await GET(
@@ -80,6 +81,26 @@ describe("GET /api/admin/media", () => {
       limit: 10,
       offset: 5,
     });
+  });
+
+  it("falls back to /api/media/:id when list() returns no url", async () => {
+    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    listMock.mockResolvedValue([
+      {
+        id: "22222222-2222-4222-8222-222222222222",
+        kind: "image",
+        mimeType: "image/jpeg",
+        filename: "y.jpg",
+        size: 5,
+        userId: null,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        // url not provided → should fallback
+      },
+    ]);
+    const res = await GET(new Request("http://localhost/api/admin/media"));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: Array<{ url: string }> };
+    expect(body.items[0]?.url).toBe("/api/media/22222222-2222-4222-8222-222222222222");
   });
 
   it("returns 400 for invalid query", async () => {

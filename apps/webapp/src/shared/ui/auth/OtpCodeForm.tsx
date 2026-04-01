@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OTP_TOO_MANY_ATTEMPTS_MESSAGE } from "@/modules/auth/otpConstants";
+import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
+import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 
 export type OtpConfirmResult =
   | { ok: true; redirectTo?: string }
@@ -38,6 +40,8 @@ type OtpCodeFormProps = {
   onRequestSms?: () => Promise<OtpResendOutcome>;
   /** Раскрывающийся список альтернативных каналов + ссылка в поддержку */
   alternatives?: OtpAlternativeEntry[];
+  /** HTTPS ссылка в поддержку; из `system_settings.support_contact_url` (сервер) или дефолт. */
+  supportContactHref?: string;
   onConfirm: (code: string) => Promise<OtpConfirmResult>;
   onResend: () => Promise<OtpResendOutcome>;
   onBack: () => void;
@@ -51,10 +55,15 @@ export function OtpCodeForm({
   smsFallbackLink = false,
   onRequestSms,
   alternatives,
+  supportContactHref = DEFAULT_SUPPORT_CONTACT_URL,
   onConfirm,
   onResend,
   onBack,
 }: OtpCodeFormProps) {
+  const supportHref =
+    supportContactHref.trim().length > 0 && isSafeExternalHref(supportContactHref.trim())
+      ? supportContactHref.trim()
+      : DEFAULT_SUPPORT_CONTACT_URL;
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -260,9 +269,8 @@ export function OtpCodeForm({
               ) : null}
             </>
           ) : null}
-          {/* TODO: брать URL из system_settings */}
           <a
-            href="https://t.me/BersonCareSupport"
+            href={supportHref}
             target="_blank"
             rel="noopener noreferrer"
             className="w-fit text-sm text-muted-foreground underline"

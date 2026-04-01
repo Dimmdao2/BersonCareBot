@@ -35,7 +35,7 @@ export function MediaCard({ item, deleting, copied, onDelete, onOpenPreview, onC
               onClick={onOpenPreview}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item.url} alt="" className="h-40 w-full object-cover" />
+              <img src={item.url} alt="" className="max-h-40 w-full object-contain bg-muted/30" />
             </button>
           ) : item.kind === "video" ? (
             <div className="flex flex-col gap-2 p-1">
@@ -93,8 +93,9 @@ export function MediaCard({ item, deleting, copied, onDelete, onOpenPreview, onC
         </Button>
         <Button
           type="button"
-          variant="destructive"
+          variant="outline"
           size="sm"
+          className="border-destructive text-destructive hover:bg-destructive/10"
           disabled={deleting}
           onClick={(e) => {
             e.stopPropagation();

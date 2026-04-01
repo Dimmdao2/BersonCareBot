@@ -10,6 +10,8 @@ export type MediaRecord = {
   /** Optional owner for future access control. */
   userId?: string | null;
   createdAt: string;
+  /** Resolved public URL (S3 public URL or /api/media/:id). Populated by list(). */
+  url?: string;
 };
 
 export type MediaListSortBy = "createdAt" | "size" | "kind";

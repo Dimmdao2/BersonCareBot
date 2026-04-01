@@ -15,6 +15,7 @@ import {
   OTP_OTHER_CHANNELS_ORDER,
   pickOtpChannelWithPreference,
 } from "@/modules/auth/otpChannelUi";
+import { routePaths } from "@/app-layer/routes/paths";
 import { isSafeNext } from "@/modules/auth/redirectPolicy";
 import { ChannelPicker } from "@/shared/ui/auth/ChannelPicker";
 import { OtpCodeForm, type OtpAlternativeEntry, type OtpResendOutcome } from "@/shared/ui/auth/OtpCodeForm";
@@ -99,11 +100,12 @@ function buildAlternatives(
 
 type AuthFlowV2Props = {
   nextParam: string | null;
+  supportContactHref?: string;
   /** Сообщает родителю о текущем шаге (плашка на /app только для `phone`). */
   onStepChange?: (step: AuthFlowStep) => void;
 };
 
-export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
+export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: AuthFlowV2Props) {
   const router = useRouter();
   const [step, setStep] = useState<AuthFlowStep>("phone");
   const [loading, setLoading] = useState(false);
@@ -118,6 +120,11 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
   const [pinFailCount, setPinFailCount] = useState(0);
   const [pinSetRedirectTo, setPinSetRedirectTo] = useState<string | null>(null);
   const [pinSetFirstPin, setPinSetFirstPin] = useState<string | null>(null);
+  /** Remount PinInput after a failed attempt so digits clear and auto-submit cannot re-fire. */
+  const [pinLoginResetKey, setPinLoginResetKey] = useState(0);
+  const [setPinStep1ResetKey, setSetPinStep1ResetKey] = useState(0);
+  const [setPinStep2ResetKey, setSetPinStep2ResetKey] = useState(0);
+  const [pinRecoveryAfterExhaustion, setPinRecoveryAfterExhaustion] = useState(false);
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -137,15 +144,18 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
   const startPhoneOtp = async (
     deliveryChannel: OtpChannel,
     entry: "registration" | "channel" | "auto",
+    /** Сразу после `setPhone` в том же async-тике state ещё stale — передаём нормализованный номер из `runCheckPhone`. */
+    phoneForRequest?: string | null,
   ): Promise<OtpResendOutcome> => {
-    if (!phone) return { kind: "error", message: "Нет номера телефона" };
+    const effectivePhone = phoneForRequest ?? phone;
+    if (!effectivePhone) return { kind: "error", message: "Нет номера телефона" };
     setLoading(true);
     try {
       const chatId = getWebChatId();
       const res = await fetch("/api/auth/phone/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone, channel: "web", chatId, deliveryChannel }),
+        body: JSON.stringify({ phone: effectivePhone, channel: "web", chatId, deliveryChannel }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -204,7 +214,7 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
         setStep("pin");
       } else {
         const primary = pickOtpChannelWithPreference(data.methods, data.preferredOtpChannel);
-        const outcome = await startPhoneOtp(primary, "auto");
+        const outcome = await startPhoneOtp(primary, "auto", normalized);
         if (outcome.kind !== "ok") {
           setStep("choose_channel");
         }
@@ -232,13 +242,19 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
       };
       if (res.status === 423) {
         toast.error("Вход временно заблокирован. Попробуйте позже или войдите по SMS.");
+        setPinLoginResetKey((k) => k + 1);
         return;
       }
       if (!res.ok || !data.ok || !data.redirectTo) {
         const nextFails = pinFailCount + 1;
         setPinFailCount(nextFails);
+        setPinLoginResetKey((k) => k + 1);
         if (nextFails >= 3) {
           setPinFailCount(0);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("bersoncare_pin_recovery", "1");
+          }
+          setPinRecoveryAfterExhaustion(true);
           setStep("choose_channel");
           toast.error("Неверный PIN. Выберите другой способ входа.");
           return;
@@ -258,6 +274,7 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
 
   const goChooseChannel = () => {
     setPinFailCount(0);
+    setPinRecoveryAfterExhaustion(false);
     setStep("choose_channel");
   };
 
@@ -309,6 +326,12 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
   if (step === "choose_channel" && methods) {
     return (
       <div id="auth-flow-v2-channel" className="flex flex-col gap-3">
+        {pinRecoveryAfterExhaustion ? (
+          <p className="text-muted-foreground text-sm">
+            После входа по коду откройте <span className="font-medium text-foreground">Профиль</span> и задайте новый
+            PIN в разделе безопасности.
+          </p>
+        ) : null}
         {smsStartCooldownSec > 0 ? (
           <p className="text-muted-foreground text-sm" role="status">
             Повторная отправка возможна через {smsStartCooldownSec} сек
@@ -346,6 +369,7 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
           </p>
         ) : null}
         <PinInput
+          key={`pin-login-${pinLoginResetKey}`}
           disabled={loading}
           onSubmit={(pin) => void submitPin(pin)}
           onForgot={goChooseChannel}
@@ -375,6 +399,7 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
             Придумайте PIN-код для быстрого входа без кода подтверждения.
           </p>
           <PinInput
+            key={`set-pin-1-${setPinStep1ResetKey}`}
             disabled={loading}
             onSubmit={(pin) => {
               setPinSetFirstPin(pin);
@@ -389,11 +414,14 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
       <div id="auth-flow-v2-set-pin-2" className="flex flex-col gap-3">
         <p className="text-muted-foreground text-sm">Повторите PIN-код.</p>
         <PinInput
+          key={`set-pin-2-${setPinStep2ResetKey}`}
           disabled={loading}
           onSubmit={async (confirmPin) => {
             if (confirmPin !== pinSetFirstPin) {
               toast.error("PIN не совпадает. Введите снова.");
               setPinSetFirstPin(null);
+              setSetPinStep1ResetKey((k) => k + 1);
+              setSetPinStep2ResetKey((k) => k + 1);
               return;
             }
             setLoading(true);
@@ -431,6 +459,7 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
         <OtpCodeForm
           challengeId={challengeId}
           retryAfterSeconds={retryAfterSeconds}
+          supportContactHref={supportContactHref}
           submitLabel="Войти"
           description={otpDescription(otpChannel, methods.emailAddress)}
           alternatives={alternatives}
@@ -449,6 +478,16 @@ export function AuthFlowV2({ nextParam, onStepChange }: AuthFlowV2Props) {
               retryAfterSeconds?: number;
             };
             if (data.ok && data.redirectTo) {
+              const fromPinRecovery =
+                typeof window !== "undefined" && sessionStorage.getItem("bersoncare_pin_recovery") === "1";
+              if (fromPinRecovery) {
+                sessionStorage.removeItem("bersoncare_pin_recovery");
+                setPinRecoveryAfterExhaustion(false);
+                if (data.redirectTo.startsWith("/app/patient")) {
+                  router.replace(`${routePaths.profile}#patient-profile-pin`);
+                  return { ok: true as const, redirectTo: data.redirectTo };
+                }
+              }
               if (!methods.pin) {
                 setPinSetRedirectTo(data.redirectTo);
                 setStep("set_pin");

@@ -17,6 +17,10 @@ describe("getDoctorScreenTitle", () => {
   it("returns edit content title", () => {
     expect(getDoctorScreenTitle("/app/doctor/content/edit/abc")).toBe("Редактировать страницу");
   });
+  it("returns news and motivation titles", () => {
+    expect(getDoctorScreenTitle("/app/doctor/content/news")).toBe("Новости");
+    expect(getDoctorScreenTitle("/app/doctor/content/motivation")).toBe("Мотивация");
+  });
   it("returns content sections titles", () => {
     expect(getDoctorScreenTitle("/app/doctor/content/sections")).toBe("Разделы контента");
     expect(getDoctorScreenTitle("/app/doctor/content/sections/new")).toBe("Новый раздел");

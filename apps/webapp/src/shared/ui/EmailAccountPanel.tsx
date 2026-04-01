@@ -9,12 +9,13 @@ import { OtpCodeForm } from "@/shared/ui/auth/OtpCodeForm";
 type Props = {
   initialEmail: string | null;
   emailVerified: boolean;
+  supportContactHref?: string;
 };
 
 /**
  * Блок привязки / смены email (OTP). Переиспользуется в профиле и на странице уведомлений.
  */
-export function EmailAccountPanel({ initialEmail, emailVerified }: Props) {
+export function EmailAccountPanel({ initialEmail, emailVerified, supportContactHref }: Props) {
   const router = useRouter();
   const [emailStep, setEmailStep] = useState<"view" | "enter" | "code">("view");
   const [emailDraft, setEmailDraft] = useState("");
@@ -121,6 +122,7 @@ export function EmailAccountPanel({ initialEmail, emailVerified }: Props) {
         <OtpCodeForm
           challengeId={emailChallengeId}
           retryAfterSeconds={emailRetrySec}
+          supportContactHref={supportContactHref}
           description="Код отправлен (в dev смотрите лог сервера). Введите его ниже."
           submitLabel="Подтвердить email"
           onConfirm={async (code) => {

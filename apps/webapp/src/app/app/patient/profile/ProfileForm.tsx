@@ -16,6 +16,7 @@ type Props = {
   /** Контекст для SMS-привязки (как на странице bind-phone). */
   phoneChannel: "telegram" | "web";
   phoneChatId: string;
+  supportContactHref: string;
   initialEmail: string | null;
   emailVerified: boolean;
 };
@@ -25,6 +26,7 @@ export function ProfileForm({
   phone,
   phoneChannel,
   phoneChatId,
+  supportContactHref,
   initialEmail,
   emailVerified,
 }: Props) {
@@ -80,6 +82,7 @@ export function ProfileForm({
               <BindPhoneBlock
                 channel={phoneChannel}
                 chatId={phoneChatId}
+                supportContactHref={supportContactHref}
                 nextPathOverride="/app/patient/profile"
                 onBindSuccess={() => {
                   setEditingPhone(false);
@@ -99,7 +102,11 @@ export function ProfileForm({
         ) : null}
       </div>
 
-      <EmailAccountPanel initialEmail={initialEmail} emailVerified={emailVerified} />
+      <EmailAccountPanel
+        initialEmail={initialEmail}
+        emailVerified={emailVerified}
+        supportContactHref={supportContactHref}
+      />
     </div>
   );
 }

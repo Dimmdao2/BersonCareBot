@@ -66,7 +66,7 @@ import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
 import { createChannelPreferencesService } from "@/modules/channel-preferences/service";
 import { createContentCatalogResolver } from "@/modules/content-catalog/service";
 import { mockMediaStoragePort } from "@/infra/repos/mockMediaStorage";
-import { createPgMediaStoragePort } from "@/infra/repos/pgMediaStorage";
+import { createS3MediaStoragePort } from "@/infra/repos/s3MediaStorage";
 import { inMemorySymptomDiaryPort } from "@/infra/repos/symptomDiary";
 import { inMemoryLfkDiaryPort } from "@/infra/repos/lfkDiary";
 import { pgSymptomDiaryPort } from "@/infra/repos/pgSymptomDiary";
@@ -117,7 +117,7 @@ import { createLfkAssignmentsService } from "@/modules/lfk-assignments/service";
 import type { LfkAssignmentsPort } from "@/modules/lfk-assignments/ports";
 import { pgLfkAssignmentsPort } from "@/infra/repos/pgLfkAssignments";
 import { checkDbHealth } from "@/infra/db/client";
-import { env, integratorWebhookSecret } from "@/config/env";
+import { env, integratorWebhookSecret, isS3MediaEnabled } from "@/config/env";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
@@ -169,7 +169,10 @@ const subscriptionMailingProjectionPort = env.DATABASE_URL
   : inMemorySubscriptionMailingProjectionPort;
 const contentPagesPort = env.DATABASE_URL ? createPgContentPagesPort() : inMemoryContentPagesPort;
 const contentSectionsPort = env.DATABASE_URL ? createPgContentSectionsPort() : inMemoryContentSectionsPort;
-const mediaStoragePort = env.DATABASE_URL ? createPgMediaStoragePort() : mockMediaStoragePort;
+const mediaStoragePort =
+  env.DATABASE_URL && isS3MediaEnabled(env)
+    ? createS3MediaStoragePort()
+    : mockMediaStoragePort;
 const referencesPort = env.DATABASE_URL ? pgReferencesPort : inMemoryReferencesPort;
 const doctorNotesPort = env.DATABASE_URL ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
@@ -280,6 +283,7 @@ const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]>
                 label: appointmentRowLabel(dateLabel, timeLabel),
                 link: linkFromPayload(row.payloadJson),
                 status: mapRecordStatus(row.status),
+                recordAtIso: row.recordAt ? new Date(row.recordAt).toISOString() : null,
               };
             });
         } catch {
@@ -449,12 +453,12 @@ function _buildAppDeps() {
           return all.length - withUpcoming.length;
         }
         if (filter === "inactive") {
-          // TODO: add lastEventBefore filter to DoctorClientsPort when inactivity tracking lands.
+          // TODO(AUDIT-BACKLOG-010): add lastEventBefore filter to DoctorClientsPort when inactivity tracking lands.
           const list = await doctorClientsPort.listClients({});
           return list.length;
         }
         if (filter === "sms_only") {
-          // TODO: add smsOnly filter to DoctorClientsPort when channel-attribute tracking lands.
+          // TODO(AUDIT-BACKLOG-011): add smsOnly filter to DoctorClientsPort when channel-attribute tracking lands.
           const list = await doctorClientsPort.listClients({});
           return list.length;
         }

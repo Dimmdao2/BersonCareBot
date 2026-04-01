@@ -61,6 +61,14 @@ export default async function DoctorContentPage() {
 
         <div className="flex w-full flex-col gap-3 px-0 sm:px-1">
           <div className="flex w-full gap-2 sm:gap-3">
+            <Link href="/app/doctor/content/news" className={hubBtnClass}>
+              Новости
+            </Link>
+            <Link href="/app/doctor/content/motivation" className={hubBtnClass}>
+              Мотивация
+            </Link>
+          </div>
+          <div className="flex w-full gap-2 sm:gap-3">
             <Link href="/app/doctor/content/new" className={hubPrimaryBtnClass}>
               Создать страницу
             </Link>
