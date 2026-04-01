@@ -62,6 +62,12 @@ export CI=true
 pnpm install --frozen-lockfile
 pnpm --dir apps/webapp build
 
+# Copy static assets into the standalone output so standalone server.js can serve them.
+# Required because Next.js does not copy .next/static/ and public/ into standalone automatically.
+STANDALONE_DIR=apps/webapp/.next/standalone/apps/webapp
+cp -r apps/webapp/.next/static "${STANDALONE_DIR}/.next/static"
+cp -r apps/webapp/public "${STANDALONE_DIR}/public"
+
 # Run webapp DB migrations (DATABASE_URL from webapp.prod)
 set -a
 source "${ENV_FILE}"

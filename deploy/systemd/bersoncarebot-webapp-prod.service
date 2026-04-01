@@ -4,9 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/projects/bersoncarebot
+WorkingDirectory=/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp
 EnvironmentFile=/opt/env/bersoncarebot/webapp.prod
-ExecStart=/usr/bin/pnpm --dir /opt/projects/bersoncarebot/apps/webapp start
+Environment=PORT=6200
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/usr/bin/node /opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp/server.js
 Restart=always
 
 [Install]
