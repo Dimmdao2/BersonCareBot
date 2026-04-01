@@ -6,7 +6,7 @@ export type CatalogCity = { id: string; code: string; title: string };
 
 export type CatalogBranchService = {
   id: string;
-  service?: { title: string; durationMinutes: number } | null;
+  service?: { title: string; description: string | null; durationMinutes: number } | null;
 };
 
 type CitiesState = { loading: boolean; error: string | null; cities: CatalogCity[] };

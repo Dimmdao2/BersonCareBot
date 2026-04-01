@@ -904,3 +904,24 @@
   - `apps/webapp/vitest.globalSetup.ts` — CI now fails fast on migration errors (`CI=true` or `VITEST_REQUIRE_DB_MIGRATIONS=true`) to prevent silent green on broken DB migrations
   - `MIGRATION_CONTRACT_ONLINE_INTAKE_V1.md`, `STAGE_9_ONLINE_INTAKE.md`, `CUTOVER_RUNBOOK.md`, `CHECKLISTS.md` — docs aligned with actual DB schema and current readiness
 - Notes: устраняет падение `048_online_intake.sql` с ошибкой `relation "users" does not exist` на БД, где canonical user table — `platform_users`
+
+---
+
+## UX Fix: FormatStep + ServiceDescription
+
+### UXFIX.T01 — FormatStepClient переработан
+- Status: done
+- Finished at: 2026-04-01
+- Changes: `FormatStepClient` показывает два блока (Очный прием: города из каталога; Онлайн: ЛФК + нутрициология); выбор города ведёт сразу на шаг услуг (`bookingNewService`)
+
+### UXFIX.T02 — useBookingCatalog: добавлен description
+- Status: done
+- Changes: `CatalogBranchService.service` включает поле `description: string | null`
+
+### UXFIX.T03 — ServiceStepClient показывает description
+- Status: done
+- Changes: `ServiceStepClient.tsx` — описание услуги под названием (если задано в каталоге)
+
+### UXFIX.T04 — тесты FormatStepClient обновлены
+- Status: done
+- Changes: `FormatStepClient.test.tsx` — мок `useBookingCatalogCities`, сценарии Москва / ЛФК / нутрициология / загрузка городов

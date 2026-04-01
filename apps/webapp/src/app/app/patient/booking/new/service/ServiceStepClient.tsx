@@ -35,12 +35,13 @@ export function ServiceStepClient({ cityCode, cityTitle }: Props) {
           const title = s.service?.title ?? "Услуга";
           const dur = s.service?.durationMinutes;
           const label = dur != null ? `${title} (${dur} мин.)` : title;
+          const desc = s.service?.description?.trim();
           return (
             <Button
               key={s.id}
               type="button"
               variant="outline"
-              className="h-auto min-h-11 justify-start whitespace-normal text-left"
+              className="h-auto min-h-11 flex-col items-stretch justify-center gap-1 whitespace-normal py-3 text-left"
               onClick={() =>
                 router.push(
                   `${routePaths.bookingNewSlot}?type=in_person` +
@@ -51,7 +52,8 @@ export function ServiceStepClient({ cityCode, cityTitle }: Props) {
                 )
               }
             >
-              {label}
+              <span className="font-medium">{label}</span>
+              {desc ? <span className="text-xs font-normal text-muted-foreground">{desc}</span> : null}
             </Button>
           );
         })}
