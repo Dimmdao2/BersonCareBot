@@ -113,7 +113,7 @@ function parseArgs(argv: string[]): Args {
     retryBaseMs: parsePositiveInt(lookup('--retry-base-ms='), 5500, 100, 120_000),
     rubitimeOffsetMinutes: parsePositiveInt(
       lookup('--rubitime-offset-minutes='),
-      Number.isFinite(env.RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES) ? env.RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES : 180,
+      getRubitimeRecordAtUtcOffsetMinutesForInstant(new Date()),
       -720,
       840,
     ),

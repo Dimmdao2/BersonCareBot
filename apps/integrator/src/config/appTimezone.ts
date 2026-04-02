@@ -44,14 +44,15 @@ export function utcOffsetMinutesFromLongOffset(timeZone: string, instant: Date):
 }
 
 /**
- * Синхронно: APP_DISPLAY_TIMEZONE (если задана и валидна), иначе BOOKING_DISPLAY_TIMEZONE, иначе дефолт.
+ * Синхронно: валидная APP_DISPLAY_TIMEZONE, иначе валидная BOOKING_DISPLAY_TIMEZONE, иначе дефолт.
+ * Если APP задана, но не похожа на IANA — не «глотаем» BOOKING (fallback по цепочке).
  */
 export function getAppDisplayTimezoneSync(): string {
   const rawApp = typeof env.APP_DISPLAY_TIMEZONE === 'string' ? env.APP_DISPLAY_TIMEZONE.trim() : '';
   const rawBooking = typeof env.BOOKING_DISPLAY_TIMEZONE === 'string' ? env.BOOKING_DISPLAY_TIMEZONE.trim() : '';
-  const pick = rawApp.length > 0 ? rawApp : rawBooking.length > 0 ? rawBooking : '';
-  const candidate = pick.length > 0 ? pick : DEFAULT_APP_DISPLAY_TIMEZONE;
-  return IANA_LIKE.test(candidate) ? candidate : DEFAULT_APP_DISPLAY_TIMEZONE;
+  if (rawApp.length > 0 && IANA_LIKE.test(rawApp)) return rawApp;
+  if (rawBooking.length > 0 && IANA_LIKE.test(rawBooking)) return rawBooking;
+  return DEFAULT_APP_DISPLAY_TIMEZONE;
 }
 
 /**

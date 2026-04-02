@@ -104,6 +104,7 @@ export type IntegratorEventsDeps = {
       externalId?: string;
     }) => Promise<{ platformUserId: string }>;
     findByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
+    findByPhone?: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
     updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
     updateProfileByPhone: (params: {
       phoneNormalized: string;
@@ -736,15 +737,28 @@ export async function handleIntegratorEvent(
         coerceToString(payloadJson.name) ??
         ([coerceToString(p.patientLastName), coerceToString(p.patientFirstName)].filter(Boolean).join(" ") || null);
 
-      // Resolve userId by phone for compat-create linking (best-effort: skip if users dep absent).
+      // Resolve userId for compat-create linking (best-effort).
       let resolvedUserId: string | null = null;
       if (deps.users && payloadPhone) {
         try {
-          const found = await deps.users.findByIntegratorId(integratorRecordId).catch(() => null);
-          // findByIntegratorId may not resolve phone-based lookup; userId may stay null for compat rows.
-          resolvedUserId = found?.platformUserId ?? null;
+          const foundByPhone = await deps.users.findByPhone?.(payloadPhone);
+          resolvedUserId = foundByPhone?.platformUserId ?? null;
         } catch {
           // best-effort
+        }
+      }
+      if (!resolvedUserId && deps.users) {
+        const integratorUserId =
+          coerceToString(p.integratorUserId) ??
+          coerceToString(payloadJson.integratorUserId) ??
+          coerceToString(payloadJson.integrator_user_id);
+        if (integratorUserId) {
+          try {
+            const foundByIntegratorId = await deps.users.findByIntegratorId(integratorUserId);
+            resolvedUserId = foundByIntegratorId?.platformUserId ?? null;
+          } catch {
+            // best-effort
+          }
         }
       }
 

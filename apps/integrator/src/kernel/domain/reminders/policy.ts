@@ -198,7 +198,7 @@ export function buildDefaultReminderRule(input: {
     category: input.category,
     isEnabled: false,
     scheduleType: 'interval_window',
-    timezone: input.timezone ?? 'Europe/Moscow',
+    timezone: input.timezone ?? getAppDisplayTimezoneSync(),
     intervalMinutes: config.intervalMinutes,
     windowStartMinute: config.windowStartMinute,
     windowEndMinute: config.windowEndMinute,

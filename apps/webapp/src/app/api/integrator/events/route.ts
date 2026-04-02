@@ -66,7 +66,13 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const result = await handleIntegratorEvent(eventBody, {
     diaries: deps.diaries,
-    users: deps.userProjection,
+    users: {
+      ...deps.userProjection,
+      findByPhone: async (phoneNormalized: string) => {
+        const found = await deps.userByPhone.findByPhone(phoneNormalized);
+        return found ? { platformUserId: found.userId } : null;
+      },
+    },
     preferences: deps.userProjection,
     supportCommunication: deps.supportCommunication,
     reminderProjection: deps.reminderProjection,
