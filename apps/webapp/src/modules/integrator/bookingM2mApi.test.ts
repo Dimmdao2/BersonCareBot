@@ -173,3 +173,44 @@ describe("createBookingSyncPort.fetchSlots", () => {
     ).rejects.toThrow("rubitime_timeout");
   });
 });
+
+describe("createBookingSyncPort postSigned retry", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("retries on HTTP 502 then succeeds", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    globalFetchMock
+      .mockResolvedValueOnce({ status: 502, json: () => Promise.resolve({ ok: false }) })
+      .mockResolvedValueOnce({ status: 502, json: () => Promise.resolve({ ok: false }) })
+      .mockResolvedValueOnce({ status: 200, json: () => Promise.resolve({ ok: true, slots: [] }) });
+    const port = createBookingSyncPort();
+    const p = port.fetchSlots({ type: "online", category: "general" });
+    await vi.advanceTimersByTimeAsync(5000);
+    await expect(p).resolves.toEqual([]);
+    expect(globalFetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry on HTTP 400", async () => {
+    globalFetchMock.mockResolvedValueOnce({
+      status: 400,
+      json: () => Promise.resolve({ ok: false, error: "bad_request" }),
+    });
+    const port = createBookingSyncPort();
+    await expect(port.fetchSlots({ type: "online", category: "general" })).rejects.toThrow("bad_request");
+    expect(globalFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries once on fetch TypeError", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    globalFetchMock
+      .mockRejectedValueOnce(new TypeError("network down"))
+      .mockResolvedValueOnce({ status: 200, json: () => Promise.resolve({ ok: true, slots: [] }) });
+    const port = createBookingSyncPort();
+    const p = port.fetchSlots({ type: "online", category: "general" });
+    await vi.advanceTimersByTimeAsync(5000);
+    await expect(p).resolves.toEqual([]);
+    expect(globalFetchMock).toHaveBeenCalledTimes(2);
+  });
+});

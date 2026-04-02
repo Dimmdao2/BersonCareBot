@@ -1,5 +1,17 @@
 import type { OnlineIntakePort, OnlineIntakeService, IntakeNotificationPort, ListIntakeQuery } from "./ports";
 import type { ChangeIntakeStatusInput, CreateLfkIntakeInput, CreateNutritionIntakeInput } from "./types";
+
+function dedupeStringsPreserveOrder(arr: string[] | undefined): string[] | undefined {
+  if (!arr?.length) return arr;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of arr) {
+    if (seen.has(x)) continue;
+    seen.add(x);
+    out.push(x);
+  }
+  return out;
+}
 import {
   MAX_ACTIVE_INTAKE_PER_USER,
   NUTRITION_QUESTIONS,
@@ -54,9 +66,14 @@ export function createOnlineIntakeService(deps: {
 
   return {
     async submitLfk(input) {
-      validateLfkInput(input);
-      await checkRateLimit(input.userId, "lfk");
-      const request = await intakePort.createLfkRequest(input);
+      const normalized = {
+        ...input,
+        attachmentUrls: dedupeStringsPreserveOrder(input.attachmentUrls),
+        attachmentFileIds: dedupeStringsPreserveOrder(input.attachmentFileIds),
+      };
+      validateLfkInput(normalized);
+      await checkRateLimit(normalized.userId, "lfk");
+      const request = await intakePort.createLfkRequest(normalized);
       if (notificationPort) {
         await notificationPort
           .notifyNewIntakeRequest({

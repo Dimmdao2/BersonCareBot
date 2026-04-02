@@ -7,7 +7,8 @@ import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 const bodySchema = z.object({
   description: z.string().min(20, "description_too_short").max(5000, "description_too_long"),
   attachmentUrls: z.array(z.string().url()).max(5).optional(),
-  attachmentFileIds: z.array(z.string()).max(10).optional(),
+  /** Each item is `media_files.id` (UUID) for a file owned by the patient in `ready` (or legacy readable) state. */
+  attachmentFileIds: z.array(z.string().uuid()).max(10).optional(),
 });
 
 export async function POST(request: Request) {
@@ -44,10 +45,17 @@ export async function POST(request: Request) {
     );
   } catch (err: unknown) {
     if (err instanceof Error && "code" in err) {
-      if ((err as { code: string }).code === "VALIDATION_ERROR") {
+      const code = (err as { code: string }).code;
+      if (code === "VALIDATION_ERROR") {
         return NextResponse.json({ error: "VALIDATION_ERROR", message: err.message }, { status: 400 });
       }
-      if ((err as { code: string }).code === "RATE_LIMIT") {
+      if (code === "ATTACHMENT_FILE_INVALID") {
+        return NextResponse.json({ error: "ATTACHMENT_FILE_INVALID", message: err.message }, { status: 400 });
+      }
+      if (code === "ATTACHMENT_FILE_FORBIDDEN") {
+        return NextResponse.json({ error: "ATTACHMENT_FILE_FORBIDDEN", message: err.message }, { status: 403 });
+      }
+      if (code === "RATE_LIMIT") {
         return NextResponse.json({ error: "RATE_LIMIT_EXCEEDED" }, { status: 429 });
       }
     }

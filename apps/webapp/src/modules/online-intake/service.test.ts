@@ -208,4 +208,109 @@ describe("onlineIntakeService", () => {
       expect(result.items[0].userId).toBe("user-A");
     });
   });
+
+  describe("submitLfk attachments", () => {
+    const mediaId = "a0000000-0000-4000-8000-000000000001";
+    const base = {
+      userId: "user-att-1",
+      patientName: "Пациент",
+      patientPhone: "+79001230001",
+      description: "Подробное описание симптомов для теста вложений ЛФК и смешанного типа",
+    };
+
+    it("persists mixed URL + file attachments with correct order (urls then files)", async () => {
+      const mediaFilesById = new Map([
+        [
+          mediaId,
+          {
+            userId: "user-att-1",
+            s3Key: "media/a0000000-0000-4000-8000-000000000001/scan.png",
+            mimeType: "image/png",
+            sizeBytes: 1024,
+            originalName: "scan.png",
+          },
+        ],
+      ]);
+      const svc = createOnlineIntakeService({
+        intakePort: createInMemoryOnlineIntake({ mediaFilesById }),
+        notificationPort: null,
+      });
+      const created = await svc.submitLfk({
+        ...base,
+        attachmentUrls: ["https://example.com/ref1", "https://example.com/ref2"],
+        attachmentFileIds: [mediaId],
+      });
+      const full = await svc.getRequestForDoctor(created.id);
+      expect(full?.attachments).toHaveLength(3);
+      expect(full?.attachments[0].attachmentType).toBe("url");
+      expect(full?.attachments[0].url).toBe("https://example.com/ref1");
+      expect(full?.attachments[1].attachmentType).toBe("url");
+      expect(full?.attachments[2].attachmentType).toBe("file");
+      expect(full?.attachments[2].s3Key).toContain("scan");
+    });
+
+    it("deduplicates repeated URLs and file ids", async () => {
+      const mediaFilesById = new Map([
+        [
+          mediaId,
+          {
+            userId: "user-att-1",
+            s3Key: "media/x/f.png",
+            mimeType: "image/png",
+            sizeBytes: 100,
+            originalName: "f.png",
+          },
+        ],
+      ]);
+      const svc = createOnlineIntakeService({
+        intakePort: createInMemoryOnlineIntake({ mediaFilesById }),
+        notificationPort: null,
+      });
+      const created = await svc.submitLfk({
+        ...base,
+        attachmentUrls: ["https://example.com/same", "https://example.com/same"],
+        attachmentFileIds: [mediaId, mediaId],
+      });
+      const full = await svc.getRequestForDoctor(created.id);
+      expect(full?.attachments).toHaveLength(2);
+    });
+
+    it("rejects file id when media map has different owner", async () => {
+      const mediaFilesById = new Map([
+        [
+          mediaId,
+          {
+            userId: "other-user",
+            s3Key: "media/x/f.png",
+            mimeType: "image/png",
+            sizeBytes: 100,
+            originalName: "f.png",
+          },
+        ],
+      ]);
+      const svc = createOnlineIntakeService({
+        intakePort: createInMemoryOnlineIntake({ mediaFilesById }),
+        notificationPort: null,
+      });
+      await expect(
+        svc.submitLfk({
+          ...base,
+          attachmentFileIds: [mediaId],
+        }),
+      ).rejects.toMatchObject({ code: "ATTACHMENT_FILE_FORBIDDEN" });
+    });
+
+    it("rejects unknown file id without in-memory mock", async () => {
+      const svc = createOnlineIntakeService({
+        intakePort: createInMemoryOnlineIntake(),
+        notificationPort: null,
+      });
+      await expect(
+        svc.submitLfk({
+          ...base,
+          attachmentFileIds: [mediaId],
+        }),
+      ).rejects.toMatchObject({ code: "ATTACHMENT_FILE_INVALID" });
+    });
+  });
 });

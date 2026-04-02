@@ -189,23 +189,27 @@ export function createPatientBookingService(input: {
           const code = err instanceof Error ? err.message : "rubitime_create_failed";
           throw new Error(code);
         }
+        const rubitimeIdTrimmed = sync.rubitimeId?.trim() ?? "";
+        if (!rubitimeIdTrimmed) {
+          await input.bookingsPort.markFailedSync(pending.id);
+          invalidateSlotsCache();
+          throw new Error("rubitime_id_missing");
+        }
         let confirmed: Awaited<ReturnType<PatientBookingsPort["markConfirmed"]>>;
         try {
-          confirmed = await input.bookingsPort.markConfirmed(pending.id, sync.rubitimeId);
+          confirmed = await input.bookingsPort.markConfirmed(pending.id, rubitimeIdTrimmed);
         } catch (err) {
           const slotOverlap =
             (err instanceof Error && err.message === "slot_overlap") || isPostgresExclusionViolation(err);
           if (slotOverlap) {
-            if (sync.rubitimeId) {
-              try {
-                await input.syncPort.cancelRecord(sync.rubitimeId);
-              } catch (cancelErr) {
-                console.error("[patient-booking] failed to rollback rubitime record after slot overlap", {
-                  bookingId: pending.id,
-                  rubitimeId: sync.rubitimeId,
-                  cancelErr,
-                });
-              }
+            try {
+              await input.syncPort.cancelRecord(rubitimeIdTrimmed);
+            } catch (cancelErr) {
+              console.error("[patient-booking] failed to rollback rubitime record after slot overlap", {
+                bookingId: pending.id,
+                rubitimeId: rubitimeIdTrimmed,
+                cancelErr,
+              });
             }
             await input.bookingsPort.markCancelled({
               bookingId: pending.id,
@@ -217,7 +221,7 @@ export function createPatientBookingService(input: {
           }
           console.error("[patient-booking] booking confirm failed after rubitime create", {
             bookingId: pending.id,
-            rubitimeId: sync.rubitimeId,
+            rubitimeId: rubitimeIdTrimmed,
             err,
           });
           invalidateSlotsCache();

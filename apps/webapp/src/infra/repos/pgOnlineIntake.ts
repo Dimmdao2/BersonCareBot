@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/infra/db/client";
+import { resolveMediaFileForLfkAttachment } from "@/infra/repos/pgMediaFileIntakeResolve";
 import type { OnlineIntakePort, ListIntakeQuery } from "@/modules/online-intake/ports";
 import type {
   ChangeIntakeStatusInput,
@@ -133,6 +134,23 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
             `INSERT INTO online_intake_attachments (id, request_id, attachment_type, url)
              VALUES ($1, $2, 'url', $3)`,
             [randomUUID(), id, url],
+          );
+        }
+
+        for (const fileId of input.attachmentFileIds ?? []) {
+          const resolved = await resolveMediaFileForLfkAttachment(client, fileId, input.userId);
+          await client.query(
+            `INSERT INTO online_intake_attachments
+               (id, request_id, attachment_type, s3_key, mime_type, size_bytes, original_name)
+             VALUES ($1, $2, 'file', $3, $4, $5, $6)`,
+            [
+              randomUUID(),
+              id,
+              resolved.s3Key,
+              resolved.mimeType,
+              resolved.sizeBytes,
+              resolved.originalName,
+            ],
           );
         }
 

@@ -184,18 +184,20 @@ describe("pgPatientBookingsPort", () => {
     it("compat create writes branch_service_id and compat_quality full when catalog lookup succeeds", async () => {
       lookupMock.mockResolvedValue({ result: { ...LOOKUP_FULL }, ambiguous: false });
       queryMock.mockResolvedValueOnce({ rows: [] });
+      queryMock.mockResolvedValueOnce({ rows: [] });
       queryMock.mockResolvedValueOnce({ rowCount: 1 });
 
       await pgPatientBookingsPort.upsertFromRubitime(baseCompatInput);
 
       expect(lookupMock).toHaveBeenCalledWith("173", "675", "99");
-      const insertArgs = queryMock.mock.calls[1]![1] as unknown[];
+      const insertArgs = queryMock.mock.calls[2]![1] as unknown[];
       expect(insertArgs![16]).toBe(LOOKUP_FULL.branchServiceId);
       expect(insertArgs![19]).toBe("full");
     });
 
     it("compat update touches same rubitime_id with UPDATE, not second INSERT", async () => {
       lookupMock.mockResolvedValue({ result: { ...LOOKUP_FULL }, ambiguous: false });
+      queryMock.mockResolvedValueOnce({ rows: [] });
       queryMock.mockResolvedValueOnce({ rows: [] });
       queryMock.mockResolvedValueOnce({ rowCount: 1 });
       await pgPatientBookingsPort.upsertFromRubitime(baseCompatInput);
@@ -215,15 +217,40 @@ describe("pgPatientBookingsPort", () => {
         status: "cancelled",
       });
 
-      const updateSql = String(queryMock.mock.calls[3]![0] ?? "");
+      const updateSql = String(queryMock.mock.calls[4]![0] ?? "");
       expect(updateSql).toContain("UPDATE patient_bookings");
-      const updateArgs = queryMock.mock.calls[3]![1] as unknown[];
+      const updateArgs = queryMock.mock.calls[4]![1] as unknown[];
       expect(updateArgs![9]).toBe(LOOKUP_FULL.branchServiceId);
-      expect(queryMock.mock.calls.length).toBe(4);
+      expect(queryMock.mock.calls.length).toBe(5);
+    });
+
+    it("fallback links native row by phone + slot when rubitime_id was NULL, then UPDATE path", async () => {
+      lookupMock.mockResolvedValue({ result: { ...LOOKUP_FULL }, ambiguous: false });
+      const nativeId = "00000000-0000-4000-8000-0000000000n1";
+      queryMock.mockResolvedValueOnce({ rows: [] });
+      queryMock.mockResolvedValueOnce({
+        rows: [{ id: nativeId, source: "native", slot_start: SLOT_START }],
+      });
+      queryMock.mockResolvedValueOnce({ rowCount: 1 });
+      queryMock.mockResolvedValueOnce({ rowCount: 1 });
+
+      await pgPatientBookingsPort.upsertFromRubitime({
+        ...baseCompatInput,
+        rubitimeId: "rt-webhook-new",
+        contactPhone: "+7000",
+      });
+
+      const linkSql = String(queryMock.mock.calls[2]?.[0] ?? "");
+      expect(linkSql).toContain("rubitime_id = $1");
+      expect((queryMock.mock.calls[2]?.[1] as unknown[])[0]).toBe("rt-webhook-new");
+      expect((queryMock.mock.calls[2]?.[1] as unknown[])[1]).toBe(nativeId);
+      const updateSql = String(queryMock.mock.calls[3]?.[0] ?? "");
+      expect(updateSql).toContain("UPDATE patient_bookings");
     });
 
     it("lookup miss yields minimal compat_quality without branch_service_id", async () => {
       lookupMock.mockResolvedValue({ result: null, ambiguous: false });
+      queryMock.mockResolvedValueOnce({ rows: [] });
       queryMock.mockResolvedValueOnce({ rows: [] });
       queryMock.mockResolvedValueOnce({ rowCount: 1 });
 
@@ -235,7 +262,7 @@ describe("pgPatientBookingsPort", () => {
         serviceTitle: null,
       });
 
-      const insertArgs = queryMock.mock.calls[1]![1] as unknown[];
+      const insertArgs = queryMock.mock.calls[2]![1] as unknown[];
       expect(insertArgs![16]).toBeNull();
       expect(insertArgs![19]).toBe("minimal");
     });

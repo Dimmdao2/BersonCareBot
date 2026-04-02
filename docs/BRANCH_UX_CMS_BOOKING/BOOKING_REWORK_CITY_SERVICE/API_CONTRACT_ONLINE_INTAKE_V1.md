@@ -20,10 +20,18 @@ Roles:
 ```typescript
 {
   description: string;          // required, min 20, max 5000 chars
-  attachmentUrls?: string[];    // optional, max 5 items, each valid URL
-  attachmentFileIds?: string[]; // optional, max 10 items, uploaded media IDs
+  attachmentUrls?: string[];    // optional, max 5 items, each valid URL; order preserved
+  attachmentFileIds?: string[]; // optional, max 10 items — each is media_files.id (UUID)
 }
 ```
+
+**`attachmentFileIds` (LFK):**
+
+- Each string is a UUID primary key of `media_files` (`media_files.id`), produced after the patient uploads a file (e.g. presign/confirm flow).
+- **Ownership:** the row’s `uploaded_by` must equal the authenticated patient’s `platform_users.id`.
+- **Status:** file must be usable for intake — not `pending` or `deleting`, and `s3_key` must be set (same rules as readable media elsewhere).
+- **Mixed payload:** `attachmentUrls` and `attachmentFileIds` may both be present. Persist order: all URL attachments first (in request order), then all file-backed attachments (in request order). Duplicate URLs or duplicate file IDs within one request are deduplicated server-side (first occurrence wins).
+- **Errors:** invalid/missing file id or bad status → `400` (`ATTACHMENT_FILE_INVALID`); file belongs to another user → `403` (`ATTACHMENT_FILE_FORBIDDEN`).
 
 **Response 201:**
 ```typescript

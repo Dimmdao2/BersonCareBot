@@ -54,7 +54,12 @@ export type IntakeRequestFull = IntakeRequest & {
 export type CreateLfkIntakeInput = {
   userId: string;
   description: string;
+  /** External URLs (max 5). Order is preserved after URL attachments, then file attachments. */
   attachmentUrls?: string[];
+  /**
+   * `media_files.id` values (max 10). Same request may include both `attachmentUrls` and `attachmentFileIds` (mixed).
+   * Server deduplicates repeated IDs within the array. Ownership and file status are validated before persist.
+   */
   attachmentFileIds?: string[];
 };
 

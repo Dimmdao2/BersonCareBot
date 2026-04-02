@@ -22,6 +22,26 @@ type IntakeListResponse = {
   totalPages: number;
 };
 
+type IntakeDetail = {
+  id: string;
+  type: "lfk" | "nutrition";
+  status: string;
+  patientName: string;
+  patientPhone: string;
+  createdAt: string;
+  updatedAt: string;
+  description?: string;
+  attachmentUrls?: string[];
+  attachmentFiles?: Array<{
+    id: string;
+    url: string;
+    originalName: string;
+    mimeType: string;
+    sizeBytes: number;
+  }>;
+  answers?: Array<{ questionId: string; questionText: string; value: string; ordinal: number }>;
+};
+
 const STATUS_LABELS: Record<string, string> = {
   new: "Новая",
   in_review: "На рассмотрении",
@@ -46,6 +66,30 @@ export function DoctorOnlineIntakeClient() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "new" | "in_review">("new");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<IntakeDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  async function loadDetail(id: string) {
+    if (detailId === id && detail) {
+      setDetailId(null);
+      setDetail(null);
+      return;
+    }
+    setDetailId(id);
+    setDetailLoading(true);
+    try {
+      const res = await fetch(`/api/doctor/online-intake/${id}`);
+      if (!res.ok) {
+        setDetail(null);
+        setDetailId(null);
+        return;
+      }
+      setDetail((await res.json()) as IntakeDetail);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
 
   async function loadItems() {
     setLoading(true);
@@ -123,6 +167,70 @@ export function DoctorOnlineIntakeClient() {
             {item.summary && (
               <p className="text-sm text-muted-foreground line-clamp-2">{item.summary}</p>
             )}
+
+            <div className="flex flex-col gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="self-start h-8 px-2"
+                onClick={() => void loadDetail(item.id)}
+              >
+                {detailId === item.id ? "Скрыть детали" : "Подробнее"}
+              </Button>
+              {detailId === item.id && detailLoading && (
+                <p className="text-xs text-muted-foreground">Загрузка деталей…</p>
+              )}
+              {detailId === item.id && detail && detail.id === item.id && (
+                <div className="rounded-md border border-border/80 bg-muted/30 p-3 text-sm space-y-2">
+                  {detail.type === "lfk" && detail.description && (
+                    <p className="whitespace-pre-wrap text-foreground">{detail.description}</p>
+                  )}
+                  {detail.type === "lfk" &&
+                    (detail.attachmentUrls?.length || detail.attachmentFiles?.length) && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-muted-foreground">Вложения</p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          {(detail.attachmentUrls ?? []).map((u) => (
+                            <li key={u}>
+                              <a
+                                href={u}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary underline break-all"
+                              >
+                                {u}
+                              </a>
+                              <span className="text-muted-foreground text-xs ml-1">(ссылка)</span>
+                            </li>
+                          ))}
+                          {(detail.attachmentFiles ?? []).map((f) => (
+                            <li key={f.id}>
+                              <a
+                                href={f.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary underline break-all"
+                              >
+                                {f.originalName}
+                              </a>
+                              <span className="text-muted-foreground text-xs ml-1">
+                                ({f.mimeType}, {(f.sizeBytes / 1024).toFixed(1)} KB)
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  {detail.type === "nutrition" &&
+                    detail.answers?.map((a) => (
+                      <div key={a.questionId} className="space-y-0.5">
+                        <p className="text-xs font-medium text-muted-foreground">{a.questionText}</p>
+                        <p className="whitespace-pre-wrap">{a.value}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-2 flex-wrap">
               {item.status === "new" && (

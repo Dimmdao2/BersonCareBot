@@ -146,7 +146,7 @@ async function sendLinkedChannelMessage(input: {
       payload: {
         recipient: { chatId: bindings.telegramId.trim() },
         message: { text: input.text },
-        delivery: { channels: ['telegram'], maxAttempts: 1 },
+        delivery: { channels: ['telegram'], maxAttempts: 3 },
       },
     });
   }
@@ -161,7 +161,7 @@ async function sendLinkedChannelMessage(input: {
       payload: {
         recipient: { chatId: bindings.maxId.trim() },
         message: { text: input.text },
-        delivery: { channels: ['max'], maxAttempts: 1 },
+        delivery: { channels: ['max'], maxAttempts: 3 },
       },
     });
   }
@@ -179,7 +179,7 @@ async function sendDoctorMessage(dispatchPort: DispatchPort, text: string, event
       payload: {
         recipient: { chatId: telegramConfig.adminTelegramId },
         message: { text },
-        delivery: { channels: ['telegram'], maxAttempts: 1 },
+        delivery: { channels: ['telegram'], maxAttempts: 3 },
       },
     });
   }
@@ -194,7 +194,7 @@ async function sendDoctorMessage(dispatchPort: DispatchPort, text: string, event
       payload: {
         recipient: { chatId: maxConfig.adminChatId },
         message: { text },
-        delivery: { channels: ['max'], maxAttempts: 1 },
+        delivery: { channels: ['max'], maxAttempts: 3 },
       },
     });
   }

@@ -138,13 +138,66 @@ describe('fetchRubitimeSchedule', () => {
     ).rejects.toThrow('RUBITIME_API_ERROR');
   });
 
-  it('throws RUBITIME_HTTP_* when HTTP status is non-ok', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      new Response('Service Unavailable', { status: 503, headers: { 'content-type': 'text/plain' } }),
-    );
-    await expect(
-      fetchRubitimeSchedule({ params: { branchId: 1, cooperatorId: 2, serviceId: 3 }, fetchImpl }),
-    ).rejects.toThrow('RUBITIME_HTTP_503');
+  it(
+    'throws RUBITIME_HTTP_* when HTTP status is non-ok after retries on 503',
+    async () => {
+      const fetchImpl = vi.fn().mockImplementation(
+        () =>
+          new Response('Service Unavailable', { status: 503, headers: { 'content-type': 'text/plain' } }),
+      );
+      await expect(
+        fetchRubitimeSchedule({ params: { branchId: 1, cooperatorId: 2, serviceId: 3 }, fetchImpl }),
+      ).rejects.toThrow('RUBITIME_HTTP_503');
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+    },
+    10_000,
+  );
+
+  it('retries on HTTP 503 then succeeds (second attempt)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const scheduleData = { '2026-04-10': { '10:00': { available: true } } };
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(
+        new Response('unavailable', { status: 503, headers: { 'content-type': 'text/plain' } }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 'ok', message: 'Success', data: scheduleData }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+
+    const p = fetchRubitimeSchedule({ params: { branchId: 1, cooperatorId: 2, serviceId: 3 }, fetchImpl });
+    await vi.runAllTimersAsync();
+    const result = await p;
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(result).toEqual(scheduleData);
+    vi.useRealTimers();
+  });
+
+  it('retries twice on HTTP 503 then succeeds (third attempt)', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const scheduleData = { '2026-04-10': { '10:00': { available: true } } };
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(
+        new Response('unavailable', { status: 503, headers: { 'content-type': 'text/plain' } }),
+      )
+      .mockResolvedValueOnce(
+        new Response('unavailable', { status: 503, headers: { 'content-type': 'text/plain' } }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 'ok', message: 'Success', data: scheduleData }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+
+    const p = fetchRubitimeSchedule({ params: { branchId: 1, cooperatorId: 2, serviceId: 3 }, fetchImpl });
+    await vi.runAllTimersAsync();
+    const result = await p;
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(result).toEqual(scheduleData);
+    vi.useRealTimers();
   });
 
   it('throws RUBITIME_INVALID_JSON when Rubitime returns non-JSON', async () => {

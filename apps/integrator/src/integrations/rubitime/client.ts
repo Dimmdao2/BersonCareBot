@@ -12,6 +12,13 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null ? value as Record<string, unknown> : null;
 }
 
+/** Aligned with webapp booking M2M POST retry policy: 3 attempts, backoff ms. */
+const RUBITIME_API_RETRY_BACKOFF_MS = [1000, 2000, 4000] as const;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function postRubitimeApi2(input: {
   method: 'get-record' | 'update-record' | 'remove-record' | 'create-record' | 'get-schedule';
   body: Record<string, unknown>;
@@ -23,40 +30,61 @@ async function postRubitimeApi2(input: {
   }
   const fetchImpl = input.fetchImpl ?? globalThis.fetch;
   const url = `https://rubitime.ru/api2/${input.method}`;
-  const response = await fetchImpl(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ rk: apiKey, ...input.body }),
-  });
+  const bodyJson = JSON.stringify({ rk: apiKey, ...input.body });
 
-  const raw = await response.text();
-  if (!response.ok) {
-    throw new Error(`RUBITIME_HTTP_${response.status}: ${raw.slice(0, 300)}`);
-  }
-
-  let parsed: RubitimeApiEnvelope<unknown>;
-  try {
-    parsed = JSON.parse(raw) as RubitimeApiEnvelope<unknown>;
-  } catch {
-    throw new Error(`RUBITIME_INVALID_JSON: ${raw.slice(0, 300)}`);
-  }
-
-  if (parsed.status !== 'ok') {
-    throw new Error(`RUBITIME_API_ERROR: ${parsed.message ?? 'unknown error'}`);
-  }
-
-  const data = asRecord(parsed.data);
-  if (input.method === 'get-record') {
-    if (!data) {
-      throw new Error('RUBITIME_API_EMPTY_RECORD');
+  let lastHttpError: Error | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let response: Response;
+    try {
+      response = await fetchImpl(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: bodyJson,
+      });
+    } catch (e) {
+      if (e instanceof TypeError && attempt < 2) {
+        await sleep(RUBITIME_API_RETRY_BACKOFF_MS[attempt] ?? 2000);
+        continue;
+      }
+      throw e;
     }
-    return data;
+
+    const raw = await response.text();
+    if (!response.ok) {
+      lastHttpError = new Error(`RUBITIME_HTTP_${response.status}: ${raw.slice(0, 300)}`);
+      if (response.status >= 500 && attempt < 2) {
+        await sleep(RUBITIME_API_RETRY_BACKOFF_MS[attempt] ?? 2000);
+        continue;
+      }
+      throw lastHttpError;
+    }
+
+    let parsed: RubitimeApiEnvelope<unknown>;
+    try {
+      parsed = JSON.parse(raw) as RubitimeApiEnvelope<unknown>;
+    } catch {
+      throw new Error(`RUBITIME_INVALID_JSON: ${raw.slice(0, 300)}`);
+    }
+
+    if (parsed.status !== 'ok') {
+      throw new Error(`RUBITIME_API_ERROR: ${parsed.message ?? 'unknown error'}`);
+    }
+
+    const data = asRecord(parsed.data);
+    if (input.method === 'get-record') {
+      if (!data) {
+        throw new Error('RUBITIME_API_EMPTY_RECORD');
+      }
+      return data;
+    }
+    if (input.method === 'update-record' || input.method === 'remove-record' || input.method === 'create-record') {
+      return data ?? {};
+    }
+    // get-schedule: data is an object keyed by date, not an array
+    return parsed.data ?? {};
   }
-  if (input.method === 'update-record' || input.method === 'remove-record' || input.method === 'create-record') {
-    return data ?? {};
-  }
-  // get-schedule: data is an object keyed by date, not an array
-  return parsed.data ?? {};
+
+  throw lastHttpError ?? new Error('RUBITIME_REQUEST_FAILED');
 }
 
 export async function fetchRubitimeRecordById(input: {

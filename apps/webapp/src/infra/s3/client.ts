@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -8,6 +9,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "@/config/env";
 
 const PRESIGN_EXPIRES_SEC = 900;
+/** Doctor intake file download (contract: ~1h). */
+const PRESIGN_GET_INTAKE_ATTACHMENT_SEC = 3600;
 const S3_KEY_PREFIX = "media";
 
 let clientSingleton: S3Client | null = null;
@@ -54,6 +57,18 @@ export async function presignPutUrl(key: string, mimeType: string): Promise<stri
     ContentType: mimeType,
   });
   return getSignedUrl(client, cmd, { expiresIn: PRESIGN_EXPIRES_SEC });
+}
+
+export async function presignGetUrl(
+  key: string,
+  expiresSec: number = PRESIGN_GET_INTAKE_ATTACHMENT_SEC,
+): Promise<string> {
+  const client = getS3Client();
+  const cmd = new GetObjectCommand({
+    Bucket: env.S3_PUBLIC_BUCKET,
+    Key: key,
+  });
+  return getSignedUrl(client, cmd, { expiresIn: expiresSec });
 }
 
 export async function s3HeadObject(key: string): Promise<boolean> {

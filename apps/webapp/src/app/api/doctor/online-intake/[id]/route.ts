@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { getPool } from "@/infra/db/client";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
+import { buildDoctorOnlineIntakeDetailResponse } from "@/modules/online-intake/doctorIntakeDetailResponse";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getCurrentSession();
@@ -19,5 +21,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   }
 
-  return NextResponse.json(result);
+  const pool = getPool();
+  const { rows } = await pool.query<{ display_name: string | null; phone_normalized: string | null }>(
+    `SELECT display_name, phone_normalized FROM platform_users WHERE id = $1::uuid`,
+    [result.userId],
+  );
+  const patientDisplay = {
+    patientName: rows[0]?.display_name ?? "",
+    patientPhone: rows[0]?.phone_normalized ?? "",
+  };
+
+  const json = await buildDoctorOnlineIntakeDetailResponse(result, patientDisplay);
+  return NextResponse.json(json);
 }

@@ -98,5 +98,54 @@ describe("inMemoryPatientBookings - compat-sync", () => {
       const found = await inMemoryPatientBookingsPort.getByRubitimeId("rub-no-end");
       expect(found?.slotEnd).toBe("2026-05-01T11:00:00.000Z");
     });
+
+    it("fallback links native row by phone + slot when rubitime_id was NULL, then UPDATE path (no compat INSERT)", async () => {
+      const slotStart = "2026-05-01T10:00:00.000Z";
+      const slotEnd = "2026-05-01T11:00:00.000Z";
+      const pending = await inMemoryPatientBookingsPort.createPending({
+        userId: "u-fallback-native",
+        bookingType: "in_person",
+        city: "moscow",
+        category: "general",
+        slotStart,
+        slotEnd,
+        contactName: "T",
+        contactPhone: "+79001234567",
+        contactEmail: null,
+        branchId: "br1",
+        serviceId: "sv1",
+        branchServiceId: "bs1",
+        cityCodeSnapshot: "moscow",
+        branchTitleSnapshot: "Филиал",
+        serviceTitleSnapshot: "Сеанс",
+        durationMinutesSnapshot: 60,
+        priceMinorSnapshot: 100,
+        rubitimeBranchIdSnapshot: "173",
+        rubitimeCooperatorIdSnapshot: "347",
+        rubitimeServiceIdSnapshot: "675",
+      });
+      expect(pending.rubitimeId).toBeNull();
+
+      await inMemoryPatientBookingsPort.upsertFromRubitime({
+        rubitimeId: "rt-webhook-new",
+        status: "confirmed",
+        slotStart,
+        slotEnd,
+        contactPhone: "+79001234567",
+        contactName: "T",
+        rubitimeBranchId: "173",
+        rubitimeServiceId: "675",
+      });
+
+      const linked = await inMemoryPatientBookingsPort.getByRubitimeId("rt-webhook-new");
+      expect(linked).not.toBeNull();
+      expect(linked!.id).toBe(pending.id);
+      expect(linked!.rubitimeId).toBe("rt-webhook-new");
+      expect(linked!.status).toBe("confirmed");
+      expect(linked!.bookingSource).toBe("native");
+
+      const upcoming = await inMemoryPatientBookingsPort.listUpcomingByUser("u-fallback-native", "2025-01-01T00:00:00.000Z");
+      expect(upcoming.filter((r) => r.rubitimeId === "rt-webhook-new")).toHaveLength(1);
+    });
   });
 });

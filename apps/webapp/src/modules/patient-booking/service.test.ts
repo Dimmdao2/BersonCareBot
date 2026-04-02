@@ -223,6 +223,57 @@ describe("createPatientBookingService", () => {
     expect(bookingsPort.markCancelling).not.toHaveBeenCalled();
   });
 
+  it("createBooking: rubitimeId null marks failed_sync and throws rubitime_id_missing", async () => {
+    const pending = sampleRow({ id: "p-miss", status: "creating", rubitimeId: null });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: null, raw: {} });
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+    });
+    await expect(
+      svc.createBooking({
+        userId: pending.userId!,
+        type: "online",
+        category: "general",
+        slotStart: pending.slotStart,
+        slotEnd: pending.slotEnd,
+        contactName: pending.contactName,
+        contactPhone: pending.contactPhone,
+      }),
+    ).rejects.toThrow("rubitime_id_missing");
+    expect(bookingsPort.markFailedSync).toHaveBeenCalledWith("p-miss");
+    expect(bookingsPort.markConfirmed).not.toHaveBeenCalled();
+  });
+
+  it("createBooking: rubitimeId string confirms as before", async () => {
+    const pending = sampleRow({ id: "p-ok-rid", status: "creating", rubitimeId: null });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "123", raw: {} });
+    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "123" });
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+    });
+    const row = await svc.createBooking({
+      userId: pending.userId!,
+      type: "online",
+      category: "general",
+      slotStart: pending.slotStart,
+      slotEnd: pending.slotEnd,
+      contactName: pending.contactName,
+      contactPhone: pending.contactPhone,
+    });
+    expect(row.status).toBe("confirmed");
+    expect(row.rubitimeId).toBe("123");
+    expect(bookingsPort.markConfirmed).toHaveBeenCalledWith("p-ok-rid", "123");
+  });
+
   it("createBooking: createRecord failure calls markFailedSync", async () => {
     const pending = sampleRow({ id: "p1", status: "creating", rubitimeId: null });
     bookingsPort.createPending.mockResolvedValue(pending);

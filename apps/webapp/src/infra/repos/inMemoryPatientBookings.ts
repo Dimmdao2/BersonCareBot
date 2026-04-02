@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { PatientBookingsPort, CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
 import { computeCompatSyncQuality } from "@/modules/patient-booking/compatSyncQuality";
-import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import type { PatientBookingRecord, PatientBookingStatus } from "@/modules/patient-booking/types";
 import { intervalsOverlap } from "@/modules/patient-booking/slotOverlap";
+import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 const byId = new Map<string, PatientBookingRecord>();
 
@@ -13,6 +14,21 @@ export function resetInMemoryPatientBookingsStore(): void {
 
 const BLOCKING_STATUSES = ["creating", "confirmed", "rescheduled", "cancelling", "cancel_failed"] as const;
 
+/** Matches pgPatientBookings `upsertFromRubitime` fallback filter. */
+const FALLBACK_NATIVE_STATUSES: readonly PatientBookingStatus[] = ["creating", "confirmed", "failed_sync"];
+
+function isFallbackNativeStatus(status: PatientBookingStatus): boolean {
+  return (FALLBACK_NATIVE_STATUSES as readonly string[]).includes(status);
+}
+
+function slotMatchesRowAndInput(rowSlot: string, inputSlot: string): boolean {
+  if (rowSlot === inputSlot) return true;
+  const a = Date.parse(rowSlot);
+  const b = Date.parse(inputSlot);
+  if (Number.isNaN(a) || Number.isNaN(b)) return false;
+  return a === b;
+}
+
 function hasGlobalSlotOverlap(slotStart: string, slotEnd: string, excludeBookingId?: string): boolean {
   for (const row of byId.values()) {
     if (excludeBookingId !== undefined && row.id === excludeBookingId) continue;
@@ -20,6 +36,49 @@ function hasGlobalSlotOverlap(slotStart: string, slotEnd: string, excludeBooking
     if (intervalsOverlap(slotStart, slotEnd, row.slotStart, row.slotEnd)) return true;
   }
   return false;
+}
+
+function applyUpsertFromRubitimeToRow(id: string, row: PatientBookingRecord, input: Parameters<PatientBookingsPort["upsertFromRubitime"]>[0]): void {
+  const slotStartIso = input.slotStart ?? row.slotStart;
+  const explicitSlotEnd = input.slotEnd != null && String(input.slotEnd).trim() !== "";
+  const slotEnd =
+    explicitSlotEnd
+      ? (input.slotEnd as string)
+      : new Date(new Date(slotStartIso).getTime() + 60 * 60_000).toISOString();
+  const rb = input.rubitimeBranchId?.trim() || null;
+  const rs = input.rubitimeServiceId?.trim() || null;
+  const compatQuality = computeCompatSyncQuality({
+    branchServiceId: null,
+    cityCodeSnapshot: null,
+    serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
+    branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
+    rubitimeBranchId: rb,
+    rubitimeServiceId: rs,
+    slotEndExplicitFromWebhook: explicitSlotEnd,
+    slotEndFromCatalogDuration: false,
+  });
+  const cancelledAt =
+    input.status === "cancelled"
+      ? new Date().toISOString()
+      : input.status === "rescheduled"
+        ? null
+        : row.cancelledAt;
+  byId.set(id, {
+    ...row,
+    status: input.status,
+    slotStart: slotStartIso,
+    slotEnd,
+    branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
+    serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
+    rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? row.rubitimeBranchIdSnapshot,
+    rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? row.rubitimeServiceIdSnapshot,
+    rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? row.rubitimeCooperatorIdSnapshot,
+    compatQuality: row.bookingSource === "rubitime_projection" ? compatQuality : row.compatQuality,
+    provenanceUpdatedBy:
+      row.bookingSource === "rubitime_projection" ? "rubitime_external" : row.provenanceUpdatedBy,
+    cancelledAt,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export const inMemoryPatientBookingsPort: PatientBookingsPort = {
@@ -121,50 +180,49 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   },
 
   async upsertFromRubitime(input) {
-    for (const [id, row] of byId.entries()) {
-      if (row.rubitimeId !== input.rubitimeId) continue;
-      const slotStartIso = input.slotStart ?? row.slotStart;
-      const explicitSlotEnd = input.slotEnd != null && String(input.slotEnd).trim() !== "";
-      const slotEnd =
-        explicitSlotEnd
-          ? (input.slotEnd as string)
-          : new Date(new Date(slotStartIso).getTime() + 60 * 60_000).toISOString();
-      const rb = input.rubitimeBranchId?.trim() || null;
-      const rs = input.rubitimeServiceId?.trim() || null;
-      const compatQuality = computeCompatSyncQuality({
-        branchServiceId: null,
-        cityCodeSnapshot: null,
-        serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
-        branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
-        rubitimeBranchId: rb,
-        rubitimeServiceId: rs,
-        slotEndExplicitFromWebhook: explicitSlotEnd,
-        slotEndFromCatalogDuration: false,
-      });
-      const cancelledAt =
-        input.status === "cancelled"
-          ? new Date().toISOString()
-          : input.status === "rescheduled"
-            ? null
-            : row.cancelledAt;
-      byId.set(id, {
-        ...row,
-        status: input.status,
-        slotStart: slotStartIso,
-        slotEnd,
-        branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
-        serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
-        rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? row.rubitimeBranchIdSnapshot,
-        rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? row.rubitimeServiceIdSnapshot,
-        rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? row.rubitimeCooperatorIdSnapshot,
-        compatQuality: row.bookingSource === "rubitime_projection" ? compatQuality : row.compatQuality,
-        provenanceUpdatedBy:
-          row.bookingSource === "rubitime_projection" ? "rubitime_external" : row.provenanceUpdatedBy,
-        cancelledAt,
-        updatedAt: new Date().toISOString(),
-      });
+    let targetId: string | undefined;
+    let row: PatientBookingRecord | undefined;
+
+    for (const [id, r] of byId.entries()) {
+      if (r.rubitimeId === input.rubitimeId) {
+        targetId = id;
+        row = r;
+        break;
+      }
+    }
+
+    if (!targetId || !row) {
+      const phoneRaw = input.contactPhone?.trim() ?? "";
+      const slotStartIso = input.slotStart?.trim() ?? "";
+      if (phoneRaw && slotStartIso) {
+        const phoneNorm = normalizeRuPhoneE164(phoneRaw);
+        type Cand = { id: string; row: PatientBookingRecord; createdMs: number };
+        const candidates: Cand[] = [];
+        for (const [id, r] of byId.entries()) {
+          if (r.bookingSource !== "native") continue;
+          if (r.rubitimeId != null) continue;
+          if (!isFallbackNativeStatus(r.status)) continue;
+          const rowPhoneNorm = normalizeRuPhoneE164(r.contactPhone.trim());
+          if (rowPhoneNorm !== phoneNorm) continue;
+          if (!slotMatchesRowAndInput(r.slotStart, slotStartIso)) continue;
+          candidates.push({ id, row: r, createdMs: Date.parse(r.createdAt) });
+        }
+        if (candidates.length > 0) {
+          const best = candidates.reduce((a, b) => (a.createdMs >= b.createdMs ? a : b));
+          targetId = best.id;
+          const nowIso = new Date().toISOString();
+          const linked: PatientBookingRecord = { ...best.row, rubitimeId: input.rubitimeId, updatedAt: nowIso };
+          byId.set(targetId, linked);
+          row = linked;
+        }
+      }
+    }
+
+    if (targetId && row) {
+      applyUpsertFromRubitimeToRow(targetId, row, input);
       return;
     }
+
     // Compat-create path: external Rubitime record without a native booking row.
     if (!input.slotStart) return;
     const now = new Date().toISOString();

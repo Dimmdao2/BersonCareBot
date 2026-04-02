@@ -34,6 +34,45 @@ async function postSigned(path: string, body: Record<string, unknown>): Promise<
   return { status: res.status, json };
 }
 
+const POST_SIGNED_RETRY_BACKOFF_MS = [1000, 2000, 4000] as const;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryablePostSignedFailure(err: unknown): boolean {
+  return err instanceof TypeError;
+}
+
+async function postSignedWithRetry(path: string, body: Record<string, unknown>): Promise<{ status: number; json: Record<string, unknown> }> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await postSigned(path, body);
+      if (result.status >= 400 && result.status < 500) {
+        return result;
+      }
+      if (result.status >= 500) {
+        lastError = new Error(`integrator_http_${result.status}`);
+        if (attempt < 2) {
+          await sleep(POST_SIGNED_RETRY_BACKOFF_MS[attempt] ?? 2000);
+          continue;
+        }
+        return result;
+      }
+      return result;
+    } catch (e) {
+      lastError = e;
+      if (isRetryablePostSignedFailure(e) && attempt < 2) {
+        await sleep(POST_SIGNED_RETRY_BACKOFF_MS[attempt] ?? 2000);
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("integrator_request_failed");
+}
+
 function integratorErrorCode(json: Record<string, unknown>): string {
   const err = json.error;
   if (typeof err === "string" && err.trim()) return err.trim();
@@ -127,7 +166,7 @@ export function createBookingSyncPort(): BookingSyncPort {
         };
       }
 
-      const { status, json } = await postSigned("/api/bersoncare/rubitime/slots", body);
+      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/slots", body);
       if (status >= 400 || json.ok !== true) {
         throw new Error(integratorErrorCode(json));
       }
@@ -173,7 +212,7 @@ export function createBookingSyncPort(): BookingSyncPort {
         };
       }
 
-      const { status, json } = await postSigned("/api/bersoncare/rubitime/create-record", body);
+      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/create-record", body);
       if (status >= 400 || json.ok !== true) {
         throw new Error(integratorErrorCode(json));
       }
@@ -185,7 +224,7 @@ export function createBookingSyncPort(): BookingSyncPort {
     },
 
     async cancelRecord(rubitimeId: string): Promise<void> {
-      const { status, json } = await postSigned("/api/bersoncare/rubitime/remove-record", {
+      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/remove-record", {
         recordId: rubitimeId,
       });
       if (status >= 400 || json.ok !== true) {
@@ -194,7 +233,7 @@ export function createBookingSyncPort(): BookingSyncPort {
     },
 
     async emitBookingEvent(input): Promise<void> {
-      const { status, json } = await postSigned("/api/bersoncare/rubitime/booking-event", {
+      const { status, json } = await postSignedWithRetry("/api/bersoncare/rubitime/booking-event", {
         eventType: input.eventType,
         idempotencyKey: input.idempotencyKey,
         payload: input.payload,

@@ -41,6 +41,38 @@
 
 ---
 
+## BOOKING_LIFECYCLE_FIX Stage 1
+
+| Task | File | Status |
+|------|------|--------|
+| 1.1 Retry `postSigned` (3×, backoff 1s/2s/4s, 5xx + `TypeError`) | `apps/webapp/src/modules/integrator/bookingM2mApi.ts` | done |
+| 1.2 `createBooking` guard: missing `rubitimeId` → `failed_sync` + `rubitime_id_missing` | `apps/webapp/src/modules/patient-booking/service.ts` | done |
+| 1.3 `upsertFromRubitime` fallback: native + phone + `slot_start` | `apps/webapp/src/infra/repos/pgPatientBookings.ts` | done |
+| 1.4 `postRubitimeApi2` retry (3×, backoff 1s/2s/4s, 5xx + `TypeError`; 4xx без ретрая; envelope `status !== ok` без ретрая) | `apps/integrator/src/integrations/rubitime/client.ts` | done |
+| 1.5 `dispatchOutgoing` `maxAttempts: 3` (patient + doctor TG/MAX) | `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` | done |
+| 1.6 Tests | `service.test.ts`, `pgPatientBookings.test.ts`, `inMemoryPatientBookings.test.ts`, `bookingM2mApi.test.ts`, `client.test.ts` | done |
+| 1.7 CI | — | done |
+| 1.8 In-memory parity: тот же fallback `upsertFromRubitime` (native + phone + slot, `ORDER BY created_at DESC` → max `createdAt`) | `apps/webapp/src/infra/repos/inMemoryPatientBookings.ts` | done |
+| 1.9 SQL cleanup (диагностика / `failed_sync` / reconcile webapp↔integrator) | `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_*.sql` | done |
+
+- CI evidence: green, 2026-04-02 (`pnpm run ci`); 1.4/1.8/1.9 зафиксированы в том же прогоне
+
+### BOOKING_LIFECYCLE_FIX — parity integrator + in-memory + SQL cleanup (2026-04-02)
+- Status: done
+- Agent/model: Cursor agent
+- Files changed:
+  - `apps/integrator/src/integrations/rubitime/client.ts` — выравнивание ретраев с webapp `postSignedWithRetry`: 3 попытки, backoff `[1000, 2000, 4000]` мс
+  - `apps/integrator/src/integrations/rubitime/client.test.ts` — ожидания числа вызовов `fetch` (в т.ч. три 503 подряд; два 503 затем 200)
+  - `apps/webapp/src/infra/repos/inMemoryPatientBookings.ts` — `normalizeRuPhoneE164`, fallback до основного UPDATE, `applyUpsertFromRubitimeToRow`
+  - `apps/webapp/src/infra/repos/inMemoryPatientBookings.test.ts` — кейс «fallback links native row by phone + slot…»
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_diagnostic.sql` — только SELECT
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_fix.sql` — `BEGIN` / UPDATE → `failed_sync` / `ROLLBACK` по умолчанию
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/cleanup_reconcile.sql` — ручной cross-DB reconcile с `rubitime_records`
+- Tests: `pnpm --dir apps/integrator test` (client), `pnpm --dir apps/webapp test` (in-memory); полный `pnpm run ci`
+- Notes: изначально в таблице 1.4 ошибочно стояло «2×, 2s» — исправлено на фактическую политику 3× и backoff как у webapp
+
+---
+
 ## Stage 1 - F-01
 
 ### S1.T01 - Зафиксировать целевой контракт ingest resiliency
@@ -164,7 +196,7 @@
 | **критично** | Инвалидация кэша при `cancel_sync_failed` | ✓ | Закрыто в `service.ts` + тест. |
 | **важно** | Соответствие плана и EXCLUDE в БД (`041`): pre-check шире статусов, чем `EXCLUDE` только для `confirmed`/`rescheduled` | ✓ | Ожидаемо: узкий EXCLUDE + широкий pre-check; не баг. |
 | **низкий** | Дословная строка «INCIDENT HOTFIX execution started» в логе | ✗ | Вместо неё блок «HOTFIX PLAN — BOOKING FLOW» с тем же смыслом; править не обязательно. |
-| **низкий** | Отдельный тест parity `inMemoryPatientBookings` vs PG | ✗ | План: «при необходимости»; parity видна из `BLOCKING_STATUSES`. |
+| **низкий** | Отдельный тест parity `inMemoryPatientBookings` vs PG (fallback `upsertFromRubitime`) | ✓ | Закрыто: `inMemoryPatientBookings.test.ts` — native + `rubitimeId: null` → webhook с тем же phone/slot; см. также задачу 1.8 в таблице BOOKING_LIFECYCLE_FIX. |
 | **опционально (вне scope плана)** | Client auto-refresh слотов раз в 60с | ✗ | Явно **не** делали по решению плана. |
 | **опционально (продукт)** | Overlap по ресурсу врача/услуги вместо global | ✗ | Отдельная фича + миграция; не входит в этот hotfix. |
 | **операционно** | Перед merge: повторить `pnpm run ci` на актуальном `main` | — | Рекомендация, не дефект кода. |
@@ -235,20 +267,49 @@
 ## Stage 3 - F-03
 
 ### S3.T01 - Зафиксировать контракт attachmentFileIds
-- Status: pending
+- Status: done
+- Agent/model: Cursor agent
+- Files changed:
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/API_CONTRACT_ONLINE_INTAKE_V1.md` — `attachmentFileIds` = `media_files.id`, ownership/status, mixed URL+file, порядок URL затем file, дедуп, коды ошибок
+  - `apps/webapp/src/modules/online-intake/types.ts` — комментарии к `CreateLfkIntakeInput`
+  - `apps/webapp/src/app/api/patient/online-intake/lfk/route.ts` — `z.array(z.string().uuid()).max(10)` для `attachmentFileIds`
+- Tests: zod в route; контракт зафиксирован в docs
+- CI: см. S3.T05
 
 ### S3.T02 - Resolver media_files.id -> s3_key
-- Status: pending
+- Status: done
+- Files changed:
+  - `apps/webapp/src/infra/repos/pgMediaFileIntakeResolve.ts` — `resolveMediaFileForLfkAttachment` (owner `uploaded_by`, статус не `pending`/`deleting`, `s3_key` обязателен)
+  - `apps/webapp/src/infra/repos/pgOnlineIntake.ts` — INSERT `online_intake_attachments` с `attachment_type='file'`, поля из `media_files`
+- Tests: `service.test.ts` (in-memory mock map: свой файл / чужой / unknown)
 
 ### S3.T03 - Persist mixed attachments (url + file)
-- Status: pending
+- Status: done
+- Files changed:
+  - `apps/webapp/src/modules/online-intake/service.ts` — дедуп URL и file id (порядок первых вхождений), затем PG/in-memory
+  - `apps/webapp/src/infra/repos/pgOnlineIntake.ts` — сначала URL-строки, затем file-строки
+  - `apps/webapp/src/infra/repos/inMemoryOnlineIntake.ts` — опциональный `mediaFilesById` для тестов
+- Tests: `service.test.ts` — mixed order, dedupe
 
 ### S3.T04 - Doctor visibility + e2e tests
-- Status: pending
+- Status: done
+- Files changed:
+  - `apps/webapp/src/infra/s3/client.ts` — `presignGetUrl` (default 3600s)
+  - `apps/webapp/src/modules/online-intake/doctorIntakeDetailResponse.ts` — контрактный JSON: `description`, `attachmentUrls`, `attachmentFiles` (+ presign или public URL если S3 не сконфигурирован)
+  - `apps/webapp/src/app/api/doctor/online-intake/[id]/route.ts` — join `platform_users` для имени/телефона, ответ через builder (не сырой `IntakeRequestFull`)
+  - `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` — «Подробнее»: текст + ссылки URL + файлы
+  - `apps/webapp/src/modules/online-intake/doctorIntakeDetailResponse.test.ts` — смешанные вложения в ответе
+- Tests: `doctorIntakeDetailResponse.test.ts`, `service.test.ts`
+- Примечание: отдельного GET пациента по id заявки нет — чужие вложения недоступны через patient API
+
+### S3.T05 - Финальная проверка этапа
+- Status: done
+- CI: `pnpm run ci` — pass (2026-04-02)
+- Evidence: unit-тесты выше; ручной e2e с реальной БД/S3 — на стенде после деплоя
 
 ### Stage 3 - AUDIT
 - Auditor/model: Composer 2
-- Verdict: pending
+- Verdict: pending (код + CI; полный e2e с PG+S3 на стенде)
 
 ---
 

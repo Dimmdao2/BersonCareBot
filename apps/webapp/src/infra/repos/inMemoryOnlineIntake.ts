@@ -13,7 +13,12 @@ import type {
   IntakeType,
 } from "@/modules/online-intake/types";
 
-export function createInMemoryOnlineIntake(): OnlineIntakePort {
+export function createInMemoryOnlineIntake(deps?: {
+  mediaFilesById?: Map<
+    string,
+    { userId: string; s3Key: string; mimeType: string; sizeBytes: number; originalName: string }
+  >;
+}): OnlineIntakePort {
   const requests = new Map<string, IntakeRequest>();
   const answers = new Map<string, IntakeAnswer[]>();
   const attachments = new Map<string, IntakeAttachment[]>();
@@ -62,6 +67,26 @@ export function createInMemoryOnlineIntake(): OnlineIntakePort {
           mimeType: null,
           sizeBytes: null,
           originalName: null,
+          createdAt: ts,
+        });
+      }
+      for (const fileId of input.attachmentFileIds ?? []) {
+        const meta = deps?.mediaFilesById?.get(fileId);
+        if (!meta) {
+          throw Object.assign(new Error("attachment_file_not_found"), { code: "ATTACHMENT_FILE_INVALID" });
+        }
+        if (meta.userId !== input.userId) {
+          throw Object.assign(new Error("attachment_file_forbidden"), { code: "ATTACHMENT_FILE_FORBIDDEN" });
+        }
+        atts.push({
+          id: randomUUID(),
+          requestId: id,
+          attachmentType: "file",
+          s3Key: meta.s3Key,
+          url: null,
+          mimeType: meta.mimeType,
+          sizeBytes: meta.sizeBytes,
+          originalName: meta.originalName,
           createdAt: ts,
         });
       }

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/infra/db/client";
 import { lookupBranchServiceByRubitimeIds } from "@/infra/repos/rubitimeBranchServiceLookup";
+import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { PatientBookingsPort, CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
 import { computeCompatSyncQuality } from "@/modules/patient-booking/compatSyncQuality";
 import type { PatientBookingRecord, PatientBookingStatus } from "@/modules/patient-booking/types";
@@ -228,7 +229,34 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       `SELECT id, source, slot_start FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
       [input.rubitimeId],
     );
-    const existingRow = existing.rows[0];
+    let existingRow = existing.rows[0];
+
+    if (!existingRow) {
+      const phoneRaw = input.contactPhone?.trim() ?? "";
+      const slotStartIso = input.slotStart?.trim() ?? "";
+      if (phoneRaw && slotStartIso) {
+        const phoneNorm = normalizeRuPhoneE164(phoneRaw);
+        const fallback = await pool.query<{ id: string; source: string; slot_start: Date }>(
+          `SELECT id, source, slot_start FROM patient_bookings
+           WHERE rubitime_id IS NULL
+             AND source = 'native'
+             AND status IN ('creating', 'confirmed', 'failed_sync')
+             AND contact_phone = $1
+             AND slot_start = $2::timestamptz
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          [phoneNorm, slotStartIso],
+        );
+        const fb = fallback.rows?.[0];
+        if (fb) {
+          await pool.query(
+            `UPDATE patient_bookings SET rubitime_id = $1, updated_at = now() WHERE id = $2`,
+            [input.rubitimeId, fb.id],
+          );
+          existingRow = fb;
+        }
+      }
+    }
 
     if (existingRow) {
       const slotStartIso = input.slotStart ?? existingRow.slot_start.toISOString();
