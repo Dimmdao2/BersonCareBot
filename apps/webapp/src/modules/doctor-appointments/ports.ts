@@ -29,6 +29,8 @@ export type AppointmentRow = {
   cancellationCountForClient: number;
   /** Branch name from Rubitime (if linked). */
   branchName: string | null;
+  /** F-04: маркер происхождения (все строки из `appointment_records`). */
+  scheduleProvenancePrefix?: string;
 };
 
 /** Агрегатная статистика по записям. */

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { PatientBookingsPort, CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
+import { computeCompatSyncQuality } from "@/modules/patient-booking/compatSyncQuality";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { intervalsOverlap } from "@/modules/patient-booking/slotOverlap";
 
@@ -10,7 +11,7 @@ export function resetInMemoryPatientBookingsStore(): void {
   byId.clear();
 }
 
-const BLOCKING_STATUSES = ["confirmed", "rescheduled"] as const;
+const BLOCKING_STATUSES = ["creating", "confirmed", "rescheduled", "cancelling", "cancel_failed"] as const;
 
 function hasGlobalSlotOverlap(slotStart: string, slotEnd: string, excludeBookingId?: string): boolean {
   for (const row of byId.values()) {
@@ -58,6 +59,10 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       rubitimeBranchIdSnapshot: input.rubitimeBranchIdSnapshot,
       rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorIdSnapshot,
       rubitimeServiceIdSnapshot: input.rubitimeServiceIdSnapshot,
+      bookingSource: "native",
+      compatQuality: null,
+      provenanceCreatedBy: null,
+      provenanceUpdatedBy: null,
     };
     byId.set(row.id, row);
     return row;
@@ -118,6 +123,24 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   async upsertFromRubitime(input) {
     for (const [id, row] of byId.entries()) {
       if (row.rubitimeId !== input.rubitimeId) continue;
+      const slotStartIso = input.slotStart ?? row.slotStart;
+      const explicitSlotEnd = input.slotEnd != null && String(input.slotEnd).trim() !== "";
+      const slotEnd =
+        explicitSlotEnd
+          ? (input.slotEnd as string)
+          : new Date(new Date(slotStartIso).getTime() + 60 * 60_000).toISOString();
+      const rb = input.rubitimeBranchId?.trim() || null;
+      const rs = input.rubitimeServiceId?.trim() || null;
+      const compatQuality = computeCompatSyncQuality({
+        branchServiceId: null,
+        cityCodeSnapshot: null,
+        serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
+        branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
+        rubitimeBranchId: rb,
+        rubitimeServiceId: rs,
+        slotEndExplicitFromWebhook: explicitSlotEnd,
+        slotEndFromCatalogDuration: false,
+      });
       const cancelledAt =
         input.status === "cancelled"
           ? new Date().toISOString()
@@ -127,8 +150,16 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       byId.set(id, {
         ...row,
         status: input.status,
-        slotStart: input.slotStart ?? row.slotStart,
-        slotEnd: input.slotEnd ?? row.slotEnd,
+        slotStart: slotStartIso,
+        slotEnd,
+        branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
+        serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
+        rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? row.rubitimeBranchIdSnapshot,
+        rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? row.rubitimeServiceIdSnapshot,
+        rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? row.rubitimeCooperatorIdSnapshot,
+        compatQuality: row.bookingSource === "rubitime_projection" ? compatQuality : row.compatQuality,
+        provenanceUpdatedBy:
+          row.bookingSource === "rubitime_projection" ? "rubitime_external" : row.provenanceUpdatedBy,
         cancelledAt,
         updatedAt: new Date().toISOString(),
       });
@@ -137,12 +168,25 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     // Compat-create path: external Rubitime record without a native booking row.
     if (!input.slotStart) return;
     const now = new Date().toISOString();
-    const slotEnd =
-      input.slotEnd ??
-      new Date(new Date(input.slotStart).getTime() + 60 * 60_000).toISOString();
+    const explicitSlotEnd = input.slotEnd != null && String(input.slotEnd).trim() !== "";
+    const slotEnd = explicitSlotEnd
+      ? (input.slotEnd as string)
+      : new Date(new Date(input.slotStart).getTime() + 60 * 60_000).toISOString();
+    const rb = input.rubitimeBranchId?.trim() || null;
+    const rs = input.rubitimeServiceId?.trim() || null;
+    const compatQuality = computeCompatSyncQuality({
+      branchServiceId: null,
+      cityCodeSnapshot: null,
+      serviceTitleSnapshot: input.serviceTitle ?? null,
+      branchTitleSnapshot: input.branchTitle ?? null,
+      rubitimeBranchId: rb,
+      rubitimeServiceId: rs,
+      slotEndExplicitFromWebhook: explicitSlotEnd,
+      slotEndFromCatalogDuration: false,
+    });
     const newRow: PatientBookingRecord = {
       id: randomUUID(),
-      userId: input.userId ?? "compat-unknown",
+      userId: input.userId ?? null,
       bookingType: "in_person",
       city: null,
       category: "general",
@@ -169,8 +213,12 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       durationMinutesSnapshot: null,
       priceMinorSnapshot: null,
       rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? null,
-      rubitimeCooperatorIdSnapshot: null,
+      rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? null,
       rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? null,
+      bookingSource: "rubitime_projection",
+      compatQuality,
+      provenanceCreatedBy: "rubitime_external",
+      provenanceUpdatedBy: null,
     };
     byId.set(newRow.id, newRow);
   },

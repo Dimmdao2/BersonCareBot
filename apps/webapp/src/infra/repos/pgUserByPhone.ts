@@ -3,14 +3,7 @@ import type { ChannelBindings, SessionUser } from "@/shared/types/session";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
 import { channelToBindingKey } from "@/modules/auth/channelContext";
-
-function normalizePhone(phone: string): string {
-  let digits = phone.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("8")) digits = "7" + digits.slice(1);
-  if (digits.length === 11 && digits.startsWith("7")) return `+${digits}`;
-  if (digits.length === 10 && digits.startsWith("9")) return `+7${digits}`;
-  return `+${digits}`;
-}
+import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 function rowToBindings(rows: { channel_code: string; external_id: string }[]): ChannelBindings {
   const bindings: ChannelBindings = {};
@@ -69,10 +62,14 @@ export const pgUserByPhonePort: UserByPhonePort = {
   async findByPhone(normalizedPhone: string): Promise<SessionUser | null> {
     const pool = getPool();
     const userRow = await pool.query(
-      "SELECT id, display_name, role, phone_normalized FROM platform_users WHERE phone_normalized = $1",
+      `SELECT id, display_name, role, phone_normalized FROM platform_users
+       WHERE phone_normalized = $1
+       ORDER BY id ASC
+       LIMIT 2`,
       [normalizedPhone]
     );
     if (userRow.rows.length === 0) return null;
+    if (userRow.rows.length > 1) return null;
     const u = userRow.rows[0];
     const bindingsRows = await pool.query(
       "SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1",
@@ -91,7 +88,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
   },
 
   async createOrBind(phone: string, context: ChannelContext): Promise<SessionUser> {
-    const normalized = normalizePhone(phone);
+    const normalized = normalizeRuPhoneE164(phone);
     const pool = getPool();
     const key = channelToBindingKey(context.channel);
     const channelCode = context.channel;

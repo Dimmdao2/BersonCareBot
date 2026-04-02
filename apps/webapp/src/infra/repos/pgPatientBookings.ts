@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/infra/db/client";
+import { lookupBranchServiceByRubitimeIds } from "@/infra/repos/rubitimeBranchServiceLookup";
 import type { PatientBookingsPort, CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
+import { computeCompatSyncQuality } from "@/modules/patient-booking/compatSyncQuality";
 import type { PatientBookingRecord, PatientBookingStatus } from "@/modules/patient-booking/types";
 
 type Row = {
   id: string;
-  platform_user_id: string;
+  platform_user_id: string | null;
   booking_type: string;
   city: string | null;
   category: string;
@@ -34,12 +36,16 @@ type Row = {
   rubitime_branch_id_snapshot?: string | null;
   rubitime_cooperator_id_snapshot?: string | null;
   rubitime_service_id_snapshot?: string | null;
+  source?: string | null;
+  compat_quality?: string | null;
+  provenance_created_by?: string | null;
+  provenance_updated_by?: string | null;
 };
 
 function mapRow(row: Row): PatientBookingRecord {
   return {
     id: row.id,
-    userId: row.platform_user_id,
+    userId: row.platform_user_id ?? null,
     bookingType: row.booking_type as PatientBookingRecord["bookingType"],
     city: row.city,
     category: row.category as PatientBookingRecord["category"],
@@ -68,6 +74,10 @@ function mapRow(row: Row): PatientBookingRecord {
     rubitimeBranchIdSnapshot: row.rubitime_branch_id_snapshot ?? null,
     rubitimeCooperatorIdSnapshot: row.rubitime_cooperator_id_snapshot ?? null,
     rubitimeServiceIdSnapshot: row.rubitime_service_id_snapshot ?? null,
+    bookingSource: (row.source as PatientBookingRecord["bookingSource"]) ?? "native",
+    compatQuality: (row.compat_quality as PatientBookingRecord["compatQuality"]) ?? null,
+    provenanceCreatedBy: row.provenance_created_by ?? null,
+    provenanceUpdatedBy: row.provenance_updated_by ?? null,
   };
 }
 
@@ -76,22 +86,30 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     const pool = getPool();
     const id = randomUUID();
     const result = await pool.query<Row>(
-      `INSERT INTO patient_bookings (
-        id, platform_user_id, booking_type, city, category, slot_start, slot_end, status,
-        contact_phone, contact_email, contact_name,
-        branch_id, service_id, branch_service_id,
-        city_code_snapshot, branch_title_snapshot, service_title_snapshot,
-        duration_minutes_snapshot, price_minor_snapshot,
-        rubitime_branch_id_snapshot, rubitime_cooperator_id_snapshot, rubitime_service_id_snapshot
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, 'creating',
-        $8, $9, $10,
-        $11, $12, $13,
-        $14, $15, $16,
-        $17, $18,
-        $19, $20, $21
-      )
-      RETURNING *`,
+      `WITH overlap AS (
+         SELECT 1
+           FROM patient_bookings
+          WHERE status IN ('creating', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
+            AND tstzrange(slot_start, slot_end, '[)') && tstzrange($6::timestamptz, $7::timestamptz, '[)')
+          LIMIT 1
+       )
+       INSERT INTO patient_bookings (
+         id, platform_user_id, booking_type, city, category, slot_start, slot_end, status,
+         contact_phone, contact_email, contact_name,
+         branch_id, service_id, branch_service_id,
+         city_code_snapshot, branch_title_snapshot, service_title_snapshot,
+         duration_minutes_snapshot, price_minor_snapshot,
+         rubitime_branch_id_snapshot, rubitime_cooperator_id_snapshot, rubitime_service_id_snapshot
+       )
+       SELECT
+         $1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, 'creating',
+         $8, $9, $10,
+         $11, $12, $13,
+         $14, $15, $16,
+         $17, $18,
+         $19, $20, $21
+       WHERE NOT EXISTS (SELECT 1 FROM overlap)
+       RETURNING *`,
       [
         id,
         input.userId,
@@ -116,7 +134,11 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
         input.rubitimeServiceIdSnapshot,
       ],
     );
-    return mapRow(result.rows[0] as Row);
+    const row = result.rows[0];
+    if (!row) {
+      throw new Error("slot_overlap");
+    }
+    return mapRow(row);
   },
 
   async markConfirmed(bookingId, rubitimeId) {
@@ -202,13 +224,15 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
    */
   async upsertFromRubitime(input) {
     const pool = getPool();
-    const existing = await pool.query<{ id: string; source: string }>(
-      `SELECT id, source FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
+    const existing = await pool.query<{ id: string; source: string; slot_start: Date }>(
+      `SELECT id, source, slot_start FROM patient_bookings WHERE rubitime_id = $1 LIMIT 1`,
       [input.rubitimeId],
     );
     const existingRow = existing.rows[0];
 
     if (existingRow) {
+      const slotStartIso = input.slotStart ?? existingRow.slot_start.toISOString();
+      const merge = await mergeCompatProjectionFields(input, slotStartIso);
       // UPDATE path: update status and slot times; do not overwrite snapshots for native rows.
       await pool.query(
         `UPDATE patient_bookings
@@ -224,19 +248,34 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
              service_title_snapshot  = CASE WHEN source = 'rubitime_projection' AND $6 IS NOT NULL THEN $6 ELSE service_title_snapshot END,
              rubitime_branch_id_snapshot   = CASE WHEN source = 'rubitime_projection' AND $7 IS NOT NULL THEN $7 ELSE rubitime_branch_id_snapshot END,
              rubitime_service_id_snapshot  = CASE WHEN source = 'rubitime_projection' AND $8 IS NOT NULL THEN $8 ELSE rubitime_service_id_snapshot END,
+             rubitime_cooperator_id_snapshot = CASE WHEN source = 'rubitime_projection' AND $16 IS NOT NULL THEN $16 ELSE rubitime_cooperator_id_snapshot END,
+             city_code_snapshot = CASE WHEN source = 'rubitime_projection' AND $13 IS NOT NULL THEN $13 ELSE city_code_snapshot END,
+             branch_id = CASE WHEN source = 'rubitime_projection' AND $11 IS NOT NULL THEN $11::uuid ELSE branch_id END,
+             service_id = CASE WHEN source = 'rubitime_projection' AND $12 IS NOT NULL THEN $12::uuid ELSE service_id END,
+             branch_service_id = CASE WHEN source = 'rubitime_projection' AND $10 IS NOT NULL THEN $10::uuid ELSE branch_service_id END,
+             duration_minutes_snapshot = CASE WHEN source = 'rubitime_projection' AND $14 IS NOT NULL THEN $14 ELSE duration_minutes_snapshot END,
+             price_minor_snapshot = CASE WHEN source = 'rubitime_projection' AND $15 IS NOT NULL THEN $15 ELSE price_minor_snapshot END,
              compat_quality = CASE WHEN source = 'rubitime_projection' THEN $9 ELSE compat_quality END,
+             provenance_updated_by = CASE WHEN source = 'rubitime_projection' THEN 'rubitime_external' ELSE provenance_updated_by END,
              updated_at = now()
          WHERE id = $1`,
         [
           existingRow.id,
           input.status,
           input.slotStart ?? null,
-          input.slotEnd ?? null,
-          input.branchTitle ?? null,
-          input.serviceTitle ?? null,
-          input.rubitimeBranchId ?? null,
-          input.rubitimeServiceId ?? null,
-          computeCompatQuality(input),
+          merge.slotEndIso,
+          merge.effectiveBranchTitle,
+          merge.effectiveServiceTitle,
+          merge.rubitimeBranchId,
+          merge.rubitimeServiceId,
+          merge.compatQuality,
+          merge.lookup?.branchServiceId ?? null,
+          merge.lookup?.branchId ?? null,
+          merge.lookup?.serviceId ?? null,
+          merge.effectiveCityCode,
+          merge.lookup?.durationMinutes ?? null,
+          merge.lookup?.priceMinor ?? null,
+          merge.effectiveRubitimeCooperatorId,
         ],
       );
       return;
@@ -245,8 +284,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     // CREATE compat-row path: external Rubitime record without a native booking row.
     if (!input.slotStart) return; // Cannot create a meaningful row without start time.
 
-    const compatQuality = computeCompatQuality(input);
-    const slotEnd = input.slotEnd ?? computeFallbackSlotEnd(input.slotStart);
+    const merge = await mergeCompatProjectionFields(input, input.slotStart);
     const userId = input.userId ?? null;
     const id = randomUUID();
 
@@ -257,8 +295,12 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
          rubitime_id,
          contact_phone, contact_email, contact_name,
          branch_title_snapshot, service_title_snapshot,
-         rubitime_branch_id_snapshot, rubitime_service_id_snapshot,
+         rubitime_branch_id_snapshot, rubitime_service_id_snapshot, rubitime_cooperator_id_snapshot,
+         city_code_snapshot,
+         branch_id, service_id, branch_service_id,
+         duration_minutes_snapshot, price_minor_snapshot,
          source, compat_quality,
+         provenance_created_by,
          created_at, updated_at
        ) VALUES (
          $1, $2, 'in_person', NULL, 'general',
@@ -266,8 +308,12 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
          $6,
          $7, NULL, $8,
          $9, $10,
-         $11, $12,
-         'rubitime_projection', $13,
+         $11, $12, $13,
+         $14,
+         $15, $16, $17,
+         $18, $19,
+         'rubitime_projection', $20,
+         'rubitime_external',
          now(), now()
        )
        ON CONFLICT (rubitime_id) DO NOTHING`,
@@ -275,16 +321,23 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
         id,
         userId,
         input.slotStart,
-        slotEnd,
+        merge.slotEndIso,
         input.status,
         input.rubitimeId,
         input.contactPhone ?? "",
         input.contactName ?? "",
-        input.branchTitle ?? null,
-        input.serviceTitle ?? null,
-        input.rubitimeBranchId ?? null,
-        input.rubitimeServiceId ?? null,
-        compatQuality,
+        merge.effectiveBranchTitle,
+        merge.effectiveServiceTitle,
+        merge.rubitimeBranchId,
+        merge.rubitimeServiceId,
+        merge.effectiveRubitimeCooperatorId,
+        merge.effectiveCityCode,
+        merge.lookup?.branchId ?? null,
+        merge.lookup?.serviceId ?? null,
+        merge.lookup?.branchServiceId ?? null,
+        merge.lookup?.durationMinutes ?? null,
+        merge.lookup?.priceMinor ?? null,
+        merge.compatQuality,
       ],
     );
   },
@@ -328,19 +381,73 @@ function computeFallbackSlotEnd(slotStart: string): string {
   return new Date(start.getTime() + DEFAULT_COMPAT_SLOT_DURATION_MINUTES * 60_000).toISOString();
 }
 
-function computeCompatQuality(input: {
-  slotEnd?: string | null;
-  branchTitle?: string | null;
-  serviceTitle?: string | null;
-  rubitimeBranchId?: string | null;
-  rubitimeServiceId?: string | null;
-}): "full" | "partial" | "minimal" {
-  const hasSlotEnd = !!input.slotEnd;
-  const hasBranch = !!(input.branchTitle ?? input.rubitimeBranchId);
-  const hasService = !!(input.serviceTitle ?? input.rubitimeServiceId);
-  if (hasSlotEnd && hasBranch && hasService) return "full";
-  if (hasBranch || hasService) return "partial";
-  return "minimal";
+type MergeCompatInput = Parameters<PatientBookingsPort["upsertFromRubitime"]>[0];
+
+async function mergeCompatProjectionFields(input: MergeCompatInput, slotStartIso: string) {
+  const rb = input.rubitimeBranchId?.trim() || null;
+  const rs = input.rubitimeServiceId?.trim() || null;
+  const rcRaw = input.rubitimeCooperatorId?.trim() || null;
+  let lookup: Awaited<ReturnType<typeof lookupBranchServiceByRubitimeIds>>["result"] = null;
+  if (rb && rs) {
+    const { result, ambiguous } = await lookupBranchServiceByRubitimeIds(rb, rs, rcRaw);
+    if (ambiguous) {
+      console.warn("[compat-sync] branch_service_lookup_ambiguous", {
+        rubitimeBranchId: rb,
+        rubitimeServiceId: rs,
+        rubitimeCooperatorId: rcRaw,
+      });
+    } else if (!result) {
+      console.warn("[compat-sync] branch_service_lookup_miss", {
+        rubitimeBranchId: rb,
+        rubitimeServiceId: rs,
+        rubitimeCooperatorId: rcRaw,
+      });
+    }
+    lookup = result;
+  }
+  const effectiveRubitimeCooperatorId = lookup?.rubitimeCooperatorId ?? rcRaw ?? null;
+  const effectiveBranchTitle = input.branchTitle ?? lookup?.branchTitle ?? null;
+  const effectiveServiceTitle = input.serviceTitle ?? lookup?.serviceTitle ?? null;
+  const effectiveCityCode = lookup?.cityCode ?? null;
+  const explicitSlotEnd = input.slotEnd != null && String(input.slotEnd).trim() !== "";
+  let slotEndIso: string;
+  let slotEndExplicitFromWebhook: boolean;
+  let slotEndFromCatalogDuration: boolean;
+  if (explicitSlotEnd) {
+    slotEndIso = input.slotEnd as string;
+    slotEndExplicitFromWebhook = true;
+    slotEndFromCatalogDuration = false;
+  } else if (lookup) {
+    const start = new Date(slotStartIso);
+    slotEndIso = new Date(start.getTime() + lookup.durationMinutes * 60_000).toISOString();
+    slotEndExplicitFromWebhook = false;
+    slotEndFromCatalogDuration = true;
+  } else {
+    slotEndIso = computeFallbackSlotEnd(slotStartIso);
+    slotEndExplicitFromWebhook = false;
+    slotEndFromCatalogDuration = false;
+  }
+  const compatQuality = computeCompatSyncQuality({
+    branchServiceId: lookup?.branchServiceId ?? null,
+    cityCodeSnapshot: effectiveCityCode,
+    serviceTitleSnapshot: effectiveServiceTitle,
+    branchTitleSnapshot: effectiveBranchTitle,
+    rubitimeBranchId: rb,
+    rubitimeServiceId: rs,
+    slotEndExplicitFromWebhook,
+    slotEndFromCatalogDuration,
+  });
+  return {
+    lookup,
+    effectiveBranchTitle,
+    effectiveServiceTitle,
+    effectiveCityCode,
+    rubitimeBranchId: rb,
+    rubitimeServiceId: rs,
+    effectiveRubitimeCooperatorId,
+    slotEndIso,
+    compatQuality,
+  };
 }
 
 export function mapRubitimeStatusToPatientBookingStatus(rawStatus: string): PatientBookingStatus {

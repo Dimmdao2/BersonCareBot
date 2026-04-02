@@ -6,8 +6,10 @@ import {
   rescheduleProjectionEvent,
 } from '../../db/repos/projectionOutbox.js';
 import { logger } from '../../observability/logger.js';
+import { isRecoverableWebappEmitFailure } from './projectionEmitFailure.js';
 
 const RETRY_BASE_SECONDS = 30;
+const MAX_BACKOFF_SECONDS = 3600;
 
 export async function runProjectionWorkerTick(
   db: DbPort,
@@ -27,11 +29,14 @@ export async function runProjectionWorkerTick(
       });
       if (result.ok) {
         await completeProjectionEvent(db, ev.id);
+      } else if (!isRecoverableWebappEmitFailure(result)) {
+        await failProjectionEvent(db, ev.id, result.error ?? `HTTP ${result.status}`);
+        logger.warn({ eventId: ev.id, eventType: ev.eventType, attempt }, 'projection event moved to DLQ (non-recoverable emit)');
       } else if (attempt >= ev.maxAttempts) {
         await failProjectionEvent(db, ev.id, result.error ?? `HTTP ${result.status}`);
         logger.warn({ eventId: ev.id, eventType: ev.eventType, attempt }, 'projection event moved to DLQ');
       } else {
-        const delay = RETRY_BASE_SECONDS * Math.pow(2, attempt - 1);
+        const delay = Math.min(MAX_BACKOFF_SECONDS, RETRY_BASE_SECONDS * Math.pow(2, attempt - 1));
         await rescheduleProjectionEvent(db, ev.id, attempt, delay);
       }
     } catch (err) {
@@ -40,7 +45,7 @@ export async function runProjectionWorkerTick(
         await failProjectionEvent(db, ev.id, msg);
         logger.warn({ eventId: ev.id, err }, 'projection event moved to DLQ after exception');
       } else {
-        const delay = RETRY_BASE_SECONDS * Math.pow(2, attempt - 1);
+        const delay = Math.min(MAX_BACKOFF_SECONDS, RETRY_BASE_SECONDS * Math.pow(2, attempt - 1));
         await rescheduleProjectionEvent(db, ev.id, attempt, delay);
       }
     }

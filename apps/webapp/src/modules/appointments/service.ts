@@ -18,6 +18,8 @@ export type AppointmentSummary = {
   /** Для отменённых — причина (tooltip). */
   cancelReason?: string | null;
   startsAt?: string | null;
+  /** F-04: маркер происхождения для строк из `appointment_records` (Rubitime). */
+  scheduleProvenancePrefix?: string;
 };
 
 export type PastAppointmentSummary = {
@@ -29,6 +31,8 @@ export type PastAppointmentSummary = {
   status: AppointmentRecordStatus;
   /** ISO время записи из проекции (сортировка, дедуп с native booking). */
   recordAtIso?: string | null;
+  /** F-04: маркер происхождения для строк из `appointment_records` (Rubitime). */
+  scheduleProvenancePrefix?: string;
 };
 
 /**

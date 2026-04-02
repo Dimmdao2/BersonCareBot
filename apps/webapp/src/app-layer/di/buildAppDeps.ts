@@ -62,6 +62,7 @@ import {
   formatAppointmentTimeShortRu,
   formatBookingDateTimeMediumRu,
 } from "@/shared/lib/formatBusinessDateTime";
+import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordProvenance";
 import { createMediaService } from "@/modules/media/service";
 import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
 import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
@@ -261,6 +262,7 @@ const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]>
               status: mapRecordStatus(row.status),
               cancelReason: cancelReasonFromPayload(row.payloadJson),
               startsAt: row.recordAt,
+              scheduleProvenancePrefix: SCHEDULE_RECORD_PROVENANCE_PREFIX,
             };
           });
         } catch {
@@ -299,6 +301,7 @@ const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]>
                 link: null,
                 status: mapRecordStatus(row.status),
                 recordAtIso: row.recordAt ? new Date(row.recordAt).toISOString() : null,
+                scheduleProvenancePrefix: SCHEDULE_RECORD_PROVENANCE_PREFIX,
               };
             });
         } catch {
@@ -342,6 +345,7 @@ async function listAppointmentHistoryForPhone(phone: string | null): Promise<Cli
       : row.status,
     lastEvent: row.lastEvent,
     updatedAt: row.updatedAt,
+    scheduleProvenancePrefix: SCHEDULE_RECORD_PROVENANCE_PREFIX,
   }));
 }
 

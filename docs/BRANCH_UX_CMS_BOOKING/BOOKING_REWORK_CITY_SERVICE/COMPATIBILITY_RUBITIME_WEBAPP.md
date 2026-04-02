@@ -30,13 +30,17 @@
 | `branch_title` | best-effort | из `branchName` payload |
 | `rubitime_branch_id` | best-effort | `record.branchId` из webhook |
 | `rubitime_service_id` | best-effort | `record.serviceId` из webhook |
-| `compat_quality` | required | `'full'` / `'partial'` / `'minimal'` |
+| `compat_quality` | required | `'full'` / `'partial'` / `'minimal'` (см. ниже; **не декларативный** — вычисляется из факта lookup + полей) |
 
 ### Уровни `compat_quality`
 
-- **`full`:** все best-effort поля заполнены (branch_service_id resolved, city_title, service_title, slot_end).
-- **`partial`:** slot_start + rubitime_id + хотя бы одно из title-полей заполнено.
-- **`minimal`:** только slot_start + rubitime_id + status (базовая видимость в истории).
+Реализация: `computeCompatSyncQuality` (`apps/webapp/src/modules/patient-booking/compatSyncQuality.ts`) + lookup `booking_branch_services` по `rubitime_branch_id` + `rubitime_service_id` (опционально `rubitime_cooperator_id` для снятия неоднозначности). **Запрещён «fake full»:** `full` только если в БД реально найден `branch_service_id` (FK на каталог), а не по одним только строкам из payload.
+
+- **`full`:** `branch_service_id` найден в каталоге, есть `city_code_snapshot` (из города филиала), `service_title_snapshot`, и конец слота задан явно из webhook **или** вычислен по `duration_minutes` каталога после успешного lookup.
+- **`partial`:** не `full`, но заполнено хотя бы одно «человекочитаемое» поле: `branch_title_snapshot`, `service_title_snapshot` или `city_code_snapshot` (названия/город из payload или каталога).
+- **`minimal`:** только `slot_start` + `rubitime_id` + `status` и нет title/city снимков (базовая видимость в истории).
+
+При наличии `rubitime_branch_id` + `rubitime_service_id` в payload, но отсутствии строки в `booking_branch_services`, в лог пишется `branch_service_lookup_miss` — compat остаётся `partial`/`minimal`, без маскировки под `full`.
 
 ## Поведение при повторных webhook
 
@@ -99,7 +103,20 @@ WHERE source = 'rubitime_projection'
 
 - Если клиент зарегистрирован в Rubitime с другим телефоном, чем в Webapp, `user_id` будет null → запись не привязана к учётной записи пациента.
 - Если webhook payload не содержит `serviceId` / `branchId`, `branch_service_id` не может быть resolved → `compat_quality = 'minimal'`.
-- Исторические записи (до запуска compat-sync) не синхронизируются автоматически — необходим backfill скрипт (Stage 14).
+- Исторические записи (до запуска compat-sync) не синхронизируются автоматически — необходим backfill: `pnpm --dir apps/webapp backfill-rubitime-compat-snapshots` (Stage 2: payload + catalog lookup).
+
+## Ingest resiliency (integrator → webapp projection outbox)
+
+**Цель:** временные сбои (сеть, таймаут, HTTP 5xx, 503 от webapp) не переводят событие в финальный `dead` с первой попытки.
+
+| Класс | Примеры | Поведение |
+|-------|---------|-----------|
+| **Recoverable** | `status 0`, `5xx`, `503`, `429`, `408` | `projection_outbox`: увеличить `attempts_done`, `next_try_at` с экспоненциальным backoff (база 30s, верхняя граница 3600s), повторить emit. |
+| **Non-recoverable** | `4xx` кроме 429/408 (в т.ч. `422` для ошибок валидации в `/api/integrator/events`) | Немедленный переход в `dead` без исчерпания retry (исправление данных или кода). |
+
+**Idempotency:** ключ `idempotency_key` в `projection_outbox` + payload-hash в ключе для `appointment.record.upserted` — повторная доставка не дублирует бизнес-запись (UPSERT/ON CONFLICT на стороне webapp).
+
+**User linking по телефону:** входящий телефон нормализуется к каноническому виду `+7…` (`normalizeRuPhoneE164`, единая политика с `platform_users.phone_normalized`). При отсутствии `integrator_user_id` в payload выполняется lookup по телефону. При нескольких совпадениях по телефону в БД (нарушение уникальности) безопасная деградация — не привязывать пользователя до ручного разрешения; для штатной схемы `phone_normalized` уникален. Реализация: `pgUserByPhone.findByPhone` при двух и более строках с тем же `phone_normalized` возвращает `null` (запрос с `ORDER BY id ASC LIMIT 2`).
 
 ## Связанные документы
 

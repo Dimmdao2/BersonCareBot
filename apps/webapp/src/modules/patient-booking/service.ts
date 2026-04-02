@@ -80,15 +80,25 @@ export function createPatientBookingService(input: {
   bookingCatalog: BookingCatalogService | null;
   slotsTtlMs?: number;
 }): PatientBookingService {
-  const slotsTtlMs = input.slotsTtlMs ?? 5 * 60 * 1000;
-  const slotsCache = new Map<string, { expiresAt: number; value: Awaited<ReturnType<BookingSyncPort["fetchSlots"]>> }>();
+  const slotsTtlMs = input.slotsTtlMs ?? 60 * 1000;
+  const slotsCache = new Map<
+    string,
+    { fetchedAt: number; expiresAt: number; value: Awaited<ReturnType<BookingSyncPort["fetchSlots"]>> }
+  >();
+  let lastSlotsMutationAt = 0;
+  const inFlightCreateBySlot = new Set<string>();
+
+  function invalidateSlotsCache(): void {
+    lastSlotsMutationAt = Date.now();
+    slotsCache.clear();
+  }
 
   return {
     async getSlots(query) {
       const key = cacheKey(query);
       const now = Date.now();
       const cached = slotsCache.get(key);
-      if (cached && cached.expiresAt > now) {
+      if (cached && cached.expiresAt > now && cached.fetchedAt >= lastSlotsMutationAt) {
         return cached.value;
       }
 
@@ -114,123 +124,136 @@ export function createPatientBookingService(input: {
         });
       }
 
-      slotsCache.set(key, { value, expiresAt: now + slotsTtlMs });
+      slotsCache.set(key, { fetchedAt: now, value, expiresAt: now + slotsTtlMs });
       return value;
     },
 
     async createBooking(rawInput) {
       const createInput = validateCreatePatientBookingInput(rawInput);
-
-      let pendingRow: CreatePendingPatientBookingInput;
-      let resolved: Awaited<ReturnType<BookingCatalogService["resolveBranchService"]>> | undefined;
-
-      if (createInput.type === "online") {
-        pendingRow = toPendingRowOnline(createInput);
-      } else {
-        if (!input.bookingCatalog) {
-          throw new Error("catalog_unavailable");
-        }
-        resolved = await input.bookingCatalog.resolveBranchService(createInput.branchServiceId);
-        const expectedCity = resolved.city.code.trim().toLowerCase();
-        const clientCity = createInput.cityCode.trim().toLowerCase();
-        if (clientCity !== expectedCity) {
-          throw new Error("city_mismatch");
-        }
-        pendingRow = toPendingRowInPerson(createInput, resolved);
+      const slotLockKey = `${createInput.slotStart}|${createInput.slotEnd}`;
+      if (inFlightCreateBySlot.has(slotLockKey)) {
+        throw new Error("slot_overlap");
       }
+      inFlightCreateBySlot.add(slotLockKey);
 
-      const pending = await input.bookingsPort.createPending(pendingRow);
-
-      let sync: { rubitimeId: string | null; raw: Record<string, unknown> };
       try {
+        let pendingRow: CreatePendingPatientBookingInput;
+        let resolved: Awaited<ReturnType<BookingCatalogService["resolveBranchService"]>> | undefined;
+
         if (createInput.type === "online") {
-          sync = await input.syncPort.createRecord({
-            type: "online",
-            category: createInput.category,
-            slotStart: createInput.slotStart,
-            slotEnd: createInput.slotEnd,
-            contactName: createInput.contactName,
-            contactPhone: createInput.contactPhone,
-            contactEmail: createInput.contactEmail,
-          });
+          pendingRow = toPendingRowOnline(createInput);
         } else {
-          if (!resolved) throw new Error("catalog_unavailable");
-          sync = await input.syncPort.createRecord({
-            version: "v2",
-            rubitimeBranchId: resolved.branch.rubitimeBranchId,
-            rubitimeCooperatorId: resolved.specialist.rubitimeCooperatorId,
-            rubitimeServiceId: resolved.branchService.rubitimeServiceId,
-            slotStart: createInput.slotStart,
-            contactName: createInput.contactName,
-            contactPhone: createInput.contactPhone,
-            contactEmail: createInput.contactEmail,
-            localBookingId: pending.id,
-          });
-        }
-      } catch (err) {
-        await input.bookingsPort.markFailedSync(pending.id);
-        const code = err instanceof Error ? err.message : "rubitime_create_failed";
-        throw new Error(code);
-      }
-      let confirmed: Awaited<ReturnType<PatientBookingsPort["markConfirmed"]>>;
-      try {
-        confirmed = await input.bookingsPort.markConfirmed(pending.id, sync.rubitimeId);
-      } catch (err) {
-        const slotOverlap =
-          (err instanceof Error && err.message === "slot_overlap") || isPostgresExclusionViolation(err);
-        if (slotOverlap) {
-          if (sync.rubitimeId) {
-            try {
-              await input.syncPort.cancelRecord(sync.rubitimeId);
-            } catch (cancelErr) {
-              console.error("[patient-booking] failed to rollback rubitime record after slot overlap", {
-                bookingId: pending.id,
-                rubitimeId: sync.rubitimeId,
-                cancelErr,
-              });
-            }
+          if (!input.bookingCatalog) {
+            throw new Error("catalog_unavailable");
           }
-          await input.bookingsPort.markCancelled({
-            bookingId: pending.id,
-            reason: "slot_overlap",
-            status: "cancelled",
-          });
-          throw new Error("slot_overlap");
+          resolved = await input.bookingCatalog.resolveBranchService(createInput.branchServiceId);
+          const expectedCity = resolved.city.code.trim().toLowerCase();
+          const clientCity = createInput.cityCode.trim().toLowerCase();
+          if (clientCity !== expectedCity) {
+            throw new Error("city_mismatch");
+          }
+          pendingRow = toPendingRowInPerson(createInput, resolved);
         }
-        console.error("[patient-booking] booking confirm failed after rubitime create", {
-          bookingId: pending.id,
-          rubitimeId: sync.rubitimeId,
-          err,
-        });
-        throw new Error("booking_confirm_failed");
+
+        const pending = await input.bookingsPort.createPending(pendingRow);
+
+        let sync: { rubitimeId: string | null; raw: Record<string, unknown> };
+        try {
+          if (createInput.type === "online") {
+            sync = await input.syncPort.createRecord({
+              type: "online",
+              category: createInput.category,
+              slotStart: createInput.slotStart,
+              slotEnd: createInput.slotEnd,
+              contactName: createInput.contactName,
+              contactPhone: createInput.contactPhone,
+              contactEmail: createInput.contactEmail,
+            });
+          } else {
+            if (!resolved) throw new Error("catalog_unavailable");
+            sync = await input.syncPort.createRecord({
+              version: "v2",
+              rubitimeBranchId: resolved.branch.rubitimeBranchId,
+              rubitimeCooperatorId: resolved.specialist.rubitimeCooperatorId,
+              rubitimeServiceId: resolved.branchService.rubitimeServiceId,
+              slotStart: createInput.slotStart,
+              contactName: createInput.contactName,
+              contactPhone: createInput.contactPhone,
+              contactEmail: createInput.contactEmail,
+              localBookingId: pending.id,
+            });
+          }
+        } catch (err) {
+          await input.bookingsPort.markFailedSync(pending.id);
+          invalidateSlotsCache();
+          const code = err instanceof Error ? err.message : "rubitime_create_failed";
+          throw new Error(code);
+        }
+        let confirmed: Awaited<ReturnType<PatientBookingsPort["markConfirmed"]>>;
+        try {
+          confirmed = await input.bookingsPort.markConfirmed(pending.id, sync.rubitimeId);
+        } catch (err) {
+          const slotOverlap =
+            (err instanceof Error && err.message === "slot_overlap") || isPostgresExclusionViolation(err);
+          if (slotOverlap) {
+            if (sync.rubitimeId) {
+              try {
+                await input.syncPort.cancelRecord(sync.rubitimeId);
+              } catch (cancelErr) {
+                console.error("[patient-booking] failed to rollback rubitime record after slot overlap", {
+                  bookingId: pending.id,
+                  rubitimeId: sync.rubitimeId,
+                  cancelErr,
+                });
+              }
+            }
+            await input.bookingsPort.markCancelled({
+              bookingId: pending.id,
+              reason: "slot_overlap",
+              status: "cancelled",
+            });
+            invalidateSlotsCache();
+            throw new Error("slot_overlap");
+          }
+          console.error("[patient-booking] booking confirm failed after rubitime create", {
+            bookingId: pending.id,
+            rubitimeId: sync.rubitimeId,
+            err,
+          });
+          invalidateSlotsCache();
+          throw new Error("booking_confirm_failed");
+        }
+        invalidateSlotsCache();
+        const finalized = confirmed ?? pending;
+        try {
+          await input.syncPort.emitBookingEvent({
+            eventType: "booking.created",
+            idempotencyKey: `booking.created:${pending.id}`,
+            payload: {
+              bookingId: finalized.id,
+              userId: finalized.userId as string,
+              rubitimeId: finalized.rubitimeId,
+              bookingType: finalized.bookingType,
+              city: finalized.city ?? undefined,
+              category: finalized.category,
+              slotStart: finalized.slotStart,
+              slotEnd: finalized.slotEnd,
+              contactName: finalized.contactName,
+              contactPhone: finalized.contactPhone,
+              contactEmail: finalized.contactEmail ?? undefined,
+              branchServiceId: finalized.branchServiceId,
+              cityCodeSnapshot: finalized.cityCodeSnapshot,
+              serviceTitleSnapshot: finalized.serviceTitleSnapshot,
+            },
+          });
+        } catch {
+          // Integration notifications/reminders are best-effort and must not fail booking confirmation.
+        }
+        if (confirmed) return confirmed;
+        return pending;
+      } finally {
+        inFlightCreateBySlot.delete(slotLockKey);
       }
-      const finalized = confirmed ?? pending;
-      try {
-        await input.syncPort.emitBookingEvent({
-          eventType: "booking.created",
-          idempotencyKey: `booking.created:${pending.id}`,
-          payload: {
-            bookingId: finalized.id,
-            userId: finalized.userId,
-            rubitimeId: finalized.rubitimeId,
-            bookingType: finalized.bookingType,
-            city: finalized.city ?? undefined,
-            category: finalized.category,
-            slotStart: finalized.slotStart,
-            slotEnd: finalized.slotEnd,
-            contactName: finalized.contactName,
-            contactPhone: finalized.contactPhone,
-            contactEmail: finalized.contactEmail ?? undefined,
-            branchServiceId: finalized.branchServiceId,
-            cityCodeSnapshot: finalized.cityCodeSnapshot,
-            serviceTitleSnapshot: finalized.serviceTitleSnapshot,
-          },
-        });
-      } catch {
-        // Integration notifications/reminders are best-effort and must not fail booking confirmation.
-      }
-      if (confirmed) return confirmed;
-      return pending;
     },
 
     async cancelBooking(cancelInput) {
@@ -249,6 +272,7 @@ export function createPatientBookingService(input: {
             reason: "cancel_sync_failed",
             status: "cancel_failed",
           });
+          invalidateSlotsCache();
           return { ok: false, error: "sync_failed" };
         }
       }
@@ -257,13 +281,14 @@ export function createPatientBookingService(input: {
         reason: cancelInput.reason,
         status: "cancelled",
       });
+      invalidateSlotsCache();
       try {
         await input.syncPort.emitBookingEvent({
           eventType: "booking.cancelled",
           idempotencyKey: `booking.cancelled:${row.id}`,
           payload: {
             bookingId: row.id,
-            userId: row.userId,
+            userId: row.userId as string,
             rubitimeId: row.rubitimeId,
             bookingType: row.bookingType,
             city: row.city ?? undefined,
@@ -296,6 +321,7 @@ export function createPatientBookingService(input: {
 
     async applyRubitimeUpdate(update) {
       await input.bookingsPort.upsertFromRubitime(update);
+      invalidateSlotsCache();
     },
   };
 }

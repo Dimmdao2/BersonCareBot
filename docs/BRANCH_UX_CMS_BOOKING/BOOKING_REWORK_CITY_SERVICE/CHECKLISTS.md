@@ -42,6 +42,7 @@
 - [x] Webhook апдейтит локальную запись по `rubitime_id`
 - [x] Snapshot-поля в `patient_bookings` сохраняются корректно
 - [x] Legacy записи читаются без регрессии UI
+- [x] **F-04 / Stage 2:** compat `full` только при реальном `branch_service_id` (lookup по каталогу), `compat_quality` из `computeCompatSyncQuality`, provenance-колонки + UI-маркер «Из расписания», backfill `backfill-rubitime-compat-snapshots` (payload + catalog)
 
 ## 6) Release readiness checklist (in-person rework, Stages 1–7)
 

@@ -66,6 +66,9 @@ export default async function DoctorAppointmentsPage({ searchParams }: Props) {
             {appointments.map((a) => (
               <li key={a.id} id={`doctor-appointments-item-${a.id}`} className="rounded-lg border border-border bg-card p-3">
                 <div className="flex flex-col gap-2">
+                  {a.scheduleProvenancePrefix ? (
+                    <p className="text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</p>
+                  ) : null}
                   <Link href={`/app/doctor/clients/${a.clientUserId}`}>
                     {a.time} — {a.clientLabel} ({a.type}, {a.status})
                   </Link>

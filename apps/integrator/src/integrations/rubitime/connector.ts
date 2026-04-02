@@ -1,6 +1,7 @@
 import type { IncomingEvent, WebappEventBody } from '../../kernel/contracts/index.js';
 import { syncAppointmentToCalendar, type RubitimeCalendarSyncEvent } from '../google-calendar/sync.js';
 import type { RubitimeWebhookBodyValidated } from './schema.js';
+import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
 
 type RubitimeIncomingPayload = {
   entity: 'record';
@@ -25,6 +26,8 @@ type RubitimeIncomingPayload = {
   /** Rubitime service metadata for compat-sync create path. */
   serviceId?: string;
   serviceName?: string;
+  /** Specialist / cooperator id in Rubitime (for catalog lookup disambiguation). */
+  cooperatorId?: string;
   gcalEventId?: string;
 };
 
@@ -116,6 +119,8 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
     asString(source.service_id) ?? (source.service_id != null ? String(source.service_id) : undefined);
   const serviceName = asString(source.service_name) ?? asString(source.service_title);
   const dateTimeEnd = asString(source.datetime_end) ?? asString(source.date_time_end);
+  const cooperatorId =
+    asString(source.cooperator_id) ?? (source.cooperator_id != null ? String(source.cooperator_id) : undefined);
   const { firstName: clientFirstName, lastName: clientLastName } = clientName
     ? parseNameToFirstLast(clientName)
     : {};
@@ -140,6 +145,7 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
     ...(serviceId ? { serviceId } : {}),
     ...(serviceName ? { serviceName } : {}),
     ...(dateTimeEnd ? { dateTimeEnd } : {}),
+    ...(cooperatorId ? { cooperatorId } : {}),
   };
 }
 
@@ -166,7 +172,7 @@ export function buildUserEmailAutobindWebappEvent(body: RubitimeWebhookBodyValid
   return {
     eventType: 'user.email.autobind',
     idempotencyKey: idem.slice(0, 240),
-    payload: { phoneNormalized: phone, email },
+    payload: { phoneNormalized: normalizeRuPhoneE164(phone), email },
   };
 }
 

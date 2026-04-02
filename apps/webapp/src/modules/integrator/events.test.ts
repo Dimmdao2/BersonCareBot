@@ -9,6 +9,7 @@ import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderPr
 import { inMemoryAppointmentProjectionPort } from "@/infra/repos/inMemoryAppointmentProjection";
 import { inMemorySupportCommunicationPort } from "@/infra/repos/inMemorySupportCommunication";
 import { inMemorySubscriptionMailingProjectionPort } from "@/infra/repos/inMemorySubscriptionMailingProjection";
+import type { PatientBookingService } from "@/modules/patient-booking/ports";
 
 const mockDeps: IntegratorEventsDeps = {
   diaries: {
@@ -837,6 +838,142 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     );
     expect(result.accepted).toBe(false);
     expect(result.reason).toContain("required payload fields missing");
+    expect(result.retryable).toBe(false);
+  });
+
+  it("appointment.record.upserted normalizes phone before findByPhone", async () => {
+    const findByPhone = vi.fn().mockResolvedValue({ platformUserId: "user-uuid-1" });
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const applyRubitimeUpdate = vi.fn().mockResolvedValue(undefined);
+    const deps: IntegratorEventsDeps = {
+      ...mockDeps,
+      appointmentProjection: mockAp,
+      patientBooking: { applyRubitimeUpdate } as unknown as PatientBookingService,
+      users: {
+        upsertFromProjection: vi.fn(),
+        findByIntegratorId: vi.fn(),
+        findByPhone,
+        updatePhone: vi.fn(),
+        updateProfileByPhone: vi.fn(),
+      },
+    };
+    await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-norm-1",
+          phoneNormalized: "8 (999) 123-45-67",
+          recordAt: "2025-08-01T12:00:00.000Z",
+          status: "created",
+          payloadJson: {},
+          lastEvent: "event-create",
+          updatedAt: "2025-07-01T10:00:00.000Z",
+        },
+      },
+      deps,
+    );
+    expect(findByPhone).toHaveBeenCalledWith("+79991234567");
+    expect(applyRubitimeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-uuid-1" }),
+    );
+  });
+
+  it("appointment.record.upserted passes userId null when phone and integrator lookups miss (compat row)", async () => {
+    const findByPhone = vi.fn().mockResolvedValue(null);
+    const findByIntegratorId = vi.fn().mockResolvedValue(null);
+    const applyRubitimeUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const deps: IntegratorEventsDeps = {
+      ...mockDeps,
+      appointmentProjection: mockAp,
+      patientBooking: { applyRubitimeUpdate } as unknown as PatientBookingService,
+      users: {
+        upsertFromProjection: vi.fn(),
+        findByIntegratorId,
+        findByPhone,
+        updatePhone: vi.fn(),
+        updateProfileByPhone: vi.fn(),
+      },
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-unlinked-1",
+          phoneNormalized: "+79991112233",
+          recordAt: "2025-08-01T12:00:00.000Z",
+          status: "created",
+          payloadJson: {},
+          lastEvent: "event-create",
+          updatedAt: "2025-07-01T10:00:00.000Z",
+        },
+      },
+      deps,
+    );
+    expect(result.accepted).toBe(true);
+    expect(findByPhone).toHaveBeenCalled();
+    expect(findByIntegratorId).not.toHaveBeenCalled();
+    expect(applyRubitimeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: null, rubitimeId: "rec-unlinked-1" }),
+    );
+  });
+
+  it("appointment.record.upserted uses integrator id when phone lookup misses", async () => {
+    const findByPhone = vi.fn().mockResolvedValue(null);
+    const findByIntegratorId = vi.fn().mockResolvedValue({ platformUserId: "plat-from-int" });
+    const applyRubitimeUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const deps: IntegratorEventsDeps = {
+      ...mockDeps,
+      appointmentProjection: mockAp,
+      patientBooking: { applyRubitimeUpdate } as unknown as PatientBookingService,
+      users: {
+        upsertFromProjection: vi.fn(),
+        findByIntegratorId,
+        findByPhone,
+        updatePhone: vi.fn(),
+        updateProfileByPhone: vi.fn(),
+      },
+    };
+    await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-int-1",
+          phoneNormalized: "+79990001122",
+          integratorUserId: "rubitime-user-99",
+          recordAt: "2025-08-01T12:00:00.000Z",
+          status: "created",
+          payloadJson: {},
+          lastEvent: "event-create",
+          updatedAt: "2025-07-01T10:00:00.000Z",
+        },
+      },
+      deps,
+    );
+    expect(findByPhone).toHaveBeenCalled();
+    expect(findByIntegratorId).toHaveBeenCalledWith("rubitime-user-99");
+    expect(applyRubitimeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "plat-from-int" }),
+    );
   });
 
   it("calls upsertRecordFromProjection with payload when appointment.record.upserted", async () => {

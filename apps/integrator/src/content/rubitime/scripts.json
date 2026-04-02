@@ -45,7 +45,8 @@
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
           "lastEvent": "{{input.action}}",
-          "gcalEventId": "{{input.gcalEventId}}"
+          "gcalEventId": "{{input.gcalEventId}}",
+          "rubitimeCooperatorId": "{{input.cooperatorId}}"
         }
       },
       {
@@ -141,7 +142,8 @@
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
           "lastEvent": "{{input.action}}",
-          "gcalEventId": "{{input.gcalEventId}}"
+          "gcalEventId": "{{input.gcalEventId}}",
+          "rubitimeCooperatorId": "{{input.cooperatorId}}"
         }
       },
       {
@@ -237,7 +239,8 @@
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
           "lastEvent": "{{input.action}}",
-          "gcalEventId": "{{input.gcalEventId}}"
+          "gcalEventId": "{{input.gcalEventId}}",
+          "rubitimeCooperatorId": "{{input.cooperatorId}}"
         }
       },
       {
@@ -333,7 +336,8 @@
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
           "lastEvent": "{{input.action}}",
-          "gcalEventId": "{{input.gcalEventId}}"
+          "gcalEventId": "{{input.gcalEventId}}",
+          "rubitimeCooperatorId": "{{input.cooperatorId}}"
         }
       },
       {
@@ -429,7 +433,8 @@
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
           "lastEvent": "{{input.action}}",
-          "gcalEventId": "{{input.gcalEventId}}"
+          "gcalEventId": "{{input.gcalEventId}}",
+          "rubitimeCooperatorId": "{{input.cooperatorId}}"
         }
       },
       {
@@ -518,7 +523,8 @@
           "rubitimeStatusCode": "{{input.statusCode}}",
           "payloadJson": "{{input.record}}",
           "lastEvent": "{{input.action}}",
-          "gcalEventId": "{{input.gcalEventId}}"
+          "gcalEventId": "{{input.gcalEventId}}",
+          "rubitimeCooperatorId": "{{input.cooperatorId}}"
         }
       },
       {

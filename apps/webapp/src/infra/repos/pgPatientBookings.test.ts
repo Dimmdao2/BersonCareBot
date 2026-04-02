@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.hoisted(() => vi.fn());
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({ query: queryMock })));
+const lookupMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/infra/db/client", () => ({
   getPool: getPoolMock,
+}));
+
+vi.mock("@/infra/repos/rubitimeBranchServiceLookup", () => ({
+  lookupBranchServiceByRubitimeIds: lookupMock,
 }));
 
 import { pgPatientBookingsPort } from "./pgPatientBookings";
@@ -55,9 +60,37 @@ function v2Row(id: string): Record<string, unknown> {
   };
 }
 
+const LOOKUP_FULL = {
+  branchServiceId: "00000000-0000-4000-8000-0000000000b1",
+  branchId: "00000000-0000-4000-8000-0000000000b2",
+  serviceId: "00000000-0000-4000-8000-0000000000b3",
+  cityCode: "moscow",
+  branchTitle: "Ф-1",
+  serviceTitle: "Услуга",
+  durationMinutes: 60,
+  priceMinor: 100,
+  rubitimeCooperatorId: "99",
+} as const;
+
+const baseCompatInput = {
+  rubitimeId: "rt-upsert-1",
+  status: "confirmed" as const,
+  slotStart: SLOT_START.toISOString(),
+  slotEnd: null as string | null,
+  userId: null as string | null,
+  contactPhone: "+7000",
+  contactName: "X",
+  branchTitle: null as string | null,
+  serviceTitle: null as string | null,
+  rubitimeBranchId: "173",
+  rubitimeServiceId: "675",
+  rubitimeCooperatorId: "99",
+};
+
 describe("pgPatientBookingsPort", () => {
   beforeEach(() => {
     queryMock.mockReset();
+    lookupMock.mockReset();
   });
 
   it("createPending passes v2 snapshot columns to INSERT", async () => {
@@ -92,6 +125,33 @@ describe("pgPatientBookingsPort", () => {
     expect(row.serviceTitleSnapshot).toBe("Сеанс");
   });
 
+  it("createPending throws slot_overlap when INSERT returns no row (overlap pre-check)", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    const input: CreatePendingPatientBookingInput = {
+      userId: "u1",
+      bookingType: "in_person",
+      city: "moscow",
+      category: "general",
+      slotStart: SLOT_START.toISOString(),
+      slotEnd: SLOT_END.toISOString(),
+      contactName: "T",
+      contactPhone: "+7000",
+      contactEmail: null,
+      branchId: "br1",
+      serviceId: "sv1",
+      branchServiceId: "bs1",
+      cityCodeSnapshot: "moscow",
+      branchTitleSnapshot: "Филиал",
+      serviceTitleSnapshot: "Сеанс",
+      durationMinutesSnapshot: 60,
+      priceMinorSnapshot: 100,
+      rubitimeBranchIdSnapshot: "173",
+      rubitimeCooperatorIdSnapshot: "347",
+      rubitimeServiceIdSnapshot: "675",
+    };
+    await expect(pgPatientBookingsPort.createPending(input)).rejects.toThrow("slot_overlap");
+  });
+
   it("listUpcomingByUser maps legacy row without v2 columns", async () => {
     queryMock.mockResolvedValueOnce({ rows: [legacyRow("leg-1")] });
     const rows = await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
@@ -118,5 +178,66 @@ describe("pgPatientBookingsPort", () => {
     expect(byId["leg-h"]!.city).toBe("moscow");
     expect(byId["v2-h"]!.branchServiceId).toBe("bs1");
     expect(byId["v2-h"]!.serviceTitleSnapshot).toBe("Сеанс");
+  });
+
+  describe("upsertFromRubitime (F-04 compat-sync)", () => {
+    it("compat create writes branch_service_id and compat_quality full when catalog lookup succeeds", async () => {
+      lookupMock.mockResolvedValue({ result: { ...LOOKUP_FULL }, ambiguous: false });
+      queryMock.mockResolvedValueOnce({ rows: [] });
+      queryMock.mockResolvedValueOnce({ rowCount: 1 });
+
+      await pgPatientBookingsPort.upsertFromRubitime(baseCompatInput);
+
+      expect(lookupMock).toHaveBeenCalledWith("173", "675", "99");
+      const insertArgs = queryMock.mock.calls[1]![1] as unknown[];
+      expect(insertArgs![16]).toBe(LOOKUP_FULL.branchServiceId);
+      expect(insertArgs![19]).toBe("full");
+    });
+
+    it("compat update touches same rubitime_id with UPDATE, not second INSERT", async () => {
+      lookupMock.mockResolvedValue({ result: { ...LOOKUP_FULL }, ambiguous: false });
+      queryMock.mockResolvedValueOnce({ rows: [] });
+      queryMock.mockResolvedValueOnce({ rowCount: 1 });
+      await pgPatientBookingsPort.upsertFromRubitime(baseCompatInput);
+
+      queryMock.mockResolvedValueOnce({
+        rows: [
+          {
+            id: "00000000-0000-4000-8000-0000000000e1",
+            source: "rubitime_projection",
+            slot_start: SLOT_START,
+          },
+        ],
+      });
+      queryMock.mockResolvedValueOnce({ rowCount: 1 });
+      await pgPatientBookingsPort.upsertFromRubitime({
+        ...baseCompatInput,
+        status: "cancelled",
+      });
+
+      const updateSql = String(queryMock.mock.calls[3]![0] ?? "");
+      expect(updateSql).toContain("UPDATE patient_bookings");
+      const updateArgs = queryMock.mock.calls[3]![1] as unknown[];
+      expect(updateArgs![9]).toBe(LOOKUP_FULL.branchServiceId);
+      expect(queryMock.mock.calls.length).toBe(4);
+    });
+
+    it("lookup miss yields minimal compat_quality without branch_service_id", async () => {
+      lookupMock.mockResolvedValue({ result: null, ambiguous: false });
+      queryMock.mockResolvedValueOnce({ rows: [] });
+      queryMock.mockResolvedValueOnce({ rowCount: 1 });
+
+      await pgPatientBookingsPort.upsertFromRubitime({
+        ...baseCompatInput,
+        rubitimeId: "rt-miss-1",
+        slotEnd: "2026-05-01T11:00:00.000Z",
+        branchTitle: null,
+        serviceTitle: null,
+      });
+
+      const insertArgs = queryMock.mock.calls[1]![1] as unknown[];
+      expect(insertArgs![16]).toBeNull();
+      expect(insertArgs![19]).toBe("minimal");
+    });
   });
 });

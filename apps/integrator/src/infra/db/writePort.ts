@@ -41,6 +41,7 @@ import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
 import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';
 import { logger } from '../observability/logger.js';
 import { insertMailingLog } from './repos/mailingLogs.js';
+import { normalizeRuPhoneE164 } from '../phone/normalizeRuPhoneE164.js';
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -59,6 +60,8 @@ type BookingUpsertParams = {
   /** Rubitime service metadata (Stage 11 compat-sync). */
   serviceId?: unknown;
   serviceName?: unknown;
+  /** Specialist/cooperator id for catalog branch_service lookup (Stage 2 F-04). */
+  rubitimeCooperatorId?: unknown;
   gcalEventId?: unknown;
 };
 
@@ -123,7 +126,8 @@ export function createDbWritePort(input: {
           const status = statusRaw === 'created' || statusRaw === 'updated' || statusRaw === 'canceled'
             ? statusRaw
             : 'updated';
-          const phoneNormalized = asNullableString(params.phoneNormalized);
+          const rawPhone = asNullableString(params.phoneNormalized);
+          const phoneNormalized = rawPhone ? normalizeRuPhoneE164(rawPhone) : null;
           const recordAt = asNullableString(params.recordAt);
           const payloadJson = typeof params.payloadJson === 'object' && params.payloadJson !== null
             ? (params.payloadJson as Record<string, unknown>)
@@ -153,6 +157,12 @@ export function createDbWritePort(input: {
             asNullableString(params.dateTimeEnd) ??
             asNullableString(payloadJson.datetime_end) ??
             asNullableString(payloadJson.date_time_end);
+          const rawCooperatorId =
+            asNullableString(params.rubitimeCooperatorId) ??
+            asNullableString(payloadJson.cooperator_id) ??
+            (payloadJson.cooperator_id != null ? String(payloadJson.cooperator_id) : null) ??
+            asNullableString(payloadJson.specialist_id) ??
+            (payloadJson.specialist_id != null ? String(payloadJson.specialist_id) : null);
           const nameFromPayload = asNullableString(payloadJson.name);
           const parsedFromName = nameFromPayload
             ? parseNameToFirstLast(nameFromPayload)
@@ -187,6 +197,7 @@ export function createDbWritePort(input: {
               branchName: rawBranchName ?? null,
               serviceId: rawServiceId ?? null,
               serviceName: rawServiceName ?? null,
+              rubitimeCooperatorId: rawCooperatorId ?? null,
             };
             await enqueueProjectionEvent(txDb, {
               eventType: APPOINTMENT_RECORD_UPSERTED,

@@ -9,6 +9,7 @@ type NearestAppointment = {
   clientLabel: string;
   time: string;
   type: string;
+  scheduleProvenancePrefix?: string;
 } | null;
 
 type Props = {
@@ -24,6 +25,9 @@ export function DoctorDashboardContextWidgets({ nearestAppointment }: Props) {
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ближайший приём</p>
         {nearestAppointment ? (
           <>
+            {nearestAppointment.scheduleProvenancePrefix ? (
+              <p className="mt-1 text-xs text-muted-foreground">{nearestAppointment.scheduleProvenancePrefix}</p>
+            ) : null}
             <p className="mt-1 text-sm font-medium">
               {nearestAppointment.time} · {nearestAppointment.clientLabel}
             </p>

@@ -142,6 +142,8 @@ export type PatientBookingsPort = {
     serviceTitle?: string | null;
     rubitimeBranchId?: string | null;
     rubitimeServiceId?: string | null;
+    /** Disambiguates `booking_branch_services` when multiple specialists share branch+service. */
+    rubitimeCooperatorId?: string | null;
   }): Promise<void>;
   listUpcomingByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
   listHistoryByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
@@ -170,5 +172,6 @@ export type PatientBookingService = {
     serviceTitle?: string | null;
     rubitimeBranchId?: string | null;
     rubitimeServiceId?: string | null;
+    rubitimeCooperatorId?: string | null;
   }): Promise<void>;
 };

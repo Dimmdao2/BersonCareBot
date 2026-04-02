@@ -124,6 +124,10 @@ function sampleRow(over: Partial<PatientBookingRecord> = {}): PatientBookingReco
     rubitimeBranchIdSnapshot: null,
     rubitimeCooperatorIdSnapshot: null,
     rubitimeServiceIdSnapshot: null,
+    bookingSource: "native",
+    compatQuality: null,
+    provenanceCreatedBy: null,
+    provenanceUpdatedBy: null,
     ...over,
   };
 }
@@ -147,7 +151,7 @@ describe("createPatientBookingService", () => {
       bookingCatalog: null,
     });
     const result = await svc.cancelBooking({
-      userId: row.userId,
+      userId: row.userId!,
       bookingId: row.id,
       reason: "busy",
     });
@@ -172,13 +176,38 @@ describe("createPatientBookingService", () => {
       syncPort: syncPort as never,
       bookingCatalog: null,
     });
-    const result = await svc.cancelBooking({ userId: row.userId, bookingId: row.id });
+    const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
     expect(result).toEqual({ ok: false, error: "sync_failed" });
     expect(bookingsPort.markCancelled).toHaveBeenCalledWith({
       bookingId: row.id,
       reason: "cancel_sync_failed",
       status: "cancel_failed",
     });
+  });
+
+  it("cancelBooking: sync failure invalidates slots cache so next getSlots refetches", async () => {
+    const row = sampleRow({ status: "confirmed", rubitimeId: "r1" });
+    bookingsPort.getByIdForUser.mockResolvedValue(row);
+    bookingsPort.markCancelling.mockResolvedValue({ ...row, status: "cancelling" });
+    syncPort.cancelRecord.mockRejectedValue(new Error("network"));
+    bookingsPort.markCancelled.mockResolvedValue({ ...row, status: "cancel_failed" });
+    syncPort.fetchSlots.mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      slotsTtlMs: 60_000,
+    });
+    await svc.getSlots({ type: "online", category: "general" });
+    await svc.getSlots({ type: "online", category: "general" });
+    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(1);
+
+    const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
+    expect(result).toEqual({ ok: false, error: "sync_failed" });
+
+    await svc.getSlots({ type: "online", category: "general" });
+    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(2);
   });
 
   it("cancelBooking: already cancelled returns already_cancelled", async () => {
@@ -189,7 +218,7 @@ describe("createPatientBookingService", () => {
       syncPort: syncPort as never,
       bookingCatalog: null,
     });
-    const result = await svc.cancelBooking({ userId: row.userId, bookingId: row.id });
+    const result = await svc.cancelBooking({ userId: row.userId!, bookingId: row.id });
     expect(result).toEqual({ ok: false, error: "already_cancelled" });
     expect(bookingsPort.markCancelling).not.toHaveBeenCalled();
   });
@@ -206,7 +235,7 @@ describe("createPatientBookingService", () => {
     });
     await expect(
       svc.createBooking({
-        userId: pending.userId,
+        userId: pending.userId!,
         type: "online",
         category: "general",
         slotStart: pending.slotStart,
@@ -231,7 +260,7 @@ describe("createPatientBookingService", () => {
     });
     await expect(
       svc.createBooking({
-        userId: pending.userId,
+        userId: pending.userId!,
         type: "online",
         category: "general",
         slotStart: pending.slotStart,
@@ -258,7 +287,7 @@ describe("createPatientBookingService", () => {
     });
     await expect(
       svc.createBooking({
-        userId: pending.userId,
+        userId: pending.userId!,
         type: "online",
         category: "general",
         slotStart: pending.slotStart,
@@ -299,7 +328,7 @@ describe("createPatientBookingService", () => {
     });
     await expect(
       svc.createBooking({
-        userId: pending.userId,
+        userId: pending.userId!,
         type: "in_person",
         branchServiceId: r.branchService.id,
         cityCode: "moscow",
@@ -385,7 +414,7 @@ describe("createPatientBookingService", () => {
       bookingCatalog: catalogWithResolve(),
     });
     await svc.createBooking({
-      userId: pending.userId,
+      userId: pending.userId!,
       type: "in_person",
       branchServiceId: r.branchService.id,
       cityCode: "moscow",
@@ -434,7 +463,7 @@ describe("createPatientBookingService", () => {
       bookingCatalog: null,
     });
     const result = await svc.cancelBooking({
-      userId: row.userId,
+      userId: row.userId!,
       bookingId: row.id,
       reason: "plan changed",
     });
@@ -495,5 +524,85 @@ describe("createPatientBookingService", () => {
     ).rejects.toThrow("city_mismatch");
     expect(bookingsPort.createPending).not.toHaveBeenCalled();
     expect(syncPort.createRecord).not.toHaveBeenCalled();
+  });
+
+  it("getSlots: caches result within TTL (single fetch)", async () => {
+    syncPort.fetchSlots.mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      slotsTtlMs: 60_000,
+    });
+    await svc.getSlots({ type: "online", category: "general" });
+    await svc.getSlots({ type: "online", category: "general" });
+    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(1);
+  });
+
+  it("createBooking: success invalidates slots cache so next getSlots refetches", async () => {
+    const pending = sampleRow({ id: "p-cache", status: "creating", rubitimeId: null });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    syncPort.createRecord.mockResolvedValue({ rubitimeId: "r1", raw: {} });
+    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "r1" });
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+    syncPort.fetchSlots.mockResolvedValue([{ date: "2026-05-01", slots: [] }]);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+      slotsTtlMs: 60_000,
+    });
+    await svc.getSlots({ type: "online", category: "general" });
+    await svc.getSlots({ type: "online", category: "general" });
+    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(1);
+
+    await svc.createBooking({
+      userId: pending.userId!,
+      type: "online",
+      category: "general",
+      slotStart: pending.slotStart,
+      slotEnd: pending.slotEnd,
+      contactName: pending.contactName,
+      contactPhone: pending.contactPhone,
+    });
+
+    await svc.getSlots({ type: "online", category: "general" });
+    expect(syncPort.fetchSlots).toHaveBeenCalledTimes(2);
+  });
+
+  it("createBooking: concurrent same slot second call throws slot_overlap before second createPending", async () => {
+    const pending = sampleRow({ id: "p-conc", status: "creating", rubitimeId: null });
+    bookingsPort.createPending.mockResolvedValue(pending);
+    let release!: () => void;
+    syncPort.createRecord.mockImplementation(
+      () =>
+        new Promise<{ rubitimeId: string; raw: Record<string, unknown> }>((resolve) => {
+          release = () => resolve({ rubitimeId: "r1", raw: {} });
+        }),
+    );
+    bookingsPort.markConfirmed.mockResolvedValue({ ...pending, status: "confirmed", rubitimeId: "r1" });
+    syncPort.emitBookingEvent.mockResolvedValue(undefined);
+
+    const svc = createPatientBookingService({
+      bookingsPort: bookingsPort as never,
+      syncPort: syncPort as never,
+      bookingCatalog: null,
+    });
+    const payload = {
+      userId: pending.userId!,
+      type: "online" as const,
+      category: "general" as const,
+      slotStart: pending.slotStart,
+      slotEnd: pending.slotEnd,
+      contactName: pending.contactName,
+      contactPhone: pending.contactPhone,
+    };
+    const first = svc.createBooking(payload);
+    await expect(svc.createBooking(payload)).rejects.toThrow("slot_overlap");
+    expect(bookingsPort.createPending).toHaveBeenCalledTimes(1);
+    release();
+    await first;
+    expect(bookingsPort.createPending).toHaveBeenCalledTimes(1);
   });
 });

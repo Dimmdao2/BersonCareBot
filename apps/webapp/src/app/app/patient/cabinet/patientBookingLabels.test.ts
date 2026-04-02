@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
-import { nativeBookingSubtitle } from "./patientBookingLabels";
+import { bookingProvenancePrefix, SCHEDULE_RECORD_PROVENANCE_PREFIX } from "./patientBookingLabels";
 
-function base(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
+function baseRow(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
   return {
     id: "b1",
     userId: "u1",
     bookingType: "in_person",
-    city: "moscow",
+    city: null,
     category: "general",
-    slotStart: "2026-01-01T10:00:00.000Z",
-    slotEnd: "2026-01-01T11:00:00.000Z",
+    slotStart: "2026-05-01T10:00:00.000Z",
+    slotEnd: "2026-05-01T11:00:00.000Z",
     status: "confirmed",
     cancelledAt: null,
     cancelReason: null,
-    rubitimeId: null,
+    rubitimeId: "r1",
     gcalEventId: null,
     contactPhone: "+7000",
     contactEmail: null,
@@ -34,36 +34,24 @@ function base(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord {
     rubitimeBranchIdSnapshot: null,
     rubitimeCooperatorIdSnapshot: null,
     rubitimeServiceIdSnapshot: null,
+    bookingSource: "native",
+    compatQuality: null,
+    provenanceCreatedBy: null,
+    provenanceUpdatedBy: null,
     ...over,
   };
 }
 
-describe("nativeBookingSubtitle", () => {
-  it("uses snapshots for in-person v2", () => {
-    const s = nativeBookingSubtitle(
-      base({
-        branchServiceId: "11111111-1111-4111-8111-111111111111",
-        cityCodeSnapshot: "moscow",
-        serviceTitleSnapshot: "Сеанс 60 мин",
-      }),
-    );
-    expect(s).toContain("Москва");
-    expect(s).toContain("Сеанс 60 мин");
+describe("bookingProvenancePrefix", () => {
+  it("returns label for rubitime_projection rows", () => {
+    expect(bookingProvenancePrefix(baseRow({ bookingSource: "rubitime_projection" }))).toBe("Из расписания · ");
   });
 
-  it("falls back to legacy city for old rows", () => {
-    expect(nativeBookingSubtitle(base({ city: "spb" }))).toContain("СПб");
+  it("returns empty for native bookings", () => {
+    expect(bookingProvenancePrefix(baseRow({ bookingSource: "native" }))).toBe("");
   });
 
-  it("labels online categories", () => {
-    expect(
-      nativeBookingSubtitle(
-        base({
-          bookingType: "online",
-          category: "rehab_lfk",
-          city: null,
-        }),
-      ),
-    ).toContain("ЛФК");
+  it("re-exports shared schedule prefix for doctor/projection UIs", () => {
+    expect(SCHEDULE_RECORD_PROVENANCE_PREFIX).toBe("Из расписания · ");
   });
 });

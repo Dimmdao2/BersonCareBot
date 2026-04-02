@@ -82,6 +82,31 @@ describe('runProjectionWorkerTick', () => {
     expect(mockReschedule).not.toHaveBeenCalled();
   });
 
+  it('moves event to DLQ immediately on non-recoverable emit (e.g. HTTP 422)', async () => {
+    const db = fakeDb();
+    const port: WebappEventsPort = {
+      emit: vi.fn().mockResolvedValue({ ok: false, status: 422, error: 'validation' }),
+      listSymptomTrackings: vi.fn().mockResolvedValue({ ok: true, trackings: [] }),
+      listLfkComplexes: vi.fn().mockResolvedValue({ ok: true, complexes: [] }),
+    };
+    mockClaim.mockResolvedValueOnce([{ ...BASE_EVENT, attemptsDone: 0, maxAttempts: 5 }]);
+
+    await runProjectionWorkerTick(db, port, 10);
+
+    expect(mockFail).toHaveBeenCalledWith(db, 1, 'validation');
+    expect(mockReschedule).not.toHaveBeenCalled();
+  });
+
+  it('caps exponential backoff delay', async () => {
+    const db = fakeDb();
+    const port = fakeWebappPort(false, 'unavailable');
+    mockClaim.mockResolvedValueOnce([{ ...BASE_EVENT, attemptsDone: 9, maxAttempts: 12 }]);
+
+    await runProjectionWorkerTick(db, port, 10);
+
+    expect(mockReschedule).toHaveBeenCalledWith(db, 1, 10, 3600);
+  });
+
   it('handles emit exception with retry', async () => {
     const db = fakeDb();
     const port: WebappEventsPort = {

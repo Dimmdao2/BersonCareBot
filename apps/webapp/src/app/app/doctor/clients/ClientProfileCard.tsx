@@ -126,6 +126,9 @@ export function ClientProfileCard({
           <ul id="doctor-client-upcoming-appointments-list" className="m-0 list-none space-y-3 p-0">
             {upcomingAppointments.map((a) => (
               <li key={a.id} id={`doctor-client-upcoming-appointment-${a.id}`} className="rounded-lg border border-border bg-card p-3">
+                {a.scheduleProvenancePrefix ? (
+                  <p className="mb-1 text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</p>
+                ) : null}
                 {a.link && /^https?:\/\//i.test(a.link) ? (
                   <a href={a.link} target="_blank" rel="noopener noreferrer">
                     {a.label}
@@ -150,6 +153,9 @@ export function ClientProfileCard({
           <ul id="doctor-client-appointment-history-list" className="m-0 list-none space-y-3 p-0">
             {appointmentHistory.map((row) => (
               <li key={row.id} className="rounded-lg border border-border bg-card p-3">
+                {row.scheduleProvenancePrefix ? (
+                  <p className="mb-1 text-xs text-muted-foreground">{row.scheduleProvenancePrefix}</p>
+                ) : null}
                 {row.label}
               </li>
             ))}

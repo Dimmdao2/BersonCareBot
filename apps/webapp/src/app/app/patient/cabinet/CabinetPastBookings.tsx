@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import type { CabinetPastRow } from "./cabinetPastBookingsMerge";
-import { nativeBookingSubtitle } from "./patientBookingLabels";
+import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
 
 type Props = {
   items: CabinetPastRow[];
@@ -73,7 +73,10 @@ export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
                     <p className="truncate text-sm font-medium">
                       {formatBookingDateTimeMediumRu(row.booking.slotStart, appDisplayTimeZone)}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">{nativeBookingSubtitle(row.booking)}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {bookingProvenancePrefix(row.booking)}
+                      {nativeBookingSubtitle(row.booking)}
+                    </p>
                   </div>
                   {nativePastStatusRight(row.booking.status)}
                 </div>

@@ -365,3 +365,77 @@ docs/BRANCH_UX_CMS_BOOKING/GLOBAL_FIX/STAGE_7_FINAL_INTEGRATION_AUDIT.md
 4) Обновить AGENT_EXECUTION_LOG.md.
 5) Подготовить таблицу: finding -> fix -> evidence.
 ```
+
+---
+
+## INCIDENT HOTFIX - BOOKING FLOW (RCA + PLAN, без имплементации в этом шаге)
+
+### Подтвержденные причины (RCA)
+
+1) Кэш слотов в `apps/webapp/src/modules/patient-booking/service.ts` живет до `5 минут` и не инвалидируется после `create/cancel/applyRubitimeUpdate`; из-за этого UI видит устаревшие окна.
+2) Конкурентные попытки создать запись на один и тот же слот не блокируются на входе сервиса; overlap ловится поздно (на confirm/DB constraint), что позволяет внешнему Rubitime create произойти лишний раз.
+3) В `apps/webapp/src/infra/repos/pgPatientBookings.ts` `createPending` не делает pre-check overlap по статусам in-flight (`creating`, `cancelling`, `cancel_failed`), поэтому в гонке возможны дубли попыток.
+4) UI ошибки пробрасываются как технические коды (`slot_overlap` и т.п.) вместо русских сообщений.
+5) Ссылка «Изменить» в активных записях ведет на `support_contact_url` через обычный `target=_blank`; в mini app это может открываться нестабильно или не открываться.
+6) Нет мгновенного toast-уведомления об успешной записи в native booking confirm flow.
+
+### План фиксирования (для простого агента)
+
+```text
+Сделай HOTFIX booking flow по подтвержденному RCA (без расширения scope).
+
+Scope:
+- Только booking native flow + related UI in cabinet.
+- Не менять архитектуру stage-доков и не трогать нерелевантные модули.
+
+Нужно сделать:
+1) Slots cache
+   - В `patient-booking/service.ts` уменьшить TTL кэша слотов до 60 секунд.
+   - Добавить явную инвалидацию кэша при:
+     - успешном createBooking,
+     - markFailedSync/create error path,
+     - slot_overlap rollback path,
+     - cancelBooking success,
+     - applyRubitimeUpdate.
+   - Условие stale: кэш не валиден, если fetchedAt < lastSlotsMutationAt.
+
+2) Антидубли по слоту
+   - В `patient-booking/service.ts` добавить in-flight lock по ключу slotStart|slotEnd
+     (Set, add до create flow, delete в finally), при дубле бросать `slot_overlap`.
+   - В `pgPatientBookings.ts` в `createPending` сделать SQL pre-check overlap по статусам:
+     creating, confirmed, rescheduled, cancelling, cancel_failed.
+     Если overlap найден — возвращать `slot_overlap`.
+   - Для in-memory порта синхронизировать те же blocking statuses.
+
+3) Русские ошибки для пациента
+   - В `useCreateBooking.ts` добавить map backend error code -> RU текст:
+     - slot_overlap, slot_already_taken -> "Это время уже занято. Выберите другой слот."
+     - booking_confirm_failed, rubitime_* -> "Не удалось подтвердить запись. Попробуйте еще раз."
+     - branch_service_not_found -> "Услуга или специалист недоступны."
+     - city_mismatch -> "Город не совпадает с выбранной услугой."
+     - fallback -> "Не удалось создать запись."
+
+4) Мгновенное уведомление о success
+   - В `ConfirmStepClient.tsx` при ok=true показать toast.success("Запись подтверждена").
+   - После toast делать router.push(routePaths.cabinet).
+
+5) Кнопка «Изменить»
+   - В `CabinetActiveBookings.tsx` заменить Link+target=_blank на client-safe open:
+     - если Telegram mini app: использовать `window.Telegram.WebApp.openLink(href)` при наличии,
+     - иначе `window.open(href, "_blank", "noopener,noreferrer")`.
+   - Добавить проверку безопасной ссылки через `isSafeExternalHref`.
+
+6) Тесты
+   - `patient-booking/service.test.ts`: кэш инвалидируется, lock отсекает параллельный дубль.
+   - `pgPatientBookings.test.ts`: createPending возвращает slot_overlap при overlap.
+   - `useCreateBooking` (или рядом): RU mapping ошибок.
+   - При необходимости обновить existing tests для in-memory overlap statuses.
+
+7) Проверки
+   - Прогнать целевые тесты по измененным файлам.
+   - Если затронуты многие модули/есть сомнения — `pnpm run ci`.
+
+8) Лог
+   - Обновить `docs/BRANCH_UX_CMS_BOOKING/GLOBAL_FIX/AGENT_EXECUTION_LOG.md`:
+     коротко: RCA, файлы, тесты, результат.
+```

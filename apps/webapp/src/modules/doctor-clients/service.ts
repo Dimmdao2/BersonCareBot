@@ -13,6 +13,8 @@ export type ClientAppointmentHistoryItem = {
   label: string;
   lastEvent: string;
   updatedAt: string;
+  /** F-04: маркер происхождения для строк из `appointment_records`. */
+  scheduleProvenancePrefix?: string;
 };
 
 export type ClientProfile = {

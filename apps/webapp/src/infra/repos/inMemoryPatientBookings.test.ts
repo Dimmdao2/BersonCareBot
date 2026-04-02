@@ -28,6 +28,7 @@ describe("inMemoryPatientBookings - compat-sync", () => {
       expect(found?.branchTitleSnapshot).toBe("Клиника Москва");
       expect(found?.serviceTitleSnapshot).toBe("ЛФК");
       expect(found?.rubitimeBranchIdSnapshot).toBe("br-1");
+      expect(found?.userId).toBeNull();
     });
 
     it("does not create compat-row when slotStart is missing", async () => {
@@ -47,6 +48,7 @@ describe("inMemoryPatientBookings - compat-sync", () => {
         rubitimeId: "rub-dedup",
         status: "confirmed",
         slotStart: "2026-05-01T10:00:00.000Z",
+        userId: "user-dedup-test",
       });
 
       // Second call: update (same rubitime_id)
@@ -61,7 +63,7 @@ describe("inMemoryPatientBookings - compat-sync", () => {
 
       // Check no duplicates
       const history = await inMemoryPatientBookingsPort.listHistoryByUser(
-        found!.userId,
+        "user-dedup-test",
         "2020-01-01T00:00:00.000Z",
       );
       const count = history.filter((r) => r.rubitimeId === "rub-dedup").length;

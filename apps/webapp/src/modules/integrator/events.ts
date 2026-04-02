@@ -10,6 +10,7 @@ import type { SubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscrip
 import type { BranchesProjectionPort } from "@/infra/repos/pgBranches";
 import type { PatientBookingService } from "@/modules/patient-booking/ports";
 import { mapRubitimeStatusToPatientBookingStatus } from "@/infra/repos/pgPatientBookings";
+import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 const REMINDER_RULE_UPSERTED = "reminder.rule.upserted";
 const REMINDER_OCCURRENCE_FINALIZED = "reminder.occurrence.finalized";
@@ -50,6 +51,8 @@ export type IntegratorEventBody = {
 export type IntegratorHandleResult = {
   accepted: boolean;
   reason?: string;
+  /** When `accepted` is false: `false` = permanent validation/business error (HTTP 422). Omitted/`true` = retry (503). */
+  retryable?: boolean;
 };
 
 /** Narrow deps for event handling; supplied by the route from buildAppDeps(). */
@@ -670,9 +673,14 @@ export async function handleIntegratorEvent(
     const integratorRecordId = coerceToString(p.integratorRecordId);
     const status = typeof p.status === "string" ? p.status : "";
     if (!integratorRecordId || !status) {
-      return { accepted: false, reason: "appointment.record.upserted: required payload fields missing" };
+      return {
+        accepted: false,
+        reason: "appointment.record.upserted: required payload fields missing",
+        retryable: false,
+      };
     }
-    const phoneNormalized = coerceToString(p.phoneNormalized) ?? null;
+    const phoneRaw = coerceToString(p.phoneNormalized) ?? null;
+    const phoneNormalized = phoneRaw ? normalizeRuPhoneE164(phoneRaw.trim()) : null;
     const recordAt = typeof p.recordAt === "string" ? p.recordAt : null;
     const payloadJson =
       typeof p.payloadJson === "object" && p.payloadJson !== null
@@ -701,7 +709,7 @@ export async function handleIntegratorEvent(
         (typeof payloadJson.name === "string" ? payloadJson.name.trim() : null) ||
         undefined;
       await deps.users.updateProfileByPhone({
-        phoneNormalized,
+        phoneNormalized: phoneNormalized,
         firstName: patientFirstName,
         lastName: patientLastName,
         email: patientEmail,
@@ -731,7 +739,8 @@ export async function handleIntegratorEvent(
         coerceToString(p.dateTimeEnd) ??
         coerceToString(payloadJson.datetime_end) ??
         coerceToString(payloadJson.date_time_end);
-      const payloadPhone = phoneNormalized ?? coerceToString(payloadJson.phone);
+      const rawPayloadPhone = phoneNormalized ?? coerceToString(payloadJson.phone);
+      const payloadPhone = rawPayloadPhone ? normalizeRuPhoneE164(String(rawPayloadPhone).trim()) : null;
       const payloadContactName =
         coerceToString(p.patientFirstName) ??
         coerceToString(payloadJson.name) ??
@@ -762,23 +771,35 @@ export async function handleIntegratorEvent(
         }
       }
 
+      const rubitimeCooperatorId =
+        coerceToString(p.rubitimeCooperatorId) ??
+        coerceToString(payloadJson.cooperator_id) ??
+        (payloadJson.cooperator_id != null ? String(payloadJson.cooperator_id) : null) ??
+        coerceToString(payloadJson.specialist_id) ??
+        (payloadJson.specialist_id != null ? String(payloadJson.specialist_id) : null);
+
       await deps.patientBooking?.applyRubitimeUpdate({
         rubitimeId,
         status: mapRubitimeStatusToPatientBookingStatus(status),
         slotStart: recordAt ?? null,
         slotEnd: payloadSlotEnd,
         userId: resolvedUserId,
-        contactPhone: payloadPhone,
+        contactPhone: payloadPhone ?? "",
         contactName: payloadContactName,
         branchTitle: branchName,
         serviceTitle: payloadServiceTitle,
         rubitimeBranchId: integratorBranchId,
         rubitimeServiceId: coerceToString(p.serviceId) ?? coerceToString(payloadJson.service_id),
+        rubitimeCooperatorId,
       });
       return { accepted: true };
     } catch (err) {
       const reason = err instanceof Error ? err.message : "unknown error";
-      return { accepted: false, reason: `appointment.record.upserted: ${reason}` };
+      return {
+        accepted: false,
+        reason: `appointment.record.upserted: ${reason}`,
+        retryable: true,
+      };
     }
   }
 

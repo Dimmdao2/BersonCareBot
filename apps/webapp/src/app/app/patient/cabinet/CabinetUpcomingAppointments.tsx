@@ -35,8 +35,12 @@ export function CabinetUpcomingAppointments({ appointments }: Props) {
           return (
             <li
               key={a.id}
-              className="border-border/80 bg-card grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-lg border px-3 py-2"
+              className="border-border/80 bg-card flex flex-col gap-1 rounded-lg border px-3 py-2"
             >
+              {a.scheduleProvenancePrefix ? (
+                <span className="text-xs text-muted-foreground">{a.scheduleProvenancePrefix}</span>
+              ) : null}
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
               <span className="min-w-0 text-left text-sm tabular-nums">{a.dateLabel}</span>
               <span className="min-w-0 shrink-0 text-center text-sm">{timeContent}</span>
               <span className="flex min-w-0 justify-end">
@@ -46,6 +50,7 @@ export function CabinetUpcomingAppointments({ appointments }: Props) {
                   cancelReason={a.cancelReason}
                 />
               </span>
+              </div>
             </li>
           );
         })}

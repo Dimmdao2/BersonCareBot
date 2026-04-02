@@ -169,6 +169,13 @@
 | AUDIT-BACKLOG-023 | Channel link conflict notifications | open |
 | AUDIT-BACKLOG-024 | pgUserProjection Rubitime email | open |
 
+### Новые задачи (вне `AUDIT-BACKLOG`)
+
+| ID | Описание | Статус |
+|----|----------|--------|
+| **RUBI.T02** | Integrator / Rubitime API2: маппинг числовых статусов (`status` в create-record / вебхуках) — справочник id → метка (**0 = «записан»** подтверждено); сейчас в `recordM2mRoute` захардкожен `RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0`; при смене кабинета/статусов — `system_settings` (scope admin) или таблица + админка, не env | open |
+| **BOOKING.UX.T01** | Webapp / booking: после успешной записи нет toast/ин-app уведомления (в отличие от дневников); добавить по тому же паттерну | open |
+
 ### Из Booking Rework
 
 | Элемент | Статус |

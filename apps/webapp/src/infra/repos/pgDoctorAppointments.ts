@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from "@/shared/lib/scheduleRecordProvenance";
 import type {
   AppointmentRow,
   AppointmentStats,
@@ -82,6 +83,7 @@ function mapListRows(
       link,
       cancellationCountForClient: 0,
       branchName: row.branch_name ?? null,
+      scheduleProvenancePrefix: SCHEDULE_RECORD_PROVENANCE_PREFIX,
     };
   });
 }

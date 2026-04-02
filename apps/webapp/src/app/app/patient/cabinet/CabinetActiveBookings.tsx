@@ -1,9 +1,13 @@
-import Link from "next/link";
+"use client";
+
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
 import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
-import { nativeBookingSubtitle } from "./patientBookingLabels";
+import { openExternalLinkInMessenger } from "@/shared/lib/openExternalLinkInMessenger";
+import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBookingLabels";
 
 type Props = {
   bookings: PatientBookingRecord[];
@@ -69,19 +73,25 @@ export function CabinetActiveBookings({ bookings, manageBookingHref, appDisplayT
               <p className="text-sm font-medium">
                 {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
               </p>
-              <p className="truncate text-xs text-muted-foreground">{nativeBookingSubtitle(row)}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {bookingProvenancePrefix(row)}
+                {nativeBookingSubtitle(row)}
+              </p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               <Badge variant={statusToBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>
               {showManageLink(row.status) ? (
-                <Link
-                  href={manageBookingHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  onClick={() => {
+                    if (!isSafeExternalHref(manageBookingHref)) return;
+                    openExternalLinkInMessenger(manageBookingHref);
+                  }}
                 >
                   Изменить
-                </Link>
+                </Button>
               ) : null}
             </div>
           </div>

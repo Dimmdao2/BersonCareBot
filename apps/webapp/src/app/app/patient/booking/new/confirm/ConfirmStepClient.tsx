@@ -14,6 +14,7 @@ import {
   formatBookingDateLongRu,
   formatBookingTimeShortRu,
 } from "@/shared/lib/formatBusinessDateTime";
+import toast from "react-hot-toast";
 
 type Props = {
   type: "in_person" | "online";
@@ -107,7 +108,10 @@ export function ConfirmStepClient({
             contactPhone: phone.trim(),
             contactEmail: email.trim() || undefined,
           }).then((ok) => {
-            if (ok) router.push(routePaths.cabinet);
+            if (ok) {
+              toast.success("Запись подтверждена");
+              router.push(routePaths.cabinet);
+            }
           });
         }}
       >

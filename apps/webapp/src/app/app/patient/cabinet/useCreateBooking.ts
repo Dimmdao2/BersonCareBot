@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { BookingSelection } from "./useBookingSelection";
 import type { BookingSlot } from "@/modules/patient-booking/types";
+import { mapBookingCreateErrorCodeToRu } from "./bookingCreateErrorMessages";
 
 type CreateBookingInput = {
   selection: BookingSelection;
@@ -49,7 +50,7 @@ export function useCreateBooking() {
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || json.ok !== true) {
-        setError(json.error ?? "Не удалось создать запись");
+        setError(mapBookingCreateErrorCodeToRu(json.error));
         return false;
       }
       return true;

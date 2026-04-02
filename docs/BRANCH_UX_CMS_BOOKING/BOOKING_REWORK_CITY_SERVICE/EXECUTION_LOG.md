@@ -1001,7 +1001,7 @@
 - **Ошибка в проде (webapp):** при нажатии «Подтвердить запись» на шаге подтверждения отображалось `RUBITIME_API_ERROR: Field "status" is required`. Цепочка: webapp → integrator M2M `POST /api/bersoncare/rubitime/create-record` → Rubitime `https://rubitime.ru/api2/create-record`. В теле запроса к Rubitime не передавалось обязательное поле **`status`** (числовой id статуса записи в кабинете).
 - **Правка:** в `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` в payload для v1 и v2 добавлено **`status: RUBITIME_CREATE_RECORD_DEFAULT_STATUS`** со значением **`0`**. Оператор подтвердил: **0 соответствует статусу «записан»** в их Rubitime.
 - **Тесты:** обновлены ожидания в `apps/integrator/src/integrations/rubitime/recordM2mRoute.test.ts` (наличие `status: 0` в данных для `createRubitimeRecord`).
-- **Техдолг:** захардкоженный id статуса — см. `TODO_BACKLOG.md` **AUDIT-BACKLOG-025** (нормальное хранение таблицы/маппинга статусов, при необходимости — `system_settings`, не env).
+- **Техдолг:** захардкоженный id статуса — см. [`GLOBAL_AUDIT_2026-04-02.md`](../GLOBAL_AUDIT_2026-04-02.md) §7, задача **`RUBI.T02`** (нормальное хранение таблицы/маппинга статусов, при необходимости — `system_settings`, не env).
 - **Деплой:** требуется выкат **integrator** с этой правкой; webapp менять не обязательно для этого фикса.
 - **Проверка:** `pnpm --dir apps/integrator vitest run src/integrations/rubitime/recordM2mRoute.test.ts` — green; перед пушем репозитория — полный `pnpm run ci` по правилам монорепо.
 
@@ -1055,3 +1055,24 @@
 - **Причина:** список будущих записей для дашборда шёл через **`createDoctorAppointmentsService`** → **`formatDoctorAppointmentRecordAt`** + **`getAppDisplayTimeZone()`**; подписи для **`getUpcomingAppointments`** / **`getPastAppointments`** в **`buildAppDeps.ts`** строились через **`formatRuAppointmentDate` / `formatRuAppointmentTime`** без `timeZone` (зависимость от TZ процесса Node, часто не совпадает с **`app_display_timezone`** в БД). Аналогично подпись строки истории в **`listAppointmentHistoryForPhone`** использовала **`toLocaleString("ru-RU")`** без зоны.
 - **Правка:** **`formatAppointmentDateNumericRu`**, **`formatAppointmentTimeShortRu`** в **`formatBusinessDateTime.ts`**; в DI — та же **`getAppDisplayTimeZone()`** для предстоящих/прошлых записей и **`formatBookingDateTimeMediumRu`** для истории; устаревшие хелперы помечены **`@deprecated`**.
 - **Файлы:** `apps/webapp/src/shared/lib/formatBusinessDateTime.ts`, `formatBusinessDateTime.test.ts`, `apps/webapp/src/app-layer/di/buildAppDeps.ts`, `apps/webapp/src/modules/appointments/appointmentLabels.ts`; архитектура: `docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md`, `docs/MIGRATION/DOCTOR_DASHBOARD_METRICS_CHANGELOG.md`.
+
+---
+
+## Stage 2 — F-04 full compat + provenance (2026-04-02)
+
+### S2.F04 — Полная compat-синхронизация (реальный lookup) и provenance
+
+- **Status:** done
+- **Agent/model:** Cursor agent
+- **Цель:** `compat_quality = full` только при реальном `branch_service_id` из каталога; `branch_service_lookup_miss` — без ложного success; provenance в БД; маркер в UI; backfill с метриками.
+- **Файлы (основные):**
+  - `apps/webapp/src/infra/repos/rubitimeBranchServiceLookup.ts`, `pgPatientBookings.ts`, `compatSyncQuality.ts`
+  - `apps/webapp/migrations/053_patient_bookings_compat_provenance.sql`
+  - `apps/webapp/src/modules/integrator/events.ts` — `rubitimeCooperatorId`
+  - `apps/integrator/src/infra/db/writePort.ts`, `connector.ts`, `content/rubitime/scripts.json`
+  - `apps/webapp/scripts/backfill-rubitime-compat-snapshots.ts` — двухфазный backfill + counters
+  - `patientBookingLabels.ts`, `CabinetActiveBookings.tsx`, `CabinetPastBookings.tsx`
+  - `docs/.../COMPATIBILITY_RUBITIME_WEBAPP.md`, `CHECKLISTS.md`, `GLOBAL_FIX/AGENT_EXECUTION_LOG.md`
+- **Тесты:** `compatSyncQuality.test.ts`, `patientBookingLabels.test.ts`, существующие интеграционные тесты webapp/integrator
+- **CI:** `pnpm run ci` — green (2026-04-02)
+- **SQL evidence (на стенде с БД):** см. комментарии в `backfill-rubitime-compat-snapshots.ts`; контроль `compat_quality` / `branch_service_id` до и после backfill

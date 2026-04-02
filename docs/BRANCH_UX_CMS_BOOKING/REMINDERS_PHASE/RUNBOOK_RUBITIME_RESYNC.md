@@ -162,6 +162,34 @@ cat /tmp/repair-commit.json | python3 -m json.tool | grep -E '"found"|"requeued"
 
 После requeue outbox worker автоматически подберёт события при следующем цикле.
 
+### Шаг 2.3 — Requeue `dead` в `projection_outbox` (после исправления linking / схемы)
+
+**Скрипт:** `apps/webapp/scripts/requeue-projection-outbox-dead.ts`  
+**Условие:** общая БД (`DATABASE_URL`), таблица `projection_outbox` на стороне integrator.
+
+**Dry-run** (только отчёт, без изменений):
+
+```bash
+cd /opt/projects/bersoncarebot
+source /opt/env/bersoncarebot/api.prod   # или webapp env с DATABASE_URL
+pnpm --dir apps/webapp exec tsx scripts/requeue-projection-outbox-dead.ts
+```
+
+**Commit** (сбросить подходящие `dead` в `pending`, обнулить `attempts_done`):
+
+```bash
+pnpm --dir apps/webapp exec tsx scripts/requeue-projection-outbox-dead.ts --commit
+```
+
+Фильтры (опционально): `--event-type=appointment.record.upserted`, `--error-contains=platform_user_id` (по умолчанию фильтр по подстроке в `last_error`).
+
+**Контроль до/после:**
+
+```sql
+SELECT status, count(*) FROM projection_outbox
+WHERE event_type = 'appointment.record.upserted' GROUP BY status;
+```
+
 ---
 
 ## Модуль 3: точечная починка отдельных проблемных записей

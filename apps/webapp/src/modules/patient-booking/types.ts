@@ -1,5 +1,9 @@
+import type { CompatSyncQuality } from "./compatSyncQuality";
+
 export type BookingType = "in_person" | "online";
 export type BookingCategory = "rehab_lfk" | "nutrition" | "general";
+
+export type PatientBookingRowSource = "native" | "rubitime_projection";
 
 export type PatientBookingStatus =
   | "creating"
@@ -28,7 +32,8 @@ export type BookingSlotsByDate = {
  */
 export type PatientBookingRecord = {
   id: string;
-  userId: string;
+  /** Null only for unlinked `source=rubitime_projection` compat rows (phone not matched yet). */
+  userId: string | null;
   bookingType: BookingType;
   city: string | null;
   category: BookingCategory;
@@ -57,6 +62,12 @@ export type PatientBookingRecord = {
   rubitimeBranchIdSnapshot: string | null;
   rubitimeCooperatorIdSnapshot: string | null;
   rubitimeServiceIdSnapshot: string | null;
+  /** DB `source`: native webapp booking vs Rubitime projection compat row. */
+  bookingSource: PatientBookingRowSource;
+  /** Set for `rubitime_projection` rows; recomputed on each compat upsert. */
+  compatQuality: CompatSyncQuality | null;
+  provenanceCreatedBy: string | null;
+  provenanceUpdatedBy: string | null;
 };
 
 /** API / UI input for creating a booking (discriminated by `type`). */

@@ -8,6 +8,7 @@ import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
 import type { IdentityResolutionPort } from "@/modules/auth/identityResolutionPort";
 import type { ChannelPreferencesPort } from "@/modules/channel-preferences/ports";
 import { getDeliveryTargetsForUser } from "@/modules/channel-preferences/deliveryTargets";
+import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 export type DeliveryTargetsApiParams = {
   phone?: string;
@@ -20,14 +21,6 @@ export type DeliveryTargetsApiDeps = {
   identityResolutionPort: IdentityResolutionPort;
   preferencesPort: ChannelPreferencesPort;
 };
-
-function normalizePhone(value: string): string {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("8")) return `+7${digits.slice(1)}`;
-  if (digits.length >= 10 && digits.startsWith("7")) return `+${digits}`;
-  if (digits.length >= 10) return `+7${digits}`;
-  return `+${digits}`;
-}
 
 /**
  * Returns channelBindings for the user identified by phone, telegramId, or maxId.
@@ -43,7 +36,7 @@ export async function getDeliveryTargetsForIntegrator(
   let bindings: ChannelBindings;
 
   if (params.phone && params.phone.trim().length > 0) {
-    const normalized = normalizePhone(params.phone.trim());
+    const normalized = normalizeRuPhoneE164(params.phone.trim());
     const user = await userByPhonePort.findByPhone(normalized);
     if (!user) return null;
     userId = user.userId;

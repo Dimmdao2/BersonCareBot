@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     branches: deps.branches,
     subscriptionMailingProjection: deps.subscriptionMailingProjection,
   });
-  const status = result.accepted ? 202 : 503;
+  const status = result.accepted ? 202 : result.retryable === false ? 422 : 503;
   const body: Record<string, unknown> = result.accepted
     ? { ok: true, accepted: true, idempotencyKey }
     : { ok: false, accepted: false, error: result.reason, idempotencyKey };

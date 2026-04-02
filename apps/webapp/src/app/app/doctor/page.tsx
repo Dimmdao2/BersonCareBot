@@ -22,6 +22,7 @@ export default async function DoctorPage() {
         clientLabel: futureAppointments[0].clientLabel,
         time: futureAppointments[0].time,
         type: futureAppointments[0].type,
+        scheduleProvenancePrefix: futureAppointments[0].scheduleProvenancePrefix,
       }
     : null;
 
