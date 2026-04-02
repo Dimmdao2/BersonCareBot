@@ -1,0 +1,85 @@
+import type {
+  ReminderJournalEntry,
+  ReminderJournalPort,
+} from "@/modules/reminders/reminderJournalPort";
+
+type OccState = {
+  snoozedUntil: string | null;
+  skippedAt: string | null;
+  skipReason: string | null;
+};
+
+/**
+ * In-memory журнал для unit-тестов сервиса напоминаний (без PostgreSQL).
+ */
+export function createInMemoryReminderJournalPort(): ReminderJournalPort {
+  const journal: ReminderJournalEntry[] = [];
+  const occById = new Map<string, OccState>();
+
+  return {
+    async logAction(params) {
+      journal.unshift({
+        id: `j-${journal.length}`,
+        ruleId: params.ruleIntegratorId,
+        occurrenceId: params.occurrenceId,
+        action: params.action,
+        snoozeUntil: params.snoozeUntil ?? null,
+        skipReason: params.skipReason ?? null,
+        createdAt: new Date().toISOString(),
+      });
+    },
+
+    async listByRule(ruleIntegratorId, _platformUserId) {
+      return journal.filter((e) => e.ruleId === ruleIntegratorId);
+    },
+
+    async statsForUser(_platformUserId, _days) {
+      return {
+        done: journal.filter((e) => e.action === "done").length,
+        skipped: journal.filter((e) => e.action === "skipped").length,
+        snoozed: journal.filter((e) => e.action === "snoozed").length,
+      };
+    },
+
+    async recordSnooze(platformUserId, integratorOccurrenceId, minutes) {
+      const key = `${platformUserId}:${integratorOccurrenceId}`;
+      if (!occById.has(key)) occById.set(key, { snoozedUntil: null, skippedAt: null, skipReason: null });
+      const st = occById.get(key)!;
+      const until = new Date(Date.now() + minutes * 60_000).toISOString();
+      if (st.snoozedUntil === until) {
+        return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil: until };
+      }
+      st.snoozedUntil = until;
+      journal.unshift({
+        id: `j-${journal.length}`,
+        ruleId: "rule",
+        occurrenceId: integratorOccurrenceId,
+        action: "snoozed",
+        snoozeUntil: until,
+        skipReason: null,
+        createdAt: new Date().toISOString(),
+      });
+      return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil: until };
+    },
+
+    async recordSkip(platformUserId, integratorOccurrenceId, reason) {
+      const key = `${platformUserId}:${integratorOccurrenceId}`;
+      if (!occById.has(key)) occById.set(key, { snoozedUntil: null, skippedAt: null, skipReason: null });
+      const st = occById.get(key)!;
+      if (!st.skippedAt) {
+        st.skippedAt = new Date().toISOString();
+        st.skipReason = reason;
+        journal.unshift({
+          id: `j-${journal.length}`,
+          ruleId: "rule",
+          occurrenceId: integratorOccurrenceId,
+          action: "skipped",
+          snoozeUntil: null,
+          skipReason: reason,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      return { ok: true, occurrenceId: integratorOccurrenceId, skippedAt: st.skippedAt! };
+    },
+  };
+}
