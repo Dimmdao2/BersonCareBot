@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { PatientReminderRuleJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
@@ -86,9 +87,10 @@ function toggleDayMask(mask: string, index: number): string {
 export type ReminderCreateDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  linkedObjectType: Exclude<ReminderLinkedObjectType, "custom">;
+  linkedObjectType: ReminderLinkedObjectType;
+  /** Для `custom` при создании можно передать пустую строку. */
   linkedObjectId: string;
-  /** Shown in title / preview (e.g. complex title). */
+  /** Подпись в превью (комплекс, раздел, заголовок своего напоминания). */
   contextTitle: string;
   existingRule: PatientReminderRuleJson | null;
   onSaved: () => void;
@@ -119,8 +121,11 @@ export function ReminderCreateDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
+  const [customTitle, setCustomTitle] = useState("");
+  const [customText, setCustomText] = useState("");
 
   const isEdit = Boolean(existingRule);
+  const isCustom = linkedObjectType === "custom";
 
   useEffect(() => {
     if (!open) return;
@@ -133,12 +138,16 @@ export function ReminderCreateDialog({
       setEndTime(minutesToTimeInput(existingRule.windowEndMinute));
       setDaysMask(/^[01]{7}$/.test(existingRule.daysMask) ? existingRule.daysMask : DEFAULT_MASK);
       setEnabled(existingRule.enabled);
+      setCustomTitle(existingRule.customTitle?.trim() ?? "");
+      setCustomText(existingRule.customText?.trim() ?? "");
     } else {
       setIntervalMinutes(DEFAULT_INTERVAL);
       setStartTime(minutesToTimeInput(DEFAULT_START));
       setEndTime(minutesToTimeInput(DEFAULT_END));
       setDaysMask(DEFAULT_MASK);
       setEnabled(true);
+      setCustomTitle("");
+      setCustomText("");
     }
   }, [open, existingRule]);
 
@@ -187,6 +196,18 @@ export function ReminderCreateDialog({
       return;
     }
 
+    if (isCustom) {
+      const t = customTitle.trim();
+      if (t.length < 1 || t.length > 140) {
+        setError("Заголовок: от 1 до 140 символов.");
+        return;
+      }
+      if (customText.length > 2000) {
+        setError("Текст не длиннее 2000 символов.");
+        return;
+      }
+    }
+
     const schedule = {
       intervalMinutes,
       windowStartMinute: ws,
@@ -201,6 +222,10 @@ export function ReminderCreateDialog({
           schedule,
           enabled,
         };
+        if (isCustom) {
+          body.customTitle = customTitle.trim();
+          body.customText = customText.trim() ? customText.trim() : null;
+        }
         const res = await fetch(`/api/patient/reminders/${encodeURIComponent(existingRule.id)}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -217,13 +242,23 @@ export function ReminderCreateDialog({
         }
         if (data.syncWarning) setSyncWarning(data.syncWarning);
       } else {
-        const body = {
-          linkedObjectType,
-          linkedObjectId,
-          enabled: true,
-          schedule,
-          preferredDeliveryChannel: channel,
-        };
+        const body: Record<string, unknown> =
+          linkedObjectType === "custom"
+            ? {
+                linkedObjectType: "custom",
+                customTitle: customTitle.trim(),
+                customText: customText.trim() ? customText.trim() : null,
+                enabled: true,
+                schedule,
+                preferredDeliveryChannel: channel,
+              }
+            : {
+                linkedObjectType,
+                linkedObjectId,
+                enabled: true,
+                schedule,
+                preferredDeliveryChannel: channel,
+              };
         const res = await fetch("/api/patient/reminders/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -257,6 +292,34 @@ export function ReminderCreateDialog({
 
   const body = (
     <div className="flex flex-col gap-4 px-1 pb-1">
+      {isCustom ? (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-ctitle`}>Заголовок</Label>
+            <Input
+              id={`${formId}-ctitle`}
+              value={customTitle}
+              onChange={(e) => setCustomTitle(e.target.value)}
+              maxLength={140}
+              disabled={submitting}
+              placeholder="Например: Выпить воду"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${formId}-ctext`}>Текст (необязательно)</Label>
+            <Textarea
+              id={`${formId}-ctext`}
+              value={customText}
+              onChange={(e) => setCustomText(e.target.value)}
+              maxLength={2000}
+              disabled={submitting}
+              rows={3}
+              placeholder="Короткое напоминание"
+            />
+          </div>
+        </div>
+      ) : null}
+
       {isEdit ? (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border/80 bg-muted/40 px-3 py-2">
           <div className="space-y-0.5">
@@ -366,7 +429,7 @@ export function ReminderCreateDialog({
               Предпросмотр
             </span>
             <Badge variant="secondary" className="font-normal">
-              {contextTitle}
+              {isCustom ? (customTitle.trim() || "Заголовок") : contextTitle}
             </Badge>
           </div>
           <p className="text-sm text-foreground">{previewText}</p>
@@ -380,7 +443,11 @@ export function ReminderCreateDialog({
     </div>
   );
 
-  const title = isEdit ? "Изменить напоминание" : "Напоминание";
+  const title = isEdit
+    ? "Изменить напоминание"
+    : isCustom
+      ? "Своё напоминание"
+      : "Напоминание";
 
   const footer = (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">

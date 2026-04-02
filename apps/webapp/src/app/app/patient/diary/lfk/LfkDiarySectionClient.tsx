@@ -54,6 +54,7 @@ export function LfkDiarySectionClient({
                   coverImageUrl={null}
                   hasReminder={Boolean(reminder)}
                   onBellClick={() => openForComplex(c)}
+                  onEditScheduleClick={reminder ? () => openForComplex(c) : undefined}
                 />
               </li>
             );

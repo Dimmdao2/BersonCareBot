@@ -13,6 +13,8 @@ export type LfkComplexCardProps = {
   coverImageUrl?: string | null;
   hasReminder: boolean;
   onBellClick: () => void;
+  /** S4.T09: явная ссылка на редактирование расписания (то же действие, что и колокольчик). */
+  onEditScheduleClick?: () => void;
 };
 
 function CoverPlaceholder({ label }: { label: string }) {
@@ -33,6 +35,7 @@ export function LfkComplexCard({
   coverImageUrl,
   hasReminder,
   onBellClick,
+  onEditScheduleClick,
 }: LfkComplexCardProps) {
   const title = complex.title?.trim() || "—";
   const desc =
@@ -65,6 +68,17 @@ export function LfkComplexCard({
                 ) : null}
               </div>
               <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{desc}</p>
+              {hasReminder && onEditScheduleClick ? (
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs font-medium text-primary"
+                  onClick={onEditScheduleClick}
+                >
+                  Изменить расписание
+                </Button>
+              ) : null}
             </div>
             <Button
               type="button"

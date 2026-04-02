@@ -6,6 +6,7 @@ import type {
   ReminderJournalAction,
   ReminderJournalEntry,
   ReminderJournalPort,
+  ReminderJournalRuleStats,
 } from "@/modules/reminders/reminderJournalPort";
 
 function mapJournalRow(row: {
@@ -98,6 +99,30 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
         if (row.action === "done") out.done = n;
         else if (row.action === "skipped") out.skipped = n;
         else if (row.action === "snoozed") out.snoozed = n;
+      }
+      return out;
+    },
+
+    async statsPerRuleForUser(platformUserId, days) {
+      const pool = getPool();
+      const r = await pool.query<{ rule_id: string; action: string; cnt: string }>(
+        `SELECT rr.integrator_rule_id AS rule_id, rj.action, COUNT(*)::text AS cnt
+         FROM reminder_journal rj
+         INNER JOIN reminder_rules rr ON rr.id = rj.rule_id
+         LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id
+         WHERE (rr.platform_user_id = $1::uuid OR pu.id = $1::uuid)
+           AND rj.created_at >= now() - make_interval(days => $2)
+         GROUP BY rr.integrator_rule_id, rj.action`,
+        [platformUserId, days],
+      );
+      const out: Record<string, ReminderJournalRuleStats> = {};
+      for (const row of r.rows) {
+        const rid = row.rule_id;
+        if (!out[rid]) out[rid] = { done: 0, skipped: 0, snoozed: 0 };
+        const n = parseInt(row.cnt, 10);
+        if (row.action === "done") out[rid].done = n;
+        else if (row.action === "skipped") out[rid].skipped = n;
+        else if (row.action === "snoozed") out[rid].snoozed = n;
       }
       return out;
     },

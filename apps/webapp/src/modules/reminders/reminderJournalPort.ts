@@ -10,6 +10,12 @@ export type ReminderJournalEntry = {
   createdAt: string;
 };
 
+export type ReminderJournalRuleStats = {
+  done: number;
+  skipped: number;
+  snoozed: number;
+};
+
 export type ReminderJournalPort = {
   logAction(params: {
     ruleIntegratorId: string;
@@ -24,6 +30,11 @@ export type ReminderJournalPort = {
     platformUserId: string,
     days: number,
   ): Promise<{ done: number; skipped: number; snoozed: number }>;
+  /** Counts per `integrator_rule_id` for the user, rolling window in days. */
+  statsPerRuleForUser(
+    platformUserId: string,
+    days: number,
+  ): Promise<Record<string, ReminderJournalRuleStats>>;
   recordSnooze(
     platformUserId: string,
     integratorOccurrenceId: string,

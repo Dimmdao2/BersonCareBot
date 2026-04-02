@@ -548,6 +548,8 @@ function _buildAppDeps() {
       doctorSupport: doctorSupportMessagingService,
     },
     reminders: remindersService,
+    /** Журнал snooze/skip/done; `undefined` без PostgreSQL. */
+    reminderJournal: reminderJournalPort,
     reminderProjection: reminderProjectionPort,
     appointmentProjection: appointmentProjectionPort,
     branches: branchesProjectionPort ?? undefined,

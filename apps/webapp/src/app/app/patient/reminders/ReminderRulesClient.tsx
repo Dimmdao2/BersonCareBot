@@ -1,13 +1,21 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
+import { Dumbbell, FileText, Flame, Sparkles, Trash2 } from "lucide-react";
+import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
+import { routePaths } from "@/app-layer/routes/paths";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { toggleReminderCategory, updateReminderRule } from "./actions";
+import { Switch } from "@/components/ui/switch";
+import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
 import type { ReminderRule, ReminderCategory } from "@/modules/reminders/types";
+import { toggleReminderCategory, updateReminderRule } from "./actions";
 
 const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   appointment: "Запись на приём",
@@ -17,13 +25,36 @@ const CATEGORY_LABELS: Record<ReminderCategory, string> = {
   broadcast: "Рассылки по темам",
 };
 
+export type PersonalReminderIconKind = "lfk" | "warmup" | "page" | "custom";
+
+export type PersonalReminderRowVM = {
+  rule: ReminderRule;
+  label: string;
+  iconKind: PersonalReminderIconKind;
+  stats: { done: number; skipped: number; snoozed: number };
+};
+
 function minutesToTime(m: number): string {
   const h = Math.floor(m / 60).toString().padStart(2, "0");
   const min = (m % 60).toString().padStart(2, "0");
   return `${h}:${min}`;
 }
 
-function RuleCard({ rule }: { rule: ReminderRule }) {
+function TypeIcon({ kind }: { kind: PersonalReminderIconKind }) {
+  const cls = "size-5 shrink-0 text-primary";
+  switch (kind) {
+    case "lfk":
+      return <Dumbbell className={cls} aria-hidden />;
+    case "warmup":
+      return <Flame className={cls} aria-hidden />;
+    case "page":
+      return <FileText className={cls} aria-hidden />;
+    default:
+      return <Sparkles className={cls} aria-hidden />;
+  }
+}
+
+function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
@@ -66,7 +97,7 @@ function RuleCard({ rule }: { rule: ReminderRule }) {
 
   return (
     <Card className="mb-3">
-      <CardHeader className="pb-2 pt-4 px-4">
+      <CardHeader className="px-4 pb-2 pt-4">
         <div className="flex items-center justify-between gap-3">
           <CardTitle className="text-base font-medium leading-tight">
             {CATEGORY_LABELS[rule.category] ?? rule.category}
@@ -82,26 +113,20 @@ function RuleCard({ rule }: { rule: ReminderRule }) {
 
       {rule.enabled && (
         <CardContent className="px-4 pb-4 pt-0">
-          <p className="text-xs text-muted-foreground mb-2">
-            Расписание:{" "}
-            {minutesToTime(rule.windowStartMinute)}–{minutesToTime(rule.windowEndMinute)},{" "}
-            каждые {rule.intervalMinutes ?? "—"} мин.
+          <p className="mb-2 text-xs text-muted-foreground">
+            Расписание: {minutesToTime(rule.windowStartMinute)}–{minutesToTime(rule.windowEndMinute)}, каждые{" "}
+            {rule.intervalMinutes ?? "—"} мин.
           </p>
 
           {!editOpen ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditOpen(true)}
-              disabled={isPending}
-            >
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} disabled={isPending}>
               Изменить расписание
             </Button>
           ) : (
-            <div className="flex flex-col gap-3 mt-2">
+            <div className="mt-2 flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <div className="flex-1">
-                  <Label className="text-xs mb-1 block">Тихие часы: начало (мин. от полуночи)</Label>
+                  <Label className="mb-1 block text-xs">Тихие часы: начало (мин. от полуночи)</Label>
                   <Input
                     type="number"
                     min={0}
@@ -113,7 +138,7 @@ function RuleCard({ rule }: { rule: ReminderRule }) {
                   />
                 </div>
                 <div className="flex-1">
-                  <Label className="text-xs mb-1 block">Тихие часы: конец</Label>
+                  <Label className="mb-1 block text-xs">Тихие часы: конец</Label>
                   <Input
                     type="number"
                     min={1}
@@ -126,7 +151,7 @@ function RuleCard({ rule }: { rule: ReminderRule }) {
                 </div>
               </div>
               <div>
-                <Label className="text-xs mb-1 block">Интервал (минуты)</Label>
+                <Label className="mb-1 block text-xs">Интервал (минуты)</Label>
                 <Input
                   type="number"
                   min={1}
@@ -165,14 +190,124 @@ function RuleCard({ rule }: { rule: ReminderRule }) {
   );
 }
 
+function PersonalReminderCard({
+  row,
+  onEdit,
+  onPatched,
+}: {
+  row: PersonalReminderRowVM;
+  onEdit: () => void;
+  onPatched: () => void;
+}) {
+  const { rule, label, iconKind, stats } = row;
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const patchEnabled = (checked: boolean) => {
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch(`/api/patient/reminders/${encodeURIComponent(rule.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: checked }),
+      });
+      const data = (await res.json()) as { ok?: boolean };
+      if (!res.ok || !data.ok) setError("Не удалось обновить");
+      else onPatched();
+    });
+  };
+
+  const handleDelete = () => {
+    if (!window.confirm("Удалить это напоминание?")) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch(`/api/patient/reminders/${encodeURIComponent(rule.id)}`, {
+        method: "DELETE",
+      });
+      const data = (await res.json()) as { ok?: boolean };
+      if (!res.ok || !data.ok) setError("Не удалось удалить");
+      else onPatched();
+    });
+  };
+
+  return (
+    <Card className="mb-3 overflow-hidden">
+      <CardHeader className="space-y-0 px-4 pb-2 pt-4">
+        <div className="flex items-start gap-3">
+          <TypeIcon kind={iconKind} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base font-medium leading-tight">{label}</CardTitle>
+              <Switch
+                checked={rule.enabled}
+                onCheckedChange={patchEnabled}
+                disabled={isPending}
+                aria-label={`Включить: ${label}`}
+              />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {minutesToTime(rule.windowStartMinute)}–{minutesToTime(rule.windowEndMinute)}, каждые{" "}
+              {rule.intervalMinutes ?? "—"} мин.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <span>
+                <span className="font-medium text-foreground">{stats.done}</span> выполнено
+              </span>
+              <span>
+                <span className="font-medium text-foreground">{stats.skipped}</span> пропущено
+              </span>
+              <span>
+                <span className="font-medium text-foreground">{stats.snoozed}</span> отложено
+              </span>
+              <Badge variant="outline" className="font-normal">
+                за 30 дней
+              </Badge>
+            </div>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button type="button" variant="outline" size="sm" onClick={onEdit} disabled={isPending}>
+                Изменить расписание
+              </Button>
+              <Link
+                href={routePaths.patientReminderJournal(rule.id)}
+                className="inline-flex h-8 items-center justify-center rounded-md px-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Полный журнал
+              </Link>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={handleDelete}
+                disabled={isPending}
+              >
+                <Trash2 className="mr-1 size-4" aria-hidden />
+                Удалить
+              </Button>
+            </div>
+            {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+          </div>
+        </div>
+      </CardHeader>
+    </Card>
+  );
+}
+
 export function ReminderRulesClient({
-  rules,
+  personalRows,
+  legacyRules,
   unseenCount = 0,
 }: {
-  rules: ReminderRule[];
+  personalRows: PersonalReminderRowVM[];
+  legacyRules: ReminderRule[];
   unseenCount?: number;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [customOpen, setCustomOpen] = useState(false);
+  const [editRow, setEditRow] = useState<PersonalReminderRowVM | null>(null);
+
+  const refresh = () => router.refresh();
 
   const handleMarkAllSeen = () => {
     startTransition(async () => {
@@ -188,32 +323,155 @@ export function ReminderRulesClient({
     });
   };
 
-  if (rules.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground py-4 text-center">
-        Напоминания ещё не настроены врачом. Обратитесь за помощью через чат.
-      </p>
-    );
-  }
+  const openEditForRow = (row: PersonalReminderRowVM) => {
+    setEditRow(row);
+  };
+
+  const renderEditDialog = () => {
+    if (!editRow) return null;
+    const r = editRow.rule;
+    const lt = r.linkedObjectType;
+    const json = reminderRuleToPatientJson(r);
+    if (lt === "custom") {
+      return (
+        <ReminderCreateDialog
+          open={Boolean(editRow)}
+          onOpenChange={(o) => {
+            if (!o) setEditRow(null);
+          }}
+          linkedObjectType="custom"
+          linkedObjectId=""
+          contextTitle={editRow.label}
+          existingRule={json}
+          onSaved={() => {
+            setEditRow(null);
+            refresh();
+          }}
+        />
+      );
+    }
+    if (lt === "lfk_complex" && r.linkedObjectId) {
+      return (
+        <ReminderCreateDialog
+          open={Boolean(editRow)}
+          onOpenChange={(o) => {
+            if (!o) setEditRow(null);
+          }}
+          linkedObjectType="lfk_complex"
+          linkedObjectId={r.linkedObjectId}
+          contextTitle={editRow.label}
+          existingRule={json}
+          onSaved={() => {
+            setEditRow(null);
+            refresh();
+          }}
+        />
+      );
+    }
+    if (lt === "content_section" && r.linkedObjectId) {
+      return (
+        <ReminderCreateDialog
+          open={Boolean(editRow)}
+          onOpenChange={(o) => {
+            if (!o) setEditRow(null);
+          }}
+          linkedObjectType="content_section"
+          linkedObjectId={r.linkedObjectId}
+          contextTitle={editRow.label}
+          existingRule={json}
+          onSaved={() => {
+            setEditRow(null);
+            refresh();
+          }}
+        />
+      );
+    }
+    if (lt === "content_page" && r.linkedObjectId) {
+      return (
+        <ReminderCreateDialog
+          open={Boolean(editRow)}
+          onOpenChange={(o) => {
+            if (!o) setEditRow(null);
+          }}
+          linkedObjectType="content_page"
+          linkedObjectId={r.linkedObjectId}
+          contextTitle={editRow.label}
+          existingRule={json}
+          onSaved={() => {
+            setEditRow(null);
+            refresh();
+          }}
+        />
+      );
+    }
+    return null;
+  };
+
+  const isEmpty = personalRows.length === 0 && legacyRules.length === 0;
 
   return (
     <div>
       {unseenCount > 0 && (
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">Непросмотрено: {unseenCount}</p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleMarkAllSeen}
-            disabled={isPending}
-          >
+          <Button size="sm" variant="outline" onClick={handleMarkAllSeen} disabled={isPending}>
             Отметить все как просмотренные
           </Button>
         </div>
       )}
-      {rules.map((r) => (
-        <RuleCard key={r.id} rule={r} />
-      ))}
+
+      <div className="mb-4">
+        <Button type="button" className="w-full sm:w-auto" onClick={() => setCustomOpen(true)}>
+          Создать напоминание
+        </Button>
+      </div>
+
+      <ReminderCreateDialog
+        open={customOpen}
+        onOpenChange={setCustomOpen}
+        linkedObjectType="custom"
+        linkedObjectId=""
+        contextTitle="Своё напоминание"
+        existingRule={null}
+        onSaved={() => {
+          setCustomOpen(false);
+          refresh();
+        }}
+      />
+
+      {isEmpty ? (
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          Пока нет напоминаний. Добавьте своё или дождитесь настроек от врача.
+        </p>
+      ) : null}
+
+      {personalRows.length > 0 ? (
+        <>
+          <h2 className="mb-2 text-sm font-semibold text-foreground">Мои напоминания</h2>
+          {personalRows.map((row) => (
+            <PersonalReminderCard
+              key={row.rule.id}
+              row={row}
+              onEdit={() => openEditForRow(row)}
+              onPatched={refresh}
+            />
+          ))}
+        </>
+      ) : null}
+
+      {legacyRules.length > 0 ? (
+        <>
+          <h2 className="mb-2 mt-4 text-sm font-semibold text-foreground">Категории от врача</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Общие напоминания по типам сообщений. Управляются врачом и синхронизируются с ботом.
+          </p>
+          {legacyRules.map((r) => (
+            <LegacyCategoryRuleCard key={r.id} rule={r} />
+          ))}
+        </>
+      ) : null}
+
+      {renderEditDialog()}
     </div>
   );
 }

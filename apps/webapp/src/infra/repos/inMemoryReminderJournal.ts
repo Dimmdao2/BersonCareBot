@@ -1,6 +1,7 @@
 import type {
   ReminderJournalEntry,
   ReminderJournalPort,
+  ReminderJournalRuleStats,
 } from "@/modules/reminders/reminderJournalPort";
 
 type OccState = {
@@ -41,6 +42,19 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
         skipped: journal.filter((e) => e.action === "skipped").length,
         snoozed: journal.filter((e) => e.action === "snoozed").length,
       };
+    },
+
+    async statsPerRuleForUser(_platformUserId, days) {
+      const cutoff = Date.now() - days * 86_400_000;
+      const out: Record<string, ReminderJournalRuleStats> = {};
+      for (const e of journal) {
+        if (new Date(e.createdAt).getTime() < cutoff) continue;
+        if (!out[e.ruleId]) out[e.ruleId] = { done: 0, skipped: 0, snoozed: 0 };
+        if (e.action === "done") out[e.ruleId].done += 1;
+        else if (e.action === "skipped") out[e.ruleId].skipped += 1;
+        else if (e.action === "snoozed") out[e.ruleId].snoozed += 1;
+      }
+      return out;
     },
 
     async recordSnooze(platformUserId, integratorOccurrenceId, minutes) {

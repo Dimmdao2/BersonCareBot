@@ -36,6 +36,9 @@ export const routePaths = {
   patientInstall: "/app/patient/install",
   /** Напоминания пациента. */
   patientReminders: "/app/patient/reminders",
+  /** Журнал действий по одному правилу (`integrator_rule_id`). */
+  patientReminderJournal: (ruleIntegratorId: string) =>
+    `/app/patient/reminders/journal/${encodeURIComponent(ruleIntegratorId)}`,
   /** Online intake — LFK (online-only flow). */
   intakeLfk: "/app/patient/intake/lfk",
   /** Online intake — Nutrition questionnaire. */

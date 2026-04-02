@@ -84,16 +84,18 @@
 | S4.T02 Список ЛФК | done | `LfkDiarySectionClient.tsx`, `diary/page.tsx` (вкладка ЛФК) | green |
 | S4.T03 ReminderCreateDialog | done | `modules/reminders/components/ReminderCreateDialog.tsx` (Dialog / Sheet) | green |
 | S4.T04 API интеграция | done | `POST /api/patient/reminders/create`, `PATCH .../reminders/:id` из диалога | green |
-| S4.T05 Кнопка разминок | pending | | |
-| S4.T07 Произвольные напоминания | pending | | |
-| S4.T08 Единый список | pending | | |
-| S4.T09 Изменение расписания | pending | | |
-| S4.T10 Статистика | pending | | |
+| S4.T05 Кнопка разминок | done | `sections/SectionWarmupsReminderBar.tsx`, `sections/[slug]/page.tsx` (slug `warmups`) | green |
+| S4.T07 Произвольные напоминания | done | `ReminderRulesClient.tsx` → `ReminderCreateDialog` `custom` | green |
+| S4.T08 Единый список | done | `ReminderRulesClient.tsx` (мои + категории врача), toggle/PATCH/DELETE | green |
+| S4.T09 Изменение расписания | done | `LfkComplexCard` ссылка; разминки — `SectionWarmupsReminderBar` | green |
+| S4.T10 Статистика | done | `statsPerRuleForUser` + страница `reminders/journal/[ruleId]` | green |
 
 **Аудит S4:** pending  
 **Фиксы S4:** —  
 **S4 блок 4.A (T01–T04):** 2026-04-02 — карточки комплексов с колокольчиком, диалог расписания (mobile Sheet / desktop Dialog), канал Telegram/MAX как локальная настройка устройства (`localStorage`) + prefill при редактировании; тип `PatientReminderRuleJson` в `reminderPatientJson.ts`.  
-**CI после S4.T01–T04:** `pnpm run ci` green (2026-04-02)
+**CI после S4.T01–T04:** `pnpm run ci` green (2026-04-02)  
+**S4 блок 4.B–4.C (T05, T07–T10):** 2026-04-02 — разминки `content_section`/`warmups`; хаб напоминаний с произвольными правилами, объектным списком, журналом за 30 дней; `buildAppDeps.reminderJournal`, `routePaths.patientReminderJournal`.  
+**CI после S4.T05–T10:** `pnpm run ci` green (2026-04-02)
 
 ---
 
@@ -124,7 +126,7 @@
   - `record_at mismatch` (в т.ч. `diffMin=-120` и `diffMin=-60`);
   - `stale diffMin=...` (локальные `updated_at` отстают от Rubitime на часы/дни).
 
-### Что уже сделали
+### Что уже сделали (этапы 1–3)
 
 1. Централизация timezone в integrator:
    - единая точка: `apps/integrator/src/config/appTimezone.ts`;
@@ -148,11 +150,53 @@
   - `apps/webapp/src/app/api/integrator/events/route.ts`
   (lookup по `phoneNormalized` + fallback по `integratorUserId`).
 
+### Этап 4 — Quiet re-sync + repair-outbox (2026-04-02)
+
+Создан новый скрипт `apps/integrator/src/infra/scripts/resync-rubitime-records.ts`:
+
+**Режим `resync` (по умолчанию):**
+- Источник истины: Rubitime API `get-record`.
+- Target: `integrator.rubitime_records`.
+- Dry-run по умолчанию; `--commit` — применить изменения.
+- Diff-классы: `record_at`, `status`, `phone`, `payload`, `stale`, `not_found`.
+- При commit: UPDATE только реально расходящихся строк; `updated_at = now()`.
+- **Гарантия тишины:** скрипт НИКОГДА не вызывает `enqueueProjectionEvent` и не отправляет никаких уведомлений.
+
+**Режим `repair-outbox`:**
+- Находит `dead/pending` события `appointment.record.upserted` с `platform_user_id` в `last_error`.
+- При `--commit`: сбрасывает в `pending` (`attempts_done=0`, `last_error=null`, `next_try_at=now()`).
+- Опциональный фильтр по телефону (`--phone-last10`) и record ids (`--record-ids`).
+
+**Команды запуска:** `pnpm --dir apps/integrator run rubitime:resync`  
+**На хосте:** `node dist/infra/scripts/resync-rubitime-records.js`  
+**Runbook:** `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/RUNBOOK_RUBITIME_RESYNC.md`
+
+**Тесты:** `src/infra/scripts/resync-rubitime-records.test.ts` — 26 тестов, CI green.
+
+### Postmortem
+
+**Первопричина `record_at mismatch (-120/-60)`:**  
+Rubitime API возвращает наивные даты (`YYYY-MM-DD HH:MM:SS`) без явного timezone-суффикса. До централизации timezone в `appTimezone.ts` обработчик webhook интерпретировал их как UTC вместо MSK (+3), что давало систематическое смещение -180 мин (или частично -120 / -60 при разных путях). Фикс: `getRubitimeRecordAtUtcOffsetMinutesForInstant()` применяется во всех точках разбора Rubitime дат.
+
+**Первопричина `platform_user_id null` в outbox:**  
+В обработчике `appointment.record.upserted` в `events.ts` (webapp) lookup пользователя по `integratorUserId` использовал `integratorRecordId` (ID записи в Rubitime) вместо `integratorUserId` (ID клиента в Rubitime). Для большинства новых записей пользователь не резолвился → `patient_bookings.platform_user_id = null` → constraint violation → dead outbox.  
+Фикс кода: lookup по `phoneNormalized` (primary) + fallback по `integratorUserId` (secondary).
+
+**Что исправили:**
+1. Тихий re-sync `record_at` / `status` / `phone` / `payload` / `stale` — без уведомлений.
+2. Requeue dead/pending outbox событий после код-фикса lookup.
+
+**Остаточные риски:**
+- Записи, созданные в окне между деградацией и фиксом кода, могут всё ещё требовать ручного requeue outbox.
+- Новые записи Rubitime, поступающие до применения re-sync, будут иметь drift до очередного запуска скрипта.
+- Если Rubitime изменит формат дат на timezone-aware (с суффиксом), парсер корректно обработает это автоматически.
+
 ### Текущий статус
 
 - `notFound canceled` очищены.
-- Системные `mismatch/stale` остаются и требуют отдельного **тихого re-sync/backfill** (без уведомлений/фан-аута).
-- Наблюдаемое «в боте запись есть, в UI пусто» объясняется деградацией projection-пайплайна и dead outbox событиями.
+- Создан тихий re-sync скрипт + runbook для prod-операции.
+- После запуска re-sync на хосте: `mismatches` должны существенно снизиться.
+- После repair-outbox + rebuild webapp: `patient_bookings` связываются с пользователями автоматически.
 
 ---
 
