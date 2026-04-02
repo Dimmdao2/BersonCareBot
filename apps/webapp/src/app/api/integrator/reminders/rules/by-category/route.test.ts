@@ -62,6 +62,11 @@ describe("GET /api/integrator/reminders/rules/by-category", () => {
       windowEndMinute: 1440,
       daysMask: "1111111",
       contentMode: "none",
+      linkedObjectType: null,
+      linkedObjectId: null,
+      customTitle: null,
+      customText: null,
+      deepLink: "http://127.0.0.1:5200/app/patient/reminders?from=reminder",
     });
     const res = await GET(
       new Request("http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42&category=exercise", {

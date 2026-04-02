@@ -5,6 +5,7 @@
  */
 
 import { getPool } from "@/infra/db/client";
+import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
 
 export type ReminderRuleListItem = {
   id: string;
@@ -18,6 +19,12 @@ export type ReminderRuleListItem = {
   windowEndMinute: number;
   daysMask: string;
   contentMode: string;
+  linkedObjectType: string | null;
+  linkedObjectId: string | null;
+  customTitle: string | null;
+  customText: string | null;
+  /** Absolute HTTPS (or dev) URL for bot open-in-webapp (S2.T08). */
+  deepLink: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -254,30 +261,45 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         window_end_minute: number;
         days_mask: string;
         content_mode: string;
+        linked_object_type: string | null;
+        linked_object_id: string | null;
+        custom_title: string | null;
+        custom_text: string | null;
         created_at: string;
         updated_at: string;
       }>(
         `SELECT integrator_rule_id, integrator_user_id::text, category, is_enabled, schedule_type,
                 timezone, interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode,
+                linked_object_type, linked_object_id, custom_title, custom_text,
                 created_at, updated_at
          FROM reminder_rules WHERE integrator_user_id = $1::bigint ORDER BY category`,
         [integratorUserId]
       );
-      return r.rows.map((row) => ({
-        id: row.integrator_rule_id,
-        userId: row.integrator_user_id,
-        category: row.category,
-        isEnabled: row.is_enabled,
-        scheduleType: row.schedule_type,
-        timezone: row.timezone,
-        intervalMinutes: row.interval_minutes,
-        windowStartMinute: row.window_start_minute,
-        windowEndMinute: row.window_end_minute,
-        daysMask: row.days_mask,
-        contentMode: row.content_mode,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+      return r.rows.map((row) => {
+        return {
+          id: row.integrator_rule_id,
+          userId: row.integrator_user_id,
+          category: row.category,
+          isEnabled: row.is_enabled,
+          scheduleType: row.schedule_type,
+          timezone: row.timezone,
+          intervalMinutes: row.interval_minutes,
+          windowStartMinute: row.window_start_minute,
+          windowEndMinute: row.window_end_minute,
+          daysMask: row.days_mask,
+          contentMode: row.content_mode,
+          linkedObjectType: row.linked_object_type,
+          linkedObjectId: row.linked_object_id,
+          customTitle: row.custom_title,
+          customText: row.custom_text,
+          deepLink: buildReminderDeepLink({
+            linkedObjectType: row.linked_object_type,
+            linkedObjectId: row.linked_object_id,
+          }),
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        };
+      });
     },
 
     async getRuleByIntegratorUserIdAndCategory(integratorUserId: string, category: string) {
@@ -294,11 +316,16 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         window_end_minute: number;
         days_mask: string;
         content_mode: string;
+        linked_object_type: string | null;
+        linked_object_id: string | null;
+        custom_title: string | null;
+        custom_text: string | null;
         created_at: string;
         updated_at: string;
       }>(
         `SELECT integrator_rule_id, integrator_user_id::text, category, is_enabled, schedule_type,
                 timezone, interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode,
+                linked_object_type, linked_object_id, custom_title, custom_text,
                 created_at, updated_at
          FROM reminder_rules WHERE integrator_user_id = $1::bigint AND category = $2`,
         [integratorUserId, category]
@@ -317,6 +344,14 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         windowEndMinute: row.window_end_minute,
         daysMask: row.days_mask,
         contentMode: row.content_mode,
+        linkedObjectType: row.linked_object_type,
+        linkedObjectId: row.linked_object_id,
+        customTitle: row.custom_title,
+        customText: row.custom_text,
+        deepLink: buildReminderDeepLink({
+          linkedObjectType: row.linked_object_type,
+          linkedObjectId: row.linked_object_id,
+        }),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       };

@@ -67,6 +67,11 @@ describe("GET /api/integrator/reminders/rules", () => {
         windowEndMinute: 1440,
         daysMask: "1111111",
         contentMode: "none",
+        linkedObjectType: null,
+        linkedObjectId: null,
+        customTitle: null,
+        customText: null,
+        deepLink: "http://127.0.0.1:5200/app/patient/reminders?from=reminder",
         updatedAt: "2025-01-01T00:00:00.000Z",
       },
     ]);

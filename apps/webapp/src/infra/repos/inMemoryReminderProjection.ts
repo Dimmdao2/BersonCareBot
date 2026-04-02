@@ -3,6 +3,7 @@ import type {
   ReminderRuleListItem,
   ReminderOccurrenceHistoryItem,
 } from "./pgReminderProjection";
+import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
 
 const rulesByIntegratorRuleId = new Map<string, ReminderRuleListItem>();
 const occurrenceHistory: Array<{
@@ -45,6 +46,11 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
       windowEndMinute: params.windowEndMinute,
       daysMask: params.daysMask,
       contentMode: params.contentMode,
+      linkedObjectType: null,
+      linkedObjectId: null,
+      customTitle: null,
+      customText: null,
+      deepLink: buildReminderDeepLink({ linkedObjectType: null, linkedObjectId: null }),
       updatedAt: params.updatedAt,
     };
     rulesByIntegratorRuleId.set(params.integratorRuleId, item);
