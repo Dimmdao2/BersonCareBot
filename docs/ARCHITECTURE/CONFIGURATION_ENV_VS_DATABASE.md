@@ -12,6 +12,7 @@
 **Таблица `system_settings` (webapp, scope `admin`)** — источник истины для **несекретной** операционной конфигурации, которую разумно менять без передеплоя:
 
 - Публичные ссылки: `support_contact_url`.
+- Отображение времени слотов и связанного UI: **`app_display_timezone`** (IANA, по умолчанию `Europe/Moscow`) — единая бизнес-таймзона для форматирования `record_at` / записей на приём в webapp; см. `getAppDisplayTimeZone()`, `formatBusinessDateTime.ts`, `docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md` (подраздел про подписи).
 - Вайтлисты: `allowed_telegram_ids`, `allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`, `doctor_max_ids`, `admin_phones`, `doctor_phones`, `allowed_phones`.
 - Операционные флаги: `dev_mode`, `debug_forward_to_admin`, `important_fallback_delay_minutes`, `integration_test_ids`.
 - Настройки пользователя (doctor scope): `patient_label`, `sms_fallback_enabled`.

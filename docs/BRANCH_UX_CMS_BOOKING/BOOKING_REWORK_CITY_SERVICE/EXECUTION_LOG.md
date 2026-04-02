@@ -1004,3 +1004,54 @@
 - **Техдолг:** захардкоженный id статуса — см. `TODO_BACKLOG.md` **AUDIT-BACKLOG-025** (нормальное хранение таблицы/маппинга статусов, при необходимости — `system_settings`, не env).
 - **Деплой:** требуется выкат **integrator** с этой правкой; webapp менять не обязательно для этого фикса.
 - **Проверка:** `pnpm --dir apps/integrator vitest run src/integrations/rubitime/recordM2mRoute.test.ts` — green; перед пушем репозитория — полный `pnpm run ci` по правилам монорепо.
+
+---
+
+## Timezone и семантика слотов Rubitime (2026-04-02)
+
+Сводка найденных ошибок и внесённых исправлений (webapp + integrator). Полный CI: `pnpm run ci` — green перед пушем.
+
+### TZ.T01 — Отображение времени записей в webapp без единой бизнес-таймзоны
+
+- **Симптомы:** время в кабинете пациента (активные / журнал), на шаге подтверждения wizard и у врача расходилось с ожидаемым «московским» временем и с Rubitime; часть экранов зависела от TZ процесса Node (SSR) или от TZ браузера, без явного `timeZone` в `Intl`.
+- **Причина:** `toLocaleString` / `toLocaleTimeString` без `timeZone`; в `pgDoctorAppointments` для списка записей использовались `getUTC*` (фактически UTC-«настенное» время).
+- **Правка:**
+  - Ключ **`app_display_timezone`** в `system_settings` (`ALLOWED_KEYS`, PATCH `/api/admin/settings`), дефолт **`Europe/Moscow`**, чтение через **`getAppDisplayTimeZone()`** (`apps/webapp/src/modules/system-settings/appDisplayTimezone.ts`) и **`getConfigValue`** с TTL-кэшем.
+  - Общий модуль **`formatBusinessDateTime.ts`**: `formatBookingDateTimeMediumRu`, `formatBookingTimeShortRu`, `formatBookingDateLongRu`, `formatDoctorAppointmentRecordAt` с явным `timeZone`.
+  - **Кабинет:** `CabinetActiveBookings`, `CabinetPastBookings`, `page.tsx` — прокидка `appDisplayTimeZone` с сервера.
+  - **Wizard:** `ConfirmStepClient` + `booking/new/confirm/page.tsx` — та же таймзона для сводки даты/времени.
+  - **Врач:** `AppointmentRow.recordAtIso` из PG, форматирование `time` в **`createDoctorAppointmentsService`** через `formatDoctorAppointmentRecordAt` + `getAppDisplayTimeZone()`.
+  - **Админка:** `RuntimeConfigSection` — поле ввода IANA-таймзоны; `settings/page.tsx` передаёт начальное значение.
+- **Файлы (основные):** `types.ts` (ALLOWED_KEYS), `app/api/admin/settings/route.ts`, `formatBusinessDateTime.ts` (+ unit-тесты), `appDisplayTimezone.ts` (+ тест), `CabinetActiveBookings.tsx`, `CabinetPastBookings.tsx`, `cabinet/page.tsx`, `ConfirmStepClient.tsx`, `confirm/page.tsx`, `pgDoctorAppointments.ts`, `doctor-appointments/service.ts` + `ports.ts`, `doctor-appointments/service.test.ts`, `RuntimeConfigSection.tsx`, `app/app/settings/page.tsx`.
+
+### TZ.T02 — Выбор слота в wizard: `BookingSlotList` и локаль браузера
+
+- **Симптом:** кнопки слотов на шаге «дата/время» форматировались через `toLocaleTimeString` без `timeZone` (зависимость от TZ браузера), в рассинхроне с политикой «всегда бизнес-TZ».
+- **Правка:** обязательный проп **`appDisplayTimeZone`**; `booking/new/slot/page.tsx` вызывает `getAppDisplayTimeZone()` и передаёт в **`SlotStepClient`** → **`BookingSlotList`**; время через **`formatBookingTimeShortRu`**.
+- **Файлы:** `apps/webapp/src/app/app/patient/cabinet/BookingSlotList.tsx`, `booking/new/slot/SlotStepClient.tsx`, `booking/new/slot/page.tsx`, `SlotStepClient.test.tsx`.
+
+### TZ.T03 — Integrator `scheduleNormalizer`: настенное время Rubitime vs `Date.UTC`
+
+- **Симптом:** расхождение времени слотов с Rubitime (в т.ч. после явного MSK в UI): ответ `api2/get-schedule` интерпретировался неверно.
+- **Причина:** в **`buildIsoSlot`** время `HH:MM` из Rubitime собиралось через **`Date.UTC`**, т.е. настенные часы клиники ошибочно трактовались как UTC; в ответ отдавались строки без `Z`, и `new Date(...)` в разных средах давал разный instant.
+- **Правка:** трактовка настенного времени как **MSK `+03:00`**, согласовано с webapp **`bookingM2mApi`** (`DEFAULT_SLOT_TZ`); **`startAt` / `endAt`** — полноценный **ISO UTC (`…Z`)** через `toISOString()`.
+- **Файлы:** `apps/integrator/src/integrations/rubitime/scheduleNormalizer.ts`, `scheduleNormalizer.test.ts` (ожидания обновлены под UTC-instant).
+
+### TZ.T04 — Наивные ISO без зоны в webapp: `parseBusinessInstant`
+
+- **Симптом:** остаточный рассинхрон при отображении старых/промежуточных ответов со строками вида `2026-04-10T10:00:00` без `Z`/offset.
+- **Причина:** ECMAScript по-разному интерпретирует ISO без суффикса зоны (Node UTC vs браузер MSK и т.д.).
+- **Правка:** функция **`parseBusinessInstant(iso, displayTimeZone)`** — если строка без `Z`/±offset и **`displayTimeZone === 'Europe/Moscow'`**, к наивной метке добавляется **`+03:00`** перед разбором; используется во всех форматтерах из `formatBusinessDateTime.ts`.
+- **Файлы:** `apps/webapp/src/shared/lib/formatBusinessDateTime.ts`, `formatBusinessDateTime.test.ts`.
+
+### TZ.T05 — Наследие данных и деплой
+
+- **Строки в БД**, созданные до правок **`scheduleNormalizer`**, могут содержать неверный **`slot_start`/`record_at`**; отображение после TZ.T03–TZ.T04 станет согласованным для новых слотов; **старые** строки при необходимости — повторная синхронизация с Rubitime / отдельный backfill (вне scope этого лога).
+- **Деплой:** для TZ.T03 — выкат **integrator**; для TZ.T01–TZ.T02, TZ.T04 — выкат **webapp**. Правка **RUBI.T01** (`status` в create-record) — только integrator (см. выше).
+
+### TZ.T06 — Дашборд врача vs карточка клиента: единая бизнес-таймзона
+
+- **Симптом:** на `/app/doctor` виджет «Ближайший приём» показывал одно время, в карточке клиента («Ближайшие записи») — другое для того же `record_at`.
+- **Причина:** список будущих записей для дашборда шёл через **`createDoctorAppointmentsService`** → **`formatDoctorAppointmentRecordAt`** + **`getAppDisplayTimeZone()`**; подписи для **`getUpcomingAppointments`** / **`getPastAppointments`** в **`buildAppDeps.ts`** строились через **`formatRuAppointmentDate` / `formatRuAppointmentTime`** без `timeZone` (зависимость от TZ процесса Node, часто не совпадает с **`app_display_timezone`** в БД). Аналогично подпись строки истории в **`listAppointmentHistoryForPhone`** использовала **`toLocaleString("ru-RU")`** без зоны.
+- **Правка:** **`formatAppointmentDateNumericRu`**, **`formatAppointmentTimeShortRu`** в **`formatBusinessDateTime.ts`**; в DI — та же **`getAppDisplayTimeZone()`** для предстоящих/прошлых записей и **`formatBookingDateTimeMediumRu`** для истории; устаревшие хелперы помечены **`@deprecated`**.
+- **Файлы:** `apps/webapp/src/shared/lib/formatBusinessDateTime.ts`, `formatBusinessDateTime.test.ts`, `apps/webapp/src/app-layer/di/buildAppDeps.ts`, `apps/webapp/src/modules/appointments/appointmentLabels.ts`; архитектура: `docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md`, `docs/MIGRATION/DOCTOR_DASHBOARD_METRICS_CHANGELOG.md`.

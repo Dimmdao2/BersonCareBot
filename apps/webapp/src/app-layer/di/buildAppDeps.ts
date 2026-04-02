@@ -55,11 +55,13 @@ import {
   type AppointmentSummary,
   type PastAppointmentSummary,
 } from "@/modules/appointments/service";
+import { appointmentRowLabel } from "@/modules/appointments/appointmentLabels";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import {
-  appointmentRowLabel,
-  formatRuAppointmentDate,
-  formatRuAppointmentTime,
-} from "@/modules/appointments/appointmentLabels";
+  formatAppointmentDateNumericRu,
+  formatAppointmentTimeShortRu,
+  formatBookingDateTimeMediumRu,
+} from "@/shared/lib/formatBusinessDateTime";
 import { createMediaService } from "@/modules/media/service";
 import { createSymptomDiaryService } from "@/modules/diaries/symptom-service";
 import { createLfkDiaryService } from "@/modules/diaries/lfk-service";
@@ -245,10 +247,11 @@ const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]>
         try {
           const phone = await userByPhonePort.getPhoneByUserId(userId);
           if (!phone) return [];
+          const tz = await getAppDisplayTimeZone();
           const rows = await appointmentProjectionPort.listActiveByPhoneNormalized(phone);
           return rows.map((row) => {
-            const dateLabel = formatRuAppointmentDate(row.recordAt);
-            const timeLabel = formatRuAppointmentTime(row.recordAt);
+            const dateLabel = formatAppointmentDateNumericRu(row.recordAt, tz);
+            const timeLabel = formatAppointmentTimeShortRu(row.recordAt, tz);
             return {
               id: row.integratorRecordId,
               dateLabel,
@@ -280,12 +283,13 @@ const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]>
         try {
           const phone = await userByPhonePort.getPhoneByUserId(userId);
           if (!phone) return [];
+          const tz = await getAppDisplayTimeZone();
           const rows = await appointmentProjectionPort.listHistoryByPhoneNormalized(phone, 80);
           return rows
             .filter((row) => !isStillUpcomingSlot(row))
             .map((row) => {
-              const dateLabel = formatRuAppointmentDate(row.recordAt);
-              const timeLabel = formatRuAppointmentTime(row.recordAt);
+              const dateLabel = formatAppointmentDateNumericRu(row.recordAt, tz);
+              const timeLabel = formatAppointmentTimeShortRu(row.recordAt, tz);
               return {
                 id: row.integratorRecordId,
                 dateLabel,
@@ -327,13 +331,14 @@ const phoneAuthDeps = {
 
 async function listAppointmentHistoryForPhone(phone: string | null): Promise<ClientAppointmentHistoryItem[]> {
   if (!phone) return [];
+  const tz = await getAppDisplayTimeZone();
   const rows = await appointmentProjectionPort.listHistoryByPhoneNormalized(phone, 80);
   return rows.map((row) => ({
     id: row.integratorRecordId,
     recordAt: row.recordAt,
     status: row.status,
     label: row.recordAt
-      ? `${new Date(row.recordAt).toLocaleString("ru-RU")} · ${row.status}`
+      ? `${formatBookingDateTimeMediumRu(row.recordAt, tz)} · ${row.status}`
       : row.status,
     lastEvent: row.lastEvent,
     updatedAt: row.updatedAt,

@@ -43,6 +43,37 @@ export function formatBookingDateLongRu(iso: string, timeZone: string): string {
 }
 
 /**
+ * Дата как `д.м.гггг` (как в кабинете пациента), в бизнес-таймзоне.
+ * Заменяет `formatRuAppointmentDate` без TZ — тот зависел от TZ процесса Node.
+ */
+export function formatAppointmentDateNumericRu(
+  iso: string | Date | null | undefined,
+  timeZone: string,
+): string {
+  if (iso == null) return "—";
+  const d = typeof iso === "string" ? parseBusinessInstant(iso, timeZone) : iso;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+    timeZone,
+  });
+}
+
+/** Время `ЧЧ:мм` в бизнес-таймзоне (как в кабинете пациента). */
+export function formatAppointmentTimeShortRu(
+  iso: string | Date | null | undefined,
+  timeZone: string,
+): string {
+  if (iso == null) return "—";
+  const s = typeof iso === "string" ? iso : iso.toISOString();
+  const d = parseBusinessInstant(s, timeZone);
+  if (Number.isNaN(d.getTime())) return "—";
+  return formatBookingTimeShortRu(s, timeZone);
+}
+
+/**
  * Как в списке врача: `HH:mm DD.MM` в бизнес-таймзоне (раньше ошибочно брался UTC).
  */
 export function formatDoctorAppointmentRecordAt(iso: string | null | undefined, timeZone: string): string {

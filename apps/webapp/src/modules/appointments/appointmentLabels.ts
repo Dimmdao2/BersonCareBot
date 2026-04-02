@@ -1,5 +1,9 @@
-/** Форматирование даты/времени приёма для кабинета пациента (без секунд). */
+/**
+ * Форматирование даты/времени приёма (без секунд), **без явной таймзоны** — зависит от TZ процесса Node/браузера.
+ * Для слотов из БД / интегратора используйте `@/shared/lib/formatBusinessDateTime` и `getAppDisplayTimeZone()`.
+ */
 
+/** @deprecated Для слотов из БД используйте `formatAppointmentDateNumericRu` из `@/shared/lib/formatBusinessDateTime` и `getAppDisplayTimeZone()`. */
 export function formatRuAppointmentDate(iso: string | Date | null | undefined): string {
   if (iso == null) return "—";
   const d = typeof iso === "string" ? new Date(iso) : iso;
@@ -11,6 +15,7 @@ export function formatRuAppointmentDate(iso: string | Date | null | undefined): 
   });
 }
 
+/** @deprecated Для слотов из БД используйте `formatAppointmentTimeShortRu` из `@/shared/lib/formatBusinessDateTime` и `getAppDisplayTimeZone()`. */
 export function formatRuAppointmentTime(iso: string | Date | null | undefined): string {
   if (iso == null) return "—";
   const d = typeof iso === "string" ? new Date(iso) : iso;

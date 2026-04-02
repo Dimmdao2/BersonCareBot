@@ -1,5 +1,24 @@
 # Лог: метрики дашборда врача и навигация (webapp)
 
+## 2026-04-02
+
+### Проблема
+
+- Подписи времени записи из проекции (`appointment_records`) в карточке клиента и в кабинете пациента могли **не совпадать** с виджетом «Ближайший приём» на `/app/doctor` и списком записей врача: дашборд использовал **`app_display_timezone`**, а путь через `getUpcomingAppointments` в DI — `toLocale*` **без** `timeZone` (фактически TZ процесса Node).
+
+### Сделано
+
+1. **`formatBusinessDateTime.ts`:** `formatAppointmentDateNumericRu`, `formatAppointmentTimeShortRu` (с **`parseBusinessInstant`** и явной зоной).
+2. **`buildAppDeps.ts`:** `getUpcomingAppointments`, `getPastAppointments`, `listAppointmentHistoryForPhone` переведены на **`getAppDisplayTimeZone()`** и эти форматтеры; история — **`formatBookingDateTimeMediumRu`**.
+3. **`appointmentLabels.ts`:** пометка `@deprecated` для `formatRuAppointmentDate` / `formatRuAppointmentTime` (остаточное использование только там, где допустима зависимость от локали процесса).
+4. **Документация:** `docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md`, этот лог.
+
+### Проверки
+
+- `pnpm run ci`.
+
+---
+
 ## 2026-03-28
 
 ### Проблема

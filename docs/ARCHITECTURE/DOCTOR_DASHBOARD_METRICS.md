@@ -10,6 +10,12 @@
 - Окна «сегодня / завтра / неделя» в `getAppointmentStats` и списке `view` по умолчанию считаются от **UTC-полуночи** текущего дня (`getDateBounds` в `pgDoctorAppointments.ts`).
 - Месячные метрики используют **`date_trunc('month', NOW())`** в часовом поясе сессии БД (обычно UTC на проде — уточнять на хосте).
 
+### Отображение времени слота в UI (подписи к записям)
+
+Метрики выше считают в SQL по **`record_at`** (timestamptz). **Текст времени** на экранах («Ближайший приём» на `/app/doctor`, список записей врача, карточка клиента, кабинет пациента по проекции) должен браться из **одной** бизнес-таймзоны: ключ **`app_display_timezone`** в `system_settings` (чтение **`getAppDisplayTimeZone()`**), форматирование через **`formatBusinessDateTime.ts`** (`formatDoctorAppointmentRecordAt`, `formatAppointmentDateNumericRu`, `formatAppointmentTimeShortRu`, `formatBookingDateTimeMediumRu` и т.д.).
+
+Источник в коде: **`createDoctorAppointmentsService`** (поле `time` у строки записи), **`buildAppDeps.ts`** — `getUpcomingAppointments`, `getPastAppointments`, `listAppointmentHistoryForPhone`. Не использовать для слотов из БД **`toLocaleString` / `toLocaleTimeString` без `timeZone`**: это привязывает вывод к TZ процесса Node и расходится с дашбордом, если **`app_display_timezone`** ≠ TZ сервера.
+
 ---
 
 ## Будущая активная запись

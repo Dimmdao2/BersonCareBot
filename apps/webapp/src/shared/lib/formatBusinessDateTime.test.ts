@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatAppointmentDateNumericRu,
+  formatAppointmentTimeShortRu,
   formatBookingDateLongRu,
   formatBookingDateTimeMediumRu,
   formatBookingTimeShortRu,
@@ -41,5 +43,20 @@ describe("formatBusinessDateTime", () => {
   it("parseBusinessInstant leaves explicit Z unchanged", () => {
     const d = parseBusinessInstant("2026-04-10T07:00:00.000Z", msk);
     expect(d.toISOString()).toBe("2026-04-10T07:00:00.000Z");
+  });
+
+  it("formatAppointmentDateNumericRu and formatAppointmentTimeShortRu align with formatDoctorAppointmentRecordAt (MSK)", () => {
+    const iso = "2026-04-02T14:00:00.000Z";
+    expect(formatAppointmentTimeShortRu(iso, msk)).toBe(formatBookingTimeShortRu(iso, msk));
+    expect(formatAppointmentTimeShortRu(iso, msk)).toMatch(/^17:00$/);
+    expect(formatDoctorAppointmentRecordAt(iso, msk)).toBe("17:00 02.04");
+    const dateRu = formatAppointmentDateNumericRu(iso, msk);
+    expect(dateRu).toContain("2026");
+    expect(dateRu).toContain("4");
+    expect(dateRu).toContain("2");
+  });
+
+  it("formatAppointmentTimeShortRu returns em dash for invalid input", () => {
+    expect(formatAppointmentTimeShortRu("", msk)).toBe("—");
   });
 });

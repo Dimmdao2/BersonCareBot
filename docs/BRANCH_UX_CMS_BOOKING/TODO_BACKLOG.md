@@ -12,6 +12,7 @@
 | AUDIT-BACKLOG-023 | `modules/auth/channelLink.ts` | open | Уведомления при конфликте привязки канала. |
 | AUDIT-BACKLOG-024 | `infra/repos/pgUserProjection.ts` | open | Доработки autobind email из Rubitime (invalid/verified/conflict). |
 | AUDIT-BACKLOG-025 | integrator / Rubitime API2 | open | Хранить маппинг числовых статусов Rubitime (`status` в create-record / вебхуках) в нормальном виде: справочник id → человекочитаемая метка (подтверждено: **0 = «записан»**). Сейчас в `recordM2mRoute` захардкожен `RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0`; при смене кабинета/статусов в Rubitime нужна конфигурация в `system_settings` (scope admin) или таблица + админка, не env. |
+| AUDIT-BACKLOG-026 | webapp / booking UX | open | После успешной записи (booking) не показывается уведомление в вебаппе, в отличие от сохранения дневников и аналогичных действий. Добавить toast/ин-app уведомление об успехе по тому же паттерну, что уже используется для дневников. |
 
 ## Закрыто в рамках remediation
 
