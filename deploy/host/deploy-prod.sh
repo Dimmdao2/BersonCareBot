@@ -85,17 +85,10 @@ if [ -d apps/webapp/.next ]; then
 fi
 pnpm build:webapp
 
-# Standalone server.js does not bundle .next/static — must copy after every webapp build (same as deploy-webapp-prod.sh).
-WEBAPP_STANDALONE_DIR=apps/webapp/.next/standalone/apps/webapp
-mkdir -p "${WEBAPP_STANDALONE_DIR}/.next"
-rm -rf "${WEBAPP_STANDALONE_DIR}/.next/static" "${WEBAPP_STANDALONE_DIR}/public"
-cp -r apps/webapp/.next/static "${WEBAPP_STANDALONE_DIR}/.next/static"
-cp -r apps/webapp/public "${WEBAPP_STANDALONE_DIR}/public"
-WEBAPP_STANDALONE_CHUNKS="${WEBAPP_STANDALONE_DIR}/.next/static/chunks"
-chunk_js_count=$(find "${WEBAPP_STANDALONE_CHUNKS}" -maxdepth 1 -type f -name "*.js" 2>/dev/null | wc -l | tr -d " ")
-if [ "${chunk_js_count}" -lt 1 ]; then
-  fail "Standalone has no JS under ${WEBAPP_STANDALONE_CHUNKS} after copy. Webapp build may have failed."
-fi
+bash deploy/host/sync-webapp-standalone-assets.sh
+WEBAPP_STANDALONE_CHUNKS=apps/webapp/.next/standalone/apps/webapp/.next/static/chunks
+sample_chunk="$(find "${WEBAPP_STANDALONE_CHUNKS}" -maxdepth 1 -type f -name "*.js" | sort | sed -n '1p' | xargs -r basename)"
+[ -n "${sample_chunk}" ] || fail "Standalone has no JS under ${WEBAPP_STANDALONE_CHUNKS} after sync."
 
 set -a
 source "${ENV_FILE}"
@@ -125,6 +118,10 @@ sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
 
 if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
   sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
+  chunk_http_code="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:6200/_next/static/chunks/${sample_chunk}")"
+  if [ "${chunk_http_code}" != "200" ]; then
+    fail "Chunk is not served after webapp restart: /_next/static/chunks/${sample_chunk} (HTTP ${chunk_http_code})"
+  fi
 fi
 
 sleep 3

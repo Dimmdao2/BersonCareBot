@@ -65,21 +65,10 @@ if [ -d apps/webapp/.next ]; then
   rm -rf apps/webapp/.next || fail "Cannot remove apps/webapp/.next (likely root-owned). As root on the host: systemctl stop ${WEBAPP_SERVICE} && rm -rf ${PROJECT_ROOT}/apps/webapp/.next — then redeploy as deploy. See SERVER CONVENTIONS.md."
 fi
 pnpm --dir apps/webapp build
-
-# Copy static assets into the standalone output so standalone server.js can serve them.
-# Required because Next.js does not copy .next/static/ and public/ into standalone automatically.
-STANDALONE_DIR=apps/webapp/.next/standalone/apps/webapp
-mkdir -p "${STANDALONE_DIR}/.next"
-# Replace, do not nest: if destination exists, `cp -r static dest/` copies into dest/static/ (broken second deploy).
-rm -rf "${STANDALONE_DIR}/.next/static" "${STANDALONE_DIR}/public"
-cp -r apps/webapp/.next/static "${STANDALONE_DIR}/.next/static"
-cp -r apps/webapp/public "${STANDALONE_DIR}/public"
-
-STANDALONE_CHUNKS="${STANDALONE_DIR}/.next/static/chunks"
-chunk_js_count=$(find "${STANDALONE_CHUNKS}" -maxdepth 1 -type f -name "*.js" 2>/dev/null | wc -l | tr -d " ")
-if [ "${chunk_js_count}" -lt 1 ]; then
-  fail "Standalone has no JS under ${STANDALONE_CHUNKS} after copy. Run full webapp build first; paths must match apps/webapp/.next/standalone/apps/webapp"
-fi
+bash deploy/host/sync-webapp-standalone-assets.sh
+STANDALONE_CHUNKS=apps/webapp/.next/standalone/apps/webapp/.next/static/chunks
+sample_chunk="$(find "${STANDALONE_CHUNKS}" -maxdepth 1 -type f -name "*.js" | sort | sed -n '1p' | xargs -r basename)"
+[ -n "${sample_chunk}" ] || fail "Standalone has no JS under ${STANDALONE_CHUNKS} after sync."
 
 # Run webapp DB migrations (DATABASE_URL from webapp.prod)
 set -a
@@ -94,6 +83,11 @@ pnpm --dir apps/webapp run migrate
 sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
 sleep 3
 sudo -n /bin/systemctl is-active --quiet "${WEBAPP_SERVICE}"
+
+chunk_http_code="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${WEBAPP_PORT}/_next/static/chunks/${sample_chunk}")"
+if [ "${chunk_http_code}" != "200" ]; then
+  fail "Chunk is not served after restart: /_next/static/chunks/${sample_chunk} (HTTP ${chunk_http_code})"
+fi
 
 for i in 1 2 3 4 5; do
   if curl -sf "http://127.0.0.1:${WEBAPP_PORT}/api/health" -o /tmp/bersoncare-webapp-health.json; then
