@@ -70,6 +70,10 @@ export type IncomingCallbackUpdate = {
   value?: number;
   entryType?: string;
   complexId?: string;
+  reminderOccurrenceId?: string;
+  reminderSnoozeMinutes?: number;
+  skipReasonCode?: string;
+  questionConfirm?: 'yes' | 'no';
 };
 
 /** Transport-agnostic incoming update shape used in connector mappers. */

@@ -32,6 +32,12 @@ export type ReminderRuleRecord = {
   contentMode: ReminderContentMode;
   createdAt?: string;
   updatedAt?: string;
+  /** Webapp projection (optional): linked object + deep link for bot payloads */
+  linkedObjectType?: string | null;
+  linkedObjectId?: string | null;
+  customTitle?: string | null;
+  customText?: string | null;
+  deepLink?: string | null;
 };
 
 export type ReminderOccurrenceStatus =

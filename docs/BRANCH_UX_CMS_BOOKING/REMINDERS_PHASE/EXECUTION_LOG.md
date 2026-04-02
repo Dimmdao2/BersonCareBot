@@ -55,18 +55,19 @@
 
 | Задача | Статус | Файлы | CI |
 |--------|--------|-------|----|
-| S3.T01 Шаблон напоминания | pending | | |
-| S3.T02 Inline-кнопки | pending | | |
-| S3.T03 Snooze handler | pending | | |
-| S3.T04 Skip handler | pending | | |
-| S3.T05 Deep link builder | pending | | |
-| S3.T06 Фикс вопросов | pending | | |
-| S3.T07 Skip reason guard | pending | | |
-| S3.T08 MAX адаптация | pending | | |
-| S3.T09 Тесты | pending | | |
+| S3.T01 Шаблон напоминания | done | `reminder.dispatch` и ack-шаблоны в `content/telegram/user/templates.json`, `content/max/user/templates.json`; рендер в `handlers/reminders.ts` | green |
+| S3.T02 Inline-кнопки | done | `handlers/reminders.ts` (URL + `rem_snooze` / `rem_skip`) | green |
+| S3.T03 Snooze handler | done | `handlers/reminders.ts` (`reminders.snooze.callback`), `POST .../integrator/reminders/occurrences/snooze`, `remindersWritesPort.ts` | green |
+| S3.T04 Skip handler | done | `handlers/reminders.ts` (skip preset / free text), `POST .../integrator/reminders/occurrences/skip`, скрипты `waiting_skip_reason` | green |
+| S3.T05 Deep link builder | done | `kernel/domain/reminders/buildPatientReminderDeepLink.ts` | green |
+| S3.T06 Фикс вопросов | done | `confirmQuestion`, `q_confirm:yes|no`, скрипты `telegram.ask.question` / `telegram.q_confirm.no` (+ MAX аналоги) | green |
+| S3.T07 Skip reason guard | done | Состояние `waiting_skip_reason:` + матч `$startsWith` в `scripts.json`; без admin forward в этом состоянии | green |
+| S3.T08 MAX адаптация | done | `max/mapIn.ts` прокидывает те же поля callback, что Telegram (`normalizeDynamicTelegramAction`) | green |
+| S3.T09 Тесты | done | Webapp `snooze/route.test.ts`, `skip/route.test.ts`; integrator `telegram/mapIn.test.ts`, `max/mapIn.test.ts` | green |
 
 **Аудит S3:** pending  
-**Фиксы S3:** —
+**Фиксы S3:** 2026-04-02 — `incomingEventPipeline`: тип и spread `remindersWebappWritesPort`; ESLint `no-useless-assignment` в `handlers/reminders.ts` (инициализация `reminderTitle`).  
+**CI после S3:** `pnpm run ci` green (2026-04-02)
 
 ---
 

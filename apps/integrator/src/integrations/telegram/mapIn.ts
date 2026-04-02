@@ -68,6 +68,10 @@ type DynamicActionResult = {
   value?: number;
   entryType?: string;
   complexId?: string;
+  reminderOccurrenceId?: string;
+  reminderSnoozeMinutes?: number;
+  skipReasonCode?: string;
+  questionConfirm?: 'yes' | 'no';
 };
 
 export function normalizeDynamicTelegramAction(value: string): DynamicActionResult {
@@ -116,6 +120,35 @@ export function normalizeDynamicTelegramAction(value: string): DynamicActionResu
     const id = trimmed.slice('diary.lfk.session:'.length).trim();
     return { action: 'diary.lfk.session', ...(id ? { complexId: id } : {}) };
   }
+  if (trimmed.startsWith('rem_snooze:')) {
+    const rest = trimmed.slice('rem_snooze:'.length);
+    const lastColon = rest.lastIndexOf(':');
+    if (lastColon <= 0) return { action: trimmed };
+    const occurrenceId = rest.slice(0, lastColon).trim();
+    const minutes = Math.round(Number(rest.slice(lastColon + 1)));
+    if (!occurrenceId || (minutes !== 30 && minutes !== 60 && minutes !== 120)) return { action: trimmed };
+    return {
+      action: 'rem_snooze',
+      reminderOccurrenceId: occurrenceId,
+      reminderSnoozeMinutes: minutes,
+    };
+  }
+  if (trimmed.startsWith('rem_skip_r:')) {
+    const rest = trimmed.slice('rem_skip_r:'.length);
+    const lastColon = rest.lastIndexOf(':');
+    if (lastColon <= 0) return { action: trimmed };
+    const occurrenceId = rest.slice(0, lastColon).trim();
+    const code = rest.slice(lastColon + 1).trim();
+    if (!occurrenceId || !code) return { action: trimmed };
+    return { action: 'rem_skip_r', reminderOccurrenceId: occurrenceId, skipReasonCode: code };
+  }
+  if (trimmed.startsWith('rem_skip:')) {
+    const occurrenceId = trimmed.slice('rem_skip:'.length).trim();
+    if (!occurrenceId) return { action: trimmed };
+    return { action: 'rem_skip', reminderOccurrenceId: occurrenceId };
+  }
+  if (trimmed === 'q_confirm:yes') return { action: 'q_confirm:yes', questionConfirm: 'yes' };
+  if (trimmed === 'q_confirm:no') return { action: 'q_confirm:no', questionConfirm: 'no' };
   return { action: LEGACY_CALLBACK_TO_ACTION[trimmed] ?? trimmed };
 }
 
@@ -174,6 +207,12 @@ export function fromTelegram(
       ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
       ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
       ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
+      ...(typeof normalized.reminderOccurrenceId === 'string' ? { reminderOccurrenceId: normalized.reminderOccurrenceId } : {}),
+      ...(typeof normalized.reminderSnoozeMinutes === 'number' ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes } : {}),
+      ...(typeof normalized.skipReasonCode === 'string' ? { skipReasonCode: normalized.skipReasonCode } : {}),
+      ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
+        ? { questionConfirm: normalized.questionConfirm }
+        : {}),
       callbackData: normalized.action,
       callbackQueryId: cq.id,
     };

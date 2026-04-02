@@ -14,6 +14,7 @@ import {
   getDueReminderOccurrences,
   getEnabledReminderRules,
   getReminderOccurrencesForRuleRange,
+  getReminderOccurrenceOwnerUserId,
 } from './repos/reminders.js';
 import {
   getActiveDraftByIdentity,
@@ -192,6 +193,12 @@ export function createDbReadPort(input: {
           const limit = asFiniteNumber(query.params.limit) ?? 50;
           if (!nowIso) return [] as T;
           return (await getDueReminderOccurrences(db, nowIso, limit)) as T;
+        }
+        case 'reminders.occurrence.ownerUserId': {
+          const occurrenceId = asNonEmptyString(query.params.occurrenceId);
+          if (!occurrenceId) return null as T;
+          const owner = await getReminderOccurrenceOwnerUserId(db, occurrenceId);
+          return (owner ?? null) as T;
         }
         case 'mailing.topics.list': {
           if (!subscriptionMailingReadsPort) return [] as T;

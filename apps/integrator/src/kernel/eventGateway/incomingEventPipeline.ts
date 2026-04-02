@@ -11,6 +11,7 @@ import type {
   Orchestrator,
   ProtectedAccessPort,
   QueuePort,
+  RemindersWebappWritesPort,
   TemplatePort,
   WebappEventsPort,
 } from '../contracts/index.js';
@@ -37,6 +38,7 @@ export type IncomingEventPipelineDeps = {
   webappEventsPort?: WebappEventsPort;
   /** Optional: resolve delivery targets for multi-channel fan-out (e.g. Rubitime/booking). */
   deliveryTargetsPort?: DeliveryTargetsPort;
+  remindersWebappWritesPort?: RemindersWebappWritesPort;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -110,6 +112,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
             ...(deps.supportRelayPolicy !== undefined && deps.supportRelayPolicy !== null ? { supportRelayPolicy: deps.supportRelayPolicy } : {}),
             ...(deps.webappEventsPort ? { webappEventsPort: deps.webappEventsPort } : {}),
             ...(deps.deliveryTargetsPort ? { deliveryTargetsPort: deps.deliveryTargetsPort } : {}),
+            ...(deps.remindersWebappWritesPort ? { remindersWebappWritesPort: deps.remindersWebappWritesPort } : {}),
             executeAction: executeDomainAction,
           };
           return executeDomainAction(action, context, executorDeps);

@@ -1,0 +1,65 @@
+import { describe, expect, it, vi } from "vitest";
+
+const verifyPostMock = vi.hoisted(() => vi.fn());
+vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
+  verifyIntegratorSignature: verifyPostMock,
+}));
+
+const mockSkip = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({
+    reminders: {
+      skipOccurrence: mockSkip,
+    },
+  }),
+}));
+
+const mockQuery = vi.hoisted(() => vi.fn());
+vi.mock("@/infra/db/client", () => ({
+  getPool: () => ({ query: mockQuery }),
+}));
+
+import { POST } from "./route";
+
+describe("POST /api/integrator/reminders/occurrences/skip", () => {
+  it("returns 400 when missing headers", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/integrator/reminders/occurrences/skip", {
+        method: "POST",
+        body: "{}",
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 200 when skip succeeds", async () => {
+    verifyPostMock.mockReturnValue(true);
+    mockQuery.mockResolvedValue({ rows: [{ id: "pu-1" }] });
+    mockSkip.mockResolvedValue({
+      ok: true,
+      data: { occurrenceId: "occ-1", skippedAt: "2026-04-02T14:00:00.000Z" },
+    });
+    const res = await POST(
+      new Request("http://localhost/api/integrator/reminders/occurrences/skip", {
+        method: "POST",
+        headers: {
+          "x-bersoncare-timestamp": "1700000000",
+          "x-bersoncare-signature": "sig",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          integratorUserId: "1",
+          occurrenceId: "occ-1",
+          reason: "Нет времени",
+        }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      occurrenceId: "occ-1",
+      skippedAt: "2026-04-02T14:00:00.000Z",
+    });
+  });
+});

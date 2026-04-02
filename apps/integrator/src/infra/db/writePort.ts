@@ -22,6 +22,8 @@ import {
   markReminderOccurrenceFailed,
   markReminderOccurrenceQueued,
   markReminderOccurrenceSent,
+  markReminderOccurrenceSkippedLocal,
+  rescheduleReminderOccurrencePlanned,
   upsertReminderOccurrencePlanned,
   upsertReminderRule,
 } from './repos/reminders.js';
@@ -730,6 +732,19 @@ export function createDbWritePort(input: {
               });
             }
           });
+          return;
+        }
+        case 'reminders.occurrence.reschedulePlanned': {
+          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
+          const plannedAt = asNonEmptyString(mutation.params.plannedAt);
+          if (!occurrenceId || !plannedAt) return;
+          await rescheduleReminderOccurrencePlanned(db, occurrenceId, plannedAt);
+          return;
+        }
+        case 'reminders.occurrence.markSkippedLocal': {
+          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
+          if (!occurrenceId) return;
+          await markReminderOccurrenceSkippedLocal(db, occurrenceId);
           return;
         }
         case 'reminders.delivery.log': {

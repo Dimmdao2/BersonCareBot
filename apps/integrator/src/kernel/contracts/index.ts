@@ -116,6 +116,7 @@ export type {
   CommunicationConversationDetail,
   CommunicationQuestionListItem,
   RemindersReadsPort,
+  RemindersWebappWritesPort,
   ReminderRuleListItem,
   ReminderRuleDetail,
   ReminderOccurrenceHistoryItem,

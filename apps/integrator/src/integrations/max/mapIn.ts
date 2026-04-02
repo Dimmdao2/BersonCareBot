@@ -122,6 +122,12 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       ...(typeof normalized.value === 'number' ? { value: normalized.value } : {}),
       ...(typeof normalized.entryType === 'string' ? { entryType: normalized.entryType } : {}),
       ...(typeof normalized.complexId === 'string' ? { complexId: normalized.complexId } : {}),
+      ...(typeof normalized.reminderOccurrenceId === 'string' ? { reminderOccurrenceId: normalized.reminderOccurrenceId } : {}),
+      ...(typeof normalized.reminderSnoozeMinutes === 'number' ? { reminderSnoozeMinutes: normalized.reminderSnoozeMinutes } : {}),
+      ...(typeof normalized.skipReasonCode === 'string' ? { skipReasonCode: normalized.skipReasonCode } : {}),
+      ...(normalized.questionConfirm === 'yes' || normalized.questionConfirm === 'no'
+        ? { questionConfirm: normalized.questionConfirm }
+        : {}),
     };
     return update;
   }

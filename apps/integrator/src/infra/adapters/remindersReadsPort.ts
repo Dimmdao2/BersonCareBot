@@ -31,6 +31,11 @@ type WebappRuleRow = {
   windowEndMinute?: number;
   daysMask?: string;
   contentMode?: string;
+  linkedObjectType?: string | null;
+  linkedObjectId?: string | null;
+  customTitle?: string | null;
+  customText?: string | null;
+  deepLink?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -77,7 +82,7 @@ function mapRule(row: WebappRuleRow): ReminderRuleListItem {
     category: (typeof row.category === 'string' ? row.category : '') as ReminderCategory,
     isEnabled: Boolean(row.isEnabled),
     scheduleType: typeof row.scheduleType === 'string' ? row.scheduleType : 'interval_window',
-    timezone: typeof row.timezone === 'string' ? row.timezone : 'Europe/Moscow',
+    timezone: typeof row.timezone === 'string' ? row.timezone : getAppDisplayTimezoneSync(),
     intervalMinutes: typeof row.intervalMinutes === 'number' ? row.intervalMinutes : 0,
     windowStartMinute: typeof row.windowStartMinute === 'number' ? row.windowStartMinute : 0,
     windowEndMinute: typeof row.windowEndMinute === 'number' ? row.windowEndMinute : 1440,
@@ -85,6 +90,11 @@ function mapRule(row: WebappRuleRow): ReminderRuleListItem {
     contentMode: (typeof row.contentMode === 'string' ? row.contentMode : 'none') as ReminderContentMode,
     ...(typeof row.createdAt === 'string' ? { createdAt: row.createdAt } : {}),
     ...(typeof row.updatedAt === 'string' ? { updatedAt: row.updatedAt } : {}),
+    ...(row.linkedObjectType != null ? { linkedObjectType: row.linkedObjectType } : {}),
+    ...(row.linkedObjectId != null ? { linkedObjectId: row.linkedObjectId } : {}),
+    ...(row.customTitle != null ? { customTitle: row.customTitle } : {}),
+    ...(row.customText != null ? { customText: row.customText } : {}),
+    ...(typeof row.deepLink === 'string' && row.deepLink.trim().length > 0 ? { deepLink: row.deepLink.trim() } : {}),
   };
 }
 

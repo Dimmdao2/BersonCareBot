@@ -29,5 +29,15 @@
   "notImplemented": "Раздел в разработке.",
   "dialogMessageAccepted": "Сообщение отправлено. Ожидайте ответа.",
   "assistant.webapp.prompt": "Откройте веб-приложение для доступа к урокам, дневникам и настройкам.",
-  "assistant.webapp.openButton": "Открыть приложение"
+  "assistant.webapp.openButton": "Открыть приложение",
+  "reminder.dispatch": "<b>{{reminderTitle}}</b>{{#if reminderBody}}\n\n{{reminderBody}}{{/if}}",
+  "reminder.snoozeAck": "Напоминание отложено на {{minutes}} мин.",
+  "reminder.skip.promptTitle": "Почему пропускаете?",
+  "reminder.skip.askOther": "Кратко опишите причину одним сообщением.",
+  "reminder.skip.saved": "Причина сохранена.",
+  "reminder.exercise": "Время упражнений 🏃",
+  "reminder.warmup": "Разминка ⚡",
+  "reminder.breathing": "Время подышать 🌬",
+  "reminder.water": "Напоминание попить воду 💧",
+  "reminder.supplements_medication": "Напоминание: бады и лекарства 💊"
 }

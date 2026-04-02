@@ -161,6 +161,11 @@ function matchesScriptPattern(actual: unknown, expected: unknown): boolean {
     return !notIn.includes(actual as never);
   }
 
+  const startsWith = expected.$startsWith;
+  if (typeof startsWith === 'string' && Object.keys(expected).length === 1) {
+    return typeof actual === 'string' && actual.startsWith(startsWith);
+  }
+
   const actualRecord = asRecord(actual) ?? {};
   for (const [key, value] of Object.entries(expected)) {
     if (key === 'textPresent') {

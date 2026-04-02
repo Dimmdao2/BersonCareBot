@@ -35,6 +35,7 @@ export type DbReadQueryType =
   | 'reminders.rules.enabled'
   | 'reminders.occurrences.forRuleRange'
   | 'reminders.occurrences.due'
+  | 'reminders.occurrence.ownerUserId'
   | 'delivery.pending'
   | 'mailing.topics.list'
   | 'subscriptions.byUser'
@@ -60,6 +61,8 @@ export type DbWriteMutationType =
   | 'reminders.occurrence.markQueued'
   | 'reminders.occurrence.markSent'
   | 'reminders.occurrence.markFailed'
+  | 'reminders.occurrence.reschedulePlanned'
+  | 'reminders.occurrence.markSkippedLocal'
   | 'reminders.delivery.log'
   | 'content.access.grant.create'
   | 'booking.upsert'
@@ -426,6 +429,20 @@ export type ReminderOccurrenceHistoryItem = {
   deliveryChannel: string | null;
   errorCode: string | null;
   occurredAt: string;
+};
+
+/** Signed POST actions for reminder occurrences (webapp journal + occurrence_history). */
+export type RemindersWebappWritesPort = {
+  postOccurrenceSnooze(input: {
+    integratorUserId: string;
+    occurrenceId: string;
+    minutes: 30 | 60 | 120;
+  }): Promise<{ ok: true; snoozedUntil: string } | { ok: false; error: string }>;
+  postOccurrenceSkip(input: {
+    integratorUserId: string;
+    occurrenceId: string;
+    reason: string | null;
+  }): Promise<{ ok: true; skippedAt: string } | { ok: false; error: string }>;
 };
 
 /** Port to read reminder product data from webapp (projection). Used with fallback to local DB. */

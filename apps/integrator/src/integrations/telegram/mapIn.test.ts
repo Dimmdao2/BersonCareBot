@@ -1,5 +1,49 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTelegramMessageAction } from './mapIn.js';
+import { normalizeDynamicTelegramAction, normalizeTelegramMessageAction } from './mapIn.js';
+
+describe('normalizeDynamicTelegramAction (reminders + question confirm)', () => {
+  it('parses rem_snooze with allowed minutes (last colon separates id and minutes)', () => {
+    expect(normalizeDynamicTelegramAction('rem_snooze:occ-1:30')).toEqual({
+      action: 'rem_snooze',
+      reminderOccurrenceId: 'occ-1',
+      reminderSnoozeMinutes: 30,
+    });
+    expect(normalizeDynamicTelegramAction('rem_snooze:occ:id:part:120')).toEqual({
+      action: 'rem_snooze',
+      reminderOccurrenceId: 'occ:id:part',
+      reminderSnoozeMinutes: 120,
+    });
+  });
+
+  it('returns raw action for rem_snooze when minutes are not 30/60/120', () => {
+    expect(normalizeDynamicTelegramAction('rem_snooze:occ-1:15')).toEqual({
+      action: 'rem_snooze:occ-1:15',
+    });
+  });
+
+  it('parses rem_skip and rem_skip_r', () => {
+    expect(normalizeDynamicTelegramAction('rem_skip:occ-1')).toEqual({
+      action: 'rem_skip',
+      reminderOccurrenceId: 'occ-1',
+    });
+    expect(normalizeDynamicTelegramAction('rem_skip_r:occ-1:too_tired')).toEqual({
+      action: 'rem_skip_r',
+      reminderOccurrenceId: 'occ-1',
+      skipReasonCode: 'too_tired',
+    });
+  });
+
+  it('parses q_confirm yes/no', () => {
+    expect(normalizeDynamicTelegramAction('q_confirm:yes')).toEqual({
+      action: 'q_confirm:yes',
+      questionConfirm: 'yes',
+    });
+    expect(normalizeDynamicTelegramAction('q_confirm:no')).toEqual({
+      action: 'q_confirm:no',
+      questionConfirm: 'no',
+    });
+  });
+});
 
 describe('normalizeTelegramMessageAction', () => {
   it('maps diary button text to diary.open', () => {

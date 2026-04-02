@@ -56,6 +56,7 @@ import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js'
 import { createDeliveryTargetsPort } from '../infra/adapters/deliveryTargetsPort.js';
 import { createCommunicationReadsPort } from '../infra/adapters/communicationReadsPort.js';
 import { createRemindersReadsPort } from '../infra/adapters/remindersReadsPort.js';
+import { createRemindersWritesPort } from '../infra/adapters/remindersWritesPort.js';
 import { createAppointmentsReadsPort } from '../infra/adapters/appointmentsReadsPort.js';
 import { createSubscriptionMailingReadsPort } from '../infra/adapters/subscriptionMailingReadsPort.js';
 
@@ -133,6 +134,10 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     env.APP_BASE_URL && integratorWebhookSecret().length >= 16
       ? createRemindersReadsPort()
       : undefined;
+  const remindersWebappWritesPort =
+    env.APP_BASE_URL && integratorWebhookSecret().length >= 16
+      ? createRemindersWritesPort()
+      : undefined;
   /** Same condition: appointment product reads from webapp when configured. */
   const appointmentsReadsPort =
     env.APP_BASE_URL && integratorWebhookSecret().length >= 16
@@ -206,6 +211,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     supportRelayPolicy: defaultSupportRelayPolicy,
     webappEventsPort,
     deliveryTargetsPort,
+    ...(remindersWebappWritesPort !== undefined ? { remindersWebappWritesPort } : {}),
   });
 
   const eventGateway = createEventGateway({

@@ -118,6 +118,26 @@ describe('max mapIn', () => {
     }
   });
 
+  it('maps message_callback rem_snooze payload to reminder fields (same parser as Telegram)', () => {
+    const body = {
+      update_type: 'message_callback' as const,
+      timestamp: 1,
+      callback: {
+        callback_id: 'cb-rem',
+        payload: 'rem_snooze:occ-max:60',
+        user: { user_id: 303 },
+      },
+      message: { recipient: { chat_id: 303 }, body: { mid: 'mid-rem' }, sender: { user_id: 303 } },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('callback');
+    if (incoming?.kind === 'callback') {
+      expect(incoming.action).toBe('rem_snooze');
+      expect(incoming.reminderOccurrenceId).toBe('occ-max');
+      expect(incoming.reminderSnoozeMinutes).toBe(60);
+    }
+  });
+
   it('maps bot_started with message to /start-like message', () => {
     const body = {
       update_type: 'bot_started' as const,

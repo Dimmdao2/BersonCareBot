@@ -14,7 +14,7 @@ import type {
   NotificationSettings,
   OutgoingIntent,
 } from '../../contracts/index.js';
-import type { DueReminderOccurrence, ReminderCategory, ReminderRuleRecord } from '../../contracts/reminders.js';
+import type { ReminderCategory, ReminderRuleRecord } from '../../contracts/reminders.js';
 import {
   buildDefaultReminderRule,
   cycleReminderPreset,
@@ -56,11 +56,20 @@ import {
   sendAdminMessage,
 } from './helpers.js';
 import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
-import { ADMIN, REMINDER_BY_CATEGORY } from './templateKeys.js';
+import { ADMIN } from './templateKeys.js';
 
 const BOOKING_TYPES = new Set<string>(['booking.upsert', 'booking.event.insert']);
 const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
-const REMINDER_TYPES = new Set<string>(['reminders.rules.get', 'reminders.rule.toggle', 'reminders.rule.cyclePreset', 'reminders.dispatchDue']);
+const REMINDER_TYPES = new Set<string>([
+  'reminders.rules.get',
+  'reminders.rule.toggle',
+  'reminders.rule.cyclePreset',
+  'reminders.dispatchDue',
+  'reminders.snooze.callback',
+  'reminders.skip.reasonPrompt',
+  'reminders.skip.applyPreset',
+  'reminders.skip.applyFreeText',
+]);
 const DELIVERY_TYPES = new Set<string>([
   'message.compose', 'message.send', 'message.edit', 'message.replyMarkup.edit',
   'callback.answer', 'message.deliver', 'message.retry.enqueue', 'intent.enqueueDelivery',
@@ -1167,50 +1176,6 @@ export async function executeAction(
       }];
       await persistWrites(deps.writePort, writes);
       return { actionId: action.id, status: 'success', writes, values: { reminderPreset: nextPreset } };
-    }
-
-    case 'reminders.dispatchDue': {
-      if (!deps.readPort || !deps.writePort) return { actionId: action.id, status: 'skipped', error: 'reminders.dispatchDue: missing port' };
-      const dueNowIso = asString(action.params.nowIso) ?? nowIso(ctx);
-      const limit = asNumber(action.params.limit) ?? 50;
-      const dueList = await deps.readPort.readDb<DueReminderOccurrence[]>({
-        type: 'reminders.occurrences.due',
-        params: { nowIso: dueNowIso, limit: Math.max(1, Math.min(limit, 100)) },
-      });
-      const items = Array.isArray(dueList) ? dueList : [];
-      const writes: DbWriteMutation[] = [];
-      const intents: OutgoingIntent[] = [];
-      for (const occ of items) {
-        writes.push({
-          type: 'reminders.occurrence.markQueued',
-          params: { occurrenceId: occ.id, deliveryJobId: null },
-        });
-        const templateKey = REMINDER_BY_CATEGORY[occ.category] ?? 'telegram:reminder.exercise';
-        const text = deps.templatePort
-          ? (await deps.templatePort.renderTemplate({
-            source: 'telegram',
-            templateId: templateKey.replace(/^telegram:/, ''),
-            vars: {},
-            audience: 'user',
-          })).text
-          : 'Пора подвигаться';
-        intents.push({
-          type: 'message.send',
-          meta: {
-            eventId: `${ctx.event.meta.eventId}:reminder:${occ.id}`,
-            occurredAt: dueNowIso,
-            source: 'scheduler',
-            userId: occ.userId,
-          },
-          payload: {
-            recipient: { chatId: occ.chatId },
-            message: { text },
-            delivery: { channels: ['telegram'], maxAttempts: 1 },
-          },
-        });
-      }
-      await persistWrites(deps.writePort, writes);
-      return { actionId: action.id, status: 'success', writes, intents };
     }
 
     case 'content.section.open': {

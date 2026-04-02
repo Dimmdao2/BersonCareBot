@@ -17,6 +17,7 @@ import type {
   OutgoingIntent,
   ProtectedAccessPort,
   QueuePort,
+  RemindersWebappWritesPort,
   TemplatePort,
   WebappEventsPort,
 } from '../../contracts/index.js';
@@ -47,6 +48,8 @@ export type ExecutorDeps = {
   webappEventsPort?: WebappEventsPort;
   /** Optional: resolve delivery targets by phone/channel for multi-channel fan-out (e.g. Rubitime/booking). */
   deliveryTargetsPort?: DeliveryTargetsPort;
+  /** Optional: webapp journal + occurrence_history for reminder snooze/skip from bot callbacks. */
+  remindersWebappWritesPort?: RemindersWebappWritesPort;
 };
 
 export function nowIso(ctx: DomainContext): string {

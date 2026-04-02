@@ -542,3 +542,51 @@ export async function createContentAccessGrant(
   );
   return res.rows[0]?.created_at ?? new Date().toISOString();
 }
+
+/** Integrator `users.id` (text) owning the occurrence's rule, or null if missing. */
+export async function getReminderOccurrenceOwnerUserId(db: DbPort, occurrenceId: string): Promise<string | null> {
+  const res = await db.query<{ user_id: string }>(
+    `SELECT r.user_id::text AS user_id
+     FROM user_reminder_occurrences o
+     JOIN user_reminder_rules r ON r.id = o.rule_id
+     WHERE o.id = $1
+     LIMIT 1`,
+    [occurrenceId],
+  );
+  const id = res.rows[0]?.user_id;
+  return id && id.trim().length > 0 ? id.trim() : null;
+}
+
+/** Snooze: move occurrence back to planned at `plannedAtIso`, clear send/queue fields. */
+export async function rescheduleReminderOccurrencePlanned(
+  db: DbPort,
+  occurrenceId: string,
+  plannedAtIso: string,
+): Promise<boolean> {
+  const res = await db.query(
+    `UPDATE user_reminder_occurrences
+     SET planned_at = $2::timestamptz,
+         status = 'planned',
+         queued_at = NULL,
+         sent_at = NULL,
+         failed_at = NULL,
+         delivery_channel = NULL,
+         delivery_job_id = NULL,
+         error_code = NULL,
+         updated_at = now()
+     WHERE id = $1`,
+    [occurrenceId, plannedAtIso],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
+
+export async function markReminderOccurrenceSkippedLocal(db: DbPort, occurrenceId: string): Promise<boolean> {
+  const res = await db.query(
+    `UPDATE user_reminder_occurrences
+     SET status = 'skipped',
+         updated_at = now()
+     WHERE id = $1`,
+    [occurrenceId],
+  );
+  return (res.rowCount ?? 0) > 0;
+}
