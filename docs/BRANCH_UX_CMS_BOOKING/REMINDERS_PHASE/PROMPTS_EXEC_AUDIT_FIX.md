@@ -230,7 +230,7 @@ verdict: approve | rework
 - docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/EXECUTION_LOG.md — лог
 
 Обязательный код для проверки:
-- apps/webapp/migrations/048_*.sql, 049_*.sql — новые миграции
+- apps/webapp/migrations/050_*.sql, 051_*.sql — новые миграции напоминаний
 - apps/webapp/src/modules/reminders/ — types, ports, service
 - apps/webapp/src/infra/repos/pgReminderRules.ts
 - apps/webapp/src/infra/repos/pgReminderJournal.ts (новый)
@@ -251,7 +251,7 @@ verdict: approve | rework
    - [ ] Новые колонки nullable или с default (не ломают существующие строки)
    - [ ] Индексы покрывают: listByUser, listByRuleId, dueOccurrences
    - [ ] Нет DROP без IF EXISTS
-   - [ ] Порядок миграций не конфликтует с существующими (номера 048, 049)
+   - [ ] Порядок миграций не конфликтует с существующими (номера 050, 051; 048/049 в репо заняты)
 
 2. ТИПЫ И ПОРТЫ:
    - [ ] Новые поля в ReminderRule backward-compatible (optional)
@@ -669,7 +669,7 @@ verdict: approve | rework
 Обязательный код:
 - git diff main...HEAD (или git log --oneline для коммитов фазы)
 - apps/webapp/src/modules/reminders/ — весь модуль
-- apps/webapp/migrations/048_*.sql, 049_*.sql
+- apps/webapp/migrations/050_*.sql, 051_*.sql
 - apps/integrator/src/kernel/domain/executor/handlers/reminders.ts
 - apps/integrator/src/kernel/domain/usecases/handleMessage.ts
 - Все новые компоненты webapp

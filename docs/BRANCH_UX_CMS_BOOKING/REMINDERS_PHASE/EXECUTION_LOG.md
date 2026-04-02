@@ -6,16 +6,22 @@
 
 | Задача | Статус | Артефакт | Замечания |
 |--------|--------|----------|-----------|
-| S1.T01 Доменная модель | pending | | |
-| S1.T02 reminder_journal | pending | | |
-| S1.T03 Расширение occurrence_history | pending | | |
-| S1.T04 API-контракты | pending | | |
-| S1.T05 Inline keyboard layout | pending | | |
-| S1.T06 Фикс вопросов UX | pending | | |
-| S1.T07 Deep link формат | pending | | |
+| S1.T01 Доменная модель | done | `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/STAGE_1_CONTRACTS.md` | Добавлены `linked_object_type`, `linked_object_id`, `custom_title`, `custom_text` в контракт модели |
+| S1.T02 reminder_journal | done | `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/STAGE_1_CONTRACTS.md` | Полный draft SQL для расширения `reminder_rules` и создания `reminder_journal` |
+| S1.T03 Расширение occurrence_history | done | `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/STAGE_1_CONTRACTS.md` | Полный draft SQL для `snoozed_*`/`skipped_*` полей |
+| S1.T04 API-контракты | done | `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/STAGE_1_CONTRACTS.md` | Описаны request/response JSON schema для всех новых endpoint-ов |
+| S1.T05 Inline keyboard layout | done | `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/STAGE_1_CONTRACTS.md` | Зафиксированы layout, callback format, snooze/skip flow |
+| S1.T06 Фикс вопросов UX | done | `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/STAGE_1_CONTRACTS.md` | Подтверждение вопроса "да/нет" и правила anti-forward |
+| S1.T07 Deep link формат | done | `docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/STAGE_1_CONTRACTS.md` | Форматы deep link для ЛФК и разминок + fallback |
 
-**Аудит S1:** pending  
-**Фиксы S1:** —
+**Аудит S1:** rework (major замечания) -> fixed in contracts  
+**Фиксы S1:** 2026-04-02, обновлён `STAGE_1_CONTRACTS.md`:
+- Добавлены ownership/authorization invariants для всех patient API.
+- Добавлены contract-level idempotency guards для snooze/skip/done.
+- Уточнён deep-link для `lfk_complex` на маршрут с `complexId`.
+- Добавлены read-контракты `journal`/`journal stats` + источник события `done`.
+- Добавлен terminal-step для skip flow (`ack + state=idle`).
+- Синхронизирована нумерация миграций S2 с `PLAN.md` (`050`/`051`, см. также `STAGE_1_CONTRACTS.md`).
 
 ---
 
@@ -23,8 +29,8 @@
 
 | Задача | Статус | Файлы | CI |
 |--------|--------|-------|----|
-| S2.T01 Миграция 048 | pending | | |
-| S2.T02 Миграция 049 | pending | | |
+| S2.T01 Миграция 050 | pending | | `050_reminder_rules_object_links_and_journal.sql` |
+| S2.T02 Миграция 051 | pending | | `051_reminder_occurrence_actions.sql` |
 | S2.T03 types.ts + ports.ts | pending | | |
 | S2.T04 pgReminderRules | pending | | |
 | S2.T05 ReminderJournalPort | pending | | |

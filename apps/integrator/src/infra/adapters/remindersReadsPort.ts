@@ -4,6 +4,7 @@
  * On network/error returns [] or null (safe fallback).
  */
 import { createHmac } from 'node:crypto';
+import { getAppDisplayTimezoneSync } from '../../config/appTimezone.js';
 import { env, integratorWebhookSecret } from '../../config/env.js';
 import type {
   RemindersReadsPort,

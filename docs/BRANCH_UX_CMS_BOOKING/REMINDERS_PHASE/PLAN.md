@@ -47,8 +47,8 @@ STAGE 5  Тест, аудит, релиз            (1–2 дня)   — тес
 
 | ID | Задача | Файлы | Сложность |
 |----|--------|-------|-----------|
-| S2.T01 | Миграция `048_reminder_object_link.sql`: `ALTER reminder_rules ADD COLUMN linked_object_type, linked_object_id, custom_title, custom_text` | `apps/webapp/migrations/` | S |
-| S2.T02 | Миграция `049_reminder_journal.sql`: таблица `reminder_journal` (rule_id, occurrence_id, action, snooze_until, skip_reason, created_at) + индексы | `apps/webapp/migrations/` | S |
+| S2.T01 | Миграция `050_reminder_rules_object_links_and_journal.sql`: `ALTER reminder_rules` (object link + custom text) + таблица `reminder_journal` + индексы (см. `STAGE_1_CONTRACTS.md`) | `apps/webapp/migrations/` | S |
+| S2.T02 | Миграция `051_reminder_occurrence_actions.sql`: `ALTER reminder_occurrence_history` (`snoozed_*`, `skipped_*`, `skip_reason`) + индексы | `apps/webapp/migrations/` | S |
 | S2.T03 | Расширить `ReminderRule` type и `ReminderRulesPort`: добавить поля объекта, CRUD-методы (`create`, `delete`, `listByUser`) | `apps/webapp/src/modules/reminders/types.ts`, `ports.ts` | M |
 | S2.T04 | Реализовать `pgReminderRules` — новые методы: `create`, `delete`, `listByPlatformUserWithObjects` | `apps/webapp/src/infra/repos/pgReminderRules.ts` | M |
 | S2.T05 | Порт и repo для `reminder_journal`: `ReminderJournalPort` (`logAction`, `listByRule`, `statsForUser`) | Новые файлы в `modules/reminders/` и `infra/repos/` | M |

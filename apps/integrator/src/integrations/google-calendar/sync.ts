@@ -1,4 +1,4 @@
-import { env } from '../../config/env.js';
+import { getRubitimeRecordAtUtcOffsetMinutesForInstant } from '../../config/appTimezone.js';
 import { createGoogleCalendarClient, type GoogleCalendarClient, type GoogleCalendarEventInput } from './client.js';
 import { isGoogleCalendarConfigured, type GoogleCalendarConfig } from './config.js';
 import { getGoogleCalendarConfig } from './runtimeConfig.js';
@@ -37,7 +37,7 @@ function asNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-/** ISO with explicit zone is parsed as-is; naive `YYYY-MM-DD HH:mm:ss` / `T` without zone uses business offset (env). */
+/** ISO with explicit zone is parsed as-is; naive `YYYY-MM-DD HH:mm:ss` / `T` without zone uses app timezone (see appTimezone). */
 function parseRecordAtToIso(recordAt: string): string | null {
   const trimmed = recordAt.trim();
   const hasExplicitZone = /Z$/i.test(trimmed) || /[+-]\d{2}:\d{2}$/.test(trimmed);
@@ -49,7 +49,21 @@ function parseRecordAtToIso(recordAt: string): string | null {
   const naiveLocal = /^\d{4}-\d{2}-\d{2}(?: |T)\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(trimmed);
   if (naiveLocal) {
     const isoLocal = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
-    const offsetMin = env.RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES;
+    const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(isoLocal);
+    const probe =
+      parts !== null
+        ? new Date(
+            Date.UTC(
+              Number(parts[1]),
+              Number(parts[2]) - 1,
+              Number(parts[3]),
+              Number(parts[4]),
+              Number(parts[5]),
+              Number(parts[6]),
+            ),
+          )
+        : new Date();
+    const offsetMin = getRubitimeRecordAtUtcOffsetMinutesForInstant(probe);
     const sign = offsetMin >= 0 ? '+' : '-';
     const abs = Math.abs(offsetMin);
     const oh = String(Math.floor(abs / 60)).padStart(2, '0');

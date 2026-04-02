@@ -33,9 +33,17 @@ const parsed = z
     GOOGLE_REDIRECT_URI: z.string().optional().default(''),
     GOOGLE_CALENDAR_ID: z.string().optional().default(''),
     GOOGLE_REFRESH_TOKEN: z.string().optional().default(''),
-    /** Rubitime `YYYY-MM-DD HH:mm:ss` without zone: interpret as this UTC offset (minutes). Default MSK (+180). */
-    RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES: z.coerce.number().optional().default(180),
-    /** IANA timezone for booking notification text. Default: Europe/Moscow. */
+    /**
+     * Опциональный оверрайд минутного смещения UTC для наивных дат Rubitime без зоны.
+     * Если не задан — смещение берётся из IANA-зоны (APP_DISPLAY_TIMEZONE / BOOKING_DISPLAY_TIMEZONE).
+     */
+    RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES: z.preprocess(
+      (v) => (v === '' || v === undefined || v === null ? undefined : v),
+      z.coerce.number().optional(),
+    ),
+    /** Предпочтительная IANA-таймзона бизнес-времени (букинг, напоминания, логи). Пусто = см. BOOKING_DISPLAY_TIMEZONE. */
+    APP_DISPLAY_TIMEZONE: z.string().optional().default(''),
+    /** @deprecated Имя сохранено для совместимости; предпочтительно APP_DISPLAY_TIMEZONE. */
     BOOKING_DISPLAY_TIMEZONE: z.string().optional().default('Europe/Moscow'),
   })
   .parse(process.env);

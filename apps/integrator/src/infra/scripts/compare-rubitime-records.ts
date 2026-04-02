@@ -11,6 +11,7 @@
  */
 import '../../config/loadEnv.js';
 import { writeFile } from 'node:fs/promises';
+import { getRubitimeRecordAtUtcOffsetMinutesForInstant } from '../../config/appTimezone.js';
 import { createDbPort, closeDb } from '../db/client.js';
 import { fetchRubitimeRecordById } from '../../integrations/rubitime/client.js';
 
@@ -23,6 +24,8 @@ type Args = {
   minIntervalMs: number;
   retryCount: number;
   retryBaseMs: number;
+  rubitimeOffsetMinutes: number;
+  staleThresholdMinutes: number;
   sampleSize: number;
   reportFile: string | null;
   failOnMismatch: boolean;
@@ -57,6 +60,7 @@ type ComparisonResult =
   | {
     kind: 'not_found';
     recordId: string;
+    localStatus: LocalRow['status'];
     error: string;
   };
 
@@ -67,10 +71,12 @@ type Summary = {
   mismatches: number;
   apiErrors: number;
   notFound: number;
+  notFoundActive: number;
+  notFoundCanceled: number;
   samples: {
     mismatches: Array<{ recordId: string; reasons: string[] }>;
     apiErrors: Array<{ recordId: string; error: string }>;
-    notFound: Array<{ recordId: string; error: string }>;
+    notFound: Array<{ recordId: string; localStatus: LocalRow['status']; error: string }>;
   };
 };
 
@@ -105,6 +111,13 @@ function parseArgs(argv: string[]): Args {
     minIntervalMs: parsePositiveInt(lookup('--min-interval-ms='), 5200, 0, 60_000),
     retryCount: parsePositiveInt(lookup('--retry-count='), 2, 0, 20),
     retryBaseMs: parsePositiveInt(lookup('--retry-base-ms='), 5500, 100, 120_000),
+    rubitimeOffsetMinutes: parsePositiveInt(
+      lookup('--rubitime-offset-minutes='),
+      Number.isFinite(env.RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES) ? env.RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES : 180,
+      -720,
+      840,
+    ),
+    staleThresholdMinutes: parsePositiveInt(lookup('--stale-threshold-minutes='), 120, 1, 10080),
     sampleSize: parsePositiveInt(lookup('--sample-size='), 25, 1, 1000),
     reportFile: asNonEmptyString(lookup('--report-file=')),
     failOnMismatch: argv.includes('--fail-on-mismatch'),
@@ -129,12 +142,26 @@ function dateToIso(value: unknown): string | null {
   return null;
 }
 
-function rubitimeMaybeDateToIso(value: unknown): string | null {
+function rubitimeMaybeDateToIso(value: unknown, offsetMinutes: number): string | null {
   const s = asNonEmptyString(value);
   if (!s) return null;
-  if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}$/.test(s)) {
-    const d = new Date(`${s.replace(' ', 'T')}Z`);
-    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  const hasExplicitZone = /Z$/i.test(s) || /[+-]\d{2}:\d{2}$/.test(s);
+  if (hasExplicitZone) {
+    const zoned = new Date(s);
+    if (!Number.isNaN(zoned.getTime())) return zoned.toISOString();
+    return null;
+  }
+
+  const naiveLocal = /^\d{4}-\d{2}-\d{2}(?: |T)\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(s);
+  if (naiveLocal) {
+    const isoLocal = s.includes('T') ? s : s.replace(' ', 'T');
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const abs = Math.abs(offsetMinutes);
+    const oh = String(Math.floor(abs / 60)).padStart(2, '0');
+    const om = String(abs % 60).padStart(2, '0');
+    const withZone = new Date(`${isoLocal}${sign}${oh}:${om}`);
+    if (!Number.isNaN(withZone.getTime())) return withZone.toISOString();
+    return null;
   }
   const d = new Date(s);
   if (!Number.isNaN(d.getTime())) return d.toISOString();
@@ -153,7 +180,12 @@ function isRubitimeCanceled(remote: Record<string, unknown>): boolean {
   return status === '4' || status === 'canceled' || status === 'cancelled' || statusTitle.includes('отмен');
 }
 
-function compareRow(local: LocalRow, remote: Record<string, unknown>): string[] {
+function compareRow(
+  local: LocalRow,
+  remote: Record<string, unknown>,
+  offsetMinutes: number,
+  staleThresholdMinutes: number,
+): string[] {
   const reasons: string[] = [];
   const recordId = String(local.rubitime_record_id);
   const remoteId = asNonEmptyString(remote.id) ?? (remote.id != null ? String(remote.id) : null);
@@ -174,12 +206,11 @@ function compareRow(local: LocalRow, remote: Record<string, unknown>): string[] 
   }
 
   const localRecordAtIso = dateToIso(local.record_at);
-  const remoteRecordAtIso = rubitimeMaybeDateToIso(remote.record ?? remote.datetime);
+  const remoteRecordAtIso = rubitimeMaybeDateToIso(remote.record ?? remote.datetime, offsetMinutes);
   if (localRecordAtIso && remoteRecordAtIso) {
-    const localMinute = localRecordAtIso.slice(0, 16);
-    const remoteMinute = remoteRecordAtIso.slice(0, 16);
-    if (localMinute !== remoteMinute) {
-      reasons.push(`record_at mismatch local=${localRecordAtIso} remote=${remoteRecordAtIso}`);
+    const diffMin = Math.round((Date.parse(remoteRecordAtIso) - Date.parse(localRecordAtIso)) / 60_000);
+    if (diffMin !== 0) {
+      reasons.push(`record_at mismatch diffMin=${diffMin} local=${localRecordAtIso} remote=${remoteRecordAtIso}`);
     }
   }
 
@@ -199,12 +230,13 @@ function compareRow(local: LocalRow, remote: Record<string, unknown>): string[] 
   }
 
   const localUpdatedAtIso = dateToIso(local.updated_at);
-  const remoteUpdatedAtIso = rubitimeMaybeDateToIso(remote.updated_at);
+  const remoteUpdatedAtIso = rubitimeMaybeDateToIso(remote.updated_at, offsetMinutes);
   if (localUpdatedAtIso && remoteUpdatedAtIso) {
     const localTs = Date.parse(localUpdatedAtIso);
     const remoteTs = Date.parse(remoteUpdatedAtIso);
-    if (Number.isFinite(localTs) && Number.isFinite(remoteTs) && remoteTs - localTs > 5 * 60 * 1000) {
-      reasons.push(`stale local updated_at=${localUpdatedAtIso} remote updated_at=${remoteUpdatedAtIso}`);
+    const diffMin = Math.round((remoteTs - localTs) / 60_000);
+    if (Number.isFinite(localTs) && Number.isFinite(remoteTs) && diffMin > staleThresholdMinutes) {
+      reasons.push(`stale diffMin=${diffMin} local=${localUpdatedAtIso} remote=${remoteUpdatedAtIso}`);
     }
   }
 
@@ -356,6 +388,8 @@ async function main(): Promise<void> {
     mismatches: 0,
     apiErrors: 0,
     notFound: 0,
+    notFoundActive: 0,
+    notFoundCanceled: 0,
     samples: {
       mismatches: [],
       apiErrors: [],
@@ -378,6 +412,8 @@ async function main(): Promise<void> {
           minIntervalMs: args.minIntervalMs,
           retryCount: args.retryCount,
           retryBaseMs: args.retryBaseMs,
+          rubitimeOffsetMinutes: args.rubitimeOffsetMinutes,
+          staleThresholdMinutes: args.staleThresholdMinutes,
           sampleSize: args.sampleSize,
         },
       },
@@ -419,13 +455,18 @@ async function main(): Promise<void> {
               retryCount: args.retryCount,
               retryBaseMs: args.retryBaseMs,
             });
-            const reasons = compareRow(row, remote);
+            const reasons = compareRow(
+              row,
+              remote,
+              args.rubitimeOffsetMinutes,
+              args.staleThresholdMinutes,
+            );
             if (reasons.length === 0) return { kind: 'ok', recordId };
             return { kind: 'mismatch', recordId, reasons };
           } catch (err) {
             const error = err instanceof Error ? err.message : String(err);
             if (isNotFoundError(error)) {
-              return { kind: 'not_found', recordId, error };
+              return { kind: 'not_found', recordId, localStatus: row.status, error };
             }
             return { kind: 'api_error', recordId, error };
           }
@@ -447,8 +488,14 @@ async function main(): Promise<void> {
         }
         if (result.kind === 'not_found') {
           summary.notFound += 1;
+          if (result.localStatus === 'canceled') summary.notFoundCanceled += 1;
+          if (result.localStatus === 'created' || result.localStatus === 'updated') summary.notFoundActive += 1;
           if (summary.samples.notFound.length < args.sampleSize) {
-            summary.samples.notFound.push({ recordId: result.recordId, error: result.error });
+            summary.samples.notFound.push({
+              recordId: result.recordId,
+              localStatus: result.localStatus,
+              error: result.error,
+            });
           }
           continue;
         }
@@ -459,7 +506,7 @@ async function main(): Promise<void> {
       }
 
       console.log(
-        `[progress] scanned=${summary.scanned} compared=${summary.compared} matches=${summary.matches} mismatches=${summary.mismatches} notFound=${summary.notFound} apiErrors=${summary.apiErrors}`,
+        `[progress] scanned=${summary.scanned} compared=${summary.compared} matches=${summary.matches} mismatches=${summary.mismatches} notFound=${summary.notFound} (active=${summary.notFoundActive}, canceled=${summary.notFoundCanceled}) apiErrors=${summary.apiErrors}`,
       );
 
       if (args.limit > 0 && remainingLimit <= 0) break;
@@ -482,6 +529,8 @@ async function main(): Promise<void> {
       minIntervalMs: args.minIntervalMs,
       retryCount: args.retryCount,
       retryBaseMs: args.retryBaseMs,
+      rubitimeOffsetMinutes: args.rubitimeOffsetMinutes,
+      staleThresholdMinutes: args.staleThresholdMinutes,
       sampleSize: args.sampleSize,
     },
     summary,
