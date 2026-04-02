@@ -5,8 +5,11 @@ export type ReminderCategory =
   | "important"
   | "broadcast";
 
+/** Non-null variants for new object-linked rules; null = legacy category-only rule. */
+export type ReminderLinkedObjectType = "lfk_complex" | "content_section" | "content_page" | "custom";
+
 export type ReminderRule = {
-  /** integrator_rule_id (string, managed by integrator) */
+  /** integrator_rule_id (string, managed by integrator / webapp create) */
   id: string;
   integratorUserId: string;
   category: ReminderCategory;
@@ -18,6 +21,10 @@ export type ReminderRule = {
   daysMask: string;
   /** Derived from category policy (USER_TODO_STAGE §4). */
   fallbackEnabled: boolean;
+  linkedObjectType: ReminderLinkedObjectType | null;
+  linkedObjectId: string | null;
+  customTitle: string | null;
+  customText: string | null;
   updatedAt: string;
 };
 
