@@ -16,11 +16,13 @@ type InPersonProps = {
   cityCode: string;
   cityTitle: string;
   serviceTitle: string;
+  appDisplayTimeZone: string;
 };
 
 type OnlineProps = {
   type: "online";
   category: string;
+  appDisplayTimeZone: string;
 };
 
 type Props = InPersonProps | OnlineProps;
@@ -99,6 +101,7 @@ export function SlotStepClient(props: Props) {
           slots={slotsState.slotsForDate(effectiveDate)}
           selectedSlot={selectedSlot}
           onSelectSlot={setSelectedSlot}
+          appDisplayTimeZone={props.appDisplayTimeZone}
         />
       ) : null}
 

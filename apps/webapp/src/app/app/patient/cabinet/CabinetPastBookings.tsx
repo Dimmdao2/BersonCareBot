@@ -6,11 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import type { CabinetPastRow } from "./cabinetPastBookingsMerge";
 import { nativeBookingSubtitle } from "./patientBookingLabels";
 
 type Props = {
   items: CabinetPastRow[];
+  /** IANA-таймзона отображения (`system_settings.app_display_timezone`). */
+  appDisplayTimeZone: string;
 };
 
 /** В журнале прошлых приёмов не показываем нейтральное «подтверждена»; «отменена» — красным. */
@@ -39,7 +42,7 @@ function projectionPastStatusRight(status: string): ReactNode {
   return <Badge variant="outline">{status}</Badge>;
 }
 
-export function CabinetPastBookings({ items }: Props) {
+export function CabinetPastBookings({ items, appDisplayTimeZone }: Props) {
   const [open, setOpen] = useState(() => items.length > 0);
 
   return (
@@ -68,10 +71,7 @@ export function CabinetPastBookings({ items }: Props) {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
-                      {new Date(row.booking.slotStart).toLocaleString("ru-RU", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
+                      {formatBookingDateTimeMediumRu(row.booking.slotStart, appDisplayTimeZone)}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">{nativeBookingSubtitle(row.booking)}</p>
                   </div>

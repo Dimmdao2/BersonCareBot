@@ -39,6 +39,7 @@ describe("SlotStepClient", () => {
         cityCode="msk"
         cityTitle="Москва"
         serviceTitle="Сеанс"
+        appDisplayTimeZone="Europe/Moscow"
       />,
     );
 
@@ -58,6 +59,7 @@ describe("SlotStepClient", () => {
         cityCode="msk"
         cityTitle="Москва"
         serviceTitle="Сеанс"
+        appDisplayTimeZone="Europe/Moscow"
       />,
     );
 

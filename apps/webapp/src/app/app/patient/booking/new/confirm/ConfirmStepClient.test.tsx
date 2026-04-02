@@ -22,11 +22,11 @@ vi.mock("../../../cabinet/useCreateBooking", () => ({
 }));
 
 const baseProps = {
-  date: "2026-04-10",
   slotStart: "2026-04-10T10:00:00.000Z",
   slotEnd: "2026-04-10T11:00:00.000Z",
   defaultName: "Иван",
   defaultPhone: "+79990000000",
+  appDisplayTimeZone: "Europe/Moscow",
 } as const;
 
 describe("ConfirmStepClient", () => {

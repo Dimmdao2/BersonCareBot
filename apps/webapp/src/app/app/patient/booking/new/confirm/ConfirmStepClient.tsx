@@ -10,6 +10,10 @@ import type { BookingCategory } from "@/modules/patient-booking/types";
 import type { BookingSlot } from "@/modules/patient-booking/types";
 import type { BookingSelection } from "../../../cabinet/useBookingSelection";
 import { useCreateBooking } from "../../../cabinet/useCreateBooking";
+import {
+  formatBookingDateLongRu,
+  formatBookingTimeShortRu,
+} from "@/shared/lib/formatBusinessDateTime";
 
 type Props = {
   type: "in_person" | "online";
@@ -18,24 +22,13 @@ type Props = {
   branchServiceId?: string;
   serviceTitle?: string;
   category?: string;
-  date: string;
   slotStart: string;
   slotEnd: string;
   defaultName: string;
   defaultPhone: string;
+  /** IANA-таймзона отображения (`system_settings.app_display_timezone`). */
+  appDisplayTimeZone: string;
 };
-
-function formatDateRu(isoDate: string): string {
-  const d = new Date(`${isoDate}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) return isoDate;
-  return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
-}
-
-function formatTimeFromIso(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-}
 
 export function ConfirmStepClient({
   type,
@@ -44,11 +37,11 @@ export function ConfirmStepClient({
   branchServiceId,
   serviceTitle,
   category,
-  date,
   slotStart,
   slotEnd,
   defaultName,
   defaultPhone,
+  appDisplayTimeZone,
 }: Props) {
   const router = useRouter();
   const [name, setName] = useState(defaultName);
@@ -96,7 +89,8 @@ export function ConfirmStepClient({
           <li>{formatLabel}</li>
           {type === "in_person" && cityCode ? <li>Код города: {cityCode}</li> : null}
           <li>
-            Дата и время: {formatDateRu(date)} · {formatTimeFromIso(slotStart)} — {formatTimeFromIso(slotEnd)}
+            Дата и время: {formatBookingDateLongRu(slotStart, appDisplayTimeZone)} ·{" "}
+            {formatBookingTimeShortRu(slotStart, appDisplayTimeZone)} — {formatBookingTimeShortRu(slotEnd, appDisplayTimeZone)}
           </li>
         </ul>
       </div>

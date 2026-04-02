@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { BookingWizardShell } from "../BookingWizardShell";
 import { SlotStepClient } from "./SlotStepClient";
 
@@ -20,6 +21,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
   }
 
   const raw = await searchParams;
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
   const type = first(raw.type)?.trim();
   if (!type || (type !== "in_person" && type !== "online")) {
     redirect(routePaths.bookingNew);
@@ -50,6 +52,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
           cityCode={cityCode}
           cityTitle={cityTitle}
           serviceTitle={serviceTitle}
+          appDisplayTimeZone={appDisplayTimeZone}
         />
       </BookingWizardShell>
     );
@@ -68,7 +71,7 @@ export default async function BookingNewSlotPage({ searchParams }: Props) {
       backHref={routePaths.bookingNew}
       user={session.user}
     >
-      <SlotStepClient type="online" category={category} />
+      <SlotStepClient type="online" category={category} appDisplayTimeZone={appDisplayTimeZone} />
     </BookingWizardShell>
   );
 }

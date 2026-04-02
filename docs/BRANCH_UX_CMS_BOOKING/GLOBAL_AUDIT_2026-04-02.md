@@ -132,7 +132,11 @@
 
 - **Проблема:** системные расхождения `record_at` (-120/-60 мин) из-за наивных дат Rubitime без timezone; dead/pending outbox из-за неверного lookup `platform_user_id`.
 - **Решение:** централизация timezone (`appTimezone.ts`); re-sync скрипт (26 тестов); код-фикс lookup по `phoneNormalized`; runbook.
-- **Статус:** код готов, runbook написан. На prod требуется запуск re-sync + repair-outbox.
+- **Статус (prod, 2026-04-02):** точечная починка выполнена на хосте:
+  - `repair-outbox --record-ids=8059457` -> `found=0` (requeue не требовался);
+  - `rubitime_records`: `8059457` переведена в `canceled` (`manual_not_found_cleanup`);
+  - точечный fix `record_at` для `8062187` (`manual_record_at_fix`);
+  - финальный compare `/root/rubitime-compare-report-20d-final.json`: `mismatches=0`, `apiErrors=0`, `notFoundActive=0`, `notFoundCanceled=1` (допустимо).
 
 ---
 
@@ -150,6 +154,8 @@
 ---
 
 ## 7. TODO / Техдолг
+
+**Правило исполнения:** пункты техдолга выполняются только после отдельного согласования с владельцем продукта.
 
 ### Из `TODO_BACKLOG.md` (фазы 0–4)
 
@@ -185,13 +191,13 @@
 - **55 задач оригинального PLAN.md** (фазы 0–4) — все закрыты
 - **15 стадий Booking Rework** (81+ задач) — все закрыты, CI green, cutover runbook готов
 - **41 задача Reminders Phase** (S1–S5) — все закрыты, Global Audit findings исправлены, CI green
-- **Инцидент Rubitime** — обнаружен, диагностирован, код-фикс + re-sync скрипт готовы
+- **Инцидент Rubitime** — обнаружен, диагностирован, код-фикс применён; точечная prod-починка выполнена (см. §5)
 - **Миграции dev** — integrator и webapp applied (подтверждено 2026-04-02)
 - Итого: **~180+ атомарных задач** за период ветки
 
 ### Перед production release
 
-1. **Rubitime re-sync + repair-outbox** — скрипт готов, runbook `RUNBOOK_RUBITIME_RESYNC.md`; операция не выполнена на prod.
+1. **Rubitime re-sync + repair-outbox** — runbook `RUNBOOK_RUBITIME_RESYNC.md` обновлён, точечная операция на prod выполнена; поддерживать мониторинг compare-отчёта.
 2. **Booking: online-safe gate** — legacy resolve не отключается до подтверждения online intake на prod.
 3. **Миграции prod** — применяются автоматически при деплое (integrator: startup, webapp: deploy script).
 4. **Ручной smoke-test** на работающем стенде: существующие категории напоминаний, diary tabs, content sections, support relay, вопросы admin forward.
@@ -205,3 +211,41 @@
 ### Вердикт
 
 Блок разработки **«Записи в webapp и Напоминания»** выполнен по существу полностью. Код в репозитории, тесты проходят, CI green, документация актуальна. Перед production-деплоем остаётся запуск re-sync Rubitime на хосте и ручной smoke-test по чеклисту напоминаний.
+
+---
+
+## 9. План действий по приоритетам владельца (2026-04-02)
+
+### Критично
+
+1. **Email из Rubitime (autobind):**
+   - Подтвердить целевой контракт (когда автопривязываем, когда не трогаем email).
+   - Реализовать и покрыть тестами сценарии `invalid/verified/conflict`.
+   - Прогнать `pnpm run ci`, затем smoke на реальных кейсах.
+
+2. **Слоты записи под нагрузкой (cache/singleflight):**
+   - Добавить singleflight/coalescing одинаковых запросов в integrator.
+   - Добавить bounded retry/backoff для 429/временных 5xx.
+   - Добавить короткий TTL cache и stale-on-error fallback.
+   - Проверить метрики/логи и зафиксировать runbook.
+
+3. **Привязка к MAX:**
+   - Заполнить `admin_max_ids` и `doctor_max_ids` в `system_settings` (scope `admin`).
+   - Выровнять паритет flows Telegram/MAX для рабочих сценариев привязки.
+   - Добавить smoke-кейсы для link/otp/question/reminder flows в MAX.
+
+### Важно и безопасно
+
+4. **Smoke-тесты продукта:**
+   - Напоминания (старые категории + новые object/custom).
+   - Diary tabs, content sections, support relay, question confirm flow.
+   - Зафиксировать результат в `REMINDERS_PHASE/EXECUTION_LOG.md`.
+
+5. **Документация:**
+   - Обновить `SERVER CONVENTIONS`, `RUNBOOK_RUBITIME_RESYNC`, релизные чеклисты после фактических прод-операций.
+
+### Отдельно согласовать с владельцем
+
+6. **Онлайн-консультации (верстка + анкета):**
+   - Сначала согласовать exact UX, перечень вопросов и текст анкеты.
+   - Только после согласования менять `FormatStepClient`, `LfkIntakeClient`, `NutritionIntakeClient` и API-поля.

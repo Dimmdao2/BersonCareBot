@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDisplayTimezone";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
 import { DoctorHeader } from "@/shared/ui/DoctorHeader";
 import { SettingsForm } from "./SettingsForm";
@@ -64,6 +65,11 @@ export default async function SettingsPage() {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "support_contact_url")?.valueJson, "");
           const s = typeof raw === "string" ? raw.trim() : "";
           return s.length > 0 ? s : DEFAULT_SUPPORT_CONTACT_URL;
+        })(),
+        appDisplayTimezone: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "app_display_timezone")?.valueJson, "");
+          const s = typeof raw === "string" ? raw.trim() : "";
+          return s.length > 0 ? s : DEFAULT_APP_DISPLAY_TIMEZONE;
         })(),
         allowedTelegramIds: idArrayToString(adminSettingsList, "allowed_telegram_ids"),
         allowedMaxIds: idArrayToString(adminSettingsList, "allowed_max_ids"),

@@ -32,6 +32,7 @@
   "moreMenu.notifications": "🔔 Настройка уведомлений",
   "notImplemented": "Раздел в разработке.",
   "dialogMessageAccepted": "Сообщение отправлено. Ожидайте ответа.",
+  "showMyId": "Ваш ID в MAX: {{channelId}}",
   "assistant.webapp.prompt": "Откройте веб-приложение для доступа к урокам, дневникам и настройкам.",
   "assistant.webapp.openButton": "Открыть приложение",
   "reminder.dispatch": "<b>{{reminderTitle}}</b>{{#if reminderBody}}\n\n{{reminderBody}}{{/if}}",

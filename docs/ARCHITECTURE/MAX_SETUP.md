@@ -127,6 +127,8 @@ npx tsx scripts/check-max.ts
 
 При ошибках: проверьте логи интегратора (webhook received, pipeline accepted), наличие `links.webappEntryUrl` в facts для MAX (логировать при необходимости) и переменные вебапп `INTEGRATOR_WEBAPP_ENTRY_SECRET` / `APP_BASE_URL`.
 
+Команда **`/show_my_id`** в чате с ботом должна отвечать текстом с user id MAX (шаблон `max:showMyId`, сценарий `max.debug.show_my_id` в контенте интегратора). Если вместо этого приходит «Сообщение отправлено…», см. разбор приоритета сценариев в `docs/ARCHITECTURE/CONTENT_AND_SCRIPTS_FLOW.md`.
+
 ---
 
 ## 7. Ограничения и следующие задачи

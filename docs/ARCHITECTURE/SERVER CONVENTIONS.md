@@ -324,6 +324,7 @@
 
 - PostgreSQL слушает только `127.0.0.1:5432`.
 - `/opt/backups` существует.
+- `/opt/backups/scripts/postgres-backup.sh` (факт на host, 2026-04-02) пишет hourly-дампы только для `tgcarebot` и `bersoncarebot_dev`; отдельный hourly-дамп `bcb_webapp_prod` в стандартных каталогах `/opt/backups/postgres/{hourly,daily,weekly,pre-migrations,manual}` не обнаружен.
 - `/opt/env/bersoncarebot` существует и принадлежит `deploy`.
 - Команда со снимком `pg_database` в этом audit оборвалась по shell-ошибке, поэтому точные current DB owners в этот документ не включены.
 - Для базы и владельцев пока опираться на `deploy/HOST_DEPLOY_README.md`, пока не будет отдельного успешного postgres snapshot.

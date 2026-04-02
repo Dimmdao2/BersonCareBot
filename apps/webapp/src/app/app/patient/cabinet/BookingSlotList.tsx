@@ -3,20 +3,17 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { BookingSlot } from "@/modules/patient-booking/types";
+import { formatBookingTimeShortRu } from "@/shared/lib/formatBusinessDateTime";
 
 type Props = {
   slots: BookingSlot[];
   selectedSlot: BookingSlot | null;
   onSelectSlot: (slot: BookingSlot) => void;
+  /** IANA-таймзона отображения (`system_settings.app_display_timezone`). */
+  appDisplayTimeZone: string;
 };
 
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-}
-
-export function BookingSlotList({ slots, selectedSlot, onSelectSlot }: Props) {
+export function BookingSlotList({ slots, selectedSlot, onSelectSlot, appDisplayTimeZone }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -37,7 +34,8 @@ export function BookingSlotList({ slots, selectedSlot, onSelectSlot }: Props) {
                 size="sm"
                 onClick={() => onSelectSlot(slot)}
               >
-                {formatTime(slot.startAt)} - {formatTime(slot.endAt)}
+                {formatBookingTimeShortRu(slot.startAt, appDisplayTimeZone)} -{" "}
+                {formatBookingTimeShortRu(slot.endAt, appDisplayTimeZone)}
               </Button>
             );
           })}

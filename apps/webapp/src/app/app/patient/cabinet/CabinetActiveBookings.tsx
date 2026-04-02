@@ -2,12 +2,15 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PatientBookingRecord } from "@/modules/patient-booking/types";
+import { formatBookingDateTimeMediumRu } from "@/shared/lib/formatBusinessDateTime";
 import { nativeBookingSubtitle } from "./patientBookingLabels";
 
 type Props = {
   bookings: PatientBookingRecord[];
   /** Публичная ссылка на бота/поддержку (`system_settings.support_contact_url`). */
   manageBookingHref: string;
+  /** IANA-таймзона отображения (`system_settings.app_display_timezone`). */
+  appDisplayTimeZone: string;
 };
 
 function statusToBadgeVariant(status: PatientBookingRecord["status"]): "default" | "secondary" | "destructive" | "outline" {
@@ -37,7 +40,7 @@ function showManageLink(status: PatientBookingRecord["status"]): boolean {
   );
 }
 
-export function CabinetActiveBookings({ bookings, manageBookingHref }: Props) {
+export function CabinetActiveBookings({ bookings, manageBookingHref, appDisplayTimeZone }: Props) {
   if (bookings.length === 0) {
     return (
       <Card>
@@ -64,7 +67,7 @@ export function CabinetActiveBookings({ bookings, manageBookingHref }: Props) {
           >
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">
-                {new Date(row.slotStart).toLocaleString("ru-RU", { dateStyle: "medium", timeStyle: "short" })}
+                {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
               </p>
               <p className="truncate text-xs text-muted-foreground">{nativeBookingSubtitle(row)}</p>
             </div>

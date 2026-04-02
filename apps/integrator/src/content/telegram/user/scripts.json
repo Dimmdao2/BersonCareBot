@@ -234,6 +234,7 @@
 		"id": "telegram.debug.show_my_id",
 		"source": "telegram",
 		"event": "message.received",
+		"priority": 100,
 		"match": {
 			"input": { "action": "debug.show_my_id" }
 		},

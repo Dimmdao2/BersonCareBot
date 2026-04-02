@@ -8,6 +8,8 @@ import type {
   DoctorDashboardAppointmentMetrics,
 } from "@/modules/doctor-appointments/ports";
 
+/** Заполнение строки `time` перенесено в createDoctorAppointmentsService (бизнес-таймзона из system_settings). */
+
 export const CANCELLATION_LAST_EVENT_EXCLUSION_SQL = "last_event NOT IN ('event-remove-record', 'event-delete-record')";
 
 /** Для запросов с алиасом `ar`. */
@@ -22,16 +24,6 @@ export const AR_ACTIVE_UPCOMING_SQL = `ar.deleted_at IS NULL
   AND ar.status IN ('created', 'updated')
   AND ar.record_at IS NOT NULL
   AND ar.record_at >= NOW()`;
-
-function formatRecordAt(recordAt: Date | null): string {
-  if (!recordAt) return "";
-  const d = new Date(recordAt);
-  const h = d.getUTCHours().toString().padStart(2, "0");
-  const m = d.getUTCMinutes().toString().padStart(2, "0");
-  const day = d.getUTCDate().toString().padStart(2, "0");
-  const month = (d.getUTCMonth() + 1).toString().padStart(2, "0");
-  return `${h}:${m} ${day}.${month}`;
-}
 
 function getDateBounds(range: DoctorAppointmentStatsFilter["range"]): { from: string; to: string } {
   const now = new Date();
@@ -83,7 +75,8 @@ function mapListRows(
       id: row.integrator_record_id,
       clientUserId: row.user_id ?? "",
       clientLabel: (row.display_name && row.display_name.trim()) || "Неизвестный клиент",
-      time: formatRecordAt(row.record_at),
+      time: "",
+      recordAtIso: row.record_at ? row.record_at.toISOString() : null,
       type: (payload.service_title && payload.service_title.trim()) || "Запись",
       status: row.status,
       link,

@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 type RuntimeConfigValues = {
   /** HTTPS ссылка поддержки (t.me и т.п.), см. getSupportContactUrl. */
   supportContactUrl: string;
+  /** IANA-таймзона для времени записей в кабинете (см. getAppDisplayTimeZone). */
+  appDisplayTimezone: string;
   /** JSON-array strings */
   allowedTelegramIds: string;
   allowedMaxIds: string;
@@ -42,6 +44,7 @@ type Props = RuntimeConfigValues;
 
 export function RuntimeConfigSection({
   supportContactUrl,
+  appDisplayTimezone,
   allowedTelegramIds,
   allowedMaxIds,
   adminTelegramIds,
@@ -51,6 +54,7 @@ export function RuntimeConfigSection({
 }: Props) {
   const [vals, setVals] = useState({
     supportContactUrl,
+    appDisplayTimezone,
     allowedTelegramIds,
     allowedMaxIds,
     adminTelegramIds,
@@ -84,8 +88,14 @@ export function RuntimeConfigSection({
             return;
           }
         }
+        const tzRaw = vals.appDisplayTimezone.trim();
+        if (tzRaw.length > 0 && !/^[A-Za-z_]+(\/[A-Za-z_]+)*$/.test(tzRaw)) {
+          setError("Таймзона: укажите IANA-имя (например Europe/Moscow)");
+          return;
+        }
         const results = await Promise.all([
           patchSetting("support_contact_url", supportRaw),
+          patchSetting("app_display_timezone", tzRaw.length > 0 ? tzRaw : "Europe/Moscow"),
           patchSetting("allowed_telegram_ids", parseIdArray(vals.allowedTelegramIds)),
           patchSetting("allowed_max_ids", parseIdArray(vals.allowedMaxIds)),
           patchSetting("admin_telegram_ids", parseIdArray(vals.adminTelegramIds)),
@@ -127,6 +137,20 @@ export function RuntimeConfigSection({
             />
             <span className="text-xs text-muted-foreground">
               Ссылка «Написать в поддержку» в формах OTP и на странице справки. Пустое — дефолт из кода.
+            </span>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Таймзона отображения записей (IANA)</span>
+            <Input
+              type="text"
+              placeholder="Europe/Moscow"
+              value={vals.appDisplayTimezone}
+              onChange={set("appDisplayTimezone")}
+              disabled={isPending}
+              autoComplete="off"
+            />
+            <span className="text-xs text-muted-foreground">
+              Время слотов и записей в кабинете пациента и у врача. Пустое — Europe/Moscow.
             </span>
           </label>
         </div>

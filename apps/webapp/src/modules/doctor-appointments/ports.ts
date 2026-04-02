@@ -21,6 +21,8 @@ export type AppointmentRow = {
   clientUserId: string;
   clientLabel: string;
   time: string;
+  /** Момент записи (UTC ISO); если задан, сервис пересчитывает `time` в бизнес-таймзоне. */
+  recordAtIso: string | null;
   type: string;
   status: string;
   link: string | null;

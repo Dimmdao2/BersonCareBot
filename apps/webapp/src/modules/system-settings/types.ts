@@ -9,6 +9,8 @@ export const ALLOWED_KEYS = [
   // Non-secret runtime config
   /** Публичная ссылка поддержки (HTTPS), например https://t.me/… */
   "support_contact_url",
+  /** IANA-таймзона для отображения времени записей и слотов (например Europe/Moscow). */
+  "app_display_timezone",
   // Whitelist IDs
   "allowed_telegram_ids",
   "allowed_max_ids",

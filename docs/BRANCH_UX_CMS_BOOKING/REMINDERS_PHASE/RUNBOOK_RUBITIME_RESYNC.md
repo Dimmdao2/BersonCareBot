@@ -164,6 +164,105 @@ cat /tmp/repair-commit.json | python3 -m json.tool | grep -E '"found"|"requeued"
 
 ---
 
+## Модуль 3: точечная починка отдельных проблемных записей
+
+Использовать, когда по итогам `compare-rubitime-records` осталось 1-2 записи в:
+- `notFoundActive` (критично, нужно довести до 0);
+- `mismatches` (например, только `record_at mismatch`).
+
+### Шаг 3.1 — извлечь проблемные `recordId` из compare-отчёта
+
+```bash
+jq -r '.summary.samples.notFound[] | select(.localStatus=="created" or .localStatus=="updated") | .recordId' \
+  /root/rubitime-compare-report-20d.json
+```
+
+### Шаг 3.2 — проверить точечный `repair-outbox` по этим ID
+
+```bash
+cd /opt/projects/bersoncarebot && \
+ENV_FILE="/opt/env/bersoncarebot/api.prod" \
+pnpm --dir apps/integrator run rubitime:resync -- \
+  --mode=repair-outbox \
+  --record-ids=8059457 \
+  --report-file="/root/repair-outbox-8059457-dryrun.json"
+```
+
+Если `found=0`, значит для этого `recordId` нет outbox-событий, требующих requeue.
+
+### Шаг 3.3 — ручная деградация `notFoundActive` в `canceled` (точечно)
+
+```bash
+source /opt/env/bersoncarebot/api.prod && \
+psql "$DATABASE_URL" <<'SQL'
+WITH bad(record_id) AS (VALUES ('8059457'))
+UPDATE rubitime_records r
+SET status = 'canceled',
+    last_event = 'manual_not_found_cleanup',
+    updated_at = now(),
+    payload_json = COALESCE(r.payload_json, '{}'::jsonb)
+      || jsonb_build_object(
+           '_manual_cleanup',
+           jsonb_build_object(
+             'reason', 'record_not_found_in_rubitime',
+             'at', now()::text
+           )
+         )
+FROM bad
+WHERE r.rubitime_record_id = bad.record_id
+  AND r.status IN ('created','updated');
+SQL
+```
+
+### Шаг 3.4 — точечная правка `record_at mismatch` (если остался единичный drift)
+
+```bash
+source /opt/env/bersoncarebot/api.prod && \
+psql "$DATABASE_URL" <<'SQL'
+UPDATE rubitime_records
+SET record_at = '2026-04-03T14:00:00.000Z'::timestamptz,
+    last_event = 'manual_record_at_fix',
+    updated_at = now(),
+    payload_json = COALESCE(payload_json, '{}'::jsonb)
+      || jsonb_build_object(
+           '_manual_cleanup',
+           jsonb_build_object(
+             'reason', 'record_at_mismatch_minus_60',
+             'at', now()::text
+           )
+         )
+WHERE rubitime_record_id = '8062187'
+  AND status IN ('created','updated','canceled');
+SQL
+```
+
+### Шаг 3.5 — контрольный compare
+
+```bash
+cd /opt/projects/bersoncarebot && \
+ENV_FILE="/opt/env/bersoncarebot/api.prod" \
+pnpm --dir apps/integrator run rubitime:compare-records -- \
+  --active-days=20 \
+  --canceled-days=20 \
+  --limit=120 \
+  --batch-size=20 \
+  --min-interval-ms=5600 \
+  --retry-count=2 \
+  --retry-base-ms=6000 \
+  --rubitime-offset-minutes=180 \
+  --stale-threshold-minutes=120 \
+  --sample-size=200 \
+  --report-file="/root/rubitime-compare-report-20d-final.json"
+```
+
+Ожидаемое состояние после точечной починки:
+- `mismatches=0`
+- `notFoundActive=0`
+- `apiErrors=0`
+- `notFoundCanceled` может быть `>0` (допустимо для реально отсутствующих в Rubitime отменённых записей).
+
+---
+
 ## SQL-контроль до/после
 
 ### До: посмотреть состояние outbox

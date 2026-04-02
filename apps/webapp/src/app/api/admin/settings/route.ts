@@ -17,6 +17,7 @@ const ADMIN_SCOPE_KEYS = [
   "important_fallback_delay_minutes",
   "integration_test_ids",
   "support_contact_url",
+  "app_display_timezone",
   // Whitelist IDs
   "allowed_telegram_ids",
   "allowed_max_ids",

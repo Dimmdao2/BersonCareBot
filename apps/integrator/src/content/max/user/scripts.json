@@ -71,6 +71,29 @@
     ]
   },
   {
+    "id": "max.debug.show_my_id",
+    "source": "max",
+    "event": "message.received",
+    "priority": 100,
+    "match": {
+      "input": { "action": "debug.show_my_id" }
+    },
+    "steps": [
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:showMyId",
+          "vars": {
+            "channelId": "{{actor.channelUserId}}"
+          },
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      }
+    ]
+  },
+  {
     "id": "max.more.menu",
     "source": "max",
     "event": "message.received",

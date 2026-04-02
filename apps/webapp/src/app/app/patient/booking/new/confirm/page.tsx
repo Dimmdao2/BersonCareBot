@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import { BookingWizardShell } from "../BookingWizardShell";
 import { ConfirmStepClient } from "./ConfirmStepClient";
 
@@ -65,6 +66,7 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
   }
 
   const backHref = `${routePaths.bookingNewSlot}?${buildSlotBackQuery(raw)}`;
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
 
   return (
     <BookingWizardShell
@@ -81,11 +83,11 @@ export default async function BookingNewConfirmPage({ searchParams }: Props) {
         branchServiceId={first(raw.branchServiceId)}
         serviceTitle={first(raw.serviceTitle)}
         category={first(raw.category)}
-        date={date}
         slotStart={slot}
         slotEnd={slotEnd}
         defaultName={session.user.displayName}
         defaultPhone={session.user.phone ?? ""}
+        appDisplayTimeZone={appDisplayTimeZone}
       />
     </BookingWizardShell>
   );

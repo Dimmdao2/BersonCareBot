@@ -172,7 +172,7 @@
    - dedup/idempotency.
 4. `incomingEventPipeline` передает событие в domain use case.
 5. Domain use case вызывает `orchestrator.buildPlan()`.
-6. `orchestrator` выбирает content-script и возвращает список generic шагов.
+6. `orchestrator` выбирает content-script и возвращает список generic шагов (правило выбора: `priority` и `specificity`, см. `docs/ARCHITECTURE/CONTENT_AND_SCRIPTS_FLOW.md`).
 7. Domain executor преобразует шаги в:
    - `DbWriteMutation`
    - `OutgoingIntent`
