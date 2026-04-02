@@ -281,7 +281,7 @@
 - Files changed:
   - `apps/webapp/src/infra/repos/pgMediaFileIntakeResolve.ts` — `resolveMediaFileForLfkAttachment` (owner `uploaded_by`, статус не `pending`/`deleting`, `s3_key` обязателен)
   - `apps/webapp/src/infra/repos/pgOnlineIntake.ts` — INSERT `online_intake_attachments` с `attachment_type='file'`, поля из `media_files`
-- Tests: `service.test.ts` (in-memory mock map: свой файл / чужой / unknown)
+- Tests: `service.test.ts` (in-memory mock map: свой файл / чужой / unknown); `pgMediaFileIntakeResolve.test.ts` — mock `PoolClient`: успех, нет строки, чужой owner, `pending`/`deleting`, пустой `s3_key`
 
 ### S3.T03 - Persist mixed attachments (url + file)
 - Status: done
@@ -299,17 +299,18 @@
   - `apps/webapp/src/app/api/doctor/online-intake/[id]/route.ts` — join `platform_users` для имени/телефона, ответ через builder (не сырой `IntakeRequestFull`)
   - `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` — «Подробнее»: текст + ссылки URL + файлы
   - `apps/webapp/src/modules/online-intake/doctorIntakeDetailResponse.test.ts` — смешанные вложения в ответе
-- Tests: `doctorIntakeDetailResponse.test.ts`, `service.test.ts`
-- Примечание: отдельного GET пациента по id заявки нет — чужие вложения недоступны через patient API
+  - `apps/webapp/src/app/api/doctor/online-intake/[id]/route.test.ts` — роль `client` → `403` на GET деталей (пациент не читает doctor intake)
+- Tests: `doctorIntakeDetailResponse.test.ts`, `service.test.ts`, `route.test.ts` (изоляция пациента от doctor API)
+- Примечание: отдельного GET пациента по id заявки нет — чужие вложения недоступны через patient API; доступ к деталям врача у пациента блокируется `canAccessDoctor`
 
 ### S3.T05 - Финальная проверка этапа
 - Status: done
-- CI: `pnpm run ci` — pass (2026-04-02)
-- Evidence: unit-тесты выше; ручной e2e с реальной БД/S3 — на стенде после деплоя
+- CI: `pnpm run ci` — pass (после remediation Stage 3 audit; см. SHA в блоке AUDIT ниже)
+- Evidence: unit-тесты выше + `pgMediaFileIntakeResolve.test.ts` + `doctor/online-intake/[id]/route.test.ts`; чекбоксы в `STAGE_3_F03_ATTACHMENT_FILE_IDS.md` закрыты; ручной e2e с реальной БД/S3 — на стенде после деплоя
 
 ### Stage 3 - AUDIT
-- Auditor/model: Composer 2
-- Verdict: pending (код + CI; полный e2e с PG+S3 на стенде)
+- Auditor/model: Composer 2 (первичный аудит: medium — без изолированных тестов PG-резолвера и явного теста изоляции пациента)
+- Verdict (remediation): **pass** — добавлены `pgMediaFileIntakeResolve.test.ts` (ownership/status/s3_key), `app/api/doctor/online-intake/[id]/route.test.ts` (`client` → 403), обновлены `STAGE_3_F03_ATTACHMENT_FILE_IDS.md` и этот лог; локальная проверка: `pnpm run ci` — pass (2026-04-02)
 
 ---
 
@@ -387,6 +388,76 @@
 ### Stage 7 - AUDIT
 - Auditor/model: Composer 2
 - Verdict: pending
+
+---
+
+## INCIDENT FIX — BOOKING PROD (time / lifecycle / manage link)
+
+### Зафиксированные решения (scope)
+
+- Код + prod cleanup/replay для уже битых данных.
+- «Изменить» только при валидном HTTPS URL конкретной записи Rubitime (`patient_bookings.rubitime_manage_url`); без URL — кнопки нет (не `support_contact_url`).
+
+### RCA (baseline)
+
+1. **Integrator `create-record`:** время передавалось как `slotStart.slice(0, 19)` (UTC-часть ISO), без перевода instant → локальное бизнес-время → в Rubitime уезжало на −3 ч (пример UI 11:00 → 08:00).
+2. **Webapp `upsertFromRubitime`:** PostgreSQL `could not determine data type of parameter $5` в UPDATE с `CASE` по nullable snapshot-полям → `appointment.record.upserted` уходил в `projection_outbox.dead`.
+3. **Cabinet:** «Изменить» использовало `support_contact_url` вместо URL записи Rubitime.
+
+### Prod evidence (заполняет оператор на хосте)
+
+- **commit SHA / services:** _unconfirmed — `git rev-parse HEAD`, `systemctl status` для deploy units из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`._
+- **dead projection:** см. `PROD_BOOKING_INCIDENT_REMEDIATION.md` §1.
+- **Симптом времени / manage link:** зафиксированы в RCA выше.
+
+### INCIDENT.S0 — baseline + RCA
+- Status: done
+- Files: `AGENT_EXECUTION_LOG.md` (этот блок), `PROD_BOOKING_INCIDENT_REMEDIATION.md`
+
+### INCIDENT.S1 — integrator create-record time
+- Status: done
+- Files: `apps/integrator/src/config/appTimezone.ts` (`formatIsoInstantAsRubitimeRecordLocal`), `recordM2mRoute.ts`, `appTimezone.test.ts`, `recordM2mRoute.test.ts`
+
+### INCIDENT.S2 — webapp upsertFromRubitime / projection SQL
+- Status: done
+- Files: `apps/webapp/src/infra/repos/pgPatientBookings.ts` (явные `::text` / `::integer` в UPDATE, колонка `rubitime_manage_url`), `pgPatientBookings.test.ts`
+
+### INCIDENT.S3 — exact Rubitime manage link
+- Status: done
+- Files: migration `054_patient_bookings_rubitime_manage_url.sql`, `types.ts`, `ports.ts`, `events.ts`, `service.ts` + `rubitimeManageUrl.ts`, cabinet components, `inMemoryPatientBookings.ts`, `CabinetActiveBookings.test.tsx`
+- Tests: `apps/webapp/src/app/app/patient/cabinet/CabinetActiveBookings.test.tsx` — кнопка «Изменить» только для валидного HTTPS `rubitimeManageUrl`; при `null`/unsafe URL кнопки нет (без fallback в `support_contact_url`)
+
+### INCIDENT.S4 — CI
+- Status: done
+- CI: `pnpm run ci` green (lint, typecheck, integrator+webapp tests, build, audit)
+
+### INCIDENT.S5 — prod runbook
+- Status: done
+- File: `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/PROD_BOOKING_INCIDENT_REMEDIATION.md`
+- Notes: runbook расширен до operator-grade: обязательная диагностика, replay команды `requeue-projection-outbox-dead.ts` (dry-run/commit/verify), транзакционные шаблоны reconcile (wrong-time, stale-cancel, URL backfill), обязательный closeout payload
+
+### INCIDENT.S6 — post-deploy smoke
+- Status: blocked (ожидает выполнения оператором на prod; checklist и команды в `PROD_BOOKING_INCIDENT_REMEDIATION.md`)
+- Blocker: нет host evidence (SHA/services, replay IDs, reconcile IDs, smoke result)
+
+### INCIDENT.S7 — closeout
+- Status: blocked (закрывается только после S6)
+- **Residual risks:** старые строки без `rubitime_manage_url`; replay dead events нужен по факту id из prod.
+
+### INCIDENT.REMEDIATION.AUDITFIX — post-audit corrections
+- Status: done
+- Agent/model: Cursor agent
+- Files changed:
+  - `apps/webapp/src/app/app/patient/cabinet/CabinetActiveBookings.test.tsx` — UI regression coverage для exact manage link
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_LIFECYCLE_FIX/PROD_BOOKING_INCIDENT_REMEDIATION.md` — детализированный prod replay/reconcile runbook с транзакционными SQL-шаблонами
+  - `docs/BRANCH_UX_CMS_BOOKING/GLOBAL_FIX/AGENT_EXECUTION_LOG.md` — статусы S6/S7 переведены в `blocked` до фактического prod evidence
+- Tests:
+  - `pnpm -C apps/webapp test src/app/app/patient/cabinet/CabinetActiveBookings.test.tsx`
+  - `pnpm -C apps/webapp test src/infra/repos/pgPatientBookings.test.ts src/modules/patient-booking/rubitimeManageUrl.test.ts src/modules/patient-booking/service.test.ts src/modules/integrator/events.test.ts`
+- CI:
+  - `pnpm run ci` — pass (local, 2026-04-02)
+- Notes:
+  - Этот блок закрывает замечания аудита по S3/S5. S6/S7 остаются operator-dependent.
 
 ---
 

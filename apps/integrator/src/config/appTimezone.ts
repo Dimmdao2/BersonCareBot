@@ -77,3 +77,33 @@ export function getRubitimeRecordAtUtcOffsetMinutesForInstant(instant: Date): nu
   if (typeof n === 'number' && Number.isFinite(n)) return n;
   return utcOffsetMinutesFromLongOffset(getAppDisplayTimezoneSync(), instant);
 }
+
+/**
+ * ISO instant (UTC or offset) → Rubitime `record` string: `YYYY-MM-DD HH:mm:ss` in business IANA zone.
+ * Used for api2 `create-record` (Rubitime expects naive local wall time, not UTC hours from ISO slice).
+ */
+export function formatIsoInstantAsRubitimeRecordLocal(slotStartIso: string, timeZone: string): string {
+  const d = new Date(slotStartIso);
+  if (Number.isNaN(d.getTime())) {
+    throw new Error('invalid_slot_start');
+  }
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = fmt.formatToParts(d);
+  const get = (type: Intl.DateTimeFormatPart['type']) => parts.find((p) => p.type === type)?.value ?? '';
+  const y = get('year');
+  const mo = get('month');
+  const da = get('day');
+  const h = get('hour');
+  const mi = get('minute');
+  const s = get('second');
+  return `${y}-${mo}-${da} ${h}:${mi}:${s}`;
+}

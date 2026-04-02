@@ -41,6 +41,7 @@ type Row = {
   compat_quality?: string | null;
   provenance_created_by?: string | null;
   provenance_updated_by?: string | null;
+  rubitime_manage_url?: string | null;
 };
 
 function mapRow(row: Row): PatientBookingRecord {
@@ -75,6 +76,7 @@ function mapRow(row: Row): PatientBookingRecord {
     rubitimeBranchIdSnapshot: row.rubitime_branch_id_snapshot ?? null,
     rubitimeCooperatorIdSnapshot: row.rubitime_cooperator_id_snapshot ?? null,
     rubitimeServiceIdSnapshot: row.rubitime_service_id_snapshot ?? null,
+    rubitimeManageUrl: row.rubitime_manage_url ?? null,
     bookingSource: (row.source as PatientBookingRecord["bookingSource"]) ?? "native",
     compatQuality: (row.compat_quality as PatientBookingRecord["compatQuality"]) ?? null,
     provenanceCreatedBy: row.provenance_created_by ?? null,
@@ -142,16 +144,18 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     return mapRow(row);
   },
 
-  async markConfirmed(bookingId, rubitimeId) {
+  async markConfirmed(bookingId, rubitimeId, options) {
     const pool = getPool();
+    const manageUrl = options?.rubitimeManageUrl?.trim() || null;
     const result = await pool.query<Row>(
       `UPDATE patient_bookings
        SET status = 'confirmed',
            rubitime_id = COALESCE($2, rubitime_id),
+           rubitime_manage_url = COALESCE($3::text, rubitime_manage_url),
            updated_at = now()
        WHERE id = $1
        RETURNING *`,
-      [bookingId, rubitimeId],
+      [bookingId, rubitimeId, manageUrl],
     );
     const row = result.rows[0];
     return row ? mapRow(row) : null;
@@ -264,26 +268,27 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       // UPDATE path: update status and slot times; do not overwrite snapshots for native rows.
       await pool.query(
         `UPDATE patient_bookings
-         SET status = $2,
+         SET status = $2::text,
              slot_start = COALESCE($3::timestamptz, slot_start),
              slot_end   = COALESCE($4::timestamptz, slot_end),
              cancelled_at = CASE
-               WHEN $2 = 'cancelled' THEN now()
-               WHEN $2 = 'rescheduled' THEN NULL
+               WHEN $2::text = 'cancelled' THEN now()
+               WHEN $2::text = 'rescheduled' THEN NULL
                ELSE cancelled_at
              END,
-             branch_title_snapshot   = CASE WHEN source = 'rubitime_projection' AND $5 IS NOT NULL THEN $5 ELSE branch_title_snapshot END,
-             service_title_snapshot  = CASE WHEN source = 'rubitime_projection' AND $6 IS NOT NULL THEN $6 ELSE service_title_snapshot END,
-             rubitime_branch_id_snapshot   = CASE WHEN source = 'rubitime_projection' AND $7 IS NOT NULL THEN $7 ELSE rubitime_branch_id_snapshot END,
-             rubitime_service_id_snapshot  = CASE WHEN source = 'rubitime_projection' AND $8 IS NOT NULL THEN $8 ELSE rubitime_service_id_snapshot END,
-             rubitime_cooperator_id_snapshot = CASE WHEN source = 'rubitime_projection' AND $16 IS NOT NULL THEN $16 ELSE rubitime_cooperator_id_snapshot END,
-             city_code_snapshot = CASE WHEN source = 'rubitime_projection' AND $13 IS NOT NULL THEN $13 ELSE city_code_snapshot END,
+             branch_title_snapshot   = CASE WHEN source = 'rubitime_projection' AND $5::text IS NOT NULL THEN $5::text ELSE branch_title_snapshot END,
+             service_title_snapshot  = CASE WHEN source = 'rubitime_projection' AND $6::text IS NOT NULL THEN $6::text ELSE service_title_snapshot END,
+             rubitime_branch_id_snapshot   = CASE WHEN source = 'rubitime_projection' AND $7::text IS NOT NULL THEN $7::text ELSE rubitime_branch_id_snapshot END,
+             rubitime_service_id_snapshot  = CASE WHEN source = 'rubitime_projection' AND $8::text IS NOT NULL THEN $8::text ELSE rubitime_service_id_snapshot END,
+             rubitime_cooperator_id_snapshot = CASE WHEN source = 'rubitime_projection' AND $16::text IS NOT NULL THEN $16::text ELSE rubitime_cooperator_id_snapshot END,
+             city_code_snapshot = CASE WHEN source = 'rubitime_projection' AND $13::text IS NOT NULL THEN $13::text ELSE city_code_snapshot END,
              branch_id = CASE WHEN source = 'rubitime_projection' AND $11 IS NOT NULL THEN $11::uuid ELSE branch_id END,
              service_id = CASE WHEN source = 'rubitime_projection' AND $12 IS NOT NULL THEN $12::uuid ELSE service_id END,
              branch_service_id = CASE WHEN source = 'rubitime_projection' AND $10 IS NOT NULL THEN $10::uuid ELSE branch_service_id END,
-             duration_minutes_snapshot = CASE WHEN source = 'rubitime_projection' AND $14 IS NOT NULL THEN $14 ELSE duration_minutes_snapshot END,
-             price_minor_snapshot = CASE WHEN source = 'rubitime_projection' AND $15 IS NOT NULL THEN $15 ELSE price_minor_snapshot END,
-             compat_quality = CASE WHEN source = 'rubitime_projection' THEN $9 ELSE compat_quality END,
+             duration_minutes_snapshot = CASE WHEN source = 'rubitime_projection' AND $14 IS NOT NULL THEN $14::integer ELSE duration_minutes_snapshot END,
+             price_minor_snapshot = CASE WHEN source = 'rubitime_projection' AND $15 IS NOT NULL THEN $15::integer ELSE price_minor_snapshot END,
+             compat_quality = CASE WHEN source = 'rubitime_projection' THEN $9::text ELSE compat_quality END,
+             rubitime_manage_url = CASE WHEN $17::text IS NOT NULL THEN $17::text ELSE rubitime_manage_url END,
              provenance_updated_by = CASE WHEN source = 'rubitime_projection' THEN 'rubitime_external' ELSE provenance_updated_by END,
              updated_at = now()
          WHERE id = $1`,
@@ -304,6 +309,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
           merge.lookup?.durationMinutes ?? null,
           merge.lookup?.priceMinor ?? null,
           merge.effectiveRubitimeCooperatorId,
+          input.rubitimeManageUrl?.trim() || null,
         ],
       );
       return;
@@ -327,6 +333,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
          city_code_snapshot,
          branch_id, service_id, branch_service_id,
          duration_minutes_snapshot, price_minor_snapshot,
+         rubitime_manage_url,
          source, compat_quality,
          provenance_created_by,
          created_at, updated_at
@@ -340,7 +347,8 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
          $14,
          $15, $16, $17,
          $18, $19,
-         'rubitime_projection', $20,
+         $20::text,
+         'rubitime_projection', $21,
          'rubitime_external',
          now(), now()
        )
@@ -365,6 +373,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
         merge.lookup?.branchServiceId ?? null,
         merge.lookup?.durationMinutes ?? null,
         merge.lookup?.priceMinor ?? null,
+        input.rubitimeManageUrl?.trim() || null,
         merge.compatQuality,
       ],
     );

@@ -14,6 +14,7 @@ import { resolveScheduleParams } from './bookingScheduleMapping.js';
 import { isLegacyBookingProfileResolveEnabled } from './legacyResolveFlag.js';
 import { normalizeRubitimeSchedule } from './scheduleNormalizer.js';
 import { getBookingDisplayTimezone } from '../../infra/db/repos/bookingDisplayTimezone.js';
+import { formatIsoInstantAsRubitimeRecordLocal, getAppDisplayTimezoneSync } from '../../config/appTimezone.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
 import type { z } from 'zod';
 import {
@@ -419,7 +420,7 @@ export async function registerRubitimeRecordM2mRoutes(
       if (branchId === null || cooperatorId === null || serviceId === null) {
         return reply.code(400).send({ ok: false, error: 'invalid_rubitime_ids' });
       }
-      const rubitimeDatetime = input.slotStart.slice(0, 19).replace('T', ' ');
+      const rubitimeDatetime = formatIsoInstantAsRubitimeRecordLocal(input.slotStart, getAppDisplayTimezoneSync());
       const rubitimePayload: Record<string, unknown> = {
         branch_id: branchId,
         cooperator_id: cooperatorId,
@@ -460,7 +461,7 @@ export async function registerRubitimeRecordM2mRoutes(
         return reply.code(400).send({ ok: false, error: 'slots_mapping_not_configured' });
       }
 
-      const rubitimeDatetime = v1.slotStart.slice(0, 19).replace('T', ' ');
+      const rubitimeDatetime = formatIsoInstantAsRubitimeRecordLocal(v1.slotStart, getAppDisplayTimezoneSync());
 
       const rubitimePayload: Record<string, unknown> = {
         branch_id:     scheduleParams.branchId,

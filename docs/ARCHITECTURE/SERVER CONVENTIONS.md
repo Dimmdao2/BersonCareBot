@@ -324,7 +324,7 @@
 
 - PostgreSQL слушает только `127.0.0.1:5432`.
 - `/opt/backups` существует.
-- `/opt/backups/scripts/postgres-backup.sh` (факт на host, 2026-04-02) пишет hourly-дампы только для `tgcarebot` и `bersoncarebot_dev`; отдельный hourly-дамп `bcb_webapp_prod` в стандартных каталогах `/opt/backups/postgres/{hourly,daily,weekly,pre-migrations,manual}` не обнаружен.
+- Каноническая версия скрипта бэкапа в репозитории: [`deploy/postgres/postgres-backup.sh`](../../deploy/postgres/postgres-backup.sh) — **обе** production-бД: integrator (`DATABASE_URL` из `api.prod`, обычно `tgcarebot`) и webapp (`DATABASE_URL` из `webapp.prod`, обычно `bcb_webapp_prod`). На хосте ожидается установка в `/opt/backups/scripts/postgres-backup.sh` (см. [`deploy/postgres/README.md`](../../deploy/postgres/README.md)). Режимы: `pre-migrations`, `hourly`, `daily`, `manual` — см. скрипт.
 - `/opt/env/bersoncarebot` существует и принадлежит `deploy`.
 - Команда со снимком `pg_database` в этом audit оборвалась по shell-ошибке, поэтому точные current DB owners в этот документ не включены.
 - Для базы и владельцев пока опираться на `deploy/HOST_DEPLOY_README.md`, пока не будет отдельного успешного postgres snapshot.
@@ -387,7 +387,7 @@ grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/cutover.prod 2>/dev/nu
 |-----------------|---------------|-------------|
 | `INTEGRATOR_DATABASE_URL` для cutover-скриптов | В `/opt/env/bersoncarebot/cutover.prod` нет `INTEGRATOR_DATABASE_URL` (и нет `SOURCE_DATABASE_URL`) | Создать `/opt/env/bersoncarebot/cutover.prod`; взять значение `DATABASE_URL` из `/opt/env/bersoncarebot/api.prod` и записать как `INTEGRATOR_DATABASE_URL='...'`. `DATABASE_URL` в этом файле должен указывать на webapp DB из `webapp.prod`. |
 | Имена баз для psql | Не знаете, к какой базе подключаться | Из `api.prod`: `source /opt/env/bersoncarebot/api.prod && echo "$DATABASE_URL"` — в URL будет имя базы (после последнего `/`). Аналогично для webapp из `webapp.prod`. Или после п.1 смотреть вывод списка баз. |
-| Backup перед миграциями | Не уверены, что дампы создаются | Проверить наличие скрипта: `ls -la /opt/backups/scripts/postgres-backup.sh`. Запуск: `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`. Проверить появление дампов в `/opt/backups/postgres/pre-migrations/` (или путь из скрипта). |
+| Backup перед миграциями | Не уверены, что дампы создаются | Канонический скрипт: репозиторий `deploy/postgres/postgres-backup.sh` → на хосте `/opt/backups/scripts/postgres-backup.sh`. Запуск: `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`. В `/opt/backups/postgres/pre-migrations/` должны появиться **два** файла `*.dump` (integrator + webapp). |
 
 **4. После добавления переменных:** backfill/reconcile запускать с хоста (или с машины, где доступны те же env), см. `deploy/DATA_MIGRATION_CHECKLIST.md`.
 

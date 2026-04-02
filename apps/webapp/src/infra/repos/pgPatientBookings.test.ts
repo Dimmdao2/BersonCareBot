@@ -22,6 +22,7 @@ const NOW = new Date("2026-01-01T00:00:00.000Z");
 function legacyRow(id: string): Record<string, unknown> {
   return {
     id,
+    rubitime_manage_url: null,
     platform_user_id: "u1",
     booking_type: "in_person",
     city: "moscow",
@@ -192,7 +193,7 @@ describe("pgPatientBookingsPort", () => {
       expect(lookupMock).toHaveBeenCalledWith("173", "675", "99");
       const insertArgs = queryMock.mock.calls[2]![1] as unknown[];
       expect(insertArgs![16]).toBe(LOOKUP_FULL.branchServiceId);
-      expect(insertArgs![19]).toBe("full");
+      expect(insertArgs![20]).toBe("full");
     });
 
     it("compat update touches same rubitime_id with UPDATE, not second INSERT", async () => {
@@ -264,7 +265,7 @@ describe("pgPatientBookingsPort", () => {
 
       const insertArgs = queryMock.mock.calls[2]![1] as unknown[];
       expect(insertArgs![16]).toBeNull();
-      expect(insertArgs![19]).toBe("minimal");
+      expect(insertArgs![20]).toBe("minimal");
     });
   });
 });

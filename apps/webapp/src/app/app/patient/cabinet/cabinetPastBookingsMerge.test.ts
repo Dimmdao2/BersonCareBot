@@ -33,6 +33,7 @@ function makeNative(partial: Partial<PatientBookingRecord> & Pick<PatientBooking
     rubitimeBranchIdSnapshot: null,
     rubitimeCooperatorIdSnapshot: null,
     rubitimeServiceIdSnapshot: null,
+    rubitimeManageUrl: null,
     bookingSource: "native",
     compatQuality: null,
     provenanceCreatedBy: null,

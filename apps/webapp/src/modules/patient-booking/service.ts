@@ -8,6 +8,7 @@ import type {
 import type { CreatePatientBookingInput } from "./types";
 import type { BookingCatalogService } from "@/modules/booking-catalog/service";
 import { validateCreatePatientBookingInput } from "./createInputValidation";
+import { extractRubitimeManageUrlFromIntegratorCreateRaw } from "./rubitimeManageUrl";
 
 function isPostgresExclusionViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23P01";
@@ -197,7 +198,10 @@ export function createPatientBookingService(input: {
         }
         let confirmed: Awaited<ReturnType<PatientBookingsPort["markConfirmed"]>>;
         try {
-          confirmed = await input.bookingsPort.markConfirmed(pending.id, rubitimeIdTrimmed);
+          const rubitimeManageUrl = extractRubitimeManageUrlFromIntegratorCreateRaw(sync.raw);
+          confirmed = await input.bookingsPort.markConfirmed(pending.id, rubitimeIdTrimmed, {
+            rubitimeManageUrl,
+          });
         } catch (err) {
           const slotOverlap =
             (err instanceof Error && err.message === "slot_overlap") || isPostgresExclusionViolation(err);

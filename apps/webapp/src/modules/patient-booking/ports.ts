@@ -119,7 +119,11 @@ export type BookingSyncPort = {
 
 export type PatientBookingsPort = {
   createPending(input: CreatePendingPatientBookingInput): Promise<PatientBookingRecord>;
-  markConfirmed(bookingId: string, rubitimeId: string | null): Promise<PatientBookingRecord | null>;
+  markConfirmed(
+    bookingId: string,
+    rubitimeId: string | null,
+    options?: { rubitimeManageUrl?: string | null },
+  ): Promise<PatientBookingRecord | null>;
   markFailedSync(bookingId: string): Promise<void>;
   markCancelling(bookingId: string): Promise<PatientBookingRecord | null>;
   markCancelled(input: {
@@ -144,6 +148,8 @@ export type PatientBookingsPort = {
     rubitimeServiceId?: string | null;
     /** Disambiguates `booking_branch_services` when multiple specialists share branch+service. */
     rubitimeCooperatorId?: string | null;
+    /** Exact Rubitime HTTPS URL for the record (webhook / projection). */
+    rubitimeManageUrl?: string | null;
   }): Promise<void>;
   listUpcomingByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
   listHistoryByUser(userId: string, nowIso: string): Promise<PatientBookingRecord[]>;
@@ -173,5 +179,6 @@ export type PatientBookingService = {
     rubitimeBranchId?: string | null;
     rubitimeServiceId?: string | null;
     rubitimeCooperatorId?: string | null;
+    rubitimeManageUrl?: string | null;
   }): Promise<void>;
 };

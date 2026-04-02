@@ -15,7 +15,6 @@ import { CabinetPastBookings } from "./CabinetPastBookings";
 import { CabinetIntakeHistory } from "./CabinetIntakeHistory";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
-import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 
 export default async function PatientCabinetPage() {
   const session = await getOptionalPatientSession();
@@ -41,10 +40,7 @@ export default async function PatientCabinetPage() {
 
   const intakeService = getOnlineIntakeService();
   const intakeResult = await intakeService.listMyRequests({ userId: session.user.userId, limit: 10 }).catch(() => ({ items: [] }));
-  const [manageBookingHref, appDisplayTimeZone] = await Promise.all([
-    getSupportContactUrl(),
-    getAppDisplayTimeZone(),
-  ]);
+  const appDisplayTimeZone = await getAppDisplayTimeZone();
 
   return (
     <AppShell
@@ -55,11 +51,7 @@ export default async function PatientCabinetPage() {
       variant="patient"
     >
       <section className="flex flex-col gap-6">
-        <CabinetActiveBookings
-          bookings={records.upcoming}
-          manageBookingHref={manageBookingHref}
-          appDisplayTimeZone={appDisplayTimeZone}
-        />
+        <CabinetActiveBookings bookings={records.upcoming} appDisplayTimeZone={appDisplayTimeZone} />
         <CabinetInfoLinks />
         <CabinetBookingEntry />
         <CabinetIntakeHistory items={intakeResult.items} />

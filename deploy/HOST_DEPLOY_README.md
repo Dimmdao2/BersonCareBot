@@ -30,7 +30,7 @@
 | Webapp (prod) | `127.0.0.1:6200` |
 | Public integrator URL | `https://tgcarebot.bersonservices.ru` |
 | Public webapp URL | `https://webapp.bersonservices.ru` |
-| Backup script | `/opt/backups/scripts/postgres-backup.sh` |
+| Backup script | `/opt/backups/scripts/postgres-backup.sh` (источник в репо: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh)) |
 
 ### GitHub Actions (репозиторий)
 
@@ -127,16 +127,18 @@
 
 Скрипт `/opt/backups/scripts/postgres-backup.sh` вызывается с первым аргументом `pre-migrations` перед миграциями в deploy-prod и в deploy-webapp-prod.
 
+**Каноническая реализация** живёт в репозитории: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh). Установка на хост: см. [`deploy/postgres/README.md`](../postgres/README.md). Скрипт делает `pg_dump -Fc` **обеих** production-бД (integrator из `api.prod`, webapp из `webapp.prod`).
+
 **Ожидаемое поведение (оператор должен обеспечить на хосте):**
 
 1. **Вызов:** `postgres-backup.sh pre-migrations`
 2. **Назначение:** снимок БД перед применением миграций для возможности отката.
-3. **Куда писать:** каталог `/opt/backups/postgres/pre-migrations/` (или эквивалент, зафиксированный на хосте). Имена файлов — на усмотрение оператора (например, по дате/времени и имени БД).
-4. **Какие БД:**
-   - **Full prod deploy (deploy-prod.sh):** должны быть включены все БД, используемые в этом деплое: минимум БД integrator (из api.prod) и при наличии webapp unit — БД webapp (из webapp.prod). Если на хосте один скрипт дампит одну БД — оператор обязан настроить вызов так, чтобы перед миграциями создавались снимки обеих БД (или зафиксировать иначе в runbook хоста).
-   - **Webapp-only deploy (deploy-webapp-prod.sh):** должна быть включена БД webapp (DATABASE_URL из webapp.prod). Либо тот же скрипт с аргументом pre-migrations дампит только webapp, либо на хосте настроен отдельный регламент (например, отдельный скрипт или второй вызов с параметром).
+3. **Куда писать:** каталог `/opt/backups/postgres/pre-migrations/`. Имена файлов: `integrator_<dbname>_<timestamp>.dump` и `webapp_<dbname>_<timestamp>.dump` (custom format).
+4. **Какие БД:** всегда обе — integrator и webapp (см. выше). Отдельный регламент «только webapp» при webapp-only деплое не требуется: лишний дамп integrator безвреден.
 
-**Проверка на хосте:** перед первым production data move оператор должен убедиться, что при запуске `postgres-backup.sh pre-migrations` в указанном каталоге появляются дампы нужных БД.
+Режим **`hourly`** (и при необходимости `daily` / `manual`) использует те же две БД и пишет в `/opt/backups/postgres/hourly/` и т.д. — см. скрипт.
+
+**Проверка на хосте:** после установки скрипта из репо убедиться, что в `/opt/backups/postgres/pre-migrations/` появляются **два** `.dump` после `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`.
 
 ---
 

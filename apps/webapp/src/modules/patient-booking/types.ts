@@ -62,6 +62,8 @@ export type PatientBookingRecord = {
   rubitimeBranchIdSnapshot: string | null;
   rubitimeCooperatorIdSnapshot: string | null;
   rubitimeServiceIdSnapshot: string | null;
+  /** HTTPS URL to open this record in Rubitime (manage / reschedule); never bot/support fallback. */
+  rubitimeManageUrl: string | null;
   /** DB `source`: native webapp booking vs Rubitime projection compat row. */
   bookingSource: PatientBookingRowSource;
   /** Set for `rubitime_projection` rows; recomputed on each compat upsert. */

@@ -20,7 +20,7 @@
 
 **Тесты:**
 
-- [ ] request schema validates attachmentFileIds as ids.
+- [x] request schema validates attachmentFileIds as ids.
 
 **Критерии готовности:**
 
@@ -47,9 +47,9 @@
 
 **Тесты:**
 
-- [ ] file belongs to patient -> persisted.
-- [ ] чужой file id -> 403/validation error.
-- [ ] неактивный/удаленный файл -> reject.
+- [x] file belongs to patient -> persisted.
+- [x] чужой file id -> 403/validation error.
+- [x] неактивный/удаленный файл -> reject.
 
 **Критерии готовности:**
 
@@ -75,8 +75,8 @@
 
 **Тесты:**
 
-- [ ] mixed payload persists both types.
-- [ ] duplicates are rejected or normalized по контракту.
+- [x] mixed payload persists both types.
+- [x] duplicates are rejected or normalized по контракту.
 
 **Критерии готовности:**
 
@@ -101,8 +101,8 @@
 
 **Тесты:**
 
-- [ ] doctor details includes mixed attachments.
-- [ ] patient cannot read foreign request attachments.
+- [x] doctor details includes mixed attachments.
+- [x] patient cannot read foreign request attachments.
 
 **Критерии готовности:**
 

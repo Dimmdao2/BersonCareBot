@@ -124,6 +124,7 @@ function sampleRow(over: Partial<PatientBookingRecord> = {}): PatientBookingReco
     rubitimeBranchIdSnapshot: null,
     rubitimeCooperatorIdSnapshot: null,
     rubitimeServiceIdSnapshot: null,
+    rubitimeManageUrl: null,
     bookingSource: "native",
     compatQuality: null,
     provenanceCreatedBy: null,
@@ -271,7 +272,7 @@ describe("createPatientBookingService", () => {
     });
     expect(row.status).toBe("confirmed");
     expect(row.rubitimeId).toBe("123");
-    expect(bookingsPort.markConfirmed).toHaveBeenCalledWith("p-ok-rid", "123");
+    expect(bookingsPort.markConfirmed).toHaveBeenCalledWith("p-ok-rid", "123", { rubitimeManageUrl: null });
   });
 
   it("createBooking: createRecord failure calls markFailedSync", async () => {

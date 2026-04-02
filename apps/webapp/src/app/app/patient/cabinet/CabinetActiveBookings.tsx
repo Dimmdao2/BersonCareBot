@@ -11,8 +11,6 @@ import { bookingProvenancePrefix, nativeBookingSubtitle } from "./patientBooking
 
 type Props = {
   bookings: PatientBookingRecord[];
-  /** Публичная ссылка на бота/поддержку (`system_settings.support_contact_url`). */
-  manageBookingHref: string;
   /** IANA-таймзона отображения (`system_settings.app_display_timezone`). */
   appDisplayTimeZone: string;
 };
@@ -44,7 +42,7 @@ function showManageLink(status: PatientBookingRecord["status"]): boolean {
   );
 }
 
-export function CabinetActiveBookings({ bookings, manageBookingHref, appDisplayTimeZone }: Props) {
+export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
   if (bookings.length === 0) {
     return (
       <Card>
@@ -64,38 +62,45 @@ export function CabinetActiveBookings({ bookings, manageBookingHref, appDisplayT
         <CardTitle className="text-base">Активные записи</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        {bookings.map((row) => (
-          <div
-            key={row.id}
-            className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {bookingProvenancePrefix(row)}
-                {nativeBookingSubtitle(row)}
-              </p>
+        {bookings.map((row) => {
+          const manageHref = row.rubitimeManageUrl;
+          const canEdit =
+            manageHref !== null &&
+            manageHref !== "" &&
+            showManageLink(row.status) &&
+            isSafeExternalHref(manageHref);
+          return (
+            <div
+              key={row.id}
+              className="flex flex-col gap-2 rounded-lg border border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {formatBookingDateTimeMediumRu(row.slotStart, appDisplayTimeZone)}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {bookingProvenancePrefix(row)}
+                  {nativeBookingSubtitle(row)}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                <Badge variant={statusToBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>
+                {canEdit && manageHref ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    onClick={() => {
+                      openExternalLinkInMessenger(manageHref);
+                    }}
+                  >
+                    Изменить
+                  </Button>
+                ) : null}
+              </div>
             </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-              <Badge variant={statusToBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>
-              {showManageLink(row.status) ? (
-                <Button
-                  type="button"
-                  variant="link"
-                  className="h-auto min-h-0 px-0 py-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
-                  onClick={() => {
-                    if (!isSafeExternalHref(manageBookingHref)) return;
-                    openExternalLinkInMessenger(manageBookingHref);
-                  }}
-                >
-                  Изменить
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </CardContent>
     </Card>
   );

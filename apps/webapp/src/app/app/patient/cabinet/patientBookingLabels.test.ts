@@ -34,6 +34,7 @@ function baseRow(over: Partial<PatientBookingRecord> = {}): PatientBookingRecord
     rubitimeBranchIdSnapshot: null,
     rubitimeCooperatorIdSnapshot: null,
     rubitimeServiceIdSnapshot: null,
+    rubitimeManageUrl: null,
     bookingSource: "native",
     compatQuality: null,
     provenanceCreatedBy: null,

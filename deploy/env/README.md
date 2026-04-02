@@ -217,6 +217,12 @@ sudo systemctl restart bersoncarebot-webapp-prod.service
 
 ---
 
+## Backup PostgreSQL (pre-migrations / hourly)
+
+Скрипт `deploy/postgres/postgres-backup.sh` читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`** и делает дамп **обеих** БД. Установка и cron: [`deploy/postgres/README.md`](../postgres/README.md).
+
+---
+
 ## Права
 
 Если деплой падает с `Permission denied` на `/opt/env/bersoncarebot/*.prod`:

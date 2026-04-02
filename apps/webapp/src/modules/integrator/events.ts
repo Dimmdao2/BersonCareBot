@@ -778,6 +778,12 @@ export async function handleIntegratorEvent(
         coerceToString(payloadJson.specialist_id) ??
         (payloadJson.specialist_id != null ? String(payloadJson.specialist_id) : null);
 
+      const rubitimeManageUrl =
+        coerceToString(p.rubitimeManageUrl) ??
+        coerceToString(payloadJson.url) ??
+        coerceToString(payloadJson.link) ??
+        coerceToString(payloadJson.record_url);
+
       await deps.patientBooking?.applyRubitimeUpdate({
         rubitimeId,
         status: mapRubitimeStatusToPatientBookingStatus(status),
@@ -791,6 +797,7 @@ export async function handleIntegratorEvent(
         rubitimeBranchId: integratorBranchId,
         rubitimeServiceId: coerceToString(p.serviceId) ?? coerceToString(payloadJson.service_id),
         rubitimeCooperatorId,
+        rubitimeManageUrl,
       });
       return { accepted: true };
     } catch (err) {

@@ -73,6 +73,7 @@ function applyUpsertFromRubitimeToRow(id: string, row: PatientBookingRecord, inp
     rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? row.rubitimeBranchIdSnapshot,
     rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? row.rubitimeServiceIdSnapshot,
     rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? row.rubitimeCooperatorIdSnapshot,
+    rubitimeManageUrl: input.rubitimeManageUrl?.trim() || row.rubitimeManageUrl,
     compatQuality: row.bookingSource === "rubitime_projection" ? compatQuality : row.compatQuality,
     provenanceUpdatedBy:
       row.bookingSource === "rubitime_projection" ? "rubitime_external" : row.provenanceUpdatedBy,
@@ -118,6 +119,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       rubitimeBranchIdSnapshot: input.rubitimeBranchIdSnapshot,
       rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorIdSnapshot,
       rubitimeServiceIdSnapshot: input.rubitimeServiceIdSnapshot,
+      rubitimeManageUrl: null,
       bookingSource: "native",
       compatQuality: null,
       provenanceCreatedBy: null,
@@ -127,13 +129,20 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     return row;
   },
 
-  async markConfirmed(bookingId, rubitimeId) {
+  async markConfirmed(bookingId, rubitimeId, options) {
     const row = byId.get(bookingId);
     if (!row) return null;
     if (hasGlobalSlotOverlap(row.slotStart, row.slotEnd, bookingId)) {
       throw new Error("slot_overlap");
     }
-    const next = { ...row, status: "confirmed" as const, rubitimeId: rubitimeId ?? row.rubitimeId, updatedAt: new Date().toISOString() };
+    const manage = options?.rubitimeManageUrl?.trim() || null;
+    const next = {
+      ...row,
+      status: "confirmed" as const,
+      rubitimeId: rubitimeId ?? row.rubitimeId,
+      rubitimeManageUrl: manage ?? row.rubitimeManageUrl,
+      updatedAt: new Date().toISOString(),
+    };
     byId.set(bookingId, next);
     return next;
   },
@@ -273,6 +282,7 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
       rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? null,
       rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorId ?? null,
       rubitimeServiceIdSnapshot: input.rubitimeServiceId ?? null,
+      rubitimeManageUrl: input.rubitimeManageUrl?.trim() || null,
       bookingSource: "rubitime_projection",
       compatQuality,
       provenanceCreatedBy: "rubitime_external",
