@@ -182,19 +182,49 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
 
     async delete(ruleIntegratorId, platformUserId) {
       const pool = getPool();
-      const r = await pool.query<{ integrator_rule_id: string }>(
-        `DELETE FROM reminder_rules rr
-         WHERE rr.integrator_rule_id = $1
-           AND (
-             rr.platform_user_id = $2::uuid
-             OR rr.integrator_user_id IN (
-               SELECT integrator_user_id FROM platform_users WHERE id = $2::uuid
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const own = await client.query<{ id: string; integrator_rule_id: string }>(
+          `SELECT rr.id, rr.integrator_rule_id
+           FROM reminder_rules rr
+           WHERE rr.integrator_rule_id = $1
+             AND (
+               rr.platform_user_id = $2::uuid
+               OR rr.integrator_user_id IN (
+                 SELECT integrator_user_id FROM platform_users WHERE id = $2::uuid
+               )
              )
-           )
-         RETURNING rr.integrator_rule_id`,
-        [ruleIntegratorId, platformUserId],
-      );
-      return r.rows.length > 0;
+           LIMIT 1`,
+          [ruleIntegratorId, platformUserId],
+        );
+        if (own.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return false;
+        }
+        const target = own.rows[0];
+        await client.query(
+          `DELETE FROM reminder_occurrence_history
+           WHERE integrator_rule_id = $1`,
+          [target.integrator_rule_id],
+        );
+        await client.query(
+          `DELETE FROM reminder_rules
+           WHERE id = $1::uuid`,
+          [target.id],
+        );
+        await client.query("COMMIT");
+        return true;
+      } catch {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          /* ignore */
+        }
+        throw new Error("failed to delete reminder");
+      } finally {
+        client.release();
+      }
     },
 
     async updateEnabled(ruleIntegratorId, enabled) {

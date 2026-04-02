@@ -20,12 +20,24 @@ export async function notifyIntegratorRuleUpdated(rule: ReminderRule): Promise<v
     return;
   }
 
-  const timestamp = Date.now().toString();
+  const timestamp = String(Math.floor(Date.now() / 1000));
   const idempotencyKey = `rule_${rule.id}_${timestamp}`;
   const body = JSON.stringify({
     eventType: "reminder.rule.upserted",
-    rule,
     idempotencyKey,
+    payload: {
+      integratorRuleId: rule.id,
+      integratorUserId: rule.integratorUserId,
+      category: rule.category,
+      isEnabled: rule.enabled,
+      scheduleType: "interval_window",
+      timezone: "Europe/Moscow",
+      intervalMinutes: rule.intervalMinutes ?? 60,
+      windowStartMinute: rule.windowStartMinute,
+      windowEndMinute: rule.windowEndMinute,
+      daysMask: rule.daysMask,
+      contentMode: "none",
+    },
   });
   const signature = signPayload(timestamp, body, secret);
 

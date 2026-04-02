@@ -132,8 +132,8 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
-        const own = await client.query<{ rule_pk: string; snoozed_until: string | null }>(
-          `SELECT rr.id AS rule_pk, roh.snoozed_until
+        const own = await client.query<{ rule_pk: string; snoozed_until: string | null; skipped_at: string | null }>(
+          `SELECT rr.id AS rule_pk, roh.snoozed_until, roh.skipped_at
            FROM reminder_occurrence_history roh
            INNER JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
            INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
@@ -145,6 +145,10 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           return { ok: false, error: "not_found" };
         }
         const rulePk = own.rows[0].rule_pk;
+        if (own.rows[0].skipped_at) {
+          await client.query("ROLLBACK");
+          return { ok: false, error: "not_found" };
+        }
         const untilR = await client.query<{ until: string }>(
           `SELECT (now() + make_interval(mins => $1)) AS until`,
           [minutes],
@@ -164,12 +168,17 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil: existingUntil };
         }
 
-        await client.query(
+        const snoozeUpd = await client.query(
           `UPDATE reminder_occurrence_history
            SET snoozed_at = now(), snoozed_until = $2::timestamptz
-           WHERE integrator_occurrence_id = $1`,
+           WHERE integrator_occurrence_id = $1
+             AND skipped_at IS NULL`,
           [integratorOccurrenceId, snoozedUntil],
         );
+        if ((snoozeUpd.rowCount ?? 0) === 0) {
+          await client.query("ROLLBACK");
+          return { ok: false, error: "not_found" };
+        }
 
         await client.query(
           `INSERT INTO reminder_journal (rule_id, occurrence_id, action, snooze_until)

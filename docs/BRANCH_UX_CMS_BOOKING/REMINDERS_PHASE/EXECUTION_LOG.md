@@ -226,15 +226,44 @@ Rubitime API возвращает наивные даты (`YYYY-MM-DD HH:MM:SS`
 
 ## GLOBAL AUDIT
 
-**Verdict:** pending  
-**Замечания:** —
+**Verdict:** rework_required (входной global audit, 2026-04-02)  
+**Замечания:** 2 critical + 2 major (security/data/regression)
 
 ---
 
 ## GLOBAL FIX
 
-**Исправления:** —  
-**CI после фиксов:** —
+**Исправления:** 2026-04-02 — `[reminders.final-fix] address global audit remarks`
+
+- **Critical #1 (M2M sync правил):**
+  - `notifyIntegratorRuleUpdated` переведён на timestamp в секундах.
+  - Приведён payload к контракту upsert (`payload.integratorRuleId`, `integratorUserId`, `isEnabled`, schedule fields).
+  - В integrator добавлен подписанный `POST /api/integrator/reminders/rules` (`reminderRulesRoute.ts`) с валидацией и записью через `writePort` (`reminders.rule.upsert`).
+  - Route подключен в `app/routes.ts`; `dbWritePort` проброшен через `app/di.ts`.
+
+- **Critical #2 (гонка skip/snooze):**
+  - Integrator: `rescheduleReminderOccurrencePlanned` теперь не перезаписывает `skipped` occurrence (`WHERE status <> 'skipped'`).
+  - Integrator: `markReminderOccurrenceSkippedLocal` идемпотентен (`WHERE status <> 'skipped'`).
+  - Webapp: `pgReminderJournal.recordSnooze` не выполняет snooze для уже skipped occurrence (`skipped_at` guard до и во время UPDATE).
+  - In-memory journal синхронизирован с тем же guard.
+
+- **Major #1 (подтверждение вопроса):**
+  - `telegram.menu.default` больше не выполняет прямой `draft.send`.
+  - По умолчанию отправляется confirm-клавиатура `q_confirm:yes/no` (`telegram:confirmQuestion`), дальнейшая отправка остаётся только через существующий callback flow.
+
+- **Major #2 (удаление reminder/history):**
+  - `pgReminderRules.delete` переведён на транзакционный delete:
+    1) ownership-check правила,  
+    2) удаление `reminder_occurrence_history` по `integrator_rule_id`,  
+    3) удаление `reminder_rules`.
+  - Закрыт риск orphan-истории после удаления правила.
+
+**Тесты/проверки после global fix:**
+- `pnpm --dir apps/integrator test -- reminderRulesRoute.test.ts` — green.
+- `pnpm --dir apps/webapp test -- notifyIntegrator.test.ts` — green.
+- `pnpm run ci` — green.
+
+**CI после фиксов:** `pnpm run ci` green (2026-04-02)
 
 ---
 

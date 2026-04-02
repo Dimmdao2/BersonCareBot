@@ -47,11 +47,17 @@ describe("notifyIntegratorRuleUpdated", () => {
     const [url, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://integrator.example/api/integrator/reminders/rules");
     expect(opts.method).toBe("POST");
-    expect((opts.headers as Record<string, string>)["x-bersoncare-timestamp"]).toBeDefined();
+    const timestamp = (opts.headers as Record<string, string>)["x-bersoncare-timestamp"];
+    expect(timestamp).toBeDefined();
+    expect(Number(timestamp)).toBeGreaterThan(1_700_000_000);
+    expect(Number(timestamp)).toBeLessThan(4_000_000_000);
     expect((opts.headers as Record<string, string>)["x-bersoncare-signature"]).toBeDefined();
     const body = JSON.parse(opts.body as string);
     expect(body.eventType).toBe("reminder.rule.upserted");
-    expect(body.rule.id).toBe("rule-abc");
+    expect(body.payload.integratorRuleId).toBe("rule-abc");
+    expect(body.payload.integratorUserId).toBe("42");
+    expect(body.payload.scheduleType).toBe("interval_window");
+    expect(body.payload.timezone).toBe("Europe/Moscow");
     expect(body.idempotencyKey).toMatch(/^rule_rule-abc_\d+$/);
   });
 

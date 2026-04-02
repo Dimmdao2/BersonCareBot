@@ -574,7 +574,8 @@ export async function rescheduleReminderOccurrencePlanned(
          delivery_job_id = NULL,
          error_code = NULL,
          updated_at = now()
-     WHERE id = $1`,
+     WHERE id = $1
+       AND status <> 'skipped'`,
     [occurrenceId, plannedAtIso],
   );
   return (res.rowCount ?? 0) > 0;
@@ -585,7 +586,8 @@ export async function markReminderOccurrenceSkippedLocal(db: DbPort, occurrenceI
     `UPDATE user_reminder_occurrences
      SET status = 'skipped',
          updated_at = now()
-     WHERE id = $1`,
+     WHERE id = $1
+       AND status <> 'skipped'`,
     [occurrenceId],
   );
   return (res.rowCount ?? 0) > 0;

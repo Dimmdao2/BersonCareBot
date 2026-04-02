@@ -2161,21 +2161,17 @@
 				}
 			},
 			{
-				"action": "draft.send",
-				"mode": "sync",
-				"params": {
-					"source": "telegram",
-					"adminTemplateKey": "telegram:adminForward"
-				}
-			},
-			{
-				"action": "message.send",
+				"action": "message.inlineKeyboard.show",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:questionAccepted"
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:confirmQuestion",
+					"inlineKeyboard": [
+						[
+							{ "text": "Да", "callbackData": "q_confirm:yes" },
+							{ "text": "Нет", "callbackData": "q_confirm:no" }
+						]
+					]
 				}
 			}
 		]

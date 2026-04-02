@@ -68,6 +68,9 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
         });
       }
       const st = occById.get(key)!;
+      if (st.skippedAt) {
+        return { ok: false, error: "not_found" };
+      }
       const until = new Date(Date.now() + minutes * 60_000).toISOString();
       if (st.snoozedUntil === until) {
         return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil: until };

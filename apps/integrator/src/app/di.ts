@@ -106,6 +106,7 @@ export type AppDeps = {
   healthCheckDb: () => Promise<boolean>;
   getProjectionHealth: () => Promise<ProjectionHealthSnapshot>;
   smsClient: SmsClient;
+  dbWritePort: DbWritePort;
   dispatchPort: DispatchPort;
   contentPort: ContentPort;
   contentCatalogPort: ContentCatalogPort;
@@ -232,6 +233,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     healthCheckDb,
     getProjectionHealth: () => getProjectionHealth(dbPort),
     smsClient,
+    dbWritePort,
     dispatchPort,
     contentPort,
     contentCatalogPort,

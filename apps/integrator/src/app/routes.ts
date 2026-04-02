@@ -3,6 +3,7 @@ import { registerBersoncareSendSmsRoute } from '../integrations/bersoncare/sendS
 import { registerBersoncareSendEmailRoute } from '../integrations/bersoncare/sendEmailRoute.js';
 import { registerBersoncareRelayOutboundRoute } from '../integrations/bersoncare/relayOutboundRoute.js';
 import { registerBersoncareSendOtpRoute } from '../integrations/bersoncare/sendOtpRoute.js';
+import { registerBersoncareReminderRulesRoute } from '../integrations/bersoncare/reminderRulesRoute.js';
 import { registerRubitimeRecordM2mRoutes } from '../integrations/rubitime/recordM2mRoute.js';
 import { registerRubitimeAdminM2mRoutes } from '../integrations/rubitime/adminM2mRoute.js';
 import { integratorWebhookSecret } from '../config/env.js';
@@ -61,6 +62,11 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
 
   await registerBersoncareSendOtpRoute(app, {
     dispatchPort: deps.dispatchPort,
+    sharedSecret: integratorWebhookSecret(),
+  });
+
+  await registerBersoncareReminderRulesRoute(app, {
+    writePort: deps.dbWritePort,
     sharedSecret: integratorWebhookSecret(),
   });
 
