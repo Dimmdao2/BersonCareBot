@@ -26,6 +26,10 @@ const baseRule: ReminderRule = {
   windowEndMinute: 1200,
   daysMask: "1111100",
   fallbackEnabled: true,
+  linkedObjectType: null,
+  linkedObjectId: null,
+  customTitle: null,
+  customText: null,
   updatedAt: "2025-01-01T00:00:00.000Z",
 };
 

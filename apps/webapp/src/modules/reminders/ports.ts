@@ -16,6 +16,8 @@ export type ReminderRuleCreateInput = {
 };
 
 export type ReminderRulesPort = {
+  /** Bigint string as stored for integrator_user_id / reminder_rules. */
+  resolveIntegratorUserId(platformUserId: string): Promise<string | null>;
   listByPlatformUser(platformUserId: string): Promise<ReminderRule[]>;
   /** Rules for unified management UI, newest first. */
   listByPlatformUserWithObjects(platformUserId: string): Promise<ReminderRule[]>;

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue({
-    rows: [
+        rows: [
       {
         integrator_rule_id: "r1",
         integrator_user_id: "99",
@@ -12,6 +12,10 @@ const queryMock = vi.hoisted(() =>
         window_start_minute: 480,
         window_end_minute: 1200,
         days_mask: "1111100",
+        linked_object_type: null,
+        linked_object_id: null,
+        custom_title: null,
+        custom_text: null,
         updated_at: "2025-01-01T00:00:00.000Z",
       },
     ],
