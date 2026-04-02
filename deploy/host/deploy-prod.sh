@@ -118,9 +118,23 @@ sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
 
 if [ -e "/etc/systemd/system/${WEBAPP_SERVICE}" ] && [ -f "${WEBAPP_ENV_FILE}" ]; then
   sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
-  chunk_http_code="$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:6200/_next/static/chunks/${sample_chunk}")"
-  if [ "${chunk_http_code}" != "200" ]; then
-    fail "Chunk is not served after webapp restart: /_next/static/chunks/${sample_chunk} (HTTP ${chunk_http_code})"
+  # Next may not listen on 6200 immediately; curl exits 7 on connection refused — retry like /health below.
+  chunk_url="http://127.0.0.1:6200/_next/static/chunks/${sample_chunk}"
+  chunk_http_code=""
+  chunk_ok=0
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    chunk_http_code="$(curl -s -o /dev/null -w "%{http_code}" "${chunk_url}" 2>/dev/null)" || true
+    if [ "${chunk_http_code}" = "200" ]; then
+      chunk_ok=1
+      break
+    fi
+    if [ "$i" -eq 10 ]; then
+      break
+    fi
+    sleep 2
+  done
+  if [ "${chunk_ok}" != "1" ]; then
+    fail "Chunk is not served after webapp restart: /_next/static/chunks/${sample_chunk} (last HTTP ${chunk_http_code:-<none>})"
   fi
 fi
 
