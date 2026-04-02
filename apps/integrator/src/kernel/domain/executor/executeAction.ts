@@ -709,6 +709,11 @@ export async function executeAction(
       if (!deps.writePort || !deps.readPort) {
         return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
       }
+      const skipReasonWait =
+        typeof ctx.base.conversationState === 'string' && ctx.base.conversationState.startsWith('waiting_skip_reason:');
+      if (skipReasonWait) {
+        return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_OPEN_BLOCKED_SKIP_REASON' };
+      }
       const externalId = readExternalActorId(ctx);
       const source = asString(action.params.source) ?? ctx.event.meta.source;
       const adminChatId = asNumber(asRecord(ctx.base.facts).adminChatId);

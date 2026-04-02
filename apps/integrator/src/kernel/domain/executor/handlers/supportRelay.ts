@@ -49,6 +49,11 @@ export async function handleConversationUserMessage(
   if (!deps.readPort) {
     return { actionId: action.id, status: 'skipped', error: 'READ_PORT_REQUIRED' };
   }
+  /** Reminder skip free-text must never be relayed to admin (S3.T07). Defense in depth if routing mis-orders scripts. */
+  const convState = typeof ctx.base.conversationState === 'string' ? ctx.base.conversationState : '';
+  if (convState.startsWith('waiting_skip_reason:')) {
+    return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_BLOCKED_SKIP_REASON' };
+  }
   const externalId = readExternalActorId(ctx);
   const source = asString(action.params.source) ?? ctx.event.meta.source;
   const adminChannel = ctx.event.meta.source;

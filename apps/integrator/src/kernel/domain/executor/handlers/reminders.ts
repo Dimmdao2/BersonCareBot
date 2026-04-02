@@ -19,6 +19,10 @@ import {
   reminderPresetConfig,
 } from '../../reminders/policy.js';
 import { buildPatientReminderDeepLink } from '../../reminders/buildPatientReminderDeepLink.js';
+import {
+  buildReminderDispatchInlineKeyboard,
+  buildReminderSkipReasonInlineKeyboard,
+} from '../../reminders/reminderInlineKeyboard.js';
 import { REMINDER_BY_CATEGORY } from '../templateKeys.js';
 
 function escapeReminderHtml(text: string): string {
@@ -229,17 +233,10 @@ export async function handleReminders(
             linkedObjectId: rule?.linkedObjectId ?? null,
           })) || buildPatientReminderDeepLink({ linkedObjectType: null, linkedObjectId: null });
 
-      const replyMarkup = {
-        inline_keyboard: [
-          [{ text: 'Открыть видео', url: openUrl }],
-          [
-            { text: 'Отложить 30м', callback_data: `rem_snooze:${occ.id}:30` },
-            { text: 'Отложить 60м', callback_data: `rem_snooze:${occ.id}:60` },
-            { text: 'Отложить 120м', callback_data: `rem_snooze:${occ.id}:120` },
-          ],
-          [{ text: 'Пропущу сегодня', callback_data: `rem_skip:${occ.id}` }],
-        ],
-      };
+      const replyMarkup = buildReminderDispatchInlineKeyboard({
+        openUrl,
+        occurrenceId: occ.id,
+      });
 
       type ChannelIdentity = { resource: string; externalId: string; chatId: number };
       const allIdentities = await deps.readPort.readDb<ChannelIdentity[]>({
@@ -392,19 +389,7 @@ export async function handleReminders(
         audience: 'user',
       })).text
       : 'Почему пропускаете?';
-    const replyMarkup = {
-      inline_keyboard: [
-        [
-          { text: 'Боль/дискомфорт', callback_data: `rem_skip_r:${occurrenceId}:pain` },
-          { text: 'Нет времени', callback_data: `rem_skip_r:${occurrenceId}:time` },
-        ],
-        [
-          { text: 'Плохо себя чувствую', callback_data: `rem_skip_r:${occurrenceId}:fatigue` },
-          { text: 'Другая причина', callback_data: `rem_skip_r:${occurrenceId}:other` },
-        ],
-        [{ text: 'Без комментария', callback_data: `rem_skip_r:${occurrenceId}:none` }],
-      ],
-    };
+    const replyMarkup = buildReminderSkipReasonInlineKeyboard(occurrenceId);
     const src = resource === 'max' ? 'max' : 'telegram';
     return {
       actionId: action.id,
@@ -415,7 +400,7 @@ export async function handleReminders(
         payload: {
           recipient: { chatId },
           message: { text: title },
-          replyMarkup,
+          ...(replyMarkup.inline_keyboard.length > 0 ? { replyMarkup } : {}),
           delivery: { channels: [src], maxAttempts: 1 },
         },
       }],

@@ -65,8 +65,13 @@
 | S3.T08 MAX адаптация | done | `max/mapIn.ts` прокидывает те же поля callback, что Telegram (`normalizeDynamicTelegramAction`) | green |
 | S3.T09 Тесты | done | Webapp `snooze/route.test.ts`, `skip/route.test.ts`; integrator `telegram/mapIn.test.ts`, `max/mapIn.test.ts` | green |
 
-**Аудит S3:** pending  
+**Аудит S3:** approve (post-fix: critical/major из аудита S3 закрыты)  
 **Фиксы S3:** 2026-04-02 — `incomingEventPipeline`: тип и spread `remindersWebappWritesPort`; ESLint `no-useless-assignment` в `handlers/reminders.ts` (инициализация `reminderTitle`).  
+**Фиксы S3:** 2026-04-02 — `[S3.fix] address audit remarks`:
+- **Skip reason → админ (critical):** defense in depth — при `conversationState` `waiting_skip_reason:*` не выполняется пересылка в support relay (`handleConversationUserMessage` в `supportRelay.ts`) и не открывается новый диалог с первым сообщением в админ (`conversation.openWithMessage` в `executeAction.ts`).
+- **callback_data ≤ 64 байт (major):** вынесено в `reminderInlineKeyboard.ts` (`buildReminderDispatchInlineKeyboard`, `buildReminderSkipReasonInlineKeyboard`); при превышении лимита строки snooze/skip не добавляются (остаётся deep link); для экрана причин клавиатура опускается, если пресеты не помещаются.
+- **MAX (major, частично):** в `content/max/user/templates.json` добавлены строки для сценария вопроса (`describeQuestion`, `confirmQuestion`, `questionAccepted`, `questionCancelled`) — паритет текстов с Telegram; полные max-скрипты `q_confirm`/draft не добавлялись (нет entry-point в меню MAX в рамках узкого scope).
+- Тесты: `reminderInlineKeyboard.test.ts`.  
 **CI после S3:** `pnpm run ci` green (2026-04-02)
 
 ---
