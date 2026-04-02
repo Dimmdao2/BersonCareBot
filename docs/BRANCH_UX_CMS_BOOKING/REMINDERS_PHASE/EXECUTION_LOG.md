@@ -29,19 +29,20 @@
 
 | Задача | Статус | Файлы | CI |
 |--------|--------|-------|----|
-| S2.T01 Миграция 050 | pending | | `050_reminder_rules_object_links_and_journal.sql` |
-| S2.T02 Миграция 051 | pending | | `051_reminder_occurrence_actions.sql` |
-| S2.T03 types.ts + ports.ts | pending | | |
-| S2.T04 pgReminderRules | pending | | |
-| S2.T05 ReminderJournalPort | pending | | |
-| S2.T06 service расширение | pending | | |
-| S2.T07 API route handlers | pending | | |
-| S2.T08 Integrator-facing API | pending | | |
-| S2.T09 buildAppDeps wiring | pending | | |
-| S2.T10 Тесты | pending | | |
+| S2.T01 Миграция 050 | done | `apps/webapp/migrations/050_reminder_rules_object_links_and_journal.sql` | green |
+| S2.T02 Миграция 051 | done | `apps/webapp/migrations/051_reminder_occurrence_actions.sql` | green |
+| S2.T03 types.ts + ports.ts | done | `modules/reminders/types.ts`, `ports.ts` | green |
+| S2.T04 pgReminderRules | done | `infra/repos/pgReminderRules.ts`, `inMemoryReminderRules.ts` | green |
+| S2.T05 ReminderJournalPort | done | `reminderJournalPort.ts`, `pgReminderJournal.ts`, `inMemoryReminderJournal.ts` | green |
+| S2.T06 service расширение | done | `modules/reminders/service.ts` | green |
+| S2.T07 API route handlers | done | `app/api/patient/reminders/create`, `[id]`, `[id]/snooze`, `[id]/skip` | green |
+| S2.T08 Integrator-facing API | done | `pgReminderProjection`, `buildReminderDeepLink.ts` | green |
+| S2.T09 buildAppDeps wiring | done | `app-layer/di/buildAppDeps.ts` | green |
+| S2.T10 Тесты | done | `modules/reminders/service.test.ts` | green |
 
 **Аудит S2:** pending  
-**Фиксы S2:** —
+**Фиксы S2:** —  
+**CI после S2:** `pnpm run ci` green (2026-04-02)
 
 ---
 
