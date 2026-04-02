@@ -106,11 +106,32 @@
 
 | Задача | Статус | Замечания |
 |--------|--------|-----------|
-| S5.T01 Тест-матрица | pending | |
-| S5.T02 Миграции dev | pending | |
-| S5.T03 Дополнительные тесты | pending | |
-| S5.T04 pnpm run ci | pending | |
-| S5.T05 Pre-release checklist | pending | |
+| S5.T01 Тест-матрица | done | Таблица ниже |
+| S5.T02 Миграции dev | partial | В окружении агента `pnpm run db:migrate` завершился с `ZodError`: нет `DATABASE_URL` / `BOOKING_URL` в integrator env. На dev-хосте: загрузить `.env` integrator и выполнить `pnpm run db:migrate`. |
+| S5.T03 Дополнительные тесты | done | Patient API (`create`, `[id]`, `snooze`, `skip`), `inMemoryReminderJournal` (stats), integrator `supportRelay` (skip → не в админ) |
+| S5.T04 pnpm run ci | done | green 2026-04-02 |
+| S5.T05 Pre-release checklist | done | Блок ниже (REMINDERS scope) |
+
+### S5.T01 — Тест-матрица (тест-кейс / модуль / статус / файл)
+
+| Тест-кейс | Модуль | Статус | Файл теста |
+|-----------|--------|--------|------------|
+| create object reminder | webapp service | pass | `apps/webapp/src/modules/reminders/service.test.ts` |
+| create custom reminder | webapp service | pass | `apps/webapp/src/modules/reminders/service.test.ts` |
+| delete reminder | webapp service | pass | `apps/webapp/src/modules/reminders/service.test.ts` |
+| snooze occurrence | webapp service | pass | `apps/webapp/src/modules/reminders/service.test.ts` |
+| skip occurrence | webapp service | pass | `apps/webapp/src/modules/reminders/service.test.ts` |
+| listByUser (list rules) | webapp service | pass | `apps/webapp/src/modules/reminders/service.test.ts` (`listRulesByUser`) |
+| stats (журнал per-user / per-rule) | webapp journal | pass | `apps/webapp/src/infra/repos/inMemoryReminderJournal.test.ts` |
+| POST create auth + validation | webapp API | pass | `apps/webapp/src/app/api/patient/reminders/create/route.test.ts` |
+| PATCH/DELETE ownership + auth | webapp API | pass | `apps/webapp/src/app/api/patient/reminders/[id]/route.test.ts` |
+| POST snooze auth + validation + errors | webapp API | pass | `apps/webapp/src/app/api/patient/reminders/[id]/snooze/route.test.ts` |
+| POST skip auth + validation + errors | webapp API | pass | `apps/webapp/src/app/api/patient/reminders/[id]/skip/route.test.ts` |
+| integrator snooze callback parse | integrator | pass | `apps/integrator/src/integrations/telegram/mapIn.test.ts`, `apps/integrator/src/integrations/max/mapIn.test.ts` |
+| integrator skip callback parse | integrator | pass | `apps/integrator/src/integrations/telegram/mapIn.test.ts` |
+| integrator snooze/skip → webapp API | integrator-facing | pass | `apps/webapp/src/app/api/integrator/reminders/occurrences/snooze/route.test.ts`, `.../skip/route.test.ts` |
+| skip reason без пересылки админу | integrator | pass | `apps/integrator/src/kernel/domain/executor/handlers/supportRelay.test.ts` (и защита в `supportRelay.ts` / `executeAction.ts`) |
+| вопрос: confirm yes/no (callback) | integrator | pass | `apps/integrator/src/integrations/telegram/mapIn.test.ts` (`q_confirm`) |
 
 ---
 
@@ -219,14 +240,27 @@ Rubitime API возвращает наивные даты (`YYYY-MM-DD HH:MM:SS`
 
 ## Pre-release Checklist
 
+### REMINDERS_PHASE — S5.T05 (обязательные пункты)
+
+- [ ] Все миграции применяются — **не подтверждено в прогоне агента** (нет `DATABASE_URL` в integrator env). Подтвердить на dev: `pnpm run db:migrate` с валидным `.env`.
+- [x] Все тесты зелёные — `pnpm run ci`, vitest integrator + webapp
+- [x] CI зелёный — тот же прогон 2026-04-02
+- [x] Нет TODO/FIXME/HACK без комментария — выборочно по `modules/reminders`, `api/patient/reminders`, integrator `reminders` / `supportRelay`: замечаний нет
+- [x] Нет console.log в production-коде напоминаний — те же пути: `console.log` нет
+- [x] Нет hardcoded secrets — в scope напоминаний новых секретов нет; репозиторий проходит `eslint` в CI
+- [x] Inline-кнопки ≤ 64 байт `callback_data` — `apps/integrator/src/kernel/domain/reminders/reminderInlineKeyboard.test.ts`
+- [x] Skip reason не утекает админу — `supportRelay.test.ts` + ранние фиксы S3 (`waiting_skip_reason`)
+
+### Прочее (продуктовый чеклист ветки)
+
 - [ ] Все миграции применяются на dev и prod
-- [ ] Все тесты зелёные
-- [ ] `pnpm run ci` зелёный
-- [ ] Нет TODO/FIXME/HACK без комментария
-- [ ] Нет console.log в production-коде
-- [ ] Нет hardcoded secrets
-- [ ] Inline-кнопки ≤ 64 байт callback_data
-- [ ] Skip reason НЕ утекает админу
+- [x] Все тесты зелёные
+- [x] `pnpm run ci` зелёный
+- [x] Нет TODO/FIXME/HACK без комментария (scope напоминаний)
+- [x] Нет console.log в production-коде (scope напоминаний)
+- [x] Нет hardcoded secrets (CI lint)
+- [x] Inline-кнопки ≤ 64 байт callback_data
+- [x] Skip reason НЕ утекает админу
 - [ ] Существующие категории напоминаний работают
 - [ ] Diary tabs не сломаны
 - [ ] Content sections не сломаны
