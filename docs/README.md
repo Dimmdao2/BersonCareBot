@@ -74,6 +74,7 @@ Cutover/backfill/reconcile env для prod/dev: **docs/ARCHITECTURE/SERVER CONVE
 | **DECOMPOSITION_MODEL.md** | Шаблоны задач, аудита, цикл выполнения, правила выбора моделей. |
 | **AGENT_LOG.md** | Лог выполнения задач (заполняется агентами). |
 | **PROMPTS.md** | Готовые промпты для каждого этапа (copy-paste). |
+| **GLOBAL_AUDIT_2026-04-02.md** | Глобальный аудит блока: записи + напоминания, вердикт, техдолг. |
 
 #### REMINDERS_PHASE/ — механика напоминаний (2026-04)
 

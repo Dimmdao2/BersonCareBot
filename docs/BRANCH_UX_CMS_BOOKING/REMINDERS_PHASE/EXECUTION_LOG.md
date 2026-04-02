@@ -271,7 +271,7 @@ Rubitime API возвращает наивные даты (`YYYY-MM-DD HH:MM:SS`
 
 ### REMINDERS_PHASE — S5.T05 (обязательные пункты)
 
-- [ ] Все миграции применяются — **не подтверждено в прогоне агента** (нет `DATABASE_URL` в integrator env). Подтвердить на dev: `pnpm run db:migrate` с валидным `.env`.
+- [x] Все миграции применяются — **подтверждено на dev 2026-04-02**: integrator (`ENV_FILE=.../.env pnpm --dir apps/integrator run db:migrate` — 4 applied), webapp (`pnpm --dir apps/webapp run migrate` — 050+051 already applied). Prod — при деплое.
 - [x] Все тесты зелёные — `pnpm run ci`, vitest integrator + webapp
 - [x] CI зелёный — тот же прогон 2026-04-02
 - [x] Нет TODO/FIXME/HACK без комментария — выборочно по `modules/reminders`, `api/patient/reminders`, integrator `reminders` / `supportRelay`: замечаний нет
@@ -282,7 +282,7 @@ Rubitime API возвращает наивные даты (`YYYY-MM-DD HH:MM:SS`
 
 ### Прочее (продуктовый чеклист ветки)
 
-- [ ] Все миграции применяются на dev и prod
+- [x] Все миграции применяются на dev (подтверждено 2026-04-02); prod — при деплое
 - [x] Все тесты зелёные
 - [x] `pnpm run ci` зелёный
 - [x] Нет TODO/FIXME/HACK без комментария (scope напоминаний)
