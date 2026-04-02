@@ -10,9 +10,16 @@
  * Мы возвращаем только available=true слоты с ISO startAt/endAt.
  * endAt вычисляется как startAt + durationMinutes.
  *
+ * Время в ответе Rubitime — настенные часы филиала (для продукта = MSK, как webapp
+ * `DEFAULT_SLOT_TZ +03:00`). Раньше ошибочно использовался Date.UTC, из‑за чего
+ * «10:00» превращалось в 10:00 UTC вместо 10:00 MSK.
+ *
  * Если data не совпадает с ожидаемым shape — бросаем ошибку, чтобы caller мог
  * вернуть 502, а не silent empty.
  */
+
+/** Согласовано с webapp `bookingM2mApi` (MSK). */
+const RUBITIME_SLOT_WALL_OFFSET = '+03:00';
 
 export type NormalizedSlot = {
   startAt: string;
@@ -41,18 +48,13 @@ function buildIsoSlot(
   const m = parseInt(minuteStr, 10);
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
 
-  // Rubitime schedule has no timezone. Keep wall-clock time semantics:
-  // use UTC math to avoid server local timezone shifts.
-  const year = Number.parseInt(dateStr.slice(0, 4), 10);
-  const month = Number.parseInt(dateStr.slice(5, 7), 10);
-  const day = Number.parseInt(dateStr.slice(8, 10), 10);
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
-  const startMsUtc = Date.UTC(year, month - 1, day, h, m, 0, 0);
-  if (!Number.isFinite(startMsUtc)) return null;
-  const endMsUtc = startMsUtc + durationMinutes * 60 * 1000;
-  const startAt = new Date(startMsUtc).toISOString().slice(0, 19);
-  const endAt = new Date(endMsUtc).toISOString().slice(0, 19);
-  return { startAt, endAt };
+  const hh = hourStr.padStart(2, '0');
+  const mm = minuteStr.padStart(2, '0');
+  const isoLocal = `${dateStr}T${hh}:${mm}:00`;
+  const start = new Date(`${isoLocal}${RUBITIME_SLOT_WALL_OFFSET}`);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+  return { startAt: start.toISOString(), endAt: end.toISOString() };
 }
 
 /**

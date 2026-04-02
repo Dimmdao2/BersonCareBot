@@ -32,6 +32,9 @@ import { telegramConfig } from '../telegram/config.js';
 import { maxConfig } from '../max/config.js';
 import { ERR_LEGACY_RESOLVE_DISABLED } from './internalContract.js';
 
+/** Rubitime API2 `create-record` requires `status` (numeric status id; 0 matches get-record/update-record tests). */
+const RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0;
+
 const WINDOW_SECONDS = 300;
 
 type ReqWithRawBody = FastifyRequest & { rawBody?: string };
@@ -422,6 +425,7 @@ export async function registerRubitimeRecordM2mRoutes(
         cooperator_id: cooperatorId,
         service_id: serviceId,
         record: rubitimeDatetime,
+        status: RUBITIME_CREATE_RECORD_DEFAULT_STATUS,
         name: input.patient.name,
         phone: input.patient.phone,
       };
@@ -463,6 +467,7 @@ export async function registerRubitimeRecordM2mRoutes(
         cooperator_id: scheduleParams.cooperatorId,
         service_id:    scheduleParams.serviceId,
         record:        rubitimeDatetime,
+        status:        RUBITIME_CREATE_RECORD_DEFAULT_STATUS,
         name:          v1.contactName,
         phone:         v1.contactPhone,
       };

@@ -11,6 +11,7 @@
 | AUDIT-BACKLOG-022 | `app/app/doctor/layout.tsx` | open | Отдельный десктоп-layout с sidebar (STAGE_02). |
 | AUDIT-BACKLOG-023 | `modules/auth/channelLink.ts` | open | Уведомления при конфликте привязки канала. |
 | AUDIT-BACKLOG-024 | `infra/repos/pgUserProjection.ts` | open | Доработки autobind email из Rubitime (invalid/verified/conflict). |
+| AUDIT-BACKLOG-025 | integrator / Rubitime API2 | open | Хранить маппинг числовых статусов Rubitime (`status` в create-record / вебхуках) в нормальном виде: справочник id → человекочитаемая метка (подтверждено: **0 = «записан»**). Сейчас в `recordM2mRoute` захардкожен `RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0`; при смене кабинета/статусов в Rubitime нужна конфигурация в `system_settings` (scope admin) или таблица + админка, не env. |
 
 ## Закрыто в рамках remediation
 

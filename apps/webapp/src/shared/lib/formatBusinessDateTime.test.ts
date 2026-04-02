@@ -4,6 +4,7 @@ import {
   formatBookingDateTimeMediumRu,
   formatBookingTimeShortRu,
   formatDoctorAppointmentRecordAt,
+  parseBusinessInstant,
 } from "./formatBusinessDateTime";
 
 describe("formatBusinessDateTime", () => {
@@ -30,5 +31,15 @@ describe("formatBusinessDateTime", () => {
 
   it("formatDoctorAppointmentRecordAt returns empty for null", () => {
     expect(formatDoctorAppointmentRecordAt(null, msk)).toBe("");
+  });
+
+  it("parseBusinessInstant treats naive ISO as MSK wall when display zone is Moscow", () => {
+    const d = parseBusinessInstant("2026-04-10T10:00:00", msk);
+    expect(d.toISOString()).toBe("2026-04-10T07:00:00.000Z");
+  });
+
+  it("parseBusinessInstant leaves explicit Z unchanged", () => {
+    const d = parseBusinessInstant("2026-04-10T07:00:00.000Z", msk);
+    expect(d.toISOString()).toBe("2026-04-10T07:00:00.000Z");
   });
 });

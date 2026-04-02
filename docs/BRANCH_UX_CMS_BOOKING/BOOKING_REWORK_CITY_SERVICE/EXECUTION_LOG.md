@@ -990,3 +990,17 @@
   - при burst одинаковых запросов нет лавины в Rubitime;
   - кратковременный 429 не приводит к массовому `slots_unavailable` в UI;
   - поведение покрыто тестами интеграционного слоя Rubitime (`client/route`).
+
+---
+
+## Rubitime: обязательное поле `status` в API2 create-record (2026-04-02)
+
+### RUBI.T01 — Исправление падения подтверждения записи (шаг 4 wizard)
+- Status: done
+- Finished at: 2026-04-02
+- **Ошибка в проде (webapp):** при нажатии «Подтвердить запись» на шаге подтверждения отображалось `RUBITIME_API_ERROR: Field "status" is required`. Цепочка: webapp → integrator M2M `POST /api/bersoncare/rubitime/create-record` → Rubitime `https://rubitime.ru/api2/create-record`. В теле запроса к Rubitime не передавалось обязательное поле **`status`** (числовой id статуса записи в кабинете).
+- **Правка:** в `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` в payload для v1 и v2 добавлено **`status: RUBITIME_CREATE_RECORD_DEFAULT_STATUS`** со значением **`0`**. Оператор подтвердил: **0 соответствует статусу «записан»** в их Rubitime.
+- **Тесты:** обновлены ожидания в `apps/integrator/src/integrations/rubitime/recordM2mRoute.test.ts` (наличие `status: 0` в данных для `createRubitimeRecord`).
+- **Техдолг:** захардкоженный id статуса — см. `TODO_BACKLOG.md` **AUDIT-BACKLOG-025** (нормальное хранение таблицы/маппинга статусов, при необходимости — `system_settings`, не env).
+- **Деплой:** требуется выкат **integrator** с этой правкой; webapp менять не обязательно для этого фикса.
+- **Проверка:** `pnpm --dir apps/integrator vitest run src/integrations/rubitime/recordM2mRoute.test.ts` — green; перед пушем репозитория — полный `pnpm run ci` по правилам монорепо.
