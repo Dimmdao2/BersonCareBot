@@ -95,6 +95,7 @@ import { createPgReminderProjectionPort } from "@/infra/repos/pgReminderProjecti
 import { inMemoryReminderProjectionPort } from "@/infra/repos/inMemoryReminderProjection";
 import { createPgReminderRulesPort } from "@/infra/repos/pgReminderRules";
 import { createInMemoryReminderRulesPort } from "@/infra/repos/inMemoryReminderRules";
+import { createPgReminderJournalPort } from "@/infra/repos/pgReminderJournal";
 import { createRemindersService } from "@/modules/reminders/service";
 import { notifyIntegratorRuleUpdated } from "@/modules/reminders/notifyIntegrator";
 import { createPgAppointmentProjectionPort } from "@/infra/repos/pgAppointmentProjection";
@@ -152,8 +153,10 @@ const reminderProjectionPort = env.DATABASE_URL
 const reminderRulesPort = env.DATABASE_URL
   ? createPgReminderRulesPort()
   : createInMemoryReminderRulesPort();
+const reminderJournalPort = env.DATABASE_URL ? createPgReminderJournalPort() : undefined;
 const remindersService = createRemindersService(reminderRulesPort, {
   notifyIntegrator: notifyIntegratorRuleUpdated,
+  journal: reminderJournalPort,
 });
 const appointmentProjectionPort = env.DATABASE_URL
   ? createPgAppointmentProjectionPort()
