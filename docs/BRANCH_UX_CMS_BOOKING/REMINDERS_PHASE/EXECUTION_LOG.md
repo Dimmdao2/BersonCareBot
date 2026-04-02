@@ -40,9 +40,14 @@
 | S2.T09 buildAppDeps wiring | done | `app-layer/di/buildAppDeps.ts` | green |
 | S2.T10 Тесты | done | `modules/reminders/service.test.ts` | green |
 
-**Аудит S2:** pending  
-**Фиксы S2:** —  
-**CI после S2:** `pnpm run ci` green (2026-04-02)
+**Аудит S2:** approve (см. последний audit-report S2)  
+**Фиксы S2:** 2026-04-02 — `[S2.fix] address audit remarks`:
+- `pgReminderJournal.logAction`: `RETURNING id` + ошибка при 0 вставленных строк (не silent fail).
+- `recordSnooze` / `recordSkip`: `console.warn` в `catch` для диагностики (ответ API по-прежнему `not_found`).
+- In-memory journal: стабильный `journalRuleIntegratorId` для snooze/skip вместо литерала `"rule"`.
+- Patient API мутаций (create, PATCH/DELETE `[id]`, snooze, skip): `revalidatePath(routePaths.patientReminders)` + `revalidatePath(routePaths.patient)`.
+- `service.test.ts`: пустой `customTitle`, delete несуществующего правила, дубликат object reminder, повторный skip (idempotency in-memory).
+**CI после фиксов S2:** `pnpm run ci` green (2026-04-02)
 
 ---
 

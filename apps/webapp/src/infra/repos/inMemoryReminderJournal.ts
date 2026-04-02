@@ -7,6 +7,8 @@ type OccState = {
   snoozedUntil: string | null;
   skippedAt: string | null;
   skipReason: string | null;
+  /** Synthetic key aligned with `logAction.ruleId` / listByRule filter (no DB join in tests). */
+  journalRuleIntegratorId: string;
 };
 
 /**
@@ -43,7 +45,14 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
 
     async recordSnooze(platformUserId, integratorOccurrenceId, minutes) {
       const key = `${platformUserId}:${integratorOccurrenceId}`;
-      if (!occById.has(key)) occById.set(key, { snoozedUntil: null, skippedAt: null, skipReason: null });
+      if (!occById.has(key)) {
+        occById.set(key, {
+          snoozedUntil: null,
+          skippedAt: null,
+          skipReason: null,
+          journalRuleIntegratorId: `inmem-rule-${integratorOccurrenceId}`,
+        });
+      }
       const st = occById.get(key)!;
       const until = new Date(Date.now() + minutes * 60_000).toISOString();
       if (st.snoozedUntil === until) {
@@ -52,7 +61,7 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
       st.snoozedUntil = until;
       journal.unshift({
         id: `j-${journal.length}`,
-        ruleId: "rule",
+        ruleId: st.journalRuleIntegratorId,
         occurrenceId: integratorOccurrenceId,
         action: "snoozed",
         snoozeUntil: until,
@@ -64,14 +73,21 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
 
     async recordSkip(platformUserId, integratorOccurrenceId, reason) {
       const key = `${platformUserId}:${integratorOccurrenceId}`;
-      if (!occById.has(key)) occById.set(key, { snoozedUntil: null, skippedAt: null, skipReason: null });
+      if (!occById.has(key)) {
+        occById.set(key, {
+          snoozedUntil: null,
+          skippedAt: null,
+          skipReason: null,
+          journalRuleIntegratorId: `inmem-rule-${integratorOccurrenceId}`,
+        });
+      }
       const st = occById.get(key)!;
       if (!st.skippedAt) {
         st.skippedAt = new Date().toISOString();
         st.skipReason = reason;
         journal.unshift({
           id: `j-${journal.length}`,
-          ruleId: "rule",
+          ruleId: st.journalRuleIntegratorId,
           occurrenceId: integratorOccurrenceId,
           action: "skipped",
           snoozeUntil: null,

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { routePaths } from "@/app-layer/routes/paths";
 import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
 import { reminderRuleToPatientJson } from "../reminderPatientJson";
 
@@ -74,6 +76,8 @@ export async function POST(req: Request) {
       const status = res.error === "not_found" ? 404 : 400;
       return NextResponse.json({ ok: false, error: res.error }, { status });
     }
+    revalidatePath(routePaths.patientReminders);
+    revalidatePath(routePaths.patient);
     return NextResponse.json(
       {
         ok: true,
@@ -99,6 +103,8 @@ export async function POST(req: Request) {
     const status = res.error === "not_found" ? 404 : 400;
     return NextResponse.json({ ok: false, error: res.error }, { status });
   }
+  revalidatePath(routePaths.patientReminders);
+  revalidatePath(routePaths.patient);
   return NextResponse.json(
     {
       ok: true,

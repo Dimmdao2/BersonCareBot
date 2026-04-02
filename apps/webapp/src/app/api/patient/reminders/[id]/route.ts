@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { routePaths } from "@/app-layer/routes/paths";
 import type { UpdateRuleData } from "@/modules/reminders/service";
 import { reminderRuleToPatientJson } from "../reminderPatientJson";
 
@@ -76,6 +78,8 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     const status = res.error === "not_found" ? 404 : 400;
     return NextResponse.json({ ok: false, error: res.error }, { status });
   }
+  revalidatePath(routePaths.patientReminders);
+  revalidatePath(routePaths.patient);
   return NextResponse.json({
     ok: true,
     reminder: reminderRuleToPatientJson(res.data),
@@ -99,5 +103,7 @@ export async function DELETE(_req: Request, context: { params: Promise<{ id: str
   if (!res.ok) {
     return NextResponse.json({ ok: false, error: res.error }, { status: 404 });
   }
+  revalidatePath(routePaths.patientReminders);
+  revalidatePath(routePaths.patient);
   return NextResponse.json({ ok: true, deletedId: res.data.deletedId });
 }

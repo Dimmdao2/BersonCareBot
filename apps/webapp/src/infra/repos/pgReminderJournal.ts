@@ -32,14 +32,15 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
   return {
     async logAction(params) {
       const pool = getPool();
-      await pool.query(
+      const r = await pool.query<{ id: string }>(
         `INSERT INTO reminder_journal (rule_id, occurrence_id, action, snooze_until, skip_reason)
          SELECT rr.id, $3, $4, $5, $6
          FROM reminder_rules rr
          LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id
          WHERE rr.integrator_rule_id = $1
            AND (rr.platform_user_id = $2::uuid OR pu.id = $2::uuid)
-         LIMIT 1`,
+         LIMIT 1
+         RETURNING id`,
         [
           params.ruleIntegratorId,
           params.platformUserId,
@@ -49,6 +50,11 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
           params.skipReason ?? null,
         ],
       );
+      if (r.rowCount === 0 || !r.rows[0]) {
+        throw new Error(
+          "reminder_journal.logAction: no row inserted (rule not found or not owned by user)",
+        );
+      }
     },
 
     async listByRule(ruleIntegratorId, platformUserId) {
@@ -152,12 +158,13 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
 
         await client.query("COMMIT");
         return { ok: true, occurrenceId: integratorOccurrenceId, snoozedUntil };
-      } catch {
+      } catch (err) {
         try {
           await client.query("ROLLBACK");
         } catch {
           /* ignore */
         }
+        console.warn("[pgReminderJournal.recordSnooze]", err);
         return { ok: false, error: "not_found" };
       } finally {
         client.release();
@@ -211,12 +218,13 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
 
         await client.query("COMMIT");
         return { ok: true, occurrenceId: integratorOccurrenceId, skippedAt };
-      } catch {
+      } catch (err) {
         try {
           await client.query("ROLLBACK");
         } catch {
           /* ignore */
         }
+        console.warn("[pgReminderJournal.recordSkip]", err);
         return { ok: false, error: "not_found" };
       } finally {
         client.release();

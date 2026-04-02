@@ -202,6 +202,29 @@ describe("reminders service", () => {
       });
       expect(res.ok).toBe(false);
     });
+
+    it("allows two reminders for the same linked object (no unique constraint at service layer)", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      const svc = createRemindersService(port);
+      const sched = {
+        intervalMinutes: 60,
+        windowStartMinute: 480,
+        windowEndMinute: 1200,
+        daysMask: "1111111",
+      };
+      const a = await svc.createObjectReminder("user-1", {
+        linkedObjectType: "lfk_complex",
+        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        schedule: sched,
+      });
+      const b = await svc.createObjectReminder("user-1", {
+        linkedObjectType: "lfk_complex",
+        linkedObjectId: "550e8400-e29b-41d4-a716-446655440000",
+        schedule: sched,
+      });
+      expect(a.ok && b.ok).toBe(true);
+      if (a.ok && b.ok) expect(a.data.id).not.toBe(b.data.id);
+    });
   });
 
   describe("createCustomReminder", () => {
@@ -224,6 +247,21 @@ describe("reminders service", () => {
         expect(res.data.customTitle).toBe("Пить воду");
       }
     });
+
+    it("rejects empty customTitle", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      const svc = createRemindersService(port);
+      const res = await svc.createCustomReminder("user-1", {
+        customTitle: "   ",
+        schedule: {
+          intervalMinutes: 60,
+          windowStartMinute: 0,
+          windowEndMinute: 720,
+          daysMask: "1111111",
+        },
+      });
+      expect(res.ok).toBe(false);
+    });
   });
 
   describe("deleteReminder", () => {
@@ -242,6 +280,14 @@ describe("reminders service", () => {
       const svc = createRemindersService(port);
       const res = await svc.deleteReminder("user-1", "wp-x");
       expect(res.ok).toBe(false);
+    });
+
+    it("returns not_found when rule id does not exist", async () => {
+      const port = createInMemoryReminderRulesPort([]);
+      const svc = createRemindersService(port);
+      const res = await svc.deleteReminder("user-1", "wp-missing");
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toBe("not_found");
     });
   });
 
@@ -262,6 +308,7 @@ describe("reminders service", () => {
       expect(res.ok).toBe(true);
       if (res.ok) expect(res.data.occurrenceId).toBe("occ-1");
     });
+
   });
 
   describe("skipOccurrence", () => {
@@ -280,6 +327,18 @@ describe("reminders service", () => {
       const res = await svc.skipOccurrence("user-1", "occ-2", "tired");
       expect(res.ok).toBe(true);
       if (res.ok) expect(res.data.occurrenceId).toBe("occ-2");
+    });
+
+    it("returns stable skippedAt on repeated skip for same occurrence (in-memory idempotency)", async () => {
+      const journal = createInMemoryReminderJournalPort();
+      const port = createInMemoryReminderRulesPort([]);
+      const svc = createRemindersService(port, { journal });
+      const first = await svc.skipOccurrence("user-1", "occ-skip-idem", "once");
+      const second = await svc.skipOccurrence("user-1", "occ-skip-idem", "again");
+      expect(first.ok && second.ok).toBe(true);
+      if (first.ok && second.ok) {
+        expect(second.data.skippedAt).toBe(first.data.skippedAt);
+      }
     });
   });
 });

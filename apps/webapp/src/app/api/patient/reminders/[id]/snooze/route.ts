@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { routePaths } from "@/app-layer/routes/paths";
 
 const ALLOWED = new Set([30, 60, 120]);
 
@@ -36,6 +38,8 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     }
     return NextResponse.json({ ok: false, error: res.error }, { status: 404 });
   }
+  revalidatePath(routePaths.patientReminders);
+  revalidatePath(routePaths.patient);
   return NextResponse.json({
     ok: true,
     occurrenceId: res.data.occurrenceId,
