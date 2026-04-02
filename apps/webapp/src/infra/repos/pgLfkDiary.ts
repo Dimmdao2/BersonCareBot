@@ -10,6 +10,7 @@ function rowToComplex(row: {
   id: string;
   user_id: string;
   title: string;
+  cover_image_url?: string | null;
   origin: string;
   is_active: boolean;
   created_at: Date;
@@ -24,6 +25,7 @@ function rowToComplex(row: {
     id: String(row.id),
     userId: row.user_id,
     title: row.title,
+    coverImageUrl: row.cover_image_url ?? null,
     origin: row.origin as "manual" | "assigned_by_specialist",
     isActive: row.is_active,
     createdAt: row.created_at.toISOString(),
@@ -66,7 +68,13 @@ function rowToSession(row: {
   };
 }
 
-const COMPLEX_SELECT = `id, user_id, title, origin, is_active, created_at, updated_at,
+const COMPLEX_SELECT = `c.id, c.user_id, c.title,
+  cover.cover_image_url,
+  c.origin, c.is_active, c.created_at, c.updated_at,
+  c.symptom_tracking_id, c.region_ref_id, c.side, c.diagnosis_text, c.diagnosis_ref_id`;
+const COMPLEX_RETURNING = `id, user_id, title,
+  NULL::text AS cover_image_url,
+  origin, is_active, created_at, updated_at,
   symptom_tracking_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id`;
 
 const SESSION_SELECT = `s.id, s.user_id, s.complex_id, s.completed_at, s.source, s.created_at, c.title AS complex_title,
@@ -82,7 +90,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
          symptom_tracking_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id
        )
        VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8, $9)
-       RETURNING ${COMPLEX_SELECT}`,
+       RETURNING ${COMPLEX_RETURNING}`,
       [
         params.userId,
         params.title,
@@ -102,9 +110,17 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     const pool = getPool();
     const result = await pool.query(
       `SELECT ${COMPLEX_SELECT}
-       FROM lfk_complexes
-       WHERE user_id = $1 ${activeOnly ? "AND is_active = true" : ""}
-       ORDER BY updated_at DESC`,
+       FROM lfk_complexes c
+       LEFT JOIN LATERAL (
+         SELECT em.media_url AS cover_image_url
+         FROM lfk_complex_exercises ce
+         INNER JOIN lfk_exercise_media em ON em.exercise_id = ce.exercise_id
+         WHERE ce.complex_id = c.id
+         ORDER BY ce.sort_order ASC, em.sort_order ASC, em.created_at ASC
+         LIMIT 1
+       ) cover ON TRUE
+       WHERE c.user_id = $1 ${activeOnly ? "AND c.is_active = true" : ""}
+       ORDER BY c.updated_at DESC`,
       [userId]
     );
     return result.rows.map(rowToComplex);
@@ -162,7 +178,17 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   async getComplexForUser(params) {
     const pool = getPool();
     const result = await pool.query(
-      `SELECT ${COMPLEX_SELECT} FROM lfk_complexes WHERE id = $1 AND user_id = $2`,
+      `SELECT ${COMPLEX_SELECT}
+       FROM lfk_complexes c
+       LEFT JOIN LATERAL (
+         SELECT em.media_url AS cover_image_url
+         FROM lfk_complex_exercises ce
+         INNER JOIN lfk_exercise_media em ON em.exercise_id = ce.exercise_id
+         WHERE ce.complex_id = c.id
+         ORDER BY ce.sort_order ASC, em.sort_order ASC, em.created_at ASC
+         LIMIT 1
+       ) cover ON TRUE
+       WHERE c.id = $1 AND c.user_id = $2`,
       [params.complexId, params.userId]
     );
     return result.rows[0] ? rowToComplex(result.rows[0]) : null;

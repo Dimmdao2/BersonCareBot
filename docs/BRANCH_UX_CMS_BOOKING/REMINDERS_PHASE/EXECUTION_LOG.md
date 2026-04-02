@@ -90,12 +90,15 @@
 | S4.T09 Изменение расписания | done | `LfkComplexCard` ссылка; разминки — `SectionWarmupsReminderBar` | green |
 | S4.T10 Статистика | done | `statsPerRuleForUser` + страница `reminders/journal/[ruleId]` | green |
 
-**Аудит S4:** pending  
-**Фиксы S4:** —  
+**Аудит S4:** rework (major замечание) -> fixed  
+**Фиксы S4:** 2026-04-02 — `[S4.fix] address audit remarks`:
+- **LfkComplexCard cover (major):** в `pgLfkDiary.listComplexes/getComplexForUser` добавлен `cover_image_url` через `LEFT JOIN LATERAL` (`lfk_complex_exercises` -> `lfk_exercise_media`, первый media по `sort_order`); в `LfkDiarySectionClient` передаётся `coverImageUrl={c.coverImageUrl ?? null}` вместо константного `null`; fallback-заглушка сохранена.
+- `LfkComplex` расширен опциональным полем `coverImageUrl` (без breaking changes для текущего UI/типов).
 **S4 блок 4.A (T01–T04):** 2026-04-02 — карточки комплексов с колокольчиком, диалог расписания (mobile Sheet / desktop Dialog), канал Telegram/MAX как локальная настройка устройства (`localStorage`) + prefill при редактировании; тип `PatientReminderRuleJson` в `reminderPatientJson.ts`.  
 **CI после S4.T01–T04:** `pnpm run ci` green (2026-04-02)  
 **S4 блок 4.B–4.C (T05, T07–T10):** 2026-04-02 — разминки `content_section`/`warmups`; хаб напоминаний с произвольными правилами, объектным списком, журналом за 30 дней; `buildAppDeps.reminderJournal`, `routePaths.patientReminderJournal`.  
-**CI после S4.T05–T10:** `pnpm run ci` green (2026-04-02)
+**CI после S4.T05–T10:** `pnpm run ci` green (2026-04-02)  
+**CI после S4.fix:** `pnpm run ci` green (2026-04-02)
 
 ---
 

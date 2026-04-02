@@ -35,6 +35,8 @@ export type LfkComplex = {
   id: string;
   userId: string;
   title: string;
+  /** Optional preview image for list cards (first media from complex exercises). */
+  coverImageUrl?: string | null;
   origin: "manual" | "assigned_by_specialist";
   isActive: boolean;
   createdAt: string;
