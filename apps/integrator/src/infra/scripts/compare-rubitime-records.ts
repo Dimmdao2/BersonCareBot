@@ -7,7 +7,7 @@
  *
  * Usage:
  *   pnpm --dir apps/integrator run rubitime:compare-records
- *   pnpm --dir apps/integrator run rubitime:compare-records -- --limit=500 --batch-size=100 --concurrency=3
+ *   pnpm --dir apps/integrator run rubitime:compare-records -- --limit=200 --batch-size=50 --min-interval-ms=5200
  */
 import '../../config/loadEnv.js';
 import { writeFile } from 'node:fs/promises';
@@ -20,6 +20,9 @@ type Args = {
   limit: number;
   batchSize: number;
   concurrency: number;
+  minIntervalMs: number;
+  retryCount: number;
+  retryBaseMs: number;
   sampleSize: number;
   reportFile: string | null;
   failOnMismatch: boolean;
@@ -50,6 +53,11 @@ type ComparisonResult =
     kind: 'api_error';
     recordId: string;
     error: string;
+  }
+  | {
+    kind: 'not_found';
+    recordId: string;
+    error: string;
   };
 
 type Summary = {
@@ -58,9 +66,11 @@ type Summary = {
   matches: number;
   mismatches: number;
   apiErrors: number;
+  notFound: number;
   samples: {
     mismatches: Array<{ recordId: string; reasons: string[] }>;
     apiErrors: Array<{ recordId: string; error: string }>;
+    notFound: Array<{ recordId: string; error: string }>;
   };
 };
 
@@ -92,6 +102,9 @@ function parseArgs(argv: string[]): Args {
     limit: parsePositiveInt(lookup('--limit='), 0, 0, 10_000_000),
     batchSize: parsePositiveInt(lookup('--batch-size='), 200, 1, 5000),
     concurrency: parsePositiveInt(lookup('--concurrency='), 3, 1, 50),
+    minIntervalMs: parsePositiveInt(lookup('--min-interval-ms='), 5200, 0, 60_000),
+    retryCount: parsePositiveInt(lookup('--retry-count='), 2, 0, 20),
+    retryBaseMs: parsePositiveInt(lookup('--retry-base-ms='), 5500, 100, 120_000),
     sampleSize: parsePositiveInt(lookup('--sample-size='), 25, 1, 1000),
     reportFile: asNonEmptyString(lookup('--report-file=')),
     failOnMismatch: argv.includes('--fail-on-mismatch'),
@@ -119,7 +132,6 @@ function dateToIso(value: unknown): string | null {
 function rubitimeMaybeDateToIso(value: unknown): string | null {
   const s = asNonEmptyString(value);
   if (!s) return null;
-  // Rubitime commonly sends "YYYY-MM-DD HH:mm:ss"
   if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}$/.test(s)) {
     const d = new Date(`${s.replace(' ', 'T')}Z`);
     if (!Number.isNaN(d.getTime())) return d.toISOString();
@@ -199,6 +211,12 @@ function compareRow(local: LocalRow, remote: Record<string, unknown>): string[] 
   return reasons;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -219,6 +237,20 @@ async function mapWithConcurrency<T, R>(
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
   await Promise.all(workers);
   return results;
+}
+
+function isRateLimitError(message: string): boolean {
+  return message.toLowerCase().includes('limit on the number of consecutive requests');
+}
+
+function isNotFoundError(message: string): boolean {
+  return message.toLowerCase().includes('record not found');
+}
+
+function classifyApiError(message: string): 'rate_limit' | 'not_found' | 'other' {
+  if (isNotFoundError(message)) return 'not_found';
+  if (isRateLimitError(message)) return 'rate_limit';
+  return 'other';
 }
 
 async function fetchBatch(input: {
@@ -269,18 +301,65 @@ async function fetchBatch(input: {
   return res.rows;
 }
 
+let nextAllowedRequestAt = 0;
+
+async function waitForRateWindow(minIntervalMs: number): Promise<void> {
+  if (minIntervalMs <= 0) return;
+  const now = Date.now();
+  const waitMs = nextAllowedRequestAt - now;
+  if (waitMs > 0) {
+    await sleep(waitMs);
+  }
+  nextAllowedRequestAt = Date.now() + minIntervalMs;
+}
+
+async function fetchRubitimeRecordWithRetry(input: {
+  recordId: string;
+  minIntervalMs: number;
+  retryCount: number;
+  retryBaseMs: number;
+}): Promise<Record<string, unknown>> {
+  let attempt = 0;
+  const maxAttempts = input.retryCount + 1;
+  while (attempt < maxAttempts) {
+    await waitForRateWindow(input.minIntervalMs);
+    try {
+      return asRecord(await fetchRubitimeRecordById({ recordId: input.recordId }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const errorType = classifyApiError(message);
+      attempt += 1;
+      if (errorType === 'rate_limit' && attempt < maxAttempts) {
+        const delayMs = input.retryBaseMs * Math.pow(2, attempt - 1);
+        await sleep(delayMs);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('unexpected_retries_exit');
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const db = createDbPort();
+  if (args.minIntervalMs > 0 && args.concurrency > 1) {
+    console.warn(
+      `[warn] min-interval-ms=${args.minIntervalMs} is enabled, forcing concurrency=1 for safe rate limiting`,
+    );
+  }
+  const effectiveConcurrency = args.minIntervalMs > 0 ? 1 : args.concurrency;
   const summary: Summary = {
     scanned: 0,
     compared: 0,
     matches: 0,
     mismatches: 0,
     apiErrors: 0,
+    notFound: 0,
     samples: {
       mismatches: [],
       apiErrors: [],
+      notFound: [],
     },
   };
 
@@ -295,7 +374,10 @@ async function main(): Promise<void> {
         runtime: {
           limit: args.limit,
           batchSize: args.batchSize,
-          concurrency: args.concurrency,
+          concurrency: effectiveConcurrency,
+          minIntervalMs: args.minIntervalMs,
+          retryCount: args.retryCount,
+          retryBaseMs: args.retryBaseMs,
           sampleSize: args.sampleSize,
         },
       },
@@ -325,18 +407,30 @@ async function main(): Promise<void> {
         remainingLimit -= batch.length;
       }
 
-      const batchResults = await mapWithConcurrency(batch, args.concurrency, async (row): Promise<ComparisonResult> => {
-        const recordId = String(row.rubitime_record_id);
-        try {
-          const remote = asRecord(await fetchRubitimeRecordById({ recordId }));
-          const reasons = compareRow(row, remote);
-          if (reasons.length === 0) return { kind: 'ok', recordId };
-          return { kind: 'mismatch', recordId, reasons };
-        } catch (err) {
-          const error = err instanceof Error ? err.message : String(err);
-          return { kind: 'api_error', recordId, error };
-        }
-      });
+      const batchResults = await mapWithConcurrency(
+        batch,
+        effectiveConcurrency,
+        async (row): Promise<ComparisonResult> => {
+          const recordId = String(row.rubitime_record_id);
+          try {
+            const remote = await fetchRubitimeRecordWithRetry({
+              recordId,
+              minIntervalMs: args.minIntervalMs,
+              retryCount: args.retryCount,
+              retryBaseMs: args.retryBaseMs,
+            });
+            const reasons = compareRow(row, remote);
+            if (reasons.length === 0) return { kind: 'ok', recordId };
+            return { kind: 'mismatch', recordId, reasons };
+          } catch (err) {
+            const error = err instanceof Error ? err.message : String(err);
+            if (isNotFoundError(error)) {
+              return { kind: 'not_found', recordId, error };
+            }
+            return { kind: 'api_error', recordId, error };
+          }
+        },
+      );
 
       for (const result of batchResults) {
         summary.compared += 1;
@@ -351,6 +445,13 @@ async function main(): Promise<void> {
           }
           continue;
         }
+        if (result.kind === 'not_found') {
+          summary.notFound += 1;
+          if (summary.samples.notFound.length < args.sampleSize) {
+            summary.samples.notFound.push({ recordId: result.recordId, error: result.error });
+          }
+          continue;
+        }
         summary.apiErrors += 1;
         if (summary.samples.apiErrors.length < args.sampleSize) {
           summary.samples.apiErrors.push({ recordId: result.recordId, error: result.error });
@@ -358,7 +459,7 @@ async function main(): Promise<void> {
       }
 
       console.log(
-        `[progress] scanned=${summary.scanned} compared=${summary.compared} matches=${summary.matches} mismatches=${summary.mismatches} apiErrors=${summary.apiErrors}`,
+        `[progress] scanned=${summary.scanned} compared=${summary.compared} matches=${summary.matches} mismatches=${summary.mismatches} notFound=${summary.notFound} apiErrors=${summary.apiErrors}`,
       );
 
       if (args.limit > 0 && remainingLimit <= 0) break;
@@ -377,7 +478,10 @@ async function main(): Promise<void> {
     runtime: {
       limit: args.limit,
       batchSize: args.batchSize,
-      concurrency: args.concurrency,
+      concurrency: effectiveConcurrency,
+      minIntervalMs: args.minIntervalMs,
+      retryCount: args.retryCount,
+      retryBaseMs: args.retryBaseMs,
       sampleSize: args.sampleSize,
     },
     summary,
@@ -390,7 +494,7 @@ async function main(): Promise<void> {
 
   console.log(JSON.stringify(report, null, 2));
 
-  if (args.failOnMismatch && (summary.mismatches > 0 || summary.apiErrors > 0)) {
+  if (args.failOnMismatch && (summary.mismatches > 0 || summary.apiErrors > 0 || summary.notFound > 0)) {
     process.exit(2);
   }
 }
