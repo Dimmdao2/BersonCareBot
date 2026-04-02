@@ -1,6 +1,22 @@
 import type { ReminderRule } from "@/modules/reminders/types";
 
-export function reminderRuleToPatientJson(r: ReminderRule) {
+/** JSON shape returned by patient reminder APIs (create/PATCH responses). */
+export type PatientReminderRuleJson = {
+  id: string;
+  category: ReminderRule["category"];
+  enabled: boolean;
+  intervalMinutes: number | null;
+  windowStartMinute: number;
+  windowEndMinute: number;
+  daysMask: string;
+  linkedObjectType: ReminderRule["linkedObjectType"];
+  linkedObjectId: string | null;
+  customTitle: string | null;
+  customText: string | null;
+  updatedAt: string;
+};
+
+export function reminderRuleToPatientJson(r: ReminderRule): PatientReminderRuleJson {
   return {
     id: r.id,
     category: r.category,

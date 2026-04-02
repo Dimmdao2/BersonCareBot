@@ -7,12 +7,13 @@ import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { DiarySectionGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui/patient/guestAccess";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { AppShell } from "@/shared/ui/AppShell";
 import { SymptomsTrackingSectionClient } from "./symptoms/SymptomsTrackingSectionClient";
 import { DiaryTabsClient } from "./DiaryTabsClient";
 import { LfkSessionForm } from "./lfk/LfkSessionForm";
+import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { createLfkComplex } from "./lfk/actions";
+import { LfkDiarySectionClient } from "./lfk/LfkDiarySectionClient";
 import { SymptomChart } from "@/modules/diaries/components/SymptomChart";
 import { LfkStatsTable } from "@/modules/diaries/components/LfkStatsTable";
 
@@ -36,7 +37,20 @@ export default async function PatientDiaryPage() {
   }
   const deps = buildAppDeps();
   const trackings = await deps.diaries.listSymptomTrackings(session.user.userId);
-  const complexes = await deps.diaries.listLfkComplexes(session.user.userId);
+  const [complexes, reminderRules] = await Promise.all([
+    deps.diaries.listLfkComplexes(session.user.userId),
+    deps.reminders.listRulesByUser(session.user.userId),
+  ]);
+
+  const remindersByComplexId: Record<string, ReturnType<typeof reminderRuleToPatientJson>> = {};
+  for (const r of reminderRules) {
+    if (r.linkedObjectType !== "lfk_complex" || !r.linkedObjectId) continue;
+    const prev = remindersByComplexId[r.linkedObjectId];
+    const json = reminderRuleToPatientJson(r);
+    if (!prev || json.updatedAt > prev.updatedAt) {
+      remindersByComplexId[r.linkedObjectId] = json;
+    }
+  }
 
   const symptomsPanel = (
     <>
@@ -82,21 +96,7 @@ export default async function PatientDiaryPage() {
         )}
       </section>
       {complexes.length > 0 ? (
-        <section id="patient-lfk-complexes-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">Комплексы</h2>
-          <ul id="patient-lfk-complexes-list" className="m-0 list-none space-y-3 p-0">
-            {complexes.map((c) => (
-              <li key={c.id} id={`patient-lfk-complex-item-${c.id}`} className="rounded-lg border border-border bg-card p-3">
-                <strong>{c.title ?? "—"}</strong>
-                {c.origin === "assigned_by_specialist" ? (
-                  <Badge variant="secondary" className="ml-2 font-normal">
-                    Назначен врачом
-                  </Badge>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
+        <LfkDiarySectionClient complexes={complexes} remindersByComplexId={remindersByComplexId} />
       ) : null}
       <section id="patient-lfk-stats-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Статистика</h2>

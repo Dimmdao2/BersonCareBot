@@ -80,10 +80,10 @@
 
 | Задача | Статус | Файлы | CI |
 |--------|--------|-------|----|
-| S4.T01 LfkComplexCard | pending | | |
-| S4.T02 Список ЛФК | pending | | |
-| S4.T03 ReminderCreateDialog | pending | | |
-| S4.T04 API интеграция | pending | | |
+| S4.T01 LfkComplexCard | done | `app/patient/diary/lfk/LfkComplexCard.tsx` | green |
+| S4.T02 Список ЛФК | done | `LfkDiarySectionClient.tsx`, `diary/page.tsx` (вкладка ЛФК) | green |
+| S4.T03 ReminderCreateDialog | done | `modules/reminders/components/ReminderCreateDialog.tsx` (Dialog / Sheet) | green |
+| S4.T04 API интеграция | done | `POST /api/patient/reminders/create`, `PATCH .../reminders/:id` из диалога | green |
 | S4.T05 Кнопка разминок | pending | | |
 | S4.T07 Произвольные напоминания | pending | | |
 | S4.T08 Единый список | pending | | |
@@ -91,7 +91,9 @@
 | S4.T10 Статистика | pending | | |
 
 **Аудит S4:** pending  
-**Фиксы S4:** —
+**Фиксы S4:** —  
+**S4 блок 4.A (T01–T04):** 2026-04-02 — карточки комплексов с колокольчиком, диалог расписания (mobile Sheet / desktop Dialog), канал Telegram/MAX как локальная настройка устройства (`localStorage`) + prefill при редактировании; тип `PatientReminderRuleJson` в `reminderPatientJson.ts`.  
+**CI после S4.T01–T04:** `pnpm run ci` green (2026-04-02)
 
 ---
 
@@ -104,6 +106,53 @@
 | S5.T03 Дополнительные тесты | pending | |
 | S5.T04 pnpm run ci | pending | |
 | S5.T05 Pre-release checklist | pending | |
+
+---
+
+## INCIDENT — Rubitime расхождения (2026-04-02)
+
+**Scope:** системная сверка `integrator.rubitime_records` vs Rubitime API + влияние на webapp UI (`appointment_records` / `patient_bookings`).
+
+### Что обнаружили
+
+- Исходная сверка (окно 20 дней, `apiErrors=0`) показала системные расхождения:
+  - `scanned=89`, `matches=0`, `mismatches=61`, `notFound=28`, `notFoundActive=0`, `notFoundCanceled=28`.
+- `notFound` были только по `status='canceled'` (удаленные в Rubitime отмены; в основном тестовые/архивные).
+- После точечной чистки `notFound canceled` и SQL-коррекции `record_at` за февраль/март-апрель:
+  - `scanned=61`, `matches=23`, `mismatches=38`, `notFound=0`, `apiErrors=0`.
+- Оставшиеся расхождения имеют системный характер:
+  - `record_at mismatch` (в т.ч. `diffMin=-120` и `diffMin=-60`);
+  - `stale diffMin=...` (локальные `updated_at` отстают от Rubitime на часы/дни).
+
+### Что уже сделали
+
+1. Централизация timezone в integrator:
+   - единая точка: `apps/integrator/src/config/appTimezone.ts`;
+   - подключено в compare-скрипт и связанные места;
+   - добавлены тесты и CI green.
+2. Усилен скрипт сверки `compare-rubitime-records.ts`:
+   - контроль rate-limit/retry;
+   - `rubitimeOffsetMinutes`, `staleThresholdMinutes`;
+   - классификация `notFoundActive` / `notFoundCanceled`.
+3. Прод-операции:
+   - удалены 28 `canceled + notFound` записей из `rubitime_records` (post-check `still_exists=0`);
+   - выполнена SQL-коррекция `record_at` (обновлено 59 строк за март/апрель; февраль `0`).
+
+### Отдельный баг, влияющий на UI (не «один юзер», а системный pipeline)
+
+- В `projection_outbox` есть `dead/pending` события `appointment.record.upserted` с ошибкой:
+  - `null value in column "platform_user_id" of relation "patient_bookings"`.
+- Причина: резолв `platform_user_id` в webapp обработчике был через неверный lookup (использовался `integratorRecordId` как `integratorUserId`).
+- Подготовлен код-фикс в репозитории:
+  - `apps/webapp/src/modules/integrator/events.ts`
+  - `apps/webapp/src/app/api/integrator/events/route.ts`
+  (lookup по `phoneNormalized` + fallback по `integratorUserId`).
+
+### Текущий статус
+
+- `notFound canceled` очищены.
+- Системные `mismatch/stale` остаются и требуют отдельного **тихого re-sync/backfill** (без уведомлений/фан-аута).
+- Наблюдаемое «в боте запись есть, в UI пусто» объясняется деградацией projection-пайплайна и dead outbox событиями.
 
 ---
 
