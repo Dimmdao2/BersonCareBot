@@ -23,7 +23,9 @@
     "s3:check": "tsx src/infra/scripts/check-s3.ts",
     "mail:check": "tsx src/infra/scripts/check-mail.ts",
     "projection-health": "node scripts/projection-health.mjs",
-    "rubitime:compare-records": "tsx src/infra/scripts/compare-rubitime-records.ts"
+    "rubitime:compare-records": "tsx src/infra/scripts/compare-rubitime-records.ts",
+    "rubitime:resync": "tsx src/infra/scripts/resync-rubitime-records.ts",
+    "rubitime:resync:host": "node dist/infra/scripts/resync-rubitime-records.js"
   },
   "engines": {
     "node": ">=20"

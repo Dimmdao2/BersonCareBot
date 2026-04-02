@@ -778,6 +778,86 @@ Scope:
 
 ---
 
+## HOTFIX — Rubitime reconciliation (systemic, new chat)
+
+**Модель:** GPT 5.3 Codex  
+**Чат:** новый
+
+```text
+Контекст: есть системные расхождения integrator DB vs Rubitime API, это не кейс одного пользователя.
+
+Факты из последнего прод-прогона (окно 20 дней):
+- scanned=61, matches=23, mismatches=38, notFound=0, apiErrors=0
+- Остаток mismatch: record_at diff (-120/-60) + stale updated_at (локальные данные отстают)
+- Ранее очищены canceled+notFound (28 шт)
+- В projection_outbox есть dead/pending события appointment.record.upserted с ошибкой:
+  "null value in column platform_user_id of relation patient_bookings"
+
+Задача:
+1) Сделать системный quiet re-sync script для rubitime_records:
+   - источник истины: Rubitime API get-record
+   - target: integrator table rubitime_records
+   - режимы:
+     - dry-run (по умолчанию): только diff report
+     - commit: apply изменений в БД
+   - scope:
+     - activeDays/canceledDays фильтры (по умолчанию 20/20)
+     - limit/batch/rate-limit/retry
+   - diff-классы:
+     - record_at mismatch
+     - status mismatch
+     - phone mismatch
+     - payload drift (hash/field-level)
+     - stale updated_at
+     - not_found
+   - ВАЖНО: quiet mode = никаких enqueueProjectionEvent / webhook / fan-out уведомлений.
+
+2) Добавить отдельный безопасный режим "repair-outbox-bookings":
+   - найти dead/pending appointment.record.upserted с ошибкой platform_user_id null
+   - после фикса lookup перевести такие события в pending (attempts_done=0, last_error=null, next_try_at=now())
+   - опционально фильтр по phone last10 и/или record ids
+
+3) Подготовить host-операционный runbook:
+   - команды копирования/запуска на /opt/projects/bersoncarebot
+   - SQL dry-run/commit для requeue outbox
+   - контрольные запросы до/после
+
+4) Обновить документацию:
+   - docs/BRANCH_UX_CMS_BOOKING/REMINDERS_PHASE/EXECUTION_LOG.md
+   - добавить краткий postmortem: причина, что исправили, какие риски остаются.
+
+Acceptance Criteria:
+- Скрипт проходит typecheck/tests.
+- dry-run отчёт показывает итоговые counters + samples.
+- commit-режим обновляет только реально расходящиеся строки.
+- при commit нет побочных уведомлений пациентам/админу.
+- после repair/requeue:
+  - apiErrors=0 на compare-run
+  - notFoundActive=0
+  - mismatches существенно снижаются и объяснимы по остаточным причинам.
+
+Ограничения:
+- Не использовать destructive git-команды.
+- Не менять runtime secrets.
+- Не вносить новые интеграционные env-секреты.
+```
+
+### Что проверять дальше (после hotfix)
+
+- Сводка compare-run:
+  - `apiErrors == 0`
+  - `notFoundActive == 0`
+  - `notFoundCanceled == 0` (или объяснимо)
+  - `mismatches` тренд вниз по повторам.
+- `projection_outbox` по `appointment.record.upserted`:
+  - нет новых `dead` с `platform_user_id null`.
+- `patient_bookings`:
+  - для новых Rubitime записей появляется `platform_user_id`, слот виден в `/api/booking/my`.
+- UI/факт:
+  - запись, пришедшая в бот, появляется в webapp без ручных SQL правок.
+
+---
+
 ## Справка: Модель поведения аудитора (общая для всех аудитов)
 
 Эта секция описывает правила для ВСЕХ промежуточных и финального аудитов. Не нужно каждый раз описывать заново — правила уже встроены в каждый audit-промпт выше. Здесь — сводка для понимания.
