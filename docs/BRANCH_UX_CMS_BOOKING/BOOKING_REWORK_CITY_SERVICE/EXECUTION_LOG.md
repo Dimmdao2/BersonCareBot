@@ -954,3 +954,39 @@
   - `docs/ARCHITECTURE/SERVER CONVENTIONS.md` — ссылка на блок в HOST_DEPLOY_README
   - `EXECUTION_LOG.md` — эта запись
 - Notes: фактические заголовки production остаются для подтверждения оператором на хосте/CDN
+
+---
+
+## UX: Patient cabinet — списки записей (2026-04-02)
+
+### CABINET.T01 — Активные и журнал прошлых: плоский список, Изменить в Telegram
+- Status: done
+- Finished at: 2026-04-02
+- Goal: убрать вводящее в заблуждение «Подтверждена» в журнале прошлых, отменить внешнюю ссылку на редактирование прошедших записей из проекции; активные записи — в том же стиле «журнала», действие «Изменить» → `support_contact_url` вместо inline «Отменить».
+- Files changed:
+  - `apps/webapp/src/app/app/patient/cabinet/CabinetPastBookings.tsx` — статусы: без бейджа для нейтрального подтверждённого; «Отменена» красным; подпись проекции без ссылки на расписание
+  - `apps/webapp/src/app/app/patient/cabinet/CabinetActiveBookings.tsx` — одна карточка, строки как в журнале; `manageBookingHref` + «Изменить»
+  - `apps/webapp/src/app/app/patient/cabinet/page.tsx` — `getSupportContactUrl()` → проп в активные записи
+  - `apps/webapp/src/app-layer/di/buildAppDeps.ts` — `getPastAppointments`: `link: null` для прошлой истории (не вести на Rubitime URL из payload)
+  - удалены `BookingCardActions.tsx`, `useCancelBooking.ts` (отмена через бота; API `/api/booking/cancel` сохранён)
+- Docs: `BOOKING_MODULE_SPEC.md` §3.3, §6; `COMPATIBILITY_RUBITIME_WEBAPP.md` — видимость в истории
+- Tests: не добавлялись (логика UI); регресс — `pnpm run ci`
+- CI: green ✓ (2026-04-02)
+
+---
+
+## TODO / Follow-up (2026-04-02)
+
+### TODO.SLOTS.CACHE.T01 — Стабилизировать выдачу слотов при лимитах Rubitime
+- Status: pending
+- Added at: 2026-04-02
+- Context: периодически наблюдался флап `slots_unavailable` в mini app при быстрых повторных запросах слотов (смена услуги/параллельные запросы), затем самовосстановление после паузы.
+- Scope:
+  - `integrator`: singleflight/coalescing для одинаковых запросов `get-schedule` (чтобы N параллельных запросов схлопывались в один upstream call).
+  - `integrator`: guard по минимальному интервалу между upstream вызовами Rubitime + bounded retry/backoff для `RUBITIME_HTTP_429` и кратковременных `5xx`.
+  - `integrator`: короткий cache TTL + fallback stale-on-error (если Rubitime временно недоступен).
+  - Наблюдаемость: логировать cache hit/miss, coalesced requests, 429/5xx и количество ретраев.
+- Done criteria:
+  - при burst одинаковых запросов нет лавины в Rubitime;
+  - кратковременный 429 не приводит к массовому `slots_unavailable` в UI;
+  - поведение покрыто тестами интеграционного слоя Rubitime (`client/route`).

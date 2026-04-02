@@ -59,7 +59,7 @@
 | M2M webapp | `bookingM2mApi.test.ts` |
 | Integrator | `recordM2mRoute.test.ts`, `schema.test.ts` |
 | Репозиторий БД | `pgPatientBookings.test.ts`, `pgBookingCatalog.test.ts` |
-| История / merge | `cabinetPastBookingsMerge.test.ts`, подписи `patientBookingLabels.test.ts` |
+| История / merge | `cabinetPastBookingsMerge.test.ts`, подписи `patientBookingLabels.test.ts`; списки активных/прошлых в кабинете — см. `EXECUTION_LOG.md` CABINET.T01 (ручной smoke при смене UX) |
 
 ---
 

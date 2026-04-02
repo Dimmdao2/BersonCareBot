@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,24 +13,30 @@ type Props = {
   items: CabinetPastRow[];
 };
 
-function statusLabel(status: PatientBookingRecord["status"]): string {
-  if (status === "cancelled") return "Отменена";
-  if (status === "completed") return "Завершена";
-  if (status === "rescheduled") return "Перенесена";
-  if (status === "no_show") return "Неявка";
-  if (status === "failed_sync") return "Ошибка";
-  if (status === "cancel_failed") return "Не удалось отменить";
-  if (status === "cancelling") return "Отмена…";
-  if (status === "creating") return "Создается";
-  return "Подтверждена";
+/** В журнале прошлых приёмов не показываем нейтральное «подтверждена»; «отменена» — красным. */
+function nativePastStatusRight(status: PatientBookingRecord["status"]): ReactNode {
+  if (status === "confirmed") return null;
+  if (status === "cancelled") {
+    return <span className="shrink-0 text-sm font-medium text-destructive">Отменена</span>;
+  }
+  if (status === "completed") return <Badge variant="outline">Завершена</Badge>;
+  if (status === "rescheduled") return <Badge variant="outline">Перенесена</Badge>;
+  if (status === "no_show") return <Badge variant="outline">Неявка</Badge>;
+  if (status === "failed_sync") return <Badge variant="destructive">Ошибка</Badge>;
+  if (status === "cancel_failed") return <Badge variant="destructive">Не удалось отменить</Badge>;
+  if (status === "cancelling") return <Badge variant="secondary">Отмена…</Badge>;
+  if (status === "creating") return <Badge variant="secondary">Создается</Badge>;
+  return null;
 }
 
-function projectionStatusLabel(status: string): string {
+function projectionPastStatusRight(status: string): ReactNode {
   const s = status.toLowerCase();
-  if (s === "cancelled") return "Отменена";
-  if (s === "confirmed" || s === "created") return "Подтверждена";
-  if (s === "rescheduled") return "Перенесена";
-  return status;
+  if (s === "cancelled") {
+    return <span className="shrink-0 text-sm font-medium text-destructive">Отменена</span>;
+  }
+  if (s === "confirmed" || s === "created") return null;
+  if (s === "rescheduled") return <Badge variant="outline">Перенесена</Badge>;
+  return <Badge variant="outline">{status}</Badge>;
 }
 
 export function CabinetPastBookings({ items }: Props) {
@@ -70,7 +75,7 @@ export function CabinetPastBookings({ items }: Props) {
                     </p>
                     <p className="truncate text-xs text-muted-foreground">{nativeBookingSubtitle(row.booking)}</p>
                   </div>
-                  <Badge variant="outline">{statusLabel(row.booking.status)}</Badge>
+                  {nativePastStatusRight(row.booking.status)}
                 </div>
               ) : (
                 <div
@@ -79,17 +84,9 @@ export function CabinetPastBookings({ items }: Props) {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{row.past.label}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {row.past.link ? (
-                        <Link href={row.past.link} className="text-primary underline-offset-4 hover:underline">
-                          Открыть в расписании
-                        </Link>
-                      ) : (
-                        "Запись из расписания"
-                      )}
-                    </p>
+                    <p className="truncate text-xs text-muted-foreground">Запись из расписания</p>
                   </div>
-                  <Badge variant="outline">{projectionStatusLabel(row.past.status)}</Badge>
+                  {projectionPastStatusRight(row.past.status)}
                 </div>
               ),
             )

@@ -291,7 +291,8 @@ const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]>
                 dateLabel,
                 timeLabel,
                 label: appointmentRowLabel(dateLabel, timeLabel),
-                link: linkFromPayload(row.payloadJson),
+                /** Прошлые записи не ведём на внешнее «редактирование» в расписании — сценарий изменения в боте. */
+                link: null,
                 status: mapRecordStatus(row.status),
                 recordAtIso: row.recordAt ? new Date(row.recordAt).toISOString() : null,
               };

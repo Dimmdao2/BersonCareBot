@@ -410,7 +410,7 @@
   - `apps/webapp/src/app/app/patient/cabinet/page.tsx` — кабинет переведён на новый каркас block 2.B (активные/история/entrypoint записи)
   - `apps/webapp/src/app/app/patient/cabinet/CabinetBookingEntry.tsx` — mobile-first flow записи в `Sheet` (mobile) / `Dialog` (desktop)
   - `apps/webapp/src/app/app/patient/cabinet/{BookingCategoryGrid.tsx,BookingCalendar.tsx,BookingSlotList.tsx,BookingConfirmationForm.tsx}` — UI шаги выбора формата, даты, времени и подтверждения
-  - `apps/webapp/src/app/app/patient/cabinet/{CabinetActiveBookings.tsx,BookingCardActions.tsx,useCancelBooking.ts}` — карточки активных записей и отмена из UI
+  - `apps/webapp/src/app/app/patient/cabinet/CabinetActiveBookings.tsx` — активные записи (после 2026-04-02: плоский список + «Изменить» → `support_contact_url`; см. `EXECUTION_LOG.md` CABINET.T01)
   - `apps/webapp/src/app/app/patient/cabinet/{CabinetPastBookings.tsx,CabinetInfoLinks.tsx}` — блок истории (accordion) и инфо-ссылки
   - `apps/webapp/src/app/app/patient/cabinet/{useBookingSelection.ts,useBookingSlots.ts,useCreateBooking.ts,useMobileViewport.ts}` — client hooks/state для booking flow
   - `apps/webapp/src/app/app/patient/cabinet/cabinet.md` — обновлена документация экрана
