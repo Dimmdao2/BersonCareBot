@@ -153,6 +153,36 @@ describe("pgPatientBookingsPort", () => {
     await expect(pgPatientBookingsPort.createPending(input)).rejects.toThrow("slot_overlap");
   });
 
+  it("createPending SQL scopes overlap by specialist or user fallback", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [v2Row("new-id-2")] });
+    const input: CreatePendingPatientBookingInput = {
+      userId: "u1",
+      bookingType: "in_person",
+      city: "moscow",
+      category: "general",
+      slotStart: SLOT_START.toISOString(),
+      slotEnd: SLOT_END.toISOString(),
+      contactName: "T",
+      contactPhone: "+7000",
+      contactEmail: null,
+      branchId: "br1",
+      serviceId: "sv1",
+      branchServiceId: "bs1",
+      cityCodeSnapshot: "moscow",
+      branchTitleSnapshot: "Филиал",
+      serviceTitleSnapshot: "Сеанс",
+      durationMinutesSnapshot: 60,
+      priceMinorSnapshot: 100,
+      rubitimeBranchIdSnapshot: "173",
+      rubitimeCooperatorIdSnapshot: "347",
+      rubitimeServiceIdSnapshot: "675",
+    };
+    await pgPatientBookingsPort.createPending(input);
+    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("rubitime_cooperator_id_snapshot = $20");
+    expect(sql).toContain("platform_user_id = $2");
+  });
+
   it("listUpcomingByUser maps legacy row without v2 columns", async () => {
     queryMock.mockResolvedValueOnce({ rows: [legacyRow("leg-1")] });
     const rows = await pgPatientBookingsPort.listUpcomingByUser("u1", "2026-01-01T00:00:00.000Z");
@@ -182,6 +212,26 @@ describe("pgPatientBookingsPort", () => {
   });
 
   describe("upsertFromRubitime (F-04 compat-sync)", () => {
+    it("native row update keeps slot timestamps guarded by source=rubitime_projection", async () => {
+      queryMock.mockResolvedValueOnce({
+        rows: [{ id: "native-id-1", source: "native", slot_start: SLOT_START }],
+      });
+      queryMock.mockResolvedValueOnce({ rowCount: 1 });
+
+      await pgPatientBookingsPort.upsertFromRubitime({
+        ...baseCompatInput,
+        rubitimeId: "rt-native-keep-slot",
+        slotStart: "2026-05-01 11:00:00",
+        slotEnd: "2026-05-01 12:00:00",
+        rubitimeBranchId: null,
+        rubitimeServiceId: null,
+      });
+
+      const updateSql = String(queryMock.mock.calls[1]?.[0] ?? "");
+      expect(updateSql).toContain("WHEN source = 'rubitime_projection' THEN COALESCE($3::timestamptz, slot_start)");
+      expect(updateSql).toContain("WHEN source = 'rubitime_projection' THEN COALESCE($4::timestamptz, slot_end)");
+    });
+
     it("compat create writes branch_service_id and compat_quality full when catalog lookup succeeds", async () => {
       lookupMock.mockResolvedValue({ result: { ...LOOKUP_FULL }, ambiguous: false });
       queryMock.mockResolvedValueOnce({ rows: [] });
@@ -196,7 +246,7 @@ describe("pgPatientBookingsPort", () => {
       expect(insertArgs![20]).toBe("full");
     });
 
-    it("compat update touches same rubitime_id with UPDATE, not second INSERT", async () => {
+    it("compat cancelled removes projection row by rubitime_id", async () => {
       lookupMock.mockResolvedValue({ result: { ...LOOKUP_FULL }, ambiguous: false });
       queryMock.mockResolvedValueOnce({ rows: [] });
       queryMock.mockResolvedValueOnce({ rows: [] });
@@ -218,11 +268,24 @@ describe("pgPatientBookingsPort", () => {
         status: "cancelled",
       });
 
-      const updateSql = String(queryMock.mock.calls[4]![0] ?? "");
-      expect(updateSql).toContain("UPDATE patient_bookings");
-      const updateArgs = queryMock.mock.calls[4]![1] as unknown[];
-      expect(updateArgs![9]).toBe(LOOKUP_FULL.branchServiceId);
+      const deleteSql = String(queryMock.mock.calls[4]![0] ?? "");
+      expect(deleteSql).toContain("DELETE FROM patient_bookings");
       expect(queryMock.mock.calls.length).toBe(5);
+    });
+
+    it("compat cancelled without existing row does not create projection row", async () => {
+      lookupMock.mockResolvedValue({ result: null, ambiguous: false });
+      queryMock.mockResolvedValueOnce({ rows: [] });
+      queryMock.mockResolvedValueOnce({ rows: [] });
+
+      await pgPatientBookingsPort.upsertFromRubitime({
+        ...baseCompatInput,
+        status: "cancelled",
+      });
+
+      expect(queryMock.mock.calls.length).toBe(2);
+      const insertAttempt = queryMock.mock.calls.find((call) => String(call[0]).includes("INSERT INTO patient_bookings"));
+      expect(insertAttempt).toBeUndefined();
     });
 
     it("fallback links native row by phone + slot when rubitime_id was NULL, then UPDATE path", async () => {

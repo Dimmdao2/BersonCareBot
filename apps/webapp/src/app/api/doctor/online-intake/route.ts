@@ -3,6 +3,21 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
+import type { IntakeRequestWithPatientIdentity } from "@/modules/online-intake/types";
+
+/** HTTP list body matches `API_CONTRACT_ONLINE_INTAKE_V1` (no `userId` on items). */
+function toDoctorListItem(r: IntakeRequestWithPatientIdentity) {
+  return {
+    id: r.id,
+    type: r.type,
+    status: r.status,
+    summary: r.summary,
+    patientName: r.patientName,
+    patientPhone: r.patientPhone,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
+}
 
 const querySchema = z.object({
   type: z.enum(["lfk", "nutrition"]).optional(),
@@ -33,7 +48,8 @@ export async function GET(request: Request) {
   const result = await service.listForDoctor({ type, status, limit, offset });
 
   return NextResponse.json({
-    ...result,
+    items: result.items.map(toDoctorListItem),
+    total: result.total,
     page,
     totalPages: Math.ceil(result.total / limit),
   });

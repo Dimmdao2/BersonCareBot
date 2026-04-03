@@ -14,7 +14,7 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigValue: (key: string, fallback: string) => getConfigValueMock(key, fallback),
 }));
 
-import { createIntakeNotificationRelay } from "./intakeNotificationRelay";
+import { buildIntakeDeepLink, createIntakeNotificationRelay } from "./intakeNotificationRelay";
 
 describe("intakeNotificationRelay", () => {
   beforeEach(() => {
@@ -46,6 +46,7 @@ describe("intakeNotificationRelay", () => {
         channel: "telegram",
         recipient: "111",
         messageId: "req-1:tg:111",
+        text: expect.stringMatching(/\/app\/doctor\/online-intake\/req-1/),
       }),
     );
     expect(relayMock).toHaveBeenCalledWith(
@@ -53,6 +54,7 @@ describe("intakeNotificationRelay", () => {
         channel: "max",
         recipient: "max-1",
         messageId: "req-1:max:max-1",
+        text: expect.stringMatching(/\/app\/doctor\/online-intake\/req-1/),
       }),
     );
   });
@@ -132,5 +134,15 @@ describe("intakeNotificationRelay", () => {
         summary: "",
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("buildIntakeDeepLink includes request id in path", () => {
+    expect(buildIntakeDeepLink("550e8400-e29b-41d4-a716-446655440000")).toContain(
+      "/app/doctor/online-intake/550e8400-e29b-41d4-a716-446655440000",
+    );
+  });
+
+  it("buildIntakeDeepLink falls back to list path when request id empty", () => {
+    expect(buildIntakeDeepLink("  ")).toMatch(/\/app\/doctor\/online-intake$/);
   });
 });

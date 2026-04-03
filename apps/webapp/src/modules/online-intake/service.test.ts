@@ -313,4 +313,49 @@ describe("onlineIntakeService", () => {
       ).rejects.toMatchObject({ code: "ATTACHMENT_FILE_INVALID" });
     });
   });
+
+  describe("doctor patient identity (list/details)", () => {
+    const longDesc =
+      "Описание проблемы с суставами для проверки patientName и patientPhone в doctor API списке и деталях";
+
+    it("listForDoctor and getRequestForDoctor include identity from userProfiles", async () => {
+      const userProfiles = new Map([
+        ["user-doc-id-1", { displayName: "Пётр Иванов", phone: "+79001234567" }],
+      ]);
+      const svc = createOnlineIntakeService({
+        intakePort: createInMemoryOnlineIntake({ userProfiles }),
+        notificationPort: null,
+      });
+      await svc.submitLfk({
+        userId: "user-doc-id-1",
+        patientName: "ignored-for-doctor-view",
+        patientPhone: "+7999",
+        description: longDesc,
+      });
+      const list = await svc.listForDoctor({});
+      expect(list.items).toHaveLength(1);
+      expect(list.items[0].patientName).toBe("Пётр Иванов");
+      expect(list.items[0].patientPhone).toBe("+79001234567");
+      const full = await svc.getRequestForDoctor(list.items[0].id);
+      expect(full?.patientName).toBe("Пётр Иванов");
+      expect(full?.patientPhone).toBe("+79001234567");
+      expect(full?.answers.length).toBeGreaterThan(0);
+    });
+
+    it("uses empty strings when profile fields are missing", async () => {
+      const svc = createOnlineIntakeService({
+        intakePort: createInMemoryOnlineIntake(),
+        notificationPort: null,
+      });
+      await svc.submitLfk({
+        userId: "user-no-profile",
+        patientName: "X",
+        patientPhone: "+7900",
+        description: longDesc,
+      });
+      const list = await svc.listForDoctor({});
+      expect(list.items[0].patientName).toBe("");
+      expect(list.items[0].patientPhone).toBe("");
+    });
+  });
 });

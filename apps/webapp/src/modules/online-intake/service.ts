@@ -115,11 +115,11 @@ export function createOnlineIntakeService(deps: {
     },
 
     async getRequestForDoctor(id) {
-      return intakePort.getById(id);
+      return intakePort.getByIdForDoctor(id);
     },
 
     async listForDoctor(query) {
-      return intakePort.listRequests(query);
+      return intakePort.listRequestsForDoctor(query);
     },
 
     async changeStatus(input: ChangeIntakeStatusInput) {

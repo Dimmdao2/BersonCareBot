@@ -44,5 +44,6 @@
   "reminder.warmup": "Разминка ⚡",
   "reminder.breathing": "Время подышать 🌬",
   "reminder.water": "Напоминание попить воду 💧",
-  "reminder.supplements_medication": "Напоминание: бады и лекарства 💊"
+  "reminder.supplements_medication": "Напоминание: бады и лекарства 💊",
+  "doctor.onlineIntake.notify": "Новая заявка: {{typeLabel}}\nПациент: {{patientName}}{{summaryPart}}\nКарточка: {{deepLink}}"
 }

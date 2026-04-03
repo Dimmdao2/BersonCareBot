@@ -230,7 +230,7 @@ changed_at     TIMESTAMPTZ NOT NULL DEFAULT now()
    - **MAX**: аналогично.
    - **Webapp inbox**: создаётся notification entry для doctor роли.
 
-Реализация нотификации: через существующий `NotificationService` / bot channel. Deep-link формируется из `PUBLIC_URL` system_setting + `/app/doctor/online-intake/<id>`.
+Реализация нотификации: через relay-outbound в integrator. Deep-link: **`APP_BASE_URL` + `/app/doctor/online-intake/<requestId>`** (обязательный UUID заявки в path). Страница `/app/doctor/online-intake/[requestId]` открывает ту же карточку, что и API `GET /api/doctor/online-intake/:id`.
 
 ## S9.T06 — Тест-матрица Stage 9
 

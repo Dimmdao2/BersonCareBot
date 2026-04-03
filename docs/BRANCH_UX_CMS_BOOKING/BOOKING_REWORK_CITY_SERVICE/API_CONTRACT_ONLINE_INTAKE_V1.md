@@ -115,6 +115,27 @@ List patient's own intake requests.
 
 ## Doctor / Admin API
 
+### Deep link (уведомления TG / MAX → карточка заявки)
+
+Единый формат URL для перехода врача к **конкретной** заявке (`requestId` = UUID из `online_intake_requests.id`):
+
+- **Path:** `{APP_BASE_URL}/app/doctor/online-intake/{requestId}`
+- **`requestId`** обязателен в пути (не query), чтобы ссылка однозначно указывала на карточку.
+- **База:** `APP_BASE_URL` — bootstrap deploy (см. `apps/webapp` env); то же происхождение, что и для других deep-link в webapp (например напоминания).
+
+Текст уведомления формирует webapp (`intakeNotificationRelay`): в конце сообщения строка вида `Карточка: {URL}`. Доставка в Telegram и MAX — один и тот же текст через relay-outbound (идентичный deep-link в обоих каналах).
+
+### Patient identity (`patientName` / `patientPhone`)
+
+Для **doctor/admin** ответов list и details поля **`patientName`** и **`patientPhone`** обязательны в JSON (тип `string` в TypeScript), одинаковый shape в списке и в деталях.
+
+- Источник: профиль `platform_users`, связанный с `online_intake_requests.user_id` (`platform_users.id`).
+- **`patientName`**: `platform_users.display_name`, нормализовано до строки; если значение отсутствует или пустое — **`""`**.
+- **`patientPhone`**: `platform_users.phone_normalized`; если `NULL` — **`""`**.
+- Поля не опциональны в контракте: клиент всегда получает обе строки (возможны пустые при неполном профиле или исторических данных).
+
+---
+
 ### GET /api/doctor/online-intake
 
 List all intake requests (doctor/admin only).
@@ -129,8 +150,8 @@ List all intake requests (doctor/admin only).
     type: "lfk" | "nutrition";
     status: string;
     summary: string;
-    patientName: string;
-    patientPhone: string;
+    patientName: string;  // required — см. «Patient identity»
+    patientPhone: string; // required — см. «Patient identity»
     createdAt: string;
     updatedAt: string;
   }>;
@@ -152,8 +173,8 @@ Get full intake request details.
   id: string;
   type: "lfk" | "nutrition";
   status: string;
-  patientName: string;
-  patientPhone: string;
+  patientName: string;  // required — см. «Patient identity»
+  patientPhone: string; // required — см. «Patient identity»
   createdAt: string;
   updatedAt: string;
   // LFK specific:

@@ -42,16 +42,15 @@ describe("inMemoryPatientBookings - compat-sync", () => {
       expect(found).toBeNull();
     });
 
-    it("updates existing row instead of creating duplicate (dedup)", async () => {
+    it("cancel webhook removes existing compat row by rubitime_id", async () => {
       // First call: create
       await inMemoryPatientBookingsPort.upsertFromRubitime({
         rubitimeId: "rub-dedup",
         status: "confirmed",
         slotStart: "2026-05-01T10:00:00.000Z",
-        userId: "user-dedup-test",
       });
 
-      // Second call: update (same rubitime_id)
+      // Second call: cancel (same rubitime_id) -> remove projection row
       await inMemoryPatientBookingsPort.upsertFromRubitime({
         rubitimeId: "rub-dedup",
         status: "cancelled",
@@ -59,32 +58,18 @@ describe("inMemoryPatientBookings - compat-sync", () => {
       });
 
       const found = await inMemoryPatientBookingsPort.getByRubitimeId("rub-dedup");
-      expect(found?.status).toBe("cancelled");
-
-      // Check no duplicates
-      const history = await inMemoryPatientBookingsPort.listHistoryByUser(
-        "user-dedup-test",
-        "2020-01-01T00:00:00.000Z",
-      );
-      const count = history.filter((r) => r.rubitimeId === "rub-dedup").length;
-      expect(count).toBe(1);
+      expect(found).toBeNull();
     });
 
-    it("updates status on cancel webhook", async () => {
+    it("does not create compat row for cancel webhook when row does not exist", async () => {
       await inMemoryPatientBookingsPort.upsertFromRubitime({
-        rubitimeId: "rub-cancel",
-        status: "confirmed",
-        slotStart: "2026-05-01T10:00:00.000Z",
-      });
-
-      await inMemoryPatientBookingsPort.upsertFromRubitime({
-        rubitimeId: "rub-cancel",
+        rubitimeId: "rub-cancel-miss",
         status: "cancelled",
         slotStart: "2026-05-01T10:00:00.000Z",
       });
 
-      const found = await inMemoryPatientBookingsPort.getByRubitimeId("rub-cancel");
-      expect(found?.status).toBe("cancelled");
+      const found = await inMemoryPatientBookingsPort.getByRubitimeId("rub-cancel-miss");
+      expect(found).toBeNull();
     });
 
     it("uses default 60-min duration when slotEnd is missing", async () => {
@@ -146,6 +131,146 @@ describe("inMemoryPatientBookings - compat-sync", () => {
 
       const upcoming = await inMemoryPatientBookingsPort.listUpcomingByUser("u-fallback-native", "2025-01-01T00:00:00.000Z");
       expect(upcoming.filter((r) => r.rubitimeId === "rt-webhook-new")).toHaveLength(1);
+    });
+
+    it("native row update keeps original slotStart/slotEnd on webhook upsert", async () => {
+      const pending = await inMemoryPatientBookingsPort.createPending({
+        userId: "u-native-keep",
+        bookingType: "in_person",
+        city: "moscow",
+        category: "general",
+        slotStart: "2026-05-01T10:00:00.000Z",
+        slotEnd: "2026-05-01T11:00:00.000Z",
+        contactName: "T",
+        contactPhone: "+79000000001",
+        contactEmail: null,
+        branchId: "br1",
+        serviceId: "sv1",
+        branchServiceId: "bs1",
+        cityCodeSnapshot: "moscow",
+        branchTitleSnapshot: "Филиал",
+        serviceTitleSnapshot: "Сеанс",
+        durationMinutesSnapshot: 60,
+        priceMinorSnapshot: 100,
+        rubitimeBranchIdSnapshot: "173",
+        rubitimeCooperatorIdSnapshot: "347",
+        rubitimeServiceIdSnapshot: "675",
+      });
+      await inMemoryPatientBookingsPort.markConfirmed(pending.id, "rt-native-1");
+
+      await inMemoryPatientBookingsPort.upsertFromRubitime({
+        rubitimeId: "rt-native-1",
+        status: "cancelled",
+        slotStart: "2026-05-01 11:00:00",
+        slotEnd: "2026-05-01 12:00:00",
+      });
+
+      const updated = await inMemoryPatientBookingsPort.getByRubitimeId("rt-native-1");
+      expect(updated?.slotStart).toBe("2026-05-01T10:00:00.000Z");
+      expect(updated?.slotEnd).toBe("2026-05-01T11:00:00.000Z");
+      expect(updated?.status).toBe("cancelled");
+    });
+  });
+
+  describe("createPending overlap scope", () => {
+    it("allows same time for different specialists", async () => {
+      await inMemoryPatientBookingsPort.createPending({
+        userId: "u1",
+        bookingType: "in_person",
+        city: "moscow",
+        category: "general",
+        slotStart: "2026-05-01T19:00:00.000Z",
+        slotEnd: "2026-05-01T20:00:00.000Z",
+        contactName: "A",
+        contactPhone: "+79000000011",
+        contactEmail: null,
+        branchId: "br1",
+        serviceId: "sv1",
+        branchServiceId: "bs1",
+        cityCodeSnapshot: "moscow",
+        branchTitleSnapshot: "Филиал",
+        serviceTitleSnapshot: "Сеанс",
+        durationMinutesSnapshot: 60,
+        priceMinorSnapshot: 100,
+        rubitimeBranchIdSnapshot: "173",
+        rubitimeCooperatorIdSnapshot: "347",
+        rubitimeServiceIdSnapshot: "675",
+      });
+
+      await expect(
+        inMemoryPatientBookingsPort.createPending({
+          userId: "u2",
+          bookingType: "in_person",
+          city: "moscow",
+          category: "general",
+          slotStart: "2026-05-01T19:00:00.000Z",
+          slotEnd: "2026-05-01T20:00:00.000Z",
+          contactName: "B",
+          contactPhone: "+79000000022",
+          contactEmail: null,
+          branchId: "br2",
+          serviceId: "sv2",
+          branchServiceId: "bs2",
+          cityCodeSnapshot: "moscow",
+          branchTitleSnapshot: "Филиал 2",
+          serviceTitleSnapshot: "Сеанс 2",
+          durationMinutesSnapshot: 60,
+          priceMinorSnapshot: 100,
+          rubitimeBranchIdSnapshot: "174",
+          rubitimeCooperatorIdSnapshot: "999",
+          rubitimeServiceIdSnapshot: "676",
+        }),
+      ).resolves.toBeTruthy();
+    });
+
+    it("blocks same time for the same specialist", async () => {
+      await inMemoryPatientBookingsPort.createPending({
+        userId: "u1",
+        bookingType: "in_person",
+        city: "moscow",
+        category: "general",
+        slotStart: "2026-05-01T19:00:00.000Z",
+        slotEnd: "2026-05-01T20:00:00.000Z",
+        contactName: "A",
+        contactPhone: "+79000000011",
+        contactEmail: null,
+        branchId: "br1",
+        serviceId: "sv1",
+        branchServiceId: "bs1",
+        cityCodeSnapshot: "moscow",
+        branchTitleSnapshot: "Филиал",
+        serviceTitleSnapshot: "Сеанс",
+        durationMinutesSnapshot: 60,
+        priceMinorSnapshot: 100,
+        rubitimeBranchIdSnapshot: "173",
+        rubitimeCooperatorIdSnapshot: "347",
+        rubitimeServiceIdSnapshot: "675",
+      });
+
+      await expect(
+        inMemoryPatientBookingsPort.createPending({
+          userId: "u2",
+          bookingType: "in_person",
+          city: "moscow",
+          category: "general",
+          slotStart: "2026-05-01T19:00:00.000Z",
+          slotEnd: "2026-05-01T20:00:00.000Z",
+          contactName: "B",
+          contactPhone: "+79000000022",
+          contactEmail: null,
+          branchId: "br2",
+          serviceId: "sv2",
+          branchServiceId: "bs2",
+          cityCodeSnapshot: "moscow",
+          branchTitleSnapshot: "Филиал 2",
+          serviceTitleSnapshot: "Сеанс 2",
+          durationMinutesSnapshot: 60,
+          priceMinorSnapshot: 100,
+          rubitimeBranchIdSnapshot: "174",
+          rubitimeCooperatorIdSnapshot: "347",
+          rubitimeServiceIdSnapshot: "676",
+        }),
+      ).rejects.toThrow("slot_overlap");
     });
   });
 });

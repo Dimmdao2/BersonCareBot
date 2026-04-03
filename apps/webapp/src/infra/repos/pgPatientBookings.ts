@@ -94,6 +94,10 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
            FROM patient_bookings
           WHERE status IN ('creating', 'confirmed', 'rescheduled', 'cancelling', 'cancel_failed')
             AND tstzrange(slot_start, slot_end, '[)') && tstzrange($6::timestamptz, $7::timestamptz, '[)')
+             AND (
+               ($20::text IS NOT NULL AND rubitime_cooperator_id_snapshot = $20::text)
+               OR ($20::text IS NULL AND platform_user_id = $2)
+             )
           LIMIT 1
        )
        INSERT INTO patient_bookings (
@@ -263,14 +267,28 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     }
 
     if (existingRow) {
+      if (existingRow.source === "rubitime_projection" && input.status === "cancelled") {
+        await pool.query(
+          `DELETE FROM patient_bookings
+           WHERE id = $1 AND source = 'rubitime_projection'`,
+          [existingRow.id],
+        );
+        return;
+      }
       const slotStartIso = input.slotStart ?? existingRow.slot_start.toISOString();
       const merge = await mergeCompatProjectionFields(input, slotStartIso);
-      // UPDATE path: update status and slot times; do not overwrite snapshots for native rows.
+      // UPDATE path: keep native slot times intact (webhook can carry naive local datetimes).
       await pool.query(
         `UPDATE patient_bookings
          SET status = $2::text,
-             slot_start = COALESCE($3::timestamptz, slot_start),
-             slot_end   = COALESCE($4::timestamptz, slot_end),
+             slot_start = CASE
+               WHEN source = 'rubitime_projection' THEN COALESCE($3::timestamptz, slot_start)
+               ELSE slot_start
+             END,
+             slot_end   = CASE
+               WHEN source = 'rubitime_projection' THEN COALESCE($4::timestamptz, slot_end)
+               ELSE slot_end
+             END,
              cancelled_at = CASE
                WHEN $2::text = 'cancelled' THEN now()
                WHEN $2::text = 'rescheduled' THEN NULL
@@ -285,8 +303,8 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
              branch_id = CASE WHEN source = 'rubitime_projection' AND $11::uuid IS NOT NULL THEN $11::uuid ELSE branch_id END,
              service_id = CASE WHEN source = 'rubitime_projection' AND $12::uuid IS NOT NULL THEN $12::uuid ELSE service_id END,
              branch_service_id = CASE WHEN source = 'rubitime_projection' AND $10::uuid IS NOT NULL THEN $10::uuid ELSE branch_service_id END,
-             duration_minutes_snapshot = CASE WHEN source = 'rubitime_projection' AND $14 IS NOT NULL THEN $14::integer ELSE duration_minutes_snapshot END,
-             price_minor_snapshot = CASE WHEN source = 'rubitime_projection' AND $15 IS NOT NULL THEN $15::integer ELSE price_minor_snapshot END,
+             duration_minutes_snapshot = CASE WHEN source = 'rubitime_projection' AND $14::integer IS NOT NULL THEN $14::integer ELSE duration_minutes_snapshot END,
+             price_minor_snapshot = CASE WHEN source = 'rubitime_projection' AND $15::integer IS NOT NULL THEN $15::integer ELSE price_minor_snapshot END,
              compat_quality = CASE WHEN source = 'rubitime_projection' THEN $9::text ELSE compat_quality END,
              rubitime_manage_url = CASE WHEN $17::text IS NOT NULL THEN $17::text ELSE rubitime_manage_url END,
              provenance_updated_by = CASE WHEN source = 'rubitime_projection' THEN 'rubitime_external' ELSE provenance_updated_by END,
@@ -316,6 +334,8 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
     }
 
     // CREATE compat-row path: external Rubitime record without a native booking row.
+    // For delete/cancel events we do not create a historical projection row.
+    if (input.status === "cancelled") return;
     if (!input.slotStart) return; // Cannot create a meaningful row without start time.
 
     const merge = await mergeCompatProjectionFields(input, input.slotStart);

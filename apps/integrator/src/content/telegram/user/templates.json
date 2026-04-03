@@ -98,5 +98,6 @@
   "emergency.placeholder": "Здесь скоро будут советы и упражнения по этой теме. Как только подготовлю — обязательно сообщу!",
   "showMyId": "Ваш ID в Telegram: {{channelId}}",
   "adminForward": "Новый вопрос\nОт: {{name}} {{usernameMention}}\nTelegram ID: {{channelId}}\nТекст:\n{{messageText}}",
-  "relay.unsupportedType": "этот вид сообщений не поддерживается. Напишите ваш вопрос текстом."
+  "relay.unsupportedType": "этот вид сообщений не поддерживается. Напишите ваш вопрос текстом.",
+  "doctor.onlineIntake.notify": "Новая заявка: {{typeLabel}}\nПациент: {{patientName}}{{summaryPart}}\nКарточка: {{deepLink}}"
 }

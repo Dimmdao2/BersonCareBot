@@ -29,11 +29,23 @@ function slotMatchesRowAndInput(rowSlot: string, inputSlot: string): boolean {
   return a === b;
 }
 
-function hasGlobalSlotOverlap(slotStart: string, slotEnd: string, excludeBookingId?: string): boolean {
+function hasGlobalSlotOverlap(input: {
+  slotStart: string;
+  slotEnd: string;
+  userId: string | null;
+  rubitimeCooperatorIdSnapshot: string | null;
+  excludeBookingId?: string;
+}): boolean {
+  const cooperatorId = input.rubitimeCooperatorIdSnapshot?.trim() || null;
   for (const row of byId.values()) {
-    if (excludeBookingId !== undefined && row.id === excludeBookingId) continue;
+    if (input.excludeBookingId !== undefined && row.id === input.excludeBookingId) continue;
     if (!BLOCKING_STATUSES.includes(row.status as (typeof BLOCKING_STATUSES)[number])) continue;
-    if (intervalsOverlap(slotStart, slotEnd, row.slotStart, row.slotEnd)) return true;
+    if (cooperatorId != null) {
+      if (row.rubitimeCooperatorIdSnapshot !== cooperatorId) continue;
+    } else if (row.userId !== input.userId) {
+      continue;
+    }
+    if (intervalsOverlap(input.slotStart, input.slotEnd, row.slotStart, row.slotEnd)) return true;
   }
   return false;
 }
@@ -66,8 +78,8 @@ function applyUpsertFromRubitimeToRow(id: string, row: PatientBookingRecord, inp
   byId.set(id, {
     ...row,
     status: input.status,
-    slotStart: slotStartIso,
-    slotEnd,
+    slotStart: row.bookingSource === "rubitime_projection" ? slotStartIso : row.slotStart,
+    slotEnd: row.bookingSource === "rubitime_projection" ? slotEnd : row.slotEnd,
     branchTitleSnapshot: input.branchTitle ?? row.branchTitleSnapshot,
     serviceTitleSnapshot: input.serviceTitle ?? row.serviceTitleSnapshot,
     rubitimeBranchIdSnapshot: input.rubitimeBranchId ?? row.rubitimeBranchIdSnapshot,
@@ -84,7 +96,14 @@ function applyUpsertFromRubitimeToRow(id: string, row: PatientBookingRecord, inp
 
 export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   async createPending(input: CreatePendingPatientBookingInput) {
-    if (hasGlobalSlotOverlap(input.slotStart, input.slotEnd)) {
+    if (
+      hasGlobalSlotOverlap({
+        slotStart: input.slotStart,
+        slotEnd: input.slotEnd,
+        userId: input.userId,
+        rubitimeCooperatorIdSnapshot: input.rubitimeCooperatorIdSnapshot,
+      })
+    ) {
       throw new Error("slot_overlap");
     }
     const now = new Date().toISOString();
@@ -132,7 +151,15 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
   async markConfirmed(bookingId, rubitimeId, options) {
     const row = byId.get(bookingId);
     if (!row) return null;
-    if (hasGlobalSlotOverlap(row.slotStart, row.slotEnd, bookingId)) {
+    if (
+      hasGlobalSlotOverlap({
+        slotStart: row.slotStart,
+        slotEnd: row.slotEnd,
+        userId: row.userId,
+        rubitimeCooperatorIdSnapshot: row.rubitimeCooperatorIdSnapshot,
+        excludeBookingId: bookingId,
+      })
+    ) {
       throw new Error("slot_overlap");
     }
     const manage = options?.rubitimeManageUrl?.trim() || null;
@@ -228,11 +255,16 @@ export const inMemoryPatientBookingsPort: PatientBookingsPort = {
     }
 
     if (targetId && row) {
+      if (row.bookingSource === "rubitime_projection" && input.status === "cancelled") {
+        byId.delete(targetId);
+        return;
+      }
       applyUpsertFromRubitimeToRow(targetId, row, input);
       return;
     }
 
     // Compat-create path: external Rubitime record without a native booking row.
+    if (input.status === "cancelled") return;
     if (!input.slotStart) return;
     const now = new Date().toISOString();
     const explicitSlotEnd = input.slotEnd != null && String(input.slotEnd).trim() !== "";

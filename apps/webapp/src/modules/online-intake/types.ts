@@ -51,6 +51,16 @@ export type IntakeRequestFull = IntakeRequest & {
   statusHistory: IntakeStatusHistoryEntry[];
 };
 
+/** Doctor/admin API: identity from `platform_users` (same shape for list and details). Always strings; may be "" if profile field missing. */
+export type DoctorIntakePatientIdentity = {
+  patientName: string;
+  patientPhone: string;
+};
+
+export type IntakeRequestWithPatientIdentity = IntakeRequest & DoctorIntakePatientIdentity;
+
+export type IntakeRequestFullWithPatientIdentity = IntakeRequestFull & DoctorIntakePatientIdentity;
+
 export type CreateLfkIntakeInput = {
   userId: string;
   description: string;

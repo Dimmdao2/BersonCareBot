@@ -10,6 +10,8 @@ import type {
   IntakeAttachment,
   IntakeRequest,
   IntakeRequestFull,
+  IntakeRequestFullWithPatientIdentity,
+  IntakeRequestWithPatientIdentity,
   IntakeStatus,
   IntakeStatusHistoryEntry,
   IntakeType,
@@ -55,6 +57,19 @@ type HistoryRow = {
   note: string | null;
   changed_at: Date;
 };
+
+type RequestRowWithIdentity = RequestRow & {
+  patient_name: string;
+  patient_phone: string;
+};
+
+function mapRequestWithPatientIdentity(row: RequestRowWithIdentity): IntakeRequestWithPatientIdentity {
+  return {
+    ...mapRequest(row),
+    patientName: row.patient_name,
+    patientPhone: row.patient_phone,
+  };
+}
 
 function mapRequest(row: RequestRow): IntakeRequest {
   return {
@@ -242,6 +257,44 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       };
     },
 
+    async getByIdForDoctor(id: string): Promise<IntakeRequestFullWithPatientIdentity | null> {
+      const pool = getPool();
+      const { rows: reqRows } = await pool.query<RequestRowWithIdentity>(
+        `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone
+         FROM online_intake_requests r
+         LEFT JOIN platform_users pu ON pu.id = r.user_id
+         WHERE r.id = $1`,
+        [id],
+      );
+      if (!reqRows[0]) return null;
+      const reqRow = reqRows[0];
+      const request = mapRequest(reqRow);
+      const patientName = reqRow.patient_name;
+      const patientPhone = reqRow.patient_phone;
+
+      const { rows: ansRows } = await pool.query<AnswerRow>(
+        `SELECT * FROM online_intake_answers WHERE request_id = $1 ORDER BY ordinal`,
+        [id],
+      );
+      const { rows: attRows } = await pool.query<AttachmentRow>(
+        `SELECT * FROM online_intake_attachments WHERE request_id = $1 ORDER BY created_at`,
+        [id],
+      );
+      const { rows: histRows } = await pool.query<HistoryRow>(
+        `SELECT * FROM online_intake_status_history WHERE request_id = $1 ORDER BY changed_at`,
+        [id],
+      );
+
+      return {
+        ...request,
+        patientName,
+        patientPhone,
+        answers: ansRows.map(mapAnswer),
+        attachments: attRows.map(mapAttachment),
+        statusHistory: histRows.map(mapHistory),
+      };
+    },
+
     async listRequests(query: ListIntakeQuery): Promise<{ items: IntakeRequest[]; total: number }> {
       const pool = getPool();
       const conditions: string[] = [];
@@ -277,6 +330,49 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       );
 
       return { items: rows.map(mapRequest), total };
+    },
+
+    async listRequestsForDoctor(
+      query: ListIntakeQuery,
+    ): Promise<{ items: IntakeRequestWithPatientIdentity[]; total: number }> {
+      const pool = getPool();
+      const conditions: string[] = [];
+      const params: unknown[] = [];
+      let idx = 1;
+
+      if (query.userId) {
+        conditions.push(`r.user_id = $${idx++}`);
+        params.push(query.userId);
+      }
+      if (query.type) {
+        conditions.push(`r.type = $${idx++}`);
+        params.push(query.type);
+      }
+      if (query.status) {
+        conditions.push(`r.status = $${idx++}`);
+        params.push(query.status);
+      }
+
+      const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+      const limit = query.limit ?? 20;
+      const offset = query.offset ?? 0;
+
+      const { rows: countRows } = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM online_intake_requests r ${where}`,
+        params,
+      );
+      const total = parseInt(countRows[0].count, 10);
+
+      const { rows } = await pool.query<RequestRowWithIdentity>(
+        `SELECT r.*, COALESCE(pu.display_name, '') AS patient_name, COALESCE(pu.phone_normalized, '') AS patient_phone
+         FROM online_intake_requests r
+         LEFT JOIN platform_users pu ON pu.id = r.user_id
+         ${where}
+         ORDER BY r.created_at DESC LIMIT $${idx++} OFFSET $${idx++}`,
+        [...params, limit, offset],
+      );
+
+      return { items: rows.map(mapRequestWithPatientIdentity), total };
     },
 
     async countActiveByUser(userId: string, type: IntakeType): Promise<number> {

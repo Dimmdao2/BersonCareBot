@@ -316,38 +316,94 @@
 
 ## Stage 4 - F-02
 
-### S4.T01 - Join patient identity для doctor list/details
-- Status: pending
+### S4.T01 - Зафиксировать контракт doctor responses
+- Status: done
+- Agent/model: Cursor agent
+- Files changed:
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/API_CONTRACT_ONLINE_INTAKE_V1.md` — секция «Patient identity»: обязательные `patientName`/`patientPhone`, источник `platform_users`, пустые строки при отсутствии данных; одинаковый shape list/details
+  - `apps/webapp/src/modules/online-intake/types.ts` — `DoctorIntakePatientIdentity`, `IntakeRequestWithPatientIdentity`, `IntakeRequestFullWithPatientIdentity`
+- Tests: не требовались (контракт + типы)
+- CI: см. S4.T05
 
-### S4.T02 - Контрактный ответ API без fallback
-- Status: pending
+### S4.T02 - Join с `platform_users` в doctor list
+- Status: done
+- Files changed:
+  - `apps/webapp/src/infra/repos/pgOnlineIntake.ts` — `listRequestsForDoctor`: `LEFT JOIN platform_users`, `COALESCE(display_name/phone_normalized)`
+  - `apps/webapp/src/infra/repos/inMemoryOnlineIntake.ts` — `listRequestsForDoctor` + опциональный `userProfiles`
+  - `apps/webapp/src/modules/online-intake/ports.ts`, `service.ts` — `listForDoctor` → `listRequestsForDoctor`
+  - `apps/webapp/src/app/api/doctor/online-intake/route.test.ts` — list возвращает identity
+- Tests: `service.test.ts` (doctor identity), `route.test.ts`
 
-### S4.T03 - UI doctor inbox alignment
-- Status: pending
+### S4.T03 - Join в doctor details + унификация mapper
+- Status: done
+- Files changed:
+  - `apps/webapp/src/infra/repos/pgOnlineIntake.ts` — `getByIdForDoctor` (join + те же поля, что в list)
+  - `apps/webapp/src/infra/repos/inMemoryOnlineIntake.ts` — `getByIdForDoctor`
+  - `apps/webapp/src/modules/online-intake/doctorIntakeDetailResponse.ts` — `buildDoctorOnlineIntakeDetailResponse(full)` без отдельного `patientDisplay`; данные с `IntakeRequestFullWithPatientIdentity`
+  - `apps/webapp/src/app/api/doctor/online-intake/[id]/route.ts` — убран второй SQL к `platform_users`; 401/403/404 без изменений по смыслу
 
-### S4.T04 - Тесты + gate evidence
-- Status: pending
+### S4.T04 - UI врача без fallback-заглушек (normal path)
+- Status: done
+- Files changed:
+  - `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` — без изменений логики отображения (уже без `—`/`неизвестно`); контрактные поля приходят с API
+  - `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.test.tsx` — smoke: имя и телефон из ответа list
+- Tests: `DoctorOnlineIntakeClient.test.tsx`
+
+### S4.T05 - Финальные проверки и gate
+- Status: done
+- CI: `pnpm run ci` — pass (локально, 2026-04-03)
+- Evidence: webapp `service.test.ts`, `doctorIntakeDetailResponse.test.ts`, `api/doctor/online-intake/route.test.ts`, `DoctorOnlineIntakeClient.test.tsx`; полный CI как выше
 
 ### Stage 4 - AUDIT
-- Auditor/model: Composer 2
-- Verdict: pending
+- Auditor/model: Composer 2 (первичный аудит: low — лишний `userId` в list JSON, `changedBy` nullable vs контракт, слабые ассерты identity в `doctorIntakeDetailResponse.test`)
+- Verdict (remediation): **pass** — `GET /api/doctor/online-intake` маппит items без `userId` (`toDoctorListItem` в `route.ts`); `buildDoctorOnlineIntakeDetailResponse` отдаёт `statusHistory[].changedBy` как `string` (`null` → `""`); расширены `doctorIntakeDetailResponse.test.ts`; `route.test.ts` проверяет отсутствие `userId`; локально `pnpm run ci` — pass (2026-04-03, повтор после remediation)
 
 ---
 
-## Stage 5 - F-06
+## Stage 5 - F-06 (notification deep-link на заявку)
 
-### S5.T01 - Генерация deep-link с requestId
-- Status: pending
+### S5.T01 - Зафиксировать deep-link контракт
+- Status: done
+- Agent/model: Cursor agent
+- Files changed:
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/API_CONTRACT_ONLINE_INTAKE_V1.md` — секция «Deep link»: `{APP_BASE_URL}/app/doctor/online-intake/{requestId}`, база из env bootstrap
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_9_ONLINE_INTAKE.md` — уточнён источник базы (`APP_BASE_URL`), path с `requestId`
+- Tests: не требовались (док)
 
-### S5.T02 - Шаблоны TG/MAX + маршрутизация
-- Status: pending
+### S5.T02 - Генерация deep-link в notification relay
+- Status: done
+- Files changed:
+  - `apps/webapp/src/modules/online-intake/intakeNotificationRelay.ts` — `buildIntakeDeepLink(requestId)`, префикс «Карточка:» в тексте
+- Tests: `intakeNotificationRelay.test.ts` — URL содержит `/app/doctor/online-intake/{id}`; `buildIntakeDeepLink` unit cases
 
-### S5.T03 - e2e click-through проверка
-- Status: pending
+### S5.T03 - Шаблоны каналов TG/MAX
+- Status: done
+- Files changed:
+  - `apps/integrator/src/content/telegram/user/templates.json` — ключ `doctor.onlineIntake.notify` (плейсхолдеры `typeLabel`, `patientName`, `summaryPart`, `deepLink`)
+  - `apps/integrator/src/content/max/user/templates.json` — тот же ключ (паритет TG/MAX)
+- Note: фактическая отправка online-intake по-прежнему идёт relay-outbound с полным текстом из webapp; шаблон зафиксирован для консистентности и возможного reuse
+
+### S5.T04 - Doctor routing (карточка по ссылке)
+- Status: done
+- Files changed:
+  - `apps/webapp/src/app/app/doctor/online-intake/[requestId]/page.tsx` — маршрут с `initialOpenRequestId`
+  - `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.tsx` — загрузка детали по deep-link, 404/403/error, блок «Заявка по ссылке» если заявки нет в текущем фильтре
+- Tests: `DoctorOnlineIntakeClient.test.tsx` — deep-link без строки в списке
+
+### S5.T05 - Smoke и gate
+- Status: done
+- Evidence:
+  - Автоматический smoke: `intakeNotificationRelay.test.ts` (URL + requestId в path), `DoctorOnlineIntakeClient.test.tsx` (открытие карточки по `initialOpenRequestId`)
+  - Ручной клик из реальных TG/MAX: требует задеплоенного стенда и учётки; в логе зафиксировано покрытие через unit/UI tests (см. выше)
+- CI: `pnpm run ci` — pass (2026-04-03)
 
 ### Stage 5 - AUDIT
 - Auditor/model: Composer 2
-- Verdict: pending
+- Verdict: pass
+- Evidence checked:
+  - Deep-link в уведомлении содержит `requestId` в path
+  - UI открывает заявку по `/app/doctor/online-intake/[requestId]`
+  - Шаблоны TG/MAX синхронизированы (`doctor.onlineIntake.notify`)
 
 ---
 
@@ -406,9 +462,10 @@
 
 ### Prod evidence (заполняет оператор на хосте)
 
-- **commit SHA / services:** _unconfirmed — `git rev-parse HEAD`, `systemctl status` для deploy units из `docs/ARCHITECTURE/SERVER CONVENTIONS.md`._
-- **dead projection:** см. `PROD_BOOKING_INCIDENT_REMEDIATION.md` §1.
-- **Симптом времени / manage link:** зафиксированы в RCA выше.
+- **commit SHA / services:** confirmed on host — `27193e3897d9ce74c6980e2f0d2705d4bedbce72`; `bersoncarebot-api-prod`, `bersoncarebot-worker-prod`, `bersoncarebot-webapp-prod` = `active`.
+- **health:** `GET http://127.0.0.1:3200/health` -> `{"ok":true,"db":"up"}`; `GET http://127.0.0.1:6200/api/health` -> `{"ok":true,"db":"up"}`.
+- **dead projection remediation:** выполнены requeue-волны по `parameter $5`, затем `parameter $11`, затем `parameter $14`; после точечных SQL-фиксов `pgPatientBookings.ts` и replay итог outbox: `done=93`, `dead=1`.
+- **остаточный dead:** `id=498` (`slot_no_overlap`) — intentional technical block-window record (`+70000000000`, `БЛОК ОКНА`), оставлен в `dead` как non-actionable.
 
 ### INCIDENT.S0 — baseline + RCA
 - Status: done
@@ -437,8 +494,9 @@
 - Notes: runbook расширен до operator-grade: обязательная диагностика, replay команды `requeue-projection-outbox-dead.ts` (dry-run/commit/verify), транзакционные шаблоны reconcile (wrong-time, stale-cancel, URL backfill), обязательный closeout payload
 
 ### INCIDENT.S6 — post-deploy smoke
-- Status: blocked (ожидает выполнения оператором на prod; checklist и команды в `PROD_BOOKING_INCIDENT_REMEDIATION.md`)
-- Blocker: нет host evidence (SHA/services, replay IDs, reconcile IDs, smoke result)
+- Status: in_progress
+- Evidence: host SHA/services/health подтверждены; replay outbox выполнен и стабилизирован (`done=93`, `dead=1` intentional).
+- Remaining: финальный продуктовый smoke по кабинету пациента (подтвердить отсутствие ложных historical rows для `+79189000782` через targeted reconcile decision).
 
 ### INCIDENT.S7 — closeout
 - Status: blocked (закрывается только после S6)
@@ -458,6 +516,53 @@
   - `pnpm run ci` — pass (local, 2026-04-02)
 - Notes:
   - Этот блок закрывает замечания аудита по S3/S5. S6/S7 остаются operator-dependent.
+
+### INCIDENT.REMEDIATION.CANCELLED_PROJECTION_HIDE
+- Status: done
+- Agent/model: Cursor agent
+- Files changed:
+  - `apps/webapp/src/infra/repos/pgPatientBookings.ts` — при `upsertFromRubitime(status='cancelled')` для `source='rubitime_projection'` строка удаляется; cancel-событие без существующей строки не создает compat-row
+  - `apps/webapp/src/infra/repos/inMemoryPatientBookings.ts` — parity с PG: cancel removes compat row / skip create
+  - `apps/webapp/src/app-layer/di/buildAppDeps.ts` — `getPastAppointments` фильтрует cancelled-строки из `appointment_records` в пациентском журнале
+  - `apps/webapp/src/infra/repos/pgPatientBookings.test.ts` — regression на delete/skip-create для compat cancel
+  - `apps/webapp/src/infra/repos/inMemoryPatientBookings.test.ts` — parity regression на cancel behavior
+- Tests:
+  - `pnpm -C apps/webapp test src/infra/repos/pgPatientBookings.test.ts src/infra/repos/inMemoryPatientBookings.test.ts src/modules/integrator/events.test.ts`
+- Notes:
+  - Цель: remove/delete из Rubitime не оставляет «Запись из расписания» в журнале пациента.
+
+### INCIDENT.REMEDIATION.BOOKING_TIME_AND_OVERLAP_V2
+- Status: done
+- Problem (prod-like):
+  1. **Журнал / отменённая запись:** время в `patient_bookings` сдвигалось (например +1 ч к Москве), потому что webhook `appointment.record.upserted` передаёт `recordAt` как **наивную** строку без TZ; в UPDATE пути `upsertFromRubitime` она кастилась в `timestamptz` в контексте session TZ и **перезаписывала** корректный `slot_start` у **native**-строки.
+  2. **«Это время уже занято» на свободный слот:** overlap в `createPending` и EXCLUDE в БД были **глобальными** (все пациенты/все специалисты), из‑за чего чужая запись на тот же интервал блокировала слот у другого специалиста.
+- Fix:
+  - `apps/webapp/src/infra/repos/pgPatientBookings.ts` — в UPDATE `upsertFromRubitime`: `slot_start`/`slot_end` обновляются только при `source = 'rubitime_projection'`; для `native` время не трогаем.
+  - `apps/webapp/src/infra/repos/inMemoryPatientBookings.ts` — parity: не перезаписывать слот у native при upsert.
+  - `apps/webapp/src/infra/repos/pgPatientBookings.ts` — `createPending`: overlap только с тем же `rubitime_cooperator_id_snapshot`, иначе (online / без специалиста) — только с тем же `platform_user_id`.
+  - `apps/webapp/src/infra/repos/inMemoryPatientBookings.ts` — та же логика overlap.
+  - `apps/webapp/src/modules/patient-booking/service.ts` — ключ `inFlightCreateBySlot` включает `branchServiceId` (in_person) или `online:category` (online), чтобы не блокировать параллельные брони разных ресурсов.
+  - `apps/webapp/migrations/055_patient_bookings_overlap_per_specialist.sql` — EXCLUDE пересобран: пересечение интервалов только внутри одного `rubitime_cooperator_id_snapshot` (для `confirmed`/`rescheduled` при непустом snapshot).
+- Tests:
+  - `pnpm -C apps/webapp test src/infra/repos/pgPatientBookings.test.ts src/infra/repos/inMemoryPatientBookings.test.ts`
+  - `pnpm -C apps/webapp test src/modules/patient-booking/service.test.ts`
+- CI:
+  - `pnpm run ci` — pass (local, 2026-04-03)
+- Ops:
+  - После merge: применить webapp-миграции на prod (`055_...`), иначе constraint останется старым.
+
+### INCIDENT.PROD.EXECUTION.LOG — outbox replay timeline (operator)
+- Status: done
+- Host SHA: `27193e3897d9ce74c6980e2f0d2705d4bedbce72`
+- Steps:
+  - baseline: `appointment.record.upserted` dead rows observed with `parameter $5`.
+  - replay #1 (`error-contains='parameter $5'`): requeued 14.
+  - replay #2 (`error-contains='parameter $11'`): after SQL cast fix for `$10/$11/$12::uuid`, requeued 14.
+  - replay #3 (`error-contains='parameter $14'`): after SQL cast fix for `$14/$15::integer`, requeued 14.
+  - point fix: `id=451` moved to pending and delivered after confirming `patient_bookings.platform_user_id` nullable = `YES`.
+- Final outbox snapshot:
+  - `done=93`
+  - `dead=1` (`id=498`, `slot_no_overlap`, technical window block record)
 
 ---
 

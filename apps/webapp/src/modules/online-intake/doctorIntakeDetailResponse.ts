@@ -1,7 +1,7 @@
 import { presignGetUrl, s3PublicUrl } from "@/infra/s3/client";
 import { env } from "@/config/env";
 import { NUTRITION_QUESTIONS } from "@/modules/online-intake/types";
-import type { IntakeRequestFull } from "@/modules/online-intake/types";
+import type { IntakeRequestFullWithPatientIdentity } from "@/modules/online-intake/types";
 
 export type DoctorLfkAttachmentFile = {
   id: string;
@@ -31,7 +31,7 @@ export type DoctorOnlineIntakeDetailJson = {
   statusHistory: Array<{
     fromStatus: string | null;
     toStatus: string;
-    changedBy: string | null;
+    changedBy: string;
     note: string | null;
     changedAt: string;
   }>;
@@ -49,21 +49,20 @@ async function urlForIntakeS3Key(s3Key: string): Promise<string> {
 }
 
 export async function buildDoctorOnlineIntakeDetailResponse(
-  full: IntakeRequestFull,
-  patientDisplay: { patientName: string; patientPhone: string },
+  full: IntakeRequestFullWithPatientIdentity,
 ): Promise<DoctorOnlineIntakeDetailJson> {
   const base = {
     id: full.id,
     type: full.type,
     status: full.status,
-    patientName: patientDisplay.patientName,
-    patientPhone: patientDisplay.patientPhone,
+    patientName: full.patientName,
+    patientPhone: full.patientPhone,
     createdAt: full.createdAt,
     updatedAt: full.updatedAt,
     statusHistory: full.statusHistory.map((h) => ({
       fromStatus: h.fromStatus,
       toStatus: h.toStatus,
-      changedBy: h.changedBy,
+      changedBy: h.changedBy ?? "",
       note: h.note,
       changedAt: h.changedAt,
     })),

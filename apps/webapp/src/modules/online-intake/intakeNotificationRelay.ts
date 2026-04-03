@@ -48,12 +48,23 @@ export function buildIntakeNotifyText(input: {
   const typeLabel =
     input.type === "lfk" ? "ЛФК (онлайн)" : input.type === "nutrition" ? "Нутрициология (онлайн)" : String(input.type);
   const summaryPart = input.summary ? `\n${input.summary.slice(0, 200)}` : "";
-  return `Новая заявка: ${typeLabel}\nПациент: ${input.patientName}${summaryPart}\n${input.deepLink}`;
+  return `Новая заявка: ${typeLabel}\nПациент: ${input.patientName}${summaryPart}\nКарточка: ${input.deepLink}`;
 }
 
-export function buildIntakeDeepLink(): string {
-  const base = env.APP_BASE_URL.replace(/\/$/, "");
-  return `${base}/app/doctor/online-intake`;
+/**
+ * Deep-link на карточку заявки (online intake request id = UUID).
+ * База: `APP_BASE_URL` (bootstrap deploy). При пустом `requestId` — только список (без регресса).
+ */
+export function buildIntakeDeepLink(requestId: string): string {
+  const base = (env.APP_BASE_URL ?? "").replace(/\/$/, "");
+  if (!base) {
+    return "";
+  }
+  const id = (requestId ?? "").trim();
+  if (!id) {
+    return `${base}/app/doctor/online-intake`;
+  }
+  return `${base}/app/doctor/online-intake/${encodeURIComponent(id)}`;
 }
 
 export async function sendToTargets(
@@ -91,7 +102,7 @@ export function createIntakeNotificationRelay(): IntakeNotificationPort {
   return {
     async notifyNewIntakeRequest(input) {
       const targets = await loadNotifyTargets();
-      const deepLink = buildIntakeDeepLink();
+      const deepLink = buildIntakeDeepLink(input.requestId);
       const text = buildIntakeNotifyText({
         type: input.type,
         patientName: input.patientName,

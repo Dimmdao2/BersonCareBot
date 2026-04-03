@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildDoctorOnlineIntakeDetailResponse } from "./doctorIntakeDetailResponse";
-import type { IntakeRequestFull } from "./types";
+import type { IntakeRequestFullWithPatientIdentity } from "./types";
 
 vi.mock("@/infra/s3/client", () => ({
   presignGetUrl: vi.fn(async () => "https://signed.example/object"),
@@ -22,12 +22,14 @@ describe("buildDoctorOnlineIntakeDetailResponse", () => {
   });
 
   it("maps LFK url + file attachments for doctor JSON", async () => {
-    const full: IntakeRequestFull = {
+    const full: IntakeRequestFullWithPatientIdentity = {
       id: "req-1",
       userId: "u1",
       type: "lfk",
       status: "new",
       summary: "x",
+      patientName: "Иван",
+      patientPhone: "+7900",
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
       answers: [
@@ -66,14 +68,42 @@ describe("buildDoctorOnlineIntakeDetailResponse", () => {
       ],
       statusHistory: [],
     };
-    const json = await buildDoctorOnlineIntakeDetailResponse(full, {
-      patientName: "Иван",
-      patientPhone: "+7900",
-    });
+    const json = await buildDoctorOnlineIntakeDetailResponse(full);
+    expect(json.patientName).toBe("Иван");
+    expect(json.patientPhone).toBe("+7900");
     expect(json.description).toBe("Full text");
     expect(json.attachmentUrls).toEqual(["https://example.com/doc"]);
     expect(json.attachmentFiles).toHaveLength(1);
     expect(json.attachmentFiles?.[0].originalName).toBe("file.pdf");
     expect(json.attachmentFiles?.[0].url).toContain("public.example");
+  });
+
+  it("maps statusHistory changedBy null to empty string", async () => {
+    const full: IntakeRequestFullWithPatientIdentity = {
+      id: "req-2",
+      userId: "u1",
+      type: "nutrition",
+      status: "new",
+      summary: "s",
+      patientName: "A",
+      patientPhone: "",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      answers: [],
+      attachments: [],
+      statusHistory: [
+        {
+          id: "h1",
+          requestId: "req-2",
+          fromStatus: null,
+          toStatus: "new",
+          changedBy: null,
+          note: null,
+          changedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    };
+    const json = await buildDoctorOnlineIntakeDetailResponse(full);
+    expect(json.statusHistory[0].changedBy).toBe("");
   });
 });

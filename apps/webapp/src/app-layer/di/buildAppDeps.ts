@@ -289,6 +289,7 @@ const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]>
           const rows = await appointmentProjectionPort.listHistoryByPhoneNormalized(phone, 80);
           return rows
             .filter((row) => !isStillUpcomingSlot(row))
+            .filter((row) => !row.status.toLowerCase().includes("cancel"))
             .map((row) => {
               const dateLabel = formatAppointmentDateNumericRu(row.recordAt, tz);
               const timeLabel = formatAppointmentTimeShortRu(row.recordAt, tz);

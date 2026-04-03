@@ -8,6 +8,8 @@ import type {
   IntakeAttachment,
   IntakeRequest,
   IntakeRequestFull,
+  IntakeRequestFullWithPatientIdentity,
+  IntakeRequestWithPatientIdentity,
   IntakeStatus,
   IntakeStatusHistoryEntry,
   IntakeType,
@@ -18,6 +20,8 @@ export function createInMemoryOnlineIntake(deps?: {
     string,
     { userId: string; s3Key: string; mimeType: string; sizeBytes: number; originalName: string }
   >;
+  /** Maps `platform_users.id` → profile fields for doctor list/details (tests). */
+  userProfiles?: Map<string, { displayName: string; phone: string }>;
 }): OnlineIntakePort {
   const requests = new Map<string, IntakeRequest>();
   const answers = new Map<string, IntakeAnswer[]>();
@@ -26,6 +30,14 @@ export function createInMemoryOnlineIntake(deps?: {
 
   function now(): string {
     return new Date().toISOString();
+  }
+
+  function patientIdentityForUser(userId: string): { patientName: string; patientPhone: string } {
+    const p = deps?.userProfiles?.get(userId);
+    return {
+      patientName: p?.displayName ?? "",
+      patientPhone: p?.phone ?? "",
+    };
   }
 
   return {
@@ -162,6 +174,19 @@ export function createInMemoryOnlineIntake(deps?: {
       };
     },
 
+    async getByIdForDoctor(id: string): Promise<IntakeRequestFullWithPatientIdentity | null> {
+      const req = requests.get(id);
+      if (!req) return null;
+      const idn = patientIdentityForUser(req.userId);
+      return {
+        ...req,
+        ...idn,
+        answers: answers.get(id) ?? [],
+        attachments: attachments.get(id) ?? [],
+        statusHistory: statusHistory.get(id) ?? [],
+      };
+    },
+
     async listRequests(query: ListIntakeQuery): Promise<{ items: IntakeRequest[]; total: number }> {
       let items = [...requests.values()];
       if (query.userId) items = items.filter((r) => r.userId === query.userId);
@@ -172,6 +197,27 @@ export function createInMemoryOnlineIntake(deps?: {
       const offset = query.offset ?? 0;
       const limit = query.limit ?? 20;
       return { items: items.slice(offset, offset + limit), total };
+    },
+
+    async listRequestsForDoctor(
+      query: ListIntakeQuery,
+    ): Promise<{ items: IntakeRequestWithPatientIdentity[]; total: number }> {
+      let items = [...requests.values()];
+      if (query.userId) items = items.filter((r) => r.userId === query.userId);
+      if (query.type) items = items.filter((r) => r.type === query.type);
+      if (query.status) items = items.filter((r) => r.status === query.status);
+      items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const total = items.length;
+      const offset = query.offset ?? 0;
+      const limit = query.limit ?? 20;
+      const slice = items.slice(offset, offset + limit);
+      return {
+        items: slice.map((r) => ({
+          ...r,
+          ...patientIdentityForUser(r.userId),
+        })),
+        total,
+      };
     },
 
     async countActiveByUser(userId: string, type: IntakeType): Promise<number> {

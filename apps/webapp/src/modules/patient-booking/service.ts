@@ -131,7 +131,10 @@ export function createPatientBookingService(input: {
 
     async createBooking(rawInput) {
       const createInput = validateCreatePatientBookingInput(rawInput);
-      const slotLockKey = `${createInput.slotStart}|${createInput.slotEnd}`;
+      const slotLockKey =
+        createInput.type === "in_person"
+          ? `${createInput.branchServiceId}|${createInput.slotStart}|${createInput.slotEnd}`
+          : `online:${createInput.category}|${createInput.slotStart}|${createInput.slotEnd}`;
       if (inFlightCreateBySlot.has(slotLockKey)) {
         throw new Error("slot_overlap");
       }
