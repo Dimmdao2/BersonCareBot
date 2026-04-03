@@ -120,7 +120,7 @@ WHERE source = 'rubitime_projection'
 
 ## Связанные документы
 
-- `STAGE_11_RUBITIME_COMPAT_BRIDGE.md` — реализация compat-sync.
+- `EXECUTION_LOG.md` (§Stage 11) — реализация compat-sync (отдельного `STAGE_11_*.md` нет; вариант B).
 - `CUTOVER_RUNBOOK.md` — порядок включения compat-sync в продакшн.
 - `apps/integrator/src/integrations/rubitime/connector.ts` — webhook extraction.
 - `apps/webapp/src/infra/repos/pgPatientBookings.ts` — upsertFromRubitime.

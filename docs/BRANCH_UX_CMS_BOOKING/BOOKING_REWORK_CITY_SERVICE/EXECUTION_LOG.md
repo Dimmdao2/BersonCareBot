@@ -890,12 +890,31 @@
 
 ---
 
+## SHA + CI traceability (Stages 8–15, variant B)
+
+Один **консолидирующий коммит** фиксирует актуальность narrative ниже + синхронизацию `README` / `CHECKLISTS` / этого лога (per-stage «final SHA» в смысле аудита docs = этот SHA; реализация по этапам распределена по истории `main`, детали — в секциях §Stage 8 … §Stage 15 выше).
+
+| Stage | Статус (docs) | Evidence (артефакты) | Final SHA | Дата полного CI |
+|------|---------------|----------------------|-----------|-----------------|
+| 8 | done | `EXECUTION_LOG` §Stage 8; `CUTOVER_RUNBOOK` §6; policy в `STAGE_5_…` | `b8c08689bf7c49e790cf1691d6af6396a4b59774` | 2026-04-03 |
+| 9 | done | `STAGE_9_ONLINE_INTAKE.md`; `API_CONTRACT_ONLINE_INTAKE_V1.md` | `b8c08689bf7c49e790cf1691d6af6396a4b59774` | 2026-04-03 |
+| 10 | done | миграция `048_online_intake.sql`; §Stage 10 выше | `b8c08689bf7c49e790cf1691d6af6396a4b59774` | 2026-04-03 |
+| 11 | done | `049_patient_bookings_compat_source.sql`; `COMPATIBILITY_RUBITIME_WEBAPP.md`; §Stage 11 | `b8c08689bf7c49e790cf1691d6af6396a4b59774` | 2026-04-03 |
+| 12 | done | §Stage 12; маршруты intake в webapp | `b8c08689bf7c49e790cf1691d6af6396a4b59774` | 2026-04-03 |
+| 13 | done | §Stage 13; `intakeNotificationRelay` | `b8c08689bf7c49e790cf1691d6af6396a4b59774` | 2026-04-03 |
+| 14 | done | `CUTOVER_RUNBOOK` monitoring; §Stage 14 | `b8c08689bf7c49e790cf1691d6af6396a4b59774` | 2026-04-03 |
+| 15 | done | §Stage 15; `CHECKLISTS` §7 | `b8c08689bf7c49e790cf1691d6af6396a4b59774` | 2026-04-03 |
+
+Один SHA на все строки: консолидация документации Stages 8–15 (variant B). **Проверка CI:** `pnpm run ci` — green (2026-04-03) для строк таблицы выше. При следующем крупном docs-only merge обновите колонки Final SHA и «Дата полного CI» по `git rev-parse HEAD` после зелёного `pnpm run ci`.
+
+---
+
 ## Итог ветки (Stages 8–15, online intake + compat-sync)
 
-- **Статус:** `ready`
-- **Blockers:** нет (S13.T04 закрыт)
-- **CI:** `pnpm run ci` — green (2026-04-01); webapp tests: 1013 passed, 5 skipped
-- **SHA-base (HEAD):** `0a1f20e36c00d41d2af9f86d85de3d4bd1838067` (рабочее дерево содержит незакоммиченные изменения)
+- **Статус:** `ready` (документационная синхронизация variant B; вердикт docs SSOT — `AUDIT_STAGE_8_15.md` §6a)
+- **Blockers:** нет для docs-контура; глобальный `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false` — только после операторских проверок `CUTOVER_RUNBOOK.md` §6.2–6.3
+- **CI:** см. таблицу «SHA + CI traceability» выше
+- **SHA (консолидация docs Stages 8–15):** `b8c08689bf7c49e790cf1691d6af6396a4b59774`
 
 ### Post-log remediation (2026-04-01) — DB migration consistency
 - Status: done

@@ -405,25 +405,70 @@
   - UI открывает заявку по `/app/doctor/online-intake/[requestId]`
   - Шаблоны TG/MAX синхронизированы (`doctor.onlineIntake.notify`)
 
+### Stage 5 - AUDIT remediation (post-audit F-06)
+- Status: done
+- Agent/model: Cursor agent
+- Findings закрыты:
+  - [minor] F06-DOC-01 — чекбоксы S5.T02–T04 и ссылки на тесты в `STAGE_5_F06_NOTIFICATION_DEEP_LINK.md`
+  - [info] F06-E2E-01 — в S5.T05 явно: ручной клик TG/MAX опционален на стенде; gate опирается на `intakeNotificationRelay.test.ts` + `DoctorOnlineIntakeClient.test.tsx`
+  - [low] F06-DOC-02 — убран обязательный `scripts.json` из списка файлов S5.T03; добавлено пояснение: relay-outbound с полным текстом из webapp, шаблоны для паритета/reuse
+- Дополнительно в stage-doc: шаг S5.T01 про базу ссылки выровнен на `APP_BASE_URL` (не `PUBLIC_URL`)
+- Files changed:
+  - `docs/BRANCH_UX_CMS_BOOKING/GLOBAL_FIX/STAGE_5_F06_NOTIFICATION_DEEP_LINK.md`
+- Approved at: 2026-04-03
+
 ---
 
 ## Stage 6 - F-05
 
 ### S6.T01 - README index к фактической структуре
-- Status: pending
+- Status: done
+- Agent/model: Cursor agent
+- Files changed:
+  - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/README.md` — Stages 8–15: вариант B (таблица ссылок на `EXECUTION_LOG`, `AUDIT_STAGE_8_15.md`, `STAGE_9_ONLINE_INTAKE.md`; без битых `STAGE_8_*.md` … `STAGE_15_*.md`)
 
 ### S6.T02 - Stage-summary из EXECUTION_LOG/CHECKLISTS
-- Status: pending
+- Status: done
+- Files changed:
+  - `docs/.../AUDIT_STAGE_8_15.md` — §8 «Stage summaries (variant B)»
+  - `docs/.../EXECUTION_LOG.md` — секция «SHA + CI traceability»; обновлён итог Stages 8–15
 
-### S6.T03 - Закрыть online-safe gate и SHA+CI traceability
-- Status: pending
+### S6.T03 - Закрыть online-safe gate
+- Status: done
+- Files changed:
+  - `docs/.../CHECKLISTS.md` §7 — пункт online-safe gate
+  - `docs/.../CUTOVER_RUNBOOK.md` §6 — чекбоксы 6.1 и операторские 6.2–6.3
 
-### S6.T04 - Финальная синхронизация docs
-- Status: pending
+### S6.T04 - Закрыть SHA+CI traceability (Stages 8–15)
+- Status: done
+- Files changed:
+  - `docs/.../EXECUTION_LOG.md` — таблица «SHA + CI traceability»; `CHECKLISTS.md` §7 (пункт про SHA+CI)
+
+### S6.T05 - Финальная docs-синхронизация + AGENT_EXECUTION_LOG
+- Status: done
+- Files changed:
+  - `docs/.../COMPATIBILITY_RUBITIME_WEBAPP.md` — ссылка на §Stage 11 вместо несуществующего `STAGE_11_*.md`
+  - `docs/.../AUDIT_STAGE_8_15.md` — §3 mismatches, F-05 remediation, §8 summaries; §6a/§6b разделение docs vs code verdict
+  - `docs/.../PROMPTS_EXEC_AUDIT_FIX.md` — STAGE 11 EXEC: ссылки variant B (`EXECUTION_LOG` §Stage 11), без битого `STAGE_11_RUBITIME_COMPAT_BRIDGE.md`
+  - `docs/.../EXECUTION_LOG.md` — уточнение строки под таблицей SHA+CI
+  - `GLOBAL_FIX/AGENT_EXECUTION_LOG.md` — этот блок
+
+### Evidence (Stage 6)
+- Tests: не требуются (документация)
+- CI: `pnpm run ci` — pass (2026-04-03); HEAD `b8c08689bf7c49e790cf1691d6af6396a4b59774` (таблица SHA+CI в `BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md`)
 
 ### Stage 6 - AUDIT
 - Auditor/model: Composer 2
-- Verdict: pending
+- Verdict: pass (doc-sync scope: `STAGE_6_F05_DOCS_STAGES_8_15_SYNC.md`)
+- Findings:
+  - [resolved] Расхождение §6 vs §3/`CHECKLISTS` §7 — закрыто: в `AUDIT_STAGE_8_15.md` введены §6a (docs SSOT variant B) и §6b (продуктовый реестр F-01–F-04).
+  - [resolved] Битая ссылка `STAGE_11_RUBITIME_COMPAT_BRIDGE.md` в `PROMPTS_EXEC_AUDIT_FIX.md` — заменена на variant B.
+  - [resolved] Примечание под таблицей SHA+CI в `EXECUTION_LOG.md` — уточнено без противоречия с текущим HEAD.
+  - [info] Открытые F-01–F-04 остаются в `AUDIT_STAGE_8_15.md` §4/§6b как продуктовый трекинг, вне doc-sync Stage 6.
+- Evidence checked:
+  - `BOOKING_REWORK_CITY_SERVICE/README.md` — индекс Stages 8–15
+  - `CHECKLISTS.md` §7, `EXECUTION_LOG.md` SHA+CI, `CUTOVER_RUNBOOK.md` §6, `AUDIT_STAGE_8_15.md` §6a
+- Approved at: 2026-04-03
 
 ---
 

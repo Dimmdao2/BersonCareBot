@@ -16,7 +16,7 @@
 
 1. Зафиксировать обязательный `requestId` в ссылке.
 2. Зафиксировать формат URL для TG/MAX.
-3. Проверить зависимость от `PUBLIC_URL`/system settings.
+3. Проверить зависимость от `APP_BASE_URL` (bootstrap deploy; см. `API_CONTRACT_ONLINE_INTAKE_V1.md`).
 
 **Тесты:** не требуются (док+contract).
 
@@ -43,7 +43,7 @@
 
 **Тесты:**
 
-- [ ] relay builds URL with requestId.
+- [x] relay builds URL with requestId — `apps/webapp/src/modules/online-intake/intakeNotificationRelay.test.ts` (path с `requestId`, TG/MAX).
 
 **Критерии готовности:**
 
@@ -59,7 +59,8 @@
 
 - `apps/integrator/src/content/telegram/user/templates.json`
 - `apps/integrator/src/content/max/user/templates.json`
-- `apps/integrator/src/content/max/user/scripts.json`
+
+`scripts.json` для этого потока не требуется: текст уведомления целиком формирует webapp и уходит в integrator через relay-outbound; шаблоны `doctor.onlineIntake.notify` держат паритет формата на случай reuse.
 
 **Шаги:**
 
@@ -69,7 +70,7 @@
 
 **Тесты:**
 
-- [ ] template render includes expected URL.
+- [x] Ожидаемый URL в исходящем тексте — тот же контракт, что и шаблон: `intakeNotificationRelay.test.ts` (строка «Карточка:» + path с id); паритет ключей TG/MAX — ручной diff шаблонов.
 
 **Критерии готовности:**
 
@@ -94,7 +95,7 @@
 
 **Тесты:**
 
-- [ ] route opens expected intake request.
+- [x] route opens expected intake request — `apps/webapp/src/app/app/doctor/online-intake/DoctorOnlineIntakeClient.test.tsx` (`initialOpenRequestId`, блок «Заявка по ссылке»).
 
 **Критерии готовности:**
 
@@ -107,7 +108,7 @@
 **Шаги:**
 
 1. Trigger intake notification.
-2. Клик из Telegram и MAX.
+2. Клик из Telegram и MAX (на задеплоенном стенде — опционально; в CI/gate принимаются автотесты relay + doctor UI, см. `AGENT_EXECUTION_LOG.md`).
 3. Проверка открытия правильной карточки.
 4. Записать evidence в `AGENT_EXECUTION_LOG.md`.
 

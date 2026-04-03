@@ -671,8 +671,10 @@ docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_10_INTAKE_DB_API.md
 **Рекомендуемая модель:** Sonnet (compat-bridge)
 
 ```text
-Выполни Stage 11 — Rubitime Compatibility Bridge:
-docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/STAGE_11_RUBITIME_COMPAT_BRIDGE.md
+Выполни Stage 11 — Rubitime Compatibility Bridge (variant B: отдельного STAGE_11_*.md нет):
+- `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md` — §Stage 11
+- `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/README.md` — строка Stage 11 в таблице Stages 8–15
+- `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/COMPATIBILITY_RUBITIME_WEBAPP.md`
 
 Контекст:
 - Ручные записи в Rubitime должны появляться в patient_bookings.

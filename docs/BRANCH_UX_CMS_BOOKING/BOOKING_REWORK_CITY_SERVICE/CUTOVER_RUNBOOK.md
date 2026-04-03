@@ -80,9 +80,11 @@ Online-поток (`type: online`) пока остаётся на v1 (category/c
 
 **Безопасный gate перед отключением legacy:**
 
-- [ ] Online LFK и nutrition переведены на intake-сценарий (Stage 12 завершён).
-- [ ] Online записи больше не создаются через Rubitime v1 slots/create.
-- [ ] Мониторинг 7 дней без v1-запросов online в integrator-логах.
+- [x] Online LFK и nutrition переведены на intake-сценарий (Stage 12 завершён). Evidence: `EXECUTION_LOG.md` §Stage 12; маршруты `/app/patient/intake/lfk`, `/app/patient/intake/nutrition`.
+- [ ] **Операторский критерий:** online-записи больше не создаются через Rubitime v1 slots/create (подтверждение по логам/метрикам на целевой среде).
+- [ ] **Операторский критерий:** 7 дней без v1-запросов online в integrator-логах.
+
+**Документированное закрытие (variant B):** пункт выше про intake (6.1) закрыт в docs; **6.2–6.3** остаются чекбоксами для оператора до фактического `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false`. См. `CHECKLISTS.md` §7.
 
 После закрытия gate можно выполнить:
 

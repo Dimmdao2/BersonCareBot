@@ -23,14 +23,18 @@
 
 ## Продолжение (Stages 8–15: аудит-ремедиация, online intake, compat-sync, release)
 
-8. `STAGE_8_AUDIT_REMEDIATION.md` — закрытие замечаний аудита, docs-sync, cutover policy.
-9. `STAGE_9_ONLINE_INTAKE.md` — спека и контракты online-потоков (LFK + nutrition intake).
-10. `STAGE_10_INTAKE_DB_API.md` — миграции, репозитории, service layer и API для intake.
-11. `STAGE_11_RUBITIME_COMPAT_BRIDGE.md` — полная совместимость Rubitime↔Webapp (compat-sync projection → patient_bookings).
-12. `STAGE_12_PATIENT_WIZARD_ONLINE.md` — UI wizard online intake для пациента.
-13. `STAGE_13_DOCTOR_ADMIN_INBOX.md` — Doctor/Admin inbox для обработки заявок.
-14. `STAGE_14_RELEASE_HARDENING.md` — runbook, monitoring, rollback playbook.
-15. `STAGE_15_FINAL_TEST_AUDIT_RELEASE.md` — финальный test suite, global audit, release sign-off.
+**Вариант B (фактическая структура docs):** отдельные файлы `STAGE_8_*.md` … `STAGE_15_*.md` **не** добавляются в репозиторий; содержание Stages 8–15 сведено в **`EXECUTION_LOG.md`** (пошаговые задачи), **`CHECKLISTS.md` §7**, формальный разбор — **`AUDIT_STAGE_8_15.md`**. Единственный отдельный stage-файл из этого диапазона — **`STAGE_9_ONLINE_INTAKE.md`**.
+
+| Stage | Кратко | Где искать (не битые ссылки) |
+|------|--------|--------------------------------|
+| 8 | Policy legacy-off, docs-sync, SHA-шаблон | `EXECUTION_LOG.md` §Stage 8; `CUTOVER_RUNBOOK.md` §6; `AUDIT_STAGE_8_15.md` |
+| 9 | Спека online intake (LFK + nutrition) | **`STAGE_9_ONLINE_INTAKE.md`**; `API_CONTRACT_ONLINE_INTAKE_V1.md`; `MIGRATION_CONTRACT_ONLINE_INTAKE_V1.md` |
+| 10 | Миграции + repos + API intake | `EXECUTION_LOG.md` §Stage 10; миграции `048_online_intake.sql` |
+| 11 | Compat-sync Rubitime → `patient_bookings` | `EXECUTION_LOG.md` §Stage 11; `COMPATIBILITY_RUBITIME_WEBAPP.md` |
+| 12 | Patient wizard online (LFK / nutrition) | `EXECUTION_LOG.md` §Stage 12; `STAGE_7_BOOKING_WIZARD_PAGES.md` (ссылки на intake в коде) |
+| 13 | Doctor/admin inbox + notifications | `EXECUTION_LOG.md` §Stage 13; `apps/webapp/.../doctor/online-intake/` |
+| 14 | Hardening, runbook, monitoring | `EXECUTION_LOG.md` §Stage 14; `CUTOVER_RUNBOOK.md` §7 и §«Проверки консистентности» |
+| 15 | Финальный CI / readiness | `EXECUTION_LOG.md` §Stage 15 и §«Итог ветки (Stages 8–15)»; `CHECKLISTS.md` §7 |
 
 ## Обязательные сопутствующие документы
 

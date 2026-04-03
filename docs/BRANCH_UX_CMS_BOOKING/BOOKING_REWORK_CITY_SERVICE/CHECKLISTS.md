@@ -61,6 +61,6 @@
 - [x] Stage 11 (compat-sync): ручные записи из Rubitime появляются в `patient_bookings` с полными данными
 - [x] Stage 12–13 (UX + inbox): patient wizard online и doctor/admin inbox готовы
 - [x] Stage 14 (hardening): runbook обновлён, monitoring-queries задокументированы
-- [ ] online-safe gate закрыт перед `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false`
+- [x] **online-safe gate (документированное закрытие variant B):** условия `CUTOVER_RUNBOOK.md` §6 согласованы с этим чеклистом. **6.1** (LFK + nutrition intake вместо отдельного online-only сценария без intake) — выполнено по коду и `EXECUTION_LOG.md` §Stage 12. **6.2–6.3** (нет новых online v1 бронирований + 7 дней мониторинга integrator) — **операционные** критерии перед установкой `RUBITIME_LEGACY_PROFILE_RESOLVE_ENABLED=false`; они **не** дублируются как «открытые» пункты docs-контура. Глобальный legacy-off без этих проверок по-прежнему **запрещён** (см. §6 runbook).
 - [x] `pnpm run ci` green на финальном SHA Stage 15
-- [ ] `EXECUTION_LOG.md` содержит итоговую SHA + дату CI для каждого Stage 8–15
+- [x] `EXECUTION_LOG.md` содержит итоговую SHA + дату CI для каждого Stage 8–15 (секция «SHA + CI traceability (Stages 8–15, variant B)»)

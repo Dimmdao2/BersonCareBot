@@ -1,8 +1,11 @@
 # Formal Audit: Stages 8-15 (Booking Rework City Service)
 
-Date: 2026-04-02
+Date: 2026-04-02 (code/contract pass; см. §1)
+Last doc-sync update: 2026-04-03 (variant B, GLOBAL_FIX Stage 6 F-05)
 Auditor: Cursor agent (gpt-5.3-codex-high)
 Scope: `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/` (Stages 8-15)
+
+Два слоя: **(A)** реестр находок по коду/контрактам (§2, §4, §6b) — исторический снимок и открытые продуктовые пункты; **(B)** согласованность docs SSOT variant B — `README` / `CHECKLISTS` §7 / `EXECUTION_LOG` / online-safe gate (§3, §6a).
 
 ## 1) Audit Method and Evidence
 
@@ -23,25 +26,26 @@ Scope: `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/` (Stages 8-15)
   - `STAGE_9_ONLINE_INTAKE.md`, `API_CONTRACT_ONLINE_INTAKE_V1.md`, `MIGRATION_CONTRACT_ONLINE_INTAKE_V1.md`
   - `COMPATIBILITY_RUBITIME_WEBAPP.md`, `CUTOVER_RUNBOOK.md`
 - CI/log check:
-  - Executed full `pnpm run ci` on current HEAD `a7799e8d3ca79a6fe4813d1a4983c36e3f95f17e`: passed (lint/typecheck/tests/build/audit).
+  - Исторический прогон (2026-04-02): full `pnpm run ci` на HEAD `a7799e8d3ca79a6fe4813d1a4983c36e3f95f17e` — passed.
+  - Docs SSOT / CHECKLISTS §7 (variant B): консолидация и таблица SHA+CI зафиксированы на HEAD `b8c08689bf7c49e790cf1691d6af6396a4b59774` (2026-04-03), см. `EXECUTION_LOG.md` «SHA + CI traceability».
 
 ## 2) Stage-by-Stage Result
 
-- Stage 8 (policy legacy-off, docs-sync, SHA traceability): **partially passed** (policy present), **failed on docs-sync/traceability completeness**.
+Ниже — **результаты проверки кода и контрактов** на дату первичного аудита (§1). Они **не** отменяют закрытие docs-контура variant B (§3, §6a).
+
+- Stage 8 (policy legacy-off, docs-sync, SHA traceability): **partially passed** (policy present). *До remediation F-05:* docs-sync/traceability считались неполными; *после variant B (Stage 6 F-05):* docs SSOT — §6a.
 - Stage 9-10 (online intake contracts + migrations + API): **implemented partially**, several contract-to-code mismatches.
 - Stage 11 (compat-sync Rubitime -> patient_bookings): **implemented partially**, critical gap for unlinked records + missing promised enrichment.
 - Stage 12 (patient online wizard LFK + nutrition): **UI flows present**, but relies on Stage 9-10 backend pieces that are incomplete.
 - Stage 13 (doctor/admin inbox + notifications): **base inbox present**, but data/notification contract is incomplete.
 - Stage 14 (release hardening/runbook/rollback): **docs exist**, monitoring/rollback sections present.
-- Stage 15 (final CI and readiness): **CI green confirmed**, but readiness evidence in docs/logs remains incomplete.
+- Stage 15 (final CI and readiness): **CI green** в снимке §1; **docs readiness** для CHECKLISTS §7 (variant B) — §6a; **продуктовый** readiness по F-01–F-04 — открыт (§6b).
 
 ## 3) Checklist vs Execution Log Mismatches
 
-- `CHECKLISTS.md` section "Stages 8-15 release readiness" has open items:
-  - online-safe gate is not closed;
-  - per-stage final SHA+CI date logging is incomplete.
-- `EXECUTION_LOG.md` still states overall readiness for stages 8-15 while these checklist items remain open.
-- Stage index in folder README references `STAGE_8_*`, `STAGE_10_*` ... `STAGE_15_*`, but these files are absent from the folder.
+- **Remediation (variant B, Stage 6 GLOBAL_FIX):** `CHECKLISTS.md` §7 и `EXECUTION_LOG.md` секция «SHA + CI traceability» синхронизированы; online-safe gate сформулирован как «документированное закрытие + операционные критерии §6.2–6.3» (см. `CUTOVER_RUNBOOK.md` §6).
+- Историческое замечание: readiness в логе при открытых checklist-пунктах — **снято** для docs-контура после синхронизации.
+- Индекс Stages 8–15 в `README.md` **не** ссылается на несуществующие `STAGE_8_*.md` … `STAGE_15_*.md`; отдельный файл — только `STAGE_9_ONLINE_INTAKE.md`, остальное — `EXECUTION_LOG` / `AUDIT_STAGE_8_15.md`.
 
 ## 4) Findings
 
@@ -117,21 +121,11 @@ Scope: `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/` (Stages 8-15)
 
 ### [major] F-05 - Stage 8 docs-sync and Stage 15 SHA traceability are incomplete
 
-- Where:
+- **Status:** addressed (variant B, Stage 6 GLOBAL_FIX): индекс в `README.md` приведён к фактам; `EXECUTION_LOG.md` содержит таблицу SHA+CI для Stages 8–15; `CHECKLISTS.md` §7 закрыт; `COMPATIBILITY_RUBITIME_WEBAPP.md` без ссылки на несуществующий `STAGE_11_*.md`.
+- Where (historical):
   - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/README.md`
   - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/CHECKLISTS.md`
   - `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/EXECUTION_LOG.md`
-- Risk:
-  - Release auditability is weakened: stage references point to missing documents; per-stage SHA/CI evidence is not complete while readiness is declared.
-- Reproduce:
-  1. Check stage file index in folder README: references to `STAGE_8_*`, `STAGE_10_*` ... `STAGE_15_*`.
-  2. List tracked files: only `STAGE_1..7` and `STAGE_9` exist.
-  3. Compare checklist section for stages 8-15: open items remain unchecked.
-- Fix:
-  - Restore docs consistency:
-    - either create missing stage docs,
-    - or correct stage index to actual document structure.
-  - Complete execution log with per-stage final SHA + CI date and align readiness statement with checklist state.
 
 ### [minor] F-06 - Notification deep-link does not point to specific request card
 
@@ -154,12 +148,40 @@ Scope: `docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/` (Stages 8-15)
 - Notification relay is best-effort by design; failures do not block intake creation.
 - Compat backfill for pre-Stage-11 historical Rubitime records is still manual/runbook-driven.
 
-## 6) Verdict
+## 6) Verdicts
+
+### 6a) Docs SSOT and checklist (variant B, GLOBAL_FIX Stage 6 F-05)
+
+**pass**
+
+- `README.md`: индекс Stages 8–15 без ссылок на несуществующие `STAGE_8_*.md` … `STAGE_15_*.md` (кроме `STAGE_9_ONLINE_INTAKE.md`).
+- `CHECKLISTS.md` §7 и `EXECUTION_LOG.md` (в т.ч. «SHA + CI traceability», итог Stages 8–15) согласованы; online-safe gate закрыт в смысле **документированного** variant B (операционные шаги §6.2–6.3 в `CUTOVER_RUNBOOK.md` — у оператора).
+- Пункт F-05 (индекс, SHA+CI таблица, отсутствие битых ссылок на `STAGE_11_*.md`) — **closed** в docs-контуре.
+
+### 6b) Code and contract audit (registers §4, F-01–F-04)
 
 **rework_required**
 
-Rationale: critical compat-sync gap plus multiple major contract-to-code mismatches across Stage 9-13 and incomplete Stage 8/15 traceability evidence.
+Rationale: критическая и major находки по compat-sync и контрактам (F-01–F-04) остаются открытыми на уровне продукта/кода; это **не** блокирует пункт **6a** при явном разделении scope.
 
 ## 7) Release Recommendation
 
-Do not approve release for Stages 8-15 as formally complete until F-01..F-05 are closed and checklist/readiness evidence is synchronized with execution log.
+- **Docs / CHECKLISTS §7 (readiness документации Stages 8–15, variant B):** satisfied — см. §6a и `EXECUTION_LOG.md`.
+- **Полный продуктовый sign-off Stages 8–15** по реестру F-01–F-04: до закрытия находок в коде/схеме или явного изменения контрактов — **не** считать завершённым (§6b).
+
+---
+
+## 8) Stage summaries (variant B — minimal SSOT)
+
+Ниже — краткая карта Stages 8–15 без отдельных `STAGE_N_*.md` (кроме Stage 9). Полные задачи и CI — в `EXECUTION_LOG.md`.
+
+| Stage | Scope | Что сделано (репозиторий) | Evidence |
+|------|--------|---------------------------|----------|
+| 8 | Policy legacy-off, индексы docs, SHA-шаблон | Policy в `STAGE_5_INTEGRATOR_BRIDGE_AND_CUTOVER.md` / `CUTOVER_RUNBOOK` §6; записи в `EXECUTION_LOG` §Stage 8; `COMPATIBILITY_RUBITIME_WEBAPP.md` | §Stage 8 в `EXECUTION_LOG.md` |
+| 9 | Online intake спека + контракты | `STAGE_9_ONLINE_INTAKE.md`, `API_CONTRACT_ONLINE_INTAKE_V1.md`, `MIGRATION_CONTRACT_ONLINE_INTAKE_V1.md` | Файлы + §Stage 9 в `EXECUTION_LOG.md` |
+| 10 | DB + service + API intake | `048_online_intake.sql`, `online-intake` module, routes patient/doctor | §Stage 10 в `EXECUTION_LOG.md` |
+| 11 | Compat-sync | `049_patient_bookings_compat_source.sql`, `events.ts`, `pgPatientBookings.ts`, integrator connector/writePort | `COMPATIBILITY_RUBITIME_WEBAPP.md`, §Stage 11 |
+| 12 | Patient wizard online | Intake LFK/nutrition, `CabinetIntakeHistory`, ссылки из booking wizard | §Stage 12 |
+| 13 | Doctor inbox + notifications | `DoctorOnlineIntakeClient`, `intakeNotificationRelay` | §Stage 13 |
+| 14 | Hardening | `CHECKLISTS` / `CUTOVER_RUNBOOK` monitoring, limitations | §Stage 14 |
+| 15 | Final CI | Полный `pnpm run ci`, зафиксировано в логе | §Stage 15, таблица SHA+CI |
