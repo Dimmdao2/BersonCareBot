@@ -26,6 +26,10 @@
 9. `STAGE_7_FINAL_INTEGRATION_AUDIT.md`
 10. `PROMPTS_EXEC_AUDIT_FIX.md`
 
+Инцидентные hotfix-записи (вне нумерации этапов, но с перекрёстными ссылками в `AGENT_EXECUTION_LOG.md`):
+
+- `INCIDENT_HOTFIX_RU_PHONE_FORMATS.md` — нормализация телефонов РФ для auth/поиска (`+7`, `8`, `00 7`, 10-значный локальный).
+
 ## Исполнительская политика
 
 - Не добавлять новый product-scope вне F-01..F-06.
