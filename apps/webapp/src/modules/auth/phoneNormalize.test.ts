@@ -4,8 +4,12 @@ import { normalizePhone } from "./phoneNormalize";
 const expected = "+79189000782";
 
 describe("normalizePhone (RU +7)", () => {
-  it("normalizes 10 digits without country code", () => {
+  it("normalizes 10-digit mobile without country code", () => {
     expect(normalizePhone("9189000782")).toBe(expected);
+  });
+
+  it("normalizes 10-digit city code format without country code", () => {
+    expect(normalizePhone("4951234567")).toBe("+74951234567");
   });
 
   it("normalizes 11 digits starting with 8", () => {
@@ -36,6 +40,18 @@ describe("normalizePhone (RU +7)", () => {
     expect(normalizePhone("79189000782")).toBe(expected);
   });
 
+  it("normalizes trunk 8 + city code format", () => {
+    expect(normalizePhone("8 (495) 123-45-67")).toBe("+74951234567");
+  });
+
+  it("normalizes toll-free 8-800 format", () => {
+    expect(normalizePhone("8 800 555 35 35")).toBe("+78005553535");
+  });
+
+  it("normalizes 00 international prefix for +7", () => {
+    expect(normalizePhone("007 918 900 07 82")).toBe(expected);
+  });
+
   it("handles tab and unicode space as separators", () => {
     expect(normalizePhone("+7\u00a0918\t900-07-82")).toBe(expected);
   });
@@ -44,8 +60,8 @@ describe("normalizePhone (RU +7)", () => {
     expect(normalizePhone("912")).toBe("+912");
   });
 
-  it("does not force non-RU 10-digit input into +7", () => {
-    expect(normalizePhone("2025550123")).toBe("+2025550123");
+  it("treats any 10-digit local input as RU national number", () => {
+    expect(normalizePhone("2025550123")).toBe("+72025550123");
   });
 
   it("keeps explicit international prefix as-is after cleanup", () => {

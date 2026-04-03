@@ -2,6 +2,7 @@ import type { ChannelBindings, SessionUser } from "@/shared/types/session";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import type { UserByPhonePort } from "@/modules/auth/userByPhonePort";
 import { channelToBindingKey } from "@/modules/auth/channelContext";
+import { normalizePhone } from "@/modules/auth/phoneNormalize";
 
 const usersByPhone = new Map<string, SessionUser>();
 let nextId = 1;
@@ -70,11 +71,3 @@ export const inMemoryUserByPhonePort: UserByPhonePort = {
     return user;
   },
 };
-
-function normalizePhone(phone: string): string {
-  let digits = phone.replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("8")) digits = "7" + digits.slice(1);
-  if (digits.length === 11 && digits.startsWith("7")) return `+${digits}`;
-  if (digits.length === 10 && digits.startsWith("9")) return `+7${digits}`;
-  return `+${digits}`;
-}
