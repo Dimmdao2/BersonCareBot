@@ -1,10 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { inMemoryChannelPreferencesPort } from "@/infra/repos/inMemoryChannelPreferences";
 import { inMemoryUserByPhonePort } from "@/infra/repos/inMemoryUserByPhone";
 import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
+
+vi.mock("@/modules/system-settings/telegramLoginBotUsername", () => ({
+  getTelegramLoginBotUsername: () => Promise.resolve(""),
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/auth/check-phone", () => {
+  it("returns 400 when phone is not valid E.164", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/auth/check-phone", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: "not-a-number" }),
+      })
+    );
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe("invalid_phone");
+  });
+
   it("returns 400 on invalid body", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/check-phone", {
@@ -14,6 +32,21 @@ describe("POST /api/auth/check-phone", () => {
       })
     );
     expect(res.status).toBe(400);
+  });
+
+  it("returns sms false for unknown non-RU phone", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/auth/check-phone", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: "+4915123456789" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok: boolean; exists: boolean; methods: { sms: boolean } };
+    expect(data.ok).toBe(true);
+    expect(data.exists).toBe(false);
+    expect(data.methods.sms).toBe(false);
   });
 
   it("returns exists false for unknown phone", async () => {

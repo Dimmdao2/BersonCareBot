@@ -5,7 +5,8 @@ import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 import { resolveAuthMethodsForPhone } from "@/modules/auth/checkPhoneMethods";
 import { isCheckPhoneRateLimited } from "@/modules/auth/checkPhoneRateLimit";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { isValidRuMobileNormalized } from "@/modules/auth/phoneValidation";
+import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
+import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
 
 const bodySchema = z.object({
   phone: z.string().min(1).max(32),
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   }
 
   const phone = normalizePhone(parsed.data.phone);
-  if (!isValidRuMobileNormalized(phone)) {
+  if (!isValidPhoneE164(phone)) {
     return NextResponse.json(
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 }
@@ -37,11 +38,17 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
-  const result = await resolveAuthMethodsForPhone(phone, {
-    userByPhonePort: deps.userByPhone,
-    userPinsPort: deps.userPins,
-    oauthBindingsPort: deps.oauthBindings,
-  });
+  const botUsername = (await getTelegramLoginBotUsername()).trim();
+  const telegramLoginAvailable = botUsername.length > 0;
+  const result = await resolveAuthMethodsForPhone(
+    phone,
+    {
+      userByPhonePort: deps.userByPhone,
+      userPinsPort: deps.userPins,
+      oauthBindingsPort: deps.oauthBindings,
+    },
+    { telegramLoginAvailable },
+  );
 
   let preferredOtpChannel: OtpUiChannel | null = null;
   if (result.exists) {

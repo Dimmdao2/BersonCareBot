@@ -8,8 +8,14 @@ import { Input } from "@/components/ui/input";
 type RuntimeConfigValues = {
   /** HTTPS ссылка поддержки (t.me и т.п.), см. getSupportContactUrl. */
   supportContactUrl: string;
+  /** Имя бота для Telegram Login Widget (без @). */
+  telegramLoginBotUsername: string;
   /** IANA-таймзона для времени записей в кабинете (см. getAppDisplayTimeZone). */
   appDisplayTimezone: string;
+  /** Yandex OAuth (backend-only; не показывается в публичном login). */
+  yandexOauthClientId: string;
+  yandexOauthClientSecret: string;
+  yandexOauthRedirectUri: string;
   /** JSON-array strings */
   allowedTelegramIds: string;
   allowedMaxIds: string;
@@ -44,7 +50,11 @@ type Props = RuntimeConfigValues;
 
 export function RuntimeConfigSection({
   supportContactUrl,
+  telegramLoginBotUsername,
   appDisplayTimezone,
+  yandexOauthClientId,
+  yandexOauthClientSecret,
+  yandexOauthRedirectUri,
   allowedTelegramIds,
   allowedMaxIds,
   adminTelegramIds,
@@ -54,7 +64,11 @@ export function RuntimeConfigSection({
 }: Props) {
   const [vals, setVals] = useState({
     supportContactUrl,
+    telegramLoginBotUsername,
     appDisplayTimezone,
+    yandexOauthClientId,
+    yandexOauthClientSecret,
+    yandexOauthRedirectUri,
     allowedTelegramIds,
     allowedMaxIds,
     adminTelegramIds,
@@ -93,9 +107,26 @@ export function RuntimeConfigSection({
           setError("Таймзона: укажите IANA-имя (например Europe/Moscow)");
           return;
         }
+        const redirectRaw = vals.yandexOauthRedirectUri.trim();
+        if (redirectRaw.length > 0) {
+          try {
+            const u = new URL(redirectRaw);
+            if (u.protocol !== "https:" && u.protocol !== "http:") {
+              setError("Yandex redirect URI: только http(s)://");
+              return;
+            }
+          } catch {
+            setError("Yandex redirect URI: укажите валидный URL");
+            return;
+          }
+        }
         const results = await Promise.all([
           patchSetting("support_contact_url", supportRaw),
+          patchSetting("telegram_login_bot_username", vals.telegramLoginBotUsername.trim()),
           patchSetting("app_display_timezone", tzRaw.length > 0 ? tzRaw : "Europe/Moscow"),
+          patchSetting("yandex_oauth_client_id", vals.yandexOauthClientId.trim()),
+          patchSetting("yandex_oauth_client_secret", vals.yandexOauthClientSecret.trim()),
+          patchSetting("yandex_oauth_redirect_uri", redirectRaw),
           patchSetting("allowed_telegram_ids", parseIdArray(vals.allowedTelegramIds)),
           patchSetting("allowed_max_ids", parseIdArray(vals.allowedMaxIds)),
           patchSetting("admin_telegram_ids", parseIdArray(vals.adminTelegramIds)),
@@ -119,7 +150,7 @@ export function RuntimeConfigSection({
       <CardHeader>
         <CardTitle>Runtime конфиг (DB)</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Изменения применяются сразу. Интеграционные ключи и секреты управляются через env.
+          Изменения применяются сразу. Ключи интеграций (в т.ч. OAuth) хранятся в БД (`system_settings`).
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
@@ -140,6 +171,21 @@ export function RuntimeConfigSection({
             </span>
           </label>
           <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Telegram Login Widget — имя бота (без @)</span>
+            <Input
+              type="text"
+              placeholder="bersoncare_bot"
+              value={vals.telegramLoginBotUsername}
+              onChange={set("telegramLoginBotUsername")}
+              disabled={isPending}
+              autoComplete="off"
+            />
+            <span className="text-xs text-muted-foreground">
+              Публичное имя бота для кнопки «Войти через Telegram» на веб-странице входа. Пустое — значение из env
+              TELEGRAM_BOT_USERNAME.
+            </span>
+          </label>
+          <label className="flex flex-col gap-1">
             <span className="text-xs font-medium">Таймзона отображения записей (IANA)</span>
             <Input
               type="text"
@@ -151,6 +197,51 @@ export function RuntimeConfigSection({
             />
             <span className="text-xs text-muted-foreground">
               Время слотов и записей в кабинете пациента и у врача. Пустое — Europe/Moscow.
+            </span>
+          </label>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Yandex OAuth (backend)
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Служебный вход: POST <code className="rounded bg-muted px-1">/api/auth/oauth/start</code> с{" "}
+            <code className="rounded bg-muted px-1">{`{ "provider": "yandex" }`}</code>, затем редирект на Яндекс. В
+            публичном экране входа кнопки нет.
+          </p>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Client ID</span>
+            <Input
+              type="text"
+              value={vals.yandexOauthClientId}
+              onChange={set("yandexOauthClientId")}
+              disabled={isPending}
+              autoComplete="off"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Client secret</span>
+            <Input
+              type="password"
+              value={vals.yandexOauthClientSecret}
+              onChange={set("yandexOauthClientSecret")}
+              disabled={isPending}
+              autoComplete="off"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">Redirect URI (callback)</span>
+            <Input
+              type="url"
+              placeholder="https://example.com/api/auth/oauth/callback"
+              value={vals.yandexOauthRedirectUri}
+              onChange={set("yandexOauthRedirectUri")}
+              disabled={isPending}
+              autoComplete="off"
+            />
+            <span className="text-xs text-muted-foreground">
+              Должен совпадать с URI в кабинете приложения Яндекс OAuth.
             </span>
           </label>
         </div>

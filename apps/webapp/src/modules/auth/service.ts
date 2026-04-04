@@ -8,6 +8,10 @@ import type { IdentityResolutionPort } from "./identityResolutionPort";
 import { normalizePhone } from "./phoneAuth";
 import { getRedirectPathForRole } from "./redirectPolicy";
 import { getIntegratorWebappEntrySecret, getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";
+import {
+  verifyTelegramLoginWidgetSignature,
+  type TelegramLoginWidgetPayload,
+} from "./telegramLoginVerify";
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
 
@@ -309,6 +313,74 @@ export async function exchangeTelegramInitData(
   const envRole = await resolveRoleAsync({
     phone: user.phone,
     telegramId: parsed.telegramId,
+    maxId: user.bindings?.maxId,
+  });
+  if (user.role !== envRole) {
+    if (updateRoleFn) await updateRoleFn(user.userId, envRole);
+    user = { ...user, role: envRole };
+  }
+
+  const session = buildSession(user);
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: cookieMaxAgeSeconds(session),
+  });
+
+  return {
+    session,
+    redirectTo: getRedirectPathForRole(user.role),
+  };
+}
+
+/**
+ * Вход через Telegram Login Widget (веб, не Mini App initData).
+ * Подпись: HMAC-SHA256(SHA256(bot_token), data_check_string). Merge по телефону из виджета недоступен (поле не приходит).
+ */
+export async function exchangeTelegramLoginWidget(
+  raw: TelegramLoginWidgetPayload,
+  identityResolutionPort?: IdentityResolutionPort | null,
+  updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
+): Promise<ExchangeResult | null> {
+  const botToken = (await getTelegramBotToken()).trim();
+  if (!botToken) return null;
+
+  const verified = verifyTelegramLoginWidgetSignature(raw, botToken);
+  if (!verified.ok) return null;
+
+  const telegramId = verified.telegramId;
+
+  if (!(await isWhitelistedAsync({ telegramId }))) return null;
+
+  const fn = typeof raw.first_name === "string" ? raw.first_name.trim() : "";
+  const ln = typeof raw.last_name === "string" ? raw.last_name.trim() : "";
+  const displayName = [fn, ln].filter(Boolean).join(" ").trim();
+
+  const role = await resolveRoleAsync({ telegramId });
+
+  let user: SessionUser;
+  if (identityResolutionPort) {
+    user = await identityResolutionPort.findOrCreateByChannelBinding({
+      channelCode: "telegram",
+      externalId: telegramId,
+      displayName: displayName || undefined,
+      role,
+    });
+  } else {
+    user = {
+      userId: `tg:${telegramId}`,
+      role,
+      displayName: displayName || telegramId,
+      bindings: { telegramId },
+    };
+  }
+
+  const envRole = await resolveRoleAsync({
+    phone: user.phone,
+    telegramId,
     maxId: user.bindings?.maxId,
   });
   if (user.role !== envRole) {

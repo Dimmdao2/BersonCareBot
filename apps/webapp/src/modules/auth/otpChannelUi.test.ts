@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { AuthMethodsPayload } from "./checkPhoneMethods";
 import {
   isOtpChannelAvailable,
+  isOtpChannelAvailablePublic,
   OTP_OTHER_CHANNELS_ORDER,
   pickOtpChannelWithPreference,
+  pickOtpChannelWithPreferencePublic,
   pickPrimaryOtpChannel,
+  pickPrimaryOtpChannelPublic,
 } from "./otpChannelUi";
 
 describe("pickPrimaryOtpChannel", () => {
@@ -31,8 +34,41 @@ describe("OTP_OTHER_CHANNELS_ORDER", () => {
 });
 
 describe("isOtpChannelAvailable", () => {
-  it("treats sms as always available", () => {
+  it("requires sms flag for SMS channel", () => {
     expect(isOtpChannelAvailable({ sms: true }, "sms")).toBe(true);
+    expect(isOtpChannelAvailable({ sms: false }, "sms")).toBe(false);
+  });
+});
+
+describe("pickPrimaryOtpChannelPublic", () => {
+  it("returns null when only email is available", () => {
+    expect(pickPrimaryOtpChannelPublic({ sms: false, email: true })).toBeNull();
+  });
+
+  it("prefers telegram over sms", () => {
+    expect(
+      pickPrimaryOtpChannelPublic({ sms: true, telegram: true }),
+    ).toBe("telegram");
+  });
+});
+
+describe("isOtpChannelAvailablePublic", () => {
+  it("never allows email", () => {
+    expect(isOtpChannelAvailablePublic({ sms: true, email: true }, "email")).toBe(false);
+  });
+});
+
+describe("pickOtpChannelWithPreferencePublic", () => {
+  it("ignores email preference", () => {
+    expect(
+      pickOtpChannelWithPreferencePublic({ sms: true, email: true }, "email"),
+    ).toBe("sms");
+  });
+
+  it("uses non-email preference when available", () => {
+    expect(
+      pickOtpChannelWithPreferencePublic({ sms: true, max: true }, "max"),
+    ).toBe("max");
   });
 });
 

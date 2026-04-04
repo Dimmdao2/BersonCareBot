@@ -45,10 +45,34 @@
     ]
   },
   {
+    "id": "max.start.onboarding",
+    "source": "max",
+    "event": "message.received",
+    "priority": 15,
+    "match": {
+      "input": { "text": "/start" },
+      "context": { "linkedPhone": false }
+    },
+    "steps": [
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:onboardingWelcome",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      }
+    ]
+  },
+  {
     "id": "max.start",
     "source": "max",
     "event": "message.received",
-    "match": { "input": { "text": "/start" } },
+    "match": {
+      "input": { "text": "/start" },
+      "context": { "linkedPhone": true }
+    },
     "steps": [
       {
         "action": "user.state.set",

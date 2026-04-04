@@ -5,7 +5,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ChannelContext } from "@/modules/auth/channelContext";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import type { PhoneOtpDelivery } from "@/modules/auth/smsPort";
-import { isValidRuMobileNormalized } from "@/modules/auth/phoneValidation";
+import { isRuMobile, isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -59,10 +59,21 @@ export async function POST(request: Request) {
   }
 
   const normalized = normalizePhone(phone);
-  if (!isValidRuMobileNormalized(normalized)) {
+  if (!isValidPhoneE164(normalized)) {
     return NextResponse.json(
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 }
+    );
+  }
+
+  if (deliveryChannel === "sms" && !isRuMobile(normalized)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "sms_ru_only",
+        message: "SMS доступно только для номеров РФ.",
+      },
+      { status: 400 },
     );
   }
 
@@ -107,10 +118,15 @@ export async function POST(request: Request) {
     delivery = { channel: "email", email };
   }
 
-  const result = await deps.auth.startPhoneAuth(phone, context, { delivery });
+  const result = await deps.auth.startPhoneAuth(normalized, context, { delivery });
 
   if (!result.ok) {
-    const status = result.code === "rate_limited" || result.code === "too_many_attempts" ? 429 : 400;
+    const status =
+      result.code === "rate_limited" || result.code === "too_many_attempts"
+        ? 429
+        : result.code === "delivery_failed"
+          ? 503
+          : 400;
     return NextResponse.json(
       {
         ok: false,
@@ -137,8 +153,12 @@ export async function POST(request: Request) {
 
 function errorMessage(code: string): string {
   switch (code) {
+    case "sms_ru_only":
+      return "SMS доступно только для номеров РФ.";
     case "invalid_phone":
       return "Неверный формат номера";
+    case "delivery_failed":
+      return "Не удалось отправить код. Попробуйте позже.";
     case "rate_limited":
       return "Слишком много запросов. Попробуйте позже.";
     case "too_many_attempts":

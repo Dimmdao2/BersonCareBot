@@ -199,11 +199,50 @@
 		]
 	},
 	{
+		"id": "telegram.start.onboarding",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 15,
+		"match": {
+			"input": { "text": "/start" },
+			"context": { "linkedPhone": false }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "await_contact:subscription"
+				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:onboardingWelcome",
+					"keyboard": [
+						[
+							{
+								"textTemplateKey": "telegram:requestContact.button",
+								"requestPhone": true
+							}
+						]
+					],
+					"resizeKeyboard": true,
+					"oneTimeKeyboard": true
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.start",
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "text": "/start" }
+			"input": { "text": "/start" },
+			"context": { "linkedPhone": true }
 		},
 		"steps": [
 			{

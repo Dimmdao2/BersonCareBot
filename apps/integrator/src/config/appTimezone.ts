@@ -135,9 +135,14 @@ export async function getAppDisplayTimezone(input: {
   return r.timezone;
 }
 
-/** Test hook: clear TTL cache for display timezone. */
-export function resetAppDisplayTimezoneCacheForTests(): void {
+/** Clears TTL cache for display timezone (after DB update or settings sync). */
+export function invalidateAppDisplayTimezoneCache(): void {
   displayTzCache = null;
+}
+
+/** @deprecated Используйте {@link invalidateAppDisplayTimezoneCache}. */
+export function resetAppDisplayTimezoneCacheForTests(): void {
+  invalidateAppDisplayTimezoneCache();
 }
 
 /** @deprecated Используйте {@link getAppDisplayTimezone}. */

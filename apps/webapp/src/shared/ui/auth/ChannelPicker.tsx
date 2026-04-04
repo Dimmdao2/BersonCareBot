@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AuthMethodsPayload } from "@/modules/auth/checkPhoneMethods";
 import {
-  isOtpChannelAvailable,
-  OTP_OTHER_CHANNELS_ORDER,
-  pickPrimaryOtpChannel,
+  isOtpChannelAvailablePublic,
+  OTP_PUBLIC_OTHER_CHANNELS_ORDER,
+  pickPrimaryOtpChannelPublic,
   type OtpUiChannel,
 } from "@/modules/auth/otpChannelUi";
 
@@ -34,20 +34,38 @@ const PRIMARY_META: Record<
 /** Выбор канала доставки OTP: основной канал (primary-кнопка) и «Другие способы». */
 export function ChannelPicker({ methods, disabled, onChoose, onChooseSms }: ChannelPickerProps) {
   const [expanded, setExpanded] = useState(false);
-  const primary = pickPrimaryOtpChannel(methods);
+  const primary = pickPrimaryOtpChannelPublic(methods);
 
-  const others = OTP_OTHER_CHANNELS_ORDER.filter((ch) => ch !== primary && isOtpChannelAvailable(methods, ch));
+  const others =
+    primary == null
+      ? []
+      : OTP_PUBLIC_OTHER_CHANNELS_ORDER.filter(
+          (ch) => ch !== primary && isOtpChannelAvailablePublic(methods, ch),
+        );
 
   const showOtherToggle = others.length > 0;
-  const { label: primaryLabel, aria: primaryAria } = PRIMARY_META[primary];
+  const primaryLabel = primary != null ? PRIMARY_META[primary].label : "";
+  const primaryAria = primary != null ? PRIMARY_META[primary].aria : "";
 
   const handlePrimary = () => {
+    if (primary == null) return;
     if (primary === "sms") {
       onChooseSms();
       return;
     }
     onChoose(primary);
   };
+
+  if (primary == null) {
+    return (
+      <div className={cn("flex max-w-sm flex-col gap-2")}>
+        <p className="text-sm text-muted-foreground">
+          Нет доступных способов получения кода для этого номера в вебе. Войдите через Telegram или укажите другой
+          номер.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={cn("flex max-w-sm flex-col gap-2")} role="group" aria-label="Способ получения кода">

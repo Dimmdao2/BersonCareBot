@@ -13,8 +13,33 @@ describe("resolveAuthMethodsForPhone", () => {
     });
     expect(r.exists).toBe(false);
     expect(r.methods.sms).toBe(true);
+    expect(r.methods.telegramLogin).toBe(false);
     // OAuth не включается в методы (скрыт до production-готовности)
     expect(r.methods.oauth).toBeUndefined();
+  });
+
+  it("returns sms false for unknown non-RU phone", async () => {
+    const r = await resolveAuthMethodsForPhone("+4915123456789", {
+      userByPhonePort: inMemoryUserByPhonePort,
+      userPinsPort: inMemoryUserPinsPort,
+      oauthBindingsPort: inMemoryOAuthBindingsPort,
+    });
+    expect(r.exists).toBe(false);
+    expect(r.methods.sms).toBe(false);
+  });
+
+  it("sets telegramLogin when option is true", async () => {
+    const r = await resolveAuthMethodsForPhone(
+      "+79990000444",
+      {
+        userByPhonePort: inMemoryUserByPhonePort,
+        userPinsPort: inMemoryUserPinsPort,
+        oauthBindingsPort: inMemoryOAuthBindingsPort,
+      },
+      { telegramLoginAvailable: true },
+    );
+    expect(r.exists).toBe(false);
+    expect(r.methods.telegramLogin).toBe(true);
   });
 
   it("returns pin and messenger channels when user has data (no oauth in response)", async () => {

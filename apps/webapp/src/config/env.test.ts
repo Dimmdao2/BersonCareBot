@@ -50,9 +50,6 @@ describe("checkInsecureSecretsForStartup", () => {
     S3_REGION: "us-east-1",
     S3_FORCE_PATH_STYLE: false,
     TELEGRAM_BOT_USERNAME: "bersoncare_bot",
-    YANDEX_OAUTH_CLIENT_ID: "",
-    YANDEX_OAUTH_CLIENT_SECRET: "",
-    YANDEX_OAUTH_REDIRECT_URI: "",
   };
 
   it("throws when SESSION_COOKIE_SECRET is blacklisted and isTest is false", () => {

@@ -2,7 +2,7 @@
  * Config adapter: dual-read — DB (system_settings) → env fallback.
  * In-memory TTL cache (60 sec) per key.
  * Used for non-secret runtime config: URLs, flags, IDs.
- * Secrets (HMAC, OAuth secrets, tokens) remain in env only.
+ * Integration secrets (OAuth client secret и т.д.) хранятся в `system_settings` (admin), см. `integrationRuntime`.
  */
 
 import { getPool } from "@/infra/db/client";

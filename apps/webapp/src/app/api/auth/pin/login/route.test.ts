@@ -6,6 +6,19 @@ import { inMemoryUserPinsPort } from "@/infra/repos/inMemoryUserPins";
 import { POST } from "./route";
 
 describe("POST /api/auth/pin/login", () => {
+  it("returns 400 when phone is not valid E.164", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/auth/pin/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: "invalid", pin: "1234" }),
+      })
+    );
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe("invalid_phone");
+  });
+
   it("returns 400 when body invalid", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/pin/login", {

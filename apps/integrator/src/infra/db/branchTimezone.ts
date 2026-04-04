@@ -65,7 +65,7 @@ async function resolveBranchTimezone(branchId: number | string): Promise<BranchT
   let raw: string | null;
   try {
     const res = await db.query<{ timezone: string }>(
-      "SELECT timezone FROM branches WHERE integrator_branch_id = $1 LIMIT 1",
+      "SELECT timezone FROM rubitime_branches WHERE rubitime_branch_id = $1 LIMIT 1",
       [id],
     );
     raw = res.rows[0]?.timezone ?? null;
@@ -105,13 +105,18 @@ async function resolveBranchTimezone(branchId: number | string): Promise<BranchT
   return { kind: "valid", timezone: trimmed };
 }
 
-/** Test hook: clear TTL cache. */
-export function resetBranchTimezoneCacheForTests(): void {
+/** Clears branch timezone TTL cache (e.g. after rubitime_branches update). */
+export function invalidateBranchTimezoneCache(): void {
   cache.clear();
 }
 
+/** @deprecated Используйте {@link invalidateBranchTimezoneCache}. */
+export function resetBranchTimezoneCacheForTests(): void {
+  invalidateBranchTimezoneCache();
+}
+
 /**
- * IANA timezone for integrator/Rubitime branch id (`branches.integrator_branch_id`), with 60s in-memory TTL.
+ * IANA timezone for Rubitime branch id (`rubitime_branches.rubitime_branch_id`), with 60s in-memory TTL.
  * Missing branch, empty or invalid timezone → {@link FALLBACK_TZ} (warn on DB path, once per TTL miss).
  */
 export async function getBranchTimezone(branchId: number | string): Promise<string> {

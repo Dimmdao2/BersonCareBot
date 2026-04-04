@@ -26,6 +26,30 @@ function resolveDeliveryChannel(delivery?: PhoneOtpDelivery): "sms" | "telegram"
   return delivery?.channel ?? "sms";
 }
 
+/** Маска номера для operational-логов (без полного E.164). */
+function maskPhoneForOpsLog(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  const last4 = digits.length >= 4 ? digits.slice(-4) : "****";
+  return phone.trim().startsWith("+") ? `+***${last4}` : `***${last4}`;
+}
+
+type OtpDeliveryOutcome = "success" | "delivery_failed" | "rate_limited";
+
+function logPhoneOtpDeliveryEvent(payload: {
+  channel: "sms" | "telegram" | "max" | "email";
+  outcome: OtpDeliveryOutcome;
+  phoneMask: string;
+  httpStatus?: number;
+}): void {
+  console.info(
+    JSON.stringify({
+      event: "phone_otp_delivery",
+      ts: new Date().toISOString(),
+      ...payload,
+    }),
+  );
+}
+
 export type IntegratorSmsAdapterDeps = {
   challengeStore: PhoneChallengeStore;
   integratorBaseUrl: string;
@@ -65,40 +89,63 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
       const timestamp = String(Math.floor(Date.now() / 1000));
 
       if (deliveryChannel === "sms") {
-        const body = JSON.stringify({ phone, code });
-        const signature = signPayload(timestamp, body, sharedSecret);
-        const res = await fetch(sendSmsUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Bersoncare-Timestamp": timestamp,
-            "X-Bersoncare-Signature": signature,
-          },
-          body,
-        });
-        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok) {
-          const rateLimited = res.status === 429;
+        try {
+          const body = JSON.stringify({ phone, code });
+          const signature = signPayload(timestamp, body, sharedSecret);
+          const res = await fetch(sendSmsUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Bersoncare-Timestamp": timestamp,
+              "X-Bersoncare-Signature": signature,
+            },
+            body,
+          });
+          const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+          const phoneMask = maskPhoneForOpsLog(phone);
+          if (!res.ok) {
+            const rateLimited = res.status === 429;
+            logPhoneOtpDeliveryEvent({
+              channel: "sms",
+              outcome: rateLimited ? "rate_limited" : "delivery_failed",
+              phoneMask,
+              httpStatus: res.status,
+            });
+            return {
+              ok: false,
+              code: rateLimited ? "rate_limited" : "delivery_failed",
+              retryAfterSeconds: rateLimited ? 60 : undefined,
+            };
+          }
+          if (!data.ok) {
+            logPhoneOtpDeliveryEvent({
+              channel: "sms",
+              outcome: "delivery_failed",
+              phoneMask,
+              httpStatus: res.status,
+            });
+            return {
+              ok: false,
+              code: "delivery_failed",
+              retryAfterSeconds: 60,
+            };
+          }
+          await writeChallenge();
+          await registerPhoneSend(phone);
+          logPhoneOtpDeliveryEvent({ channel: "sms", outcome: "success", phoneMask, httpStatus: res.status });
           return {
-            ok: false,
-            code: rateLimited ? "rate_limited" : "invalid_phone",
-            retryAfterSeconds: rateLimited ? 60 : undefined,
-          };
-        }
-        if (!data.ok) {
-          return {
-            ok: false,
-            code: "invalid_phone",
+            ok: true,
+            challengeId,
             retryAfterSeconds: 60,
           };
+        } catch {
+          logPhoneOtpDeliveryEvent({
+            channel: "sms",
+            outcome: "delivery_failed",
+            phoneMask: maskPhoneForOpsLog(phone),
+          });
+          return { ok: false, code: "delivery_failed" };
         }
-        await writeChallenge();
-        await registerPhoneSend(phone);
-        return {
-          ok: true,
-          challengeId,
-          retryAfterSeconds: 60,
-        };
       }
 
       if (deliveryChannel === "email") {
@@ -107,11 +154,14 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
           return { ok: false, code: "invalid_phone" };
         }
         const sent = await sendEmailCodeViaIntegrator(to, code);
+        const phoneMask = maskPhoneForOpsLog(phone);
         if (!sent.ok) {
-          return { ok: false, code: "invalid_phone" };
+          logPhoneOtpDeliveryEvent({ channel: "email", outcome: "delivery_failed", phoneMask });
+          return { ok: false, code: "delivery_failed" };
         }
         await writeChallenge();
         await registerPhoneSend(phone);
+        logPhoneOtpDeliveryEvent({ channel: "email", outcome: "success", phoneMask });
         return {
           ok: true,
           challengeId,
@@ -125,44 +175,72 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
         if (!recipientId) {
           return { ok: false, code: "invalid_phone" };
         }
-        const body = JSON.stringify({
-          channel: deliveryChannel,
-          recipientId,
-          code,
-        });
-        const signature = signPayload(timestamp, body, sharedSecret);
-        const res = await fetch(sendOtpUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Bersoncare-Timestamp": timestamp,
-            "X-Bersoncare-Signature": signature,
-          },
-          body,
-        });
-        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok) {
-          const rateLimited = res.status === 429;
+        try {
+          const body = JSON.stringify({
+            channel: deliveryChannel,
+            recipientId,
+            code,
+          });
+          const signature = signPayload(timestamp, body, sharedSecret);
+          const res = await fetch(sendOtpUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Bersoncare-Timestamp": timestamp,
+              "X-Bersoncare-Signature": signature,
+            },
+            body,
+          });
+          const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+          const phoneMask = maskPhoneForOpsLog(phone);
+          if (!res.ok) {
+            const rateLimited = res.status === 429;
+            logPhoneOtpDeliveryEvent({
+              channel: deliveryChannel,
+              outcome: rateLimited ? "rate_limited" : "delivery_failed",
+              phoneMask,
+              httpStatus: res.status,
+            });
+            return {
+              ok: false,
+              code: rateLimited ? "rate_limited" : "delivery_failed",
+              retryAfterSeconds: rateLimited ? 60 : undefined,
+            };
+          }
+          if (!data.ok) {
+            logPhoneOtpDeliveryEvent({
+              channel: deliveryChannel,
+              outcome: "delivery_failed",
+              phoneMask,
+              httpStatus: res.status,
+            });
+            return {
+              ok: false,
+              code: "delivery_failed",
+              retryAfterSeconds: 60,
+            };
+          }
+          await writeChallenge();
+          await registerPhoneSend(phone);
+          logPhoneOtpDeliveryEvent({
+            channel: deliveryChannel,
+            outcome: "success",
+            phoneMask,
+            httpStatus: res.status,
+          });
           return {
-            ok: false,
-            code: rateLimited ? "rate_limited" : "invalid_phone",
-            retryAfterSeconds: rateLimited ? 60 : undefined,
-          };
-        }
-        if (!data.ok) {
-          return {
-            ok: false,
-            code: "invalid_phone",
+            ok: true,
+            challengeId,
             retryAfterSeconds: 60,
           };
+        } catch {
+          logPhoneOtpDeliveryEvent({
+            channel: deliveryChannel,
+            outcome: "delivery_failed",
+            phoneMask: maskPhoneForOpsLog(phone),
+          });
+          return { ok: false, code: "delivery_failed" };
         }
-        await writeChallenge();
-        await registerPhoneSend(phone);
-        return {
-          ok: true,
-          challengeId,
-          retryAfterSeconds: 60,
-        };
       }
 
       return { ok: false, code: "invalid_phone" };

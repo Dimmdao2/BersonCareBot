@@ -13,6 +13,7 @@ const content: WebhookContent = {
   moreMenuInline: { inline_keyboard: [] },
   messages: {
     welcome: 'welcome',
+    onboardingWelcome: 'onboarding-welcome',
     chooseMenu: 'choose',
     describeQuestion: 'describe',
     questionAccepted: 'accepted',
@@ -112,7 +113,7 @@ describe('handleUpdate contact linking', () => {
     });
   });
 
-  it('sends menu on /start even when phone is not linked', async () => {
+  it('sends onboarding and request_contact on /start when phone is not linked', async () => {
     const userPort = buildUserPort();
     const incoming: IncomingUpdate = {
       kind: 'message',
@@ -125,10 +126,12 @@ describe('handleUpdate contact linking', () => {
     };
 
     const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(userPort.setUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
     expect(actions[0]).toMatchObject({
       type: 'sendMessage',
       chatId: 100,
-      text: 'choose',
+      text: 'onboarding-welcome',
+      replyMarkup: content.requestContactKeyboard,
     });
   });
 

@@ -66,10 +66,35 @@ export default async function SettingsPage() {
           const s = typeof raw === "string" ? raw.trim() : "";
           return s.length > 0 ? s : DEFAULT_SUPPORT_CONTACT_URL;
         })(),
+        telegramLoginBotUsername: (() => {
+          const raw = getValueJson(
+            adminSettingsList.find((x) => x.key === "telegram_login_bot_username")?.valueJson,
+            "",
+          );
+          return typeof raw === "string" ? raw.trim() : "";
+        })(),
         appDisplayTimezone: (() => {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "app_display_timezone")?.valueJson, "");
           const s = typeof raw === "string" ? raw.trim() : "";
           return s.length > 0 ? s : DEFAULT_APP_DISPLAY_TIMEZONE;
+        })(),
+        yandexOauthClientId: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "yandex_oauth_client_id")?.valueJson, "");
+          return typeof raw === "string" ? raw.trim() : "";
+        })(),
+        yandexOauthClientSecret: (() => {
+          const raw = getValueJson(
+            adminSettingsList.find((x) => x.key === "yandex_oauth_client_secret")?.valueJson,
+            "",
+          );
+          return typeof raw === "string" ? raw.trim() : "";
+        })(),
+        yandexOauthRedirectUri: (() => {
+          const raw = getValueJson(
+            adminSettingsList.find((x) => x.key === "yandex_oauth_redirect_uri")?.valueJson,
+            "",
+          );
+          return typeof raw === "string" ? raw.trim() : "";
         })(),
         allowedTelegramIds: idArrayToString(adminSettingsList, "allowed_telegram_ids"),
         allowedMaxIds: idArrayToString(adminSettingsList, "allowed_max_ids"),

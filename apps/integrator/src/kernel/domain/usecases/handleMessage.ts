@@ -13,7 +13,7 @@ export async function handleStart(
   chatId: number,
   channelUserId: number,
   startText: string,
-  _hasLinkedPhone: boolean,
+  hasLinkedPhone: boolean,
   userPort: ChannelUserPort,
   content: WebhookContent,
 ): Promise<{ consumed: boolean; actions: OutgoingAction[] }> {
@@ -36,6 +36,21 @@ export async function handleStart(
           chatId,
           text: content.messages.chooseMenu,
           replyMarkup: mainMenuMarkup(content),
+        },
+      ],
+    };
+  }
+
+  if (!hasLinkedPhone) {
+    await userPort.setUserState(String(channelUserId), 'await_contact:subscription');
+    return {
+      consumed: true,
+      actions: [
+        {
+          type: 'sendMessage',
+          chatId,
+          text: content.messages.onboardingWelcome,
+          replyMarkup: content.requestContactKeyboard,
         },
       ],
     };

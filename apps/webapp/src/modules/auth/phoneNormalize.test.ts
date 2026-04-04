@@ -1,75 +1,65 @@
 import { describe, expect, it } from "vitest";
-import { normalizePhone } from "./phoneNormalize";
+import { normalizePhone, normalizePhoneInternational, normalizePhoneRuLegacy } from "./phoneNormalize";
 
-const expected = "+79189000782";
+const expectedRuMobile = "+79189000782";
 
-describe("normalizePhone (RU +7)", () => {
+describe("normalizePhoneRuLegacy (РФ)", () => {
   it("normalizes 10-digit mobile without country code", () => {
-    expect(normalizePhone("9189000782")).toBe(expected);
+    expect(normalizePhoneRuLegacy("9189000782")).toBe(expectedRuMobile);
   });
 
   it("normalizes 10-digit city code format without country code", () => {
-    expect(normalizePhone("4951234567")).toBe("+74951234567");
+    expect(normalizePhoneRuLegacy("4951234567")).toBe("+74951234567");
   });
 
   it("normalizes 11 digits starting with 8", () => {
-    expect(normalizePhone("89189000782")).toBe(expected);
+    expect(normalizePhoneRuLegacy("89189000782")).toBe(expectedRuMobile);
   });
 
-  it("normalizes 8 with parentheses and hyphens (EXEC H.1.1)", () => {
-    expect(normalizePhone("8(918)900-07-82")).toBe(expected);
+  it("normalizes 8 with parentheses and hyphens", () => {
+    expect(normalizePhoneRuLegacy("8(918)900-07-82")).toBe(expectedRuMobile);
+  });
+});
+
+describe("normalizePhoneInternational / normalizePhone", () => {
+  it("keeps valid RU E.164", () => {
+    expect(normalizePhoneInternational("+79991234567")).toBe("+79991234567");
   });
 
-  it("keeps +7 with 11 digits", () => {
-    expect(normalizePhone("+79189000782")).toBe(expected);
+  it("normalizes RU national mobile via default RU parse", () => {
+    expect(normalizePhoneInternational("9189000782")).toBe(expectedRuMobile);
   });
 
-  it("strips parentheses and hyphens", () => {
-    expect(normalizePhone("+7(918)900-07-82")).toBe(expected);
+  it("normalizes explicit US international to E.164", () => {
+    expect(normalizePhoneInternational("+1 (202) 555-0123")).toBe("+12025550123");
   });
 
-  it("normalizes 8 with spaces", () => {
-    expect(normalizePhone("8 918 900 07 82")).toBe(expected);
+  it("normalizes UK number to E.164", () => {
+    expect(normalizePhoneInternational("+44 20 7836 1234")).toBe("+442078361234");
   });
 
-  it("strips mixed formatting for classic 8 (999) pattern", () => {
-    expect(normalizePhone("8 (999) 123-45-67")).toBe("+79991234567");
+  it("normalizes German mobile to E.164", () => {
+    expect(normalizePhoneInternational("+49 151 23456789")).toBe("+4915123456789");
   });
 
-  it("normalizes 11 digits starting with 7 without plus", () => {
-    expect(normalizePhone("79189000782")).toBe(expected);
+  it("normalizes UA mobile to E.164", () => {
+    expect(normalizePhoneInternational("+380 50 123 4567")).toBe("+380501234567");
   });
 
-  it("normalizes trunk 8 + city code format", () => {
-    expect(normalizePhone("8 (495) 123-45-67")).toBe("+74951234567");
-  });
-
-  it("normalizes toll-free 8-800 format", () => {
-    expect(normalizePhone("8 800 555 35 35")).toBe("+78005553535");
-  });
-
-  it("normalizes 00 international prefix for +7", () => {
-    expect(normalizePhone("007 918 900 07 82")).toBe(expected);
-  });
-
-  it("handles tab and unicode space as separators", () => {
-    expect(normalizePhone("+7\u00a0918\t900-07-82")).toBe(expected);
+  it("normalizePhone is alias of normalizePhoneInternational", () => {
+    expect(normalizePhone("+79991234567")).toBe("+79991234567");
   });
 
   it("returns shortest +digits for incomplete input (validated elsewhere)", () => {
-    expect(normalizePhone("912")).toBe("+912");
+    expect(normalizePhoneInternational("912")).toBe("+912");
   });
 
-  it("treats any 10-digit local input as RU national number", () => {
-    expect(normalizePhone("2025550123")).toBe("+72025550123");
-  });
-
-  it("keeps explicit international prefix as-is after cleanup", () => {
-    expect(normalizePhone("+1 (202) 555-01-23")).toBe("+12025550123");
+  it("treats ambiguous 10-digit local as RU national (legacy)", () => {
+    expect(normalizePhoneInternational("2025550123")).toBe("+72025550123");
   });
 
   it("returns '+' for empty or symbol-only input", () => {
-    expect(normalizePhone("")).toBe("+");
-    expect(normalizePhone("() - +")).toBe("+");
+    expect(normalizePhoneInternational("")).toBe("+");
+    expect(normalizePhoneInternational("() - +")).toBe("+");
   });
 });

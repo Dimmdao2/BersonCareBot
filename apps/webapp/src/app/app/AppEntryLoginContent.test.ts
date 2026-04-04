@@ -8,10 +8,10 @@ describe("shouldShowRegistrationPlaque", () => {
   });
 
   it("hides after user leaves phone step", () => {
-    expect(shouldShowRegistrationPlaque("pin")).toBe(false);
     expect(shouldShowRegistrationPlaque("new_user_sms")).toBe(false);
+    expect(shouldShowRegistrationPlaque("new_user_foreign")).toBe(false);
     expect(shouldShowRegistrationPlaque("choose_channel")).toBe(false);
     expect(shouldShowRegistrationPlaque("code")).toBe(false);
-    expect(shouldShowRegistrationPlaque("set_pin")).toBe(false);
+    expect(shouldShowRegistrationPlaque("foreign_no_otp_channel")).toBe(false);
   });
 });

@@ -182,6 +182,7 @@ async function loadUserContext(
       if (conversationStatus) result.activeConversationStatus = conversationStatus;
     }
     if (result.hasOpenConversation === undefined) result.hasOpenConversation = false;
+    result.linkedPhone = false;
     return result;
   }
   const conversationState = typeof user.userState === 'string' && user.userState.trim().length > 0

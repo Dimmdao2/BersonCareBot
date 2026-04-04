@@ -12,9 +12,14 @@ import { cn } from "@/lib/utils";
 import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
 import type { AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
 
-/** Видна до первого события шага и на шаге ввода телефона. */
+/** Видна до первого события шага и на шаге ввода телефона / выборе Telegram. */
 export function shouldShowRegistrationPlaque(authStep: AuthFlowStep | null): boolean {
-  return authStep === null || authStep === "phone";
+  return (
+    authStep === null ||
+    authStep === "entry_loading" ||
+    authStep === "landing" ||
+    authStep === "phone"
+  );
 }
 
 type AppEntryLoginContentProps = {

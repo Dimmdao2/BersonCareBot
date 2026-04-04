@@ -1,4 +1,5 @@
 import { env, integratorWebhookSecret, integratorWebappEntrySecret } from "@/config/env";
+import { getConfigValue } from "@/modules/system-settings/configAdapter";
 
 export async function getIntegratorApiUrl(): Promise<string> {
   return env.INTEGRATOR_API_URL ?? "";
@@ -16,14 +17,15 @@ export async function getTelegramBotToken(): Promise<string> {
   return env.TELEGRAM_BOT_TOKEN?.trim() ?? "";
 }
 
+/** Yandex OAuth credentials: `system_settings` (admin), scope SSOT per project rules — не через env. */
 export async function getYandexOauthClientId(): Promise<string> {
-  return env.YANDEX_OAUTH_CLIENT_ID?.trim() ?? "";
+  return getConfigValue("yandex_oauth_client_id", "");
 }
 
 export async function getYandexOauthClientSecret(): Promise<string> {
-  return env.YANDEX_OAUTH_CLIENT_SECRET?.trim() ?? "";
+  return getConfigValue("yandex_oauth_client_secret", "");
 }
 
 export async function getYandexOauthRedirectUri(): Promise<string> {
-  return env.YANDEX_OAUTH_REDIRECT_URI?.trim() ?? "";
+  return getConfigValue("yandex_oauth_redirect_uri", "");
 }

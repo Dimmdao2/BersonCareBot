@@ -608,4 +608,223 @@ describe('orchestrator buildPlan', () => {
       payload: { templateKey: 'telegram:bookingsList' },
     });
   });
+
+  it('selects telegram.start.onboarding for /start when linkedPhone is false', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-start-onb-1',
+        occurredAt: '2026-04-04T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          text: '/start',
+          chatId: 555,
+          channelUserId: 555,
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      linkedPhone: false,
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.start.onboarding',
+          source: 'telegram',
+          event: 'message.received',
+          priority: 15,
+          match: {
+            input: { text: '/start' },
+            context: { linkedPhone: false },
+          },
+          steps: [
+            {
+              action: 'user.state.set',
+              mode: 'sync',
+              params: { state: 'await_contact:subscription' },
+            },
+            {
+              action: 'message.replyKeyboard.show',
+              mode: 'async',
+              params: {
+                templateKey: 'telegram:onboardingWelcome',
+              },
+            },
+          ],
+        },
+        {
+          id: 'telegram.start',
+          source: 'telegram',
+          event: 'message.received',
+          match: {
+            input: { text: '/start' },
+            context: { linkedPhone: true },
+          },
+          steps: [{ action: 'noop', mode: 'sync', params: {} }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(2);
+    expect(plan[0]).toMatchObject({
+      kind: 'user.state.set',
+      payload: { state: 'await_contact:subscription' },
+    });
+    expect(plan[1]).toMatchObject({
+      kind: 'message.replyKeyboard.show',
+      payload: { templateKey: 'telegram:onboardingWelcome' },
+    });
+  });
+
+  it('selects telegram.start for /start when linkedPhone is true', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-start-linked-1',
+        occurredAt: '2026-04-04T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          text: '/start',
+          chatId: 556,
+          channelUserId: 556,
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [{ kind: 'phone', value: '+79990001122' }],
+      linkedPhone: true,
+      phoneNormalized: '+79990001122',
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.start.onboarding',
+          source: 'telegram',
+          event: 'message.received',
+          priority: 15,
+          match: {
+            input: { text: '/start' },
+            context: { linkedPhone: false },
+          },
+          steps: [{ action: 'noop', mode: 'sync', params: {} }],
+        },
+        {
+          id: 'telegram.start',
+          source: 'telegram',
+          event: 'message.received',
+          match: {
+            input: { text: '/start' },
+            context: { linkedPhone: true },
+          },
+          steps: [
+            {
+              action: 'message.replyKeyboard.show',
+              mode: 'async',
+              params: { templateKey: 'telegram:welcome' },
+            },
+          ],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]).toMatchObject({
+      kind: 'message.replyKeyboard.show',
+      payload: { templateKey: 'telegram:welcome' },
+    });
+  });
+
+  it('selects max.start.onboarding for /start on max when linkedPhone is false', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-max-start-onb-1',
+        occurredAt: '2026-04-04T12:00:00.000Z',
+        source: 'max',
+      },
+      payload: {
+        incoming: {
+          text: '/start',
+          chatId: 9001,
+          channelUserId: 'max-user-1',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      linkedPhone: false,
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'max.start.onboarding',
+          source: 'max',
+          event: 'message.received',
+          priority: 15,
+          match: {
+            input: { text: '/start' },
+            context: { linkedPhone: false },
+          },
+          steps: [
+            {
+              action: 'message.send',
+              mode: 'async',
+              params: { templateKey: 'max:onboardingWelcome' },
+            },
+          ],
+        },
+        {
+          id: 'max.start',
+          source: 'max',
+          event: 'message.received',
+          match: {
+            input: { text: '/start' },
+            context: { linkedPhone: true },
+          },
+          steps: [{ action: 'noop', mode: 'sync', params: {} }],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]).toMatchObject({
+      kind: 'message.send',
+      payload: { templateKey: 'max:onboardingWelcome' },
+    });
+  });
 });

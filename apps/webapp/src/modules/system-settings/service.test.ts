@@ -1,7 +1,17 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSystemSettingsService } from "./service";
 import type { SystemSettingsPort } from "./ports";
 import type { SystemSetting } from "./types";
+
+const syncSettingToIntegratorMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock("./syncToIntegrator", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./syncToIntegrator")>();
+  return {
+    ...actual,
+    syncSettingToIntegrator: syncSettingToIntegratorMock,
+  };
+});
 
 function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPort {
   return {
@@ -21,6 +31,10 @@ function makePort(overrides: Partial<SystemSettingsPort> = {}): SystemSettingsPo
 }
 
 describe("SystemSettingsService", () => {
+  beforeEach(() => {
+    syncSettingToIntegratorMock.mockClear();
+  });
+
   it("updateSetting — unknown key → ошибка", async () => {
     const service = createSystemSettingsService(makePort());
     await expect(service.updateSetting("unknown_key", "admin", true, null)).rejects.toThrow(
@@ -34,6 +48,19 @@ describe("SystemSettingsService", () => {
     const result = await service.updateSetting("dev_mode", "admin", false, "user-uuid");
     expect(result.key).toBe("dev_mode");
     expect(port.upsert).toHaveBeenCalledWith("dev_mode", "admin", false, "user-uuid");
+  });
+
+  it("updateSetting — вызывает syncSettingToIntegrator после upsert", async () => {
+    const port = makePort();
+    const service = createSystemSettingsService(port);
+    await service.updateSetting("dev_mode", "admin", { value: true }, "user-uuid");
+    expect(syncSettingToIntegratorMock).toHaveBeenCalledTimes(1);
+    expect(syncSettingToIntegratorMock).toHaveBeenCalledWith({
+      key: "dev_mode",
+      scope: "admin",
+      valueJson: { value: true },
+      updatedBy: "user-uuid",
+    });
   });
 
   it("shouldDispatch — dev_mode false → true для всех", async () => {

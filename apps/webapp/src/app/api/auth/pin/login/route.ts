@@ -4,7 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { verifyPinForLogin } from "@/modules/auth/pinAuth";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { isValidRuMobileNormalized } from "@/modules/auth/phoneValidation";
+import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { setSessionFromUser } from "@/modules/auth/service";
 
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   const phone = normalizePhone(parsed.data.phone);
-  if (!isValidRuMobileNormalized(phone)) {
+  if (!isValidPhoneE164(phone)) {
     return NextResponse.json(
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 }

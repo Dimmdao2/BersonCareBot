@@ -9,9 +9,11 @@ import {
   getCurrentSession,
   exchangeIntegratorToken,
   exchangeTelegramInitData,
+  exchangeTelegramLoginWidget,
   clearSession,
   setSessionFromUser,
 } from "@/modules/auth/service";
+import type { TelegramLoginWidgetPayload } from "@/modules/auth/telegramLoginVerify";
 import {
   startPhoneAuth as startPhoneAuthFlow,
   confirmPhoneAuth as confirmPhoneAuthFlow,
@@ -370,6 +372,8 @@ function _buildAppDeps() {
         exchangeIntegratorToken(token, identityResolutionPort, userProjectionPort.updateRole),
       exchangeTelegramInitData: (initData: string) =>
         exchangeTelegramInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
+      exchangeTelegramLoginWidget: (payload: TelegramLoginWidgetPayload) =>
+        exchangeTelegramLoginWidget(payload, identityResolutionPort, userProjectionPort.updateRole),
       clearSession,
       setSessionFromUser,
       startPhoneAuth: (phone: string, context: ChannelContext, opts?: StartPhoneAuthOptions) =>

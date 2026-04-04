@@ -4,43 +4,52 @@
 
 **Переменные окружения (`process.env`)** используются для:
 
-1. **Секретов и учётных данных** — API-ключи, HMAC-секреты, OAuth client secret, токены ботов, пароли. В репозиторий и документацию попадают только **имена** переменных, не значения.
-2. **Подключения к инфраструктуре** — `DATABASE_URL` и аналоги.
-3. **Базовых параметров процесса** — `NODE_ENV`, `HOST`, `PORT`, `LOG_LEVEL`.
-4. **Секретов интеграций** — ключи, токены, webhook URL/секреты внешних интеграций (`RUBITIME_API_KEY`, `RUBITIME_WEBHOOK_TOKEN`, `MAX_API_KEY`, `SMSC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `GOOGLE_*`, `YANDEX_*`, `INTEGRATOR_*`, `BOOKING_URL` и т.д.).
+1. **Подключения к инфраструктуре** — `DATABASE_URL` и аналоги.
+2. **Секретов процесса веб-приложения** — `SESSION_COOKIE_SECRET`, секреты обмена с интегратором (`INTEGRATOR_WEBAPP_ENTRY_SECRET`, `INTEGRATOR_WEBHOOK_SECRET`), при необходимости `INTEGRATOR_SHARED_SECRET`.
+3. **Базовых параметров процесса** — `NODE_ENV`, `HOST`, `PORT`, `APP_BASE_URL`.
+4. **Bootstrap интегратора** — env integrator (`apps/integrator`) по своему `config`/`env.ts`; webhook/SMS к интегратору на стороне webapp: `INTEGRATOR_API_URL` + shared secret для вызовов отправки SMS/email OTP.
 
-**Таблица `system_settings` (webapp, scope `admin`)** — источник истины для **несекретной** операционной конфигурации, которую разумно менять без передеплоя:
+**Таблица `system_settings` (webapp, scope `admin`)** — источник истины для **операционной** конфигурации, которую разумно менять без передеплоя, включая **часть интеграционных параметров авторизации**, согласно правилам репозитория:
 
 - Публичные ссылки: `support_contact_url`.
-- Отображение времени слотов и связанного UI: **`app_display_timezone`** (IANA, по умолчанию `Europe/Moscow`) — единая бизнес-таймзона для форматирования `record_at` / записей на приём в webapp; см. `getAppDisplayTimeZone()`, `formatBusinessDateTime.ts`, `docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md` (подраздел про подписи).
-- **Политика timezone (интегратор + webapp):** календарные IANA-зоны филиалов/каталога бронирования хранятся в таблицах webapp (`branches.timezone`, `booking_branches.timezone` и т.д.). Глобальная зона отображения и интерпретации наивных строк Rubitime для интегратора — **`system_settings.app_display_timezone`** (admin). Переменные окружения **не** используются для фиксированных UTC-offset’ов или «ручного» смещения `record_at` (устаревшие имена вроде `RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES` сняты с поддержки). Парсинг строк времени в UTC-instant — общий модуль `normalizeToUtcInstant` (integrator shared; webapp re-export при необходимости).
+- Telegram Login Widget: `telegram_login_bot_username`.
+- **Yandex OAuth (backend-only):** `yandex_oauth_client_id`, `yandex_oauth_client_secret`, `yandex_oauth_redirect_uri` — редактирование через admin Settings; **не** дублировать в env webapp.
+- Отображение времени: **`app_display_timezone`** (IANA).
 - Вайтлисты: `allowed_telegram_ids`, `allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`, `doctor_max_ids`, `admin_phones`, `doctor_phones`, `allowed_phones`.
-- Операционные флаги: `dev_mode`, `debug_forward_to_admin`, `important_fallback_delay_minutes`, `integration_test_ids`.
-- Настройки пользователя (doctor scope): `patient_label`, `sms_fallback_enabled`.
+- Операционные флаги: `dev_mode`, `debug_forward_to_admin`, `important_fallback_delay_minutes`, `integration_test_ids`, `sms_fallback_enabled` (doctor scope и др. — см. `ALLOWED_KEYS`).
 
-**Таблицы-справочники интегратора** — источник истины для несекретных бизнес-контрактов:
+**Таблицы-справочники интегратора** — несекретные бизнес-контракты (Rubitime mapping и т.д.), см. отдельные миграции.
 
-- `rubitime_branches`, `rubitime_services`, `rubitime_cooperators`, `rubitime_booking_profiles` — маппинг доменного query (type/category/city) в Rubitime IDs.
-  Управляется через admin UI webapp (`/app/settings` → раздел «Rubitime»).
-  Ранее хранился в env (`RUBITIME_SCHEDULE_MAPPING`), что являлось ошибкой архитектуры.
+## Устаревшее / исправлено
 
-## Интеграционные ключи, секреты и webhook
+- Ранее в документе фигурировало утверждение, что «все интеграционные ключи только в env». Для **webapp** это не так: ключи из списка выше живут в **`system_settings`**, чтение через `configAdapter` / `integrationRuntime` (см. `apps/webapp/src/modules/system-settings/types.ts`).
+- `RUBITIME_SCHEDULE_MAPPING` в env — удалена; маппинг в таблицах webapp/integrator.
 
-Все ключи, токены и URI внешних интеграций (Rubitime, MAX, SMSC, Google, Yandex, Telegram) хранятся **только в env**. `system_settings` не является хранилищем интеграционных секретов.
+## Интегратор (отдельное приложение)
 
-Это означает:
+- Integrator читает свои секреты и URL из **своего** env (`apps/integrator`); это не смешивается с `system_settings` webapp, кроме общей БД если используется один PostgreSQL для проекций.
 
-- Integrator читает конфиг из `config.ts` / `env.ts` напрямую, без DB override.
-- Webapp читает интеграционные ключи из `env` через `integrationRuntime.ts` (прямые getter'ы без DB lookup).
-- Admin UI не предоставляет редактирование интеграционных ключей и секретов.
+### Две отдельные БД: зеркало `system_settings` в integrator
 
-## Что НЕ хранится в env (было ошибкой)
+На проде у webapp и integrator часто **разные** PostgreSQL (`bcb_webapp_prod` и `tgcarebot` — см. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`). Таблица `system_settings` создаётся **webapp-миграциями**; в БД integrator — **отдельная миграция** с тем же контрактом колонок (`key`, `scope`, `value_json`, …), без FK на `platform_users`.
 
-- `RUBITIME_SCHEDULE_MAPPING` — удалена. Данные теперь в `rubitime_booking_profiles` (integrator DB).
-  Контракты (схемы, типы, ошибки) лежат в коде: `internalContract.ts`, `schema.ts`.
+**Единственный канонический путь записи в webapp:** `createSystemSettingsService` → `updateSetting` → `port.upsert` (PostgreSQL webapp). Сразу после успешного upsert вызывается **`syncSettingToIntegrator`** (подписанный HTTP `POST` на integrator `POST /api/integrator/settings/sync`). Так синхронизируются **и** admin PATCH, **и** doctor PATCH, **и** любой будущий код, который пишет настройки только через сервис.
+
+**Правила для агентов и разработчиков:**
+
+1. **Новый ключ** — добавить в `ALLOWED_KEYS` (`apps/webapp/src/modules/system-settings/types.ts`), UI/API при необходимости, затем **тот же** `(key, scope)` должен оказаться в integrator после следующего сохранения в админке (push). Ручные SQL-вставки только в webapp оставляют integrator без строки до следующего PATCH.
+2. **Не дублировать** вызовы sync в route handlers — только через `updateSetting`.
+3. **Скрипты и миграции**, которые меняют `system_settings` в webapp напрямую, должны либо повторить строку в integrator (одинаковые `key`, `scope`, `value_json`), либо документировать одноразовый backfill и при необходимости вызвать тот же HTTP sync из ops.
+
+**Файлы:** `apps/webapp/src/modules/system-settings/service.ts`, `syncToIntegrator.ts`; integrator: `apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts`, миграция `apps/integrator/src/infra/db/migrations/core/20260406_0002_create_system_settings.sql`.
+
+## Что НЕ хранится в документации
+
+- Значения секретов, паролей, полных connection string с паролем — только имена ключей env или ключей `system_settings`.
 
 ## Связанные файлы
 
-- Webapp: `apps/webapp/src/modules/system-settings/types.ts` (`ALLOWED_KEYS`) — полный список ключей, допустимых в `system_settings`.
-- Integrator: `apps/integrator/src/config/env.ts` — единый реестр env-переменных с zod-валидацией при старте.
-- Webapp: `apps/webapp/src/config/env.ts` — единый реестр env-переменных webapp.
+- Webapp: `apps/webapp/src/modules/system-settings/types.ts` (`ALLOWED_KEYS`).
+- Webapp: `apps/webapp/src/modules/system-settings/service.ts`, `syncToIntegrator.ts`, `configAdapter.ts`, `integrationRuntime.ts`.
+- Webapp: `apps/webapp/src/config/env.ts`.
+- Integrator: `apps/integrator/src/config/env.ts`, `settingsSyncRoute.ts`.

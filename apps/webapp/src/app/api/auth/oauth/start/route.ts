@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { env, isProduction } from "@/config/env";
+import { isProduction } from "@/config/env";
 import {
   getYandexOauthClientId,
   getYandexOauthClientSecret,
@@ -15,8 +15,9 @@ const bodySchema = z.object({
 });
 
 /**
- * Старт OAuth. Яндекс — при наличии env: генерирует state, сохраняет в httpOnly cookie,
- * возвращает authUrl с state. Google/Apple — отложено (этап 5.5).
+ * Старт OAuth (служебный backend): Яндекс — при наличии ключей в `system_settings` (admin).
+ * Генерирует state, httpOnly cookie, возвращает authUrl. Публичная кнопка в login UI не используется.
+ * Google/Apple — отложено.
  */
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;

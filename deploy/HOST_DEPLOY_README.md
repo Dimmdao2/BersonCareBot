@@ -298,6 +298,8 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
 
+**Auth (webapp):** Yandex OAuth и Telegram Login Widget **не** требуют новых ключей в `webapp.prod` — клиент OAuth и имя бота для виджета задаются в **`system_settings`** (admin scope) в БД webapp; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`. Секреты в env-файлы деплоя не добавлять.
+
 ### `/opt/env/bersoncarebot/cutover.prod`
 
 Этот файл используют только operational-скрипты:

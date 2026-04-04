@@ -29,6 +29,11 @@ describe("startPhoneAuth", () => {
     }
   });
 
+  it("accepts valid non-RU E.164 (US)", async () => {
+    const result = await startPhoneAuth("+12025550123", webContext, deps);
+    expect(result.ok).toBe(true);
+  });
+
   it("returns invalid_phone for too short input", async () => {
     const result = await startPhoneAuth("123", webContext, deps);
     expect(result.ok).toBe(false);

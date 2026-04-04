@@ -3,7 +3,7 @@
 /**
  * Блок входа: обмен токена из ссылки на сессию, вход через Telegram initData или по номеру телефона (AuthFlowV2).
  * Если в адресе есть токен (t или token) — обмен на сессию. Если нет — пробует initData Telegram;
- * при отсутствии или ошибке — форма входа по номеру (check-phone, PIN, OTP).
+ * при отсутствии или ошибке — форма входа по номеру через AuthFlowV2 (check-phone, OTP; публичный flow без шага PIN — см. docs/AUTH_RESTRUCTURE/auth.md).
  */
 
 import { useEffect, useRef, useState } from "react";

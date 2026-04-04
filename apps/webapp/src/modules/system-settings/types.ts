@@ -1,3 +1,4 @@
+/** Whitelist for `system_settings` keys. Same strings are mirrored to integrator DB after each `updateSetting` (see `service.ts`). */
 export const ALLOWED_KEYS = [
   // Operational flags
   "patient_label",
@@ -9,8 +10,14 @@ export const ALLOWED_KEYS = [
   // Non-secret runtime config
   /** Публичная ссылка поддержки (HTTPS), например https://t.me/… */
   "support_contact_url",
+  /** Имя бота для Telegram Login Widget (без @), публичный идентификатор виджета. */
+  "telegram_login_bot_username",
   /** IANA-таймзона для отображения времени записей и слотов (например Europe/Moscow). */
   "app_display_timezone",
+  /** Yandex OAuth (backend-only; не показывать в публичном login UI). */
+  "yandex_oauth_client_id",
+  "yandex_oauth_client_secret",
+  "yandex_oauth_redirect_uri",
   // Whitelist IDs
   "allowed_telegram_ids",
   "allowed_max_ids",

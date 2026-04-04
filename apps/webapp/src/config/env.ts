@@ -113,10 +113,6 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   /** Имя Telegram-бота без @ для deep-link t.me/… (привязка канала). */
   TELEGRAM_BOT_USERNAME: z.string().min(1).default("bersoncare_bot"),
-  /** Яндекс OAuth (этап 5). Пусто — режим отключён. */
-  YANDEX_OAUTH_CLIENT_ID: z.string().optional().default(""),
-  YANDEX_OAUTH_CLIENT_SECRET: z.string().optional().default(""),
-  YANDEX_OAUTH_REDIRECT_URI: z.string().optional().default(""),
 });
 
 const parsed = envSchema.parse({
@@ -150,9 +146,6 @@ const parsed = envSchema.parse({
   S3_REGION: process.env.S3_REGION,
   S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
   TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME?.trim() || "bersoncare_bot",
-  YANDEX_OAUTH_CLIENT_ID: process.env.YANDEX_OAUTH_CLIENT_ID,
-  YANDEX_OAUTH_CLIENT_SECRET: process.env.YANDEX_OAUTH_CLIENT_SECRET,
-  YANDEX_OAUTH_REDIRECT_URI: process.env.YANDEX_OAUTH_REDIRECT_URI,
 });
 
 export type EnvParsed = z.infer<typeof envSchema>;

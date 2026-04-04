@@ -34,7 +34,12 @@ export async function POST() {
   const result = await deps.auth.startPhoneAuth(phone, { channel: "web", chatId: randomUUID() }, { delivery: { channel: "sms" } });
 
   if (!result.ok) {
-    const status = result.code === "rate_limited" || result.code === "too_many_attempts" ? 429 : 400;
+    const status =
+      result.code === "rate_limited" || result.code === "too_many_attempts"
+        ? 429
+        : result.code === "delivery_failed"
+          ? 503
+          : 400;
     return NextResponse.json(
       {
         ok: false,

@@ -1,11 +1,15 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import * as oauthYandexResolve from "@/modules/auth/oauthYandexResolve";
 
-const { exchangeYandexCodeMock, fetchYandexUserInfoMock, setSessionMock, findUserMock } = vi.hoisted(() => ({
-  exchangeYandexCodeMock: vi.fn(),
-  fetchYandexUserInfoMock: vi.fn(),
-  setSessionMock: vi.fn(),
-  findUserMock: vi.fn(),
-}));
+const { exchangeYandexCodeMock, fetchYandexUserInfoMock, setSessionMock, findUserMock, findByUserIdMock } = vi.hoisted(
+  () => ({
+    exchangeYandexCodeMock: vi.fn(),
+    fetchYandexUserInfoMock: vi.fn(),
+    setSessionMock: vi.fn(),
+    findUserMock: vi.fn(),
+    findByUserIdMock: vi.fn(),
+  }),
+);
 
 vi.mock("@/modules/auth/oauthService", () => ({
   exchangeYandexCode: exchangeYandexCodeMock,
@@ -21,7 +25,7 @@ vi.mock("@/modules/auth/redirectPolicy", () => ({
 }));
 
 vi.mock("@/modules/auth/envRole", () => ({
-  resolveRoleFromEnv: vi.fn().mockReturnValue("client"),
+  resolveRoleAsync: vi.fn().mockResolvedValue("client"),
 }));
 
 vi.mock("@/infra/repos/pgOAuthBindings", () => ({
@@ -32,12 +36,18 @@ vi.mock("@/infra/repos/inMemoryOAuthBindings", () => ({
   inMemoryOAuthBindingsPort: { listProvidersForUser: vi.fn(), findUserByOAuthId: findUserMock },
 }));
 
-// Mock env with Yandex configured so all paths are reachable in one test file.
+vi.mock("@/infra/repos/pgUserByPhone", () => ({
+  pgUserByPhonePort: { findByUserId: findByUserIdMock },
+}));
+
+vi.mock("@/modules/system-settings/integrationRuntime", () => ({
+  getYandexOauthClientId: vi.fn().mockResolvedValue("test-client-id"),
+  getYandexOauthClientSecret: vi.fn().mockResolvedValue("test-client-secret"),
+  getYandexOauthRedirectUri: vi.fn().mockResolvedValue("http://localhost/api/auth/oauth/callback"),
+}));
+
 vi.mock("@/config/env", () => ({
   env: {
-    YANDEX_OAUTH_CLIENT_ID: "test-client-id",
-    YANDEX_OAUTH_CLIENT_SECRET: "test-client-secret",
-    YANDEX_OAUTH_REDIRECT_URI: "http://localhost/api/auth/oauth/callback",
     DATABASE_URL: "",
     APP_BASE_URL: "http://localhost",
     NODE_ENV: "test",
@@ -67,6 +77,7 @@ describe("GET /api/auth/oauth/callback — CSRF state", () => {
     fetchYandexUserInfoMock.mockReset();
     setSessionMock.mockReset();
     findUserMock.mockReset();
+    findByUserIdMock.mockReset();
   });
 
   it("returns 403 when no cookie and no query state", async () => {
@@ -100,6 +111,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
     fetchYandexUserInfoMock.mockReset();
     setSessionMock.mockReset();
     findUserMock.mockReset();
+    findByUserIdMock.mockReset();
   });
 
   it("redirects oauth=error when no code provided", async () => {
@@ -127,19 +139,35 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
     expect(loc).toContain("userinfo_failed");
   });
 
-  it("redirects oauth=error when user not linked", async () => {
+  it("redirects oauth=error when Yandex did not return a usable email", async () => {
+    exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "y1", email: null, name: "X" });
+    findUserMock.mockResolvedValue(null);
+    const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
+    const loc = res.headers.get("location") ?? "";
+    expect(loc).toContain("no_verified_email");
+  });
+
+  it("redirects db_error when OAuth user not bound and DB unavailable (no merge/create)", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
     fetchYandexUserInfoMock.mockResolvedValue({ id: "y1", email: "u@example.com", name: "X" });
     findUserMock.mockResolvedValue(null);
     const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
     const loc = res.headers.get("location") ?? "";
-    expect(loc).toContain("user_not_linked");
+    expect(loc).toContain("db_error");
   });
 
-  it("valid flow: creates session and redirects when user found", async () => {
+  it("valid flow: creates session and redirects when user resolved by OAuth binding", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok123" });
     fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-1", email: "user@ya.ru", name: "Иван" });
     findUserMock.mockResolvedValue({ userId: "platform-user-uuid" });
+    findByUserIdMock.mockResolvedValue({
+      userId: "platform-user-uuid",
+      role: "client",
+      displayName: "Prev",
+      phone: "+79990001122",
+      bindings: {},
+    });
     setSessionMock.mockResolvedValue(undefined);
 
     const res = await GET(makeRequest({ code: "valid-code", state: STATE }, STATE));
@@ -148,7 +176,8 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
       expect.objectContaining({
         userId: "platform-user-uuid",
         displayName: "Иван",
-      })
+        role: "client",
+      }),
     );
     expect(res.status).toBeGreaterThanOrEqual(300);
     expect(res.status).toBeLessThan(400);
@@ -158,12 +187,82 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
 
   it("redirects oauth=error when session creation throws", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
-    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-2", email: null, name: null });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-2", email: "a@ya.ru", name: null });
     findUserMock.mockResolvedValue({ userId: "uid-2" });
+    findByUserIdMock.mockResolvedValue({
+      userId: "uid-2",
+      role: "client",
+      displayName: "U",
+      phone: "+79990001122",
+      bindings: {},
+    });
     setSessionMock.mockRejectedValue(new Error("cookies_api_unavailable"));
 
     const res = await GET(makeRequest({ code: "code2", state: STATE }, STATE));
     const loc = res.headers.get("location") ?? "";
     expect(loc).toContain("session_failed");
+  });
+});
+
+describe("GET /api/auth/oauth/callback — resolveUserIdForYandexOAuth orchestration (spied)", () => {
+  let resolveSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    exchangeYandexCodeMock.mockReset();
+    fetchYandexUserInfoMock.mockReset();
+    setSessionMock.mockReset();
+    findUserMock.mockReset();
+    findByUserIdMock.mockReset();
+    resolveSpy = vi.spyOn(oauthYandexResolve, "resolveUserIdForYandexOAuth");
+  });
+
+  afterEach(() => {
+    resolveSpy.mockRestore();
+  });
+
+  it("redirects email_ambiguous when resolver returns that reason", async () => {
+    exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-merge", email: "dup@ya.ru", name: "D" });
+    resolveSpy.mockResolvedValue({ ok: false, reason: "email_ambiguous" });
+
+    const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
+
+    expect(resolveSpy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        yandexId: "ya-merge",
+        email: "dup@ya.ru",
+        displayName: "D",
+      }),
+    );
+    const loc = res.headers.get("location") ?? "";
+    expect(loc).toContain("email_ambiguous");
+    expect(setSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("happy path: merge userId from resolver loads platform user and sets session", async () => {
+    exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-new", email: "new@ya.ru", name: "Новый" });
+    resolveSpy.mockResolvedValue({ ok: true, userId: "merged-platform-uuid" });
+    findByUserIdMock.mockResolvedValue({
+      userId: "merged-platform-uuid",
+      role: "client",
+      displayName: "Old",
+      phone: "+79990003344",
+      bindings: {},
+    });
+    setSessionMock.mockResolvedValue(undefined);
+
+    const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
+
+    expect(resolveSpy).toHaveBeenCalled();
+    expect(findByUserIdMock).toHaveBeenCalledWith("merged-platform-uuid");
+    expect(setSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "merged-platform-uuid",
+        displayName: "Новый",
+      }),
+    );
+    expect(res.headers.get("location") ?? "").toContain("/app/patient");
   });
 });

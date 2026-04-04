@@ -1,18 +1,52 @@
 # auth
 
-Авторизация и сессии вебаппа.
+Авторизация и сессии веб-приложения (BersonCare webapp).
 
-- Текущая сессия хранится в cookie; срок жизни задаётся константой.
-- **getCurrentSession** — чтение сессии из cookie (проверка подписи, срока).
-- **exchangeIntegratorToken** — обмен JWT-токена от бота (ссылка «войти в приложение») на сессию вебаппа; в payload токена: sub (userId), role, displayName, phone, bindings, purpose, exp.
-- **exchangeTelegramInitData** — вход по данным Telegram Mini App (initData): проверка подписи и срока, создание/привязка пользователя и сессия.
-- **clearSession** — выход (удаление cookie).
-- **setSessionFromUser** — установка сессии по пользователю (для входа по SMS и др.).
-- **startPhoneAuth** / **confirmPhoneAuth** — в `phoneAuth.ts`: вход по номеру телефона с подтверждением SMS (отправка кода через порт интегратора, проверка кода, поиск/создание пользователя по номеру и привязка канала telegram/vk/max/web, создание сессии). Контекст канала передаётся с клиента (channel, chatId).
-- **Повторная проверка PIN для опасных действий** (например, удаление дневниковых данных): `POST /api/auth/pin/verify` вызывает **verifyPinForLogin** из `pinAuth.ts` и при успехе выставляет в сессии краткоживущий re-auth через **setDiaryPurgePinReauth**; проверка перед purge — **isDiaryPurgePinReauthValid**, сброс — **clearDiaryPurgeReauth** (всё в `service.ts`).
+## Сессия
 
-Порты: **SmsPort** (sendCode, verifyCode), **PhoneChallengeStore**, **UserByPhonePort** (findByPhone, createOrBind). Stub-адаптер SMS и in-memory хранилища — в infra.
+- Cookie с подписью HMAC; TTL задаётся в `service.ts` (разные TTL для client/doctor при необходимости).
+- **getCurrentSession** — чтение и валидация сессии из cookie.
+- **clearSession** — выход.
+- **setSessionFromUser** — установка сессии после успешного входа (SMS/OTP, Telegram, exchange token, OAuth и т.д.).
 
-Используется на странице входа и в API auth/exchange, auth/telegram-init, auth/phone/start, auth/phone/confirm, auth/pin/verify, auth/logout (**POST и GET** — очистка сессии и редирект на `/app`).
+## Публичный вход в вебе (приоритет)
 
-**Роль из env:** `resolveRoleFromEnv` сверяет телефон (`ADMIN_PHONES` / `DOCTOR_PHONES`), Telegram id (`ADMIN_TELEGRAM_ID`, `DOCTOR_TELEGRAM_IDS`) и Max id (`ADMIN_MAX_IDS`, `DOCTOR_MAX_IDS`) — нужно для mini-app и обмена integrator token без телефона в payload.
+1. **Telegram Login Widget** — основной бесплатный вход с веб-страницы (`TelegramLoginButton`, конфиг бота в `system_settings`: `telegram_login_bot_username`).
+2. **Международный номер телефона** — `InternationalPhoneInput` + `check-phone` → OTP по выбранному каналу (SMS только для РФ-мобильных; см. `phoneValidation`, `checkPhoneMethods`).
+3. **SMS OTP** — fallback для +7, когда Telegram недоступен; доставка через интегратор (`SmsPort` / `integratorSmsAdapter`). Ошибки доставки не маскируются под «неверный формат» (`delivery_failed`).
+
+**PIN** в публичном потоке входа **не показывается** (Stage 5); при необходимости re-auth для чувствительных действий — отдельные API (`pin/verify` и т.д.).
+
+## Мессенджеры и обмен токенами
+
+- **exchangeTelegramInitData** — вход из Telegram Mini App по подписанному `initData`.
+- **exchangeIntegratorToken** — обмен JWT «войти в приложение» из бота на сессию вебаппа (payload: sub, role, displayName, phone, bindings, exp).
+
+## OAuth (Yandex)
+
+- Backend flow реализован: `POST /api/auth/oauth/start` (provider `yandex`), `GET /api/auth/oauth/callback`.
+- Клиентские ID/secret и redirect URI хранятся в **`system_settings`** (admin): `yandex_oauth_client_id`, `yandex_oauth_client_secret`, `yandex_oauth_redirect_uri` — **не** в env webapp.
+- **Публичная кнопка «Войти через Яндекс» в AuthFlowV2 отсутствует**; метод служебный / прямой вызов API.
+- **Операции / `email_ambiguous`:** если в БД несколько строк `platform_users` с одним подтверждённым email, merge по email в `resolveUserIdForYandexOAuth` не выполняется — callback редиректит с `oauth=error&reason=email_ambiguous`. Оператору нужно устранить дубликаты (оставить одну запись с корректной связкой) и повторить вход через OAuth либо использовать уже существующую привязку `user_oauth_bindings`.
+
+## Email
+
+- Подтверждённый email используется как канал OTP и в профиле; **не** как единственный обязательный публичный метод входа на первом экране (см. продуктовые правила AUTH_RESTRUCTURE).
+
+## Телефон и OTP
+
+- **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`), верификация кода.
+- Порты: **SmsPort**, **PhoneChallengeStore**, **UserByPhonePort**.
+
+## Роль пользователя
+
+- **resolveRoleAsync** — приоритет whitelist из `system_settings` (admin), fallback на env для совместимости.
+- **resolveRoleFromEnv** — синхронный fallback по env (Telegram/Max/телефоны).
+
+## API-маршруты (часто используемые)
+
+`/api/auth/exchange`, `/api/auth/telegram-init`, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/oauth/start`, `/api/auth/oauth/callback`, `/api/auth/logout` (POST/GET).
+
+## Операционные логи OTP
+
+При отправке кода через `createIntegratorSmsAdapter` пишется структурированная строка `phone_otp_delivery` (JSON в stdout) с маской номера и каналом — для мониторинга объёма SMS без утечки секретов и полного номера.

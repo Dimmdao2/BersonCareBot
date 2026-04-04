@@ -6,7 +6,7 @@ import type { PhoneOtpDelivery, SmsPort } from "./smsPort";
 import type { UserByPhonePort } from "./userByPhonePort";
 import { getRedirectPathForRole } from "./redirectPolicy";
 import { normalizePhone } from "./phoneNormalize";
-import { isValidRuMobileNormalized } from "./phoneValidation";
+import { isValidPhoneE164 } from "./phoneValidation";
 
 export { normalizePhone } from "./phoneNormalize";
 
@@ -47,7 +47,7 @@ export async function startPhoneAuth(
   options?: StartPhoneAuthOptions
 ): Promise<StartPhoneAuthResult> {
   const normalized = normalizePhone(phone);
-  if (!isValidRuMobileNormalized(normalized)) {
+  if (!isValidPhoneE164(normalized)) {
     return { ok: false, code: "invalid_phone" };
   }
 

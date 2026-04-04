@@ -3,7 +3,9 @@ import { env } from "@/config/env";
 import { exchangeYandexCode, fetchYandexUserInfo } from "@/modules/auth/oauthService";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
-import { resolveRoleFromEnv } from "@/modules/auth/envRole";
+import { resolveRoleAsync } from "@/modules/auth/envRole";
+import { resolveUserIdForYandexOAuth } from "@/modules/auth/oauthYandexResolve";
+import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
 import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
 import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
 import {
@@ -28,26 +30,23 @@ function readCookieFromRequest(request: Request, name: string): string | null {
   return null;
 }
 
+function redirectToAppQuery(reason: string): URL {
+  return new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, env.APP_BASE_URL);
+}
+
 /**
- * Callback OAuth (Yandex). Реализует:
- * 1. CSRF-проверку через `state` — несовпадение → 403.
- * 2. Обмен `code` на access_token через Yandex OAuth.
- * 3. Получение профиля пользователя (Yandex Login API).
- * 4. Поиск пользователя в user_oauth_bindings.
- * 5. Создание сессии + redirect по роли.
- *
- * Google/Apple — отложено до этапа 5.5.
+ * Callback OAuth (Yandex): CSRF (state) → code → token → userinfo → resolve user (OAuth / email merge / create)
+ * → сессия → redirect. Публичная кнопка в login UI не используется — только прямой вызов `/api/auth/oauth/start`.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";
   const stateFromCookie = readCookieFromRequest(request, OAUTH_STATE_COOKIE) ?? "";
 
-  // 1. CSRF-защита: state должен совпадать с cookie
   if (!stateFromQuery || !stateFromCookie || stateFromQuery !== stateFromCookie) {
     return NextResponse.json(
       { error: "oauth_csrf", message: "State mismatch или cookie отсутствует" },
-      { status: 403 }
+      { status: 403 },
     );
   }
 
@@ -56,17 +55,14 @@ export async function GET(request: Request) {
   const secret = (await getYandexOauthClientSecret()).trim();
 
   if (!clientId || !redirectUri || !secret) {
-    return NextResponse.redirect(
-      new URL("/app?oauth=disabled&reason=not_configured", env.APP_BASE_URL)
-    );
+    return NextResponse.redirect(new URL("/app?oauth=disabled&reason=not_configured", env.APP_BASE_URL));
   }
 
   const code = url.searchParams.get("code");
   if (!code) {
-    return NextResponse.redirect(new URL("/app?oauth=error&reason=no_code", env.APP_BASE_URL));
+    return NextResponse.redirect(redirectToAppQuery("no_code"));
   }
 
-  // 2. Обмен code → access_token
   let accessToken: string;
   try {
     const tokenResult = await exchangeYandexCode(code, {
@@ -76,12 +72,9 @@ export async function GET(request: Request) {
     });
     accessToken = tokenResult.accessToken;
   } catch {
-    return NextResponse.redirect(
-      new URL("/app?oauth=error&reason=exchange_failed", env.APP_BASE_URL)
-    );
+    return NextResponse.redirect(redirectToAppQuery("exchange_failed"));
   }
 
-  // 3. Получить профиль пользователя
   let yandexId: string;
   let oauthEmail: string | null;
   let oauthName: string | null;
@@ -91,41 +84,53 @@ export async function GET(request: Request) {
     oauthEmail = info.email;
     oauthName = info.name;
   } catch {
-    return NextResponse.redirect(
-      new URL("/app?oauth=error&reason=userinfo_failed", env.APP_BASE_URL)
-    );
+    return NextResponse.redirect(redirectToAppQuery("userinfo_failed"));
   }
 
-  // 4. Найти пользователя по OAuth-привязке
   const oauthPort = env.DATABASE_URL ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
-  let existingUser: { userId: string } | null;
+
+  const resolved = await resolveUserIdForYandexOAuth(oauthPort, {
+    yandexId,
+    email: oauthEmail,
+    displayName: oauthName,
+  });
+
+  if (!resolved.ok) {
+    const r = resolved.reason;
+    if (r === "no_verified_email") {
+      return NextResponse.redirect(redirectToAppQuery("no_verified_email"));
+    }
+    if (r === "email_ambiguous") {
+      return NextResponse.redirect(redirectToAppQuery("email_ambiguous"));
+    }
+    return NextResponse.redirect(redirectToAppQuery("db_error"));
+  }
+
+  let sessionUser;
   try {
-    existingUser = await oauthPort.findUserByOAuthId("yandex", yandexId);
+    sessionUser = await pgUserByPhonePort.findByUserId(resolved.userId);
   } catch {
-    return NextResponse.redirect(
-      new URL("/app?oauth=error&reason=db_error", env.APP_BASE_URL)
-    );
+    return NextResponse.redirect(redirectToAppQuery("db_error"));
   }
 
-  if (!existingUser) {
-    return NextResponse.redirect(
-      new URL("/app?oauth=error&reason=user_not_linked", env.APP_BASE_URL)
-    );
+  if (!sessionUser) {
+    return NextResponse.redirect(redirectToAppQuery("session_failed"));
   }
 
-  // 5. Создать сессию и редиректить по роли
-  const role = resolveRoleFromEnv({});
+  const role = await resolveRoleAsync({
+    phone: sessionUser.phone,
+    telegramId: sessionUser.bindings.telegramId,
+    maxId: sessionUser.bindings.maxId,
+  });
+
   try {
     await setSessionFromUser({
-      userId: existingUser.userId,
+      ...sessionUser,
       role,
-      displayName: oauthName ?? oauthEmail ?? yandexId,
-      bindings: {},
+      displayName: oauthName?.trim() || sessionUser.displayName || oauthEmail || yandexId,
     });
   } catch {
-    return NextResponse.redirect(
-      new URL("/app?oauth=error&reason=session_failed", env.APP_BASE_URL)
-    );
+    return NextResponse.redirect(redirectToAppQuery("session_failed"));
   }
 
   return NextResponse.redirect(new URL(getRedirectPathForRole(role), env.APP_BASE_URL));

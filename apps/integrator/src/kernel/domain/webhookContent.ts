@@ -12,6 +12,8 @@ export type WebhookContent = {
   moreMenuInline: unknown;
   messages: {
     welcome: string;
+    /** Onboarding copy (AUTH Stage 6 / S6.T06) — shown when phone is not linked. */
+    onboardingWelcome: string;
     chooseMenu: string;
     describeQuestion: string;
     questionAccepted: string;

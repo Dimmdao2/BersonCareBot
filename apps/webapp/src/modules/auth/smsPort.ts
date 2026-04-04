@@ -1,10 +1,15 @@
 /**
  * Порт интегратора SMS: отправка кода и проверка кода подтверждения.
  * Используется для авторизации по номеру телефона (web и messengers).
+ *
+ * Разграничение кодов:
+ * - `invalid_phone` — номер не прошёл валидацию/контракт на нашей стороне.
+ * - `delivery_failed` — сбой доставки или внешнего сервиса (HTTP/транспорт/502 и т.п.), не формат номера.
  */
 
 export const SMS_ERROR_CODES = [
   "invalid_phone",
+  "delivery_failed",
   "rate_limited",
   "too_many_attempts",
   "invalid_code",

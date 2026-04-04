@@ -6,5 +6,6 @@ export {
   getAppDisplayTimezone,
   getAppDisplayTimezoneSync,
   getBookingDisplayTimezone,
+  invalidateAppDisplayTimezoneCache,
   resetAppDisplayTimezoneCacheForTests as resetBookingDisplayTimezoneCache,
 } from '../../../config/appTimezone.js';

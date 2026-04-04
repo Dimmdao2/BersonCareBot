@@ -27,6 +27,19 @@ vi.mock("@/modules/auth/messengerLoginToken", () => ({
 import { POST } from "./route";
 
 describe("POST /api/auth/messenger/start", () => {
+  it("returns 400 when phone is not valid E.164", async () => {
+    const res = await POST(
+      new Request("http://localhost/api/auth/messenger/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: "bad", method: "telegram" }),
+      })
+    );
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { error?: string };
+    expect(json.error).toBe("invalid_phone");
+  });
+
   it("returns 400 on invalid body", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/messenger/start", {

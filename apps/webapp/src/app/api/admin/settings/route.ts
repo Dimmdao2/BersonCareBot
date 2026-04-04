@@ -17,7 +17,11 @@ const ADMIN_SCOPE_KEYS = [
   "important_fallback_delay_minutes",
   "integration_test_ids",
   "support_contact_url",
+  "telegram_login_bot_username",
   "app_display_timezone",
+  "yandex_oauth_client_id",
+  "yandex_oauth_client_secret",
+  "yandex_oauth_redirect_uri",
   // Whitelist IDs
   "allowed_telegram_ids",
   "allowed_max_ids",
@@ -35,7 +39,7 @@ const patchSchema = z.object({
   value: z.unknown(),
 });
 
-const SECRET_LIKE_KEYS = new Set<string>([]);
+const SECRET_LIKE_KEYS = new Set<string>(["yandex_oauth_client_secret"]);
 
 function normalizeValueJson(value: unknown): { value: unknown } {
   if (value !== null && typeof value === "object" && "value" in (value as Record<string, unknown>)) {
@@ -100,7 +104,7 @@ export async function PATCH(request: Request) {
     session.user.userId
   );
 
-  // Invalidate configAdapter cache for updated key
+  // Invalidate configAdapter cache for updated key (sync to integrator runs inside updateSetting)
   invalidateConfigKey(parsed.data.key);
 
   return NextResponse.json({ ok: true, setting });

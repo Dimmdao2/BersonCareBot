@@ -1,5 +1,9 @@
 import { ALLOWED_KEYS, type SystemSettingKey, type SystemSettingScope, type SystemSetting } from "./types";
 import type { SystemSettingsPort } from "./ports";
+import {
+  normalizeStoredValueJsonForIntegratorSync,
+  syncSettingToIntegrator,
+} from "./syncToIntegrator";
 
 export function createSystemSettingsService(port: SystemSettingsPort) {
   function isAllowedKey(key: string): key is SystemSettingKey {
@@ -24,7 +28,16 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
       if (!isAllowedKey(key)) {
         throw new Error(`unknown_setting_key: ${key}`);
       }
-      return port.upsert(key, scope, value, updatedBy);
+      const result = await port.upsert(key, scope, value, updatedBy);
+      void syncSettingToIntegrator({
+        key,
+        scope,
+        valueJson: normalizeStoredValueJsonForIntegratorSync(result.valueJson),
+        updatedBy: result.updatedBy,
+      }).catch(() => {
+        /* best-effort: integrator DB mirrors webapp; webapp is source of truth */
+      });
+      return result;
     },
 
     /** Возвращает true если сообщения можно доставлять данному userId. */

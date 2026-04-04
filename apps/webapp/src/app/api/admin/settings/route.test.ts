@@ -115,6 +115,26 @@ describe("PATCH /api/admin/settings", () => {
     expect(res.status).toBe(200);
   });
 
+  it("returns 200 for admin updating yandex_oauth_client_id (system_settings)", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "yandex_oauth_client_id",
+      scope: "admin",
+      valueJson: { value: "oauth-client-id" },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "yandex_oauth_client_id", value: "oauth-client-id" }),
+      })
+    );
+    expect(res.status).toBe(200);
+  });
+
   it("записывает updated_by из сессии при PATCH", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "admin-uuid", role: "admin", bindings: {} } });
     getSettingMock.mockResolvedValue(null);
