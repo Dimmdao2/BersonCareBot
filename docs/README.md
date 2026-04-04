@@ -11,6 +11,7 @@
 
 - **UTC и timezone (Rubitime, филиалы, отображение):** `TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md`  
   Журнал: `TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md` · Глобальный аудит: `TIMEZONE_UTC_NORMALIZATION/AUDIT_GLOBAL.md`
+- **Rubitime: вебхук, журнал `rubitime_events`, ФИО, статусы 0–7, проекция:** `ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`
 
 ## Архив
 

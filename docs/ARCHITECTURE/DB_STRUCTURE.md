@@ -43,7 +43,7 @@
 
 Таблицы:
 
-- `rubitime_records`
+- `rubitime_records` (см. также поток и журнал: `RUBITIME_BOOKING_PIPELINE.md`)
 
 ### 1.4 Messaging / support
 
