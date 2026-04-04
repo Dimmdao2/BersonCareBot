@@ -65,6 +65,7 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
     const incoming = toRubitimeIncoming(stage8MoscowWebhookBody);
     await normalizeRubitimeIncomingForIngest(incoming, depsForTz("Europe/Moscow"));
     expect(incoming.recordAt).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
+    expect(incoming.recordAtFormatted).toBe("07.04.2026 в 11:00");
     expect(incoming.timeNormalizationStatus).toBe("ok");
 
     const botMsk = formatBookingRuDateTime(incoming.recordAt ?? null, "Europe/Moscow");
@@ -109,6 +110,7 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
     const incoming = toRubitimeIncoming(stage8SamaraWebhookBody);
     await normalizeRubitimeIncomingForIngest(incoming, depsForTz("Europe/Samara"));
     expect(incoming.recordAt).toBe(STAGE8_EXPECTED_SAMARA_UTC_ISO);
+    expect(incoming.recordAtFormatted).toBe("07.04.2026 в 11:00");
 
     const textMsk = formatBookingRuDateTime(incoming.recordAt ?? null, "Europe/Moscow");
     const textSamara = formatBookingRuDateTime(incoming.recordAt ?? null, "Europe/Samara");

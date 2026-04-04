@@ -51,6 +51,7 @@ describe("normalizeRubitimeIncomingForIngest (Stage 3 ingest)", () => {
     const incoming = toRubitimeIncoming(body);
     await normalizeRubitimeIncomingForIngest(incoming, depsForTz("Europe/Moscow"));
     expect(incoming.recordAt).toBe("2026-04-07T08:00:00.000Z");
+    expect(incoming.recordAtFormatted).toBe("07.04.2026 в 11:00");
     expect(incoming.timeNormalizationStatus).toBe("ok");
     expect(incoming.timeNormalizationFieldErrors).toBeUndefined();
   });
@@ -70,6 +71,7 @@ describe("normalizeRubitimeIncomingForIngest (Stage 3 ingest)", () => {
     const incoming = toRubitimeIncoming(body);
     await normalizeRubitimeIncomingForIngest(incoming, depsForTz("Europe/Samara"));
     expect(incoming.recordAt).toBe("2026-04-07T07:00:00.000Z");
+    expect(incoming.recordAtFormatted).toBe("07.04.2026 в 11:00");
   });
 
   it("normalizes dateTimeEnd alongside recordAt", async () => {

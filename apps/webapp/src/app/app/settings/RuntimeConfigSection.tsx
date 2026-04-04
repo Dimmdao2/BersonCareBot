@@ -1,9 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  getCachedIanaTimezonesSorted,
+  isValidIanaTimeZoneId,
+  prioritizeMoscowFirst,
+} from "@/shared/timezone/ianaTimezonesForAdminUi";
 
 type RuntimeConfigValues = {
   /** HTTPS ссылка поддержки (t.me и т.п.), см. getSupportContactUrl. */
@@ -79,6 +91,24 @@ export function RuntimeConfigSection({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [tzFilter, setTzFilter] = useState("");
+
+  const baseIanaIds = useMemo(() => {
+    const all = getCachedIanaTimezonesSorted();
+    const cur = vals.appDisplayTimezone.trim() || "Europe/Moscow";
+    if (all.includes(cur)) return all;
+    return [cur, ...all];
+  }, [vals.appDisplayTimezone]);
+
+  const filteredIanaIds = useMemo(() => {
+    const cur = vals.appDisplayTimezone.trim() || "Europe/Moscow";
+    const q = tzFilter.trim().toLowerCase();
+    const list = q
+      ? baseIanaIds.filter((z) => z.toLowerCase().includes(q))
+      : prioritizeMoscowFirst(baseIanaIds);
+    if (!list.includes(cur)) return [cur, ...list];
+    return list;
+  }, [baseIanaIds, tzFilter, vals.appDisplayTimezone]);
 
   const set = (k: keyof typeof vals) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setVals((v) => ({ ...v, [k]: e.target.value }));
@@ -102,9 +132,9 @@ export function RuntimeConfigSection({
             return;
           }
         }
-        const tzRaw = vals.appDisplayTimezone.trim();
-        if (tzRaw.length > 0 && !/^[A-Za-z_]+(\/[A-Za-z_]+)*$/.test(tzRaw)) {
-          setError("Таймзона: укажите IANA-имя (например Europe/Moscow)");
+        const tzRaw = vals.appDisplayTimezone.trim() || "Europe/Moscow";
+        if (!isValidIanaTimeZoneId(tzRaw)) {
+          setError("Таймзона: выберите валидную зону IANA из списка");
           return;
         }
         const redirectRaw = vals.yandexOauthRedirectUri.trim();
@@ -123,7 +153,7 @@ export function RuntimeConfigSection({
         const results = await Promise.all([
           patchSetting("support_contact_url", supportRaw),
           patchSetting("telegram_login_bot_username", vals.telegramLoginBotUsername.trim()),
-          patchSetting("app_display_timezone", tzRaw.length > 0 ? tzRaw : "Europe/Moscow"),
+          patchSetting("app_display_timezone", tzRaw),
           patchSetting("yandex_oauth_client_id", vals.yandexOauthClientId.trim()),
           patchSetting("yandex_oauth_client_secret", vals.yandexOauthClientSecret.trim()),
           patchSetting("yandex_oauth_redirect_uri", redirectRaw),
@@ -185,20 +215,43 @@ export function RuntimeConfigSection({
               TELEGRAM_BOT_USERNAME.
             </span>
           </label>
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="text-xs font-medium">Таймзона отображения записей (IANA)</span>
             <Input
-              type="text"
-              placeholder="Europe/Moscow"
-              value={vals.appDisplayTimezone}
-              onChange={set("appDisplayTimezone")}
+              type="search"
+              placeholder="Поиск по названию зоны…"
+              value={tzFilter}
+              onChange={(e) => setTzFilter(e.target.value)}
               disabled={isPending}
               autoComplete="off"
+              className="max-w-lg"
             />
+            <Select
+              value={vals.appDisplayTimezone.trim() || "Europe/Moscow"}
+              onValueChange={(v) => {
+                if (v) setVals((prev) => ({ ...prev, appDisplayTimezone: v }));
+              }}
+              onOpenChange={(open) => {
+                if (open) setTzFilter("");
+              }}
+              disabled={isPending}
+            >
+              <SelectTrigger id="app-display-timezone" className="w-full max-w-lg">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {filteredIanaIds.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <span className="text-xs text-muted-foreground">
-              Время слотов и записей в кабинете пациента и у врача. Пустое — Europe/Moscow.
+              Время слотов и записей в кабинете пациента и у врача. Список стандартных зон IANA; по умолчанию —
+              Europe/Moscow.
             </span>
-          </label>
+          </div>
         </div>
 
         <div className="flex flex-col gap-4">

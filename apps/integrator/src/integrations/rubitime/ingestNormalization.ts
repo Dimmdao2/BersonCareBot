@@ -1,6 +1,7 @@
 import type { NormalizeToUtcInstantFailureReason } from "../../shared/normalizeToUtcInstant.js";
 import { tryNormalizeToUtcInstant } from "../../shared/normalizeToUtcInstant.js";
 import { recordDataQualityIncidentAndMaybeTelegram } from "../../infra/db/dataQualityIncidentAlert.js";
+import { formatIsoInstantAsRubitimeRecordLocal } from "../../config/appTimezone.js";
 import type { DbPort, DispatchPort } from "../../kernel/contracts/index.js";
 import type { RubitimeIncomingPayload } from "./connector.js";
 import { formatRubitimeRecordAtForDisplay, toRubitimeIncoming } from "./connector.js";
@@ -45,7 +46,9 @@ export async function normalizeRubitimeIncomingForIngest(
     const r = tryNormalizeToUtcInstant(rawRecordAt, tz);
     if (r.ok) {
       incoming.recordAt = r.utcIso;
-      incoming.recordAtFormatted = formatRubitimeRecordAtForDisplay(r.utcIso);
+      incoming.recordAtFormatted = formatRubitimeRecordAtForDisplay(
+        formatIsoInstantAsRubitimeRecordLocal(r.utcIso, tz),
+      );
     } else {
       delete incoming.recordAt;
       fieldErrors.push({ field: "recordAt", reason: r.reason });
