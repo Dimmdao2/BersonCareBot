@@ -1076,6 +1076,49 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     );
   });
 
+  it("appointment.record.upserted sets displayName from payloadJson.name when first/last omitted (ambiguous FIO)", async () => {
+    const mockUsers = {
+      upsertFromProjection: vi.fn(),
+      findByIntegratorId: vi.fn(),
+      updatePhone: vi.fn(),
+      updateProfileByPhone: vi.fn().mockResolvedValue(undefined),
+    };
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection: vi.fn().mockResolvedValue(undefined),
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const deps: IntegratorEventsDeps = {
+      ...mockDeps,
+      users: mockUsers,
+      appointmentProjection: mockAp,
+    };
+    const payload = {
+      integratorRecordId: "rec-fio-3",
+      phoneNormalized: "+79119975939",
+      recordAt: "2026-04-07T13:00:00.000Z",
+      status: "created",
+      payloadJson: { name: "Карина Викторовна Прокопенкова" },
+      lastEvent: "event-create",
+      updatedAt: "2026-04-04T20:00:00.000Z",
+      patientFirstName: null,
+      patientLastName: null,
+      patientEmail: null,
+    };
+    const result = await handleIntegratorEvent(
+      { eventType: "appointment.record.upserted", payload },
+      deps
+    );
+    expect(result.accepted).toBe(true);
+    expect(mockUsers.updateProfileByPhone).toHaveBeenCalledWith({
+      phoneNormalized: "+79119975939",
+      email: null,
+      displayName: "Карина Викторовна Прокопенкова",
+    });
+  });
+
   it("idempotent: duplicate appointment.record.upserted both accepted and upsert called twice", async () => {
     const mockAp = {
       getRecordByIntegratorId: vi.fn(),

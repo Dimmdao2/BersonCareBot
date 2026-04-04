@@ -76,12 +76,17 @@ function asNullableString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-/** Best-effort split: "Иванов Иван" -> last=Иванов, first=Иван. */
+/**
+ * Split name into first/last only when unambiguous (exactly 2 words).
+ * With 3+ words (e.g. Russian ФИО with patronymic, or swapped order)
+ * we cannot reliably distinguish first/last, so we skip the split.
+ */
 function parseNameToFirstLast(name: string): { firstName: string | null; lastName: string | null } {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: null, lastName: null };
   if (parts.length === 1) return { firstName: parts[0] ?? null, lastName: null };
-  return { lastName: parts[0] ?? null, firstName: parts.slice(1).join(' ') };
+  if (parts.length === 2) return { lastName: parts[0] ?? null, firstName: parts[1] ?? null };
+  return { firstName: null, lastName: null };
 }
 
 function readTimeNormalizationStatus(value: unknown): 'ok' | 'degraded' {
@@ -268,7 +273,10 @@ export function createDbWritePort(input: {
           if (eventStore === 'booking') {
             await insertEvent(db, {
               externalRecordId: asNullableString(bodyObj?.recordId) ?? asNullableString(dataObj?.id),
-              event: asNonEmptyString(bodyObj?.event) ?? 'unknown',
+              event: asNonEmptyString(bodyObj?.event)
+                ?? asNonEmptyString(bodyObj?.action)
+                ?? asNonEmptyString(bodyObj?.eventType)
+                ?? 'unknown',
               payloadJson: bodyObj ?? {},
             });
             return;

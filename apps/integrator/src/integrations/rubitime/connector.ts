@@ -69,12 +69,17 @@ function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-/** Best-effort split: "Иванов Иван" -> last=Иванов, first=Иван; single word -> first only. */
+/**
+ * Split name into first/last only when unambiguous (exactly 2 words).
+ * With 3+ words (e.g. Russian ФИО with patronymic, or swapped order)
+ * we cannot reliably distinguish first/last, so we skip the split.
+ */
 function parseNameToFirstLast(name: string): { firstName?: string; lastName?: string } {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return {};
   if (parts.length === 1) return { firstName: parts[0] as string };
-  return { lastName: parts[0] as string, firstName: parts.slice(1).join(' ') };
+  if (parts.length === 2) return { lastName: parts[0] as string, firstName: parts[1] as string };
+  return {};
 }
 
 function normalizeRubitimeAction(event: RubitimeWebhookBodyValidated['event']): RubitimeIncomingPayload['action'] {
@@ -85,21 +90,38 @@ function normalizeRubitimeAction(event: RubitimeWebhookBodyValidated['event']): 
 }
 
 /**
- * Maps Rubitime status to script values.
- * 0 = Записан (recorded) — успешная запись
- * 1, 2, 3 — ничего не делаем
- * 4 = Отменена (canceled)
- * Ожидает подтверждения — awaiting_confirmation
- * Перенос записи — moved_awaiting
+ * Maps Rubitime numeric status code to internal script values.
+ *
+ * Rubitime API spec:
+ *   0 = Записан            -> recorded
+ *   1 = На обслуживании    -> in_service   (no notifications, stored for audit)
+ *   2 = Завершен           -> completed    (no notifications, stored for audit)
+ *   3 = Ожидание предоплаты -> awaiting_prepayment (no notifications, stored for audit)
+ *   4 = Отменен            -> canceled
+ *   5 = Ожидает подтверждения -> awaiting_confirmation
+ *   6 = Добавлено в корзину -> in_cart      (no notifications, stored for audit)
+ *   7 = Перенос записи     -> moved_awaiting
+ *
+ * Fallback: text-based matching on status_title for legacy/non-numeric codes.
  */
 function normalizeRubitimeStatus(status: string | undefined, statusTitle: string | undefined): string | undefined {
-  const s = (status ?? '').toString().toLowerCase();
+  const s = (status ?? '').toString().toLowerCase().trim();
   const t = (statusTitle ?? '').toLowerCase();
-  if (s === '0' || t.includes('записан') || s === 'accepted' || s === 'confirmed') return 'recorded';
-  if (s === '4' || t.includes('отмен') || s === 'canceled' || s === 'cancelled') return 'canceled';
+
+  if (s === '0' || s === 'accepted' || s === 'confirmed') return 'recorded';
+  if (s === '1') return 'in_service';
+  if (s === '2') return 'completed';
+  if (s === '3') return 'awaiting_prepayment';
+  if (s === '4' || s === 'canceled' || s === 'cancelled') return 'canceled';
+  if (s === '5') return 'awaiting_confirmation';
+  if (s === '6') return 'in_cart';
+  if (s === '7' || s === 'moved') return 'moved_awaiting';
+
+  if (t.includes('записан')) return 'recorded';
+  if (t.includes('отмен')) return 'canceled';
   if (t.includes('ожида') && t.includes('подтвержд')) return 'awaiting_confirmation';
-  if (t.includes('перенос') || s === 'moved') return 'moved_awaiting';
-  if (s === '1' || s === '2' || s === '3') return undefined;
+  if (t.includes('перенос')) return 'moved_awaiting';
+
   return undefined;
 }
 

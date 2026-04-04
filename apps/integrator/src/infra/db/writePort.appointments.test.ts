@@ -103,6 +103,66 @@ describe('writePort booking.upsert projection', () => {
     expect(payload.recordAt).toBeNull();
   });
 
+  it('event.log booking writes action field as event (not "unknown")', async () => {
+    const eventInserts: { externalRecordId: string | null; event: string; payloadJson: unknown }[] = [];
+    const query = vi.fn(async (sql: string, params: unknown[]) => {
+      if (typeof sql === 'string' && sql.includes('rubitime_events')) {
+        const [externalRecordId, event, payloadJsonStr] = params as [string | null, string, string];
+        let payloadJson: unknown = {};
+        try { payloadJson = JSON.parse(payloadJsonStr); } catch { /* */ }
+        eventInserts.push({ externalRecordId, event, payloadJson });
+      }
+      return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
+    });
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx } as DbPort));
+    const db = { query, tx } as DbPort;
+    const writePort = createDbWritePort({ db });
+
+    await writePort.writeDb({
+      type: 'event.log',
+      params: {
+        eventStore: 'booking',
+        source: 'rubitime',
+        event: 'webhook.received',
+        body: {
+          action: 'created',
+          entity: 'record',
+          recordId: '8077942',
+          phone: '+79119975939',
+        },
+      },
+    });
+    expect(eventInserts.length).toBe(1);
+    expect(eventInserts[0]!.event).toBe('created');
+    expect(eventInserts[0]!.externalRecordId).toBe('8077942');
+  });
+
+  it('event.log booking falls back to eventType then unknown', async () => {
+    const eventInserts: { event: string }[] = [];
+    const query = vi.fn(async (sql: string, params: unknown[]) => {
+      if (typeof sql === 'string' && sql.includes('rubitime_events')) {
+        eventInserts.push({ event: params[1] as string });
+      }
+      return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
+    });
+    const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => fn({ query, tx } as DbPort));
+    const db = { query, tx } as DbPort;
+    const writePort = createDbWritePort({ db });
+
+    await writePort.writeDb({
+      type: 'event.log',
+      params: { eventStore: 'booking', body: { eventType: 'webhook.received', recordId: 'x' } },
+    });
+    expect(eventInserts[0]!.event).toBe('webhook.received');
+
+    eventInserts.length = 0;
+    await writePort.writeDb({
+      type: 'event.log',
+      params: { eventStore: 'booking', body: { recordId: 'y' } },
+    });
+    expect(eventInserts[0]!.event).toBe('unknown');
+  });
+
   it('booking.upsert includes timeNormalizationFieldErrors when degraded', async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
     const db = makeMockDb(capture);

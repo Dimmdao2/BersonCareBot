@@ -703,15 +703,19 @@ export async function handleIntegratorEvent(
       branchId = id;
     }
 
-    if (deps.users && phoneNormalized && (patientFirstName ?? patientLastName ?? patientEmail ?? null)) {
+    const fullNameFromPayload =
+      typeof payloadJson.name === "string" && payloadJson.name.trim().length > 0
+        ? payloadJson.name.trim()
+        : null;
+    if (deps.users && phoneNormalized && (patientFirstName ?? patientLastName ?? patientEmail ?? fullNameFromPayload ?? null)) {
       const displayName =
+        fullNameFromPayload ||
         [patientLastName, patientFirstName].filter(Boolean).join(" ").trim() ||
-        (typeof payloadJson.name === "string" ? payloadJson.name.trim() : null) ||
         undefined;
       await deps.users.updateProfileByPhone({
         phoneNormalized: phoneNormalized,
-        firstName: patientFirstName,
-        lastName: patientLastName,
+        ...(patientFirstName !== null ? { firstName: patientFirstName } : {}),
+        ...(patientLastName !== null ? { lastName: patientLastName } : {}),
         email: patientEmail,
         ...(displayName ? { displayName } : {}),
       });

@@ -158,9 +158,35 @@ describe('rubitimeIncomingToEvent', () => {
       clientEmail: 'ivan@example.com',
       integratorBranchId: '101',
       branchName: 'Филиал Центр',
-      clientFirstName: 'Иван Петрович',
-      clientLastName: 'Иванов',
     });
+    expect(incoming.clientFirstName).toBeUndefined();
+    expect(incoming.clientLastName).toBeUndefined();
+  });
+
+  it('splits two-word name into first/last', () => {
+    const body = {
+      from: 'rubitime',
+      event: 'event-create-record' as const,
+      data: {
+        record: {
+          id: '44',
+          phone: '+79990001122',
+          record: '2026-04-01 10:00:00',
+          name: 'Иванов Иван',
+        },
+      },
+    };
+
+    const event = rubitimeIncomingToEvent({
+      body,
+      correlationId: 'c3',
+      eventId: 'e3',
+    });
+
+    const incoming = event.payload.incoming as Record<string, unknown>;
+    expect(incoming.clientName).toBe('Иванов Иван');
+    expect(incoming.clientLastName).toBe('Иванов');
+    expect(incoming.clientFirstName).toBe('Иван');
   });
 
   it('handles single-word name and numeric branch_id', () => {
@@ -188,5 +214,43 @@ describe('rubitimeIncomingToEvent', () => {
     expect(incoming.clientFirstName).toBe('Мария');
     expect(incoming.clientLastName).toBeUndefined();
     expect(incoming.integratorBranchId).toBe('2');
+  });
+});
+
+describe('normalizeRubitimeStatus via toRubitimeIncoming', () => {
+  function statusFor(code: number | string, title?: string) {
+    const body = {
+      from: 'rubitime',
+      event: 'event-update-record' as const,
+      data: {
+        record: { id: '1', status: code, ...(title ? { status_title: title } : {}) },
+      },
+    };
+    return (toRubitimeIncoming(body) as Record<string, unknown>).status;
+  }
+
+  it.each([
+    [0, 'recorded'],
+    ['0', 'recorded'],
+    [1, 'in_service'],
+    [2, 'completed'],
+    [3, 'awaiting_prepayment'],
+    [4, 'canceled'],
+    [5, 'awaiting_confirmation'],
+    [6, 'in_cart'],
+    [7, 'moved_awaiting'],
+  ])('numeric status %s -> %s', (code, expected) => {
+    expect(statusFor(code)).toBe(expected);
+  });
+
+  it('falls back to status_title text matching', () => {
+    expect(statusFor('custom', 'Записан')).toBe('recorded');
+    expect(statusFor('custom', 'Отменен клиентом')).toBe('canceled');
+    expect(statusFor('custom', 'Ожидает подтверждения')).toBe('awaiting_confirmation');
+    expect(statusFor('custom', 'Перенос записи')).toBe('moved_awaiting');
+  });
+
+  it('returns undefined for unknown status', () => {
+    expect(statusFor('custom', 'Что-то новое')).toBeUndefined();
   });
 });
