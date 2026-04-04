@@ -6,6 +6,14 @@ vi.mock('./client.js', () => ({
   fetchRubitimeRecordById: vi.fn(async () => ({ id: '42', phone: '+79990001122', email: 'u@example.com' })),
 }));
 
+vi.mock('../../infra/db/branchTimezone.js', () => ({
+  createGetBranchTimezoneWithDataQuality: vi.fn(() => vi.fn(async () => 'Europe/Moscow')),
+}));
+
+vi.mock('../../infra/db/repos/integrationDataQualityIncidents.js', () => ({
+  upsertIntegrationDataQualityIncident: vi.fn(async () => ({ occurrences: 2 })),
+}));
+
 describe('rubitime webhook routes', () => {
   it('POST /webhook/rubitime/:token returns 200 and emits gateway event', async () => {
     const handleIncomingEvent = vi.fn().mockResolvedValue({ status: 'accepted' });
@@ -18,6 +26,7 @@ describe('rubitime webhook routes', () => {
         listSymptomTrackings: vi.fn(async () => ({ ok: true, trackings: [] })),
         listLfkComplexes: vi.fn(async () => ({ ok: true, complexes: [] })),
       },
+      dispatchPort: { dispatchOutgoing: vi.fn().mockResolvedValue(undefined) },
     });
 
     const res = await app.inject({
@@ -47,6 +56,7 @@ describe('rubitime webhook routes', () => {
         listSymptomTrackings: vi.fn(async () => ({ ok: true, trackings: [] })),
         listLfkComplexes: vi.fn(async () => ({ ok: true, complexes: [] })),
       },
+      dispatchPort: { dispatchOutgoing: vi.fn().mockResolvedValue(undefined) },
     });
 
     const res = await app.inject({

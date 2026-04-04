@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../config/env.js', () => ({
-  env: { APP_BASE_URL: 'https://webapp.test' },
+  env: { APP_BASE_URL: 'https://webapp.test', LOG_LEVEL: 'silent' },
   integratorWebhookSecret: () => 'test-secret-16chars!!',
 }));
 

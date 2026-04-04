@@ -96,7 +96,7 @@ function parsePositiveInt(raw: string | undefined, fallback: number, min = 1, ma
   return Math.max(min, Math.min(max, int));
 }
 
-function parseArgs(argv: string[]): Args {
+function parseArgs(argv: string[], defaultRubitimeOffsetMinutes: number): Args {
   const lookup = (prefix: string): string | undefined => {
     const item = argv.find((x) => x.startsWith(prefix));
     return item ? item.slice(prefix.length) : undefined;
@@ -113,7 +113,7 @@ function parseArgs(argv: string[]): Args {
     retryBaseMs: parsePositiveInt(lookup('--retry-base-ms='), 5500, 100, 120_000),
     rubitimeOffsetMinutes: parsePositiveInt(
       lookup('--rubitime-offset-minutes='),
-      getRubitimeRecordAtUtcOffsetMinutesForInstant(new Date()),
+      defaultRubitimeOffsetMinutes,
       -720,
       840,
     ),
@@ -373,8 +373,12 @@ async function fetchRubitimeRecordWithRetry(input: {
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
   const db = createDbPort();
+  const defaultRubitimeOffsetMinutes = await getRubitimeRecordAtUtcOffsetMinutesForInstant({
+    db,
+    instant: new Date(),
+  });
+  const args = parseArgs(process.argv.slice(2), defaultRubitimeOffsetMinutes);
   if (args.minIntervalMs > 0 && args.concurrency > 1) {
     console.warn(
       `[warn] min-interval-ms=${args.minIntervalMs} is enabled, forcing concurrency=1 for safe rate limiting`,

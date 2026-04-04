@@ -13,8 +13,8 @@ import { createRubitimeRecord, fetchRubitimeSchedule, removeRubitimeRecord, upda
 import { resolveScheduleParams } from './bookingScheduleMapping.js';
 import { isLegacyBookingProfileResolveEnabled } from './legacyResolveFlag.js';
 import { normalizeRubitimeSchedule } from './scheduleNormalizer.js';
-import { getBookingDisplayTimezone } from '../../infra/db/repos/bookingDisplayTimezone.js';
-import { formatIsoInstantAsRubitimeRecordLocal, getAppDisplayTimezoneSync } from '../../config/appTimezone.js';
+import { formatIsoInstantAsRubitimeRecordLocal, getAppDisplayTimezone } from '../../config/appTimezone.js';
+import { createGetBranchTimezoneWithDataQuality } from '../../infra/db/branchTimezone.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
 import type { z } from 'zod';
 import {
@@ -292,7 +292,7 @@ async function handleBookingLifecycleEvent(
   if (isBookingEventDuplicate(dedupKey)) return;
 
   const dbPort = createDbPort();
-  const timeZone = await getBookingDisplayTimezone(dbPort);
+  const timeZone = await getAppDisplayTimezone({ db: dbPort, dispatchPort });
 
   if (eventType === 'booking.created') {
     const patientText = patientCreatedText(payload, timeZone);
@@ -337,6 +337,11 @@ export async function registerRubitimeRecordM2mRoutes(
   deps: RubitimeRecordM2mDeps,
 ): Promise<void> {
   const { sharedSecret, dispatchPort } = deps;
+  const dbPort = createDbPort();
+  const getBranchTzWithIncident = createGetBranchTimezoneWithDataQuality({
+    db: dbPort,
+    dispatchPort,
+  });
 
   const guard = (request: FastifyRequest): { ok: true; rawBody: string } | { ok: false; code: number; err: string } => {
     const req = request as ReqWithRawBody;
@@ -420,7 +425,8 @@ export async function registerRubitimeRecordM2mRoutes(
       if (branchId === null || cooperatorId === null || serviceId === null) {
         return reply.code(400).send({ ok: false, error: 'invalid_rubitime_ids' });
       }
-      const rubitimeDatetime = formatIsoInstantAsRubitimeRecordLocal(input.slotStart, getAppDisplayTimezoneSync());
+      const branchTimezone = await getBranchTzWithIncident(String(branchId));
+      const rubitimeDatetime = formatIsoInstantAsRubitimeRecordLocal(input.slotStart, branchTimezone);
       const rubitimePayload: Record<string, unknown> = {
         branch_id: branchId,
         cooperator_id: cooperatorId,
@@ -461,7 +467,8 @@ export async function registerRubitimeRecordM2mRoutes(
         return reply.code(400).send({ ok: false, error: 'slots_mapping_not_configured' });
       }
 
-      const rubitimeDatetime = formatIsoInstantAsRubitimeRecordLocal(v1.slotStart, getAppDisplayTimezoneSync());
+      const branchTimezone = await getBranchTzWithIncident(String(scheduleParams.branchId));
+      const rubitimeDatetime = formatIsoInstantAsRubitimeRecordLocal(v1.slotStart, branchTimezone);
 
       const rubitimePayload: Record<string, unknown> = {
         branch_id:     scheduleParams.branchId,
@@ -514,7 +521,8 @@ export async function registerRubitimeRecordM2mRoutes(
         const raw = await fetchRubitimeSchedule({
           params: { branchId, cooperatorId, serviceId },
         });
-        const slots = normalizeRubitimeSchedule(raw, durationMinutes, dateFilter);
+        const branchTimezone = await getBranchTzWithIncident(String(branchId));
+        const slots = normalizeRubitimeSchedule(raw, durationMinutes, branchTimezone, dateFilter);
         return reply.code(200).send({ ok: true, slots });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -542,7 +550,8 @@ export async function registerRubitimeRecordM2mRoutes(
       }
       try {
         const raw = await fetchRubitimeSchedule({ params: scheduleParams });
-        const slots = normalizeRubitimeSchedule(raw, scheduleParams.durationMinutes, v1.date);
+        const branchTimezone = await getBranchTzWithIncident(String(scheduleParams.branchId));
+        const slots = normalizeRubitimeSchedule(raw, scheduleParams.durationMinutes, branchTimezone, v1.date);
         return reply.code(200).send({ ok: true, slots });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

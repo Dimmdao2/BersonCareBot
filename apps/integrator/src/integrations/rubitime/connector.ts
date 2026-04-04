@@ -1,9 +1,10 @@
-import type { IncomingEvent, WebappEventBody } from '../../kernel/contracts/index.js';
+import type { DbPort, DispatchPort, IncomingEvent, WebappEventBody } from '../../kernel/contracts/index.js';
+import type { NormalizeToUtcInstantFailureReason } from '../../shared/normalizeToUtcInstant.js';
 import { syncAppointmentToCalendar, type RubitimeCalendarSyncEvent } from '../google-calendar/sync.js';
 import type { RubitimeWebhookBodyValidated } from './schema.js';
 import { normalizeRuPhoneE164 } from '../../infra/phone/normalizeRuPhoneE164.js';
 
-type RubitimeIncomingPayload = {
+export type RubitimeIncomingPayload = {
   entity: 'record';
   action: 'created' | 'updated' | 'canceled';
   status?: string;
@@ -29,10 +30,16 @@ type RubitimeIncomingPayload = {
   /** Specialist / cooperator id in Rubitime (for catalog lookup disambiguation). */
   cooperatorId?: string;
   gcalEventId?: string;
+  /** Set after ingest timezone normalization (Stage 3). */
+  timeNormalizationStatus?: "ok" | "degraded";
+  timeNormalizationFieldErrors?: Array<{
+    field: "recordAt" | "dateTimeEnd";
+    reason: NormalizeToUtcInstantFailureReason;
+  }>;
 };
 
 /** Форматирует дату/время в ДД.ММ.ГГГГ в ЧЧ:ММ. Вход: "2026-03-04 18:00:00" или ISO. */
-function formatRecordAt(value: string): string {
+export function formatRubitimeRecordAtForDisplay(value: string): string {
   const s = value.trim();
   const spaceIdx = s.indexOf(' ');
   const datePart = spaceIdx >= 0 ? s.slice(0, spaceIdx) : s;
@@ -96,7 +103,7 @@ function normalizeRubitimeStatus(status: string | undefined, statusTitle: string
   return undefined;
 }
 
-function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomingPayload {
+export function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomingPayload {
   const data = asRecord(body.data);
   const record = asRecord(data.record);
   const source = Object.keys(record).length > 0 ? record : data;
@@ -107,7 +114,7 @@ function toRubitimeIncoming(body: RubitimeWebhookBodyValidated): RubitimeIncomin
   const recordId = asString(source.id) ?? (source.id != null ? String(source.id) : undefined);
   const phone = asString(source.phone);
   const recordAt = asString(source.record) ?? asString(source.datetime);
-  const recordAtFormatted = recordAt ? formatRecordAt(recordAt) : undefined;
+  const recordAtFormatted = recordAt ? formatRubitimeRecordAtForDisplay(recordAt) : undefined;
   const updatedAt = asString(source.updated_at);
   const clientName = asString(source.name);
   const clientEmail = asString(source.email);
@@ -181,9 +188,9 @@ export function buildUserEmailAutobindWebappEvent(body: RubitimeWebhookBodyValid
  * Слой sync по EXEC — connector, не дублировать вызов из других мест на тот же webhook.
  */
 export async function syncRubitimeWebhookBodyToGoogleCalendar(
-  body: RubitimeWebhookBodyValidated,
+  incoming: RubitimeIncomingPayload,
+  deps?: { db?: DbPort; dispatchPort?: DispatchPort },
 ): Promise<string | null> {
-  const incoming = toRubitimeIncoming(body);
   if (
     incoming.action !== 'created'
     && incoming.action !== 'updated'
@@ -202,7 +209,13 @@ export async function syncRubitimeWebhookBodyToGoogleCalendar(
   if (incoming.recordAt !== undefined) syncPayload.recordAt = incoming.recordAt;
   if (incoming.record !== undefined) syncPayload.record = incoming.record;
   if (incoming.clientName !== undefined) syncPayload.clientName = incoming.clientName;
-  return syncAppointmentToCalendar(syncPayload);
+  if (deps === undefined) {
+    return syncAppointmentToCalendar(syncPayload);
+  }
+  return syncAppointmentToCalendar(syncPayload, {
+    ...(deps.db !== undefined ? { db: deps.db } : {}),
+    ...(deps.dispatchPort !== undefined ? { dispatchPort: deps.dispatchPort } : {}),
+  });
 }
 
 /** Оборачивает валидированный Rubitime webhook в универсальный IncomingEvent. */
@@ -211,8 +224,10 @@ export function rubitimeIncomingToEvent(input: {
   correlationId: string;
   eventId: string;
   gcalEventId?: string | null;
+  /** When set, must already be timezone-normalized (Stage 3 webhook path). */
+  incoming?: RubitimeIncomingPayload;
 }): IncomingEvent {
-  const incoming = toRubitimeIncoming(input.body);
+  const incoming = input.incoming ?? toRubitimeIncoming(input.body);
   if (typeof input.gcalEventId === 'string' && input.gcalEventId.trim().length > 0) {
     incoming.gcalEventId = input.gcalEventId.trim();
   }

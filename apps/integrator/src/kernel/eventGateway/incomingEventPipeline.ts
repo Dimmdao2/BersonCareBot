@@ -102,6 +102,7 @@ export function createIncomingEventPipeline(deps: IncomingEventPipelineDeps): {
           const executorDeps = {
             readPort: deps.readPort,
             writePort: deps.writePort,
+            dispatchPort: deps.dispatchPort,
             queuePort: deps.queuePort,
             templatePort: deps.templatePort,
             ...(deps.contentCatalogPort ? { contentCatalogPort: deps.contentCatalogPort } : {}),

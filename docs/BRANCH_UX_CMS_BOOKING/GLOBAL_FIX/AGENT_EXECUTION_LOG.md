@@ -478,9 +478,9 @@
 - Status: done
 - Agent/model: Cursor agent
 - Started at: 2026-04-03 (UTC)
-- Finished at: 2026-04-03T07:41:01Z (UTC end timestamp after successful run)
+- Finished at: 2026-04-03 (UTC, после post-audit remediation)
 - Commands: `pnpm install --frozen-lockfile` → `pnpm run ci`
-- Final SHA: `6c0f51fdc727f5f0759ac01698231b3aac2eb5e2`
+- Final SHA: `ff342066bfe0a35630b2f7e6bb4969c579577586`
 - CI: **green** (lint, typecheck, integrator+webapp tests, builds, `pnpm audit --prod`)
 
 ### S7.T02 - SQL metrics (compat/inbox/outbox)
@@ -494,7 +494,7 @@
   - `full_but_incomplete` (`compat_quality='full'` при нарушении DoD: нет `branch_service_id` / пустые snapshot-поля / `slot_end` NULL): **0**
 - Online intake inbox (7d):
   - `online_intake_requests` по `type,status`: **0 строк** (нет заявок в окне).
-  - Identity sanity (list-join к `platform_users`): `list_rows_missing_identity` (и имя, и телефон пустые) = **0** (на пустом наборе — тривиально 0).
+  - Identity sanity: join **`online_intake_requests.user_id` → `platform_users.id`** (FK из `048_online_intake.sql`, не `platform_user_id`). Метрика: строки за 7d, где после join **и** `display_name`, **и** `phone_normalized` пустые → **0** (на пустом наборе — тривиально 0).
 - Outbox (integrator DB):
   - `projection_outbox` для `appointment.record.upserted`: таблица **пустая** (`count=0` по всем статусам).
   - `dead` с `last_error ILIKE '%platform_user%'`: **0**
@@ -507,6 +507,7 @@
   2. **Online intake LFK + mixed attachments:** `online-intake/service.test.ts`, `pgMediaFileIntakeResolve.test.ts`, `doctorIntakeDetailResponse.test.ts` — зелёны в полном CI.
   3. **Doctor inbox list/details + patientName/patientPhone:** `api/doctor/online-intake/route.test.ts`, `[id]/route.test.ts`, `DoctorOnlineIntakeClient.test.tsx` — зелёны в полном CI.
   4. **TG/MAX уведомление с deep-link на request:** `intakeNotificationRelay.test.ts` (URL path), шаблоны TG/MAX в репозитории; **клик из реального мессенджера** — вне CI, по стенду/ботам (как в Stage 5 S5.T05).
+- Gate S7 по пунктам 1–3 и по автопроверке п.4: **PASS**, если полный `pnpm run ci` green на релизном SHA. **Продуктовая** проверка «открыть ссылку из TG/MAX на задеплоенном стенде» остаётся **операторской приёмкой** (не блокирует gate по коду/CI; см. Stage 5 S5.T05).
 - Примечание: точечный `vitest run` только подмножества файлов в этой среде дал warning/globalSetup на миграциях и один suite-fail по окружению; **источник истины для smoke — успешный полный `pnpm run ci` на SHA выше.**
 
 ### S7.T04 - Финальный аудит-вердикт
@@ -518,10 +519,21 @@
 - Verdict: **pass**
 - Findings: нет блокеров по коду/CI; SQL на dev-БД — пустые/нулевые метрики без аномалий; outbox пуст.
 - Evidence checked:
-  - `pnpm run ci` green на `6c0f51fdc727f5f0759ac01698231b3aac2eb5e2`
+  - `pnpm run ci` green на `ff342066bfe0a35630b2f7e6bb4969c579577586`
   - SQL: webapp `bcb_webapp_dev` + integrator `bersoncarebot_dev` (см. S7.T02)
   - Автотесты booking/intake/doctor/deep-link — в составе CI
 - Approved at: 2026-04-03
+
+### Stage 7 — remediation (закрытие замечаний финального аудита)
+- Status: done
+- Agent/model: Cursor agent
+- Назначение: закрыть findings post–Stage 7 (актуальный SHA, корректный SQL join для intake, явное разделение gate vs операторский клик TG/MAX); устранить хрупкость Vitest при `NODE_ENV` из `.env.dev` и стабилизировать `next build`.
+
+| Finding (severity) | Fix | Evidence |
+|------------------|-----|----------|
+| [info] Устаревший SHA и неверное имя FK в тексте S7.T02 (`platform_user_id` vs фактический `user_id`) | Обновлены S7.T01/S7.T02/итоговый блок: SHA `ff342066…`; в S7.T02 явно указан join `user_id` → `platform_users.id` и миграция `048_online_intake.sql` | `AGENT_EXECUTION_LOG.md` (этот файл) |
+| [low] Неоднозначность: gate S7 vs «ручной» клик из TG/MAX | В S7.T03 добавлено: gate PASS по п.1–3 и автопроверке п.4 при green CI; клик из реального мессенджера — операторская приёмка, не блокер gate по коду | `AGENT_EXECUTION_LOG.md` §S7.T03 |
+| [tech] После загрузки `.env.dev` Vitest терял тестовые дефолты (`isTest`, HMAC webhook, `__testConfirmLoginTokenByHash`) | `isTest` учитывает `VITEST_WORKER_ID`; `DATABASE_URL` transform через `isTest`; `__testConfirmLoginTokenByHash` разрешён в Vitest worker; `next build` с явным `NODE_ENV=production` | `apps/webapp/src/config/env.ts`, `apps/webapp/src/infra/repos/inMemoryLoginTokens.ts`, `apps/webapp/package.json`; `pnpm run ci` green на `ff342066…` |
 
 ---
 
@@ -648,13 +660,47 @@
 - Summary: единая нормализация РФ-телефонов (`+7` / `7` / `8` / `00 7`, локальный 10-значный → `+7XXXXXXXXXX`) в webapp и integrator; убран дубликат нормализатора в in-memory auth repo.
 - Detail doc: `docs/BRANCH_UX_CMS_BOOKING/GLOBAL_FIX/INCIDENT_HOTFIX_RU_PHONE_FORMATS.md`
 - Code: `apps/webapp/src/modules/auth/phoneNormalize.ts`, `apps/webapp/src/shared/phone/normalizeRuPhoneE164.ts`, `apps/integrator/src/infra/phone/normalizeRuPhoneE164.ts`, `apps/webapp/src/infra/repos/inMemoryUserByPhone.ts` + тесты рядом.
-- CI: полный `pnpm run ci` green на релизном SHA Stage 7 (см. S7.T01).
+- CI: полный `pnpm run ci` green на релизном SHA Stage 7 (см. S7.T01, `ff342066…`).
+
+---
+
+## TIMEZONE_UTC_NORMALIZATION — Stage 5 (убрать +03:00 в slot-потоках)
+
+### S5.T01 — Параметризовать `scheduleNormalizer`
+- Status: done
+- Agent/model: Cursor agent
+- Files changed:
+  - `apps/integrator/src/integrations/rubitime/scheduleNormalizer.ts` — убран фиксированный offset; настенное время → UTC через `normalizeToUtcInstant` и IANA `branchTimezone`
+- Tests: `apps/integrator/src/integrations/rubitime/scheduleNormalizer.test.ts` (в т.ч. Samara/Moscow)
+
+### S5.T02 — Протащить timezone в `recordM2mRoute`
+- Status: done
+- Files changed:
+  - `apps/integrator/src/integrations/rubitime/recordM2mRoute.ts` — `createGetBranchTimezoneWithDataQuality` по `integrator_branch_id`; слоты и create-record (v1/v2) используют timezone филиала; при fallback из resolver — инцидент + Telegram (как в Stage 1)
+  - `apps/integrator/src/integrations/rubitime/recordM2mRoute.test.ts` — mock `branchTimezone` → стабильный `Europe/Moscow`
+
+### S5.T03 — Webapp `bookingM2mApi`
+- Status: done
+- Files changed:
+  - `apps/webapp/src/modules/integrator/bookingM2mApi.ts` — убран `DEFAULT_SLOT_TZ`; v2 `times[]` через IANA из запроса; v1 legacy `times[]` → `getAppDisplayTimeZone()` как резерв; настенное время → UTC через **luxon** в этом модуле (без re-export из integrator — иначе Next production build не резолвит путь)
+  - `apps/webapp/src/modules/patient-booking/ports.ts` — поле `branchTimezone` в v2 query
+  - `apps/webapp/src/modules/patient-booking/service.ts` — передаёт `resolved.branch.timezone`
+
+### S5.T04 — Тесты Samara/Moscow
+- Status: done
+- Tests:
+  - Integrator: `scheduleNormalizer.test.ts` — `2026-04-07 11:00` → `07:00Z` (Samara), `08:00Z` (Moscow); существующие MSK-кейсы на `Europe/Moscow`
+  - Webapp: `bookingM2mApi.test.ts` — то же различие на v2 `times[]` + MSK 10:00 → `07:00Z`
+
+### Stage 5 gate (TIMEZONE)
+- Хардкоды `+03:00` / `+03` убраны из продуктового кода slot-потоков (`scheduleNormalizer`, `bookingM2mApi` v2 expansion); остаются в тестах/других модулях вне scope Stage 5 (напр. `formatBusinessDateTime`).
+- CI: `pnpm run ci` — **pass** (local, 2026-04-04): lint, typecheck, integrator+webapp tests, integrator+webapp build, `audit --prod`.
 
 ---
 
 ## Итоговый релизный блок
 
 - Final verdict: **approve_for_release** (Stage 7)
-- Final SHA: `6c0f51fdc727f5f0759ac01698231b3aac2eb5e2`
-- Final CI date: **2026-04-03** (`pnpm run ci` green, см. S7.T01)
-- Release decision: **approve_for_release** — gate Stage 7 PASS (CI + SQL metrics + smoke via CI; реальный клик TG/MAX — по стенду)
+- Final SHA: `ff342066bfe0a35630b2f7e6bb4969c579577586`
+- Final CI date: **2026-04-03** (`pnpm run ci` green, см. S7.T01 и §Stage 7 remediation)
+- Release decision: **approve_for_release** — gate Stage 7 PASS (CI + SQL metrics + smoke via CI; реальный клик TG/MAX — операторская приёмка на стенде при необходимости продуктом)

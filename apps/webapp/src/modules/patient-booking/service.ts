@@ -121,6 +121,7 @@ export function createPatientBookingService(input: {
           rubitimeCooperatorId: resolved.specialist.rubitimeCooperatorId,
           rubitimeServiceId: resolved.branchService.rubitimeServiceId,
           slotDurationMinutes: resolved.service.durationMinutes,
+          branchTimezone: resolved.branch.timezone,
           date: query.date,
         });
       }

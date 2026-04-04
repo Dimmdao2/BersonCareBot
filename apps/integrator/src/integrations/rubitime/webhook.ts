@@ -1,12 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import { getRequestLogger, newEventId } from '../../infra/observability/logger.js';
-import type { EventGateway, GatewayResult, WebappEventsPort } from '../../kernel/contracts/index.js';
+import type {
+  DispatchPort,
+  EventGateway,
+  GatewayResult,
+  WebappEventsPort,
+} from '../../kernel/contracts/index.js';
+import { createDbPort } from '../../infra/db/client.js';
+import { createGetBranchTimezoneWithDataQuality } from '../../infra/db/branchTimezone.js';
 import { fetchRubitimeRecordById } from './client.js';
 import {
   buildUserEmailAutobindWebappEvent,
   rubitimeIncomingToEvent,
   syncRubitimeWebhookBodyToGoogleCalendar,
 } from './connector.js';
+import { prepareRubitimeWebhookIngress } from './ingestNormalization.js';
 import { getRubitimeWebhookToken } from './runtimeConfig.js';
 import { parseRubitimeBody } from './schema.js';
 
@@ -14,6 +22,7 @@ import { parseRubitimeBody } from './schema.js';
 export type RubitimeWebhookDeps = {
   eventGateway: EventGateway;
   webappEventsPort: WebappEventsPort;
+  dispatchPort: DispatchPort;
 };
 
 async function processRubitimeBody(input: {
@@ -23,6 +32,7 @@ async function processRubitimeBody(input: {
   requestId: string;
   eventGateway: EventGateway;
   webappEventsPort: WebappEventsPort;
+  dispatchPort: DispatchPort;
 }): Promise<GatewayResult> {
   const reqLogger = getRequestLogger(input.requestId, {
     correlationId: input.correlationId,
@@ -33,29 +43,43 @@ async function processRubitimeBody(input: {
     '[rubitime] webhook received',
   );
 
+  const dbPort = createDbPort();
+  const incoming = await prepareRubitimeWebhookIngress(input.body, {
+    db: dbPort,
+    dispatchPort: input.dispatchPort,
+    getBranchTimezone: createGetBranchTimezoneWithDataQuality({
+      db: dbPort,
+      dispatchPort: input.dispatchPort,
+    }),
+  });
+
   let gcalEventId: string | null = null;
   try {
-    gcalEventId = await syncRubitimeWebhookBodyToGoogleCalendar(input.body);
+    gcalEventId = await syncRubitimeWebhookBodyToGoogleCalendar(incoming, {
+      db: dbPort,
+      dispatchPort: input.dispatchPort,
+    });
   } catch (err) {
     reqLogger.warn({ err }, '[rubitime] google calendar sync failed');
   }
 
   const incomingEvent = rubitimeIncomingToEvent({
     body: input.body,
+    incoming,
     correlationId: input.correlationId,
     eventId: input.eventId,
     gcalEventId,
   });
 
-  const incoming = (incomingEvent.payload as { incoming?: unknown }).incoming;
+  const loggedIncoming = (incomingEvent.payload as { incoming?: unknown }).incoming;
   reqLogger.info(
     {
-      action: (incoming as Record<string, unknown>)?.action,
-      entity: (incoming as Record<string, unknown>)?.entity,
-      status: (incoming as Record<string, unknown>)?.status,
-      phone: (incoming as Record<string, unknown>)?.phone,
-      recordId: (incoming as Record<string, unknown>)?.recordId,
-      gcalEventId: (incoming as Record<string, unknown>)?.gcalEventId,
+      action: (loggedIncoming as Record<string, unknown>)?.action,
+      entity: (loggedIncoming as Record<string, unknown>)?.entity,
+      status: (loggedIncoming as Record<string, unknown>)?.status,
+      phone: (loggedIncoming as Record<string, unknown>)?.phone,
+      recordId: (loggedIncoming as Record<string, unknown>)?.recordId,
+      gcalEventId: (loggedIncoming as Record<string, unknown>)?.gcalEventId,
     },
     '[rubitime] mapped to event',
   );
@@ -115,6 +139,7 @@ export async function registerRubitimeWebhookRoutes(
         requestId: request.id,
         eventGateway: deps.eventGateway,
         webappEventsPort: deps.webappEventsPort,
+        dispatchPort: deps.dispatchPort,
       });
       if (result?.status === 'rejected') {
         reqLogger.warn({ reason: result.reason }, 'rubitime webhook pipeline rejected');
@@ -159,6 +184,7 @@ export async function registerRubitimeWebhookRoutes(
         requestId: request.id,
         eventGateway: deps.eventGateway,
         webappEventsPort: deps.webappEventsPort,
+        dispatchPort: deps.dispatchPort,
       });
       if (result?.status === 'rejected') {
         reqLogger.warn({ reason: result.reason }, 'rubitime record_success pipeline rejected');

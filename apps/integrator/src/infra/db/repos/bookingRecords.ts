@@ -54,7 +54,7 @@ export async function upsertRecord(db: DbPort, input: UpsertBookingRecordInput):
       created_at,
       updated_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, NOW(), NOW())
+    VALUES ($1, $2, $3::timestamptz, $4, $5, $6::jsonb, $7, NOW(), NOW())
     ON CONFLICT (rubitime_record_id)
     DO UPDATE SET
       phone_normalized = EXCLUDED.phone_normalized,

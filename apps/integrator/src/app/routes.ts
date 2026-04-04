@@ -92,6 +92,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
       await deps.registerRubitimeWebhookRoutes?.(instance, {
         eventGateway: deps.eventGateway,
         webappEventsPort: deps.webappEventsPort,
+        dispatchPort: deps.dispatchPort,
       });
     });
   }

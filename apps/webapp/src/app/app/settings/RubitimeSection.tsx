@@ -18,8 +18,11 @@ type CatalogBranch = {
   title: string;
   address: string | null;
   rubitimeBranchId: string;
+  timezone: string;
   isActive: boolean;
   sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type CatalogService = {
@@ -211,6 +214,11 @@ export function RubitimeSection() {
                 city_id: {b.cityId}
                 {b.address ? ` · ${b.address}` : ""}
               </span>
+              <BranchTimezoneEditor
+                key={`${b.id}-${b.updatedAt}`}
+                branch={b}
+                onSaved={() => void loadAll()}
+              />
             </div>
           ))}
           <BranchForm cities={cities} onDone={() => void loadAll()} />
@@ -396,11 +404,72 @@ function CityForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+function clientValidateIanaTimezone(trimmed: string): boolean {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: trimmed });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function BranchTimezoneEditor({ branch, onSaved }: { branch: CatalogBranch; onSaved: () => void }) {
+  const [tz, setTz] = useState(branch.timezone);
+  const [err, setErr] = useState<string | null>(null);
+  const [isPending, start] = useTransition();
+
+  function saveTz() {
+    setErr(null);
+    const t = tz.trim();
+    if (!t) {
+      setErr("Укажите IANA timezone (например Europe/Moscow)");
+      return;
+    }
+    if (!clientValidateIanaTimezone(t)) {
+      setErr("Некорректная IANA timezone");
+      return;
+    }
+    start(async () => {
+      const res = await fetch(`${BASE}/branches/${branch.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timezone: t }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || data.ok === false) {
+        setErr(String(data.error ?? `HTTP ${res.status}`));
+        return;
+      }
+      onSaved();
+    });
+  }
+
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-muted-foreground">timezone (IANA):</span>
+        <input
+          className="input-base min-w-[200px] flex-1 font-mono text-[11px]"
+          placeholder="Europe/Moscow"
+          value={tz}
+          onChange={(e) => setTz(e.target.value)}
+          disabled={isPending}
+        />
+        <Button type="button" size="sm" variant="secondary" onClick={saveTz} disabled={isPending}>
+          {isPending ? "…" : "Сохранить TZ"}
+        </Button>
+      </div>
+      {err && <p className="text-xs text-destructive">{err}</p>}
+    </div>
+  );
+}
+
 function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => void }) {
   const [cityCode, setCityCode] = useState("");
   const [title, setTitle] = useState("");
   const [address, setAddress] = useState("");
   const [rubitimeBranchId, setRubitimeBranchId] = useState("");
+  const [timezone, setTimezone] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [isPending, start] = useTransition();
 
@@ -408,6 +477,11 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
     setErr(null);
     if (!cityCode.trim() || !title.trim() || !rubitimeBranchId.trim()) {
       setErr("Город, название и Rubitime Branch ID обязательны");
+      return;
+    }
+    const tzTrim = timezone.trim();
+    if (tzTrim && !clientValidateIanaTimezone(tzTrim)) {
+      setErr("Некорректная IANA timezone");
       return;
     }
     start(async () => {
@@ -419,6 +493,7 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
           title: title.trim(),
           address: address.trim() || null,
           rubitimeBranchId: rubitimeBranchId.trim(),
+          ...(tzTrim ? { timezone: tzTrim } : {}),
         }),
       });
       if (!res.ok) {
@@ -428,6 +503,7 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
       setTitle("");
       setAddress("");
       setRubitimeBranchId("");
+      setTimezone("");
       onDone();
     });
   }
@@ -470,7 +546,17 @@ function BranchForm({ cities, onDone }: { cities: CatalogCity[]; onDone: () => v
           onChange={(e) => setAddress(e.target.value)}
           disabled={isPending}
         />
+        <input
+          className="input-base col-span-2 font-mono text-[11px]"
+          placeholder="Europe/Moscow"
+          value={timezone}
+          onChange={(e) => setTimezone(e.target.value)}
+          disabled={isPending}
+        />
       </div>
+      <p className="text-[11px] text-muted-foreground">
+        Timezone (IANA): необязательно при создании — по умолчанию Europe/Moscow.
+      </p>
       {err && <p className="text-xs text-destructive">{err}</p>}
       <Button size="sm" onClick={save} disabled={isPending}>
         {isPending ? "Сохранение..." : "Сохранить филиал"}

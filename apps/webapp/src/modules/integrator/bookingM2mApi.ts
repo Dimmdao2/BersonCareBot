@@ -1,10 +1,28 @@
 import { createHmac } from "node:crypto";
+import { DateTime } from "luxon";
 import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 import type { BookingSlot, BookingSlotsByDate } from "@/modules/patient-booking/types";
 import type { BookingSlotsIntegratorQuery, BookingSyncPort, CreateBookingSyncInput } from "@/modules/patient-booking/ports";
 
-/** Default offset for integrator `times[]` when expanding v2 slots (MSK). */
-const DEFAULT_SLOT_TZ = "+03:00";
+function isValidIanaTimeZone(tz: string): boolean {
+  const t = tz.trim();
+  if (!t) return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: t });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Rubitime `times[]` wall clock in branch IANA zone → UTC ISO (aligned with integrator `normalizeToUtcInstant` naive path). */
+function rubitimeWallSlotToUtcIso(date: string, hh: string, mm: string, branchTimezone: string): string | null {
+  const normalized = `${date}T${hh}:${mm}:00`;
+  const dt = DateTime.fromISO(normalized, { zone: branchTimezone.trim() });
+  if (!dt.isValid) return null;
+  return dt.toUTC().toJSDate().toISOString();
+}
 
 async function normalizeBaseUrl(): Promise<string | null> {
   const base = (await getIntegratorApiUrl()).trim();
@@ -93,23 +111,11 @@ function validateV1SlotsContract(json: Record<string, unknown>): BookingSlotsByD
   return raw as BookingSlotsByDate[];
 }
 
-function toIsoWithOffset(date: string, timeHHMM: string, tzOffset: string): string {
-  const parts = timeHHMM.trim().split(":");
-  const hh = (parts[0] ?? "0").padStart(2, "0");
-  const mm = (parts[1] ?? "00").padStart(2, "0");
-  return `${date}T${hh}:${mm}:00${tzOffset}`;
-}
-
-function addMinutesToIso(isoWithOffset: string, minutes: number): string {
-  const ms = Date.parse(isoWithOffset);
-  if (Number.isNaN(ms)) throw new Error("invalid_slot_time");
-  return new Date(ms + minutes * 60_000).toISOString();
-}
-
 /**
  * v2 contract: `slots: { date, times: string[] }[]` → BookingSlotsByDate с длительностью услуги.
+ * Wall times интерпретируются в IANA `branchTimezone` (каталог филиала); fallback — app display TZ.
  */
-function normalizeV2SlotsPayload(raw: unknown, durationMinutes: number, tzOffset: string): BookingSlotsByDate[] {
+function normalizeV2SlotsPayload(raw: unknown, durationMinutes: number, branchTimezone: string): BookingSlotsByDate[] {
   if (!Array.isArray(raw)) {
     throw new Error("rubitime_slots_contract_broken: v2 slots is not an array");
   }
@@ -125,8 +131,20 @@ function normalizeV2SlotsPayload(raw: unknown, durationMinutes: number, tzOffset
     const slots: BookingSlot[] = [];
     for (const t of times) {
       if (typeof t !== "string") continue;
-      const startAt = toIsoWithOffset(d, t, tzOffset);
-      const endAt = addMinutesToIso(startAt, durationMinutes);
+      const parts = t.trim().split(":");
+      const hh = (parts[0] ?? "0").padStart(2, "0");
+      const mm = (parts[1] ?? "00").padStart(2, "0");
+      const startAt = rubitimeWallSlotToUtcIso(d, hh, mm, branchTimezone);
+      if (!startAt) {
+        throw new Error(
+          `rubitime_slots_contract_broken: invalid slot time ${d}T${hh}:${mm}:00 in ${branchTimezone}`,
+        );
+      }
+      const startMs = Date.parse(startAt);
+      if (!Number.isFinite(startMs)) {
+        throw new Error("rubitime_slots_contract_broken: invalid slot instant");
+      }
+      const endAt = new Date(startMs + durationMinutes * 60_000).toISOString();
       slots.push({ startAt, endAt });
     }
     return { date: d, slots };
@@ -172,13 +190,20 @@ export function createBookingSyncPort(): BookingSyncPort {
       }
 
       if (query.version === "v2") {
+        const branchTz =
+          typeof query.branchTimezone === "string" &&
+          query.branchTimezone.trim() &&
+          isValidIanaTimeZone(query.branchTimezone)
+            ? query.branchTimezone.trim()
+            : await getAppDisplayTimeZone();
         if (isV2TimesShape(json)) {
-          return normalizeV2SlotsPayload(json.slots, query.slotDurationMinutes, DEFAULT_SLOT_TZ);
+          return normalizeV2SlotsPayload(json.slots, query.slotDurationMinutes, branchTz);
         }
         return validateV1SlotsContract(json);
       }
       if (isV2TimesShape(json)) {
-        return normalizeV2SlotsPayload(json.slots, 60, DEFAULT_SLOT_TZ);
+        const fallbackTz = await getAppDisplayTimeZone();
+        return normalizeV2SlotsPayload(json.slots, 60, fallbackTz);
       }
       return validateV1SlotsContract(json);
     },

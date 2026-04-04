@@ -83,6 +83,79 @@ describe("createPgBookingCatalogPort", () => {
     });
   });
 
+  describe("upsertBranch", () => {
+    it("sets timezone on conflict and syncs branches.integrator_branch_id row", async () => {
+      queryMock
+        .mockResolvedValueOnce({ rows: [{ id: "city-uuid-1" }] })
+        .mockResolvedValueOnce({ rows: [{ id: "branch-uuid-1" }] })
+        .mockResolvedValueOnce({ rowCount: 1 });
+      const port = createPgBookingCatalogPort();
+      await port.upsertBranch({
+        cityCode: "moscow",
+        title: "T",
+        address: null,
+        rubitimeBranchId: "17356",
+        timezone: "Europe/Samara",
+        isActive: true,
+        sortOrder: 1,
+      });
+      const upsertSql = String(queryMock.mock.calls[1]?.[0] ?? "");
+      expect(upsertSql).toContain("timezone = EXCLUDED.timezone");
+      const syncSql = String(queryMock.mock.calls[2]?.[0] ?? "");
+      expect(syncSql).toContain("UPDATE branches");
+      expect(syncSql).toContain("integrator_branch_id");
+      expect(queryMock.mock.calls[2]?.[1]).toEqual(["Europe/Samara", 17356]);
+    });
+
+    it("skips branches sync when rubitime_branch_id is not numeric", async () => {
+      queryMock
+        .mockResolvedValueOnce({ rows: [{ id: "city-uuid-1" }] })
+        .mockResolvedValueOnce({ rows: [{ id: "branch-uuid-1" }] });
+      const port = createPgBookingCatalogPort();
+      await port.upsertBranch({
+        cityCode: "moscow",
+        title: "T",
+        address: null,
+        rubitimeBranchId: "alpha-branch",
+        timezone: "Europe/Moscow",
+        isActive: true,
+        sortOrder: 1,
+      });
+      expect(queryMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("updateBranchById", () => {
+    const branchRow = {
+      id: "bb111111-1111-4111-8111-111111111111",
+      city_id: "city-uuid-1",
+      title: "Clinic",
+      address: null,
+      rubitime_branch_id: "17356",
+      timezone: "Europe/Moscow",
+      is_active: true,
+      sort_order: 1,
+      created_at: NOW,
+      updated_at: NOW,
+    };
+
+    it("syncs branches after updating booking_branches timezone", async () => {
+      queryMock
+        .mockResolvedValueOnce({ rows: [branchRow] })
+        .mockResolvedValueOnce({
+          rows: [{ ...branchRow, timezone: "Asia/Yekaterinburg", updated_at: NOW }],
+        })
+        .mockResolvedValueOnce({ rowCount: 1 });
+      const port = createPgBookingCatalogPort();
+      await port.updateBranchById("bb111111-1111-4111-8111-111111111111", {
+        timezone: "Asia/Yekaterinburg",
+      });
+      const syncSql = String(queryMock.mock.calls[2]?.[0] ?? "");
+      expect(syncSql).toContain("UPDATE branches");
+      expect(queryMock.mock.calls[2]?.[1]).toEqual(["Asia/Yekaterinburg", 17356]);
+    });
+  });
+
   describe("listCitiesAdmin", () => {
     it("includes inactive cities (no is_active filter)", async () => {
       queryMock.mockResolvedValueOnce({ rows: [cityRow({ is_active: false })] });

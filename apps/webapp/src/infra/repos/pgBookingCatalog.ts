@@ -29,6 +29,7 @@ type BranchRow = {
   title: string;
   address: string | null;
   rubitime_branch_id: string;
+  timezone: string;
   is_active: boolean;
   sort_order: number;
   created_at: Date;
@@ -90,6 +91,7 @@ function mapBranch(row: BranchRow): BookingBranch {
     title: row.title,
     address: row.address,
     rubitimeBranchId: row.rubitime_branch_id,
+    timezone: row.timezone,
     isActive: row.is_active,
     sortOrder: row.sort_order,
     createdAt: row.created_at.toISOString(),
@@ -139,6 +141,30 @@ function mapBranchService(row: BranchServiceRow): BookingBranchService {
   };
 }
 
+/**
+ * When `rubitime_branch_id` is numeric, it matches `branches.integrator_branch_id` (integrator/Rubitime id).
+ * Keeps `branches.timezone` aligned with booking catalog edits so integrator `getBranchTimezone` sees admin changes.
+ */
+function parseRubitimeBranchIdAsIntegratorId(rubitimeBranchId: string): number | null {
+  const n = Number(String(rubitimeBranchId).trim());
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
+}
+
+async function syncBranchesTimezoneFromCatalog(
+  pool: ReturnType<typeof getPool>,
+  rubitimeBranchId: string,
+  timezone: string,
+): Promise<void> {
+  const integratorId = parseRubitimeBranchIdAsIntegratorId(rubitimeBranchId);
+  if (integratorId === null) return;
+  const tz = timezone.trim() || "Europe/Moscow";
+  await pool.query(
+    `UPDATE branches SET timezone = $1, updated_at = now() WHERE integrator_branch_id = $2`,
+    [tz, integratorId],
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Port implementation
 // ---------------------------------------------------------------------------
@@ -168,6 +194,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         br_title: string;
         br_address: string | null;
         br_rubitime_branch_id: string;
+        br_timezone: string;
         br_is_active: boolean;
         br_sort_order: number;
         br_created_at: Date;
@@ -199,6 +226,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
            bbs.created_at, bbs.updated_at,
            br.id AS br_id, br.city_id AS br_city_id, br.title AS br_title,
            br.address AS br_address, br.rubitime_branch_id AS br_rubitime_branch_id,
+           br.timezone AS br_timezone,
            br.is_active AS br_is_active, br.sort_order AS br_sort_order,
            br.created_at AS br_created_at, br.updated_at AS br_updated_at,
            svc.id AS svc_id, svc.title AS svc_title, svc.description AS svc_description,
@@ -233,6 +261,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
           title: row.br_title,
           address: row.br_address,
           rubitime_branch_id: row.br_rubitime_branch_id,
+          timezone: row.br_timezone,
           is_active: row.br_is_active,
           sort_order: row.br_sort_order,
           created_at: row.br_created_at,
@@ -283,6 +312,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
           br_title: string;
           br_address: string | null;
           br_rubitime_branch_id: string;
+          br_timezone: string;
           br_is_active: boolean;
           br_sort_order: number;
           br_created_at: Date;
@@ -323,6 +353,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
            bbs.created_at AS bbs_created_at, bbs.updated_at AS bbs_updated_at,
            br.id AS br_id, br.city_id AS br_city_id, br.title AS br_title,
            br.address AS br_address, br.rubitime_branch_id AS br_rubitime_branch_id,
+           br.timezone AS br_timezone,
            br.is_active AS br_is_active, br.sort_order AS br_sort_order,
            br.created_at AS br_created_at, br.updated_at AS br_updated_at,
            svc.id AS svc_id, svc.title AS svc_title, svc.description AS svc_description,
@@ -371,6 +402,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
         title: row.br_title,
         address: row.br_address,
         rubitime_branch_id: row.br_rubitime_branch_id,
+        timezone: row.br_timezone,
         is_active: row.br_is_active,
         sort_order: row.br_sort_order,
         created_at: row.br_created_at,
@@ -431,27 +463,30 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       return mapCity(result.rows[0]!);
     },
 
-    async upsertBranch({ cityCode, title, address, rubitimeBranchId, isActive, sortOrder }) {
+    async upsertBranch({ cityCode, title, address, rubitimeBranchId, timezone, isActive, sortOrder }) {
       const cityRes = await pool.query<{ id: string }>(
         `SELECT id FROM booking_cities WHERE code = $1`,
         [cityCode],
       );
       if (cityRes.rows.length === 0) throw new Error(`city_not_found:${cityCode}`);
       const cityId = cityRes.rows[0]!.id;
+      const tz = (timezone ?? "Europe/Moscow").trim() || "Europe/Moscow";
 
       const result = await pool.query<{ id: string }>(
-        `INSERT INTO booking_branches (id, city_id, title, address, rubitime_branch_id, is_active, sort_order)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
+        `INSERT INTO booking_branches (id, city_id, title, address, rubitime_branch_id, is_active, sort_order, timezone)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (rubitime_branch_id) DO UPDATE
            SET city_id = EXCLUDED.city_id,
                title = EXCLUDED.title,
                address = EXCLUDED.address,
+               timezone = EXCLUDED.timezone,
                is_active = EXCLUDED.is_active,
                sort_order = EXCLUDED.sort_order,
                updated_at = now()
          RETURNING id`,
-        [cityId, title, address, rubitimeBranchId, isActive, sortOrder],
+        [cityId, title, address, rubitimeBranchId, isActive, sortOrder, tz],
       );
+      await syncBranchesTimezoneFromCatalog(pool, rubitimeBranchId, tz);
       return { id: result.rows[0]!.id };
     },
 
@@ -602,7 +637,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
 
     async listBranchesAdmin() {
       const result = await pool.query<BranchRow>(
-        `SELECT id, city_id, title, address, rubitime_branch_id, is_active, sort_order, created_at, updated_at
+        `SELECT id, city_id, title, address, rubitime_branch_id, timezone, is_active, sort_order, created_at, updated_at
          FROM booking_branches
          ORDER BY sort_order ASC, title ASC`,
       );
@@ -611,7 +646,7 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
 
     async getBranchById(id) {
       const result = await pool.query<BranchRow>(
-        `SELECT id, city_id, title, address, rubitime_branch_id, is_active, sort_order, created_at, updated_at
+        `SELECT id, city_id, title, address, rubitime_branch_id, timezone, is_active, sort_order, created_at, updated_at
          FROM booking_branches WHERE id = $1`,
         [id],
       );
@@ -626,17 +661,20 @@ export function createPgBookingCatalogPort(): BookingCatalogPort {
       const title = patch.title ?? cur.title;
       const address = patch.address !== undefined ? patch.address : cur.address;
       const rubitimeBranchId = patch.rubitimeBranchId ?? cur.rubitimeBranchId;
+      const timezone = patch.timezone !== undefined ? patch.timezone : cur.timezone;
       const isActive = patch.isActive ?? cur.isActive;
       const sortOrder = patch.sortOrder ?? cur.sortOrder;
       const result = await pool.query<BranchRow>(
         `UPDATE booking_branches
-         SET city_id = $2, title = $3, address = $4, rubitime_branch_id = $5,
-             is_active = $6, sort_order = $7, updated_at = now()
+         SET city_id = $2, title = $3, address = $4, rubitime_branch_id = $5, timezone = $6,
+             is_active = $7, sort_order = $8, updated_at = now()
          WHERE id = $1
-         RETURNING id, city_id, title, address, rubitime_branch_id, is_active, sort_order, created_at, updated_at`,
-        [id, cityId, title, address, rubitimeBranchId, isActive, sortOrder],
+         RETURNING id, city_id, title, address, rubitime_branch_id, timezone, is_active, sort_order, created_at, updated_at`,
+        [id, cityId, title, address, rubitimeBranchId, timezone, isActive, sortOrder],
       );
-      return mapBranch(result.rows[0]!);
+      const row = result.rows[0]!;
+      await syncBranchesTimezoneFromCatalog(pool, row.rubitime_branch_id, row.timezone);
+      return mapBranch(row);
     },
 
     async deactivateBranch(id) {

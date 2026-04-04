@@ -5,12 +5,24 @@ export const DEFAULT_APP_DISPLAY_TIMEZONE = "Europe/Moscow";
 
 const IANA_LIKE = /^[A-Za-z_]+(\/[A-Za-z_]+)*$/;
 
+/** Same check as integrator `getAppDisplayTimezone` — reject ICU-invalid IDs admin could otherwise save. */
+function isValidIanaTimeZone(tz: string): boolean {
+  const t = tz.trim();
+  if (!t) return false;
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: t });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Нормализует значение из `system_settings` / env: допустимая IANA-подобная строка или дефолт.
+ * Нормализует значение из `system_settings` / env: допустимая IANA (regex + ICU) или дефолт.
  */
 export function normalizeAppDisplayTimeZone(raw: string): string {
   const t = raw.trim();
-  if (t.length > 0 && IANA_LIKE.test(t)) return t;
+  if (t.length > 0 && IANA_LIKE.test(t) && isValidIanaTimeZone(t)) return t;
   return DEFAULT_APP_DISPLAY_TIMEZONE;
 }
 

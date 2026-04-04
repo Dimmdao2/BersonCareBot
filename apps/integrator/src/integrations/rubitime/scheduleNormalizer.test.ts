@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeRubitimeSchedule } from './scheduleNormalizer.js';
 
+const MSK = 'Europe/Moscow';
+
 const SAMPLE_SCHEDULE = {
   '2026-04-10': {
     '10:00': { available: true },
@@ -15,7 +17,7 @@ const SAMPLE_SCHEDULE = {
 
 describe('normalizeRubitimeSchedule', () => {
   it('converts available slots to BookingSlotsByDate[]', () => {
-    const result = normalizeRubitimeSchedule(SAMPLE_SCHEDULE, 60);
+    const result = normalizeRubitimeSchedule(SAMPLE_SCHEDULE, 60, MSK);
     expect(result).toHaveLength(2);
 
     const day1 = result[0]!;
@@ -27,37 +29,55 @@ describe('normalizeRubitimeSchedule', () => {
   });
 
   it('computes endAt from durationMinutes', () => {
-    const result = normalizeRubitimeSchedule({ '2026-04-10': { '10:00': { available: true } } }, 90);
+    const result = normalizeRubitimeSchedule({ '2026-04-10': { '10:00': { available: true } } }, 90, MSK);
     const slot = result[0]!.slots[0]!;
     expect(slot.startAt).toBe('2026-04-10T07:00:00.000Z');
     expect(slot.endAt).toBe('2026-04-10T08:30:00.000Z');
   });
 
+  it('interprets wall clock in Europe/Samara (2026-04-07 11:00 → 07:00Z)', () => {
+    const result = normalizeRubitimeSchedule(
+      { '2026-04-07': { '11:00': { available: true } } },
+      60,
+      'Europe/Samara',
+    );
+    expect(result[0]!.slots[0]!.startAt).toBe('2026-04-07T07:00:00.000Z');
+  });
+
+  it('interprets wall clock in Europe/Moscow (2026-04-07 11:00 → 08:00Z)', () => {
+    const result = normalizeRubitimeSchedule(
+      { '2026-04-07': { '11:00': { available: true } } },
+      60,
+      'Europe/Moscow',
+    );
+    expect(result[0]!.slots[0]!.startAt).toBe('2026-04-07T08:00:00.000Z');
+  });
+
   it('skips unavailable slots', () => {
     const data = { '2026-04-10': { '10:00': { available: false }, '11:00': { available: false } } };
-    const result = normalizeRubitimeSchedule(data, 60);
+    const result = normalizeRubitimeSchedule(data, 60, MSK);
     expect(result).toHaveLength(0);
   });
 
   it('filters by dateFilter when provided', () => {
-    const result = normalizeRubitimeSchedule(SAMPLE_SCHEDULE, 60, '2026-04-10');
+    const result = normalizeRubitimeSchedule(SAMPLE_SCHEDULE, 60, MSK, '2026-04-10');
     expect(result).toHaveLength(1);
     expect(result[0]!.date).toBe('2026-04-10');
   });
 
   it('returns empty array for empty schedule object', () => {
-    expect(normalizeRubitimeSchedule({}, 60)).toEqual([]);
+    expect(normalizeRubitimeSchedule({}, 60, MSK)).toEqual([]);
   });
 
   it('throws RUBITIME_SCHEDULE_MALFORMED_DATA for non-object data', () => {
-    expect(() => normalizeRubitimeSchedule(null, 60)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
-    expect(() => normalizeRubitimeSchedule([], 60)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
-    expect(() => normalizeRubitimeSchedule('string', 60)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
-    expect(() => normalizeRubitimeSchedule(123, 60)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
+    expect(() => normalizeRubitimeSchedule(null, 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
+    expect(() => normalizeRubitimeSchedule([], 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
+    expect(() => normalizeRubitimeSchedule('string', 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
+    expect(() => normalizeRubitimeSchedule(123, 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
   });
 
   it('throws for null data', () => {
-    expect(() => normalizeRubitimeSchedule(null, 60)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
+    expect(() => normalizeRubitimeSchedule(null, 60, MSK)).toThrow('RUBITIME_SCHEDULE_MALFORMED_DATA');
   });
 
   it('skips malformed date keys', () => {
@@ -65,7 +85,7 @@ describe('normalizeRubitimeSchedule', () => {
       'not-a-date': { '10:00': { available: true } },
       '2026-04-10': { '10:00': { available: true } },
     };
-    const result = normalizeRubitimeSchedule(data, 60);
+    const result = normalizeRubitimeSchedule(data, 60, MSK);
     expect(result).toHaveLength(1);
     expect(result[0]!.date).toBe('2026-04-10');
   });
@@ -78,7 +98,7 @@ describe('normalizeRubitimeSchedule', () => {
         '11:00': { available: true },
       },
     };
-    const result = normalizeRubitimeSchedule(data, 60);
+    const result = normalizeRubitimeSchedule(data, 60, MSK);
     const times = result[0]!.slots.map((s) => s.startAt);
     expect(times).toEqual([...times].sort());
   });
@@ -89,7 +109,7 @@ describe('normalizeRubitimeSchedule', () => {
       '2026-04-10': { '10:00': { available: true } },
       '2026-04-11': { '10:00': { available: true } },
     };
-    const result = normalizeRubitimeSchedule(data, 60);
+    const result = normalizeRubitimeSchedule(data, 60, MSK);
     const dates = result.map((r) => r.date);
     expect(dates).toEqual(['2026-04-10', '2026-04-11', '2026-04-12']);
   });

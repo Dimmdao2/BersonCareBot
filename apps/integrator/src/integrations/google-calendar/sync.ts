@@ -1,9 +1,12 @@
-import { getRubitimeRecordAtUtcOffsetMinutesForInstant } from '../../config/appTimezone.js';
+import { createDbPort } from '../../infra/db/client.js';
+import {
+  getAppDisplayTimezone,
+  resolveRubitimeRecordAtUtcOffsetMinutes,
+} from '../../config/appTimezone.js';
 import { createGoogleCalendarClient, type GoogleCalendarClient, type GoogleCalendarEventInput } from './client.js';
 import { isGoogleCalendarConfigured, type GoogleCalendarConfig } from './config.js';
 import { getGoogleCalendarConfig } from './runtimeConfig.js';
-import type { DbPort } from '../../kernel/contracts/index.js';
-import { createDbPort } from '../../infra/db/client.js';
+import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
 import {
   deleteBookingCalendarMap,
   getGoogleEventIdByRubitimeRecordId,
@@ -22,6 +25,8 @@ type SyncDeps = {
   client?: GoogleCalendarClient;
   config?: GoogleCalendarConfig;
   db?: DbPort;
+  /** When set, display-timezone fallback triggers Telegram alert (dedup) like other prod paths. */
+  dispatchPort?: DispatchPort;
 };
 
 function asString(value: unknown): string | undefined {
@@ -37,8 +42,8 @@ function asNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-/** ISO with explicit zone is parsed as-is; naive `YYYY-MM-DD HH:mm:ss` / `T` without zone uses app timezone (see appTimezone). */
-function parseRecordAtToIso(recordAt: string): string | null {
+/** ISO with explicit zone is parsed as-is; naive `YYYY-MM-DD HH:mm:ss` / `T` without zone uses app display timezone. */
+function parseRecordAtToIso(recordAt: string, displayTimeZone: string): string | null {
   const trimmed = recordAt.trim();
   const hasExplicitZone = /Z$/i.test(trimmed) || /[+-]\d{2}:\d{2}$/.test(trimmed);
   if (hasExplicitZone) {
@@ -63,7 +68,7 @@ function parseRecordAtToIso(recordAt: string): string | null {
             ),
           )
         : new Date();
-    const offsetMin = getRubitimeRecordAtUtcOffsetMinutesForInstant(probe);
+    const offsetMin = resolveRubitimeRecordAtUtcOffsetMinutes(probe, displayTimeZone);
     const sign = offsetMin >= 0 ? '+' : '-';
     const abs = Math.abs(offsetMin);
     const oh = String(Math.floor(abs / 60)).padStart(2, '0');
@@ -96,9 +101,20 @@ function extractServiceTitle(record: Record<string, unknown> | undefined): strin
   );
 }
 
-export function mapRubitimeEventToGoogleEvent(input: RubitimeCalendarSyncEvent): GoogleCalendarEventInput | null {
+export async function mapRubitimeEventToGoogleEvent(
+  input: RubitimeCalendarSyncEvent,
+  options?: { db?: DbPort; displayTimeZone?: string; dispatchPort?: DispatchPort },
+): Promise<GoogleCalendarEventInput | null> {
   if (!input.recordAt) return null;
-  const startIso = parseRecordAtToIso(input.recordAt);
+  const db = options?.db ?? createDbPort();
+  const displayTimeZone =
+    options?.displayTimeZone
+    ?? (await getAppDisplayTimezone(
+        options?.dispatchPort !== undefined
+          ? { db, dispatchPort: options.dispatchPort }
+          : { db },
+      ));
+  const startIso = parseRecordAtToIso(input.recordAt, displayTimeZone);
   if (!startIso) return null;
   const durationMinutes = extractDurationMinutes(input.record);
   const endIso = new Date(new Date(startIso).getTime() + durationMinutes * 60_000).toISOString();
@@ -129,7 +145,10 @@ export async function syncAppointmentToCalendar(
     await deleteBookingCalendarMap(db, input.rubRecordId);
     return null;
   }
-  const event = mapRubitimeEventToGoogleEvent(input);
+  const event = await mapRubitimeEventToGoogleEvent(input, {
+    db,
+    ...(deps.dispatchPort !== undefined ? { dispatchPort: deps.dispatchPort } : {}),
+  });
   if (!event) return existingGoogleEventId;
   const upsertedId = await client.upsertEvent(existingGoogleEventId, event);
   await upsertBookingCalendarMap(db, { rubitimeRecordId: input.rubRecordId, gcalEventId: upsertedId });

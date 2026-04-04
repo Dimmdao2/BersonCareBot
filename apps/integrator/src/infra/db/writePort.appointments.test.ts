@@ -56,4 +56,76 @@ describe('writePort booking.upsert projection', () => {
     expect(payload.lastEvent).toBe('event-create');
     expect(ev.idempotencyKey.startsWith(`${APPOINTMENT_RECORD_UPSERTED}:rec-app-1:`)).toBe(true);
   });
+
+  it('booking.upsert keeps ISO-Z recordAt and passes timeNormalization metadata to projection', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'booking.upsert',
+      params: {
+        externalRecordId: 'rec-tz-1',
+        phoneNormalized: '+79990001122',
+        recordAt: '2026-04-07T08:00:00.000Z',
+        dateTimeEnd: '2026-04-07T09:00:00.000Z',
+        status: 'updated',
+        payloadJson: { service_id: 10, service_name: 'Consult' },
+        lastEvent: 'updated',
+        timeNormalizationStatus: 'ok',
+        timeNormalizationFieldErrors: [],
+      },
+    });
+    const payload = capture.projectionInserts[0]!.payload as Record<string, unknown>;
+    expect(payload.recordAt).toBe('2026-04-07T08:00:00.000Z');
+    expect(payload.dateTimeEnd).toBe('2026-04-07T09:00:00.000Z');
+    expect(payload.timeNormalizationStatus).toBe('ok');
+    expect(payload.timeNormalizationFieldErrors).toBeUndefined();
+    expect(payload.serviceId).toBe('10');
+    expect(payload.serviceName).toBe('Consult');
+  });
+
+  it('booking.upsert drops naive recordAt so SQL never gets session-TZ interpretation', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'booking.upsert',
+      params: {
+        externalRecordId: 'rec-naive',
+        phoneNormalized: '+79990001122',
+        recordAt: '2026-04-07 11:00:00',
+        status: 'updated',
+        payloadJson: {},
+        lastEvent: 'updated',
+      },
+    });
+    const payload = capture.projectionInserts[0]!.payload as Record<string, unknown>;
+    expect(payload.recordAt).toBeNull();
+  });
+
+  it('booking.upsert includes timeNormalizationFieldErrors when degraded', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    await writePort.writeDb({
+      type: 'booking.upsert',
+      params: {
+        externalRecordId: 'rec-degraded',
+        phoneNormalized: '+79990001122',
+        recordAt: null,
+        status: 'updated',
+        payloadJson: { link: 'https://x.example' },
+        lastEvent: 'updated',
+        timeNormalizationStatus: 'degraded',
+        timeNormalizationFieldErrors: [{ field: 'recordAt', reason: 'unsupported_format' }],
+      },
+    });
+    const payload = capture.projectionInserts[0]!.payload as Record<string, unknown>;
+    expect(payload.recordAt).toBeNull();
+    expect(payload.timeNormalizationStatus).toBe('degraded');
+    expect(payload.timeNormalizationFieldErrors).toEqual([
+      { field: 'recordAt', reason: 'unsupported_format' },
+    ]);
+    expect(payload.payloadJson).toEqual({ link: 'https://x.example' });
+  });
 });

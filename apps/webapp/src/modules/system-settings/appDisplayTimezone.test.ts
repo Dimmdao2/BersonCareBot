@@ -10,4 +10,8 @@ describe("appDisplayTimezone", () => {
     expect(normalizeAppDisplayTimeZone("")).toBe(DEFAULT_APP_DISPLAY_TIMEZONE);
     expect(normalizeAppDisplayTimeZone("not a zone!")).toBe(DEFAULT_APP_DISPLAY_TIMEZONE);
   });
+
+  it("normalizeAppDisplayTimeZone rejects regex-only strings invalid for Intl (integrator parity)", () => {
+    expect(normalizeAppDisplayTimeZone("Foo/Bar")).toBe(DEFAULT_APP_DISPLAY_TIMEZONE);
+  });
 });

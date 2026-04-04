@@ -1,24 +1,25 @@
 /**
  * Форматирование дат/времени записей в явной IANA-таймзоне (без зависимости от TZ процесса Node / браузера).
  */
+import { DateTime } from "luxon";
 
-const MSK_WALL_OFFSET = "+03:00";
+const NAIVE_WALL_CLOCK_REGEX = /^\d{4}-\d{2}-\d{2}(?:T| )\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?$/;
 
 /**
  * Разбор ISO-момента для отображения.
  * Строки без Z и без ±offset (как раньше отдавал integrator scheduleNormalizer) нельзя
- * кормить в `new Date` напрямую — в Node и в браузере это разный instant. Для
- * `Europe/Moscow` такие значения трактуем как настенное время MSK (как слоты Rubitime).
+ * кормить в `new Date` напрямую — в Node и в браузере это разный instant.
+ * Такие значения трактуем как настенное время в `displayTimeZone` (IANA), чтобы
+ * получать тот же UTC instant в любой среде выполнения.
  */
 export function parseBusinessInstant(iso: string, displayTimeZone: string): Date {
   const t = iso.trim();
   if (!t) return new Date(NaN);
   if (/Z$/i.test(t) || /[+-]\d{2}:\d{2}$/.test(t)) return new Date(t);
-  if (
-    displayTimeZone === "Europe/Moscow" &&
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?$/.test(t)
-  ) {
-    return new Date(`${t}${MSK_WALL_OFFSET}`);
+  if (NAIVE_WALL_CLOCK_REGEX.test(t)) {
+    const normalized = t.includes("T") ? t : t.replace(" ", "T");
+    const dt = DateTime.fromISO(normalized, { zone: displayTimeZone.trim() });
+    if (dt.isValid) return new Date(dt.toUTC().toJSDate().toISOString());
   }
   return new Date(t);
 }

@@ -445,7 +445,7 @@ async function applyOutboxRequeue(db: DbPort, ids: number[]): Promise<number> {
 
 // ── Args parsing ──────────────────────────────────────────────────────────────
 
-function parseArgs(argv: string[]): ResyncArgs {
+function parseArgs(argv: string[], defaultRubitimeOffsetMinutes: number): ResyncArgs {
   const get = (prefix: string): string | undefined => {
     const item = argv.find((x) => x.startsWith(prefix));
     return item ? item.slice(prefix.length) : undefined;
@@ -469,7 +469,7 @@ function parseArgs(argv: string[]): ResyncArgs {
     retryBaseMs: parsePositiveInt(get('--retry-base-ms='), 5500, 100, 120_000),
     rubitimeOffsetMinutes: parsePositiveInt(
       get('--rubitime-offset-minutes='),
-      getRubitimeRecordAtUtcOffsetMinutesForInstant(new Date()),
+      defaultRubitimeOffsetMinutes,
       -720,
       840,
     ),
@@ -688,8 +688,12 @@ async function runRepairOutbox(args: ResyncArgs, db: DbPort): Promise<RepairOutb
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
   const db = createDbPort();
+  const defaultRubitimeOffsetMinutes = await getRubitimeRecordAtUtcOffsetMinutesForInstant({
+    db,
+    instant: new Date(),
+  });
+  const args = parseArgs(process.argv.slice(2), defaultRubitimeOffsetMinutes);
 
   const modeLabel = args.mode === 'repair-outbox' ? 'repair-outbox' : 'resync';
   const commitLabel = args.commit ? 'COMMIT' : 'dry-run';

@@ -1,4 +1,4 @@
-import { getAppDisplayTimezoneSync } from '../../../config/appTimezone.js';
+import { DEFAULT_APP_DISPLAY_TIMEZONE } from '../../../config/appTimezone.js';
 import {
   REMINDER_SCHEDULE_PRESETS,
   type ReminderOccurrenceRecord,
@@ -198,7 +198,7 @@ export function buildDefaultReminderRule(input: {
     category: input.category,
     isEnabled: false,
     scheduleType: 'interval_window',
-    timezone: input.timezone ?? getAppDisplayTimezoneSync(),
+    timezone: input.timezone ?? DEFAULT_APP_DISPLAY_TIMEZONE,
     intervalMinutes: config.intervalMinutes,
     windowStartMinute: config.windowStartMinute,
     windowEndMinute: config.windowEndMinute,

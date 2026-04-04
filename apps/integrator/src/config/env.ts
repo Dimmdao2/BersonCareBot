@@ -35,16 +35,12 @@ const parsed = z
     GOOGLE_REFRESH_TOKEN: z.string().optional().default(''),
     /**
      * Опциональный оверрайд минутного смещения UTC для наивных дат Rubitime без зоны.
-     * Если не задан — смещение берётся из IANA-зоны (APP_DISPLAY_TIMEZONE / BOOKING_DISPLAY_TIMEZONE).
+     * Если не задан — смещение берётся из IANA display-timezone в `system_settings.app_display_timezone` (см. {@link getAppDisplayTimezone}).
      */
     RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES: z.preprocess(
       (v) => (v === '' || v === undefined || v === null ? undefined : v),
       z.coerce.number().optional(),
     ),
-    /** Предпочтительная IANA-таймзона бизнес-времени (букинг, напоминания, логи). Пусто = см. BOOKING_DISPLAY_TIMEZONE. */
-    APP_DISPLAY_TIMEZONE: z.string().optional().default(''),
-    /** @deprecated Имя сохранено для совместимости; предпочтительно APP_DISPLAY_TIMEZONE. */
-    BOOKING_DISPLAY_TIMEZONE: z.string().optional().default('Europe/Moscow'),
   })
   .parse(process.env);
 

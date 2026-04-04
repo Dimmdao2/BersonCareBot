@@ -39,6 +39,8 @@ export type BookingCatalogWritePort = {
     title: string;
     address: string | null;
     rubitimeBranchId: string;
+    /** IANA; default Europe/Moscow when omitted (insert only). */
+    timezone?: string;
     isActive: boolean;
     sortOrder: number;
   }): Promise<{ id: string }>;
@@ -91,6 +93,7 @@ export type BookingCatalogAdminPort = {
       title?: string;
       address?: string | null;
       rubitimeBranchId?: string;
+      timezone?: string;
       isActive?: boolean;
       sortOrder?: number;
     },

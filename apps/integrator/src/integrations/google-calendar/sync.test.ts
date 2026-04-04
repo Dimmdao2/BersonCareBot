@@ -3,17 +3,20 @@ import nock from 'nock';
 import { mapRubitimeEventToGoogleEvent, syncAppointmentToCalendar } from './sync.js';
 
 describe('google calendar sync', () => {
-  it('maps rubitime event to google event fields (naive datetime = business offset MSK default)', () => {
-    const mapped = mapRubitimeEventToGoogleEvent({
-      action: 'created',
-      rubRecordId: 'rec-1',
-      recordAt: '2026-04-01 10:00:00',
-      clientName: 'Иванов Иван',
-      record: {
-        service_title: 'ЛФК',
-        duration_minutes: 45,
+  it('maps rubitime event to google event fields (naive datetime = business offset MSK default)', async () => {
+    const mapped = await mapRubitimeEventToGoogleEvent(
+      {
+        action: 'created',
+        rubRecordId: 'rec-1',
+        recordAt: '2026-04-01 10:00:00',
+        clientName: 'Иванов Иван',
+        record: {
+          service_title: 'ЛФК',
+          duration_minutes: 45,
+        },
       },
-    });
+      { displayTimeZone: 'Europe/Moscow' },
+    );
 
     expect(mapped).toEqual({
       summary: 'Иванов Иван — ЛФК',
@@ -23,21 +26,27 @@ describe('google calendar sync', () => {
     });
   });
 
-  it('preserves explicit Zulu ISO without shifting', () => {
-    const mapped = mapRubitimeEventToGoogleEvent({
-      action: 'created',
-      rubRecordId: 'rec-z',
-      recordAt: '2026-04-01T10:00:00.000Z',
-    });
+  it('preserves explicit Zulu ISO without shifting', async () => {
+    const mapped = await mapRubitimeEventToGoogleEvent(
+      {
+        action: 'created',
+        rubRecordId: 'rec-z',
+        recordAt: '2026-04-01T10:00:00.000Z',
+      },
+      { displayTimeZone: 'Europe/Moscow' },
+    );
     expect(mapped?.startDateTime).toBe('2026-04-01T10:00:00.000Z');
   });
 
-  it('respects numeric timezone offset in ISO string', () => {
-    const mapped = mapRubitimeEventToGoogleEvent({
-      action: 'created',
-      rubRecordId: 'rec-o',
-      recordAt: '2026-04-01T10:00:00+03:00',
-    });
+  it('respects numeric timezone offset in ISO string', async () => {
+    const mapped = await mapRubitimeEventToGoogleEvent(
+      {
+        action: 'created',
+        rubRecordId: 'rec-o',
+        recordAt: '2026-04-01T10:00:00+03:00',
+      },
+      { displayTimeZone: 'Europe/Moscow' },
+    );
     expect(mapped?.startDateTime).toBe('2026-04-01T07:00:00.000Z');
   });
 

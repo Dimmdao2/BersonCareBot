@@ -7,7 +7,9 @@ const INSECURE_SECRET_BLACKLIST = [
   "dev-integrator-secret-change-me",
 ] as const;
 
-const isTest = process.env.NODE_ENV === "test";
+/** True in Vitest workers even when `.env.dev` sets `NODE_ENV=development` after dotenv. */
+const isTest =
+  process.env.NODE_ENV === "test" || Boolean(process.env.VITEST_WORKER_ID);
 
 /** Test-only defaults; never used in development or production. */
 const TEST_DEFAULTS = {
@@ -27,7 +29,7 @@ const envSchema = z.object({
     .optional()
     .default("")
     .transform((val) =>
-      process.env.NODE_ENV === "test" && process.env.USE_REAL_DATABASE !== "1" ? "" : val ?? ""
+      isTest && process.env.USE_REAL_DATABASE !== "1" ? "" : val ?? ""
     ),
   /** Required in production; in test uses safe default. In development must be set (no repo default). */
   SESSION_COOKIE_SECRET: z

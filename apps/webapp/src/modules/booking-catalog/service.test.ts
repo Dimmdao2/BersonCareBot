@@ -33,6 +33,7 @@ const mockResolved: ResolvedBranchService = {
     title: "Москва. Точка Здоровья",
     address: "Красносельский тупик, 5",
     rubitimeBranchId: "17356",
+    timezone: "Europe/Moscow",
     isActive: true,
     sortOrder: 1,
     createdAt: "2026-01-01T00:00:00.000Z",

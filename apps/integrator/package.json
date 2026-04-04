@@ -36,6 +36,7 @@
     "fastify": "^5.8.3",
     "googleapis": "^171.4.0",
     "grammy": "^1.41.1",
+    "luxon": "^3.7.2",
     "node-fetch": "^3.3.2",
     "nodemailer": "^8.0.4",
     "p-retry": "^7.1.1",
@@ -45,6 +46,7 @@
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1009.0",
+    "@types/luxon": "^3.7.1",
     "@types/node": "^25.5.0",
     "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^7.0.11",

@@ -45,6 +45,7 @@ function resolvedFixture(): ResolvedBranchService {
       title: "Филиал 1",
       address: null,
       rubitimeBranchId: "17356",
+      timezone: "Europe/Moscow",
       isActive: true,
       sortOrder: 0,
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -421,6 +422,7 @@ describe("createPatientBookingService", () => {
       rubitimeCooperatorId: "34729",
       rubitimeServiceId: "67591",
       slotDurationMinutes: 60,
+      branchTimezone: "Europe/Moscow",
       date: "2026-05-01",
     });
   });

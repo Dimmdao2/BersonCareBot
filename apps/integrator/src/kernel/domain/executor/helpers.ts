@@ -10,6 +10,7 @@ import type {
   DbReadPort,
   DeliveryDefaultsPort,
   DeliveryTargetsPort,
+  DispatchPort,
   DomainContext,
   NotificationSettings,
   DbWriteMutation,
@@ -32,6 +33,8 @@ export type SupportRelayPolicy = {
 export type ExecutorDeps = {
   readPort?: DbReadPort;
   writePort?: DbWritePort;
+  /** Used e.g. for data-quality Telegram alerts when resolving display timezone from DB. */
+  dispatchPort?: DispatchPort;
   queuePort?: QueuePort;
   templatePort?: TemplatePort;
   deliveryDefaultsPort?: DeliveryDefaultsPort | null;

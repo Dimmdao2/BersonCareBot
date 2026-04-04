@@ -12,6 +12,8 @@ import {
   readIncoming,
   readIncomingText,
 } from '../helpers.js';
+import { createDbPort } from '../../../../infra/db/client.js';
+import { getAppDisplayTimezone } from '../../../../config/appTimezone.js';
 import {
   buildDefaultReminderRule,
   cycleReminderPreset,
@@ -105,7 +107,18 @@ export async function handleReminders(
     });
     const ruleId = existing?.id ?? `reminder:${userId}:${category}`;
     const nextEnabled = existing ? !existing.isEnabled : true;
-    const record: ReminderRuleRecord = existing ?? buildDefaultReminderRule({ id: ruleId, userId, category });
+    let record: ReminderRuleRecord;
+    if (existing) {
+      record = existing;
+    } else {
+      const dbPort = createDbPort();
+      const tz = await getAppDisplayTimezone(
+        deps.dispatchPort
+          ? { db: dbPort, dispatchPort: deps.dispatchPort }
+          : { db: dbPort },
+      );
+      record = buildDefaultReminderRule({ id: ruleId, userId, category, timezone: tz });
+    }
     const writes = [{
       type: 'reminders.rule.upsert' as const,
       params: {
@@ -149,7 +162,18 @@ export async function handleReminders(
     const nextPreset = cycleReminderPreset(currentPreset);
     const config = reminderPresetConfig(nextPreset);
     const ruleId = existing?.id ?? `reminder:${userId}:${category}`;
-    const record: ReminderRuleRecord = existing ?? buildDefaultReminderRule({ id: ruleId, userId, category });
+    let record: ReminderRuleRecord;
+    if (existing) {
+      record = existing;
+    } else {
+      const dbPort = createDbPort();
+      const tz = await getAppDisplayTimezone(
+        deps.dispatchPort
+          ? { db: dbPort, dispatchPort: deps.dispatchPort }
+          : { db: dbPort },
+      );
+      record = buildDefaultReminderRule({ id: ruleId, userId, category, timezone: tz });
+    }
     const writes = [{
       type: 'reminders.rule.upsert' as const,
       params: {

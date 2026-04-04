@@ -116,11 +116,40 @@ describe("createBookingSyncPort.fetchSlots", () => {
       rubitimeCooperatorId: "c1",
       rubitimeServiceId: "s1",
       slotDurationMinutes: 30,
+      branchTimezone: "Europe/Moscow",
       date: "2026-04-10",
     });
     expect(result).toHaveLength(1);
     expect(result[0]!.slots).toHaveLength(1);
-    expect(result[0]!.slots[0]!.startAt).toContain("2026-04-10T10:00:00+03:00");
+    expect(result[0]!.slots[0]!.startAt).toBe("2026-04-10T07:00:00.000Z");
+    expect(result[0]!.slots[0]!.endAt).toBe("2026-04-10T07:30:00.000Z");
+  });
+
+  it("fetchSlots v2: Europe/Samara vs Europe/Moscow for same wall 11:00", async () => {
+    async function slotsForTz(tz: string) {
+      globalFetchMock.mockImplementationOnce(async () => ({
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            ok: true,
+            slots: [{ date: "2026-04-07", times: ["11:00"] }],
+          }),
+      }));
+      const port = createBookingSyncPort();
+      return port.fetchSlots({
+        version: "v2",
+        rubitimeBranchId: "b1",
+        rubitimeCooperatorId: "c1",
+        rubitimeServiceId: "s1",
+        slotDurationMinutes: 60,
+        branchTimezone: tz,
+        date: "2026-04-07",
+      });
+    }
+    const samara = await slotsForTz("Europe/Samara");
+    expect(samara[0]!.slots[0]!.startAt).toBe("2026-04-07T07:00:00.000Z");
+    const moscow = await slotsForTz("Europe/Moscow");
+    expect(moscow[0]!.slots[0]!.startAt).toBe("2026-04-07T08:00:00.000Z");
   });
 
   it("fetchSlots v2 accepts integrator normalized slots (v1-shaped array) without times[]", async () => {
@@ -135,6 +164,7 @@ describe("createBookingSyncPort.fetchSlots", () => {
       rubitimeCooperatorId: "c1",
       rubitimeServiceId: "s1",
       slotDurationMinutes: 60,
+      branchTimezone: "Europe/Moscow",
       date: "2026-04-10",
     });
     expect(result).toEqual(slots);
@@ -169,7 +199,14 @@ describe("createBookingSyncPort.fetchSlots", () => {
     mockFetch({ ok: false, error: { code: "rubitime_timeout", message: "slow" } }, 504);
     const port = createBookingSyncPort();
     await expect(
-      port.fetchSlots({ version: "v2", rubitimeBranchId: "b", rubitimeCooperatorId: "c", rubitimeServiceId: "s", slotDurationMinutes: 60 }),
+      port.fetchSlots({
+        version: "v2",
+        rubitimeBranchId: "b",
+        rubitimeCooperatorId: "c",
+        rubitimeServiceId: "s",
+        slotDurationMinutes: 60,
+        branchTimezone: "Europe/Moscow",
+      }),
     ).rejects.toThrow("rubitime_timeout");
   });
 });

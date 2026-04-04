@@ -8,6 +8,10 @@ const withAnalyzer = withBundleAnalyzer({
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
+  experimental: {
+    /** Allow importing canonical `normalizeToUtcInstant` from integrator shared (single source of truth). */
+    externalDir: true,
+  },
 };
 
 export default withAnalyzer(nextConfig);

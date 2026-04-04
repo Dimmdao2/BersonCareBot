@@ -16,6 +16,8 @@ export type BookingBranch = {
   title: string;
   address: string | null;
   rubitimeBranchId: string;
+  /** IANA timezone for this branch (wall time / Rubitime naive datetimes). */
+  timezone: string;
   isActive: boolean;
   sortOrder: number;
   createdAt: string;

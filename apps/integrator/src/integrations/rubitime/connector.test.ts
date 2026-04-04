@@ -10,6 +10,7 @@ import {
   buildUserEmailAutobindWebappEvent,
   rubitimeIncomingToEvent,
   syncRubitimeWebhookBodyToGoogleCalendar,
+  toRubitimeIncoming,
 } from './connector.js';
 
 describe('Rubitime email autobind webapp event', () => {
@@ -56,7 +57,7 @@ describe('rubitime Google Calendar sync (connector)', () => {
         },
       },
     };
-    await syncRubitimeWebhookBodyToGoogleCalendar(body);
+    await syncRubitimeWebhookBodyToGoogleCalendar(toRubitimeIncoming(body));
     expect(syncAppointmentToCalendarMock).toHaveBeenCalledTimes(1);
     expect(syncAppointmentToCalendarMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -73,7 +74,7 @@ describe('rubitime Google Calendar sync (connector)', () => {
       event: 'event-create-record' as const,
       data: { record: { record: '2026-01-01 10:00:00' } },
     };
-    await syncRubitimeWebhookBodyToGoogleCalendar(body);
+    await syncRubitimeWebhookBodyToGoogleCalendar(toRubitimeIncoming(body));
     expect(syncAppointmentToCalendarMock).not.toHaveBeenCalled();
   });
 });

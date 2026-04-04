@@ -53,7 +53,9 @@ export const inMemoryLoginTokensPort: LoginTokensPort = {
 
 /** Для e2e/тестов: подтвердить токен по хэшу (как интегратор). */
 export function __testConfirmLoginTokenByHash(tokenHash: string): boolean {
-  if (process.env.NODE_ENV !== "test") {
+  const allowHarness =
+    process.env.NODE_ENV === "test" || Boolean(process.env.VITEST_WORKER_ID);
+  if (!allowHarness) {
     return false;
   }
   const row = byHash.get(tokenHash);

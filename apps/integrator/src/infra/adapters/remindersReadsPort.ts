@@ -4,9 +4,12 @@
  * On network/error returns [] or null (safe fallback).
  */
 import { createHmac } from 'node:crypto';
-import { getAppDisplayTimezoneSync } from '../../config/appTimezone.js';
+import { createDbPort } from '../db/client.js';
+import { DEFAULT_APP_DISPLAY_TIMEZONE, getAppDisplayTimezone } from '../../config/appTimezone.js';
 import { env, integratorWebhookSecret } from '../../config/env.js';
 import type {
+  DbPort,
+  DispatchPort,
   RemindersReadsPort,
   ReminderRuleListItem,
   ReminderRuleDetail,
@@ -75,14 +78,14 @@ async function fetchRemindersGet<T>(
   }
 }
 
-function mapRule(row: WebappRuleRow): ReminderRuleListItem {
+function mapRule(row: WebappRuleRow, fallbackTz: string): ReminderRuleListItem {
   return {
     id: typeof row.id === 'string' ? row.id : String(row.id ?? ''),
     userId: typeof row.userId === 'string' ? row.userId : String(row.userId ?? ''),
     category: (typeof row.category === 'string' ? row.category : '') as ReminderCategory,
     isEnabled: Boolean(row.isEnabled),
     scheduleType: typeof row.scheduleType === 'string' ? row.scheduleType : 'interval_window',
-    timezone: typeof row.timezone === 'string' ? row.timezone : getAppDisplayTimezoneSync(),
+    timezone: typeof row.timezone === 'string' ? row.timezone : fallbackTz,
     intervalMinutes: typeof row.intervalMinutes === 'number' ? row.intervalMinutes : 0,
     windowStartMinute: typeof row.windowStartMinute === 'number' ? row.windowStartMinute : 0,
     windowEndMinute: typeof row.windowEndMinute === 'number' ? row.windowEndMinute : 1440,
@@ -110,7 +113,18 @@ function mapHistoryRow(row: WebappHistoryRow): ReminderOccurrenceHistoryItem {
   };
 }
 
-export function createRemindersReadsPort(): RemindersReadsPort {
+export function createRemindersReadsPort(deps?: {
+  db?: DbPort;
+  /** Resolved at call time so DI can wire after `dispatchPort` exists. */
+  getDispatchPort?: () => DispatchPort | undefined;
+}): RemindersReadsPort {
+  const db = deps?.db ?? createDbPort();
+  const getDispatchPort = deps?.getDispatchPort;
+  const displayTzOpts = (): { db: DbPort; dispatchPort?: DispatchPort } => {
+    const dp = getDispatchPort?.();
+    return dp !== undefined ? { db, dispatchPort: dp } : { db };
+  };
+
   return {
     async listRulesForUser(integratorUserId: string) {
       const search = new URLSearchParams({ integratorUserId });
@@ -120,7 +134,11 @@ export function createRemindersReadsPort(): RemindersReadsPort {
       );
       if (!result.ok || !result.data?.rules) return [];
       const rows = Array.isArray(result.data.rules) ? result.data.rules : [];
-      return rows.map(mapRule);
+      const needsTz = rows.some((r) => typeof r.timezone !== 'string');
+      const fallbackTz = needsTz
+        ? await getAppDisplayTimezone(displayTzOpts())
+        : DEFAULT_APP_DISPLAY_TIMEZONE;
+      return rows.map((row) => mapRule(row, fallbackTz));
     },
 
     async getRuleForUserAndCategory(integratorUserId: string, category: string) {
@@ -132,7 +150,11 @@ export function createRemindersReadsPort(): RemindersReadsPort {
       if (!result.ok) return null;
       const rule = result.data?.rule;
       if (rule == null) return null;
-      return mapRule(rule) as ReminderRuleDetail;
+      const needsTz = typeof rule.timezone !== 'string';
+      const fallbackTz = needsTz
+        ? await getAppDisplayTimezone(displayTzOpts())
+        : DEFAULT_APP_DISPLAY_TIMEZONE;
+      return mapRule(rule, fallbackTz) as ReminderRuleDetail;
     },
 
     async listHistoryForUser(integratorUserId: string, limit = 50) {

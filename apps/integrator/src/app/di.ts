@@ -76,6 +76,7 @@ export type RubitimeRoutesRegistrar = (
   deps: {
     eventGateway: EventGateway;
     webappEventsPort: WebappEventsPort;
+    dispatchPort: DispatchPort;
   },
 ) => Promise<void> | void;
 
@@ -130,10 +131,15 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const dbPort = createDbPort();
   const communicationReadsPort = createCommunicationReadsPort();
+  /** Filled after `dispatchPort` is constructed (reminders reads need Telegram on display-TZ fallback). */
+  const dispatchPortForReminders: { current?: DispatchPort } = {};
   /** Without webapp base URL + webhook secret, reminder product reads stay on integrator DB (safe fallback). */
   const remindersReadsPort =
     env.APP_BASE_URL && integratorWebhookSecret().length >= 16
-      ? createRemindersReadsPort()
+      ? createRemindersReadsPort({
+          db: dbPort,
+          getDispatchPort: () => dispatchPortForReminders.current,
+        })
       : undefined;
   const remindersWebappWritesPort =
     env.APP_BASE_URL && integratorWebhookSecret().length >= 16
@@ -190,6 +196,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       readPort: dbReadPort,
       writePort: dbWritePort,
     });
+
+  dispatchPortForReminders.current = dispatchPort;
 
   const idempotencyPort = input.idempotencyPort ?? createPostgresIdempotencyPort(dbPort);
 

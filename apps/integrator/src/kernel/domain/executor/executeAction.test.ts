@@ -1,4 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../config/appTimezone.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../config/appTimezone.js')>();
+  return {
+    ...actual,
+    getAppDisplayTimezone: vi.fn(() => Promise.resolve('Europe/Moscow')),
+  };
+});
+
 import type { Action, DbReadPort, DomainContext } from '../../contracts/index.js';
 import { executeAction } from './executeAction.js';
 import { resolveTargets } from './helpers.js';

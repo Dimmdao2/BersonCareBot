@@ -42,6 +42,7 @@ import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js
 import { logger } from '../observability/logger.js';
 import { insertMailingLog } from './repos/mailingLogs.js';
 import { normalizeRuPhoneE164 } from '../phone/normalizeRuPhoneE164.js';
+import { isExplicitZonedIsoInstant } from '../../shared/explicitZonedIsoInstant.js';
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -63,6 +64,8 @@ type BookingUpsertParams = {
   /** Specialist/cooperator id for catalog branch_service lookup (Stage 2 F-04). */
   rubitimeCooperatorId?: unknown;
   gcalEventId?: unknown;
+  timeNormalizationStatus?: unknown;
+  timeNormalizationFieldErrors?: unknown;
 };
 
 function asNonEmptyString(value: unknown): string | null {
@@ -81,12 +84,42 @@ function parseNameToFirstLast(name: string): { firstName: string | null; lastNam
   return { lastName: parts[0] ?? null, firstName: parts.slice(1).join(' ') };
 }
 
+function readTimeNormalizationStatus(value: unknown): 'ok' | 'degraded' {
+  return value === 'degraded' ? 'degraded' : 'ok';
+}
+
+function readTimeNormalizationFieldErrors(
+  value: unknown,
+): Array<{ field: string; reason: string }> {
+  if (!Array.isArray(value)) return [];
+  const out: Array<{ field: string; reason: string }> = [];
+  for (const item of value) {
+    if (typeof item !== 'object' || item === null) continue;
+    const rec = item as Record<string, unknown>;
+    const field = typeof rec.field === 'string' ? rec.field : '';
+    const reason = typeof rec.reason === 'string' ? rec.reason : '';
+    if (field && reason) out.push({ field, reason });
+  }
+  return out;
+}
+
 function asFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
   const stringValue = asNonEmptyString(value);
   if (!stringValue) return null;
   const parsed = Number(stringValue);
   return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
+}
+
+/** Rejects naive / session-dependent datetimes so `::timestamptz` never interprets wall time without offset. */
+function bookingTimestamptzOrNull(label: 'recordAt' | 'dateTimeEnd', externalRecordId: string, raw: string | null): string | null {
+  if (!raw) return null;
+  if (isExplicitZonedIsoInstant(raw)) return raw;
+  logger.warn(
+    { externalRecordId, [label]: raw.slice(0, 120) },
+    `booking.upsert: ${label} rejected (not explicit Z/offset ISO), treating as null`,
+  );
+  return null;
 }
 
 function readChannelUserId(params: Record<string, unknown>): string | null {
@@ -128,7 +161,8 @@ export function createDbWritePort(input: {
             : 'updated';
           const rawPhone = asNullableString(params.phoneNormalized);
           const phoneNormalized = rawPhone ? normalizeRuPhoneE164(rawPhone) : null;
-          const recordAt = asNullableString(params.recordAt);
+          const recordAtRaw = asNonEmptyString(params.recordAt);
+          const recordAt = bookingTimestamptzOrNull('recordAt', externalRecordId, recordAtRaw);
           const payloadJson = typeof params.payloadJson === 'object' && params.payloadJson !== null
             ? (params.payloadJson as Record<string, unknown>)
             : {};
@@ -153,10 +187,15 @@ export function createDbWritePort(input: {
             asNullableString(params.serviceName) ??
             asNullableString(payloadJson.service_name) ??
             asNullableString(payloadJson.service_title);
-          const rawDateTimeEnd =
-            asNullableString(params.dateTimeEnd) ??
-            asNullableString(payloadJson.datetime_end) ??
-            asNullableString(payloadJson.date_time_end);
+          let rawDateTimeEnd =
+            asNonEmptyString(params.dateTimeEnd) ??
+            asNonEmptyString(
+              typeof payloadJson.datetime_end === 'string' ? payloadJson.datetime_end : undefined,
+            ) ??
+            asNonEmptyString(
+              typeof payloadJson.date_time_end === 'string' ? payloadJson.date_time_end : undefined,
+            );
+          rawDateTimeEnd = bookingTimestamptzOrNull('dateTimeEnd', externalRecordId, rawDateTimeEnd);
           const rawCooperatorId =
             asNullableString(params.rubitimeCooperatorId) ??
             asNullableString(payloadJson.cooperator_id) ??
@@ -171,6 +210,10 @@ export function createDbWritePort(input: {
             asNullableString(params.patientFirstName) ?? parsedFromName.firstName;
           const patientLastName: string | null =
             asNullableString(params.patientLastName) ?? parsedFromName.lastName;
+          const timeNormalizationStatus = readTimeNormalizationStatus(params.timeNormalizationStatus);
+          const timeNormalizationFieldErrors = readTimeNormalizationFieldErrors(
+            params.timeNormalizationFieldErrors,
+          );
           await db.tx(async (txDb) => {
             await upsertRecord(txDb, {
               externalRecordId,
@@ -198,6 +241,10 @@ export function createDbWritePort(input: {
               serviceId: rawServiceId ?? null,
               serviceName: rawServiceName ?? null,
               rubitimeCooperatorId: rawCooperatorId ?? null,
+              timeNormalizationStatus,
+              ...(timeNormalizationFieldErrors.length > 0
+                ? { timeNormalizationFieldErrors }
+                : {}),
             };
             await enqueueProjectionEvent(txDb, {
               eventType: APPOINTMENT_RECORD_UPSERTED,

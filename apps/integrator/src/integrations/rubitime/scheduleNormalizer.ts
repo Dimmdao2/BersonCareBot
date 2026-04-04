@@ -10,16 +10,14 @@
  * Мы возвращаем только available=true слоты с ISO startAt/endAt.
  * endAt вычисляется как startAt + durationMinutes.
  *
- * Время в ответе Rubitime — настенные часы филиала (для продукта = MSK, как webapp
- * `DEFAULT_SLOT_TZ +03:00`). Раньше ошибочно использовался Date.UTC, из‑за чего
- * «10:00» превращалось в 10:00 UTC вместо 10:00 MSK.
+ * Время в ответе Rubitime — настенные часы филиала. Интерпретация через IANA
+ * `branchTimezone` (см. каталог филиалов / `branches.timezone`).
  *
  * Если data не совпадает с ожидаемым shape — бросаем ошибку, чтобы caller мог
  * вернуть 502, а не silent empty.
  */
 
-/** Согласовано с webapp `bookingM2mApi` (MSK). */
-const RUBITIME_SLOT_WALL_OFFSET = '+03:00';
+import { normalizeToUtcInstant } from '../../shared/normalizeToUtcInstant.js';
 
 export type NormalizedSlot = {
   startAt: string;
@@ -39,6 +37,7 @@ function buildIsoSlot(
   dateStr: string,
   timeStr: string,
   durationMinutes: number,
+  branchTimezone: string,
 ): NormalizedSlot | null {
   // timeStr format: "HH:MM" (Rubitime docs)
   if (!/^\d{1,2}:\d{2}$/.test(timeStr)) return null;
@@ -50,11 +49,13 @@ function buildIsoSlot(
 
   const hh = hourStr.padStart(2, '0');
   const mm = minuteStr.padStart(2, '0');
-  const isoLocal = `${dateStr}T${hh}:${mm}:00`;
-  const start = new Date(`${isoLocal}${RUBITIME_SLOT_WALL_OFFSET}`);
-  if (Number.isNaN(start.getTime())) return null;
-  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
-  return { startAt: start.toISOString(), endAt: end.toISOString() };
+  const naiveWall = `${dateStr} ${hh}:${mm}:00`;
+  const startUtc = normalizeToUtcInstant(naiveWall, branchTimezone);
+  if (!startUtc) return null;
+  const startMs = Date.parse(startUtc);
+  if (!Number.isFinite(startMs)) return null;
+  const end = new Date(startMs + durationMinutes * 60 * 1000);
+  return { startAt: startUtc, endAt: end.toISOString() };
 }
 
 /**
@@ -63,6 +64,7 @@ function buildIsoSlot(
 export function normalizeRubitimeSchedule(
   data: unknown,
   durationMinutes: number,
+  branchTimezone: string,
   dateFilter?: string,
 ): NormalizedSlotsByDate[] {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
@@ -84,7 +86,7 @@ export function normalizeRubitimeSchedule(
       if (typeof slotRaw !== 'object' || slotRaw === null) continue;
       const slotData = slotRaw as Record<string, unknown>;
       if (slotData.available !== true) continue;
-      const normalized = buildIsoSlot(dateKey, timeKey, durationMinutes);
+      const normalized = buildIsoSlot(dateKey, timeKey, durationMinutes, branchTimezone);
       if (normalized) slots.push(normalized);
     }
 

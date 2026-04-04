@@ -5,6 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { normalizeAdminBranchTimezoneForCreate } from "../_branchTimezone";
 import { requireAdminBookingCatalog } from "../_requireAdminBookingCatalog";
 
 const PostBranchSchema = z.object({
@@ -12,6 +13,7 @@ const PostBranchSchema = z.object({
   title: z.string().min(1).max(200),
   address: z.union([z.string().max(500), z.null()]).optional(),
   rubitimeBranchId: z.string().min(1).max(120),
+  timezone: z.string().max(120).optional(),
   isActive: z.boolean().optional().default(true),
   sortOrder: z.number().int().optional().default(0),
 });
@@ -29,12 +31,19 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const parsed = PostBranchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  let timezone: string;
+  try {
+    timezone = normalizeAdminBranchTimezoneForCreate(parsed.data.timezone);
+  } catch {
+    return NextResponse.json({ ok: false, error: "invalid_timezone" }, { status: 400 });
+  }
   try {
     const { id } = await gate.ctx.port.upsertBranch({
       cityCode: parsed.data.cityCode.trim().toLowerCase(),
       title: parsed.data.title.trim(),
       address: parsed.data.address ?? null,
       rubitimeBranchId: parsed.data.rubitimeBranchId.trim(),
+      timezone,
       isActive: parsed.data.isActive,
       sortOrder: parsed.data.sortOrder,
     });

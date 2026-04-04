@@ -32,6 +32,11 @@ vi.mock('../../infra/adapters/deliveryTargetsPort.js', () => ({
   }),
 }));
 
+vi.mock('../../infra/db/branchTimezone.js', () => ({
+  createGetBranchTimezoneWithDataQuality: () => async () => 'Europe/Moscow',
+  resetBranchTimezoneCacheForTests: vi.fn(),
+}));
+
 import { registerRubitimeRecordM2mRoutes } from './recordM2mRoute.js';
 
 const TEST_SECRET = 'test-shared-secret-16chars';

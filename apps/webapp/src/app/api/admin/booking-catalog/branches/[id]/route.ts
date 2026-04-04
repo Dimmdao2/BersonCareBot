@@ -6,6 +6,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { normalizeAdminBranchTimezoneForPatch } from "../../_branchTimezone";
 import { httpFromDatabaseError, jsonIfInvalidCatalogId } from "../../_httpErrors";
 import { requireAdminBookingCatalog } from "../../_requireAdminBookingCatalog";
 
@@ -14,6 +15,7 @@ const PatchBranchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   address: z.union([z.string().max(500), z.null()]).optional(),
   rubitimeBranchId: z.string().min(1).max(120).optional(),
+  timezone: z.string().max(120).optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 });
@@ -38,8 +40,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const body = await request.json().catch(() => null);
   const parsed = PatchBranchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ ok: false, error: "invalid_input" }, { status: 400 });
+  let patch = parsed.data;
+  if (parsed.data.timezone !== undefined) {
+    try {
+      patch = { ...parsed.data, timezone: normalizeAdminBranchTimezoneForPatch(parsed.data.timezone) };
+    } catch {
+      return NextResponse.json({ ok: false, error: "invalid_timezone" }, { status: 400 });
+    }
+  }
   try {
-    const branch = await gate.ctx.port.updateBranchById(id, parsed.data);
+    const branch = await gate.ctx.port.updateBranchById(id, patch);
     if (!branch) return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     return NextResponse.json({ ok: true, branch });
   } catch (e) {

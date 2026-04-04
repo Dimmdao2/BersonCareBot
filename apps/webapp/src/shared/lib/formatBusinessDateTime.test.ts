@@ -11,6 +11,7 @@ import {
 
 describe("formatBusinessDateTime", () => {
   const msk = "Europe/Moscow";
+  const samara = "Europe/Samara";
 
   it("formatBookingDateTimeMediumRu uses explicit time zone", () => {
     const s = formatBookingDateTimeMediumRu("2026-04-10T07:00:00.000Z", msk);
@@ -35,13 +36,30 @@ describe("formatBusinessDateTime", () => {
     expect(formatDoctorAppointmentRecordAt(null, msk)).toBe("");
   });
 
-  it("parseBusinessInstant treats naive ISO as MSK wall when display zone is Moscow", () => {
+  it("parseBusinessInstant treats naive ISO as wall time in display timezone (Moscow)", () => {
     const d = parseBusinessInstant("2026-04-10T10:00:00", msk);
     expect(d.toISOString()).toBe("2026-04-10T07:00:00.000Z");
   });
 
+  it("parseBusinessInstant treats naive ISO as wall time in display timezone (Samara)", () => {
+    const d = parseBusinessInstant("2026-04-10T10:00:00", samara);
+    expect(d.toISOString()).toBe("2026-04-10T06:00:00.000Z");
+  });
+
+  it("parseBusinessInstant yields different UTC instants for Moscow and Samara naive wall time", () => {
+    const moscow = parseBusinessInstant("2026-04-10T10:00:00", msk);
+    const sam = parseBusinessInstant("2026-04-10T10:00:00", samara);
+    expect(moscow.toISOString()).toBe("2026-04-10T07:00:00.000Z");
+    expect(sam.toISOString()).toBe("2026-04-10T06:00:00.000Z");
+  });
+
   it("parseBusinessInstant leaves explicit Z unchanged", () => {
     const d = parseBusinessInstant("2026-04-10T07:00:00.000Z", msk);
+    expect(d.toISOString()).toBe("2026-04-10T07:00:00.000Z");
+  });
+
+  it("parseBusinessInstant leaves explicit offset unchanged", () => {
+    const d = parseBusinessInstant("2026-04-10T10:00:00+03:00", samara);
     expect(d.toISOString()).toBe("2026-04-10T07:00:00.000Z");
   });
 

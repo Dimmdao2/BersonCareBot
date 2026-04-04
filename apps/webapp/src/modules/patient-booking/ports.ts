@@ -39,6 +39,8 @@ export type BookingSlotsIntegratorQuery =
       rubitimeCooperatorId: string;
       rubitimeServiceId: string;
       slotDurationMinutes: number;
+      /** IANA zone for Rubitime wall-clock times[] (from booking catalog branch). */
+      branchTimezone: string;
       date?: string;
     };
 
