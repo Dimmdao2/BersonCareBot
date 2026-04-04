@@ -604,6 +604,56 @@ Gate verdict:
 
 ---
 
+## Production verification (operator)
+
+- Status: `PASS` (операторская проверка после деплоя)
+- Last update: `2026-04-04` (UTC+02 host time in evidence; apply completed)
+
+### Entries
+
+```text
+[2026-04-04] [Production] [EXEC] [operator+agent]
+Tasks done:
+- Подтверждено применение миграций integrator:
+  - `core:20260406_0002_create_system_settings.sql`
+  - `rubitime:20260406_0005_rubitime_branches_timezone.sql`
+  Проверка по `schema_migrations` и `information_schema.columns` (наличие `rubitime_branches.timezone`).
+- Проверен post-deploy ingest (`rubitime_events.received_at >= 2026-04-04 19:10:33+02`): raw wall-clock события приходят корректно (`{record,record}`), новые записи в приложении/журнале отображаются в ожидаемом локальном времени.
+- Исправлен путь bot-notification для Rubitime-скриптов: `incoming.recordAtFormatted` теперь формируется из UTC instant через локальную TZ филиала (не через прямое чтение часов из UTC ISO-строки).
+- Stage 6 dry-run выполнен на целевой среде:
+  - mode: dry-run
+  - cutoffExclusive: `2026-04-04T19:10:33.000+02:00`
+  - counts: `rubitime_records_to_update=0`, `appointment_records_to_update=0`, `patient_bookings_to_update=0`, `unresolved_candidates=0`
+  - dryRunTransaction.rowsTouched: все `0`
+- Перед apply выполнен backup обеих БД:
+  - `/opt/backups/postgres/pre-migrations/integrator_tgcarebot_20260404_200658.dump`
+  - `/opt/backups/postgres/pre-migrations/webapp_bcb_webapp_prod_20260404_200658.dump`
+- Stage 6 apply выполнен на целевой среде:
+  - mode: apply
+  - cutoffExclusive: `2026-04-04T19:10:33.000+02:00`
+  - counts: `rubitime_records_to_update=0`, `appointment_records_to_update=0`, `patient_bookings_to_update=0`, `unresolved_candidates=0`
+  - dryRunTransaction.transaction: `COMMIT`
+  - dryRunTransaction.rowsTouched: все `0`
+Changed files:
+- apps/integrator/src/integrations/rubitime/ingestNormalization.ts
+- apps/integrator/src/integrations/rubitime/ingestNormalization.test.ts
+- apps/integrator/src/integrations/rubitime/timezoneContract.stage8.test.ts
+- docs/TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md
+Checks:
+- tests: `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/ingestNormalization.test.ts src/integrations/rubitime/timezoneContract.stage8.test.ts` — PASS (10 tests).
+- lints: проверка изменённых integrator-файлов — без ошибок.
+Evidence:
+- CLI evidence (host): `schema_migrations` содержит обе миграции от `20260406`; `rubitime_branches` содержит колонку `timezone`.
+- Dry-run evidence (host): `/tmp/stage6-dry-run.json`, `/tmp/stage6-unresolved-dry-run.jsonl` (0 строк).
+- Apply evidence (host): stdout `mode=apply`, `transaction=COMMIT`, `rowsTouched=0`; unresolved файл `/tmp/stage6-unresolved.jsonl` (0 строк).
+Gate verdict:
+- PASS (проблема времени в бот-сообщениях подтверждённо устранена; Stage 6 dry-run и apply на текущем cutoff — no-op).
+Notes:
+- `jq` на `/tmp/stage6-dry-run.json` требует вырезать префиксные строки (`pnpm`/`dotenv`) перед парсингом JSON.
+```
+
+---
+
 ## Final Decision
 
 - Release readiness: `READY` (код + CI; бэкфилл истории на prod — по runbook)

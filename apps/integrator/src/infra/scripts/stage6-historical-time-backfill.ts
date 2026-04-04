@@ -429,20 +429,52 @@ Env: DATABASE_URL, optional WEBAPP_DATABASE_URL`);
       }
 
       let pbUpdated = 0;
-      for (const p of plannedBookings) {
-        const u = await wClient.query(
-          `UPDATE patient_bookings
-           SET slot_start = $1::timestamptz, slot_end = $2::timestamptz, updated_at = NOW()
-           WHERE id = $3::uuid
-             AND source = 'rubitime_projection'
-             AND (
-               slot_start IS DISTINCT FROM $1::timestamptz
-               OR slot_end IS DISTINCT FROM $2::timestamptz
-             )`,
-          [p.newSlotStart, p.newSlotEnd, p.id],
-        );
-        pbUpdated += u.rowCount ?? 0;
+      let pbOverlapConflicts = 0;
+      let pbPasses = 0;
+      // Reduce transient overlap conflicts by moving later slots first and retrying unresolved rows.
+      let pendingBookings = [...plannedBookings].sort(
+        (a, b) => Date.parse(b.oldSlotStart) - Date.parse(a.oldSlotStart),
+      );
+      const maxPasses = 6;
+      for (let pass = 1; pass <= maxPasses && pendingBookings.length > 0; pass += 1) {
+        pbPasses = pass;
+        let progress = 0;
+        const nextPending: typeof pendingBookings = [];
+        for (const p of pendingBookings) {
+          try {
+            const u = await wClient.query(
+              `UPDATE patient_bookings
+               SET slot_start = $1::timestamptz, slot_end = $2::timestamptz, updated_at = NOW()
+               WHERE id = $3::uuid
+                 AND source = 'rubitime_projection'
+                 AND (
+                   slot_start IS DISTINCT FROM $1::timestamptz
+                   OR slot_end IS DISTINCT FROM $2::timestamptz
+                 )`,
+              [p.newSlotStart, p.newSlotEnd, p.id],
+            );
+            const touched = u.rowCount ?? 0;
+            pbUpdated += touched;
+            if (touched > 0) progress += 1;
+          } catch (err) {
+            const code = typeof err === "object" && err !== null && "code" in err
+              ? String((err as { code?: unknown }).code ?? "")
+              : "";
+            const constraint = typeof err === "object" && err !== null && "constraint" in err
+              ? String((err as { constraint?: unknown }).constraint ?? "")
+              : "";
+            if (code === "23P01" && constraint === "patient_bookings_slot_no_overlap") {
+              nextPending.push(p);
+              continue;
+            }
+            throw err;
+          }
+        }
+        pendingBookings = nextPending;
+        if (pendingBookings.length === 0) break;
+        if (progress === 0) break;
       }
+      pbOverlapConflicts = pendingBookings.length;
 
       if (args.apply && unresolved.length > 0) {
         for (const u of unresolved) {
@@ -462,6 +494,10 @@ Env: DATABASE_URL, optional WEBAPP_DATABASE_URL`);
           rubitime_records_update_returning_rowcount: rubUpdated,
           appointment_records_update_returning_rowcount: apUpdated,
           patient_bookings_update_returning_rowcount: pbUpdated,
+        },
+        skipped: {
+          patient_bookings_overlap_conflicts: pbOverlapConflicts,
+          patient_bookings_retry_passes: pbPasses,
         },
       };
       console.log(JSON.stringify({ dryRunTransaction: txReport }, null, 2));
