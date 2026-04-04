@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   normalizePhoneForCompare,
   isRubitimeCanceled,
-  rubitimeMaybeDateToIso,
+  rubitimeRemoteDateToUtcIso,
   mapRemoteStatusToLocal,
   computeResyncDiff,
   isOutboxRepairCandidate,
@@ -68,45 +68,43 @@ describe('isRubitimeCanceled', () => {
   });
 });
 
-// ── rubitimeMaybeDateToIso ────────────────────────────────────────────────────
+// ── rubitimeRemoteDateToUtcIso (normalizeToUtcInstant) ─────────────────────────
 
-describe('rubitimeMaybeDateToIso', () => {
-  const MSK = 180; // UTC+3
+describe('rubitimeRemoteDateToUtcIso', () => {
+  const MSK = 'Europe/Moscow';
 
   it('returns null for null/undefined/empty', () => {
-    expect(rubitimeMaybeDateToIso(null, MSK)).toBeNull();
-    expect(rubitimeMaybeDateToIso(undefined, MSK)).toBeNull();
-    expect(rubitimeMaybeDateToIso('', MSK)).toBeNull();
+    expect(rubitimeRemoteDateToUtcIso(null, MSK)).toBeNull();
+    expect(rubitimeRemoteDateToUtcIso(undefined, MSK)).toBeNull();
+    expect(rubitimeRemoteDateToUtcIso('', MSK)).toBeNull();
   });
 
-  it('converts naive date-time using provided offset', () => {
-    // "2026-04-01 10:00:00" at UTC+3 → UTC 07:00:00
-    const result = rubitimeMaybeDateToIso('2026-04-01 10:00:00', MSK);
+  it('converts naive date-time in IANA zone', () => {
+    const result = rubitimeRemoteDateToUtcIso('2026-04-01 10:00:00', MSK);
     expect(result).toBe('2026-04-01T07:00:00.000Z');
   });
 
   it('respects explicit Z suffix', () => {
-    const result = rubitimeMaybeDateToIso('2026-04-01T07:00:00.000Z', MSK);
+    const result = rubitimeRemoteDateToUtcIso('2026-04-01T07:00:00.000Z', MSK);
     expect(result).toBe('2026-04-01T07:00:00.000Z');
   });
 
   it('respects explicit +03:00 offset', () => {
-    const result = rubitimeMaybeDateToIso('2026-04-01T10:00:00+03:00', MSK);
+    const result = rubitimeRemoteDateToUtcIso('2026-04-01T10:00:00+03:00', MSK);
     expect(result).toBe('2026-04-01T07:00:00.000Z');
   });
 
   it('handles T-separated naive datetime', () => {
-    const result = rubitimeMaybeDateToIso('2026-04-01T10:00:00', MSK);
+    const result = rubitimeRemoteDateToUtcIso('2026-04-01T10:00:00', MSK);
     expect(result).toBe('2026-04-01T07:00:00.000Z');
   });
 
   it('returns null for unparseable string', () => {
-    expect(rubitimeMaybeDateToIso('not-a-date', MSK)).toBeNull();
+    expect(rubitimeRemoteDateToUtcIso('not-a-date', MSK)).toBeNull();
   });
 
-  it('handles negative offset (e.g. UTC-5)', () => {
-    // "2026-04-01 10:00:00" at UTC-5 → UTC 15:00:00
-    const result = rubitimeMaybeDateToIso('2026-04-01 10:00:00', -300);
+  it('uses fixed-offset IANA for non-MSK zones', () => {
+    const result = rubitimeRemoteDateToUtcIso('2026-04-01 10:00:00', 'Etc/GMT+5');
     expect(result).toBe('2026-04-01T15:00:00.000Z');
   });
 });
@@ -163,7 +161,7 @@ function makeLocalRow(overrides: Partial<{
   };
 }
 
-const MSK = 180;
+const MSK = 'Europe/Moscow';
 
 describe('computeResyncDiff', () => {
   it('returns empty diff for matching records', () => {

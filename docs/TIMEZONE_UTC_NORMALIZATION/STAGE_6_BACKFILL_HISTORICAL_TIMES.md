@@ -106,6 +106,10 @@ Post-check:
 - Backup и evidence сохранены.
 - `pnpm run ci` зеленый.
 
+## Артефакты в репозитории
+
+- Рабочие скрипты, SQL-диагностика, критерии и apply-plan: `docs/TIMEZONE_UTC_NORMALIZATION/stage6/` (`README.md`, `DIAGNOSTICS.sql`, `APPLY_PLAN.md`).
+
 ## Артефакты в лог
 
 В `AGENT_EXECUTION_LOG.md` зафиксировать:

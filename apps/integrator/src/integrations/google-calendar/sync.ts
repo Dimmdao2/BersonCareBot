@@ -1,8 +1,6 @@
 import { createDbPort } from '../../infra/db/client.js';
-import {
-  getAppDisplayTimezone,
-  resolveRubitimeRecordAtUtcOffsetMinutes,
-} from '../../config/appTimezone.js';
+import { getAppDisplayTimezone } from '../../config/appTimezone.js';
+import { normalizeToUtcInstant } from '../../shared/normalizeToUtcInstant.js';
 import { createGoogleCalendarClient, type GoogleCalendarClient, type GoogleCalendarEventInput } from './client.js';
 import { isGoogleCalendarConfigured, type GoogleCalendarConfig } from './config.js';
 import { getGoogleCalendarConfig } from './runtimeConfig.js';
@@ -42,46 +40,6 @@ function asNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-/** ISO with explicit zone is parsed as-is; naive `YYYY-MM-DD HH:mm:ss` / `T` without zone uses app display timezone. */
-function parseRecordAtToIso(recordAt: string, displayTimeZone: string): string | null {
-  const trimmed = recordAt.trim();
-  const hasExplicitZone = /Z$/i.test(trimmed) || /[+-]\d{2}:\d{2}$/.test(trimmed);
-  if (hasExplicitZone) {
-    const date = new Date(trimmed);
-    if (Number.isNaN(date.getTime())) return null;
-    return date.toISOString();
-  }
-  const naiveLocal = /^\d{4}-\d{2}-\d{2}(?: |T)\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(trimmed);
-  if (naiveLocal) {
-    const isoLocal = trimmed.includes('T') ? trimmed : trimmed.replace(' ', 'T');
-    const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(isoLocal);
-    const probe =
-      parts !== null
-        ? new Date(
-            Date.UTC(
-              Number(parts[1]),
-              Number(parts[2]) - 1,
-              Number(parts[3]),
-              Number(parts[4]),
-              Number(parts[5]),
-              Number(parts[6]),
-            ),
-          )
-        : new Date();
-    const offsetMin = resolveRubitimeRecordAtUtcOffsetMinutes(probe, displayTimeZone);
-    const sign = offsetMin >= 0 ? '+' : '-';
-    const abs = Math.abs(offsetMin);
-    const oh = String(Math.floor(abs / 60)).padStart(2, '0');
-    const om = String(abs % 60).padStart(2, '0');
-    const date = new Date(`${isoLocal}${sign}${oh}:${om}`);
-    if (Number.isNaN(date.getTime())) return null;
-    return date.toISOString();
-  }
-  const date = new Date(trimmed);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
-}
-
 function extractDurationMinutes(record: Record<string, unknown> | undefined): number {
   if (!record) return 60;
   return (
@@ -114,7 +72,7 @@ export async function mapRubitimeEventToGoogleEvent(
           ? { db, dispatchPort: options.dispatchPort }
           : { db },
       ));
-  const startIso = parseRecordAtToIso(input.recordAt, displayTimeZone);
+  const startIso = normalizeToUtcInstant(input.recordAt, displayTimeZone);
   if (!startIso) return null;
   const durationMinutes = extractDurationMinutes(input.record);
   const endIso = new Date(new Date(startIso).getTime() + durationMinutes * 60_000).toISOString();

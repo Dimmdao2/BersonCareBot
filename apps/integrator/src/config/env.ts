@@ -33,14 +33,6 @@ const parsed = z
     GOOGLE_REDIRECT_URI: z.string().optional().default(''),
     GOOGLE_CALENDAR_ID: z.string().optional().default(''),
     GOOGLE_REFRESH_TOKEN: z.string().optional().default(''),
-    /**
-     * Опциональный оверрайд минутного смещения UTC для наивных дат Rubitime без зоны.
-     * Если не задан — смещение берётся из IANA display-timezone в `system_settings.app_display_timezone` (см. {@link getAppDisplayTimezone}).
-     */
-    RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES: z.preprocess(
-      (v) => (v === '' || v === undefined || v === null ? undefined : v),
-      z.coerce.number().optional(),
-    ),
   })
   .parse(process.env);
 

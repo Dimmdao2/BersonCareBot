@@ -277,7 +277,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
       }
       const slotStartIso = input.slotStart ?? existingRow.slot_start.toISOString();
       const merge = await mergeCompatProjectionFields(input, slotStartIso);
-      // UPDATE path: keep native slot times intact (webhook can carry naive local datetimes).
+      // UPDATE path: native bookings keep their slot times; only Rubitime projection rows take
+      // webhook timestamps. Legacy guard (not the normal path after Stage 3 ingest): webhook payloads
+      // may still carry naive local datetimes — COALESCE preserves stored instants when projection omits a value.
       await pool.query(
         `UPDATE patient_bookings
          SET status = $2::text,

@@ -277,7 +277,7 @@ pnpm --dir apps/integrator run rubitime:compare-records -- \
   --min-interval-ms=5600 \
   --retry-count=2 \
   --retry-base-ms=6000 \
-  --rubitime-offset-minutes=180 \
+  --display-timezone=Europe/Moscow \
   --stale-threshold-minutes=120 \
   --sample-size=200 \
   --report-file="/root/rubitime-compare-report-20d-final.json"
@@ -372,7 +372,7 @@ GROUP BY status;
 | `--min-interval-ms=N` | 5200 | Минимальный интервал между запросами к API |
 | `--retry-count=N` | 2 | Кол-во повторов при rate-limit |
 | `--stale-threshold-minutes=N` | 120 | Порог stale updated_at (мин) |
-| `--rubitime-offset-minutes=N` | из env/appTimezone | Офсет наивных дат Rubitime |
+| `--display-timezone=IANA` | из `system_settings.app_display_timezone` | IANA-зона для наивных дат Rubitime (`normalizeToUtcInstant`) |
 | `--sample-size=N` | 25 | Кол-во sample-записей в отчёте |
 | `--report-file=PATH` | stdout | Файл для JSON-отчёта |
 | `--phone-last10=XXXXXXXXXX` | - | Фильтр repair-outbox по телефону |

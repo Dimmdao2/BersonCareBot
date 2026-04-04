@@ -11,7 +11,8 @@
  */
 import '../../config/loadEnv.js';
 import { writeFile } from 'node:fs/promises';
-import { getRubitimeRecordAtUtcOffsetMinutesForInstant } from '../../config/appTimezone.js';
+import { getAppDisplayTimezone } from '../../config/appTimezone.js';
+import { normalizeToUtcInstant } from '../../shared/normalizeToUtcInstant.js';
 import { createDbPort, closeDb } from '../db/client.js';
 import { fetchRubitimeRecordById } from '../../integrations/rubitime/client.js';
 
@@ -24,7 +25,7 @@ type Args = {
   minIntervalMs: number;
   retryCount: number;
   retryBaseMs: number;
-  rubitimeOffsetMinutes: number;
+  displayTimeZone: string;
   staleThresholdMinutes: number;
   sampleSize: number;
   reportFile: string | null;
@@ -96,7 +97,12 @@ function parsePositiveInt(raw: string | undefined, fallback: number, min = 1, ma
   return Math.max(min, Math.min(max, int));
 }
 
-function parseArgs(argv: string[], defaultRubitimeOffsetMinutes: number): Args {
+function parseDisplayTimeZoneFlag(raw: string | undefined, fallback: string): string {
+  const t = raw?.trim();
+  return t && t.length > 0 ? t : fallback;
+}
+
+function parseArgs(argv: string[], defaultDisplayTimeZone: string): Args {
   const lookup = (prefix: string): string | undefined => {
     const item = argv.find((x) => x.startsWith(prefix));
     return item ? item.slice(prefix.length) : undefined;
@@ -111,12 +117,7 @@ function parseArgs(argv: string[], defaultRubitimeOffsetMinutes: number): Args {
     minIntervalMs: parsePositiveInt(lookup('--min-interval-ms='), 5200, 0, 60_000),
     retryCount: parsePositiveInt(lookup('--retry-count='), 2, 0, 20),
     retryBaseMs: parsePositiveInt(lookup('--retry-base-ms='), 5500, 100, 120_000),
-    rubitimeOffsetMinutes: parsePositiveInt(
-      lookup('--rubitime-offset-minutes='),
-      defaultRubitimeOffsetMinutes,
-      -720,
-      840,
-    ),
+    displayTimeZone: parseDisplayTimeZoneFlag(lookup('--display-timezone='), defaultDisplayTimeZone),
     staleThresholdMinutes: parsePositiveInt(lookup('--stale-threshold-minutes='), 120, 1, 10080),
     sampleSize: parsePositiveInt(lookup('--sample-size='), 25, 1, 1000),
     reportFile: asNonEmptyString(lookup('--report-file=')),
@@ -142,30 +143,10 @@ function dateToIso(value: unknown): string | null {
   return null;
 }
 
-function rubitimeMaybeDateToIso(value: unknown, offsetMinutes: number): string | null {
+function rubitimeRemoteDateToUtcIso(value: unknown, displayTimeZone: string): string | null {
   const s = asNonEmptyString(value);
   if (!s) return null;
-  const hasExplicitZone = /Z$/i.test(s) || /[+-]\d{2}:\d{2}$/.test(s);
-  if (hasExplicitZone) {
-    const zoned = new Date(s);
-    if (!Number.isNaN(zoned.getTime())) return zoned.toISOString();
-    return null;
-  }
-
-  const naiveLocal = /^\d{4}-\d{2}-\d{2}(?: |T)\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(s);
-  if (naiveLocal) {
-    const isoLocal = s.includes('T') ? s : s.replace(' ', 'T');
-    const sign = offsetMinutes >= 0 ? '+' : '-';
-    const abs = Math.abs(offsetMinutes);
-    const oh = String(Math.floor(abs / 60)).padStart(2, '0');
-    const om = String(abs % 60).padStart(2, '0');
-    const withZone = new Date(`${isoLocal}${sign}${oh}:${om}`);
-    if (!Number.isNaN(withZone.getTime())) return withZone.toISOString();
-    return null;
-  }
-  const d = new Date(s);
-  if (!Number.isNaN(d.getTime())) return d.toISOString();
-  return null;
+  return normalizeToUtcInstant(s, displayTimeZone);
 }
 
 function valuesEqualLoose(a: unknown, b: unknown): boolean {
@@ -183,7 +164,7 @@ function isRubitimeCanceled(remote: Record<string, unknown>): boolean {
 function compareRow(
   local: LocalRow,
   remote: Record<string, unknown>,
-  offsetMinutes: number,
+  displayTimeZone: string,
   staleThresholdMinutes: number,
 ): string[] {
   const reasons: string[] = [];
@@ -206,7 +187,7 @@ function compareRow(
   }
 
   const localRecordAtIso = dateToIso(local.record_at);
-  const remoteRecordAtIso = rubitimeMaybeDateToIso(remote.record ?? remote.datetime, offsetMinutes);
+  const remoteRecordAtIso = rubitimeRemoteDateToUtcIso(remote.record ?? remote.datetime, displayTimeZone);
   if (localRecordAtIso && remoteRecordAtIso) {
     const diffMin = Math.round((Date.parse(remoteRecordAtIso) - Date.parse(localRecordAtIso)) / 60_000);
     if (diffMin !== 0) {
@@ -230,7 +211,7 @@ function compareRow(
   }
 
   const localUpdatedAtIso = dateToIso(local.updated_at);
-  const remoteUpdatedAtIso = rubitimeMaybeDateToIso(remote.updated_at, offsetMinutes);
+  const remoteUpdatedAtIso = rubitimeRemoteDateToUtcIso(remote.updated_at, displayTimeZone);
   if (localUpdatedAtIso && remoteUpdatedAtIso) {
     const localTs = Date.parse(localUpdatedAtIso);
     const remoteTs = Date.parse(remoteUpdatedAtIso);
@@ -374,11 +355,8 @@ async function fetchRubitimeRecordWithRetry(input: {
 
 async function main(): Promise<void> {
   const db = createDbPort();
-  const defaultRubitimeOffsetMinutes = await getRubitimeRecordAtUtcOffsetMinutesForInstant({
-    db,
-    instant: new Date(),
-  });
-  const args = parseArgs(process.argv.slice(2), defaultRubitimeOffsetMinutes);
+  const defaultDisplayTimeZone = await getAppDisplayTimezone({ db });
+  const args = parseArgs(process.argv.slice(2), defaultDisplayTimeZone);
   if (args.minIntervalMs > 0 && args.concurrency > 1) {
     console.warn(
       `[warn] min-interval-ms=${args.minIntervalMs} is enabled, forcing concurrency=1 for safe rate limiting`,
@@ -416,7 +394,7 @@ async function main(): Promise<void> {
           minIntervalMs: args.minIntervalMs,
           retryCount: args.retryCount,
           retryBaseMs: args.retryBaseMs,
-          rubitimeOffsetMinutes: args.rubitimeOffsetMinutes,
+          displayTimeZone: args.displayTimeZone,
           staleThresholdMinutes: args.staleThresholdMinutes,
           sampleSize: args.sampleSize,
         },
@@ -462,7 +440,7 @@ async function main(): Promise<void> {
             const reasons = compareRow(
               row,
               remote,
-              args.rubitimeOffsetMinutes,
+              args.displayTimeZone,
               args.staleThresholdMinutes,
             );
             if (reasons.length === 0) return { kind: 'ok', recordId };
@@ -533,7 +511,7 @@ async function main(): Promise<void> {
       minIntervalMs: args.minIntervalMs,
       retryCount: args.retryCount,
       retryBaseMs: args.retryBaseMs,
-      rubitimeOffsetMinutes: args.rubitimeOffsetMinutes,
+      displayTimeZone: args.displayTimeZone,
       staleThresholdMinutes: args.staleThresholdMinutes,
       sampleSize: args.sampleSize,
     },

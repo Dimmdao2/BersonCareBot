@@ -1,12 +1,11 @@
 import type { DbPort, DispatchPort } from '../kernel/contracts/index.js';
-import { env } from './env.js';
 import { logger } from '../infra/observability/logger.js';
 import { recordDataQualityIncidentAndMaybeTelegram } from '../infra/db/dataQualityIncidentAlert.js';
 import type { IntegrationDataQualityErrorReason } from '../shared/integrationDataQuality/types.js';
 
 /**
  * Единая IANA-таймзона «бизнес-времени» интегратора: букинг, напоминания, формат сообщений,
- * интерпретация наивных дат Rubitime (в связке с {@link resolveRubitimeRecordAtUtcOffsetMinutes}).
+ * интерпретация наивных дат Rubitime (канонический парсинг — `shared/normalizeToUtcInstant`; см. {@link resolveRubitimeRecordAtUtcOffsetMinutes}).
  * Источник: `system_settings` key `app_display_timezone`, scope `admin` (как в webapp).
  */
 export const DEFAULT_APP_DISPLAY_TIMEZONE = 'Europe/Moscow';
@@ -223,13 +222,10 @@ export function getAppDisplayTimezoneSync(): string {
 }
 
 /**
- * Минуты смещения UTC для наивных меток Rubitime (`YYYY-MM-DD HH:mm:ss` без зоны).
- * Если в env задан RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES — используется он (ручной оверрайд).
- * Иначе — смещение выводится из IANA `displayTimeZone` для переданного instant.
+ * Минуты смещения UTC для наивных меток Rubitime (`YYYY-MM-DD HH:mm:ss` без зоны):
+ * из IANA `displayTimeZone` для переданного instant (DST через ICU `longOffset`).
  */
 export function resolveRubitimeRecordAtUtcOffsetMinutes(instant: Date, displayTimeZone: string): number {
-  const n = env.RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES;
-  if (typeof n === 'number' && Number.isFinite(n)) return n;
   return utcOffsetMinutesFromLongOffset(displayTimeZone, instant);
 }
 

@@ -25,7 +25,9 @@
     "projection-health": "node scripts/projection-health.mjs",
     "rubitime:compare-records": "tsx src/infra/scripts/compare-rubitime-records.ts",
     "rubitime:resync": "tsx src/infra/scripts/resync-rubitime-records.ts",
-    "rubitime:resync:host": "node dist/infra/scripts/resync-rubitime-records.js"
+    "rubitime:resync:host": "node dist/infra/scripts/resync-rubitime-records.js",
+    "timezone:stage6-backfill": "tsx src/infra/scripts/stage6-historical-time-backfill.ts",
+    "timezone:stage6-backfill:host": "node dist/infra/scripts/stage6-historical-time-backfill.js"
   },
   "engines": {
     "node": ">=20"

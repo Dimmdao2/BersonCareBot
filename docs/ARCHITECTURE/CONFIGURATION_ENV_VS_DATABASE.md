@@ -13,6 +13,7 @@
 
 - Публичные ссылки: `support_contact_url`.
 - Отображение времени слотов и связанного UI: **`app_display_timezone`** (IANA, по умолчанию `Europe/Moscow`) — единая бизнес-таймзона для форматирования `record_at` / записей на приём в webapp; см. `getAppDisplayTimeZone()`, `formatBusinessDateTime.ts`, `docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md` (подраздел про подписи).
+- **Политика timezone (интегратор + webapp):** календарные IANA-зоны филиалов/каталога бронирования хранятся в таблицах webapp (`branches.timezone`, `booking_branches.timezone` и т.д.). Глобальная зона отображения и интерпретации наивных строк Rubitime для интегратора — **`system_settings.app_display_timezone`** (admin). Переменные окружения **не** используются для фиксированных UTC-offset’ов или «ручного» смещения `record_at` (устаревшие имена вроде `RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES` сняты с поддержки). Парсинг строк времени в UTC-instant — общий модуль `normalizeToUtcInstant` (integrator shared; webapp re-export при необходимости).
 - Вайтлисты: `allowed_telegram_ids`, `allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`, `doctor_max_ids`, `admin_phones`, `doctor_phones`, `allowed_phones`.
 - Операционные флаги: `dev_mode`, `debug_forward_to_admin`, `important_fallback_delay_minutes`, `integration_test_ids`.
 - Настройки пользователя (doctor scope): `patient_label`, `sms_fallback_enabled`.

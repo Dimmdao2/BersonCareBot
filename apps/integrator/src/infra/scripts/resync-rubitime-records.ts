@@ -27,7 +27,8 @@
 import '../../config/loadEnv.js';
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { getRubitimeRecordAtUtcOffsetMinutesForInstant } from '../../config/appTimezone.js';
+import { getAppDisplayTimezone } from '../../config/appTimezone.js';
+import { normalizeToUtcInstant } from '../../shared/normalizeToUtcInstant.js';
 import { createDbPort, closeDb } from '../db/client.js';
 import { fetchRubitimeRecordById } from '../../integrations/rubitime/client.js';
 
@@ -81,7 +82,8 @@ type ResyncArgs = {
   minIntervalMs: number;
   retryCount: number;
   retryBaseMs: number;
-  rubitimeOffsetMinutes: number;
+  /** IANA zone for interpreting naive Rubitime datetimes (default from `system_settings.app_display_timezone`). */
+  displayTimeZone: string;
   staleThresholdMinutes: number;
   sampleSize: number;
   reportFile: string | null;
@@ -111,26 +113,11 @@ export function isRubitimeCanceled(remote: Record<string, unknown>): boolean {
   );
 }
 
-export function rubitimeMaybeDateToIso(value: unknown, offsetMinutes: number): string | null {
+/** Rubitime API date strings → UTC ISO via {@link normalizeToUtcInstant}. */
+export function rubitimeRemoteDateToUtcIso(value: unknown, displayTimeZone: string): string | null {
   const s = nonEmptyStr(value);
   if (!s) return null;
-  const hasExplicitZone = /Z$/i.test(s) || /[+-]\d{2}:\d{2}$/.test(s);
-  if (hasExplicitZone) {
-    const d = new Date(s);
-    return Number.isNaN(d.getTime()) ? null : d.toISOString();
-  }
-  const naiveLocal = /^\d{4}-\d{2}-\d{2}(?: |T)\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(s);
-  if (naiveLocal) {
-    const isoLocal = s.includes('T') ? s : s.replace(' ', 'T');
-    const sign = offsetMinutes >= 0 ? '+' : '-';
-    const abs = Math.abs(offsetMinutes);
-    const oh = String(Math.floor(abs / 60)).padStart(2, '0');
-    const om = String(abs % 60).padStart(2, '0');
-    const d = new Date(`${isoLocal}${sign}${oh}:${om}`);
-    return Number.isNaN(d.getTime()) ? null : d.toISOString();
-  }
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  return normalizeToUtcInstant(s, displayTimeZone);
 }
 
 export function mapRemoteStatusToLocal(
@@ -145,7 +132,7 @@ export function mapRemoteStatusToLocal(
 export function computeResyncDiff(
   local: LocalRow,
   remote: Record<string, unknown>,
-  offsetMinutes: number,
+  displayTimeZone: string,
   staleThresholdMinutes: number,
 ): ResyncDiff {
   const classes: DiffClass[] = [];
@@ -171,7 +158,7 @@ export function computeResyncDiff(
   }
 
   const localRecordAtIso = dateToIso(local.record_at);
-  const remoteRecordAtIso = rubitimeMaybeDateToIso(remote['record'] ?? remote['datetime'], offsetMinutes);
+  const remoteRecordAtIso = rubitimeRemoteDateToUtcIso(remote['record'] ?? remote['datetime'], displayTimeZone);
   if (localRecordAtIso && remoteRecordAtIso) {
     const diffMin = Math.round((Date.parse(remoteRecordAtIso) - Date.parse(localRecordAtIso)) / 60_000);
     if (diffMin !== 0) {
@@ -194,7 +181,7 @@ export function computeResyncDiff(
   }
 
   const localUpdatedAtIso = dateToIso(local.updated_at);
-  const remoteUpdatedAtIso = rubitimeMaybeDateToIso(remote['updated_at'], offsetMinutes);
+  const remoteUpdatedAtIso = rubitimeRemoteDateToUtcIso(remote['updated_at'], displayTimeZone);
   if (localUpdatedAtIso && remoteUpdatedAtIso) {
     const lts = Date.parse(localUpdatedAtIso);
     const rts = Date.parse(remoteUpdatedAtIso);
@@ -211,12 +198,12 @@ export function buildResyncUpdate(
   local: LocalRow,
   remote: Record<string, unknown>,
   diff: ResyncDiff,
-  offsetMinutes: number,
+  displayTimeZone: string,
 ): RecordUpdate {
   const update: RecordUpdate = {};
 
   if (diff.classes.includes('record_at')) {
-    update.record_at = rubitimeMaybeDateToIso(remote['record'] ?? remote['datetime'], offsetMinutes);
+    update.record_at = rubitimeRemoteDateToUtcIso(remote['record'] ?? remote['datetime'], displayTimeZone);
   }
   if (diff.classes.includes('status')) {
     update.status = mapRemoteStatusToLocal(remote, local.status);
@@ -445,7 +432,12 @@ async function applyOutboxRequeue(db: DbPort, ids: number[]): Promise<number> {
 
 // ── Args parsing ──────────────────────────────────────────────────────────────
 
-function parseArgs(argv: string[], defaultRubitimeOffsetMinutes: number): ResyncArgs {
+function parseDisplayTimeZoneFlag(raw: string | undefined, fallback: string): string {
+  const t = raw?.trim();
+  return t && t.length > 0 ? t : fallback;
+}
+
+function parseArgs(argv: string[], defaultDisplayTimeZone: string): ResyncArgs {
   const get = (prefix: string): string | undefined => {
     const item = argv.find((x) => x.startsWith(prefix));
     return item ? item.slice(prefix.length) : undefined;
@@ -467,12 +459,7 @@ function parseArgs(argv: string[], defaultRubitimeOffsetMinutes: number): Resync
     minIntervalMs: parsePositiveInt(get('--min-interval-ms='), 5200, 0, 60_000),
     retryCount: parsePositiveInt(get('--retry-count='), 2, 0, 20),
     retryBaseMs: parsePositiveInt(get('--retry-base-ms='), 5500, 100, 120_000),
-    rubitimeOffsetMinutes: parsePositiveInt(
-      get('--rubitime-offset-minutes='),
-      defaultRubitimeOffsetMinutes,
-      -720,
-      840,
-    ),
+    displayTimeZone: parseDisplayTimeZoneFlag(get('--display-timezone='), defaultDisplayTimeZone),
     staleThresholdMinutes: parsePositiveInt(get('--stale-threshold-minutes='), 120, 1, 10080),
     sampleSize: parsePositiveInt(get('--sample-size='), 25, 1, 1000),
     reportFile: nonEmptyStr(get('--report-file=')),
@@ -559,7 +546,7 @@ async function runResync(args: ResyncArgs, db: DbPort): Promise<ResyncSummary> {
             retryCount: args.retryCount,
             retryBaseMs: args.retryBaseMs,
           });
-          const diff = computeResyncDiff(row, remote, args.rubitimeOffsetMinutes, args.staleThresholdMinutes);
+          const diff = computeResyncDiff(row, remote, args.displayTimeZone, args.staleThresholdMinutes);
           if (diff.classes.length === 0) return { kind: 'match', recordId };
           return {
             kind: 'mismatch',
@@ -567,7 +554,7 @@ async function runResync(args: ResyncArgs, db: DbPort): Promise<ResyncSummary> {
             localId: row.id,
             classes: diff.classes,
             reasons: diff.reasons,
-            update: buildResyncUpdate(row, remote, diff, args.rubitimeOffsetMinutes),
+            update: buildResyncUpdate(row, remote, diff, args.displayTimeZone),
           };
         } catch (err) {
           const error = err instanceof Error ? err.message : String(err);
@@ -689,11 +676,8 @@ async function runRepairOutbox(args: ResyncArgs, db: DbPort): Promise<RepairOutb
 
 async function main(): Promise<void> {
   const db = createDbPort();
-  const defaultRubitimeOffsetMinutes = await getRubitimeRecordAtUtcOffsetMinutesForInstant({
-    db,
-    instant: new Date(),
-  });
-  const args = parseArgs(process.argv.slice(2), defaultRubitimeOffsetMinutes);
+  const defaultDisplayTimeZone = await getAppDisplayTimezone({ db });
+  const args = parseArgs(process.argv.slice(2), defaultDisplayTimeZone);
 
   const modeLabel = args.mode === 'repair-outbox' ? 'repair-outbox' : 'resync';
   const commitLabel = args.commit ? 'COMMIT' : 'dry-run';
@@ -715,7 +699,7 @@ async function main(): Promise<void> {
           batchSize: args.batchSize,
           minIntervalMs: args.minIntervalMs,
           retryCount: args.retryCount,
-          rubitimeOffsetMinutes: args.rubitimeOffsetMinutes,
+          displayTimeZone: args.displayTimeZone,
           staleThresholdMinutes: args.staleThresholdMinutes,
           sampleSize: args.sampleSize,
         },

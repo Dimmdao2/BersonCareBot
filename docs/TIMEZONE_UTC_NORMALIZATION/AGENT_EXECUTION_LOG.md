@@ -341,63 +341,272 @@ Notes:
 
 ## Stage 6 - Historical backfill
 
-- Status: `PENDING`
-- Last update: `-`
+- Status: `PASS` (post `AUDIT_STAGE_6` repo FIX 2026-04-05: help / APPLY_PLAN / tests / DIAGNOSTICS topology note; production gate B — по-прежнему у оператора)
+- Last update: `2026-04-05` (UTC)
 
 ### Entries
 
-<!-- Add log entries here -->
+```text
+[2026-04-05] [Stage 6] [FIX] [agent] (вход: AUDIT_STAGE_6.md MANDATORY A.1–A.4, S6-C/S6-D)
+Tasks done:
+- A.1: `--help` / Safety — убрана несуществующая опция `--require-utc-match`; явно описан дефолт (совпадение с naive-as-UTC) и `--no-require-utc-match`; уточнён `--unresolved-out` для dry-run и apply.
+- A.2: `stage6/APPLY_PLAN.md` — в шаг dry-run добавлен `--unresolved-out=/tmp/stage6-unresolved-dry-run.jsonl`.
+- A.3: `historicalTimeBackfillLogic.test.ts` — кейс `unresolved` при невалидной IANA зоне; кейс `skip` с `stored_not_matching_naive_as_utc_pattern` при `requireUtcMisinterpretationMatch: true`.
+- S6-D (INFO): комментарий в `stage6/DIAGNOSTICS.sql` про JOIN `branches` и топологию БД.
+Changed files:
+- apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts
+- apps/integrator/src/scripts/stage6/historicalTimeBackfillLogic.test.ts
+- docs/TIMEZONE_UTC_NORMALIZATION/stage6/APPLY_PLAN.md
+- docs/TIMEZONE_UTC_NORMALIZATION/stage6/DIAGNOSTICS.sql
+- docs/TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md
+Checks:
+- tests: `pnpm --dir apps/integrator exec vitest run src/scripts/stage6/historicalTimeBackfillLogic.test.ts` — PASS (11 tests)
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — PASS (2026-04-05 UTC): eslint, typecheck integrator+webapp, integrator vitest 574 passed | 6 skipped, webapp vitest 1149 passed | 5 skipped, builds, `pnpm audit --prod`
+Evidence:
+- Закрыты обязательные пункты репозитория из `AUDIT_STAGE_6.md` § MANDATORY FIX INSTRUCTIONS A.1–A.3; A.4 — зелёный CI.
+Gate verdict:
+- PASS для repo-side Stage 6 FIX; блок B (dry-run/post-check/backup на целевой БД) без изменений — оператор.
+Notes:
+- Рабочее дерево на момент прогона: `git describe --always --dirty` → `869f00f-dirty`; после коммита зафиксировать `git rev-parse HEAD`.
+```
+
+```text
+[2026-04-04] [Stage 6] [EXEC] [agent]
+Tasks done:
+- S6.T01: SQL-диагностика `docs/TIMEZONE_UTC_NORMALIZATION/stage6/DIAGNOSTICS.sql` (объёмы, NULL record_at + naive payload, diff expected vs stored).
+- S6.T02–S6.T04: CLI `pnpm --dir apps/integrator run timezone:stage6-backfill` — точечный UPDATE `rubitime_records`, `appointment_records`, `patient_bookings` (только `source=rubitime_projection`), `updated_at`, без blind shift; план стыкуется по `rubitime_id` / `integrator_record_id`.
+- S6.T05: в скрипте две сессии BEGIN → UPDATE → отчёт rowCount → ROLLBACK (dry-run) или COMMIT (--apply).
+- S6.T06: чеклист окна `docs/TIMEZONE_UTC_NORMALIZATION/stage6/APPLY_PLAN.md`.
+- S6.T07: восстановление NULL `record_at` из naive payload; при невозможности нормализации — JSONL (`--unresolved-out`) и при `--apply` upsert в `integration_data_quality_incidents` (`backfill_unresolvable`, `unresolved`).
+- Миграция `apps/integrator/src/infra/db/migrations/core/20260405_0001_integration_data_quality_stage6_backfill.sql`; типы `IntegrationDataQualityErrorReason` / `IntegrationDataQualityIncidentStatus`.
+- Логика классификации + тесты: `historicalTimeBackfillLogic.ts` / `.test.ts`.
+Changed files:
+- apps/integrator/src/infra/db/migrations/core/20260405_0001_integration_data_quality_stage6_backfill.sql
+- apps/integrator/src/shared/integrationDataQuality/types.ts
+- apps/integrator/src/scripts/stage6/historicalTimeBackfillLogic.ts
+- apps/integrator/src/scripts/stage6/historicalTimeBackfillLogic.test.ts
+- apps/integrator/src/infra/scripts/stage6-historical-time-backfill.ts
+- apps/integrator/package.json (scripts timezone:stage6-backfill*)
+- docs/TIMEZONE_UTC_NORMALIZATION/stage6/DIAGNOSTICS.sql
+- docs/TIMEZONE_UTC_NORMALIZATION/stage6/README.md
+- docs/TIMEZONE_UTC_NORMALIZATION/stage6/APPLY_PLAN.md
+Checks:
+- tests: vitest `historicalTimeBackfillLogic.test.ts`; полный integrator suite 572 passed | 6 skipped.
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — PASS (2026-04-04).
+Evidence:
+- Dry-run на реальной БД в среде агента не выполнялся (`DATABASE_URL` не задан в песочнице). Ожидаемый вывод: два JSON-объекта (план `counts`/`samples`/`skipHistogram` и `dryRunTransaction.rowsTouched`) при `--cutoff-iso=... --dry-run`.
+Gate verdict:
+- PASS для реализации и CI; production gate из STAGE_6 (backup, post-check, unresolved-разбор) — после прогона оператором.
+Notes:
+- SHA на момент CI: см. `git rev-parse HEAD` в рабочем дереве после коммита.
+```
 
 ---
 
 ## Stage 7 - Downstream cleanup
 
-- Status: `PENDING`
-- Last update: `-`
+- Status: `PASS` (AUDIT Stage 7 F1: уточнён grep-gate в MASTER_PLAN — 2026-04-05)
+- Last update: `2026-04-05` (UTC)
 
 ### Entries
 
-<!-- Add log entries here -->
+```text
+[2026-04-05] [Stage 7] [FIX] [agent] (вход: AUDIT_STAGE_7.md Finding F1 — строгое выравнивание grep-gate)
+Tasks done:
+- В `docs/TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md` §Stage 7 Gate уточнена формулировка: `+03:00` и `RUBITIME_RECORD_AT_UTC_OFFSET` — по-прежнему ноль вне тестов/комментариев; legacy имена `APP_DISPLAY_TIMEZONE` / `BOOKING_DISPLAY_TIMEZONE` явно разрешены только для deprecated `getAppDisplayTimezoneSync` + тесты/лог (согласовано с §«Текущее состояние» L54). F2 (TODO_BACKLOG) вне scope Stage 7 — без изменений.
+Changed files:
+- docs/TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md
+- docs/TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md
+Checks:
+- tests: integrator vitest `574 passed | 6 skipped`; webapp vitest `1149 passed | 5 skipped` (через `pnpm run ci`).
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — PASS (2026-04-05 UTC): eslint, typecheck, tests, builds, `pnpm audit --prod`.
+Evidence:
+- Gate-текст в MASTER_PLAN §Stage 7 обновлён; буквальное противоречие с `getAppDisplayTimezoneSync` снято (AUDIT F1 вариант A).
+Gate verdict:
+- PASS
+Notes:
+- Рабочий SHA на момент прогона CI: `869f00fd285aa27f0609f7de88dae757d61cf3b0` — после коммита перезапустить `git rev-parse HEAD`.
+```
+
+```text
+[2026-04-05] [Stage 7] [EXEC] [agent] (вход: STAGE_7_DOWNSTREAM_CLEANUP.md S7.T01–S7.T06)
+Tasks done:
+- S7.T01: `parseBusinessInstant` — однократный `console.warn` при разборе наивной wall-clock строки (safety-net после Stage 3).
+- S7.T02: `pgPatientBookings.ts` — комментарий к защитному `CASE` для projection vs native (legacy guard).
+- S7.T03: `resync-rubitime-records.ts` — удалён `rubitimeMaybeDateToIso`; `rubitimeRemoteDateToUtcIso` → `normalizeToUtcInstant`; CLI `--display-timezone=` (дефолт из `getAppDisplayTimezone`); вместо `--rubitime-offset-minutes=`.
+- S7.T04: `google-calendar/sync.ts` — удалён `parseRecordAtToIso`; `normalizeToUtcInstant(recordAt, displayTimeZone)`.
+- S7.T05: `env.ts` — удалена `RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES`; `resolveRubitimeRecordAtUtcOffsetMinutes` только через ICU/`longOffset` от IANA (без env-оверрайда).
+- S7.T06: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` — политика timezone (БД + `app_display_timezone`, без env offset).
+- Дополнительно: `compare-rubitime-records.ts` — тот же переход на `normalizeToUtcInstant` и `--display-timezone=`.
+Changed files:
+- apps/webapp/src/shared/lib/formatBusinessDateTime.ts
+- apps/webapp/src/infra/repos/pgPatientBookings.ts
+- apps/integrator/src/config/env.ts
+- apps/integrator/src/config/appTimezone.ts
+- apps/integrator/src/integrations/google-calendar/sync.ts
+- apps/integrator/src/infra/scripts/resync-rubitime-records.ts, resync-rubitime-records.test.ts
+- apps/integrator/src/infra/scripts/compare-rubitime-records.ts
+- docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md
+- docs/TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md
+Removed legacy symbols:
+- `rubitimeMaybeDateToIso` (resync)
+- `parseRecordAtToIso` (google-calendar sync)
+- `RUBITIME_RECORD_AT_UTC_OFFSET_MINUTES` (integrator zod env)
+Checks:
+- grep (`apps/webapp/src` + `apps/integrator/src`, `*.ts`): `+03:00` — только тесты (`formatBusinessDateTime.test.ts`, `normalizeToUtcInstant.test.ts`, `resync-rubitime-records.test.ts`, и т.д.); `RUBITIME_RECORD_AT_UTC_OFFSET` — 0; `BOOKING_DISPLAY_TIMEZONE` — `appTimezone.ts` + `bookingDisplayTimezone.ts` (legacy `process.env`, вне zod).
+- tests: integrator vitest `574 passed | 6 skipped`; webapp vitest `1149 passed | 5 skipped`.
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — PASS (2026-04-05 UTC): eslint, typecheck, tests, builds, `pnpm audit --prod`.
+Gate verdict:
+- PASS
+Notes:
+- Рабочий SHA на момент прогона CI (uncommitted tree): `869f00fd285aa27f0609f7de88dae757d61cf3b0` — после коммита перезапустить `git rev-parse HEAD`.
+```
 
 ---
 
 ## Stage 8 - Contract tests
 
-- Status: `PENDING`
-- Last update: `-`
+- Status: `PASS` (Stage 8 AUDIT `REWORK_REQUIRED` закрыт FIX 2026-04-05; вход: `AUDIT_STAGE_8.md`)
+- Last update: `2026-04-05` (UTC, FIX)
+
+### Stage 8 - AUDIT (зафиксировано до FIX)
+
+- Verdict: `REWORK_REQUIRED` (`docs/TIMEZONE_UTC_NORMALIZATION/AUDIT_STAGE_8.md`, 2026-04-05 UTC)
+- High (S8-A1): не было тестов webapp-таблиц `appointment_records.record_at` / `patient_bookings.slot_start` через репозитории/SQL.
+- Medium (S8-A2): для S8.T04 не было ассерта `record_at` = NULL на bind `writePort` / `rubitime_records`.
+- Low (S8-A3): webapp-кейс «S8.T04» дублировал номер интеграционного негатива.
 
 ### Entries
 
-<!-- Add log entries here -->
+```text
+[2026-04-05] [Stage 8] [FIX] [agent] (вход: AUDIT_STAGE_8.md MANDATORY FIX)
+Tasks done:
+- S8-A1: `apps/webapp/src/infra/repos/timezoneContract.stage8.pg.test.ts` — мок `getPool`, захват SQL: `createPgAppointmentProjectionPort().upsertRecordFromProjection` → параметр `record_at` ($3) = `2026-04-07T08:00:00.000Z`; `pgPatientBookingsPort.createPending` → `slot_start` ($6) = тот же canonical ISO.
+- S8-A2: в `timezoneContract.stage8.test.ts` (integrator), сценарий S8.T04 — после негативного ingest вызов `createDbWritePort().writeDb` без `recordAt`, `timeNormalizationStatus: degraded` → `rubitime_records` bind `$3` = `null`.
+- S8-A3: webapp UI кейс переименован в `S8.T04b UI`; удалён слабый round-trip тест (покрытие перенесено на PG-репозитории).
+Changed files:
+- apps/webapp/src/infra/repos/timezoneContract.stage8.pg.test.ts (new)
+- apps/integrator/src/integrations/rubitime/timezoneContract.stage8.test.ts
+- apps/webapp/src/shared/lib/timezoneContract.stage8.test.ts
+- docs/TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md
+Checks:
+- tests: integrator vitest `579 passed | 6 skipped`; webapp vitest `1154 passed | 5 skipped`.
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — PASS (2026-04-05 UTC).
+Evidence:
+- SHA на момент прогона CI: `869f00fd285aa27f0609f7de88dae757d61cf3b0` (перезапустить `git rev-parse HEAD` после коммита FIX).
+Gate verdict:
+- PASS (gate «все слои» по webapp-таблицам: bind через репозитории в CI; S8.T04 NULL на integrator write подтверждён).
+Notes:
+- —
+```
+
+```text
+[2026-04-05] [Stage 8] [EXEC] [agent] (вход: STAGE_8_CONTRACT_TESTS.md S8.T01–S8.T05)
+Tasks done:
+- S8.T01: фикстуры webhook — `apps/integrator/src/integrations/rubitime/timezoneContract.fixtures.ts` (Moscow/Samara, общий naive `2026-04-07 11:00:00`; негатив invalid datetime).
+- S8.T02: Moscow — сквозной тест `timezoneContract.stage8.test.ts`: ingest `recordAt` = `2026-04-07T08:00:00.000Z`, `rubitime_records` bind `$3`, projection_outbox payload `recordAt` = `2026-04-07T08:00:00.000Z`, бот `formatBookingRuDateTime` = `7 апр. 2026 г., 11:00` (display `Europe/Moscow`).
+- S8.T03: Samara — ingest `recordAt` = `2026-04-07T07:00:00.000Z`; MSK текст `7 апр. 2026 г., 10:00`; Samara `7 апр. 2026 г., 11:00`.
+- S8.T04: invalid datetime — запись с `recordId` сохраняется в смысле payload, `recordAt` очищен, `timeNormalizationStatus` degraded, мок инцидента + `dispatchOutgoing`; `syncAppointmentToCalendar` при отсутствии `recordAt` не вызывает `upsertEvent`/`deleteEvent` при включённом GCal config.
+- S8.T05: невалидная IANA в БД (`Invalid/Timezone`) — `createGetBranchTimezoneWithDataQuality` + ingest: fallback `Europe/Moscow`, нормализация как MSK (`2026-04-07T08:00:00.000Z`), инцидент `branch_timezone` / `invalid_iana` + Telegram intent.
+- Webapp UI contract: `apps/webapp/src/shared/lib/timezoneContract.stage8.test.ts` — `formatBookingDateTimeMediumRu` / `formatDoctorAppointmentRecordAt` (Moscow/Samara expected strings); негатив пустого instant (S8.T04b).
+Changed files:
+- apps/integrator/src/integrations/rubitime/timezoneContract.fixtures.ts (new)
+- apps/integrator/src/integrations/rubitime/timezoneContract.stage8.test.ts (new)
+- apps/webapp/src/shared/lib/timezoneContract.stage8.test.ts (new)
+- docs/TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md
+Checks:
+- tests: `pnpm --dir apps/integrator exec vitest run src/integrations/rubitime/timezoneContract.stage8.test.ts`; `pnpm --dir apps/webapp exec vitest run src/shared/lib/timezoneContract.stage8.test.ts`; полный `pnpm run ci` — см. Evidence.
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — PASS (2026-04-05 UTC): eslint, typecheck, integrator + webapp vitest, builds, `pnpm audit --prod`.
+Evidence:
+- Expected UTC: Moscow `2026-04-07T08:00:00.000Z`, Samara branch same wall → `2026-04-07T07:00:00.000Z`.
+- UI (Node `Intl`, ru-RU / en-GB doctor): Moscow instant `08:00Z` → кабинет `7 апр. 2026 г., 11:00`, врач `11:00 07.04`; Samara instant `07:00Z` → MSK `7 апр. 2026 г., 10:00`, Samara `7 апр. 2026 г., 11:00`, врач Samara `11:00 07.04`.
+- Негативы: invalid datetime — GCal upsert не вызывается; invalid branch IANA — `invalid_iana` + alert, runtime не падает.
+Gate verdict:
+- PASS (Moscow/Samara контракт по ingest → DB bind → projection → UI; негативы предсказуемы).
+Notes:
+- Дополнено FIX 2026-04-05: webapp таблицы + NULL bind S8.T04 — см. запись `[Stage 8] [FIX]` выше.
+```
 
 ---
 
 ## Global Audit
 
-- Status: `PENDING`
-- Last update: `-`
-- Auditor: `TBD`
+- Status: `PASS` (repository + CI); production Stage 6 apply — оператор
+- Last update: `2026-04-05` (UTC)
+- Auditor: AI agent
+- Report: `docs/TIMEZONE_UTC_NORMALIZATION/AUDIT_GLOBAL.md`
 
 ### Entries
 
-<!-- Add global audit entries here -->
+```text
+[2026-04-05] [Global] [AUDIT] [agent]
+Tasks done:
+- Глобальный аудит по MASTER_PLAN + STAGE_1..8 + этот лог; grep +03 (src non-test), env schema, CI.
+Checks:
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — PASS
+Evidence:
+- Полный отчёт: `docs/TIMEZONE_UTC_NORMALIZATION/AUDIT_GLOBAL.md` (global_verdict: APPROVE; major: Stage 6 production evidence; minor: DoD чекбоксы / журнал)
+Gate verdict:
+- PASS (repo); operational Stage 6 B — см. AUDIT_GLOBAL.md MANDATORY FIX
+```
 
 ---
 
 ## Global Fix
 
-- Status: `PENDING`
-- Last update: `-`
+- Status: `DONE` (документация DoD + grep gate + журнал; production Stage 6 apply — по-прежнему оператор)
+- Last update: `2026-04-05` (UTC)
 
 ### Entries
 
-<!-- Add global fix entries here -->
+```text
+[2026-04-05] [Global] [FIX] [agent] (вход: AUDIT_GLOBAL.md findings M1, M2, m1, m2)
+Tasks done:
+- M2: `MASTER_PLAN.md` §DoD — чекбоксы для закрытых в репозитории критериев; бэкфилл помечен pending production + ссылка на `stage6/APPLY_PLAN.md`; добавлен явный grep gate (исключение `.next`/`dist`/копий билда).
+- M1: зафиксировано в журнале: production Stage 6 (backup/apply/post-check) остаётся у оператора; evidence после выполнения — в этом логе или runbook.
+- m1: §Global Audit уже содержит ссылку на `AUDIT_GLOBAL.md`; Final Decision обновлён.
+- m2: см. grep one-liner в `MASTER_PLAN.md` §DoD.
+Changed files:
+- docs/TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md
+- docs/TIMEZONE_UTC_NORMALIZATION/AUDIT_GLOBAL.md
+- docs/TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md
+Checks:
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — см. Final Decision
+Gate verdict:
+- PASS (документация); operational Stage 6 B — pending до apply на целевой БД
+```
+
+---
+
+## Post–Global-Fix re-audit
+
+- Status: `PASS` (документация и согласованность с кодом после Global FIX)
+- Last update: `2026-04-04` (UTC)
+
+### Entries
+
+```text
+[2026-04-04] [Global] [RE-AUDIT] [agent]
+Tasks done:
+- Сверка MASTER_PLAN с фактической реализацией: §«Текущее состояние» переписан (раньше дублировал pre-fix «Что сломано»).
+- Stage 4 S4.T03: актуализировано (env без TZ; offset через IANA/БД, Stage 7 снял env-оверрайд).
+- Связанные документы: добавлены ссылки на AGENT_EXECUTION_LOG / AUDIT_GLOBAL в MASTER_PLAN.
+- Корневой README указывал на docs/README.md — создан `docs/README.md` с оглавлением и ссылкой на инициативу TIMEZONE.
+- AUDIT_GLOBAL: пометка re-audit.
+Spot checks:
+- `apps/integrator/src/config/env.ts` — нет RUBITIME_RECORD_AT / display TZ в zod.
+- `rg '+03:00' apps/integrator/src apps/webapp/src --glob '*.ts' --glob '!*.test.ts'` — 0 совпадений.
+Checks:
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — см. Final Decision
+Gate verdict:
+- PASS (репозиторий); Stage 6 production apply — без изменений (оператор)
+```
 
 ---
 
 ## Final Decision
 
-- Release readiness: `TBD`
-- Final SHA: `TBD`
-- Final CI run: `TBD`
-- Decision timestamp (UTC): `TBD`
+- Release readiness: `READY` (код + CI; бэкфилл истории на prod — по runbook)
+- Final CI run: `pnpm install --frozen-lockfile && pnpm run ci` — PASS (2026-04-04 UTC, post re-audit)
+- Decision timestamp (UTC): `2026-04-04`
+- Release commit: идентификатор фиксируется в git при пуше; для точного SHA используйте `git log -1` на целевой ветке (встроенный хэш в этом файле намеренно не дублируется — иначе он устаревает при каждом amend).

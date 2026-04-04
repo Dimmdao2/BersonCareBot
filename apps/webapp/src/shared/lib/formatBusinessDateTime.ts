@@ -5,18 +5,29 @@ import { DateTime } from "luxon";
 
 const NAIVE_WALL_CLOCK_REGEX = /^\d{4}-\d{2}-\d{2}(?:T| )\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?$/;
 
+/** One-time warn: naive wall-clock strings should be rare after ingest normalization (Stage 3). */
+let warnedNaiveBusinessInstantParse = false;
+
 /**
  * Разбор ISO-момента для отображения.
  * Строки без Z и без ±offset (как раньше отдавал integrator scheduleNormalizer) нельзя
  * кормить в `new Date` напрямую — в Node и в браузере это разный instant.
  * Такие значения трактуем как настенное время в `displayTimeZone` (IANA), чтобы
  * получать тот же UTC instant в любой среде выполнения.
+ *
+ * Safety-net only: после Stage 3 наивные строки в проде считаются аномалией — один раз логируем предупреждение.
  */
 export function parseBusinessInstant(iso: string, displayTimeZone: string): Date {
   const t = iso.trim();
   if (!t) return new Date(NaN);
   if (/Z$/i.test(t) || /[+-]\d{2}:\d{2}$/.test(t)) return new Date(t);
   if (NAIVE_WALL_CLOCK_REGEX.test(t)) {
+    if (!warnedNaiveBusinessInstantParse) {
+      warnedNaiveBusinessInstantParse = true;
+      console.warn(
+        "[formatBusinessDateTime] Naive wall-clock ISO parsed as safety-net; ingest should supply explicit-zoned instants (Stage 3+).",
+      );
+    }
     const normalized = t.includes("T") ? t : t.replace(" ", "T");
     const dt = DateTime.fromISO(normalized, { zone: displayTimeZone.trim() });
     if (dt.isValid) return new Date(dt.toUTC().toJSDate().toISOString());

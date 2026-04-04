@@ -6,9 +6,10 @@ export type IntegrationDataQualityErrorReason =
   | "invalid_branch_id"
   | "query_failed"
   | "missing_or_empty"
-  | "invalid_iana";
+  | "invalid_iana"
+  | "backfill_unresolvable";
 
-export type IntegrationDataQualityIncidentStatus = "open" | "resolved";
+export type IntegrationDataQualityIncidentStatus = "open" | "resolved" | "unresolved";
 
 export type IntegrationDataQualityIncidentField = "recordAt" | "dateTimeEnd" | string;
 
