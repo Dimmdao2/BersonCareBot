@@ -1,0 +1,51 @@
+---
+description: Host psql/DATABASE_URL — только полностью рабочие команды с source env (никогда голый psql)
+alwaysApply: true
+---
+
+# Host: PostgreSQL и `DATABASE_URL` (обязательно)
+
+## Сбой без env
+
+Команда `psql "$DATABASE_URL"` при **не заданном** в shell `DATABASE_URL` ведёт себя как подключение к локальному сокету от имени пользователя ОС (часто `root`) → `FATAL: role "root" does not exist`.
+
+## Жёсткое требование для агентов
+
+1. **Никогда** не выдавать пользователю «голый» `psql "$DATABASE_URL"` / `psql "$INTEGRATOR_DATABASE_URL"` без блока, который **сначала** подгружает нужный env-файл на хосте.
+2. Любая инструкция для **production-хоста** с SQL должна быть **цельной для copy-paste**: `set -a` → `source <файл из SERVER CONVENTIONS>` → `set +a` → затем `psql` или `-f`.
+3. Явно писать, **какая БД** нужна: integrator и webapp — **разные** `DATABASE_URL` из **разных** env-файлов.
+
+Канонические пути к env на production — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (не придумывать).
+
+## Шаблоны production (готовые блоки)
+
+**Integrator** (`DATABASE_URL` → БД integrator, например `tgcarebot`):
+
+```bash
+set -a && source /opt/env/bersoncarebot/api.prod && set +a
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
+```
+
+**Webapp** (`DATABASE_URL` → БД webapp, например `bcb_webapp_prod`):
+
+```bash
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
+```
+
+Проверка, что переменная задана (секрет не печатается):
+
+```bash
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+[ -n "$DATABASE_URL" ] && echo "DATABASE_URL ok" || echo "MISSING DATABASE_URL"
+```
+
+Cutover / два URL — см. `SERVER CONVENTIONS.md` (`cutover.prod`, `INTEGRATOR_DATABASE_URL`).
+
+## Dev
+
+Пути к локальным `.env` — только из `docs/ARCHITECTURE/SERVER CONVENTIONS.md` (например webapp dev: `apps/webapp/.env.dev`). Тот же принцип: **сначала** загрузить файл, в котором задан `DATABASE_URL`, **потом** `psql`.
+
+## Скрипты в репозитории
+
+Если в комментарии к SQL написано «подставьте `DATABASE_URL`» — для хоста всегда дописывай полный префикс `set -a && source …` из таблицы выше, иначе команда неполная.

@@ -13,6 +13,7 @@ alwaysApply: true
 - For any server, deploy, prod, systemd, nginx, env, path, port, DB, backup, migration, backfill, reconcile, or cutover question:
   - Treat `docs/ARCHITECTURE/SERVER CONVENTIONS.md` as the primary source of truth for confirmed runtime facts.
   - Use exact names and paths from that file. Never invent or guess paths, service names, env file names, DB names, ports, URLs, or users.
+- **PostgreSQL on host:** Never instruct `psql "$DATABASE_URL"` without the full `set -a && source /opt/env/bersoncarebot/<api.prod|webapp.prod> && set +a` preamble — see `.cursor/rules/host-psql-database-url.mdc`. Commands must be copy-paste complete.
 - If a required runtime fact is missing or not explicitly confirmed in docs:
   - Say clearly that the value is missing/unconfirmed.
   - Give exact commands to discover it on the host.

@@ -350,9 +350,11 @@
 Подключение к psql на проде (под пользователем, у которого есть доступ к БД):
 
 ```bash
-# Загрузить env и подключиться к нужной БД (значения не коммитить)
-source /opt/env/bersoncarebot/api.prod && psql "$DATABASE_URL"    # integrator
-source /opt/env/bersoncarebot/webapp.prod && psql "$DATABASE_URL" # webapp
+# Загрузить env и подключиться к нужной БД (значения не коммитить).
+# Обязательно сначала source — иначе DATABASE_URL пустой и psql уйдёт в локальный сокет
+# от имени пользователя ОС (часто root) → FATAL: role "root" does not exist.
+set -a && source /opt/env/bersoncarebot/api.prod && set +a && psql "$DATABASE_URL"    # integrator
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a && psql "$DATABASE_URL" # webapp
 ```
 
 Если на хосте psql запускают от имени `postgres`: `sudo -u postgres psql -d <имя_базы>`. Имена баз и пользователей берут из соответствующих env-файлов (см. примеры в `deploy/env/.env.webapp.prod.example`; для api — корневой `.env.example`).
