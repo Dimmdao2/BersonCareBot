@@ -1,0 +1,17 @@
+name: Cancel workflow on failure
+description: Cancel the current workflow run when a previous step has failed
+
+runs:
+  using: composite
+  steps:
+    - name: Cancel workflow run
+      if: failure()
+      continue-on-error: true
+      uses: actions/github-script@v7
+      with:
+        script: |
+          await github.rest.actions.cancelWorkflowRun({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            run_id: context.runId,
+          })

@@ -8,71 +8,62 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-pnpm
       - run: pnpm lint
+      - uses: ./.github/actions/cancel-on-failure
 
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-pnpm
       - run: pnpm typecheck
+      - uses: ./.github/actions/cancel-on-failure
 
   test-integrator:
     name: Test (integrator)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-pnpm
       - run: pnpm test
+      - uses: ./.github/actions/cancel-on-failure
 
   test-webapp:
     name: Test (webapp)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-pnpm
       - run: pnpm test:webapp
+      - uses: ./.github/actions/cancel-on-failure
 
-  build:
-    name: Build & audit
+  build-integrator:
+    name: Build (integrator)
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test-integrator, test-webapp]
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-pnpm
+      - run: pnpm build
+      - uses: ./.github/actions/cancel-on-failure
+
+  build-webapp:
+    name: Build (webapp)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-pnpm
       - uses: actions/cache@v4
         with:
           path: apps/webapp/.next/cache
@@ -80,14 +71,22 @@ jobs:
           restore-keys: |
             nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
             nextjs-
-      - run: pnpm build
       - run: pnpm build:webapp
+      - uses: ./.github/actions/cancel-on-failure
+
+  audit:
+    name: Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-pnpm
       - run: pnpm audit --prod
+      - uses: ./.github/actions/cancel-on-failure
 
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
-    needs: build
+    needs: [lint, typecheck, test-integrator, test-webapp, build-integrator, build-webapp, audit]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Setup SSH key
