@@ -1,12 +1,12 @@
 /**
  * Главное меню пациента («/app/patient»).
- * Доступно без входа (гость): общие блоки; персональные секции — при наличии сессии.
+ * Доступно только после входа: при отсутствии сессии редиректит на /app с next.
  * Набор блоков фильтруется по PlatformEntry (bot vs standalone).
  * Сверху — карточки «Кабинет» / «Дневник» (см. PatientHomeBrowserHero). Запись на приём — в меню.
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { patientHomeBlocksForEntry, type HomeBlockId } from "@/app-layer/routes/navigation";
 import {
   getHomeNews,
@@ -17,7 +17,6 @@ import { getPatientHomeBannerTopic, listRecentMailingLogsForPlatformUser } from 
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
-import { PostLoginSuggestion } from "@/shared/ui/auth/PostLoginSuggestion";
 import { PatientHomeBrowserHero } from "./home/PatientHomeBrowserHero";
 import { PatientHomeExtraBlocks } from "./home/PatientHomeExtraBlocks";
 import { PatientHomeLessonsSection } from "./home/PatientHomeLessonsSection";
@@ -27,7 +26,7 @@ import { PatientHomeNewsSection } from "./home/PatientHomeNewsSection";
 
 export default async function PatientHomePage() {
   const [session, platformEntry] = await Promise.all([
-    getOptionalPatientSession(),
+    requirePatientAccess("/app/patient"),
     getPlatformEntry(),
   ]);
 
@@ -73,16 +72,15 @@ export default async function PatientHomePage() {
   }
 
   return (
-    <AppShell title="Главное меню" user={session?.user ?? null} variant="patient">
+    <AppShell title="Главное меню" user={session.user} variant="patient">
       <div className="flex flex-col gap-8">
-        {session?.user != null ? <PostLoginSuggestion /> : null}
         {blocks.has("cabinet") ? <PatientHomeBrowserHero /> : null}
         {blocks.has("materials") ? <PatientHomeLessonsSection sections={contentSections} /> : null}
         <PatientHomeExtraBlocks blocks={blocks} />
         {blocks.has("news") ? (
           <PatientHomeNewsSection news={homeNews} banner={banner} />
         ) : null}
-        {blocks.has("mailings") && session?.user && mailings.length > 0 ? (
+        {blocks.has("mailings") && mailings.length > 0 ? (
           <PatientHomeMailingsSection userId={session.user.userId} items={mailings} />
         ) : null}
         {blocks.has("motivation") ? (
@@ -93,7 +91,7 @@ export default async function PatientHomePage() {
             }
           />
         ) : null}
-        {blocks.has("channels") && session?.user != null && channelCards.length > 0 && (
+        {blocks.has("channels") && channelCards.length > 0 && (
           <ConnectMessengersBlock channelCards={channelCards} implementedOnly />
         )}
       </div>
