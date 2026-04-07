@@ -2,9 +2,9 @@
 import "@testing-library/jest-dom/vitest";
 import path from "node:path";
 import { config } from "dotenv";
-config();
+config({ quiet: true });
 if (!process.env.DATABASE_URL) {
-  config({ path: path.resolve(process.cwd(), ".env.dev") });
+  config({ path: path.resolve(process.cwd(), ".env.dev"), quiet: true });
 }
 if (process.env.USE_REAL_DATABASE !== "1") {
   process.env.DATABASE_URL = "";

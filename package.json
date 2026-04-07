@@ -20,7 +20,7 @@
     "lint": "eslint . && pnpm --dir apps/webapp run lint",
     "lint:fix": "eslint . --fix && pnpm --dir apps/webapp run lint --fix",
     "typecheck": "pnpm --dir apps/integrator typecheck && pnpm --dir apps/webapp typecheck",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:webapp && pnpm webapp:typecheck && pnpm build && pnpm build:webapp && pnpm audit --prod",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:webapp && pnpm build && pnpm build:webapp && pnpm audit --prod",
     "check": "pnpm ci",
     "audit": "pnpm audit --prod",
     "format": "prettier -w .",

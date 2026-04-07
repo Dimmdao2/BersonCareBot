@@ -9,6 +9,7 @@ export default defineConfig({
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "e2e/**/*.test.ts"],
     exclude: ["node_modules", ".next"],
+    env: { DOTENV_CONFIG_QUIET: "true" },
   },
   resolve: {
     alias: {

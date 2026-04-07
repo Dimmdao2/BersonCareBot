@@ -11,9 +11,9 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default async function globalSetup() {
-  config({ path: path.join(__dirname, ".env") });
+  config({ path: path.join(__dirname, ".env"), quiet: true });
   if (!process.env.DATABASE_URL) {
-    config({ path: path.join(__dirname, ".env.dev") });
+    config({ path: path.join(__dirname, ".env.dev"), quiet: true });
   }
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl || dbUrl === "") {
