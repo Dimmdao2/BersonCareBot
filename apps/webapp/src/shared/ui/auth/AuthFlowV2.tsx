@@ -17,7 +17,7 @@ import {
   OTP_PUBLIC_OTHER_CHANNELS_ORDER,
   pickOtpChannelWithPreferencePublic,
 } from "@/modules/auth/otpChannelUi";
-import { isSafeNext } from "@/modules/auth/redirectPolicy";
+import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { ChannelPicker } from "@/shared/ui/auth/ChannelPicker";
 import { OtpCodeForm, type OtpAlternativeEntry, type OtpResendOutcome } from "@/shared/ui/auth/OtpCodeForm";
 import { InternationalPhoneInput } from "@/shared/ui/auth/InternationalPhoneInput";
@@ -175,8 +175,8 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
     setMethods(null);
   };
 
-  const redirectOk = (redirectTo: string) => {
-    const target = isSafeNext(nextParam) ? nextParam! : redirectTo;
+  const redirectOk = (redirectTo: string, role?: "client" | "doctor" | "admin") => {
+    const target = getPostAuthRedirectTarget(role ?? "client", nextParam);
     router.replace(target);
   };
 
@@ -446,12 +446,13 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             const data = (await res.json().catch(() => ({}))) as {
               ok?: boolean;
               redirectTo?: string;
+              role?: "client" | "doctor" | "admin";
               message?: string;
               error?: string;
               retryAfterSeconds?: number;
             };
             if (data.ok && data.redirectTo) {
-              redirectOk(data.redirectTo);
+              redirectOk(data.redirectTo, data.role);
               return { ok: true as const, redirectTo: data.redirectTo };
             }
             if (data.error === "rate_limited" && data.retryAfterSeconds != null) {

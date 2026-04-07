@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { isSafeNext } from "@/modules/auth/redirectPolicy";
+import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { AuthFlowV2, type AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
 
 type BootstrapState = "idle" | "loading" | "error";
@@ -61,9 +61,12 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           return;
         }
         if (!response.ok) throw new Error(`auth exchange failed: ${response.status}`);
-        const payload = text ? (JSON.parse(text) as { redirectTo: string }) : null;
+        const payload = text
+          ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
+          : null;
         if (!active || !payload) return;
-        const target = isSafeNext(nextParam) ? nextParam : payload.redirectTo;
+        const role = payload.role ?? "client";
+        const target = getPostAuthRedirectTarget(role, nextParam);
         router.replace(target);
       })
       .catch((e) => {
@@ -114,9 +117,12 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           return;
         }
         if (!response.ok) return;
-        const payload = text ? (JSON.parse(text) as { redirectTo: string }) : null;
+        const payload = text
+          ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
+          : null;
         if (!payload?.redirectTo) return;
-        const target = isSafeNext(nextParam) ? nextParam : payload.redirectTo;
+        const role = payload.role ?? "client";
+        const target = getPostAuthRedirectTarget(role, nextParam);
         router.replace(target);
       })
       .catch((e) => {

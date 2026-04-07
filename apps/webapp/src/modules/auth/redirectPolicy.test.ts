@@ -39,9 +39,10 @@ describe("redirectPolicy", () => {
   });
 
   describe("getPostAuthRedirectTarget", () => {
-    it("returns safe next when provided", () => {
+    it("returns safe next only for client", () => {
       expect(getPostAuthRedirectTarget("client", "/app/patient/cabinet")).toBe("/app/patient/cabinet");
-      expect(getPostAuthRedirectTarget("doctor", "/app/patient/lessons")).toBe("/app/patient/lessons");
+      expect(getPostAuthRedirectTarget("doctor", "/app/patient/lessons")).toBe("/app/doctor");
+      expect(getPostAuthRedirectTarget("admin", "/app/patient/cabinet")).toBe("/app/doctor");
     });
     it("returns role path when next is unsafe", () => {
       expect(getPostAuthRedirectTarget("client", "/app/doctor")).toBe("/app/patient");

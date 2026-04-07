@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isSafeNext } from "@/modules/auth/redirectPolicy";
+import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { cn } from "@/lib/utils";
 
 declare global {
@@ -46,6 +46,7 @@ export function TelegramLoginButton({ botUsername, nextParam, disabled, classNam
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;
           redirectTo?: string;
+          role?: "client" | "doctor" | "admin";
           message?: string;
           error?: string;
         };
@@ -53,7 +54,8 @@ export function TelegramLoginButton({ botUsername, nextParam, disabled, classNam
           setError(data.message ?? "Не удалось войти через Telegram");
           return;
         }
-        const target = isSafeNext(nextParam) ? nextParam! : data.redirectTo;
+        const role = data.role ?? "client";
+        const target = getPostAuthRedirectTarget(role, nextParam);
         router.replace(target);
       } finally {
         setBusy(false);

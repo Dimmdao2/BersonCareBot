@@ -23,6 +23,7 @@ export function isSafeNext(next: string | null): next is string {
 
 /** Целевой путь после входа: безопасный next или путь по роли. */
 export function getPostAuthRedirectTarget(role: UserRole, nextParam: string | null): string {
+  if (role !== "client") return getRedirectPathForRole(role);
   if (isSafeNext(nextParam)) return nextParam;
   return getRedirectPathForRole(role);
 }
