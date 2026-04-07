@@ -21,9 +21,19 @@ export function isSafeNext(next: string | null): next is string {
   return path.startsWith(SAFE_NEXT_PREFIX) && !path.startsWith(SAFE_NEXT_EXCLUDE);
 }
 
-/** Целевой путь после входа: безопасный next или путь по роли. */
-export function getPostAuthRedirectTarget(role: UserRole, nextParam: string | null): string {
+/**
+ * Целевой путь после входа:
+ * - doctor/admin: всегда workspace по роли (игнорируем next/fallback),
+ * - client: безопасный next, затем безопасный fallback из API, затем путь по роли.
+ */
+export function getPostAuthRedirectTarget(
+  role: UserRole,
+  nextParam: string | null,
+  fallbackRedirectTo?: string | null,
+): string {
   if (role !== "client") return getRedirectPathForRole(role);
   if (isSafeNext(nextParam)) return nextParam;
+  const fallback = fallbackRedirectTo ?? null;
+  if (isSafeNext(fallback)) return fallback;
   return getRedirectPathForRole(role);
 }

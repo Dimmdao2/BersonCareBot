@@ -44,8 +44,16 @@ describe("redirectPolicy", () => {
       expect(getPostAuthRedirectTarget("doctor", "/app/patient/lessons")).toBe("/app/doctor");
       expect(getPostAuthRedirectTarget("admin", "/app/patient/cabinet")).toBe("/app/doctor");
     });
+    it("uses safe fallback redirect for client when next is unsafe", () => {
+      expect(getPostAuthRedirectTarget("client", "/app/doctor", "/app/patient/home")).toBe(
+        "/app/patient/home"
+      );
+    });
     it("returns role path when next is unsafe", () => {
       expect(getPostAuthRedirectTarget("client", "/app/doctor")).toBe("/app/patient");
+      expect(getPostAuthRedirectTarget("client", "/app/doctor", "/app/patient/bind-phone")).toBe(
+        "/app/patient"
+      );
       expect(getPostAuthRedirectTarget("doctor", null)).toBe("/app/doctor");
       expect(getPostAuthRedirectTarget("admin", "/app/patient/bind-phone")).toBe("/app/doctor");
     });

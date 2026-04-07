@@ -176,7 +176,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
   };
 
   const redirectOk = (redirectTo: string, role?: "client" | "doctor" | "admin") => {
-    const target = getPostAuthRedirectTarget(role ?? "client", nextParam);
+    const target = getPostAuthRedirectTarget(role ?? "client", nextParam, redirectTo);
     router.replace(target);
   };
 

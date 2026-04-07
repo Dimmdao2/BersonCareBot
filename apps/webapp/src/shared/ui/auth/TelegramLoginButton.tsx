@@ -55,7 +55,7 @@ export function TelegramLoginButton({ botUsername, nextParam, disabled, classNam
           return;
         }
         const role = data.role ?? "client";
-        const target = getPostAuthRedirectTarget(role, nextParam);
+        const target = getPostAuthRedirectTarget(role, nextParam, data.redirectTo);
         router.replace(target);
       } finally {
         setBusy(false);

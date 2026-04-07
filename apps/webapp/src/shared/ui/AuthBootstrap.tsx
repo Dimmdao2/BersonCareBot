@@ -66,7 +66,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           : null;
         if (!active || !payload) return;
         const role = payload.role ?? "client";
-        const target = getPostAuthRedirectTarget(role, nextParam);
+        const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
         router.replace(target);
       })
       .catch((e) => {
@@ -122,7 +122,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           : null;
         if (!payload?.redirectTo) return;
         const role = payload.role ?? "client";
-        const target = getPostAuthRedirectTarget(role, nextParam);
+        const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
         router.replace(target);
       })
       .catch((e) => {
