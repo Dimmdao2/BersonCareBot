@@ -4,6 +4,8 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDisplayTimezone";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
 import { DoctorHeader } from "@/shared/ui/DoctorHeader";
+import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsSection } from "./AdminSettingsSection";
@@ -21,10 +23,9 @@ function getValueJson<T>(valueJson: unknown, fallback: T): T {
 
 function idArrayToString(settings: Array<{ key: string; valueJson: unknown }>, key: string): string {
   const entry = settings.find((x) => x.key === key);
-  if (!entry) return "[]";
-  const arr = getValueJson<unknown>(entry.valueJson, []);
-  if (Array.isArray(arr)) return JSON.stringify(arr);
-  return "[]";
+  if (!entry) return "";
+  const raw = getValueJson<unknown>(entry.valueJson, "");
+  return parseIdTokens(raw).join(" ");
 }
 
 export default async function SettingsPage() {
@@ -53,8 +54,8 @@ export default async function SettingsPage() {
         devMode: Boolean(getValueJson(adminSettingsList.find((x) => x.key === "dev_mode")?.valueJson, false)),
         debugForwardToAdmin: Boolean(getValueJson(adminSettingsList.find((x) => x.key === "debug_forward_to_admin")?.valueJson, false)),
         integrationTestIds: (() => {
-          const v = getValueJson<unknown>(adminSettingsList.find((x) => x.key === "integration_test_ids")?.valueJson, []);
-          return Array.isArray(v) ? (v as string[]) : [];
+          const v = getValueJson<unknown>(adminSettingsList.find((x) => x.key === "integration_test_ids")?.valueJson, "");
+          return parseIdTokens(v);
         })(),
         importantFallbackDelayMinutes: Number(getValueJson(adminSettingsList.find((x) => x.key === "important_fallback_delay_minutes")?.valueJson, 60)),
       }
@@ -143,23 +144,35 @@ export default async function SettingsPage() {
           )}
           {isAdmin && adminMode && adminSettings && (
             <div className="mt-6">
-              <AdminSettingsSection {...adminSettings} />
-            </div>
-          )}
-          {isAdmin && adminMode && runtimeConfig && (
-            <div className="mt-6">
-              <RuntimeConfigSection {...runtimeConfig} />
-            </div>
-          )}
-          {isAdmin && adminMode && googleCalendarConfig && (
-            <div className="mt-6">
-              <GoogleCalendarSection {...googleCalendarConfig} />
-            </div>
-          )}
-          {isAdmin && adminMode && (
-            <div className="mt-6 space-y-6">
-              <BookingCatalogHelp />
-              <RubitimeSection />
+              <Tabs defaultValue="diagnostics" className="gap-4">
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-2 md:grid-cols-4">
+                  <TabsTrigger value="diagnostics">Админ: режим</TabsTrigger>
+                  <TabsTrigger value="access">Доступ и роли</TabsTrigger>
+                  <TabsTrigger value="integrations">Интеграции</TabsTrigger>
+                  <TabsTrigger value="catalog">Каталог записи</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="diagnostics" className="mt-2">
+                  <AdminSettingsSection {...adminSettings} />
+                </TabsContent>
+
+                <TabsContent value="access" className="mt-2">
+                  {runtimeConfig && <RuntimeConfigSection {...runtimeConfig} />}
+                </TabsContent>
+
+                <TabsContent value="integrations" className="mt-2 space-y-6">
+                  <p className="text-xs text-muted-foreground">
+                    Google Calendar находится в этом разделе. Yandex OAuth доступен в разделе «Доступ и роли» внутри
+                    Runtime конфига.
+                  </p>
+                  {googleCalendarConfig && <GoogleCalendarSection {...googleCalendarConfig} />}
+                </TabsContent>
+
+                <TabsContent value="catalog" className="mt-2 space-y-6">
+                  <BookingCatalogHelp />
+                  <RubitimeSection />
+                </TabsContent>
+              </Tabs>
             </div>
           )}
         </div>

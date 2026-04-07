@@ -16,6 +16,7 @@ import {
   isValidIanaTimeZoneId,
   prioritizeMoscowFirst,
 } from "@/shared/timezone/ianaTimezonesForAdminUi";
+import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 
 type RuntimeConfigValues = {
   /** HTTPS ссылка поддержки (t.me и т.п.), см. getSupportContactUrl. */
@@ -44,18 +45,6 @@ async function patchSetting(key: string, value: unknown): Promise<boolean> {
     body: JSON.stringify({ key, value: { value } }),
   });
   return res.ok;
-}
-
-function parseIdArray(raw: string): string[] {
-  const trimmed = raw.trim();
-  if (!trimmed) return [];
-  try {
-    const parsed = JSON.parse(trimmed) as unknown;
-    if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
-  } catch {
-    // comma-separated fallback
-  }
-  return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 type Props = RuntimeConfigValues;
@@ -103,9 +92,10 @@ export function RuntimeConfigSection({
   const filteredIanaIds = useMemo(() => {
     const cur = vals.appDisplayTimezone.trim() || "Europe/Moscow";
     const q = tzFilter.trim().toLowerCase();
-    const list = q
-      ? baseIanaIds.filter((z) => z.toLowerCase().includes(q))
-      : prioritizeMoscowFirst(baseIanaIds);
+    if (q) {
+      return baseIanaIds.filter((z) => z.toLowerCase().includes(q));
+    }
+    const list = prioritizeMoscowFirst(baseIanaIds);
     if (!list.includes(cur)) return [cur, ...list];
     return list;
   }, [baseIanaIds, tzFilter, vals.appDisplayTimezone]);
@@ -157,12 +147,12 @@ export function RuntimeConfigSection({
           patchSetting("yandex_oauth_client_id", vals.yandexOauthClientId.trim()),
           patchSetting("yandex_oauth_client_secret", vals.yandexOauthClientSecret.trim()),
           patchSetting("yandex_oauth_redirect_uri", redirectRaw),
-          patchSetting("allowed_telegram_ids", parseIdArray(vals.allowedTelegramIds)),
-          patchSetting("allowed_max_ids", parseIdArray(vals.allowedMaxIds)),
-          patchSetting("admin_telegram_ids", parseIdArray(vals.adminTelegramIds)),
-          patchSetting("doctor_telegram_ids", parseIdArray(vals.doctorTelegramIds)),
-          patchSetting("admin_max_ids", parseIdArray(vals.adminMaxIds)),
-          patchSetting("doctor_max_ids", parseIdArray(vals.doctorMaxIds)),
+          patchSetting("allowed_telegram_ids", parseIdTokens(vals.allowedTelegramIds)),
+          patchSetting("allowed_max_ids", parseIdTokens(vals.allowedMaxIds)),
+          patchSetting("admin_telegram_ids", parseIdTokens(vals.adminTelegramIds)),
+          patchSetting("doctor_telegram_ids", parseIdTokens(vals.doctorTelegramIds)),
+          patchSetting("admin_max_ids", parseIdTokens(vals.adminMaxIds)),
+          patchSetting("doctor_max_ids", parseIdTokens(vals.doctorMaxIds)),
         ]);
         if (results.some((r) => !r)) {
           setError("Не удалось сохранить часть настроек");
@@ -229,10 +219,10 @@ export function RuntimeConfigSection({
             <Select
               value={vals.appDisplayTimezone.trim() || "Europe/Moscow"}
               onValueChange={(v) => {
-                if (v) setVals((prev) => ({ ...prev, appDisplayTimezone: v }));
-              }}
-              onOpenChange={(open) => {
-                if (open) setTzFilter("");
+                if (v) {
+                  setVals((prev) => ({ ...prev, appDisplayTimezone: v }));
+                  setTzFilter("");
+                }
               }}
               disabled={isPending}
             >
@@ -240,13 +230,18 @@ export function RuntimeConfigSection({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="max-h-72">
-                {filteredIanaIds.map((id) => (
-                  <SelectItem key={id} value={id}>
-                    {id}
-                  </SelectItem>
-                ))}
+                {filteredIanaIds.length > 0 ? (
+                  filteredIanaIds.map((id) => (
+                    <SelectItem key={id} value={id}>
+                      {id}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <div className="px-2 py-2 text-xs text-muted-foreground">Нет результатов</div>
+                )}
               </SelectContent>
             </Select>
+            <span className="text-xs text-muted-foreground">Найдено зон: {filteredIanaIds.length}</span>
             <span className="text-xs text-muted-foreground">
               Время слотов и записей в кабинете пациента и у врача. Список стандартных зон IANA; по умолчанию —
               Europe/Moscow.
@@ -300,7 +295,7 @@ export function RuntimeConfigSection({
         </div>
 
         <div className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Вайтлисты (JSON или через запятую)</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Вайтлисты (пробел, запятая, новая строка)</h3>
           {([
             ["allowedTelegramIds", "Разрешённые Telegram ID (клиенты)"],
             ["adminTelegramIds", "Telegram ID → admin"],
@@ -313,7 +308,7 @@ export function RuntimeConfigSection({
               <span className="text-xs font-medium">{label}</span>
               <textarea
                 className="min-h-16 rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                placeholder='["123456789"]'
+                placeholder="123456789 987654321 max-user-1"
                 value={vals[k]}
                 onChange={set(k)}
                 disabled={isPending}

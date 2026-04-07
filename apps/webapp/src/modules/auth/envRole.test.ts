@@ -6,9 +6,9 @@ vi.mock("@/config/env", () => ({
     DOCTOR_PHONES: "+79990000002",
     ALLOWED_PHONES: "",
     ADMIN_TELEGRAM_ID: 9_001_001_001,
-    DOCTOR_TELEGRAM_IDS: "9001001002,9001001003",
+    DOCTOR_TELEGRAM_IDS: "9001001002 9001001003",
     ADMIN_MAX_IDS: "max-admin-1",
-    DOCTOR_MAX_IDS: "max-doc-1",
+    DOCTOR_MAX_IDS: "max-doc-1 max-doc-2",
   },
 }));
 
@@ -45,6 +45,7 @@ describe("resolveRoleFromEnv", () => {
   it("returns admin/doctor by maxId lists", () => {
     expect(resolveRoleFromEnv({ maxId: "max-admin-1" })).toBe("admin");
     expect(resolveRoleFromEnv({ maxId: "max-doc-1" })).toBe("doctor");
+    expect(resolveRoleFromEnv({ maxId: "max-doc-2" })).toBe("doctor");
   });
 
   it("admin telegram wins over doctor phone", () => {

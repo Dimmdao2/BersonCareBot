@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
+import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 
 type AdminSettings = {
   devMode: boolean;
@@ -32,7 +33,7 @@ export function AdminSettingsSection({
 }: AdminSettingsSectionProps) {
   const [devModeVal, setDevModeVal] = useState(devMode);
   const [debugForward, setDebugForward] = useState(debugForwardToAdmin);
-  const [testIdsText, setTestIdsText] = useState(() => JSON.stringify(integrationTestIds, null, 2));
+  const [testIdsText, setTestIdsText] = useState(() => integrationTestIds.join(" "));
   const [fallbackDelay, setFallbackDelay] = useState(importantFallbackDelayMinutes);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,15 +43,7 @@ export function AdminSettingsSection({
     setSaved(false);
     setError(null);
 
-    let testIds: string[];
-    try {
-      const parsed = JSON.parse(testIdsText) as unknown;
-      if (!Array.isArray(parsed)) throw new Error("not_array");
-      testIds = parsed.map(String);
-    } catch {
-      setError("Поле «Тестовые ID» должно быть JSON-массивом строк");
-      return;
-    }
+    const testIds = parseIdTokens(testIdsText);
 
     startTransition(async () => {
       try {
@@ -97,7 +90,7 @@ export function AdminSettingsSection({
 
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium" htmlFor="test-ids-textarea">
-            Тестовые ID (JSON-массив строк)
+            Тестовые ID (пробел, запятая, новая строка)
           </label>
           <textarea
             id="test-ids-textarea"
@@ -105,7 +98,7 @@ export function AdminSettingsSection({
             value={testIdsText}
             onChange={(e) => setTestIdsText(e.target.value)}
             disabled={isPending}
-            placeholder='["user-id-1", "user-id-2"]'
+            placeholder="12345 67890 max-user-1"
           />
           <p className="text-xs text-muted-foreground">
             Используется при dev_mode = true: только эти пользователи получают рассылки

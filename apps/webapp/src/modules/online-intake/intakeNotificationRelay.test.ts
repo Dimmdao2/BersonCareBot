@@ -85,6 +85,26 @@ describe("intakeNotificationRelay", () => {
     );
   });
 
+  it("parses mixed separators for targets", async () => {
+    getConfigValueMock.mockImplementation(async (key: string) => {
+      if (key === "admin_telegram_ids") return "111,222 333\n333";
+      if (key === "doctor_telegram_ids") return "444;555";
+      if (key === "admin_max_ids") return "max-1 max-2";
+      return "";
+    });
+
+    const port = createIntakeNotificationRelay();
+    await port.notifyNewIntakeRequest({
+      requestId: "req-mixed",
+      type: "nutrition",
+      patientName: "Павел",
+      patientPhone: "+7905",
+      summary: "",
+    });
+
+    expect(relayMock).toHaveBeenCalledTimes(7);
+  });
+
   it("skips send when no targets configured", async () => {
     const port = createIntakeNotificationRelay();
     await port.notifyNewIntakeRequest({

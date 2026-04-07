@@ -126,4 +126,27 @@ describe("SystemSettingsService", () => {
     const service = createSystemSettingsService(port);
     expect(await service.shouldDispatch("other-user")).toBe(false);
   });
+
+  it("shouldDispatch — dev_mode true, string IDs format поддерживается", async () => {
+    const port = makePort({
+      getByKey: vi.fn().mockImplementation(async (key) => {
+        if (key === "dev_mode") {
+          return { key: "dev_mode", scope: "admin", valueJson: { value: true }, updatedAt: "", updatedBy: null };
+        }
+        if (key === "integration_test_ids") {
+          return {
+            key: "integration_test_ids",
+            scope: "admin",
+            valueJson: { value: "test-user-1 test-user-2" },
+            updatedAt: "",
+            updatedBy: null,
+          };
+        }
+        return null;
+      }),
+    });
+
+    const service = createSystemSettingsService(port);
+    expect(await service.shouldDispatch("test-user-2")).toBe(true);
+  });
 });

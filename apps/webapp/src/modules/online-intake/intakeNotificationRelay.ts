@@ -1,23 +1,9 @@
 import { env } from "@/config/env";
 import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import type { IntakeNotificationPort } from "./ports";
 import type { IntakeType } from "./types";
-
-function parseIds(raw: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
-    }
-  } catch {
-    // not JSON — comma-separated
-  }
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
 
 function dedupe(ids: string[]): string[] {
   return [...new Set(ids)];
@@ -34,8 +20,8 @@ export async function loadNotifyTargets(): Promise<{
     getConfigValue("doctor_max_ids", ""),
   ]);
   return {
-    telegram: dedupe([...parseIds(adminTg), ...parseIds(doctorTg)]),
-    max: dedupe([...parseIds(adminMax), ...parseIds(doctorMax)]),
+    telegram: dedupe([...parseIdTokens(adminTg), ...parseIdTokens(doctorTg)]),
+    max: dedupe([...parseIdTokens(adminMax), ...parseIdTokens(doctorMax)]),
   };
 }
 

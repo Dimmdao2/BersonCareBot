@@ -2,12 +2,13 @@ import { env } from "@/config/env";
 import type { UserRole } from "@/shared/types/session";
 import { normalizePhone } from "./phoneAuth";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
+import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 
 /** Нормализованные номера из env (whitelist для входа по телефону в токене). */
 export function getNormalizedWhitelistedPhonesFromEnv(): Set<string> {
   const set = new Set<string>();
   for (const raw of [env.ADMIN_PHONES, env.DOCTOR_PHONES, env.ALLOWED_PHONES]) {
-    for (const s of (raw ?? "").split(",")) {
+    for (const s of parseIdTokens(raw ?? "")) {
       const t = s.trim();
       if (t) set.add(normalizePhone(t));
     }
@@ -18,7 +19,7 @@ export function getNormalizedWhitelistedPhonesFromEnv(): Set<string> {
 function phoneInEnvList(phone: string | undefined, listRaw: string): boolean {
   if (!phone?.trim()) return false;
   const n = normalizePhone(phone);
-  for (const s of listRaw.split(",")) {
+  for (const s of parseIdTokens(listRaw)) {
     const t = s.trim();
     if (!t) continue;
     if (normalizePhone(t) === n) return true;
@@ -41,7 +42,7 @@ export function resolveRoleFromEnv(ids: { phone?: string; telegramId?: string; m
 
   const mid = ids.maxId?.trim();
   if (mid) {
-    for (const s of (env.ADMIN_MAX_IDS ?? "").split(",")) {
+    for (const s of parseIdTokens(env.ADMIN_MAX_IDS ?? "")) {
       if (s.trim() === mid) return "admin";
     }
   }
@@ -49,33 +50,19 @@ export function resolveRoleFromEnv(ids: { phone?: string; telegramId?: string; m
   if (phoneInEnvList(ids.phone, env.ADMIN_PHONES ?? "")) return "admin";
 
   if (tid) {
-    for (const s of (env.DOCTOR_TELEGRAM_IDS ?? "").split(",")) {
+    for (const s of parseIdTokens(env.DOCTOR_TELEGRAM_IDS ?? "")) {
       if (s.trim() === tid) return "doctor";
     }
   }
 
   if (mid) {
-    for (const s of (env.DOCTOR_MAX_IDS ?? "").split(",")) {
+    for (const s of parseIdTokens(env.DOCTOR_MAX_IDS ?? "")) {
       if (s.trim() === mid) return "doctor";
     }
   }
 
   if (phoneInEnvList(ids.phone, env.DOCTOR_PHONES ?? "")) return "doctor";
   return "client";
-}
-
-/** Parse a JSON array of strings from a system_settings value_json string. */
-function parseIdListFromDbValue(raw: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((x): x is string => typeof x === "string" && x.trim().length > 0);
-    }
-    // JSON.parse succeeded but not an array — treat raw as comma-separated
-  } catch {
-    // raw is not valid JSON — treat as comma-separated
-  }
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 function idInList(id: string, list: string[]): boolean {
@@ -118,12 +105,12 @@ export async function resolveRoleAsync(ids: {
       getConfigValue("doctor_phones", env.DOCTOR_PHONES ?? ""),
     ]);
 
-    const adminTelegramIds = parseIdListFromDbValue(adminTelegramRaw);
-    const adminMaxIds = parseIdListFromDbValue(adminMaxRaw);
-    const adminPhones = parseIdListFromDbValue(adminPhonesRaw);
-    const doctorTelegramIds = parseIdListFromDbValue(doctorTelegramRaw);
-    const doctorMaxIds = parseIdListFromDbValue(doctorMaxRaw);
-    const doctorPhones = parseIdListFromDbValue(doctorPhonesRaw);
+    const adminTelegramIds = parseIdTokens(adminTelegramRaw);
+    const adminMaxIds = parseIdTokens(adminMaxRaw);
+    const adminPhones = parseIdTokens(adminPhonesRaw);
+    const doctorTelegramIds = parseIdTokens(doctorTelegramRaw);
+    const doctorMaxIds = parseIdTokens(doctorMaxRaw);
+    const doctorPhones = parseIdTokens(doctorPhonesRaw);
 
     const tid = ids.telegramId?.trim() ?? "";
     const mid = ids.maxId?.trim() ?? "";
@@ -160,9 +147,9 @@ export async function isWhitelistedAsync(ids: {
       getConfigValue("allowed_phones", env.ALLOWED_PHONES ?? ""),
     ]);
 
-    const allowedTelegram = parseIdListFromDbValue(allowedTelegramRaw);
-    const allowedMax = parseIdListFromDbValue(allowedMaxRaw);
-    const allowedPhones = parseIdListFromDbValue(allowedPhonesRaw);
+    const allowedTelegram = parseIdTokens(allowedTelegramRaw);
+    const allowedMax = parseIdTokens(allowedMaxRaw);
+    const allowedPhones = parseIdTokens(allowedPhonesRaw);
 
     const tid = ids.telegramId?.trim() ?? "";
     const mid = ids.maxId?.trim() ?? "";

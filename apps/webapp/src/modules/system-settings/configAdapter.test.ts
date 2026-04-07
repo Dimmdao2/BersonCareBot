@@ -98,4 +98,16 @@ describe("configAdapter", () => {
     const result = await getConfigValue("support_contact_url", "https://t.me/fallback_support");
     expect(result).toBe("https://t.me/fallback_support");
   });
+
+  it("returns JSON-stringified array when DB value_json.value is string[]", async () => {
+    const mockPool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{ value_json: { value: [" 111 ", "222", "", "111"] } }],
+      }),
+    };
+    vi.mocked(getPool).mockReturnValue(mockPool as never);
+
+    const result = await getConfigValue("admin_telegram_ids", "fallback");
+    expect(result).toBe('["111","222","111"]');
+  });
 });

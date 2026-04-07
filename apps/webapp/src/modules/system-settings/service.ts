@@ -4,6 +4,7 @@ import {
   normalizeStoredValueJsonForIntegratorSync,
   syncSettingToIntegrator,
 } from "./syncToIntegrator";
+import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 
 export function createSystemSettingsService(port: SystemSettingsPort) {
   function isAllowedKey(key: string): key is SystemSettingKey {
@@ -56,9 +57,8 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
       const raw = testIdsSetting.valueJson;
       const ids: unknown =
         raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>).value : null;
-
-      if (!Array.isArray(ids)) return false;
-      return ids.includes(userId);
+      const tokens = parseIdTokens(ids);
+      return tokens.includes(userId);
     },
   };
 }
