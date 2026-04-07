@@ -24,6 +24,30 @@ Rubitime передаёт `name` как полную строку (часто Ф
 
 Точные имена внутренних статусов и тесты — в `apps/integrator/src/integrations/rubitime/connector.test.ts`.
 
+## Native booking (webapp create) — post-create projection
+
+При создании записи из webapp (не через Rubitime iframe/сайт) данные проходят два параллельных пути:
+
+**Patient path (webapp):**
+1. `POST /api/booking/create` → `patient_bookings` (confirmed) → `emitBookingEvent('booking.created')` → TG/MAX уведомления + напоминания.
+
+**Doctor projection + GCal path (integrator):**
+1. Webapp → `POST /api/bersoncare/rubitime/create-record` (M2M) → integrator создаёт запись в Rubitime API → получает `recordId`.
+2. `runPostCreateProjection(recordId)` (файл `postCreateProjection.ts`) выполняет:
+   - `fetchRubitimeRecordById` — забрать полную запись из Rubitime (1 retry через 500ms).
+   - Синтетический `RubitimeWebhookBodyValidated` c `from: 'webapp'`, `event: 'event-create-record'`.
+   - `prepareRubitimeWebhookIngress` — нормализация timezone.
+   - `syncRubitimeWebhookBodyToGoogleCalendar` — Google Calendar sync (best-effort, non-fatal).
+   - `writeDb({ type: 'booking.upsert', ... })` → `rubitime_records` + `enqueueProjectionEvent('appointment.record.upserted')`.
+   - webapp projection poller → `appointment_records` → Doctor appointments UI.
+3. Email autobind (если `webappEventsPort` доступен) — аналог webhook-path пункта.
+
+**Идемпотентность при дубле webhook:** `booking.upsert` использует `ON CONFLICT (rubitime_record_id) DO UPDATE`; projection outbox дедуплицируется по `idempotencyKey`. Если Rubitime webhook для той же записи придёт позже — данные обновятся без дубликатов.
+
+**Разделение UI:**
+- Doctor appointments UI питается из `appointment_records` (заполняется через projection).
+- Patient «Мои записи» питается из `patient_bookings` (заполняется напрямую в webapp).
+
 ## Одноразовое восстановление данных (ops)
 
 Если у записи есть телефон в `appointment_records`, но нет строки в `platform_users` с тем же `phone_normalized`, в UI врача может отображаться «Неизвестный клиент». Исправление — создать или связать профиль по согласованным с продуктом правилам.

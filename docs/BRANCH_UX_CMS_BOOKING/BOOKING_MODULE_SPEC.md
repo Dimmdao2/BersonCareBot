@@ -41,14 +41,20 @@ Rubitime предоставляет:
 1. Пациент выбирает тип приёма → город (если очный)
 2. Пациент видит доступные даты/слоты
 3. Пациент подтверждает слот (телефон и email предзаполнены из аккаунта)
-4. Backend:
-   a. Создаёт запись в локальной БД (таблица bookings)
-   b. Синхронизирует в Rubitime (API2)
-   c. Создаёт событие в Google Calendar
-   d. Отправляет подтверждение пациенту через бота (Telegram/MAX)
-   e. Отправляет уведомление врачу
-5. Напоминания: за 24ч и за 2ч через бота
+4. Backend (webapp):
+   a. Создаёт запись в patient_bookings (confirmed)
+   b. Синхронизирует в Rubitime (API2) через integrator M2M create-record
+   c. Отправляет подтверждение пациенту через бота (Telegram/MAX) — emitBookingEvent
+5. Backend (integrator — post-create projection, синхронно в create-record):
+   a. Fetch записи из Rubitime
+   b. Нормализация timezone
+   c. Google Calendar sync (best-effort, non-blocking)
+   d. booking.upsert → rubitime_records + projection outbox
+   e. Webapp projection poller → appointment_records → Doctor UI
+6. Напоминания: за 24ч и за 2ч через бота
 ```
+
+> **Важно:** GCal sync и doctor projection происходят на стороне integrator внутри M2M `create-record`, а не через обратный webhook Rubitime. Webhook может прийти позже и обновить запись (idempotent upsert).
 
 ### 3.3. Поток отмены/переноса
 

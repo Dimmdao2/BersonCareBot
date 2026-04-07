@@ -80,6 +80,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerRubitimeRecordM2mRoutes(app, {
     sharedSecret: integratorWebhookSecret(),
     dispatchPort: deps.dispatchPort,
+    dbWritePort: deps.dbWritePort,
+    webappEventsPort: deps.webappEventsPort,
   });
 
   await registerRubitimeAdminM2mRoutes(app, {

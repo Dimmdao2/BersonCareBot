@@ -325,6 +325,38 @@ Canonical linking rules:
 
 ---
 
+## Flow: BersonCare → Integrator (Rubitime record create + projection)
+
+**Направление:** webapp → integrator → Rubitime API2 `create-record`. После успешного создания integrator автоматически запускает post-create projection: fetch записи → нормализация → Google Calendar sync (best-effort) → `booking.upsert` (→ `appointment_records` через projection outbox).
+
+### `POST {INTEGRATOR_API_URL}/api/bersoncare/rubitime/create-record`
+
+**Заголовки:** как Flow 4 (`X-Bersoncare-Timestamp`, `X-Bersoncare-Signature`, raw JSON body).
+
+**Тело (v2 — explicit IDs):**
+
+```json
+{
+  "version": "v2",
+  "rubitimeBranchId": "10",
+  "rubitimeCooperatorId": "20",
+  "rubitimeServiceId": "30",
+  "slotStart": "2026-04-10T10:00:00.000Z",
+  "patient": { "name": "Иван", "phone": "+79990001122", "email": "ivan@example.com" }
+}
+```
+
+**Ответ:**
+
+- `200 { ok: true, recordId: "79380", data: {...} }` — создано + projection запущена.
+- `200 { ok: true, recordId: "79380", data: {...}, projectionWarning: "fetch_failed" }` — создано, но projection не прошла (запись видна пациенту, но не врачу до следующего webhook).
+- `400 { ok: false, error: "invalid_create_record_input" | "invalid_rubitime_ids" }` — невалидные данные.
+- `502 { ok: false, error: "..." }` — ошибка Rubitime API.
+
+**Политика ошибок:** ошибка Rubitime API = ошибка для юзера (502). Projection (fetch/gcal/upsert) — non-blocking: HTTP 200 возвращается с `projectionWarning`, если projection не прошла. Webapp не блокирует UX при projection failure — webhook Rubitime впоследствии закроет gap.
+
+---
+
 ## Flow: BersonCare → Integrator (Rubitime record reverse API)
 
 **Направление:** вебапп (сессия врача) вызывает интегратор; интегратор — `POST https://rubitime.ru/api2/update-record` / `remove-record` с API-ключом Rubitime.

@@ -440,7 +440,10 @@ Env: DATABASE_URL, optional WEBAPP_DATABASE_URL`);
         pbPasses = pass;
         let progress = 0;
         const nextPending: typeof pendingBookings = [];
-        for (const p of pendingBookings) {
+        for (let idx = 0; idx < pendingBookings.length; idx += 1) {
+          const p = pendingBookings[idx]!;
+          const savepoint = `pb_sp_${pass}_${idx}`;
+          await wClient.query(`SAVEPOINT ${savepoint}`);
           try {
             const u = await wClient.query(
               `UPDATE patient_bookings
@@ -456,7 +459,10 @@ Env: DATABASE_URL, optional WEBAPP_DATABASE_URL`);
             const touched = u.rowCount ?? 0;
             pbUpdated += touched;
             if (touched > 0) progress += 1;
+            await wClient.query(`RELEASE SAVEPOINT ${savepoint}`);
           } catch (err) {
+            await wClient.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+            await wClient.query(`RELEASE SAVEPOINT ${savepoint}`);
             const code = typeof err === "object" && err !== null && "code" in err
               ? String((err as { code?: unknown }).code ?? "")
               : "";

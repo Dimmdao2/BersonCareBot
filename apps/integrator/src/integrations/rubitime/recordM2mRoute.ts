@@ -8,7 +8,7 @@ import { logger } from '../../infra/observability/logger.js';
 import { createDbPort } from '../../infra/db/client.js';
 import { enqueueMessageRetryJob } from '../../infra/db/repos/jobQueue.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
-import type { DispatchPort } from '../../kernel/contracts/index.js';
+import type { DbWritePort, DispatchPort, WebappEventsPort } from '../../kernel/contracts/index.js';
 import { createRubitimeRecord, fetchRubitimeSchedule, removeRubitimeRecord, updateRubitimeRecord } from './client.js';
 import { resolveScheduleParams } from './bookingScheduleMapping.js';
 import { isLegacyBookingProfileResolveEnabled } from './legacyResolveFlag.js';
@@ -32,6 +32,7 @@ type RubitimeSlotsQueryV1 = z.infer<typeof RubitimeSlotsQueryV1Schema>;
 import { telegramConfig } from '../telegram/config.js';
 import { maxConfig } from '../max/config.js';
 import { ERR_LEGACY_RESOLVE_DISABLED } from './internalContract.js';
+import { runPostCreateProjection } from './postCreateProjection.js';
 
 /** Rubitime API2 `create-record` requires `status` (numeric status id; 0 matches get-record/update-record tests). */
 const RUBITIME_CREATE_RECORD_DEFAULT_STATUS = 0;
@@ -64,6 +65,8 @@ function parseJsonRecordId(body: unknown): string | null {
 export type RubitimeRecordM2mDeps = {
   sharedSecret: string;
   dispatchPort: DispatchPort;
+  dbWritePort: DbWritePort;
+  webappEventsPort?: WebappEventsPort;
 };
 
 const bookingEventDedup = new Map<string, number>();
@@ -445,7 +448,21 @@ export async function registerRubitimeRecordM2mRoutes(
         const recordId = (typeof result.id === 'string' || typeof result.id === 'number')
           ? String(result.id)
           : null;
-        return reply.code(200).send({ ok: true, recordId, data: result });
+
+        let projectionWarning: string | undefined;
+        if (recordId) {
+          const proj = await runPostCreateProjection(recordId, {
+            dispatchPort: deps.dispatchPort,
+            dbWritePort: deps.dbWritePort,
+            webappEventsPort: deps.webappEventsPort,
+          });
+          if (!proj.projectionOk) {
+            projectionWarning = proj.error;
+          }
+          logger.info({ recordId, projectionOk: proj.projectionOk, gcalEventId: proj.gcalEventId }, 'create-record completed with projection');
+        }
+
+        return reply.code(200).send({ ok: true, recordId, data: result, ...(projectionWarning ? { projectionWarning } : {}) });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn({ err }, 'rubitime create-record failed (v2)');
@@ -488,7 +505,21 @@ export async function registerRubitimeRecordM2mRoutes(
         const recordId = (typeof result.id === 'string' || typeof result.id === 'number')
           ? String(result.id)
           : null;
-        return reply.code(200).send({ ok: true, recordId, data: result });
+
+        let projectionWarning: string | undefined;
+        if (recordId) {
+          const proj = await runPostCreateProjection(recordId, {
+            dispatchPort: deps.dispatchPort,
+            dbWritePort: deps.dbWritePort,
+            webappEventsPort: deps.webappEventsPort,
+          });
+          if (!proj.projectionOk) {
+            projectionWarning = proj.error;
+          }
+          logger.info({ recordId, projectionOk: proj.projectionOk, gcalEventId: proj.gcalEventId }, 'create-record completed with projection');
+        }
+
+        return reply.code(200).send({ ok: true, recordId, data: result, ...(projectionWarning ? { projectionWarning } : {}) });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.warn({ err, type: v1.type, category: v1.category }, 'rubitime create-record failed');

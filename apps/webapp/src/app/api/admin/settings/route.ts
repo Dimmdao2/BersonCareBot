@@ -22,6 +22,14 @@ const ADMIN_SCOPE_KEYS = [
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",
+  // Google Calendar OAuth + integration
+  "google_client_id",
+  "google_client_secret",
+  "google_redirect_uri",
+  "google_refresh_token",
+  "google_calendar_id",
+  "google_calendar_enabled",
+  "google_connected_email",
   // Whitelist IDs
   "allowed_telegram_ids",
   "allowed_max_ids",
@@ -39,7 +47,11 @@ const patchSchema = z.object({
   value: z.unknown(),
 });
 
-const SECRET_LIKE_KEYS = new Set<string>(["yandex_oauth_client_secret"]);
+const SECRET_LIKE_KEYS = new Set<string>([
+  "yandex_oauth_client_secret",
+  "google_client_secret",
+  "google_refresh_token",
+]);
 
 function normalizeValueJson(value: unknown): { value: unknown } {
   if (value !== null && typeof value === "object" && "value" in (value as Record<string, unknown>)) {

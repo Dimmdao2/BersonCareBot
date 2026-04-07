@@ -10,6 +10,7 @@ import { AdminSettingsSection } from "./AdminSettingsSection";
 import { RuntimeConfigSection } from "./RuntimeConfigSection";
 import { BookingCatalogHelp } from "./BookingCatalogHelp";
 import { RubitimeSection } from "./RubitimeSection";
+import { GoogleCalendarSection } from "./GoogleCalendarSection";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -105,6 +106,26 @@ export default async function SettingsPage() {
       }
     : null;
 
+  function adminStr(key: string): string {
+    const raw = getValueJson(adminSettingsList.find((x) => x.key === key)?.valueJson, "");
+    return typeof raw === "string" ? raw.trim() : "";
+  }
+
+  const googleCalendarConfig = isAdmin && adminMode
+    ? {
+        googleClientId: adminStr("google_client_id"),
+        googleClientSecret: adminStr("google_client_secret"),
+        googleRedirectUri: adminStr("google_redirect_uri"),
+        googleRefreshToken: adminStr("google_refresh_token"),
+        googleCalendarId: adminStr("google_calendar_id"),
+        googleCalendarEnabled: (() => {
+          const raw = getValueJson<unknown>(adminSettingsList.find((x) => x.key === "google_calendar_enabled")?.valueJson, false);
+          return raw === true || raw === "true";
+        })(),
+        googleConnectedEmail: adminStr("google_connected_email"),
+      }
+    : null;
+
   return (
     <div className="min-h-screen bg-muted/30">
       <DoctorHeader userDisplayName={session.user.displayName} adminMode={adminMode} />
@@ -128,6 +149,11 @@ export default async function SettingsPage() {
           {isAdmin && adminMode && runtimeConfig && (
             <div className="mt-6">
               <RuntimeConfigSection {...runtimeConfig} />
+            </div>
+          )}
+          {isAdmin && adminMode && googleCalendarConfig && (
+            <div className="mt-6">
+              <GoogleCalendarSection {...googleCalendarConfig} />
             </div>
           )}
           {isAdmin && adminMode && (

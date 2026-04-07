@@ -18,6 +18,14 @@ export const ALLOWED_KEYS = [
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",
+  /** Google Calendar OAuth + integration (admin scope; managed via Settings UI). */
+  "google_client_id",
+  "google_client_secret",
+  "google_redirect_uri",
+  "google_refresh_token",
+  "google_calendar_id",
+  "google_calendar_enabled",
+  "google_connected_email",
   // Whitelist IDs
   "allowed_telegram_ids",
   "allowed_max_ids",

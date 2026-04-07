@@ -23,15 +23,21 @@ const parsed = z
     INTEGRATOR_WEBAPP_ENTRY_SECRET: z.string().min(16).optional(),
     /** Secret for webhook HMAC (outbound to webapp, inbound from webapp e.g. send-sms). Prefer over INTEGRATOR_SHARED_SECRET when set. */
     INTEGRATOR_WEBHOOK_SECRET: z.string().min(16).optional(),
+    /** @deprecated Use system_settings (admin scope) via webapp Settings UI; env kept as migration fallback only. */
     GOOGLE_CALENDAR_ENABLED: z
       .string()
       .optional()
       .default('false')
       .transform((value) => value.toLowerCase() === 'true'),
+    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
     GOOGLE_CLIENT_ID: z.string().optional().default(''),
+    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
     GOOGLE_CLIENT_SECRET: z.string().optional().default(''),
+    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
     GOOGLE_REDIRECT_URI: z.string().optional().default(''),
+    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
     GOOGLE_CALENDAR_ID: z.string().optional().default(''),
+    /** @deprecated Use system_settings (admin scope) via webapp Settings UI. */
     GOOGLE_REFRESH_TOKEN: z.string().optional().default(''),
   })
   .parse(process.env);

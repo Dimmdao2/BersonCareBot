@@ -7,6 +7,13 @@ import * as rubitimeClient from './client.js';
 import { _resetScheduleMappingCache } from './bookingScheduleMapping.js';
 import { resetRubitimeRuntimeConfigCache } from './runtimeConfig.js';
 
+const mockRunPostCreateProjection = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ gcalEventId: 'gcal-test', projectionOk: true }),
+);
+vi.mock('./postCreateProjection.js', () => ({
+  runPostCreateProjection: mockRunPostCreateProjection,
+}));
+
 const enqueueMessageRetryJob = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 const dbQuery = vi.hoisted(() => vi.fn().mockResolvedValue({ rows: [] }));
 const getTargetsByPhone = vi.hoisted(() => vi.fn().mockResolvedValue(null));
@@ -59,7 +66,12 @@ async function buildApp(dispatchOutgoing = vi.fn().mockResolvedValue(undefined))
   vi.spyOn(mailer, 'isMailerConfigured').mockReturnValue(true);
   vi.spyOn(mailer, 'sendMail').mockResolvedValue({ accepted: [], rejected: [], messageId: 'x' });
   await registerBersoncareSendEmailRoute(app, { sharedSecret: TEST_SECRET });
-  await registerRubitimeRecordM2mRoutes(app, { sharedSecret: TEST_SECRET, dispatchPort: { dispatchOutgoing } });
+  const mockWritePort = { writeDb: vi.fn().mockResolvedValue(undefined) };
+  await registerRubitimeRecordM2mRoutes(app, {
+    sharedSecret: TEST_SECRET,
+    dispatchPort: { dispatchOutgoing },
+    dbWritePort: mockWritePort,
+  });
   return app;
 }
 
@@ -551,6 +563,84 @@ describe('POST /api/bersoncare/rubitime/create-record', () => {
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error).toBe('invalid_rubitime_ids');
   });
+
+  it('v2 create-record calls runPostCreateProjection with recordId', async () => {
+    mockRunPostCreateProjection.mockClear();
+    vi.spyOn(rubitimeClient, 'createRubitimeRecord').mockResolvedValue({ id: 77 });
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: '10',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      patient: { name: 'Ivan', phone: '+79990001122' },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockRunPostCreateProjection).toHaveBeenCalledWith(
+      '77',
+      expect.objectContaining({ dispatchPort: expect.any(Object), dbWritePort: expect.any(Object) }),
+    );
+  });
+
+  it('v2 create-record returns projectionWarning when projection fails', async () => {
+    mockRunPostCreateProjection.mockClear();
+    mockRunPostCreateProjection.mockResolvedValue({ gcalEventId: null, projectionOk: false, error: 'fetch_failed' });
+    vi.spyOn(rubitimeClient, 'createRubitimeRecord').mockResolvedValue({ id: 77 });
+    const app = await buildApp();
+    const body = JSON.stringify({
+      version: 'v2',
+      rubitimeBranchId: '10',
+      rubitimeCooperatorId: '20',
+      rubitimeServiceId: '30',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      patient: { name: 'Ivan', phone: '+79990001122' },
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    const resBody = JSON.parse(res.body);
+    expect(resBody.ok).toBe(true);
+    expect(resBody.recordId).toBe('77');
+    expect(resBody.projectionWarning).toBe('fetch_failed');
+  });
+
+  it('legacy create-record calls runPostCreateProjection with recordId', async () => {
+    mockRunPostCreateProjection.mockClear();
+    resolveBookingProfile.mockResolvedValueOnce(TEST_PROFILE);
+    vi.spyOn(rubitimeClient, 'createRubitimeRecord').mockResolvedValue({ id: 88 });
+    const app = await buildApp();
+    const body = JSON.stringify({
+      type: 'online',
+      category: 'general',
+      slotStart: '2026-04-10T10:00:00.000Z',
+      slotEnd: '2026-04-10T11:00:00.000Z',
+      contactName: 'Test',
+      contactPhone: '+79990001122',
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/create-record',
+      headers: makeHeaders(body),
+      body,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockRunPostCreateProjection).toHaveBeenCalledWith(
+      '88',
+      expect.objectContaining({ dispatchPort: expect.any(Object), dbWritePort: expect.any(Object) }),
+    );
+  });
+
 });
 
 describe('POST /api/bersoncare/rubitime/slots (v2 explicit IDs)', () => {

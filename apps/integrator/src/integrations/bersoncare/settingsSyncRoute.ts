@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { invalidateAppDisplayTimezoneCache } from '../../config/appTimezone.js';
+import { invalidateGoogleCalendarConfigCache } from '../google-calendar/runtimeConfig.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -93,6 +94,9 @@ export async function registerBersoncareSettingsSyncRoute(
 
     if (key === 'app_display_timezone') {
       invalidateAppDisplayTimezoneCache();
+    }
+    if (key.startsWith('google_')) {
+      invalidateGoogleCalendarConfigCache();
     }
 
     return reply.code(200).send({ ok: true });

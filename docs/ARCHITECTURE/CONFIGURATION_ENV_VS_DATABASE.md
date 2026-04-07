@@ -14,6 +14,7 @@
 - Публичные ссылки: `support_contact_url`.
 - Telegram Login Widget: `telegram_login_bot_username`.
 - **Yandex OAuth (backend-only):** `yandex_oauth_client_id`, `yandex_oauth_client_secret`, `yandex_oauth_redirect_uri` — редактирование через admin Settings; **не** дублировать в env webapp.
+- **Google Calendar OAuth + integration:** `google_client_id`, `google_client_secret`, `google_redirect_uri`, `google_refresh_token`, `google_calendar_id`, `google_calendar_enabled`, `google_connected_email` — управление через admin Settings UI (OAuth consent flow + выбор календаря). Env-переменные `GOOGLE_*` в integrator помечены `@deprecated` и оставлены как fallback на переходный период.
 - Отображение времени: **`app_display_timezone`** (IANA).
 - Вайтлисты: `allowed_telegram_ids`, `allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`, `doctor_max_ids`, `admin_phones`, `doctor_phones`, `allowed_phones`.
 - Операционные флаги: `dev_mode`, `debug_forward_to_admin`, `important_fallback_delay_minutes`, `integration_test_ids`, `sms_fallback_enabled` (doctor scope и др. — см. `ALLOWED_KEYS`).
@@ -28,6 +29,7 @@
 ## Интегратор (отдельное приложение)
 
 - Integrator читает свои секреты и URL из **своего** env (`apps/integrator`); это не смешивается с `system_settings` webapp, кроме общей БД если используется один PostgreSQL для проекций.
+- **Исключение: Google Calendar** — integrator `runtimeConfig.ts` теперь читает `system_settings` из зеркалированной таблицы в integrator DB (push от webapp через `syncSettingToIntegrator`), с fallback на env для обратной совместимости. Кэш сбрасывается при приёме `google_*` ключей через `/api/integrator/settings/sync`.
 
 ### Две отдельные БД: зеркало `system_settings` в integrator
 
