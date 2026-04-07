@@ -420,22 +420,16 @@ export async function getCurrentSession(): Promise<AppSession | null> {
     return null;
   }
 
+  // Normalize doctor session shape without writing cookie here — cookies().set()
+  // is only allowed in Server Actions / Route Handlers, not in Server Component render.
   let session = decoded;
   if (session.user.role === "doctor") {
-    const slid: AppSession = {
+    session = {
       ...buildSession(session.user),
       postLoginHints: session.postLoginHints,
       adminMode: session.adminMode,
       reauth: session.reauth,
     };
-    cookieStore.set(SESSION_COOKIE_NAME, encodeSession(slid), {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: isProduction,
-      path: "/",
-      maxAge: cookieMaxAgeSeconds(slid),
-    });
-    session = slid;
   }
 
   const phone = session.user.phone?.trim();
@@ -463,14 +457,9 @@ export async function getCurrentSession(): Promise<AppSession | null> {
     }
   }
 
-  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(nextSession), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: cookieMaxAgeSeconds(nextSession),
-  });
-
+  // Cookie update skipped intentionally: mutating cookies in Server Component render
+  // is forbidden by Next.js. The role is correct in the returned session object;
+  // the cookie will be rewritten on the next Server Action or login.
   return nextSession;
 }
 
