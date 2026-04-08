@@ -237,9 +237,19 @@ export async function exchangeIntegratorToken(
 ): Promise<ExchangeResult | null> {
   const devParsed = parseDevBypassToken(token);
   const parsed = devParsed ?? (await parseIntegratorToken(token));
-  if (!parsed) return null;
+  if (!parsed) {
+    if (process.env.NODE_ENV !== "test") {
+      console.info("[auth/exchange] token_parse_failed tokenLen=%d", token.length);
+    }
+    return null;
+  }
 
-  if (!devParsed && !(await isAllowedByWhitelist(parsed, identityResolutionPort))) return null;
+  if (!devParsed && !(await isAllowedByWhitelist(parsed, identityResolutionPort))) {
+    if (process.env.NODE_ENV !== "test") {
+      console.info("[auth/exchange] whitelist_rejected sub=%s telegramId=%s", parsed.sub, parsed.bindings?.telegramId);
+    }
+    return null;
+  }
 
   let user: SessionUser;
   if (identityResolutionPort && !devParsed) {
