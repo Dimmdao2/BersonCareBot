@@ -561,3 +561,23 @@ Gate verdict:
 Notes:
 - Опциональный MAX-параллелизм (п.3 плана) вне обязательного scope этой инициативы.
 ```
+
+```text
+[2026-04-08T12:00:00Z] [Integrator /start docs + logs] [EXEC] agent
+Tasks done:
+- Проверка кода: webhook `mapBodyToIncoming` (порядок noticeme → link → setrubitimerecord → setphone → start.set), сценарии `scripts.json`, `buildBaseContext`/`linkedPhone`, исключения онбординга через `excludeActions`.
+- Документация: полное обновление `docs/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md` (webhook, таблица сценариев, Rubitime recordId, setphone, тесты, логи).
+- Логи: `debug` `[telegram] /start classified` с `telegramStart.action`, `recordIdPresent`, `linkSecretPresent`, `phoneFromDeepLink` (без номера).
+- Типы: `IncomingMessageUpdate.recordId?`, `linkSecret?` в `apps/integrator/src/kernel/domain/types.ts`.
+- Оглавление: `docs/README.md` — ссылка на `INTEGRATOR_TELEGRAM_START_SCRIPTS.md`.
+Changed files:
+- apps/integrator/src/integrations/telegram/webhook.ts
+- apps/integrator/src/kernel/domain/types.ts
+- docs/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md
+- docs/README.md
+- docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
+Checks:
+- pnpm --dir apps/integrator test
+Notes:
+- Уровень логов: debug — при `LOG_LEVEL=debug` на интеграторе.
+```

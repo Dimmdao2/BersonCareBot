@@ -2,35 +2,61 @@
 
 Выбор сценария: [`resolveBusinessScript`](../../apps/integrator/src/kernel/orchestrator/resolver.ts) — для каждого события выбирается один скрипт с максимальным `priority * 1e6 + specificity`.
 
-Контекст `linkedPhone` задаётся в [`handleIncomingEvent`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) (есть нормализованный телефон у пользователя по identity → `true`).
+## Контекст `linkedPhone`
 
-## Основные id в `scripts.json`
+Задаётся в [`loadUserContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) (нормализованный телефон у identity в БД → `linkedPhone: true`). Если после загрузки контекста поле не задано, в [`buildBaseContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) выставляется **`linkedPhone: false`**, чтобы матчи сценариев с `context: { linkedPhone: false }` не отваливались на `undefined`.
 
-| id | Условие (кратко) | Примечание |
-|----|------------------|------------|
-| `telegram.start.link` | `action: start.link` | Завершение channel link, не «голый» /start |
-| `telegram.start.setphone` | `action: start.setphone` | Привязка телефона из payload |
-| `telegram.start.setrubitimerecord` | `action: start.setrubitimerecord` | Deep link Rubitime |
-| `telegram.start.noticeme` | `action: start.noticeme` | В т.ч. запрос контакта |
-| `telegram.start.onboarding` | `text: /start`, `linkedPhone: false`, priority 15 | Приветствие + `request_contact` |
-| `telegram.start` | `text: /start`, `linkedPhone: true`, priority по умолчанию 0 | Меню (`telegram:welcome`) |
+## Webhook: разбор текста сообщения (`mapBodyToIncoming`)
 
-### Аудит конфликтов для «голого» `/start`
+Файл: [`apps/integrator/src/integrations/telegram/webhook.ts`](../../apps/integrator/src/integrations/telegram/webhook.ts).
 
-- Сценарии с **payload** (`/start link_…`, `/start setphone`, и т.д.) в webhook маппятся на отдельные `input.action` (`start.link`, `start.setphone`, …), а не на `text: /start` — с **`telegram.start.onboarding`** они **не конкурируют** (другой матч).
-- Для одного события с **ровно** текстом `/start` и `linkedPhone: false` побеждает **`telegram.start.onboarding`** (priority **15**) над **`telegram.start`** (без priority → 0), если бы оба матчились; на практике они разведены по `linkedPhone`.
+Порядок для входящего текста (важен для конкурирующих префиксов):
 
-Связка контакта после шаринга: `telegram.contact.link.confirm` (состояние `await_contact:subscription`, `phonePresent: true`) → `user.phone.link` → при наличии `userId` в identity — событие `contact.linked` в webapp ([`writePort`](../../apps/integrator/src/infra/db/writePort.ts)).
+| Шаг | Условие | Результат |
+|-----|---------|-----------|
+| 1 | `MESSAGE_TEXT_TO_ACTION` / меню | `action` из словаря или `''` |
+| 2 | `/start noticeme` | `start.noticeme` |
+| 3 | `/start link_<secret>` | `start.link`, поле `linkSecret` |
+| 4 | `/start setrubitimerecord_` | **`start.setrubitimerecord`**; суффикс `[A-Za-z0-9_-]{1,120}` → **`recordId`** (иначе `recordId` нет, `action` всё равно rubitime) |
+| 5 | если `action` всё ещё пустой: `/start setphone_<payload>` | нормализация номера → **`start.setphone`**, поле **`phone`** |
+| 6 | если пусто: `/start set<word>` | **`start.set`** (прочие deep link; отдельного сценария под все варианты нет) |
 
-## Тесты оркестратора
+Логирование: после маппинга для сообщений с текстом, начинающимся с `/start`, пишется **`debug`** с ключом **`telegramStart`**: `action`, `recordIdPresent`, `linkSecretPresent`, `phoneFromDeepLink` (без самого номера).
 
-Регресс выбора сценария: [`buildPlan.test.ts`](../../apps/integrator/src/kernel/orchestrator/buildPlan.test.ts):
+## Основные id в `content/telegram/user/scripts.json`
 
-- `selects telegram.start.onboarding for /start when linkedPhone is false`
-- `selects telegram.contact.link.confirm when contact shared in await_contact subscription` (цепочка после onboarding: контакт → `user.phone.link` → меню)
+| id | Match | priority | Смысл |
+|----|--------|----------|--------|
+| `telegram.start.link` | `action: start.link` | 0 | Завершение channel link (`linkSecret` → webapp) |
+| `telegram.start.setphone` | `action: start.setphone` | **20** | Привязка номера из deep link (`phone` на incoming) |
+| `telegram.start.setrubitimerecord` | `action: start.setrubitimerecord` | 0 | Rubitime: `recordId` → запись → телефон из записи → `user.phone.link` |
+| `telegram.start.noticeme` | `action: start.noticeme` | 0 | В т.ч. запрос контакта |
+| `telegram.start.onboarding` | `text` **$startsWith** `/start`, **`excludeActions`**, `linkedPhone: false` | **15** | Приветствие + кнопка «Отправить номер» |
+| `telegram.start` | то же по `text`, `linkedPhone: true` | 0 | Welcome + главное меню |
 
-Проекция `contact.linked` в webapp покрыта в [`events.test.ts`](../../apps/webapp/src/modules/integrator/events.test.ts) на стороне webapp; постановка события в очередь при `user.phone.link` — в [`writePort`](../../apps/integrator/src/infra/db/writePort.ts).
+### Почему онбординг не пересекается с payload
+
+`telegram.start.onboarding` и `telegram.start` матчат **`input.text`** с **`$startsWith: "/start"`** и массив **`excludeActions`**:  
+`start.link`, `start.noticeme`, `start.setrubitimerecord`, **`start.setphone`**, `start.set`.  
+Если `input.action` входит в список, сценарий **не** выбирается — пользователь не видит повторный запрос контакта при deep link (привязка по записи Rubitime, `setphone`, ссылка и т.д.).
+
+Онбординг и `telegram.start.setphone` **не матчатся одновременно**: при `action: start.setphone` срабатывает `excludeActions`. У **`telegram.start.setphone`** задан **priority 20** (выше onboarding 15) на случай будущих пересечений по матчу.
+
+## Max
+
+Файл: [`apps/integrator/src/content/max/user/scripts.json`](../../apps/integrator/src/content/max/user/scripts.json).  
+Те же идеи: `max.start.onboarding` / `max.start` с `$startsWith` и тем же `excludeActions`; разбор текста в [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts) (не дублирует все Telegram deep link).
+
+## Тесты
+
+| Файл | Что проверяет |
+|------|----------------|
+| [`buildPlan.test.ts`](../../apps/integrator/src/kernel/orchestrator/buildPlan.test.ts) | Onboarding vs `linkedPhone`, deep link `/start …`, цепочка контакта |
+| [`rubitimeDeepLink.test.ts`](../../apps/integrator/src/kernel/orchestrator/rubitimeDeepLink.test.ts) | `setrubitimerecord` не уходит в «общий» текстовый сценарий |
+| [`webhook.test.ts`](../../apps/integrator/src/integrations/telegram/webhook.test.ts) | `mapBodyToIncoming`: contact, `setrubitimerecord`, `setphone`, `link` |
+
+Проекция `contact.linked` в webapp: [`events.test.ts`](../../apps/webapp/src/modules/integrator/events.test.ts); запись в БД при `user.phone.link`: [`writePort`](../../apps/integrator/src/infra/db/writePort.ts).
 
 ## Legacy
 
-[`handleUpdate`](../../apps/integrator/src/kernel/domain/usecases/handleUpdate.ts) / [`handleMessage`](../../apps/integrator/src/kernel/domain/usecases/handleMessage.ts) **не** вызываются из [`processAcceptedIncomingEvent`](../../apps/integrator/src/kernel/domain/usecases/processAcceptedIncomingEvent.ts); менять поведение бота нужно в `scripts.json` и шаблонах.
+[`handleUpdate`](../../apps/integrator/src/kernel/domain/usecases/handleUpdate.ts) / [`handleMessage`](../../apps/integrator/src/kernel/domain/usecases/handleMessage.ts) **не** вызываются из [`processAcceptedIncomingEvent`](../../apps/integrator/src/kernel/domain/usecases/processAcceptedIncomingEvent.ts). Актуальное поведение — **webhook + `scripts.json` + шаблоны**.

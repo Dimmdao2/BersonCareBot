@@ -39,6 +39,10 @@ export type IncomingMessageUpdate = {
   messageId?: number | string;
   text: string;
   action?: string;
+  /** Rubitime deep link: `/start setrubitimerecord_<id>` → см. `mapBodyToIncoming`. */
+  recordId?: string;
+  /** Channel link: `/start link_<secret>` → см. `mapBodyToIncoming`. */
+  linkSecret?: string;
   phone?: string;
   contactPhone?: string;
   hasLinkedPhone?: boolean;

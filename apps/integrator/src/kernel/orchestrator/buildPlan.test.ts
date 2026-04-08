@@ -689,6 +689,76 @@ describe('orchestrator buildPlan', () => {
     });
   });
 
+  it('selects telegram.start.onboarding for /start with deep-link payload when linkedPhone is false', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-start-onb-deeplink-1',
+        occurredAt: '2026-04-08T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          text: '/start channel_promo_1',
+          action: '',
+          chatId: 555,
+          channelUserId: 555,
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      linkedPhone: false,
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.start.onboarding',
+          source: 'telegram',
+          event: 'message.received',
+          priority: 15,
+          match: {
+            input: {
+              text: { $startsWith: '/start' },
+              excludeActions: ['start.link', 'start.noticeme', 'start.setrubitimerecord', 'start.setphone', 'start.set'],
+            },
+            context: { linkedPhone: false },
+          },
+          steps: [
+            {
+              action: 'user.state.set',
+              mode: 'sync',
+              params: { state: 'await_contact:subscription' },
+            },
+            {
+              action: 'message.replyKeyboard.show',
+              mode: 'async',
+              params: {
+                templateKey: 'telegram:onboardingWelcome',
+              },
+            },
+          ],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(2);
+    expect(plan[0]).toMatchObject({
+      kind: 'user.state.set',
+      payload: { state: 'await_contact:subscription' },
+    });
+  });
+
   /** Регресс цепочки onboarding → шаринг контакта: п.4 плана bot contact onboarding. */
   it('selects telegram.contact.link.confirm when contact shared in await_contact subscription', async () => {
     const event: IncomingEvent = {

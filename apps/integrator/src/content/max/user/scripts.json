@@ -50,7 +50,10 @@
     "event": "message.received",
     "priority": 15,
     "match": {
-      "input": { "text": "/start" },
+      "input": {
+        "text": { "$startsWith": "/start" },
+        "excludeActions": ["start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"]
+      },
       "context": { "linkedPhone": false }
     },
     "steps": [
@@ -70,7 +73,10 @@
     "source": "max",
     "event": "message.received",
     "match": {
-      "input": { "text": "/start" },
+      "input": {
+        "text": { "$startsWith": "/start" },
+        "excludeActions": ["start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"]
+      },
       "context": { "linkedPhone": true }
     },
     "steps": [

@@ -77,7 +77,21 @@ export type TelegramWebhookDeps = {
   eventGateway: EventGateway;
 };
 
-/** Exported for tests (contact ownership, setphone removal). */
+/** Payload после `setphone_` в deep link `?start=setphone_...` (текст входящего сообщения). */
+function normalizePhoneFromSetphoneStartPayload(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const direct = normalizeTelegramContactPhone(trimmed);
+  if (direct) return direct;
+  try {
+    const decoded = decodeURIComponent(trimmed.replace(/\+/g, '%2B'));
+    return normalizeTelegramContactPhone(decoded);
+  } catch {
+    return normalizeTelegramContactPhone(trimmed);
+  }
+}
+
+/** Exported for tests (contact ownership, setphone deep link). */
 export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
   if (body.callback_query) {
     const callback = body.callback_query;
@@ -143,10 +157,23 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
         recordIdFromStart = suffix;
       }
     }
+    /** Deep link `t.me/bot?start=setphone_<digits>` → привязка номера без онбординга (см. telegram.start.setphone). */
+    let phoneFromSetphoneStart: string | null = null;
+    if (!action) {
+      const setphoneMatch = /^\/start\s+setphone_(.+)$/i.exec(trimmedText);
+      if (setphoneMatch) {
+        const normalizedSetphone = normalizePhoneFromSetphoneStartPayload(setphoneMatch[1] ?? '');
+        if (normalizedSetphone) {
+          action = 'start.setphone';
+          phoneFromSetphoneStart = normalizedSetphone;
+        }
+      }
+    }
     if (!action && /^\/start\s+set\w+/i.test(trimmedText)) {
       action = 'start.set';
     }
     const relayMessageType = getMessageTypeFromTelegramMessage(body.message);
+    const phoneOut = phoneFromSetphoneStart ?? normalizedPhone;
     return {
       kind: 'message',
       chatId: body.message.chat.id,
@@ -156,7 +183,7 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
       action,
       ...(recordIdFromStart ? { recordId: recordIdFromStart } : {}),
       ...(linkSecretFromStart ? { linkSecret: linkSecretFromStart } : {}),
-      ...(normalizedPhone ? { phone: normalizedPhone } : {}),
+      ...(phoneOut ? { phone: phoneOut } : {}),
       ...(contactOwnedBySender && typeof contact.phone_number === 'string' ? { contactPhone: contact.phone_number } : {}),
       ...(typeof body.message.from.username === 'string' ? { channelUsername: body.message.from.username } : {}),
       ...(typeof body.message.from.first_name === 'string' ? { channelFirstName: body.message.from.first_name } : {}),
@@ -207,6 +234,23 @@ export async function registerTelegramWebhookRoutes(
       const body = parseResult.data;
       const incoming = mapBodyToIncoming(body);
       if (!incoming) return reply.code(200).send({ ok: true });
+
+      if (incoming.kind === 'message') {
+        const trimmed = incoming.text?.trim() ?? '';
+        if (trimmed.startsWith('/start')) {
+          reqLogger.debug(
+            {
+              telegramStart: {
+                action: incoming.action ?? '',
+                recordIdPresent: typeof incoming.recordId === 'string' && incoming.recordId.length > 0,
+                linkSecretPresent: typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
+                phoneFromDeepLink: incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
+              },
+            },
+            '[telegram] /start classified',
+          );
+        }
+      }
 
       // Убрать кнопку меню у пользователя в личном чате (не админ)
       const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;

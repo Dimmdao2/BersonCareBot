@@ -244,7 +244,7 @@ async function buildBaseContext(event: IncomingEvent, readPort?: DbReadPort): Pr
   const facts = extractFacts(event);
   const isAdmin = facts.isAdmin === true;
 
-  return {
+  const base: BaseContext = {
     actor: {
       isAdmin,
     },
@@ -252,6 +252,10 @@ async function buildBaseContext(event: IncomingEvent, readPort?: DbReadPort): Pr
     ...(Object.keys(facts).length > 0 ? { facts } : {}),
     ...userContext,
   };
+  if (base.linkedPhone === undefined) {
+    base.linkedPhone = false;
+  }
+  return base;
 }
 
 

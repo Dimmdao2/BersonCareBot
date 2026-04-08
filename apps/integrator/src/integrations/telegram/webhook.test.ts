@@ -67,20 +67,20 @@ describe('mapBodyToIncoming', () => {
     }
   });
 
-  it('does not set start.setphone action or phone for /start setphone_... (unsafe shortcut removed)', () => {
+  it('parses /start setphone_<phone> to start.setphone with normalized phone (deep link)', () => {
     const body: TelegramWebhookBodyValidated = {
       message: {
         from: { id: 100, is_bot: false, first_name: 'A' },
         chat: { id: 100 },
-        // eslint-disable-next-line no-secrets/no-secrets -- test payload for rejected start.setphone pattern
+        // eslint-disable-next-line no-secrets/no-secrets -- test payload for setphone deep link
         text: '/start setphone_+79181234567',
       },
     };
     const incoming = mapBodyToIncoming(body);
     expect(incoming).not.toBeNull();
     if (incoming?.kind === 'message') {
-      expect(incoming.action).not.toBe('start.setphone');
-      expect((incoming as { phone?: string }).phone).toBeUndefined();
+      expect(incoming.action).toBe('start.setphone');
+      expect((incoming as { phone?: string }).phone).toBe('+79181234567');
     }
   });
 
