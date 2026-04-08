@@ -894,6 +894,11 @@ describe('orchestrator buildPlan', () => {
               mode: 'sync',
               params: { state: 'idle' },
             },
+            {
+              action: 'message.replyKeyboard.show',
+              mode: 'async',
+              params: { templateKey: 'telegram:chooseMenu' },
+            },
           ],
         },
       ]),
@@ -906,10 +911,14 @@ describe('orchestrator buildPlan', () => {
 
     const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
 
-    expect(plan).toHaveLength(1);
+    expect(plan).toHaveLength(2);
     expect(plan[0]).toMatchObject({
       kind: 'user.state.set',
       payload: { state: 'idle' },
+    });
+    expect(plan[1]).toMatchObject({
+      kind: 'message.replyKeyboard.show',
+      payload: { templateKey: 'telegram:chooseMenu' },
     });
   });
 

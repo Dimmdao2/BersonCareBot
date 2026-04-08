@@ -87,6 +87,16 @@
           "channelUserId": "{{actor.channelUserId}}",
           "state": "idle"
         }
+      },
+      {
+        "action": "message.inlineKeyboard.show",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "templateKey": "max:chooseMenu",
+          "menu": "main",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
       }
     ]
   },

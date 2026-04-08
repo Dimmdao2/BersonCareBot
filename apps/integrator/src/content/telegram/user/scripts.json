@@ -263,6 +263,22 @@
 					"channelUserId": "{{actor.channelUserId}}",
 					"state": "idle"
 				}
+			},
+			{
+				"action": "message.replyKeyboard.show",
+				"mode": "async",
+				"params": {
+					"chatId": "{{actor.chatId}}",
+					"templateKey": "telegram:chooseMenu",
+					"keyboard": [
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
+							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+						]
+					],
+					"resizeKeyboard": true
+				}
 			}
 		]
 	},
