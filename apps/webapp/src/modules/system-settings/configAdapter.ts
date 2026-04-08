@@ -43,7 +43,7 @@ async function fetchFromDb(key: string): Promise<string | null> {
       if (typeof v === "number") return String(v);
       if (Array.isArray(v)) {
         const normalized = v.map((item) => String(item).trim()).filter(Boolean);
-        return normalized.length > 0 ? JSON.stringify(normalized) : "[]";
+        return normalized.length > 0 ? JSON.stringify(normalized) : null;
       }
     }
     return null;
