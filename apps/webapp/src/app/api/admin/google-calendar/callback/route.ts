@@ -26,7 +26,13 @@ function readCookieFromRequest(request: Request, name: string): string | null {
     const eq = chunk.indexOf("=");
     if (eq === -1) continue;
     if (chunk.slice(0, eq).trim() === name) {
-      return chunk.slice(eq + 1).trim() || null;
+      const raw = chunk.slice(eq + 1).trim();
+      if (!raw) return null;
+      try {
+        return decodeURIComponent(raw);
+      } catch {
+        return raw;
+      }
     }
   }
   return null;

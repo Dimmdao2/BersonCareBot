@@ -38,7 +38,12 @@ async function readDbSetting(key: string): Promise<string | null> {
   }
 }
 
-async function loadConfigFromDb(): Promise<GoogleCalendarConfig | null> {
+/**
+ * Merge DB `system_settings` with env: each field uses DB when a row exists with a
+ * non-empty parsed value; otherwise env. Avoids replacing a full env config with
+ * empty strings when only part of the keys were synced to integrator DB.
+ */
+async function mergeConfigFromDbWithEnv(env: GoogleCalendarConfig): Promise<GoogleCalendarConfig> {
   try {
     const [enabledRaw, clientId, clientSecret, redirectUri, calendarId, refreshToken] = await Promise.all([
       readDbSetting('google_calendar_enabled'),
@@ -48,19 +53,18 @@ async function loadConfigFromDb(): Promise<GoogleCalendarConfig | null> {
       readDbSetting('google_calendar_id'),
       readDbSetting('google_refresh_token'),
     ]);
-    const hasAnyDbValue = [clientId, clientSecret, redirectUri, calendarId, refreshToken].some((v) => v !== null);
-    if (!hasAnyDbValue && enabledRaw === null) return null;
     return {
-      enabled: enabledRaw === 'true' || enabledRaw === '1',
-      clientId: clientId ?? '',
-      clientSecret: clientSecret ?? '',
-      redirectUri: redirectUri ?? '',
-      calendarId: calendarId ?? '',
-      refreshToken: refreshToken ?? '',
+      enabled:
+        enabledRaw !== null ? enabledRaw === 'true' || enabledRaw === '1' : env.enabled,
+      clientId: clientId ?? env.clientId,
+      clientSecret: clientSecret ?? env.clientSecret,
+      redirectUri: redirectUri ?? env.redirectUri,
+      calendarId: calendarId ?? env.calendarId,
+      refreshToken: refreshToken ?? env.refreshToken,
     };
   } catch (err) {
-    logger.warn({ err }, '[google-calendar] failed to read config from DB, falling back to env');
-    return null;
+    logger.warn({ err }, '[google-calendar] failed to read config from DB, using env only');
+    return env;
   }
 }
 
@@ -72,8 +76,7 @@ export async function getGoogleCalendarConfig(): Promise<GoogleCalendarConfig> {
   if (configCache && configCache.expiresAt > now) {
     return configCache.config;
   }
-  const dbConfig = await loadConfigFromDb();
-  const resolved = dbConfig ?? envFallback;
+  const resolved = await mergeConfigFromDbWithEnv(envFallback);
   configCache = { config: resolved, expiresAt: now + TTL_MS };
   return resolved;
 }

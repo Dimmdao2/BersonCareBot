@@ -10,3 +10,7 @@
 - **Email** — канал OTP и профиль; не единственный обязательный способ входа на первом экране.
 
 См. реализацию UI: `apps/webapp/src/shared/ui/auth/AuthFlowV2.tsx`.
+
+## Telegram Mini App и контакт в боте
+
+Если пользователь открыл Mini App до привязки номера в чате, показывается гейт с инструкцией и опросом `/api/me` (см. `docs/AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md`, `MiniAppShareContactGate`, layout `app/app/patient/layout.tsx`).

@@ -7,7 +7,8 @@
 - [x] `updateSetting` → `syncSettingToIntegrator` работает для всех 7 ключей
 - [x] OAuth routes защищены `role === 'admin'` guard
 - [x] CSRF state cookie для Google OAuth (`oauth_state_gcal`) отделён от Yandex (`oauth_state_yandex`)
-- [x] Integrator runtimeConfig fallback на env не сломан
+- [x] Integrator runtimeConfig: пофилдовое слияние DB + env (частичная БД не затирает env пустыми строками)
+- [x] UI Settings: редирект `?gcal=error&reason=` показывает расшифровку; сбой PATCH календаря/тоггла откатывает локальный state
 - [x] Нет новых env-переменных для интеграции (правило `000-critical-integration-config-in-db`)
 - [x] Env GOOGLE_* в integrator помечены `@deprecated`
 - [x] Документация обновлена: `CONFIGURATION_ENV_VS_DATABASE.md`
@@ -21,8 +22,8 @@
 | /api/admin/google-calendar/start | 4 | pass |
 | /api/admin/google-calendar/callback | 7 | pass |
 | /api/admin/google-calendar/calendars | 6 | pass |
-| integrator runtimeConfig | 4 | pass |
-| **Total new** | **32** | **pass** |
+| integrator runtimeConfig | 6 | pass |
+| **Total new** | **34** | **pass** |
 
 ## Files Changed/Created
 

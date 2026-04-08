@@ -20,6 +20,7 @@
 ## Мессенджеры и обмен токенами
 
 - **exchangeTelegramInitData** — вход из Telegram Mini App по подписанному `initData`.
+- Пока номер в webapp не появился после контакта в боте (`contact.linked`), пациентский layout показывает **`MiniAppShareContactGate`** (см. `docs/AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md`).
 - **exchangeIntegratorToken** — обмен JWT «войти в приложение» из бота на сессию вебаппа (payload: sub, role, displayName, phone, bindings, exp).
 
 ## OAuth (Yandex)

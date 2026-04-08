@@ -63,6 +63,35 @@ describe('getGoogleCalendarConfig', () => {
     expect(config.refreshToken).toBe('db-rt');
   });
 
+  it('merges partial DB with env per field', async () => {
+    queryMock.mockImplementation((_sql: string, params: unknown[]) => {
+      const key = String((params as string[])[0]);
+      if (key === 'google_client_id') {
+        return Promise.resolve(dbRow(key, 'db-only-cid'));
+      }
+      return Promise.resolve(emptyResult());
+    });
+    const config = await getGoogleCalendarConfig();
+    expect(config.clientId).toBe('db-only-cid');
+    expect(config.clientSecret).toBe('env-csec');
+    expect(config.refreshToken).toBe('env-rt');
+    expect(config.calendarId).toBe('env-cal');
+    expect(config.enabled).toBe(false);
+  });
+
+  it('uses DB for enabled when other credential keys are only in env', async () => {
+    queryMock.mockImplementation((_sql: string, params: unknown[]) => {
+      const key = String((params as string[])[0]);
+      if (key === 'google_calendar_enabled') {
+        return Promise.resolve(dbRow(key, 'true'));
+      }
+      return Promise.resolve(emptyResult());
+    });
+    const config = await getGoogleCalendarConfig();
+    expect(config.enabled).toBe(true);
+    expect(config.clientId).toBe('env-cid');
+  });
+
   it('caches result and reuses without DB query', async () => {
     queryMock.mockResolvedValue(emptyResult());
     await getGoogleCalendarConfig();

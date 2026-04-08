@@ -29,7 +29,7 @@
 ## Интегратор (отдельное приложение)
 
 - Integrator читает свои секреты и URL из **своего** env (`apps/integrator`); это не смешивается с `system_settings` webapp, кроме общей БД если используется один PostgreSQL для проекций.
-- **Исключение: Google Calendar** — integrator `runtimeConfig.ts` теперь читает `system_settings` из зеркалированной таблицы в integrator DB (push от webapp через `syncSettingToIntegrator`), с fallback на env для обратной совместимости. Кэш сбрасывается при приёме `google_*` ключей через `/api/integrator/settings/sync`.
+- **Исключение: Google Calendar** — integrator `runtimeConfig.ts` читает `system_settings` из зеркалированной таблицы в integrator DB (push от webapp через `syncSettingToIntegrator`), с **пофайловым** слиянием с env: для каждого поля (`clientId`, `secret`, `redirectUri`, `calendarId`, `refreshToken`, `enabled`) используется значение из БД, если строка/флаг заданы; иначе — env. Так частично синхронизированная БД не затирает рабочий env пустыми полями. Кэш сбрасывается при приёме `google_*` ключей через `/api/integrator/settings/sync`.
 
 ### Две отдельные БД: зеркало `system_settings` в integrator
 

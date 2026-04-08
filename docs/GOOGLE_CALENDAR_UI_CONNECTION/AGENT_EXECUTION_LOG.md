@@ -67,3 +67,20 @@ Baked into implementation:
 - `docs/GOOGLE_CALENDAR_UI_CONNECTION/MASTER_PLAN.md`
 - `docs/GOOGLE_CALENDAR_UI_CONNECTION/AGENT_EXECUTION_LOG.md` (this file)
 - `docs/GOOGLE_CALENDAR_UI_CONNECTION/AUDIT_FINAL.md`
+
+## Stage 8 — Technical debt (post-review)
+
+**Проверка выполнения (code review follow-up):**
+
+| Долг | Реализация | Файлы |
+|------|------------|--------|
+| Integrator: частичная БД не должна затирать env пустыми полями | `mergeConfigFromDbWithEnv`: по каждому полю DB или env | `runtimeConfig.ts` |
+| UI: показывать `reason` из OAuth redirect | `formatGcalErrorMessage`, словарь `GCAL_ERROR_REASON_LABELS` | `GoogleCalendarSection.tsx` |
+| UI: откат при неуспешном PATCH календаря/тоггла | `calendarSaveError`, `toggleError`, revert state | `GoogleCalendarSection.tsx` |
+| Callback: cookie state | `decodeURIComponent` при чтении cookie | `callback/route.ts` |
+
+**Тесты:** `runtimeConfig.test.ts` — +2 кейса (partial DB merge, `enabled` только в DB).
+
+**Документация:** `CONFIGURATION_ENV_VS_DATABASE.md`, `MASTER_PLAN.md`, `AUDIT_FINAL.md` (чеклист + счётчик тестов).
+
+**CI:** `pnpm run ci` — pass (после правок).

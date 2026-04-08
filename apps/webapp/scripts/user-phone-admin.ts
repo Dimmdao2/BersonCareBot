@@ -12,27 +12,73 @@
  *   reassign-user <phone> <old-uuid>
  *                         — переносит контентные записи со старого UUID на текущего пользователя с данным телефоном.
  *
- * Использование (dev): задать DATABASE_URL на webapp БД (см. apps/webapp/.env.dev).
- *
- * Production-хост: не подставлять плейсхолдер — взять URL из env-файла (иначе возможен хост вроде
- * `base` из docker-only конфига → getaddrinfo EAI_AGAIN):
- *   set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
- *   pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts info 79189000782
- *
- * Локально с явным URL:
- *   DATABASE_URL=postgresql://... pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts reset-user 79189000782
+ * DATABASE_URL:
+ *   - Явно: `DATABASE_URL=postgresql://... pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts ...`
+ *   - Иначе скрипт подставляет URL из первого существующего файла (по порядку):
+ *       USER_PHONE_ADMIN_ENV_FILE, ENV_FILE, /opt/env/bersoncarebot/webapp.prod, .env.dev (cwd = apps/webapp).
+ *   - Хост вроде `base` (имя сервиса только внутри Docker) отклоняется до подключения.
  */
 
+import { config as loadDotenv } from "dotenv";
+import fs from "node:fs";
+import path from "node:path";
 import pg from "pg";
 const { Pool } = pg;
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  console.error("DATABASE_URL не задан.");
-  process.exit(1);
+/** Имена хостов из docker-compose, недоступные с хоста ОС при запуске tsx. */
+const BLOCKED_DB_HOSTS = new Set(["base"]);
+
+const DEFAULT_PROD_ENV = "/opt/env/bersoncarebot/webapp.prod";
+
+function candidateEnvFiles(): string[] {
+  const fromFlag = process.env.USER_PHONE_ADMIN_ENV_FILE?.trim();
+  const fromEnvFile = process.env.ENV_FILE?.trim();
+  const list: string[] = [];
+  if (fromFlag) list.push(fromFlag);
+  if (fromEnvFile) list.push(fromEnvFile);
+  list.push(DEFAULT_PROD_ENV, path.resolve(process.cwd(), ".env.dev"));
+  return list.map((p) => (path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)));
 }
 
-const db = new Pool({ connectionString });
+function resolveConnectionString(): string {
+  let raw = process.env.DATABASE_URL?.trim();
+  if (!raw) {
+    for (const abs of candidateEnvFiles()) {
+      if (!fs.existsSync(abs)) continue;
+      loadDotenv({ path: abs, override: false });
+      raw = process.env.DATABASE_URL?.trim();
+      if (raw) break;
+    }
+  }
+  if (!raw) {
+    console.error(
+      "DATABASE_URL не задан. Укажите переменную или положите URL в один из файлов:\n" +
+        `  USER_PHONE_ADMIN_ENV_FILE, ENV_FILE, ${DEFAULT_PROD_ENV}, либо .env.dev в каталоге webapp.`,
+    );
+    process.exit(1);
+  }
+
+  let hostname: string;
+  try {
+    hostname = new URL(raw).hostname;
+  } catch {
+    console.error("DATABASE_URL: невалидный URL.");
+    process.exit(1);
+  }
+
+  if (BLOCKED_DB_HOSTS.has(hostname)) {
+    console.error(
+      `DATABASE_URL указывает на хост «${hostname}» (обычно имя сервиса в Docker, с хоста ОС не резолвится).\n` +
+        "Задайте URL к Postgres, доступный с этой машины (например из /opt/env/bersoncarebot/webapp.prod), " +
+        "или удалите неверный DATABASE_URL из окружения и запустите скрипт снова — будет загружен prod-файл.",
+    );
+    process.exit(1);
+  }
+
+  return raw;
+}
+
+const db = new Pool({ connectionString: resolveConnectionString() });
 
 function normalize(phone: string): string {
   const digits = phone.replace(/\D/g, "");
@@ -217,7 +263,18 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+function isErrnoException(err: unknown): err is NodeJS.ErrnoException & { hostname?: string } {
+  return err instanceof Error && "code" in err;
+}
+
+main().catch((err: unknown) => {
+  if (isErrnoException(err) && err.code === "EAI_AGAIN" && err.hostname) {
+    console.error(
+      `DNS: не удалось разрешить хост «${err.hostname}». ` +
+        "Если это имя сервиса из Docker — задайте DATABASE_URL с хоста (localhost или реальный Postgres), " +
+        `см. ${DEFAULT_PROD_ENV}.`,
+    );
+  }
   console.error(err);
   process.exit(1);
 });

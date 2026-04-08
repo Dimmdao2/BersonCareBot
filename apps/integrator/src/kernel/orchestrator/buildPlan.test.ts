@@ -689,6 +689,90 @@ describe('orchestrator buildPlan', () => {
     });
   });
 
+  /** Регресс цепочки onboarding → шаринг контакта: п.4 плана bot contact onboarding. */
+  it('selects telegram.contact.link.confirm when contact shared in await_contact subscription', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-contact-confirm-1',
+        occurredAt: '2026-04-08T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          chatId: 557,
+          channelUserId: 557,
+          phone: '+79990001122',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      linkedPhone: false,
+      conversationState: 'await_contact:subscription',
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.contact.link.confirm',
+          source: 'telegram',
+          event: 'message.received',
+          match: {
+            context: { conversationState: 'await_contact:subscription' },
+            input: { phonePresent: true },
+          },
+          steps: [
+            {
+              action: 'user.phone.link',
+              mode: 'sync',
+              params: {
+                channelUserId: '{{actor.channelUserId}}',
+                phoneNormalized: '{{input.phone}}',
+              },
+            },
+            {
+              action: 'user.state.set',
+              mode: 'sync',
+              params: {
+                channelUserId: '{{actor.channelUserId}}',
+                state: 'idle',
+              },
+            },
+            {
+              action: 'message.replyKeyboard.show',
+              mode: 'async',
+              params: { templateKey: 'telegram:chooseMenu' },
+            },
+          ],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(3);
+    expect(plan[0]).toMatchObject({
+      kind: 'user.phone.link',
+      payload: { phoneNormalized: '+79990001122' },
+    });
+    expect(plan[1]).toMatchObject({
+      kind: 'user.state.set',
+      payload: { state: 'idle' },
+    });
+    expect(plan[2]).toMatchObject({
+      kind: 'message.replyKeyboard.show',
+      payload: { templateKey: 'telegram:chooseMenu' },
+    });
+  });
+
   it('selects telegram.start for /start when linkedPhone is true', async () => {
     const event: IncomingEvent = {
       type: 'message.received',

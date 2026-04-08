@@ -24,7 +24,7 @@
   - `GET /api/admin/google-calendar/callback` — обмен code→tokens, сохранение refresh_token
   - `GET /api/admin/google-calendar/calendars` — список календарей для UI-выбора
 - **Webapp UI**: `GoogleCalendarSection` в Settings (admin-mode)
-- **Integrator**: `runtimeConfig.ts` читает из DB (зеркало webapp) с fallback на env
+- **Integrator**: `runtimeConfig.ts` — по каждому полю: значение из DB integrator, если ключ синхронизирован; иначе env (не «всё из DB или всё из env» целиком)
 
 ## Требования к Google Cloud Console
 

@@ -19,6 +19,26 @@ type GoogleCalendarSectionProps = {
 
 type CalendarItem = { id: string; summary: string; primary: boolean };
 
+/** Query `reason` from OAuth redirect — short safe labels for admins */
+const GCAL_ERROR_REASON_LABELS: Record<string, string> = {
+  csrf: "сессия или state не совпали — нажмите «Подключить Google» ещё раз",
+  no_code: "Google не вернул код авторизации",
+  no_refresh_token:
+    "нет refresh token: отзовите доступ к приложению в аккаунте Google и подключите снова",
+  exchange_failed: "не удалось обменять код на токены",
+  not_configured: "OAuth credentials не заполнены в настройках",
+  unauthorized: "нужна сессия администратора",
+  access_denied: "доступ отклонён в окне Google",
+};
+
+function formatGcalErrorMessage(reason: string | null): string {
+  if (!reason) return "Ошибка подключения Google Calendar";
+  const mapped = GCAL_ERROR_REASON_LABELS[reason];
+  if (mapped) return `Ошибка: ${mapped}`;
+  const safe = reason.slice(0, 120).replace(/[^\w.\-]/g, "");
+  return safe.length > 0 ? `Ошибка (${safe})` : "Ошибка подключения Google Calendar";
+}
+
 async function patchSetting(key: string, value: unknown): Promise<boolean> {
   const res = await fetch("/api/admin/settings", {
     method: "PATCH",
@@ -39,6 +59,7 @@ export function GoogleCalendarSection({
 }: GoogleCalendarSectionProps) {
   const searchParams = useSearchParams();
   const gcalStatus = searchParams.get("gcal");
+  const gcalReason = searchParams.get("reason");
 
   const [clientId, setClientId] = useState(googleClientId);
   const [clientSecret, setClientSecret] = useState(googleClientSecret);
@@ -56,13 +77,15 @@ export function GoogleCalendarSection({
   const [credsSaved, setCredsSaved] = useState(false);
   const [credsError, setCredsError] = useState<string | null>(null);
   const [calError, setCalError] = useState<string | null>(null);
+  const [calendarSaveError, setCalendarSaveError] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
   const [connectMsg, setConnectMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (gcalStatus === "connected") setConnectMsg("Google Calendar успешно подключён");
-    else if (gcalStatus === "error") setConnectMsg("Ошибка подключения Google Calendar");
-  }, [gcalStatus]);
+    else if (gcalStatus === "error") setConnectMsg(formatGcalErrorMessage(gcalReason));
+  }, [gcalStatus, gcalReason]);
 
   const saveCredentials = useCallback(() => {
     setCredsSaved(false);
@@ -122,25 +145,31 @@ export function GoogleCalendarSection({
     });
   }, []);
 
-  const selectCalendar = useCallback(
-    (id: string) => {
-      setCalendarId(id);
-      startTransition(async () => {
-        await patchSetting("google_calendar_id", id);
-      });
-    },
-    [],
-  );
+  const selectCalendar = useCallback((id: string) => {
+    const previous = calendarId;
+    setCalendarId(id);
+    setCalendarSaveError(null);
+    startTransition(async () => {
+      const ok = await patchSetting("google_calendar_id", id);
+      if (!ok) {
+        setCalendarId(previous);
+        setCalendarSaveError("Не удалось сохранить выбранный календарь");
+      }
+    });
+  }, [calendarId]);
 
-  const toggleEnabled = useCallback(
-    (val: boolean) => {
-      setEnabled(val);
-      startTransition(async () => {
-        await patchSetting("google_calendar_enabled", val);
-      });
-    },
-    [],
-  );
+  const toggleEnabled = useCallback((val: boolean) => {
+    const previous = enabled;
+    setEnabled(val);
+    setToggleError(null);
+    startTransition(async () => {
+      const ok = await patchSetting("google_calendar_enabled", val);
+      if (!ok) {
+        setEnabled(previous);
+        setToggleError("Не удалось сохранить переключатель синхронизации");
+      }
+    });
+  }, [enabled]);
 
   return (
     <Card className="border-border">
@@ -229,6 +258,7 @@ export function GoogleCalendarSection({
               </Button>
             </div>
             {calError && <p className="text-xs text-destructive">{calError}</p>}
+            {calendarSaveError && <p className="text-xs text-destructive">{calendarSaveError}</p>}
             {calendars.length > 0 && (
               <select
                 className="input-base font-mono text-xs"
@@ -254,13 +284,16 @@ export function GoogleCalendarSection({
 
         {/* 4. Enable toggle */}
         {hasRefreshToken && calendarId && (
-          <LabeledSwitch
-            label="Синхронизация включена"
-            hint="Записи из Rubitime будут создаваться/обновляться в выбранном Google Calendar"
-            checked={enabled}
-            onCheckedChange={toggleEnabled}
-            disabled={isPending}
-          />
+          <div className="flex flex-col gap-1">
+            <LabeledSwitch
+              label="Синхронизация включена"
+              hint="Записи из Rubitime будут создаваться/обновляться в выбранном Google Calendar"
+              checked={enabled}
+              onCheckedChange={toggleEnabled}
+              disabled={isPending}
+            />
+            {toggleError && <p className="text-xs text-destructive">{toggleError}</p>}
+          </div>
         )}
       </CardContent>
     </Card>

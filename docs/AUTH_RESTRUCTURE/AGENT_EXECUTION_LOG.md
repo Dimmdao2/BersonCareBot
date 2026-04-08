@@ -489,3 +489,75 @@ Gate verdict:
 Notes:
 - —
 ```
+
+```text
+[2026-04-08T06:00:00Z] [Bot contact onboarding] [EXEC] agent
+Tasks done:
+- Webapp: `MiniAppShareContactGate` + `isTelegramMiniAppWithInitData`, layout `app/app/patient/layout.tsx` — гейт в Telegram Mini App при сессии с telegramId без телефона; опрос `/api/me`, исключение `/bind-phone`; тесты `MiniAppShareContactGate.test.tsx`.
+- Integrator: уточнён текст `onboardingWelcome` (приложение до контакта) в `content/telegram/user/templates.json`.
+- Документация: `BOT_CONTACT_MINI_APP_GATE.md`, `INTEGRATOR_TELEGRAM_START_SCRIPTS.md`; правки `auth.md`, `STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md`.
+Changed files:
+- apps/webapp/src/shared/lib/telegramMiniApp.ts
+- apps/webapp/src/shared/ui/patient/MiniAppShareContactGate.tsx
+- apps/webapp/src/shared/ui/patient/MiniAppShareContactGate.test.tsx
+- apps/webapp/src/app/app/patient/layout.tsx
+- apps/integrator/src/content/telegram/user/templates.json
+- docs/AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md
+- docs/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md
+- docs/AUTH_RESTRUCTURE/auth.md
+- docs/AUTH_RESTRUCTURE/STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md
+- docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
+Checks:
+- tests: `pnpm test` (integrator 613 passed), `pnpm test:webapp` (1241 passed)
+- ci: `pnpm install --frozen-lockfile` + `pnpm run ci` — exit 0
+Evidence:
+- Пациентский раздел в TG Mini App без телефона в webapp блокируется до появления номера (или ручной привязки на `/bind-phone`).
+Gate verdict:
+- PASS
+Notes:
+- E2E integrator webhook для цепочки contact — регресс оркестратора в `buildPlan.test.ts`; отдельная фикстура webhook не добавлялась.
+```
+
+```text
+[2026-04-08T06:02:00Z] [Bot contact onboarding] [FIX] agent
+Tasks done:
+- Аудит плана: исправлен `MiniAppShareContactGate` — `useLayoutEffect` только на `[]` (не дублировать «Загрузка…» при каждой навигации внутри `/app/patient`); при уходе с `/bind-phone` краткий `loading`; экран `loading` без детей под оверлеем; таймаут — текст про задержку синхронизации; `onRetry` снова подтягивает `botUsername`.
+- Документация: доп. раздел в `INTEGRATOR_TELEGRAM_START_SCRIPTS.md` (конфликты `/start` vs payload); риски в `BOT_CONTACT_MINI_APP_GATE.md`.
+Changed files:
+- apps/webapp/src/shared/ui/patient/MiniAppShareContactGate.tsx
+- docs/AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md
+- docs/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md
+- docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
+Checks:
+- tests: `pnpm test` (613 passed), `pnpm test:webapp` (1241 passed)
+- ci: `pnpm run ci` — exit 0
+Evidence:
+- Навигация между экранами пациента в Mini App не сбрасывает гейт в вечную «Загрузку».
+Gate verdict:
+- PASS
+Notes:
+- —
+```
+
+```text
+[2026-04-08T06:10:00Z] [Bot contact onboarding] [FINAL_AUDIT] agent
+Tasks done:
+- Независимый аудит плана `bot_contact_onboarding_3ce50236`: п.1 (приоритеты /start, документация) — `INTEGRATOR_TELEGRAM_START_SCRIPTS.md`; п.2 (Mini App гейт) — `MiniAppShareContactGate`, `patient/layout`, `telegramMiniApp.ts`, `BOT_CONTACT_MINI_APP_GATE.md`; п.4 (регресс цепочки контакта) — добавлен тест `selects telegram.contact.link.confirm when contact shared in await_contact subscription` в `buildPlan.test.ts` (ранее покрывался только onboarding); webapp `contact.linked` — `events.test.ts`.
+- Документация: `docs/README.md` — ссылка на AUTH_RESTRUCTURE и `BOT_CONTACT_MINI_APP_GATE.md`; `INTEGRATOR_TELEGRAM_START_SCRIPTS.md` — список тестов оркестратора и ссылки на webapp/DB.
+- План Cursor помечен выполненным: `status: completed`, `completed_at_utc` в frontmatter файла плана.
+Changed files:
+- apps/integrator/src/kernel/orchestrator/buildPlan.test.ts
+- docs/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md
+- docs/README.md
+- docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
+- /home/dev/.cursor/plans/bot_contact_onboarding_3ce50236.plan.md
+Checks:
+- tests: `pnpm test` (integrator 614 passed), `pnpm test:webapp` (1241 passed)
+- ci: `pnpm install --frozen-lockfile` + `pnpm run ci` — exit 0
+Evidence:
+- План закрыт: принудительность в Mini App + оркестратор контакт → `user.phone.link`; E2E webhook с БД остаётся за `RUN_E2E_TESTS` (не блокер).
+Gate verdict:
+- PASS
+Notes:
+- Опциональный MAX-параллелизм (п.3 плана) вне обязательного scope этой инициативы.
+```
