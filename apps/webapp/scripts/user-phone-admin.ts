@@ -12,10 +12,15 @@
  *   reassign-user <phone> <old-uuid>
  *                         — переносит контентные записи со старого UUID на текущего пользователя с данным телефоном.
  *
- * Использование:
- *   DATABASE_URL=... pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts info 79189000782
- *   DATABASE_URL=... pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts reset-user 79189000782
- *   DATABASE_URL=... pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts reassign-user 79189000782 05f08456-...
+ * Использование (dev): задать DATABASE_URL на webapp БД (см. apps/webapp/.env.dev).
+ *
+ * Production-хост: не подставлять плейсхолдер — взять URL из env-файла (иначе возможен хост вроде
+ * `base` из docker-only конфига → getaddrinfo EAI_AGAIN):
+ *   set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+ *   pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts info 79189000782
+ *
+ * Локально с явным URL:
+ *   DATABASE_URL=postgresql://... pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts reset-user 79189000782
  */
 
 import pg from "pg";
