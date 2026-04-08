@@ -49,9 +49,11 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.diary" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
+							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+						]
 					],
 					"resizeKeyboard": true
 				}
@@ -153,9 +155,11 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.diary" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
+							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+						]
 					],
 					"resizeKeyboard": true
 				}
@@ -260,9 +264,11 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:welcome",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.diary" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
+							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+						]
 					],
 					"resizeKeyboard": true
 				}
@@ -885,9 +891,11 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.diary" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
+							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+						]
 					],
 					"resizeKeyboard": true
 				}
@@ -918,9 +926,11 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.diary" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
+							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+						]
 					],
 					"resizeKeyboard": true
 				}
@@ -1006,9 +1016,11 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:cabinet.placeholder",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.diary" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
+							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+						]
 					],
 					"resizeKeyboard": true
 				}
@@ -1030,9 +1042,11 @@
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:cabinet.placeholder",
 					"keyboard": [
-						[{ "textTemplateKey": "telegram:menu.book" }],
-						[{ "textTemplateKey": "telegram:menu.diary" }],
-						[{ "textTemplateKey": "telegram:menu.more" }]
+						[
+							{ "textTemplateKey": "telegram:menu.book" },
+							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
+							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+						]
 					],
 					"resizeKeyboard": true
 				}
