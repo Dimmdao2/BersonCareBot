@@ -130,36 +130,12 @@ export async function resolveRoleAsync(ids: {
 
 /**
  * Async whitelist checker: are these IDs whitelisted for webapp entry?
- * Checks allowed_telegram_ids, allowed_max_ids, allowed_phones + all role lists.
+ * Whitelist disabled — webapp is open to all authenticated users.
  */
-export async function isWhitelistedAsync(ids: {
+export async function isWhitelistedAsync(_ids: {
   phone?: string;
   telegramId?: string;
   maxId?: string;
 }): Promise<boolean> {
-  try {
-    const role = await resolveRoleAsync(ids);
-    if (role === "admin" || role === "doctor") return true;
-
-    const [allowedTelegramRaw, allowedMaxRaw, allowedPhonesRaw] = await Promise.all([
-      getConfigValue("allowed_telegram_ids", env.ALLOWED_TELEGRAM_IDS ?? ""),
-      getConfigValue("allowed_max_ids", env.ALLOWED_MAX_IDS ?? ""),
-      getConfigValue("allowed_phones", env.ALLOWED_PHONES ?? ""),
-    ]);
-
-    const allowedTelegram = parseIdTokens(allowedTelegramRaw);
-    const allowedMax = parseIdTokens(allowedMaxRaw);
-    const allowedPhones = parseIdTokens(allowedPhonesRaw);
-
-    const tid = ids.telegramId?.trim() ?? "";
-    const mid = ids.maxId?.trim() ?? "";
-
-    if (tid && idInList(tid, allowedTelegram)) return true;
-    if (mid && idInList(mid, allowedMax)) return true;
-    if (phoneInList(ids.phone, allowedPhones)) return true;
-
-    return false;
-  } catch {
-    return false;
-  }
+  return true;
 }
