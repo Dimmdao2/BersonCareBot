@@ -22,10 +22,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
   return {
     async listClients(filters: DoctorClientsFilters): Promise<ClientListItem[]> {
       const pool = getPool();
+      const archivedClause =
+        filters.archivedOnly === true
+          ? `COALESCE(is_archived, false) = true`
+          : `COALESCE(is_archived, false) = false`;
       const clientRows = await pool.query(
         `SELECT id, display_name, phone_normalized, created_at
          FROM platform_users
-         WHERE role = 'client' AND COALESCE(is_archived, false) = false
+         WHERE role = 'client' AND ${archivedClause}
          ORDER BY display_name, id`
       );
       if (clientRows.rows.length === 0) return [];
@@ -90,7 +94,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       if (filters.hasUpcomingAppointment === true) {
         list = list.filter((item) => Boolean(item.nextAppointmentLabel));
       }
-      if (filters.onlyWithAppointmentRecords === true) {
+      if (filters.onlyWithAppointmentRecords === true && !filters.archivedOnly) {
         const phones = await pool.query<{ phone_normalized: string }>(
           `SELECT DISTINCT phone_normalized FROM appointment_records WHERE phone_normalized IS NOT NULL AND deleted_at IS NULL`
         );
@@ -99,7 +103,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         );
         list = list.filter((item) => Boolean(item.phone) && phoneSet.has(item.phone!));
       }
-      if (filters.visitedThisCalendarMonth === true) {
+      if (filters.visitedThisCalendarMonth === true && !filters.archivedOnly) {
         const visited = await pool.query<{ id: string }>(
           `SELECT DISTINCT pu.id
            FROM platform_users pu
@@ -240,7 +244,8 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
     async setUserArchived(userId: string, archived: boolean): Promise<void> {
       const pool = getPool();
       await pool.query(
-        `UPDATE platform_users SET is_archived = $2, updated_at = now() WHERE id = $1::uuid`,
+        `UPDATE platform_users SET is_archived = $2, updated_at = now()
+         WHERE id = $1::uuid AND role = 'client'`,
         [userId, archived]
       );
     },

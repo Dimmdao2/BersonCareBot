@@ -53,6 +53,7 @@ vi.mock("@/config/env", () => ({
     NODE_ENV: "test",
   },
   isProduction: false,
+  webappReposAreInMemory: () => true,
 }));
 
 import { GET } from "./route";

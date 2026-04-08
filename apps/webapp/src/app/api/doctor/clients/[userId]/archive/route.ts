@@ -1,6 +1,5 @@
 /**
- * PATCH /api/admin/users/:userId/archive — архив / снятие архива (только role=admin).
- * Та же бизнес-логика, что и у `/api/doctor/clients/.../archive`, иной guard по роли вызывающего.
+ * PATCH /api/doctor/clients/:userId/archive — архив / снятие архива (врач или админ).
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -9,10 +8,14 @@ import {
   clientArchiveBodySchema,
 } from "@/modules/doctor-clients/clientArchiveChange";
 import { getCurrentSession } from "@/modules/auth/service";
+import { canAccessDoctor } from "@/modules/roles/service";
 
 export async function PATCH(request: Request, context: { params: Promise<{ userId: string }> }) {
   const session = await getCurrentSession();
-  if (!session || session.user.role !== "admin") {
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  if (!canAccessDoctor(session.user.role)) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 

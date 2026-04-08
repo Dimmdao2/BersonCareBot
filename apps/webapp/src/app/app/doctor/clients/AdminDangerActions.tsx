@@ -10,31 +10,8 @@ type Props = {
 };
 
 export function AdminDangerActions({ userId, sampleIntegratorRecordId }: Props) {
-  const [busy, setBusy] = useState<"archive" | "record" | null>(null);
+  const [busy, setBusy] = useState<"record" | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-
-  async function archiveUser() {
-    if (!window.confirm("Архивировать учётную запись пользователя? Она исчезнет из списков врача.")) {
-      return;
-    }
-    setBusy("archive");
-    setMsg(null);
-    try {
-      const res = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/archive`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ archived: true }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) {
-        setMsg("Ошибка архивации");
-        return;
-      }
-      setMsg("Пользователь заархивирован.");
-    } finally {
-      setBusy(null);
-    }
-  }
 
   async function softDeleteRecord() {
     if (!sampleIntegratorRecordId?.trim()) {
@@ -65,12 +42,11 @@ export function AdminDangerActions({ userId, sampleIntegratorRecordId }: Props) 
       <h2 id="admin-danger-heading" className="text-destructive">
         Администратор
       </h2>
-      <p className="text-muted-foreground text-sm">Действия доступны только роли admin (проверка на сервере).</p>
+      <p className="text-muted-foreground text-sm">
+        Дополнительные действия администратора (проверка на сервере). Архив и удаление — в блоке «Учётная запись» выше.
+      </p>
       {msg ? <p className="text-sm">{msg}</p> : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="destructive" disabled={busy !== null} onClick={() => void archiveUser()}>
-          {busy === "archive" ? "…" : "Архивировать пользователя"}
-        </Button>
         {sampleIntegratorRecordId ? (
           <Button
             type="button"

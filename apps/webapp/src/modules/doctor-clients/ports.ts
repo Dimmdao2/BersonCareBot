@@ -13,6 +13,8 @@ export type DoctorClientsFilters = {
    * См. docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md.
    */
   visitedThisCalendarMonth?: boolean;
+  /** Только заархивированные (`is_archived`), раздел «Архив». */
+  archivedOnly?: boolean;
 };
 
 /** Строка клиента в списке. */
@@ -35,7 +37,7 @@ export type ClientIdentity = {
   /** Этап 9: заблокирован для исходящих сообщений пациента в чат поддержки. */
   isBlocked: boolean;
   blockedReason: string | null;
-  /** Soft-delete учётки (только админ). */
+  /** Архив (`platform_users.is_archived`): скрыт из обычных списков; снять архив — `PATCH .../archive` с `{ archived: false }` (врач или админ). */
   isArchived: boolean;
 };
 
@@ -62,6 +64,6 @@ export type DoctorClientsPort = {
     reason: string | null;
     actorId: string;
   }): Promise<void>;
-  /** Админ: архивировать учётку (скрыть из списков врача). */
+  /** Архив учётки клиента (скрыть из обычных списков; врач и админ через API). */
   setUserArchived(userId: string, archived: boolean): Promise<void>;
 };

@@ -8,6 +8,7 @@ import { ClientProfileCard } from "./ClientProfileCard";
 vi.mock("./[userId]/SendMessageForm", () => ({ SendMessageForm: () => null }));
 vi.mock("./AssignLfkTemplatePanel", () => ({ AssignLfkTemplatePanel: () => null }));
 vi.mock("./AdminDangerActions", () => ({ AdminDangerActions: () => null }));
+vi.mock("./DoctorClientLifecycleActions", () => ({ DoctorClientLifecycleActions: () => null }));
 vi.mock("./DoctorNotesPanel", () => ({ DoctorNotesPanel: () => null }));
 vi.mock("./SubscriberBlockPanel", () => ({ SubscriberBlockPanel: () => null }));
 

@@ -11,6 +11,7 @@ import type { PrepareDraftResult } from "@/modules/doctor-messaging/service";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AssignLfkTemplatePanel } from "./AssignLfkTemplatePanel";
 import { AdminDangerActions } from "./AdminDangerActions";
+import { DoctorClientLifecycleActions } from "./DoctorClientLifecycleActions";
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
 import { SendMessageForm } from "./[userId]/SendMessageForm";
 import { SubscriberBlockPanel } from "./SubscriberBlockPanel";
@@ -23,6 +24,8 @@ type ClientProfileCardProps = {
   /** База списка для ссылки «назад» (подписчики или клиенты). */
   listBasePath?: string;
   isAdmin?: boolean;
+  /** Безвозвратное удаление: только admin + включённый adminMode. */
+  canPermanentDelete?: boolean;
   publishedLfkTemplates?: { id: string; title: string }[];
   assignLfkEnabled?: boolean;
 };
@@ -34,6 +37,7 @@ export function ClientProfileCard({
   userId,
   listBasePath = "/app/doctor/clients",
   isAdmin = false,
+  canPermanentDelete = false,
   publishedLfkTemplates = [],
   assignLfkEnabled = false,
 }: ClientProfileCardProps) {
@@ -54,7 +58,9 @@ export function ClientProfileCard({
   const backLabel =
     listBasePath.includes("subscribers") || listBasePath.includes("scope=all")
       ? "К списку подписчиков"
-      : "К списку клиентов";
+      : listBasePath.includes("scope=archived")
+        ? "К архиву"
+        : "К списку клиентов";
 
   return (
     <>
@@ -117,6 +123,14 @@ export function ClientProfileCard({
           Обзор визуализаций и связей по пациенту будет добавлен в отдельном этапе. Сейчас используйте данные блоков выше и раздел «Карта» позже появится в кабинете.
         </p>
       </section>
+
+      <DoctorClientLifecycleActions
+        userId={userId}
+        isArchived={identity.isArchived}
+        listBasePath={listBasePath}
+        isAdmin={isAdmin}
+        canPermanentDelete={canPermanentDelete}
+      />
 
       <section id="doctor-client-appointments-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
         <h2>Ближайшие записи</h2>

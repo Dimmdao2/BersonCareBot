@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { env } from "@/config/env";
+import { env, webappReposAreInMemory } from "@/config/env";
 import { exchangeYandexCode, fetchYandexUserInfo } from "@/modules/auth/oauthService";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(redirectToAppQuery("userinfo_failed"));
   }
 
-  const oauthPort = env.DATABASE_URL ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
+  const oauthPort = webappReposAreInMemory() ? inMemoryOAuthBindingsPort : pgOAuthBindingsPort;
 
   const resolved = await resolveUserIdForYandexOAuth(oauthPort, {
     yandexId,

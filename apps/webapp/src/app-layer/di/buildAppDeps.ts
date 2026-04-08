@@ -1,7 +1,7 @@
 /**
  * Сборка зависимостей приложения: авторизация, меню, дневники, каталог контента, настройки каналов и т.д.
  * Используется на страницах приложения для доступа к сервисам. При наличии базы данных подключаются
- * хранилища в БД (дневники, настройки каналов), иначе — хранилища в памяти.
+ * хранилища в БД. In-memory — если `webappReposAreInMemory()` (Vitest без БД; `next build` без URL в CI). В `next dev` без `DATABASE_URL` — throw в `config/env`.
  */
 
 import { cache } from "react";
@@ -123,7 +123,7 @@ import { createLfkAssignmentsService } from "@/modules/lfk-assignments/service";
 import type { LfkAssignmentsPort } from "@/modules/lfk-assignments/ports";
 import { pgLfkAssignmentsPort } from "@/infra/repos/pgLfkAssignments";
 import { checkDbHealth } from "@/infra/db/client";
-import { env, integratorWebhookSecret, isS3MediaEnabled } from "@/config/env";
+import { env, integratorWebhookSecret, isS3MediaEnabled, webappReposAreInMemory } from "@/config/env";
 import { resolveRoleFromEnv } from "@/modules/auth/envRole";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { getDeliveryTargetsForIntegrator } from "@/modules/integrator/deliveryTargetsApi";
@@ -134,42 +134,44 @@ import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookin
 import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
 import { createBookingCatalogService } from "@/modules/booking-catalog/service";
 
-const symptomDiaryPort = env.DATABASE_URL ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
-const lfkDiaryPort = env.DATABASE_URL ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
-const channelPreferencesPort = env.DATABASE_URL ? pgChannelPreferencesPort : inMemoryChannelPreferencesPort;
-const userByPhonePort = env.DATABASE_URL ? pgUserByPhonePort : inMemoryUserByPhonePort;
-const userPinsPort = env.DATABASE_URL ? pgUserPinsPort : inMemoryUserPinsPort;
-const oauthBindingsPort = env.DATABASE_URL ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
-const loginTokensPort = env.DATABASE_URL ? pgLoginTokensPort : inMemoryLoginTokensPort;
-const identityResolutionPort = env.DATABASE_URL ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
-const doctorClientsPort = env.DATABASE_URL ? createPgDoctorClientsPort() : inMemoryDoctorClientsPort;
+const inMemoryRepos = webappReposAreInMemory();
+
+const symptomDiaryPort = !inMemoryRepos ? pgSymptomDiaryPort : inMemorySymptomDiaryPort;
+const lfkDiaryPort = !inMemoryRepos ? pgLfkDiaryPort : inMemoryLfkDiaryPort;
+const channelPreferencesPort = !inMemoryRepos ? pgChannelPreferencesPort : inMemoryChannelPreferencesPort;
+const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
+const userPinsPort = !inMemoryRepos ? pgUserPinsPort : inMemoryUserPinsPort;
+const oauthBindingsPort = !inMemoryRepos ? pgOAuthBindingsPort : inMemoryOAuthBindingsPort;
+const loginTokensPort = !inMemoryRepos ? pgLoginTokensPort : inMemoryLoginTokensPort;
+const identityResolutionPort = !inMemoryRepos ? pgIdentityResolutionPort : inMemoryIdentityResolutionPort;
+const doctorClientsPort = !inMemoryRepos ? createPgDoctorClientsPort() : inMemoryDoctorClientsPort;
 // Stage 9: appointment_records lives in webapp DB (projection from integrator).
-const doctorAppointmentsPort = env.DATABASE_URL ? createPgDoctorAppointmentsPort() : inMemoryDoctorAppointmentsPort;
-const challengeStore = env.DATABASE_URL ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
-const messageLogPort = env.DATABASE_URL ? createPgMessageLogPort() : inMemoryMessageLogPort;
-const broadcastAuditPort = env.DATABASE_URL ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
-const userProjectionPort = env.DATABASE_URL ? pgUserProjectionPort : inMemoryUserProjectionPort;
-const supportCommunicationPort = env.DATABASE_URL
+const doctorAppointmentsPort = !inMemoryRepos ? createPgDoctorAppointmentsPort() : inMemoryDoctorAppointmentsPort;
+const challengeStore = !inMemoryRepos ? createPgPhoneChallengeStore() : inMemoryPhoneChallengeStore;
+const messageLogPort = !inMemoryRepos ? createPgMessageLogPort() : inMemoryMessageLogPort;
+const broadcastAuditPort = !inMemoryRepos ? createPgBroadcastAuditPort() : inMemoryBroadcastAuditPort;
+const userProjectionPort = !inMemoryRepos ? pgUserProjectionPort : inMemoryUserProjectionPort;
+const supportCommunicationPort = !inMemoryRepos
   ? createPgSupportCommunicationPort()
   : inMemorySupportCommunicationPort;
-const reminderProjectionPort = env.DATABASE_URL
+const reminderProjectionPort = !inMemoryRepos
   ? createPgReminderProjectionPort()
   : inMemoryReminderProjectionPort;
-const reminderRulesPort = env.DATABASE_URL
+const reminderRulesPort = !inMemoryRepos
   ? createPgReminderRulesPort()
   : createInMemoryReminderRulesPort();
-const reminderJournalPort = env.DATABASE_URL ? createPgReminderJournalPort() : undefined;
+const reminderJournalPort = !inMemoryRepos ? createPgReminderJournalPort() : undefined;
 const remindersService = createRemindersService(reminderRulesPort, {
   notifyIntegrator: notifyIntegratorRuleUpdated,
   journal: reminderJournalPort,
 });
-const appointmentProjectionPort = env.DATABASE_URL
+const appointmentProjectionPort = !inMemoryRepos
   ? createPgAppointmentProjectionPort()
   : inMemoryAppointmentProjectionPort;
-const patientBookingsPort = env.DATABASE_URL
+const patientBookingsPort = !inMemoryRepos
   ? pgPatientBookingsPort
   : inMemoryPatientBookingsPort;
-const bookingCatalogPort = env.DATABASE_URL ? createPgBookingCatalogPort() : null;
+const bookingCatalogPort = !inMemoryRepos ? createPgBookingCatalogPort() : null;
 const bookingCatalogService = bookingCatalogPort
   ? createBookingCatalogService(bookingCatalogPort)
   : null;
@@ -178,27 +180,27 @@ const patientBookingService = createPatientBookingService({
   syncPort: createBookingSyncPort(),
   bookingCatalog: bookingCatalogService,
 });
-const branchesProjectionPort = env.DATABASE_URL ? createPgBranchesProjectionPort() : null;
-const subscriptionMailingProjectionPort = env.DATABASE_URL
+const branchesProjectionPort = !inMemoryRepos ? createPgBranchesProjectionPort() : null;
+const subscriptionMailingProjectionPort = !inMemoryRepos
   ? createPgSubscriptionMailingProjectionPort()
   : inMemorySubscriptionMailingProjectionPort;
-const contentPagesPort = env.DATABASE_URL ? createPgContentPagesPort() : inMemoryContentPagesPort;
-const contentSectionsPort = env.DATABASE_URL ? createPgContentSectionsPort() : inMemoryContentSectionsPort;
+const contentPagesPort = !inMemoryRepos ? createPgContentPagesPort() : inMemoryContentPagesPort;
+const contentSectionsPort = !inMemoryRepos ? createPgContentSectionsPort() : inMemoryContentSectionsPort;
 const mediaStoragePort =
-  env.DATABASE_URL && isS3MediaEnabled(env)
+  !inMemoryRepos && isS3MediaEnabled(env)
     ? createS3MediaStoragePort()
     : mockMediaStoragePort;
-const referencesPort = env.DATABASE_URL ? pgReferencesPort : inMemoryReferencesPort;
-const doctorNotesPort = env.DATABASE_URL ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
+const referencesPort = !inMemoryRepos ? pgReferencesPort : inMemoryReferencesPort;
+const doctorNotesPort = !inMemoryRepos ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
 
-const systemSettingsPort = env.DATABASE_URL ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
+const systemSettingsPort = !inMemoryRepos ? createPgSystemSettingsPort() : inMemorySystemSettingsPort;
 const systemSettingsService = createSystemSettingsService(systemSettingsPort);
 
-const lfkExercisesPort = env.DATABASE_URL ? pgLfkExercisesPort : inMemoryLfkExercisesPort;
+const lfkExercisesPort = !inMemoryRepos ? pgLfkExercisesPort : inMemoryLfkExercisesPort;
 const lfkExercisesService = createLfkExercisesService(lfkExercisesPort);
 
-const lfkTemplatesPort = env.DATABASE_URL ? pgLfkTemplatesPort : inMemoryLfkTemplatesPort;
+const lfkTemplatesPort = !inMemoryRepos ? pgLfkTemplatesPort : inMemoryLfkTemplatesPort;
 const lfkTemplatesService = createLfkTemplatesService(lfkTemplatesPort);
 
 const lfkAssignmentsStubPort: LfkAssignmentsPort = {
@@ -206,7 +208,7 @@ const lfkAssignmentsStubPort: LfkAssignmentsPort = {
     throw new Error("Назначение шаблона ЛФК доступно только при подключённой базе данных.");
   },
 };
-const lfkAssignmentsPortResolved: LfkAssignmentsPort = env.DATABASE_URL
+const lfkAssignmentsPortResolved: LfkAssignmentsPort = !inMemoryRepos
   ? pgLfkAssignmentsPort
   : lfkAssignmentsStubPort;
 const lfkAssignmentsService = createLfkAssignmentsService(lfkAssignmentsPortResolved);
@@ -245,7 +247,7 @@ function mapRecordStatus(raw: string): AppointmentRecordStatus {
 }
 
 const getUpcomingAppointments: (userId: string) => Promise<AppointmentSummary[]> =
-  env.DATABASE_URL && appointmentProjectionPort
+  !inMemoryRepos && appointmentProjectionPort
     ? async (userId: string) => {
         try {
           const phone = await userByPhonePort.getPhoneByUserId(userId);
@@ -282,7 +284,7 @@ function isStillUpcomingSlot(row: { recordAt: string | null; status: string }): 
 }
 
 const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]> =
-  env.DATABASE_URL && appointmentProjectionPort
+  !inMemoryRepos && appointmentProjectionPort
     ? async (userId: string) => {
         try {
           const phone = await userByPhonePort.getPhoneByUserId(userId);
@@ -522,7 +524,7 @@ function _buildAppDeps() {
       updateLfkSession: lfkDiaryService.updateLfkSession,
       deleteLfkSession: lfkDiaryService.deleteLfkSession,
       purgeAllDiaryDataForUser: async (userId: string) => {
-        if (env.DATABASE_URL) {
+        if (!inMemoryRepos) {
           await purgeAllDiaryDataForUserPg(userId);
         } else {
           purgeInMemorySymptomDiaryForUser(userId);
@@ -563,7 +565,7 @@ function _buildAppDeps() {
       doctorSupport: doctorSupportMessagingService,
     },
     reminders: remindersService,
-    /** Журнал snooze/skip/done; `undefined` без PostgreSQL. */
+    /** Журнал snooze/skip/done; `undefined` в Vitest без БД. */
     reminderJournal: reminderJournalPort,
     reminderProjection: reminderProjectionPort,
     appointmentProjection: appointmentProjectionPort,
@@ -580,7 +582,7 @@ function _buildAppDeps() {
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,
     bookingCatalog: bookingCatalogService,
-    /** Raw PG port for admin booking-catalog API (null without DATABASE_URL). */
+    /** Raw PG port for admin booking-catalog API (null only in Vitest without DB). */
     bookingCatalogPort,
   };
 }

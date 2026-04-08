@@ -11,6 +11,9 @@ const INSECURE_SECRET_BLACKLIST = [
 const isTest =
   process.env.NODE_ENV === "test" || Boolean(process.env.VITEST_WORKER_ID);
 
+/** `NODE_ENV === "test"` или Vitest worker; для выбора тестовых заглушек см. `webappReposAreInMemory`. */
+export const isTestEnv = isTest;
+
 /** Test-only defaults; never used in development or production. */
 const TEST_DEFAULTS = {
   SESSION_COOKIE_SECRET: "test-session-secret-16chars",
@@ -213,6 +216,21 @@ if (!isNextBuildPhase) {
 rejectInsecureSecrets(parsed);
 
 export const env = parsed;
+
+/**
+ * In-memory репозитории: Vitest без БД, либо `next build` без `DATABASE_URL` (CI).
+ * `next dev` без URL — ошибка; production runtime без URL — см. `instrumentation.ts` и `getPool()`.
+ */
+export function webappReposAreInMemory(): boolean {
+  if ((env.DATABASE_URL ?? "").trim()) return false;
+  if (isTest) return true;
+  if (process.env.NODE_ENV === "development") {
+    throw new Error(
+      "DATABASE_URL is not set. Configure the webapp PostgreSQL URL (e.g. apps/webapp/.env.dev or .env.local)."
+    );
+  }
+  return true;
+}
 
 export const isProduction = parsed.NODE_ENV === "production";
 

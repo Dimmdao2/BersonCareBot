@@ -10,7 +10,7 @@ import { pluralizeRu } from "@/shared/lib/pluralize";
 import type { ClientListItem } from "@/modules/doctor-clients/ports";
 import { ClientsFilters } from "./ClientsFilters";
 
-type ClientsScope = "all" | "appointments";
+type ClientsScope = "all" | "appointments" | "archived";
 
 type UrlParams = {
   q?: string;
@@ -43,7 +43,8 @@ function matchesSearch(item: ClientListItem, query: string): boolean {
 }
 
 function appendListQueryParams(params: URLSearchParams, urlParams: UrlParams): void {
-  const scope: ClientsScope = urlParams.scope === "all" ? "all" : "appointments";
+  const scope: ClientsScope =
+    urlParams.scope === "all" ? "all" : urlParams.scope === "archived" ? "archived" : "appointments";
   params.set("scope", scope);
   if (urlParams.telegram === "1") params.set("telegram", "1");
   if (urlParams.max === "1") params.set("max", "1");
@@ -54,7 +55,8 @@ function appendListQueryParams(params: URLSearchParams, urlParams: UrlParams): v
 export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_BASE }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState(urlParams.q ?? "");
-  const scope: ClientsScope = urlParams.scope === "all" ? "all" : "appointments";
+  const scope: ClientsScope =
+    urlParams.scope === "all" ? "all" : urlParams.scope === "archived" ? "archived" : "appointments";
   const showVisitedMonthFilter = scope === "appointments";
 
   const filtered = useMemo(() => {
@@ -152,6 +154,15 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
             id="doctor-clients-scope-all"
           >
             Все подписчики
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={scope === "archived" ? "default" : "outline"}
+            onClick={() => onScopeChange("archived")}
+            id="doctor-clients-scope-archived"
+          >
+            Архив
           </Button>
         </div>
         <Input

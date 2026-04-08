@@ -18,7 +18,13 @@ export default async function DoctorClientProfilePage({
 }: Props & { searchParams: SearchParams }) {
   const session = await requireDoctorAccess();
   const { userId } = await params;
-  const { scope } = await searchParams;
+  const { scope: scopeParam } = await searchParams;
+  const listBasePath =
+    scopeParam === "all"
+      ? "/app/doctor/clients?scope=all"
+      : scopeParam === "archived"
+        ? "/app/doctor/clients?scope=archived"
+        : "/app/doctor/clients?scope=appointments";
   const deps = buildAppDeps();
   const [profile, messageDraft, messageHistory, publishedLfkTemplates] = await Promise.all([
     deps.doctorClients.getClientProfile(userId),
@@ -33,7 +39,7 @@ export default async function DoctorClientProfilePage({
     <AppShell
       title={profile.identity.displayName}
       user={session.user}
-      backHref={scope === "all" ? "/app/doctor/clients?scope=all" : "/app/doctor/clients?scope=appointments"}
+      backHref={listBasePath}
       backLabel="Клиенты"
       variant="doctor"
     >
@@ -43,8 +49,9 @@ export default async function DoctorClientProfilePage({
         messageDraft={messageDraft}
         messageHistory={messageHistory.items}
         userId={userId}
-        listBasePath={scope === "all" ? "/app/doctor/clients?scope=all" : "/app/doctor/clients?scope=appointments"}
+        listBasePath={listBasePath}
         isAdmin={session.user.role === "admin"}
+        canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
         publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}
         assignLfkEnabled={Boolean(env.DATABASE_URL)}
       />

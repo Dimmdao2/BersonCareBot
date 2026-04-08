@@ -1,4 +1,4 @@
-import { env } from "@/config/env";
+import { webappReposAreInMemory } from "@/config/env";
 import { createPgOnlineIntakePort } from "@/infra/repos/pgOnlineIntake";
 import { createInMemoryOnlineIntake } from "@/infra/repos/inMemoryOnlineIntake";
 import { createIntakeNotificationRelay } from "@/modules/online-intake/intakeNotificationRelay";
@@ -9,7 +9,9 @@ let _service: OnlineIntakeService | null = null;
 
 export function getOnlineIntakeService(): OnlineIntakeService {
   if (!_service) {
-    const intakePort = env.DATABASE_URL ? createPgOnlineIntakePort() : createInMemoryOnlineIntake();
+    const intakePort = webappReposAreInMemory()
+      ? createInMemoryOnlineIntake()
+      : createPgOnlineIntakePort();
     _service = createOnlineIntakeService({
       intakePort,
       notificationPort: createIntakeNotificationRelay(),

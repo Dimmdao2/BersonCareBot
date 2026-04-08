@@ -1,23 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, buildAppDepsMock, getClientIdentityMock, setUserArchivedMock } = vi.hoisted(() => {
-  const getClientIdentityMockInner = vi.fn();
-  const setUserArchivedMockInner = vi.fn();
-  return {
-    getSessionMock: vi.fn(),
-    getClientIdentityMock: getClientIdentityMockInner,
-    setUserArchivedMock: setUserArchivedMockInner,
-    buildAppDepsMock: vi.fn(() => ({
-      doctorClientsPort: {
-        getClientIdentity: getClientIdentityMockInner,
-        setUserArchived: setUserArchivedMockInner,
-      },
-    })),
-  };
-});
-
-vi.mock("@/app-layer/di/buildAppDeps", () => ({
-  buildAppDeps: buildAppDepsMock,
+const { getSessionMock } = vi.hoisted(() => ({
+  getSessionMock: vi.fn(),
 }));
 vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: getSessionMock,
@@ -28,8 +12,6 @@ import { PATCH } from "./route";
 describe("PATCH /api/admin/users/[userId]/archive", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
-    getClientIdentityMock.mockReset();
-    setUserArchivedMock.mockReset();
   });
 
   it("returns 403 when session is doctor (not admin)", async () => {

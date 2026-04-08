@@ -1,5 +1,5 @@
 import { getPool } from "@/infra/db/client";
-import { env } from "@/config/env";
+import { webappReposAreInMemory } from "@/config/env";
 import type { PhoneChallengeStore } from "@/modules/auth/phoneChallengeStore";
 import {
   OTP_LOCK_DURATION_SEC,
@@ -12,13 +12,13 @@ export type PhoneChallengeGateResult = SendCodeResult | { ok: true };
 
 const nowSec = () => Math.floor(Date.now() / 1000);
 
-/** In-memory: для тестов и режима без БД. */
+/** In-memory: только Vitest без `DATABASE_URL`. */
 const memLocks = new Map<string, number>();
 const memLastSend = new Map<string, number>();
 
 export async function assertPhoneCanStartChallenge(phone: string): Promise<PhoneChallengeGateResult> {
   const n = phone;
-  const pool = env.DATABASE_URL ? getPool() : null;
+  const pool = webappReposAreInMemory() ? null : getPool();
   if (!pool) {
     const lockedUntil = memLocks.get(n);
     if (lockedUntil != null && lockedUntil > nowSec()) {
@@ -79,7 +79,7 @@ export async function assertPhoneCanStartChallenge(phone: string): Promise<Phone
 }
 
 export async function registerPhoneSend(phone: string): Promise<void> {
-  if (!env.DATABASE_URL) {
+  if (webappReposAreInMemory()) {
     memLastSend.set(phone, nowSec());
   }
   /* created_at обновляется при INSERT challenge — см. sendCode. */
@@ -101,7 +101,7 @@ export async function onPhoneWrongCode(
   if (attempts >= OTP_MAX_VERIFY_ATTEMPTS) {
     await challengeStore.delete(challengeId);
     const lockUntil = nowSec() + OTP_LOCK_DURATION_SEC;
-    const pool = env.DATABASE_URL ? getPool() : null;
+    const pool = webappReposAreInMemory() ? null : getPool();
     if (!pool) {
       memLocks.set(phone, lockUntil);
     } else {
