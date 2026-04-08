@@ -34,29 +34,29 @@
   },
   "dependencies": {
     "@maxhub/max-bot-api": "^0.2.2",
-    "dotenv": "^17.3.1",
+    "dotenv": "^17.4.1",
     "fastify": "^5.8.3",
     "googleapis": "^171.4.0",
-    "grammy": "^1.41.1",
+    "grammy": "^1.42.0",
     "luxon": "^3.7.2",
     "node-fetch": "^3.3.2",
-    "nodemailer": "^8.0.4",
+    "nodemailer": "^8.0.5",
     "p-retry": "^7.1.1",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1009.0",
+    "@aws-sdk/client-s3": "^3.1026.0",
     "@types/luxon": "^3.7.1",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.5.2",
     "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^7.0.11",
-    "@types/pg": "^8.18.0",
-    "nock": "^14.0.11",
+    "@types/pg": "^8.20.0",
+    "nock": "^14.0.12",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "undici": "^7.24.3",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.3"
   }
 }
