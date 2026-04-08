@@ -8,6 +8,7 @@ import { resolveUserIdForYandexOAuth } from "@/modules/auth/oauthYandexResolve";
 import { pgUserByPhonePort } from "@/infra/repos/pgUserByPhone";
 import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
 import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
+import { routePaths } from "@/app-layer/routes/paths";
 import {
   getYandexOauthClientId,
   getYandexOauthClientSecret,
@@ -78,11 +79,13 @@ export async function GET(request: Request) {
   let yandexId: string;
   let oauthEmail: string | null;
   let oauthName: string | null;
+  let oauthPhone: string | null;
   try {
     const info = await fetchYandexUserInfo(accessToken);
     yandexId = info.id;
     oauthEmail = info.email;
     oauthName = info.name;
+    oauthPhone = info.phone;
   } catch {
     return NextResponse.redirect(redirectToAppQuery("userinfo_failed"));
   }
@@ -93,12 +96,13 @@ export async function GET(request: Request) {
     yandexId,
     email: oauthEmail,
     displayName: oauthName,
+    phone: oauthPhone,
   });
 
   if (!resolved.ok) {
     const r = resolved.reason;
-    if (r === "no_verified_email") {
-      return NextResponse.redirect(redirectToAppQuery("no_verified_email"));
+    if (r === "no_identity") {
+      return NextResponse.redirect(redirectToAppQuery("no_identity"));
     }
     if (r === "email_ambiguous") {
       return NextResponse.redirect(redirectToAppQuery("email_ambiguous"));
@@ -133,5 +137,15 @@ export async function GET(request: Request) {
     return NextResponse.redirect(redirectToAppQuery("session_failed"));
   }
 
-  return NextResponse.redirect(new URL(getRedirectPathForRole(role), env.APP_BASE_URL));
+  const finalRedirect = getRedirectPathForRole(role);
+
+  // Яндекс не вернул телефон → направить на привязку номера через SMS OTP
+  if (!sessionUser.phone) {
+    const bindPhoneUrl = new URL(routePaths.bindPhone, env.APP_BASE_URL);
+    bindPhoneUrl.searchParams.set("next", finalRedirect);
+    bindPhoneUrl.searchParams.set("reason", "oauth_phone_required");
+    return NextResponse.redirect(bindPhoneUrl);
+  }
+
+  return NextResponse.redirect(new URL(finalRedirect, env.APP_BASE_URL));
 }

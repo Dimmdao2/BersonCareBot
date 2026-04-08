@@ -29,7 +29,7 @@
 | Integrator API (prod) | `127.0.0.1:3200` |
 | Webapp (prod) | `127.0.0.1:6200` |
 | Public integrator URL | `https://tgcarebot.bersonservices.ru` |
-| Public webapp URL | `https://webapp.bersonservices.ru` |
+| Public webapp URL | `https://bersoncare.ru` |
 | Backup script | `/opt/backups/scripts/postgres-backup.sh` (источник в репо: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh)) |
 
 ### GitHub Actions (репозиторий)
@@ -196,8 +196,25 @@
 
 ### Webapp
 
-- host: `webapp.bersonservices.ru`
+- host: `bersoncare.ru`
 - upstream: `http://127.0.0.1:6200`
+
+### Смена webapp-домена на production
+
+Минимальный operational checklist для переноса webapp на новый домен (пример: `bersoncare.ru`):
+
+1. DNS: A/AAAA нового домена указывает на production host.
+2. TLS: выпущен и подключён сертификат для нового домена в nginx (`listen 443 ssl`, корректные `fullchain`/`privkey`).
+3. Nginx vhost: в `server_name` указан новый домен; при необходимости старый домен оставлен как `301` redirect на новый.
+4. Env: в `/opt/env/bersoncarebot/api.prod` и `/opt/env/bersoncarebot/webapp.prod` обновлён `APP_BASE_URL=https://bersoncare.ru`.
+5. Перезапуск: `sudo systemctl restart bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-webapp-prod.service` и `sudo systemctl reload nginx`.
+6. Внешние интеграции: обновлены allowlist/redirect/cors, где зашит origin webapp (Google OAuth redirect URI, MinIO CORS, CDN rules).
+
+Проверка:
+
+- `curl -sI https://bersoncare.ru/app | head -1` -> `200` или `302`.
+- `curl -s http://127.0.0.1:6200/api/health` -> `{"ok":true}`.
+- в логах webapp нет ошибок OAuth callback/CORS после переключения домена.
 
 **Загрузка файлов (CMS / `POST /api/media/upload`):** в server-блоке vhost webapp задайте лимит тела запроса, иначе nginx ответит `413 Request Entity Too Large` до Next.js (дефолт nginx часто 1m). Рекомендация:
 
@@ -207,7 +224,7 @@ client_max_body_size 55m;
 
 (Чуть выше лимита приложения ~50 MiB на файл; фактическую строку смотрите в `sudo nginx -T`.)
 
-**CMS медиа и S3 (MinIO):** основная загрузка идёт **напрямую в MinIO** (presigned PUT на `S3_ENDPOINT`), минуя nginx webapp. Для этого на бакете публичных файлов нужны **public-read** (скачивание) и **CORS** (браузерный PUT с `https://webapp.bersonservices.ru`). Без CORS presigned PUT из CMS упадёт с сетевой ошибкой.
+**CMS медиа и S3 (MinIO):** основная загрузка идёт **напрямую в MinIO** (presigned PUT на `S3_ENDPOINT`), минуя nginx webapp. Для этого на бакете публичных файлов нужны **public-read** (скачивание) и **CORS** (браузерный PUT с `https://bersoncare.ru`). Без CORS presigned PUT из CMS упадёт с сетевой ошибкой.
 
 Пример (MinIO Client `mc`; ключи — те же, что `S3_ACCESS_KEY` / `S3_SECRET_KEY` в env webapp):
 
@@ -231,13 +248,13 @@ mc cors set myminio/bersonservices-public /path/to/cors.json
 - **Upstream (Next.js production):** для `/_next/static/` обычно отдаётся `Cache-Control: public, max-age=31536000, immutable`; для динамических HTML-страниц приложения — ограничения кэша (`no-store` / `private, no-cache` и аналоги). Это не зафиксировано отдельным audit’ом заголовков на хосте — оператор проверяет фактические `curl -I` ниже.
 - **nginx без `proxy_cache`:** достаточно проксировать на `127.0.0.1:6200` и **не** задавать на весь `location /` глобальные `expires …` или `add_header Cache-Control "public"` — иначе можно закэшировать HTML и получить рассинхрон «старый document → новые чанки» → ошибки загрузки чанков в WebView.
 - **nginx с `proxy_cache`:** не кэшируйте HTML (`text/html`) и API так же, как статику; долгий кэш только для `/_next/static/` (или отключите кэш для путей `/app`, `/api`, корня документов — по фактической схеме vhost).
-- **CDN перед `webapp.bersonservices.ru`:** для маршрутов документов (`/` и префиксы вроде `/app`) — **Bypass** / TTL ≈ 0 / строго **уважать `Cache-Control` origin** без принудительного длинного edge-cache; для `/_next/static/*` — длинный TTL и поддержка **`immutable`**, либо полное следование заголовкам от origin.
+- **CDN перед `bersoncare.ru`:** для маршрутов документов (`/` и префиксы вроде `/app`) — **Bypass** / TTL ≈ 0 / строго **уважать `Cache-Control` origin** без принудительного длинного edge-cache; для `/_next/static/*` — длинный TTL и поддержка **`immutable`**, либо полное следование заголовкам от origin.
 
 Проверка:
 
 ```bash
-curl -sI "https://webapp.bersonservices.ru/app" | tr -d '\r' | grep -i cache
-BASE="https://webapp.bersonservices.ru"
+curl -sI "https://bersoncare.ru/app" | tr -d '\r' | grep -i cache
+BASE="https://bersoncare.ru"
 CHUNK=$(curl -sL "$BASE/app" | grep -oE '/_next/static/chunks/[A-Za-z0-9._-]+\.js' | head -1)
 curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 ```
@@ -267,7 +284,7 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 - `INTEGRATOR_SHARED_SECRET=...`
 - `TELEGRAM_BOT_TOKEN=...`
 - `TELEGRAM_ADMIN_ID=364943522`
-- `APP_BASE_URL=https://webapp.bersonservices.ru`
+- `APP_BASE_URL=https://bersoncare.ru`
 - `TELEGRAM_SEND_MENU_ON_BUTTON_PRESS=true`
 - `MAX_ENABLED=true`
 - `MAX_ADMIN_USER_ID=89002800`
@@ -288,7 +305,7 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 - `NODE_ENV=production`
 - `HOST=127.0.0.1`
 - `PORT=6200`
-- `APP_BASE_URL=https://webapp.bersonservices.ru`
+- `APP_BASE_URL=https://bersoncare.ru`
 - `DATABASE_URL=...`
 - `SESSION_COOKIE_SECRET=...`
 - `INTEGRATOR_SHARED_SECRET=...`
@@ -582,7 +599,7 @@ systemctl restart bersoncarebot-webapp-prod.service
 ```bash
 CH=$(ls apps/webapp/.next/standalone/apps/webapp/.next/static/chunks/*.js | head -1)
 echo "chunk=$(basename "$CH")"
-curl -sI -H "Host: webapp.bersonservices.ru" "http://127.0.0.1:6200/_next/static/chunks/$(basename "$CH")" | head -1
+curl -sI -H "Host: bersoncare.ru" "http://127.0.0.1:6200/_next/static/chunks/$(basename "$CH")" | head -1
 ```
 
 Дальше: полный деплой через **`bash deploy/host/deploy-prod.sh`** (CI) или **`bash deploy/host/deploy-webapp-prod.sh`**; либо после каждого production build вручную повторять те же `rm -rf` + `cp` из блока выше.

@@ -273,11 +273,16 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
 
   if (step === "landing" && telegramBotUsername) {
     return (
-      <div id="auth-flow-v2-landing" className="flex flex-col gap-6 py-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
+      <div id="auth-flow-v2-landing" className="flex flex-col items-center gap-6 py-3 text-center">
         <TelegramLoginButton botUsername={telegramBotUsername} nextParam={nextParam} disabled={loading} />
         <p className="text-center text-sm text-muted-foreground">или</p>
-        <Button type="button" variant="outline" className="w-full" disabled={loading} onClick={() => setStep("phone")}>
+        <Button
+          type="button"
+          variant="outline"
+          className="mx-auto w-full max-w-sm"
+          disabled={loading}
+          onClick={() => setStep("phone")}
+        >
           Войти по номеру телефона
         </Button>
       </div>

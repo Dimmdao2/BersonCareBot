@@ -23,7 +23,7 @@
 - `DATABASE_URL='...'`
 - `BOOKING_URL=https://...`
 - `INTEGRATOR_SHARED_SECRET=...`
-- `APP_BASE_URL=https://webapp.bersonservices.ru`
+- `APP_BASE_URL=https://bersoncare.ru`
 - `TELEGRAM_BOT_TOKEN=...`
 - `TELEGRAM_ADMIN_ID=364943522`
 - `TELEGRAM_SEND_MENU_ON_BUTTON_PRESS=true|false`
@@ -77,7 +77,7 @@ curl -s http://127.0.0.1:3200/health
 - `NODE_ENV=production`
 - `HOST=127.0.0.1`
 - `PORT=6200`
-- `APP_BASE_URL=https://webapp.bersonservices.ru`
+- `APP_BASE_URL=https://bersoncare.ru`
 - `DATABASE_URL='...'`
 - `SESSION_COOKIE_SECRET=...`
 - `INTEGRATOR_SHARED_SECRET=...`

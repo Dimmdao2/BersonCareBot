@@ -95,5 +95,6 @@ describe("POST /api/auth/oauth/start", () => {
     expect(data.ok).toBe(true);
     expect(data.authUrl).toContain("https://oauth.yandex.ru/authorize");
     expect(data.authUrl).toContain("client_id=test-client-id");
+    expect(data.authUrl).toContain("login%3Adefault_phone");
   });
 });

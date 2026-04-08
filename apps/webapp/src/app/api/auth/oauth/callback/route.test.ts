@@ -139,27 +139,27 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
     expect(loc).toContain("userinfo_failed");
   });
 
-  it("redirects oauth=error when Yandex did not return a usable email", async () => {
+  it("redirects oauth=error when Yandex did not return identity (no phone, no email)", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
-    fetchYandexUserInfoMock.mockResolvedValue({ id: "y1", email: null, name: "X" });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "y1", email: null, phone: null, name: "X" });
     findUserMock.mockResolvedValue(null);
     const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
     const loc = res.headers.get("location") ?? "";
-    expect(loc).toContain("no_verified_email");
+    expect(loc).toContain("no_identity");
   });
 
   it("redirects db_error when OAuth user not bound and DB unavailable (no merge/create)", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
-    fetchYandexUserInfoMock.mockResolvedValue({ id: "y1", email: "u@example.com", name: "X" });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "y1", email: "u@example.com", phone: null, name: "X" });
     findUserMock.mockResolvedValue(null);
     const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
     const loc = res.headers.get("location") ?? "";
     expect(loc).toContain("db_error");
   });
 
-  it("valid flow: creates session and redirects when user resolved by OAuth binding", async () => {
+  it("valid flow: user with phone — sets session and redirects to app", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok123" });
-    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-1", email: "user@ya.ru", name: "Иван" });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-1", email: "user@ya.ru", phone: "+79990001122", name: "Иван" });
     findUserMock.mockResolvedValue({ userId: "platform-user-uuid" });
     findByUserIdMock.mockResolvedValue({
       userId: "platform-user-uuid",
@@ -183,11 +183,34 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
     expect(res.status).toBeLessThan(400);
     const loc = res.headers.get("location") ?? "";
     expect(loc).toContain("/app/patient");
+    expect(loc).not.toContain("bind-phone");
+  });
+
+  it("valid flow: user without phone — sets session and redirects to bind-phone", async () => {
+    exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok456" });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-2", email: "nophone@ya.ru", phone: null, name: "Мария" });
+    findUserMock.mockResolvedValue({ userId: "nophone-user-uuid" });
+    findByUserIdMock.mockResolvedValue({
+      userId: "nophone-user-uuid",
+      role: "client",
+      displayName: "Мария",
+      phone: undefined,
+      bindings: {},
+    });
+    setSessionMock.mockResolvedValue(undefined);
+
+    const res = await GET(makeRequest({ code: "code-nophone", state: STATE }, STATE));
+
+    expect(setSessionMock).toHaveBeenCalled();
+    const loc = res.headers.get("location") ?? "";
+    expect(loc).toContain("bind-phone");
+    expect(loc).toContain("reason=oauth_phone_required");
+    expect(loc).toContain("next=");
   });
 
   it("redirects oauth=error when session creation throws", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
-    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-2", email: "a@ya.ru", name: null });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-err", email: "a@ya.ru", phone: null, name: null });
     findUserMock.mockResolvedValue({ userId: "uid-2" });
     findByUserIdMock.mockResolvedValue({
       userId: "uid-2",
@@ -222,7 +245,7 @@ describe("GET /api/auth/oauth/callback — resolveUserIdForYandexOAuth orchestra
 
   it("redirects email_ambiguous when resolver returns that reason", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
-    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-merge", email: "dup@ya.ru", name: "D" });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-merge", email: "dup@ya.ru", phone: null, name: "D" });
     resolveSpy.mockResolvedValue({ ok: false, reason: "email_ambiguous" });
 
     const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
@@ -233,6 +256,7 @@ describe("GET /api/auth/oauth/callback — resolveUserIdForYandexOAuth orchestra
         yandexId: "ya-merge",
         email: "dup@ya.ru",
         displayName: "D",
+        phone: null,
       }),
     );
     const loc = res.headers.get("location") ?? "";
@@ -242,7 +266,7 @@ describe("GET /api/auth/oauth/callback — resolveUserIdForYandexOAuth orchestra
 
   it("happy path: merge userId from resolver loads platform user and sets session", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
-    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-new", email: "new@ya.ru", name: "Новый" });
+    fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-new", email: "new@ya.ru", phone: "+79990003344", name: "Новый" });
     resolveSpy.mockResolvedValue({ ok: true, userId: "merged-platform-uuid" });
     findByUserIdMock.mockResolvedValue({
       userId: "merged-platform-uuid",

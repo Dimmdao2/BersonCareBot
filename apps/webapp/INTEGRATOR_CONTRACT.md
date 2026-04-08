@@ -21,7 +21,7 @@ This document defines the explicit contract between `tgcarebot` and `webapp`.
 
 `tgcarebot` sends a button or deep link that opens:
 
-`https://webapp.bersonservices.ru/app?t=<signed-token>`
+`https://bersoncare.ru/app?t=<signed-token>`
 
 Token payload shape:
 

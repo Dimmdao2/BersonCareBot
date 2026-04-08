@@ -25,9 +25,11 @@ type BindPhoneBlockProps = {
   nextPathOverride?: string;
   /** После успешной привязки без `router.replace` (например, остаться в профиле). */
   onBindSuccess?: () => void;
+  /** Кастомный текст под заголовком (например, при входе через OAuth без телефона). */
+  hint?: string;
 };
 
-export function BindPhoneBlock({ channel, chatId, supportContactHref, nextPathOverride, onBindSuccess }: BindPhoneBlockProps) {
+export function BindPhoneBlock({ channel, chatId, supportContactHref, nextPathOverride, onBindSuccess, hint }: BindPhoneBlockProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = nextPathOverride?.trim() || searchParams.get("next")?.trim() || "/app/patient";
@@ -119,7 +121,7 @@ export function BindPhoneBlock({ channel, chatId, supportContactHref, nextPathOv
     <div id="bind-phone-phone-step" className="flex flex-col gap-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Привязка номера телефона</p>
       <p className="text-muted-foreground text-sm">
-        Для доступа к записям, дневникам и покупкам нужен привязанный номер. Введите его и подтвердите кодом из SMS.
+        {hint ?? "Для доступа к записям, дневникам и покупкам нужен привязанный номер. Введите его и подтвердите кодом из SMS."}
       </p>
       <PhoneAuthForm
         onSubmit={async (phone) => {

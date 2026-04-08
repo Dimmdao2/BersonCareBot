@@ -14,12 +14,14 @@ export type YandexUserInfoResponse = {
   login: string;
   real_name?: string;
   default_email?: string;
+  default_phone?: { id: number; number: string };
 };
 
 export type OAuthUserInfo = {
   id: string;
   email: string | null;
   name: string | null;
+  phone: string | null;
 };
 
 /** Обменивает authorization code на access_token через Yandex OAuth. */
@@ -79,5 +81,6 @@ export async function fetchYandexUserInfo(
     id: data.id,
     email: data.default_email ?? null,
     name: data.real_name ?? data.login ?? null,
+    phone: data.default_phone?.number ?? null,
   };
 }

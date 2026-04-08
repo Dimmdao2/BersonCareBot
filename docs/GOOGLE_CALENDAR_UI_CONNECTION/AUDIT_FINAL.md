@@ -51,7 +51,7 @@
 
 ## Production Deployment Notes
 
-1. **Google Cloud Console** must have Calendar API enabled and OAuth Client ID created with redirect URI pointing to `https://webapp.bersonservices.ru/api/admin/google-calendar/callback`.
+1. **Google Cloud Console** must have Calendar API enabled and OAuth Client ID created with redirect URI pointing to `https://bersoncare.ru/api/admin/google-calendar/callback`.
 2. Admin enters credentials in Settings UI → Saves → Connects Google → Selects calendar → Enables sync.
 3. No env changes required on host; integrator picks up config via DB sync from webapp.
 4. Existing `GOOGLE_*` env vars in `api.prod` continue to work as fallback but are deprecated.

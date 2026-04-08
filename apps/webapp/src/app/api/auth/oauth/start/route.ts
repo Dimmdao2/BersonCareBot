@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("client_id", clientId);
   authUrl.searchParams.set("redirect_uri", redirectUri);
-  authUrl.searchParams.set("scope", "login:info login:email");
+  authUrl.searchParams.set("scope", "login:info login:email login:default_phone");
   authUrl.searchParams.set("state", state);
 
   const res = NextResponse.json({ ok: true, authUrl: authUrl.toString() });

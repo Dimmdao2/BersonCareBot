@@ -49,7 +49,7 @@ describe("exchangeYandexCode", () => {
 });
 
 describe("fetchYandexUserInfo", () => {
-  it("returns id, email and name on success", async () => {
+  it("returns id, email, name and phone on success", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -57,6 +57,7 @@ describe("fetchYandexUserInfo", () => {
         login: "yalogin",
         real_name: "Иван Иванов",
         default_email: "ivan@yandex.ru",
+        default_phone: { id: 12345678, number: "+79037659418" },
       }),
     } as Response);
 
@@ -64,6 +65,16 @@ describe("fetchYandexUserInfo", () => {
     expect(info.id).toBe("ya-user-1");
     expect(info.email).toBe("ivan@yandex.ru");
     expect(info.name).toBe("Иван Иванов");
+    expect(info.phone).toBe("+79037659418");
+  });
+
+  it("returns phone: null when default_phone absent", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "ya-1", login: "yalogin", real_name: "Иван", default_email: "ivan@yandex.ru" }),
+    } as Response);
+    const info = await fetchYandexUserInfo("tok", mockFetch);
+    expect(info.phone).toBeNull();
   });
 
   it("falls back to login when real_name absent", async () => {
@@ -74,6 +85,7 @@ describe("fetchYandexUserInfo", () => {
     const info = await fetchYandexUserInfo("tok", mockFetch);
     expect(info.name).toBe("mylogin");
     expect(info.email).toBeNull();
+    expect(info.phone).toBeNull();
   });
 
   it("throws on non-ok HTTP response", async () => {
