@@ -84,6 +84,13 @@ async function parseIntegratorToken(token: string): Promise<IntegratorTokenPaylo
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
   const entrySecret = (await getIntegratorWebappEntrySecret()).trim();
+  if (process.env.NODE_ENV !== "test") {
+    console.info("[auth/parseToken] secretLen=%d secretPrefix=%s sigMatch=%s expiry=%s",
+      entrySecret.length,
+      entrySecret.slice(0, 4) + "...",
+      safeEqual(signature, sign(payload, entrySecret)),
+      "pending");
+  }
   if (!entrySecret || !safeEqual(signature, sign(payload, entrySecret))) return null;
 
   let parsed: IntegratorTokenPayload;
