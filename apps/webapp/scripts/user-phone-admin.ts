@@ -27,6 +27,16 @@
  *                           identity, platform_users, строки по номеру (если телефон был), затем integrator как у reset-user.
  *                           Удобно, когда нужно «убрать юзера отовсюду» по UUID (ошибка привязки номера и т.д.).
  *
+ *   webapp-cleanup-by-integrator-id <bigint>
+ *                         — только webapp: строки проекций, где нет привязки к platform_users UUID, а есть integrator_user_id
+ *                           (reminder_occurrence_history, reminder_delivery_events, reminder_rules, content_access_grants_webapp,
+ *                           user_subscriptions_webapp, mailing_logs_webapp, support_* по integrator_user_id).
+ *                           Нужно, если platform_users уже удалили, а в журналах/подписках остались хвосты по id из integrator.
+ *
+ *   integrator-purge-user-id <bigint>
+ *                         — только integrator: DELETE FROM users WHERE id = $1 (CASCADE identities/contacts/…). Когда известен
+ *                           users.id в БД integrator, а не только телефон.
+ *
  * DATABASE_URL:
  *   - Явно: `DATABASE_URL=postgresql://... pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts ...`
  *   - Иначе скрипт подставляет URL из первого существующего файла (по порядку):
@@ -447,6 +457,60 @@ async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: s
 }
 
 /**
+ * Проекции webapp с колонкой integrator_user_id (без обязательной связи с platform_users после SET NULL).
+ * Вызывать внутри транзакции до DELETE platform_users или отдельной командой, если строки в platform_users уже нет.
+ */
+async function deleteWebappProjectionByIntegratorUserId(
+  client: PoolClient,
+  integratorUserId: string,
+): Promise<void> {
+  if (!/^\d+$/.test(integratorUserId.trim())) return;
+  const id = integratorUserId.trim();
+  const log = (label: string, rowCount: number) => {
+    if (rowCount > 0) console.log(`  ${label}: ${rowCount}`);
+  };
+
+  let r = await client.query(`DELETE FROM reminder_delivery_events WHERE integrator_user_id = $1::bigint`, [id]);
+  log("Удалено из reminder_delivery_events (integrator_user_id)", r.rowCount ?? 0);
+
+  r = await client.query(`DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`, [id]);
+  log("Удалено из reminder_occurrence_history (integrator_user_id)", r.rowCount ?? 0);
+
+  r = await client.query(`DELETE FROM reminder_rules WHERE integrator_user_id = $1::bigint`, [id]);
+  log("Удалено из reminder_rules (integrator_user_id)", r.rowCount ?? 0);
+
+  r = await client.query(`DELETE FROM content_access_grants_webapp WHERE integrator_user_id = $1::bigint`, [id]);
+  log("Удалено из content_access_grants_webapp (integrator_user_id)", r.rowCount ?? 0);
+
+  r = await client.query(`DELETE FROM user_subscriptions_webapp WHERE integrator_user_id = $1::bigint`, [id]);
+  log("Удалено из user_subscriptions_webapp", r.rowCount ?? 0);
+
+  r = await client.query(`DELETE FROM mailing_logs_webapp WHERE integrator_user_id = $1::bigint`, [id]);
+  log("Удалено из mailing_logs_webapp", r.rowCount ?? 0);
+
+  r = await client.query(
+    `DELETE FROM support_question_messages WHERE question_id IN (
+       SELECT id FROM support_questions WHERE conversation_id IN (
+         SELECT id FROM support_conversations WHERE integrator_user_id = $1::bigint
+       )
+     )`,
+    [id],
+  );
+  log("Удалено из support_question_messages (по integrator диалогам)", r.rowCount ?? 0);
+
+  r = await client.query(
+    `DELETE FROM support_questions WHERE conversation_id IN (
+       SELECT id FROM support_conversations WHERE integrator_user_id = $1::bigint
+     )`,
+    [id],
+  );
+  log("Удалено из support_questions (по integrator диалогам)", r.rowCount ?? 0);
+
+  r = await client.query(`DELETE FROM support_conversations WHERE integrator_user_id = $1::bigint`, [id]);
+  log("Удалено из support_conversations (integrator_user_id)", r.rowCount ?? 0);
+}
+
+/**
  * Ссылки на platform_users(id) без ON DELETE CASCADE блокируют DELETE.
  * Снимаем их до удаления identity / строки пользователя.
  */
@@ -570,6 +634,10 @@ async function purgeUserByPlatformId(rawId: string): Promise<void> {
   const user = await findUserById(id);
   if (!user) {
     console.log(`Пользователь с id=${id} не найден в platform_users.`);
+    console.log(
+      "Если строку уже удалили раньше: webapp-cleanup-by-integrator-id <id> (хвосты журналов/подписок в webapp), " +
+        "integrator-clear-phone <номер> или integrator-purge-user-id <id> (БД integrator).",
+    );
     return;
   }
 
@@ -593,6 +661,11 @@ async function purgeUserByPlatformId(rawId: string): Promise<void> {
 
     console.log("\nКонтент (полное удаление):");
     await deleteContentTablesForUser(client, user.id);
+
+    if (user.integrator_user_id && /^\d+$/.test(user.integrator_user_id)) {
+      console.log("\nПроекции webapp по integrator_user_id (журналы напоминаний, подписки, support по id integrator):");
+      await deleteWebappProjectionByIntegratorUserId(client, user.integrator_user_id);
+    }
 
     console.log("\nIdentity:");
     for (const { table, column } of IDENTITY_TABLES) {
@@ -630,6 +703,52 @@ async function purgeUserByPlatformId(rawId: string): Promise<void> {
       process.exitCode = 2;
       return;
     }
+  }
+}
+
+async function webappCleanupByIntegratorId(raw: string): Promise<void> {
+  const id = raw.trim();
+  if (!/^\d+$/.test(id)) {
+    console.error(
+      "Ожидается целый integrator_user_id (как в platform_users.integrator_user_id и проекциях webapp).",
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    console.log(`\nОчистка webapp-проекций по integrator_user_id = ${id}\n`);
+    await deleteWebappProjectionByIntegratorUserId(client, id);
+    await client.query("COMMIT");
+    console.log("\n✓ Webapp: проекции по integrator id очищены.");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function integratorPurgeUserById(raw: string): Promise<void> {
+  if (!integratorDb) {
+    console.error("Integrator БД не задана (USER_PHONE_ADMIN_INTEGRATOR_ENV_FILE / INTEGRATOR_DATABASE_URL).");
+    process.exitCode = 1;
+    return;
+  }
+  const id = raw.trim();
+  if (!/^\d+$/.test(id)) {
+    console.error("Ожидается целый users.id в БД integrator (bigint).");
+    process.exitCode = 1;
+    return;
+  }
+  const r = await integratorDb.query(`DELETE FROM users WHERE id = $1::bigint`, [id]);
+  const n = r.rowCount ?? 0;
+  console.log(`\nIntegrator: DELETE FROM users WHERE id = ${id} → ${n} строк(а).`);
+  if (n === 0) {
+    console.log("(Пользователь с таким id не найден — возможно уже удалён.)");
+  } else {
+    console.log("✓ Строка users и CASCADE (identities, contacts, telegram_state, …) удалены.");
   }
 }
 
@@ -726,8 +845,24 @@ async function main() {
         }
         await purgeUserByPlatformId(arg1);
         break;
+      case "webapp-cleanup-by-integrator-id":
+        if (!arg1) {
+          console.error("Укажите id: webapp-cleanup-by-integrator-id 12345");
+          process.exit(1);
+        }
+        await webappCleanupByIntegratorId(arg1);
+        break;
+      case "integrator-purge-user-id":
+        if (!arg1) {
+          console.error("Укажите id: integrator-purge-user-id 12345");
+          process.exit(1);
+        }
+        await integratorPurgeUserById(arg1);
+        break;
       default:
-        console.error("Команды: info | reset-user | reassign-user | integrator-clear-phone | purge-by-id");
+        console.error(
+          "Команды: info | reset-user | reassign-user | integrator-clear-phone | purge-by-id | webapp-cleanup-by-integrator-id | integrator-purge-user-id",
+        );
         process.exit(1);
     }
   } finally {
