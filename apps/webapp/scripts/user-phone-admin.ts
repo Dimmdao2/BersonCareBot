@@ -5,9 +5,11 @@
  * Команды:
  *   info <phone>          — показывает пользователя и количество связанных записей.
  *
- *   reset-user <phone>   — удаляет identity (platform_users + channel_bindings + pins + login_tokens),
- *                           НЕ трогает контентные данные (дневник, записи, ЛФК, заметки и т.д.).
- *                           После повторной регистрации запустите reassign-user для привязки данных.
+ *   reset-user <phone>   — удаляет identity (platform_users + channel_bindings + pins + login_tokens).
+ *                           Перед удалением снимает ссылки, мешающие FK (см. clearPlatformUserDeleteBlockers):
+ *                           в т.ч. строки patient_lfk_assignments (назначения ЛФК врачом), online_intake_requests.
+ *                           Остальной контент по возможности сохраняется для reassign-user (таблицы из CONTENT_TABLES).
+ *                           Удаление platform_users каскадно трогает таблицы с ON DELETE CASCADE — см. миграции.
  *
  *   reassign-user <phone> <old-uuid>
  *                         — переносит контентные записи со старого UUID на текущего пользователя с данным телефоном.
@@ -24,7 +26,7 @@ import { execFileSync } from "node:child_process";
 import { config as loadDotenv } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
-import pg from "pg";
+import pg, { type PoolClient } from "pg";
 const { Pool } = pg;
 
 /** Имена хостов из docker-compose, недоступные с хоста ОС при запуске tsx. */
@@ -199,6 +201,46 @@ async function info(phone: string): Promise<void> {
   console.log();
 }
 
+/**
+ * Ссылки на platform_users(id) без ON DELETE CASCADE блокируют DELETE.
+ * Снимаем их до удаления identity / строки пользователя.
+ */
+async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {
+  const log = (label: string, rowCount: number) => {
+    if (rowCount > 0) console.log(`  ${label}: ${rowCount}`);
+  };
+
+  let r = await client.query(`UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = $1`, [userId]);
+  log("platform_users.blocked_by → NULL", r.rowCount ?? 0);
+
+  r = await client.query(
+    `UPDATE patient_lfk_assignments SET assigned_by = NULL WHERE assigned_by = $1`,
+    [userId],
+  );
+  log("patient_lfk_assignments.assigned_by → NULL", r.rowCount ?? 0);
+
+  r = await client.query(`DELETE FROM patient_lfk_assignments WHERE patient_user_id = $1`, [userId]);
+  log("Удалено из patient_lfk_assignments (patient_user_id)", r.rowCount ?? 0);
+
+  r = await client.query(`DELETE FROM online_intake_requests WHERE user_id = $1`, [userId]);
+  log("Удалено из online_intake_requests", r.rowCount ?? 0);
+
+  r = await client.query(`UPDATE lfk_complex_templates SET created_by = NULL WHERE created_by = $1`, [userId]);
+  log("lfk_complex_templates.created_by → NULL", r.rowCount ?? 0);
+
+  r = await client.query(`UPDATE lfk_exercises SET created_by = NULL WHERE created_by = $1`, [userId]);
+  log("lfk_exercises.created_by → NULL", r.rowCount ?? 0);
+
+  r = await client.query(`UPDATE system_settings SET updated_by = NULL WHERE updated_by = $1`, [userId]);
+  log("system_settings.updated_by → NULL", r.rowCount ?? 0);
+
+  r = await client.query(
+    `UPDATE doctor_notes SET author_id = user_id WHERE author_id = $1 AND user_id <> $1`,
+    [userId],
+  );
+  log("doctor_notes: author_id → user_id (разные субъект/автор)", r.rowCount ?? 0);
+}
+
 async function resetUser(phone: string): Promise<void> {
   const user = await findUser(phone);
   if (!user) {
@@ -207,11 +249,14 @@ async function resetUser(phone: string): Promise<void> {
   }
 
   console.log(`\nСброс identity для: ${user.display_name} (${user.id})`);
-  console.log(`Контентные данные НЕ удаляются. Старый UUID: ${user.id}\n`);
+  console.log(`Старый UUID для reassign: ${user.id}`);
+  console.log("(см. лог ниже: снятие FK, затем identity)\n");
 
   const client = await db.connect();
   try {
     await client.query("BEGIN");
+
+    await clearPlatformUserDeleteBlockers(client, user.id);
 
     for (const { table, column } of IDENTITY_TABLES) {
       const r = await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [user.id]);
