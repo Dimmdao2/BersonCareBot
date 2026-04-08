@@ -4,7 +4,9 @@
 
 ## Контекст `linkedPhone`
 
-Задаётся в [`loadUserContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) (нормализованный телефон у identity в БД → `linkedPhone: true`). Если после загрузки контекста поле не задано, в [`buildBaseContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) выставляется **`linkedPhone: false`**, чтобы матчи сценариев с `context: { linkedPhone: false }` не отваливались на `undefined`.
+Задаётся в [`loadUserContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) по данным [`getLinkDataByIdentity`](../../apps/integrator/src/infra/db/repos/channelUsers.ts): телефон берётся **только** из строки `contacts`, у которой `label` совпадает с каналом (`'telegram'` или `'max'`), т.е. номер, привязанный через `setUserPhone` / шаринг в мессенджере. Любой другой телефон у того же `user_id` (без такого `label`) **не** считается привязкой к боту и **не** отключает `telegram.start.onboarding`.
+
+Если после загрузки контекста поле не задано, в [`buildBaseContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) выставляется **`linkedPhone: false`**, чтобы матчи сценариев с `context: { linkedPhone: false }` не отваливались на `undefined`.
 
 ## Webhook: разбор текста сообщения (`mapBodyToIncoming`)
 
@@ -28,11 +30,11 @@
 | id | Match | priority | Смысл |
 |----|--------|----------|--------|
 | `telegram.start.link` | `action: start.link` | 0 | Завершение channel link (`linkSecret` → webapp) |
-| `telegram.start.setphone` | `action: start.setphone` | **20** | Привязка номера из deep link (`phone` на incoming) |
+| `telegram.start.setphone` | `action: start.setphone` | **20** | Deep link: `user.phone.link` по `input.phone`, затем короткое `telegram:startSetphoneWelcome` + reply-меню (Запись / Дневник / Ещё) |
 | `telegram.start.setrubitimerecord` | `action: start.setrubitimerecord` | 0 | Rubitime: `recordId` → запись → телефон из записи → `user.phone.link` |
 | `telegram.start.noticeme` | `action: start.noticeme` | 0 | В т.ч. запрос контакта |
-| `telegram.start.onboarding` | `text` **$startsWith** `/start`, **`excludeActions`**, `linkedPhone: false` | **15** | Приветствие + кнопка «Отправить номер» |
-| `telegram.start` | то же по `text`, `linkedPhone: true` | 0 | Welcome + главное меню |
+| `telegram.start.onboarding` | `text` **$startsWith** `/start`, **`excludeActions`**, `linkedPhone: false` | **15** | Короткий текст (`telegram:onboardingWelcome`) + кнопка `request_contact` в одном `message.replyKeyboard.show` |
+| `telegram.start` | то же по `text`, `linkedPhone: true` | 0 | Только `user.state.set` → `idle` — **без исходящих сообщений** (welcome/меню не шлём) |
 
 ### Почему онбординг не пересекается с payload
 
@@ -47,11 +49,15 @@
 Файл: [`apps/integrator/src/content/max/user/scripts.json`](../../apps/integrator/src/content/max/user/scripts.json).  
 Те же идеи: `max.start.onboarding` / `max.start` с `$startsWith` и тем же `excludeActions`; разбор текста в [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts) (не дублирует все Telegram deep link).
 
+- **`max.start.onboarding`:** одно `message.send` с коротким `max:onboardingWelcome` (привязка для всех платформ + просьба отправить вложение с контактом — отдельной кнопки «поделиться контактом» в Max нет).
+- **`max.start`** при `linkedPhone: true`: только `user.state.set` → `idle`, **без сообщения** на `/start`.
+- После успешной привязки номера в чате срабатывает `max.contact.phone.link` → `max:phoneLinkedWelcome` + главное меню (`inlineKeyboard`).
+
 ## Тесты
 
 | Файл | Что проверяет |
 |------|----------------|
-| [`buildPlan.test.ts`](../../apps/integrator/src/kernel/orchestrator/buildPlan.test.ts) | Onboarding vs `linkedPhone`, deep link `/start …`, цепочка контакта |
+| [`buildPlan.test.ts`](../../apps/integrator/src/kernel/orchestrator/buildPlan.test.ts) | Onboarding vs `linkedPhone`, при `linkedPhone: true` на `/start` — план из `user.state.set`; deep link `/start …`, цепочка контакта |
 | [`rubitimeDeepLink.test.ts`](../../apps/integrator/src/kernel/orchestrator/rubitimeDeepLink.test.ts) | `setrubitimerecord` не уходит в «общий» текстовый сценарий |
 | [`webhook.test.ts`](../../apps/integrator/src/integrations/telegram/webhook.test.ts) | `mapBodyToIncoming`: contact, `setrubitimerecord`, `setphone`, `link` |
 

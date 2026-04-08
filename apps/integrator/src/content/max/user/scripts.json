@@ -18,7 +18,7 @@
         "mode": "async",
         "params": {
           "chatId": "{{actor.chatId}}",
-          "templateKey": "max:welcome",
+          "templateKey": "max:phoneLinkedWelcome",
           "menu": "main",
           "delivery": { "channels": ["max"], "maxAttempts": 1 }
         }
@@ -86,16 +86,6 @@
         "params": {
           "channelUserId": "{{actor.channelUserId}}",
           "state": "idle"
-        }
-      },
-      {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
-        "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "max:welcome",
-          "menu": "main",
-          "delivery": { "channels": ["max"], "maxAttempts": 1 }
         }
       }
     ]

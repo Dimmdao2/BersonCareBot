@@ -292,7 +292,7 @@ Notes:
 ## Stage 6
 
 - Status: `PASS`
-- Last update: `2026-04-04T07:34:21Z` (see log entry below)
+- Last update: `2026-04-08T15:45:00Z` (UX `/start` copy + docs; see log entry below)
 
 ```text
 [2026-04-04T05:00:00Z] [Stage 6] [EXEC] agent
@@ -580,4 +580,24 @@ Checks:
 - pnpm --dir apps/integrator test
 Notes:
 - Уровень логов: debug — при `LOG_LEVEL=debug` на интеграторе.
+```
+
+```text
+[2026-04-08T15:45:00Z] [/start UX + integrator docs] [EXEC] agent
+Tasks done:
+- Сверка реализации: `telegram.start.onboarding` / `max.start.onboarding` — короткие шаблоны + запрос контакта (TG: `request_contact`); `telegram.start` / `max.start` при `linkedPhone: true` — только `user.state.set`, без исходящих сообщений; `telegram.start.setphone` — `startSetphoneWelcome` + reply-меню; Max после привязки — `max.contact.phone.link` → `phoneLinkedWelcome` + меню.
+- Документация: `INTEGRATOR_TELEGRAM_START_SCRIPTS.md` — актуальная таблица и блок Max; `AUDIT_STAGE_6.md` — актуализация 2026-04-08 и правки gate 1/3/minor под текущий копирайт.
+- Логирование `/start`: без изменений коду — по-прежнему `debug` `[telegram] /start classified` с полем `telegramStart` (см. `webhook.ts`).
+Changed files:
+- docs/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md
+- docs/AUTH_RESTRUCTURE/AUDIT_STAGE_6.md
+- docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
+Checks:
+- ci: `pnpm install --frozen-lockfile` + `pnpm run ci` — exit 0 (lint, typecheck, integrator + webapp tests, build, audit --prod)
+Evidence:
+- Тест `buildPlan.test.ts`: при `linkedPhone: true` для Telegram — один шаг `user.state.set`.
+Gate verdict:
+- PASS
+Notes:
+- —
 ```

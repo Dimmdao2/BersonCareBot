@@ -10,27 +10,26 @@
 
 **PASS**
 
+### Актуализация продукта (2026-04-08)
+
+После первичного аудита (2026-04-04) укорочены тексты и шаги `/start`:
+
+- **Telegram:** `onboardingWelcome` — короткая строка про привязку номера для всех платформ + кнопка `request_contact` в одном сообщении; **`telegram.start`** при `linkedPhone: true` — только `user.state.set`, **без** отправки welcome/меню; deep link **`start.setphone`** — `startSetphoneWelcome` + reply-меню.
+- **Max:** короткий `max:onboardingWelcome`; **`max.start`** при `linkedPhone: true` — только `user.state.set`; после привязки контакта — `phoneLinkedWelcome` + меню.
+
+Источник правды по сценариям: [`INTEGRATOR_TELEGRAM_START_SCRIPTS.md`](INTEGRATOR_TELEGRAM_START_SCRIPTS.md). Разделы «Проверки (gate)» ниже отражают **логику** Stage 6; длинный канон S6.T06 с блоком ✅/❗ для onboarding **больше не совпадает** с текущими шаблонами.
+
 ---
 
 ## Проверки (gate)
 
-### 1) Канонический текст и эмодзи (👋 ✅ ❗)
+### 1) Текст onboarding и запрос контакта
 
-**Статус:** OK
+**Статус:** OK (актуализация 2026-04-08: короткий копирайт вместо длинного канона S6.T06 с блоком ✅/❗).
 
-**Telegram** — шаблон `onboardingWelcome` в `apps/integrator/src/content/telegram/user/templates.json`:
+**Telegram** — `onboardingWelcome` в `apps/integrator/src/content/telegram/user/templates.json`: краткий текст про привязку номера для всех платформ + кнопка `request_contact` в одном `message.replyKeyboard.show`.
 
-- После «Привет!» используется **👋** (не литерал `(!)`).
-- Блок «Еще тут можно:» — пункты с **✅** (шесть строк), как в S6.T06.
-- Абзац про обязательность номера начинается с **❗**.
-- Текст основного блока совпадает с каноном `STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md` (S6.T06), включая формулировку про платформы и «приложение».
-
-**Max** — `max:onboardingWelcome` в `apps/integrator/src/content/max/user/templates.json`:
-
-- Тот же канонический блок 👋 / ✅ / ❗.
-- Дополнительно, в конце (после абзаца про браузер и приложение), задокументированный fallback: абзац с **📎** и инструкцией отправить вложение «Контакт» (ограничение API Max, см. stage-док).
-
-**Прочее:** в `content` нет литералов `\(!\)` вместо эмодзи для onboarding.
+**Max** — `max:onboardingWelcome`: краткий текст + просьба отправить вложение с контактом (отдельной кнопки «поделиться контактом» в Max нет).
 
 ---
 
@@ -51,8 +50,8 @@ Legacy-путь: `handleUpdate.test.ts` — при `/start` без номера 
 **Статус:** OK
 
 - Контекст `linkedPhone: true` при нормализованном телефоне в БД (`handleIncomingEvent` / загрузка пользователя).
-- Сценарии: `telegram.start` и `max.start` с `context: { "linkedPhone": true }` — welcome + меню, **без** `telegram.start.onboarding` / `max.start.onboarding`.
-- **Тесты:** `buildPlan.test.ts` — выбор `telegram.start` при `linkedPhone: true` вместо onboarding; аналогично Max. `handleUpdate.test.ts` — при `hasLinkedPhone: true` на `/start` не отправляется onboarding.
+- Сценарии: `telegram.start` и `max.start` с `context: { "linkedPhone": true }` — только `user.state.set` → `idle`, **без** исходящих сообщений и **без** `telegram.start.onboarding` / `max.start.onboarding`.
+- **Тесты:** `buildPlan.test.ts` — при `linkedPhone: true` планируется `user.state.set` (Telegram); onboarding для Max при `linkedPhone: false` отдельным кейсом. `handleUpdate.test.ts` — при `hasLinkedPhone: true` на `/start` не отправляется onboarding/welcome.
 
 ---
 
@@ -88,8 +87,8 @@ Legacy-путь: `handleUpdate.test.ts` — при `/start` без номера 
 
 ### Minor / informational
 
-- Шаблон **`telegram:welcome`** (не onboarding) использует **👋🏻** в приветствии — это другой экран (`/start` уже с привязанным номером); на канон S6.T06 для первичного onboarding не влияет.
-- **Max:** первый `/start` без номера — одно текстовое сообщение без inline/reply-кнопки «контакт»; ожидаемое ограничение платформы, отражено в тексте с 📎.
+- Шаблон **`telegram:welcome`** по-прежнему существует для других экранов; сценарий **`telegram.start`** при `linkedPhone: true` его **не** вызывает (нет сообщения на «голый» `/start` с привязанным номером).
+- **Max:** первый `/start` без номера — одно короткое текстовое сообщение без inline/reply-кнопки «контакт»; ожидаемое ограничение платформы.
 
 ---
 

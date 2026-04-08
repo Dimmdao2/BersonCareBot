@@ -890,9 +890,9 @@ describe('orchestrator buildPlan', () => {
           },
           steps: [
             {
-              action: 'message.replyKeyboard.show',
-              mode: 'async',
-              params: { templateKey: 'telegram:welcome' },
+              action: 'user.state.set',
+              mode: 'sync',
+              params: { state: 'idle' },
             },
           ],
         },
@@ -908,8 +908,8 @@ describe('orchestrator buildPlan', () => {
 
     expect(plan).toHaveLength(1);
     expect(plan[0]).toMatchObject({
-      kind: 'message.replyKeyboard.show',
-      payload: { templateKey: 'telegram:welcome' },
+      kind: 'user.state.set',
+      payload: { state: 'idle' },
     });
   });
 

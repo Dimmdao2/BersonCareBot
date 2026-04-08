@@ -378,6 +378,10 @@ export async function getUserLinkData(
 /**
  * Returns user/link data by (resource, external_id). State and profile come from
  * integration-specific tables when available (e.g. telegram_state); otherwise identities + contacts only.
+ *
+ * Phone for `linkedPhone` / orchestrator: only a contact with `label` equal to this **resource**
+ * (`telegram` from {@link setUserPhone}, `max` from the same for Max). Any other phone on the user
+ * (e.g. merged from web without messenger label) must **not** skip `/start` onboarding in the bot.
  */
 export async function getLinkDataByIdentity(
   db: DbPort,
@@ -392,7 +396,7 @@ export async function getLinkDataByIdentity(
       LEFT JOIN LATERAL (
         SELECT c.value_normalized AS phone
         FROM contacts c
-        WHERE c.user_id = i.user_id AND c.type = 'phone'
+        WHERE c.user_id = i.user_id AND c.type = 'phone' AND c.label = $1
         ORDER BY c.is_primary DESC NULLS LAST, c.id ASC
         LIMIT 1
       ) cp ON true
@@ -431,7 +435,7 @@ export async function getLinkDataByIdentity(
     LEFT JOIN LATERAL (
       SELECT c.value_normalized AS phone
       FROM contacts c
-      WHERE c.user_id = i.user_id AND c.type = 'phone'
+      WHERE c.user_id = i.user_id AND c.type = 'phone' AND c.label = $1
       ORDER BY c.is_primary DESC NULLS LAST, c.id ASC
       LIMIT 1
     ) cp ON true

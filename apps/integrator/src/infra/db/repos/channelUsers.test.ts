@@ -162,5 +162,6 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(linkSqlText).toContain('FROM identities i');
     expect(linkSqlText).toContain('LEFT JOIN LATERAL');
     expect(linkSqlText).toContain('FROM contacts c');
+    expect(linkSqlText).toContain('c.label = $1');
   });
 });

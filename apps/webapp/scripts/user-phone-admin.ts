@@ -5,11 +5,14 @@
  * Команды:
  *   info <phone>          — показывает пользователя и количество связанных записей.
  *
- *   reset-user <phone>   — удаляет identity (platform_users + channel_bindings + pins + login_tokens).
- *                           Перед удалением снимает ссылки, мешающие FK (см. clearPlatformUserDeleteBlockers):
- *                           в т.ч. строки patient_lfk_assignments (назначения ЛФК врачом), online_intake_requests.
- *                           Остальной контент по возможности сохраняется для reassign-user (таблицы из CONTENT_TABLES).
+ *   reset-user <phone>   — удаляет identity (platform_users + channel_bindings + pins + login_tokens),
+ *                           строки по этому номеру в phone_otp_locks, phone_challenges, appointment_records
+ *                           (сопоставление по цифрам номера). Затем снимает ссылки, мешающие FK
+ *                           (patient_lfk_assignments, online_intake_requests и т.д.).
+ *                           Остальной контент по user_id при возможности сохраняется для reassign-user (CONTENT_TABLES).
  *                           Удаление platform_users каскадно трогает таблицы с ON DELETE CASCADE — см. миграции.
+ *                           Затем (если задан URL integrator БД) удаляет пользователя integrator по
+ *                           contacts(phone) и platform_users.integrator_user_id, записи rubitime по номеру.
  *
  *   reassign-user <phone> <old-uuid>
  *                         — переносит контентные записи со старого UUID на текущего пользователя с данным телефоном.
@@ -20,6 +23,11 @@
  *       USER_PHONE_ADMIN_ENV_FILE, ENV_FILE, /opt/env/bersoncarebot/webapp.prod, .env.dev (cwd = apps/webapp).
  *     Сначала dotenv, затем при необходимости `bash source` (для export и shell-формата).
  *   - Хост вроде `base` (имя сервиса только внутри Docker) отклоняется до подключения.
+ *
+ * Integrator DB (опционально для reset-user / info):
+ *   - `INTEGRATOR_DATABASE_URL` или `USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL`
+ *   - иначе файлы: `USER_PHONE_ADMIN_INTEGRATOR_ENV_FILE`, затем `/opt/env/bersoncarebot/api.prod`
+ *     (в файле — `INTEGRATOR_DATABASE_URL` или `DATABASE_URL` к БД integrator).
  */
 
 import { execFileSync } from "node:child_process";
@@ -33,6 +41,7 @@ const { Pool } = pg;
 const BLOCKED_DB_HOSTS = new Set(["base"]);
 
 const DEFAULT_PROD_ENV = "/opt/env/bersoncarebot/webapp.prod";
+const DEFAULT_INTEGRATOR_ENV = "/opt/env/bersoncarebot/api.prod";
 
 function candidateEnvFiles(): string[] {
   const fromFlag = process.env.USER_PHONE_ADMIN_ENV_FILE?.trim();
@@ -119,11 +128,82 @@ function resolveConnectionString(): string {
   return raw;
 }
 
+function candidateIntegratorEnvFiles(): string[] {
+  const list: string[] = [];
+  const fromFlag = process.env.USER_PHONE_ADMIN_INTEGRATOR_ENV_FILE?.trim();
+  if (fromFlag) list.push(fromFlag);
+  list.push(DEFAULT_INTEGRATOR_ENV);
+  return list.map((p) => (path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)));
+}
+
+/** Читает одну переменную из shell-env файла (как webapp DATABASE_URL). */
+function readNamedVarFromBashSource(filePath: string, varName: "DATABASE_URL" | "INTEGRATOR_DATABASE_URL"): string | null {
+  const script =
+    varName === "DATABASE_URL"
+      ? 'set -a && source "$1" && set +a && printf "%s" "${DATABASE_URL-}"'
+      : 'set -a && source "$1" && set +a && printf "%s" "${INTEGRATOR_DATABASE_URL-}"';
+  try {
+    const out = execFileSync("bash", ["-c", script, "_", filePath], {
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+      env: { ...process.env, DATABASE_URL: "", INTEGRATOR_DATABASE_URL: "" },
+    });
+    const s = out.trim();
+    return s.length > 0 ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+function readFirstIntegratorUrlFromFile(filePath: string): string | null {
+  if (!fs.existsSync(filePath)) return null;
+  const i1 = readNamedVarFromBashSource(filePath, "INTEGRATOR_DATABASE_URL");
+  if (i1) return i1.trim();
+  const i2 = readNamedVarFromBashSource(filePath, "DATABASE_URL");
+  return i2?.trim() ?? null;
+}
+
+/** URL БД integrator; `null` — только webapp, без ошибки. */
+function resolveIntegratorConnectionStringOptional(): string | null {
+  let raw =
+    process.env.INTEGRATOR_DATABASE_URL?.trim() ||
+    process.env.USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL?.trim();
+  if (!raw) {
+    for (const abs of candidateIntegratorEnvFiles()) {
+      raw = readFirstIntegratorUrlFromFile(abs) ?? "";
+      if (raw) break;
+    }
+  }
+  if (!raw) return null;
+
+  let hostname: string;
+  try {
+    hostname = new URL(raw).hostname;
+  } catch {
+    console.error("INTEGRATOR_DATABASE_URL: невалидный URL — integrator пропущен.");
+    return null;
+  }
+  if (BLOCKED_DB_HOSTS.has(hostname)) {
+    console.error(
+      `INTEGRATOR_DATABASE_URL: хост «${hostname}» недоступен с хоста ОС — integrator пропущен.`,
+    );
+    return null;
+  }
+  return raw;
+}
+
 const db = new Pool({ connectionString: resolveConnectionString() });
+const integratorConnectionString = resolveIntegratorConnectionStringOptional();
+const integratorDb = integratorConnectionString ? new Pool({ connectionString: integratorConnectionString }) : null;
 
 function normalize(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   return digits.startsWith("7") ? `+${digits}` : `+7${digits}`;
+}
+
+/** Только цифры; для сопоставления записей, где телефон могли сохранить в разном формате. */
+function phoneDigits(phone: string): string {
+  return phone.replace(/\D/g, "");
 }
 
 async function findUser(phone: string) {
@@ -134,12 +214,84 @@ async function findUser(phone: string) {
     display_name: string;
     role: string;
     created_at: string;
+    integrator_user_id: string | null;
   }>(
-    `SELECT id, phone_normalized, display_name, role, created_at::text
+    `SELECT id, phone_normalized, display_name, role, created_at::text,
+            integrator_user_id::text AS integrator_user_id
      FROM platform_users WHERE phone_normalized = $1`,
     [norm],
   );
   return res.rows[0] ?? null;
+}
+
+async function resolveIntegratorUserIds(
+  digs: string,
+  webappIntegratorUserId: string | null,
+): Promise<string[]> {
+  if (!integratorDb) return [];
+  const ids = new Set<string>();
+  if (webappIntegratorUserId && /^\d+$/.test(webappIntegratorUserId)) {
+    ids.add(webappIntegratorUserId);
+  }
+  const r = await integratorDb.query<{ user_id: string }>(
+    `SELECT DISTINCT user_id::text AS user_id FROM contacts
+     WHERE type = 'phone'
+       AND regexp_replace(value_normalized, '\\D', '', 'g') = $1`,
+    [digs],
+  );
+  for (const row of r.rows) ids.add(row.user_id);
+  return [...ids];
+}
+
+async function deleteIntegratorPhoneData(digs: string, integratorUserIds: string[]): Promise<void> {
+  if (!integratorDb) return;
+
+  const log = (label: string, rowCount: number) => {
+    if (rowCount > 0) console.log(`  ${label}: ${rowCount}`);
+  };
+
+  const client = await integratorDb.connect();
+  try {
+    await client.query("BEGIN");
+
+    let r = await client.query(
+      `DELETE FROM rubitime_events e
+       USING rubitime_records rr
+       WHERE e.rubitime_record_id IS NOT NULL
+         AND e.rubitime_record_id = rr.rubitime_record_id
+         AND rr.phone_normalized IS NOT NULL
+         AND regexp_replace(rr.phone_normalized, '\\D', '', 'g') = $1`,
+      [digs],
+    );
+    log("Удалено из rubitime_events (по rubitime_records телефона)", r.rowCount ?? 0);
+
+    r = await client.query(
+      `DELETE FROM rubitime_records
+       WHERE phone_normalized IS NOT NULL
+         AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
+      [digs],
+    );
+    log("Удалено из rubitime_records (по номеру)", r.rowCount ?? 0);
+
+    r = await client.query(
+      `DELETE FROM rubitime_create_retry_jobs
+       WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
+      [digs],
+    );
+    log("Удалено из rubitime_create_retry_jobs", r.rowCount ?? 0);
+
+    if (integratorUserIds.length > 0) {
+      r = await client.query(`DELETE FROM users WHERE id = ANY($1::bigint[])`, [integratorUserIds]);
+      log("Удалено из users (integrator, CASCADE identities/contacts/…)", r.rowCount ?? 0);
+    }
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /** Tables that reference platform_users by UUID and hold user content data. */
@@ -192,13 +344,70 @@ async function info(phone: string): Promise<void> {
     if (cnt > 0) console.log(`  ${table}: ${cnt}`);
   }
 
-  const appts = await db.query(
-    `SELECT count(*)::int AS cnt FROM appointment_records WHERE phone_normalized = $1`,
-    [user.phone_normalized],
+  const digs = phoneDigits(user.phone_normalized);
+  const phonePred = `regexp_replace(phone_normalized, '\\D', '', 'g') = $1`;
+  const otp = await db.query<{ cnt: number }>(`SELECT count(*)::int AS cnt FROM phone_otp_locks WHERE ${phonePred}`, [
+    digs,
+  ]);
+  const ch = await db.query<{ cnt: number }>(
+    `SELECT count(*)::int AS cnt FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`,
+    [digs],
   );
-  const apptCnt = appts.rows[0]?.cnt ?? 0;
-  if (apptCnt > 0) console.log(`\nappointment_records (по телефону, не затрагиваются): ${apptCnt}`);
+  const appts = await db.query<{ cnt: number }>(
+    `SELECT count(*)::int AS cnt FROM appointment_records WHERE phone_normalized IS NOT NULL AND ${phonePred}`,
+    [digs],
+  );
+  console.log("\nПо номеру телефона (удаляются при reset-user):");
+  console.log(`  phone_otp_locks: ${otp.rows[0]?.cnt ?? 0}`);
+  console.log(`  phone_challenges: ${ch.rows[0]?.cnt ?? 0}`);
+  console.log(`  appointment_records: ${appts.rows[0]?.cnt ?? 0}`);
+
+  if (integratorDb) {
+    const intIds = await resolveIntegratorUserIds(digs, user.integrator_user_id);
+    const rub = await integratorDb.query<{ cnt: number }>(
+      `SELECT count(*)::int AS cnt FROM rubitime_records
+       WHERE phone_normalized IS NOT NULL
+         AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
+      [digs],
+    );
+    const rj = await integratorDb.query<{ cnt: number }>(
+      `SELECT count(*)::int AS cnt FROM rubitime_create_retry_jobs
+       WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
+      [digs],
+    );
+    console.log("\nIntegrator (очищается при reset-user):");
+    console.log(`  users.id (удаление строки users + CASCADE): ${intIds.length ? intIds.join(", ") : "—"}`);
+    console.log(`  rubitime_records: ${rub.rows[0]?.cnt ?? 0}`);
+    console.log(`  rubitime_create_retry_jobs: ${rj.rows[0]?.cnt ?? 0}`);
+  } else {
+    console.log("\nIntegrator: URL не задан (INTEGRATOR_DATABASE_URL / api.prod) — блок integrator пропущен.");
+  }
   console.log();
+}
+
+/** OTP-блокировки, челленджи и проекции записей по номеру — только webapp. */
+async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: string): Promise<void> {
+  const digs = phoneDigits(phoneNormalized);
+  const log = (label: string, rowCount: number) => {
+    if (rowCount > 0) console.log(`  ${label}: ${rowCount}`);
+  };
+
+  let r = await client.query(
+    `DELETE FROM phone_otp_locks WHERE regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
+    [digs],
+  );
+  log("Удалено из phone_otp_locks", r.rowCount ?? 0);
+
+  r = await client.query(`DELETE FROM phone_challenges WHERE regexp_replace(phone, '\\D', '', 'g') = $1`, [digs]);
+  log("Удалено из phone_challenges", r.rowCount ?? 0);
+
+  r = await client.query(
+    `DELETE FROM appointment_records
+     WHERE phone_normalized IS NOT NULL
+       AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1`,
+    [digs],
+  );
+  log("Удалено из appointment_records (по номеру)", r.rowCount ?? 0);
 }
 
 /**
@@ -250,11 +459,14 @@ async function resetUser(phone: string): Promise<void> {
 
   console.log(`\nСброс identity для: ${user.display_name} (${user.id})`);
   console.log(`Старый UUID для reassign: ${user.id}`);
-  console.log("(см. лог ниже: снятие FK, затем identity)\n");
+  console.log("(см. лог: данные по номеру → FK → identity)\n");
 
   const client = await db.connect();
   try {
     await client.query("BEGIN");
+
+    console.log("Удаление по номеру (webapp):");
+    await deletePhoneKeyedWebappRows(client, user.phone_normalized);
 
     await clearPlatformUserDeleteBlockers(client, user.id);
 
@@ -267,12 +479,22 @@ async function resetUser(phone: string): Promise<void> {
     console.log(`  Удалено из platform_users: ${r.rowCount}`);
 
     await client.query("COMMIT");
-    console.log(`\n✓ Identity удалена. Старый UUID для reassign: ${user.id}`);
+    console.log(`\n✓ Webapp: identity удалена. Старый UUID для reassign: ${user.id}`);
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();
+  }
+
+  const digs = phoneDigits(user.phone_normalized);
+  const intIds = await resolveIntegratorUserIds(digs, user.integrator_user_id);
+  if (integratorDb) {
+    console.log("\nIntegrator:");
+    await deleteIntegratorPhoneData(digs, intIds);
+    console.log("✓ Integrator очищен.");
+  } else {
+    console.log("\n(Integrator БД не задана — пропуск.)");
   }
 }
 
@@ -344,6 +566,7 @@ async function main() {
     }
   } finally {
     await db.end();
+    if (integratorDb) await integratorDb.end();
   }
 }
 
