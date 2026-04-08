@@ -80,6 +80,28 @@ function decodeSession(raw: string): AppSession | null {
   return parsed.expiresAt > now ? parsed : null;
 }
 
+/** `platform_users.id` в webapp — UUID; не трогаем legacy `tg:…` и прочие не-UUID. */
+function looksLikePlatformUserUuid(userId: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+}
+
+/**
+ * Подтягивает актуальные ФИО/телефон/bindings из БД и отсекает сессии после удаления строки в `platform_users`
+ * (например ops `reset-user`), когда cookie ещё валиден по подписи.
+ */
+async function resolveSessionUserAgainstDb(user: SessionUser): Promise<SessionUser | null> {
+  if (!env.DATABASE_URL?.trim()) return user;
+  if (!looksLikePlatformUserUuid(user.userId)) return user;
+  try {
+    const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+    const fresh = await pgUserByPhonePort.findByUserId(user.userId);
+    if (!fresh) return null;
+    return fresh;
+  } catch {
+    return user;
+  }
+}
+
 async function parseIntegratorToken(token: string): Promise<IntegratorTokenPayload | null> {
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
@@ -424,6 +446,9 @@ export async function exchangeTelegramLoginWidget(
  * Роль сверяется с env: телефон (ADMIN_PHONES / DOCTOR_PHONES), Telegram / Max ID
  * (ADMIN_TELEGRAM_ID, DOCTOR_TELEGRAM_IDS, ADMIN_MAX_IDS, DOCTOR_MAX_IDS).
  * Cookie и при наличии БД строка role в platform_users обновляются при расхождении.
+ *
+ * При наличии `DATABASE_URL` и UUID `userId` сессия сверяется с `platform_users`: удалённый пользователь
+ * даёт `null` (клиент увидит «не авторизован»), даже если cookie ещё не истёк.
  */
 export async function getCurrentSession(): Promise<AppSession | null> {
   const cookieStore = await cookies();
@@ -436,9 +461,12 @@ export async function getCurrentSession(): Promise<AppSession | null> {
     return null;
   }
 
+  const resolvedUser = await resolveSessionUserAgainstDb(decoded.user);
+  if (resolvedUser === null) return null;
+
   // Normalize doctor session shape without writing cookie here — cookies().set()
   // is only allowed in Server Actions / Route Handlers, not in Server Component render.
-  let session = decoded;
+  let session: AppSession = { ...decoded, user: resolvedUser };
   if (session.user.role === "doctor") {
     session = {
       ...buildSession(session.user),
