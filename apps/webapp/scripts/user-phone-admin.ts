@@ -16,9 +16,11 @@
  *   - Явно: `DATABASE_URL=postgresql://... pnpm --dir apps/webapp exec tsx scripts/user-phone-admin.ts ...`
  *   - Иначе скрипт подставляет URL из первого существующего файла (по порядку):
  *       USER_PHONE_ADMIN_ENV_FILE, ENV_FILE, /opt/env/bersoncarebot/webapp.prod, .env.dev (cwd = apps/webapp).
+ *     Сначала dotenv, затем при необходимости `bash source` (для export и shell-формата).
  *   - Хост вроде `base` (имя сервиса только внутри Docker) отклоняется до подключения.
  */
 
+import { execFileSync } from "node:child_process";
 import { config as loadDotenv } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
@@ -40,6 +42,33 @@ function candidateEnvFiles(): string[] {
   return list.map((p) => (path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)));
 }
 
+/**
+ * Файлы вроде `/opt/env/.../webapp.prod` часто пишут под `source` (export, подстановки),
+ * dotenv их не всегда парсит — дублируем чтение через bash.
+ */
+function readDatabaseUrlViaBashSource(filePath: string): string | null {
+  try {
+    const out = execFileSync(
+      "bash",
+      [
+        "-c",
+        'set -a && source "$1" && set +a && printf "%s" "${DATABASE_URL-}"',
+        "_",
+        filePath,
+      ],
+      {
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024,
+        env: { ...process.env, DATABASE_URL: "" },
+      },
+    );
+    const s = out.trim();
+    return s.length > 0 ? s : null;
+  } catch {
+    return null;
+  }
+}
+
 function resolveConnectionString(): string {
   let raw = process.env.DATABASE_URL?.trim();
   if (!raw) {
@@ -47,14 +76,24 @@ function resolveConnectionString(): string {
       if (!fs.existsSync(abs)) continue;
       loadDotenv({ path: abs, override: false });
       raw = process.env.DATABASE_URL?.trim();
+      if (!raw) raw = readDatabaseUrlViaBashSource(abs)?.trim();
       if (raw) break;
     }
   }
   if (!raw) {
+    const checked = candidateEnvFiles().filter((p) => fs.existsSync(p));
     console.error(
-      "DATABASE_URL не задан. Укажите переменную или положите URL в один из файлов:\n" +
-        `  USER_PHONE_ADMIN_ENV_FILE, ENV_FILE, ${DEFAULT_PROD_ENV}, либо .env.dev в каталоге webapp.`,
+      "DATABASE_URL не задан: ни в окружении, ни в проверенных env-файлах (после dotenv и bash source).\n" +
+        "Укажите `DATABASE_URL=...` или проверьте строку DATABASE_URL в файле (см. список ниже).",
     );
+    if (checked.length > 0) {
+      console.error("Существующие кандидаты:");
+      for (const p of checked) console.error(`  ${p}`);
+    } else {
+      console.error(
+        `Ни один из путей не найден (USER_PHONE_ADMIN_ENV_FILE, ENV_FILE, ${DEFAULT_PROD_ENV}, .env.dev).`,
+      );
+    }
     process.exit(1);
   }
 
