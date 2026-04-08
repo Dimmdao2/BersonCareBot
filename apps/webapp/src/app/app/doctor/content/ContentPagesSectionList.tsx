@@ -87,10 +87,13 @@ export function ContentPagesSectionList({
   sectionSlug,
   sectionTitle,
   initialPages,
+  showSectionHeading = true,
 }: {
   sectionSlug: string;
   sectionTitle: string;
   initialPages: ContentPageListRow[];
+  /** Если false — заголовок раздела не дублируется (родитель уже показал h2). */
+  showSectionHeading?: boolean;
 }) {
   const [items, setItems] = useState(initialPages);
   const [pending, startTransition] = useTransition();
@@ -130,7 +133,9 @@ export function ContentPagesSectionList({
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-2">
-        <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+        {showSectionHeading ? (
+          <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+        ) : null}
         <p className="text-sm text-muted-foreground">Нет страниц в этом разделе.</p>
       </div>
     );
@@ -138,7 +143,7 @@ export function ContentPagesSectionList({
 
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3>
+      {showSectionHeading ? <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3> : null}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-2" aria-busy={pending}>

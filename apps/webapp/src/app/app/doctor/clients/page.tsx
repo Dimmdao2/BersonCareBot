@@ -90,6 +90,10 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
               messageHistory={selectedMessageHistory}
               userId={selected!}
               listBasePath={listBasePathWithScope}
+              isAdmin={session.user.role === "admin"}
+              canPermanentDelete={
+                session.user.role === "admin" && Boolean(session.adminMode)
+              }
             />
           </div>
         ) : null}

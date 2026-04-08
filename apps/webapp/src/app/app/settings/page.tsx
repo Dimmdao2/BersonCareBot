@@ -9,7 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsSection } from "./AdminSettingsSection";
-import { RuntimeConfigSection } from "./RuntimeConfigSection";
+import { AppParametersSection } from "./AppParametersSection";
+import { AuthProvidersSection } from "./AuthProvidersSection";
+import { AccessListsSection } from "./AccessListsSection";
 import { BookingCatalogHelp } from "./BookingCatalogHelp";
 import { RubitimeSection } from "./RubitimeSection";
 import { GoogleCalendarSection } from "./GoogleCalendarSection";
@@ -61,24 +63,29 @@ export default async function SettingsPage() {
       }
     : null;
 
-  const runtimeConfig = isAdmin && adminMode
+  const appParametersConfig = isAdmin && adminMode
     ? {
         supportContactUrl: (() => {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "support_contact_url")?.valueJson, "");
           const s = typeof raw === "string" ? raw.trim() : "";
           return s.length > 0 ? s : DEFAULT_SUPPORT_CONTACT_URL;
         })(),
+        appDisplayTimezone: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "app_display_timezone")?.valueJson, "");
+          const s = typeof raw === "string" ? raw.trim() : "";
+          return s.length > 0 ? s : DEFAULT_APP_DISPLAY_TIMEZONE;
+        })(),
+      }
+    : null;
+
+  const authProvidersConfig = isAdmin && adminMode
+    ? {
         telegramLoginBotUsername: (() => {
           const raw = getValueJson(
             adminSettingsList.find((x) => x.key === "telegram_login_bot_username")?.valueJson,
             "",
           );
           return typeof raw === "string" ? raw.trim() : "";
-        })(),
-        appDisplayTimezone: (() => {
-          const raw = getValueJson(adminSettingsList.find((x) => x.key === "app_display_timezone")?.valueJson, "");
-          const s = typeof raw === "string" ? raw.trim() : "";
-          return s.length > 0 ? s : DEFAULT_APP_DISPLAY_TIMEZONE;
         })(),
         yandexOauthClientId: (() => {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "yandex_oauth_client_id")?.valueJson, "");
@@ -98,6 +105,11 @@ export default async function SettingsPage() {
           );
           return typeof raw === "string" ? raw.trim() : "";
         })(),
+      }
+    : null;
+
+  const accessListsConfig = isAdmin && adminMode
+    ? {
         allowedTelegramIds: idArrayToString(adminSettingsList, "allowed_telegram_ids"),
         allowedMaxIds: idArrayToString(adminSettingsList, "allowed_max_ids"),
         adminTelegramIds: idArrayToString(adminSettingsList, "admin_telegram_ids"),
@@ -145,26 +157,44 @@ export default async function SettingsPage() {
           {isAdmin && adminMode && adminSettings && (
             <div className="mt-6">
               <Tabs defaultValue="diagnostics" className="gap-4">
-                <TabsList className="grid h-auto w-full grid-cols-2 gap-2 md:grid-cols-4">
-                  <TabsTrigger value="diagnostics">Админ: режим</TabsTrigger>
-                  <TabsTrigger value="access">Доступ и роли</TabsTrigger>
-                  <TabsTrigger value="integrations">Интеграции</TabsTrigger>
-                  <TabsTrigger value="catalog">Каталог записи</TabsTrigger>
+                <TabsList className="flex h-auto w-full flex-wrap justify-start gap-2">
+                  <TabsTrigger value="diagnostics" className="text-xs sm:text-sm">
+                    Админ: режим
+                  </TabsTrigger>
+                  <TabsTrigger value="app-params" className="text-xs sm:text-sm">
+                    Параметры приложения
+                  </TabsTrigger>
+                  <TabsTrigger value="auth" className="text-xs sm:text-sm">
+                    Авторизация
+                  </TabsTrigger>
+                  <TabsTrigger value="access" className="text-xs sm:text-sm">
+                    Доступ и роли
+                  </TabsTrigger>
+                  <TabsTrigger value="integrations" className="text-xs sm:text-sm">
+                    Интеграции
+                  </TabsTrigger>
+                  <TabsTrigger value="catalog" className="text-xs sm:text-sm">
+                    Каталог записи
+                  </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="diagnostics" className="mt-2">
                   <AdminSettingsSection {...adminSettings} />
                 </TabsContent>
 
+                <TabsContent value="app-params" className="mt-2">
+                  {appParametersConfig && <AppParametersSection {...appParametersConfig} />}
+                </TabsContent>
+
+                <TabsContent value="auth" className="mt-2">
+                  {authProvidersConfig && <AuthProvidersSection {...authProvidersConfig} />}
+                </TabsContent>
+
                 <TabsContent value="access" className="mt-2">
-                  {runtimeConfig && <RuntimeConfigSection {...runtimeConfig} />}
+                  {accessListsConfig && <AccessListsSection {...accessListsConfig} />}
                 </TabsContent>
 
                 <TabsContent value="integrations" className="mt-2 space-y-6">
-                  <p className="text-xs text-muted-foreground">
-                    Google Calendar находится в этом разделе. Yandex OAuth доступен в разделе «Доступ и роли» внутри
-                    Runtime конфига.
-                  </p>
                   {googleCalendarConfig && <GoogleCalendarSection {...googleCalendarConfig} />}
                 </TabsContent>
 

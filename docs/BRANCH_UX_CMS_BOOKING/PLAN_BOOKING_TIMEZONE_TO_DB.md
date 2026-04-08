@@ -25,7 +25,7 @@
 
 - [`apps/webapp/src/modules/system-settings/types.ts`](../../apps/webapp/src/modules/system-settings/types.ts) — добавить `booking_display_timezone` в `ALLOWED_KEYS`.
 - [`apps/webapp/src/app/api/admin/settings/route.ts`](../../apps/webapp/src/app/api/admin/settings/route.ts) — если список ключей дублируется вручную, синхронизировать.
-- UI: [`RuntimeConfigSection.tsx`](../../apps/webapp/src/app/app/settings/RuntimeConfigSection.tsx) и [`settings/page.tsx`](../../apps/webapp/src/app/app/settings/page.tsx) — поле ввода (строка IANA, плейсхолдер `Europe/Moscow`), валидация опционально через список известных зон или regex `^[A-Za-z_]+(/[A-Za-z_]+)*$`.
+- UI: [`AppParametersSection.tsx`](../../apps/webapp/src/app/app/settings/AppParametersSection.tsx) (вкладка «Параметры приложения»; ранее `RuntimeConfigSection`) и [`settings/page.tsx`](../../apps/webapp/src/app/app/settings/page.tsx) — поле ввода (строка IANA, плейсхолдер `Europe/Moscow`), валидация опционально через список известных зон или regex `^[A-Za-z_]+(/[A-Za-z_]+)*$`.
 
 ### 3. Integrator: чтение из БД с кэшем
 

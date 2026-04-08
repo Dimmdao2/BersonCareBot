@@ -16,10 +16,16 @@
 - **Yandex OAuth (backend-only):** `yandex_oauth_client_id`, `yandex_oauth_client_secret`, `yandex_oauth_redirect_uri` — редактирование через admin Settings; **не** дублировать в env webapp.
 - **Google Calendar OAuth + integration:** `google_client_id`, `google_client_secret`, `google_redirect_uri`, `google_refresh_token`, `google_calendar_id`, `google_calendar_enabled`, `google_connected_email` — управление через admin Settings UI (OAuth consent flow + выбор календаря). Env-переменные `GOOGLE_*` в integrator помечены `@deprecated` и оставлены как fallback на переходный период.
 - Отображение времени: **`app_display_timezone`** (IANA).
-- Вайтлисты: `allowed_telegram_ids`, `allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`, `doctor_max_ids`, `admin_phones`, `doctor_phones`, `allowed_phones`.
+- Вайтлисты: `allowed_telegram_ids`, `allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`, `doctor_max_ids`, `admin_phones`, `doctor_phones`, `allowed_phones`. На странице `/app/settings` (вкладка «Доступ и роли») в UI редактируются списки **Telegram / Max ID**; ключи `admin_phones`, `doctor_phones`, `allowed_phones` поддерживаются тем же `PATCH /api/admin/settings`, отдельной формы в этом экране пока нет.
 - Операционные флаги: `dev_mode`, `debug_forward_to_admin`, `important_fallback_delay_minutes`, `integration_test_ids`, `sms_fallback_enabled` (doctor scope и др. — см. `ALLOWED_KEYS`).
 
 **Таблицы-справочники интегратора** — несекретные бизнес-контракты (Rubitime mapping и т.д.), см. отдельные миграции.
+
+## Несколько redirect URI в Google Cloud (OAuth 2.0)
+
+- В Google Cloud Console у одного OAuth 2.0 Client ID можно указать **несколько** Authorized redirect URIs.
+- Сейчас в `system_settings` (webapp, admin) хранится **одна** строка `google_redirect_uri`. Её использует только поток подключения **Google Calendar** (колбэк вида `…/api/admin/google-calendar/callback`), см. `apps/webapp/src/app/api/admin/google-calendar/start/route.ts`.
+- Отдельный **вход пользователя через Google** в webapp в текущей версии кода не реализован. Если появится второй OAuth-поток с другим путём колбэка, его URI нужно добавить в GCP **и** завести отдельный ключ в `system_settings` (или согласовать единую схему), не дублируя произвольно одни и те же поля в двух вкладках UI без изменения контракта БД.
 
 ## Устаревшее / исправлено
 
@@ -54,4 +60,5 @@
 - Webapp: `apps/webapp/src/modules/system-settings/types.ts` (`ALLOWED_KEYS`).
 - Webapp: `apps/webapp/src/modules/system-settings/service.ts`, `syncToIntegrator.ts`, `configAdapter.ts`, `integrationRuntime.ts`.
 - Webapp: `apps/webapp/src/config/env.ts`.
+- Webapp (UI админских настроек, вкладки): `apps/webapp/src/app/app/settings/page.tsx`, `AppParametersSection.tsx`, `AuthProvidersSection.tsx`, `AccessListsSection.tsx`, `GoogleCalendarSection.tsx`, `patchAdminSetting.ts`.
 - Integrator: `apps/integrator/src/config/env.ts`, `settingsSyncRoute.ts`.

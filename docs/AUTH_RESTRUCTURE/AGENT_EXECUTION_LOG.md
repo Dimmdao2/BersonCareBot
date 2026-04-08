@@ -20,6 +20,10 @@
 - Log owner: `AI agent + reviewer`
 - Started at (UTC): `2026-04-04`
 
+### Актуализация путей admin settings (2026-04-08)
+
+В записях **до 2026-04-08** в списках «Changed files» и в тексте задач встречается `apps/webapp/src/app/app/settings/RuntimeConfigSection.tsx`. Файл **удалён**; логика разнесена на `AppParametersSection.tsx`, `AuthProvidersSection.tsx`, `AccessListsSection.tsx` и общий `patchAdminSetting.ts`. См. [`docs/SETTINGS_ADMIN_UI_TABS/EXECUTION_LOG.md`](../SETTINGS_ADMIN_UI_TABS/EXECUTION_LOG.md).
+
 ---
 
 ## Шаблон записи
@@ -166,7 +170,7 @@ Tasks done:
 - S3.T04: `AuthFlowV2` — шаг `landing` с Telegram primary и «Войти по номеру телефона» secondary.
 - S3.T05: при `isMessengerMiniAppHost()` виджет не показывается; сразу phone/initData flow.
 - S3.T06: автоматический merge «телефон ↔ Telegram Login» по payload виджета невозможен (нет телефона); идентичность — `findOrCreateByChannelBinding(telegram, id)`; дубликаты по телефону — вне scope виджета (профиль/ручная привязка).
-- S3.T07: `telegram_login_bot_username` в `ALLOWED_KEYS`, admin API и `RuntimeConfigSection` / settings page (без нового env для ключа).
+- S3.T07: `telegram_login_bot_username` в `ALLOWED_KEYS`, admin API и UI настроек (тогда `RuntimeConfigSection`; см. примечание «Актуализация путей admin settings» выше) / settings page (без нового env для ключа).
 - S3.T08: `telegramLoginVerify.test.ts` (валидный / неверный hash / expired); `telegram-login/route.test.ts` (200 при успехе exchange, 403 при неверной подписи); `AuthFlowV2.test` — mini app host не показывает primary Telegram CTA.
 Changed files:
 - apps/webapp/src/modules/auth/telegramLoginVerify.ts, telegramLoginVerify.test.ts
@@ -178,7 +182,7 @@ Changed files:
 - apps/webapp/src/app/api/admin/settings/route.ts (ADMIN_SCOPE_KEYS)
 - apps/webapp/src/shared/ui/auth/TelegramLoginButton.tsx, AuthFlowV2.tsx, AuthFlowV2.test.tsx
 - apps/webapp/src/app/app/AppEntryLoginContent.tsx (plaque для landing)
-- apps/webapp/src/app/app/settings/RuntimeConfigSection.tsx, app/app/settings/page.tsx
+- apps/webapp/src/app/app/settings/RuntimeConfigSection.tsx (с 2026-04-08 см. примечание «Актуализация путей admin settings»), app/app/settings/page.tsx
 - docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
 Checks:
 - tests: `pnpm test`, `pnpm test:webapp` (включая новые telegram-login / verify)
@@ -370,7 +374,7 @@ Changed files:
 - apps/webapp/src/config/env.test.ts
 - apps/webapp/src/app/api/admin/settings/route.ts
 - apps/webapp/src/app/api/admin/settings/route.test.ts
-- apps/webapp/src/app/app/settings/RuntimeConfigSection.tsx
+- apps/webapp/src/app/app/settings/RuntimeConfigSection.tsx (с 2026-04-08 см. примечание «Актуализация путей admin settings»)
 - apps/webapp/src/app/app/settings/page.tsx
 - apps/webapp/src/shared/ui/auth/AuthFlowV2.test.tsx
 - docs/AUTH_RESTRUCTURE/AUDIT_STAGE_7.md

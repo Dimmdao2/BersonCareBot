@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 
 export async function GET() {
   const deps = buildAppDeps();
@@ -14,8 +15,8 @@ export async function GET() {
   if (role === "client") {
     try {
       contentSections = await deps.contentSections.listVisible();
-    } catch {
-      /* port unavailable */
+    } catch (err) {
+      logServerRuntimeError("api/menu", err);
     }
   }
 

@@ -6,6 +6,7 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { patientHomeBlocksForEntry, type HomeBlockId } from "@/app-layer/routes/navigation";
 import {
@@ -17,6 +18,7 @@ import { getPatientHomeBannerTopic, listRecentMailingLogsForPlatformUser } from 
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
+import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
 import { PatientHomeBrowserHero } from "./home/PatientHomeBrowserHero";
 import { PatientHomeExtraBlocks } from "./home/PatientHomeExtraBlocks";
 import { PatientHomeLessonsSection } from "./home/PatientHomeLessonsSection";
@@ -36,8 +38,8 @@ export default async function PatientHomePage() {
   let contentSections: Awaited<ReturnType<typeof deps.contentSections.listVisible>> = [];
   try {
     contentSections = await deps.contentSections.listVisible();
-  } catch {
-    /* port unavailable */
+  } catch (err) {
+    logServerRuntimeError("app/patient/home", err);
   }
   const emailFields =
     session?.user != null
@@ -94,6 +96,7 @@ export default async function PatientHomePage() {
         {blocks.has("channels") && session?.user != null && channelCards.length > 0 && (
           <ConnectMessengersBlock channelCards={channelCards} implementedOnly />
         )}
+        <LegalFooterLinks className="mt-4 pb-2" />
       </div>
     </AppShell>
   );

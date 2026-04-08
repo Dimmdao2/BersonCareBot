@@ -1040,8 +1040,8 @@
   - **Кабинет:** `CabinetActiveBookings`, `CabinetPastBookings`, `page.tsx` — прокидка `appDisplayTimeZone` с сервера.
   - **Wizard:** `ConfirmStepClient` + `booking/new/confirm/page.tsx` — та же таймзона для сводки даты/времени.
   - **Врач:** `AppointmentRow.recordAtIso` из PG, форматирование `time` в **`createDoctorAppointmentsService`** через `formatDoctorAppointmentRecordAt` + `getAppDisplayTimeZone()`.
-  - **Админка:** `RuntimeConfigSection` — поле ввода IANA-таймзоны; `settings/page.tsx` передаёт начальное значение.
-- **Файлы (основные):** `types.ts` (ALLOWED_KEYS), `app/api/admin/settings/route.ts`, `formatBusinessDateTime.ts` (+ unit-тесты), `appDisplayTimezone.ts` (+ тест), `CabinetActiveBookings.tsx`, `CabinetPastBookings.tsx`, `cabinet/page.tsx`, `ConfirmStepClient.tsx`, `confirm/page.tsx`, `pgDoctorAppointments.ts`, `doctor-appointments/service.ts` + `ports.ts`, `doctor-appointments/service.test.ts`, `RuntimeConfigSection.tsx`, `app/app/settings/page.tsx`.
+  - **Админка:** `AppParametersSection` (ранее `RuntimeConfigSection`) — поле ввода IANA-таймзоны; `settings/page.tsx` передаёт начальное значение.
+- **Файлы (основные):** `types.ts` (ALLOWED_KEYS), `app/api/admin/settings/route.ts`, `formatBusinessDateTime.ts` (+ unit-тесты), `appDisplayTimezone.ts` (+ тест), `CabinetActiveBookings.tsx`, `CabinetPastBookings.tsx`, `cabinet/page.tsx`, `ConfirmStepClient.tsx`, `confirm/page.tsx`, `pgDoctorAppointments.ts`, `doctor-appointments/service.ts` + `ports.ts`, `doctor-appointments/service.test.ts`, `AppParametersSection.tsx`, `app/app/settings/page.tsx`.
 
 ### TZ.T02 — Выбор слота в wizard: `BookingSlotList` и локаль браузера
 

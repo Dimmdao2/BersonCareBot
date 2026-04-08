@@ -41,7 +41,7 @@
 - `AuthFlowV2.tsx` не содержит ссылок на OAuth/Yandex.
 - `resolveAuthMethodsForPhone` не отдаёт `methods.oauth` в ответе для UI (`checkPhoneMethods.test.ts` — `oauth` undefined).
 - **Тест:** `AuthFlowV2.test.tsx` — «does not show Yandex OAuth in public login UI» (тексты `яндекс` / `Yandex` отсутствуют).
-- Публичный вход: только прямой вызов API (документировано в комментариях route и в админском `RuntimeConfigSection` как служебный сценарий).
+- Публичный вход: только прямой вызов API (документировано в комментариях route и в админской вкладке «Авторизация» / `AuthProvidersSection` как служебный сценарий; ранее — `RuntimeConfigSection`).
 
 ---
 
@@ -56,7 +56,7 @@
 | `yandex_oauth_redirect_uri` | то же |
 
 - Чтение: `integrationRuntime.ts` — `getYandexOauthClientId` / `Secret` / `RedirectUri` через `getConfigValue`.
-- Админка: `RuntimeConfigSection.tsx`, список ключей в `api/admin/settings/route.ts`, тест обновления `yandex_oauth_client_id` в `route.test.ts`.
+- Админка: `AuthProvidersSection.tsx` (ранее монолитный `RuntimeConfigSection.tsx`), список ключей в `api/admin/settings/route.ts`, тест обновления `yandex_oauth_client_id` в `route.test.ts`.
 
 ---
 

@@ -10,6 +10,7 @@ import { Suspense, useCallback, useState } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
+import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
 import type { AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
 
 /** Видна до первого события шага и на шаге ввода телефона / выборе Telegram. */
@@ -83,6 +84,7 @@ export function AppEntryLoginContent({ allowDevBypass, supportContactHref }: App
       <Suspense fallback={<p className="text-muted-foreground">Загрузка...</p>}>
         <AuthBootstrap supportContactHref={supportContactHref} onAuthStepChange={onAuthStepChange} />
       </Suspense>
+      <LegalFooterLinks className="mt-8" />
     </>
   );
 }

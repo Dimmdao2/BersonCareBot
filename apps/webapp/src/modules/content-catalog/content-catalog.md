@@ -12,4 +12,4 @@
 
 ## Видимость для пациента
 
-Страницы из `content_pages` попадают в выдачу уроков/скорой и в резолвер slug только если **`is_published = true`**, **`archived_at IS NULL`**, **`deleted_at IS NULL`**. Врач управляет публикацией, архивом и soft-delete на экране `/app/doctor/content`.
+Страницы из `content_pages` попадают в выдачу уроков/скорой и в резолвер slug только если **`is_published = true`**, **`archived_at IS NULL`**, **`deleted_at IS NULL`**. Врач управляет публикацией, архивом и soft-delete на экране `/app/doctor/content` (хаб с боковым меню и фильтром `?section=<slug>` по разделам). Поведение UI и логирование при сбоях БД: `docs/ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md`.

@@ -57,7 +57,7 @@
 | Ограничение | Где зафиксировано |
 |-------------|-------------------|
 | PIN скрыт в публичном login | `auth.md` (публичный поток), `docs/AUTH_RESTRUCTURE/auth.md`, комментарий в `AuthFlowV2.tsx` |
-| OAuth backend-only, не в публичном UI | `auth.md`, `checkPhoneMethods.ts` (комментарий к `oauth`), `RuntimeConfigSection` (админка) |
+| OAuth backend-only, не в публичном UI | `auth.md`, `checkPhoneMethods.ts` (комментарий к `oauth`), `AuthProvidersSection` (админка; ранее `RuntimeConfigSection`) |
 | Email не единственный публичный вход; канал в профиле / OTP | `auth.md`, `docs/AUTH_RESTRUCTURE/auth.md`, `otpChannelUi` (публичный flow без email) |
 
 ---
