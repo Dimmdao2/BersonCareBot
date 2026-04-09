@@ -35,9 +35,17 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
               // eslint-disable-next-line @next/next/no-img-element
               <img src={item.url} alt="" className="max-h-[70vh] w-full rounded-md object-contain" />
             ) : item.kind === "video" ? (
-              <video className="max-h-[70vh] w-full rounded-md" controls preload="metadata" autoPlay>
-                <source src={item.url} />
-              </video>
+              <div className="flex w-full min-w-0 justify-center rounded-md bg-muted/40">
+                <video
+                  className="max-h-[70vh] max-w-full object-contain"
+                  controls
+                  preload="metadata"
+                  autoPlay
+                  playsInline
+                >
+                  <source src={item.url} />
+                </video>
+              </div>
             ) : item.kind === "audio" ? (
               <audio controls preload="metadata" className="w-full">
                 <source src={item.url} />

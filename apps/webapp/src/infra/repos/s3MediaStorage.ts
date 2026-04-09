@@ -89,7 +89,12 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         uploaded_by_name: string | null;
         created_at: Date;
       }>(
-        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by, pu.display_name AS uploaded_by_name, m.created_at
+        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
+            COALESCE(
+              NULLIF(TRIM(CONCAT_WS(' ', pu.first_name, pu.last_name)), ''),
+              NULLIF(TRIM(pu.display_name), '')
+            ) AS uploaded_by_name,
+            m.created_at
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
@@ -199,7 +204,12 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         s3_key: string;
         folder_id: string | null;
       }>(
-        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by, pu.display_name AS uploaded_by_name, m.created_at, m.s3_key, m.folder_id
+        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
+            COALESCE(
+              NULLIF(TRIM(CONCAT_WS(' ', pu.first_name, pu.last_name)), ''),
+              NULLIF(TRIM(pu.display_name), '')
+            ) AS uploaded_by_name,
+            m.created_at, m.s3_key, m.folder_id
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          ${whereSql} AND m.s3_key IS NOT NULL

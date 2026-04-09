@@ -26,6 +26,7 @@ import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { libraryMultipartAbort, libraryMultipartUpload } from "./libraryMultipartUpload";
 import { UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
 import { MediaCard } from "./MediaCard";
+import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { MediaLightbox } from "./MediaLightbox";
 import { canRenderInlineImage } from "./mediaPreview";
 
@@ -458,11 +459,9 @@ export function MediaLibraryClient() {
             onSessionReady: (sid) => {
               multipartSessionRef.current = sid;
             },
-            onProgress: (loaded, tot) => {
-              const fileBase = Math.round((uploadedBytes / totalBytes) * 100);
-              const frac = tot > 0 ? loaded / tot : 0;
-              const inFile = Math.round((Math.max(file.size, 1) / totalBytes) * 100 * frac);
-              setUploadPercent(Math.max(0, Math.min(100, fileBase + inFile)));
+            onProgress: (loaded) => {
+              const next = Math.round(((uploadedBytes + loaded) / totalBytes) * 100);
+              setUploadPercent(Math.max(0, Math.min(100, next)));
             },
           });
         }
@@ -1376,52 +1375,24 @@ export function MediaLibraryClient() {
         ) : isMobileUploadUi ? (
           <div className="flex flex-col divide-y rounded-md border border-border">
             {items.map((item) => (
-              <div key={item.id} className="flex gap-3 p-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="truncate font-medium text-foreground">{mediaTitle(item)}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {item.kind} · {formatSize(item.size)} · {formatDate(item.createdAt)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">Разрешение: {resolutionText(item)}</span>
-                  <span className="text-xs text-muted-foreground">
-                    Загрузил:{" "}
-                    {item.userId ? (
-                      <Link className="text-primary underline" href={`/app/doctor/clients/${item.userId}`}>
-                        {item.uploadedByName?.trim() || item.userId}
-                      </Link>
-                    ) : (
-                      "неизвестно"
-                    )}
-                  </span>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-2">
-                  <Button variant="outline" size="sm" onClick={() => void onCopyUrl(item)}>
-                    {copiedItemId === item.id ? "OK" : "URL"}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background hover:bg-muted"
-                      aria-label="Действия"
-                    >
-                      <EllipsisVertical className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-44">
-                      <DropdownMenuGroup>
-                        <DropdownMenuLabel>Действия</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => openRenameDialog(item)}>Переименовать</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openMoveFolderDialog(item)}>Папка…</DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          disabled={deletingId === item.id}
-                          onClick={() => openDeleteDialog(item)}
-                        >
-                          {deletingId === item.id ? "Удаление..." : "Удалить"}
-                        </DropdownMenuItem>
-                      </DropdownMenuGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+              <div key={item.id} className="flex items-start gap-3 p-3">
+                <span className="min-w-0 flex-1 truncate font-medium text-foreground" title={mediaTitle(item)}>
+                  {mediaTitle(item)}
+                </span>
+                <MediaCardActionsMenu
+                  triggerVariant="label"
+                  item={item}
+                  resolutionText={resolutionText(item)}
+                  copied={copiedItemId === item.id}
+                  deleting={deletingId === item.id}
+                  onCopyUrl={() => void onCopyUrl(item)}
+                  onRename={() => openRenameDialog(item)}
+                  onMoveFolder={() => openMoveFolderDialog(item)}
+                  onDelete={() => openDeleteDialog(item)}
+                  onOpenPreview={() => openLightboxByItemId(item.id)}
+                  formatSize={formatSize}
+                  formatDate={formatDate}
+                />
               </div>
             ))}
             {items.length === 0 ? (
@@ -1430,17 +1401,12 @@ export function MediaLibraryClient() {
           </div>
         ) : (
           <div className="overflow-auto rounded-md border border-border">
-            <table className="w-full min-w-[52rem] border-collapse text-sm">
+            <table className="w-full min-w-[28rem] border-collapse text-sm">
               <thead className="bg-muted/40 text-left">
                 <tr>
                   <th className="px-3 py-2">Файл</th>
-                  <th className="px-3 py-2">Тип</th>
-                  <th className="px-3 py-2">Размер</th>
-                  <th className="px-3 py-2">Разрешение</th>
-                  <th className="px-3 py-2">Кто загрузил</th>
-                  <th className="px-3 py-2">Дата загрузки</th>
                   <th className="px-3 py-2">Просмотр</th>
-                  <th className="px-3 py-2">Действия</th>
+                  <th className="sr-only px-3 py-2">Действия</th>
                 </tr>
               </thead>
               <tbody>
@@ -1458,28 +1424,15 @@ export function MediaLibraryClient() {
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-3 py-2">{item.kind}</td>
-                    <td className="px-3 py-2">{formatSize(item.size)}</td>
-                    <td className="px-3 py-2">{resolutionText(item)}</td>
-                    <td className="px-3 py-2">
-                      {item.userId ? (
-                        <Link className="text-primary underline" href={`/app/doctor/clients/${item.userId}`}>
-                          {item.uploadedByName?.trim() || item.userId}
-                        </Link>
-                      ) : (
-                        <span className="text-muted-foreground">неизвестно</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">{formatDate(item.createdAt)}</td>
                     <td className="px-3 py-2">
                       {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (
                         <button type="button" onClick={() => openLightboxByItemId(item.id)} className="rounded border border-border">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={item.url} alt="" className="max-h-16 max-w-28 rounded object-cover" />
+                          <img src={item.url} alt="" className="max-h-16 max-w-28 rounded object-contain bg-muted/30" />
                         </button>
                       ) : item.kind === "video" ? (
                         <button type="button" onClick={() => openLightboxByItemId(item.id)} className="rounded border border-border">
-                          <video className="max-h-16 max-w-28 rounded" preload="metadata">
+                          <video className="max-h-16 max-w-28 rounded object-contain bg-muted/30" preload="metadata">
                             <source src={item.url} />
                           </video>
                         </button>
@@ -1494,40 +1447,25 @@ export function MediaLibraryClient() {
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={() => void onCopyUrl(item)}>
-                          {copiedItemId === item.id ? "URL скопирован" : "Скопировать URL"}
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background hover:bg-muted"
-                            aria-label="Действия"
-                          >
-                            <EllipsisVertical className="size-4" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="min-w-44">
-                            <DropdownMenuGroup>
-                              <DropdownMenuLabel>Действия</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => openRenameDialog(item)}>Переименовать</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openMoveFolderDialog(item)}>Папка…</DropdownMenuItem>
-                              <DropdownMenuItem
-                                variant="destructive"
-                                disabled={deletingId === item.id}
-                                onClick={() => openDeleteDialog(item)}
-                              >
-                                {deletingId === item.id ? "Удаление..." : "Удалить"}
-                              </DropdownMenuItem>
-                            </DropdownMenuGroup>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+                      <MediaCardActionsMenu
+                        item={item}
+                        resolutionText={resolutionText(item)}
+                        copied={copiedItemId === item.id}
+                        deleting={deletingId === item.id}
+                        onCopyUrl={() => void onCopyUrl(item)}
+                        onRename={() => openRenameDialog(item)}
+                        onMoveFolder={() => openMoveFolderDialog(item)}
+                        onDelete={() => openDeleteDialog(item)}
+                        onOpenPreview={() => openLightboxByItemId(item.id)}
+                        formatSize={formatSize}
+                        formatDate={formatDate}
+                      />
                     </td>
                   </tr>
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
+                    <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
                       Файлы не найдены
                     </td>
                   </tr>

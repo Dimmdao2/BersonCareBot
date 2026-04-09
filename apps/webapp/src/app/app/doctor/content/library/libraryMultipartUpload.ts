@@ -81,9 +81,17 @@ export async function libraryMultipartUpload(params: {
 
   const parts: { PartNumber: number; ETag: string }[] = new Array(maxParts);
 
+  const partLoaded = new Float64Array(maxParts);
+  const reportMultipartProgress = () => {
+    let sum = 0;
+    for (let i = 0; i < maxParts; i += 1) sum += partLoaded[i];
+    params.onProgress(Math.min(Math.round(sum), totalBytes), totalBytes);
+  };
+
   const uploadOnePart = async (partNumber: number) => {
     const start = (partNumber - 1) * partSizeBytes;
     const end = Math.min(start + partSizeBytes, totalBytes);
+    const slice = end - start;
     const blob = params.file.slice(start, end);
 
     const putUrl = await withRetries(
@@ -112,16 +120,19 @@ export async function libraryMultipartUpload(params: {
           body: blob,
           signal: params.signal,
           onProgress: (loaded, tot) => {
-            const slice = end - start;
-            const base = ((partNumber - 1) / maxParts) * totalBytes;
-            const add = (loaded / (tot || 1)) * (slice / maxParts);
-            params.onProgress(Math.min(Math.round(base + add), totalBytes), totalBytes);
+            if (slice <= 0) return;
+            partLoaded[partNumber - 1] = (loaded / (tot || 1)) * slice;
+            reportMultipartProgress();
           },
         }),
       params.signal,
       `part-${partNumber}`,
     );
 
+    if (slice > 0) {
+      partLoaded[partNumber - 1] = slice;
+      reportMultipartProgress();
+    }
     parts[partNumber - 1] = { PartNumber: partNumber, ETag: etag };
   };
 
