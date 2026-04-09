@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { EllipsisVertical } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +29,7 @@ import { MediaCard } from "./MediaCard";
 import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { MediaLightbox } from "./MediaLightbox";
 import { canRenderInlineImage } from "./mediaPreview";
+import { VideoThumbnailPreview } from "./VideoThumbnailPreview";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
 type SortBy = "date" | "size" | "type";
@@ -1115,7 +1116,7 @@ export function MediaLibraryClient() {
                     className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted"
                     aria-label={`Действия: ${c.label}`}
                   >
-                    <EllipsisVertical className="size-4" />
+                    <MoreHorizontal className="size-3" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-44">
                     <DropdownMenuItem onClick={() => openFolderRename({ id: c.id!, name: c.label })}>
@@ -1156,7 +1157,7 @@ export function MediaLibraryClient() {
                     className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-muted"
                     aria-label={`Действия: ${f.name}`}
                   >
-                    <EllipsisVertical className="size-4" />
+                    <MoreHorizontal className="size-3" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-44">
                     <DropdownMenuItem onClick={() => openFolderRename({ id: f.id, name: f.name })}>
@@ -1432,9 +1433,10 @@ export function MediaLibraryClient() {
                         </button>
                       ) : item.kind === "video" ? (
                         <button type="button" onClick={() => openLightboxByItemId(item.id)} className="rounded border border-border">
-                          <video className="max-h-16 max-w-28 rounded object-contain bg-muted/30" preload="metadata">
-                            <source src={item.url} />
-                          </video>
+                          <VideoThumbnailPreview
+                            src={item.url}
+                            className="max-h-16 max-w-28 rounded object-contain bg-muted/30"
+                          />
                         </button>
                       ) : item.kind === "audio" ? (
                         <button type="button" onClick={() => openLightboxByItemId(item.id)} className="text-primary underline">

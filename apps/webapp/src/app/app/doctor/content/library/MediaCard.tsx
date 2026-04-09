@@ -2,6 +2,7 @@
 
 import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { canRenderInlineImage } from "./mediaPreview";
+import { VideoThumbnailPreview } from "./VideoThumbnailPreview";
 
 type MediaItem = {
   id: string;
@@ -68,14 +69,10 @@ export function MediaCard({
             onClick={onOpenPreview}
             aria-label="Предпросмотр видео"
           >
-            <video
+            <VideoThumbnailPreview
+              src={item.url}
               className="pointer-events-none max-h-40 w-full object-contain bg-muted/30"
-              preload="metadata"
-              playsInline
-              muted
-            >
-              <source src={item.url} />
-            </video>
+            />
           </button>
         ) : item.kind === "audio" ? (
           <div className="p-3">

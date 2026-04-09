@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { EllipsisVertical } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -68,10 +68,10 @@ export function MediaCardActionsMenu({
         aria-label="Действия и сведения"
       >
         {triggerVariant === "icon" ? (
-          <EllipsisVertical className="size-4" />
+          <MoreHorizontal className="size-3" />
         ) : (
           <>
-            <EllipsisVertical className="size-4" />
+            <MoreHorizontal className="size-3" />
             Меню
           </>
         )}

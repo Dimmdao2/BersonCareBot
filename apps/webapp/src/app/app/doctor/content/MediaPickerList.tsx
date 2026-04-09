@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { VideoThumbnailPreview } from "./library/VideoThumbnailPreview";
 
 export type MediaListItem = {
   id: string;
@@ -47,9 +48,7 @@ export function MediaPickerList({ items, loading, error, onSelect }: Props) {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={item.url} alt="" className="h-24 w-full object-cover" />
             ) : item.kind === "video" ? (
-              <video className="h-24 w-full object-cover" preload="metadata">
-                <source src={item.url} />
-              </video>
+              <VideoThumbnailPreview src={item.url} className="h-24 w-full object-cover" />
             ) : item.kind === "audio" ? (
               <div className="flex h-24 items-center justify-center px-2 text-xs text-muted-foreground">Аудио</div>
             ) : (
