@@ -4,6 +4,7 @@
  * опционально кнопка «Назад», имя и роль пользователя, ссылка «Настройки». Контент страницы
  * передаётся в children. Отображается везде внутри /app (кроме корневого layout).
  * Для пациента (variant="patient") — PatientHeader: в боте и в браузере разная правая часть шапки (см. patientNavByPlatform).
+ * Для кабинета врача (variant="doctor") — только контейнер контента; шапка `DoctorHeader` в layout `/app/doctor` или на `/app/settings`. Ширина и отступы — `doctorWorkspaceLayout.ts`.
  */
 
 import Link from "next/link";
@@ -14,6 +15,7 @@ import { PatientHeader } from "@/shared/ui/PatientHeader";
 import { PatientQuickAddFAB } from "@/app/app/patient/components/PatientQuickAddFAB";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
 type AppShellProps = {
   title: string;
@@ -87,7 +89,7 @@ export function AppShell({
     return (
       <div
         id="app-shell-doctor"
-        className="mx-auto w-full max-w-7xl px-4 pb-8 md:px-6"
+        className={DOCTOR_PAGE_CONTAINER_CLASS}
       >
         <main id="app-shell-content" className="flex flex-col gap-4">
           {children}

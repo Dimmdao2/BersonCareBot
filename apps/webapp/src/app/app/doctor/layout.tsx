@@ -1,10 +1,12 @@
 /**
  * Layout раздела кабинета специалиста (/app/doctor).
- * Фиксированная шапка и меню — `DoctorHeader`; контент страниц — в `AppShell variant="doctor"`.
+ * Фиксированная шапка — `DoctorHeader`; отступ под неё — `DOCTOR_WORKSPACE_TOP_PADDING_CLASS`.
+ * Контент страниц — в `AppShell variant="doctor"` (см. `shared/ui/doctorWorkspaceLayout.ts`).
  */
 import type { ReactNode } from "react";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { DoctorHeader } from "@/shared/ui/DoctorHeader";
+import { DOCTOR_WORKSPACE_TOP_PADDING_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
   const session = await requireDoctorAccess();
@@ -13,7 +15,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       {/* TODO(AUDIT-BACKLOG-022): при появлении отдельного десктоп-layout — sidebar placeholder hidden md:block w-64 (STAGE_02). */}
       <DoctorHeader userDisplayName={session.user.displayName} adminMode={session.adminMode} />
       {/* Фиксированная шапка h-14 + safe-area + небольшой зазор, чтобы контент не прилипал */}
-      <div className="pt-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)]">{children}</div>
+      <div className={DOCTOR_WORKSPACE_TOP_PADDING_CLASS}>{children}</div>
     </div>
   );
 }

@@ -3,7 +3,12 @@ import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDisplayTimezone";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
+import { cn } from "@/lib/utils";
 import { DoctorHeader } from "@/shared/ui/DoctorHeader";
+import {
+  DOCTOR_PAGE_CONTAINER_CLASS,
+  DOCTOR_WORKSPACE_TOP_PADDING_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
@@ -143,8 +148,8 @@ export default async function SettingsPage() {
   return (
     <div className="min-h-screen bg-muted/30">
       <DoctorHeader userDisplayName={session.user.displayName} adminMode={adminMode} />
-      <div className="pt-14">
-        <div className="mx-auto max-w-2xl px-4 py-6">
+      <div className={DOCTOR_WORKSPACE_TOP_PADDING_CLASS}>
+        <div className={cn(DOCTOR_PAGE_CONTAINER_CLASS, "pt-6")}>
           <h1 className="mb-6 text-xl font-semibold">Настройки</h1>
           <SettingsForm
             patientLabel={String(patientLabel)}

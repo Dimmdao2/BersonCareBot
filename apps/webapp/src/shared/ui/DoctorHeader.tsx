@@ -19,6 +19,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
 
 type DoctorHeaderProps = {
@@ -68,7 +69,7 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
           adminMode ? "bg-destructive/10" : "bg-background/95"
         )}
       >
-        <div className="mx-auto flex min-h-14 max-w-7xl items-center gap-1.5 px-3 py-2 md:px-4">
+        <div className={DOCTOR_HEADER_INNER_CLASS}>
           <div className="flex min-w-0 shrink-0 items-center gap-1">
             {showBack ? (
               <Button

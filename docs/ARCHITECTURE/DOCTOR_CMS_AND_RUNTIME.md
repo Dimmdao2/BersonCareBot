@@ -9,6 +9,8 @@
 
 Код: `apps/webapp/src/app/app/doctor/content/`, компонент сайдбара `ContentPagesSidebar.tsx`.
 
+Страницы CMS, как и прочий кабинет врача, идут в общем каркасе: `AppShell variant="doctor"` и константы ширины/отступов в `apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts` (см. [`SPECIALIST_CABINET_STRUCTURE.md`](SPECIALIST_CABINET_STRUCTURE.md), подраздел «Единый каркас страниц»).
+
 ## Когда БД «нет» (ожидаемо)
 
 - **Vitest** и **`next build` в CI без `DATABASE_URL`:** `webappReposAreInMemory()` в [`apps/webapp/src/config/env.ts`](../../apps/webapp/src/config/env.ts) включает in-memory репозитории; запросы к PostgreSQL для контента не выполняются, падения подключения нет.

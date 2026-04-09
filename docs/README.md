@@ -7,6 +7,7 @@
 - `ARCHITECTURE/SERVER CONVENTIONS.md` — среда выполнения, пути, сервисы (источник фактов для деплоя).
 - `ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` — что в env, что в `system_settings`.
 - `ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md` — CMS врача (`/app/doctor/content`), фильтр `?section=`, логирование сбоев БД и мягкая деградация UI.
+- `ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md` — продуктовая структура кабинета; в том числе **единый каркас webapp** (ширина колонки, `DoctorHeader`, `doctorWorkspaceLayout.ts`).
 - `ARCHITECTURE/PLATFORM_USER_MERGE.md` — canonical user, logical merge (`merged_into_id`), миграции 061-064 и правила read/write.
 - `REPORTS/CMS_DOCTOR_HUB_EXECUTION_LOG.md` — журнал выполнения по CMS-хабу врача (UI, runtime-логи).
 - `REPORTS/USER_MERGE_EXECUTION_LOG.md` — журнал выполнения инициативы Platform User Merge & Dedup.
