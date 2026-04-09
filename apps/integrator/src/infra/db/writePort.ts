@@ -364,11 +364,21 @@ export function createDbWritePort(input: {
               const uid = link && typeof link === 'object' && typeof link.userId === 'string'
                 ? link.userId : null;
               if (uid) {
+                const projectionPayload: Record<string, unknown> = {
+                  integratorUserId: uid,
+                  phoneNormalized,
+                  channelCode: resource,
+                  externalId: channelUserId,
+                };
                 await enqueueProjectionEvent(txDb, {
                   eventType: 'contact.linked',
-                  idempotencyKey: `contact.linked:${uid}:${phoneNormalized}`,
+                  idempotencyKey: projectionIdempotencyKey(
+                    'contact.linked',
+                    uid,
+                    hashPayload(projectionPayload),
+                  ),
                   occurredAt: new Date().toISOString(),
-                  payload: { integratorUserId: uid, phoneNormalized },
+                  payload: projectionPayload,
                 });
               }
             }

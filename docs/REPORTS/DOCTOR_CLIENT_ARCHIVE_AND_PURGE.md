@@ -12,6 +12,7 @@
 - **Архив / снятие архива:** доступны пользователям с ролью врача или администратора (`canAccessDoctor`), флаг в БД `platform_users.is_archived`.
 - **Безвозвратное удаление:** только для клиентов с `role = client`, только если клиент **уже в архиве**, с телом запроса `confirmUserId` (совпадение с UUID в URL) и многошаговым подтверждением в UI.
 - **Ограничение «admin mode»:** безвозвратное удаление через API кабинета врача разрешено **только** при `session.user.role === "admin"` **и** включённом `session.adminMode` (как у прочих admin API: каталог записи, Rubitime и т.д.). Обычный врач (`doctor`) purge выполнить не может; в UI кнопка удаления скрыта, показаны пояснения.
+- **Для чистого ретеста нового пользователя:** одного архива недостаточно; нужен `permanent-delete` (или CLI `purge-by-id`) и успешная очистка integrator, иначе в боте может остаться `linkedPhone` и `/start` не покажет повторный onboarding.
 
 Общая очистка данных реализована в **`purgePlatformUserByPlatformId`** (`apps/webapp/src/infra/platformUserFullPurge.ts`); тот же путь используется скриптом `purge-by-id` в `apps/webapp/scripts/user-phone-admin.ts`.
 
@@ -97,6 +98,14 @@
 
 **Клиент без телефона:** в webapp purge полный по UUID; в integrator удаление строки `users` по id срабатывает, если в webapp заполнен **`integrator_user_id`**. Если нет ни телефона, ни `integrator_user_id`, автоматическое сопоставление с integrator по телефону не работает — возможны хвосты в БД integrator (операционно — отдельные скрипты/cleanup).
 
+### 4.1 Полнота удаления: что покрыто, что нет
+
+- **Явно удаляется в webapp:** `phone_otp_locks`, `phone_challenges`, `appointment_records`, `message_log`, `patient_bookings`, `reminder_rules`, `doctor_notes`, `support_conversations`, `patient_lfk_assignments`, `content_access_grants_webapp`, `user_notification_topics`, `user_channel_preferences`, `news_item_views`, `online_intake_requests`, `user_channel_bindings`, `user_pins`, `login_tokens`, `user_oauth_bindings`, а также дневники симптомов и ЛФК.
+- **Дополнительно закрывается по `integrator_user_id`:** webapp-проекции без прямой UUID-связи (`reminder_delivery_events`, `reminder_occurrence_history`, `user_subscriptions_webapp`, `mailing_logs_webapp`, `support_questions`, `support_question_messages` и др.).
+- **Удаляется каскадно через FK `ON DELETE CASCADE`:** `channel_link_secrets`, `auth_methods`, `email_verifications`, `email_otp_challenges`, `lfk_sessions` и другие таблицы, где удаление завязано на `platform_users(id)`.
+- **Остаётся как ожидаемый хвост:** `media_files.uploaded_by` настроен как `ON DELETE SET NULL`, поэтому purge не удаляет сами записи файлов и не трогает S3-объекты. Это нормально для account purge, но не является «абсолютно пустой» очисткой всех пользовательских артефактов.
+- **Критичный операционный риск:** если webapp запущен без корректного `INTEGRATOR_DATABASE_URL` для integrator БД, API вернёт `integratorSkipped: true` и bot-side данные останутся. Для ретеста `/start` это означает, что Telegram может продолжить считать номер привязанным.
+
 ---
 
 ## 5. Окружение webapp и `DATABASE_URL` (связано с деплоем)
@@ -119,6 +128,14 @@
 - Пациентское удаление **только дневника** (не `platform_users`): `apps/webapp/src/infra/repos/pgDiaryPurge.ts`, API patient diary purge — другой контракт.
 - Админские опасные действия на карточке (если есть): `AdminDangerActions` — отдельный блок, не смешивать с doctor client lifecycle без явной необходимости.
 
+## 6.1 Как пересоздать пользователя для теста onboarding
+
+1. Перевести клиента в архив (`PATCH .../archive` или UI «В архив»).
+2. Выполнить `POST .../permanent-delete` из UI архива под `admin + adminMode`, либо CLI `purge-by-id <uuid>`.
+3. Убедиться, что ответ не содержит `integratorSkipped: true`; иначе дополнительно очистить integrator (`integrator-clear-phone` или `integrator-purge-user-id` в `user-phone-admin.ts`).
+4. Если для сценария важна «полная пустота» по медиа, учитывать отдельно `media_files` / S3: стандартный purge их не удаляет.
+5. После этого тот же телефон можно регистрировать заново; `platform_users.id` и `integrator users.id` будут созданы заново.
+
 ---
 
 ## 7. История изменений
@@ -126,3 +143,4 @@
 1. **Базовая реализация:** API archive / permanent-delete, UI жизненного цикла, `platformUserFullPurge`; purge из кабинета врача только при **admin + adminMode** (`requireAdminModeSession`, тест 403 без admin mode).
 2. **2026-04-08 — архив API и документация:** общий `clientArchiveChange.ts` (doctor + admin), порт через `createPgDoctorClientsPort` без `buildAppDeps`; админский PATCH для не-клиента — **404** `not_client`; комментарий к `isArchived` в `ports.ts`; в отчёте — список клиентов (`scope=archived` → `archivedOnly`) и раздел §5 про env.
 3. **2026-04-08 — webapp и БД:** `webappReposAreInMemory()`, `instrumentation.ts`, правки `buildAppDeps` / OAuth / online intake / phone OTP; детали в [DOCTOR_CLIENT_ARCHIVE_AND_PURGE_LOG.md](./DOCTOR_CLIENT_ARCHIVE_AND_PURGE_LOG.md).
+4. **2026-04-09 — аудит полноты purge:** зафиксировано, какие таблицы чистятся вручную, какие закрываются `ON DELETE CASCADE`, что `media_files` остаётся с `uploaded_by = NULL`, и что для чистого ретеста onboarding нужен purge с успешной integrator cleanup.

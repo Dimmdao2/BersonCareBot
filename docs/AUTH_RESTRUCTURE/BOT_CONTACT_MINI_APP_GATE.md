@@ -10,7 +10,9 @@
 - Если `GET /api/me` возвращает пользователя **с привязкой Telegram** и **без** нормализованного телефона — показывается полноэкранный экран с ссылкой на бота (`/api/auth/telegram-login/config` → `botUsername`) и опросом `/api/me` каждые 2 с (до ~90 с, затем состояние «таймаут» и кнопка «Проверить снова»).
 - Маршруты **`/app/patient/bind-phone`** гейт **не** блокируют — можно привязать номер через SMS в webapp.
 - **Таймаут опроса** (~90 с): затем текст про возможную задержку синхронизации и кнопка «Проверить снова».
+- **Контракт `contact.linked`**: событие должно нести не только `phoneNormalized`, но и `channelCode` / `externalId`, чтобы webapp синхронно восстановил и `platform_users.phone_normalized`, и `user_channel_bindings`.
 - **Риск `contact.linked`**: если в integrator при `user.phone.link` не найден `userId` по identity, событие в webapp не ставится — номер может задержаться; см. [`writePort`](../../apps/integrator/src/infra/db/writePort.ts).
+- **Риск частичной проекции**: UI блока «Привязанные каналы» читает `user_channel_bindings`, а не только `platform_users.phone_normalized`. Поэтому корректная доставка `contact.linked` важна не только для номера, но и для согласованного статуса Telegram в ЛК.
 - **Другие разделы**: гейт только в layout пациента; логика «достаточно мессенджера без телефона» (`hasMessengerBinding` и т.д.) на остальных экранах не менялась.
 
 ## Код

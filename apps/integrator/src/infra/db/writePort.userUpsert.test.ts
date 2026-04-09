@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DbPort } from "../../kernel/contracts/index.js";
 import { createDbWritePort } from "./writePort.js";
+import { hashPayload, projectionIdempotencyKey } from "./repos/projectionKeys.js";
 
 function makeMockDb(capture: {
   projectionInserts: { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[];
@@ -77,6 +78,38 @@ describe("writePort user.upsert projection payload", () => {
     expect(ev.payload.integratorUserId).toBe("uid-max");
     expect(ev.payload.channelCode).toBe("max");
     expect(ev.payload.externalId).toBe("555123");
+  });
+
+  it("emits contact.linked with channel identity payload", async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[] };
+    const db = makeMockDb(capture);
+    const readPort = {
+      readDb: vi.fn().mockResolvedValue({ userId: "uid-tg" }),
+    };
+    const writePort = createDbWritePort({ db, readPort });
+
+    await writePort.writeDb({
+      type: "user.phone.link",
+      params: {
+        resource: "telegram",
+        channelUserId: "123",
+        phoneNormalized: "+79990001122",
+      },
+    });
+
+    expect(capture.projectionInserts).toHaveLength(1);
+    const ev = capture.projectionInserts[0]!;
+    const expectedPayload = {
+      integratorUserId: "uid-tg",
+      phoneNormalized: "+79990001122",
+      channelCode: "telegram",
+      externalId: "123",
+    };
+    expect(ev.eventType).toBe("contact.linked");
+    expect(ev.payload).toEqual(expectedPayload);
+    expect(ev.idempotencyKey).toBe(
+      projectionIdempotencyKey("contact.linked", "uid-tg", hashPayload(expectedPayload))
+    );
   });
 });
 

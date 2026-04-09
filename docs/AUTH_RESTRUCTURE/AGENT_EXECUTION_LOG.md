@@ -296,7 +296,39 @@ Notes:
 ## Stage 6
 
 - Status: `PASS`
-- Last update: `2026-04-08T15:45:00Z` (UX `/start` copy + docs; see log entry below)
+- Last update: `2026-04-09T14:31:13Z` (projection contract/docs sync; see log entry below)
+
+```text
+[2026-04-09T14:31:13Z] [Stage 6] [FIX] agent
+Tasks done:
+- Выявлено и закрыто расхождение между bot `linkedPhone` и UI webapp: `contact.linked` раньше гарантировал только `phoneNormalized`, а блок «Привязанные каналы» опирается на `user_channel_bindings`.
+- `apps/integrator/src/infra/db/writePort.ts`: `contact.linked` теперь отправляется с `{ integratorUserId, phoneNormalized, channelCode, externalId }`, idempotency key переведён на `projectionIdempotencyKey(..., hashPayload(payload))`.
+- `apps/webapp/src/modules/integrator/events.ts`: `contact.linked` прокидывает `channelCode` / `externalId` в `upsertFromProjection`, чтобы phone projection и messenger binding синхронизировались одним событием.
+- Обновлены auth/stage docs: contract `contact.linked`, Mini App gate, Stage 6 plan/audit; отдельно зафиксирован audit purge для полного пересоздания пользователя в тестах.
+Changed files:
+- apps/integrator/src/infra/db/writePort.ts
+- apps/integrator/src/infra/db/writePort.userUpsert.test.ts
+- apps/integrator/src/infra/db/repos/projectionKeys.test.ts
+- apps/webapp/src/modules/integrator/events.ts
+- apps/webapp/src/modules/integrator/events.test.ts
+- apps/webapp/src/modules/auth/auth.md
+- docs/AUTH_RESTRUCTURE/AUDIT_STAGE_6.md
+- docs/AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md
+- docs/AUTH_RESTRUCTURE/STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md
+- docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
+- docs/REPORTS/DOCTOR_CLIENT_ARCHIVE_AND_PURGE.md
+- docs/REPORTS/DOCTOR_CLIENT_ARCHIVE_AND_PURGE_LOG.md
+Checks:
+- tests: `pnpm --dir apps/integrator test -- "src/infra/db/writePort.userUpsert.test.ts" "src/infra/db/repos/projectionKeys.test.ts"`; `pnpm --dir apps/webapp exec vitest run src/modules/integrator/events.test.ts`
+- typecheck: `pnpm --dir apps/integrator typecheck`; `pnpm --dir apps/webapp typecheck`
+Evidence:
+- После `contact.linked` webapp получает достаточно данных, чтобы согласовать `platform_users.phone_normalized` и `user_channel_bindings`; сценарий «бот не просит номер, а Telegram в ЛК не привязан» закрыт на уровне projection contract.
+- Для полного ретеста нового пользователя недостаточно `is_archived`: нужен `permanent-delete` / `purge-by-id`, и integrator cleanup не должен быть пропущен (`integratorSkipped=false`).
+Gate verdict:
+- PASS
+Notes:
+- Отдельный запуск `pnpm --dir apps/webapp test -- "src/modules/integrator/events.test.ts"` поднял весь suite и упал на постороннем `e2e/doctor-clients-inprocess.test.ts` timeout; targeted `vitest run src/modules/integrator/events.test.ts` — PASS.
+```
 
 ```text
 [2026-04-04T05:00:00Z] [Stage 6] [EXEC] agent

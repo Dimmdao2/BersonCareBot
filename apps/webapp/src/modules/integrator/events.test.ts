@@ -256,6 +256,38 @@ describe("handleIntegratorEvent", () => {
     expect(result.accepted).toBe(true);
   });
 
+  it("passes channel binding fields from contact.linked to projection upsert", async () => {
+    const users = {
+      upsertFromProjection: vi.fn().mockResolvedValue({ platformUserId: "platform-1" }),
+      findByIntegratorId: vi.fn(),
+      updatePhone: vi.fn().mockResolvedValue(undefined),
+      updateProfileByPhone: vi.fn(),
+      ensureClientFromAppointmentProjection: vi.fn(),
+      applyRubitimeEmailAutobind: vi.fn(),
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "contact.linked",
+        payload: {
+          integratorUserId: "77777",
+          phoneNormalized: "+70001112233",
+          channelCode: "telegram",
+          externalId: "tg77777",
+        },
+      },
+      { ...mockDeps, users }
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(users.upsertFromProjection).toHaveBeenCalledWith({
+      integratorUserId: "77777",
+      phoneNormalized: "+70001112233",
+      channelCode: "telegram",
+      externalId: "tg77777",
+    });
+    expect(users.updatePhone).toHaveBeenCalledWith("platform-1", "+70001112233");
+  });
+
   it("preferences.updated creates skeleton user if user.upserted not received yet", async () => {
     const deps = buildAppDeps();
     const result = await handleIntegratorEvent(

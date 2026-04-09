@@ -67,3 +67,17 @@
 - **Прод** с реальной БД: `DATABASE_URL` обязателен; ошибки конфигурации заметнее (dev, `next start` через `instrumentation`, первый `getPool()`).
 - **CI `next build`**: сборка без Postgres возможна за счёт in-memory ветки на этапе `next build`.
 - Логика **архива / purge** не менялась в этих правках — только выбор репозиториев и проверки env.
+
+---
+
+## 7. Аудит полноты purge (2026-04-09)
+
+- Перепроверен `apps/webapp/src/infra/platformUserFullPurge.ts` против актуальных миграций webapp и integrator.
+- Зафиксировано различие между:
+  - ручной очисткой в `CONTENT_TABLES` / `IDENTITY_TABLES` и phone-keyed cleanup;
+  - каскадным удалением через FK (`channel_link_secrets`, auth/email таблицы, `lfk_sessions` и др.);
+  - ожидаемыми хвостами с `ON DELETE SET NULL` (`media_files.uploaded_by`).
+- В основной отчёт добавлены:
+  - раздел про полноту удаления и известные ограничения;
+  - операционная памятка для «чистого» ретеста onboarding через `permanent-delete` / `purge-by-id`;
+  - отдельный акцент на том, что `integratorSkipped: true` оставляет bot-side состояние и ломает сценарий повторного `/start`.

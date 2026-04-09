@@ -19,6 +19,11 @@ describe('projectionIdempotencyKey', () => {
     expect(key).toBe('contact.linked:99');
   });
 
+  it('includes fingerprint for contact.linked when provided', () => {
+    const key = projectionIdempotencyKey('contact.linked', '99', 'fp1');
+    expect(key).toBe('contact.linked:99:fp1');
+  });
+
   it('truncates key via sha256 when exceeding 200 chars', () => {
     const longId = 'x'.repeat(200);
     const key = projectionIdempotencyKey('user.upserted', longId, 'fp');

@@ -59,8 +59,9 @@ Legacy-путь: `handleUpdate.test.ts` — при `/start` без номера 
 
 **Статус:** OK
 
-- Integrator: при мутации `user.phone.link` в `writePort.ts` в очередь проекций кладётся событие **`contact.linked`** с `payload: { integratorUserId, phoneNormalized }` (при известном `userId`).
-- Webapp: `apps/webapp/src/modules/integrator/events.ts` обрабатывает `contact.linked` — `upsertFromProjection` и `updatePhone` для `platform_users`.
+- Integrator: при мутации `user.phone.link` в `writePort.ts` в очередь проекций кладётся событие **`contact.linked`** с `payload: { integratorUserId, phoneNormalized, channelCode, externalId }` (при известном `userId`).
+- Webapp: `apps/webapp/src/modules/integrator/events.ts` обрабатывает `contact.linked` через `upsertFromProjection` и `updatePhone`: обновляется не только `platform_users.phone_normalized`, но и `user_channel_bindings`, если в payload пришли `channelCode` + `externalId`.
+- Инвариант для UI: после успешного `contact.linked` профиль в webapp должен быть согласован с ботом и по номеру, и по блоку «Привязанные каналы». Это закрывает сценарий, когда бот уже перестал запрашивать номер на `/start`, а ЛК всё ещё показывал Telegram как не привязанный.
 - **Тесты:** `events.test.ts` — сценарии `contact.linked` (в т.ч. согласованность с `user.upserted`).
 
 ---

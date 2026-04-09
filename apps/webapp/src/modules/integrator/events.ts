@@ -311,6 +311,8 @@ export async function handleIntegratorEvent(
     const payload = event.payload ?? {};
     const integratorUserId = coerceToString(payload.integratorUserId);
     const phoneNormalized = typeof payload.phoneNormalized === "string" ? payload.phoneNormalized : null;
+    const channelCode = typeof payload.channelCode === "string" ? payload.channelCode : undefined;
+    const externalId = typeof payload.externalId === "string" ? payload.externalId : undefined;
     if (integratorUserId === null || !phoneNormalized) {
       return { accepted: false, reason: "contact.linked: integratorUserId and phoneNormalized required" };
     }
@@ -321,6 +323,8 @@ export async function handleIntegratorEvent(
       const { platformUserId } = await deps.users.upsertFromProjection({
         integratorUserId,
         phoneNormalized,
+        channelCode,
+        externalId,
       });
       await deps.users.updatePhone(platformUserId, phoneNormalized);
       return { accepted: true };
