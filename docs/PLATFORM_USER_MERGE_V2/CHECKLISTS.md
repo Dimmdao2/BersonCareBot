@@ -25,7 +25,7 @@
 ## Deploy 1 — Schema prep (integrator only DDL)
 
 - [ ] Новый SQL в `apps/integrator/src/infra/db/migrations/core/` (имя вида `YYYYMMDD_NNNN_*.sql`).
-- [ ] `users.merged_into_user_id` nullable, FK на `users(id)`, `CHECK (merged_into_user_id IS DISTINCT FROM id)` (или эквивалент), индекс для поиска alias.
+- [ ] `users.merged_into_user_id` nullable, FK на `users(id)`, `CHECK (merged_into_user_id IS NULL OR merged_into_user_id <> id)` (constraint `users_merged_into_user_id_not_self_check`), partial index `idx_users_merged_into_user_id` для поиска alias.
 - [ ] Обновить [`apps/integrator/src/infra/db/schema.md`](../../apps/integrator/src/infra/db/schema.md) и при необходимости [`../ARCHITECTURE/DB_STRUCTURE.md`](../ARCHITECTURE/DB_STRUCTURE.md).
 - [ ] **Нет** изменений write path (кроме возможных no-op). Webapp blocker **активен**.
 - [ ] Rollback-нота: DDL откат вручную только если не было данных в колонке (операционно задокументировать в runbook).

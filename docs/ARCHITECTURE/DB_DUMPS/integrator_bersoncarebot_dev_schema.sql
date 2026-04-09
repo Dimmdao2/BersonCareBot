@@ -609,7 +609,8 @@ CREATE TABLE public.user_subscriptions (
 CREATE TABLE public.users (
     id bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    merged_into_user_id bigint
 );
 
 
@@ -974,6 +975,14 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: users users_merged_into_user_id_not_self_check; Type: CHECK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_merged_into_user_id_not_self_check CHECK (((merged_into_user_id IS NULL) OR (merged_into_user_id <> id)));
+
+
+--
 -- Name: content_access_grants_user_expires_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1062,6 +1071,13 @@ CREATE INDEX idx_rubitime_records_phone_normalized ON public.rubitime_records US
 --
 
 CREATE INDEX idx_rubitime_records_record_at ON public.rubitime_records USING btree (record_at);
+
+
+--
+-- Name: idx_users_merged_into_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_users_merged_into_user_id ON public.users USING btree (merged_into_user_id) WHERE (merged_into_user_id IS NOT NULL);
 
 
 --
@@ -1290,6 +1306,14 @@ ALTER TABLE ONLY public.user_subscriptions
 
 ALTER TABLE ONLY public.user_subscriptions
     ADD CONSTRAINT user_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: users users_merged_into_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_merged_into_user_id_fkey FOREIGN KEY (merged_into_user_id) REFERENCES public.users(id);
 
 
 --

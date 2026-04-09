@@ -23,7 +23,7 @@
 
 Таблицы:
 
-- `users`
+- `users` (в т.ч. `merged_into_user_id` → `users.id`, nullable: каноническая строка = NULL; alias после merge указывает на канонический `id`; CHECK запрещает self-reference)
 - `identities`
 - `contacts`
 
@@ -31,6 +31,7 @@
 
 - `identities.user_id -> users.id`
 - `contacts.user_id -> users.id`
+- `users.merged_into_user_id -> users.id` (опционально)
 
 ### 1.2 Telegram
 
