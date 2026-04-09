@@ -16,6 +16,7 @@ import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { putWithProgress, UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
 import { MediaCard } from "./MediaCard";
 import { MediaLightbox } from "./MediaLightbox";
+import { canRenderInlineImage } from "./mediaPreview";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
 type SortBy = "date" | "size" | "type";
@@ -739,7 +740,7 @@ export function MediaLibraryClient() {
                     <td className="px-3 py-2">{formatSize(item.size)}</td>
                     <td className="px-3 py-2">{formatDate(item.createdAt)}</td>
                     <td className="px-3 py-2">
-                      {item.kind === "image" ? (
+                      {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (
                         <button type="button" onClick={() => openLightboxByItemId(item.id)} className="rounded border border-border">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={item.url} alt="" className="max-h-16 max-w-28 rounded object-cover" />

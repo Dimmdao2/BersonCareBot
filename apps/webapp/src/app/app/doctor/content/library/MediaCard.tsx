@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { canRenderInlineImage } from "./mediaPreview";
 
 type MediaItem = {
   id: string;
@@ -24,11 +25,13 @@ type Props = {
 };
 
 export function MediaCard({ item, deleting, copied, onDelete, onOpenPreview, onCopyUrl, formatSize, formatDate }: Props) {
+  const renderInlineImage = item.kind === "image" && canRenderInlineImage(item.mimeType);
+
   return (
     <article className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
       <div className="flex flex-col gap-2">
         <div className="overflow-hidden rounded-md border border-border/70 bg-muted/30">
-          {item.kind === "image" ? (
+          {renderInlineImage ? (
             <button
               type="button"
               className="block w-full p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

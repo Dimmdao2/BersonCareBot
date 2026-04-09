@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { canRenderInlineImage } from "./mediaPreview";
 
 type MediaItem = {
   id: string;
@@ -28,7 +29,7 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
         <DialogTitle>{item?.filename ?? "Просмотр файла"}</DialogTitle>
         {!item ? null : (
           <div className="flex flex-col gap-3">
-            {item.kind === "image" ? (
+            {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={item.url} alt="" className="max-h-[70vh] w-full rounded-md object-contain" />
             ) : item.kind === "video" ? (

@@ -255,6 +255,22 @@ location /api/internal/ {
 
 После такой настройки запрос к `/api/internal/` с внешнего IP даст **403 от nginx** — ожидаемо; cron должен ходить на `127.0.0.1:6200`.
 
+**Проверка в production (зафиксировано 2026-04-09):**
+
+- webapp сервис активен (`bersoncarebot-webapp-prod.service`) и `GET /api/health` отвечает `{"ok":true,...}`;
+- в `webapp.prod` присутствуют `DATABASE_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PRIVATE_BUCKET`, `INTERNAL_JOB_SECRET`;
+- миграция `060_media_files_status_retry.sql` применена (запись в `schema_migrations`), колонки/constraint/index присутствуют;
+- ручной вызов purge c Bearer на loopback возвращает `{"ok":true,...}`;
+- cron файл `/etc/cron.d/bersoncarebot-media-purge` установлен (каждую минуту, loopback URL).
+
+Пример cron (актуальный формат):
+
+```cron
+* * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-pending-delete/purge?limit=25" >/dev/null'
+```
+
+Примечание по service control: на некоторых дистрибутивах `cron.service` не поддерживает `reload` (`Job type reload is not applicable`), используйте `systemctl restart cron`.
+
 **Проверка MinIO (ops):** скрипт [`check-s3.ts`](../apps/integrator/src/infra/scripts/check-s3.ts) — из **корня репозитория** с `pnpm exec tsx ...`, переменные `S3_*` в корневом `.env` должны совпадать по смыслу с именами бакетов в `webapp.prod` (не обязателен для runtime webapp).
 
 Проверка: `curl -I https://fs.bersonservices.ru/` — endpoint доступен. Имена бакетов и ключи env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.

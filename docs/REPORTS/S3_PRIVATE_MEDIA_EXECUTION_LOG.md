@@ -63,6 +63,34 @@
 - **Purge retry:** колонки `delete_attempts`, `next_attempt_at`; миграция `060_media_files_status_retry.sql` (CHECK на `status`); при сбое S3 — backoff до 1 суток; ответ purge `{ removed, errors }`.
 - **Админ/UI:** `GET /api/admin/media/delete-errors`, страница `/app/doctor/content/library/delete-errors`, бейдж в библиотеке при `total > 0`.
 
+## Revision 3 (2026-04-09, production verification)
+
+- **Runtime webapp:** `systemctl is-active bersoncarebot-webapp-prod.service` -> `active`; `curl -sS http://127.0.0.1:6200/api/health` -> `{"ok":true,...}`.
+- **Env (webapp.prod):** подтверждены `DATABASE_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PRIVATE_BUCKET`; `LOG_LEVEL` может отсутствовать (runtime default `info`).
+- **Migration 060:** запись в `schema_migrations` присутствует (`060_media_files_status_retry.sql`, applied 2026-04-09). Проверены фактические объекты в БД: колонки `delete_attempts`/`next_attempt_at`, `media_files_status_check`, индекс `idx_media_files_purge_queue`.
+- **Internal purge auth:** `INTERNAL_JOB_SECRET` добавлен в `/opt/env/bersoncarebot/webapp.prod`, после рестарта webapp `POST /api/internal/media-pending-delete/purge` с Bearer возвращает `{"ok":true,...}`.
+- **Cron purge:** создан `/etc/cron.d/bersoncarebot-media-purge`, период `* * * * *`, вызов loopback `http://127.0.0.1:6200/api/internal/media-pending-delete/purge?limit=25` с Bearer из `webapp.prod`.
+- **Cron service:** `systemctl is-active cron` -> `active`. На этом хосте `systemctl reload cron` не поддерживается (`Job type reload is not applicable`), использовать `systemctl restart cron`.
+
+### Production commands executed (non-secret)
+
+```bash
+systemctl is-active bersoncarebot-webapp-prod.service
+curl -sS http://127.0.0.1:6200/api/health
+
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT filename, applied_at FROM schema_migrations WHERE filename='060_media_files_status_retry.sql';"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT column_name, data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name='media_files' AND column_name IN ('delete_attempts','next_attempt_at') ORDER BY column_name;"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='media_files'::regclass AND conname='media_files_status_check';"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='media_files' AND indexname='idx_media_files_purge_queue';"
+
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
+curl -sS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-pending-delete/purge?limit=1"
+
+cat /etc/cron.d/bersoncarebot-media-purge
+systemctl is-active cron
+```
+
 ## Чек-лист агента
 
 - [x] Env + client + storage + routes + intake + UI + async delete
