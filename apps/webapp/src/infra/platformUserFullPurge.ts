@@ -85,7 +85,12 @@ async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: s
        SELECT id::text FROM platform_users
        WHERE phone_normalized IS NOT NULL
          AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1
-     )`,
+     )
+        OR platform_user_id IN (
+          SELECT id FROM platform_users
+          WHERE phone_normalized IS NOT NULL
+            AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1
+        )`,
     [digs],
   );
 }
@@ -251,7 +256,11 @@ export async function purgePlatformUserByPlatformId(rawId: string): Promise<Purg
       await deleteWebappProjectionByIntegratorUserId(client, user.integrator_user_id);
     }
 
-    await client.query(`DELETE FROM message_log WHERE user_id = $1`, [user.id]);
+    await client.query(
+      `DELETE FROM message_log
+       WHERE user_id = $1::text OR platform_user_id = $1::uuid`,
+      [user.id],
+    );
 
     for (const { table, column } of IDENTITY_TABLES) {
       await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [user.id]);

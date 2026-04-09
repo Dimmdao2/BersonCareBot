@@ -310,6 +310,10 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
              compat_quality = CASE WHEN source = 'rubitime_projection' THEN $9::text ELSE compat_quality END,
              rubitime_manage_url = CASE WHEN $17::text IS NOT NULL THEN $17::text ELSE rubitime_manage_url END,
              provenance_updated_by = CASE WHEN source = 'rubitime_projection' THEN 'rubitime_external' ELSE provenance_updated_by END,
+             platform_user_id = CASE
+               WHEN $18::uuid IS NOT NULL THEN COALESCE(platform_user_id, $18::uuid)
+               ELSE platform_user_id
+             END,
              updated_at = now()
          WHERE id = $1`,
         [
@@ -330,6 +334,7 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
           merge.lookup?.priceMinor ?? null,
           merge.effectiveRubitimeCooperatorId,
           input.rubitimeManageUrl?.trim() || null,
+          input.userId ?? null,
         ],
       );
       return;

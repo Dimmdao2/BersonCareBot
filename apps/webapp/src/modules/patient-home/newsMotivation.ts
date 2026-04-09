@@ -37,11 +37,21 @@ export async function incrementNewsViews(newsId: string, userId: string): Promis
   if (!env.DATABASE_URL) return;
   try {
     const pool = getPool();
+    const updated = await pool.query(
+      `UPDATE news_item_views
+       SET viewed_at = LEAST(viewed_at, now())
+       WHERE news_id = $1::uuid
+         AND (platform_user_id = $2::uuid OR user_id = $2::text)`,
+      [newsId, userId],
+    );
+    if ((updated.rowCount ?? 0) > 0) {
+      return;
+    }
     const insert = await pool.query(
-      `INSERT INTO news_item_views (news_id, user_id, viewed_at)
-       VALUES ($1::uuid, $2, now())
+      `INSERT INTO news_item_views (news_id, user_id, platform_user_id, viewed_at)
+       VALUES ($1::uuid, $2::text, $2::uuid, now())
        ON CONFLICT (news_id, user_id) DO NOTHING`,
-      [newsId, userId]
+      [newsId, userId],
     );
     if ((insert.rowCount ?? 0) > 0) {
       await pool.query(

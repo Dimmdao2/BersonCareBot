@@ -59,7 +59,13 @@ function mapListRows(
     phone_normalized: string | null;
     record_at: Date | null;
     status: string;
-    payload_json: { link?: string; url?: string; record_url?: string; service_title?: string };
+    payload_json: {
+      link?: string;
+      url?: string;
+      record_url?: string;
+      service_title?: string;
+      name?: string;
+    };
     user_id: string | null;
     display_name: string | null;
     branch_name: string | null;
@@ -72,10 +78,18 @@ function mapListRows(
       (payload.url && payload.url.trim()) ||
       (payload.record_url && payload.record_url.trim()) ||
       null;
+    const nameFromPayload =
+      typeof payload.name === "string" && payload.name.trim().length > 0 ? payload.name.trim() : null;
+    const phoneLabel = row.phone_normalized?.trim() || null;
+    const clientLabel =
+      (row.display_name && row.display_name.trim()) ||
+      nameFromPayload ||
+      phoneLabel ||
+      "Неизвестный клиент";
     return {
       id: row.integrator_record_id,
       clientUserId: row.user_id ?? "",
-      clientLabel: (row.display_name && row.display_name.trim()) || "Неизвестный клиент",
+      clientLabel,
       time: "",
       recordAtIso: row.record_at ? row.record_at.toISOString() : null,
       type: (payload.service_title && payload.service_title.trim()) || "Запись",
@@ -101,7 +115,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         result = await pool.query(
           `${LIST_SELECT}
          FROM appointment_records ar
-         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized
+         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
          LEFT JOIN branches b ON ar.branch_id = b.id
          WHERE ar.status != 'canceled'
            AND ar.deleted_at IS NULL
@@ -115,7 +129,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         result = await pool.query(
           `${LIST_SELECT}
          FROM appointment_records ar
-         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized
+         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
          LEFT JOIN branches b ON ar.branch_id = b.id
          WHERE ${AR_ACTIVE_UPCOMING_SQL}
          ORDER BY ar.record_at ASC`
@@ -124,7 +138,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         result = await pool.query(
           `${LIST_SELECT}
          FROM appointment_records ar
-         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized
+         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
          LEFT JOIN branches b ON ar.branch_id = b.id
          WHERE ar.deleted_at IS NULL
            AND ar.record_at IS NOT NULL
@@ -136,7 +150,7 @@ export function createPgDoctorAppointmentsPort(): DoctorAppointmentsPort {
         result = await pool.query(
           `${LIST_SELECT}
          FROM appointment_records ar
-         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized
+         LEFT JOIN platform_users pu ON ar.phone_normalized = pu.phone_normalized AND pu.merged_into_id IS NULL
          LEFT JOIN branches b ON ar.branch_id = b.id
          WHERE ar.deleted_at IS NULL
            AND ar.status = 'canceled'

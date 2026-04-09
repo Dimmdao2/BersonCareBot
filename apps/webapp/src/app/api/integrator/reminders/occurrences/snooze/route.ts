@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getPool } from "@/infra/db/client";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { getPool } from "@/infra/db/client";
+import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
 
 const MINUTES = new Set([30, 60, 120]);
 
@@ -61,10 +62,7 @@ export async function POST(request: Request) {
 
   const deps = buildAppDeps();
   const pool = getPool();
-  const pu = await pool.query<{ id: string }>("SELECT id FROM platform_users WHERE integrator_user_id = $1 LIMIT 1", [
-    integratorUserId,
-  ]);
-  const platformUserId = pu.rows[0]?.id;
+  const platformUserId = await findCanonicalUserIdByIntegratorId(pool, integratorUserId);
   if (!platformUserId) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }

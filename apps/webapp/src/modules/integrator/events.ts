@@ -10,6 +10,7 @@ import type { SubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscrip
 import type { BranchesProjectionPort } from "@/infra/repos/pgBranches";
 import type { PatientBookingService } from "@/modules/patient-booking/ports";
 import { mapRubitimeStatusToPatientBookingStatus } from "@/infra/repos/pgPatientBookings";
+import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 const REMINDER_RULE_UPSERTED = "reminder.rule.upserted";
@@ -116,6 +117,15 @@ export type IntegratorEventsDeps = {
       email?: string | null;
       displayName?: string | null;
     }) => Promise<void>;
+    /** Rubitime: ensure `platform_users` row exists for appointment phone (create / enrich / merge). */
+    ensureClientFromAppointmentProjection?: (params: {
+      phoneNormalized: string;
+      integratorUserId?: string | null;
+      displayName?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+      email?: string | null;
+    }) => Promise<{ platformUserId: string }>;
     applyRubitimeEmailAutobind?: (params: {
       phoneNormalized: string;
       email: string;
@@ -707,18 +717,38 @@ export async function handleIntegratorEvent(
       typeof payloadJson.name === "string" && payloadJson.name.trim().length > 0
         ? payloadJson.name.trim()
         : null;
-    if (deps.users && phoneNormalized && (patientFirstName ?? patientLastName ?? patientEmail ?? fullNameFromPayload ?? null)) {
-      const displayName =
+
+    let ensuredPlatformUserId: string | null = null;
+    if (phoneNormalized && deps.users?.ensureClientFromAppointmentProjection) {
+      const integratorUserIdTop =
+        coerceToString(p.integratorUserId) ??
+        coerceToString(payloadJson.integratorUserId) ??
+        coerceToString(payloadJson.integrator_user_id);
+      const displayNameForEnsure =
         fullNameFromPayload ||
         [patientLastName, patientFirstName].filter(Boolean).join(" ").trim() ||
-        undefined;
-      await deps.users.updateProfileByPhone({
-        phoneNormalized: phoneNormalized,
-        ...(patientFirstName !== null ? { firstName: patientFirstName } : {}),
-        ...(patientLastName !== null ? { lastName: patientLastName } : {}),
-        email: patientEmail,
-        ...(displayName ? { displayName } : {}),
-      });
+        null;
+      try {
+        const ensured = await deps.users.ensureClientFromAppointmentProjection({
+          phoneNormalized,
+          integratorUserId: integratorUserIdTop,
+          displayName: displayNameForEnsure,
+          firstName: patientFirstName,
+          lastName: patientLastName,
+          email: patientEmail,
+        });
+        ensuredPlatformUserId = ensured.platformUserId;
+      } catch (err) {
+        if (err instanceof MergeConflictError || err instanceof MergeDependentConflictError) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            accepted: false,
+            reason: `appointment.record.upserted: ${msg}`,
+            retryable: true,
+          };
+        }
+        throw err;
+      }
     }
 
     try {
@@ -751,8 +781,8 @@ export async function handleIntegratorEvent(
         ([coerceToString(p.patientLastName), coerceToString(p.patientFirstName)].filter(Boolean).join(" ") || null);
 
       // Resolve userId for compat-create linking (best-effort).
-      let resolvedUserId: string | null = null;
-      if (deps.users && payloadPhone) {
+      let resolvedUserId: string | null = ensuredPlatformUserId;
+      if (!resolvedUserId && deps.users && payloadPhone) {
         try {
           const foundByPhone = await deps.users.findByPhone?.(payloadPhone);
           resolvedUserId = foundByPhone?.platformUserId ?? null;

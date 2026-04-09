@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import type { ChannelBindings } from "@/shared/types/session";
 import type {
   ClientIdentity,
@@ -29,7 +30,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const clientRows = await pool.query(
         `SELECT id, display_name, phone_normalized, created_at
          FROM platform_users
-         WHERE role = 'client' AND ${archivedClause}
+         WHERE role = 'client' AND merged_into_id IS NULL AND ${archivedClause}
          ORDER BY display_name, id`
       );
       if (clientRows.rows.length === 0) return [];
@@ -109,6 +110,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            FROM platform_users pu
            INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
            WHERE pu.role = 'client'
+             AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false
              AND ar.record_at IS NOT NULL
              AND ar.record_at >= date_trunc('month', NOW())
@@ -127,13 +129,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const pool = getPool();
       const [totalR, supportR, visitedR] = await Promise.all([
         pool.query<{ c: string }>(
-          `SELECT COUNT(*)::text AS c FROM platform_users WHERE role = 'client' AND COALESCE(is_archived, false) = false`
+          `SELECT COUNT(*)::text AS c FROM platform_users WHERE role = 'client' AND merged_into_id IS NULL AND COALESCE(is_archived, false) = false`
         ),
         pool.query<{ c: string }>(
           `SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
            INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
            WHERE pu.role = 'client'
+             AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false
              AND ar.record_at IS NOT NULL
              AND ar.record_at >= NOW()
@@ -145,6 +148,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            FROM platform_users pu
            INNER JOIN appointment_records ar ON pu.phone_normalized IS NOT NULL AND ar.phone_normalized = pu.phone_normalized
            WHERE pu.role = 'client'
+             AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false
              AND ar.record_at IS NOT NULL
              AND ar.record_at >= date_trunc('month', NOW())
@@ -163,13 +167,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
 
     async getClientIdentity(userId: string): Promise<ClientIdentity | null> {
       const pool = getPool();
+      const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
       const userRow = await pool.query(
         `SELECT id, display_name, phone_normalized, created_at,
                 COALESCE(is_blocked, false) AS is_blocked,
                 blocked_reason,
                 COALESCE(is_archived, false) AS is_archived
          FROM platform_users WHERE id = $1`,
-        [userId]
+        [canonicalId],
       );
       if (userRow.rows.length === 0) return null;
       const r = userRow.rows[0] as {
@@ -182,12 +187,20 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         is_archived: boolean;
       };
       const bindingsRows = await pool.query(
-        "SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1",
-        [userId]
+        "SELECT channel_code, external_id, created_at FROM user_channel_bindings WHERE user_id = $1",
+        [canonicalId],
       );
       const bindings = rowToBindings(
-        bindingsRows.rows as { channel_code: string; external_id: string }[]
+        bindingsRows.rows as { channel_code: string; external_id: string }[],
       );
+      const channelBindingDates: Record<string, string> = {};
+      for (const br of bindingsRows.rows as {
+        channel_code: string;
+        created_at: Date;
+      }[]) {
+        channelBindingDates[br.channel_code] =
+          br.created_at instanceof Date ? br.created_at.toISOString() : String(br.created_at);
+      }
       return {
         userId: r.id,
         displayName: r.display_name ?? "",
@@ -197,6 +210,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         isBlocked: r.is_blocked,
         blockedReason: r.blocked_reason,
         isArchived: r.is_archived,
+        channelBindingDates,
       };
     },
 

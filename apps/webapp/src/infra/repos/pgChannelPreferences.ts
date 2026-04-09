@@ -6,6 +6,10 @@ const CODES: ChannelCode[] = ["telegram", "max", "vk", "sms", "email"];
 
 const AUTH_CHANNELS = new Set<ChannelCode>(["telegram", "max", "email", "sms"]);
 
+function userMatchSql(paramIndex: number): string {
+  return `(platform_user_id = $${paramIndex}::uuid OR (platform_user_id IS NULL AND user_id = $${paramIndex}::text))`;
+}
+
 function rowToPreference(row: {
   channel_code: string;
   is_enabled_for_messages: boolean;
@@ -25,7 +29,7 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     const pool = getPool();
     const result = await pool.query(
       `SELECT channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth
-       FROM user_channel_preferences WHERE user_id = $1`,
+       FROM user_channel_preferences WHERE ${userMatchSql(1)}`,
       [userId]
     );
     const byCode = new Map<string, ChannelPreference>();
@@ -46,9 +50,12 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     const pool = getPool();
     const now = new Date();
     await pool.query(
-      `INSERT INTO user_channel_preferences (user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO user_channel_preferences (
+         user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
+       )
+       VALUES ($1::text, $1::uuid, $2, $3, $4, $5)
        ON CONFLICT (user_id, channel_code) DO UPDATE SET
+         platform_user_id = COALESCE(user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
          is_enabled_for_messages = EXCLUDED.is_enabled_for_messages,
          is_enabled_for_notifications = EXCLUDED.is_enabled_for_notifications,
          updated_at = EXCLUDED.updated_at`,
@@ -56,7 +63,7 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     );
     const result = await pool.query(
       `SELECT channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth
-       FROM user_channel_preferences WHERE user_id = $1 AND channel_code = $2`,
+       FROM user_channel_preferences WHERE ${userMatchSql(1)} AND channel_code = $2`,
       [params.userId, params.channelCode]
     );
     return rowToPreference(result.rows[0]);
@@ -66,7 +73,7 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     const pool = getPool();
     const result = await pool.query(
       `SELECT channel_code FROM user_channel_preferences
-       WHERE user_id = $1 AND is_preferred_for_auth = true
+       WHERE ${userMatchSql(1)} AND is_preferred_for_auth = true
        LIMIT 1`,
       [userId]
     );
@@ -81,7 +88,7 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     try {
       await client.query("BEGIN");
       await client.query(
-        `UPDATE user_channel_preferences SET is_preferred_for_auth = false WHERE user_id = $1`,
+        `UPDATE user_channel_preferences SET is_preferred_for_auth = false WHERE ${userMatchSql(1)}`,
         [userId]
       );
       if (channelCode == null) {
@@ -94,10 +101,11 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
       }
       await client.query(
         `INSERT INTO user_channel_preferences (
-           user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth, updated_at
+           user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, is_preferred_for_auth, updated_at
          )
-         VALUES ($1, $2, true, true, true, $3)
+         VALUES ($1::text, $1::uuid, $2, true, true, true, $3)
          ON CONFLICT (user_id, channel_code) DO UPDATE SET
+           platform_user_id = COALESCE(user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
            is_preferred_for_auth = true,
            updated_at = EXCLUDED.updated_at`,
         [userId, channelCode, now]

@@ -1,5 +1,6 @@
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
+import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { OAuthBindingsPort } from "@/modules/auth/oauthBindingsPort";
 
@@ -31,7 +32,11 @@ export async function resolveUserIdForYandexOAuth(
 
   const byOAuth = await oauthPort.findUserByOAuthId("yandex", input.yandexId);
   if (byOAuth) {
-    return { ok: true, userId: byOAuth.userId };
+    if (!env.DATABASE_URL?.trim()) {
+      return { ok: true, userId: byOAuth.userId };
+    }
+    const canonical = await resolveCanonicalUserId(getPool(), byOAuth.userId);
+    return { ok: true, userId: canonical ?? byOAuth.userId };
   }
 
   if (!env.DATABASE_URL?.trim()) {
@@ -45,20 +50,16 @@ export async function resolveUserIdForYandexOAuth(
 
     // Merge по phone_normalized (приоритет)
     if (phoneNorm) {
-      const byPhone = await pool.query<{ id: string }>(
-        `SELECT id FROM platform_users WHERE phone_normalized = $1 LIMIT 1`,
-        [phoneNorm],
-      );
-      if (byPhone.rows.length === 1) {
-        userId = byPhone.rows[0].id;
-      }
+      userId = await findCanonicalUserIdByPhone(pool, phoneNorm);
     }
 
     // Fallback: merge по verified email
     if (!userId && emailNorm) {
       const byEmail = await pool.query<{ id: string }>(
         `SELECT id FROM platform_users
-         WHERE lower(trim(COALESCE(email, ''))) = $1 AND email_verified_at IS NOT NULL
+         WHERE lower(trim(COALESCE(email, ''))) = $1
+           AND email_verified_at IS NOT NULL
+           AND merged_into_id IS NULL
          LIMIT 4`,
         [emailNorm],
       );
@@ -83,17 +84,30 @@ export async function resolveUserIdForYandexOAuth(
       userId = ins.rows[0].id;
     }
 
-    await pool.query(
+    const bind = await pool.query<{ user_id: string }>(
       `INSERT INTO user_oauth_bindings (user_id, provider, provider_user_id, email)
        VALUES ($1::uuid, 'yandex', $2, $3)
-       ON CONFLICT (provider, provider_user_id)
-       DO UPDATE SET
-         user_id = EXCLUDED.user_id,
-         email = COALESCE(EXCLUDED.email, user_oauth_bindings.email)`,
+       ON CONFLICT (provider, provider_user_id) DO NOTHING
+       RETURNING user_id`,
       [userId, input.yandexId, emailRaw],
     );
+    if ((bind.rowCount ?? 0) === 0) {
+      const existing = await pool.query<{ user_id: string }>(
+        `SELECT user_id::text AS user_id
+         FROM user_oauth_bindings
+         WHERE provider = 'yandex' AND provider_user_id = $1
+         LIMIT 1`,
+        [input.yandexId],
+      );
+      const ownerId = existing.rows[0]?.user_id;
+      if (ownerId) {
+        const canonical = await resolveCanonicalUserId(pool, ownerId);
+        return { ok: true, userId: canonical ?? ownerId };
+      }
+    }
 
-    return { ok: true, userId };
+    const canonical = await resolveCanonicalUserId(pool, userId);
+    return { ok: true, userId: canonical ?? userId };
   } catch {
     return { ok: false, reason: "db_error" };
   }

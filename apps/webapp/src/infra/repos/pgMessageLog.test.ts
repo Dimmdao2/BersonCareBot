@@ -28,7 +28,7 @@ describe("pgMessageLog", () => {
     });
   });
 
-  it("listByUser uses user_id filter and LIMIT/OFFSET params", async () => {
+  it("listByUser uses canonical-aware user filter and LIMIT/OFFSET params", async () => {
     const port = createPgMessageLogPort();
     const uid = "550e8400-e29b-41d4-a716-446655440000";
     await port.listByUser(uid, { page: 2, pageSize: 15 });
@@ -39,7 +39,8 @@ describe("pgMessageLog", () => {
     const listSql = String(listEntry![0]);
     const listParams = listEntry![1] as unknown[];
 
-    expect(listSql).toContain("WHERE user_id = $1");
+    expect(listSql).toContain("platform_user_id = $1::uuid");
+    expect(listSql).toContain("platform_user_id IS NULL AND user_id = $1::text");
     expect(listSql).toContain("LIMIT $2");
     expect(listSql).toContain("OFFSET $3");
     expect(listParams).toEqual([uid, 15, 15]);
@@ -65,7 +66,8 @@ describe("pgMessageLog", () => {
     const listSql = String(listCall![0]);
     const listParams = listCall![1] as unknown[];
 
-    expect(listSql).toContain("user_id = $1");
+    expect(listSql).toContain("platform_user_id = $1::uuid");
+    expect(listSql).toContain("platform_user_id IS NULL AND user_id = $1::text");
     expect(listSql).toContain("category = $2");
     expect(listSql).toContain("sent_at >= $3::timestamptz");
     expect(listSql).toContain("sent_at <= $4::timestamptz");

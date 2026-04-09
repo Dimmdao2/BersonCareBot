@@ -4,6 +4,7 @@
  */
 
 import { getPool } from "@/infra/db/client";
+import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
 
 export type SupportConversationRow = {
   id: string;
@@ -224,9 +225,7 @@ function mapMessageRow(m: Record<string, unknown>): SupportConversationMessageRo
 
 function resolvePlatformUserId(pool: Awaited<ReturnType<typeof getPool>>, integratorUserId: string | null): Promise<string | null> {
   if (integratorUserId == null || integratorUserId === "") return Promise.resolve(null);
-  return pool
-    .query<{ id: string }>("SELECT id FROM platform_users WHERE integrator_user_id = $1", [integratorUserId])
-    .then((r) => (r.rows.length > 0 ? r.rows[0].id : null));
+  return findCanonicalUserIdByIntegratorId(pool, integratorUserId);
 }
 
 export function createPgSupportCommunicationPort(): SupportCommunicationPort {

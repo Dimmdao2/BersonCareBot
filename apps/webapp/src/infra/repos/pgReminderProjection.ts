@@ -6,6 +6,7 @@
 
 import { getPool } from "@/infra/db/client";
 import { buildReminderDeepLink } from "@/modules/reminders/buildReminderDeepLink";
+import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
 
 export type ReminderRuleListItem = {
   id: string;
@@ -123,11 +124,7 @@ function resolvePlatformUserId(
   integratorUserId: string
 ): Promise<string | null> {
   if (integratorUserId === "") return Promise.resolve(null);
-  return pool
-    .query<{ id: string }>("SELECT id FROM platform_users WHERE integrator_user_id = $1", [
-      integratorUserId,
-    ])
-    .then((r) => (r.rows.length > 0 ? r.rows[0].id : null));
+  return findCanonicalUserIdByIntegratorId(pool, integratorUserId);
 }
 
 export function createPgReminderProjectionPort(): ReminderProjectionPort {
@@ -390,8 +387,9 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         const r = await pool.query<{ cnt: string }>(
           `SELECT COUNT(*)::text AS cnt
            FROM reminder_occurrence_history roh
-           JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
-           WHERE pu.id = $1 AND roh.seen_at IS NULL`,
+           JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
+           WHERE rr.platform_user_id = $1::uuid
+             AND roh.seen_at IS NULL`,
           [platformUserId],
         );
         return parseInt(r.rows[0]?.cnt ?? "0", 10);
@@ -416,8 +414,8 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
              COUNT(*) FILTER (WHERE roh.seen_at IS NULL)::text AS unseen,
              COUNT(*) FILTER (WHERE roh.status = 'failed')::text AS failed
            FROM reminder_occurrence_history roh
-           JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
-           WHERE pu.id = $1
+           JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
+           WHERE rr.platform_user_id = $1::uuid
              AND roh.occurred_at >= now() - make_interval(days => $2)`,
           [platformUserId, days],
         );
@@ -440,8 +438,10 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         `UPDATE reminder_occurrence_history
          SET seen_at = now()
          WHERE integrator_occurrence_id = ANY($1)
-           AND integrator_user_id IN (
-             SELECT integrator_user_id FROM platform_users WHERE id = $2
+           AND integrator_rule_id IN (
+             SELECT integrator_rule_id
+             FROM reminder_rules
+             WHERE platform_user_id = $2::uuid
            )`,
         [occurrenceIds, platformUserId],
       );
@@ -453,8 +453,10 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
         `UPDATE reminder_occurrence_history
          SET seen_at = now()
          WHERE seen_at IS NULL
-           AND integrator_user_id IN (
-             SELECT integrator_user_id FROM platform_users WHERE id = $1
+           AND integrator_rule_id IN (
+             SELECT integrator_rule_id
+             FROM reminder_rules
+             WHERE platform_user_id = $1::uuid
            )`,
         [platformUserId],
       );

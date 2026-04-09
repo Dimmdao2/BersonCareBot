@@ -475,7 +475,12 @@ async function deletePhoneKeyedWebappRows(client: PoolClient, phoneNormalized: s
        SELECT id::text FROM platform_users
        WHERE phone_normalized IS NOT NULL
          AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1
-     )`,
+     )
+        OR platform_user_id IN (
+          SELECT id FROM platform_users
+          WHERE phone_normalized IS NOT NULL
+            AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1
+        )`,
     [digs],
   );
   log("Удалено из message_log (doctor-журнал, user_id по номеру)", r.rowCount ?? 0);
@@ -710,7 +715,11 @@ async function messageLogDeleteForUserId(rawId: string): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const r = await db.query(`DELETE FROM message_log WHERE user_id = $1`, [id]);
+  const r = await db.query(
+    `DELETE FROM message_log
+     WHERE user_id = $1::text OR platform_user_id = $1::uuid`,
+    [id],
+  );
   console.log(`\nУдалено из message_log: ${r.rowCount ?? 0} (user_id = ${id})`);
 }
 

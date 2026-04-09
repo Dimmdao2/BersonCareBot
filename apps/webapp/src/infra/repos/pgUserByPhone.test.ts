@@ -36,6 +36,21 @@ describe("pgUserByPhonePort.findByPhone", () => {
   it("returns user when exactly one row", async () => {
     queryMock
       .mockResolvedValueOnce({
+        rows: [{ id: "u1" }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "u1",
+            phone_normalized: "+79991234567",
+            integrator_user_id: null,
+            merged_into_id: null,
+            display_name: "N",
+            role: "client",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
         rows: [{ id: "u1", display_name: "N", role: "client", phone_normalized: "+79991234567" }],
       })
       .mockResolvedValueOnce({
@@ -44,6 +59,6 @@ describe("pgUserByPhonePort.findByPhone", () => {
     const u = await pgUserByPhonePort.findByPhone("+79991234567");
     expect(u).not.toBeNull();
     expect(u?.userId).toBe("u1");
-    expect(queryMock).toHaveBeenCalledTimes(2);
+    expect(queryMock).toHaveBeenCalledTimes(4);
   });
 });

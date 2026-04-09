@@ -12,6 +12,7 @@ describe("doctor-clients service", () => {
     isBlocked: false,
     blockedReason: null,
     isArchived: false,
+    channelBindingDates: {},
   };
 
   const mockPort: DoctorClientsPort = {
@@ -112,6 +113,7 @@ describe("getClientProfile appointmentStats from history (ARCH-03)", () => {
     isBlocked: false,
     blockedReason: null,
     isArchived: false,
+    channelBindingDates: {},
   };
 
   const mockPort: DoctorClientsPort = {

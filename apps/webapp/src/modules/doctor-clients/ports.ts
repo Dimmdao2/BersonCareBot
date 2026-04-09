@@ -39,6 +39,8 @@ export type ClientIdentity = {
   blockedReason: string | null;
   /** Архив (`platform_users.is_archived`): скрыт из обычных списков; снять архив — `PATCH .../archive` с `{ archived: false }` (врач или админ). */
   isArchived: boolean;
+  /** Даты привязки каналов (`user_channel_bindings.created_at`), ключ — `channel_code`. */
+  channelBindingDates: Record<string, string>;
 };
 
 /** Метрики пациентов для дашборда врача (этап 9). */

@@ -39,6 +39,7 @@ describe("handleIntegratorEvent", () => {
             findByIntegratorId: vi.fn(),
             updatePhone: vi.fn(),
             updateProfileByPhone: vi.fn(),
+            ensureClientFromAppointmentProjection: vi.fn(),
             applyRubitimeEmailAutobind,
           },
         }
@@ -841,8 +842,10 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     expect(result.retryable).toBe(false);
   });
 
-  it("appointment.record.upserted normalizes phone before findByPhone", async () => {
-    const findByPhone = vi.fn().mockResolvedValue({ platformUserId: "user-uuid-1" });
+  it("appointment.record.upserted normalizes phone before ensureClientFromAppointmentProjection", async () => {
+    const ensureClientFromAppointmentProjection = vi
+      .fn()
+      .mockResolvedValue({ platformUserId: "user-uuid-1" });
     const mockAp = {
       getRecordByIntegratorId: vi.fn(),
       listActiveByPhoneNormalized: vi.fn(),
@@ -858,9 +861,10 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       users: {
         upsertFromProjection: vi.fn(),
         findByIntegratorId: vi.fn(),
-        findByPhone,
+        findByPhone: vi.fn(),
         updatePhone: vi.fn(),
         updateProfileByPhone: vi.fn(),
+        ensureClientFromAppointmentProjection,
       },
     };
     await handleIntegratorEvent(
@@ -878,7 +882,9 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       },
       deps,
     );
-    expect(findByPhone).toHaveBeenCalledWith("+79991234567");
+    expect(ensureClientFromAppointmentProjection).toHaveBeenCalledWith(
+      expect.objectContaining({ phoneNormalized: "+79991234567" }),
+    );
     expect(applyRubitimeUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "user-uuid-1" }),
     );
@@ -1011,7 +1017,7 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     }
   });
 
-  it("appointment.record.upserted with patient and branch calls branches, users.updateProfileByPhone, and upsert with branchId", async () => {
+  it("appointment.record.upserted with patient and branch calls branches, ensureClientFromAppointmentProjection, and upsert with branchId", async () => {
     const { vi } = await import("vitest");
     const mockBranches = {
       upsertFromProjection: vi.fn().mockResolvedValue({ branchId: "branch-uuid-1" }),
@@ -1022,6 +1028,7 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       findByIntegratorId: vi.fn(),
       updatePhone: vi.fn(),
       updateProfileByPhone: vi.fn().mockResolvedValue(undefined),
+      ensureClientFromAppointmentProjection: vi.fn().mockResolvedValue({ platformUserId: "branch-client-1" }),
     };
     const mockAp = {
       getRecordByIntegratorId: vi.fn(),
@@ -1060,13 +1067,14 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       integratorBranchId: "202",
       name: "Филиал Юг",
     });
-    expect(mockUsers.updateProfileByPhone).toHaveBeenCalledTimes(1);
-    expect(mockUsers.updateProfileByPhone).toHaveBeenCalledWith({
+    expect(mockUsers.ensureClientFromAppointmentProjection).toHaveBeenCalledTimes(1);
+    expect(mockUsers.ensureClientFromAppointmentProjection).toHaveBeenCalledWith({
       phoneNormalized: "+79997654321",
+      integratorUserId: null,
+      displayName: "Петров Пётр",
       firstName: "Пётр",
       lastName: "Петров",
       email: "petr@example.com",
-      displayName: "Петров Пётр",
     });
     expect(mockAp.upsertRecordFromProjection).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1082,6 +1090,7 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       findByIntegratorId: vi.fn(),
       updatePhone: vi.fn(),
       updateProfileByPhone: vi.fn().mockResolvedValue(undefined),
+      ensureClientFromAppointmentProjection: vi.fn().mockResolvedValue({ platformUserId: "fio-client-1" }),
     };
     const mockAp = {
       getRecordByIntegratorId: vi.fn(),
@@ -1112,10 +1121,13 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
       deps
     );
     expect(result.accepted).toBe(true);
-    expect(mockUsers.updateProfileByPhone).toHaveBeenCalledWith({
+    expect(mockUsers.ensureClientFromAppointmentProjection).toHaveBeenCalledWith({
       phoneNormalized: "+79119975939",
-      email: null,
+      integratorUserId: null,
       displayName: "Карина Викторовна Прокопенкова",
+      firstName: null,
+      lastName: null,
+      email: null,
     });
   });
 

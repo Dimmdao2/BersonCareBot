@@ -4,6 +4,10 @@
  */
 import { getPool } from "@/infra/db/client";
 
+function userMatchSql(tableAlias: string, userParamIndex: number): string {
+  return `(${tableAlias}.platform_user_id = $${userParamIndex}::uuid OR (${tableAlias}.platform_user_id IS NULL AND ${tableAlias}.user_id = $${userParamIndex}::text))`;
+}
+
 export async function purgeAllDiaryDataForUserPg(userId: string): Promise<void> {
   const pool = getPool();
   const client = await pool.connect();
@@ -11,20 +15,32 @@ export async function purgeAllDiaryDataForUserPg(userId: string): Promise<void> 
     await client.query("BEGIN");
 
     await client.query(
-      `UPDATE lfk_complexes SET symptom_tracking_id = NULL, updated_at = now() WHERE user_id = $1`,
+      `UPDATE lfk_complexes
+       SET symptom_tracking_id = NULL, updated_at = now()
+       WHERE ${userMatchSql("lfk_complexes", 1)}`,
       [userId]
     );
 
     await client.query(
       `UPDATE patient_lfk_assignments
        SET complex_id = NULL
-       WHERE complex_id IN (SELECT id FROM lfk_complexes WHERE user_id = $1)`,
+       WHERE complex_id IN (
+         SELECT id
+         FROM lfk_complexes c
+         WHERE ${userMatchSql("c", 1)}
+       )`,
       [userId]
     );
 
-    await client.query(`DELETE FROM symptom_trackings WHERE user_id = $1`, [userId]);
+    await client.query(
+      `DELETE FROM symptom_trackings t WHERE ${userMatchSql("t", 1)}`,
+      [userId],
+    );
 
-    await client.query(`DELETE FROM lfk_complexes WHERE user_id = $1`, [userId]);
+    await client.query(
+      `DELETE FROM lfk_complexes c WHERE ${userMatchSql("c", 1)}`,
+      [userId],
+    );
 
     await client.query("COMMIT");
   } catch (e) {

@@ -1,4 +1,8 @@
 import { getPool } from "@/infra/db/client";
+import { findCanonicalUserIdByChannelBinding } from "@/infra/repos/pgCanonicalPlatformUser";
+import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
+import { mergePlatformUsersInTransaction, pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
+import type { PoolClient } from "pg";
 
 export type UserProjectionPort = {
   upsertFromProjection: (params: {
@@ -10,6 +14,15 @@ export type UserProjectionPort = {
     email?: string | null;
     channelCode?: string;
     externalId?: string;
+  }) => Promise<{ platformUserId: string }>;
+  /** Rubitime appointment projection: ensure canonical client row exists for phone (create/enrich/merge). */
+  ensureClientFromAppointmentProjection: (params: {
+    phoneNormalized: string;
+    integratorUserId?: string | null;
+    displayName?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
   }) => Promise<{ platformUserId: string }>;
   findByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
   updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
@@ -40,108 +53,295 @@ export type UserProjectionPort = {
   }>;
 };
 
+type PuRow = {
+  id: string;
+  phone_normalized: string | null;
+  integrator_user_id: string | null;
+  merged_into_id: string | null;
+  display_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  created_at: Date;
+};
+
+async function loadPuRow(client: PoolClient, id: string): Promise<PuRow | null> {
+  const r = await client.query<PuRow>(
+    `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, merged_into_id,
+            display_name, first_name, last_name, email, created_at
+     FROM platform_users WHERE id = $1::uuid`,
+    [id],
+  );
+  return r.rows[0] ?? null;
+}
+
+async function mergeCandidates(
+  client: PoolClient,
+  candidateIds: string[],
+  reason: "projection" | "phone_bind",
+): Promise<string> {
+  const uniq = [...new Set(candidateIds)].filter(Boolean);
+  if (uniq.length === 0) throw new MergeConflictError("mergeCandidates: empty");
+  if (uniq.length === 1) return uniq[0]!;
+  let ids = [...uniq].sort();
+  while (ids.length > 1) {
+    const id0 = ids[0]!;
+    const id1 = ids[1]!;
+    const a = await loadPuRow(client, id0);
+    const b = await loadPuRow(client, id1);
+    if (!a || !b) throw new MergeConflictError("mergeCandidates: row missing");
+    const { target, duplicate } = pickMergeTargetId(a, b);
+    try {
+      await mergePlatformUsersInTransaction(client, target, duplicate, reason);
+    } catch (e) {
+      if (e instanceof MergeDependentConflictError) throw e;
+      if (e instanceof MergeConflictError) throw e;
+      throw e;
+    }
+    ids = ids.filter((x) => x !== duplicate);
+  }
+  return ids[0]!;
+}
+
+async function collectCandidateIds(
+  client: PoolClient,
+  params: {
+    integratorUserId: string;
+    phoneNormalized?: string;
+    channelCode?: string;
+    externalId?: string;
+  },
+): Promise<string[]> {
+  const ids: string[] = [];
+  const byInt = await client.query<{ id: string }>(
+    `SELECT id FROM platform_users
+     WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
+     LIMIT 3`,
+    [params.integratorUserId],
+  );
+  if (byInt.rows.length > 1) throw new MergeConflictError("ambiguous integrator_user_id match");
+  if (byInt.rows[0]) ids.push(byInt.rows[0].id);
+  if (params.phoneNormalized) {
+    const byPhone = await client.query<{ id: string }>(
+      `SELECT id FROM platform_users
+       WHERE phone_normalized = $1 AND merged_into_id IS NULL
+       LIMIT 3`,
+      [params.phoneNormalized],
+    );
+    if (byPhone.rows.length > 1) throw new MergeConflictError("ambiguous phone_normalized match");
+    if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
+  }
+  if (params.channelCode && params.externalId) {
+    const ch = await findCanonicalUserIdByChannelBinding(client, params.channelCode, params.externalId);
+    if (ch) ids.push(ch);
+  }
+  return [...new Set(ids)];
+}
+
+async function upsertFromProjectionTx(
+  client: PoolClient,
+  params: {
+    integratorUserId: string;
+    phoneNormalized?: string;
+    displayName?: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    channelCode?: string;
+    externalId?: string;
+  },
+): Promise<string> {
+  let candidateIds = await collectCandidateIds(client, {
+    integratorUserId: params.integratorUserId,
+    phoneNormalized: params.phoneNormalized,
+    channelCode: params.channelCode,
+    externalId: params.externalId,
+  });
+
+  let userId: string;
+
+  if (candidateIds.length === 0) {
+    const displayName = params.displayName ?? "";
+    const ins = await client.query<{ id: string }>(
+      `INSERT INTO platform_users (integrator_user_id, phone_normalized, display_name, first_name, last_name, email)
+       VALUES ($1::bigint, $2, $3, $4, $5, $6) RETURNING id`,
+      [
+        params.integratorUserId,
+        params.phoneNormalized ?? null,
+        displayName,
+        params.firstName ?? null,
+        params.lastName ?? null,
+        params.email ?? null,
+      ],
+    );
+    userId = ins.rows[0]!.id;
+  } else {
+    userId = await mergeCandidates(client, candidateIds, "projection");
+    await client.query(
+      `UPDATE platform_users SET
+         display_name = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE display_name END,
+         first_name = COALESCE($3::text, first_name),
+         last_name = COALESCE($4::text, last_name),
+         email = COALESCE($5::text, email),
+         phone_normalized = COALESCE($6::text, phone_normalized),
+         integrator_user_id = COALESCE(integrator_user_id, $7::bigint),
+         updated_at = now()
+       WHERE id = $1::uuid`,
+      [
+        userId,
+        params.displayName ?? null,
+        params.firstName ?? null,
+        params.lastName ?? null,
+        params.email ?? null,
+        params.phoneNormalized ?? null,
+        params.integratorUserId,
+      ],
+    );
+  }
+
+  if (params.channelCode && params.externalId) {
+    await client.query(
+      `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
+       VALUES ($1::uuid, $2, $3)
+       ON CONFLICT (channel_code, external_id) DO NOTHING`,
+      [userId, params.channelCode, params.externalId],
+    );
+  }
+
+  return userId;
+}
+
+async function ensureAppointmentClientTx(
+  client: PoolClient,
+  params: {
+    phoneNormalized: string;
+    integratorUserId?: string | null;
+    displayName?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+  },
+): Promise<string> {
+  const ids: string[] = [];
+  const byPhone = await client.query<{ id: string }>(
+    `SELECT id FROM platform_users WHERE phone_normalized = $1 AND merged_into_id IS NULL LIMIT 2`,
+    [params.phoneNormalized],
+  );
+  if (byPhone.rows.length > 1) {
+    console.error("[ensureClientFromAppointmentProjection] duplicate canonical phone rows", {
+      phone: params.phoneNormalized,
+    });
+    throw new MergeConflictError("multiple canonical users for phone");
+  }
+  if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
+
+  if (params.integratorUserId?.trim()) {
+    const byInt = await client.query<{ id: string }>(
+      `SELECT id FROM platform_users
+       WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL LIMIT 2`,
+      [params.integratorUserId.trim()],
+    );
+    if (byInt.rows.length > 1) {
+      throw new MergeConflictError("multiple canonical users for integrator id");
+    }
+    if (byInt.rows[0]) ids.push(byInt.rows[0].id);
+  }
+
+  const uniq = [...new Set(ids)];
+  const displayName =
+    params.displayName?.trim() ||
+    [params.lastName, params.firstName].filter(Boolean).join(" ").trim() ||
+    params.phoneNormalized;
+
+  if (uniq.length === 0) {
+    const ins = await client.query<{ id: string }>(
+      `INSERT INTO platform_users (
+         phone_normalized, display_name, first_name, last_name, email, role,
+         integrator_user_id
+       ) VALUES ($1, $2, $3, $4, $5, 'client', $6::bigint)
+       RETURNING id`,
+      [
+        params.phoneNormalized,
+        displayName,
+        params.firstName ?? null,
+        params.lastName ?? null,
+        params.email ?? null,
+        params.integratorUserId?.trim() ? params.integratorUserId : null,
+      ],
+    );
+    return ins.rows[0]!.id;
+  }
+
+  const userId = await mergeCandidates(client, uniq, "projection");
+
+  await client.query(
+    `UPDATE platform_users SET
+       display_name = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE display_name END,
+       first_name = COALESCE(first_name, $3::text),
+       last_name = COALESCE(last_name, $4::text),
+       email = COALESCE(email, $5::text),
+       integrator_user_id = COALESCE(integrator_user_id, $6::bigint),
+       phone_normalized = COALESCE(phone_normalized, $7::text),
+       updated_at = now()
+     WHERE id = $1::uuid`,
+    [
+      userId,
+      displayName,
+      params.firstName ?? null,
+      params.lastName ?? null,
+      params.email ?? null,
+      params.integratorUserId?.trim() ?? null,
+      params.phoneNormalized,
+    ],
+  );
+
+  return userId;
+}
+
 export const pgUserProjectionPort: UserProjectionPort = {
   async upsertFromProjection(params) {
     const pool = getPool();
-    let userId: string | null = null;
-
-    const byIntegrator = await pool.query<{ id: string }>(
-      "SELECT id FROM platform_users WHERE integrator_user_id = $1",
-      [params.integratorUserId],
-    );
-    if (byIntegrator.rows.length > 0) {
-      userId = byIntegrator.rows[0].id;
-      const sets: string[] = [];
-      const vals: unknown[] = [];
-      let idx = 1;
-      if (params.displayName != null) {
-        sets.push(`display_name = $${++idx}`);
-        vals.push(params.displayName);
-      }
-      if (params.firstName !== undefined) {
-        sets.push(`first_name = $${++idx}`);
-        vals.push(params.firstName);
-      }
-      if (params.lastName !== undefined) {
-        sets.push(`last_name = $${++idx}`);
-        vals.push(params.lastName);
-      }
-      if (params.email !== undefined) {
-        sets.push(`email = $${++idx}`);
-        vals.push(params.email);
-      }
-      if (params.phoneNormalized != null) {
-        sets.push(`phone_normalized = $${++idx}`);
-        vals.push(params.phoneNormalized);
-      }
-      if (sets.length > 0) {
-        sets.push(`updated_at = now()`);
-        await pool.query(
-          `UPDATE platform_users SET ${sets.join(", ")} WHERE id = $1`,
-          [userId, ...vals],
-        );
-      }
-    } else if (params.phoneNormalized) {
-      const byPhone = await pool.query<{ id: string }>(
-        "SELECT id FROM platform_users WHERE phone_normalized = $1",
-        [params.phoneNormalized],
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
       );
-      if (byPhone.rows.length > 0) {
-        userId = byPhone.rows[0].id;
-        const sets = ["integrator_user_id = $2", "updated_at = now()"];
-        const vals: unknown[] = [userId, params.integratorUserId];
-        if (params.displayName != null) {
-          sets.push(`display_name = $${vals.length + 1}`);
-          vals.push(params.displayName);
-        }
-        if (params.firstName !== undefined) {
-          sets.push(`first_name = $${vals.length + 1}`);
-          vals.push(params.firstName);
-        }
-        if (params.lastName !== undefined) {
-          sets.push(`last_name = $${vals.length + 1}`);
-          vals.push(params.lastName);
-        }
-        if (params.email !== undefined) {
-          sets.push(`email = $${vals.length + 1}`);
-          vals.push(params.email);
-        }
-        await pool.query(
-          `UPDATE platform_users SET ${sets.join(", ")} WHERE id = $1`,
-          vals,
-        );
-      }
+      const id = await upsertFromProjectionTx(client, params);
+      await client.query("COMMIT");
+      return { platformUserId: id };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
     }
+  },
 
-    if (!userId) {
-      const displayName = params.displayName ?? "";
-      const firstName = params.firstName ?? null;
-      const lastName = params.lastName ?? null;
-      const email = params.email ?? null;
-      const ins = await pool.query<{ id: string }>(
-        `INSERT INTO platform_users (integrator_user_id, phone_normalized, display_name, first_name, last_name, email)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [params.integratorUserId, params.phoneNormalized ?? null, displayName, firstName, lastName, email],
+  async ensureClientFromAppointmentProjection(params) {
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `SET CONSTRAINTS platform_users_phone_normalized_key, platform_users_integrator_user_id_key DEFERRED`,
       );
-      userId = ins.rows[0].id;
+      const id = await ensureAppointmentClientTx(client, params);
+      await client.query("COMMIT");
+      return { platformUserId: id };
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
     }
-
-    if (params.channelCode && params.externalId) {
-      await pool.query(
-        `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
-        [userId, params.channelCode, params.externalId],
-      );
-    }
-
-    return { platformUserId: userId };
   },
 
   async findByIntegratorId(integratorUserId) {
     const pool = getPool();
     const result = await pool.query<{ id: string }>(
-      "SELECT id FROM platform_users WHERE integrator_user_id = $1",
+      `SELECT id FROM platform_users
+       WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL`,
       [integratorUserId],
     );
     return result.rows.length > 0 ? { platformUserId: result.rows[0].id } : null;
@@ -190,7 +390,8 @@ export const pgUserProjectionPort: UserProjectionPort = {
     if (vals.length === 0) return;
     vals.push(params.phoneNormalized);
     await pool.query(
-      `UPDATE platform_users SET ${sets.join(", ")} WHERE phone_normalized = $${idx + 1}`,
+      `UPDATE platform_users SET ${sets.join(", ")}
+       WHERE phone_normalized = $${idx + 1} AND merged_into_id IS NULL`,
       vals,
     );
   },
@@ -229,8 +430,9 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const phone = params.phoneNormalized.trim();
     const pool = getPool();
     const row = await pool.query<{ id: string; email_verified_at: Date | null }>(
-      "SELECT id, email_verified_at FROM platform_users WHERE phone_normalized = $1",
-      [phone]
+      `SELECT id, email_verified_at FROM platform_users
+       WHERE phone_normalized = $1 AND merged_into_id IS NULL`,
+      [phone],
     );
     if (row.rows.length === 0) {
       return { outcome: "skipped_no_user" as const };
@@ -242,7 +444,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const conflict = await pool.query<{ id: string }>(
       `SELECT id FROM platform_users
        WHERE id <> $1 AND email IS NOT NULL AND lower(trim(email)) = lower(trim($2))`,
-      [u.id, emailNorm]
+      [u.id, emailNorm],
     );
     if (conflict.rows.length > 0) {
       console.warn("[user.email.autobind:conflict]", {
@@ -255,7 +457,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     await pool.query(
       `UPDATE platform_users SET email = $1, email_verified_at = NULL, updated_at = now()
        WHERE id = $2`,
-      [emailNorm, u.id]
+      [emailNorm, u.id],
     );
     return { outcome: "applied" as const };
   },
@@ -264,7 +466,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const pool = getPool();
     const result = await pool.query<{ email: string | null; email_verified_at: Date | null }>(
       "SELECT email, email_verified_at FROM platform_users WHERE id = $1",
-      [platformUserId]
+      [platformUserId],
     );
     if (result.rows.length === 0) {
       return { email: null, emailVerifiedAt: null };
@@ -279,6 +481,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
 export const inMemoryUserProjectionPort: UserProjectionPort = {
   upsertFromProjection: async () => ({ platformUserId: "" }),
+  ensureClientFromAppointmentProjection: async () => ({ platformUserId: "" }),
   findByIntegratorId: async () => null,
   updatePhone: async () => {},
   updateDisplayName: async () => {},

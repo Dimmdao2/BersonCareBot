@@ -9,6 +9,7 @@ import type { SymptomEntry, SymptomTracking } from "@/modules/diaries/types";
 function rowToTracking(row: {
   id: string;
   user_id: string;
+  platform_user_id?: string | null;
   symptom_key: string | null;
   symptom_title: string;
   is_active: boolean;
@@ -22,9 +23,13 @@ function rowToTracking(row: {
   stage_ref_id?: string | null;
   deleted_at?: Date | null;
 }): SymptomTracking {
+  const uid =
+    row.platform_user_id != null && String(row.platform_user_id).trim() !== ""
+      ? String(row.platform_user_id)
+      : row.user_id;
   return {
     id: String(row.id),
-    userId: row.user_id,
+    userId: uid,
     symptomKey: row.symptom_key,
     symptomTitle: row.symptom_title,
     isActive: row.is_active,
@@ -43,6 +48,7 @@ function rowToTracking(row: {
 function rowToEntry(row: {
   id: string;
   user_id: string;
+  platform_user_id?: string | null;
   tracking_id: string;
   value_0_10: number;
   entry_type: string;
@@ -52,9 +58,13 @@ function rowToEntry(row: {
   created_at: Date;
   symptom_title?: string;
 }): SymptomEntry {
+  const uid =
+    row.platform_user_id != null && String(row.platform_user_id).trim() !== ""
+      ? String(row.platform_user_id)
+      : row.user_id;
   return {
     id: String(row.id),
-    userId: row.user_id,
+    userId: uid,
     trackingId: row.tracking_id,
     value0_10: row.value_0_10,
     entryType: row.entry_type as "instant" | "daily",
@@ -66,8 +76,14 @@ function rowToEntry(row: {
   };
 }
 
-const TRACKING_SELECT = `id, user_id, symptom_key, symptom_title, is_active, created_at, updated_at,
+const TRACKING_SELECT = `id, user_id, platform_user_id, symptom_key, symptom_title, is_active, created_at, updated_at,
     symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id, deleted_at`;
+
+/** Match legacy text user_id or canonical platform_user_id (post-merge / backfill). */
+function userMatchSql(tableAlias: string | null, userParamIndex: number): string {
+  const p = tableAlias ? `${tableAlias}.` : "";
+  return `(${p}platform_user_id = $${userParamIndex}::uuid OR (${p}platform_user_id IS NULL AND ${p}user_id = $${userParamIndex}::text))`;
+}
 
 export const pgSymptomDiaryPort: SymptomDiaryPort = {
   async createTracking(params) {
@@ -75,10 +91,10 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     const now = new Date();
     const result = await pool.query(
       `INSERT INTO symptom_trackings (
-         user_id, symptom_key, symptom_title, is_active, updated_at,
+         user_id, platform_user_id, symptom_key, symptom_title, is_active, updated_at,
          symptom_type_ref_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id, stage_ref_id
        )
-       VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1::text, $1::uuid, $2, $3, true, $4, $5, $6, $7, $8, $9, $10)
        RETURNING ${TRACKING_SELECT}`,
       [
         params.userId,
@@ -100,8 +116,8 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     const pool = getPool();
     const result = await pool.query(
       `SELECT ${TRACKING_SELECT}
-       FROM symptom_trackings
-       WHERE user_id = $1 AND deleted_at IS NULL
+       FROM symptom_trackings t
+       WHERE ${userMatchSql("t", 1)} AND deleted_at IS NULL
        ${activeOnly ? "AND is_active = true" : ""}
        ORDER BY updated_at DESC`,
       [userId]
@@ -113,9 +129,9 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     const pool = getPool();
     const recordedAt = new Date(params.recordedAt);
     const result = await pool.query(
-      `INSERT INTO symptom_entries (user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes, created_at`,
+      `INSERT INTO symptom_entries (user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes)
+       VALUES ($1::text, $1::uuid, $2, $3, $4, $5, $6, $7)
+       RETURNING id, user_id, platform_user_id, tracking_id, value_0_10, entry_type, recorded_at, source, notes, created_at`,
       [
         params.userId,
         params.trackingId,
@@ -140,11 +156,11 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   async listEntries(userId, limit = 50) {
     const pool = getPool();
     const result = await pool.query(
-      `SELECT e.id, e.user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+      `SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE e.user_id = $1 AND t.deleted_at IS NULL
+       WHERE ${userMatchSql("e", 1)} AND t.deleted_at IS NULL
        ORDER BY e.recorded_at DESC
        LIMIT $2`,
       [userId, limit]
@@ -157,8 +173,8 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     const result = await pool.query(
       `SELECT ${TRACKING_SELECT}
        FROM symptom_trackings
-       WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
-      [params.trackingId, params.userId]
+       WHERE id = $1 AND ${userMatchSql(null, 2)} AND deleted_at IS NULL`,
+      [params.trackingId, params.userId],
     );
     return result.rows[0] ? rowToTracking(result.rows[0]) : null;
   },
@@ -166,11 +182,11 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   async listEntriesForTrackingInRange(params) {
     const pool = getPool();
     const result = await pool.query(
-      `SELECT e.id, e.user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+      `SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE e.user_id = $1 AND e.tracking_id = $2
+       WHERE ${userMatchSql("e", 1)} AND e.tracking_id = $2
          AND e.recorded_at >= $3::timestamptz AND e.recorded_at < $4::timestamptz
          AND t.deleted_at IS NULL
        ORDER BY e.recorded_at ASC`,
@@ -184,11 +200,11 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     const lim = Math.min(params.limit ?? 500, 2000);
     const tid = params.trackingId?.trim();
     const result = await pool.query(
-      `SELECT e.id, e.user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+      `SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE e.user_id = $1
+       WHERE ${userMatchSql("e", 1)}
          AND e.recorded_at >= $2::timestamptz AND e.recorded_at < $3::timestamptz
          AND t.deleted_at IS NULL
          ${tid ? "AND e.tracking_id = $5::uuid" : ""}
@@ -207,7 +223,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       `SELECT MIN(e.recorded_at) AS m
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE e.user_id = $1 AND e.tracking_id = $2 AND t.deleted_at IS NULL`,
+       WHERE ${userMatchSql("e", 1)} AND e.tracking_id = $2 AND t.deleted_at IS NULL`,
       [params.userId, params.trackingId]
     );
     const m = result.rows[0]?.m as Date | null | undefined;
@@ -217,11 +233,11 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
   async getEntryForUser(params) {
     const pool = getPool();
     const result = await pool.query(
-      `SELECT e.id, e.user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
+      `SELECT e.id, e.user_id, e.platform_user_id, e.tracking_id, e.value_0_10, e.entry_type, e.recorded_at, e.source, e.notes, e.created_at,
               t.symptom_title
        FROM symptom_entries e
        JOIN symptom_trackings t ON t.id = e.tracking_id
-       WHERE e.id = $1 AND e.user_id = $2 AND t.deleted_at IS NULL`,
+       WHERE e.id = $1 AND ${userMatchSql("e", 2)} AND t.deleted_at IS NULL`,
       [params.entryId, params.userId]
     );
     return result.rows[0] ? rowToEntry(result.rows[0]) : null;
@@ -233,7 +249,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
       `UPDATE symptom_entries e
        SET value_0_10 = $3, entry_type = $4, recorded_at = $5::timestamptz, notes = $6
        FROM symptom_trackings t
-       WHERE e.id = $2 AND e.user_id = $1 AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
+       WHERE e.id = $2 AND ${userMatchSql("e", 1)} AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
       [
         params.userId,
         params.entryId,
@@ -250,7 +266,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     await pool.query(
       `DELETE FROM symptom_entries e
        USING symptom_trackings t
-       WHERE e.id = $2 AND e.user_id = $1 AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
+       WHERE e.id = $2 AND ${userMatchSql("e", 1)} AND e.tracking_id = t.id AND t.deleted_at IS NULL`,
       [params.userId, params.entryId]
     );
   },
@@ -259,7 +275,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     const pool = getPool();
     await pool.query(
       `UPDATE symptom_trackings SET symptom_title = $3, updated_at = now()
-       WHERE id = $2 AND user_id = $1 AND deleted_at IS NULL`,
+       WHERE id = $2 AND ${userMatchSql(null, 1)} AND deleted_at IS NULL`,
       [params.userId, params.trackingId, params.symptomTitle]
     );
   },
@@ -268,7 +284,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     const pool = getPool();
     await pool.query(
       `UPDATE symptom_trackings SET is_active = $3, updated_at = now()
-       WHERE id = $2 AND user_id = $1 AND deleted_at IS NULL`,
+       WHERE id = $2 AND ${userMatchSql(null, 1)} AND deleted_at IS NULL`,
       [params.userId, params.trackingId, params.isActive]
     );
   },
@@ -277,7 +293,7 @@ export const pgSymptomDiaryPort: SymptomDiaryPort = {
     const pool = getPool();
     await pool.query(
       `UPDATE symptom_trackings SET is_active = false, deleted_at = now(), updated_at = now()
-       WHERE id = $2 AND user_id = $1 AND deleted_at IS NULL`,
+       WHERE id = $2 AND ${userMatchSql(null, 1)} AND deleted_at IS NULL`,
       [params.userId, params.trackingId]
     );
   },

@@ -70,6 +70,7 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
       isBlocked: false,
       blockedReason: null,
       isArchived: false,
+      channelBindingDates: {},
     };
   },
 

@@ -16,7 +16,7 @@ function buildWhere(filters?: MessageLogListFilters): { whereSql: string; values
   const values: unknown[] = [];
   if (filters?.userId) {
     values.push(filters.userId);
-    where.push(`user_id = $${values.length}`);
+    where.push(`(platform_user_id = $${values.length}::uuid OR (platform_user_id IS NULL AND user_id = $${values.length}::text))`);
   }
   if (filters?.category) {
     values.push(filters.category);
@@ -39,7 +39,10 @@ function buildWhere(filters?: MessageLogListFilters): { whereSql: string; values
 function mapRows(rows: Array<Record<string, unknown>>): MessageLogEntry[] {
   return rows.map((row) => ({
     id: String(row.id),
-    userId: String(row.user_id),
+    userId:
+      row.platform_user_id != null && String(row.platform_user_id).trim() !== ""
+        ? String(row.platform_user_id)
+        : String(row.user_id),
     senderId: String(row.sender_id),
     text: String(row.text),
     category: String(row.category),
@@ -55,9 +58,11 @@ export function createPgMessageLogPort(): MessageLogPort {
     async append(entry): Promise<MessageLogEntry> {
       const pool = getPool();
       const r = await pool.query(
-        `INSERT INTO message_log (user_id, sender_id, text, category, channel_bindings_used, outcome, error_message)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message`,
+        `INSERT INTO message_log (
+           user_id, platform_user_id, sender_id, text, category, channel_bindings_used, outcome, error_message
+         )
+         VALUES ($1::text, $1::uuid, $2, $3, $4, $5, $6, $7)
+         RETURNING id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message`,
         [
           entry.userId,
           entry.senderId,
@@ -71,7 +76,7 @@ export function createPgMessageLogPort(): MessageLogPort {
       const row = r.rows[0];
       return {
         id: row.id,
-        userId: row.user_id,
+        userId: row.platform_user_id ?? row.user_id,
         senderId: row.sender_id,
         text: row.text,
         category: row.category,
@@ -87,7 +92,7 @@ export function createPgMessageLogPort(): MessageLogPort {
       const where = buildWhere({ userId });
       const [listRes, countRes] = await Promise.all([
         pool.query(
-          `SELECT id, user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
+          `SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
            FROM message_log
            ${where.whereSql}
            ORDER BY sent_at DESC
@@ -110,7 +115,7 @@ export function createPgMessageLogPort(): MessageLogPort {
       const where = buildWhere(params?.filters);
       const [listRes, countRes] = await Promise.all([
         pool.query(
-          `SELECT id, user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
+          `SELECT id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message
            FROM message_log
            ${where.whereSql}
            ORDER BY sent_at DESC

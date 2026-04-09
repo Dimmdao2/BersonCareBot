@@ -9,6 +9,7 @@ import type { LfkComplex, LfkSession } from "@/modules/diaries/types";
 function rowToComplex(row: {
   id: string;
   user_id: string;
+  platform_user_id?: string | null;
   title: string;
   cover_image_url?: string | null;
   origin: string;
@@ -21,9 +22,13 @@ function rowToComplex(row: {
   diagnosis_text?: string | null;
   diagnosis_ref_id?: string | null;
 }): LfkComplex {
+  const uid =
+    row.platform_user_id != null && String(row.platform_user_id).trim() !== ""
+      ? String(row.platform_user_id)
+      : row.user_id;
   return {
     id: String(row.id),
-    userId: row.user_id,
+    userId: uid,
     title: row.title,
     coverImageUrl: row.cover_image_url ?? null,
     origin: row.origin as "manual" | "assigned_by_specialist",
@@ -69,10 +74,12 @@ function rowToSession(row: {
 }
 
 const COMPLEX_SELECT = `c.id, c.user_id, c.title,
+  c.platform_user_id,
   cover.cover_image_url,
   c.origin, c.is_active, c.created_at, c.updated_at,
   c.symptom_tracking_id, c.region_ref_id, c.side, c.diagnosis_text, c.diagnosis_ref_id`;
 const COMPLEX_RETURNING = `id, user_id, title,
+  platform_user_id,
   NULL::text AS cover_image_url,
   origin, is_active, created_at, updated_at,
   symptom_tracking_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id`;
@@ -80,16 +87,20 @@ const COMPLEX_RETURNING = `id, user_id, title,
 const SESSION_SELECT = `s.id, s.user_id, s.complex_id, s.completed_at, s.source, s.created_at, c.title AS complex_title,
   s.recorded_at, s.duration_minutes, s.difficulty_0_10, s.pain_0_10, s.comment`;
 
+function userMatchSql(tableAlias: string, userParamIndex: number): string {
+  return `(${tableAlias}.platform_user_id = $${userParamIndex}::uuid OR (${tableAlias}.platform_user_id IS NULL AND ${tableAlias}.user_id = $${userParamIndex}::text))`;
+}
+
 export const pgLfkDiaryPort: LfkDiaryPort = {
   async createComplex(params) {
     const pool = getPool();
     const now = new Date();
     const result = await pool.query(
       `INSERT INTO lfk_complexes (
-         user_id, title, origin, is_active, updated_at,
+         user_id, platform_user_id, title, origin, is_active, updated_at,
          symptom_tracking_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id
        )
-       VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8, $9)
+       VALUES ($1::text, $1::uuid, $2, $3, true, $4, $5, $6, $7, $8, $9)
        RETURNING ${COMPLEX_RETURNING}`,
       [
         params.userId,
@@ -119,7 +130,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
          ORDER BY ce.sort_order ASC, em.sort_order ASC, em.created_at ASC
          LIMIT 1
        ) cover ON TRUE
-       WHERE c.user_id = $1 ${activeOnly ? "AND c.is_active = true" : ""}
+       WHERE ${userMatchSql("c", 1)} ${activeOnly ? "AND c.is_active = true" : ""}
        ORDER BY c.updated_at DESC`,
       [userId]
     );
@@ -188,7 +199,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
          ORDER BY ce.sort_order ASC, em.sort_order ASC, em.created_at ASC
          LIMIT 1
        ) cover ON TRUE
-       WHERE c.id = $1 AND c.user_id = $2`,
+       WHERE c.id = $1 AND ${userMatchSql("c", 2)}`,
       [params.complexId, params.userId]
     );
     return result.rows[0] ? rowToComplex(result.rows[0]) : null;

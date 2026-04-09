@@ -10,7 +10,6 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
     }) {
       const pool = getPool();
       const client = await pool.connect();
-      const patientTextUserId = params.patientUserId;
       try {
         await client.query("BEGIN");
 
@@ -57,10 +56,10 @@ export function createPgLfkAssignmentsPort(): LfkAssignmentsPort {
         }
 
         const complexR = await client.query<{ id: string }>(
-          `INSERT INTO lfk_complexes (user_id, title, origin, is_active, updated_at)
-           VALUES ($1, $2, 'assigned_by_specialist', true, now())
+          `INSERT INTO lfk_complexes (user_id, platform_user_id, title, origin, is_active, updated_at)
+           VALUES ($1::text, $1::uuid, $2, 'assigned_by_specialist', true, now())
            RETURNING id`,
-          [patientTextUserId, tpl.title]
+          [params.patientUserId, tpl.title]
         );
         const complexId = complexR.rows[0]!.id as string;
 

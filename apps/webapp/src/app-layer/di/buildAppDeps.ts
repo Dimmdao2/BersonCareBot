@@ -549,6 +549,7 @@ function _buildAppDeps() {
     },
     userProjection: {
       upsertFromProjection: userProjectionPort.upsertFromProjection,
+      ensureClientFromAppointmentProjection: userProjectionPort.ensureClientFromAppointmentProjection,
       findByIntegratorId: userProjectionPort.findByIntegratorId,
       updatePhone: userProjectionPort.updatePhone,
       updateDisplayName: userProjectionPort.updateDisplayName,

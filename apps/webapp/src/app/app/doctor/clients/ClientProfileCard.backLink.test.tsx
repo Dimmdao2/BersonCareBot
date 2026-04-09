@@ -22,6 +22,7 @@ const minimalProfile: ClientProfile = {
     isBlocked: false,
     blockedReason: null,
     isArchived: false,
+    channelBindingDates: {},
   },
   channelCards: [],
   upcomingAppointments: [],
