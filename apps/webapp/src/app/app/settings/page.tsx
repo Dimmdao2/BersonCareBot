@@ -5,9 +5,9 @@ import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDispl
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
 import { DoctorHeader } from "@/shared/ui/DoctorHeader";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
+import { AdminSettingsTabsClient } from "./AdminSettingsTabsClient";
 import { AdminSettingsSection } from "./AdminSettingsSection";
 import { AppParametersSection } from "./AppParametersSection";
 import { AuthProvidersSection } from "./AuthProvidersSection";
@@ -156,53 +156,21 @@ export default async function SettingsPage() {
           )}
           {isAdmin && adminMode && adminSettings && (
             <div className="mt-6">
-              <Tabs defaultValue="diagnostics" className="gap-4">
-                <TabsList className="flex h-auto w-full flex-wrap justify-start gap-2">
-                  <TabsTrigger value="diagnostics" className="text-xs sm:text-sm">
-                    Админ: режим
-                  </TabsTrigger>
-                  <TabsTrigger value="app-params" className="text-xs sm:text-sm">
-                    Параметры приложения
-                  </TabsTrigger>
-                  <TabsTrigger value="auth" className="text-xs sm:text-sm">
-                    Авторизация
-                  </TabsTrigger>
-                  <TabsTrigger value="access" className="text-xs sm:text-sm">
-                    Доступ и роли
-                  </TabsTrigger>
-                  <TabsTrigger value="integrations" className="text-xs sm:text-sm">
-                    Интеграции
-                  </TabsTrigger>
-                  <TabsTrigger value="catalog" className="text-xs sm:text-sm">
-                    Каталог записи
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="diagnostics" className="mt-2">
-                  <AdminSettingsSection {...adminSettings} />
-                </TabsContent>
-
-                <TabsContent value="app-params" className="mt-2">
-                  {appParametersConfig && <AppParametersSection {...appParametersConfig} />}
-                </TabsContent>
-
-                <TabsContent value="auth" className="mt-2">
-                  {authProvidersConfig && <AuthProvidersSection {...authProvidersConfig} />}
-                </TabsContent>
-
-                <TabsContent value="access" className="mt-2">
-                  {accessListsConfig && <AccessListsSection {...accessListsConfig} />}
-                </TabsContent>
-
-                <TabsContent value="integrations" className="mt-2 space-y-6">
-                  {googleCalendarConfig && <GoogleCalendarSection {...googleCalendarConfig} />}
-                </TabsContent>
-
-                <TabsContent value="catalog" className="mt-2 space-y-6">
-                  <BookingCatalogHelp />
-                  <RubitimeSection />
-                </TabsContent>
-              </Tabs>
+              <AdminSettingsTabsClient
+                diagnostics={<AdminSettingsSection {...adminSettings} />}
+                appParams={appParametersConfig ? <AppParametersSection {...appParametersConfig} /> : null}
+                auth={authProvidersConfig ? <AuthProvidersSection {...authProvidersConfig} /> : null}
+                access={accessListsConfig ? <AccessListsSection {...accessListsConfig} /> : null}
+                integrations={
+                  googleCalendarConfig ? <GoogleCalendarSection {...googleCalendarConfig} /> : null
+                }
+                catalog={
+                  <>
+                    <BookingCatalogHelp />
+                    <RubitimeSection />
+                  </>
+                }
+              />
             </div>
           )}
         </div>
