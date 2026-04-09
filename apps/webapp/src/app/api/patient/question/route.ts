@@ -5,6 +5,7 @@
  */
 
 import { NextResponse } from "next/server";
+import { logger } from "@/infra/logging/logger";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
 import { env } from "@/config/env";
@@ -77,7 +78,10 @@ export async function POST(request: Request) {
 
   if (!res.ok) {
     const err = await res.text();
-    console.error("[patient/question] Telegram sendMessage failed", res.status, err);
+    logger.error(
+      { status: res.status, body: err },
+      "[patient/question] Telegram sendMessage failed",
+    );
     return NextResponse.json(
       { ok: false, error: "send_failed", message: "Не удалось отправить. Попробуйте позже." },
       { status: 502 }

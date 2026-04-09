@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { logger } from "@/infra/logging/logger";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
   try {
     await deps.diaries.purgeAllDiaryDataForUser(session.user.userId);
   } catch (e) {
-    console.error("purgeAllDiaryDataForUser failed:", e);
+    logger.error({ err: e }, "[patient/diary/purge] purgeAllDiaryDataForUser failed");
     return NextResponse.json({ ok: false, error: "purge_failed", message: "Не удалось удалить данные" }, { status: 500 });
   }
 

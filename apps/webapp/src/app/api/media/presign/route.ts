@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
+import { logger } from "@/infra/logging/logger";
 import { deletePendingMediaFileById, insertPendingMediaFile } from "@/infra/repos/s3MediaStorage";
-import { presignPutUrl, s3ObjectKey, s3PublicUrl } from "@/infra/s3/client";
+import { presignPutUrl, s3ObjectKey } from "@/infra/s3/client";
 import { getCurrentSession } from "@/modules/auth/service";
 import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
 import { canAccessDoctor } from "@/modules/roles/service";
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
 
   const mediaId = randomUUID();
   const key = s3ObjectKey(mediaId, parsed.data.filename);
-  const publicUrl = s3PublicUrl(key);
+  const readUrl = `/api/media/${mediaId}`;
 
   try {
     await insertPendingMediaFile({
@@ -62,14 +63,13 @@ export async function POST(request: Request) {
       ok: true as const,
       mediaId,
       uploadUrl,
-      publicUrl,
-      key,
+      readUrl,
     });
   } catch (e) {
     await deletePendingMediaFileById(mediaId).catch(() => {
       /* best-effort rollback */
     });
-    console.error("[media/presign]", e);
+    logger.error({ err: e }, "[media/presign] presign_failed");
     return NextResponse.json({ ok: false, error: "presign_failed" }, { status: 500 });
   }
 }

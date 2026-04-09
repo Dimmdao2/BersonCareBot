@@ -160,6 +160,78 @@ describe("POST /api/media/upload", () => {
     expect(uploadMock).toHaveBeenCalledTimes(2);
   });
 
+  it("uploads DOCX when ZIP magic matches", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
+    uploadMock.mockResolvedValue({
+      record: { id: "mid-docx" },
+      url: "/api/media/mid-docx",
+    });
+    const docx = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x2a, 0x00]);
+    const fd = new FormData();
+    fd.set(
+      "file",
+      new File([docx], "x.docx", {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      }),
+    );
+    const res = await POST(new Request("http://localhost/api/media/upload", { method: "POST", body: fd }));
+    expect(res.status).toBe(200);
+    expect(uploadMock).toHaveBeenCalled();
+  });
+
+  it("uploads WebM when EBML magic matches", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
+    uploadMock.mockResolvedValue({
+      record: { id: "mid-webm" },
+      url: "/api/media/mid-webm",
+    });
+    const webm = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x86, 0x81]);
+    const fd = new FormData();
+    fd.set("file", new File([webm], "x.webm", { type: "video/webm" }));
+    const res = await POST(new Request("http://localhost/api/media/upload", { method: "POST", body: fd }));
+    expect(res.status).toBe(200);
+    expect(uploadMock).toHaveBeenCalled();
+  });
+
+  it("uploads HEIC when ftyp + heic brand match", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
+    uploadMock.mockResolvedValue({
+      record: { id: "mid-heic" },
+      url: "/api/media/mid-heic",
+    });
+    const heic = new Uint8Array(16);
+    heic.set([0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70], 0);
+    heic.set([0x68, 0x65, 0x69, 0x63], 8); // "heic"
+    const fd = new FormData();
+    fd.set("file", new File([heic], "x.heic", { type: "image/heic" }));
+    const res = await POST(new Request("http://localhost/api/media/upload", { method: "POST", body: fd }));
+    expect(res.status).toBe(200);
+    expect(uploadMock).toHaveBeenCalled();
+  });
+
+  it("uploads Ogg when OggS magic matches", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
+    uploadMock.mockResolvedValue({
+      record: { id: "mid-ogg" },
+      url: "/api/media/mid-ogg",
+    });
+    const ogg = new Uint8Array([0x4f, 0x67, 0x67, 0x53, 0x00, 0x02]);
+    const fd = new FormData();
+    fd.set("file", new File([ogg], "x.ogg", { type: "audio/ogg" }));
+    const res = await POST(new Request("http://localhost/api/media/upload", { method: "POST", body: fd }));
+    expect(res.status).toBe(200);
+    expect(uploadMock).toHaveBeenCalled();
+  });
+
+  it("returns 415 for WebM MIME with wrong magic", async () => {
+    sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
+    const fd = new FormData();
+    fd.set("file", new File([new Uint8Array([1, 2, 3, 4])], "x.webm", { type: "video/webm" }));
+    const res = await POST(new Request("http://localhost/api/media/upload", { method: "POST", body: fd }));
+    expect(res.status).toBe(415);
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
   it("returns detailed error for mixed batch", async () => {
     sessionMock.mockResolvedValue({ user: { id: "u1", role: "doctor" } });
     const fd = new FormData();

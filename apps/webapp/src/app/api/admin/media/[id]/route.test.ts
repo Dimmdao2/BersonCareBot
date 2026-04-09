@@ -72,6 +72,9 @@ describe("DELETE /api/admin/media/[id]", () => {
       },
     );
     expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; scheduled?: boolean };
+    expect(body.ok).toBe(true);
+    expect(body.scheduled).toBe(true);
     expect(deleteHardMock).toHaveBeenCalledWith(mediaId);
   });
 

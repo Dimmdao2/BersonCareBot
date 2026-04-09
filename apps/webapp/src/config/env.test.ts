@@ -47,9 +47,12 @@ describe("checkInsecureSecretsForStartup", () => {
     S3_ACCESS_KEY: "",
     S3_SECRET_KEY: "",
     S3_PUBLIC_BUCKET: "",
+    S3_PRIVATE_BUCKET: "",
     S3_REGION: "us-east-1",
     S3_FORCE_PATH_STYLE: false,
     TELEGRAM_BOT_USERNAME: "bersoncare_bot",
+    INTERNAL_JOB_SECRET: "",
+    LOG_LEVEL: "info",
   };
 
   it("throws when SESSION_COOKIE_SECRET is blacklisted and isTest is false", () => {

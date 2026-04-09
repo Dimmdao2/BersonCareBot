@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { logger } from "@/infra/logging/logger";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
 
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
     if (msg === "catalog_unavailable") {
       return NextResponse.json({ ok: false, error: "catalog_unavailable" }, { status: 503 });
     }
-    console.error("[booking/slots] getSlots failed:", err);
+    logger.error({ err }, "[booking/slots] getSlots failed");
     return NextResponse.json({ ok: false, error: "slots_unavailable" }, { status: 503 });
   }
 }

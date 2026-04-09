@@ -12,6 +12,7 @@ vi.mock("@/config/env", () => ({
     S3_ACCESS_KEY: "access",
     S3_SECRET_KEY: "secret",
     S3_PUBLIC_BUCKET: "public-bucket",
+    S3_PRIVATE_BUCKET: "private-bucket",
     S3_REGION: "us-east-1",
     S3_FORCE_PATH_STYLE: true,
   },
@@ -25,7 +26,6 @@ vi.mock("@/infra/repos/s3MediaStorage", () => ({
 
 vi.mock("@/infra/s3/client", () => ({
   s3ObjectKey: (mediaId: string, filename: string) => `media/${mediaId}/${filename}`,
-  s3PublicUrl: (key: string) => `https://fs.test/public-bucket/${key}`,
   presignPutUrl: (...args: unknown[]) => presignPutUrlMock(...args),
 }));
 
@@ -75,13 +75,12 @@ describe("POST /api/media/presign", () => {
       ok: boolean;
       mediaId: string;
       uploadUrl: string;
-      publicUrl: string;
-      key: string;
+      readUrl: string;
     };
     expect(json.ok).toBe(true);
     expect(json.uploadUrl).toBe("https://signed-put.example/upload");
-    expect(json.publicUrl).toContain("public-bucket");
-    expect(json.key).toMatch(/^media\/[0-9a-f-]{8}-[0-9a-f-]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/a\.png$/i);
+    expect(json.readUrl).toBe(`/api/media/${json.mediaId}`);
+    expect("key" in json).toBe(false);
     expect(insertPendingMock).toHaveBeenCalledWith(
       expect.objectContaining({
         id: expect.stringMatching(/^[0-9a-f-]{8}-[0-9a-f-]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),

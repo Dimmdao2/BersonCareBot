@@ -115,11 +115,11 @@
 
 - `/etc/systemd/system/bersoncarebot-webapp-prod.service`
 
-Эффективная конфигурация:
+Эффективная конфигурация (канон — **Next.js standalone**, как в [`deploy/systemd/bersoncarebot-webapp-prod.service`](../systemd/bersoncarebot-webapp-prod.service) и [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md); не `pnpm start`):
 
-- `WorkingDirectory=/opt/projects/bersoncarebot`
+- `WorkingDirectory=/opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp`
 - `EnvironmentFile=/opt/env/bersoncarebot/webapp.prod`
-- `ExecStart=/usr/bin/pnpm --dir /opt/projects/bersoncarebot/apps/webapp start`
+- `ExecStart=/usr/bin/node /opt/projects/bersoncarebot/apps/webapp/.next/standalone/apps/webapp/server.js`
 
 ---
 
@@ -224,24 +224,40 @@ client_max_body_size 55m;
 
 (Чуть выше лимита приложения ~50 MiB на файл; фактическую строку смотрите в `sudo nginx -T`.)
 
-**CMS медиа и S3 (MinIO):** основная загрузка идёт **напрямую в MinIO** (presigned PUT на `S3_ENDPOINT`), минуя nginx webapp. Для этого на бакете публичных файлов нужны **public-read** (скачивание) и **CORS** (браузерный PUT с `https://bersoncare.ru`). Без CORS presigned PUT из CMS упадёт с сетевой ошибкой.
+**CMS медиа и S3 (MinIO):** основная загрузка идёт **напрямую в MinIO** (presigned PUT на `S3_ENDPOINT`), минуя nginx webapp. Объекты по умолчанию попадают в **приватный** бакет (`S3_PRIVATE_BUCKET` в env webapp). Для браузерного PUT с `https://bersoncare.ru` на этом бакете обязателен **CORS** (методы `PUT`, `GET`, `HEAD`, origin приложения). Без CORS presigned PUT из CMS упадёт с сетевой ошибкой. Публичный анонимный GET с MinIO для CMS **не требуется**: отдача идёт через webapp (`GET /api/media/:id` → presigned redirect).
 
 Пример (MinIO Client `mc`; ключи — те же, что `S3_ACCESS_KEY` / `S3_SECRET_KEY` в env webapp):
 
 ```bash
 mc alias set myminio https://fs.bersonservices.ru "<ACCESS_KEY>" "<SECRET_KEY>"
-mc anonymous set download myminio/bersonservices-public
+mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 ```
 
-CORS (разрешить origin webapp, методы PUT/GET/HEAD): файл `cors.json` с правилом `CORSRules` (см. AWS-формат), затем:
+`cors.json` — правило `CORSRules` в формате AWS (как раньше для публичного бакета). Либо MinIO Console: Bucket → приватный бакет → Access / CORS.
 
-```bash
-mc cors set myminio/bersonservices-public /path/to/cors.json
+Опционально **`S3_PUBLIC_BUCKET`**: только если нужны прямые публичные URL или легаси; для него при необходимости отдельно `mc anonymous set download` и CORS.
+
+**Очередь удаления медиа:** после удаления из библиотеки строки помечаются в БД; фоновый воркер — `POST /api/internal/media-pending-delete/purge` с заголовком `Authorization: Bearer <INTERNAL_JOB_SECRET>`. Задайте **`INTERNAL_JOB_SECRET`** в env webapp и вызывайте endpoint по cron (например раз в минуту) **с того же хоста**, что и приложение: предпочтительно `curl` на `http://127.0.0.1:6200/api/internal/media-pending-delete/purge` (не на публичный `https://bersoncare.ru/...`, если включена блокировка ниже).
+
+**Рекомендация nginx:** ограничить префикс `/api/internal/` только loopback, чтобы endpoint не был доступен из интернета по Bearer (дополнительно к длинному секрету):
+
+```nginx
+location /api/internal/ {
+    allow 127.0.0.1;
+    deny all;
+    proxy_pass http://127.0.0.1:6200;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
 ```
 
-Либо MinIO Console: Bucket → `bersonservices-public` → Access / CORS.
+После такой настройки запрос к `/api/internal/` с внешнего IP даст **403 от nginx** — ожидаемо; cron должен ходить на `127.0.0.1:6200`.
 
-Проверка: `curl -I https://fs.bersonservices.ru/bersonservices-public/` — не `connection refused`. Env webapp: см. `S3_*` в `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
+**Проверка MinIO (ops):** скрипт [`check-s3.ts`](../apps/integrator/src/infra/scripts/check-s3.ts) — из **корня репозитория** с `pnpm exec tsx ...`, переменные `S3_*` в корневом `.env` должны совпадать по смыслу с именами бакетов в `webapp.prod` (не обязателен для runtime webapp).
+
+Проверка: `curl -I https://fs.bersonservices.ru/` — endpoint доступен. Имена бакетов и ключи env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
 
 **Кэширование (Next.js, мини-приложение):** после деплоя клиент должен получать **актуальный HTML** (со ссылками на новые hashed-чанки), а **`/_next/static/*`** — кэшироваться долго.
 
@@ -314,6 +330,8 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 - `ALLOWED_TELEGRAM_IDS=7924656602`
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
+
+**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`; опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
 
 **Auth (webapp):** Yandex OAuth и Telegram Login Widget **не** требуют новых ключей в `webapp.prod` — клиент OAuth и имя бота для виджета задаются в **`system_settings`** (admin scope) в БД webapp; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`. Секреты в env-файлы деплоя не добавлять.
 

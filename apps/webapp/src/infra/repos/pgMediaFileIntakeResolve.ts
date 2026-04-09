@@ -38,7 +38,7 @@ export async function resolveMediaFileForLfkAttachment(
     throw Object.assign(new Error("attachment_file_forbidden"), { code: "ATTACHMENT_FILE_FORBIDDEN" as const });
   }
   const st = row.status;
-  if (st === "pending" || st === "deleting") {
+  if (st === "pending" || st === "deleting" || st === "pending_delete") {
     throw Object.assign(new Error("attachment_file_not_ready"), { code: "ATTACHMENT_FILE_INVALID" as const });
   }
   if (!row.s3_key) {

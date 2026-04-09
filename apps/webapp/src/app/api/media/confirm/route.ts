@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { confirmMediaFileReady, getMediaRowForConfirm } from "@/infra/repos/s3MediaStorage";
-import { s3HeadObject, s3PublicUrl } from "@/infra/s3/client";
+import { s3HeadObject } from "@/infra/s3/client";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 
@@ -40,10 +40,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "missing_s3_key" }, { status: 500 });
   }
 
+  const appUrl = `/api/media/${parsed.data.mediaId}`;
+
   if (row.status === "ready") {
     return NextResponse.json({
       ok: true as const,
-      url: s3PublicUrl(row.s3_key),
+      url: appUrl,
       mediaId: parsed.data.mediaId,
     });
   }
@@ -63,17 +65,16 @@ export async function POST(request: Request) {
     if (again?.status === "ready" && again.s3_key) {
       return NextResponse.json({
         ok: true as const,
-        url: s3PublicUrl(again.s3_key),
+        url: appUrl,
         mediaId: parsed.data.mediaId,
       });
     }
     return NextResponse.json({ ok: false, error: "confirm_race" }, { status: 409 });
   }
 
-  const url = s3PublicUrl(row.s3_key);
   return NextResponse.json({
     ok: true as const,
-    url,
+    url: appUrl,
     mediaId: parsed.data.mediaId,
   });
 }

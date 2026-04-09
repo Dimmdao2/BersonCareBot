@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { putWithProgress, UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
 import { MediaCard } from "./MediaCard";
 import { MediaLightbox } from "./MediaLightbox";
@@ -49,9 +51,10 @@ type MediaListResponse = {
   nextOffset?: number;
 };
 
-type ViewMode = "grid" | "table";
+type ViewMode = "media" | "files";
 
-const VIEW_MODE_STORAGE_KEY = "doctor-media-library-view";
+const VIEW_MODE_STORAGE_KEY = "doctor-media-library-view-v2";
+const VIEW_MODE_LEGACY_KEY = "doctor-media-library-view";
 const PAGE_SIZE = 24;
 
 function formatSize(bytes: number): string {
@@ -87,7 +90,7 @@ export function MediaLibraryClient() {
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [isMobileUploadUi, setIsMobileUploadUi] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [viewMode, setViewMode] = useState<ViewMode>("files");
   const [isDragActive, setIsDragActive] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [copiedItemId, setCopiedItemId] = useState<string | null>(null);
@@ -97,6 +100,7 @@ export function MediaLibraryClient() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [s3DeleteQueueErrors, setS3DeleteQueueErrors] = useState<number | null>(null);
   const desktopUploadInputRef = useRef<HTMLInputElement | null>(null);
   const mobileFilesInputRef = useRef<HTMLInputElement | null>(null);
   const mobileCaptureInputRef = useRef<HTMLInputElement | null>(null);
@@ -137,18 +141,39 @@ export function MediaLibraryClient() {
   }, [searchParams, reloadKey]);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/media/delete-errors?limit=1", { credentials: "same-origin" })
+      .then(async (res) => {
+        const data = (await res.json()) as { ok?: boolean; total?: number };
+        if (!res.ok || !data.ok) return;
+        if (!cancelled) setS3DeleteQueueErrors(data.total ?? 0);
+      })
+      .catch(() => {
+        if (!cancelled) setS3DeleteQueueErrors(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px), (pointer: coarse)");
     const applyViewport = () => {
       const mobile = mq.matches;
       setIsMobileUploadUi(mobile);
       if (mobile) {
-        setViewMode("grid");
+        setViewMode("media");
       } else {
-        const savedView = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
-        if (savedView === "grid" || savedView === "table") {
+        let savedView = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+        if (!savedView) {
+          const legacy = window.localStorage.getItem(VIEW_MODE_LEGACY_KEY);
+          if (legacy === "grid") savedView = "media";
+          else if (legacy === "table") savedView = "files";
+        }
+        if (savedView === "media" || savedView === "files") {
           setViewMode(savedView);
         } else {
-          setViewMode("table");
+          setViewMode("files");
         }
       }
     };
@@ -393,7 +418,8 @@ export function MediaLibraryClient() {
               <DialogHeader>
                 <DialogTitle>Удалить файл?</DialogTitle>
                 <DialogDescription>
-                  Файл «{deleteItem.filename}» будет удалён из библиотеки и из хранилища. Это действие необратимо.
+                  Файл «{deleteItem.filename}» сразу пропадёт из библиотеки; окончательное удаление из хранилища
+                  выполняется в фоне на сервере.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
@@ -416,7 +442,8 @@ export function MediaLibraryClient() {
               <DialogHeader>
                 <DialogTitle>Файл используется в CMS</DialogTitle>
                 <DialogDescription>
-                  Этот файл всё ещё указан на страницах контента. Удаление может сломать ссылки.
+                  Этот файл всё ещё указан на страницах контента. Удаление может сломать ссылки. Файл сразу
+                  исчезнет из библиотеки; очистка в хранилище — в фоне.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 text-sm">
@@ -453,7 +480,7 @@ export function MediaLibraryClient() {
         ref={desktopUploadInputRef}
         type="file"
         multiple
-        accept="image/*,video/*,audio/*,application/pdf"
+        accept={FILE_INPUT_ACCEPT}
         className="sr-only"
         onChange={onUploadFile}
         disabled={uploading}
@@ -462,7 +489,7 @@ export function MediaLibraryClient() {
         ref={mobileFilesInputRef}
         type="file"
         multiple
-        accept="image/*,video/*,audio/*,application/pdf"
+        accept={FILE_INPUT_ACCEPT}
         className="sr-only"
         onChange={onUploadFile}
         disabled={uploading}
@@ -478,24 +505,37 @@ export function MediaLibraryClient() {
       />
 
       <div className="flex flex-wrap items-end gap-2">
+        {s3DeleteQueueErrors != null && s3DeleteQueueErrors > 0 ? (
+          <Link
+            href="/app/doctor/content/library/delete-errors"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 text-sm font-medium text-destructive hover:bg-destructive/15"
+          >
+            Ошибки удаления S3
+            <span className="rounded-full bg-destructive px-2 py-0.5 text-xs text-destructive-foreground">
+              {s3DeleteQueueErrors}
+            </span>
+          </Link>
+        ) : null}
         <div className="flex h-10 items-center rounded-md border border-input bg-background p-1">
           <Button
             type="button"
-            variant={viewMode === "grid" ? "default" : "ghost"}
+            variant={viewMode === "media" ? "default" : "ghost"}
             size="sm"
             className="h-8"
-            onClick={() => onChangeViewMode("grid")}
+            title="Плитка как в галерее"
+            onClick={() => onChangeViewMode("media")}
           >
-            Плитки
+            Медиа
           </Button>
           <Button
             type="button"
-            variant={viewMode === "table" ? "default" : "ghost"}
+            variant={viewMode === "files" ? "default" : "ghost"}
             size="sm"
             className="h-8"
-            onClick={() => onChangeViewMode("table")}
+            title="Список файлов"
+            onClick={() => onChangeViewMode("files")}
           >
-            Таблица
+            Файлы
           </Button>
         </div>
 
@@ -626,8 +666,8 @@ export function MediaLibraryClient() {
       {loading ? <p className="text-sm text-muted-foreground">Загрузка...</p> : null}
 
       {!loading &&
-        (viewMode === "grid" ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        (viewMode === "media" ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {items.map((item) => (
               <MediaCard
                 key={item.id}
@@ -642,9 +682,40 @@ export function MediaLibraryClient() {
               />
             ))}
             {items.length === 0 ? (
-              <div className="rounded-md border border-border px-3 py-6 text-center text-sm text-muted-foreground">
+              <div className="col-span-full rounded-md border border-border px-3 py-6 text-center text-sm text-muted-foreground">
                 Файлы не найдены
               </div>
+            ) : null}
+          </div>
+        ) : isMobileUploadUi ? (
+          <div className="flex flex-col divide-y rounded-md border border-border">
+            {items.map((item) => (
+              <div key={item.id} className="flex gap-3 p-3">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="truncate font-medium text-foreground">{item.filename}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {item.kind} · {formatSize(item.size)} · {formatDate(item.createdAt)}
+                  </span>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => void onCopyUrl(item)}>
+                    {copiedItemId === item.id ? "OK" : "URL"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-destructive text-destructive hover:bg-destructive/10"
+                    disabled={deletingId === item.id}
+                    onClick={() => openDeleteDialog(item)}
+                  >
+                    {deletingId === item.id ? "…" : "Удалить"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {items.length === 0 ? (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">Файлы не найдены</div>
             ) : null}
           </div>
         ) : (

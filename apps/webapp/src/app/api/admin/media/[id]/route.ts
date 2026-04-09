@@ -51,5 +51,10 @@ export async function DELETE(
   if (!deleted) {
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
-  return NextResponse.json({ ok: true, deleted: true, usage });
+  return NextResponse.json({
+    ok: true,
+    deleted: true,
+    scheduled: true,
+    usage,
+  });
 }

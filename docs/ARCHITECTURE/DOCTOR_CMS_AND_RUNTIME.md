@@ -3,6 +3,7 @@
 ## Маршруты CMS
 
 - **Хаб:** `/app/doctor/content` — левое меню (новости, мотивации, разделы, фильтр по разделам, библиотека) и список страниц контента.
+- **Медиа:** в контенте и библиотеке используются URL вида `/api/media/{uuid}`; файлы в приватном S3, отдача через webapp (редирект на presigned URL) при **входе пользователя** (same-origin cookie). См. `docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md` и `apps/webapp/src/app/api/api.md`.
 - **Фильтр по разделу:** query-параметр `section=<slug>` (slug из `content_sections`). Неизвестный slug обрабатывается как «все страницы» (устойчивость к удалённым разделам в закладках).
 - **Разделы (CRUD):** `/app/doctor/content/sections`, создание/редактирование страниц — `/new`, `/edit/[id]`.
 
@@ -21,7 +22,7 @@
 
 Используется:
 
-1. **Лог в stderr** — [`logServerRuntimeError`](../../apps/webapp/src/infra/logging/serverRuntimeLog.ts): одна строка JSON (`service`, `scope`, `digest`, `errName`, `errMessage`, `ts`) + stack отдельной строкой. В systemd/journald это видно как обычные записи сервиса `bersoncare-webapp` (или имя unit из [`SERVER CONVENTIONS`](SERVER%20CONVENTIONS.md)).
+1. **Лог в stderr** — [`logServerRuntimeError`](../../apps/webapp/src/infra/logging/serverRuntimeLog.ts): одна строка JSON (`service`, `scope`, `digest`, `errName`, `errMessage`, `ts`) + stack отдельной строкой. В systemd/journald это видно как записи unit **`bersoncarebot-webapp-prod.service`** (см. [`SERVER CONVENTIONS`](SERVER%20CONVENTIONS.md); поле `service` в JSON может отличаться от имени unit).
 2. **UI** — [`DataLoadFailureNotice`](../../apps/webapp/src/shared/ui/DataLoadFailureNotice.tsx): текст пользователю и **код `digest`** для поддержки; в `NODE_ENV === development` дополнительно текст ошибки в интерфейсе и `console.error` в браузере.
 
 Секреты и полные connection string в лог не пишутся.

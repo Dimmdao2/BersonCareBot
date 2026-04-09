@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { logger } from "@/infra/logging/logger";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
 
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
     if (msg === "city_not_found" || msg === "city_code_required") {
       return NextResponse.json({ ok: false, error: "city_not_found" }, { status: 404 });
     }
-    console.error("[booking/catalog/services]", err);
+    logger.error({ err }, "[booking/catalog/services] failed");
     return NextResponse.json({ ok: false, error: "catalog_unavailable" }, { status: 503 });
   }
 }

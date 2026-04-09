@@ -106,6 +106,11 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ?? "").trim()),
+  /** CMS / intake media objects (presign PUT, GetObject). Required when S3 media is enabled. */
+  S3_PRIVATE_BUCKET: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
   S3_REGION: z
     .string()
     .optional()
@@ -116,6 +121,16 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   /** Имя Telegram-бота без @ для deep-link t.me/… (привязка канала). */
   TELEGRAM_BOT_USERNAME: z.string().min(1).default("bersoncare_bot"),
+  /** Bearer token for POST /api/internal/* cron-style jobs. Empty → purge route returns 503. */
+  INTERNAL_JOB_SECRET: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
+  /** Pino log level (e.g. info, warn, error). */
+  LOG_LEVEL: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v.trim() : "info")),
 });
 
 const parsed = envSchema.parse({
@@ -146,17 +161,20 @@ const parsed = envSchema.parse({
   S3_ACCESS_KEY: process.env.S3_ACCESS_KEY,
   S3_SECRET_KEY: process.env.S3_SECRET_KEY,
   S3_PUBLIC_BUCKET: process.env.S3_PUBLIC_BUCKET,
+  S3_PRIVATE_BUCKET: process.env.S3_PRIVATE_BUCKET,
   S3_REGION: process.env.S3_REGION,
   S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
   TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME?.trim() || "bersoncare_bot",
+  INTERNAL_JOB_SECRET: process.env.INTERNAL_JOB_SECRET,
+  LOG_LEVEL: process.env.LOG_LEVEL,
 });
 
 export type EnvParsed = z.infer<typeof envSchema>;
 
-/** CMS media: S3 presign + PutObject when all required S3 env vars are set. */
+/** CMS media: S3 presign + PutObject when endpoint, keys, and private bucket are set. */
 export function isS3MediaEnabled(e: EnvParsed): boolean {
   return Boolean(
-    e.S3_ENDPOINT && e.S3_ACCESS_KEY && e.S3_SECRET_KEY && e.S3_PUBLIC_BUCKET,
+    e.S3_ENDPOINT && e.S3_ACCESS_KEY && e.S3_SECRET_KEY && e.S3_PRIVATE_BUCKET,
   );
 }
 

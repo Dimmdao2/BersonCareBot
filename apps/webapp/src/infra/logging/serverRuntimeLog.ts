@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { logger, serializeError } from "./logger";
 
 export type ServerRuntimeLogResult = {
   /** Короткий id для ссылки пользователем в поддержку; дублируется в JSON-логе. */
@@ -8,7 +9,7 @@ export type ServerRuntimeLogResult = {
 };
 
 /**
- * Структурированная запись в stderr (journald/systemd на хосте подхватывает как есть).
+ * Структурированная запись через pino (journald/systemd на хосте подхватывает stderr).
  * Не логируйте секреты и полные connection string.
  */
 export function logServerRuntimeError(
@@ -20,20 +21,17 @@ export function logServerRuntimeError(
   const name = err instanceof Error ? err.name : "UnknownError";
   const message = err instanceof Error ? err.message : String(err);
 
-  const line = JSON.stringify({
-    level: "error",
-    service: "bersoncare-webapp",
-    scope,
-    digest,
-    errName: name,
-    errMessage: message,
-    ts: new Date().toISOString(),
-    ...extra,
-  });
-  console.error(line);
-  if (err instanceof Error && err.stack) {
-    console.error(err.stack);
-  }
+  logger.error(
+    {
+      scope,
+      digest,
+      errName: name,
+      errMessage: message,
+      err: err instanceof Error ? err : serializeError(err),
+      ...extra,
+    },
+    "server_runtime_error",
+  );
 
   return { digest, name, message };
 }

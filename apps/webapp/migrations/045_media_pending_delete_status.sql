@@ -1,0 +1,4 @@
+-- Documented status values for media_files (no schema change: status is TEXT).
+-- pending_delete — queued for background S3 delete + row removal via POST /api/internal/media-pending-delete/purge
+--   and INTERNAL_JOB_SECRET; excluded from library list and GET /api/media/:id.
+-- deleting — legacy: older code could leave rows here if the process died mid-delete; purge treats deleting like pending_delete.

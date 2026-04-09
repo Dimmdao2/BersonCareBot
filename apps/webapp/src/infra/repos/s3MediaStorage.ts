@@ -1,13 +1,20 @@
+import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
-import {
-  s3DeleteObject,
-  s3ObjectKey,
-  s3PublicUrl,
-  s3PutObjectBody,
-} from "@/infra/s3/client";
+import { logger } from "@/infra/logging/logger";
+import { s3DeleteObject, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/infra/s3/client";
 import type { MediaStoragePort } from "@/modules/media/ports";
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
 import type { MediaListParams, MediaRecord, MediaUsageRef } from "@/modules/media/types";
+
+function mediaAppUrl(mediaId: string): string {
+  return `/api/media/${mediaId}`;
+}
+
+/** Rows visible in library / readable by GET (not pending upload, not delete pipeline). */
+export const MEDIA_READABLE_STATUS_SQL = `(status IS NULL OR status NOT IN ('pending', 'deleting', 'pending_delete'))`;
+
+/** Rows queued for background S3 removal (includes legacy `deleting` from pre-queue implementation). */
+const MEDIA_S3_PURGE_STATUS_SQL = `status IN ('pending_delete', 'deleting')`;
 
 function kindFromMime(mimeType: string): MediaRecord["kind"] {
   const lower = mimeType.toLowerCase();
@@ -56,7 +63,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         userId: params.userId ?? null,
         createdAt: now,
       };
-      return { record, url: s3PublicUrl(key) };
+      return { record, url: mediaAppUrl(id) };
     },
 
     async getById(id: string) {
@@ -70,7 +77,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         created_at: Date;
       }>(
         `SELECT id, original_name, mime_type, size_bytes, uploaded_by, created_at
-         FROM media_files WHERE id = $1::uuid AND (status IS NULL OR status NOT IN ('pending', 'deleting'))`,
+         FROM media_files WHERE id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL}`,
         [id],
       );
       const row = res.rows[0];
@@ -89,17 +96,17 @@ export function createS3MediaStoragePort(): MediaStoragePort {
     async getUrl(id: string) {
       const pool = getPool();
       const res = await pool.query<{ s3_key: string }>(
-        `SELECT s3_key FROM media_files WHERE id = $1::uuid AND s3_key IS NOT NULL AND (status IS NULL OR status NOT IN ('pending', 'deleting'))`,
+        `SELECT s3_key FROM media_files WHERE id = $1::uuid AND s3_key IS NOT NULL AND ${MEDIA_READABLE_STATUS_SQL}`,
         [id],
       );
       const row = res.rows[0];
       if (!row) return null;
-      return s3PublicUrl(row.s3_key);
+      return mediaAppUrl(id);
     },
 
     async list(params: MediaListParams) {
       const pool = getPool();
-      const where: string[] = [`(status IS NULL OR status NOT IN ('pending', 'deleting'))`];
+      const where: string[] = [MEDIA_READABLE_STATUS_SQL];
       const values: unknown[] = [];
       let n = 1;
 
@@ -164,7 +171,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         size: Number(row.size_bytes),
         userId: row.uploaded_by,
         createdAt: row.created_at.toISOString(),
-        url: s3PublicUrl(row.s3_key),
+        url: mediaAppUrl(row.id),
       }));
     },
 
@@ -176,7 +183,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         [mediaId],
       );
       const s3Key = keyRes.rows[0]?.s3_key ?? null;
-      const publicUrl = s3Key ? s3PublicUrl(s3Key) : null;
+      const publicUrl =
+        s3Key && env.S3_PUBLIC_BUCKET ? s3PublicUrl(s3Key) : null;
 
       const res = await pool.query<MediaUsageRef>(
         `SELECT id::text AS "pageId", slug AS "pageSlug", 'image_url'::text AS field
@@ -221,22 +229,17 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         const row = sel.rows[0];
         if (!row) return false;
 
-        await pool.query(`UPDATE media_files SET status = 'deleting' WHERE id = $1::uuid`, [mediaId]);
+        if (row.status === "pending_delete") {
+          return true;
+        }
 
         if (!row.s3_key) {
-          await pool.query(`UPDATE media_files SET status = $2 WHERE id = $1::uuid`, [mediaId, row.status]);
-          return false;
+          const del = await pool.query(`DELETE FROM media_files WHERE id = $1::uuid`, [mediaId]);
+          return (del.rowCount ?? 0) > 0;
         }
 
-        try {
-          await s3DeleteObject(row.s3_key);
-        } catch {
-          await pool.query(`UPDATE media_files SET status = $2 WHERE id = $1::uuid`, [mediaId, row.status]);
-          return false;
-        }
-
-        const del = await pool.query(`DELETE FROM media_files WHERE id = $1::uuid`, [mediaId]);
-        return (del.rowCount ?? 0) > 0;
+        await pool.query(`UPDATE media_files SET status = 'pending_delete' WHERE id = $1::uuid`, [mediaId]);
+        return true;
       } finally {
         await pool.query(`SELECT pg_advisory_unlock(hashtext($1))`, [mediaId]);
       }
@@ -297,12 +300,128 @@ export async function deletePendingMediaFileById(mediaId: string): Promise<boole
   return (res.rowCount ?? 0) > 0;
 }
 
-/** For GET /api/media/[id]: redirect to public object when row is S3-backed and not pending. */
+export type MediaDeleteErrorRow = {
+  id: string;
+  original_name: string;
+  delete_attempts: number;
+  next_attempt_at: string | null;
+  created_at: string;
+};
+
+/** Admin: rows stuck in delete queue with at least one failed S3 attempt. */
+export async function listMediaDeleteErrors(limit: number = 100): Promise<{ items: MediaDeleteErrorRow[]; total: number }> {
+  const pool = getPool();
+  const cap = Math.min(100, Math.max(1, limit));
+  const countRes = await pool.query<{ c: string }>(
+    `SELECT count(*)::text AS c FROM media_files
+     WHERE status IN ('pending_delete', 'deleting') AND COALESCE(delete_attempts, 0) > 0`,
+  );
+  const total = Number.parseInt(countRes.rows[0]?.c ?? "0", 10);
+  const res = await pool.query<MediaDeleteErrorRow>(
+    `SELECT id::text, original_name, COALESCE(delete_attempts, 0)::int AS delete_attempts,
+            next_attempt_at::text, created_at::text
+       FROM media_files
+      WHERE status IN ('pending_delete', 'deleting') AND COALESCE(delete_attempts, 0) > 0
+      ORDER BY delete_attempts DESC, id ASC
+      LIMIT $1`,
+    [cap],
+  );
+  return { items: res.rows, total };
+}
+
+/** For GET /api/media/[id]: S3 key when row may be redirected (presigned GET to private bucket). */
 export async function getMediaS3KeyForRedirect(id: string): Promise<string | null> {
   const pool = getPool();
   const res = await pool.query<{ s3_key: string | null }>(
-    `SELECT s3_key FROM media_files WHERE id = $1::uuid AND s3_key IS NOT NULL AND (status IS NULL OR status NOT IN ('pending', 'deleting'))`,
+    `SELECT s3_key FROM media_files WHERE id = $1::uuid AND s3_key IS NOT NULL AND ${MEDIA_READABLE_STATUS_SQL}`,
     [id],
   );
   return res.rows[0]?.s3_key ?? null;
+}
+
+export type PurgePendingMediaDeleteBatchResult = {
+  /** Rows fully removed (S3 delete + DB delete, or orphan cleanup). */
+  removed: number;
+  /** Rows where S3 delete failed in this run (retry scheduled). */
+  errors: number;
+};
+
+/**
+ * Background worker: delete S3 objects and DB rows for media in `pending_delete` or stuck `deleting`.
+ * On S3 failure: increments `delete_attempts`, sets `next_attempt_at` with exponential backoff (cap 1 day).
+ */
+export async function purgePendingMediaDeleteBatch(
+  limit: number = 25,
+): Promise<PurgePendingMediaDeleteBatchResult> {
+  const pool = getPool();
+  const take = Math.max(1, Math.min(50, limit));
+  let removed = 0;
+  let errors = 0;
+
+  for (let i = 0; i < take; i++) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows } = await client.query<{ id: string; s3_key: string; status: string | null; delete_attempts: number | null }>(
+        `SELECT id, s3_key, status, COALESCE(delete_attempts, 0) AS delete_attempts FROM media_files
+         WHERE ${MEDIA_S3_PURGE_STATUS_SQL} AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0
+         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+         ORDER BY id ASC
+         LIMIT 1
+         FOR UPDATE SKIP LOCKED`,
+      );
+      if (rows.length === 0) {
+        await client.query("COMMIT");
+        break;
+      }
+
+      const row = rows[0]!;
+      if (row.status !== "pending_delete" && row.status !== "deleting") {
+        await client.query("ROLLBACK");
+        continue;
+      }
+
+      try {
+        await s3DeleteObject(row.s3_key);
+      } catch (e) {
+        const prevAttempts = row.delete_attempts ?? 0;
+        const exp = Math.min(prevAttempts + 1, 20);
+        const minutes = Math.min(1440, Math.pow(2, exp));
+        await client.query(
+          `UPDATE media_files SET
+             delete_attempts = delete_attempts + 1,
+             next_attempt_at = now() + ($2::numeric * interval '1 minute')
+           WHERE id = $1::uuid`,
+          [row.id, minutes],
+        );
+        await client.query("COMMIT");
+        errors += 1;
+        logger.error({ err: e, mediaId: row.id }, "[purgePendingMediaDeleteBatch] s3 delete failed");
+        continue;
+      }
+
+      const del = await client.query(
+        `DELETE FROM media_files WHERE id = $1::uuid AND ${MEDIA_S3_PURGE_STATUS_SQL}`,
+        [row.id],
+      );
+      await client.query("COMMIT");
+      if ((del.rowCount ?? 0) > 0) removed += 1;
+    } catch (e) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        /* ignore */
+      }
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  const orphan = await pool.query(
+    `DELETE FROM media_files WHERE ${MEDIA_S3_PURGE_STATUS_SQL} AND (s3_key IS NULL OR trim(s3_key) = '')`,
+  );
+  removed += orphan.rowCount ?? 0;
+
+  return { removed, errors };
 }

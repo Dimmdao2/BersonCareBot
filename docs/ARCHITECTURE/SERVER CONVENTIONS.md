@@ -119,7 +119,7 @@
 
 **Загрузка файлов:** для vhost webapp при **прокси-загрузке** (`POST /api/media/upload`, например markdown-тулбар) нужен `client_max_body_size` (рекомендация `55m` — см. `deploy/HOST_DEPLOY_README.md`). Основная библиотека медиа грузит файлы **напрямую в MinIO** (presigned URL); лимит nginx webapp на эти запросы не действует.
 
-**S3 / MinIO (webapp):** при заданных `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PUBLIC_BUCKET` медиа пишется в публичный бакет; в БД хранятся метаданные и `s3_key`. Ключи env (имена): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PUBLIC_BUCKET`, `S3_REGION` (часто `us-east-1`), `S3_FORCE_PATH_STYLE` (`true` для MinIO). На бакете: **public-read** для GET и **CORS** с origin `https://bersoncare.ru` и методами `PUT`, `GET`, `HEAD` — иначе браузерная загрузка не сработает. Подробные команды: `deploy/HOST_DEPLOY_README.md` (Nginx → Webapp, блок про MinIO).
+**S3 / MinIO (webapp):** для библиотеки CMS и `media_files` обязательны `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** — объекты пишутся в **приватный** бакет; отдача через `GET /api/media/:id` (редирект на presigned GET) при **активной сессии** (без сессии — `401`). **`S3_PUBLIC_BUCKET`** опционален (легаси-URL в контенте, возможные будущие публичные ассеты). Ключи env (имена): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PRIVATE_BUCKET`, `S3_PUBLIC_BUCKET`, `S3_REGION` (часто `us-east-1`), `S3_FORCE_PATH_STYLE` (`true` для MinIO). Опционально **`LOG_LEVEL`** — уровень логов pino в webapp. На **приватном** бакете для presigned PUT из браузера нужен **CORS** с origin `https://bersoncare.ru` и методами `PUT`, `GET`, `HEAD` (аналогично прежней настройке публичного бакета). Фоновое удаление объектов: cron вызывает `POST /api/internal/media-pending-delete/purge` с `Authorization: Bearer <INTERNAL_JOB_SECRET>` — в `webapp.prod` задаётся имя ключа **`INTERNAL_JOB_SECRET`** (значение — секрет, в документ не вносить). Подробности: `deploy/HOST_DEPLOY_README.md` (MinIO), `docs/REPORTS/S3_PRIVATE_MEDIA_EXECUTION_LOG.md`.
 
 ### Production env: подтвержденные ключи
 
@@ -165,6 +165,9 @@
 - `ALLOWED_TELEGRAM_IDS=7924656602`
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
+- `S3_*` — см. блок «S3 / MinIO» выше (`S3_PRIVATE_BUCKET` и др.; приватный бакет для CMS-медиа).
+- `INTERNAL_JOB_SECRET` — опционально; если задан, позволяет cron дергать purge очереди удаления медиа (см. отчёт S3 private media).
+- `LOG_LEVEL` — опционально (pino в webapp; по умолчанию в коде `info`).
 
 Для обычного runtime webapp **не нужно** хранить integrator DB в `webapp.prod`.
 

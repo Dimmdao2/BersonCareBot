@@ -1,6 +1,7 @@
 /**
  * Verifies S3/MinIO file server connectivity using env S3_*.
  * Run from project root: pnpm exec tsx src/infra/scripts/check-s3.ts
+ * (loads root `.env`; bucket names should match webapp `webapp.prod` for production checks — see deploy/HOST_DEPLOY_README.md).
  */
 import { config } from 'dotenv';
 import { resolve } from 'path';

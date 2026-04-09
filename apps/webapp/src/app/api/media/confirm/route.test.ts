@@ -12,6 +12,7 @@ vi.mock("@/config/env", () => ({
     S3_ACCESS_KEY: "access",
     S3_SECRET_KEY: "secret",
     S3_PUBLIC_BUCKET: "public-bucket",
+    S3_PRIVATE_BUCKET: "private-bucket",
     S3_REGION: "us-east-1",
     S3_FORCE_PATH_STYLE: true,
   },
@@ -24,7 +25,6 @@ vi.mock("@/infra/repos/s3MediaStorage", () => ({
 }));
 
 vi.mock("@/infra/s3/client", () => ({
-  s3PublicUrl: (key: string) => `https://fs.test/public-bucket/${key}`,
   s3HeadObject: (...args: unknown[]) => headMock(...args),
 }));
 
@@ -83,7 +83,7 @@ describe("POST /api/media/confirm", () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as { ok: boolean; url: string };
     expect(json.ok).toBe(true);
-    expect(json.url).toBe("https://fs.test/public-bucket/media/x/f.png");
+    expect(json.url).toBe("/api/media/00000000-0000-4000-8000-000000000099");
     expect(confirmReadyMock).not.toHaveBeenCalled();
   });
 
@@ -116,7 +116,7 @@ describe("POST /api/media/confirm", () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as { ok: boolean; url: string };
     expect(json.ok).toBe(true);
-    expect(json.url).toBe("https://fs.test/public-bucket/media/x/f.png");
+    expect(json.url).toBe("/api/media/00000000-0000-4000-8000-000000000003");
     expect(confirmReadyMock).toHaveBeenCalledWith("00000000-0000-4000-8000-000000000003");
   });
 

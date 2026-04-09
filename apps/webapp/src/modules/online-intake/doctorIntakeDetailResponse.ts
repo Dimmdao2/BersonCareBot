@@ -1,5 +1,6 @@
+import { env, isS3MediaEnabled } from "@/config/env";
+import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 import { presignGetUrl, s3PublicUrl } from "@/infra/s3/client";
-import { env } from "@/config/env";
 import { NUTRITION_QUESTIONS } from "@/modules/online-intake/types";
 import type { IntakeRequestFullWithPatientIdentity } from "@/modules/online-intake/types";
 
@@ -37,15 +38,18 @@ export type DoctorOnlineIntakeDetailJson = {
   }>;
 };
 
-function s3Configured(): boolean {
-  return Boolean(env.S3_ENDPOINT && env.S3_PUBLIC_BUCKET && env.S3_ACCESS_KEY && env.S3_SECRET_KEY);
-}
-
-async function urlForIntakeS3Key(s3Key: string): Promise<string> {
-  if (s3Configured()) {
+/** Presigned or public URL; `null` if S3 is misconfigured (no private and no public bucket for legacy URL). */
+async function urlForIntakeS3Key(s3Key: string): Promise<string | null> {
+  if (isS3MediaEnabled(env)) {
     return presignGetUrl(s3Key);
   }
-  return s3PublicUrl(s3Key);
+  if (env.S3_ENDPOINT && env.S3_PUBLIC_BUCKET) {
+    return s3PublicUrl(s3Key);
+  }
+  logServerRuntimeError("online_intake_s3_url", new Error("intake_s3_url_misconfigured"), {
+    keyKind: s3Key.startsWith("media/") ? "media" : "other",
+  });
+  return null;
 }
 
 export async function buildDoctorOnlineIntakeDetailResponse(
@@ -76,7 +80,7 @@ export async function buildDoctorOnlineIntakeDetailResponse(
       if (a.attachmentType === "url" && a.url) {
         attachmentUrls.push(a.url);
       } else if (a.attachmentType === "file" && a.s3Key) {
-        const url = await urlForIntakeS3Key(a.s3Key);
+        const url = (await urlForIntakeS3Key(a.s3Key)) ?? "";
         attachmentFiles.push({
           id: a.id,
           url,

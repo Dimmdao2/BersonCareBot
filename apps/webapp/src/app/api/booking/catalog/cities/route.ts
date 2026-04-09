@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { logger } from "@/infra/logging/logger";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessPatient } from "@/modules/roles/service";
 
@@ -20,7 +21,7 @@ export async function GET() {
     const cities = await deps.bookingCatalog.listCitiesForPatient();
     return NextResponse.json({ ok: true, cities }, { status: 200 });
   } catch (err) {
-    console.error("[booking/catalog/cities]", err);
+    logger.error({ err }, "[booking/catalog/cities] failed");
     return NextResponse.json({ ok: false, error: "catalog_unavailable" }, { status: 503 });
   }
 }

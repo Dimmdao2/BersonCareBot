@@ -8,9 +8,9 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "@/config/env";
 
-const PRESIGN_EXPIRES_SEC = 900;
-/** Doctor intake file download (contract: ~1h). */
-const PRESIGN_GET_INTAKE_ATTACHMENT_SEC = 3600;
+const PRESIGN_PUT_EXPIRES_SEC = 900;
+/** Browser / patient media redirect and doctor intake download. */
+const PRESIGN_GET_DEFAULT_SEC = 3600;
 const S3_KEY_PREFIX = "media";
 
 let clientSingleton: S3Client | null = null;
@@ -30,6 +30,10 @@ export function getS3Client(): S3Client {
   return clientSingleton;
 }
 
+function privateBucket(): string {
+  return env.S3_PRIVATE_BUCKET;
+}
+
 /** Sanitize original filename for object key segment. */
 export function sanitizeMediaFilename(name: string): string {
   const base = name.replace(/\.\./g, "").replace(/\s+/g, "_").slice(0, 200);
@@ -42,30 +46,35 @@ export function s3ObjectKey(mediaId: string, filename: string): string {
   return `${S3_KEY_PREFIX}/${mediaId}/${safe}`;
 }
 
-/** Public GET URL for path-style MinIO: https://endpoint/bucket/key */
+/**
+ * Direct public object URL (path-style MinIO). Use only for legacy content matching in findUsage
+ * or optional future CDN assets when S3_PUBLIC_BUCKET is set.
+ */
 export function s3PublicUrl(key: string): string {
   const base = env.S3_ENDPOINT.replace(/\/$/, "");
   const bucket = env.S3_PUBLIC_BUCKET;
   return `${base}/${bucket}/${key}`;
 }
 
+/** Presigned PUT for CMS / patient uploads into the private bucket. */
 export async function presignPutUrl(key: string, mimeType: string): Promise<string> {
   const client = getS3Client();
   const cmd = new PutObjectCommand({
-    Bucket: env.S3_PUBLIC_BUCKET,
+    Bucket: privateBucket(),
     Key: key,
     ContentType: mimeType,
   });
-  return getSignedUrl(client, cmd, { expiresIn: PRESIGN_EXPIRES_SEC });
+  return getSignedUrl(client, cmd, { expiresIn: PRESIGN_PUT_EXPIRES_SEC });
 }
 
+/** Presigned GET for objects stored under S3_PRIVATE_BUCKET (media_files, intake attachments). */
 export async function presignGetUrl(
   key: string,
-  expiresSec: number = PRESIGN_GET_INTAKE_ATTACHMENT_SEC,
+  expiresSec: number = PRESIGN_GET_DEFAULT_SEC,
 ): Promise<string> {
   const client = getS3Client();
   const cmd = new GetObjectCommand({
-    Bucket: env.S3_PUBLIC_BUCKET,
+    Bucket: privateBucket(),
     Key: key,
   });
   return getSignedUrl(client, cmd, { expiresIn: expiresSec });
@@ -76,7 +85,7 @@ export async function s3HeadObject(key: string): Promise<boolean> {
   try {
     await client.send(
       new HeadObjectCommand({
-        Bucket: env.S3_PUBLIC_BUCKET,
+        Bucket: privateBucket(),
         Key: key,
       }),
     );
@@ -86,15 +95,11 @@ export async function s3HeadObject(key: string): Promise<boolean> {
   }
 }
 
-export async function s3PutObjectBody(
-  key: string,
-  body: Buffer,
-  mimeType: string,
-): Promise<void> {
+export async function s3PutObjectBody(key: string, body: Buffer, mimeType: string): Promise<void> {
   const client = getS3Client();
   await client.send(
     new PutObjectCommand({
-      Bucket: env.S3_PUBLIC_BUCKET,
+      Bucket: privateBucket(),
       Key: key,
       Body: body,
       ContentType: mimeType,
@@ -106,7 +111,7 @@ export async function s3DeleteObject(key: string): Promise<void> {
   const client = getS3Client();
   await client.send(
     new DeleteObjectCommand({
-      Bucket: env.S3_PUBLIC_BUCKET,
+      Bucket: privateBucket(),
       Key: key,
     }),
   );
