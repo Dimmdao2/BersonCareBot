@@ -9,6 +9,7 @@ type MediaItem = {
   kind: "image" | "video" | "audio" | "file";
   mimeType: string;
   filename: string;
+  displayName?: string | null;
   size: number;
   createdAt: string;
   url: string;
@@ -23,10 +24,11 @@ type Props = {
 };
 
 export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Props) {
+  const title = item ? item.displayName?.trim() || item.filename : "Просмотр файла";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[95vw] max-w-5xl overflow-auto">
-        <DialogTitle>{item?.filename ?? "Просмотр файла"}</DialogTitle>
+        <DialogTitle>{title}</DialogTitle>
         {!item ? null : (
           <div className="flex flex-col gap-3">
             {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (

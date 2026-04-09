@@ -12,6 +12,7 @@ function mediaAppUrl(mediaId: string): string {
 
 /** Rows visible in library / readable by GET (not pending upload, not delete pipeline). */
 export const MEDIA_READABLE_STATUS_SQL = `(status IS NULL OR status NOT IN ('pending', 'deleting', 'pending_delete'))`;
+const MEDIA_READABLE_STATUS_SQL_M = `(m.status IS NULL OR m.status NOT IN ('pending', 'deleting', 'pending_delete'))`;
 
 /** Rows queued for background S3 removal (includes legacy `deleting` from pre-queue implementation). */
 const MEDIA_S3_PURGE_STATUS_SQL = `status IN ('pending_delete', 'deleting')`;
@@ -59,6 +60,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         kind: kindFromMime(params.mimeType),
         mimeType: params.mimeType,
         filename: params.filename,
+        displayName: null,
         size: body.byteLength,
         userId: params.userId ?? null,
         createdAt: now,
@@ -71,13 +73,17 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       const res = await pool.query<{
         id: string;
         original_name: string;
+        display_name: string | null;
         mime_type: string;
         size_bytes: string;
         uploaded_by: string | null;
+        uploaded_by_name: string | null;
         created_at: Date;
       }>(
-        `SELECT id, original_name, mime_type, size_bytes, uploaded_by, created_at
-         FROM media_files WHERE id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL}`,
+        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by, pu.display_name AS uploaded_by_name, m.created_at
+         FROM media_files m
+         LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
+         WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
         [id],
       );
       const row = res.rows[0];
@@ -87,8 +93,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         kind: kindFromMime(row.mime_type),
         mimeType: row.mime_type,
         filename: row.original_name,
+        displayName: row.display_name,
         size: parseInt(row.size_bytes, 10),
         userId: row.uploaded_by,
+        uploadedByName: row.uploaded_by_name,
         createdAt: row.created_at.toISOString(),
       };
     },
@@ -106,19 +114,19 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
     async list(params: MediaListParams) {
       const pool = getPool();
-      const where: string[] = [MEDIA_READABLE_STATUS_SQL];
+      const where: string[] = [MEDIA_READABLE_STATUS_SQL_M];
       const values: unknown[] = [];
       let n = 1;
 
       if (params.kind && params.kind !== "all") {
         const byKind: Record<Exclude<MediaRecord["kind"], "file">, string> = {
-          image: "mime_type LIKE 'image/%'",
-          video: "mime_type LIKE 'video/%'",
-          audio: "mime_type LIKE 'audio/%'",
+          image: "m.mime_type LIKE 'image/%'",
+          video: "m.mime_type LIKE 'video/%'",
+          audio: "m.mime_type LIKE 'audio/%'",
         };
         if (params.kind === "file") {
           where.push(
-            `NOT (mime_type LIKE 'image/%' OR mime_type LIKE 'video/%' OR mime_type LIKE 'audio/%')`,
+            `NOT (m.mime_type LIKE 'image/%' OR m.mime_type LIKE 'video/%' OR m.mime_type LIKE 'audio/%')`,
           );
         } else {
           where.push(byKind[params.kind]);
@@ -127,16 +135,17 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
       const q = params.query?.trim();
       if (q) {
-        where.push(`original_name ILIKE $${n++}`);
+        where.push(`(m.display_name ILIKE $${n} OR m.original_name ILIKE $${n})`);
         values.push(`%${q}%`);
+        n += 1;
       }
 
       const sortCol: Record<NonNullable<MediaListParams["sortBy"]>, string> = {
-        createdAt: "created_at",
-        size: "size_bytes",
-        kind: "mime_type",
+        createdAt: "m.created_at",
+        size: "m.size_bytes",
+        kind: "m.mime_type",
       };
-      const sortBy = params.sortBy ? sortCol[params.sortBy] : "created_at";
+      const sortBy = params.sortBy ? sortCol[params.sortBy] : "m.created_at";
       const sortDir = params.sortDir === "asc" ? "ASC" : "DESC";
       const limit = Math.max(1, Math.min(200, params.limit ?? 50));
       const offset = Math.max(0, params.offset ?? 0);
@@ -149,16 +158,19 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       const res = await pool.query<{
         id: string;
         original_name: string;
+        display_name: string | null;
         mime_type: string;
         size_bytes: number | string;
         uploaded_by: string | null;
+        uploaded_by_name: string | null;
         created_at: Date;
         s3_key: string;
       }>(
-        `SELECT id, original_name, mime_type, size_bytes, uploaded_by, created_at, s3_key
-         FROM media_files
-         ${whereSql} AND s3_key IS NOT NULL
-         ORDER BY ${sortBy} ${sortDir}, id ${sortDir}
+        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by, pu.display_name AS uploaded_by_name, m.created_at, m.s3_key
+         FROM media_files m
+         LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
+         ${whereSql} AND m.s3_key IS NOT NULL
+         ORDER BY ${sortBy} ${sortDir}, m.id ${sortDir}
          LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
         values,
       );
@@ -168,11 +180,25 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         kind: kindFromMime(row.mime_type),
         mimeType: row.mime_type,
         filename: row.original_name,
+        displayName: row.display_name,
         size: Number(row.size_bytes),
         userId: row.uploaded_by,
+        uploadedByName: row.uploaded_by_name,
         createdAt: row.created_at.toISOString(),
         url: mediaAppUrl(row.id),
       }));
+    },
+
+    async updateDisplayName(mediaId: string, displayName: string | null) {
+      const pool = getPool();
+      const normalized = displayName?.trim() || null;
+      const res = await pool.query(
+        `UPDATE media_files m
+            SET display_name = $2
+          WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
+        [mediaId, normalized],
+      );
+      return (res.rowCount ?? 0) > 0;
     },
 
     async findUsage(mediaId: string): Promise<MediaUsageRef[]> {

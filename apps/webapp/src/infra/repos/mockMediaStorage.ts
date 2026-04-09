@@ -34,6 +34,7 @@ export const mockMediaStoragePort: MediaStoragePort = {
       kind: kindFromMime(params.mimeType),
       mimeType: params.mimeType,
       filename: params.filename,
+      displayName: null,
       size: body.byteLength,
       userId: params.userId ?? null,
       createdAt: now,
@@ -59,7 +60,10 @@ export const mockMediaStoragePort: MediaStoragePort = {
       .map((item) => item.record)
       .filter((item) => {
         if (params.kind && params.kind !== "all" && item.kind !== params.kind) return false;
-        if (q && !item.filename.toLowerCase().includes(q)) return false;
+        if (q) {
+          const name = (item.displayName?.trim() || item.filename).toLowerCase();
+          if (!name.includes(q) && !item.filename.toLowerCase().includes(q)) return false;
+        }
         return true;
       });
 
@@ -74,6 +78,16 @@ export const mockMediaStoragePort: MediaStoragePort = {
     const offset = Math.max(0, params.offset ?? 0);
     const limit = Math.max(1, Math.min(200, params.limit ?? 50));
     return filtered.slice(offset, offset + limit);
+  },
+
+  async updateDisplayName(mediaId, displayName) {
+    const stored = store.get(mediaId);
+    if (!stored) return false;
+    stored.record = {
+      ...stored.record,
+      displayName: displayName?.trim() ? displayName.trim() : null,
+    };
+    return true;
   },
 
   async findUsage(_mediaId): Promise<MediaUsageRef[]> {

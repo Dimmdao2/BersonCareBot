@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { EllipsisVertical } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { putWithProgress, UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
@@ -27,7 +37,10 @@ type MediaItem = {
   kind: "image" | "video" | "audio" | "file";
   mimeType: string;
   filename: string;
+  displayName?: string | null;
   size: number;
+  userId?: string | null;
+  uploadedByName?: string | null;
   createdAt: string;
   url: string;
 };
@@ -79,6 +92,12 @@ type DeleteDialogState =
   | { item: MediaItem; phase: "confirm" }
   | { item: MediaItem; phase: "in_use"; usage: UsageRef[] };
 
+type RenameDialogState = null | { item: MediaItem; nextDisplayName: string };
+
+function mediaTitle(item: MediaItem): string {
+  return item.displayName?.trim() || item.filename;
+}
+
 export function MediaLibraryClient() {
   const [kind, setKind] = useState<MediaKindFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("date");
@@ -100,8 +119,12 @@ export function MediaLibraryClient() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(null);
+  const [renameDialog, setRenameDialog] = useState<RenameDialogState>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [s3DeleteQueueErrors, setS3DeleteQueueErrors] = useState<number | null>(null);
+  const [resolutionById, setResolutionById] = useState<Record<string, string>>({});
+  const resolutionInFlightRef = useRef<Set<string>>(new Set());
   const desktopUploadInputRef = useRef<HTMLInputElement | null>(null);
   const mobileFilesInputRef = useRef<HTMLInputElement | null>(null);
   const mobileCaptureInputRef = useRef<HTMLInputElement | null>(null);
@@ -182,6 +205,59 @@ export function MediaLibraryClient() {
     mq.addEventListener("change", applyViewport);
     return () => mq.removeEventListener("change", applyViewport);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    for (const item of items) {
+      if (item.kind !== "image" && item.kind !== "video") continue;
+      if (resolutionById[item.id]) continue;
+      if (resolutionInFlightRef.current.has(item.id)) continue;
+      resolutionInFlightRef.current.add(item.id);
+
+      if (item.kind === "image") {
+        const img = new Image();
+        img.onload = () => {
+          resolutionInFlightRef.current.delete(item.id);
+          if (cancelled) return;
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            setResolutionById((prev) => ({ ...prev, [item.id]: `${img.naturalWidth}x${img.naturalHeight}` }));
+            return;
+          }
+          setResolutionById((prev) => ({ ...prev, [item.id]: "—" }));
+        };
+        img.onerror = () => {
+          resolutionInFlightRef.current.delete(item.id);
+          if (cancelled) return;
+          setResolutionById((prev) => ({ ...prev, [item.id]: "—" }));
+        };
+        img.src = item.url;
+      } else {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.onloadedmetadata = () => {
+          resolutionInFlightRef.current.delete(item.id);
+          if (cancelled) return;
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            setResolutionById((prev) => ({ ...prev, [item.id]: `${video.videoWidth}x${video.videoHeight}` }));
+          } else {
+            setResolutionById((prev) => ({ ...prev, [item.id]: "—" }));
+          }
+          video.remove();
+        };
+        video.onerror = () => {
+          resolutionInFlightRef.current.delete(item.id);
+          if (!cancelled) {
+            setResolutionById((prev) => ({ ...prev, [item.id]: "—" }));
+          }
+          video.remove();
+        };
+        video.src = item.url;
+      }
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [items, resolutionById]);
 
   function onChangeViewMode(nextMode: ViewMode) {
     setViewMode(nextMode);
@@ -375,6 +451,44 @@ export function MediaLibraryClient() {
     setDeleteDialog({ item, phase: "confirm" });
   }
 
+  function openRenameDialog(item: MediaItem) {
+    setRenameDialog({
+      item,
+      nextDisplayName: item.displayName?.trim() || "",
+    });
+  }
+
+  async function executeRename() {
+    if (!renameDialog) return;
+    const item = renameDialog.item;
+    const nextDisplayName = renameDialog.nextDisplayName;
+    setRenamingId(item.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/media/${item.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displayName: nextDisplayName }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; displayName?: string | null };
+      if (!res.ok || !data.ok) throw new Error("rename_failed");
+      setItems((prev) =>
+        prev.map((entry) => (entry.id === item.id ? { ...entry, displayName: data.displayName ?? null } : entry)),
+      );
+      setRenameDialog(null);
+    } catch {
+      setError("Не удалось переименовать файл");
+    } finally {
+      setRenamingId(null);
+    }
+  }
+
+  function resolutionText(item: MediaItem): string {
+    if (item.kind !== "image" && item.kind !== "video") return "—";
+    return resolutionById[item.id] ?? "определяется...";
+  }
+
   async function executeDelete(force: boolean) {
     if (!deleteDialog) return;
     const item = deleteDialog.item;
@@ -419,7 +533,7 @@ export function MediaLibraryClient() {
               <DialogHeader>
                 <DialogTitle>Удалить файл?</DialogTitle>
                 <DialogDescription>
-                  Файл «{deleteItem.filename}» сразу пропадёт из библиотеки; окончательное удаление из хранилища
+                  Файл «{mediaTitle(deleteItem)}» сразу пропадёт из библиотеки; окончательное удаление из хранилища
                   выполняется в фоне на сервере.
                 </DialogDescription>
               </DialogHeader>
@@ -471,6 +585,45 @@ export function MediaLibraryClient() {
                   onClick={() => void executeDelete(true)}
                 >
                   {deletingId === deleteItem.id ? "Удаление..." : "Удалить всё равно"}
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={renameDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenameDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton={renamingId === null}>
+          {renameDialog ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Переименовать файл</DialogTitle>
+                <DialogDescription>
+                  Измените отображаемое название для библиотеки. Исходное имя файла в хранилище не меняется.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Input
+                  value={renameDialog.nextDisplayName}
+                  maxLength={180}
+                  onChange={(e) => setRenameDialog((curr) => (curr ? { ...curr, nextDisplayName: e.target.value } : curr))}
+                  placeholder={renameDialog.item.filename}
+                  disabled={renamingId !== null}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Оставьте пустым, чтобы показывать исходное имя: {renameDialog.item.filename}
+                </p>
+              </div>
+              <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setRenameDialog(null)} disabled={renamingId !== null}>
+                  Отмена
+                </Button>
+                <Button type="button" disabled={renamingId !== null} onClick={() => void executeRename()}>
+                  {renamingId === renameDialog.item.id ? "Сохранение..." : "Сохранить"}
                 </Button>
               </DialogFooter>
             </>
@@ -675,8 +828,10 @@ export function MediaLibraryClient() {
                 item={item}
                 deleting={deletingId === item.id}
                 copied={copiedItemId === item.id}
+                resolutionText={resolutionText(item)}
                 onOpenPreview={() => openLightboxByItemId(item.id)}
                 onDelete={() => openDeleteDialog(item)}
+                onRename={() => openRenameDialog(item)}
                 onCopyUrl={() => void onCopyUrl(item)}
                 formatSize={formatSize}
                 formatDate={formatDate}
@@ -693,25 +848,48 @@ export function MediaLibraryClient() {
             {items.map((item) => (
               <div key={item.id} className="flex gap-3 p-3">
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="truncate font-medium text-foreground">{item.filename}</span>
+                  <span className="truncate font-medium text-foreground">{mediaTitle(item)}</span>
                   <span className="text-xs text-muted-foreground">
                     {item.kind} · {formatSize(item.size)} · {formatDate(item.createdAt)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">Разрешение: {resolutionText(item)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Загрузил:{" "}
+                    {item.userId ? (
+                      <Link className="text-primary underline" href={`/app/doctor/clients/${item.userId}`}>
+                        {item.uploadedByName?.trim() || item.userId}
+                      </Link>
+                    ) : (
+                      "неизвестно"
+                    )}
                   </span>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2">
                   <Button variant="outline" size="sm" onClick={() => void onCopyUrl(item)}>
                     {copiedItemId === item.id ? "OK" : "URL"}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="border-destructive text-destructive hover:bg-destructive/10"
-                    disabled={deletingId === item.id}
-                    onClick={() => openDeleteDialog(item)}
-                  >
-                    {deletingId === item.id ? "…" : "Удалить"}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background hover:bg-muted"
+                      aria-label="Действия"
+                    >
+                      <EllipsisVertical className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-44">
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>Действия</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => openRenameDialog(item)}>Переименовать</DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          disabled={deletingId === item.id}
+                          onClick={() => openDeleteDialog(item)}
+                        >
+                          {deletingId === item.id ? "Удаление..." : "Удалить"}
+                        </DropdownMenuItem>
+                      </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             ))}
@@ -727,6 +905,8 @@ export function MediaLibraryClient() {
                   <th className="px-3 py-2">Файл</th>
                   <th className="px-3 py-2">Тип</th>
                   <th className="px-3 py-2">Размер</th>
+                  <th className="px-3 py-2">Разрешение</th>
+                  <th className="px-3 py-2">Кто загрузил</th>
                   <th className="px-3 py-2">Дата загрузки</th>
                   <th className="px-3 py-2">Просмотр</th>
                   <th className="px-3 py-2">Действия</th>
@@ -735,9 +915,30 @@ export function MediaLibraryClient() {
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id} className="border-t border-border align-top">
-                    <td className="px-3 py-2">{item.filename}</td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-[22rem]">
+                        <p className="truncate font-medium" title={mediaTitle(item)}>
+                          {mediaTitle(item)}
+                        </p>
+                        {item.displayName?.trim() ? (
+                          <p className="truncate text-xs text-muted-foreground" title={item.filename}>
+                            Исходное имя: {item.filename}
+                          </p>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="px-3 py-2">{item.kind}</td>
                     <td className="px-3 py-2">{formatSize(item.size)}</td>
+                    <td className="px-3 py-2">{resolutionText(item)}</td>
+                    <td className="px-3 py-2">
+                      {item.userId ? (
+                        <Link className="text-primary underline" href={`/app/doctor/clients/${item.userId}`}>
+                          {item.uploadedByName?.trim() || item.userId}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">неизвестно</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">{formatDate(item.createdAt)}</td>
                     <td className="px-3 py-2">
                       {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (
@@ -766,23 +967,35 @@ export function MediaLibraryClient() {
                         <Button variant="outline" size="sm" onClick={() => void onCopyUrl(item)}>
                           {copiedItemId === item.id ? "URL скопирован" : "Скопировать URL"}
                         </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="border-destructive text-destructive hover:bg-destructive/10"
-                          disabled={deletingId === item.id}
-                          onClick={() => openDeleteDialog(item)}
-                        >
-                          {deletingId === item.id ? "Удаление..." : "Удалить"}
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background hover:bg-muted"
+                            aria-label="Действия"
+                          >
+                            <EllipsisVertical className="size-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="min-w-44">
+                            <DropdownMenuGroup>
+                              <DropdownMenuLabel>Действия</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => openRenameDialog(item)}>Переименовать</DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                disabled={deletingId === item.id}
+                                onClick={() => openDeleteDialog(item)}
+                              >
+                                {deletingId === item.id ? "Удаление..." : "Удалить"}
+                              </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
                       Файлы не найдены
                     </td>
                   </tr>

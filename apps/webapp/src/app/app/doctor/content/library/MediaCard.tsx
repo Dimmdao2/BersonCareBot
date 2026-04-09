@@ -1,6 +1,17 @@
 "use client";
 
+import Link from "next/link";
+import { EllipsisVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { canRenderInlineImage } from "./mediaPreview";
 
 type MediaItem = {
@@ -8,7 +19,10 @@ type MediaItem = {
   kind: "image" | "video" | "audio" | "file";
   mimeType: string;
   filename: string;
+  displayName?: string | null;
   size: number;
+  userId?: string | null;
+  uploadedByName?: string | null;
   createdAt: string;
   url: string;
 };
@@ -17,14 +31,31 @@ type Props = {
   item: MediaItem;
   deleting: boolean;
   copied: boolean;
+  resolutionText?: string | null;
   onDelete: () => void;
+  onRename: () => void;
   onOpenPreview: () => void;
   onCopyUrl: () => void;
   formatSize: (bytes: number) => string;
   formatDate: (iso: string) => string;
 };
 
-export function MediaCard({ item, deleting, copied, onDelete, onOpenPreview, onCopyUrl, formatSize, formatDate }: Props) {
+function mediaTitle(item: MediaItem): string {
+  return item.displayName?.trim() || item.filename;
+}
+
+export function MediaCard({
+  item,
+  deleting,
+  copied,
+  resolutionText,
+  onDelete,
+  onRename,
+  onOpenPreview,
+  onCopyUrl,
+  formatSize,
+  formatDate,
+}: Props) {
   const renderInlineImage = item.kind === "image" && canRenderInlineImage(item.mimeType);
 
   return (
@@ -73,11 +104,22 @@ export function MediaCard({ item, deleting, copied, onDelete, onOpenPreview, onC
       </div>
 
       <div className="space-y-1">
-        <p className="truncate text-sm font-medium" title={item.filename}>
-          {item.filename}
+        <p className="truncate text-sm font-medium" title={mediaTitle(item)}>
+          {mediaTitle(item)}
         </p>
         <p className="text-xs text-muted-foreground">
           {item.kind} • {formatSize(item.size)}
+        </p>
+        <p className="text-xs text-muted-foreground">Разрешение: {resolutionText ?? "—"}</p>
+        <p className="text-xs text-muted-foreground">
+          Загрузил:{" "}
+          {item.userId ? (
+            <Link className="text-primary underline" href={`/app/doctor/clients/${item.userId}`}>
+              {item.uploadedByName?.trim() || item.userId}
+            </Link>
+          ) : (
+            "неизвестно"
+          )}
         </p>
         <p className="text-xs text-muted-foreground">{formatDate(item.createdAt)}</p>
       </div>
@@ -94,19 +136,24 @@ export function MediaCard({ item, deleting, copied, onDelete, onOpenPreview, onC
         >
           {copied ? "URL скопирован" : "Скопировать URL"}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="border-destructive text-destructive hover:bg-destructive/10"
-          disabled={deleting}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-        >
-          {deleting ? "Удаление..." : "Удалить"}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background hover:bg-muted"
+            aria-label="Действия"
+          >
+            <EllipsisVertical className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-44">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Действия</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onRename}>Переименовать</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" disabled={deleting} onClick={onDelete}>
+                {deleting ? "Удаление..." : "Удалить"}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </article>
   );

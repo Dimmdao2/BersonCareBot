@@ -27,6 +27,7 @@ export type MediaStoragePort = {
   /** Returns URL for the media id, or null if not found. */
   getUrl(id: string): Promise<string | null>;
   list(params: MediaListParams): Promise<MediaRecord[]>;
+  updateDisplayName(mediaId: string, displayName: string | null): Promise<boolean>;
   findUsage(mediaId: string): Promise<MediaUsageRef[]>;
   deleteHard(mediaId: string): Promise<boolean>;
 };

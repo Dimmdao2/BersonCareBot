@@ -9,6 +9,10 @@ const querySchema = z.object({
   confirmUsed: z.enum(["true", "false"]).optional(),
 });
 
+const patchBodySchema = z.object({
+  displayName: z.union([z.string().max(180), z.null()]),
+});
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -57,4 +61,39 @@ export async function DELETE(
     scheduled: true,
     usage,
   });
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getCurrentSession();
+  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  if (!canAccessDoctor(session.user.role)) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  }
+
+  const rawBody = await request.json().catch(() => null);
+  const parsedBody = patchBodySchema.safeParse(rawBody);
+  if (!parsedBody.success) {
+    return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
+  }
+
+  const normalized =
+    typeof parsedBody.data.displayName === "string"
+      ? parsedBody.data.displayName.trim() || null
+      : null;
+
+  const deps = buildAppDeps();
+  const updated = await deps.media.updateDisplayName(id, normalized);
+  if (!updated) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ ok: true, id, displayName: normalized });
 }

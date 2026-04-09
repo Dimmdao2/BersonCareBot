@@ -5,10 +5,14 @@ export type MediaRecord = {
   kind: MediaKind;
   mimeType: string;
   filename: string;
+  /** Optional display name editable in media library. */
+  displayName?: string | null;
   /** Size in bytes. */
   size: number;
   /** Optional owner for future access control. */
   userId?: string | null;
+  /** Optional uploader display name for admin metadata in media library. */
+  uploadedByName?: string | null;
   createdAt: string;
   /** Resolved public URL (S3 public URL or /api/media/:id). Populated by list(). */
   url?: string;

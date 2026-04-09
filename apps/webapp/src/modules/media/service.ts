@@ -19,6 +19,9 @@ export function createMediaService(port: MediaStoragePort) {
     async list(params: Parameters<MediaStoragePort["list"]>[0]) {
       return port.list(params);
     },
+    async updateDisplayName(mediaId: string, displayName: string | null) {
+      return port.updateDisplayName(mediaId, displayName);
+    },
     async findUsage(mediaId: string) {
       return port.findUsage(mediaId);
     },
