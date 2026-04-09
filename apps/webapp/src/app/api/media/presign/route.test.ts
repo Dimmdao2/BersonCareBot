@@ -19,8 +19,23 @@ vi.mock("@/config/env", () => ({
   isS3MediaEnabled: () => true,
 }));
 
+vi.mock("@/infra/userLifecycleLock", () => ({
+  withUserLifecycleLock: async (
+    _pool: unknown,
+    _userId: string,
+    _mode: string,
+    fn: (c: { query: ReturnType<typeof vi.fn> }) => Promise<void>,
+  ) => {
+    await fn({ query: vi.fn() });
+  },
+}));
+
+vi.mock("@/infra/db/client", () => ({
+  getPool: () => ({}),
+}));
+
 vi.mock("@/infra/repos/s3MediaStorage", () => ({
-  insertPendingMediaFile: (...args: unknown[]) => insertPendingMock(...args),
+  insertPendingMediaFileTx: (...args: unknown[]) => insertPendingMock(...args),
   deletePendingMediaFileById: (...args: unknown[]) => deletePendingMock(...args),
 }));
 
@@ -82,6 +97,7 @@ describe("POST /api/media/presign", () => {
     expect(json.readUrl).toBe(`/api/media/${json.mediaId}`);
     expect("key" in json).toBe(false);
     expect(insertPendingMock).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
         id: expect.stringMatching(/^[0-9a-f-]{8}-[0-9a-f-]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
         filename: "a.png",
@@ -89,6 +105,7 @@ describe("POST /api/media/presign", () => {
         mimeType: "image/png",
         sizeBytes: 100,
         userId: "doc-1",
+        folderId: null,
       }),
     );
     expect(presignPutUrlMock).toHaveBeenCalled();
@@ -153,7 +170,7 @@ describe("POST /api/media/presign", () => {
     expect(res.status).toBe(500);
     expect(insertPendingMock).toHaveBeenCalledOnce();
     // Rollback must have been called with the same mediaId that was inserted
-    const insertedId = (insertPendingMock.mock.calls[0]![0] as { id: string }).id;
+    const insertedId = (insertPendingMock.mock.calls[0]![1] as { id: string }).id;
     expect(deletePendingMock).toHaveBeenCalledWith(insertedId);
   });
 });

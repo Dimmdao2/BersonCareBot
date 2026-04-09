@@ -14,8 +14,17 @@ export type MediaRecord = {
   /** Optional uploader display name for admin metadata in media library. */
   uploadedByName?: string | null;
   createdAt: string;
+  /** Library folder (null = root). Populated by list when column exists. */
+  folderId?: string | null;
   /** Resolved public URL (S3 public URL or /api/media/:id). Populated by list(). */
   url?: string;
+};
+
+export type MediaFolderRecord = {
+  id: string;
+  parentId: string | null;
+  name: string;
+  createdAt: string;
 };
 
 export type MediaListSortBy = "createdAt" | "size" | "kind";
@@ -28,6 +37,13 @@ export type MediaListParams = {
   sortDir?: MediaSortDirection;
   limit?: number;
   offset?: number;
+  /**
+   * Folder filter: omit = all files; `null` = root only (`folder_id IS NULL`);
+   * string uuid = that folder; use with `includeDescendants` for subtree.
+   */
+  folderId?: string | null;
+  /** When `folderId` is a uuid, include files in descendant folders (recursive). */
+  includeDescendants?: boolean;
 };
 
 export type MediaUsageRef = {

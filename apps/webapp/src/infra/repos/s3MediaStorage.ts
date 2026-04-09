@@ -1,6 +1,15 @@
+import type { PoolClient } from "pg";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
 import { logger } from "@/infra/logging/logger";
+import {
+  pgCreateFolder,
+  pgDeleteFolderIfEmpty,
+  pgListAllFolders,
+  pgListFolders,
+  pgMoveFolder,
+  pgRenameFolder,
+} from "@/infra/repos/mediaFoldersRepo";
 import { s3DeleteObject, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/infra/s3/client";
 import type { MediaStoragePort } from "@/modules/media/ports";
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
@@ -49,8 +58,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       await s3PutObjectBody(key, buf, params.mimeType);
 
       await pool.query(
-        `INSERT INTO media_files (id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, 'ready', $7::uuid)`,
+        `INSERT INTO media_files (id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by, folder_id)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, 'ready', $7::uuid, NULL)`,
         [id, params.filename, key, key, params.mimeType, body.byteLength, params.userId ?? null],
       );
 
@@ -140,6 +149,29 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         n += 1;
       }
 
+      if (params.folderId !== undefined) {
+        if (params.folderId === null) {
+          where.push(`m.folder_id IS NULL`);
+        } else if (params.includeDescendants) {
+          where.push(
+            `m.folder_id IN (
+              WITH RECURSIVE sub AS (
+                SELECT id FROM media_folders WHERE id = $${n}::uuid
+                UNION ALL
+                SELECT f.id FROM media_folders f INNER JOIN sub ON f.parent_id = sub.id
+              )
+              SELECT id FROM sub
+            )`,
+          );
+          values.push(params.folderId);
+          n += 1;
+        } else {
+          where.push(`m.folder_id = $${n}::uuid`);
+          values.push(params.folderId);
+          n += 1;
+        }
+      }
+
       const sortCol: Record<NonNullable<MediaListParams["sortBy"]>, string> = {
         createdAt: "m.created_at",
         size: "m.size_bytes",
@@ -165,8 +197,9 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         uploaded_by_name: string | null;
         created_at: Date;
         s3_key: string;
+        folder_id: string | null;
       }>(
-        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by, pu.display_name AS uploaded_by_name, m.created_at, m.s3_key
+        `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by, pu.display_name AS uploaded_by_name, m.created_at, m.s3_key, m.folder_id
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          ${whereSql} AND m.s3_key IS NOT NULL
@@ -185,6 +218,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         userId: row.uploaded_by,
         uploadedByName: row.uploaded_by_name,
         createdAt: row.created_at.toISOString(),
+        folderId: row.folder_id,
         url: mediaAppUrl(row.id),
       }));
     },
@@ -199,6 +233,41 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         [mediaId, normalized],
       );
       return (res.rowCount ?? 0) > 0;
+    },
+
+    async updateMediaFolder(mediaId: string, folderId: string | null) {
+      const pool = getPool();
+      const res = await pool.query(
+        `UPDATE media_files m
+            SET folder_id = $2
+          WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
+        [mediaId, folderId],
+      );
+      return (res.rowCount ?? 0) > 0;
+    },
+
+    async listFolders(parentId: string | null) {
+      return pgListFolders(parentId);
+    },
+
+    async listAllFolders() {
+      return pgListAllFolders();
+    },
+
+    async createFolder(params: { name: string; parentId: string | null; createdBy: string }) {
+      return pgCreateFolder(params);
+    },
+
+    async renameFolder(folderId: string, name: string) {
+      return pgRenameFolder(folderId, name);
+    },
+
+    async moveFolder(folderId: string, newParentId: string | null) {
+      return pgMoveFolder(folderId, newParentId);
+    },
+
+    async deleteFolder(folderId: string) {
+      return pgDeleteFolderIfEmpty(folderId);
     },
 
     async findUsage(mediaId: string): Promise<MediaUsageRef[]> {
@@ -273,19 +342,22 @@ export function createS3MediaStoragePort(): MediaStoragePort {
   };
 }
 
-/** Insert pending row + return presign target (presign route). */
-export async function insertPendingMediaFile(params: {
-  id: string;
-  filename: string;
-  key: string;
-  mimeType: string;
-  sizeBytes: number;
-  userId: string;
-}): Promise<void> {
-  const pool = getPool();
-  await pool.query(
-    `INSERT INTO media_files (id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by)
-     VALUES ($1::uuid, $2, $3, $4, $5, $6, 'pending', $7::uuid)`,
+/** Insert pending row inside caller's transaction (e.g. shared user lifecycle lock + presign). */
+export async function insertPendingMediaFileTx(
+  client: PoolClient,
+  params: {
+    id: string;
+    filename: string;
+    key: string;
+    mimeType: string;
+    sizeBytes: number;
+    userId: string;
+    folderId?: string | null;
+  },
+): Promise<void> {
+  await client.query(
+    `INSERT INTO media_files (id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by, folder_id)
+     VALUES ($1::uuid, $2, $3, $4, $5, $6, 'pending', $7::uuid, $8::uuid)`,
     [
       params.id,
       params.filename,
@@ -294,6 +366,34 @@ export async function insertPendingMediaFile(params: {
       params.mimeType,
       params.sizeBytes,
       params.userId,
+      params.folderId ?? null,
+    ],
+  );
+}
+
+/** Insert pending row + return presign target (presign route). */
+export async function insertPendingMediaFile(params: {
+  id: string;
+  filename: string;
+  key: string;
+  mimeType: string;
+  sizeBytes: number;
+  userId: string;
+  folderId?: string | null;
+}): Promise<void> {
+  const pool = getPool();
+  await pool.query(
+    `INSERT INTO media_files (id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by, folder_id)
+     VALUES ($1::uuid, $2, $3, $4, $5, $6, 'pending', $7::uuid, $8::uuid)`,
+    [
+      params.id,
+      params.filename,
+      params.key,
+      params.key,
+      params.mimeType,
+      params.sizeBytes,
+      params.userId,
+      params.folderId ?? null,
     ],
   );
 }

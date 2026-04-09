@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { pgFolderExists } from "@/infra/repos/mediaFoldersRepo";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 
@@ -9,9 +10,14 @@ const querySchema = z.object({
   confirmUsed: z.enum(["true", "false"]).optional(),
 });
 
-const patchBodySchema = z.object({
-  displayName: z.union([z.string().max(180), z.null()]),
-});
+const patchBodySchema = z
+  .object({
+    displayName: z.union([z.string().max(180), z.null()]).optional(),
+    folderId: z.union([z.string().uuid(), z.null()]).optional(),
+  })
+  .refine((d) => d.displayName !== undefined || d.folderId !== undefined, {
+    message: "no_fields",
+  });
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -84,16 +90,38 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: "invalid_body" }, { status: 400 });
   }
 
-  const normalized =
-    typeof parsedBody.data.displayName === "string"
-      ? parsedBody.data.displayName.trim() || null
-      : null;
-
   const deps = buildAppDeps();
-  const updated = await deps.media.updateDisplayName(id, normalized);
-  if (!updated) {
-    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+
+  if (parsedBody.data.folderId !== undefined) {
+    if (parsedBody.data.folderId !== null) {
+      const exists = await pgFolderExists(parsedBody.data.folderId);
+      if (!exists) {
+        return NextResponse.json({ ok: false, error: "folder_not_found" }, { status: 404 });
+      }
+    }
+    const moved = await deps.media.updateMediaFolder(id, parsedBody.data.folderId);
+    if (!moved) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
   }
 
-  return NextResponse.json({ ok: true, id, displayName: normalized });
+  let displayNameOut: string | null | undefined;
+  if (parsedBody.data.displayName !== undefined) {
+    const normalized =
+      typeof parsedBody.data.displayName === "string"
+        ? parsedBody.data.displayName.trim() || null
+        : null;
+    const updated = await deps.media.updateDisplayName(id, normalized);
+    if (!updated) {
+      return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+    }
+    displayNameOut = normalized;
+  }
+
+  return NextResponse.json({
+    ok: true,
+    id,
+    ...(displayNameOut !== undefined ? { displayName: displayNameOut } : {}),
+    ...(parsedBody.data.folderId !== undefined ? { folderId: parsedBody.data.folderId } : {}),
+  });
 }

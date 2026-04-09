@@ -103,3 +103,55 @@ export function putWithProgress({
   });
 }
 
+type PutPartArgs = {
+  url: string;
+  body: Blob;
+  onProgress?: (loaded: number, total: number) => void;
+  signal?: AbortSignal;
+};
+
+/** Multipart UploadPart: no Content-Type header (must match presigned request). Returns raw ETag header value. */
+export function putPartWithProgress({ url, body, onProgress, signal }: PutPartArgs): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+
+    const onAbort = () => {
+      xhr.abort();
+    };
+    if (signal) {
+      if (signal.aborted) {
+        reject(new UploadRequestError(0, { error: "aborted" }));
+        return;
+      }
+      signal.addEventListener("abort", onAbort);
+    }
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      onProgress?.(event.loaded, event.total);
+    };
+
+    xhr.onerror = () => {
+      if (signal) signal.removeEventListener("abort", onAbort);
+      reject(new UploadRequestError(0, { error: "network_error" }));
+    };
+
+    xhr.onload = () => {
+      if (signal) signal.removeEventListener("abort", onAbort);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const etag = xhr.getResponseHeader("ETag");
+        if (!etag) {
+          reject(new UploadRequestError(xhr.status, { error: "missing_etag" }));
+          return;
+        }
+        resolve(etag);
+        return;
+      }
+      reject(new UploadRequestError(xhr.status, { raw: xhr.responseText }));
+    };
+
+    xhr.send(body);
+  });
+}
+

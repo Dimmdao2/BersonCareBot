@@ -34,8 +34,8 @@ export const ALLOWED_MEDIA_MIME = new Set([
   "text/csv",
 ]);
 
-/** Max single file size for presigned S3 upload: 2 GiB. */
-export const MAX_MEDIA_BYTES = 2 * 1024 * 1024 * 1024;
+/** Max single file size for presigned / multipart S3 upload: 3 GiB. */
+export const MAX_MEDIA_BYTES = 3 * 1024 * 1024 * 1024;
 
 /** Max single file size for server-proxy upload (markdown toolbar).
  *  Proxy buffers the full body in Node memory, so keep this low. */

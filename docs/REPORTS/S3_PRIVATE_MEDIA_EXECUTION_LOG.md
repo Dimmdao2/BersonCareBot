@@ -63,6 +63,22 @@
 - **Purge retry:** колонки `delete_attempts`, `next_attempt_at`; миграция `060_media_files_status_retry.sql` (CHECK на `status`); при сбое S3 — backoff до 1 суток; ответ purge `{ removed, errors }`.
 - **Админ/UI:** `GET /api/admin/media/delete-errors`, страница `/app/doctor/content/library/delete-errors`, бейдж в библиотеке при `total > 0`.
 
+## Revision 4 (2026-04-09, multipart + папки)
+
+- **Multipart:** для крупных файлов — `POST /api/media/multipart/init`, `part-url`, PUT частей в S3 с **ETag**, `POST /api/media/multipart/complete` переводит `media_files` в `ready` и возвращает `url` без отдельного `confirm`. Отмена: `POST /api/media/multipart/abort`. Легаси путь `presign` → PUT → `confirm` сохранён для малых/внешних клиентов.
+- **Папки:** `media_folders`, `media_files.folder_id`; admin API под дерево и перенос файлов. Ссылки в контенте по-прежнему `/api/media/{id}`.
+- **Очистка:** `POST /api/internal/media-multipart/cleanup` (Bearer `INTERNAL_JOB_SECRET`), рекомендуется cron на loopback; на MinIO — lifecycle **`AbortIncompleteMultipartUpload`**.
+- **CORS private-бакета:** для multipart критично **Expose ETag** и заголовки `x-amz-*` — см. `deploy/HOST_DEPLOY_README.md`.
+- **Миграция:** `067_media_folders_and_multipart.sql` (webapp).
+
+## Revision 5 (2026-04-10, multipart hardening + ошибки API)
+
+- **Сериализация:** `complete` / `abort` / internal `media-multipart/cleanup` по одному `sessionId` — **advisory transaction lock** (`apps/webapp/src/infra/multipartSessionLock.ts`), чтобы не гонялись финализация и отмена.
+- **Повтор `complete`:** если сессия уже в `completing` после успешного S3 `CompleteMultipartUpload`, повторный запрос не вызывает S3 complete снова — Head + идемпотентная финализация в БД; при рассинхроне — `409 finalize_inconsistent_state`, при временном сбое БД — `500 finalize_failed` с `retryable: true` в теле.
+- **Коды ошибок (контракт для клиента):** `part-url` и недоступный `complete` различают `404 session_not_found`, `409 session_expired`, `409 session_state_conflict` (вместо одного неразличимого ответа). См. актуальный перечень в `apps/webapp/src/app/api/api.md`.
+- **Клиент CMS:** после успешного `init` при ошибке multipart выполняется best-effort `POST /api/media/multipart/abort`.
+- **Логи (pino):** поиск по сообщениям вида `[media/multipart/init|complete|abort]` и `[internal/media-multipart/cleanup]` (в теле ответов API также бывает `multipart_init_failed` и пр. поле `error`).
+
 ## Revision 3 (2026-04-09, production verification)
 
 - **Runtime webapp:** `systemctl is-active bersoncarebot-webapp-prod.service` -> `active`; `curl -sS http://127.0.0.1:6200/api/health` -> `{"ok":true,...}`.

@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
-import { putWithProgress, UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
+import { libraryMultipartAbort, libraryMultipartUpload } from "./libraryMultipartUpload";
+import { UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
 import { MediaCard } from "./MediaCard";
 import { MediaLightbox } from "./MediaLightbox";
 import { canRenderInlineImage } from "./mediaPreview";
@@ -43,7 +44,12 @@ type MediaItem = {
   uploadedByName?: string | null;
   createdAt: string;
   url: string;
+  folderId?: string | null;
 };
+
+type FolderRow = { id: string; parentId: string | null; name: string; createdAt: string };
+
+type Crumb = { id: string | null; label: string };
 
 type UsageRef = {
   pageId: string;
@@ -94,6 +100,24 @@ type DeleteDialogState =
 
 type RenameDialogState = null | { item: MediaItem; nextDisplayName: string };
 
+type NewFolderDialogState = null | { name: string };
+
+type MoveFolderDialogState = null | { item: MediaItem; folderId: string | null };
+
+type FolderRenameDialogState = null | { id: string; name: string };
+type FolderMoveDialogState = null | { id: string; label: string; newParentId: string | null };
+type FolderDeleteDialogState = null | { id: string; name: string };
+
+function isDescendantOfFolder(flat: FolderRow[], ancestorId: string, nodeId: string): boolean {
+  const byId = new Map(flat.map((f) => [f.id, f.parentId as string | null]));
+  let cur: string | null = nodeId;
+  for (let i = 0; i < 64 && cur; i += 1) {
+    if (cur === ancestorId) return true;
+    cur = byId.get(cur) ?? null;
+  }
+  return false;
+}
+
 function mediaTitle(item: MediaItem): string {
   return item.displayName?.trim() || item.filename;
 }
@@ -128,6 +152,20 @@ export function MediaLibraryClient() {
   const desktopUploadInputRef = useRef<HTMLInputElement | null>(null);
   const mobileFilesInputRef = useRef<HTMLInputElement | null>(null);
   const mobileCaptureInputRef = useRef<HTMLInputElement | null>(null);
+  const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, label: "Корень" }]);
+  const [childFolders, setChildFolders] = useState<FolderRow[]>([]);
+  const [foldersLoading, setFoldersLoading] = useState(false);
+  const [newFolderDialog, setNewFolderDialog] = useState<NewFolderDialogState>(null);
+  const [moveFolderDialog, setMoveFolderDialog] = useState<MoveFolderDialogState>(null);
+  const [allFoldersFlat, setAllFoldersFlat] = useState<FolderRow[]>([]);
+  const [folderRenameDialog, setFolderRenameDialog] = useState<FolderRenameDialogState>(null);
+  const [folderMoveDialog, setFolderMoveDialog] = useState<FolderMoveDialogState>(null);
+  const [folderDeleteDialog, setFolderDeleteDialog] = useState<FolderDeleteDialogState>(null);
+  const [foldersFlatForCrud, setFoldersFlatForCrud] = useState<FolderRow[]>([]);
+  const uploadAbortRef = useRef<AbortController | null>(null);
+  const multipartSessionRef = useRef<string | null>(null);
+
+  const currentFolderId = crumbs[crumbs.length - 1]?.id ?? null;
 
   const searchParams = useMemo(() => {
     const p = new URLSearchParams();
@@ -135,8 +173,10 @@ export function MediaLibraryClient() {
     p.set("sortBy", sortBy);
     p.set("sortDir", sortDir);
     if (query.trim()) p.set("q", query.trim());
+    if (currentFolderId === null) p.set("folderId", "root");
+    else p.set("folderId", currentFolderId);
     return p.toString();
-  }, [kind, sortBy, sortDir, query]);
+  }, [kind, sortBy, sortDir, query, currentFolderId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +203,31 @@ export function MediaLibraryClient() {
       cancelled = true;
     };
   }, [searchParams, reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFoldersLoading(true);
+    const parent = currentFolderId;
+    const url =
+      parent === null
+        ? "/api/admin/media/folders"
+        : `/api/admin/media/folders?parentId=${encodeURIComponent(parent)}`;
+    fetch(url, { credentials: "same-origin" })
+      .then(async (res) => {
+        const data = (await res.json()) as { ok?: boolean; items?: FolderRow[] };
+        if (!res.ok || !data.ok) throw new Error("folders_failed");
+        if (!cancelled) setChildFolders(data.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setChildFolders([]);
+      })
+      .finally(() => {
+        if (!cancelled) setFoldersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentFolderId, reloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -338,38 +403,41 @@ export function MediaLibraryClient() {
     };
   }, [isMobileUploadUi]);
 
+  function cancelActiveUpload() {
+    uploadAbortRef.current?.abort();
+    uploadAbortRef.current = null;
+    const sid = multipartSessionRef.current;
+    multipartSessionRef.current = null;
+    if (sid) void libraryMultipartAbort(sid);
+  }
+
   async function uploadBatch(files: File[]) {
     if (files.length === 0) return;
     setUploading(true);
     setUploadPercent(0);
     setUploadStatus(null);
     setError(null);
+    multipartSessionRef.current = null;
+    const ac = new AbortController();
+    uploadAbortRef.current = ac;
+    let useS3Multipart = false;
     try {
+      const capRes = await fetch("/api/media/s3-status", { credentials: "same-origin", signal: ac.signal });
+      const cap = (await capRes.json().catch(() => ({}))) as { s3Multipart?: boolean };
+      useS3Multipart = Boolean(cap.s3Multipart);
+
       const totalBytes = files.reduce((acc, file) => acc + Math.max(file.size, 1), 0);
       let uploadedBytes = 0;
       for (let i = 0; i < files.length; i += 1) {
+        if (ac.signal.aborted) {
+          setUploadStatus("Загрузка отменена");
+          break;
+        }
         const file = files[i]!;
         setUploadStatus(`Файл ${i + 1}/${files.length}: ${file.name}`);
         const mime = (file.type || "application/octet-stream").toLowerCase();
 
-        const presignRes = await fetch("/api/media/presign", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            filename: file.name || "upload",
-            mimeType: mime,
-            size: file.size,
-          }),
-        });
-        const presignData = (await presignRes.json().catch(() => ({}))) as {
-          ok?: boolean;
-          uploadUrl?: string;
-          mediaId?: string;
-          error?: string;
-        };
-
-        if (presignRes.status === 501 || presignData.error === "s3_not_configured") {
+        if (!useS3Multipart) {
           const fd = new FormData();
           fd.set("file", file);
           await uploadWithProgress<UploadOkResponse>({
@@ -381,50 +449,77 @@ export function MediaLibraryClient() {
               setUploadPercent(Math.max(0, Math.min(100, next)));
             },
           });
-        } else if (!presignRes.ok || !presignData.ok || !presignData.uploadUrl || !presignData.mediaId) {
-          throw new UploadRequestError(presignRes.status, presignData);
         } else {
-          await putWithProgress({
-            url: presignData.uploadUrl,
-            body: file,
-            contentType: mime,
-            onProgress: (loaded) => {
-              const next = Math.round(((uploadedBytes + loaded) / totalBytes) * 100);
-              setUploadPercent(Math.max(0, Math.min(100, next)));
+          multipartSessionRef.current = null;
+          await libraryMultipartUpload({
+            file,
+            folderId: currentFolderId,
+            signal: ac.signal,
+            onSessionReady: (sid) => {
+              multipartSessionRef.current = sid;
+            },
+            onProgress: (loaded, tot) => {
+              const fileBase = Math.round((uploadedBytes / totalBytes) * 100);
+              const frac = tot > 0 ? loaded / tot : 0;
+              const inFile = Math.round((Math.max(file.size, 1) / totalBytes) * 100 * frac);
+              setUploadPercent(Math.max(0, Math.min(100, fileBase + inFile)));
             },
           });
-          const confirmRes = await fetch("/api/media/confirm", {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ mediaId: presignData.mediaId }),
-          });
-          const confirmData = (await confirmRes.json().catch(() => ({}))) as { ok?: boolean };
-          if (!confirmRes.ok || !confirmData.ok) {
-            throw new UploadRequestError(confirmRes.status, confirmData);
-          }
         }
         uploadedBytes += Math.max(file.size, 1);
         const next = Math.round((uploadedBytes / totalBytes) * 100);
         setUploadPercent(Math.max(0, Math.min(100, next)));
       }
-      setUploadStatus(`Загрузка завершена: ${files.length} файлов`);
-      setReloadKey((x) => x + 1);
+      if (!ac.signal.aborted) {
+        setUploadStatus(`Загрузка завершена: ${files.length} файлов`);
+        setReloadKey((x) => x + 1);
+      }
     } catch (e) {
-      if (e instanceof UploadRequestError) {
-        const payload = (e.data ?? {}) as { error?: string; filename?: string };
+      if (useS3Multipart && multipartSessionRef.current && !ac.signal.aborted) {
+        void libraryMultipartAbort(multipartSessionRef.current);
+      }
+      if (ac.signal.aborted) {
+        setError("Загрузка отменена");
+      } else if (e instanceof UploadRequestError) {
+        const payload = (e.data ?? {}) as { error?: string; filename?: string; retryable?: boolean };
         if (payload.filename) {
           setError(`Не удалось загрузить файл: ${payload.filename}`);
         } else if (payload.error === "network_error") {
           setError("Сетевая ошибка при загрузке");
+        } else if (payload.error === "aborted") {
+          setError("Загрузка отменена");
+        } else if (payload.error === "integrity_mismatch") {
+          setError("Файл не прошёл проверку целостности на сервере");
+        } else if (payload.error === "session_expired") {
+          setError("Сессия загрузки истекла — начните загрузку заново");
+        } else if (payload.error === "session_state_conflict") {
+          setError("Сессия загрузки в недопустимом состоянии — начните загрузку заново");
+        } else if (payload.error === "session_not_found" || payload.error === "session_not_completable") {
+          setError("Сессия загрузки устарела или закрыта — попробуйте снова");
+        } else if (payload.error === "finalize_inconsistent_state") {
+          setError("Сервер не смог завершить загрузку; попробуйте повторить или загрузить файл заново");
+        } else if (payload.error === "finalize_failed" && payload.retryable) {
+          setError("Временная ошибка сервера при завершении загрузки — попробуйте ещё раз");
+        } else if (payload.error === "part_out_of_range") {
+          setError("Сбой нумерации частей загрузки — попробуйте снова");
+        } else if (payload.error === "missing_etag") {
+          setError("Хранилище не вернуло ETag — проверьте CORS (Expose ETag) для MinIO");
+        } else if (payload.error === "part_retry_exhausted") {
+          setError("Не удалось загрузить часть файла после нескольких попыток");
+        } else if (payload.error === "incomplete_parts") {
+          setError("Загрузка прервана: не все части отправлены");
         } else {
           setError("Не удалось загрузить файл");
         }
       } else {
         setError("Не удалось загрузить файл");
       }
-      setUploadStatus("Загрузка остановлена из-за ошибки");
+      if (!ac.signal.aborted) {
+        setUploadStatus("Загрузка остановлена из-за ошибки");
+      }
     } finally {
+      uploadAbortRef.current = null;
+      multipartSessionRef.current = null;
       setUploading(false);
       setTimeout(() => {
         setUploadPercent(null);
@@ -481,6 +576,176 @@ export function MediaLibraryClient() {
       setError("Не удалось переименовать файл");
     } finally {
       setRenamingId(null);
+    }
+  }
+
+  async function executeCreateFolder() {
+    if (!newFolderDialog) return;
+    const name = newFolderDialog.name.trim();
+    if (!name) return;
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/media/folders", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, parentId: currentFolderId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
+      if (!res.ok || !data.ok) {
+        setError("Не удалось создать папку");
+        return;
+      }
+      setNewFolderDialog(null);
+      setReloadKey((x) => x + 1);
+    } catch {
+      setError("Не удалось создать папку");
+    }
+  }
+
+  async function loadFlatFoldersForMove() {
+    try {
+      const res = await fetch("/api/admin/media/folders?flat=true", { credentials: "same-origin" });
+      const data = (await res.json()) as { ok?: boolean; items?: FolderRow[] };
+      if (res.ok && data.ok) setAllFoldersFlat(data.items ?? []);
+    } catch {
+      setAllFoldersFlat([]);
+    }
+  }
+
+  async function loadFlatFoldersForFolderCrud() {
+    try {
+      const res = await fetch("/api/admin/media/folders?flat=true", { credentials: "same-origin" });
+      const data = (await res.json()) as { ok?: boolean; items?: FolderRow[] };
+      if (res.ok && data.ok) setFoldersFlatForCrud(data.items ?? []);
+    } catch {
+      setFoldersFlatForCrud([]);
+    }
+  }
+
+  function openFolderRename(folder: { id: string; name: string }) {
+    setFolderRenameDialog({ id: folder.id, name: folder.name });
+  }
+
+  async function executeFolderRename() {
+    if (!folderRenameDialog) return;
+    const name = folderRenameDialog.name.trim();
+    if (!name) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/media/folders/${folderRenameDialog.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setError("Не удалось переименовать папку");
+        return;
+      }
+      setFolderRenameDialog(null);
+      setCrumbs((prev) => prev.map((c) => (c.id === folderRenameDialog.id ? { ...c, label: name } : c)));
+      setReloadKey((x) => x + 1);
+    } catch {
+      setError("Не удалось переименовать папку");
+    }
+  }
+
+  function openFolderMove(folder: { id: string; name: string }, currentParentId: string | null) {
+    setFolderMoveDialog({ id: folder.id, label: folder.name, newParentId: currentParentId });
+    void loadFlatFoldersForFolderCrud();
+  }
+
+  async function executeFolderMove() {
+    if (!folderMoveDialog) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/media/folders/${folderMoveDialog.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ parentId: folderMoveDialog.newParentId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        if (data.error === "parent_not_found") {
+          setError("Родительская папка не найдена или была удалена");
+        } else if (data.error === "move_failed") {
+          setError("Нельзя переместить папку (цикл или конфликт имён)");
+        } else {
+          setError("Не удалось переместить папку");
+        }
+        return;
+      }
+      setFolderMoveDialog(null);
+      setReloadKey((x) => x + 1);
+      setCrumbs([{ id: null, label: "Корень" }]);
+    } catch {
+      setError("Не удалось переместить папку");
+    }
+  }
+
+  function openFolderDelete(folder: { id: string; name: string }) {
+    setFolderDeleteDialog({ id: folder.id, name: folder.name });
+  }
+
+  async function executeFolderDelete() {
+    if (!folderDeleteDialog) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/media/folders/${folderDeleteDialog.id}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        if (data.error === "not_empty") {
+          setError("Папка не пустая — сначала удалите файлы и вложенные папки");
+        } else {
+          setError("Не удалось удалить папку");
+        }
+        return;
+      }
+      setFolderDeleteDialog(null);
+      setCrumbs((prev) => {
+        const idx = prev.findIndex((c) => c.id === folderDeleteDialog.id);
+        if (idx >= 0) return prev.slice(0, idx);
+        return prev;
+      });
+      setReloadKey((x) => x + 1);
+    } catch {
+      setError("Не удалось удалить папку");
+    }
+  }
+
+  function openMoveFolderDialog(item: MediaItem) {
+    setMoveFolderDialog({ item, folderId: item.folderId ?? null });
+    void loadFlatFoldersForMove();
+  }
+
+  async function executeMoveToFolder() {
+    if (!moveFolderDialog) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/media/${moveFolderDialog.item.id}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ folderId: moveFolderDialog.folderId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
+      if (!res.ok || !data.ok) {
+        setError("Не удалось переместить файл");
+        return;
+      }
+      const targetId = moveFolderDialog.folderId;
+      const movedId = moveFolderDialog.item.id;
+      setMoveFolderDialog(null);
+      setItems((prev) => prev.map((x) => (x.id === movedId ? { ...x, folderId: targetId } : x)));
+      setReloadKey((x) => x + 1);
+    } catch {
+      setError("Не удалось переместить файл");
     }
   }
 
@@ -630,6 +895,181 @@ export function MediaLibraryClient() {
           ) : null}
         </DialogContent>
       </Dialog>
+      <Dialog
+        open={newFolderDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setNewFolderDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Новая папка</DialogTitle>
+            <DialogDescription>Создаётся в текущей папке: {crumbs[crumbs.length - 1]?.label ?? "Корень"}</DialogDescription>
+          </DialogHeader>
+          <Input
+            value={newFolderDialog?.name ?? ""}
+            maxLength={180}
+            placeholder="Название"
+            onChange={(e) => setNewFolderDialog((c) => (c ? { ...c, name: e.target.value } : c))}
+          />
+          <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setNewFolderDialog(null)}>
+              Отмена
+            </Button>
+            <Button type="button" onClick={() => void executeCreateFolder()}>
+              Создать
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={moveFolderDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setMoveFolderDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton>
+          {moveFolderDialog ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Переместить в папку</DialogTitle>
+                <DialogDescription>Файл: {mediaTitle(moveFolderDialog.item)}</DialogDescription>
+              </DialogHeader>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Папка</span>
+                <select
+                  className="h-10 rounded-md border border-input bg-background px-2"
+                  value={moveFolderDialog.folderId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setMoveFolderDialog((c) =>
+                      c ? { ...c, folderId: v === "" ? null : v } : c,
+                    );
+                  }}
+                >
+                  <option value="">Корень</option>
+                  {allFoldersFlat.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setMoveFolderDialog(null)}>
+                  Отмена
+                </Button>
+                <Button type="button" onClick={() => void executeMoveToFolder()}>
+                  Переместить
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={folderRenameDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setFolderRenameDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Переименовать папку</DialogTitle>
+            <DialogDescription>Новое имя в текущей библиотеке</DialogDescription>
+          </DialogHeader>
+          <Input
+            value={folderRenameDialog?.name ?? ""}
+            maxLength={180}
+            placeholder="Название"
+            onChange={(e) => setFolderRenameDialog((c) => (c ? { ...c, name: e.target.value } : c))}
+          />
+          <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setFolderRenameDialog(null)}>
+              Отмена
+            </Button>
+            <Button type="button" onClick={() => void executeFolderRename()}>
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={folderMoveDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setFolderMoveDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton>
+          {folderMoveDialog ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Переместить папку</DialogTitle>
+                <DialogDescription>Папка: {folderMoveDialog.label}</DialogDescription>
+              </DialogHeader>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs text-muted-foreground">Новый родитель</span>
+                <select
+                  className="h-10 rounded-md border border-input bg-background px-2"
+                  value={folderMoveDialog.newParentId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFolderMoveDialog((c) => (c ? { ...c, newParentId: v === "" ? null : v } : c));
+                  }}
+                >
+                  <option value="">Корень</option>
+                  {foldersFlatForCrud
+                    .filter(
+                      (f) =>
+                        f.id !== folderMoveDialog.id &&
+                        !isDescendantOfFolder(foldersFlatForCrud, folderMoveDialog.id, f.id),
+                    )
+                    .map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setFolderMoveDialog(null)}>
+                  Отмена
+                </Button>
+                <Button type="button" onClick={() => void executeFolderMove()}>
+                  Переместить
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={folderDeleteDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setFolderDeleteDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md" showCloseButton>
+          {folderDeleteDialog ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Удалить папку?</DialogTitle>
+                <DialogDescription>
+                  Папка «{folderDeleteDialog.name}» удалится только если в ней нет файлов и вложенных папок.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="border-0 bg-transparent p-0 sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setFolderDeleteDialog(null)}>
+                  Отмена
+                </Button>
+                <Button type="button" variant="destructive" onClick={() => void executeFolderDelete()}>
+                  Удалить
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
       <input
         ref={desktopUploadInputRef}
         type="file"
@@ -657,6 +1097,88 @@ export function MediaLibraryClient() {
         onChange={onUploadFile}
         disabled={uploading}
       />
+
+      <div className="flex flex-col gap-2 rounded-md border border-border/80 bg-muted/30 p-3 text-sm">
+        <div className="flex flex-wrap items-center gap-1 text-muted-foreground">
+          {crumbs.map((c, idx) => (
+            <span key={`${c.id ?? "root"}-${idx}`} className="inline-flex items-center gap-0.5">
+              {idx > 0 ? <span aria-hidden>/</span> : null}
+              <button
+                type="button"
+                className="rounded px-1 hover:bg-muted hover:text-foreground"
+                onClick={() => setCrumbs(crumbs.slice(0, idx + 1))}
+              >
+                {c.label}
+              </button>
+              {c.id ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted"
+                    aria-label={`Действия: ${c.label}`}
+                  >
+                    <EllipsisVertical className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-44">
+                    <DropdownMenuItem onClick={() => openFolderRename({ id: c.id!, name: c.label })}>
+                      Переименовать
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        openFolderMove({ id: c.id!, name: c.label }, crumbs[idx - 1]?.id ?? null)
+                      }
+                    >
+                      Переместить…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem variant="destructive" onClick={() => openFolderDelete({ id: c.id!, name: c.label })}>
+                      Удалить…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {foldersLoading ? (
+            <span className="text-xs text-muted-foreground">Загрузка папок…</span>
+          ) : (
+            childFolders.map((f) => (
+              <span key={f.id} className="inline-flex items-center gap-0.5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCrumbs([...crumbs, { id: f.id, label: f.name }])}
+                >
+                  {f.name}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background hover:bg-muted"
+                    aria-label={`Действия: ${f.name}`}
+                  >
+                    <EllipsisVertical className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-44">
+                    <DropdownMenuItem onClick={() => openFolderRename({ id: f.id, name: f.name })}>
+                      Переименовать
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openFolderMove({ id: f.id, name: f.name }, currentFolderId)}>
+                      Переместить…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem variant="destructive" onClick={() => openFolderDelete({ id: f.id, name: f.name })}>
+                      Удалить…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </span>
+            ))
+          )}
+          <Button type="button" variant="outline" size="sm" onClick={() => setNewFolderDialog({ name: "" })}>
+            Новая папка
+          </Button>
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-end gap-2">
         {s3DeleteQueueErrors != null && s3DeleteQueueErrors > 0 ? (
@@ -808,9 +1330,16 @@ export function MediaLibraryClient() {
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {uploadPercent !== null ? (
         <div className="flex flex-col gap-1 rounded-md border border-border/70 bg-muted/20 p-2 text-xs">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-muted-foreground">{uploadStatus ?? "Загрузка..."}</span>
-            <span className="font-medium">{uploadPercent}%</span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{uploadPercent}%</span>
+              {uploading ? (
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => cancelActiveUpload()}>
+                  Отменить
+                </Button>
+              ) : null}
+            </div>
           </div>
           <div className="h-2 w-full overflow-hidden rounded bg-muted">
             <div className="h-full bg-primary transition-all" style={{ width: `${uploadPercent}%` }} />
@@ -832,6 +1361,7 @@ export function MediaLibraryClient() {
                 onOpenPreview={() => openLightboxByItemId(item.id)}
                 onDelete={() => openDeleteDialog(item)}
                 onRename={() => openRenameDialog(item)}
+                onMoveFolder={() => openMoveFolderDialog(item)}
                 onCopyUrl={() => void onCopyUrl(item)}
                 formatSize={formatSize}
                 formatDate={formatDate}
@@ -880,6 +1410,7 @@ export function MediaLibraryClient() {
                         <DropdownMenuLabel>Действия</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openRenameDialog(item)}>Переименовать</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openMoveFolderDialog(item)}>Папка…</DropdownMenuItem>
                         <DropdownMenuItem
                           variant="destructive"
                           disabled={deletingId === item.id}
@@ -979,6 +1510,7 @@ export function MediaLibraryClient() {
                               <DropdownMenuLabel>Действия</DropdownMenuLabel>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => openRenameDialog(item)}>Переименовать</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openMoveFolderDialog(item)}>Папка…</DropdownMenuItem>
                               <DropdownMenuItem
                                 variant="destructive"
                                 disabled={deletingId === item.id}

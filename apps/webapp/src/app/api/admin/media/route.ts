@@ -4,6 +4,9 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const querySchema = z.object({
   kind: z.enum(["all", "image", "video", "audio", "file"]).optional(),
   sortBy: z.enum(["date", "size", "type"]).optional(),
@@ -11,6 +14,8 @@ const querySchema = z.object({
   q: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
   offset: z.coerce.number().int().min(0).optional(),
+  folderId: z.string().optional(),
+  includeDescendants: z.enum(["true", "false"]).optional(),
 });
 
 export async function GET(request: Request) {
@@ -28,10 +33,24 @@ export async function GET(request: Request) {
     q: url.searchParams.get("q") ?? undefined,
     limit: url.searchParams.get("limit") ?? undefined,
     offset: url.searchParams.get("offset") ?? undefined,
+    folderId: url.searchParams.get("folderId") ?? undefined,
+    includeDescendants: url.searchParams.get("includeDescendants") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "invalid_query" }, { status: 400 });
   }
+
+  let listFolderId: string | null | undefined;
+  if (parsed.data.folderId === undefined) {
+    listFolderId = undefined;
+  } else if (parsed.data.folderId === "" || parsed.data.folderId === "root") {
+    listFolderId = null;
+  } else if (UUID_RE.test(parsed.data.folderId)) {
+    listFolderId = parsed.data.folderId;
+  } else {
+    return NextResponse.json({ ok: false, error: "invalid_folder_id" }, { status: 400 });
+  }
+  const includeDescendants = parsed.data.includeDescendants === "true";
 
   const sortByMap = {
     date: "createdAt",
@@ -49,6 +68,8 @@ export async function GET(request: Request) {
     sortDir: parsed.data.sortDir ?? "desc",
     limit,
     offset,
+    ...(listFolderId !== undefined ? { folderId: listFolderId } : {}),
+    ...(includeDescendants ? { includeDescendants: true } : {}),
   });
 
   const items = records.map((item) => ({

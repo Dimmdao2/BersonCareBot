@@ -27,9 +27,11 @@ type Props = {
   kind: MediaKind;
   value: string;
   onChange: (nextUrl: string) => void;
+  /** Library folder filter: `null` = root only; `undefined` = all files. */
+  folderId?: string | null;
 };
 
-export function MediaLibraryPickerDialog({ kind, value, onChange }: Props) {
+export function MediaLibraryPickerDialog({ kind, value, onChange, folderId }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,8 +46,12 @@ export function MediaLibraryPickerDialog({ kind, value, onChange }: Props) {
     p.set("sortDir", "desc");
     if (query.trim()) p.set("q", query.trim());
     p.set("limit", "80");
+    if (folderId !== undefined) {
+      if (folderId === null) p.set("folderId", "root");
+      else p.set("folderId", folderId);
+    }
     return `/api/admin/media?${p.toString()}`;
-  }, [kind, query]);
+  }, [kind, query, folderId]);
 
   useEffect(() => {
     if (!open) return;

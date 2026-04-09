@@ -28,5 +28,26 @@ export function createMediaService(port: MediaStoragePort) {
     async deleteHard(mediaId: string) {
       return port.deleteHard(mediaId);
     },
+    async updateMediaFolder(mediaId: string, folderId: string | null) {
+      return port.updateMediaFolder(mediaId, folderId);
+    },
+    async listFolders(parentId: string | null) {
+      return port.listFolders(parentId);
+    },
+    async listAllFolders() {
+      return port.listAllFolders();
+    },
+    async createFolder(params: Parameters<MediaStoragePort["createFolder"]>[0]) {
+      return port.createFolder(params);
+    },
+    async renameFolder(folderId: string, name: string) {
+      return port.renameFolder(folderId, name);
+    },
+    async moveFolder(folderId: string, newParentId: string | null) {
+      return port.moveFolder(folderId, newParentId);
+    },
+    async deleteFolder(folderId: string) {
+      return port.deleteFolder(folderId);
+    },
   };
 }

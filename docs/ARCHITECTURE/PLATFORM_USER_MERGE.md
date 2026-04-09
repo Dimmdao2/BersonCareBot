@@ -2,6 +2,13 @@
 
 Документ фиксирует текущую целевую модель merge/dedup для `platform_users` и состояние реализации по шагам.
 
+## Фаза v2 (Phase 6): integrator-side canonical merge
+
+Полное закрытие сценария **двух разных non-null `integrator_user_id`** вынесено в отдельную инициативу: canonical-модель в БД integrator, merge двух `users.id`, переписывание `projection_outbox`, realignment webapp projection-таблиц, feature-flag и порядок «сначала integrator merge, потом webapp merge».
+
+- **Master plan и этапы:** [`../PLATFORM_USER_MERGE_V2/MASTER_PLAN.md`](../PLATFORM_USER_MERGE_V2/MASTER_PLAN.md)
+- **Оглавление пакета:** [`../PLATFORM_USER_MERGE_V2/README.md`](../PLATFORM_USER_MERGE_V2/README.md)
+
 ## Цели
 
 - убрать появление новых кейсов `Неизвестный клиент` из Rubitime ingestion;

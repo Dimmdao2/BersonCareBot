@@ -34,6 +34,7 @@ type Props = {
   resolutionText?: string | null;
   onDelete: () => void;
   onRename: () => void;
+  onMoveFolder: () => void;
   onOpenPreview: () => void;
   onCopyUrl: () => void;
   formatSize: (bytes: number) => string;
@@ -51,6 +52,7 @@ export function MediaCard({
   resolutionText,
   onDelete,
   onRename,
+  onMoveFolder,
   onOpenPreview,
   onCopyUrl,
   formatSize,
@@ -148,6 +150,7 @@ export function MediaCard({
               <DropdownMenuLabel>Действия</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onRename}>Переименовать</DropdownMenuItem>
+              <DropdownMenuItem onClick={onMoveFolder}>Папка…</DropdownMenuItem>
               <DropdownMenuItem variant="destructive" disabled={deleting} onClick={onDelete}>
                 {deleting ? "Удаление..." : "Удалить"}
               </DropdownMenuItem>

@@ -156,6 +156,16 @@
 
 Источник в integrator: `mailing_topics`, `user_subscriptions`, `mailing_logs`.
 
+### 2.8 CMS media / библиотека
+
+Таблицы (миграции `028`, `044`, `060`, `065`, **`067_media_folders_and_multipart.sql`** и др.):
+
+- `media_files` — объекты библиотеки (в т.ч. `s3_key`, `status`, `uploaded_by`, `folder_id` → `media_folders`, лимит `size_bytes` до 3 GiB).
+- `media_folders` — иерархия папок (`parent_id`, нормализованное имя, триггеры против циклов и ограничение глубины).
+- `media_upload_sessions` — multipart-загрузки в S3 (`upload_id`, `expires_at`, статусы `initiated` … `completed`/`expired`/`aborted`/`failed`).
+
+Связи: `media_files.folder_id` → `media_folders.id` (ON DELETE RESTRICT). Канонический URL в приложении: `/api/media/{uuid}`.
+
 ---
 
 ## 3. Наблюдаемые особенности схемы

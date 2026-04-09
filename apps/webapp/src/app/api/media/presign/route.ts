@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/infra/logging/logger";
-import { deletePendingMediaFileById, insertPendingMediaFile } from "@/infra/repos/s3MediaStorage";
+import { pgFolderExists } from "@/infra/repos/mediaFoldersRepo";
+import { deletePendingMediaFileById, insertPendingMediaFileTx } from "@/infra/repos/s3MediaStorage";
+import { getPool } from "@/infra/db/client";
+import { withUserLifecycleLock } from "@/infra/userLifecycleLock";
 import { presignPutUrl, s3ObjectKey } from "@/infra/s3/client";
 import { getCurrentSession } from "@/modules/auth/service";
 import { ALLOWED_MEDIA_MIME, MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
@@ -13,6 +16,7 @@ const bodySchema = z.object({
   filename: z.string().min(1).max(255),
   mimeType: z.string().min(1),
   size: z.number().int().positive(),
+  folderId: z.string().uuid().nullable().optional(),
 });
 
 export async function POST(request: Request) {
@@ -45,18 +49,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "file_too_large", maxBytes: MAX_MEDIA_BYTES }, { status: 413 });
   }
 
+  let folderId: string | null = null;
+  if (parsed.data.folderId !== undefined && parsed.data.folderId !== null) {
+    const exists = await pgFolderExists(parsed.data.folderId);
+    if (!exists) {
+      return NextResponse.json({ ok: false, error: "folder_not_found" }, { status: 404 });
+    }
+    folderId = parsed.data.folderId;
+  }
+
   const mediaId = randomUUID();
   const key = s3ObjectKey(mediaId, parsed.data.filename);
   const readUrl = `/api/media/${mediaId}`;
 
   try {
-    await insertPendingMediaFile({
-      id: mediaId,
-      filename: parsed.data.filename,
-      key,
-      mimeType: mime,
-      sizeBytes: parsed.data.size,
-      userId: session.user.userId,
+    await withUserLifecycleLock(getPool(), session.user.userId, "shared", async (client) => {
+      await insertPendingMediaFileTx(client, {
+        id: mediaId,
+        filename: parsed.data.filename,
+        key,
+        mimeType: mime,
+        sizeBytes: parsed.data.size,
+        userId: session.user.userId,
+        folderId,
+      });
     });
     const uploadUrl = await presignPutUrl(key, mime);
     return NextResponse.json({
