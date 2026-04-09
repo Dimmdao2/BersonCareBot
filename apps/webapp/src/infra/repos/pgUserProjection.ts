@@ -81,7 +81,7 @@ async function mergeCandidates(
   reason: "projection" | "phone_bind",
 ): Promise<string> {
   const uniq = [...new Set(candidateIds)].filter(Boolean);
-  if (uniq.length === 0) throw new MergeConflictError("mergeCandidates: empty");
+  if (uniq.length === 0) throw new MergeConflictError("mergeCandidates: empty", candidateIds);
   if (uniq.length === 1) return uniq[0]!;
   let ids = [...uniq].sort();
   while (ids.length > 1) {
@@ -89,7 +89,7 @@ async function mergeCandidates(
     const id1 = ids[1]!;
     const a = await loadPuRow(client, id0);
     const b = await loadPuRow(client, id1);
-    if (!a || !b) throw new MergeConflictError("mergeCandidates: row missing");
+    if (!a || !b) throw new MergeConflictError("mergeCandidates: row missing", ids);
     const { target, duplicate } = pickMergeTargetId(a, b);
     try {
       await mergePlatformUsersInTransaction(client, target, duplicate, reason);
@@ -119,7 +119,7 @@ async function collectCandidateIds(
      LIMIT 3`,
     [params.integratorUserId],
   );
-  if (byInt.rows.length > 1) throw new MergeConflictError("ambiguous integrator_user_id match");
+  if (byInt.rows.length > 1) throw new MergeConflictError("ambiguous integrator_user_id match", byInt.rows.map(r => r.id));
   if (byInt.rows[0]) ids.push(byInt.rows[0].id);
   if (params.phoneNormalized) {
     const byPhone = await client.query<{ id: string }>(
@@ -128,7 +128,7 @@ async function collectCandidateIds(
        LIMIT 3`,
       [params.phoneNormalized],
     );
-    if (byPhone.rows.length > 1) throw new MergeConflictError("ambiguous phone_normalized match");
+    if (byPhone.rows.length > 1) throw new MergeConflictError("ambiguous phone_normalized match", byPhone.rows.map(r => r.id));
     if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
   }
   if (params.channelCode && params.externalId) {
@@ -231,7 +231,7 @@ async function ensureAppointmentClientTx(
     console.error("[ensureClientFromAppointmentProjection] duplicate canonical phone rows", {
       phone: params.phoneNormalized,
     });
-    throw new MergeConflictError("multiple canonical users for phone");
+    throw new MergeConflictError("multiple canonical users for phone", byPhone.rows.map(r => r.id));
   }
   if (byPhone.rows[0]) ids.push(byPhone.rows[0].id);
 
@@ -242,7 +242,7 @@ async function ensureAppointmentClientTx(
       [params.integratorUserId.trim()],
     );
     if (byInt.rows.length > 1) {
-      throw new MergeConflictError("multiple canonical users for integrator id");
+      throw new MergeConflictError("multiple canonical users for integrator id", byInt.rows.map(r => r.id));
     }
     if (byInt.rows[0]) ids.push(byInt.rows[0].id);
   }

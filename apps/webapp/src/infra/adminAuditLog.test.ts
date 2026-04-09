@@ -1,0 +1,146 @@
+import { describe, expect, it, vi } from "vitest";
+import { computeConflictKeyFromCandidateIds, upsertOpenConflictLog, writeAuditLog } from "./adminAuditLog";
+import type { Pool } from "pg";
+
+describe("computeConflictKeyFromCandidateIds", () => {
+  it("is stable under reordering and dedupes", () => {
+    const a = computeConflictKeyFromCandidateIds([
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    ]);
+    const b = computeConflictKeyFromCandidateIds([
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    ]);
+    expect(a).toBe(b);
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("throws on empty input", () => {
+    expect(() => computeConflictKeyFromCandidateIds([])).toThrow();
+  });
+});
+
+describe("writeAuditLog", () => {
+  it("inserts using pool.query", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1, rows: [] });
+    const pool = { query } as unknown as Pool;
+    await writeAuditLog(pool, { actorId: null, action: "test_action", details: { a: 1 } });
+    expect(query).toHaveBeenCalledTimes(1);
+    const args = query.mock.calls[0];
+    expect(args?.[0]).toContain("INSERT INTO admin_audit_log");
+    expect(args?.[1]).toEqual([null, "test_action", null, null, '{"a":1}', "ok"]);
+  });
+
+  it("logs and swallows DB errors", async () => {
+    const errorSpy = vi.spyOn((await import("./logging/logger")).logger, "error").mockImplementation(() => {});
+    const pool = {
+      query: vi.fn().mockRejectedValue(new Error("db down")),
+    } as unknown as Pool;
+    await expect(writeAuditLog(pool, { actorId: null, action: "test_action" })).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+});
+
+describe("upsertOpenConflictLog", () => {
+  it("writes anomaly log when candidateIds is empty", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1, rows: [] });
+    const pool = { query } as unknown as Pool;
+    await upsertOpenConflictLog(pool, {
+      actorId: null,
+      candidateIds: [],
+      targetId: "u1",
+      details: { reason: "missing_ids" },
+      status: "error",
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+    const args = query.mock.calls[0];
+    expect(args?.[0]).toContain("INSERT INTO admin_audit_log");
+    expect(args?.[1]?.[1]).toBe("auto_merge_conflict_anomaly");
+    expect(args?.[1]?.[2]).toBe("u1");
+    expect(args?.[1]?.[3]).toBeNull();
+  });
+
+  it("merges seenEventTypes from details and eventType", async () => {
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      if (sql === "BEGIN" || sql === "COMMIT") return { rowCount: 0, rows: [] };
+      if (sql.includes("SELECT id, details, repeat_count")) {
+        return { rowCount: 1, rows: [{ id: "r1", details: { seenEventTypes: ["contact.linked"] }, repeat_count: 2 }] };
+      }
+      if (sql.includes("UPDATE admin_audit_log")) return { rowCount: 1, rows: [] };
+      return { rowCount: 0, rows: [] };
+    });
+    const release = vi.fn();
+    const pool = {
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    } as unknown as Pool;
+    await upsertOpenConflictLog(pool, {
+      actorId: null,
+      candidateIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
+      details: {
+        eventType: "user.upserted",
+        seenEventTypes: ["appointment.record.upserted"],
+      },
+      status: "error",
+    });
+    const updateCall = query.mock.calls.find((c) => String(c[0]).includes("UPDATE admin_audit_log"));
+    expect(updateCall).toBeDefined();
+    const payloadJson = updateCall?.[1]?.[1];
+    expect(typeof payloadJson).toBe("string");
+    const payload = JSON.parse(String(payloadJson)) as { seenEventTypes: string[] };
+    expect(payload.seenEventTypes).toEqual([
+      "appointment.record.upserted",
+      "contact.linked",
+      "user.upserted",
+    ]);
+  });
+
+  it("handles unique race by updating existing open conflict row", async () => {
+    let insertAttempts = 0;
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      if (sql === "BEGIN" || sql === "COMMIT") return { rowCount: 0, rows: [] };
+      if (sql.includes("SELECT id, details, repeat_count")) {
+        // First SELECT: no row yet. Second SELECT: row inserted by concurrent tx.
+        if (insertAttempts === 0) return { rowCount: 0, rows: [] };
+        return { rowCount: 1, rows: [{ id: "r2", details: { seenEventTypes: [] }, repeat_count: 1 }] };
+      }
+      if (sql.includes("INSERT INTO admin_audit_log")) {
+        insertAttempts += 1;
+        const err = new Error("duplicate key") as Error & { code?: string };
+        err.code = "23505";
+        throw err;
+      }
+      if (sql.includes("UPDATE admin_audit_log")) return { rowCount: 1, rows: [] };
+      return { rowCount: 0, rows: [] };
+    });
+    const release = vi.fn();
+    const pool = {
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    } as unknown as Pool;
+    await upsertOpenConflictLog(pool, {
+      actorId: null,
+      candidateIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
+      details: { eventType: "contact.linked" },
+      status: "error",
+    });
+    expect(query.mock.calls.some((c) => String(c[0]).includes("UPDATE admin_audit_log"))).toBe(true);
+  });
+
+  it("swallows connect failure and logs error", async () => {
+    const errorSpy = vi.spyOn((await import("./logging/logger")).logger, "error").mockImplementation(() => {});
+    const pool = {
+      connect: vi.fn().mockRejectedValue(new Error("connect failed")),
+    } as unknown as Pool;
+    await expect(
+      upsertOpenConflictLog(pool, {
+        actorId: null,
+        candidateIds: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"],
+        details: { eventType: "contact.linked" },
+      }),
+    ).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+});

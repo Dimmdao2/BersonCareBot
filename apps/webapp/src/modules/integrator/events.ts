@@ -57,7 +57,20 @@ export type IntegratorHandleResult = {
 };
 
 /** Narrow deps for event handling; supplied by the route from buildAppDeps(). */
+export type AutoMergeConflictAuditInput = {
+  candidateIds: string[];
+  eventType: string;
+  reason: string;
+  integratorUserIds: string[];
+  payloadPreview: string;
+  conflictClass: "MergeConflictError" | "MergeDependentConflictError";
+};
+
 export type IntegratorEventsDeps = {
+  /** When set, merge-class projection conflicts are persisted and return `accepted: true` (HTTP 202) instead of retry 503. */
+  conflictAudit?: {
+    logAutoMergeConflict: (input: AutoMergeConflictAuditInput) => Promise<void>;
+  };
   diaries: {
     createSymptomTracking: (params: {
       userId: string;
@@ -166,6 +179,61 @@ function coerceToFiniteInt(value: unknown): number | null {
     if (Number.isFinite(n)) return Math.trunc(n);
   }
   return null;
+}
+
+function isMergeDomainConflict(err: unknown): err is MergeConflictError | MergeDependentConflictError {
+  return err instanceof MergeConflictError || err instanceof MergeDependentConflictError;
+}
+
+function extractIntegratorUserIdsFromPayload(payload: Record<string, unknown>): string[] {
+  const ids: string[] = [];
+  const top = payload.integratorUserId ?? payload.integrator_user_id;
+  const t = coerceToString(top);
+  if (t) ids.push(t);
+  const pj = payload.payloadJson;
+  if (typeof pj === "object" && pj !== null) {
+    const o = pj as Record<string, unknown>;
+    const t2 = coerceToString(o.integratorUserId ?? o.integrator_user_id);
+    if (t2) ids.push(t2);
+  }
+  return [...new Set(ids)];
+}
+
+async function logMergeClassConflict(
+  deps: IntegratorEventsDeps,
+  err: MergeConflictError | MergeDependentConflictError,
+  eventType: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (!deps.conflictAudit) return;
+  const candidateIds = err.candidateIds ?? [];
+  const integratorUserIds = extractIntegratorUserIdsFromPayload(payload);
+  const payloadPreview = JSON.stringify(payload).slice(0, 2000);
+  const conflictClass: AutoMergeConflictAuditInput["conflictClass"] =
+    err instanceof MergeDependentConflictError ? "MergeDependentConflictError" : "MergeConflictError";
+  await deps.conflictAudit.logAutoMergeConflict({
+    candidateIds,
+    eventType,
+    reason: err.message,
+    integratorUserIds,
+    payloadPreview,
+    conflictClass,
+  });
+}
+
+async function acceptAfterMergeConflict(
+  deps: IntegratorEventsDeps,
+  err: unknown,
+  eventType: string,
+  payload: Record<string, unknown>,
+): Promise<IntegratorHandleResult | null> {
+  if (!isMergeDomainConflict(err)) return null;
+  await logMergeClassConflict(deps, err, eventType, payload);
+  const auditNote = deps.conflictAudit ? "" : " (conflictAudit not configured — no DB dedup)";
+  return {
+    accepted: true,
+    reason: `${eventType}: merge conflict logged (deferred identity apply)${auditNote}`,
+  };
 }
 
 export async function handleIntegratorEvent(
@@ -302,6 +370,8 @@ export async function handleIntegratorEvent(
       });
       return { accepted: true };
     } catch (err) {
+      const deferred = await acceptAfterMergeConflict(deps, err, "user.upserted", payload);
+      if (deferred) return deferred;
       const reason = err instanceof Error ? err.message : "unknown error";
       return { accepted: false, reason: `user.upserted: ${reason}` };
     }
@@ -329,6 +399,8 @@ export async function handleIntegratorEvent(
       await deps.users.updatePhone(platformUserId, phoneNormalized);
       return { accepted: true };
     } catch (err) {
+      const deferred = await acceptAfterMergeConflict(deps, err, "contact.linked", payload);
+      if (deferred) return deferred;
       const reason = err instanceof Error ? err.message : "unknown error";
       return { accepted: false, reason: `contact.linked: ${reason}` };
     }
@@ -363,6 +435,8 @@ export async function handleIntegratorEvent(
       });
       return { accepted: true };
     } catch (err) {
+      const deferred = await acceptAfterMergeConflict(deps, err, "preferences.updated", payload);
+      if (deferred) return deferred;
       const reason = err instanceof Error ? err.message : "unknown error";
       return { accepted: false, reason: `preferences.updated: ${reason}` };
     }
@@ -693,13 +767,18 @@ export async function handleIntegratorEvent(
         retryable: false,
       };
     }
-    const phoneRaw = coerceToString(p.phoneNormalized) ?? null;
-    const phoneNormalized = phoneRaw ? normalizeRuPhoneE164(phoneRaw.trim()) : null;
     const recordAt = typeof p.recordAt === "string" ? p.recordAt : null;
     const payloadJson =
       typeof p.payloadJson === "object" && p.payloadJson !== null
         ? (p.payloadJson as Record<string, unknown>)
         : {};
+    const phoneRaw =
+      coerceToString(p.phoneNormalized) ??
+      coerceToString(payloadJson.phone) ??
+      coerceToString(payloadJson.phoneNormalized) ??
+      coerceToString(payloadJson.phone_normalized) ??
+      null;
+    const phoneNormalized = phoneRaw ? normalizeRuPhoneE164(phoneRaw.trim()) : null;
     const lastEvent = typeof p.lastEvent === "string" ? p.lastEvent : "";
     const updatedAt = typeof p.updatedAt === "string" ? p.updatedAt : new Date().toISOString();
     const patientFirstName = coerceToString(p.patientFirstName) ?? null;
@@ -723,6 +802,8 @@ export async function handleIntegratorEvent(
         : null;
 
     let ensuredPlatformUserId: string | null = null;
+    let appointmentMergeConflict = false;
+    const auditPayload: Record<string, unknown> = { ...p, payloadJson };
     if (phoneNormalized && deps.users?.ensureClientFromAppointmentProjection) {
       const integratorUserIdTop =
         coerceToString(p.integratorUserId) ??
@@ -743,15 +824,12 @@ export async function handleIntegratorEvent(
         });
         ensuredPlatformUserId = ensured.platformUserId;
       } catch (err) {
-        if (err instanceof MergeConflictError || err instanceof MergeDependentConflictError) {
-          const msg = err instanceof Error ? err.message : String(err);
-          return {
-            accepted: false,
-            reason: `appointment.record.upserted: ${msg}`,
-            retryable: true,
-          };
+        if (isMergeDomainConflict(err)) {
+          await logMergeClassConflict(deps, err, "appointment.record.upserted", auditPayload);
+          appointmentMergeConflict = true;
+        } else {
+          throw err;
         }
-        throw err;
       }
     }
 
@@ -777,16 +855,15 @@ export async function handleIntegratorEvent(
         coerceToString(p.dateTimeEnd) ??
         coerceToString(payloadJson.datetime_end) ??
         coerceToString(payloadJson.date_time_end);
-      const rawPayloadPhone = phoneNormalized ?? coerceToString(payloadJson.phone);
-      const payloadPhone = rawPayloadPhone ? normalizeRuPhoneE164(String(rawPayloadPhone).trim()) : null;
+      const payloadPhone = phoneNormalized;
       const payloadContactName =
         coerceToString(p.patientFirstName) ??
         coerceToString(payloadJson.name) ??
         ([coerceToString(p.patientLastName), coerceToString(p.patientFirstName)].filter(Boolean).join(" ") || null);
 
-      // Resolve userId for compat-create linking (best-effort).
-      let resolvedUserId: string | null = ensuredPlatformUserId;
-      if (!resolvedUserId && deps.users && payloadPhone) {
+      // Resolve userId for compat-create linking (best-effort). Skip ambiguous fallbacks after merge-class conflict.
+      let resolvedUserId: string | null = appointmentMergeConflict ? null : ensuredPlatformUserId;
+      if (!appointmentMergeConflict && !resolvedUserId && deps.users && payloadPhone) {
         try {
           const foundByPhone = await deps.users.findByPhone?.(payloadPhone);
           resolvedUserId = foundByPhone?.platformUserId ?? null;
@@ -794,7 +871,7 @@ export async function handleIntegratorEvent(
           // best-effort
         }
       }
-      if (!resolvedUserId && deps.users) {
+      if (!appointmentMergeConflict && !resolvedUserId && deps.users) {
         const integratorUserId =
           coerceToString(p.integratorUserId) ??
           coerceToString(payloadJson.integratorUserId) ??
@@ -839,6 +916,8 @@ export async function handleIntegratorEvent(
       });
       return { accepted: true };
     } catch (err) {
+      const deferred = await acceptAfterMergeConflict(deps, err, "appointment.record.upserted", auditPayload);
+      if (deferred) return deferred;
       const reason = err instanceof Error ? err.message : "unknown error";
       return {
         accepted: false,

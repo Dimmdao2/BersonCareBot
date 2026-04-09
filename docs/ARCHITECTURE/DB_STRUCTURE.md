@@ -111,6 +111,7 @@
 - `phone_challenges`
 - `message_log`
 - `broadcast_audit`
+- `admin_audit_log` — персистентный журнал операций админки (опасные действия, смена настроек, конфликты auto-merge и т.д.); UI «Лог операций» в `/app/settings`, API `GET /api/admin/audit-log`. Миграция `066_admin_audit_log.sql`. Подробности и политика записи: `docs/REPORTS/STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md`, план strict purge §0.
 - `idempotency_keys`
 - `schema_migrations`
 

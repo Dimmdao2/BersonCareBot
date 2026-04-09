@@ -1,6 +1,8 @@
 /**
  * Полное удаление клиента из webapp (+ опционально integrator), как `purge-by-id` в user-phone-admin.
  * Вызывать только после явного подтверждения (например из API кабинета врача для заархивированных).
+ *
+ * Строгий сценарий (S3, advisory lock, audit): `runStrictPurgePlatformUser` в `strictPlatformUserPurge.ts`.
  */
 import pg, { type Pool, type PoolClient } from "pg";
 import { getPool } from "@/infra/db/client";
@@ -9,7 +11,7 @@ const { Pool: PgPool } = pg;
 
 let integratorPoolSingleton: Pool | null = null;
 
-function getIntegratorPool(): Pool | null {
+export function getIntegratorPoolForPurge(): Pool | null {
   const raw = process.env.INTEGRATOR_DATABASE_URL?.trim() || process.env.USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL?.trim();
   if (!raw) return null;
   try {
@@ -143,7 +145,76 @@ async function deleteContentTablesForUser(client: PoolClient, userId: string): P
   }
 }
 
-async function resolveIntegratorUserIds(
+export type PurgeArtifactKeys = {
+  intakeS3Keys: string[];
+  /** media_files rows that need post-commit cleanup; `s3Key = null` means DB-only row delete. */
+  mediaFiles: { id: string; s3Key: string | null }[];
+};
+
+/**
+ * Collect external-cleanup artifacts still referenced in DB for this user. Must run inside the purge transaction
+ * **after** `pg_advisory_xact_lock` and **before** any DELETE that cascades to `online_intake_attachments`
+ * / clears media ownership.
+ */
+export async function collectPurgeArtifactKeys(client: PoolClient, userId: string): Promise<PurgeArtifactKeys> {
+  const intakeRes = await client.query<{ s3_key: string }>(
+    `SELECT a.s3_key
+       FROM online_intake_attachments a
+       INNER JOIN online_intake_requests r ON r.id = a.request_id
+      WHERE r.user_id = $1::uuid
+        AND a.s3_key IS NOT NULL`,
+    [userId],
+  );
+  const intakeS3Keys = intakeRes.rows.map((r) => r.s3_key).filter((k): k is string => typeof k === "string" && k.length > 0);
+
+  const mediaRes = await client.query<{ id: string; s3_key: string | null }>(
+    `SELECT id::text AS id, s3_key
+       FROM media_files
+      WHERE uploaded_by = $1::uuid`,
+    [userId],
+  );
+  const mediaFiles = mediaRes.rows.map((r) => ({ id: r.id, s3Key: r.s3_key ?? null }));
+
+  return { intakeS3Keys, mediaFiles };
+}
+
+export type PurgePlatformUserRow = {
+  id: string;
+  phone_normalized: string | null;
+  integrator_user_id: string | null;
+  role: string;
+};
+
+/**
+ * Core webapp DELETE sequence (single transaction). Caller must hold advisory lock and have called `collectPurgeArtifactKeys` first when strict S3 cleanup is required.
+ */
+export async function runWebappPurgeCoreInTransaction(client: PoolClient, user: PurgePlatformUserRow): Promise<void> {
+  if (user.phone_normalized?.trim()) {
+    await deletePhoneKeyedWebappRows(client, user.phone_normalized);
+  }
+
+  await clearPlatformUserDeleteBlockers(client, user.id);
+  await deleteSymptomAndLfkDiaryForUser(client, user.id);
+  await deleteContentTablesForUser(client, user.id);
+
+  if (user.integrator_user_id && /^\d+$/.test(user.integrator_user_id)) {
+    await deleteWebappProjectionByIntegratorUserId(client, user.integrator_user_id);
+  }
+
+  await client.query(
+    `DELETE FROM message_log
+       WHERE user_id = $1::text OR platform_user_id = $1::uuid`,
+    [user.id],
+  );
+
+  for (const { table, column } of IDENTITY_TABLES) {
+    await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [user.id]);
+  }
+
+  await client.query(`DELETE FROM platform_users WHERE id = $1`, [user.id]);
+}
+
+export async function resolveIntegratorUserIds(
   integratorDb: Pool | null,
   digs: string,
   webappIntegratorUserId: string | null,
@@ -165,7 +236,7 @@ async function resolveIntegratorUserIds(
   return [...ids];
 }
 
-async function deleteIntegratorPhoneData(
+export async function deleteIntegratorPhoneData(
   integratorDb: Pool,
   digs: string,
   integratorUserIds: string[],
@@ -210,79 +281,66 @@ async function deleteIntegratorPhoneData(
   }
 }
 
+export type IntegratorPurgeCleanupResult =
+  | { ok: true; skipped?: boolean }
+  | { ok: false; message: string };
+
+/**
+ * Same as `deleteIntegratorPhoneData` but never throws; used for post-commit strict purge (parallel with S3).
+ */
+export async function deleteIntegratorPhoneDataWithResult(
+  integratorDb: Pool | null,
+  digs: string,
+  integratorUserIds: string[],
+): Promise<IntegratorPurgeCleanupResult> {
+  if (!integratorDb) {
+    return { ok: true, skipped: true };
+  }
+  try {
+    await deleteIntegratorPhoneData(integratorDb, digs, integratorUserIds);
+    return { ok: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, message };
+  }
+}
+
+/** Mirrors `runStrictPurgePlatformUser` — see `strictPlatformUserPurge.ts`. */
+export type StrictPurgeOutcome = "completed" | "partial_failed" | "needs_retry";
+
 export type PurgePlatformUserResult =
-  | { ok: true; integratorSkipped: boolean }
-  | { ok: false; error: "invalid_uuid" | "not_found" | "not_client" };
+  | { ok: true; integratorSkipped: boolean; outcome?: StrictPurgeOutcome }
+  | { ok: false; error: "invalid_uuid" | "not_found" | "not_client" | "transaction_failed" };
 
 /**
  * Удаляет строку `platform_users` и связанные данные (см. CONTENT_TABLES / скрипт purge-by-id).
- * Integrator очищается, если задан `INTEGRATOR_DATABASE_URL`.
+ * Делегирует в `runStrictPurgePlatformUser` (advisory lock, S3, integrator, audit при необходимости).
  */
 export async function purgePlatformUserByPlatformId(rawId: string): Promise<PurgePlatformUserResult> {
-  const id = rawId.trim();
-  if (!isPlatformUserUuid(id)) {
-    return { ok: false, error: "invalid_uuid" };
+  const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
+  const r = await runStrictPurgePlatformUser({ targetId: rawId, actorId: null, audit: { enabled: true } });
+  if (!r.ok) {
+    return { ok: false, error: r.error };
   }
+  return {
+    ok: true,
+    integratorSkipped: r.integratorSkipped,
+    outcome: r.outcome,
+  };
+}
 
-  const db = getPool();
-  const userRes = await db.query<{
-    id: string;
-    phone_normalized: string | null;
-    integrator_user_id: string | null;
-    role: string;
-  }>(
+async function loadPurgeUserRow(db: Pool, id: string): Promise<PurgePlatformUserRow | null> {
+  const userRes = await db.query<PurgePlatformUserRow>(
     `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, role
      FROM platform_users WHERE id = $1`,
     [id],
   );
-  const user = userRes.rows[0];
-  if (!user) return { ok: false, error: "not_found" };
-  if (user.role !== "client") return { ok: false, error: "not_client" };
+  return userRes.rows[0] ?? null;
+}
 
-  const integratorPool = getIntegratorPool();
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-
-    if (user.phone_normalized?.trim()) {
-      await deletePhoneKeyedWebappRows(client, user.phone_normalized);
-    }
-
-    await clearPlatformUserDeleteBlockers(client, user.id);
-    await deleteSymptomAndLfkDiaryForUser(client, user.id);
-    await deleteContentTablesForUser(client, user.id);
-
-    if (user.integrator_user_id && /^\d+$/.test(user.integrator_user_id)) {
-      await deleteWebappProjectionByIntegratorUserId(client, user.integrator_user_id);
-    }
-
-    await client.query(
-      `DELETE FROM message_log
-       WHERE user_id = $1::text OR platform_user_id = $1::uuid`,
-      [user.id],
-    );
-
-    for (const { table, column } of IDENTITY_TABLES) {
-      await client.query(`DELETE FROM ${table} WHERE ${column} = $1`, [user.id]);
-    }
-
-    await client.query(`DELETE FROM platform_users WHERE id = $1`, [user.id]);
-
-    await client.query("COMMIT");
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
-
-  const digs = user.phone_normalized?.trim() ? phoneDigits(user.phone_normalized) : "";
-  const intIds = await resolveIntegratorUserIds(integratorPool, digs, user.integrator_user_id);
-
-  if (integratorPool) {
-    await deleteIntegratorPhoneData(integratorPool, digs, intIds);
-    return { ok: true, integratorSkipped: false };
-  }
-
-  return { ok: true, integratorSkipped: true };
+/** For tests / diagnostics: load user row without deleting. */
+export async function getPurgePlatformUserRowForTests(rawId: string): Promise<PurgePlatformUserRow | null> {
+  const id = rawId.trim();
+  if (!isPlatformUserUuid(id)) return null;
+  return loadPurgeUserRow(getPool(), id);
 }

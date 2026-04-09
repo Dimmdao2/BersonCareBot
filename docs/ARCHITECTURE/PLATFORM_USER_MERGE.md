@@ -57,7 +57,7 @@
 - `appointment.record.upserted` в webapp должен:
   - при наличии телефона вызывать `ensureClientFromAppointmentProjection(...)`;
   - возвращать canonical `platformUserId` и передавать его в compat booking update path;
-  - при merge conflicts возвращать retryable outcome, без «угадывания» user.
+  - при **merge conflicts** (typed `MergeConflictError` / `MergeDependentConflictError`): событие принимается (**HTTP 202**), аудит `auto_merge_conflict`, запись в projection без неоднозначной привязки к платформенному пользователю (см. ниже «Projection ingestion — конфликты auto-merge»), без fallback «первый кандидат» и без compat `findByPhone` / `findByIntegratorId` при флаге конфликта.
 - UI fallback label для appointments:
   1. canonical профиль (`display_name`/first/last),
   2. `payload_json.name`,
@@ -76,11 +76,107 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 Применение обязательно в read/write entry points (auth/support/reminder/doctor routes/ports), где раньше был direct lookup `platform_users ... LIMIT 1`.
 
+## Strict purge и advisory locks (webapp v1)
+
+Безвозвратное удаление (`runStrictPurgePlatformUser`) использует **`pg_advisory_xact_lock(hashtext(platform_user_id::text))`** (exclusive) в одной транзакции с preflight S3-ключей и DELETE. Конкурирующие пользовательские записи, которые иначе создали бы гонку «между preflight и DELETE», берут **`pg_advisory_xact_lock_shared`** на тот же ключ:
+
+- `POST /api/media/presign` — `insertPendingMediaFileTx` внутри `withUserLifecycleLock(..., "shared", ...)`;
+- `createPgOnlineIntakePort().createLfkRequest` (LFK) и **`createNutritionRequest`** — `pg_advisory_xact_lock_shared` сразу после `BEGIN` (одинаковый ключ `hashtext(userId)`).
+
+**Manual merge (v1):** `runManualPlatformUserMerge` берёт **два** exclusive lock’а на отсортированной паре `(targetId, duplicateId)` в одной транзакции (`withTwoUserLifecycleLocksExclusive` в `userLifecycleLock.ts`), затем `mergePlatformUsersInTransaction(..., "manual", { resolution })` — тот же протокол ключа, что и strict purge, без гонки с shared upload/intake на том же пользователе.
+
 ## Что явно не входит в текущую фазу
 
 - physical delete/archiving merged alias rows;
 - удаление legacy text `user_id` колонок;
 - перепривязка actor/audit полей (`author_id`, `updated_by`, и т.п.) на canonical user.
+
+## Manual merge — preview (admin, v1)
+
+На шаге **preview** (до вызова `POST /api/doctor/clients/merge`) webapp отдаёт **только чтение**: сравнение двух `platform_users`, привязок, счётчиков зависимостей, жёстких блокеров и полей, требующих выбора оператора.
+
+### HTTP
+
+- `GET /api/doctor/clients/:userId/merge-candidates` — список **других** канонических клиентов (`role = client`, `merged_into_id IS NULL`), которые делят с якорным пользователем хотя бы один идентификатор: нормализованный телефон, email (case-insensitive trim), `integrator_user_id`, либо пару `(channel_code, external_id)` в `user_channel_bindings`. Опционально `?q=` — дополнительное сужение подстрокой по id, телефону, email, имени, integrator id, `external_id` биндингов. Доступ: **admin + admin mode** (`requireAdminModeSession`). Если якорь не клиент — `400 not_client`; если якорь alias — `409 anchor_is_alias`; не найден — `404`.
+- `GET /api/doctor/clients/merge-preview?targetId=&duplicateId=` — полный preview для пары (порядок задаёт UI: target = каноническая «победившая» сторона для будущего apply). Доступ: **admin + admin mode**. Оба пользователя должны быть `role = client`, иначе `400 not_client`. Ответ JSON: camelCase поля профиля, биндинги, OAuth, `dependentCounts`, `hardBlockers`, `scalarConflicts` / `channelConflicts` / `oauthConflicts`, `autoMergeScalars`, `recommendation` (эвристика `pickMergeTargetId` как подсказка UI), `mergeAllowed` (нет hard blockers), **`v1MergeEngineCallable`** (можно ли вызвать **текущий** `mergePlatformUsersInTransaction` без `MergeConflictError`: те же hard blockers **и** отсутствие пары разных non-null `phone_normalized` — иначе движок падает до dependent-guard’ов).
+
+Реализация: `apps/webapp/src/infra/platformUserMergePreview.ts`, маршруты в `apps/webapp/src/app/api/doctor/clients/`.
+
+### Hard blockers (совпадают с guard’ами merge engine)
+
+| Код | Смысл |
+|-----|--------|
+| `target_is_alias` / `duplicate_is_alias` | `merged_into_id IS NOT NULL` — merge alias в паре недопустим. |
+| `different_non_null_integrator_user_id` | Оба `integrator_user_id` заданы и **различны** — **жёсткий запрет** (риск phantom user / рассинхрон проекций); снятие — только в **v2** (integrator-side canonical merge в БД integrator; в `.cursor/plans/...` это отдельный шаг после v1, не «этап 6» про документацию). |
+| `active_bookings_time_overlap` | Тот же SQL, что `assertPatientBookingsSafeToMerge` в `pgPlatformUserMerge.ts` (пересечение слотов у «активных» статусов и согласованный cooperator snapshot). |
+| `active_lfk_template_conflict` | Два активных `patient_lfk_assignments` на одну `template_id` — как `assertPatientLfkAssignmentsSafe`. |
+| `shared_phone_both_have_meaningful_data` | Одинаковый non-null телефон и «meaningful data» на обоих — как `assertSharedPhoneGuard` (сумма счётчиков по тем же таблицам, что в merge). |
+
+`mergeAllowed === false` при любом hard blocker; конфликтные поля всё равно возвращаются для compare UI.
+
+**`mergeAllowed` vs `v1MergeEngineCallable`:** первый — только про **hard blockers** плана. Второй дополнительно отсекает пару с **двумя разными non-null телефонами**, потому что **авто**-merge (`mergePlatformUsersInTransaction` без ручного `resolution`) бросает `MergeConflictError` на этом условии (ещё до `assertSharedPhoneGuard`). **Ручной** apply (`POST /api/doctor/clients/merge` с `ManualMergeResolution`) в v1 уже разрешает телефон и остальные скаляры явно и переносит `media_files.uploaded_by`; `v1MergeEngineCallable` описывает только совместимость с **авто**-путём, не пригодность ручного merge.
+
+### Конфликты vs auto-merge
+
+- **Скаляры** (`phone_normalized`, `display_name`, `first_name`, `last_name`, `email`): конфликт, если оба non-null и различаются (email — без учёта регистра). Рекомендация по умолчанию: сторона с **более ранним** `created_at` (`recommendedWinner`).
+- **Каналы** (`telegram`, `max`, `vk`, …): конфликт, если у обоих есть биндинг на один `channel_code`, но разный `external_id`. Рекомендация по умолчанию: older `created_at`.
+- **OAuth**: конфликт по provider, если оба имеют привязку, но разный `provider_user_id` (уникальность `(provider, provider_user_id)` как в БД).
+- **autoMergeScalars**: значения без конфликта; семантика effective для скаляров согласована с **авто** merge в `mergePlatformUsersInTransaction` (COALESCE и CASE для `display_name`). Для полей с **конфликтом** (оба non-null, разные значения) при **авто**-пути движок для `first_name` / `last_name` / `email` всё же выполняет `COALESCE(target, duplicate)` в SQL (приоритет target), т.е. без выбора оператора; preview показывает конфликт для compare UI, а **ручной** merge применяет выбор из `resolution.fields`. `scalarConflicts` не дублирует жёсткий блокер `different_non_null_integrator_user_id`.
+
+### Зависимые счётчики (preview)
+
+По каждому пользователю: `patient_bookings`, `reminder_rules` (`platform_user_id`), `support_conversations`, `symptom_trackings`, `lfk_complexes`, `media_files.uploaded_by`, `online_intake_requests`. Не заменяют полный строгий preflight purge.
+
+## Manual merge — apply (admin, v1)
+
+Операторский apply выполняется через **`POST /api/doctor/clients/merge`** (только **admin + admin mode**). Тело: `{ resolution: ManualMergeResolution }`. Исходный тип: `apps/webapp/src/infra/repos/manualMergeResolution.ts` (экспорт также из `pgPlatformUserMerge.ts`). Сервер дополнительно проверяет, что **обе** строки `platform_users` имеют `role = 'client'`; merge doctor/admin-аккаунтов этим маршрутом не поддерживается.
+
+### Контракт `ManualMergeResolution` (финальный для v1)
+
+- **`targetId` / `duplicateId`**: каноническая сторона и дубликат (становится alias с `merged_into_id = targetId`).
+- **`fields`**: для каждого скаляра (`phone_normalized`, `display_name`, `first_name`, `last_name`, `email`) — `'target' | 'duplicate'`, чьё значение остаётся на канонической строке после merge.
+- **`integrator_user_id` не входит в `fields`**: два **разных** non-null `integrator_user_id` по-прежнему **жёсткий блокер** (как в preview и в `mergePlatformUsersInTransaction`); merge integrator DB не выполняется (вне scope v1).
+- **`bindings`**: для `telegram`, `max`, `vk` — `'target' | 'duplicate' | 'both'`. При конфликте разных `external_id` оператор **обязан** выбрать сторону (`target` / `duplicate`); `'both'` допустим только для канала **без конфликта** (авто-перенос duplicate-only bindings на target c `ON CONFLICT DO NOTHING`).
+- **`oauth`**: `Record<provider, 'target' | 'duplicate'>` — обязателен для каждого провайдера, где у обоих пользователей разные `provider_user_id`; иначе `MergeConflictError` при apply.
+- **`channelPreferences`**: `'keep_target' | 'keep_newer' | 'merge'` — поведение для `user_channel_preferences` (`keep_target` удаляет строки duplicate; `keep_newer` и `merge` в v1 используют одну и ту же логику слияния по `updated_at`).
+
+### Транзакция и переносы
+
+- Два advisory lock **`pg_advisory_xact_lock(hashtext(...))`** на **оба** UUID в детерминированном порядке (сортировка), затем один `BEGIN…COMMIT` с `mergePlatformUsersInTransaction(..., "manual", { resolution })`.
+- В транзакции: **`UPDATE media_files SET uploaded_by = target WHERE uploaded_by = duplicate`** — владельцы загрузок переносятся на канона; surviving `email` сохраняет совместимый `email_verified_at`, если выбранный email уже был verified на одной из сторон; projection-таблицы по `integrator_user_id` **не** переключаются silently (при допустимом merge в v1 оба id согласованы или один null — см. план §3).
+- Аудит: после успешного **`COMMIT`** — отдельная запись `admin_audit_log` с `action = user_merge`, `details.resolution`, а также `conflictsResolved: []` и `dependentRowsMoved` (v1: флаг про repoint `media_files.uploaded_by` в транзакции merge, без детальных счётчиков по таблицам); при ошибке транзакции — запись со `status: error` после rollback (политика отдельной транзакции).
+
+### Projection ingestion — конфликты auto-merge
+
+Репозиторий (`pgUserProjection.ts` и т.п.) по-прежнему **пробрасывает** `MergeConflictError` / `MergeDependentConflictError` без решения HTTP. Решение **`202` vs `503`** принимается в **`modules/integrator/events.ts`**: при подключённом `conflictAudit` конфликт класса merge → `upsertOpenConflictLog` / `writeAuditLog(anomaly)` → **`accepted: true`** (маршрут `POST /api/integrator/events` отвечает **202**), без мутации identity для identity-событий (`user.upserted`, `contact.linked`, `preferences.updated`). Для **`appointment.record.upserted`**: `ensureClientFromAppointmentProjection` запускается по нормализованному телефону из top-level payload **или** `payloadJson.phone`; при конфликте — аудит, запись в projection-таблицу записи, **без** fallback `findByPhone` / `findByIntegratorId` и без привязки `userId` в compat-path (`userId: null` в `applyRubitimeUpdate`). Повторы того же набора кандидатов увеличивают `repeat_count` и дополняют `seenEventTypes` в открытой строке `auto_merge_conflict` (ключ `sha256(sorted(candidateIds))`). `MergeDependentConflictError` **обязан** нести `candidateIds` (как `MergeConflictError`) для стабильного `conflict_key`.
+
+### Ограничения v1
+
+- При **`preferences.updated`** и конфликте: событие подтверждается (`202`), topics **не** пишутся до ручного разрешения; отдельного replay нет — следующее «чистое» событие после разрешения конфликта.
+- Merge **разных** non-null `integrator_user_id` остаётся запрещённым до **v2** (integrator-side canonical merge в integrator DB — см. план инициативы, шаг после v1).
+
+## Admin UI — ручной merge (карточка клиента)
+
+Доступ: **только** `role === admin` и включённый **admin mode** (тот же guard, что `POST .../merge` и `GET .../merge-preview`; на карточке используется тот же флаг, что и для безвозвратного удаления).
+
+Поверхность: `/app/doctor/clients/[userId]` — блок **«Объединение учётных записей (admin)»** (`AdminMergeAccountsPanel`).
+
+Операторский поток:
+
+1. Развернуть блок → загрузка **`GET /api/doctor/clients/:userId/merge-candidates`** (опционально поиск `q`).
+2. Выбор второй записи в выпадающем списке → **`GET /api/doctor/clients/merge-preview?targetId=&duplicateId=`**; если эвристика `recommendation` задаёт другую ориентацию target/duplicate, UI **перезапрашивает** preview с `suggestedTargetId` / `suggestedDuplicateId` (каноническая сторона и дубликат совпадают с телом будущего `POST /merge`).
+3. **Side-by-side** таблица скаляров, отдельные строки для каналов `telegram` / `max` / `vk` и OAuth-конфликтов; для конфликтных полей — radio; для конфликтных каналов оператор выбирает только `target` / `duplicate`, а для каналов без конфликта отображается авто-поведение (`both`).
+4. **Жёсткие блокировки** (`hardBlockers`): отдельный блок с русскими пояснениями по коду; кнопка merge **неактивна**, пока `mergeAllowed === false` или список блокеров непустой (`canSubmitManualMerge` дублирует это на клиенте; сервер снова валидирует в транзакции).
+5. Если **`mergeAllowed`** и нет блокеров, но **`v1MergeEngineCallable === false`** (например два разных non-null телефона): показывается **пояснение**, что авто-merge без `ManualMergeResolution` упал бы; ручной merge с выбранным `resolution` остаётся допустимым.
+6. **Финальный предпросмотр** (текстовый список итоговых решений) перед кнопкой.
+7. **Двойное подтверждение**: `window.confirm` с предупреждением, затем ввод **UUID дубликата** (`duplicateId`); сравнение **без учёта регистра** hex, как для purge с подтверждением id.
+8. **`POST /api/doctor/clients/merge`** с `{ resolution }` из состояния UI (`buildDefaultManualMergeResolution` + правки оператора). Ответы без JSON или `403` показываются отдельным текстом.
+
+Отдельный блок **«История операций (audit)»** на той же карточке: **`GET /api/admin/audit-log?involvesPlatformUserId=<текущий uuid>`** — строки, где пользователь в `target_id` или в `details.candidateIds` у `auto_merge_conflict`; локальный счётчик нерешённых — только среди **загруженной страницы** (по умолчанию до 20 строк), не глобальный.
+
+Вкладка **«Лог операций»** в `/app/settings`: бейдж с **`openAutoMergeConflictCount`** — число **строк** `auto_merge_conflict` с `resolved_at IS NULL` (дедуп по `conflict_key` даёт одну открытую строку на конфликт; `repeat_count` на бейдж не влияет).
+
+Чистая логика ориентации preview и проверки `canSubmitManualMerge` вынесена в `apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts` (тесты рядом).
 
 ## Операционный контроль после деплоя
 

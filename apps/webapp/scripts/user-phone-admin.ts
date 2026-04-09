@@ -67,7 +67,7 @@ import { config as loadDotenv } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
 import pg, { type PoolClient } from "pg";
-import { purgePlatformUserByPlatformId } from "../src/infra/platformUserFullPurge";
+import { runStrictPurgePlatformUser } from "../src/infra/strictPlatformUserPurge";
 const { Pool } = pg;
 
 /** Имена хостов из docker-compose, недоступные с хоста ОС при запуске tsx. */
@@ -663,18 +663,26 @@ async function purgeUserByPlatformId(rawId: string): Promise<void> {
     `\nПолное удаление (webapp + integrator): ${user.display_name} (${user.id}), телефон: ${user.phone_normalized ?? "—"}\n`,
   );
 
-  const result = await purgePlatformUserByPlatformId(id);
+  const result = await runStrictPurgePlatformUser({ targetId: id, actorId: null, audit: { enabled: true } });
   if (!result.ok) {
     if (result.error === "not_client") {
       console.error("Отмена: пользователь не с role=client (полное удаление только для клиентов).");
       process.exitCode = 1;
     } else if (result.error === "not_found") {
       console.log(`Пользователь с id=${id} не найден (возможно, удалён параллельно).`);
+    } else if (result.error === "transaction_failed") {
+      console.error(`Ошибка транзакции webapp: ${result.transactionError ?? ""}`);
+      process.exitCode = 1;
     }
     return;
   }
 
-  console.log(`\n✓ Webapp: пользователь ${id} удалён полностью.`);
+  console.log(`\n✓ Webapp: пользователь ${id} удалён (strict purge outcome=${result.outcome}).`);
+  if (result.outcome !== "completed") {
+    console.error("Внешняя очистка завершилась не полностью (S3/integrator). Детали:");
+    console.error(JSON.stringify(result.details, null, 2));
+    process.exitCode = 1;
+  }
   if (result.integratorSkipped) {
     console.error("");
     console.error(

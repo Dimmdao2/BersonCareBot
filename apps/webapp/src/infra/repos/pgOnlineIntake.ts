@@ -127,6 +127,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
+        await client.query(`SELECT pg_advisory_xact_lock_shared(hashtext($1::text))`, [input.userId]);
         const id = randomUUID();
         const summary = input.description.slice(0, 200);
 
@@ -190,6 +191,7 @@ export function createPgOnlineIntakePort(): OnlineIntakePort {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
+        await client.query(`SELECT pg_advisory_xact_lock_shared(hashtext($1::text))`, [input.userId]);
         const id = randomUUID();
         const q5Answer = input.answers.find((a) => a.questionId === "q5")?.value ?? "";
         const summary = q5Answer.slice(0, 200);

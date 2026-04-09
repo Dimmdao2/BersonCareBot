@@ -25,8 +25,8 @@ vi.mock("@/infra/db/client", () => ({
     query: poolQueryMock,
   }),
 }));
-vi.mock("@/infra/platformUserFullPurge", () => ({
-  purgePlatformUserByPlatformId: (...args: unknown[]) => purgeMock(...args),
+vi.mock("@/infra/strictPlatformUserPurge", () => ({
+  runStrictPurgePlatformUser: (...args: unknown[]) => purgeMock(...args),
 }));
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: getSessionMock,
@@ -90,7 +90,22 @@ describe("POST /api/doctor/clients/[userId]/permanent-delete", () => {
       blockedReason: null,
       isArchived: true,
     });
-    purgeMock.mockResolvedValue({ ok: true, integratorSkipped: false });
+    purgeMock.mockResolvedValue({
+      ok: true,
+      outcome: "completed",
+      integratorSkipped: false,
+      details: {
+        intakeS3KeyCount: 0,
+        mediaFileCount: 0,
+        s3KeysAttempted: 0,
+        s3Failures: [],
+        integratorCleaned: true,
+        integratorError: null,
+        mediaRowsDeleted: 0,
+        mediaRowDeleteErrors: [],
+        intakeS3ObjectsNotDeletedBucketDisabled: false,
+      },
+    });
 
     const res = await POST(
       new Request(`http://localhost/api/doctor/clients/${uid}/permanent-delete`, {
@@ -101,7 +116,13 @@ describe("POST /api/doctor/clients/[userId]/permanent-delete", () => {
       { params: Promise.resolve({ userId: uid }) },
     );
     expect(res.status).toBe(200);
-    expect(purgeMock).toHaveBeenCalledWith(uid);
+    expect(purgeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetId: uid,
+        actorId: "a1",
+        audit: { enabled: true },
+      }),
+    );
   });
 
   it("returns 400 when confirmUserId mismatches URL", async () => {

@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetIdempotencyStoreForTests } from "@/infra/idempotency/store";
 
-const { verifySignatureMock, handleIntegratorEventMock } = vi.hoisted(() => ({
+const { verifySignatureMock, handleIntegratorEventMock, getPoolMock } = vi.hoisted(() => ({
   verifySignatureMock: vi.fn(),
   handleIntegratorEventMock: vi.fn(),
+  getPoolMock: vi.fn(() => ({
+    query: vi.fn().mockResolvedValue({ rows: [] }),
+    connect: vi.fn().mockResolvedValue({
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+      release: vi.fn(),
+    }),
+  })),
 }));
 
 vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
@@ -13,6 +20,14 @@ vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
 vi.mock("@/modules/integrator/events", () => ({
   handleIntegratorEvent: handleIntegratorEventMock,
 }));
+
+vi.mock("@/infra/db/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/infra/db/client")>();
+  return {
+    ...actual,
+    getPool: () => getPoolMock(),
+  };
+});
 
 import { POST } from "./route";
 

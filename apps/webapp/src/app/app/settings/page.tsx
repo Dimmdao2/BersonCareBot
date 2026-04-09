@@ -15,6 +15,7 @@ import { AccessListsSection } from "./AccessListsSection";
 import { BookingCatalogHelp } from "./BookingCatalogHelp";
 import { RubitimeSection } from "./RubitimeSection";
 import { GoogleCalendarSection } from "./GoogleCalendarSection";
+import { AdminAuditLogSection } from "./AdminAuditLogSection";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -170,6 +171,7 @@ export default async function SettingsPage() {
                     <RubitimeSection />
                   </>
                 }
+                auditLog={<AdminAuditLogSection />}
               />
             </div>
           )}

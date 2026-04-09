@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import {
   handleIntegratorEvent,
   setEmailAutobindConflictReporter,
@@ -301,6 +302,131 @@ describe("handleIntegratorEvent", () => {
       { diaries: deps.diaries, users: deps.userProjection, preferences: deps.userProjection }
     );
     expect(result.accepted).toBe(true);
+  });
+
+  it("user.upserted non-merge Error stays retryable (503 path), no conflict audit", async () => {
+    const logAutoMergeConflict = vi.fn().mockResolvedValue(undefined);
+    const upsertFromProjection = vi.fn().mockRejectedValue(new Error("connection reset"));
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "user.upserted",
+        payload: { integratorUserId: "42" },
+      },
+      {
+        ...mockDeps,
+        conflictAudit: { logAutoMergeConflict },
+        users: {
+          upsertFromProjection,
+          findByIntegratorId: vi.fn(),
+          updatePhone: vi.fn(),
+          updateProfileByPhone: vi.fn(),
+          ensureClientFromAppointmentProjection: vi.fn(),
+          applyRubitimeEmailAutobind: vi.fn(),
+        },
+      },
+    );
+    expect(result.accepted).toBe(false);
+    expect(logAutoMergeConflict).not.toHaveBeenCalled();
+    expect(result.reason).toContain("connection reset");
+  });
+
+  it("user.upserted MergeConflictError → conflict audit + accepted (no 503 loop)", async () => {
+    const logAutoMergeConflict = vi.fn().mockResolvedValue(undefined);
+    const upsertFromProjection = vi.fn().mockRejectedValue(
+      new MergeConflictError("two users", [
+        "00000000-0000-4000-8000-0000000000a1",
+        "00000000-0000-4000-8000-0000000000a2",
+      ]),
+    );
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "user.upserted",
+        payload: { integratorUserId: "42", phoneNormalized: "+79000000000" },
+      },
+      {
+        ...mockDeps,
+        conflictAudit: { logAutoMergeConflict },
+        users: {
+          upsertFromProjection,
+          findByIntegratorId: vi.fn(),
+          updatePhone: vi.fn(),
+          updateProfileByPhone: vi.fn(),
+          ensureClientFromAppointmentProjection: vi.fn(),
+          applyRubitimeEmailAutobind: vi.fn(),
+        },
+      },
+    );
+    expect(result.accepted).toBe(true);
+    expect(logAutoMergeConflict).toHaveBeenCalledTimes(1);
+    expect(upsertFromProjection).toHaveBeenCalled();
+  });
+
+  it("contact.linked MergeConflictError → conflict audit + accepted, no updatePhone", async () => {
+    const logAutoMergeConflict = vi.fn().mockResolvedValue(undefined);
+    const upsertFromProjection = vi.fn().mockRejectedValue(
+      new MergeConflictError("conflict", [
+        "00000000-0000-4000-8000-0000000000b1",
+        "00000000-0000-4000-8000-0000000000b2",
+      ]),
+    );
+    const updatePhone = vi.fn();
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "contact.linked",
+        payload: { integratorUserId: "77", phoneNormalized: "+79000000001" },
+      },
+      {
+        ...mockDeps,
+        conflictAudit: { logAutoMergeConflict },
+        users: {
+          upsertFromProjection,
+          findByIntegratorId: vi.fn(),
+          updatePhone,
+          updateProfileByPhone: vi.fn(),
+          ensureClientFromAppointmentProjection: vi.fn(),
+          applyRubitimeEmailAutobind: vi.fn(),
+        },
+      },
+    );
+    expect(result.accepted).toBe(true);
+    expect(updatePhone).not.toHaveBeenCalled();
+  });
+
+  it("preferences.updated MergeConflictError on upsertFromProjection → audit + accepted, no topic writes", async () => {
+    const logAutoMergeConflict = vi.fn().mockResolvedValue(undefined);
+    const upsertFromProjection = vi.fn().mockRejectedValue(
+      new MergeConflictError("conflict", [
+        "00000000-0000-4000-8000-0000000000c1",
+        "00000000-0000-4000-8000-0000000000c2",
+      ]),
+    );
+    const upsertNotificationTopics = vi.fn();
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "preferences.updated",
+        payload: {
+          integratorUserId: "88",
+          topics: [{ topicCode: "booking_spb", isEnabled: true }],
+        },
+      },
+      {
+        ...mockDeps,
+        conflictAudit: { logAutoMergeConflict },
+        users: {
+          upsertFromProjection,
+          findByIntegratorId: vi.fn(),
+          updatePhone: vi.fn(),
+          updateProfileByPhone: vi.fn(),
+          ensureClientFromAppointmentProjection: vi.fn(),
+          applyRubitimeEmailAutobind: vi.fn(),
+        },
+        preferences: {
+          upsertNotificationTopics,
+        },
+      },
+    );
+    expect(result.accepted).toBe(true);
+    expect(upsertNotificationTopics).not.toHaveBeenCalled();
   });
 
   it("contact.linked then user.upserted produces consistent state", async () => {
@@ -919,6 +1045,127 @@ describe("handleIntegratorEvent: Stage 7 reminder/content projection ingest", ()
     );
     expect(applyRubitimeUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "user-uuid-1" }),
+    );
+  });
+
+  it("appointment.record.upserted uses payloadJson.phone for ensure path and still suppresses compat lookups on conflict", async () => {
+    const logAutoMergeConflict = vi.fn().mockResolvedValue(undefined);
+    const ensureClientFromAppointmentProjection = vi.fn().mockRejectedValue(
+      new MergeConflictError("multiple canonical users for phone", [
+        "00000000-0000-4000-8000-0000000000e1",
+        "00000000-0000-4000-8000-0000000000e2",
+      ]),
+    );
+    const findByPhone = vi.fn();
+    const findByIntegratorId = vi.fn();
+    const upsertRecordFromProjection = vi.fn().mockResolvedValue(undefined);
+    const applyRubitimeUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection,
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const deps: IntegratorEventsDeps = {
+      ...mockDeps,
+      conflictAudit: { logAutoMergeConflict },
+      appointmentProjection: mockAp,
+      patientBooking: { applyRubitimeUpdate } as unknown as PatientBookingService,
+      users: {
+        upsertFromProjection: vi.fn(),
+        findByIntegratorId,
+        findByPhone,
+        updatePhone: vi.fn(),
+        updateProfileByPhone: vi.fn(),
+        ensureClientFromAppointmentProjection,
+      },
+    };
+
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-conflict-payload-phone-1",
+          integratorUserId: "501",
+          recordAt: "2025-08-01T12:00:00.000Z",
+          status: "created",
+          payloadJson: { phone: "8 (999) 111-22-33" },
+          lastEvent: "event-create",
+          updatedAt: "2025-07-01T10:00:00.000Z",
+        },
+      },
+      deps,
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(ensureClientFromAppointmentProjection).toHaveBeenCalledWith(
+      expect.objectContaining({ phoneNormalized: "+79991112233" }),
+    );
+    expect(logAutoMergeConflict).toHaveBeenCalled();
+    expect(findByPhone).not.toHaveBeenCalled();
+    expect(findByIntegratorId).not.toHaveBeenCalled();
+    expect(applyRubitimeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: null, contactPhone: "+79991112233" }),
+    );
+  });
+
+  it("appointment.record.upserted MergeDependentConflictError on ensureClient → audit, projection upsert, no compat lookups", async () => {
+    const logAutoMergeConflict = vi.fn().mockResolvedValue(undefined);
+    const ensureClientFromAppointmentProjection = vi.fn().mockRejectedValue(
+      new MergeDependentConflictError("overlap", [
+        "00000000-0000-4000-8000-0000000000d1",
+        "00000000-0000-4000-8000-0000000000d2",
+      ]),
+    );
+    const findByPhone = vi.fn();
+    const findByIntegratorId = vi.fn();
+    const upsertRecordFromProjection = vi.fn().mockResolvedValue(undefined);
+    const applyRubitimeUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockAp = {
+      getRecordByIntegratorId: vi.fn(),
+      listActiveByPhoneNormalized: vi.fn(),
+      upsertRecordFromProjection,
+      listHistoryByPhoneNormalized: vi.fn().mockResolvedValue([]),
+      softDeleteByIntegratorId: vi.fn().mockResolvedValue(false),
+    };
+    const deps: IntegratorEventsDeps = {
+      ...mockDeps,
+      conflictAudit: { logAutoMergeConflict },
+      appointmentProjection: mockAp,
+      patientBooking: { applyRubitimeUpdate } as unknown as PatientBookingService,
+      users: {
+        upsertFromProjection: vi.fn(),
+        findByIntegratorId,
+        findByPhone,
+        updatePhone: vi.fn(),
+        updateProfileByPhone: vi.fn(),
+        ensureClientFromAppointmentProjection,
+      },
+    };
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "appointment.record.upserted",
+        payload: {
+          integratorRecordId: "rec-conflict-1",
+          phoneNormalized: "+79991112233",
+          integratorUserId: "501",
+          recordAt: "2025-08-01T12:00:00.000Z",
+          status: "created",
+          payloadJson: {},
+          lastEvent: "event-create",
+          updatedAt: "2025-07-01T10:00:00.000Z",
+        },
+      },
+      deps,
+    );
+    expect(result.accepted).toBe(true);
+    expect(logAutoMergeConflict).toHaveBeenCalled();
+    expect(upsertRecordFromProjection).toHaveBeenCalled();
+    expect(findByPhone).not.toHaveBeenCalled();
+    expect(findByIntegratorId).not.toHaveBeenCalled();
+    expect(applyRubitimeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: null, rubitimeId: "rec-conflict-1" }),
     );
   });
 

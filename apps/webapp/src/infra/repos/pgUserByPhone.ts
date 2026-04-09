@@ -193,12 +193,12 @@ export const pgUserByPhonePort: UserByPhonePort = {
           );
           const other = o.rows[0]?.user_id;
           if (!other) {
-            throw new MergeConflictError("createOrBind: binding row missing after conflict");
+            throw new MergeConflictError("createOrBind: binding row missing after conflict", [userId]);
           }
           if (other !== userId) {
             const a = await loadPuRowForMerge(client, userId);
             const b = await loadPuRowForMerge(client, other);
-            if (!a || !b) throw new MergeConflictError("createOrBind: row load failed");
+            if (!a || !b) throw new MergeConflictError("createOrBind: row load failed", [userId, other]);
             const { target, duplicate } = pickMergeTargetId(a, b);
             try {
               await mergePlatformUsersInTransaction(client, target, duplicate, "phone_bind");

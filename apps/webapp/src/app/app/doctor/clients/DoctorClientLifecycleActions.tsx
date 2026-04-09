@@ -104,17 +104,25 @@ export function DoctorClientLifecycleActions({
       const data = (await res.json()) as {
         ok?: boolean;
         error?: string;
+        message?: string;
         integratorSkipped?: boolean;
+        outcome?: string;
       };
       if (!res.ok || !data.ok) {
         if (data.error === "must_archive_first") {
           setMsg("Сначала архивируйте клиента, затем удаление доступно из архива.");
+        } else if (data.error === "purge_transaction_failed" && data.message) {
+          setMsg(`Ошибка при удалении в БД: ${data.message}`);
         } else {
           setMsg("Не удалось выполнить удаление.");
         }
         return;
       }
-      if (data.integratorSkipped) {
+      if (data.outcome && data.outcome !== "completed") {
+        window.alert(
+          "Запись в веб-приложении удалена, но внешняя очистка (S3 или integrator) завершилась не полностью. Проверьте «Лог операций» в настройках администратора и при необходимости повторите cleanup.",
+        );
+      } else if (data.integratorSkipped) {
         window.alert(
           "Учётная запись удалена из веб-приложения. Интегратор (бот) мог не очиститься автоматически — при необходимости выполните очистку вручную на сервере.",
         );

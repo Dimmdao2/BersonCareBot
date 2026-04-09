@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPool } from "@/infra/db/client";
-import { purgePlatformUserByPlatformId } from "@/infra/platformUserFullPurge";
+import { runStrictPurgePlatformUser } from "@/infra/strictPlatformUserPurge";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const bodySchema = z.object({
@@ -51,13 +51,32 @@ export async function POST(request: Request, context: { params: Promise<{ userId
     return NextResponse.json({ ok: false, error: "must_archive_first" }, { status: 409 });
   }
 
-  const result = await purgePlatformUserByPlatformId(userId);
+  const result = await runStrictPurgePlatformUser({
+    targetId: userId,
+    actorId: adminGate.session.user.userId,
+    audit: { enabled: true },
+  });
+
   if (!result.ok) {
     if (result.error === "not_client") {
       return NextResponse.json({ ok: false, error: "not_client" }, { status: 400 });
     }
+    if (result.error === "invalid_uuid") {
+      return NextResponse.json({ ok: false, error: "invalid_user" }, { status: 400 });
+    }
+    if (result.error === "transaction_failed") {
+      return NextResponse.json(
+        { ok: false, error: "purge_transaction_failed", message: result.transactionError },
+        { status: 500 },
+      );
+    }
     return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
   }
 
-  return NextResponse.json({ ok: true, integratorSkipped: result.integratorSkipped });
+  return NextResponse.json({
+    ok: true,
+    outcome: result.outcome,
+    integratorSkipped: result.integratorSkipped,
+    details: result.details,
+  });
 }

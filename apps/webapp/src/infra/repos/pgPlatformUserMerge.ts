@@ -1,7 +1,22 @@
 import type { PoolClient } from "pg";
+import { logger } from "@/infra/logging/logger";
+import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
+import { assertManualMergeResolutionIds } from "@/infra/repos/manualMergeResolution";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 
 export type MergePlatformUsersReason = "projection" | "phone_bind" | "manual";
+
+export type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
+
+const CHANNEL_CODES = ["telegram", "max", "vk"] as const;
+
+type OauthRow = {
+  user_id: string;
+  provider: string;
+  provider_user_id: string;
+  email: string | null;
+  created_at: Date;
+};
 
 type PuRow = {
   id: string;
@@ -12,8 +27,30 @@ type PuRow = {
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  email_verified_at: Date | null;
+  role: string;
   created_at: Date;
 };
+
+export type PickMergeTargetCandidate = Pick<PuRow, "id" | "phone_normalized" | "integrator_user_id" | "created_at">;
+
+function preservedEmailVerifiedAtSql(chosenEmailSql: string): string {
+  return `CASE
+            WHEN trim(COALESCE(${chosenEmailSql}, '')) = '' THEN NULL
+            ELSE COALESCE(
+              CASE
+                WHEN pu.email IS NOT NULL AND lower(trim(pu.email)) = lower(trim(${chosenEmailSql}))
+                THEN pu.email_verified_at
+                ELSE NULL
+              END,
+              CASE
+                WHEN dup.email IS NOT NULL AND lower(trim(dup.email)) = lower(trim(${chosenEmailSql}))
+                THEN dup.email_verified_at
+                ELSE NULL
+              END
+            )
+          END`;
+}
 
 /**
  * Merge duplicate platform user into canonical target inside an open transaction.
@@ -25,9 +62,22 @@ export async function mergePlatformUsersInTransaction(
   targetId: string,
   duplicateId: string,
   reason: MergePlatformUsersReason,
+  options?: { resolution?: ManualMergeResolution },
 ): Promise<{ targetId: string; duplicateId: string }> {
   if (targetId === duplicateId) {
-    throw new MergeConflictError("merge: target and duplicate are the same id");
+    throw new MergeConflictError("merge: target and duplicate are the same id", [targetId]);
+  }
+
+  if (reason === "manual") {
+    if (!options?.resolution) {
+      throw new MergeConflictError('merge: reason "manual" requires options.resolution', [targetId, duplicateId]);
+    }
+    assertManualMergeResolutionIds(options.resolution);
+    if (options.resolution.targetId !== targetId || options.resolution.duplicateId !== duplicateId) {
+      throw new MergeConflictError("merge: resolution targetId/duplicateId mismatch", [targetId, duplicateId]);
+    }
+  } else if (options?.resolution) {
+    throw new MergeConflictError("merge: resolution is only valid for reason manual", [targetId, duplicateId]);
   }
 
   await client.query(
@@ -36,7 +86,7 @@ export async function mergePlatformUsersInTransaction(
 
   const lockRes = await client.query<PuRow>(
     `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, merged_into_id,
-            display_name, first_name, last_name, email, created_at
+            display_name, first_name, last_name, email, email_verified_at, role, created_at
      FROM platform_users
      WHERE id IN ($1::uuid, $2::uuid)
      ORDER BY id
@@ -44,42 +94,44 @@ export async function mergePlatformUsersInTransaction(
     [targetId, duplicateId],
   );
   if (lockRes.rows.length !== 2) {
-    throw new MergeConflictError("merge: target or duplicate platform_users row missing");
+    throw new MergeConflictError("merge: target or duplicate platform_users row missing", [targetId, duplicateId]);
   }
   const a = lockRes.rows.find((r) => r.id === targetId);
   const b = lockRes.rows.find((r) => r.id === duplicateId);
-  if (!a || !b) throw new MergeConflictError("merge: row load mismatch");
+  if (!a || !b) throw new MergeConflictError("merge: row load mismatch", [targetId, duplicateId]);
 
   if (b.merged_into_id != null) {
-    throw new MergeConflictError("merge: duplicate already merged");
+    throw new MergeConflictError("merge: duplicate already merged", [targetId, duplicateId]);
   }
   if (a.merged_into_id != null) {
-    throw new MergeConflictError("merge: target is not canonical (has merged_into_id)");
+    throw new MergeConflictError("merge: target is not canonical (has merged_into_id)", [targetId, duplicateId]);
   }
+  if (a.role !== "client" || b.role !== "client") {
+    throw new MergeConflictError("merge: only role=client users can be merged", [targetId, duplicateId]);
+  }
+
+  const manualResolution = reason === "manual" ? options!.resolution! : undefined;
 
   const pA = a.phone_normalized?.trim() || null;
   const pB = b.phone_normalized?.trim() || null;
-  if (pA && pB && pA !== pB) {
-    throw new MergeConflictError("merge: two different non-null phone numbers");
+  if (!manualResolution && pA && pB && pA !== pB) {
+    throw new MergeConflictError("merge: two different non-null phone numbers", [targetId, duplicateId]);
   }
   const iA = a.integrator_user_id?.trim() || null;
   const iB = b.integrator_user_id?.trim() || null;
   if (iA && iB && iA !== iB) {
-    throw new MergeConflictError("merge: two different non-null integrator_user_id");
+    throw new MergeConflictError("merge: two different non-null integrator_user_id", [targetId, duplicateId]);
   }
 
   await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
   await assertPatientBookingsSafeToMerge(client, targetId, duplicateId);
   await assertPatientLfkAssignmentsSafe(client, targetId, duplicateId);
 
-  await client.query(
-    `INSERT INTO user_channel_bindings (user_id, channel_code, external_id, created_at)
-     SELECT $1::uuid, channel_code, external_id, created_at
-     FROM user_channel_bindings WHERE user_id = $2::uuid
-     ON CONFLICT (channel_code, external_id) DO NOTHING`,
-    [targetId, duplicateId],
-  );
-  await client.query(`DELETE FROM user_channel_bindings WHERE user_id = $1::uuid`, [duplicateId]);
+  if (manualResolution) {
+    await mergeChannelBindingsManual(client, targetId, duplicateId, manualResolution);
+  } else {
+    await mergeChannelBindingsAuto(client, targetId, duplicateId);
+  }
 
   await client.query(
     `INSERT INTO user_notification_topics (user_id, topic_code, is_enabled, updated_at)
@@ -123,14 +175,11 @@ export async function mergePlatformUsersInTransaction(
     [targetId, duplicateId],
   );
 
-  await client.query(
-    `INSERT INTO user_oauth_bindings (user_id, provider, provider_user_id, email, created_at)
-     SELECT $1::uuid, provider, provider_user_id, email, created_at
-     FROM user_oauth_bindings WHERE user_id = $2::uuid
-     ON CONFLICT (provider, provider_user_id) DO NOTHING`,
-    [targetId, duplicateId],
-  );
-  await client.query(`DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid`, [duplicateId]);
+  if (manualResolution) {
+    await mergeOauthBindingsManual(client, targetId, duplicateId, manualResolution);
+  } else {
+    await mergeOauthBindingsAuto(client, targetId, duplicateId);
+  }
 
   const pinTarget = await client.query(`SELECT 1 FROM user_pins WHERE user_id = $1::uuid LIMIT 1`, [targetId]);
   const pinDup = await client.query(`SELECT 1 FROM user_pins WHERE user_id = $1::uuid LIMIT 1`, [duplicateId]);
@@ -157,7 +206,7 @@ export async function mergePlatformUsersInTransaction(
 
   await client.query(`DELETE FROM login_tokens WHERE user_id = $1::uuid`, [duplicateId]);
 
-  await mergeUserChannelPreferences(client, targetId, duplicateId);
+  await mergeUserChannelPreferences(client, targetId, duplicateId, manualResolution?.channelPreferences ?? "keep_newer");
 
   await client.query(
     `UPDATE symptom_trackings SET user_id = $1::text, platform_user_id = $1::uuid
@@ -196,24 +245,51 @@ export async function mergePlatformUsersInTransaction(
     [duplicateId],
   );
 
-  await client.query(
-    `UPDATE platform_users AS pu
-     SET
-       phone_normalized = COALESCE(pu.phone_normalized, dup.phone_normalized),
-       integrator_user_id = COALESCE(pu.integrator_user_id, dup.integrator_user_id),
-       display_name = CASE
-         WHEN dup.display_name IS NOT NULL AND trim(dup.display_name) <> '' AND (pu.display_name IS NULL OR trim(pu.display_name) = '')
-         THEN dup.display_name
-         ELSE pu.display_name
-       END,
-       first_name = COALESCE(pu.first_name, dup.first_name),
-       last_name = COALESCE(pu.last_name, dup.last_name),
-       email = COALESCE(pu.email, dup.email),
-       updated_at = now()
-     FROM platform_users dup
-     WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
-    [targetId, duplicateId],
-  );
+  await client.query(`UPDATE media_files SET uploaded_by = $1::uuid WHERE uploaded_by = $2::uuid`, [
+    targetId,
+    duplicateId,
+  ]);
+
+  if (manualResolution) {
+    const f = manualResolution.fields;
+    const chosenEmailSql = `CASE WHEN $7::text = 'target' THEN pu.email ELSE dup.email END`;
+    await client.query(
+      `UPDATE platform_users AS pu
+       SET
+         phone_normalized = CASE WHEN $3::text = 'target' THEN pu.phone_normalized ELSE dup.phone_normalized END,
+         integrator_user_id = COALESCE(pu.integrator_user_id, dup.integrator_user_id),
+         display_name = CASE WHEN $4::text = 'target' THEN pu.display_name ELSE dup.display_name END,
+         first_name = CASE WHEN $5::text = 'target' THEN pu.first_name ELSE dup.first_name END,
+         last_name = CASE WHEN $6::text = 'target' THEN pu.last_name ELSE dup.last_name END,
+         email = ${chosenEmailSql},
+         email_verified_at = ${preservedEmailVerifiedAtSql(chosenEmailSql)},
+         updated_at = now()
+       FROM platform_users dup
+       WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
+      [targetId, duplicateId, f.phone_normalized, f.display_name, f.first_name, f.last_name, f.email],
+    );
+  } else {
+    const chosenEmailSql = `COALESCE(pu.email, dup.email)`;
+    await client.query(
+      `UPDATE platform_users AS pu
+       SET
+         phone_normalized = COALESCE(pu.phone_normalized, dup.phone_normalized),
+         integrator_user_id = COALESCE(pu.integrator_user_id, dup.integrator_user_id),
+         display_name = CASE
+           WHEN dup.display_name IS NOT NULL AND trim(dup.display_name) <> '' AND (pu.display_name IS NULL OR trim(pu.display_name) = '')
+           THEN dup.display_name
+           ELSE pu.display_name
+         END,
+         first_name = COALESCE(pu.first_name, dup.first_name),
+         last_name = COALESCE(pu.last_name, dup.last_name),
+         email = ${chosenEmailSql},
+         email_verified_at = ${preservedEmailVerifiedAtSql(chosenEmailSql)},
+         updated_at = now()
+       FROM platform_users dup
+       WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
+      [targetId, duplicateId],
+    );
+  }
 
   await client.query(
     `UPDATE platform_users SET
@@ -225,15 +301,166 @@ export async function mergePlatformUsersInTransaction(
     [targetId, duplicateId],
   );
 
-  console.info("[merge] merged duplicate into target", { targetId, duplicateId, reason });
+  logger.info({ targetId, duplicateId, reason }, "[merge] merged duplicate into target");
   return { targetId, duplicateId };
+}
+
+async function mergeChannelBindingsAuto(client: PoolClient, targetId: string, duplicateId: string): Promise<void> {
+  await client.query(
+    `INSERT INTO user_channel_bindings (user_id, channel_code, external_id, created_at)
+     SELECT $1::uuid, channel_code, external_id, created_at
+     FROM user_channel_bindings WHERE user_id = $2::uuid
+     ON CONFLICT (channel_code, external_id) DO NOTHING`,
+    [targetId, duplicateId],
+  );
+  await client.query(`DELETE FROM user_channel_bindings WHERE user_id = $1::uuid`, [duplicateId]);
+}
+
+async function mergeChannelBindingsManual(
+  client: PoolClient,
+  targetId: string,
+  duplicateId: string,
+  resolution: ManualMergeResolution,
+): Promise<void> {
+  for (const ch of CHANNEL_CODES) {
+    const winner = resolution.bindings[ch];
+    if (winner === "both") {
+      const bindingPresence = await client.query<{ user_id: string }>(
+        `SELECT user_id::text AS user_id
+         FROM user_channel_bindings
+         WHERE user_id = ANY($1::uuid[]) AND channel_code = $2`,
+        [[targetId, duplicateId], ch],
+      );
+      const hasTargetBinding = bindingPresence.rows.some((row) => row.user_id === targetId);
+      const hasDuplicateBinding = bindingPresence.rows.some((row) => row.user_id === duplicateId);
+      if (hasTargetBinding && hasDuplicateBinding) {
+        throw new MergeConflictError(`manual merge: channel ${ch} conflict requires target or duplicate`, [
+          targetId,
+          duplicateId,
+        ]);
+      }
+      await client.query(
+        `INSERT INTO user_channel_bindings (user_id, channel_code, external_id, created_at)
+         SELECT $1::uuid, channel_code, external_id, created_at
+         FROM user_channel_bindings WHERE user_id = $2::uuid AND channel_code = $3
+         ON CONFLICT (channel_code, external_id) DO NOTHING`,
+        [targetId, duplicateId, ch],
+      );
+      await client.query(
+        `DELETE FROM user_channel_bindings WHERE user_id = $1::uuid AND channel_code = $2`,
+        [duplicateId, ch],
+      );
+    } else if (winner === "target") {
+      await client.query(
+        `DELETE FROM user_channel_bindings WHERE user_id = $1::uuid AND channel_code = $2`,
+        [duplicateId, ch],
+      );
+    } else {
+      await client.query(
+        `DELETE FROM user_channel_bindings WHERE user_id = $1::uuid AND channel_code = $2`,
+        [targetId, ch],
+      );
+      await client.query(
+        `UPDATE user_channel_bindings SET user_id = $1::uuid
+         WHERE user_id = $2::uuid AND channel_code = $3`,
+        [targetId, duplicateId, ch],
+      );
+    }
+  }
+  await client.query(`DELETE FROM user_channel_bindings WHERE user_id = $1::uuid`, [duplicateId]);
+}
+
+async function mergeOauthBindingsAuto(client: PoolClient, targetId: string, duplicateId: string): Promise<void> {
+  await client.query(
+    `INSERT INTO user_oauth_bindings (user_id, provider, provider_user_id, email, created_at)
+     SELECT $1::uuid, provider, provider_user_id, email, created_at
+     FROM user_oauth_bindings WHERE user_id = $2::uuid
+     ON CONFLICT (provider, provider_user_id) DO NOTHING`,
+    [targetId, duplicateId],
+  );
+  await client.query(`DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid`, [duplicateId]);
+}
+
+async function mergeOauthBindingsManual(
+  client: PoolClient,
+  targetId: string,
+  duplicateId: string,
+  resolution: ManualMergeResolution,
+): Promise<void> {
+  const r = await client.query<OauthRow>(
+    `SELECT user_id::text AS user_id, provider, provider_user_id, email, created_at
+     FROM user_oauth_bindings WHERE user_id = ANY($1::uuid[])`,
+    [[targetId, duplicateId]],
+  );
+  const byProvider = new Map<string, OauthRow[]>();
+  for (const row of r.rows) {
+    const list = byProvider.get(row.provider) ?? [];
+    list.push(row);
+    byProvider.set(row.provider, list);
+  }
+  for (const [provider, rows] of byProvider) {
+    const onTarget = rows.find((x) => x.user_id === targetId);
+    const onDup = rows.find((x) => x.user_id === duplicateId);
+    if (onTarget && !onDup) {
+      continue;
+    }
+    if (!onTarget && onDup) {
+      await client.query(
+        `UPDATE user_oauth_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid AND provider = $3`,
+        [targetId, duplicateId, provider],
+      );
+      continue;
+    }
+    if (onTarget && onDup) {
+      if (onTarget.provider_user_id === onDup.provider_user_id) {
+        await client.query(
+          `DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid AND provider = $2`,
+          [duplicateId, provider],
+        );
+        continue;
+      }
+      const w = resolution.oauth[provider];
+      if (!w) {
+        throw new MergeConflictError(`manual merge: missing oauth resolution for provider ${provider}`, [
+          targetId,
+          duplicateId,
+        ]);
+      }
+      if (w === "target") {
+        await client.query(
+          `DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid AND provider = $2`,
+          [duplicateId, provider],
+        );
+      } else {
+        await client.query(
+          `DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid AND provider = $2`,
+          [targetId, provider],
+        );
+        await client.query(
+          `UPDATE user_oauth_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid AND provider = $3`,
+          [targetId, duplicateId, provider],
+        );
+      }
+    }
+  }
+  await client.query(`DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid`, [duplicateId]);
 }
 
 async function mergeUserChannelPreferences(
   client: PoolClient,
   targetId: string,
   duplicateId: string,
+  strategy: "keep_target" | "keep_newer" | "merge",
 ): Promise<void> {
+  if (strategy === "keep_target") {
+    await client.query(
+      `DELETE FROM user_channel_preferences
+       WHERE user_id = $1::text OR platform_user_id = $1::uuid`,
+      [duplicateId],
+    );
+    return;
+  }
+
   await client.query(
     `UPDATE user_channel_preferences AS t
      SET
@@ -307,7 +534,10 @@ async function assertSharedPhoneGuard(
 
   const [ct, cd] = await Promise.all([meaningfulCount(targetId), meaningfulCount(duplicateId)]);
   if (ct > 0 && cd > 0) {
-    throw new MergeDependentConflictError("shared-phone guard: meaningful data on both candidates");
+    throw new MergeDependentConflictError("shared-phone guard: meaningful data on both candidates", [
+      targetId,
+      duplicateId,
+    ]);
   }
 }
 
@@ -334,7 +564,10 @@ async function assertPatientBookingsSafeToMerge(
   );
   const n = parseInt(overlap.rows[0]?.c ?? "0", 10);
   if (n > 0) {
-    throw new MergeDependentConflictError("patient_bookings: overlapping active slots between merge candidates");
+    throw new MergeDependentConflictError("patient_bookings: overlapping active slots between merge candidates", [
+      targetId,
+      duplicateId,
+    ]);
   }
 }
 
@@ -356,13 +589,16 @@ async function assertPatientLfkAssignmentsSafe(
   );
   const n = parseInt(r.rows[0]?.c ?? "0", 10);
   if (n > 0) {
-    throw new MergeDependentConflictError("patient_lfk_assignments: active template conflict");
+    throw new MergeDependentConflictError("patient_lfk_assignments: active template conflict", [targetId, duplicateId]);
   }
 }
 
 /** Pick canonical target id from two distinct candidate ids using plan D.3. */
-export function pickMergeTargetId(a: PuRow, b: PuRow): { target: string; duplicate: string } {
-  const score = (r: PuRow) => ({
+export function pickMergeTargetId(
+  a: PickMergeTargetCandidate,
+  b: PickMergeTargetCandidate,
+): { target: string; duplicate: string } {
+  const score = (r: PickMergeTargetCandidate) => ({
     hasPhone: r.phone_normalized?.trim() ? 1 : 0,
     hasInt: r.integrator_user_id?.trim() ? 1 : 0,
     created: r.created_at.getTime(),

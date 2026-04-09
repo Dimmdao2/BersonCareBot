@@ -13,6 +13,7 @@ const ADMIN_SECTIONS = [
   { value: "access", label: "Доступ и роли" },
   { value: "integrations", label: "Интеграции" },
   { value: "catalog", label: "Каталог записи" },
+  { value: "audit-log", label: "Лог операций" },
 ] as const;
 
 export type AdminSettingsTabsClientProps = {
@@ -22,6 +23,7 @@ export type AdminSettingsTabsClientProps = {
   access: ReactNode;
   integrations: ReactNode;
   catalog: ReactNode;
+  auditLog: ReactNode;
 };
 
 export function AdminSettingsTabsClient({
@@ -31,6 +33,7 @@ export function AdminSettingsTabsClient({
   access,
   integrations,
   catalog,
+  auditLog,
 }: AdminSettingsTabsClientProps) {
   const [value, setValue] = useState<string>("diagnostics");
   const showSidebarNav = useViewportMinWidth(ADMIN_SETTINGS_NAV_MIN_WIDTH_PX);
@@ -102,6 +105,9 @@ export function AdminSettingsTabsClient({
           </TabsContent>
           <TabsContent value="catalog" className="mt-0 space-y-6">
             {catalog}
+          </TabsContent>
+          <TabsContent value="audit-log" className="mt-0">
+            {auditLog}
           </TabsContent>
         </div>
       </Tabs>

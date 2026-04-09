@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { upsertOpenConflictLog, writeAuditLog } from "@/infra/adminAuditLog";
+import { getPool } from "@/infra/db/client";
 import { handleIntegratorEvent } from "@/modules/integrator/events";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
@@ -64,7 +66,40 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const pool = getPool();
   const result = await handleIntegratorEvent(eventBody, {
+    conflictAudit: {
+      logAutoMergeConflict: async (input) => {
+        if (input.candidateIds.length === 0) {
+          await writeAuditLog(pool, {
+            actorId: null,
+            action: "auto_merge_conflict_anomaly",
+            details: {
+              eventType: input.eventType,
+              reason: input.reason,
+              integratorUserIds: input.integratorUserIds,
+              payloadPreview: input.payloadPreview,
+              conflictClass: input.conflictClass,
+            },
+            status: "error",
+          });
+          return;
+        }
+        await upsertOpenConflictLog(pool, {
+          actorId: null,
+          candidateIds: input.candidateIds,
+          targetId: input.candidateIds[0] ?? null,
+          details: {
+            eventType: input.eventType,
+            reason: input.reason,
+            integratorUserIds: input.integratorUserIds,
+            payloadPreview: input.payloadPreview,
+            conflictClass: input.conflictClass,
+          },
+          status: "error",
+        });
+      },
+    },
     diaries: deps.diaries,
     users: {
       ...deps.userProjection,

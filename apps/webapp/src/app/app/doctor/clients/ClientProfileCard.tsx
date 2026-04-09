@@ -11,6 +11,8 @@ import type { PrepareDraftResult } from "@/modules/doctor-messaging/service";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AssignLfkTemplatePanel } from "./AssignLfkTemplatePanel";
 import { AdminDangerActions } from "./AdminDangerActions";
+import { AdminClientAuditHistorySection } from "./AdminClientAuditHistorySection";
+import { AdminMergeAccountsPanel } from "./AdminMergeAccountsPanel";
 import { DoctorClientLifecycleActions } from "./DoctorClientLifecycleActions";
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
 import { SendMessageForm } from "./[userId]/SendMessageForm";
@@ -262,6 +264,13 @@ export function ClientProfileCard({
 
       {isAdmin ? (
         <AdminDangerActions userId={userId} sampleIntegratorRecordId={sampleRecordId} />
+      ) : null}
+
+      {canPermanentDelete ? (
+        <>
+          <AdminMergeAccountsPanel anchorUserId={userId} enabled />
+          <AdminClientAuditHistorySection platformUserId={userId} enabled />
+        </>
       ) : null}
 
       <p id="doctor-client-back-link-container">
