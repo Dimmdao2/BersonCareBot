@@ -37,6 +37,7 @@ describe("integratorUserMergeM2mClient (Stage 5 stubbed fetch flow)", () => {
       "x-bersoncare-timestamp": expect.any(String),
       "x-bersoncare-signature": expect.any(String),
     });
+    expect((call[1] as RequestInit).signal).toBeTruthy();
   });
 
   it("users merge: parses ok result", async () => {
@@ -77,5 +78,13 @@ describe("integratorUserMergeM2mClient (Stage 5 stubbed fetch flow)", () => {
     });
     expect(merged.ok).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("maps AbortError to timeout result", async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new DOMException("timed out", "AbortError"));
+
+    const r = await checkIntegratorCanonicalPair("10", "20");
+
+    expect(r).toEqual({ ok: false, reason: "timeout" });
   });
 });

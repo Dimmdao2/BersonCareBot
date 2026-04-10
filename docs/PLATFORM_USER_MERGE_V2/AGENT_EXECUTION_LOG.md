@@ -244,3 +244,36 @@
   - integrator targeted: **4 files / 26 tests / OK**
   - `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (integrator **649** passed, 6 skipped; webapp **1410** passed, 5 skipped)
 - **Gate verdict:** **PASS** — final audit inputs полные, closeout evidence chain согласована, docs не overclaim относительно audited tree.
+
+---
+
+## 2026-04-10 — Independent audit of full v2 package
+
+- **Scope:** независимый post-closeout аудит всего пакета `PLATFORM_USER_MERGE_V2`: Stage 1–5 code paths, runbook/evidence package, residual strengthen items после `AUDIT_FINAL`.
+- **Документы:** добавлен [`AUDIT_INDEPENDENT.md`](AUDIT_INDEPENDENT.md); [`README.md`](README.md) пакета обновлён ссылками на `AUDIT_FINAL.md` и `AUDIT_INDEPENDENT.md`.
+- **Findings summary:** новых critical release-blocker’ов не выявлено, но зафиксированы residual issues для усиления:
+  - race между integrator canonical gate и manual merge apply (`manualMergeIntegratorGate.ts` / `pgPlatformUserMerge.ts`);
+  - stale snapshot в `POST /api/doctor/clients/integrator-merge`;
+  - отсутствие timeout в integrator M2M client;
+  - неполная operator/evidence traceability (`AUDIT_FINAL` / `STAGE_C_CLOSEOUT` / `CUTOVER_RUNBOOK`);
+  - edge-case с `media_upload_sessions.owner_user_id` после merge;
+  - discoverability/caveat хвосты в docs.
+- **Проверки:** дополнительных runtime-проверок не требовалось; аудит опирался на уже закрытый regression baseline из `AUDIT_FINAL` / `STAGE_C_CLOSEOUT`.
+- **Gate verdict:** **PASS WITH STRENGTHENING REQUIRED** — пакет v2 выполнен, но `AUDIT_INDEPENDENT.md` задаёт следующий слой hardening.
+
+---
+
+## 2026-04-10 — Independent audit follow-up: hardening fixes closed
+
+- **Scope:** закрытие residual findings из [`AUDIT_INDEPENDENT.md`](AUDIT_INDEPENDENT.md): gate/apply race, stale snapshot в `integrator-merge`, M2M timeout, multipart ownership, immutable evidence baseline и operator workflow consistency.
+- **Код:**
+  - `manualMergeIntegratorGate.ts` + `pgPlatformUserMerge.ts` + `manualPlatformUserMerge.ts` + `merge/route.ts` — snapshot проверенной пары `integrator_user_id`, валидация под lock, код ошибки `integrator_ids_changed_since_gate`.
+  - `integrator-merge/route.ts` — чтение пары через `BEGIN` + `SELECT ... FOR UPDATE`, удержание row lock до завершения integrator M2M запроса.
+  - `integratorUserMergeM2mClient.ts` — timeout/abort для HMAC fetch и route-level mapping timeout case.
+  - `pgPlatformUserMerge.ts` — вместе с `media_files.uploaded_by` теперь переносится `media_upload_sessions.owner_user_id`.
+- **Документы:** обновлены [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md), [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md), [`AUDIT_FINAL.md`](AUDIT_FINAL.md), [`AUDIT_INDEPENDENT.md`](AUDIT_INDEPENDENT.md), [`AUDIT_STAGE_C.md`](AUDIT_STAGE_C.md), [`AUDIT_STAGE_5.md`](AUDIT_STAGE_5.md), [`STAGE_5_FEATURE_FLAG_AND_FLOW_SWITCH.md`](STAGE_5_FEATURE_FLAG_AND_FLOW_SWITCH.md), [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md), [`../../apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md).
+- **Проверки:**
+  - webapp targeted proof set — **9 files / 130 tests / OK**
+  - integrator targeted proof set — **4 files / 26 tests / OK**
+  - `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (integrator **649** passed, 6 skipped; webapp **1417** passed, 5 skipped)
+- **Gate verdict:** **PASS (hardening complete)** — residual findings independent audit закрыты в audited repository tree; production per-merge evidence остаётся операторской обязанностью по runbook/ticket.

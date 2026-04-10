@@ -2,6 +2,8 @@ import type { Pool } from "pg";
 import { writeAuditLog } from "@/infra/adminAuditLog";
 import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
 import { mergePlatformUsersInTransaction } from "@/infra/repos/pgPlatformUserMerge";
+import type { VerifiedDistinctIntegratorUserIds } from "@/infra/repos/pgPlatformUserMerge";
+import { MergeConflictError } from "@/infra/repos/platformUserMergeErrors";
 import { withTwoUserLifecycleLocksExclusive } from "@/infra/userLifecycleLock";
 
 export type ManualMergeOk = {
@@ -24,7 +26,10 @@ export async function runManualPlatformUserMerge(
   pool: Pool,
   actorId: string | null,
   resolution: ManualMergeResolution,
-  options?: { allowDistinctIntegratorUserIds?: boolean },
+  options?: {
+    allowDistinctIntegratorUserIds?: boolean;
+    verifiedDistinctIntegratorUserIds?: VerifiedDistinctIntegratorUserIds;
+  },
 ): Promise<ManualMergeOk | ManualMergeFail> {
   const { targetId, duplicateId } = resolution;
   try {
@@ -32,10 +37,15 @@ export async function runManualPlatformUserMerge(
       await mergePlatformUsersInTransaction(client, targetId, duplicateId, "manual", {
         resolution,
         allowDistinctIntegratorUserIds: options?.allowDistinctIntegratorUserIds,
+        verifiedDistinctIntegratorUserIds: options?.verifiedDistinctIntegratorUserIds,
       });
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    const code =
+      e instanceof MergeConflictError && msg === "merge: integrator ids changed since gate"
+        ? "integrator_ids_changed_since_gate"
+        : undefined;
     await writeAuditLog(pool, {
       actorId,
       action: "user_merge",
@@ -48,7 +58,7 @@ export async function runManualPlatformUserMerge(
       },
       status: "error",
     });
-    return { ok: false, error: msg };
+    return { ok: false, error: msg, code };
   }
 
   await writeAuditLog(pool, {
@@ -61,8 +71,11 @@ export async function runManualPlatformUserMerge(
       resolution,
       /** Operator-facing conflicts were resolved via `resolution` (no separate list in v1). */
       conflictsResolved: [],
-      /** v1: row-level counts not computed; `media_files.uploaded_by` repoint happens inside merge transaction. */
-      dependentRowsMoved: { mediaFilesUploadedByRepointedInMergeTx: true },
+      /** v1: row-level counts not computed; ownership repoints happen inside the merge transaction. */
+      dependentRowsMoved: {
+        mediaFilesUploadedByRepointedInMergeTx: true,
+        mediaUploadSessionsOwnerRepointedInMergeTx: true,
+      },
     },
     status: "ok",
   });

@@ -68,6 +68,30 @@ describe("verifyManualMergeIntegratorIntegratorGate", () => {
     checkPairMock.mockResolvedValue({ ok: true, sameCanonical: true, canonicalA: "10", canonicalB: "10" });
     const r = await verifyManualMergeIntegratorIntegratorGate(poolMock as never, A, B);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.allowDistinctIntegratorUserIds).toBe(true);
+    if (r.ok) {
+      expect(r.allowDistinctIntegratorUserIds).toBe(true);
+      expect(r.verifiedDistinctIntegratorUserIds).toEqual({
+        targetIntegratorUserId: "10",
+        duplicateIntegratorUserId: "20",
+      });
+    }
+  });
+
+  it("maps canonical-pair timeout to unavailable response", async () => {
+    vi.mocked(getConfigBool).mockResolvedValue(true);
+    poolMock.query.mockResolvedValue({
+      rows: [
+        { id: A, integrator_user_id: "10" },
+        { id: B, integrator_user_id: "20" },
+      ],
+    });
+    checkPairMock.mockResolvedValue({ ok: false, reason: "timeout" });
+
+    const r = await verifyManualMergeIntegratorIntegratorGate(poolMock as never, A, B);
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.response.status).toBe(503);
+    }
   });
 });

@@ -41,70 +41,110 @@ export async function POST(request: Request) {
   }
 
   const pool = getPool();
-  const r = await pool.query<{
-    id: string;
-    role: string;
-    merged_into_id: string | null;
-    integrator_user_id: string | null;
-  }>(
-    `SELECT id::text AS id, role, merged_into_id::text AS merged_into_id, integrator_user_id::text AS integrator_user_id
-     FROM platform_users
-     WHERE id IN ($1::uuid, $2::uuid)`,
-    [targetId, duplicateId],
-  );
-  if (r.rows.length !== 2) {
-    return NextResponse.json({ ok: false, error: "missing_user" }, { status: 404 });
-  }
-  const byId = new Map(r.rows.map((row) => [row.id, row]));
-  const tRow = byId.get(targetId);
-  const dRow = byId.get(duplicateId);
-  if (!tRow || !dRow) {
-    return NextResponse.json({ ok: false, error: "missing_user" }, { status: 404 });
-  }
-  if (tRow.role !== "client" || dRow.role !== "client") {
-    return NextResponse.json({ ok: false, error: "not_client" }, { status: 400 });
-  }
-  if (tRow.merged_into_id != null || dRow.merged_into_id != null) {
-    return NextResponse.json({ ok: false, error: "alias_not_allowed" }, { status: 409 });
-  }
-
-  const winner = tRow.integrator_user_id?.trim() || "";
-  const loser = dRow.integrator_user_id?.trim() || "";
-  if (!winner || !loser || winner === loser) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "integrator_ids_not_divergent",
-        message: "Both platform users must have different non-null integrator_user_id for integrator merge.",
-      },
-      { status: 400 },
+  const client = await pool.connect();
+  let txOpen = false;
+  try {
+    await client.query("BEGIN");
+    txOpen = true;
+    const r = await client.query<{
+      id: string;
+      role: string;
+      merged_into_id: string | null;
+      integrator_user_id: string | null;
+    }>(
+      `SELECT id::text AS id, role, merged_into_id::text AS merged_into_id, integrator_user_id::text AS integrator_user_id
+       FROM platform_users
+       WHERE id IN ($1::uuid, $2::uuid)
+       ORDER BY id
+       FOR UPDATE`,
+      [targetId, duplicateId],
     );
-  }
+    if (r.rows.length !== 2) {
+      await client.query("ROLLBACK");
+      txOpen = false;
+      return NextResponse.json({ ok: false, error: "missing_user" }, { status: 404 });
+    }
+    const byId = new Map(r.rows.map((row) => [row.id, row]));
+    const tRow = byId.get(targetId);
+    const dRow = byId.get(duplicateId);
+    if (!tRow || !dRow) {
+      await client.query("ROLLBACK");
+      txOpen = false;
+      return NextResponse.json({ ok: false, error: "missing_user" }, { status: 404 });
+    }
+    if (tRow.role !== "client" || dRow.role !== "client") {
+      await client.query("ROLLBACK");
+      txOpen = false;
+      return NextResponse.json({ ok: false, error: "not_client" }, { status: 400 });
+    }
+    if (tRow.merged_into_id != null || dRow.merged_into_id != null) {
+      await client.query("ROLLBACK");
+      txOpen = false;
+      return NextResponse.json({ ok: false, error: "alias_not_allowed" }, { status: 409 });
+    }
 
-  const merged = await callIntegratorUserMerge({
-    winnerIntegratorUserId: winner,
-    loserIntegratorUserId: loser,
-    dryRun: dryRun === true,
-  });
-
-  if (!merged.ok) {
-    if (merged.reason === "unconfigured") {
+    const winner = tRow.integrator_user_id?.trim() || "";
+    const loser = dRow.integrator_user_id?.trim() || "";
+    if (!winner || !loser || winner === loser) {
+      await client.query("ROLLBACK");
+      txOpen = false;
       return NextResponse.json(
-        { ok: false, error: "integrator_unconfigured", message: "INTEGRATOR_API_URL or webhook secret missing." },
-        { status: 503 },
+        {
+          ok: false,
+          error: "integrator_ids_not_divergent",
+          message: "Both platform users must have different non-null integrator_user_id for integrator merge.",
+        },
+        { status: 400 },
       );
     }
-    let errBody: unknown = merged.bodyText;
-    try {
-      errBody = JSON.parse(merged.bodyText) as unknown;
-    } catch {
-      /* keep text */
-    }
-    return NextResponse.json(
-      { ok: false, error: "integrator_merge_failed", status: merged.status, details: errBody },
-      { status: merged.status >= 400 && merged.status < 600 ? merged.status : 502 },
-    );
-  }
 
-  return NextResponse.json({ ok: true, result: merged.result });
+    // Keep the row lock until the M2M request is decided so winner/loser ids cannot drift mid-request.
+    const merged = await callIntegratorUserMerge({
+      winnerIntegratorUserId: winner,
+      loserIntegratorUserId: loser,
+      dryRun: dryRun === true,
+    });
+
+    if (!merged.ok) {
+      await client.query("ROLLBACK");
+      txOpen = false;
+      if (merged.reason === "unconfigured") {
+        return NextResponse.json(
+          { ok: false, error: "integrator_unconfigured", message: "INTEGRATOR_API_URL or webhook secret missing." },
+          { status: 503 },
+        );
+      }
+      if (merged.reason === "timeout") {
+        return NextResponse.json(
+          { ok: false, error: "integrator_timeout", message: "Integrator merge request timed out." },
+          { status: 503 },
+        );
+      }
+      let errBody: unknown = merged.bodyText;
+      try {
+        errBody = JSON.parse(merged.bodyText) as unknown;
+      } catch {
+        /* keep text */
+      }
+      return NextResponse.json(
+        { ok: false, error: "integrator_merge_failed", status: merged.status, details: errBody },
+        { status: merged.status >= 400 && merged.status < 600 ? merged.status : 502 },
+      );
+    }
+
+    await client.query("COMMIT");
+    txOpen = false;
+    return NextResponse.json({ ok: true, result: merged.result });
+  } catch (error) {
+    if (txOpen) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        /* ignore rollback errors */
+      }
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }

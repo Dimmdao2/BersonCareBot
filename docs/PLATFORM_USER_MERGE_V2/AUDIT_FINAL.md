@@ -7,11 +7,52 @@
 
 - `git diff main...HEAD` — **пусто**
 - `git status --short --branch` — baseline для audited working tree зафиксирован
-- targeted webapp: **9 files / 124 tests / OK**
+- targeted webapp: **9 files / 130 tests / OK**
 - targeted integrator: **4 files / 26 tests / OK**
 - `pnpm install --frozen-lockfile && pnpm run ci` — **OK**
   - integrator: **649 passed**, **6 skipped**
-  - webapp: **1410 passed**, **5 skipped**
+  - webapp: **1417 passed**, **5 skipped**
+
+---
+
+## Evidence baseline
+
+- `git rev-parse HEAD`: `eee67350445547ddc2df1370cc535b64c2651324`
+- `git rev-parse --short HEAD`: `eee6735`
+
+```text
+## main...origin/main
+ M apps/webapp/src/app/api/api.md
+ M apps/webapp/src/app/api/doctor/clients/integrator-merge/route.test.ts
+ M apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts
+ M apps/webapp/src/app/api/doctor/clients/merge/route.test.ts
+ M apps/webapp/src/app/api/doctor/clients/merge/route.ts
+ M apps/webapp/src/infra/integrations/integratorUserMergeM2mClient.flow.test.ts
+ M apps/webapp/src/infra/integrations/integratorUserMergeM2mClient.ts
+ M apps/webapp/src/infra/manualMergeIntegratorGate.test.ts
+ M apps/webapp/src/infra/manualMergeIntegratorGate.ts
+ M apps/webapp/src/infra/manualPlatformUserMerge.test.ts
+ M apps/webapp/src/infra/manualPlatformUserMerge.ts
+ M apps/webapp/src/infra/repos/pgPlatformUserMerge.test.ts
+ M apps/webapp/src/infra/repos/pgPlatformUserMerge.ts
+ M docs/ARCHITECTURE/PLATFORM_USER_MERGE.md
+ M docs/PLATFORM_USER_MERGE_V2/AGENT_EXECUTION_LOG.md
+ M docs/PLATFORM_USER_MERGE_V2/AUDIT_FINAL.md
+ M docs/PLATFORM_USER_MERGE_V2/CUTOVER_RUNBOOK.md
+ M docs/PLATFORM_USER_MERGE_V2/README.md
+ M docs/PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md
+ M docs/VIDEO_HLS_DELIVERY/00-master-plan.md
+ M docs/VIDEO_HLS_DELIVERY/02-target-architecture.md
+ M docs/VIDEO_HLS_DELIVERY/04-test-strategy.md
+ M docs/VIDEO_HLS_DELIVERY/05-risk-register.md
+ M docs/VIDEO_HLS_DELIVERY/06-execution-log.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-02-transcoding-pipeline-and-worker.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-03-storage-layout-and-artifact-management.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-04-playback-api-and-delivery-strategy.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-05-player-integration-and-dual-mode-frontend.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-09-signed-urls-ttl-and-private-access.md
+?? docs/PLATFORM_USER_MERGE_V2/AUDIT_INDEPENDENT.md
+```
 
 ---
 
@@ -39,6 +80,7 @@
    - audited working tree (`git diff main...HEAD` пустой, но baseline фиксируется через `git status --short --branch`).
 2. Добавлены `AUDIT_PRE_DEPLOY_1.md` … `AUDIT_PRE_DEPLOY_4.md` как retrospective repo audits по Deploy 1..4.
 3. `STAGE_C_CLOSEOUT.md` и `MASTER_PLAN.md` уточняют, что closeout относится к **audited repository tree**, а не автоматически к любому будущему dirty working tree.
+4. Follow-up независимого аудита закрыт: gate/apply race, stale snapshot в `integrator-merge`, timeout hardening, multipart ownership, immutable evidence baseline и operator workflow wording синхронизированы с кодом и docs.
 
 **Итог:** первичные major-findings закрыты; открытых `critical` / `major` / `minor` в этом финальном прогоне нет.
 
@@ -87,7 +129,7 @@
 
 **В этом прогоне:**
 
-- `pnpm --dir apps/webapp exec vitest run ...` — **9 files / 124 passed**
+- `pnpm --dir apps/webapp exec vitest run ...` — **9 files / 130 passed**
 - `pnpm --dir apps/integrator exec vitest run ...` — **4 files / 26 passed**
 - `pnpm install --frozen-lockfile && pnpm run ci` — **OK**
 

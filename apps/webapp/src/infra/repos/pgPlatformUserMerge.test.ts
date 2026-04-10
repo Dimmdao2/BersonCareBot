@@ -74,11 +74,12 @@ function baseResolution(over: Partial<ManualMergeResolution> = {}): ManualMergeR
 }
 
 describe("mergePlatformUsersInTransaction (manual)", () => {
-  it("updates media_files.uploaded_by in the same transaction path", async () => {
+  it("updates media ownership rows in the same transaction path", async () => {
     const sqlLog: string[] = [];
     const client = makeClient(sqlLog);
     await mergePlatformUsersInTransaction(client, T, D, "manual", { resolution: baseResolution() });
     expect(sqlLog.some((s) => s.includes("UPDATE media_files SET uploaded_by"))).toBe(true);
+    expect(sqlLog.some((s) => s.includes("UPDATE media_upload_sessions SET owner_user_id"))).toBe(true);
   });
 
   it("uses scalar CASE branches from ManualMergeResolution.fields", async () => {
@@ -192,8 +193,63 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
     await mergePlatformUsersInTransaction(client, T, D, "manual", {
       resolution: baseResolution(),
       allowDistinctIntegratorUserIds: true,
+      verifiedDistinctIntegratorUserIds: {
+        targetIntegratorUserId: "100",
+        duplicateIntegratorUserId: "200",
+      },
     });
     expect(query).toHaveBeenCalled();
+  });
+
+  it("rejects relaxed manual merge when locked integrator ids differ from gate snapshot", async () => {
+    const query = vi.fn(async (sql: string) => {
+      const s = String(sql);
+      if (s.includes("FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: T,
+              phone_normalized: "+79000000000",
+              integrator_user_id: "100",
+              merged_into_id: null,
+              display_name: "A",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+            {
+              id: D,
+              phone_normalized: "+79000000000",
+              integrator_user_id: "200",
+              merged_into_id: null,
+              display_name: "B",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+    const client = { query } as unknown as PoolClient;
+
+    await expect(
+      mergePlatformUsersInTransaction(client, T, D, "manual", {
+        resolution: baseResolution(),
+        allowDistinctIntegratorUserIds: true,
+        verifiedDistinctIntegratorUserIds: {
+          targetIntegratorUserId: "100",
+          duplicateIntegratorUserId: "999",
+        },
+      }),
+    ).rejects.toThrow("merge: integrator ids changed since gate");
   });
 
   it("rejects non-client rows before mutating data", async () => {

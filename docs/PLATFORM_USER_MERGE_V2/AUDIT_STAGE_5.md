@@ -87,7 +87,7 @@ pnpm run ci
 |----------|-----------|
 | Полный pipeline из корня | `pnpm run ci` — **exit 0** |
 | Integrator tests | **649 passed**, 6 skipped |
-| Webapp tests | **1410 passed**, 5 skipped |
+| Webapp tests | **1417 passed**, 5 skipped |
 | Сборки | `apps/integrator` + `apps/webapp` production build — **OK** |
 | Audit prod dependencies | `pnpm audit --prod` — **No known vulnerabilities found** |
 
@@ -185,5 +185,6 @@ pnpm run ci
 | §2 Оговорка: ранний `409` на `POST …/merge` при v1 и иной текст ошибки | Gate при `!v2` и двух разных `integrator_user_id` **не** возвращает ответ — выполняется `runManualPlatformUserMerge`; ошибка и audit как до Stage 5 ([`manualMergeIntegratorGate.ts`](../../apps/webapp/src/infra/manualMergeIntegratorGate.ts)). |
 | §3 GAP: нет сквозного теста цепочки M2M | Добавлены [`integratorUserMergeM2mClient.flow.test.ts`](../../apps/webapp/src/infra/integrations/integratorUserMergeM2mClient.flow.test.ts) (stub `fetch`: canonical-pair + merge + двухшаговая последовательность) и [`integrator-merge/route.test.ts`](../../apps/webapp/src/app/api/doctor/clients/integrator-merge/route.test.ts) (winner/loser, флаг). |
 | Документация расхождения с кодом | Обновлены [`api.md`](../../apps/webapp/src/app/api/api.md) и [`PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md). |
+| Post-closeout hardening | Gate/apply race закрыт snapshot-проверкой пары integrator id; `integrator-merge` route читает `platform_users` под `FOR UPDATE`; M2M client ограничен timeout; docs синхронизированы с `integrator_timeout` / `integrator_ids_changed_since_gate`. |
 
 **CI:** см. актуальные числа в [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) (запись follow-up Stage 5 audit fix).

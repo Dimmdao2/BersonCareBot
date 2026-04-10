@@ -4,7 +4,48 @@
 
 **Статус:** инициатива **закрыта на уровне audited repository tree** — **2026-04-10**.  
 Этот документ относится к **конкретному проверенному состоянию дерева репозитория**, на котором были прогнаны команды из раздела «Регрессия». Если `git diff main...HEAD` пустой, source of truth для closeout — текущее audited working tree плюс `git status --short --branch`, а не абстрактное «любое будущее состояние main/рабочего дерева».  
-Операционные проверки на конкретной production-паре (winner/loser) после каждого merge — по [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md) и [`sql/README.md`](sql/README.md); вывод psql сохраняет оператор в тикете.
+Операционные проверки на конкретной production-паре (winner/loser) после каждого merge — по [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md) и [`sql/README.md`](sql/README.md); вывод `psql` сохраняет оператор в ticket / ops record. [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) используется только для repo-level engineering milestones.
+
+---
+
+## Evidence baseline
+
+- `git rev-parse HEAD`: `eee67350445547ddc2df1370cc535b64c2651324`
+- `git rev-parse --short HEAD`: `eee6735`
+
+```text
+## main...origin/main
+ M apps/webapp/src/app/api/api.md
+ M apps/webapp/src/app/api/doctor/clients/integrator-merge/route.test.ts
+ M apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts
+ M apps/webapp/src/app/api/doctor/clients/merge/route.test.ts
+ M apps/webapp/src/app/api/doctor/clients/merge/route.ts
+ M apps/webapp/src/infra/integrations/integratorUserMergeM2mClient.flow.test.ts
+ M apps/webapp/src/infra/integrations/integratorUserMergeM2mClient.ts
+ M apps/webapp/src/infra/manualMergeIntegratorGate.test.ts
+ M apps/webapp/src/infra/manualMergeIntegratorGate.ts
+ M apps/webapp/src/infra/manualPlatformUserMerge.test.ts
+ M apps/webapp/src/infra/manualPlatformUserMerge.ts
+ M apps/webapp/src/infra/repos/pgPlatformUserMerge.test.ts
+ M apps/webapp/src/infra/repos/pgPlatformUserMerge.ts
+ M docs/ARCHITECTURE/PLATFORM_USER_MERGE.md
+ M docs/PLATFORM_USER_MERGE_V2/AGENT_EXECUTION_LOG.md
+ M docs/PLATFORM_USER_MERGE_V2/AUDIT_FINAL.md
+ M docs/PLATFORM_USER_MERGE_V2/CUTOVER_RUNBOOK.md
+ M docs/PLATFORM_USER_MERGE_V2/README.md
+ M docs/PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md
+ M docs/VIDEO_HLS_DELIVERY/00-master-plan.md
+ M docs/VIDEO_HLS_DELIVERY/02-target-architecture.md
+ M docs/VIDEO_HLS_DELIVERY/04-test-strategy.md
+ M docs/VIDEO_HLS_DELIVERY/05-risk-register.md
+ M docs/VIDEO_HLS_DELIVERY/06-execution-log.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-02-transcoding-pipeline-and-worker.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-03-storage-layout-and-artifact-management.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-04-playback-api-and-delivery-strategy.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-05-player-integration-and-dual-mode-frontend.md
+ M docs/VIDEO_HLS_DELIVERY/phases/phase-09-signed-urls-ttl-and-private-access.md
+?? docs/PLATFORM_USER_MERGE_V2/AUDIT_INDEPENDENT.md
+```
 
 ---
 
@@ -19,10 +60,10 @@ pnpm install --frozen-lockfile
 pnpm run ci
 ```
 
-Результат: **exit 0**. В составе CI: integrator **649** passed (6 skipped), webapp **1410** passed (5 skipped); `pnpm audit --prod` — без известных уязвимостей.
+Результат: **exit 0**. В составе CI: integrator **649** passed (6 skipped), webapp **1417** passed (5 skipped); `pnpm audit --prod` — без известных уязвимостей.
 
 - [x] Targeted tests:
-  - **webapp** (9 файлов, **124** теста, OK):
+  - **webapp** (9 файлов, **130** тестов, OK):
 
 ```bash
 cd apps/webapp && pnpm exec vitest run \
@@ -115,6 +156,8 @@ WHERE status = 'pending'
   AND payload::text LIKE '%' || chr(34) || 'integratorUserId' || chr(34) || ':' || chr(34) || 'LOSER_ID' || chr(34) || '%';
 "
 ```
+
+Этот `payload::text LIKE` — **heuristic signal**, а не математически полное доказательство для всех будущих форм payload. Если есть сомнение или нестандартный event type, дополнительно смотреть `node apps/integrator/scripts/projection-health.mjs` и sample raw payload по релевантным типам событий.
 
 3. При необходимости: `node apps/integrator/scripts/projection-health.mjs` на хосте после deploy — см. [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md).
 

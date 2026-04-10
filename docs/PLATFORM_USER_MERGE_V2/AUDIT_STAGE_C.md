@@ -63,7 +63,7 @@ pnpm run ci
 **Счётчики vitest (тот же день, полные suite):**
 
 - integrator: **649** passed (6 skipped)
-- webapp: **1410** passed (5 skipped)
+- webapp: **1417** passed (5 skipped)
 
 Совпадает с цифрами в [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md) § регрессии — дрейфа нет.
 
@@ -89,6 +89,7 @@ pnpm run ci
 | 2026-04-10 | Выполнение Stage C: `STAGE_C_CLOSEOUT`, `MASTER_PLAN`, follow-up `AUDIT_STAGE_C` |
 | 2026-04-10 | Текущий прогон: подтверждение трёх критериев + повторный `pnpm run ci` |
 | 2026-04-10 | Follow-up: [`docs/README.md`](../README.md) — добавлены ссылки на `STAGE_C_CLOSEOUT.md`, `AUDIT_STAGE_C.md` (закрытие MANDATORY §3) |
+| 2026-04-10 | Hardening follow-up: обновлены CI counts и evidence wording после закрытия `AUDIT_INDEPENDENT.md` |
 
 ---
 

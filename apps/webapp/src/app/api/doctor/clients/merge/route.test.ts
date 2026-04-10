@@ -56,7 +56,11 @@ describe("POST /api/doctor/clients/merge", () => {
     runManualMock.mockReset();
     gateMock.mockReset();
     getSessionMock.mockResolvedValue(adminOk);
-    gateMock.mockResolvedValue({ ok: true, allowDistinctIntegratorUserIds: false });
+    gateMock.mockResolvedValue({
+      ok: true,
+      allowDistinctIntegratorUserIds: false,
+      verifiedDistinctIntegratorUserIds: undefined,
+    });
     runManualMock.mockResolvedValue({ ok: true, targetId: t1, duplicateId: t2 });
   });
 
@@ -98,6 +102,35 @@ describe("POST /api/doctor/clients/merge", () => {
     expect(res.status).toBe(200);
     expect(runManualMock).toHaveBeenCalledWith(expect.anything(), "a1", resolutionBody.resolution, {
       allowDistinctIntegratorUserIds: false,
+      verifiedDistinctIntegratorUserIds: undefined,
+    });
+  });
+
+  it("passes verified integrator id snapshot into manual merge", async () => {
+    gateMock.mockResolvedValueOnce({
+      ok: true,
+      allowDistinctIntegratorUserIds: true,
+      verifiedDistinctIntegratorUserIds: {
+        targetIntegratorUserId: "100",
+        duplicateIntegratorUserId: "200",
+      },
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/doctor/clients/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(resolutionBody),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(runManualMock).toHaveBeenCalledWith(expect.anything(), "a1", resolutionBody.resolution, {
+      allowDistinctIntegratorUserIds: true,
+      verifiedDistinctIntegratorUserIds: {
+        targetIntegratorUserId: "100",
+        duplicateIntegratorUserId: "200",
+      },
     });
   });
 
@@ -111,6 +144,29 @@ describe("POST /api/doctor/clients/merge", () => {
       }),
     );
     expect(res.status).toBe(409);
+  });
+
+  it("returns a dedicated code when gate snapshot became stale", async () => {
+    runManualMock.mockResolvedValue({
+      ok: false,
+      error: "merge: integrator ids changed since gate",
+      code: "integrator_ids_changed_since_gate",
+    });
+
+    const res = await POST(
+      new Request("http://localhost/api/doctor/clients/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(resolutionBody),
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({
+      ok: false,
+      error: "merge_failed",
+      code: "integrator_ids_changed_since_gate",
+    });
   });
 
   it("returns gate response when integrator gate fails", async () => {

@@ -55,11 +55,12 @@ export async function POST(request: Request) {
   }
   const result = await runManualPlatformUserMerge(pool, adminGate.session.user.userId, resolution, {
     allowDistinctIntegratorUserIds: gate.allowDistinctIntegratorUserIds,
+    verifiedDistinctIntegratorUserIds: gate.verifiedDistinctIntegratorUserIds,
   });
 
   if (!result.ok) {
     return NextResponse.json(
-      { ok: false, error: "merge_failed", message: result.error },
+      { ok: false, error: "merge_failed", code: result.code, message: result.error },
       { status: 409 },
     );
   }

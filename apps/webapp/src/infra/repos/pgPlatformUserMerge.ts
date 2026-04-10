@@ -8,6 +8,11 @@ export type MergePlatformUsersReason = "projection" | "phone_bind" | "manual";
 
 export type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
 
+export type VerifiedDistinctIntegratorUserIds = {
+  targetIntegratorUserId: string;
+  duplicateIntegratorUserId: string;
+};
+
 const CHANNEL_CODES = ["telegram", "max", "vk"] as const;
 
 type OauthRow = {
@@ -62,7 +67,11 @@ export async function mergePlatformUsersInTransaction(
   targetId: string,
   duplicateId: string,
   reason: MergePlatformUsersReason,
-  options?: { resolution?: ManualMergeResolution; allowDistinctIntegratorUserIds?: boolean },
+  options?: {
+    resolution?: ManualMergeResolution;
+    allowDistinctIntegratorUserIds?: boolean;
+    verifiedDistinctIntegratorUserIds?: VerifiedDistinctIntegratorUserIds;
+  },
 ): Promise<{ targetId: string; duplicateId: string }> {
   if (targetId === duplicateId) {
     throw new MergeConflictError("merge: target and duplicate are the same id", [targetId]);
@@ -126,6 +135,14 @@ export async function mergePlatformUsersInTransaction(
       options?.allowDistinctIntegratorUserIds === true;
     if (!relaxed) {
       throw new MergeConflictError("merge: two different non-null integrator_user_id", [targetId, duplicateId]);
+    }
+    const verified = options?.verifiedDistinctIntegratorUserIds;
+    if (
+      !verified ||
+      verified.targetIntegratorUserId !== iA ||
+      verified.duplicateIntegratorUserId !== iB
+    ) {
+      throw new MergeConflictError("merge: integrator ids changed since gate", [targetId, duplicateId]);
     }
   }
 
@@ -252,6 +269,10 @@ export async function mergePlatformUsersInTransaction(
   );
 
   await client.query(`UPDATE media_files SET uploaded_by = $1::uuid WHERE uploaded_by = $2::uuid`, [
+    targetId,
+    duplicateId,
+  ]);
+  await client.query(`UPDATE media_upload_sessions SET owner_user_id = $1::uuid WHERE owner_user_id = $2::uuid`, [
     targetId,
     duplicateId,
   ]);

@@ -19,7 +19,7 @@
 - **Реализовано:** HMAC M2M (те же заголовки, что `settings/sync` / reminders), секрет — `INTEGRATOR_WEBHOOK_SECRET` (или fallback `INTEGRATOR_SHARED_SECRET`) на обеих сторонах.
 - `POST {INTEGRATOR_API_URL}/api/integrator/users/canonical-pair` — тело `{ integratorUserIdA, integratorUserIdB }` → `{ ok, sameCanonical, canonicalA, canonicalB }`.
 - `POST {INTEGRATOR_API_URL}/api/integrator/users/merge` — тело `{ winnerIntegratorUserId, loserIntegratorUserId, dryRun? }` → вызов `mergeIntegratorUsers`.
-- **Webapp proxy (admin + admin mode):** `POST /api/doctor/clients/integrator-merge` — только при включённом `platform_user_merge_v2_enabled`; тело `{ targetId, duplicateId, dryRun? }` (winner integrator = `integrator_user_id` **целевого** platform user).
+- **Webapp proxy (admin + admin mode):** `POST /api/doctor/clients/integrator-merge` — только при включённом `platform_user_merge_v2_enabled`; тело `{ targetId, duplicateId, dryRun? }` (winner integrator = `integrator_user_id` **целевого** platform user). Пара `platform_users` перечитывается под `FOR UPDATE`, а M2M вызов ограничен timeout.
 
 ## Изменения в коде (чек-лист)
 

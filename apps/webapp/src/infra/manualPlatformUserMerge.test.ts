@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MergeConflictError } from "@/infra/repos/platformUserMergeErrors";
 
 const writeAuditLogMock = vi.fn();
 const mergeTxMock = vi.fn();
@@ -66,7 +67,10 @@ describe("runManualPlatformUserMerge", () => {
       t2,
       t1,
       "manual",
-      expect.objectContaining({ resolution: expect.anything() }),
+      expect.objectContaining({
+        resolution: expect.anything(),
+        verifiedDistinctIntegratorUserIds: undefined,
+      }),
     );
   });
 
@@ -95,7 +99,10 @@ describe("runManualPlatformUserMerge", () => {
         details: expect.objectContaining({
           resolution: baseResolution,
           conflictsResolved: [],
-          dependentRowsMoved: { mediaFilesUploadedByRepointedInMergeTx: true },
+          dependentRowsMoved: {
+            mediaFilesUploadedByRepointedInMergeTx: true,
+            mediaUploadSessionsOwnerRepointedInMergeTx: true,
+          },
         }),
       }),
     );
@@ -125,5 +132,24 @@ describe("runManualPlatformUserMerge", () => {
         }),
       }),
     );
+  });
+
+  it("returns a dedicated code when integrator ids changed after gate", async () => {
+    mergeTxMock.mockRejectedValueOnce(new MergeConflictError("merge: integrator ids changed since gate"));
+
+    const { runManualPlatformUserMerge } = await import("@/infra/manualPlatformUserMerge");
+    const r = await runManualPlatformUserMerge(pool, null, baseResolution, {
+      allowDistinctIntegratorUserIds: true,
+      verifiedDistinctIntegratorUserIds: {
+        targetIntegratorUserId: "100",
+        duplicateIntegratorUserId: "200",
+      },
+    });
+
+    expect(r).toEqual({
+      ok: false,
+      error: "merge: integrator ids changed since gate",
+      code: "integrator_ids_changed_since_gate",
+    });
   });
 });

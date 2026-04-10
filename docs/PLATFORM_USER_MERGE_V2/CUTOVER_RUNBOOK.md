@@ -56,7 +56,8 @@ set -a && source /opt/env/bersoncarebot/cutover.prod && set +a
 
 - **Не включать** массовый merge без dry-run на копии или без пошагового пилота.
 - Выполнить диагностические запросы из [`sql/README.md`](sql/README.md) (integrator + webapp шаблоны).
-- Зафиксировать в [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) время merge, пары id, результат SQL gate-запросов.
+- Зафиксировать в production ticket / ops record время merge, пары id и результат SQL gate-запросов.
+- [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) использовать только для repo-level engineering milestones, а не как per-merge production журнал.
 - После **integrator** merge: `node apps/integrator/scripts/projection-health.mjs` — проверить `cancelledCount` (ожидаемый рост при dedup outbox), что `pending` drain стабилен и `dead` не всплыл из‑за merge.
 - После merge пары `(winner, loser)` на **webapp** БД: realignment `integrator_user_id` (Stage 4) — см. [`STAGE_4_WEBAPP_REALIGNMENT.md`](STAGE_4_WEBAPP_REALIGNMENT.md):
   - префикс `set -a && source /opt/env/bersoncarebot/webapp.prod && set +a` (или cutover-файл, если так задан `DATABASE_URL` для webapp);

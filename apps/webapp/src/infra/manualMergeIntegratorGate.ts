@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Pool } from "pg";
 import { checkIntegratorCanonicalPair } from "@/infra/integrations/integratorUserMergeM2mClient";
+import type { VerifiedDistinctIntegratorUserIds } from "@/infra/repos/pgPlatformUserMerge";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 
 function normIntegratorId(v: string | null | undefined): string | null {
@@ -12,6 +13,7 @@ function normIntegratorId(v: string | null | undefined): string | null {
 export type ManualMergeIntegratorGateOk = {
   ok: true;
   allowDistinctIntegratorUserIds: boolean;
+  verifiedDistinctIntegratorUserIds?: VerifiedDistinctIntegratorUserIds;
 };
 
 export type ManualMergeIntegratorGateFail = {
@@ -50,7 +52,7 @@ export async function verifyManualMergeIntegratorIntegratorGate(
 
   const st = await checkIntegratorCanonicalPair(iTarget, iDup);
   if (!st.ok) {
-    if (st.reason === "unconfigured") {
+    if (st.reason === "unconfigured" || st.reason === "timeout") {
       return {
         ok: false,
         response: NextResponse.json(
@@ -59,7 +61,7 @@ export async function verifyManualMergeIntegratorIntegratorGate(
             error: "merge_failed",
             code: "integrator_merge_status_unavailable",
             message:
-              "INTEGRATOR_API_URL or webhook secret is not configured — cannot verify integrator canonical merge status.",
+              "Integrator canonical merge status is currently unavailable (configuration missing or request timed out).",
           },
           { status: 503 },
         ),
@@ -95,5 +97,12 @@ export async function verifyManualMergeIntegratorIntegratorGate(
     };
   }
 
-  return { ok: true, allowDistinctIntegratorUserIds: true };
+  return {
+    ok: true,
+    allowDistinctIntegratorUserIds: true,
+    verifiedDistinctIntegratorUserIds: {
+      targetIntegratorUserId: iTarget,
+      duplicateIntegratorUserId: iDup,
+    },
+  };
 }

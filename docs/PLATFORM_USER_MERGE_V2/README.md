@@ -26,6 +26,8 @@
 | [`AUDIT_STAGE_5.md`](AUDIT_STAGE_5.md) | Аудит репозитория: Stage 5 (feature flag + flow) |
 | [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md) | Закрытие инициативы |
 | [`AUDIT_STAGE_C.md`](AUDIT_STAGE_C.md) | Аудит репозитория: Stage C (closeout) |
+| [`AUDIT_FINAL.md`](AUDIT_FINAL.md) | Финальный сквозной verdict по пакету v2 |
+| [`AUDIT_INDEPENDENT.md`](AUDIT_INDEPENDENT.md) | Независимый post-closeout аудит и статус закрытия hardening findings |
 | [`sql/README.md`](sql/README.md) | Диагностические SQL (шаблоны) |
 
 ## Быстрые ссылки (код)
