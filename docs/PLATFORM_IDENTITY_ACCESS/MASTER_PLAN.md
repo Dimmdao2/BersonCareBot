@@ -56,6 +56,7 @@
 - Усилить **порядок** на первом входе мессенджера: до `INSERT` нового `platform_users` — поиск существующего канона (integrator token, `integrator_user_id`, уже известные bindings, доверенные сигналы из проекций — по продуктовым правилам).
 - Интегратор: `contact.linked` / `user.upserted` / `ensureClientFromAppointmentProjection` **сокращают** дубли; не подменяют собой server-side политику tier на web, но кормят **канон**.
 - Файлы-якоря: `apps/webapp/src/infra/repos/pgIdentityResolution.ts`, `apps/webapp/src/modules/integrator/events.ts`, `apps/webapp/src/infra/repos/pgUserProjection.ts`.
+- **Статус:** фаза B по резолву канал ↔ канон **закрыта** (подтверждено повторным независимым аудитом 2026-04-10, P0/P1 по B не выявлено); детали и границы scope — [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) §10.
 
 ### Фаза C — Session и входы
 

@@ -286,7 +286,7 @@ describe("handleIntegratorEvent", () => {
       channelCode: "telegram",
       externalId: "tg77777",
     });
-    expect(users.updatePhone).toHaveBeenCalledWith("platform-1", "+70001112233");
+    expect(users.updatePhone).not.toHaveBeenCalled();
   });
 
   it("preferences.updated creates skeleton user if user.upserted not received yet", async () => {

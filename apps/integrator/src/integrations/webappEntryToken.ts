@@ -12,14 +12,16 @@ type WebappEntryTokenPayload = {
   role: 'client' | 'doctor' | 'admin';
   displayName?: string;
   phone?: string;
+  /** Optional; webapp resolves canon before creating `platform_users` (see contracts/webapp-entry-token.json). */
+  integratorUserId?: string;
   bindings?: { telegramId?: string; maxId?: string; vkId?: string };
   purpose: 'webapp-entry';
   exp: number;
 };
 
 export type WebappEntrySource =
-  | { source: 'telegram'; chatId: number; displayName?: string }
-  | { source: 'max'; maxId: string; displayName?: string };
+  | { source: 'telegram'; chatId: number; displayName?: string; integratorUserId?: string }
+  | { source: 'max'; maxId: string; displayName?: string; integratorUserId?: string };
 
 function base64UrlEncode(value: string): string {
   return Buffer.from(value, 'utf8')
@@ -68,10 +70,15 @@ export function buildWebappEntryTokenFromSource(params: WebappEntrySource): stri
   const now = Math.floor(Date.now() / 1000);
   const exp = now + 300;
 
+  const intId =
+    typeof params.integratorUserId === 'string' && params.integratorUserId.trim() !== ''
+      ? params.integratorUserId.trim()
+      : undefined;
   const payload: WebappEntryTokenPayload = {
     sub,
     role,
     ...(params.displayName !== undefined && params.displayName !== '' ? { displayName: params.displayName } : {}),
+    ...(intId !== undefined ? { integratorUserId: intId } : {}),
     bindings,
     purpose: 'webapp-entry',
     exp,
@@ -93,23 +100,38 @@ export function buildWebappEntryUrlFromSource(params: WebappEntrySource): string
 }
 
 /** @deprecated Prefer source-agnostic builder with source telegram. Kept for backward compatibility. */
-export function buildWebappEntryToken(params: { chatId: number; displayName?: string }): string | null {
+export function buildWebappEntryToken(params: {
+  chatId: number;
+  displayName?: string;
+  integratorUserId?: string;
+}): string | null {
   const src: WebappEntrySource = { source: 'telegram', chatId: params.chatId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
+  if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
   return buildWebappEntryTokenFromSource(src);
 }
 
 /** @deprecated Prefer source-agnostic builder with source max. Kept for backward compatibility. */
-export function buildWebappEntryTokenForMax(params: { maxId: string; displayName?: string }): string | null {
+export function buildWebappEntryTokenForMax(params: {
+  maxId: string;
+  displayName?: string;
+  integratorUserId?: string;
+}): string | null {
   const src: WebappEntrySource = { source: 'max', maxId: params.maxId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
+  if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
   return buildWebappEntryTokenFromSource(src);
 }
 
 /** Returns the full webapp entry URL for MAX user. */
-export function buildWebappEntryUrlForMax(params: { maxId: string; displayName?: string }): string | null {
+export function buildWebappEntryUrlForMax(params: {
+  maxId: string;
+  displayName?: string;
+  integratorUserId?: string;
+}): string | null {
   const src: WebappEntrySource = { source: 'max', maxId: params.maxId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
+  if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
   return buildWebappEntryUrlFromSource(src);
 }
 
@@ -117,8 +139,10 @@ export function buildWebappEntryUrlForMax(params: { maxId: string; displayName?:
 export function buildWebappEntryUrl(params: {
   chatId: number;
   displayName?: string;
+  integratorUserId?: string;
 }): string | null {
   const src: WebappEntrySource = { source: 'telegram', chatId: params.chatId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
+  if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
   return buildWebappEntryUrlFromSource(src);
 }

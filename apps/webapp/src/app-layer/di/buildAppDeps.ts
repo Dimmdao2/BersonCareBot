@@ -374,8 +374,8 @@ function _buildAppDeps() {
         exchangeIntegratorToken(token, identityResolutionPort, userProjectionPort.updateRole),
       exchangeTelegramInitData: (initData: string) =>
         exchangeTelegramInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
-      exchangeTelegramLoginWidget: (payload: TelegramLoginWidgetPayload) =>
-        exchangeTelegramLoginWidget(payload, identityResolutionPort, userProjectionPort.updateRole),
+      exchangeTelegramLoginWidget: (payload: TelegramLoginWidgetPayload, webappEntryToken?: string | null) =>
+        exchangeTelegramLoginWidget(payload, identityResolutionPort, userProjectionPort.updateRole, webappEntryToken),
       clearSession,
       setSessionFromUser,
       startPhoneAuth: (phone: string, context: ChannelContext, opts?: StartPhoneAuthOptions) =>

@@ -19,8 +19,8 @@ describe('buildLinksFromBody bookingUrl', () => {
     vi.mocked(buildWebappEntryUrl).mockReturnValue('https://webapp.test/entry?t=signed');
   });
 
-  it('prefers webappCabinetUrl as bookingUrl when webapp entry is available', () => {
-    const facts = buildLinksFromBody(body);
+  it('prefers webappCabinetUrl as bookingUrl when webapp entry is available', async () => {
+    const facts = await buildLinksFromBody(body);
     const links = facts.links as Record<string, string>;
     expect(links.bookingUrl).toBe(links.webappCabinetUrl);
     expect(links.bookingUrl).toContain(encodeURIComponent('/app/patient/cabinet'));

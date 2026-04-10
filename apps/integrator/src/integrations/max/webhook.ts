@@ -12,9 +12,16 @@ import type { MaxUpdateValidated } from './schema.js';
 
 export type MaxWebhookDeps = {
   eventGateway: EventGateway;
+  resolveIntegratorUserIdForMessenger?: (
+    externalId: string,
+    resource: 'telegram' | 'max',
+  ) => Promise<string | undefined>;
 };
 
-function buildMaxLinks(data: MaxUpdateValidated): Record<string, unknown> {
+async function buildMaxLinks(
+  data: MaxUpdateValidated,
+  resolveIntegratorUserIdForMessenger?: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'],
+): Promise<Record<string, unknown>> {
   const maxId = data.message?.sender?.user_id ?? data.callback?.user?.user_id ?? data.user?.user_id;
   if (maxId == null || typeof maxId !== 'number') return {};
   const sender = data.message?.sender ?? data.callback?.user ?? data.user;
@@ -22,16 +29,28 @@ function buildMaxLinks(data: MaxUpdateValidated): Record<string, unknown> {
     sender?.first_name != null || sender?.last_name != null
       ? [sender?.first_name, sender?.last_name].filter(Boolean).join(' ').trim() || undefined
       : sender?.name ?? undefined;
+  let integratorUserId: string | undefined;
+  try {
+    if (resolveIntegratorUserIdForMessenger) {
+      integratorUserId = await resolveIntegratorUserIdForMessenger(String(maxId), 'max');
+    }
+  } catch {
+    integratorUserId = undefined;
+  }
   const webappEntryUrl = buildWebappEntryUrlForMax({
     maxId: String(maxId),
     ...(displayName ? { displayName } : {}),
+    ...(integratorUserId !== undefined ? { integratorUserId } : {}),
   });
   if (!webappEntryUrl) return {};
   const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
   return { links: { webappEntryUrl: baseWebappUrl } };
 }
 
-function buildMaxFacts(data: MaxUpdateValidated): Record<string, unknown> {
+async function buildMaxFacts(
+  data: MaxUpdateValidated,
+  resolveIntegratorUserIdForMessenger?: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'],
+): Promise<Record<string, unknown>> {
   const adminChatId = maxConfig.adminChatId;
   const adminUserId = maxConfig.adminUserId;
   const chatId = data.message?.recipient?.chat_id ?? data.chat_id;
@@ -40,7 +59,7 @@ function buildMaxFacts(data: MaxUpdateValidated): Record<string, unknown> {
     (typeof adminUserId === 'number' && typeof senderUserId === 'number' && adminUserId === senderUserId)
     || (typeof adminUserId !== 'number' && typeof adminChatId === 'number' && typeof chatId === 'number' && adminChatId === chatId);
   return {
-    ...buildMaxLinks(data),
+    ...(await buildMaxLinks(data, resolveIntegratorUserIdForMessenger)),
     ...(typeof adminChatId === 'number' ? { adminChatId } : {}),
     ...(typeof adminUserId === 'number' ? { adminUserId } : {}),
     ...((typeof chatId === 'number' || typeof senderUserId === 'number') ? { isAdmin } : {}),
@@ -57,6 +76,7 @@ export async function registerMaxWebhookRoutes(
   deps: MaxWebhookDeps,
 ): Promise<void> {
   await setupMaxCommands();
+  const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
 
   app.post('/webhook/max', async (request, reply) => {
     const correlationId = request.id;
@@ -105,7 +125,7 @@ export async function registerMaxWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: buildMaxFacts(parseResult.data),
+        facts: await buildMaxFacts(parseResult.data, resolveIntegratorUserIdForMessenger),
       });
       const result = await deps.eventGateway.handleIncomingEvent(event);
       if (result.status === 'rejected') {

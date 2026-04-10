@@ -9,6 +9,10 @@
     "role": { "enum": ["client", "doctor", "admin"], "description": "User role for webapp" },
     "displayName": { "type": "string" },
     "phone": { "type": "string" },
+    "integratorUserId": {
+      "type": "string",
+      "description": "Optional tgcarebot / integrator numeric user id (stringified) for webapp-side canon lookup before creating a new platform_users row."
+    },
     "bindings": {
       "type": "object",
       "additionalProperties": { "type": "string" },

@@ -22,9 +22,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "telegram_not_configured" }, { status: 503 });
   }
 
-  const payload = parsed.data as TelegramLoginWidgetPayload;
+  const rawBody = { ...parsed.data } as Record<string, unknown>;
+  const webappEntryToken =
+    typeof rawBody.webappEntryToken === "string" && rawBody.webappEntryToken.trim() !== ""
+      ? rawBody.webappEntryToken.trim()
+      : undefined;
+  delete rawBody.webappEntryToken;
+  const payload = rawBody as TelegramLoginWidgetPayload;
   const deps = buildAppDeps();
-  const result = await deps.auth.exchangeTelegramLoginWidget(payload);
+  const result = await deps.auth.exchangeTelegramLoginWidget(payload, webappEntryToken);
   if (!result) {
     const diag = verifyTelegramLoginWidgetSignature(payload, botToken);
     if (!diag.ok && diag.reason === "expired") {

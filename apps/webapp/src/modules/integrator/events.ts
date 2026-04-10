@@ -145,6 +145,8 @@ export type IntegratorEventsDeps = {
     }) => Promise<{
       outcome: "applied" | "skipped_no_user" | "skipped_invalid_email" | "skipped_verified" | "skipped_conflict";
     }>;
+    /** Follow `merged_into_id` so diary writes attach to canonical `platform_users.id` after merge. */
+    resolveCanonicalPlatformUserId?: (platformUserId: string) => Promise<string>;
   };
   branches?: BranchesProjectionPort;
   preferences?: {
@@ -221,6 +223,12 @@ async function logMergeClassConflict(
   });
 }
 
+async function resolveDiaryPlatformUserId(deps: IntegratorEventsDeps, platformUserId: string): Promise<string> {
+  const fn = deps.users?.resolveCanonicalPlatformUserId;
+  if (!fn) return platformUserId;
+  return fn(platformUserId);
+}
+
 async function acceptAfterMergeConflict(
   deps: IntegratorEventsDeps,
   err: unknown,
@@ -255,8 +263,9 @@ export async function handleIntegratorEvent(
       return { accepted: false, reason: "diary.symptom.tracking.created: payload.symptomTitle required" };
     }
     try {
+      const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
       await deps.diaries.createSymptomTracking({
-        userId,
+        userId: canonUserId,
         symptomKey: typeof payload.symptomKey === "string" ? payload.symptomKey : null,
         symptomTitle: symptomTitle.trim(),
       });
@@ -278,8 +287,9 @@ export async function handleIntegratorEvent(
       return { accepted: false, reason: "diary.lfk.complex.created: payload.title required" };
     }
     try {
+      const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
       await deps.diaries.createLfkComplex({
-        userId,
+        userId: canonUserId,
         title: (title as string).trim(),
         origin: payload.origin === "assigned_by_specialist" ? "assigned_by_specialist" : "manual",
       });
@@ -303,8 +313,9 @@ export async function handleIntegratorEvent(
     const completedAt = payload.completedAt;
     const completedAtStr = typeof completedAt === "string" ? completedAt : new Date().toISOString();
     try {
+      const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
       await deps.diaries.addLfkSession({
-        userId,
+        userId: canonUserId,
         complexId,
         completedAt: completedAtStr,
         source: "bot",
@@ -335,8 +346,9 @@ export async function handleIntegratorEvent(
     const recordedAt = payload.recordedAt;
     const recordedAtStr = typeof recordedAt === "string" ? recordedAt : new Date().toISOString();
     try {
+      const canonUserId = await resolveDiaryPlatformUserId(deps, userId);
       await deps.diaries.addSymptomEntry({
-        userId,
+        userId: canonUserId,
         trackingId,
         value0_10: Math.round(num),
         entryType,
@@ -390,13 +402,13 @@ export async function handleIntegratorEvent(
       return { accepted: false, reason: "contact.linked: users dep not available" };
     }
     try {
-      const { platformUserId } = await deps.users.upsertFromProjection({
+      await deps.users.upsertFromProjection({
         integratorUserId,
         phoneNormalized,
         channelCode,
         externalId,
       });
-      await deps.users.updatePhone(platformUserId, phoneNormalized);
+      // Phone + patient_phone_trust_at are applied inside upsertFromProjection (trusted integrator path §5).
       return { accepted: true };
     } catch (err) {
       const deferred = await acceptAfterMergeConflict(deps, err, "contact.linked", payload);

@@ -64,11 +64,19 @@ import { createSubscriptionMailingReadsPort } from '../infra/adapters/subscripti
  * Регистраторы интеграций инжектируются,
  * чтобы wiring app-слоя оставался стабильным во время миграции.
  */
+/** Injected from `routes.ts` for webapp-entry token enrichment (integrator `users.id`). */
+export type MessengerWebappEntryIdentityDeps = {
+  resolveIntegratorUserIdForMessenger?: (
+    externalId: string,
+    resource: 'telegram' | 'max',
+  ) => Promise<string | undefined>;
+};
+
 export type TelegramRoutesRegistrar = (
   app: FastifyInstance,
   deps: {
     eventGateway: EventGateway;
-  },
+  } & MessengerWebappEntryIdentityDeps,
 ) => Promise<void> | void;
 
 export type RubitimeRoutesRegistrar = (
@@ -84,7 +92,7 @@ export type MaxRoutesRegistrar = (
   app: FastifyInstance,
   deps: {
     eventGateway: EventGateway;
-  },
+  } & MessengerWebappEntryIdentityDeps,
 ) => Promise<void> | void;
 
 /** Опциональные внешние зависимости для buildDeps на период миграции. */

@@ -110,6 +110,32 @@ export async function findCanonicalUserIdByIntegratorId(
   return r.rows[0].id;
 }
 
+/**
+ * Canonical user with this phone **and** trusted patient activation (`patient_phone_trust_at`).
+ * Used for messenger entry resolution: do not link a channel to a canon by phone unless activation is trusted (§5).
+ */
+export async function findTrustedCanonicalUserIdByPhone(
+  db: Pool | PoolClient,
+  phoneNormalized: string,
+): Promise<string | null> {
+  const r = await db.query<{ id: string }>(
+    `SELECT id FROM platform_users
+     WHERE phone_normalized = $1 AND merged_into_id IS NULL
+       AND patient_phone_trust_at IS NOT NULL
+     ORDER BY created_at ASC
+     LIMIT 3`,
+    [phoneNormalized],
+  );
+  if (r.rows.length === 0) return null;
+  if (r.rows.length > 1) {
+    console.error("[canonical] multiple trusted canonical rows for phone (redacted)", {
+      count: r.rows.length,
+    });
+    return null;
+  }
+  return r.rows[0]!.id;
+}
+
 export async function findCanonicalUserIdByChannelBinding(
   db: Pool | PoolClient,
   channelCode: string,

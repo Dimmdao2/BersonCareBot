@@ -38,10 +38,16 @@ export function TelegramLoginButton({ botUsername, nextParam, disabled, classNam
       setBusy(true);
       setError(null);
       try {
+        const entryT =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("t")?.trim() ?? ""
+            : "";
+        const body =
+          entryT.length > 0 ? { ...user, webappEntryToken: entryT } : user;
         const res = await fetch("/api/auth/telegram-login", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(user),
+          body: JSON.stringify(body),
         });
         const data = (await res.json().catch(() => ({}))) as {
           ok?: boolean;

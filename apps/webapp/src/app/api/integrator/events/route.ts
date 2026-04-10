@@ -4,6 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { upsertOpenConflictLog, writeAuditLog } from "@/infra/adminAuditLog";
 import { getPool } from "@/infra/db/client";
 import { handleIntegratorEvent } from "@/modules/integrator/events";
+import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency";
 import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
 
@@ -106,6 +107,10 @@ export async function POST(request: Request) {
       findByPhone: async (phoneNormalized: string) => {
         const found = await deps.userByPhone.findByPhone(phoneNormalized);
         return found ? { platformUserId: found.userId } : null;
+      },
+      resolveCanonicalPlatformUserId: async (platformUserId: string) => {
+        const resolved = await resolveCanonicalUserId(pool, platformUserId);
+        return resolved ?? platformUserId;
       },
     },
     preferences: deps.userProjection,

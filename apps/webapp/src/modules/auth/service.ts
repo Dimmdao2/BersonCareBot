@@ -5,8 +5,9 @@ import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
 import { resolveRoleAsync, isWhitelistedAsync } from "./envRole";
-import type { IdentityResolutionPort } from "./identityResolutionPort";
+import type { IdentityResolutionPort, MessengerIdentityResolutionHints } from "./identityResolutionPort";
 import { normalizePhone } from "./phoneAuth";
+import { isValidPhoneE164 } from "./phoneValidation";
 import { getRedirectPathForRole } from "./redirectPolicy";
 import { getIntegratorWebappEntrySecret, getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";
 import {
@@ -26,6 +27,8 @@ type IntegratorTokenPayload = {
   role: UserRole;
   displayName?: string;
   phone?: string;
+  /** Optional; see `contracts/webapp-entry-token.json`. */
+  integratorUserId?: string;
   bindings?: Record<string, string | undefined>;
   purpose: "webapp-entry";
   exp: number;
@@ -164,9 +167,10 @@ async function isAllowedByWhitelist(
   identityResolutionPort?: IdentityResolutionPort | null
 ): Promise<boolean> {
   if (parsed.role === "admin") return true;
+  const eff = effectiveMessengerBinding(parsed);
   const tokenIds = {
-    telegramId: parsed.bindings?.telegramId,
-    maxId: parsed.bindings?.maxId,
+    telegramId: eff?.channelCode === "telegram" ? eff.externalId : parsed.bindings?.telegramId,
+    maxId: eff?.channelCode === "max" ? eff.externalId : parsed.bindings?.maxId,
     phone: parsed.phone?.trim(),
   };
   if (await isWhitelistedAsync(tokenIds)) return true;
@@ -174,7 +178,7 @@ async function isAllowedByWhitelist(
   // For messenger entry tokens (especially MAX), token may not contain phone.
   // If binding already exists, re-check whitelist against canonical user ids + phone.
   if (!identityResolutionPort) return false;
-  const binding = firstBinding(parsed);
+  const binding = eff;
   if (!binding) return false;
   const existing = await identityResolutionPort.findByChannelBinding({
     channelCode: binding.channelCode,
@@ -188,8 +192,42 @@ async function isAllowedByWhitelist(
   });
 }
 
+/**
+ * Legacy / compact entry tokens may encode messenger id only in `sub` (`tg:…`, `max:…`) without `bindings`.
+ */
+function bindingFromExternalSub(sub: string): { channelCode: "telegram" | "max"; externalId: string } | null {
+  const s = sub.trim();
+  const tg = /^tg:(\d+)$/.exec(s);
+  if (tg) return { channelCode: "telegram", externalId: tg[1]! };
+  const max = /^max:(.+)$/.exec(s);
+  if (max) {
+    const id = max[1]!.trim();
+    if (id.length > 0) return { channelCode: "max", externalId: id };
+  }
+  return null;
+}
+
+function effectiveMessengerBinding(
+  parsed: IntegratorTokenPayload,
+): { channelCode: "telegram" | "max" | "vk"; externalId: string } | null {
+  return firstBinding(parsed) ?? bindingFromExternalSub(parsed.sub);
+}
+
+/** Optional signed webapp-entry token must denote the same messenger identity as the verified channel (no raw client UUID trust). */
+function webappEntryTokenMatchesVerifiedMessenger(
+  tokenPayload: IntegratorTokenPayload,
+  channelCode: "telegram" | "max" | "vk",
+  externalId: string,
+): boolean {
+  const eff = effectiveMessengerBinding(tokenPayload);
+  if (!eff) return false;
+  return eff.channelCode === channelCode && eff.externalId === externalId;
+}
+
 /** Validates Telegram Web App initData (from window.Telegram.WebApp.initData). Returns user id and role or null. */
-async function validateTelegramInitData(initData: string): Promise<{ telegramId: string; role: UserRole; displayName?: string } | null> {
+async function validateTelegramInitData(
+  initData: string,
+): Promise<{ telegramId: string; role: UserRole; displayName?: string; startParam?: string } | null> {
   const botToken = (await getTelegramBotToken()).trim();
   if (!botToken?.trim()) return null;
 
@@ -230,7 +268,11 @@ async function validateTelegramInitData(initData: string): Promise<{ telegramId:
   const role: UserRole = await resolveRoleAsync({ telegramId });
   const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || undefined;
 
-  return { telegramId, role, displayName };
+  const startParamRaw = params.get("start_param");
+  const startParam =
+    startParamRaw != null && startParamRaw.trim() !== "" ? startParamRaw.trim() : undefined;
+
+  return { telegramId, role, displayName, ...(startParam ? { startParam } : {}) };
 }
 
 function tokenToUser(token: IntegratorTokenPayload): SessionUser {
@@ -252,6 +294,44 @@ function firstBinding(parsed: IntegratorTokenPayload): { channelCode: "telegram"
   if (parsed.bindings?.maxId) return { channelCode: "max", externalId: parsed.bindings.maxId };
   if (parsed.bindings?.vkId) return { channelCode: "vk", externalId: parsed.bindings.vkId };
   return null;
+}
+
+/** Signed webapp-entry token → hints for `findOrCreateByChannelBinding` (Phase B: canon before INSERT). */
+function messengerResolutionHintsFromToken(parsed: IntegratorTokenPayload): MessengerIdentityResolutionHints | undefined {
+  const hints: MessengerIdentityResolutionHints = {};
+  const sub = parsed.sub.trim();
+  if (isPlatformUserUuid(sub)) {
+    hints.platformUserSub = sub;
+  }
+  const intRaw = parsed.integratorUserId;
+  if (typeof intRaw === "string" && intRaw.trim() !== "") {
+    hints.integratorUserId = intRaw.trim();
+  }
+  const phoneRaw = parsed.phone;
+  if (typeof phoneRaw === "string" && phoneRaw.trim() !== "") {
+    const n = normalizePhone(phoneRaw.trim());
+    if (isValidPhoneE164(n)) {
+      hints.phoneNormalized = n;
+    }
+  }
+  if (hints.platformUserSub == null && hints.integratorUserId == null && hints.phoneNormalized == null) {
+    return undefined;
+  }
+  return hints;
+}
+
+async function optionalResolutionHintsFromVerifiedWebappEntryToken(
+  embeddedToken: string | null | undefined,
+  verifiedBinding: { channelCode: "telegram" | "max" | "vk"; externalId: string },
+): Promise<MessengerIdentityResolutionHints | undefined> {
+  const raw = embeddedToken?.trim();
+  if (!raw) return undefined;
+  const parsed = await parseIntegratorToken(raw);
+  if (!parsed) return undefined;
+  if (!webappEntryTokenMatchesVerifiedMessenger(parsed, verifiedBinding.channelCode, verifiedBinding.externalId)) {
+    return undefined;
+  }
+  return messengerResolutionHintsFromToken(parsed);
 }
 
 export async function exchangeIntegratorToken(
@@ -277,13 +357,15 @@ export async function exchangeIntegratorToken(
 
   let user: SessionUser;
   if (identityResolutionPort && !devParsed) {
-    const binding = firstBinding(parsed);
+    const binding = effectiveMessengerBinding(parsed);
     if (binding) {
+      const resolutionHints = messengerResolutionHintsFromToken(parsed);
       user = await identityResolutionPort.findOrCreateByChannelBinding({
         channelCode: binding.channelCode,
         externalId: binding.externalId,
         displayName: parsed.displayName,
         role: parsed.role,
+        ...(resolutionHints ? { resolutionHints } : {}),
       });
     } else {
       user = tokenToUser(parsed);
@@ -327,6 +409,22 @@ export async function exchangeTelegramInitData(
   const parsed = await validateTelegramInitData(initData);
   if (!parsed) return null;
 
+  const verifiedBinding = { channelCode: "telegram" as const, externalId: parsed.telegramId };
+  const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(
+    parsed.startParam,
+    verifiedBinding,
+  );
+  if (resolutionHints && process.env.NODE_ENV !== "test") {
+    const kinds = [
+      resolutionHints.platformUserSub && "sub",
+      resolutionHints.integratorUserId && "integrator",
+      resolutionHints.phoneNormalized && "phone",
+    ]
+      .filter(Boolean)
+      .join(",");
+    console.info("[auth/telegram-init] resolution_hints_from=start_param kinds=%s", kinds);
+  }
+
   let user: SessionUser;
   if (identityResolutionPort) {
     user = await identityResolutionPort.findOrCreateByChannelBinding({
@@ -334,6 +432,7 @@ export async function exchangeTelegramInitData(
       externalId: parsed.telegramId,
       displayName: parsed.displayName,
       role: parsed.role,
+      ...(resolutionHints ? { resolutionHints } : {}),
     });
   } else {
     user = {
@@ -378,6 +477,7 @@ export async function exchangeTelegramLoginWidget(
   raw: TelegramLoginWidgetPayload,
   identityResolutionPort?: IdentityResolutionPort | null,
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
+  webappEntryToken?: string | null,
 ): Promise<ExchangeResult | null> {
   const botToken = (await getTelegramBotToken()).trim();
   if (!botToken) return null;
@@ -395,6 +495,22 @@ export async function exchangeTelegramLoginWidget(
 
   const role = await resolveRoleAsync({ telegramId });
 
+  const verifiedBinding = { channelCode: "telegram" as const, externalId: telegramId };
+  const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(
+    webappEntryToken,
+    verifiedBinding,
+  );
+  if (resolutionHints && process.env.NODE_ENV !== "test") {
+    const kinds = [
+      resolutionHints.platformUserSub && "sub",
+      resolutionHints.integratorUserId && "integrator",
+      resolutionHints.phoneNormalized && "phone",
+    ]
+      .filter(Boolean)
+      .join(",");
+    console.info("[auth/telegram-login] resolution_hints_from=webapp_entry_token kinds=%s", kinds);
+  }
+
   let user: SessionUser;
   if (identityResolutionPort) {
     user = await identityResolutionPort.findOrCreateByChannelBinding({
@@ -402,6 +518,7 @@ export async function exchangeTelegramLoginWidget(
       externalId: telegramId,
       displayName: displayName || undefined,
       role,
+      ...(resolutionHints ? { resolutionHints } : {}),
     });
   } else {
     user = {

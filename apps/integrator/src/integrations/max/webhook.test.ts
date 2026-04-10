@@ -9,7 +9,10 @@ describe('max webhook', () => {
   it('returns 200 with ok:false for invalid body (always 200 to avoid provider retries)', async () => {
     const eventGateway = { handleIncomingEvent: vi.fn() };
     const app = Fastify();
-    await registerMaxWebhookRoutes(app, { eventGateway });
+    await registerMaxWebhookRoutes(app, {
+      eventGateway,
+      resolveIntegratorUserIdForMessenger: async () => undefined,
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/webhook/max',
@@ -23,7 +26,10 @@ describe('max webhook', () => {
   it('returns 200 and calls eventGateway for valid message_created (real payload)', async () => {
     const eventGateway = vi.fn().mockResolvedValue({ status: 'accepted' });
     const app = Fastify();
-    await registerMaxWebhookRoutes(app, { eventGateway: { handleIncomingEvent: eventGateway } });
+    await registerMaxWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent: eventGateway },
+      resolveIntegratorUserIdForMessenger: async () => undefined,
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/webhook/max',
@@ -51,7 +57,10 @@ describe('max webhook', () => {
   it('maps link payload to start.link action', async () => {
     const eventGateway = vi.fn().mockResolvedValue({ status: 'accepted' });
     const app = Fastify();
-    await registerMaxWebhookRoutes(app, { eventGateway: { handleIncomingEvent: eventGateway } });
+    await registerMaxWebhookRoutes(app, {
+      eventGateway: { handleIncomingEvent: eventGateway },
+      resolveIntegratorUserIdForMessenger: async () => undefined,
+    });
     const res = await app.inject({
       method: 'POST',
       url: '/webhook/max',

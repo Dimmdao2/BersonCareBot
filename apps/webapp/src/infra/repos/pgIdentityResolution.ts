@@ -1,7 +1,41 @@
 import { getPool } from "@/infra/db/client";
 import type { ChannelBindings, SessionUser } from "@/shared/types/session";
-import type { IdentityResolutionPort } from "@/modules/auth/identityResolutionPort";
-import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
+import type {
+  IdentityResolutionPort,
+  MessengerIdentityResolutionHints,
+} from "@/modules/auth/identityResolutionPort";
+import {
+  findCanonicalUserIdByIntegratorId,
+  findTrustedCanonicalUserIdByPhone,
+  resolveCanonicalUserId,
+} from "@/infra/repos/pgCanonicalPlatformUser";
+import { mergeCanonicalPlatformUserCandidates } from "@/infra/repos/pgUserProjection";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
+import type { PoolClient } from "pg";
+
+async function collectMessengerResolutionCandidates(
+  client: PoolClient,
+  hints: MessengerIdentityResolutionHints | undefined,
+): Promise<string[]> {
+  if (!hints) return [];
+  const ids: string[] = [];
+  const sub = hints.platformUserSub?.trim();
+  if (sub && isPlatformUserUuid(sub)) {
+    const canon = await resolveCanonicalUserId(client, sub);
+    if (canon) ids.push(canon);
+  }
+  const intId = hints.integratorUserId?.trim();
+  if (intId) {
+    const byInt = await findCanonicalUserIdByIntegratorId(client, intId);
+    if (byInt) ids.push(byInt);
+  }
+  const phone = hints.phoneNormalized?.trim();
+  if (phone) {
+    const byTrustedPhone = await findTrustedCanonicalUserIdByPhone(client, phone);
+    if (byTrustedPhone) ids.push(byTrustedPhone);
+  }
+  return [...new Set(ids)];
+}
 
 function rowToBindings(rows: { channel_code: string; external_id: string }[]): ChannelBindings {
   const bindings: ChannelBindings = {};
@@ -49,12 +83,49 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
 
       if (existing.rows.length > 0) {
         userId = existing.rows[0].user_id;
+        if (process.env.NODE_ENV !== "test") {
+          console.info("[identity_resolution] path=existing_binding channel=%s", params.channelCode);
+        }
       } else {
-        const insertUser = await client.query<{ id: string }>(
-          `INSERT INTO platform_users (display_name, role) VALUES ($1, $2) RETURNING id`,
-          [params.displayName ?? params.externalId, params.role ?? "client"],
+        let insertedNewPlatformUser = false;
+        const hintCandidates = await collectMessengerResolutionCandidates(
+          client,
+          params.resolutionHints,
         );
-        userId = insertUser.rows[0]!.id;
+        if (hintCandidates.length > 0) {
+          userId = await mergeCanonicalPlatformUserCandidates(
+            client,
+            hintCandidates,
+            "projection",
+          );
+          const dn = params.displayName?.trim();
+          if (dn) {
+            await client.query(
+              `UPDATE platform_users SET
+                 display_name = $2::text,
+                 updated_at = now()
+               WHERE id = $1::uuid`,
+              [userId, dn],
+            );
+          }
+          if (process.env.NODE_ENV !== "test") {
+            console.info(
+              "[identity_resolution] path=merge_before_bind channel=%s hint_candidates=%d",
+              params.channelCode,
+              hintCandidates.length,
+            );
+          }
+        } else {
+          if (process.env.NODE_ENV !== "test") {
+            console.info("[identity_resolution] path=insert_new channel=%s", params.channelCode);
+          }
+          const insertUser = await client.query<{ id: string }>(
+            `INSERT INTO platform_users (display_name, role) VALUES ($1, $2) RETURNING id`,
+            [params.displayName ?? params.externalId, params.role ?? "client"],
+          );
+          userId = insertUser.rows[0]!.id;
+          insertedNewPlatformUser = true;
+        }
         const insBinding = await client.query<{ user_id: string }>(
           `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
            VALUES ($1, $2, $3)
@@ -71,7 +142,9 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
           if (!ownerId) {
             throw new Error("findOrCreateByChannelBinding: binding missing after conflict");
           }
-          await client.query("DELETE FROM platform_users WHERE id = $1", [userId]);
+          if (insertedNewPlatformUser) {
+            await client.query("DELETE FROM platform_users WHERE id = $1", [userId]);
+          }
           userId = ownerId;
         }
       }

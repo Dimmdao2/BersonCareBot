@@ -41,11 +41,15 @@
 | Вызов при exchange токена / initData | `apps/webapp/src/modules/auth/service.ts` (`exchangeIntegratorToken`, `exchangeTelegramInitData`, `exchangeTelegramLoginWidget`) через inject `IdentityResolutionPort` из DI |
 | Сборка deps | `apps/webapp/src/app-layer/di/buildAppDeps.ts` |
 
-**Сценарий «первый заход в Telegram/Max» (сейчас):**
+**Сценарий «первый заход в Telegram/Max» (фаза B — закрыта):**
 
-1. Нет строки в `user_channel_bindings` для `(channel_code, external_id)` → создаётся **новая** строка `platform_users` (без телефона) + binding — **технический якорь** ([`SPECIFICATION.md`](SPECIFICATION.md) §7).
-2. Tier по спецификации: **`client` без доверенного телефона** → **onboarding**, не patient.
-3. **Целевое улучшение (фаза B плана):** до этого INSERT — попытка найти существующего канона (integrator user id из токена, уже доставшиеся события, и т.д.) по правилам доверия, чтобы **уменьшить** дубли до merge.
+1. Нет строки в `user_channel_bindings` для `(channel_code, external_id)` → **до** `INSERT` в `platform_users` собираются кандидаты из **`resolutionHints`** из **подписанного** webapp-entry токена: (а) query `?t=` при `exchangeIntegratorToken`; (б) Mini App — то же значение в **`start_param`** внутри `initData` (после проверки подписи Telegram на сервере); (в) веб Login Widget — опциональное поле **`webappEntryToken`** в JSON POST `/api/auth/telegram-login`, если на странице входа в URL есть `?t=` (клиент подмешивает токен в тело запроса; поле **не** входит в hash виджета). Подсказки: UUID в `sub`, `integratorUserId`, телефон из токена **только** при совпадении с каноном с **`patient_phone_trust_at`** (`pgIdentityResolution.ts`, `findTrustedCanonicalUserIdByPhone`). Сырой client-controlled UUID в `start_param` **без** HMAC **не** принимается.
+2. **Компактный токен без `bindings`:** если в signed payload только `sub` вида **`tg:<id>`** или **`max:<id>`**, messenger binding берётся из `sub` (`effectiveMessengerBinding` в `service.ts`).
+3. **Интегратор → токен:** при сборке ссылок из webhook Telegram/MAX в токен подмешивается **`integratorUserId`**, если identity уже есть в БД интегратора (`getLinkDataByIdentity` в `apps/integrator/src/app/routes.ts`).
+4. Если кандидатов нет → новая строка `platform_users` (без телефона) + binding — **технический якорь** ([`SPECIFICATION.md`](SPECIFICATION.md) §7).
+5. Tier: **`client` без доверенного телефона** → **onboarding**, не patient.
+
+**Статус и границы фазы B** — [§10](#10-фаза-b--статус-закрыта).
 
 ---
 
@@ -80,9 +84,9 @@
 | Событие / действие | Где |
 |--------------------|-----|
 | Обработка типов событий | `apps/webapp/src/modules/integrator/events.ts` |
-| `user.upserted`, `contact.linked` → канон + телефон + binding | вызовы `pgUserProjectionPort.upsertFromProjection`, `updatePhone` |
+| `user.upserted`, `contact.linked` → канон + телефон + binding | `pgUserProjectionPort.upsertFromProjection` (телефон и `patient_phone_trust_at` внутри upsert; отдельный `updatePhone` после `contact.linked` **не** вызывается) |
 | Rubitime / запись → ensure клиента по телефону | `ensureClientFromAppointmentProjection` в `apps/webapp/src/infra/repos/pgUserProjection.ts`, вызов из `events.ts` (appointment.record.upserted) |
-| Сборка `users` deps для событий | `buildAppDeps` и регистрация портов |
+| Сборка `users` deps для событий | `buildAppDeps`; в `apps/webapp/src/app/api/integrator/events/route.ts` дополнительно `resolveCanonicalPlatformUserId` → цепочка merge для **diary.*** событий с `payload.userId` |
 
 **Сценарий «Rubitime создал клиента с телефоном»:** в БД появляется/обогащается канон с `phone_normalized`; при первом входе в мессенджер цель — **привязать** канал к этому канону доверенным путём, а не создавать второго клиента (фаза B плана).
 
@@ -137,9 +141,40 @@
 - Логировать **trusted / неTrusted** (или эквивалент) на критичных шагах резолва identity, где это уместно.
 - Логировать или иным образом учитывать **merge**, **phone_bind**, критичные **projection** на входах — для расследований «почему onboarding».
 
-## 10. Чек-лист для агента/разработчика
+---
+
+## 10. Фаза B — статус (закрыта)
+
+**Повторный независимый аудит (2026-04-10):** сверка с [`MASTER_PLAN.md`](MASTER_PLAN.md) §5 (фаза B) и смежными DoD (в частности **§3 п.5** — multi-channel без «угадывания» канона по неверифицированному телефону в мессенджере). **P0/P1 по фазе B не выявлено**; остатки ниже осознанно отнесены к **фазам C / E**, не к B.
+
+Цели §5 по **канал ↔ канон** и сокращению лишних `INSERT platform_users` считаются **выполненными** в объёме таблицы.
+
+| Пункт §5 (фаза B) | Реализация в коде |
+|-------------------|-------------------|
+| **Порядок на первом входе мессенджера:** до `INSERT` — поиск канона по подсказкам и слияние кандидатов | `findOrCreateByChannelBinding` (`pgIdentityResolution.ts`): сначала существующий binding; иначе `collectMessengerResolutionCandidates` → `mergeCanonicalPlatformUserCandidates` → при отсутствии кандидатов — новый `platform_users` + binding. Подсказки: UUID в `sub` (после `resolveCanonicalUserId`), `integratorUserId` → `findCanonicalUserIdByIntegratorId`, телефон из токена **только** через `findTrustedCanonicalUserIdByPhone` (согласование с DoD §3 §5 / SPEC §10). |
+| **Интегратор кормит канон, не подменяет tier на web** | `user.upserted` / `contact.linked` → `upsertFromProjection` без дублирующего `updatePhone` после `contact.linked` (`events.ts`). `appointment.record.upserted` → `ensureClientFromAppointmentProjection` (`events.ts`, `pgUserProjection.ts`). |
+| **Якорные файлы** | `pgIdentityResolution.ts`, `modules/integrator/events.ts`, `pgUserProjection.ts` — соответствуют плану; wiring `resolveCanonicalPlatformUserId` для `diary.*` — `events/route.ts` + `resolveDiaryPlatformUserId` в `events.ts`. |
+
+| Тема (детализация) | Реализация |
+|--------------------|------------|
+| Подсказки не только `?t=` в URL | Подписанный webapp-entry токен: **`start_param`** в Telegram `initData` и **`webappEntryToken`** в POST `/api/auth/telegram-login` (при `t=` на странице). Сверка с каналом: `webappEntryTokenMatchesVerifiedMessenger` в `service.ts`. |
+| Компактный JWT без `bindings` | `sub` вида **`tg:<id>`** / **`max:<id>`** → `effectiveMessengerBinding` → тот же путь `findOrCreateByChannelBinding` с hints из тела токена. |
+| Интегратор → поле токена | `integratorUserId` в webapp-entry payload при наличии identity в БД интегратора (`getLinkDataByIdentity` в `apps/integrator/...`, сборка в `telegram`/`max` webhook + `webappEntryToken.ts`). |
+| `display_name` при привязке к существующему канону | После merge по hints непустое имя с верифицированного входа обновляет `display_name` (`pgIdentityResolution.ts`). |
+| Логи (частично) | `[identity_resolution] path=…` в `pgIdentityResolution.ts`; в `service.ts` — `resolution_hints_from` для `telegram-init` и `telegram-login`. Полный DoD **§8** (tier / trusted на всех шагах) — **фаза E**. |
+
+| Вне scope фазы B | Куда |
+|------------------|------|
+| **`collectCandidateIds`** (проекция): телефон для merge по signed webhook шире, чем hints мессенджера | Осознанно; см. комментарий в `pgUserProjection.ts`. |
+| **`integratorUserId` в ссылке бота** | Появляется только после записи identity в БД интегратора — ограничение данных, не дыра в B. |
+| **Канонический `userId` в cookie / onboarding-only сессия на всех входах** | **Фаза C** (MASTER_PLAN §5 C, DoD §2). |
+| **Полная наблюдаемость** | **Фаза E** (DoD §8). |
+
+## 11. Чек-лист для агента/разработчика
 
 **Фаза A (закрыта по контракту и точке истины):** модули access context + trusted policy; read-side `isTrustedPatientPhoneActivation`; `platformAccess` в `GET /api/me`; гейт Mini App учитывает `tier` при наличии `platformAccess`.
+
+**Фаза B (закрыта по канал ↔ канон, см. §10):** hints из signed entry-токена (`?t=`, `start_param`, `webappEntryToken`); `tg:`/`max:` в `sub`; `integratorUserId` из integrator DB в токене; diary → канон; логи merge/insert в `pgIdentityResolution`; сырой client UUID в `start_param` без HMAC не принимается.
 
 - [ ] Три модуля: access context/tier, trusted phone policy, route & API policy ([`MASTER_PLAN.md`](MASTER_PLAN.md) §2). *(Два первых — фаза A; route & API policy — фаза D.)*
 - [x] Резолв `{ canonicalUserId, dbRole, tier }`; для doctor/admin tier не смешивать с patient-политикой ([`SPECIFICATION.md`](SPECIFICATION.md) §3).

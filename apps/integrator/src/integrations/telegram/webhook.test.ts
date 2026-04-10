@@ -107,6 +107,7 @@ describe('registerTelegramWebhookRoutes', () => {
     const app = Fastify();
     await registerTelegramWebhookRoutes(app, {
       eventGateway: { handleIncomingEvent },
+      resolveIntegratorUserIdForMessenger: async () => undefined,
     });
     const res = await app.inject({
       method: 'POST',

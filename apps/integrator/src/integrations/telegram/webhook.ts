@@ -26,15 +26,27 @@ function buildActorFromBody(body: TelegramWebhookBodyValidated): Record<string, 
 }
 
 /** Exported for tests: resolves booking deep-link (native cabinet vs BOOKING_URL fallback). */
-export function buildLinksFromBody(body: TelegramWebhookBodyValidated): Record<string, unknown> {
+export async function buildLinksFromBody(
+  body: TelegramWebhookBodyValidated,
+  resolveIntegratorUserIdForMessenger?: TelegramWebhookDeps['resolveIntegratorUserIdForMessenger'],
+): Promise<Record<string, unknown>> {
   const from = body.callback_query?.from ?? body.message?.from;
   const displayName = from ? joinDisplayName(from) : undefined;
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
   const links: Record<string, unknown> = {};
   if (typeof chatId === 'number') {
+    let integratorUserId: string | undefined;
+    try {
+      if (typeof from?.id === 'number' && resolveIntegratorUserIdForMessenger) {
+        integratorUserId = await resolveIntegratorUserIdForMessenger(String(from.id), 'telegram');
+      }
+    } catch {
+      integratorUserId = undefined;
+    }
     const webappEntryUrl = buildWebappEntryUrl({
       chatId,
       ...(displayName !== undefined && displayName !== '' ? { displayName } : {}),
+      ...(integratorUserId !== undefined ? { integratorUserId } : {}),
     });
     if (webappEntryUrl) {
       const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
@@ -65,16 +77,24 @@ function buildAdminFacts(body: TelegramWebhookBodyValidated): Record<string, unk
   return result;
 }
 
-function buildTelegramFacts(body: TelegramWebhookBodyValidated): Record<string, unknown> {
+async function buildTelegramFacts(
+  body: TelegramWebhookBodyValidated,
+  resolveIntegratorUserIdForMessenger?: TelegramWebhookDeps['resolveIntegratorUserIdForMessenger'],
+): Promise<Record<string, unknown>> {
   return {
     ...buildActorFromBody(body),
-    ...buildLinksFromBody(body),
+    ...(await buildLinksFromBody(body, resolveIntegratorUserIdForMessenger)),
     ...buildAdminFacts(body),
   };
 }
 
 export type TelegramWebhookDeps = {
   eventGateway: EventGateway;
+  /** Best-effort integrator `users.id` for webapp-entry token (Phase B); injected from app layer (DB). */
+  resolveIntegratorUserIdForMessenger?: (
+    externalId: string,
+    resource: 'telegram' | 'max',
+  ) => Promise<string | undefined>;
 };
 
 /** Payload после `setphone_` в deep link `?start=setphone_...` (текст входящего сообщения). */
@@ -205,6 +225,7 @@ export async function registerTelegramWebhookRoutes(
   app: FastifyInstance,
   deps: TelegramWebhookDeps,
 ): Promise<void> {
+  const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
   await setupTelegramMenuButton();
 
   app.post('/webhook/telegram', async (request, reply) => {
@@ -263,7 +284,7 @@ export async function registerTelegramWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: buildTelegramFacts(body),
+        facts: await buildTelegramFacts(body, resolveIntegratorUserIdForMessenger),
         ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
       });
       const result = await deps.eventGateway.handleIncomingEvent(event);

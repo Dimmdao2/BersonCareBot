@@ -79,6 +79,17 @@ async function loadPuRow(client: PoolClient, id: string): Promise<PuRow | null> 
   return r.rows[0] ?? null;
 }
 
+/**
+ * Collapse duplicate canonical `platform_users` rows referenced by integrator/messenger resolution (Phase B).
+ */
+export async function mergeCanonicalPlatformUserCandidates(
+  client: PoolClient,
+  candidateIds: string[],
+  reason: "projection" | "phone_bind",
+): Promise<string> {
+  return mergeCandidates(client, candidateIds, reason);
+}
+
 async function mergeCandidates(
   client: PoolClient,
   candidateIds: string[],
@@ -125,6 +136,8 @@ async function collectCandidateIds(
   );
   if (byInt.rows.length > 1) throw new MergeConflictError("ambiguous integrator_user_id match", byInt.rows.map(r => r.id));
   if (byInt.rows[0]) ids.push(byInt.rows[0].id);
+  // Phone match is intentional for signed integrator webhook: payload asserts this user owns the number
+  // (may merge a row without patient_phone_trust_at; UPDATE path then sets trust when phone is supplied).
   if (params.phoneNormalized) {
     const byPhone = await client.query<{ id: string }>(
       `SELECT id FROM platform_users
