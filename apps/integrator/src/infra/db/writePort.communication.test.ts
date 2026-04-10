@@ -5,6 +5,17 @@ import { createDbWritePort } from './writePort.js';
 describe('writePort communication projection events', () => {
   function makeMockDb(capture: { projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[] }): DbPort {
     const query = vi.fn(async (sql: string, params: unknown[]) => {
+      if (
+        typeof sql === 'string' &&
+        sql.includes('user_id::text AS user_id') &&
+        sql.includes('FROM identities') &&
+        sql.includes('WHERE id =')
+      ) {
+        return { rows: [{ user_id: '9001' }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
+      if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
+        return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
       if (typeof sql === 'string' && sql.includes('projection_outbox')) {
         const [eventType, idempotencyKey, _occurredAt, payloadJson] = params as [string, string, string, string];
         let payload: unknown = {};
@@ -51,6 +62,7 @@ describe('writePort communication projection events', () => {
     const ev = capture.projectionInserts[0]!;
     expect(ev.eventType).toBe('support.conversation.opened');
     expect((ev.payload as Record<string, unknown>).integratorConversationId).toBe('conv-1');
+    expect((ev.payload as Record<string, unknown>).integratorUserId).toBe('9001');
     expect(ev.idempotencyKey.startsWith('support.conversation.opened:conv-1:')).toBe(true);
   });
 
@@ -115,6 +127,7 @@ describe('writePort communication projection events', () => {
     const ev = capture.projectionInserts[0]!;
     expect(ev.eventType).toBe('support.question.created');
     expect((ev.payload as Record<string, unknown>).integratorQuestionId).toBe('q-1');
+    expect((ev.payload as Record<string, unknown>).integratorUserId).toBe('9001');
   });
 
   it('question.message.add enqueues support.question.message.appended', async () => {

@@ -8,6 +8,7 @@ import type {
   DbPort,
 } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
+import { resolveCanonicalIntegratorUserId } from './canonicalUserId.js';
 
 export type ChannelUserByPhone = {
   chatId: number;
@@ -509,30 +510,31 @@ export async function setUserPhone(
   phoneNormalized: string,
   resource: string = "telegram",
 ): Promise<void> {
+  const idRes = await db.query<{ user_id: string }>(
+    `SELECT i.user_id::text AS user_id
+     FROM identities i
+     WHERE i.resource = $2
+       AND i.external_id = $1
+     LIMIT 1`,
+    [channelUserId, resource],
+  );
+  const rawUserId = idRes.rows[0]?.user_id;
+  if (!rawUserId) return;
+
+  const userId = await resolveCanonicalIntegratorUserId(db, rawUserId);
+
   const query = `
-    WITH target_identity AS (
-      SELECT i.user_id
-      FROM identities i
-      WHERE i.resource = $3
-        AND i.external_id = $1
-      LIMIT 1
-    ),
-    upsert_contact AS (
-      INSERT INTO contacts (user_id, type, value_normalized, label, is_primary, created_at, updated_at)
-      SELECT ti.user_id, 'phone', $2, $3, NULL, now(), now()
-      FROM target_identity ti
-      ON CONFLICT (type, value_normalized)
-      DO UPDATE SET
-        user_id = EXCLUDED.user_id,
-        label = EXCLUDED.label,
-        updated_at = now()
-      WHERE contacts.user_id = (SELECT user_id FROM target_identity)
-      RETURNING id
-    )
-    SELECT 1 FROM upsert_contact
+    INSERT INTO contacts (user_id, type, value_normalized, label, is_primary, created_at, updated_at)
+    VALUES ($1::bigint, 'phone', $2, $3, NULL, now(), now())
+    ON CONFLICT (type, value_normalized)
+    DO UPDATE SET
+      user_id = EXCLUDED.user_id,
+      label = EXCLUDED.label,
+      updated_at = now()
+    WHERE contacts.user_id = $1::bigint
   `;
   try {
-    await db.query(query, [channelUserId, phoneNormalized, resource]);
+    await db.query(query, [userId, phoneNormalized, resource]);
   } catch (err) {
     logger.error({ err }, 'setUserPhone error');
   }

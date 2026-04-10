@@ -8,6 +8,13 @@ describe('writePort booking.upsert projection', () => {
     projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[];
   }): DbPort {
     const query = vi.fn(async (sql: string, params: unknown[]) => {
+      if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
+        const id = String((params as string[])[0] ?? '');
+        if (id === '2') {
+          return { rows: [{ merged_into_user_id: '100' }] } as Awaited<ReturnType<DbPort['query']>>;
+        }
+        return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
       if (typeof sql === 'string' && sql.includes('projection_outbox')) {
         const [eventType, idempotencyKey, _occurredAt, payloadJson] = params as [string, string, string, string];
         let payload: unknown = {};
@@ -55,6 +62,37 @@ describe('writePort booking.upsert projection', () => {
     expect(payload.status).toBe('created');
     expect(payload.lastEvent).toBe('event-create');
     expect(ev.idempotencyKey.startsWith(`${APPOINTMENT_RECORD_UPSERTED}:rec-app-1:`)).toBe(true);
+  });
+
+  it('booking.upsert canonicalizes integrator ids inside payloadJson for projection only', async () => {
+    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const db = makeMockDb(capture);
+    const writePort = createDbWritePort({ db });
+    const payloadJson = { integrator_user_id: '2', link: 'https://rubitime.example/r' };
+    await writePort.writeDb({
+      type: 'booking.upsert',
+      params: {
+        externalRecordId: 'rec-canonical-pj',
+        phoneNormalized: '+79990001122',
+        recordAt: '2025-06-01T10:00:00.000Z',
+        status: 'updated',
+        payloadJson,
+        lastEvent: 'sync',
+      },
+    });
+    const rubitimeCalls = (db.query as ReturnType<typeof vi.fn>).mock.calls.filter((c) =>
+      String(c[0]).includes('rubitime_records'),
+    );
+    const lastRubitimeParams = rubitimeCalls[rubitimeCalls.length - 1]?.[1] as unknown[] | undefined;
+    const storedPayloadJson = lastRubitimeParams?.[5];
+    expect(JSON.parse(String(storedPayloadJson))).toEqual(payloadJson);
+
+    const pj = (capture.projectionInserts[0]!.payload as Record<string, unknown>).payloadJson as Record<
+      string,
+      unknown
+    >;
+    expect(pj.integrator_user_id).toBe('100');
+    expect(pj.link).toBe('https://rubitime.example/r');
   });
 
   it('booking.upsert keeps ISO-Z recordAt and passes timeNormalization metadata to projection', async () => {

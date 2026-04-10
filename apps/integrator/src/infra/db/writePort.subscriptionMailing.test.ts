@@ -12,6 +12,9 @@ describe('writePort subscription/mailing projection events', () => {
     projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[];
   }): DbPort {
     const query = vi.fn(async (sql: string, params: unknown[]) => {
+      if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
+        return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
+      }
       if (typeof sql === 'string' && sql.includes('projection_outbox')) {
         const [eventType, idempotencyKey, _occurredAt, payloadJson] = params as [string, string, string, string];
         let payload: unknown = {};

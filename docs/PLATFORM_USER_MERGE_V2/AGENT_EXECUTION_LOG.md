@@ -100,3 +100,35 @@
 - **Checks performed:** чтение/сверка файлов + **`pnpm install --frozen-lockfile` && `pnpm run ci`** — **OK** (integrator 619 / webapp 1391 passed).
 - **Findings:** несоответствий Stage 1 не выявлено; живой `db:migrate` на хосте в прогоне не выполнялся.
 - **Gate verdict:** **PASS (repository + CI)** — см. [`AUDIT_STAGE_1.md`](AUDIT_STAGE_1.md) §8.
+
+---
+
+## 2026-04-10 — Stage 2: canonical read/write path (integrator)
+
+- **Scope:** [`STAGE_2_CANONICAL_READ_WRITE_PATH.md`](STAGE_2_CANONICAL_READ_WRITE_PATH.md) — подготовка путей без merge и без снятия webapp blocker.
+- **Код integrator:** `apps/integrator/src/infra/db/repos/canonicalUserId.ts` — разрешение цепочки `users.merged_into_user_id` (лимит глубины, защита от циклов); `resolveCanonicalUserIdFromIdentityId` для payload `identities.id` → канонический `users.id`. `writePort.ts` — перед `enqueueProjectionEvent` канонизация `integratorUserId` (и составных idempotency-ключей с user id); для `support.conversation.opened` / `support.question.created` в payload уходит канонический **users.id** после lookup identity → user. **Guards:** `channelUsers.setUserPhone` — контакт пишется на канонический `user_id`; `writePort` для `reminders.rule.upsert`, `content.access.grant.create`, `mailing.log.append` — доменная запись на канонический user id.
+- **Webapp / blocker:** hard blocker `different_non_null_integrator_user_id` **не снимался**.
+- **Тесты:** `canonicalUserId.test.ts`; обновлены `writePort.*.test.ts` (моки `users`/`identities`), `channelUsers.test.ts` (`setUserPhone`), `projectionKeys.test.ts` (идемпотентность alias vs winner).
+- **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator 627 tests, webapp 1391 tests, build, `pnpm audit --prod`).
+- **Gate verdict:** **PASS (repository + CI)** для Stage 2 canonical write path + outbox payload/idempotency; webapp blocker не трогался.
+
+---
+
+## 2026-04-10 — Stage 2 follow-up: AUDIT_STAGE_2 §2.2 (support idempotency fingerprint)
+
+- **Scope:** закрытие FINDING из [`AUDIT_STAGE_2.md`](AUDIT_STAGE_2.md) §2.2 в границах Stage 2 (без Stage 3 identity/state).
+- **Код:** `hashPayloadExcludingKeys` в `apps/integrator/src/infra/db/repos/projectionKeys.ts`; `writePort.ts` — для `support.conversation.opened` и `support.question.created` fingerprint idempotency без поля `integratorUserId`, payload для webapp полный с каноническим `integratorUserId`.
+- **Документы:** обновлён [`AUDIT_STAGE_2.md`](AUDIT_STAGE_2.md) (§2.2 **PASS**, §6 follow-up, MANDATORY §4, §5).
+- **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator **628** tests, webapp 1391 tests, build, `pnpm audit --prod`).
+- **GAP §3.2** (telegram_state / identity alias): намеренно не закрывался — Stage 3.
+- **Gate verdict:** **PASS (repository + CI)** для follow-up AUDIT_STAGE_2 §2.2.
+
+---
+
+## 2026-04-10 — Stage 2 pass 2: AUDIT повторный + nested appointment payload
+
+- **Scope:** [`AUDIT_STAGE_2.md`](AUDIT_STAGE_2.md) §7; [`STAGE_2_CANONICAL_READ_WRITE_PATH.md`](STAGE_2_CANONICAL_READ_WRITE_PATH.md) — политика redirect/reject; nested `integrator_user_id` / `integratorUserId` в projection для `appointment.record.upserted`.
+- **Код:** `canonicalizeIntegratorUserIdKeysInObject` в `canonicalUserId.ts`; `booking.upsert` — клон `payloadJson` для outbox с канонизацией, `rubitime_records` хранит исходный JSON.
+- **Тесты:** `canonicalUserId.test.ts`, `writePort.appointments.test.ts`.
+- **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator **630** tests, webapp 1391 tests, build, `pnpm audit --prod`).
+- **Gate verdict:** **PASS (repository + CI)** для pass 2 Stage 2.

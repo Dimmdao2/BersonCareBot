@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { projectionIdempotencyKey, hashPayload } from './projectionKeys.js';
+import { USER_SUBSCRIPTION_UPSERTED } from '../../../kernel/contracts/index.js';
+import { projectionIdempotencyKey, hashPayload, hashPayloadExcludingKeys } from './projectionKeys.js';
 
 describe('projectionIdempotencyKey', () => {
   it('returns deterministic key for same inputs', () => {
@@ -60,5 +61,48 @@ describe('hashPayload', () => {
   it('returns 16-char hex string', () => {
     const h = hashPayload({ test: true });
     expect(h).toMatch(/^[0-9a-f]{16}$/);
+  });
+
+  it('hashPayloadExcludingKeys ignores listed keys so integratorUserId does not change fingerprint', () => {
+    const base = {
+      integratorConversationId: 'conv-1',
+      source: 'telegram',
+      adminScope: 'support',
+      status: 'waiting_admin',
+      openedAt: '2025-01-01T12:00:00.000Z',
+      lastMessageAt: '2025-01-01T12:00:00.000Z',
+      channelCode: 'telegram',
+      channelExternalId: '123',
+    };
+    const a = hashPayloadExcludingKeys({ ...base, integratorUserId: '42' }, ['integratorUserId']);
+    const b = hashPayloadExcludingKeys({ ...base, integratorUserId: '9001' }, ['integratorUserId']);
+    expect(a).toBe(b);
+  });
+
+  it('stable subscription idempotency segment uses canonical user id string', () => {
+    const topicId = 100;
+    const alias = '2';
+    const winner = '9';
+    const keyAlias = projectionIdempotencyKey(
+      USER_SUBSCRIPTION_UPSERTED,
+      `${alias}:${topicId}`,
+      hashPayload({
+        integratorUserId: alias,
+        integratorTopicId: String(topicId),
+        isActive: true,
+        updatedAt: 't',
+      }),
+    );
+    const keyWinner = projectionIdempotencyKey(
+      USER_SUBSCRIPTION_UPSERTED,
+      `${winner}:${topicId}`,
+      hashPayload({
+        integratorUserId: winner,
+        integratorTopicId: String(topicId),
+        isActive: true,
+        updatedAt: 't',
+      }),
+    );
+    expect(keyAlias).not.toBe(keyWinner);
   });
 });

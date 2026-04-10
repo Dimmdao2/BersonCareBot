@@ -38,7 +38,12 @@ import {
   MAILING_LOG_SENT,
 } from '../../kernel/contracts/index.js';
 import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
-import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';
+import { projectionIdempotencyKey, hashPayload, hashPayloadExcludingKeys } from './repos/projectionKeys.js';
+import {
+  canonicalizeIntegratorUserIdKeysInObject,
+  resolveCanonicalIntegratorUserId,
+  resolveCanonicalUserIdFromIdentityId,
+} from './repos/canonicalUserId.js';
 import { logger } from '../observability/logger.js';
 import { insertMailingLog } from './repos/mailingLogs.js';
 import { normalizeRuPhoneE164 } from '../phone/normalizeRuPhoneE164.js';
@@ -229,13 +234,18 @@ export function createDbWritePort(input: {
               payloadJson,
               lastEvent,
             });
+            const payloadJsonForProjection: Record<string, unknown> =
+              typeof payloadJson === 'object' && payloadJson !== null && !Array.isArray(payloadJson)
+                ? (JSON.parse(JSON.stringify(payloadJson)) as Record<string, unknown>)
+                : {};
+            await canonicalizeIntegratorUserIdKeysInObject(txDb, payloadJsonForProjection);
             const projectionPayload: Record<string, unknown> = {
               integratorRecordId: externalRecordId,
               phoneNormalized: phoneNormalized ?? null,
               recordAt: recordAt ?? null,
               dateTimeEnd: rawDateTimeEnd ?? null,
               status,
-              payloadJson,
+              payloadJson: payloadJsonForProjection,
               lastEvent,
               updatedAt,
               patientFirstName: patientFirstName ?? null,
@@ -318,8 +328,9 @@ export function createDbWritePort(input: {
               integratorUserId = identityRes.rows[0]?.user_id ?? null;
             }
             if (!integratorUserId) return;
+            const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, integratorUserId);
             const projectionPayload: Record<string, unknown> = {
-              integratorUserId,
+              integratorUserId: canonicalUserId,
               channelCode: resource,
               externalId,
               displayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
@@ -328,7 +339,7 @@ export function createDbWritePort(input: {
               eventType: 'user.upserted',
               idempotencyKey: projectionIdempotencyKey(
                 'user.upserted',
-                integratorUserId,
+                canonicalUserId,
                 hashPayload(projectionPayload),
               ),
               occurredAt: new Date().toISOString(),
@@ -364,8 +375,9 @@ export function createDbWritePort(input: {
               const uid = link && typeof link === 'object' && typeof link.userId === 'string'
                 ? link.userId : null;
               if (uid) {
+                const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, uid);
                 const projectionPayload: Record<string, unknown> = {
-                  integratorUserId: uid,
+                  integratorUserId: canonicalUid,
                   phoneNormalized,
                   channelCode: resource,
                   externalId: channelUserId,
@@ -374,7 +386,7 @@ export function createDbWritePort(input: {
                   eventType: 'contact.linked',
                   idempotencyKey: projectionIdempotencyKey(
                     'contact.linked',
-                    uid,
+                    canonicalUid,
                     hashPayload(projectionPayload),
                   ),
                   occurredAt: new Date().toISOString(),
@@ -445,7 +457,11 @@ export function createDbWritePort(input: {
               'SELECT user_identity_id::text AS user_identity_id FROM conversations WHERE id = $1',
               [id],
             );
-            const integratorUserId = convRow.rows[0]?.user_identity_id ?? null;
+            const rawIdentityId = convRow.rows[0]?.user_identity_id ?? null;
+            const integratorUserId =
+              rawIdentityId != null
+                ? await resolveCanonicalUserIdFromIdentityId(txDb, rawIdentityId)
+                : null;
             const payload: Record<string, unknown> = {
               integratorConversationId: id,
               integratorUserId,
@@ -459,7 +475,11 @@ export function createDbWritePort(input: {
             };
             await enqueueProjectionEvent(txDb, {
               eventType: 'support.conversation.opened',
-              idempotencyKey: projectionIdempotencyKey('support.conversation.opened', id, hashPayload(payload)),
+              idempotencyKey: projectionIdempotencyKey(
+                'support.conversation.opened',
+                id,
+                hashPayloadExcludingKeys(payload, ['integratorUserId']),
+              ),
               occurredAt: openedAt,
               payload,
             });
@@ -555,16 +575,21 @@ export function createDbWritePort(input: {
               text,
               createdAt,
             });
+            const canonicalIntegratorUserId = await resolveCanonicalUserIdFromIdentityId(txDb, userIdentityId);
             const payload: Record<string, unknown> = {
               integratorQuestionId: id,
               integratorConversationId: conversationId,
-              integratorUserId: userIdentityId,
+              integratorUserId: canonicalIntegratorUserId,
               status: 'open',
               createdAt,
             };
             await enqueueProjectionEvent(txDb, {
               eventType: 'support.question.created',
-              idempotencyKey: projectionIdempotencyKey('support.question.created', id, hashPayload(payload)),
+              idempotencyKey: projectionIdempotencyKey(
+                'support.question.created',
+                id,
+                hashPayloadExcludingKeys(payload, ['integratorUserId']),
+              ),
               occurredAt: createdAt,
               payload,
             });
@@ -642,6 +667,7 @@ export function createDbWritePort(input: {
               const uid = link && typeof link === 'object' && typeof link.userId === 'string'
                 ? link.userId : null;
               if (uid) {
+                const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, uid);
                 const topicMap: Record<string, string> = {
                   notify_spb: 'booking_spb', notify_msk: 'booking_msk',
                   notify_online: 'booking_online', notify_bookings: 'bookings',
@@ -654,11 +680,11 @@ export function createDbWritePort(input: {
                     eventType: 'preferences.updated',
                     idempotencyKey: projectionIdempotencyKey(
                       'preferences.updated',
-                      uid,
+                      canonicalUid,
                       hashPayload({ topics }),
                     ),
                     occurredAt: new Date().toISOString(),
-                    payload: { integratorUserId: uid, topics },
+                    payload: { integratorUserId: canonicalUid, topics },
                   });
                 }
               }
@@ -686,9 +712,10 @@ export function createDbWritePort(input: {
           }
           const isEnabled = mutation.params.isEnabled === true;
           await db.tx(async (txDb) => {
+            const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
             const updatedAt = await upsertReminderRule(txDb, {
               id,
-              userId,
+              userId: canonicalUserId,
               category: category as never,
               isEnabled,
               scheduleType,
@@ -701,7 +728,7 @@ export function createDbWritePort(input: {
             });
             const keyPayload = {
               integratorRuleId: id,
-              integratorUserId: userId,
+              integratorUserId: canonicalUserId,
               category,
               isEnabled,
               scheduleType,
@@ -749,10 +776,11 @@ export function createDbWritePort(input: {
             await markReminderOccurrenceSent(txDb, occurrenceId, channel);
             const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
             if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
+              const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, ctx.userId);
               const payload = {
                 integratorOccurrenceId: occurrenceId,
                 integratorRuleId: ctx.ruleId,
-                integratorUserId: ctx.userId,
+                integratorUserId: canonicalUserId,
                 category: ctx.category,
                 status: ctx.status as 'sent' | 'failed',
                 deliveryChannel: ctx.deliveryChannel,
@@ -786,10 +814,11 @@ export function createDbWritePort(input: {
             );
             const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
             if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
+              const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, ctx.userId);
               const payload = {
                 integratorOccurrenceId: occurrenceId,
                 integratorRuleId: ctx.ruleId,
-                integratorUserId: ctx.userId,
+                integratorUserId: canonicalUserId,
                 category: ctx.category,
                 status: ctx.status as 'sent' | 'failed',
                 deliveryChannel: ctx.deliveryChannel,
@@ -843,11 +872,12 @@ export function createDbWritePort(input: {
             });
             const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
             if (ctx) {
+              const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, ctx.userId);
               const payload = {
                 integratorDeliveryLogId: id,
                 integratorOccurrenceId: occurrenceId,
                 integratorRuleId: ctx.ruleId,
-                integratorUserId: ctx.userId,
+                integratorUserId: canonicalUserId,
                 channel,
                 status,
                 errorCode: asNullableString(mutation.params.errorCode),
@@ -875,9 +905,10 @@ export function createDbWritePort(input: {
             ? mutation.params.metaJson as Record<string, unknown>
             : {};
           await db.tx(async (txDb) => {
+            const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
             const createdAt = await createContentAccessGrant(txDb, {
               id,
-              userId,
+              userId: canonicalUserId,
               contentId,
               purpose,
               tokenHash: asNullableString(mutation.params.tokenHash),
@@ -886,7 +917,7 @@ export function createDbWritePort(input: {
             });
             const payload = {
               integratorGrantId: id,
-              integratorUserId: userId,
+              integratorUserId: canonicalUserId,
               contentId,
               purpose,
               tokenHash: asNullableString(mutation.params.tokenHash),
@@ -990,15 +1021,20 @@ export function createDbWritePort(input: {
           }
           const updatedAt = new Date().toISOString();
           await db.tx(async (txDb) => {
+            const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, String(userId));
             const payload: Record<string, unknown> = {
-              integratorUserId: String(userId),
+              integratorUserId: canonicalUserId,
               integratorTopicId: String(topicId),
               isActive,
               updatedAt,
             };
             await enqueueProjectionEvent(txDb, {
               eventType: USER_SUBSCRIPTION_UPSERTED,
-              idempotencyKey: projectionIdempotencyKey(USER_SUBSCRIPTION_UPSERTED, `${userId}:${topicId}`, hashPayload(payload)),
+              idempotencyKey: projectionIdempotencyKey(
+                USER_SUBSCRIPTION_UPSERTED,
+                `${canonicalUserId}:${topicId}`,
+                hashPayload(payload),
+              ),
               occurredAt: updatedAt,
               payload,
             });
@@ -1016,9 +1052,24 @@ export function createDbWritePort(input: {
             return;
           }
           await db.tx(async (txDb) => {
-            await insertMailingLog(txDb, { userId, mailingId, status, sentAt, error });
+            const canonicalUserIdStr = await resolveCanonicalIntegratorUserId(txDb, String(userId));
+            const canonicalUserIdNum = Number(canonicalUserIdStr);
+            if (!Number.isFinite(canonicalUserIdNum)) {
+              logger.warn(
+                { mutationType: mutation.type, canonicalUserIdStr },
+                'skip mailing.log.append: canonical integrator user id is not numeric',
+              );
+              return;
+            }
+            await insertMailingLog(txDb, {
+              userId: canonicalUserIdNum,
+              mailingId,
+              status,
+              sentAt,
+              error,
+            });
             const payload: Record<string, unknown> = {
-              integratorUserId: String(userId),
+              integratorUserId: canonicalUserIdStr,
               integratorMailingId: String(mailingId),
               status,
               sentAt,
@@ -1026,7 +1077,11 @@ export function createDbWritePort(input: {
             };
             await enqueueProjectionEvent(txDb, {
               eventType: MAILING_LOG_SENT,
-              idempotencyKey: projectionIdempotencyKey(MAILING_LOG_SENT, `${userId}:${mailingId}`, hashPayload(payload)),
+              idempotencyKey: projectionIdempotencyKey(
+                MAILING_LOG_SENT,
+                `${canonicalUserIdStr}:${mailingId}`,
+                hashPayload(payload),
+              ),
               occurredAt: sentAt,
               payload,
             });

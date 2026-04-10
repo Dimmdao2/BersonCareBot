@@ -7,6 +7,9 @@ function makeMockDb(capture: {
   projectionInserts: { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[];
 }) {
   const query = vi.fn(async (sql: string, params: unknown[]) => {
+    if (sql.includes("merged_into_user_id") && sql.includes("FROM users")) {
+      return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
     if (sql.includes("projection_outbox")) {
       const [eventType, idempotencyKey, _occurredAt, payloadJson] = params as [string, string, string, string];
       capture.projectionInserts.push({

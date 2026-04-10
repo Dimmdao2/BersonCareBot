@@ -72,28 +72,74 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
   it('setUserPhone writes canonical contact only', async () => {
     const { db, query } = createDbMock();
-    query.mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
+    query
+      .mockResolvedValueOnce({
+        rows: [{ user_id: '7' }],
+        rowCount: 1,
+      } as DbQueryResult<{ user_id: string }>)
+      .mockResolvedValueOnce({
+        rows: [{ merged_into_user_id: null }],
+        rowCount: 1,
+      } as DbQueryResult<{ merged_into_user_id: string | null }>)
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
 
     await setUserPhone(db, '123', '+79990001122');
 
-    const [sql, params] = query.mock.calls[0] ?? [];
-    const sqlText = String(sql);
+    const [idSql, idParams] = query.mock.calls[0] ?? [];
+    expect(String(idSql)).toContain('FROM identities i');
+    expect(idParams).toEqual(['123', 'telegram']);
+
+    const [insSql, insParams] = query.mock.calls[2] ?? [];
+    const sqlText = String(insSql);
     expect(sqlText).toContain('INSERT INTO contacts');
-    expect(sqlText).toContain('WHERE i.resource = $3');
+    expect(sqlText).toContain('VALUES ($1::bigint');
+    expect(sqlText).toContain('WHERE contacts.user_id = $1::bigint');
     expect(sqlText).not.toContain('UPDATE telegram_users');
-    expect(params).toEqual(['123', '+79990001122', 'telegram']);
+    expect(insParams).toEqual(['7', '+79990001122', 'telegram']);
   });
 
-  it('setUserPhone ON CONFLICT only updates when contact belongs to same user (no takeover)', async () => {
+  it('setUserPhone ON CONFLICT only updates when contact belongs to same canonical user (no takeover)', async () => {
     const { db, query } = createDbMock();
-    query.mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
+    query
+      .mockResolvedValueOnce({
+        rows: [{ user_id: '42' }],
+        rowCount: 1,
+      } as DbQueryResult<{ user_id: string }>)
+      .mockResolvedValueOnce({
+        rows: [{ merged_into_user_id: null }],
+        rowCount: 1,
+      } as DbQueryResult<{ merged_into_user_id: string | null }>)
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
 
     await setUserPhone(db, '456', '+79990001122');
 
-    const [sql] = query.mock.calls[0] ?? [];
-    const sqlText = String(sql);
+    const [insSql] = query.mock.calls[2] ?? [];
+    const sqlText = String(insSql);
     expect(sqlText).toContain('ON CONFLICT (type, value_normalized)');
-    expect(sqlText).toContain('WHERE contacts.user_id = (SELECT user_id FROM target_identity)');
+    expect(sqlText).toContain('WHERE contacts.user_id = $1::bigint');
+  });
+
+  it('setUserPhone follows merged_into_user_id so contact attaches to winner', async () => {
+    const { db, query } = createDbMock();
+    query
+      .mockResolvedValueOnce({
+        rows: [{ user_id: '2' }],
+        rowCount: 1,
+      } as DbQueryResult<{ user_id: string }>)
+      .mockResolvedValueOnce({
+        rows: [{ merged_into_user_id: '100' }],
+        rowCount: 1,
+      } as DbQueryResult<{ merged_into_user_id: string | null }>)
+      .mockResolvedValueOnce({
+        rows: [{ merged_into_user_id: null }],
+        rowCount: 1,
+      } as DbQueryResult<{ merged_into_user_id: string | null }>)
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
+
+    await setUserPhone(db, '999', '+79990001122');
+
+    const [, insParams] = query.mock.calls[3] ?? [];
+    expect(insParams?.[0]).toBe('100');
   });
 
   it('notification settings and dedup fields read/write through telegram_state', async () => {
