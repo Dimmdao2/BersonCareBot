@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 export default async function PatientReminderJournalPage({ params }: Props) {
-  const session = await requirePatientAccess(routePaths.patientReminders);
+  const session = await requirePatientAccessWithPhone(routePaths.patientReminders);
   const { ruleId: raw } = await params;
   const ruleId = decodeURIComponent(raw);
   const deps = buildAppDeps();

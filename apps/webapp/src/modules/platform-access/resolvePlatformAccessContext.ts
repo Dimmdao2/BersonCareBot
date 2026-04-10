@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "pg";
+import { LEGACY_NON_UUID_SESSION_RESOLUTION } from "@/modules/auth/sessionCanonicalUserIdPolicy";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import type { UserRole } from "@/shared/types/session";
@@ -56,7 +57,7 @@ export async function resolvePlatformAccessContext(
       tier: hint === "client" ? "onboarding" : null,
       hasPhoneInDb: false,
       phoneTrustedForPatient: false,
-      resolution: "legacy_non_uuid_session",
+      resolution: LEGACY_NON_UUID_SESSION_RESOLUTION,
     };
   }
 

@@ -1,5 +1,5 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ReminderRule } from "@/modules/reminders/types";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -54,7 +54,7 @@ async function resolvePersonalReminderLabel(
 }
 
 export default async function RemindersPage() {
-  const session = await requirePatientAccess(routePaths.patientReminders);
+  const session = await requirePatientAccessWithPhone(routePaths.patientReminders);
   const deps = buildAppDeps();
   const userId = session.user.userId;
 

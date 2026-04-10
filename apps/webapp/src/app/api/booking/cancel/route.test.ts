@@ -15,11 +15,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { POST } from "./route";
 
+const patientClientSession = { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } };
+
 describe("POST /api/booking/cancel", () => {
   it("returns 404 when booking is not found", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client" },
-    });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     cancelBookingMock.mockResolvedValue({ ok: false, error: "not_found" });
     const response = await POST(new Request("http://localhost/api/booking/cancel", {
       method: "POST",
@@ -30,9 +30,7 @@ describe("POST /api/booking/cancel", () => {
   });
 
   it("returns ok on successful cancellation", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client" },
-    });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     cancelBookingMock.mockResolvedValue({ ok: true });
     const response = await POST(new Request("http://localhost/api/booking/cancel", {
       method: "POST",

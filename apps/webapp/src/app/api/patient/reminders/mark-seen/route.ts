@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 
 export async function POST(req: Request) {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patientReminders });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientReminders });
   if (!gate.ok) return gate.response;
   const session = gate.session;
 

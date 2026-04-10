@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 import type { ReminderRule } from "@/modules/reminders/types";
 
-const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
+const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
+  requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
 vi.mock("next/cache", () => ({
@@ -50,12 +50,12 @@ async function params(id: string) {
 describe("PATCH /api/patient/reminders/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: SESSION });
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
     mockUpdateRule.mockResolvedValue({ ok: true, data: sampleRule() });
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
       response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
     });
@@ -112,12 +112,12 @@ describe("PATCH /api/patient/reminders/[id]", () => {
 describe("DELETE /api/patient/reminders/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: SESSION });
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
     mockDeleteReminder.mockResolvedValue({ ok: true, data: { deletedId: "wp-1" } });
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
       response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
     });

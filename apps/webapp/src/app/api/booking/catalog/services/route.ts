@@ -1,22 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { logger } from "@/infra/logging/logger";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessPatient } from "@/modules/roles/service";
 
 const querySchema = z.object({
   cityCode: z.string().trim().min(1),
 });
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessPatient(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientBooking });
+  if (!gate.ok) return gate.response;
 
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({

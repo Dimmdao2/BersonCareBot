@@ -4,9 +4,9 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
+const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
+  requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
 import * as authService from "@/modules/auth/service";
@@ -30,7 +30,7 @@ describe("POST /api/patient/diary/purge", () => {
   beforeEach(() => {
     purgeMock.mockClear();
     confirmPhoneAuthMock.mockReset();
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: true,
       session: {
         user: {

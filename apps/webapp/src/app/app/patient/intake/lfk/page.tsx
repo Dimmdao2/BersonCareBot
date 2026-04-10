@@ -1,11 +1,8 @@
-import { redirect } from "next/navigation";
-import { getCurrentSession } from "@/modules/auth/service";
+import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { LfkIntakeClient } from "./LfkIntakeClient";
 
 export default async function LfkIntakePage() {
-  const session = await getCurrentSession();
-  if (!session) redirect(routePaths.root);
-
+  await requirePatientAccessWithPhone(routePaths.intakeLfk);
   return <LfkIntakeClient />;
 }

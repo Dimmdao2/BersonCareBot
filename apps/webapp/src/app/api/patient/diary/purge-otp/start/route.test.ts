@@ -2,9 +2,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 import { POST } from "./route";
 
-const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
+const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
+  requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -34,11 +34,11 @@ const sessionWithPin = {
 
 describe("POST /api/patient/diary/purge-otp/start", () => {
   beforeEach(() => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: sessionWithPin });
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: sessionWithPin });
   });
 
   it("returns 401 without session", async () => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
       response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
     });
@@ -55,7 +55,7 @@ describe("POST /api/patient/diary/purge-otp/start", () => {
   });
 
   it("returns 403 when PIN reauth missing", async () => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: true,
       session: {
         user: {

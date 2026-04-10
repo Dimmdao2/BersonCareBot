@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isDiaryPurgePinReauthValid } from "@/modules/auth/service";
@@ -10,7 +10,7 @@ import { isDiaryPurgePinReauthValid } from "@/modules/auth/service";
  * Требует предварительного POST /api/auth/pin/verify.
  */
 export async function POST() {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.diary });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
   if (!gate.ok) return gate.response;
   const session = gate.session;
   const phone = session.user.phone!.trim();

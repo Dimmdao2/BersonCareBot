@@ -368,10 +368,35 @@ export async function exchangeIntegratorToken(
         ...(resolutionHints ? { resolutionHints } : {}),
       });
     } else {
-      user = tokenToUser(parsed);
+      const subTrim = parsed.sub.trim();
+      // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.
+      if (env.DATABASE_URL?.trim() && isPlatformUserUuid(subTrim)) {
+        const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+        const fromDb = await pgUserByPhonePort.findByUserId(subTrim);
+        if (!fromDb) {
+          if (process.env.NODE_ENV !== "test") {
+            console.info("[auth/exchange] uuid_sub_no_platform_row");
+          }
+          return null;
+        }
+        user = fromDb;
+      } else {
+        user = tokenToUser(parsed);
+      }
     }
   } else {
     user = tokenToUser(parsed);
+  }
+
+  if (
+    !devParsed &&
+    Boolean(env.DATABASE_URL?.trim()) &&
+    identityResolutionPort &&
+    user.role === "client" &&
+    !isPlatformUserUuid(user.userId) &&
+    process.env.NODE_ENV !== "test"
+  ) {
+    console.info("[auth/exchange] client_session_transport=legacy_non_uuid_onboarding_only");
   }
 
   const envRole = await resolveRoleAsync({
@@ -435,6 +460,7 @@ export async function exchangeTelegramInitData(
       ...(resolutionHints ? { resolutionHints } : {}),
     });
   } else {
+    // No DB port (tests): `tg:…` transport — onboarding-only for client tier; see `sessionCanonicalUserIdPolicy.ts`.
     user = {
       userId: `tg:${parsed.telegramId}`,
       role: parsed.role,
@@ -521,6 +547,7 @@ export async function exchangeTelegramLoginWidget(
       ...(resolutionHints ? { resolutionHints } : {}),
     });
   } else {
+    // No DB port (tests): `tg:…` — onboarding-only for client; see `sessionCanonicalUserIdPolicy.ts`.
     user = {
       userId: `tg:${telegramId}`,
       role,
@@ -652,7 +679,10 @@ export async function toggleAdminMode(): Promise<{ ok: boolean; adminMode?: bool
   return { ok: true, adminMode: nextAdminMode };
 }
 
-/** Устанавливает сессию по пользователю (для входа по SMS и др.). */
+/**
+ * Устанавливает сессию по пользователю (OAuth callback, phone confirm, и т.д.).
+ * Вызывать только из route handlers / server actions (запись cookie). Для production-`client` ожидается UUID канона.
+ */
 export async function setSessionFromUser(
   user: SessionUser,
   opts?: { postLoginHints?: AppSession["postLoginHints"] }

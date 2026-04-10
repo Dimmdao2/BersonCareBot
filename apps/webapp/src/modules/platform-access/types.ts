@@ -7,7 +7,7 @@ export type PlatformDbRole = UserRole;
 
 export type PlatformAccessResolution =
   | "no_session"
-  /** Session user id is not a platform UUID (e.g. legacy `tg:…`); DB canon not loaded here. */
+  /** Session user id is not a platform UUID (e.g. legacy `tg:…`); DB canon not loaded here — см. `sessionCanonicalUserIdPolicy.ts`. */
   | "legacy_non_uuid_session"
   /** Cookie pointed at a UUID row that no longer exists. */
   | "session_user_missing"

@@ -4,6 +4,26 @@
  * Проверка на сервере: `app/app/patient/layout.tsx` + API / server actions.
  */
 
+/** Чтение заголовка как в Next `headers()` (case-insensitive имена нормализует рантайм). */
+export type HeaderGetter = (name: string) => string | null;
+
+/**
+ * Pathname для политики в patient layout: сначала `x-bc-pathname` из middleware;
+ * если пусто — пробуем `referer` (редкий случай без проброса заголовка), иначе `""`.
+ */
+export function resolvePatientLayoutPathname(getHeader: HeaderGetter): string {
+  const injected = getHeader("x-bc-pathname")?.trim() ?? "";
+  if (injected) return injected;
+  const referer = getHeader("referer");
+  if (!referer) return "";
+  try {
+    const path = new URL(referer).pathname;
+    return path.startsWith("/app/patient") ? path : "";
+  } catch {
+    return "";
+  }
+}
+
 /** Пути, доступные пациенту без `platform_users.phone_normalized` (гость или ждём привязку). */
 const PREFIX_ALLOWLIST = [
   "/app/patient/bind-phone",

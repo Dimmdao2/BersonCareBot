@@ -6,7 +6,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import { clearDiaryPurgeReauth, isDiaryPurgePinReauthValid } from "@/modules/auth/service";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
@@ -17,7 +17,7 @@ const bodySchema = z.object({
  * Финальное удаление всех дневниковых данных после PIN + OTP.
  */
 export async function POST(request: Request) {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.diary });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
   if (!gate.ok) return gate.response;
   const session = gate.session;
   if (!isDiaryPurgePinReauthValid(session)) {

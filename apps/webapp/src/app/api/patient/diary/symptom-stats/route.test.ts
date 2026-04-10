@@ -23,7 +23,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientApiSessionWithPhone: gateMock,
+  requirePatientApiBusinessAccess: gateMock,
 }));
 
 import { GET } from "./route";

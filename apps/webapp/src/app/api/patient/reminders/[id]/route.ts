@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { UpdateRuleData } from "@/modules/reminders/service";
 import { reminderRuleToPatientJson } from "../reminderPatientJson";
 
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patientReminders });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientReminders });
   if (!gate.ok) return gate.response;
   const session = gate.session;
 
@@ -87,7 +87,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
 }
 
 export async function DELETE(_req: Request, context: { params: Promise<{ id: string }> }) {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patientReminders });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientReminders });
   if (!gate.ok) return gate.response;
   const session = gate.session;
 

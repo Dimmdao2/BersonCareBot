@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { patientPathRequiresBoundPhone } from "./patientPhonePolicy";
+import { patientPathRequiresBoundPhone, resolvePatientLayoutPathname } from "./patientPhonePolicy";
+
+describe("resolvePatientLayoutPathname", () => {
+  it("prefers x-bc-pathname", () => {
+    const pathname = resolvePatientLayoutPathname((name) =>
+      name === "x-bc-pathname" ? "/app/patient/diary" : null,
+    );
+    expect(pathname).toBe("/app/patient/diary");
+  });
+
+  it("falls back to referer pathname under /app/patient when x-bc-pathname missing", () => {
+    const pathname = resolvePatientLayoutPathname((name) => {
+      if (name === "x-bc-pathname") return "";
+      if (name === "referer") return "https://app.example/app/patient/reminders?x=1";
+      return null;
+    });
+    expect(pathname).toBe("/app/patient/reminders");
+  });
+
+  it("returns empty when both missing", () => {
+    expect(resolvePatientLayoutPathname(() => null)).toBe("");
+  });
+});
 
 describe("patientPathRequiresBoundPhone", () => {
   it("returns false for empty pathname", () => {

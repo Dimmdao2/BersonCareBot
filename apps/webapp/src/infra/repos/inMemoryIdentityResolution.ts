@@ -9,7 +9,8 @@ function toBindingKey(channelCode: "telegram" | "max" | "vk"): keyof SessionUser
 
 /**
  * In-memory identity resolution: returns a session user from binding only (no persistence).
- * Used when DATABASE_URL is not set; userId is channel-prefixed external id.
+ * Used when DATABASE_URL is not set; userId is channel-prefixed external id — onboarding-only transport
+ * for client tier policy (same class as legacy `tg:…`); see `sessionCanonicalUserIdPolicy.ts`.
  */
 export const inMemoryIdentityResolutionPort: IdentityResolutionPort = {
   async findOrCreateByChannelBinding(params): Promise<SessionUser> {

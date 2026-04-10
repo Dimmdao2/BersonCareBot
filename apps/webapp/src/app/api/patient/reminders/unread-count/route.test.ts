@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextResponse } from "next/server";
 
-const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
+const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
+  requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
 const mockGetUnseenCount = vi.hoisted(() => vi.fn().mockResolvedValue(3));
@@ -27,7 +27,7 @@ describe("GET /api/patient/reminders/unread-count", () => {
   });
 
   it("returns count for authenticated patient with phone", async () => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: PATIENT_SESSION });
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: PATIENT_SESSION });
     const res = await GET();
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -36,7 +36,7 @@ describe("GET /api/patient/reminders/unread-count", () => {
   });
 
   it("returns 401 when no session", async () => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
       response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
     });
@@ -48,7 +48,7 @@ describe("GET /api/patient/reminders/unread-count", () => {
   });
 
   it("returns 403 when patient has no phone", async () => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
       response: NextResponse.json({ ok: false, error: "phone_required" }, { status: 403 }),
     });
@@ -58,7 +58,7 @@ describe("GET /api/patient/reminders/unread-count", () => {
   });
 
   it("returns count 0 if getUnseenCount throws (graceful)", async () => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: PATIENT_SESSION });
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: PATIENT_SESSION });
     mockGetUnseenCount.mockRejectedValueOnce(new Error("column seen_at does not exist"));
     const res = await GET();
     const json = await res.json();

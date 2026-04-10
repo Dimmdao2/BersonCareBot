@@ -7,3 +7,4 @@ export {
   trustedPatientPhoneWriteAnchor,
 } from "./trustedPhonePolicy";
 export { resolvePlatformAccessContext, type ResolvePlatformAccessContextInput } from "./resolvePlatformAccessContext";
+export { patientClientBusinessGate, type PatientBusinessGate } from "./patientClientBusinessGate";

@@ -15,6 +15,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { POST } from "./route";
 
+/** Без `DATABASE_URL` в тестах gate опирается на телефон в сессии (`patientClientBusinessGate`). */
+const patientClientSession = { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } };
+
 describe("POST /api/booking/create", () => {
   it("returns 401 for unauthenticated request", async () => {
     getCurrentSessionMock.mockResolvedValue(null);
@@ -22,10 +25,29 @@ describe("POST /api/booking/create", () => {
     expect(response.status).toBe(401);
   });
 
+  it("returns 403 patient_activation_required for client without phone (patient business gate)", async () => {
+    getCurrentSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client" } });
+    const response = await POST(
+      new Request("http://localhost/api/booking/create", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "online",
+          category: "general",
+          slotStart: "2026-04-01T07:00:00.000Z",
+          slotEnd: "2026-04-01T08:00:00.000Z",
+          contactName: "Ivan",
+          contactPhone: "+79990001122",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    expect(response.status).toBe(403);
+    const body = (await response.json()) as { error?: string };
+    expect(body.error).toBe("patient_activation_required");
+  });
+
   it("creates booking on valid payload", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client" },
-    });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     createBookingMock.mockResolvedValue({ id: "b1", status: "confirmed" });
     const response = await POST(new Request("http://localhost/api/booking/create", {
       method: "POST",
@@ -45,9 +67,7 @@ describe("POST /api/booking/create", () => {
   });
 
   it("creates in_person booking with branchServiceId + cityCode", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client" },
-    });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     createBookingMock.mockResolvedValue({ id: "b2", status: "confirmed" });
     const response = await POST(new Request("http://localhost/api/booking/create", {
       method: "POST",
@@ -73,9 +93,7 @@ describe("POST /api/booking/create", () => {
   });
 
   it("returns 400 for in_person without branchServiceId", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client" },
-    });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     const response = await POST(new Request("http://localhost/api/booking/create", {
       method: "POST",
       body: JSON.stringify({
@@ -92,9 +110,7 @@ describe("POST /api/booking/create", () => {
   });
 
   it("returns 400 when service reports city_mismatch", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client" },
-    });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     createBookingMock.mockRejectedValue(new Error("city_mismatch"));
     const response = await POST(new Request("http://localhost/api/booking/create", {
       method: "POST",
@@ -115,9 +131,7 @@ describe("POST /api/booking/create", () => {
   });
 
   it("returns 409 slot_overlap for in_person when service throws", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client" },
-    });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     createBookingMock.mockRejectedValue(new Error("slot_overlap"));
     const response = await POST(new Request("http://localhost/api/booking/create", {
       method: "POST",

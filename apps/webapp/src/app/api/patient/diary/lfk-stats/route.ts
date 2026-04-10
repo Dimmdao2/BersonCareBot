@@ -10,7 +10,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { aggregateLfkSessionsMetricByDay, buildLfkOverviewMatrix } from "@/modules/diaries/stats/aggregation";
 import { enumerateUtcDayKeysInWindow, statsPeriodWindowUtc } from "@/modules/diaries/stats/periodWindow";
-import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 
 const querySchema = z.object({
@@ -22,7 +22,7 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.diary });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
   if (!gate.ok) return gate.response;
   const session = gate.session;
 

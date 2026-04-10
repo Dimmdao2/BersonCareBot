@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 
@@ -12,7 +12,7 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.cabinet });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.cabinet });
   if (!gate.ok) return gate.response;
   const session = gate.session;
 

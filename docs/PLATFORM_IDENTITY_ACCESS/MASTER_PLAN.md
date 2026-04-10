@@ -64,6 +64,27 @@
 - **Legacy `tg:…` vs UUID** — **архитектурное решение** в рамках этой фазы (не «только runbook»): либо временный **onboarding-only compatibility mode**, либо вытеснение из основных login flows и миграция сценариев; нельзя оставлять формат, влияющий на access decisions, без явного решения в коде/доке.
 - Файлы-якоря: `apps/webapp/src/modules/auth/service.ts`, `apps/webapp/src/app/api/auth/**`.
 
+**Статус (2026-04-10):** реализовано в коде — `sessionCanonicalUserIdPolicy.ts`; integrator exchange: UUID в `sub` без `bindings` → загрузка канона из БД (`pgUserByPhone.findByUserId`); OAuth/phone по-прежнему через `setSessionFromUser` с UUID; не-UUID сессии → `legacy_non_uuid_session` / onboarding-only для `client`. Полный DoD §2 (все edge-кейсы + единая route/API policy) — совместно с фазой D.
+
+### Фаза C.02 — Единый patient business gate (между C и D)
+
+**Зачем:** после фазы C и FIX по аудиту tier-проверка есть у части API (`requirePatientApiSessionWithPhone`, часть `/api/patient/*`) и server actions (`requirePatientAccessWithPhone`), но остаются **расхождения** со [`SPECIFICATION.md`](SPECIFICATION.md) §4 и [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) §7: бизнес-операции от имени пациента без **того же** критерия, что tier **`patient`** при наличии `DATABASE_URL` (fallback на телефон в сессии только без БД / ошибке БД — как в `requireRole.ts`).
+
+**Скоуп (обязательный):**
+
+1. **Запись на приём (booking)** — все Route Handlers под `apps/webapp/src/app/api/booking/**/*.ts`, выполняющие действия или выдачу данных **от имени пациента** (`create`, `cancel`, `my`, `slots`, `catalog/cities`, `catalog/services` и т.д. по факту дерева): заменить связку «только `getCurrentSession` + `canAccessPatient`» на **тот же** gate, что и `requirePatientApiSessionWithPhone` (или общий экспортируемый helper с идентичной семантикой JSON 401/403).
+2. **Общий helper без дублирования** — либо экспортировать из `apps/webapp/src/app-layer/guards/requireRole.ts` обёртку уровня patient business API (на базе существующего `patientClientBusinessGate`), либо вынести тонкую функцию в `apps/webapp/src/modules/platform-access/` и вызывать из guards и из booking; **не** плодить третью копию условий tier/phone.
+3. **`app/app/patient/layout.tsx`** — для роли `client` при `DATABASE_URL` согласовать редирект с **tier** (или делегировать в один helper с `requirePatientBusinessTierOrRedirect` / эквивалент), а не полагаться **только** на snapshot `session.user.phone` для путей вне allowlist (`apps/webapp/src/app-layer/guards/patientPhonePolicy.ts`).
+4. **RSC под `/app/patient/*`**, где после `requirePatientAccess` идут запросы в БД по `userId`, а связанные server actions уже на `requirePatientAccessWithPhone` — устранить рассинхрон: усилить layout (п.3) и/или заменить guard на странице на тот же критерий, что и бизнес-действия (например напоминания, профиль, сообщения — сверка по факту grep).
+
+**Документация инициативы:** обновить [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) §7 (политика API), §11 чек-лист — явные пункты **booking API**, **patient layout / RSC vs tier**; при закрытии — строка в [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) («закрыт хвост C.02: booking + layout/RSC»). [`MASTER_PLAN.md`](MASTER_PLAN.md) §5 D / DoD §4 — при необходимости отметить, что C.02 снял часть дублирования до ввода полного модуля route & API policy.
+
+**Опционально:** переименовать `requirePatientApiSessionWithPhone` → например `requirePatientApiBusinessAccess`, оставив алиас/обёртку на время миграции; обновить `apps/webapp/src/app-layer/guards/guards.md`.
+
+**Граница с фазой D:** C.02 — **выравнивание поверхностей и одного общего gate** под текущую реализацию в `requireRole` / platform-access; фаза D по-прежнему вводит **единый модуль route & API policy** (whitelist страниц и серверный onboarding) и вытесняет остаточные разрозненные guards.
+
+**Статус C.02 (2026-04-10):** закрыто — `patientClientBusinessGate`; `/api/booking/*` и `/api/patient/*` на **`requirePatientApiBusinessAccess`** (алиас старого имени в `requireRole.ts`); layout: tier + `resolvePatientLayoutPathname` (Referer fallback); RSC напоминания/сообщения/intake — `requirePatientAccessWithPhone`; журнал [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md). Остаток к **фазе D:** единый модуль route & API policy.
+
 ### Фаза D — Route & API policy (единый модуль)
 
 - Реализовать модуль **route & API policy**: whitelist guest / onboarding / patient для **страниц** (`/app/patient/*`) и **те же правила** для **API** и **server actions** через тот же access context.

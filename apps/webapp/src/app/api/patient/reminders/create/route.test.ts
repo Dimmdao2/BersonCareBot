@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextResponse } from "next/server";
 import type { ReminderRule } from "@/modules/reminders/types";
 
-const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
+const mockRequirePatientApiBusinessAccess = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
+  requirePatientApiBusinessAccess: mockRequirePatientApiBusinessAccess,
 }));
 
 vi.mock("next/cache", () => ({
@@ -70,13 +70,13 @@ function req(body: unknown) {
 describe("POST /api/patient/reminders/create", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: SESSION });
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({ ok: true, session: SESSION });
     mockCreateObject.mockResolvedValue({ ok: true, data: sampleObjectRule() });
     mockCreateCustom.mockResolvedValue({ ok: true, data: sampleCustomRule() });
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+    mockRequirePatientApiBusinessAccess.mockResolvedValue({
       ok: false,
       response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
     });

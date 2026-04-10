@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 
@@ -9,7 +9,7 @@ import { routePaths } from "@/app-layer/routes/paths";
  * Ошибки БД (нет колонки и т.п.) → graceful { ok: true, count: 0 }.
  */
 export async function GET() {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patient });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });
   if (!gate.ok) return gate.response;
   const session = gate.session;
 

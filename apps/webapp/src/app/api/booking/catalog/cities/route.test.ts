@@ -15,6 +15,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { GET } from "./route";
 
+const patientClientSession = { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } };
+
 describe("GET /api/booking/catalog/cities", () => {
   it("returns 401 when not authenticated", async () => {
     getCurrentSessionMock.mockResolvedValue(null);
@@ -23,7 +25,7 @@ describe("GET /api/booking/catalog/cities", () => {
   });
 
   it("returns cities when catalog available", async () => {
-    getCurrentSessionMock.mockResolvedValue({ user: { userId: "u1", role: "client" } });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     listCitiesMock.mockResolvedValue([{ id: "c1", code: "moscow", title: "Москва", isActive: true, sortOrder: 0, createdAt: "", updatedAt: "" }]);
     const res = await GET();
     expect(res.status).toBe(200);

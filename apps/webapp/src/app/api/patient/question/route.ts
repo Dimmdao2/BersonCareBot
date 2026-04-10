@@ -1,13 +1,12 @@
 /**
  * POST /api/patient/question — отправить вопрос админу в Telegram.
  * Доступно только для пациентов, зашедших через браузер (без telegramId/maxId).
- * Требует привязанный телефон.
+ * Требует tier **patient** (как остальные `/api/patient/*` через `requirePatientApiBusinessAccess`).
  */
 
 import { NextResponse } from "next/server";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { logger } from "@/infra/logging/logger";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessPatient } from "@/modules/roles/service";
 import { env } from "@/config/env";
 import { routePaths } from "@/app-layer/routes/paths";
 import { getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";
@@ -17,30 +16,18 @@ function isBrowserOnly(bindings: { telegramId?: string; maxId?: string }): boole
 }
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session || !canAccessPatient(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });
-  }
+  const body = (await request.json().catch(() => null)) as { text?: string; from?: string } | null;
+  const from = typeof body?.from === "string" ? body.from.trim() : "";
+  const returnPath = from && from.startsWith("/app/patient") ? from : routePaths.patient;
+
+  const gate = await requirePatientApiBusinessAccess({ returnPath });
+  if (!gate.ok) return gate.response;
+
+  const { session } = gate;
 
   if (!isBrowserOnly(session.user.bindings)) {
     return NextResponse.json(
       { ok: false, error: "messenger_only", message: "Вопросы из мессенджера отправляются в чате" },
-      { status: 403 }
-    );
-  }
-
-  const body = (await request.json().catch(() => null)) as { text?: string; from?: string } | null;
-
-  if (!session.user.phone?.trim()) {
-    const from = typeof body?.from === "string" ? body.from.trim() : "";
-    const next = encodeURIComponent(from && from.startsWith("/app/patient") ? from : routePaths.patient);
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "phone_required",
-        message: "Для отправки вопроса нужна привязка телефона",
-        redirectTo: `${routePaths.bindPhone}?next=${next}`,
-      },
       { status: 403 }
     );
   }

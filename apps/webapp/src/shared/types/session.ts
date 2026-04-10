@@ -7,6 +7,10 @@ export type ChannelBindings = {
 };
 
 export type SessionUser = {
+  /**
+   * Canonical `platform_users.id` (UUID) after trusted login with DB — см. `sessionCanonicalUserIdPolicy.ts`.
+   * Не-UUID (`tg:…`, префиксы in-memory тестов) — только onboarding-транспорт для `client`, не ключ канона в политике доступа.
+   */
   userId: string;
   role: UserRole;
   displayName: string;

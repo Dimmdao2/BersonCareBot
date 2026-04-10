@@ -4,7 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { serializeSupportMessage } from "@/modules/messaging/serializeSupportMessage";
@@ -15,7 +15,7 @@ const postBodySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patientMessages });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientMessages });
   if (!gate.ok) return gate.response;
   const session = gate.session;
 
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patientMessages });
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientMessages });
   if (!gate.ok) return gate.response;
   const session = gate.session;
 

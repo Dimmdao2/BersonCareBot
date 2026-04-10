@@ -15,6 +15,8 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { GET } from "./route";
 
+const patientClientSession = { user: { userId: "u1", role: "client" as const, phone: "+79990001122" } };
+
 describe("GET /api/booking/slots", () => {
   it("returns 401 for unauthenticated request", async () => {
     getCurrentSessionMock.mockResolvedValue(null);
@@ -23,9 +25,7 @@ describe("GET /api/booking/slots", () => {
   });
 
   it("returns slots for valid query", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client" },
-    });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     getSlotsMock.mockResolvedValue([{ date: "2026-04-01", slots: [{ startAt: "2026-04-01T10:00:00+03:00", endAt: "2026-04-01T11:00:00+03:00" }] }]);
     const response = await GET(new Request("http://localhost/api/booking/slots?type=online&category=general"));
     expect(response.status).toBe(200);
@@ -34,9 +34,7 @@ describe("GET /api/booking/slots", () => {
   });
 
   it("returns 404 when branch_service_not_found for in_person", async () => {
-    getCurrentSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client" },
-    });
+    getCurrentSessionMock.mockResolvedValue(patientClientSession);
     getSlotsMock.mockRejectedValue(new Error("branch_service_not_found"));
     const response = await GET(
       new Request(

@@ -29,6 +29,8 @@
 
 **Цель инициативы:** при **записи** сессии после логина в cookie должен попадать **канонический** `userId`, когда он уже известен; tier при каждом запросе — из БД по канону, а не «только из cookie».
 
+**Фаза C (сессия):** нормативный текст и решение по `tg:…` / не-UUID — `sessionCanonicalUserIdPolicy.ts` (onboarding-only compatibility); запись cookie только в route handlers / server actions (`exchange*`, `setSessionFromUser`, `phone/confirm`, OAuth callback).
+
 **Ограничение Next.js:** обновление cookie не из произвольного Server Component — см. комментарии в `getCurrentSession` про роль; та же дисциплина для любых полей snapshot.
 
 ---
@@ -98,11 +100,13 @@
 
 | Область | Текущее состояние (ориентир) | Цель инициативы |
 |---------|------------------------------|-----------------|
-| Страницы `/app/patient/*` | Разные импорты guards (`requirePatientAccess`, `getOptionalPatientSession`) из `@/app-layer/guards/requireRole` — актуальность путей проверять в дереве | Один модуль **route & API policy** + delegating в access context |
-| API `/api/patient/*`, server actions | Точечные проверки (`getCurrentSession`, `phone`) | **Те же** правила и тот же whitelist, что для страниц |
+| Страницы `/app/patient/*` | Разные импорты guards (`requirePatientAccess`, `requirePatientAccessWithPhone`, `getOptionalPatientSession`) из `@/app-layer/guards/requireRole`; **layout** при `DATABASE_URL` — tier через `patientClientBusinessGate` + `patientPathRequiresBoundPhone` + `resolvePatientLayoutPathname` (`x-bc-pathname` или fallback `Referer`) + `x-bc-search` | Один модуль **route & API policy** + delegating в access context |
+| API `/api/patient/*`, **`/api/booking/*`**, server actions | После **C.02:** patient-бизнес через **`requirePatientApiBusinessAccess`** (в `/api/patient/*` и booking; алиас `requirePatientApiSessionWithPhone` в `requireRole.ts`) и `requirePatientAccessWithPhone`; общий **`patientClientBusinessGate`** | **Те же** правила и тот же whitelist, что для страниц |
 | Список публичных / onboarding маршрутов | Размазан по коду | Явный перечень в **одном** модуле политики + тесты |
 
-Конкретные пути страниц — под префиксом `apps/webapp/src/app/app/patient/` (маршрут URL `/app/patient/...`). API — не только `/api/patient/*`: любой эндпоинт, выполняющий **бизнес-действие** от имени пациента, должен проходить ту же проверку tier.
+Конкретные пути страниц — под префиксом `apps/webapp/src/app/app/patient/` (маршрут URL `/app/patient/...`). API — не только `/api/patient/*`: любой эндпоинт, выполняющий **бизнес-действие** от имени пациента (в т.ч. запись на приём), должен проходить ту же проверку tier.
+
+**Фаза C.02 ([`MASTER_PLAN.md`](MASTER_PLAN.md) §5):** выравнивание до фазы D: **`patientClientBusinessGate`**; booking и `/api/patient/*` на **`requirePatientApiBusinessAccess`**; **`resolvePatientLayoutPathname`** в `patientPhonePolicy.ts` + `app/app/patient/layout.tsx` (редкий fallback по `Referer`, если нет `x-bc-pathname`); RSC intake LFK/nutrition — `requirePatientAccessWithPhone` вровень с `online-intake` API; негативные тесты 403 для booking.
 
 **Onboarding на сервере:** запрет бизнес-операций дублируется в **handlers/actions**; whitelist активации серверный ([`SPECIFICATION.md`](SPECIFICATION.md) §4).
 
@@ -127,7 +131,7 @@
 | `oauth_yandex_verified_phone` | `apps/webapp/src/modules/auth/oauthYandexResolve.ts` — INSERT нового пользователя с непустым нормализованным телефоном из Yandex. |
 | `platform_user_merge` | `apps/webapp/src/infra/repos/pgPlatformUserMerge.ts` — перенос/объединение `patient_phone_trust_at` при merge (auto + manual ветки `UPDATE platform_users AS pu`). |
 
-**Access context / tier (единая точка резолва):** `resolvePlatformAccessContext` в `apps/webapp/src/modules/platform-access/resolvePlatformAccessContext.ts`; контракт `PlatformAccessContext` — поля `dbRole` и **`tier`** (как в SPECIFICATION §3; для doctor/admin — `tier: null`). Типы — `apps/webapp/src/modules/platform-access/types.ts`. Публичный re-export: `apps/webapp/src/modules/platform-access/index.ts`.
+**Access context / tier (единая точка резолва):** `resolvePlatformAccessContext` в `apps/webapp/src/modules/platform-access/resolvePlatformAccessContext.ts`; контракт `PlatformAccessContext` — поля `dbRole` и **`tier`** (как в SPECIFICATION §3; для doctor/admin — `tier: null`). Типы — `apps/webapp/src/modules/platform-access/types.ts`. Публичный re-export: `apps/webapp/src/modules/platform-access/index.ts`. **Patient business gate (C.02):** `patientClientBusinessGate` в `apps/webapp/src/modules/platform-access/patientClientBusinessGate.ts` — единый критерий для `requirePatientAccessWithPhone`, `requirePatientApiBusinessAccess` и layout patient-зоны при БД.
 
 **Важно:** прочие писатели `phone_normalized` (скрипты в `apps/webapp/scripts/`, ручной SQL, новые репозитории) **не** считаются trusted, пока не добавлены в enum **и** не выставляют `patient_phone_trust_at` согласно решению в PR.
 
@@ -167,7 +171,7 @@
 |------------------|------|
 | **`collectCandidateIds`** (проекция): телефон для merge по signed webhook шире, чем hints мессенджера | Осознанно; см. комментарий в `pgUserProjection.ts`. |
 | **`integratorUserId` в ссылке бота** | Появляется только после записи identity в БД интегратора — ограничение данных, не дыра в B. |
-| **Канонический `userId` в cookie / onboarding-only сессия на всех входах** | **Фаза C** (MASTER_PLAN §5 C, DoD §2). |
+| **Канонический `userId` в cookie / onboarding-only сессия на всех входах** | **Фаза C** — см. `sessionCanonicalUserIdPolicy.ts`, `exchangeIntegratorToken` (UUID `sub`), OAuth/phone `setSessionFromUser`; единая route/API policy — фаза D. |
 | **Полная наблюдаемость** | **Фаза E** (DoD §8). |
 
 ## 11. Чек-лист для агента/разработчика
@@ -178,12 +182,20 @@
 
 - [ ] Три модуля: access context/tier, trusted phone policy, route & API policy ([`MASTER_PLAN.md`](MASTER_PLAN.md) §2). *(Два первых — фаза A; route & API policy — фаза D.)*
 - [x] Резолв `{ canonicalUserId, dbRole, tier }`; для doctor/admin tier не смешивать с patient-политикой ([`SPECIFICATION.md`](SPECIFICATION.md) §3).
-- [ ] Все штатные точки входа: канонический id в cookie **или** явная onboarding-only сессия без patient-доступа ([`MASTER_PLAN.md`](MASTER_PLAN.md) DoD §2).
-- [ ] API и server actions используют **тот же** access context, что и страницы; нет параллельных «только phone» проверок для бизнес-операций.
+- [x] Штатные точки входа (exchange, OAuth, phone confirm): канонический UUID в cookie при наличии БД и доверенного резолва; иначе явный onboarding-only транспорт (`legacy_non_uuid_session` для `client`) — фаза C (`sessionCanonicalUserIdPolicy.ts`, `service.ts`).
+- [ ] API и server actions используют **тот же** access context, что и страницы; нет параллельных «только phone» проверок для бизнес-операций. *(C.02: booking API + общий `patientClientBusinessGate`; RSC напоминания/журнал/сообщения выровнены с actions через `requirePatientAccessWithPhone`.)*
 - [ ] Onboarding: бизнес-действия запрещены на сервере вне серверного whitelist активации.
-- [ ] Решение по legacy `tg:…` задокументировано как архитектурное (фаза C), не только runbook.
+- [x] Решение по legacy `tg:…` / не-UUID задокументировано как архитектурное (`sessionCanonicalUserIdPolicy.ts`, SPEC §6, MASTER §5 C).
 - [x] Trusted phone: новые writers в БД не считаются trusted по умолчанию.
 - [ ] Наблюдаемость по §9.
 - [ ] Legacy `client` без телефона → onboarding.
 - [ ] `pnpm run ci` зелёный; тесты на сценарии §3–§6 + негативные API в onboarding.
 - [ ] Обновлён этот файл и при необходимости `AUTH_RESTRUCTURE`.
+
+**Чек-лист C.02 (закрыто в коде до фазы D):**
+
+- [x] `/api/booking/*` (create, cancel, my, slots, catalog) — `requirePatientApiBusinessAccess` с тем же телом 401/403, что `/api/patient/*`; тесты 403 `patient_activation_required` (create, my).
+- [x] `/api/patient/*` — импорт **`requirePatientApiBusinessAccess`** (алиас `requirePatientApiSessionWithPhone` только в `requireRole.ts` + тест алиаса).
+- [x] Один gate `patientClientBusinessGate` в `platform-access` (без третьей копии условий в handlers).
+- [x] `app/app/patient/layout.tsx` — при `DATABASE_URL` для `client` редирект по tier + `resolvePatientLayoutPathname` + `patientPathRequiresBoundPhone`; без БД — прежний snapshot-телефон.
+- [x] RSC: напоминания, журнал правила, сообщения, **intake LFK/nutrition** — `requirePatientAccessWithPhone` там, где бизнес вровень с API/actions.
