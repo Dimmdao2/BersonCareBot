@@ -62,7 +62,7 @@ export async function mergePlatformUsersInTransaction(
   targetId: string,
   duplicateId: string,
   reason: MergePlatformUsersReason,
-  options?: { resolution?: ManualMergeResolution },
+  options?: { resolution?: ManualMergeResolution; allowDistinctIntegratorUserIds?: boolean },
 ): Promise<{ targetId: string; duplicateId: string }> {
   if (targetId === duplicateId) {
     throw new MergeConflictError("merge: target and duplicate are the same id", [targetId]);
@@ -120,7 +120,13 @@ export async function mergePlatformUsersInTransaction(
   const iA = a.integrator_user_id?.trim() || null;
   const iB = b.integrator_user_id?.trim() || null;
   if (iA && iB && iA !== iB) {
-    throw new MergeConflictError("merge: two different non-null integrator_user_id", [targetId, duplicateId]);
+    const relaxed =
+      reason === "manual" &&
+      Boolean(options?.resolution) &&
+      options?.allowDistinctIntegratorUserIds === true;
+    if (!relaxed) {
+      throw new MergeConflictError("merge: two different non-null integrator_user_id", [targetId, duplicateId]);
+    }
   }
 
   await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);

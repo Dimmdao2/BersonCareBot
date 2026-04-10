@@ -391,7 +391,7 @@ docs/PLATFORM_USER_MERGE_V2/AUDIT_PRE_DEPLOY_<N>.md
 
 ---
 
-## FINAL AUDIT (ветка перед merge/закрытием)
+## FINAL AUDIT (ветка или audited working tree перед merge/закрытием)
 
 ```text
 Проведи финальный сквозной аудит инициативы Platform User Merge v2.
@@ -403,6 +403,12 @@ docs/PLATFORM_USER_MERGE_V2/AUDIT_PRE_DEPLOY_<N>.md
 - docs/PLATFORM_USER_MERGE_V2/AGENT_EXECUTION_LOG.md
 - все AUDIT_STAGE_*.md и AUDIT_PRE_DEPLOY_*.md
 - git diff main...HEAD
+- git status --short --branch
+
+Важно:
+- если `git diff main...HEAD` непустой, аудируй инициативу как branch diff;
+- если `git diff main...HEAD` пустой, но дерево грязное, аудируй **текущее audited working tree** и явно зафиксируй это в отчёте;
+- не считать пустой `main...HEAD` автоматическим fail, если evidence честно привязан к текущему дереву и все входные артефакты присутствуют.
 
 Проверь:
 1) Реализованы Stage A, 1, 2, 3, 4, 5, C.

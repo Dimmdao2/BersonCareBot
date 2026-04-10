@@ -1,6 +1,8 @@
 /** Whitelist for `system_settings` keys. Same strings are mirrored to integrator DB after each `updateSetting` (see `service.ts`). */
 export const ALLOWED_KEYS = [
   // Operational flags
+  /** When true, manual merge allows two platform users with different integrator_user_id only after integrator canonical merge (same canonical users.id); see Stage 5 PLATFORM_USER_MERGE_V2. */
+  "platform_user_merge_v2_enabled",
   "patient_label",
   "sms_fallback_enabled",
   "debug_forward_to_admin",

@@ -178,8 +178,69 @@
 
 ---
 
+## 2026-04-10 — Stage 5: feature flag и смена flow (integrator → webapp)
+
+- **Scope:** [`STAGE_5_FEATURE_FLAG_AND_FLOW_SWITCH.md`](STAGE_5_FEATURE_FLAG_AND_FLOW_SWITCH.md).
+- **Ключ `system_settings` (admin):** `platform_user_merge_v2_enabled` — в `ALLOWED_KEYS`, PATCH через `/api/admin/settings`, переключатель в **Настройки → Админ (диагностика)**.
+- **Integrator:** `userMergeM2mRoute.ts` — `POST /api/integrator/users/canonical-pair`, `POST /api/integrator/users/merge` (HMAC как у `settings/sync`); регистрация в `apps/integrator/src/app/routes.ts`.
+- **Webapp:** условные blockers в `platformUserMergePreview.ts`; `verifyManualMergeIntegratorIntegratorGate` + `allowDistinctIntegratorUserIds` в `pgPlatformUserMerge.ts` / `manualPlatformUserMerge.ts`; `POST /api/doctor/clients/integrator-merge`; UI шаг integrator в `AdminMergeAccountsPanel`; клиент `integratorUserMergeM2mClient.ts`.
+- **Документы:** [`api.md`](../../apps/webapp/src/app/api/api.md), [`PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md), Stage 5 doc (чек-лист отмечен).
+- **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator **649** tests, webapp **1404** tests, build, `pnpm audit --prod`).
+
+---
+
+## 2026-04-10 — Stage 5 follow-up: замечания AUDIT_STAGE_5
+
+- **Scope:** только Stage 5 — закрытие оговорки §2 (v1 `POST …/merge`) и GAP §3 (сквозной тест без живого integrator).
+- **Код:** `verifyManualMergeIntegratorIntegratorGate` — при выключенном `platform_user_merge_v2_enabled` и двух разных non-null `integrator_user_id` больше **нет** раннего `409`; отказ снова из `mergePlatformUsersInTransaction` + audit `user_merge` на фазе транзакции (как до Stage 5).
+- **Тесты:** `integratorUserMergeM2mClient.flow.test.ts` (stub `fetch`: canonical-pair, merge, двухшаговая последовательность); `integrator-merge/route.test.ts` (прокси winner/loser, `feature_disabled`, 403).
+- **Документы:** [`AUDIT_STAGE_5.md`](AUDIT_STAGE_5.md) §9 follow-up; [`api.md`](../../apps/webapp/src/app/api/api.md); [`PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md).
+- **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator **649** tests, webapp **1410** tests, build, `pnpm audit --prod`).
+
+---
+
 ## 2026-04-10 — Stage 3 / Stage 4: закрытие док-хвостов (спеки + runbook + чеклисты)
 
 - **Scope:** сверка выполнения Stage 3–4 в репозитории с документами; без изменения runtime-кода merge/realignment.
 - **Документы:** [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md) — блок «Реализация в репозитории» (пути к `mergeIntegratorUsers`, `projectionOutboxMergePolicy`, projection health); [`STAGE_4_WEBAPP_REALIGNMENT.md`](STAGE_4_WEBAPP_REALIGNMENT.md) — актуальные SQL/job, уточнение support questions, gate через diagnostics; [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md) Deploy 3 — пошаговый webapp realignment + gate; [`CHECKLISTS.md`](CHECKLISTS.md) Deploy 3 — конкретные пути; [`README.md`](README.md) пакета — ссылки на AUDIT_STAGE_3/4 и Stage 4 код; [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md) / [`AUDIT_STAGE_4.md`](AUDIT_STAGE_4.md) §6 — число webapp tests **1397** (монорепо).
 - **Проверки:** `pnpm --dir apps/integrator exec vitest run` — **646** passed; `pnpm --dir apps/webapp exec vitest run` — **1397** passed; полный **`pnpm run ci`** из корня — **OK** (lint, typecheck, build, `pnpm audit --prod`).
+
+---
+
+## 2026-04-10 — Stage C: закрытие инициативы v2 (closeout)
+
+- **Scope:** [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md), [`MASTER_PLAN.md`](MASTER_PLAN.md), [`AUDIT_STAGE_C.md`](AUDIT_STAGE_C.md) (follow-up), [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md), [`README.md`](README.md) пакета v2.
+- **Регрессия:** `pnpm install --frozen-lockfile && pnpm run ci` из корня — **OK** (integrator **649** passed, 6 skipped; webapp **1410** passed, 5 skipped; build integrator + webapp; `pnpm audit --prod` — без известных уязвимостей).
+- **Targeted tests (явный прогон):**
+  - webapp: 9 файлов (merge preview/apply, integrator-merge, preview engine, gate, admin merge logic, M2M stub flow, `events.test.ts`) — **124** tests, OK;
+  - integrator: `mergeIntegratorUsers`, `projectionOutboxMergePolicy`, `userMergeM2mRoute`, `projectionHealth` — **26** tests, OK.
+- **Документы:** заполнен closure report в `STAGE_C_CLOSEOUT.md` (снятые риски, вне scope, operational notes, шаблон production SQL-gate без фиктивного вывода); `MASTER_PLAN.md` — статус завершения **2026-04-10**, readiness gates [x]; `PLATFORM_USER_MERGE.md` — статус v2, обновлён § ограничений v1/v2; `README.md` v2 — строки `AUDIT_STAGE_5`, `AUDIT_STAGE_C`; `AUDIT_STAGE_C.md` — **PASS** после follow-up.
+- **Деплои / инциденты / метрики:** фиксация в этом логе — репозиторное закрытие; даты деплоев на хост и инциденты прод-эксплуатации в автоматическом прогоне не собирались. Оператор после каждого реального merge пары на production сохраняет вывод gate-SQL по [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md) §4 и [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md).
+- **Gate verdict:** **PASS (repository Stage C)** — инициатива v2 закрыта в репо; production per-merge evidence — обязанность оператора по runbook.
+
+---
+
+## 2026-04-10 — AUDIT_STAGE_C follow-up: `docs/README.md` (MANDATORY §3)
+
+- **Scope:** замечание из [`AUDIT_STAGE_C.md`](AUDIT_STAGE_C.md) §2 / MANDATORY FIX §3 — прямые ссылки на closeout и аудит Stage C из корневого оглавления документации.
+- **Документы:** [`../README.md`](../README.md) — в строке **Platform User Merge v2** добавлены `PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md` и `PLATFORM_USER_MERGE_V2/AUDIT_STAGE_C.md`; в [`AUDIT_STAGE_C.md`](AUDIT_STAGE_C.md) убрано устаревшее замечание, §6 истории и §3 MANDATORY помечены как выполненные.
+- **Код:** не менялся.
+- **Проверки:** не требовались (только markdown).
+- **Gate verdict:** **DONE** — навигация из `docs/README.md` на Stage C closeout и audit восстановлена.
+
+---
+
+## 2026-04-10 — AUDIT_FINAL follow-up: evidence chain cleanup
+
+- **Scope:** закрытие замечаний из [`AUDIT_FINAL.md`](AUDIT_FINAL.md) — commit-scope wording, отсутствующие pre-deploy audits, синхронизация final-audit contract с audited working tree.
+- **Документы:**
+  - [`PROMPTS_EXEC_AUDIT_FIX.md`](PROMPTS_EXEC_AUDIT_FIX.md) — final audit теперь явно поддерживает два baseline: `git diff main...HEAD` **или** audited working tree + `git status --short --branch`.
+  - Добавлены retrospective repo audits: [`AUDIT_PRE_DEPLOY_1.md`](AUDIT_PRE_DEPLOY_1.md), [`AUDIT_PRE_DEPLOY_2.md`](AUDIT_PRE_DEPLOY_2.md), [`AUDIT_PRE_DEPLOY_3.md`](AUDIT_PRE_DEPLOY_3.md), [`AUDIT_PRE_DEPLOY_4.md`](AUDIT_PRE_DEPLOY_4.md).
+  - [`README.md`](README.md) пакета v2 — ссылки на `AUDIT_PRE_DEPLOY_1..4`.
+  - [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md), [`MASTER_PLAN.md`](MASTER_PLAN.md) — closeout/readiness wording привязаны к **audited repository tree**, а не к абстрактному «любому состоянию main/рабочего дерева».
+  - [`AUDIT_FINAL.md`](AUDIT_FINAL.md) — первичные findings закрыты; итоговый verdict переведён в **PASS**.
+- **Проверки:** финальный targeted set + полный regression pass:
+  - webapp targeted: **9 files / 124 tests / OK**
+  - integrator targeted: **4 files / 26 tests / OK**
+  - `pnpm install --frozen-lockfile && pnpm run ci` — **OK** (integrator **649** passed, 6 skipped; webapp **1410** passed, 5 skipped)
+- **Gate verdict:** **PASS** — final audit inputs полные, closeout evidence chain согласована, docs не overclaim относительно audited tree.

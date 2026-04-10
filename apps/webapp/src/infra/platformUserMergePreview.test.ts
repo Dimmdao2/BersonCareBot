@@ -66,6 +66,7 @@ describe("analyzeMergePreviewModel", () => {
     const m = analyzeMergePreviewModel(target, duplicate, baseOpts({}));
     expect(m.mergeAllowed).toBe(true);
     expect(m.v1MergeEngineCallable).toBe(true);
+    expect(m.platformUserMergeV2Enabled).toBe(false);
     expect(m.hardBlockers).toHaveLength(0);
     expect(m.scalarConflicts).toHaveLength(0);
     expect(m.channelConflicts).toHaveLength(0);
@@ -182,6 +183,44 @@ describe("analyzeMergePreviewModel", () => {
     expect(m.hardBlockers.some((b) => b.code === "different_non_null_integrator_user_id")).toBe(true);
     expect(m.mergeAllowed).toBe(false);
     expect(m.v1MergeEngineCallable).toBe(false);
+  });
+
+  it("v2 canonical aligned: no integrator hard blocker when pair preview says aligned", () => {
+    const target = row({
+      id: "00000000-0000-4000-8000-000000000001",
+      integrator_user_id: "10",
+    });
+    const duplicate = row({
+      id: "00000000-0000-4000-8000-000000000002",
+      integrator_user_id: "20",
+    });
+    const m = analyzeMergePreviewModel(target, duplicate, {
+      ...baseOpts({}),
+      integratorPairPreview: { kind: "v2_canonical_aligned" },
+      platformUserMergeV2Enabled: true,
+    });
+    expect(m.hardBlockers.some((b) => b.code === "different_non_null_integrator_user_id")).toBe(false);
+    expect(m.hardBlockers.some((b) => b.code === "integrator_canonical_merge_required")).toBe(false);
+    expect(m.mergeAllowed).toBe(true);
+    expect(m.platformUserMergeV2Enabled).toBe(true);
+  });
+
+  it("v2 merge required: integrator_canonical_merge_required blocker", () => {
+    const target = row({
+      id: "00000000-0000-4000-8000-000000000001",
+      integrator_user_id: "10",
+    });
+    const duplicate = row({
+      id: "00000000-0000-4000-8000-000000000002",
+      integrator_user_id: "20",
+    });
+    const m = analyzeMergePreviewModel(target, duplicate, {
+      ...baseOpts({}),
+      integratorPairPreview: { kind: "v2_merge_required" },
+      platformUserMergeV2Enabled: true,
+    });
+    expect(m.hardBlockers.some((b) => b.code === "integrator_canonical_merge_required")).toBe(true);
+    expect(m.mergeAllowed).toBe(false);
   });
 
   it("hard blocker: shared phone with meaningful data on both (shared-phone guard)", () => {

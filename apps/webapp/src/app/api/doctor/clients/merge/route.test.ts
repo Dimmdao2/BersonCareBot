@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const runManualMock = vi.fn();
+const gateMock = vi.fn();
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: (...a: unknown[]) => getSessionMock(...a),
+}));
+vi.mock("@/infra/manualMergeIntegratorGate", () => ({
+  verifyManualMergeIntegratorIntegratorGate: (...a: unknown[]) => gateMock(...a),
 }));
 vi.mock("@/infra/manualPlatformUserMerge", () => ({
   runManualPlatformUserMerge: (...a: unknown[]) => runManualMock(...a),
@@ -50,7 +54,9 @@ describe("POST /api/doctor/clients/merge", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     runManualMock.mockReset();
+    gateMock.mockReset();
     getSessionMock.mockResolvedValue(adminOk);
+    gateMock.mockResolvedValue({ ok: true, allowDistinctIntegratorUserIds: false });
     runManualMock.mockResolvedValue({ ok: true, targetId: t1, duplicateId: t2 });
   });
 
@@ -90,11 +96,9 @@ describe("POST /api/doctor/clients/merge", () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(runManualMock).toHaveBeenCalledWith(
-      expect.anything(),
-      "a1",
-      resolutionBody.resolution,
-    );
+    expect(runManualMock).toHaveBeenCalledWith(expect.anything(), "a1", resolutionBody.resolution, {
+      allowDistinctIntegratorUserIds: false,
+    });
   });
 
   it("returns 409 when merge fails", async () => {
@@ -107,5 +111,21 @@ describe("POST /api/doctor/clients/merge", () => {
       }),
     );
     expect(res.status).toBe(409);
+  });
+
+  it("returns gate response when integrator gate fails", async () => {
+    gateMock.mockResolvedValueOnce({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "merge_failed", code: "x" }, { status: 409 }),
+    });
+    const res = await POST(
+      new Request("http://localhost/api/doctor/clients/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(resolutionBody),
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(runManualMock).not.toHaveBeenCalled();
   });
 });

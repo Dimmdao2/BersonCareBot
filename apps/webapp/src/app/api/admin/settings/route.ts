@@ -14,6 +14,7 @@ const ADMIN_SCOPE_KEYS = [
   "sms_fallback_enabled",
   "debug_forward_to_admin",
   "dev_mode",
+  "platform_user_merge_v2_enabled",
   "important_fallback_delay_minutes",
   "integration_test_ids",
   "support_contact_url",

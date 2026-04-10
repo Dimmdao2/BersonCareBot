@@ -64,6 +64,7 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const [busy, setBusy] = useState(false);
+  const [integratorBusy, setIntegratorBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const loadCandidates = useCallback(async () => {
@@ -198,6 +199,44 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
     return lines;
   }, [preview, resolution]);
 
+  const needsIntegratorCanonicalStep =
+    Boolean(preview?.platformUserMergeV2Enabled) &&
+    Boolean(preview?.hardBlockers.some((b) => b.code === "integrator_canonical_merge_required"));
+
+  async function runIntegratorMerge(dryRun: boolean) {
+    if (!preview) return;
+    setIntegratorBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/doctor/clients/integrator-merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          targetId: preview.targetId,
+          duplicateId: preview.duplicateId,
+          dryRun,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        result?: unknown;
+      };
+      if (!res.ok || !data.ok) {
+        setMsg(data.message ?? data.error ?? `integrator_merge_failed (HTTP ${res.status})`);
+        return;
+      }
+      setMsg(dryRun ? "Integrator merge dry-run OK (проверка и блокировки)." : "Canonical merge в integrator выполнен. Обновите preview.");
+      await loadAlignedPreview({ targetId: preview.targetId, duplicateId: preview.duplicateId });
+    } catch {
+      setMsg("network");
+    } finally {
+      setIntegratorBusy(false);
+    }
+  }
+
   async function runMerge() {
     if (!preview || !resolution || !canMerge) return;
     if (
@@ -279,8 +318,10 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
         </Button>
       </div>
       <p className="text-muted-foreground text-sm">
-        Сравнение двух канонических клиентов, явный выбор победителей по полям и привязкам, затем ручной merge через
-        API (тот же контракт, что preview/POST merge).
+        Сравнение двух канонических клиентов, явный выбор победителей по полям и привязкам. При включённом флаге v2 в
+        настройках admin и разных <span className="font-mono">integrator_user_id</span> порядок: сначала canonical merge
+        в integrator (кнопка ниже при блокировке), при необходимости realignment проекций webapp, затем{" "}
+        <span className="font-mono">POST …/merge</span> как раньше.
       </p>
 
       {!sectionOpen ? null : (
@@ -353,6 +394,38 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
                       );
                     })}
                   </ul>
+                </div>
+              ) : null}
+
+              {needsIntegratorCanonicalStep ? (
+                <div className="rounded-md border border-violet-500/40 bg-violet-500/10 p-3 text-sm space-y-2">
+                  <p className="font-medium">Шаг 1 — integrator</p>
+                  <p className="text-xs text-muted-foreground">
+                    Canonical merge в integrator: winner <span className="font-mono">{preview.target.integratorUserId}</span>{" "}
+                    (целевой platform user), loser <span className="font-mono">{preview.duplicate.integratorUserId}</span>{" "}
+                    (дубликат). После успеха обновится preview; при необходимости — realignment проекций webapp (ops), затем
+                    webapp merge.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={integratorBusy}
+                      onClick={() => void runIntegratorMerge(true)}
+                    >
+                      {integratorBusy ? "…" : "Dry-run integrator merge"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      disabled={integratorBusy}
+                      onClick={() => void runIntegratorMerge(false)}
+                    >
+                      {integratorBusy ? "…" : "Выполнить integrator merge"}
+                    </Button>
+                  </div>
                 </div>
               ) : null}
 

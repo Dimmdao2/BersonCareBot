@@ -73,6 +73,7 @@ function basePreview(over: Partial<MergePreviewApiOk> = {}): MergePreviewApiOk {
     },
     mergeAllowed: true,
     v1MergeEngineCallable: true,
+    platformUserMergeV2Enabled: false,
     hardBlockers: [],
     ...over,
   };

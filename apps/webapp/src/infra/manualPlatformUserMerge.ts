@@ -24,11 +24,15 @@ export async function runManualPlatformUserMerge(
   pool: Pool,
   actorId: string | null,
   resolution: ManualMergeResolution,
+  options?: { allowDistinctIntegratorUserIds?: boolean },
 ): Promise<ManualMergeOk | ManualMergeFail> {
   const { targetId, duplicateId } = resolution;
   try {
     await withTwoUserLifecycleLocksExclusive(pool, targetId, duplicateId, async (client) => {
-      await mergePlatformUsersInTransaction(client, targetId, duplicateId, "manual", { resolution });
+      await mergePlatformUsersInTransaction(client, targetId, duplicateId, "manual", {
+        resolution,
+        allowDistinctIntegratorUserIds: options?.allowDistinctIntegratorUserIds,
+      });
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

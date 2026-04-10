@@ -3,8 +3,10 @@
  * Apply flow is implemented separately (manual merge engine).
  */
 import type { Pool } from "pg";
+import { checkIntegratorCanonicalPair } from "@/infra/integrations/integratorUserMergeM2mClient";
 import { pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
 import { logger } from "@/infra/logging/logger";
+import { getConfigBool } from "@/modules/system-settings/configAdapter";
 
 /** Rows compatible with {@link pickMergeTargetId} / merge transaction loader. */
 export type MergePreviewPlatformUserRow = {
@@ -54,9 +56,19 @@ export type MergePreviewHardBlockerCode =
   | "target_is_alias"
   | "duplicate_is_alias"
   | "different_non_null_integrator_user_id"
+  | "integrator_canonical_merge_required"
+  | "integrator_merge_status_unavailable"
   | "active_bookings_time_overlap"
   | "active_lfk_template_conflict"
   | "shared_phone_both_have_meaningful_data";
+
+/** How to treat two different non-null integrator_user_id values in preview (v1 hard block vs v2 gate). */
+export type IntegratorPairPreview =
+  | { kind: "not_applicable" }
+  | { kind: "v1_both_different_non_null" }
+  | { kind: "v2_canonical_aligned" }
+  | { kind: "v2_merge_required" }
+  | { kind: "v2_status_unavailable" };
 
 export type MergePreviewHardBlocker = {
   code: MergePreviewHardBlockerCode;
@@ -139,6 +151,8 @@ export type MergePreviewModel = {
    * Does not imply channel/oauth/email semantics are ideal; manual merge may still change resolution later.
    */
   v1MergeEngineCallable: boolean;
+  /** Admin setting `platform_user_merge_v2_enabled` at preview time. */
+  platformUserMergeV2Enabled: boolean;
 };
 
 export type MergePreviewErrorCode = "same_id" | "missing_user" | "not_client";
@@ -230,6 +244,16 @@ function oauthByProvider(
   return rows.find((o) => o.provider === provider);
 }
 
+function inferIntegratorPairPreview(
+  target: MergePreviewPlatformUserRow,
+  duplicate: MergePreviewPlatformUserRow,
+): IntegratorPairPreview {
+  const iT = normStr(target.integrator_user_id);
+  const iD = normStr(duplicate.integrator_user_id);
+  if (!iT || !iD || iT === iD) return { kind: "not_applicable" };
+  return { kind: "v1_both_different_non_null" };
+}
+
 /** Exported for unit tests — pure preview from already-loaded rows. */
 export function analyzeMergePreviewModel(
   target: MergePreviewPlatformUserRow,
@@ -244,6 +268,9 @@ export function analyzeMergePreviewModel(
     activeLfkTemplateConflictCount: number;
     meaningfulDataScoreTarget: number;
     meaningfulDataScoreDuplicate: number;
+    /** When omitted, inferred from rows (v1 blocker if both integrator ids differ). */
+    integratorPairPreview?: IntegratorPairPreview;
+    platformUserMergeV2Enabled?: boolean;
   },
 ): MergePreviewModel {
   const picked = pickMergeTargetId(target, duplicate);
@@ -273,13 +300,30 @@ export function analyzeMergePreviewModel(
 
   const iT = normStr(target.integrator_user_id);
   const iD = normStr(duplicate.integrator_user_id);
+  const pair = opts.integratorPairPreview ?? inferIntegratorPairPreview(target, duplicate);
   if (iT != null && iD != null && iT !== iD) {
-    hardBlockers.push({
-      code: "different_non_null_integrator_user_id",
-      message:
-        "Both users have different non-null integrator_user_id — merge blocked (phantom user / projection risk).",
-      details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
-    });
+    if (pair.kind === "v1_both_different_non_null") {
+      hardBlockers.push({
+        code: "different_non_null_integrator_user_id",
+        message:
+          "Both users have different non-null integrator_user_id — merge blocked (phantom user / projection risk).",
+        details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
+      });
+    } else if (pair.kind === "v2_merge_required") {
+      hardBlockers.push({
+        code: "integrator_canonical_merge_required",
+        message:
+          "Both users have different integrator_user_id — complete integrator canonical merge first (then webapp projection realignment if needed), then retry preview.",
+        details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
+      });
+    } else if (pair.kind === "v2_status_unavailable") {
+      hardBlockers.push({
+        code: "integrator_merge_status_unavailable",
+        message:
+          "Cannot verify integrator canonical merge status (INTEGRATOR_API_URL / webhook secret missing or integrator error).",
+        details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
+      });
+    }
   }
 
   if (opts.activeBookingOverlapCount > 0) {
@@ -405,6 +449,7 @@ export function analyzeMergePreviewModel(
   const differentNonNullPhones =
     pT != null && pD != null && pT !== pD;
   const v1MergeEngineCallable = mergeAllowed && !differentNonNullPhones;
+  const platformUserMergeV2Enabled = opts.platformUserMergeV2Enabled === true;
 
   return {
     ok: true,
@@ -425,6 +470,7 @@ export function analyzeMergePreviewModel(
     recommendation,
     mergeAllowed,
     v1MergeEngineCallable,
+    platformUserMergeV2Enabled,
   };
 }
 
@@ -618,6 +664,22 @@ export async function buildMergePreview(pool: Pool, targetId: string, duplicateI
     countDependents(pool, duplicateId),
   ]);
 
+  const v2Enabled = await getConfigBool("platform_user_merge_v2_enabled", false);
+  const iT = normStr(target.integrator_user_id);
+  const iD = normStr(duplicate.integrator_user_id);
+
+  let integratorPairPreview: IntegratorPairPreview = inferIntegratorPairPreview(target, duplicate);
+  if (v2Enabled && iT && iD && iT !== iD) {
+    const st = await checkIntegratorCanonicalPair(iT, iD);
+    if (!st.ok) {
+      integratorPairPreview = { kind: "v2_status_unavailable" };
+    } else if (st.sameCanonical) {
+      integratorPairPreview = { kind: "v2_canonical_aligned" };
+    } else {
+      integratorPairPreview = { kind: "v2_merge_required" };
+    }
+  }
+
   const model = analyzeMergePreviewModel(target, duplicate, {
     targetBindings,
     duplicateBindings,
@@ -628,6 +690,8 @@ export async function buildMergePreview(pool: Pool, targetId: string, duplicateI
     activeLfkTemplateConflictCount,
     meaningfulDataScoreTarget,
     meaningfulDataScoreDuplicate,
+    integratorPairPreview,
+    platformUserMergeV2Enabled: v2Enabled,
   });
 
   logger.info(
@@ -638,6 +702,7 @@ export async function buildMergePreview(pool: Pool, targetId: string, duplicateI
       v1MergeEngineCallable: model.v1MergeEngineCallable,
       hardBlockerCount: model.hardBlockers.length,
       scalarConflictCount: model.scalarConflicts.length,
+      platformUserMergeV2Enabled: model.platformUserMergeV2Enabled,
     },
     "[merge-preview] computed",
   );

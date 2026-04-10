@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPool } from "@/infra/db/client";
 import { runManualPlatformUserMerge } from "@/infra/manualPlatformUserMerge";
+import { verifyManualMergeIntegratorIntegratorGate } from "@/infra/manualMergeIntegratorGate";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const winner = z.enum(["target", "duplicate"]);
@@ -47,7 +48,14 @@ export async function POST(request: Request) {
   }
 
   const { resolution } = parsed.data;
-  const result = await runManualPlatformUserMerge(getPool(), adminGate.session.user.userId, resolution);
+  const pool = getPool();
+  const gate = await verifyManualMergeIntegratorIntegratorGate(pool, resolution.targetId, resolution.duplicateId);
+  if (!gate.ok) {
+    return gate.response;
+  }
+  const result = await runManualPlatformUserMerge(pool, adminGate.session.user.userId, resolution, {
+    allowDistinctIntegratorUserIds: gate.allowDistinctIntegratorUserIds,
+  });
 
   if (!result.ok) {
     return NextResponse.json(

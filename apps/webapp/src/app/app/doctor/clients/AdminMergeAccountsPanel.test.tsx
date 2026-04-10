@@ -104,6 +104,7 @@ describe("AdminMergeAccountsPanel", () => {
             },
             mergeAllowed: false,
             v1MergeEngineCallable: false,
+            platformUserMergeV2Enabled: false,
             hardBlockers: [
               {
                 code: "different_non_null_integrator_user_id",
@@ -220,6 +221,7 @@ describe("AdminMergeAccountsPanel", () => {
             },
             mergeAllowed: true,
             v1MergeEngineCallable: true,
+            platformUserMergeV2Enabled: false,
             hardBlockers: [],
           }),
           { status: 200 },

@@ -11,6 +11,7 @@ type AdminSettings = {
   debugForwardToAdmin: boolean;
   integrationTestIds: string[];
   importantFallbackDelayMinutes: number;
+  platformUserMergeV2Enabled: boolean;
 };
 
 type AdminSettingsSectionProps = AdminSettings;
@@ -30,11 +31,13 @@ export function AdminSettingsSection({
   debugForwardToAdmin,
   integrationTestIds,
   importantFallbackDelayMinutes,
+  platformUserMergeV2Enabled,
 }: AdminSettingsSectionProps) {
   const [devModeVal, setDevModeVal] = useState(devMode);
   const [debugForward, setDebugForward] = useState(debugForwardToAdmin);
   const [testIdsText, setTestIdsText] = useState(() => integrationTestIds.join(" "));
   const [fallbackDelay, setFallbackDelay] = useState(importantFallbackDelayMinutes);
+  const [mergeV2, setMergeV2] = useState(platformUserMergeV2Enabled);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -52,6 +55,7 @@ export function AdminSettingsSection({
           patchAdminSetting("debug_forward_to_admin", debugForward),
           patchAdminSetting("integration_test_ids", testIds),
           patchAdminSetting("important_fallback_delay_minutes", fallbackDelay),
+          patchAdminSetting("platform_user_merge_v2_enabled", mergeV2),
         ]);
         if (results.some((r) => !r)) {
           setError("Не удалось сохранить часть настроек");
@@ -84,6 +88,15 @@ export function AdminSettingsSection({
           hint="Пересылать все входящие сообщения администратору для отладки"
           checked={debugForward}
           onCheckedChange={setDebugForward}
+          disabled={isPending}
+          switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
+        />
+
+        <LabeledSwitch
+          label="Ручной merge клиентов: сценарий v2 (integrator → webapp)"
+          hint="При разных integrator_user_id: сначала canonical merge в integrator, затем webapp merge. Выкл. = поведение v1 (жёсткий запрет)."
+          checked={mergeV2}
+          onCheckedChange={setMergeV2}
           disabled={isPending}
           switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
         />

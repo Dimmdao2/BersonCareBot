@@ -70,6 +70,7 @@ function serializePreview(model: Awaited<ReturnType<typeof buildMergePreview>>) 
     recommendation: model.recommendation,
     mergeAllowed: model.mergeAllowed,
     v1MergeEngineCallable: model.v1MergeEngineCallable,
+    platformUserMergeV2Enabled: model.platformUserMergeV2Enabled,
   };
 }
 

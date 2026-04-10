@@ -8,6 +8,11 @@
 
 - **Master plan и этапы:** [`../PLATFORM_USER_MERGE_V2/MASTER_PLAN.md`](../PLATFORM_USER_MERGE_V2/MASTER_PLAN.md)
 - **Оглавление пакета:** [`../PLATFORM_USER_MERGE_V2/README.md`](../PLATFORM_USER_MERGE_V2/README.md)
+- **Закрытие инициативы (Stage C):** [`../PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md`](../PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md) — регрессия CI, targeted тесты, closure report; операционные SQL-gates на production — по [`../PLATFORM_USER_MERGE_V2/CUTOVER_RUNBOOK.md`](../PLATFORM_USER_MERGE_V2/CUTOVER_RUNBOOK.md) и [`../PLATFORM_USER_MERGE_V2/sql/README.md`](../PLATFORM_USER_MERGE_V2/sql/README.md).
+
+### Статус v2
+
+Реализация **Platform User Merge v2** и репозиторное закрытие зафиксированы **2026-04-10** в [`STAGE_C_CLOSEOUT.md`](../PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md). Снятие жёсткого блокера `different_non_null_integrator_user_id` в webapp возможно **только** при включённом admin-флаге `platform_user_merge_v2_enabled` и соблюдении порядка «сначала integrator merge (при необходимости realignment webapp), затем webapp merge» — см. таблицу hard blockers и [`STAGE_5_FEATURE_FLAG_AND_FLOW_SWITCH.md`](../PLATFORM_USER_MERGE_V2/STAGE_5_FEATURE_FLAG_AND_FLOW_SWITCH.md).
 
 ## Цели
 
@@ -114,7 +119,9 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 | Код | Смысл |
 |-----|--------|
 | `target_is_alias` / `duplicate_is_alias` | `merged_into_id IS NOT NULL` — merge alias в паре недопустим. |
-| `different_non_null_integrator_user_id` | Оба `integrator_user_id` заданы и **различны** — **жёсткий запрет** (риск phantom user / рассинхрон проекций); снятие — только в **v2** (integrator-side canonical merge в БД integrator; в `.cursor/plans/...` это отдельный шаг после v1, не «этап 6» про документацию). |
+| `different_non_null_integrator_user_id` | **v1** (флаг `platform_user_merge_v2_enabled` выкл.): оба `integrator_user_id` заданы и **различны** — **жёсткий запрет** (риск phantom user / рассинхрон проекций). |
+| `integrator_canonical_merge_required` | **v2** (флаг вкл.): оба id заданы и различны, но в БД integrator canonical `users.id` ещё **не** совпали — сначала `mergeIntegratorUsers`, при необходимости realignment проекций webapp, затем снова preview. |
+| `integrator_merge_status_unavailable` | **v2:** не удалось вызвать integrator M2M `canonical-pair` (нет `INTEGRATOR_API_URL`/webhook secret или ошибка сети/502). |
 | `active_bookings_time_overlap` | Тот же SQL, что `assertPatientBookingsSafeToMerge` в `pgPlatformUserMerge.ts` (пересечение слотов у «активных» статусов и согласованный cooperator snapshot). |
 | `active_lfk_template_conflict` | Два активных `patient_lfk_assignments` на одну `template_id` — как `assertPatientLfkAssignmentsSafe`. |
 | `shared_phone_both_have_meaningful_data` | Одинаковый non-null телефон и «meaningful data» на обоих — как `assertSharedPhoneGuard` (сумма счётчиков по тем же таблицам, что в merge). |
@@ -142,7 +149,7 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 - **`targetId` / `duplicateId`**: каноническая сторона и дубликат (становится alias с `merged_into_id = targetId`).
 - **`fields`**: для каждого скаляра (`phone_normalized`, `display_name`, `first_name`, `last_name`, `email`) — `'target' | 'duplicate'`, чьё значение остаётся на канонической строке после merge.
-- **`integrator_user_id` не входит в `fields`**: два **разных** non-null `integrator_user_id` по-прежнему **жёсткий блокер** (как в preview и в `mergePlatformUsersInTransaction`); merge integrator DB не выполняется (вне scope v1).
+- **`integrator_user_id` не входит в `fields`**: два **разных** non-null `integrator_user_id` — в **v1** жёсткий блокер в preview и отказ в `mergePlatformUsersInTransaction` (**как до Stage 5**, ошибка из транзакции merge, audit `user_merge` с `phase: merge_transaction`). В **v2** (`platform_user_merge_v2_enabled` в `system_settings`, admin) перед транзакцией M2M `canonical-pair` должен подтвердить одну canonical пару; иначе HTTP `409`/`502`/`503` до merge tx. Операторский integrator merge: `POST /api/doctor/clients/integrator-merge` или прямой вызов integrator API (см. `docs/PLATFORM_USER_MERGE_V2/STAGE_5_FEATURE_FLAG_AND_FLOW_SWITCH.md`).
 - **`bindings`**: для `telegram`, `max`, `vk` — `'target' | 'duplicate' | 'both'`. При конфликте разных `external_id` оператор **обязан** выбрать сторону (`target` / `duplicate`); `'both'` допустим только для канала **без конфликта** (авто-перенос duplicate-only bindings на target c `ON CONFLICT DO NOTHING`).
 - **`oauth`**: `Record<provider, 'target' | 'duplicate'>` — обязателен для каждого провайдера, где у обоих пользователей разные `provider_user_id`; иначе `MergeConflictError` при apply.
 - **`channelPreferences`**: `'keep_target' | 'keep_newer' | 'merge'` — поведение для `user_channel_preferences` (`keep_target` удаляет строки duplicate; `keep_newer` и `merge` в v1 используют одну и ту же логику слияния по `updated_at`).
@@ -157,10 +164,10 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 Репозиторий (`pgUserProjection.ts` и т.п.) по-прежнему **пробрасывает** `MergeConflictError` / `MergeDependentConflictError` без решения HTTP. Решение **`202` vs `503`** принимается в **`modules/integrator/events.ts`**: при подключённом `conflictAudit` конфликт класса merge → `upsertOpenConflictLog` / `writeAuditLog(anomaly)` → **`accepted: true`** (маршрут `POST /api/integrator/events` отвечает **202**), без мутации identity для identity-событий (`user.upserted`, `contact.linked`, `preferences.updated`). Для **`appointment.record.upserted`**: `ensureClientFromAppointmentProjection` запускается по нормализованному телефону из top-level payload **или** `payloadJson.phone`; при конфликте — аудит, запись в projection-таблицу записи, **без** fallback `findByPhone` / `findByIntegratorId` и без привязки `userId` в compat-path (`userId: null` в `applyRubitimeUpdate`). Повторы того же набора кандидатов увеличивают `repeat_count` и дополняют `seenEventTypes` в открытой строке `auto_merge_conflict` (ключ `sha256(sorted(candidateIds))`). `MergeDependentConflictError` **обязан** нести `candidateIds` (как `MergeConflictError`) для стабильного `conflict_key`.
 
-### Ограничения v1
+### Ограничения v1 и v2 (после закрытия инициативы)
 
 - При **`preferences.updated`** и конфликте: событие подтверждается (`202`), topics **не** пишутся до ручного разрешения; отдельного replay нет — следующее «чистое» событие после разрешения конфликта.
-- Merge **разных** non-null `integrator_user_id` остаётся запрещённым до **v2** (integrator-side canonical merge в integrator DB — см. план инициативы, шаг после v1).
+- Merge **разных** non-null `integrator_user_id`: в режиме **v1** (флаг `platform_user_merge_v2_enabled` **выкл.**) — жёсткий запрет (`different_non_null_integrator_user_id`). В режиме **v2** (флаг **вкл.**) — сначала canonical merge в integrator и при необходимости realignment проекций webapp, затем ручной webapp merge; блокеры `integrator_canonical_merge_required` / `integrator_merge_status_unavailable` см. в таблице hard blockers выше. Закрытие инициативы и чеклисты: [`STAGE_C_CLOSEOUT.md`](../PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md).
 
 ## Admin UI — ручной merge (карточка клиента)
 

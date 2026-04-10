@@ -151,6 +151,7 @@ describe("GET /api/doctor/clients/merge-preview", () => {
       },
       mergeAllowed: true,
       v1MergeEngineCallable: true,
+      platformUserMergeV2Enabled: false,
     });
 
     const res = await GET(

@@ -66,6 +66,13 @@ export default async function SettingsPage() {
           return parseIdTokens(v);
         })(),
         importantFallbackDelayMinutes: Number(getValueJson(adminSettingsList.find((x) => x.key === "important_fallback_delay_minutes")?.valueJson, 60)),
+        platformUserMergeV2Enabled: (() => {
+          const raw = getValueJson<unknown>(
+            adminSettingsList.find((x) => x.key === "platform_user_merge_v2_enabled")?.valueJson,
+            false,
+          );
+          return raw === true || raw === "true";
+        })(),
       }
     : null;
 
@@ -163,7 +170,15 @@ export default async function SettingsPage() {
           {isAdmin && adminMode && adminSettings && (
             <div className="mt-6">
               <AdminSettingsTabsClient
-                diagnostics={<AdminSettingsSection {...adminSettings} />}
+                diagnostics={
+                  <AdminSettingsSection
+                    devMode={adminSettings.devMode}
+                    debugForwardToAdmin={adminSettings.debugForwardToAdmin}
+                    integrationTestIds={adminSettings.integrationTestIds}
+                    importantFallbackDelayMinutes={adminSettings.importantFallbackDelayMinutes}
+                    platformUserMergeV2Enabled={adminSettings.platformUserMergeV2Enabled}
+                  />
+                }
                 appParams={appParametersConfig ? <AppParametersSection {...appParametersConfig} /> : null}
                 auth={authProvidersConfig ? <AuthProvidersSection {...authProvidersConfig} /> : null}
                 access={accessListsConfig ? <AccessListsSection {...accessListsConfig} /> : null}

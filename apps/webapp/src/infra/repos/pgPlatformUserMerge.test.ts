@@ -142,6 +142,60 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
     ).rejects.toThrow(MergeConflictError);
   });
 
+  it("allows two different non-null integrator_user_id for manual merge when allowDistinctIntegratorUserIds", async () => {
+    const query = vi.fn(async (sql: string) => {
+      const s = String(sql);
+      if (s.includes("FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: T,
+              phone_normalized: "+79000000000",
+              integrator_user_id: "100",
+              merged_into_id: null,
+              display_name: "A",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+            {
+              id: D,
+              phone_normalized: "+79000000000",
+              integrator_user_id: "200",
+              merged_into_id: null,
+              display_name: "B",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+          ],
+        };
+      }
+      if (s.includes("FROM user_pins")) {
+        return { rows: [] };
+      }
+      if (s.includes("FROM user_oauth_bindings WHERE user_id = ANY")) {
+        return { rows: [] };
+      }
+      if (s.includes("COUNT(*)::int") || s.includes("patient_bookings pb1")) {
+        return { rows: [{ c: 0 }] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const client = { query } as unknown as PoolClient;
+    await mergePlatformUsersInTransaction(client, T, D, "manual", {
+      resolution: baseResolution(),
+      allowDistinctIntegratorUserIds: true,
+    });
+    expect(query).toHaveBeenCalled();
+  });
+
   it("rejects non-client rows before mutating data", async () => {
     const query = vi.fn(async (sql: string) => {
       const s = String(sql);

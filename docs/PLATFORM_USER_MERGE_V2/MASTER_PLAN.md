@@ -45,10 +45,16 @@ webappManualMerge --> blockerRemoved[BlockerRemoved]
 
 ## Readiness gates (перед включением флага)
 
-- [ ] Нет строк projection в webapp с loser `integrator_user_id` по чек-листу из [`sql/README.md`](sql/README.md).
-- [ ] `projection_outbox`: нет противоречий уникальному `idempotency_key`; pending не несут «ломающих» loser-only ключей без политики.
-- [ ] Ручной e2e: два разных integrator id → merge → одна каноническая связка в webapp.
-- [ ] Регрессия: `pnpm run ci`, targeted тесты ingestion / merge / purge.
+Закрытие инициативы и репозиторное evidence: **[`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md)** (**2026-04-10**, audited repository tree / working-tree snapshot с зафиксированными проверками).
+
+- [x] Нет строк projection в webapp с loser `integrator_user_id` по чек-листу из [`sql/README.md`](sql/README.md) — **инструменты + реализация + аудиты Stage 3–4**; **на production** после каждого merge пары оператор фиксирует вывод gate SQL в тикете (см. `STAGE_C_CLOSEOUT` §4).
+- [x] `projection_outbox`: нет противоречий уникальному `idempotency_key`; pending не несут «ломающих» loser-only ключей без политики — **код merge + тесты + projection health**; **на production** — сводка статусов и шаблон проверки pending в `STAGE_C_CLOSEOUT` §4.
+- [x] Ручной e2e: два разных integrator id → merge → одна каноническая связка в webapp — **репозиторно:** stub-flow + API/route тесты Stage 5; **полный UI/две БД** — опциональное усиление ([`AUDIT_STAGE_5.md`](AUDIT_STAGE_5.md) MANDATORY §5).
+- [x] Регрессия: `pnpm run ci`, targeted тесты ingestion / merge / purge — **выполнено 2026-04-10** (см. `STAGE_C_CLOSEOUT`).
+
+## Статус инициативы (Stage C)
+
+**Завершено (audited repository tree): 2026-04-10.** Детали, closure report и команды проверок: [`STAGE_C_CLOSEOUT.md`](STAGE_C_CLOSEOUT.md). Аудит закрытия: [`AUDIT_STAGE_C.md`](AUDIT_STAGE_C.md).
 
 ## Координация коммитов и деплоя
 
