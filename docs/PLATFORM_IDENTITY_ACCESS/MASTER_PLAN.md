@@ -97,13 +97,15 @@
 
 **Статус (2026-04-11, FIX повторного аудита RSC):** перед чтением персональных данных из БД на RSC (кабинет, единый дневник, журналы ЛФК/симптомов, уведомления, персональные блоки главной) используется **`patientRscPersonalDataGate`** в `apps/webapp/src/app-layer/guards/requireRole.ts` — тот же **`patientClientBusinessGate`**, что у patient-business API; см. `SCENARIOS_AND_CODE_MAP.md` §7, `AGENT_EXECUTION_LOG.md`.
 
-**Статус (2026-04-11, D-FIX глубокого аудита фазы D):** закрыты зазоры из [`PHASE_D_DEEP_AUDIT_REPORT.md`](PHASE_D_DEEP_AUDIT_REPORT.md): **`/app/patient/sections/warmups`** — `patientRscPersonalDataGate` перед `listRulesByUser` и персональным баром; **`/app/patient/purchases`** — тот же gate вместо ветвления по snapshot (`PurchasesGuestAccess` с `rscGuestTier` при расхождении snapshot и tier); удалён неиспользуемый **`requirePatientPhone`**. Техдолг **D-SA-1** (runtime whitelist server actions по pathname) задокументирован в JSDoc `patientRouteApiPolicy.ts`. Опционально к фазе **E**: тест **D-TST-1** (warmups RSC + onboarding).
+**Статус (2026-04-11, D-FIX глубокого аудита фазы D):** закрыты зазоры из [`PHASE_D_DEEP_AUDIT_REPORT.md`](PHASE_D_DEEP_AUDIT_REPORT.md): **`/app/patient/sections/warmups`** — `patientRscPersonalDataGate` перед `listRulesByUser` и персональным баром; **`/app/patient/purchases`** — тот же gate вместо ветвления по snapshot (`PurchasesGuestAccess` с `rscGuestTier` при расхождении snapshot и tier); удалён неиспользуемый **`requirePatientPhone`**. **D-SA-1** (runtime whitelist onboarding server actions по pathname) — закрыт в **фазе E — повторный аудит / FIX:** `patientOnboardingServerActionSurfaceOk` + `profile/actions.ts`, см. [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md). **D-TST-1** — закрыт в фазе **E — FIX** (`page.warmupsGate.test.tsx`).
 
 ### Фаза E — Тесты, наблюдаемость, документация
 
 - Тесты: OAuth без телефона → onboarding; канон с телефоном + новый канал → OTP → patient; legacy без телефона → onboarding; **негативные**: API/server action в onboarding без whitelist → отказ.
 - Проверка наличия логирования по DoD §8.
 - `pnpm run ci` зелёный; [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md); при необходимости обновление [`../README.md`](../README.md).
+
+**Статус (2026-04-11):** закрыто — см. журнал и `resolvePlatformAccessContext.test.ts` / `requireRole.phaseEOnboardingDenial.test.ts`; `[platform_access]` в `resolvePlatformAccessContext.ts`; агрегат с `[identity_resolution]` / exchange / merge / layout — в `AGENT_EXECUTION_LOG.md`. **E — FIX:** **D-TST-1** — `page.warmupsGate.test.tsx`. **E — REAUDIT:** закрыт **D-SA-1** — `patientOnboardingServerActionSurfaceOk` + `profile/actions.ts` ([`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md)).
 
 ## 6. Риски и смягчение
 
@@ -126,10 +128,12 @@
 |----------|--------|
 | [`SPECIFICATION.md`](SPECIFICATION.md) | Нормативная модель |
 | [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) | Сценарии и карта кода |
+| [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md) | Первичный аудит фазы E (DoD §1–§4 и §8) |
+| [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md) | Повторный аудит E, закрытие **D-SA-1** (onboarding server actions + pathname) |
 | [`../ARCHITECTURE/PLATFORM_USER_MERGE.md`](../ARCHITECTURE/PLATFORM_USER_MERGE.md) | Канон, `merged_into_id` |
 | [`../AUTH_RESTRUCTURE/MASTER_PLAN.md`](../AUTH_RESTRUCTURE/MASTER_PLAN.md) | Входы, Mini App, бот |
 | [`../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`](../ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md) | Новые ключи через `system_settings` при необходимости |
 
 ## 9. Статус
 
-**План и спецификация приняты; реализация по фазам A–E не считается завершённой, пока не закрыты DoD §1–§4 и §8.**
+**План и спецификация приняты; фазы A–E по §5 реализованы.** **DoD §1–§4 и §8** считаются **закрытыми** по аудитам [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md) и [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md) (2026-04-11), включая runtime enforcement onboarding server actions (**D-SA-1** снят). Прочие пункты DoD (§5–§7, §9) — см. `MASTER_PLAN.md` §3 и `SCENARIOS_AND_CODE_MAP.md`.

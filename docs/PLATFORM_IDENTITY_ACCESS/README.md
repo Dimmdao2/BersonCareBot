@@ -10,6 +10,8 @@
 | [`SPECIFICATION.md`](SPECIFICATION.md) | Нормативная спецификация: канон, tier, доверие, legacy, инварианты |
 | [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) | Подробные сценарии и привязка к модулям/файлам BersonCareBot |
 | [`PHASE_D_DEEP_AUDIT_REPORT.md`](PHASE_D_DEEP_AUDIT_REPORT.md) | Отчёт глубокого поэтапного аудита фазы D (RSC/API/layout/actions); после **D-FIX 2026-04-11** P1 и часть P2 закрыты — см. вердикт в конце отчёта |
+| [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md) | Первичный аудит фазы E (DoD §1–§4 и §8) |
+| [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md) | Повторный аудит E, закрытие D-SA-1 (onboarding server actions) |
 
 ## Связь с другими инициативами
 
@@ -18,4 +20,4 @@
 
 ## Статус
 
-Реализация ведётся по фазам **A → B → C → C.02 → D → E** (см. `MASTER_PLAN.md` §5). Фазы **A**, **B**, **C**, **C.02** и **D** (модуль `patientRouteApiPolicy`, API/booking/actions, layout, RSC-gate, **D-FIX** по глубокому аудиту — warmups/purchases/cleanup) отражены в коде и в `AGENT_EXECUTION_LOG.md`. **RSC:** чтение персональных данных из БД по `userId` — **`patientRscPersonalDataGate`**; примеры в §7 `SCENARIOS_AND_CODE_MAP.md` (в т.ч. `sections/warmups`, покупки). Остаётся техдолг **D-SA-1** (см. JSDoc `patientRouteApiPolicy.ts`) и по желанию **D-TST-1**. Полное закрытие DoD (наблюдаемость §9, фаза **E**) — по чек-листу §11.
+Фазы **A → B → C → C.02 → D → E** (см. `MASTER_PLAN.md` §5) отражены в коде и в `AGENT_EXECUTION_LOG.md`. **Фаза E (2026-04-11):** EXEC + AUDIT + FIX + **повторный аудит** — [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md), [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md). **DoD §1–§4 и §8** закрыты; **D-SA-1** снят (`patientOnboardingServerActionSurfaceOk`). **RSC:** **`patientRscPersonalDataGate`**; **D-TST-1** — `page.warmupsGate.test.tsx`.

@@ -47,6 +47,8 @@
 
 **Граница доступа:** в **onboarding** пользователь **не** выполняет **бизнес-действия** (запись на приём, дневники, сообщения врачу, оплаты и т.п.) **ни в UI, ни на сервере** (включая **API** и **server actions**), кроме явно отнесённых к **активации**. Whitelist активации и публичных исключений — **серверный** (общий для маршрутов и API), а не только «скрыть кнопку в UI».
 
+**Server actions активации (профиль):** мутации, разрешённые в onboarding без tier **patient**, дополнительно привязываются к **pathname** запроса: `patientOnboardingServerActionSurfaceOk` (`onboardingServerActionSurface.ts`) + заголовок **`x-bc-pathname`** (middleware для `/app/patient/*`) и fallback по `referer`, согласованно с `patientRouteApiPolicy` / `resolvePatientLayoutPathname`. См. [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md).
+
 **RSC и БД:** React Server Components, которые при рендере на сервере читают **персональные** данные пациента из БД по `userId`, обязаны применять **тот же** критерий tier, что patient-business API (в webapp: `patientClientBusinessGate`, обёртка для страниц — `patientRscPersonalDataGate` в `apps/webapp/src/app-layer/guards/requireRole.ts`). Наличие телефона только в snapshot cookie **не** заменяет эту проверку. Примеры маршрутов и виджетов: раздел **`/app/patient/sections/warmups`** (правила напоминаний), страница **`/app/patient/purchases`** (основной контент при tier **patient**). Карта: [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) §7.
 
 ---
@@ -142,7 +144,7 @@
 
 ## 14. Наблюдаемость
 
-Реализация должна позволять ответить, почему пользователь в **onboarding** при ожидании **patient**: структурированные логи (или эквивалент) с **причиной** итогового tier, признаком **trusted** резолюции идентичности там, где это уместно, и учётом критичных событий **merge** / **phone_bind** / проекций на входах. Уровень детализации и отсутствие утечки PII — по правилам проекта. См. DoD в [`MASTER_PLAN.md`](MASTER_PLAN.md) §3 п.8.
+Реализация должна позволять ответить, почему пользователь в **onboarding** при ожидании **patient**: структурированные логи (или эквивалент) с **причиной** итогового tier, признаком **trusted** резолюции идентичности там, где это уместно, и учётом критичных событий **merge** / **phone_bind** / проекций на входах; при отклонении onboarding server action вне allowlist pathname — префикс **`[platform_access] onboarding_server_action_rejected`**. Уровень детализации и отсутствие утечки PII — по правилам проекта. См. DoD в [`MASTER_PLAN.md`](MASTER_PLAN.md) §3 п.8.
 
 ---
 

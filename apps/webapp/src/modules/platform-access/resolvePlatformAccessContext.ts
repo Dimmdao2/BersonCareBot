@@ -12,6 +12,24 @@ type CanonRow = {
   patient_phone_trust_at: Date | null;
 };
 
+/** DoD §8 / MASTER_PLAN §3.8: tier + trust signals (no raw phone in logs). */
+function logClientPlatformAccess(payload: {
+  tier: ClientAccessTier | null;
+  resolution: string;
+  phoneTrustedForPatient: boolean;
+  hasPhoneInDb: boolean;
+  canonicalUserId: string | null;
+}): void {
+  console.info(
+    "[platform_access] tier=%s resolution=%s phone_trusted=%s has_phone_db=%s canon=%s",
+    payload.tier ?? "n/a",
+    payload.resolution,
+    String(payload.phoneTrustedForPatient),
+    String(payload.hasPhoneInDb),
+    payload.canonicalUserId ?? "none",
+  );
+}
+
 function computeClientTier(row: CanonRow): {
   tier: ClientAccessTier;
   hasPhoneInDb: boolean;
@@ -51,10 +69,20 @@ export async function resolvePlatformAccessContext(
 
   if (!isPlatformUserUuid(sessionUserId)) {
     const hint = input.sessionRoleHint ?? null;
+    const tier: ClientAccessTier | null = hint === "client" ? "onboarding" : null;
+    if (hint === "client") {
+      logClientPlatformAccess({
+        tier,
+        resolution: LEGACY_NON_UUID_SESSION_RESOLUTION,
+        phoneTrustedForPatient: false,
+        hasPhoneInDb: false,
+        canonicalUserId: null,
+      });
+    }
     return {
       canonicalUserId: null,
       dbRole: hint,
-      tier: hint === "client" ? "onboarding" : null,
+      tier,
       hasPhoneInDb: false,
       phoneTrustedForPatient: false,
       resolution: LEGACY_NON_UUID_SESSION_RESOLUTION,
@@ -92,6 +120,13 @@ export async function resolvePlatformAccessContext(
   }
 
   const { tier, hasPhoneInDb, phoneTrustedForPatient } = computeClientTier(row);
+  logClientPlatformAccess({
+    tier,
+    resolution: "resolved_canon",
+    phoneTrustedForPatient,
+    hasPhoneInDb,
+    canonicalUserId,
+  });
   return {
     canonicalUserId,
     dbRole: "client",

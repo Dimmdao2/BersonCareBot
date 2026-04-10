@@ -7,6 +7,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { patientOnboardingServerActionSurfaceOk } from "@/modules/platform-access";
 import type { OtpUiChannel } from "@/modules/auth/otpChannelUi";
 
 const authOtpChannelSchema = z.enum(["auto", "telegram", "max", "email", "sms"]);
@@ -15,6 +16,8 @@ export async function updateDisplayName(newName: string) {
   const trimmedName = newName.trim();
   if (!trimmedName) return;
   if (trimmedName.length > 200) return;
+
+  if (!(await patientOnboardingServerActionSurfaceOk())) return;
 
   const session = await requirePatientAccess(routePaths.profile);
   const deps = buildAppDeps();
@@ -37,6 +40,10 @@ export async function setPreferredAuthOtpChannelAction(
   }
 
   try {
+    if (!(await patientOnboardingServerActionSurfaceOk())) {
+      return { ok: false, message: "Действие доступно только со страницы профиля" };
+    }
+
     const session = await requirePatientAccess(routePaths.profile);
     const deps = buildAppDeps();
     const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);

@@ -19,3 +19,4 @@ export {
   patientSessionSnapshotHasPhone,
   resolvePatientLayoutPathname,
 } from "./patientRouteApiPolicy";
+export { patientOnboardingServerActionSurfaceOk } from "./onboardingServerActionSurface";

@@ -108,7 +108,7 @@
 
 Конкретные пути страниц — под префиксом `apps/webapp/src/app/app/patient/` (маршрут URL `/app/patient/...`). API — не только `/api/patient/*`: любой эндпоинт, выполняющий **бизнес-действие** от имени пациента (в т.ч. запись на приём), должен проходить ту же проверку tier.
 
-**RSC и чтение БД:** страницы с `getOptionalPatientSession`, которые загружают **персональные** данные по `userId`, вызывают **`patientRscPersonalDataGate`** в `apps/webapp/src/app-layer/guards/requireRole.ts` — внутри тот же **`patientClientBusinessGate`**, что у `requirePatientApiBusinessAccess`; при `need_activation` — guest-заглушки; при `stale_session` — редирект на `/app?next=`. Snapshot телефона в cookie (`patientSessionSnapshotHasPhone`, в т.ч. через `patientHasPhoneOrMessenger` в UI) **не** заменяет этот gate для запросов в БД. **Пример:** `/app/patient/sections/warmups` — `listRulesByUser` и виджет `SectionWarmupsReminderBar` только после gate → **`allow`** (каталог карточек раздела остаётся доступен при `guest`).
+**RSC и чтение БД:** страницы с `getOptionalPatientSession`, которые загружают **персональные** данные по `userId`, вызывают **`patientRscPersonalDataGate`** в `apps/webapp/src/app-layer/guards/requireRole.ts` — внутри тот же **`patientClientBusinessGate`**, что у `requirePatientApiBusinessAccess`; при `need_activation` — guest-заглушки; при `stale_session` — редирект на `/app?next=`. Snapshot телефона в cookie (`patientSessionSnapshotHasPhone`, в т.ч. через `patientHasPhoneOrMessenger` в UI) **не** заменяет этот gate для запросов в БД. **Пример:** `/app/patient/sections/warmups` — `listRulesByUser` и виджет `SectionWarmupsReminderBar` только после gate → **`allow`** (каталог карточек раздела остаётся доступен при `guest`). Регрессия: **`page.warmupsGate.test.tsx`** (guest не вызывает `listRulesByUser`; allow — вызывает).
 
 **Фаза C.02 ([`MASTER_PLAN.md`](MASTER_PLAN.md) §5):** выравнивание до фазы D: **`patientClientBusinessGate`**; booking и `/api/patient/*` на **`requirePatientApiBusinessAccess`**; **`resolvePatientLayoutPathname`** + whitelist перенесены в **`patientRouteApiPolicy.ts`** (фаза D); RSC intake LFK/nutrition — `requirePatientAccessWithPhone` вровень с `online-intake` API; негативные тесты 403 для booking.
 
@@ -137,7 +137,7 @@
 
 **Access context / tier (единая точка резолва):** `resolvePlatformAccessContext` в `apps/webapp/src/modules/platform-access/resolvePlatformAccessContext.ts`; контракт `PlatformAccessContext` — поля `dbRole` и **`tier`** (как в SPECIFICATION §3; для doctor/admin — `tier: null`). Типы — `apps/webapp/src/modules/platform-access/types.ts`. Публичный re-export: `apps/webapp/src/modules/platform-access/index.ts`. **Patient business gate (C.02):** `patientClientBusinessGate` в `apps/webapp/src/modules/platform-access/patientClientBusinessGate.ts` — единый критерий для `requirePatientAccessWithPhone`, `requirePatientApiBusinessAccess` и layout patient-зоны при БД.
 
-**Route & API policy (фаза D):** `apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts` — whitelist навигации без tier **patient** (в т.ч. кабинет, визард `/app/patient/booking/*`, дневник, покупки, уведомления, публичные sections/content и onboarding-страницы), `patientPageMinAccessTier`, `patientApiPathIsPatientBusinessSurface`, `patientSessionSnapshotHasPhone` (только UI-snapshot), `patientServerActionPageAllowsOnboardingOnly` (декларативный список для профиля; runtime enforcement по pathname — техдолг **D-SA-1**, см. JSDoc в том же файле). Re-export: `apps/webapp/src/modules/platform-access/index.ts`. Shim: `apps/webapp/src/app-layer/guards/patientPhonePolicy.ts`.
+**Route & API policy (фаза D):** `apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts` — whitelist навигации без tier **patient** (в т.ч. кабинет, визард `/app/patient/booking/*`, дневник, покупки, уведомления, публичные sections/content и onboarding-страницы), `patientPageMinAccessTier`, `patientApiPathIsPatientBusinessSurface`, `patientSessionSnapshotHasPhone` (только UI-snapshot), `patientServerActionPageAllowsOnboardingOnly` (список для профиля; **runtime** — `patientOnboardingServerActionSurfaceOk` в `onboardingServerActionSurface.ts`, вызов из `profile/actions.ts`; закрытие **D-SA-1**). Re-export: `apps/webapp/src/modules/platform-access/index.ts`. Shim: `apps/webapp/src/app-layer/guards/patientPhonePolicy.ts`.
 
 **Важно:** прочие писатели `phone_normalized` (скрипты в `apps/webapp/scripts/`, ручной SQL, новые репозитории) **не** считаются trusted, пока не добавлены в enum **и** не выставляют `patient_phone_trust_at` согласно решению в PR.
 
@@ -150,6 +150,8 @@
 - Логировать **причину** итогового tier (код/enum причины, без утечки PII).
 - Логировать **trusted / неTrusted** (или эквивалент) на критичных шагах резолва identity, где это уместно.
 - Логировать или иным образом учитывать **merge**, **phone_bind**, критичные **projection** на входах — для расследований «почему onboarding».
+
+**Статус (фаза E, 2026-04-11):** в рантайме webapp для клиента с каноном из БД — структурированный **`console.info` `[platform_access]`** в `resolvePlatformAccessContext.ts` (`tier`, `resolution`, `phone_trusted`, `has_phone_db`, id канона; без сырого телефона). При отклонении onboarding server action вне allowlist pathname — **`[platform_access] onboarding_server_action_rejected`** (`onboardingServerActionSurface.ts`; см. [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md)). Дополнительно: **`[identity_resolution]`**, **`[auth/exchange]`** (legacy transport), **`[merge]`**, **`[patient_layout]`** (см. [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md) §6). **`GET /api/me`** отдаёт **`platformAccess`** как клиентский эквивалент.
 
 ---
 
@@ -171,14 +173,14 @@
 | Компактный JWT без `bindings` | `sub` вида **`tg:<id>`** / **`max:<id>`** → `effectiveMessengerBinding` → тот же путь `findOrCreateByChannelBinding` с hints из тела токена. |
 | Интегратор → поле токена | `integratorUserId` в webapp-entry payload при наличии identity в БД интегратора (`getLinkDataByIdentity` в `apps/integrator/...`, сборка в `telegram`/`max` webhook + `webappEntryToken.ts`). |
 | `display_name` при привязке к существующему канону | После merge по hints непустое имя с верифицированного входа обновляет `display_name` (`pgIdentityResolution.ts`). |
-| Логи (частично) | `[identity_resolution] path=…` в `pgIdentityResolution.ts`; в `service.ts` — `resolution_hints_from` для `telegram-init` и `telegram-login`. Полный DoD **§8** (tier / trusted на всех шагах) — **фаза E**. |
+| Логи (частично) | `[identity_resolution] path=…` в `pgIdentityResolution.ts`; в `service.ts` — `resolution_hints_from` для `telegram-init` и `telegram-login`. DoD **§8** по tier/trust на чтении канона — **`[platform_access]`** в `resolvePlatformAccessContext.ts` + агрегат логов (см. §9, [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md)). |
 
 | Вне scope фазы B | Куда |
 |------------------|------|
 | **`collectCandidateIds`** (проекция): телефон для merge по signed webhook шире, чем hints мессенджера | Осознанно; см. комментарий в `pgUserProjection.ts`. |
 | **`integratorUserId` в ссылке бота** | Появляется только после записи identity в БД интегратора — ограничение данных, не дыра в B. |
 | **Канонический `userId` в cookie / onboarding-only сессия на всех входах** | **Фаза C** — см. `sessionCanonicalUserIdPolicy.ts`, `exchangeIntegratorToken` (UUID `sub`), OAuth/phone `setSessionFromUser`; единая route/API policy — фаза D. |
-| **Полная наблюдаемость** | **Фаза E** (DoD §8). |
+| **Полная наблюдаемость** | **Фаза E** — закрыта по §9 и аудиту [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md). |
 
 ## 11. Чек-лист для агента/разработчика
 
@@ -193,10 +195,10 @@
 - [x] Onboarding: бизнес-действия вне whitelist — запрет на сервере; whitelist навигации и активации — **`patientRouteApiPolicy`** + guards.
 - [x] Решение по legacy `tg:…` / не-UUID задокументировано как архитектурное (`sessionCanonicalUserIdPolicy.ts`, SPEC §6, MASTER §5 C).
 - [x] Trusted phone: новые writers в БД не считаются trusted по умолчанию.
-- [ ] Наблюдаемость по §9.
-- [ ] Legacy `client` без телефона → onboarding.
-- [ ] `pnpm run ci` зелёный; тесты на сценарии §3–§6 + негативные API в onboarding.
-- [ ] Обновлён этот файл и при необходимости `AUTH_RESTRUCTURE`.
+- [x] Наблюдаемость по §9 (`[platform_access]` + §9 статус; аудит [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md)).
+- [x] Legacy `client` без телефона → onboarding (`resolvePlatformAccessContext.test.ts` Phase E + существующие кейсы).
+- [x] `pnpm run ci` зелёный; тесты на сценарии §3–§6 + негативы onboarding (`requireRole.phaseEOnboardingDenial.test.ts`, `patientTier`, booking 403, exchange\*).
+- [x] Обновлён этот файл по итогам аудита фазы E; `AUTH_RESTRUCTURE` — без обязательных правок (пересечение зафиксировано в MASTER / SCENARIOS).
 
 **Чек-лист C.02 (закрыто в коде до фазы D):**
 

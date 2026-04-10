@@ -159,7 +159,8 @@ export function patientApiPathIsPatientBusinessSurface(apiPathname: string): boo
  * Поверхности server actions, разрешённые на **onboarding** без tier patient (активация, SPEC §4).
  * Сейчас — только профиль (`requirePatientAccess` в actions).
  *
- * **Runtime enforcement:** Next.js не передаёт pathname в server action по умолчанию. Проверка «вызов только со страницы из этого списка» **не выполняется** в handlers до появления доверенного контекста страницы (например заголовок `x-bc-pathname`, уже прокидываемый в patient layout/middleware). До этого действия профиля опираются на `requirePatientAccess` + соглашение UI; см. тесты `patientServerActionPageAllowsOnboardingOnly` в `patientRouteApiPolicy.test.ts`.
+ * **Runtime enforcement:** handlers профиля вызывают {@link patientOnboardingServerActionSurfaceOk} (`onboardingServerActionSurface.ts`) —
+ * pathname из **`x-bc-pathname`** (middleware) или `referer` ({@link resolvePatientLayoutPathname}), как в layout.
  */
 export const PATIENT_ONBOARDING_SERVER_ACTION_PAGE_PREFIXES = ["/app/patient/profile"] as const;
 

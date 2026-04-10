@@ -132,7 +132,7 @@
 | `requireRole.patientRscGate.test.ts` | `patientRscPersonalDataGate` (guest/allow/stale). |
 | Booking / patient API | Негативы 403/401 в существующих тестах. |
 
-**Пробел (P2 / фаза E, D-TST-1):** нет интеграционного или узкого unit-теста RSC для **`sections/.../warmups`** с onboarding-сессией и телефоном в snapshot (проверка, что **`listRulesByUser`** не вызывается при gate **guest**).
+**~~Пробел D-TST-1~~** — закрыт: `page.warmupsGate.test.tsx` (**фаза E — FIX**).
 
 ---
 
@@ -142,14 +142,14 @@
 |-------------|-----|----------|----------------|
 | ~~**P1**~~ | D-RSC-1 | ~~RSC warmups без gate~~ | **Закрыто D-FIX 2026-04-11** |
 | ~~**P2**~~ | D-PUR-1 | ~~Покупки по snapshot~~ | **Закрыто D-FIX 2026-04-11** |
-| **P2** | D-SA-1 | `patientServerActionPageAllowsOnboardingOnly` не enforced в runtime (техдолг задокументирован в JSDoc policy) | `patientRouteApiPolicy.ts` + `profile/actions.ts` |
+| **P2** | D-SA-1 | ~~не enforced~~ → **закрыто** (E-REAUDIT): `patientOnboardingServerActionSurfaceOk` + `profile/actions.ts` | `onboardingServerActionSurface.ts` |
 | ~~**P2**~~ | D-CLN-1 | ~~`requirePatientPhone`~~ | **Закрыто D-FIX 2026-04-11** |
-| **P2** | D-TST-1 | Нет теста на warmups RSC + onboarding | фаза E или отдельный unit |
+| ~~**P2**~~ | D-TST-1 | ~~нет теста warmups~~ | **Закрыто E-FIX:** `page.warmupsGate.test.tsx` |
 
 **P0:** не выявлено.
 
 ### Вердикт
 
-**Вердикт после D-FIX 2026-04-11:** P1 и перечисленные P2 (D-PUR-1, D-CLN-1) закрыты; **остаётся осознанный техдолг D-SA-1** (enforcement server actions по pathname — см. JSDoc в `patientRouteApiPolicy.ts`) и опционально **D-TST-1** (тест warmups RSC). Для регрессии — `pnpm run ci` и при изменениях policy короткий проход этапов 5–6.
+**Вердикт после D-FIX 2026-04-11:** P1 и перечисленные P2 (D-PUR-1, D-CLN-1) закрыты. **D-SA-1** закрыт в **фазе E — повторный аудит** (`patientOnboardingServerActionSurfaceOk`, см. [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md)). **D-TST-1** закрыт в **фазе E — FIX** (`page.warmupsGate.test.tsx`). Для регрессии — `pnpm run ci` и при изменениях policy короткий проход этапов 5–6.
 
-**Следующий шаг:** фаза **E** (`MASTER_PLAN.md` §5): наблюдаемость DoD §8, при желании тест **D-TST-1**; при реализации whitelist server actions по pathname — закрытие **D-SA-1** (см. JSDoc `patientRouteApiPolicy.ts`). Промпты: `PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md` — «Фаза E — EXEC / AUDIT / FIX», при необходимости **GLOBAL_AUDIT**.
+**Следующий шаг:** фаза **E** завершена по D-хвостам (**D-TST-1**, **D-SA-1**); см. [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md). Промпты: `PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`.

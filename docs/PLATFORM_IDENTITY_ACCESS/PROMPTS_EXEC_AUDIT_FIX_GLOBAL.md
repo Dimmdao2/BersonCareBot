@@ -201,7 +201,7 @@ Runbook — только дополнение к архитектурному р
 
 **RSC:** любая страница под `/app/patient/*`, где после `getOptionalPatientSession` вызывается `buildAppDeps()` (или иной доступ к БД) по `userId` для персональных данных, должна сначала пройти **`patientRscPersonalDataGate`** (`requireRole.ts`) — иначе возможен обход tier при телефоне только в cookie-snapshot. См. `SCENARIOS_AND_CODE_MAP.md` §7.
 
-**Глубокий поэтапный аудит фазы D (опционально):** чек-лист и матрица RSC/API/layout/actions — отчёт `docs/PLATFORM_IDENTITY_ACCESS/PHASE_D_DEEP_AUDIT_REPORT.md`. После выявления зазоров — правки кода (например D-RSC-1 warmups, D-PUR-1 purchases), обновление §7 `SCENARIOS_AND_CODE_MAP.md`, §5 D `MASTER_PLAN.md`, строка в `AGENT_EXECUTION_LOG.md`, `pnpm run ci`.
+**Глубокий поэтапный аудит фазы D (опционально):** чек-лист и матрица RSC/API/layout/actions — отчёт `docs/PLATFORM_IDENTITY_ACCESS/PHASE_D_DEEP_AUDIT_REPORT.md`. После выявления зазоров — правки кода (например D-RSC-1 warmups, D-PUR-1 purchases), обновление §7 `SCENARIOS_AND_CODE_MAP.md`, §5 D `MASTER_PLAN.md`, строка в `AGENT_EXECUTION_LOG.md`, `pnpm run ci`. Хвост **D-SA-1** (runtime pathname для onboarding server actions профиля) закрыт в **фазе E — повторный аудит / FIX:** `patientOnboardingServerActionSurfaceOk`, см. `PHASE_E_REAUDIT_REPORT.md`.
 
 ---
 
@@ -216,21 +216,23 @@ Runbook — только дополнение к архитектурному р
 Реализуй **фазу E** из `docs/PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` §5: тесты, наблюдаемость, документация.
 
 Сделай:
-1. Тесты: OAuth без телефона → onboarding; канон с телефоном плюс новый канал → OTP → patient; legacy client без телефона → onboarding; **негативные**: API или server action в onboarding без whitelist → отказ.
-2. Проверь наличие логирования по DoD §8 в `MASTER_PLAN.md` §3 пункт 8.
+1. Тесты: OAuth без телефона → onboarding; канон с телефоном плюс новый канал → OTP → patient; legacy client без телефона → onboarding; **негативные**: API или server action в onboarding без whitelist → отказ. Опционально по глубокому аудиту D: **D-TST-1** — warmups RSC + gate (`page.warmupsGate.test.tsx`).
+2. Проверь наличие логирования по DoD §8 в `MASTER_PLAN.md` §3 пункт 8 (`[platform_access]` в `resolvePlatformAccessContext` и агрегат см. `PHASE_E_AUDIT_REPORT.md` §6).
 3. `pnpm run ci` зелёный; обнови `docs/PLATFORM_IDENTITY_ACCESS/AGENT_EXECUTION_LOG.md`; при необходимости кратко обнови `docs/README.md` только если инициатива стала видимой на верхнем уровне доков (не раздувай).
+
+**После первичного аудита E** при обнаружении техдолга **D-SA-1** — повторный аудит и FIX: `patientOnboardingServerActionSurfaceOk` + `profile/actions.ts`, отчёт `PHASE_E_REAUDIT_REPORT.md` (см. выполненную в репозитории цепочку).
 
 ---
 
 ## Фаза E — AUDIT
 
-Аудит **фазы E** и закрытия DoD целиком для пунктов §1–§4 и §8 из `MASTER_PLAN.md` §3: тесты покрывают сценарии из `SCENARIOS_AND_CODE_MAP.md` §3–§6 и негативы; логи дают ответ «почему onboarding»; CI проходит; журнал выполнения актуален.
+Аудит **фазы E** и закрытия DoD целиком для пунктов §1–§4 и §8 из `MASTER_PLAN.md` §3: тесты покрывают сценарии из `SCENARIOS_AND_CODE_MAP.md` §3–§6 и негативы; логи дают ответ «почему onboarding»; CI проходит; журнал выполнения актуален. Отчёт-шаблон: `PHASE_E_AUDIT_REPORT.md`. Если выявлен декларативный whitelist onboarding server actions без runtime pathname — зафиксировать и закрыть в **E — REAUDIT** (`PHASE_E_REAUDIT_REPORT.md`).
 
 ---
 
 ## Фаза E — FIX
 
-Доведи **фазу E** до критериев аудита: добавь недостающие тесты или логи, правки доков без секретов. `pnpm run ci`, `AGENT_EXECUTION_LOG.md`.
+Доведи **фазу E** до критериев аудита: добавь недостающие тесты или логи, правки доков без секретов. `pnpm run ci`, `AGENT_EXECUTION_LOG.md`. Включая при необходимости **D-TST-1** (warmups) и закрытие **D-SA-1** (`patientOnboardingServerActionSurfaceOk`, тесты `onboardingServerActionSurface.test.ts`, `profile/actions.surface.test.ts`).
 
 ---
 
@@ -247,7 +249,7 @@ Runbook — только дополнение к архитектурному р
 1. Есть ли **ровно три** централизованных модуля с фиксированной ответственностью: access context / tier; trusted phone policy (закрытый перечень доверенных путей записи телефона для tier patient); route & API policy (единый whitelist и те же правила для страниц, API и server actions). Нет ли параллельных guard-файлов с дублирующей бизнес-логикой без делегирования в эти модули.
 2. Для роли `client`: вычисляется ли tier guest / onboarding / patient согласно спецификации; для doctor/admin tier не смешан с patient-политикой.
 3. Session cookie: в штатных точках входа после доверенного сопоставления с каноном попадает ли **канонический** userId; где сопоставление невозможно — нет ли patient-доступа до прояснения (явная onboarding-only сессия и политика).
-4. Onboarding: запрещены ли **бизнес-действия на сервере** вне серверного whitelist активации (REST, route handlers, server actions), а не только в UI.
+4. Onboarding: запрещены ли **бизнес-действия на сервере** вне серверного whitelist активации (REST, route handlers, server actions), а не только в UI; для мутаций профиля в onboarding — runtime pathname (`patientOnboardingServerActionSurfaceOk` / `x-bc-pathname`).
 5. Patient-зона `/app/patient/*` и релевантные API/server actions: один ли access context из модуля tier, или остались точечные проверки телефона в обход него.
 6. Multi-channel и `findOrCreateByChannelBinding`: порядок до INSERT нового `platform_users` — есть ли попытка найти канон; нет ли повторного bind-phone при уже доверенном телефоне у канона для доверенно привязанного канала; нет ли «угадывания» identity без доверия.
 7. Интегратор: `apps/webapp/src/modules/integrator/events.ts`, проекции `apps/webapp/src/infra/repos/pgUserProjection.ts` — согласованы ли записи в БД с каноном; не обходят ли события tier на web.
