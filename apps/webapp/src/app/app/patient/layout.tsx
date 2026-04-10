@@ -29,6 +29,9 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     if (gate === "stale_session") {
       redirect(`${routePaths.root}?next=${encodeURIComponent(returnTo)}`);
     }
+    if (gate === "need_activation" && !pathname.trim() && process.env.NODE_ENV !== "test") {
+      console.info("[patient_layout] need_activation unresolved_pathname (check middleware x-bc-pathname)");
+    }
     if (gate === "need_activation" && patientPathRequiresBoundPhone(pathname)) {
       redirect(`${routePaths.bindPhone}?next=${encodeURIComponent(returnTo)}`);
     }

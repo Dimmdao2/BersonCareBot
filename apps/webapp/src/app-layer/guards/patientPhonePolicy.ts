@@ -38,8 +38,13 @@ const PREFIX_ALLOWLIST = [
 ] as const;
 
 /**
- * Нужен ли непустой нормализованный телефон для данного pathname (без query).
- * Пустой pathname → false (middleware не передал заголовок — не блокируем).
+ * Нужен ли tier **patient** (редирект в layout при `need_activation`) для данного pathname (без query).
+ *
+ * **Пустой pathname → false:** при неизвестном маршруте layout не делает редирект по tier, чтобы не
+ * отправлять на bind-phone пользователя с главного `/app/patient`, если заголовок не проброшен.
+ * В штатной навигации pathname задаёт `middleware` (`x-bc-pathname`); иначе — fallback `Referer` в
+ * {@link resolvePatientLayoutPathname}. Оставшиеся краевые случаи и унификация с API-guards — фаза D
+ * (единый route & API policy). При `need_activation` и `pathname === ""` layout логирует предупреждение.
  */
 export function patientPathRequiresBoundPhone(pathname: string): boolean {
   if (!pathname || !pathname.startsWith("/app/patient")) {

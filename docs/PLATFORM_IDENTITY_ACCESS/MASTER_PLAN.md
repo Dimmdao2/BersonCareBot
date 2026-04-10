@@ -87,6 +87,8 @@
 
 ### Фаза D — Route & API policy (единый модуль)
 
+**Предусловия (готовность после C / C.02):** фазы **C** и **C.02** по §5 закрыты; общий patient business gate и booking API выровнены (`patientClientBusinessGate`, `requirePatientApiBusinessAccess`); см. [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) §11 «Предусловия перед EXEC фазы D». Перед пушем изменений по D — `pnpm run ci`.
+
 - Реализовать модуль **route & API policy**: whitelist guest / onboarding / patient для **страниц** (`/app/patient/*`) и **те же правила** для **API** и **server actions** через тот же access context.
 - Вытеснить разрозненные guards и точечные `phone`-проверки в patient-контуре.
 - Runbook-заметки при необходимости — дополнение к решению, не замена архитектурного выбора по `tg:…` (см. фазу C).

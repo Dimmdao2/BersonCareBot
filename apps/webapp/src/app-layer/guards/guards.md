@@ -12,6 +12,8 @@
 - **patientPathRequiresBoundPhone** (`patientPhonePolicy.ts`) + **middleware** (`x-bc-pathname` / `x-bc-search`) + **`app/app/patient/layout.tsx`** — для `client` при `DATABASE_URL` редирект согласован с **tier** (`patientClientBusinessGate`); без БД — прежняя логика по snapshot `session.user.phone` + allowlist. Кабинет, дневник, напоминания, запись, покупки и т.д. вне allowlist — только при бизнес-доступе пациента.
 - **getOptionalPatientSession** — возвращает сессию или null; редирект только при роли не-пациент. Для главного меню пациента, скорой помощи, уроков, контента — разрешён просмотр без входа (гость).
 
+**До фазы D:** часть RSC (кабинет, дневник, покупки, визард записи) комбинирует **`getOptionalPatientSession`** + **`patientHasPhoneOrMessenger`** с гостевым UI; разграничение по tier для маршрутов вне allowlist — в **`patient/layout.tsx`**; мутации — через API с **`requirePatientApiBusinessAccess`**. Профиль (`/app/patient/profile`) — **`requirePatientAccess`** по продуктовому allowlist, не **`requirePatientAccessWithPhone`**.
+
 Используются в серверных компонентах и серверных действиях (actions).
 
 ## Защита в глубину (пациент + телефон)

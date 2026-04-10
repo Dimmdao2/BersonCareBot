@@ -1,5 +1,7 @@
 "use server";
 
+/** Действия профиля — как страница: allowlist onboarding (`requirePatientAccess`), не tier-gate; фаза D может унифицировать с route policy. */
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
