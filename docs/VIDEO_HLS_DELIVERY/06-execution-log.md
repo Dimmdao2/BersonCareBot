@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-04-10 — Коммит и push (этап A завершён)
+
+- Коммит `docs: add VIDEO_HLS_DELIVERY plan for HLS dual delivery migration` на ветку `main`.
+- Локально выполнен полный `pnpm run ci` (lint, typecheck, test, test:webapp, build, audit) — успешно.
+- `git push origin main` выполнен.
+
+---
+
 ## 2026-04-10 — Инициализация пакета документации (этап A)
 
 **Проанализировано**
