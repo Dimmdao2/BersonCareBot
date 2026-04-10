@@ -21,6 +21,7 @@
 - **Rubitime: вебхук, журнал `rubitime_events`, ФИО, статусы 0–7, проекция:** `ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`
 - **Platform User Merge & Dedup:** архитектура `ARCHITECTURE/PLATFORM_USER_MERGE.md` · журнал `REPORTS/USER_MERGE_EXECUTION_LOG.md`
 - **Platform User Merge v2 (integrator canonical merge, снятие blocker двух `integrator_user_id`):** `PLATFORM_USER_MERGE_V2/MASTER_PLAN.md` · журнал `PLATFORM_USER_MERGE_V2/AGENT_EXECUTION_LOG.md` · runbook `PLATFORM_USER_MERGE_V2/CUTOVER_RUNBOOK.md`
+- **Video: переход на HLS (dual delivery с MP4, без простоя):** `VIDEO_HLS_DELIVERY/00-master-plan.md` · оглавление `VIDEO_HLS_DELIVERY/README.md` · журнал `VIDEO_HLS_DELIVERY/06-execution-log.md`
 
 ## Архив
 

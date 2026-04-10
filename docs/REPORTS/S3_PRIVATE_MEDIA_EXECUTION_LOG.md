@@ -114,3 +114,7 @@ systemctl is-active cron
 - [x] Unit-тесты обновлены; прогнан `pnpm run ci`
 - [x] `api.md` обновлён
 - [x] Этот отчёт
+
+## Связанные инициативы
+
+- План **HLS dual delivery** (сохранение private S3 и presigned URL; расширение артефактов и playback API): `docs/VIDEO_HLS_DELIVERY/00-master-plan.md`.
