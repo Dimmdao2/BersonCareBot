@@ -155,6 +155,7 @@
 
 1. `page.tsx` — Server Component:
    - Получить optional session (`getOptionalPatientSession`).
+   - Если на шаге появятся **серверные** запросы в БД по `userId` (персональные данные), перед ними вызывать **`patientRscPersonalDataGate`** (`apps/webapp/src/app-layer/guards/requireRole.ts`) — см. `docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md` §7. Текущий визард без таких запросов ограничивается optional session.
    - Если нет сессии → redirect на `routePaths.patient` (или показать `CabinetGuestAccess` — на усмотрение, аналогично cabinet).
    - Рендерить `BookingWizardShell step={1} title="Запись на приём" backHref={routePaths.cabinet}`.
    - Внутри — `<FormatStepClient />`.

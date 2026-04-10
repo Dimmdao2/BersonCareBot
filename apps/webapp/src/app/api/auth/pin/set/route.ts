@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { hashPin } from "@/modules/auth/pinHash";
 import { isPinSetRateLimited } from "@/modules/auth/pinSetRateLimit";
-import { getCurrentSession } from "@/modules/auth/service";
 
 const bodySchema = z.object({
   pin: z.string().regex(/^\d{4}$/),
@@ -11,13 +12,9 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session?.user) {
-    return NextResponse.json(
-      { ok: false, error: "unauthorized", message: "Требуется вход" },
-      { status: 401 }
-    );
-  }
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.profile });
+  if (!gate.ok) return gate.response;
+  const { session } = gate;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);

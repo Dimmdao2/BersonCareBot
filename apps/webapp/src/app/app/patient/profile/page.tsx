@@ -25,7 +25,7 @@ function maskPhoneTail(phone: string | null | undefined): string | null {
   return tail ? `•••• ${tail}` : phone;
 }
 
-/** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientPhonePolicy.ts` PREFIX_ALLOWLIST и §11 SCENARIOS (остаток к фазе D). */
+/** Профиль в onboarding-allowlist: `requirePatientAccess`, не `WithPhone` — см. `patientRouteApiPolicy.ts` (`patientPageMinAccessTier` → onboarding). */
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
   const platformEntry = await getPlatformEntry();

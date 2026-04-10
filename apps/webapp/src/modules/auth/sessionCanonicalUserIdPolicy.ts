@@ -26,6 +26,7 @@
  * **Server patient business:** Route Handlers под `/api/patient/*`, **`/api/booking/*`** и server actions с
  * `requirePatientAccessWithPhone` требуют `tier === "patient"` через **`patientClientBusinessGate`**
  * (`platform-access/patientClientBusinessGate.ts` → `resolvePlatformAccessContext`) при наличии `DATABASE_URL`.
+ * RSC с чтением персональных данных из БД — **`patientRscPersonalDataGate`** в `app-layer/guards/requireRole.ts`.
  */
 
 import type { PlatformAccessResolution } from "@/modules/platform-access/types";

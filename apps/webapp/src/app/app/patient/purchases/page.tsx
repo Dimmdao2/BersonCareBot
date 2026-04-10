@@ -5,18 +5,26 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
-import { patientHasPhoneOrMessenger, PurchasesGuestAccess } from "@/shared/ui/patient/guestAccess";
+import { PurchasesGuestAccess } from "@/shared/ui/patient/guestAccess";
 
 /** Рендерит страницу покупок: hero с описанием и блок «Курсы, доступы и подписки» с empty-state. */
 export default async function PurchasesPage() {
   const session = await getOptionalPatientSession();
-  if (!session || !patientHasPhoneOrMessenger(session)) {
+  if (!session) {
     return (
-      <AppShell title="Мои покупки" user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">
-        <PurchasesGuestAccess session={session} />
+      <AppShell title="Мои покупки" user={null} backHref="/app/patient" backLabel="Меню" variant="patient">
+        <PurchasesGuestAccess session={null} />
+      </AppShell>
+    );
+  }
+  const dataGate = await patientRscPersonalDataGate(session, routePaths.purchases);
+  if (dataGate === "guest") {
+    return (
+      <AppShell title="Мои покупки" user={session.user} backHref="/app/patient" backLabel="Меню" variant="patient">
+        <PurchasesGuestAccess session={session} rscGuestTier />
       </AppShell>
     );
   }

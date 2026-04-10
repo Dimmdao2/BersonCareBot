@@ -652,4 +652,6 @@ Gate verdict:
 - PASS
 Notes:
 - Редирект по телефону в layout не срабатывает при пустом `x-bc-pathname` (см. `guards.md`).
+- (2026-04-10, фаза D PLATFORM_IDENTITY_ACCESS) каноническая политика маршрутов — `apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts`; shim `patientPhonePolicy.ts`.
+- (2026-04-11, фаза D PLATFORM_IDENTITY_ACCESS) RSC: `patientRscPersonalDataGate` в `apps/webapp/src/app-layer/guards/requireRole.ts` — чтение персональных данных из БД на страницах пациента с тем же `patientClientBusinessGate`, что API; см. `docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md` §7.
 ```

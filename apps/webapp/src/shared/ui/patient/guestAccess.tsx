@@ -1,4 +1,5 @@
 import { routePaths } from "@/app-layer/routes/paths";
+import { patientSessionSnapshotHasPhone } from "@/modules/platform-access";
 import type { AppSession } from "@/shared/types/session";
 import { GuestPlaceholder } from "@/shared/ui/GuestPlaceholder";
 
@@ -28,9 +29,12 @@ export function CabinetGuestAccess({ session }: { session: AppSession | null }) 
   );
 }
 
-/** Подтверждённый нормализованный телефон в webapp (для дневника и др.). */
+/**
+ * Только snapshot телефона в cookie-сессии (для копирайта заглушек). Не заменяет tier: персональные данные из БД
+ * на RSC отсекайте через `patientRscPersonalDataGate` (`app-layer/guards/requireRole.ts`) до любых запросов по `userId`.
+ */
 export function patientHasPhoneOrMessenger(session: AppSession): boolean {
-  return Boolean(session.user.phone?.trim());
+  return patientSessionSnapshotHasPhone(session);
 }
 
 type DiaryGateProps = {
@@ -68,8 +72,15 @@ export function DiarySectionGuestAccess({
   );
 }
 
-export function PurchasesGuestAccess({ session }: { session: AppSession | null }) {
-  if (session && patientHasPhoneOrMessenger(session)) return null;
+/** @param rscGuestTier если true — RSC уже решил `patientRscPersonalDataGate` = guest; не скрывать плейсхолдер из‑за snapshot телефона. */
+export function PurchasesGuestAccess({
+  session,
+  rscGuestTier = false,
+}: {
+  session: AppSession | null;
+  rscGuestTier?: boolean;
+}) {
+  if (!rscGuestTier && session && patientHasPhoneOrMessenger(session)) return null;
   const next = encodeURIComponent(routePaths.purchases);
   if (!session) {
     return (

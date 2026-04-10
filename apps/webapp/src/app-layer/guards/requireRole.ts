@@ -37,6 +37,26 @@ export async function getOptionalPatientSession(): Promise<AppSession | null> {
   return session;
 }
 
+export type PatientRscPersonalDataGate = "guest" | "allow";
+
+/**
+ * RSC: можно ли грузить персональные данные из БД по `userId` — тот же критерий, что {@link patientClientBusinessGate} / API.
+ * Без сессии — `guest` (заглушки). `need_activation` — `guest`. `stale_session` — редирект на `/app?next=`.
+ */
+export async function patientRscPersonalDataGate(
+  session: AppSession | null,
+  returnTo: string,
+): Promise<PatientRscPersonalDataGate> {
+  if (!session) return "guest";
+  const g = await patientClientBusinessGate(session);
+  if (g === "stale_session") {
+    const next = encodeURIComponent(returnTo);
+    redirect(`${routePaths.root}?next=${next}`);
+  }
+  if (g !== "allow") return "guest";
+  return "allow";
+}
+
 export async function requireDoctorAccess(): Promise<AppSession> {
   const session = await requireSession();
   if (!canAccessDoctor(session.user.role)) redirect(routePaths.patient);
@@ -47,17 +67,6 @@ export async function requireDoctorAccess(): Promise<AppSession> {
 export function hasMessengerBinding(session: AppSession): boolean {
   const b = session.user.bindings;
   return Boolean(b.telegramId?.trim() || b.maxId?.trim() || b.vkId?.trim());
-}
-
-/**
- * Если у пациента нет привязанного телефона — редирект на страницу привязки с next=returnTo.
- * Предпочтительно {@link requirePatientBusinessTierOrRedirect} (tier patient из БД).
- */
-export function requirePatientPhone(session: AppSession, returnTo: string): void {
-  if (!session.user.phone?.trim()) {
-    const next = encodeURIComponent(returnTo);
-    redirect(`${routePaths.bindPhone}?next=${next}`);
-  }
 }
 
 async function requirePatientBusinessTierOrRedirect(session: AppSession, returnTo: string): Promise<void> {
@@ -84,8 +93,8 @@ function patientActivationRequiredJson(returnPath: string) {
 }
 
 /**
- * Для Route Handlers: пациент с **tier patient** из БД (или fallback на телефон в сессии без БД).
- * JSON 401/403 без redirect — не ломать fetch.
+ * Для Route Handlers под `/api/patient/*` и `/api/booking/*`: тот же критерий, что `requirePatientAccessWithPhone`
+ * (`patientClientBusinessGate`). Перечень patient-business API — `patientApiPathIsPatientBusinessSurface` в `patientRouteApiPolicy`.
  */
 export async function requirePatientApiBusinessAccess(options?: {
   /** Для redirectTo в теле 403 (по умолчанию главное меню пациента). */

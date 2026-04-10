@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { verifyPinForLogin } from "@/modules/auth/pinAuth";
-import { getCurrentSession, setDiaryPurgePinReauth } from "@/modules/auth/service";
-import { canAccessPatient } from "@/modules/roles/service";
+import { setDiaryPurgePinReauth } from "@/modules/auth/service";
 
 const bodySchema = z.object({
   pin: z.string().regex(/^\d{4}$/),
@@ -13,13 +14,9 @@ const bodySchema = z.object({
  * Подтверждение PIN при активной сессии (для опасных действий, напр. удаление дневников).
  */
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session?.user) {
-    return NextResponse.json({ ok: false, error: "unauthorized", message: "Требуется вход" }, { status: 401 });
-  }
-  if (!canAccessPatient(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden", message: "Доступ запрещён" }, { status: 403 });
-  }
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.diary });
+  if (!gate.ok) return gate.response;
+  const { session } = gate;
 
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);

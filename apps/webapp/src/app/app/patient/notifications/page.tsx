@@ -1,10 +1,10 @@
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
-import { NotificationsGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui/patient/guestAccess";
+import { NotificationsGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { ChannelNotificationToggles } from "./ChannelNotificationToggles";
 import { SubscriptionsList } from "./SubscriptionsList";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
@@ -18,7 +18,8 @@ const SUBSCRIPTIONS = [
 
 export default async function NotificationsPage() {
   const session = await getOptionalPatientSession();
-  if (!session || !patientHasPhoneOrMessenger(session)) {
+  const dataGate = await patientRscPersonalDataGate(session, routePaths.notifications);
+  if (dataGate === "guest") {
     return (
       <AppShell
         title="Подписки на уведомления"
@@ -32,16 +33,17 @@ export default async function NotificationsPage() {
     );
   }
 
+  const s = session!;
   const deps = buildAppDeps();
   const supportContactHref = await getSupportContactUrl();
-  const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
+  const emailFields = await deps.userProjection.getProfileEmailFields(s.user.userId);
   const emailVerified = Boolean(emailFields.emailVerifiedAt);
 
   const channelCards = await deps.channelPreferences.getChannelCards(
-    session.user.userId,
-    session.user.bindings,
+    s.user.userId,
+    s.user.bindings,
     {
-      phone: session.user.phone,
+      phone: s.user.phone,
       emailVerified,
     }
   );
@@ -49,7 +51,7 @@ export default async function NotificationsPage() {
   return (
     <AppShell
       title="Подписки на уведомления"
-      user={session.user}
+      user={s.user}
       backHref={routePaths.patient}
       backLabel="Меню"
       variant="patient"

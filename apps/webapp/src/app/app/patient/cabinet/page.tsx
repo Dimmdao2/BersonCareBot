@@ -3,9 +3,9 @@
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { CabinetGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui/patient/guestAccess";
+import { CabinetGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { AppShell } from "@/shared/ui/AppShell";
 import { CabinetActiveBookings } from "./CabinetActiveBookings";
 import { CabinetInfoLinks } from "./CabinetInfoLinks";
@@ -18,8 +18,9 @@ import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimez
 
 export default async function PatientCabinetPage() {
   const session = await getOptionalPatientSession();
+  const dataGate = await patientRscPersonalDataGate(session, routePaths.cabinet);
 
-  if (!session || !patientHasPhoneOrMessenger(session)) {
+  if (dataGate === "guest") {
     return (
       <AppShell
         title="Мои приёмы"
@@ -33,19 +34,20 @@ export default async function PatientCabinetPage() {
     );
   }
 
+  const s = session!;
   const deps = buildAppDeps();
-  const records = await deps.patientBooking.listMyBookings(session.user.userId);
-  const projectionPast = await deps.patientCabinet.getPastAppointments(session.user.userId);
+  const records = await deps.patientBooking.listMyBookings(s.user.userId);
+  const projectionPast = await deps.patientCabinet.getPastAppointments(s.user.userId);
   const pastItems = mergePastBookingHistory(records.history, projectionPast);
 
   const intakeService = getOnlineIntakeService();
-  const intakeResult = await intakeService.listMyRequests({ userId: session.user.userId, limit: 10 }).catch(() => ({ items: [] }));
+  const intakeResult = await intakeService.listMyRequests({ userId: s.user.userId, limit: 10 }).catch(() => ({ items: [] }));
   const appDisplayTimeZone = await getAppDisplayTimeZone();
 
   return (
     <AppShell
       title="Мои приёмы"
-      user={session.user}
+      user={s.user}
       backHref={routePaths.patient}
       backLabel="Меню"
       variant="patient"

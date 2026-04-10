@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
-import { DiarySectionGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui/patient/guestAccess";
+import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -22,7 +22,8 @@ export default async function LfkJournalPage({
 }) {
   const sp = await searchParams;
   const session = await getOptionalPatientSession();
-  if (!session || !patientHasPhoneOrMessenger(session)) {
+  const dataGate = await patientRscPersonalDataGate(session, routePaths.diaryLfkJournal);
+  if (dataGate === "guest") {
     return (
       <AppShell
         title="Журнал ЛФК"
@@ -40,13 +41,14 @@ export default async function LfkJournalPage({
     );
   }
 
+  const s = session!;
   const monthRaw = typeof sp.month === "string" ? sp.month : undefined;
   const complexIdRaw = typeof sp.complexId === "string" ? sp.complexId.trim() : "";
   const period = parseStatsPeriod(typeof sp.period === "string" ? sp.period : undefined);
   const offset = parseOffset(typeof sp.offset === "string" ? sp.offset : undefined);
 
   const deps = buildAppDeps();
-  const userId = session.user.userId;
+  const userId = s.user.userId;
 
   const complexes = await deps.diaries.listLfkComplexes(userId);
   const cid =
@@ -65,7 +67,7 @@ export default async function LfkJournalPage({
     return (
       <AppShell
         title="Журнал ЛФК"
-        user={session.user}
+        user={s.user}
         backHref={routePaths.diary}
         backLabel="Дневник"
         variant="patient"
@@ -97,7 +99,7 @@ export default async function LfkJournalPage({
   return (
     <AppShell
       title="Журнал ЛФК"
-      user={session.user}
+      user={s.user}
       backHref={`${routePaths.diary}?tab=lfk`}
       backLabel="Дневник"
       variant="patient"

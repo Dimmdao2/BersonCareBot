@@ -8,3 +8,5 @@
 - **lfk/** — страница дневника ЛФК: список комплексов, форма «Отметить занятие» (выбор комплекса и кнопка), список отмеченных занятий. Добавление комплексов — через бота; отметку занятия можно сделать и здесь.
 
 Логика чтения/записи — в модулях `diaries` (symptom-service, lfk-service) и репозиториях в `infra/repos`.
+
+**RSC:** единая страница дневника и страницы журналов (`symptoms/journal`, `lfk/journal`) перед чтением из БД вызывают **`patientRscPersonalDataGate`** (`requireRole.ts`). Мутации — server actions с **`requirePatientAccessWithPhone`**.

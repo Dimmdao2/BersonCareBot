@@ -49,7 +49,7 @@ export const routePaths = {
 
 /**
  * Исторический список для документации. Фактическая политика: `patientPathRequiresBoundPhone`
- * (`app-layer/guards/patientPhonePolicy.ts`) и серверный `app/app/patient/layout.tsx`.
+ * (`modules/platform-access/patientRouteApiPolicy.ts`) и `app/app/patient/layout.tsx`.
  */
 export const patientPathsRequiringPhone: readonly string[] = [
   routePaths.purchases,

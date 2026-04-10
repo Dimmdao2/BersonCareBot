@@ -199,6 +199,10 @@ Runbook — только дополнение к архитектурному р
 
 Поиск по `apps/webapp` на остаточные `requirePatientAccess`, `getOptionalPatientSession`, разрозненные guards и прямые проверки телефона в patient-контуре; сверка с `SPECIFICATION.md` §4.
 
+**RSC:** любая страница под `/app/patient/*`, где после `getOptionalPatientSession` вызывается `buildAppDeps()` (или иной доступ к БД) по `userId` для персональных данных, должна сначала пройти **`patientRscPersonalDataGate`** (`requireRole.ts`) — иначе возможен обход tier при телефоне только в cookie-snapshot. См. `SCENARIOS_AND_CODE_MAP.md` §7.
+
+**Глубокий поэтапный аудит фазы D (опционально):** чек-лист и матрица RSC/API/layout/actions — отчёт `docs/PLATFORM_IDENTITY_ACCESS/PHASE_D_DEEP_AUDIT_REPORT.md`. После выявления зазоров — правки кода (например D-RSC-1 warmups, D-PUR-1 purchases), обновление §7 `SCENARIOS_AND_CODE_MAP.md`, §5 D `MASTER_PLAN.md`, строка в `AGENT_EXECUTION_LOG.md`, `pnpm run ci`.
+
 ---
 
 ## Фаза D — FIX

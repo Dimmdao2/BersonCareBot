@@ -16,6 +16,7 @@
 
 - **Админка `/app/settings` (вкладки, OAuth-доки):** журнал `SETTINGS_ADMIN_UI_TABS/EXECUTION_LOG.md`
 - **AUTH / вход (реструктуризация, см. также Mini App до контакта):** `AUTH_RESTRUCTURE/MASTER_PLAN.md` · журнал: `AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md` · гейт Mini App: `AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md` · **Telegram `/start`, онбординг, deep link:** `AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md`
+- **Platform Identity & Access (tier guest/onboarding/patient, канон, trusted phone, route/API/RSC policy):** `PLATFORM_IDENTITY_ACCESS/README.md` · план `PLATFORM_IDENTITY_ACCESS/MASTER_PLAN.md` · спецификация `PLATFORM_IDENTITY_ACCESS/SPECIFICATION.md` · сценарии и карта кода `PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md` · журнал `PLATFORM_IDENTITY_ACCESS/AGENT_EXECUTION_LOG.md` · глубокий аудит фазы D и вердикт после D-FIX: `PLATFORM_IDENTITY_ACCESS/PHASE_D_DEEP_AUDIT_REPORT.md` · промпты EXEC/AUDIT/FIX: `PLATFORM_IDENTITY_ACCESS/PROMPTS_EXEC_AUDIT_FIX_GLOBAL.md`
 - **UTC и timezone (Rubitime, филиалы, отображение):** `TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md`  
   Журнал: `TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md` · Глобальный аудит: `TIMEZONE_UTC_NORMALIZATION/AUDIT_GLOBAL.md`
 - **Rubitime: вебхук, журнал `rubitime_events`, ФИО, статусы 0–7, проекция:** `ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`

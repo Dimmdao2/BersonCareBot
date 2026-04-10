@@ -7,7 +7,8 @@
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { patientHomeBlocksForEntry, type HomeBlockId } from "@/app-layer/routes/navigation";
 import {
   getHomeNews,
@@ -32,6 +33,9 @@ export default async function PatientHomePage() {
     getPlatformEntry(),
   ]);
 
+  const dataGate = await patientRscPersonalDataGate(session, routePaths.patient);
+  const personalDataOk = dataGate === "allow";
+
   const blocks = new Set<HomeBlockId>(patientHomeBlocksForEntry(platformEntry));
 
   const deps = buildAppDeps();
@@ -42,12 +46,12 @@ export default async function PatientHomePage() {
     logServerRuntimeError("app/patient/home", err);
   }
   const emailFields =
-    session?.user != null
+    personalDataOk && session?.user != null
       ? await deps.userProjection.getProfileEmailFields(session.user.userId)
       : null;
 
   const channelCards =
-    session?.user != null && blocks.has("channels")
+    personalDataOk && session?.user != null && blocks.has("channels")
       ? await deps.channelPreferences.getChannelCards(
           session.user.userId,
           session.user.bindings,
@@ -61,7 +65,7 @@ export default async function PatientHomePage() {
   const [homeNews, banner, mailings, motivationQuote] = await Promise.all([
     blocks.has("news") ? getHomeNews() : Promise.resolve(null),
     blocks.has("news") ? getPatientHomeBannerTopic() : Promise.resolve(null),
-    blocks.has("mailings") && session?.user
+    personalDataOk && blocks.has("mailings") && session?.user
       ? listRecentMailingLogsForPlatformUser(session.user.userId)
       : Promise.resolve([]),
     blocks.has("motivation")
@@ -69,7 +73,7 @@ export default async function PatientHomePage() {
       : Promise.resolve(null),
   ]);
 
-  if (session?.user && homeNews) {
+  if (personalDataOk && session?.user && homeNews) {
     void incrementNewsViews(homeNews.id, session.user.userId);
   }
 
@@ -82,7 +86,7 @@ export default async function PatientHomePage() {
         {blocks.has("news") ? (
           <PatientHomeNewsSection news={homeNews} banner={banner} />
         ) : null}
-        {blocks.has("mailings") && session?.user && mailings.length > 0 ? (
+        {personalDataOk && blocks.has("mailings") && session?.user && mailings.length > 0 ? (
           <PatientHomeMailingsSection userId={session.user.userId} items={mailings} />
         ) : null}
         {blocks.has("motivation") ? (

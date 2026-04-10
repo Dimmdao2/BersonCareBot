@@ -10,4 +10,4 @@
 - модальный/нижний flow записи на приём (категория -> дата -> слот -> подтверждение),
 - аккордеон истории прошедших приёмов.
 
-Данные берутся из `deps.patientBooking.listMyBookings`, слоты/создание/отмена работают через `/api/booking/*`.
+Серверный рендер: перед `deps.patientBooking` / intake — **`patientRscPersonalDataGate`** (`requireRole.ts`), иначе при onboarding и телефоне только в cookie-snapshot данные не запрашиваются (guest-заглушка). Слоты/создание/отмена — через `/api/booking/*` с **`requirePatientApiBusinessAccess`**.

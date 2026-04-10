@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { patientPathRequiresBoundPhone, resolvePatientLayoutPathname } from "@/app-layer/guards/patientPhonePolicy";
+import { patientPathRequiresBoundPhone, resolvePatientLayoutPathname } from "@/modules/platform-access";
 import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
 import { getCurrentSession } from "@/modules/auth/service";

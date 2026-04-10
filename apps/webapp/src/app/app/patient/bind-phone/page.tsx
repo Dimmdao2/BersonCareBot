@@ -7,6 +7,7 @@
 import { redirect } from "next/navigation";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
+import { patientSessionSnapshotHasPhone } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
@@ -15,7 +16,7 @@ type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
 
 export default async function BindPhonePage({ searchParams }: Props) {
   const session = await requirePatientAccess();
-  if (session.user.phone?.trim()) {
+  if (patientSessionSnapshotHasPhone(session)) {
     const { next } = await searchParams;
     const target = next?.trim();
     redirect(target && target.startsWith("/app/patient") ? target : routePaths.patient);

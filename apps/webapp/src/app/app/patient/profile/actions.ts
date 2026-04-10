@@ -1,6 +1,6 @@
 "use server";
 
-/** Действия профиля — как страница: allowlist onboarding (`requirePatientAccess`), не tier-gate; фаза D может унифицировать с route policy. */
+/** Действия профиля — onboarding surface (`patientServerActionPageAllowsOnboardingOnly` / SPEC §4 активация). */
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";

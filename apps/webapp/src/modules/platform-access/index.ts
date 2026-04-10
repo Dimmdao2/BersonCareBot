@@ -8,3 +8,14 @@ export {
 } from "./trustedPhonePolicy";
 export { resolvePlatformAccessContext, type ResolvePlatformAccessContextInput } from "./resolvePlatformAccessContext";
 export { patientClientBusinessGate, type PatientBusinessGate } from "./patientClientBusinessGate";
+export {
+  type HeaderGetter,
+  PATIENT_BUSINESS_API_PREFIXES,
+  PATIENT_ONBOARDING_SERVER_ACTION_PAGE_PREFIXES,
+  patientApiPathIsPatientBusinessSurface,
+  patientPageMinAccessTier,
+  patientPathRequiresBoundPhone,
+  patientServerActionPageAllowsOnboardingOnly,
+  patientSessionSnapshotHasPhone,
+  resolvePatientLayoutPathname,
+} from "./patientRouteApiPolicy";

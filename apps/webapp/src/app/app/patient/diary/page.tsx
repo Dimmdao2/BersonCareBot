@@ -3,9 +3,9 @@
  */
 import { Suspense } from "react";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { DiarySectionGuestAccess, patientHasPhoneOrMessenger } from "@/shared/ui/patient/guestAccess";
+import { DiarySectionGuestAccess } from "@/shared/ui/patient/guestAccess";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/shared/ui/AppShell";
 import { SymptomsTrackingSectionClient } from "./symptoms/SymptomsTrackingSectionClient";
@@ -22,7 +22,8 @@ const EMPTY_STATS =
 
 export default async function PatientDiaryPage() {
   const session = await getOptionalPatientSession();
-  if (!session || !patientHasPhoneOrMessenger(session)) {
+  const dataGate = await patientRscPersonalDataGate(session, routePaths.diary);
+  if (dataGate === "guest") {
     return (
       <AppShell
         title="Дневник"
@@ -35,11 +36,12 @@ export default async function PatientDiaryPage() {
       </AppShell>
     );
   }
+  const s = session!;
   const deps = buildAppDeps();
-  const trackings = await deps.diaries.listSymptomTrackings(session.user.userId);
+  const trackings = await deps.diaries.listSymptomTrackings(s.user.userId);
   const [complexes, reminderRules] = await Promise.all([
-    deps.diaries.listLfkComplexes(session.user.userId),
-    deps.reminders.listRulesByUser(session.user.userId),
+    deps.diaries.listLfkComplexes(s.user.userId),
+    deps.reminders.listRulesByUser(s.user.userId),
   ]);
 
   const remindersByComplexId: Record<string, ReturnType<typeof reminderRuleToPatientJson>> = {};
@@ -112,7 +114,7 @@ export default async function PatientDiaryPage() {
   return (
     <AppShell
       title="Дневник"
-      user={session.user}
+      user={s.user}
       backHref="/app/patient"
       backLabel="Меню"
       variant="patient"

@@ -74,7 +74,7 @@
 
 1. **Запись на приём (booking)** — все Route Handlers под `apps/webapp/src/app/api/booking/**/*.ts`, выполняющие действия или выдачу данных **от имени пациента** (`create`, `cancel`, `my`, `slots`, `catalog/cities`, `catalog/services` и т.д. по факту дерева): заменить связку «только `getCurrentSession` + `canAccessPatient`» на **тот же** gate, что и `requirePatientApiSessionWithPhone` (или общий экспортируемый helper с идентичной семантикой JSON 401/403).
 2. **Общий helper без дублирования** — либо экспортировать из `apps/webapp/src/app-layer/guards/requireRole.ts` обёртку уровня patient business API (на базе существующего `patientClientBusinessGate`), либо вынести тонкую функцию в `apps/webapp/src/modules/platform-access/` и вызывать из guards и из booking; **не** плодить третью копию условий tier/phone.
-3. **`app/app/patient/layout.tsx`** — для роли `client` при `DATABASE_URL` согласовать редирект с **tier** (или делегировать в один helper с `requirePatientBusinessTierOrRedirect` / эквивалент), а не полагаться **только** на snapshot `session.user.phone` для путей вне allowlist (`apps/webapp/src/app-layer/guards/patientPhonePolicy.ts`).
+3. **`app/app/patient/layout.tsx`** — для роли `client` при `DATABASE_URL` согласовать редирект с **tier** (или делегировать в один helper с `requirePatientBusinessTierOrRedirect` / эквивалент), а не полагаться **только** на snapshot `session.user.phone` для путей вне allowlist (`apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts`).
 4. **RSC под `/app/patient/*`**, где после `requirePatientAccess` идут запросы в БД по `userId`, а связанные server actions уже на `requirePatientAccessWithPhone` — устранить рассинхрон: усилить layout (п.3) и/или заменить guard на странице на тот же критерий, что и бизнес-действия (например напоминания, профиль, сообщения — сверка по факту grep).
 
 **Документация инициативы:** обновить [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) §7 (политика API), §11 чек-лист — явные пункты **booking API**, **patient layout / RSC vs tier**; при закрытии — строка в [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) («закрыт хвост C.02: booking + layout/RSC»). [`MASTER_PLAN.md`](MASTER_PLAN.md) §5 D / DoD §4 — при необходимости отметить, что C.02 снял часть дублирования до ввода полного модуля route & API policy.
@@ -92,6 +92,12 @@
 - Реализовать модуль **route & API policy**: whitelist guest / onboarding / patient для **страниц** (`/app/patient/*`) и **те же правила** для **API** и **server actions** через тот же access context.
 - Вытеснить разрозненные guards и точечные `phone`-проверки в patient-контуре.
 - Runbook-заметки при необходимости — дополнение к решению, не замена архитектурного выбора по `tg:…` (см. фазу C).
+
+**Статус (2026-04-10):** `patientRouteApiPolicy.ts` в `platform-access`; whitelist навигации согласован с RSC (кабинет, booking, diary, purchases, notifications); `patientSessionSnapshotHasPhone` для UI; API/actions по-прежнему через `patientClientBusinessGate` + guards; runbook legacy — `SCENARIOS_AND_CODE_MAP.md` §2.
+
+**Статус (2026-04-11, FIX повторного аудита RSC):** перед чтением персональных данных из БД на RSC (кабинет, единый дневник, журналы ЛФК/симптомов, уведомления, персональные блоки главной) используется **`patientRscPersonalDataGate`** в `apps/webapp/src/app-layer/guards/requireRole.ts` — тот же **`patientClientBusinessGate`**, что у patient-business API; см. `SCENARIOS_AND_CODE_MAP.md` §7, `AGENT_EXECUTION_LOG.md`.
+
+**Статус (2026-04-11, D-FIX глубокого аудита фазы D):** закрыты зазоры из [`PHASE_D_DEEP_AUDIT_REPORT.md`](PHASE_D_DEEP_AUDIT_REPORT.md): **`/app/patient/sections/warmups`** — `patientRscPersonalDataGate` перед `listRulesByUser` и персональным баром; **`/app/patient/purchases`** — тот же gate вместо ветвления по snapshot (`PurchasesGuestAccess` с `rscGuestTier` при расхождении snapshot и tier); удалён неиспользуемый **`requirePatientPhone`**. Техдолг **D-SA-1** (runtime whitelist server actions по pathname) задокументирован в JSDoc `patientRouteApiPolicy.ts`. Опционально к фазе **E**: тест **D-TST-1** (warmups RSC + onboarding).
 
 ### Фаза E — Тесты, наблюдаемость, документация
 
