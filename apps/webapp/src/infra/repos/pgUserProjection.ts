@@ -255,8 +255,9 @@ async function ensureAppointmentClientTx(
     [params.phoneNormalized],
   );
   if (byPhone.rows.length > 1) {
-    console.error("[ensureClientFromAppointmentProjection] duplicate canonical phone rows", {
-      phone: params.phoneNormalized,
+    console.error("[ensureClientFromAppointmentProjection] duplicate canonical phone rows (redacted)", {
+      count: byPhone.rows.length,
+      ids: byPhone.rows.map((r) => r.id),
     });
     throw new MergeConflictError("multiple canonical users for phone", byPhone.rows.map(r => r.id));
   }

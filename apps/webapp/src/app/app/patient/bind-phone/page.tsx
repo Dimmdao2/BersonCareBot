@@ -7,7 +7,9 @@
 import { redirect } from "next/navigation";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientSessionSnapshotHasPhone } from "@/modules/platform-access";
+import { env } from "@/config/env";
+import { getPool } from "@/infra/db/client";
+import { patientSessionSnapshotHasPhone, resolvePlatformAccessContext } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
 import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
@@ -16,7 +18,24 @@ type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
 
 export default async function BindPhonePage({ searchParams }: Props) {
   const session = await requirePatientAccess();
-  if (patientSessionSnapshotHasPhone(session)) {
+
+  /** SPEC §11 / `patientClientBusinessGate`: при БД — tier **patient** (доверенный телефон), не snapshot в cookie. */
+  let skipBindSurface = false;
+  if (env.DATABASE_URL?.trim()) {
+    try {
+      const ctx = await resolvePlatformAccessContext(getPool(), {
+        sessionUserId: session.user.userId,
+        sessionRoleHint: session.user.role,
+      });
+      skipBindSurface = ctx.tier === "patient";
+    } catch {
+      skipBindSurface = patientSessionSnapshotHasPhone(session);
+    }
+  } else {
+    skipBindSurface = patientSessionSnapshotHasPhone(session);
+  }
+
+  if (skipBindSurface) {
     const { next } = await searchParams;
     const target = next?.trim();
     redirect(target && target.startsWith("/app/patient") ? target : routePaths.patient);

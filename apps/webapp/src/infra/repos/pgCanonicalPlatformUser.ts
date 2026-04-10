@@ -78,8 +78,8 @@ export async function findCanonicalUserIdByPhone(
   );
   if (r.rows.length === 0) return null;
   if (r.rows.length > 1) {
-    console.error("[canonical] multiple canonical rows for phone", {
-      phoneNormalized,
+    console.error("[canonical] multiple canonical rows for phone (redacted)", {
+      count: r.rows.length,
       ids: r.rows.map((x) => x.id),
     });
     return null;
