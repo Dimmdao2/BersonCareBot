@@ -3,6 +3,10 @@ import { logger } from "@/infra/logging/logger";
 import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
 import { assertManualMergeResolutionIds } from "@/infra/repos/manualMergeResolution";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
+import {
+  TrustedPatientPhoneSource,
+  trustedPatientPhoneWriteAnchor,
+} from "@/modules/platform-access/trustedPhonePolicy";
 
 export type MergePlatformUsersReason = "projection" | "phone_bind" | "manual";
 
@@ -26,6 +30,7 @@ type OauthRow = {
 type PuRow = {
   id: string;
   phone_normalized: string | null;
+  patient_phone_trust_at: Date | null;
   integrator_user_id: string | null;
   merged_into_id: string | null;
   display_name: string;
@@ -94,7 +99,7 @@ export async function mergePlatformUsersInTransaction(
   );
 
   const lockRes = await client.query<PuRow>(
-    `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, merged_into_id,
+    `SELECT id, phone_normalized, patient_phone_trust_at, integrator_user_id::text AS integrator_user_id, merged_into_id,
             display_name, first_name, last_name, email, email_verified_at, role, created_at
      FROM platform_users
      WHERE id IN ($1::uuid, $2::uuid)
@@ -284,6 +289,7 @@ export async function mergePlatformUsersInTransaction(
       `UPDATE platform_users AS pu
        SET
          phone_normalized = CASE WHEN $3::text = 'target' THEN pu.phone_normalized ELSE dup.phone_normalized END,
+         patient_phone_trust_at = CASE WHEN $3::text = 'target' THEN pu.patient_phone_trust_at ELSE dup.patient_phone_trust_at END,
          integrator_user_id = COALESCE(pu.integrator_user_id, dup.integrator_user_id),
          display_name = CASE WHEN $4::text = 'target' THEN pu.display_name ELSE dup.display_name END,
          first_name = CASE WHEN $5::text = 'target' THEN pu.first_name ELSE dup.first_name END,
@@ -301,6 +307,16 @@ export async function mergePlatformUsersInTransaction(
       `UPDATE platform_users AS pu
        SET
          phone_normalized = COALESCE(pu.phone_normalized, dup.phone_normalized),
+         patient_phone_trust_at = CASE
+           WHEN trim(COALESCE(pu.phone_normalized, dup.phone_normalized, '')) = '' THEN NULL
+           WHEN pu.phone_normalized IS NOT NULL
+             AND dup.phone_normalized IS NOT NULL
+             AND pu.phone_normalized IS NOT DISTINCT FROM dup.phone_normalized
+             THEN (SELECT max(v) FROM (VALUES (pu.patient_phone_trust_at), (dup.patient_phone_trust_at)) AS t(v))
+           WHEN pu.phone_normalized IS NOT DISTINCT FROM COALESCE(pu.phone_normalized, dup.phone_normalized)
+             THEN pu.patient_phone_trust_at
+           ELSE dup.patient_phone_trust_at
+         END,
          integrator_user_id = COALESCE(pu.integrator_user_id, dup.integrator_user_id),
          display_name = CASE
            WHEN dup.display_name IS NOT NULL AND trim(dup.display_name) <> '' AND (pu.display_name IS NULL OR trim(pu.display_name) = '')
@@ -329,6 +345,7 @@ export async function mergePlatformUsersInTransaction(
   );
 
   logger.info({ targetId, duplicateId, reason }, "[merge] merged duplicate into target");
+  trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PlatformUserMerge);
   return { targetId, duplicateId };
 }
 

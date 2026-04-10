@@ -25,6 +25,7 @@
 | Подтягивание пользователя из БД для UUID | `resolveSessionUserAgainstDb` в том же файле → `pgUserByPhonePort.findByUserId` |
 | Типы `SessionUser`, `AppSession` | `apps/webapp/src/shared/types/session.ts` |
 | Текущий пользователь для `/api/me` | `apps/webapp/src/app/api/me/route.ts` + `apps/webapp/src/modules/users/service.ts` (`getCurrentUser`) |
+| **`platformAccess` (tier из БД по канону)** в JSON `/api/me` | Тот же `route.ts` → `resolvePlatformAccessContext` (`apps/webapp/src/modules/platform-access/`); при отсутствии `DATABASE_URL` или ошибке БД поле `null` |
 
 **Цель инициативы:** при **записи** сессии после логина в cookie должен попадать **канонический** `userId`, когда он уже известен; tier при каждом запросе — из БД по канону, а не «только из cookie».
 
@@ -103,14 +104,28 @@
 
 ---
 
-## 8. Trusted sources (зафиксировать в коде на фазе A)
+## 8. Trusted sources (фаза A — зафиксировано в коде)
 
-**Жёстко:** **не** любое место в коде, которое делает `UPDATE platform_users … phone_normalized`, автоматически считается **trusted source** для tier **patient**. Только явно зарегистрированные в **trusted phone policy** пути засчитывают активацию. Иначе разъезжается смысл «доверенный телефон» между репозиториями и админскими SQL.
+**Жёстко:** **не** любое место в коде, которое делает `UPDATE platform_users … phone_normalized`, автоматически считается **trusted source** для tier **patient**. На чтении tier опирается на колонку **`platform_users.patient_phone_trust_at`** (см. миграцию `apps/webapp/migrations/068_platform_users_patient_phone_trust.sql`): при непустом `phone_normalized` tier **patient** только если `patient_phone_trust_at IS NOT NULL`. Миграция **backfill** для уже существующих строк с телефоном выставляет метку времени (legacy, [`SPECIFICATION.md`](SPECIFICATION.md) §12).
 
-Минимальный состав для централизованного модуля «телефон засчитан для patient» (примерный каркас — расширять только через PR в политику):
+**Закрытый перечень в коде:** enum `TrustedPatientPhoneSource` в `apps/webapp/src/modules/platform-access/trustedPhonePolicy.ts` (расширять только через PR в политику + соответствующий writer в БД). Якорные вызовы `trustedPatientPhoneWriteAnchor(…)` стоят в перечисленных writers (grep по репозиторию) — на tier в рантайме не влияют, связывают код с enum для ревью.
 
-1. Успешный `createOrBind` после OTP (подтверждённый номер).
-2. Доверенные проекции: пути, которые выставляют `phone_normalized` через `pgUserProjection` / `updatePhone` из **проверенного** контура интегратора (закрытый перечень вызовов).
+**Read-side ([`SPECIFICATION.md`](SPECIFICATION.md) §5):** функция **`isTrustedPatientPhoneActivation`** в том же `trustedPhonePolicy.ts` — единственная точка решения «телефон на каноне засчитан для tier patient»; **`resolvePlatformAccessContext`** вызывает её при вычислении `phoneTrustedForPatient` / `tier` для `client`.
+
+**Mini App (клиент):** `apps/webapp/src/shared/lib/patientMessengerContactGate.ts` — если в ответе `/api/me` есть `platformAccess`, «номер есть» для снятия гейта контакта трактуется как **`tier === "patient"`**, а не только наличие `user.phone` (телефон в snapshot без доверия → onboarding).
+
+| Enum (`TrustedPatientPhoneSource`) | Где выставляется `patient_phone_trust_at` / доверие |
+|------------------------------------|-----------------------------------------------------|
+| `otp_create_or_bind` | `apps/webapp/src/infra/repos/pgUserByPhone.ts` — успешный `createOrBind` после OTP (`UPDATE … patient_phone_trust_at = now()`). |
+| `integrator_upsert_from_projection` | `apps/webapp/src/infra/repos/pgUserProjection.ts` — `upsertFromProjection` (INSERT с телефоном; UPDATE при непустом `phoneNormalized`). |
+| `integrator_ensure_client_from_appointment` | Тот же файл — `ensureClientFromAppointmentProjection` (INSERT/UPDATE с телефоном записи). |
+| `integrator_update_phone` | Тот же файл — `updatePhone`. |
+| `oauth_yandex_verified_phone` | `apps/webapp/src/modules/auth/oauthYandexResolve.ts` — INSERT нового пользователя с непустым нормализованным телефоном из Yandex. |
+| `platform_user_merge` | `apps/webapp/src/infra/repos/pgPlatformUserMerge.ts` — перенос/объединение `patient_phone_trust_at` при merge (auto + manual ветки `UPDATE platform_users AS pu`). |
+
+**Access context / tier (единая точка резолва):** `resolvePlatformAccessContext` в `apps/webapp/src/modules/platform-access/resolvePlatformAccessContext.ts`; контракт `PlatformAccessContext` — поля `dbRole` и **`tier`** (как в SPECIFICATION §3; для doctor/admin — `tier: null`). Типы — `apps/webapp/src/modules/platform-access/types.ts`. Публичный re-export: `apps/webapp/src/modules/platform-access/index.ts`.
+
+**Важно:** прочие писатели `phone_normalized` (скрипты в `apps/webapp/scripts/`, ручной SQL, новые репозитории) **не** считаются trusted, пока не добавлены в enum **и** не выставляют `patient_phone_trust_at` согласно решению в PR.
 
 Любое новое место, которое пишет телефон и должно влиять на patient-tier, **обязано** быть занесено в trusted policy **или** не влиять на tier до отдельного решения.
 
@@ -124,13 +139,15 @@
 
 ## 10. Чек-лист для агента/разработчика
 
-- [ ] Три модуля: access context/tier, trusted phone policy, route & API policy ([`MASTER_PLAN.md`](MASTER_PLAN.md) §2).
-- [ ] Резолв `{ canonicalUserId, dbRole, tier }`; для doctor/admin tier не смешивать с patient-политикой ([`SPECIFICATION.md`](SPECIFICATION.md) §3).
+**Фаза A (закрыта по контракту и точке истины):** модули access context + trusted policy; read-side `isTrustedPatientPhoneActivation`; `platformAccess` в `GET /api/me`; гейт Mini App учитывает `tier` при наличии `platformAccess`.
+
+- [ ] Три модуля: access context/tier, trusted phone policy, route & API policy ([`MASTER_PLAN.md`](MASTER_PLAN.md) §2). *(Два первых — фаза A; route & API policy — фаза D.)*
+- [x] Резолв `{ canonicalUserId, dbRole, tier }`; для doctor/admin tier не смешивать с patient-политикой ([`SPECIFICATION.md`](SPECIFICATION.md) §3).
 - [ ] Все штатные точки входа: канонический id в cookie **или** явная onboarding-only сессия без patient-доступа ([`MASTER_PLAN.md`](MASTER_PLAN.md) DoD §2).
 - [ ] API и server actions используют **тот же** access context, что и страницы; нет параллельных «только phone» проверок для бизнес-операций.
 - [ ] Onboarding: бизнес-действия запрещены на сервере вне серверного whitelist активации.
 - [ ] Решение по legacy `tg:…` задокументировано как архитектурное (фаза C), не только runbook.
-- [ ] Trusted phone: новые writers в БД не считаются trusted по умолчанию.
+- [x] Trusted phone: новые writers в БД не считаются trusted по умолчанию.
 - [ ] Наблюдаемость по §9.
 - [ ] Legacy `client` без телефона → onboarding.
 - [ ] `pnpm run ci` зелёный; тесты на сценарии §3–§6 + негативные API в onboarding.

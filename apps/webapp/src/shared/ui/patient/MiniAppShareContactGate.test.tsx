@@ -64,6 +64,47 @@ describe("MiniAppShareContactGate", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
+  it("shows gate when /api/me has phone but tier is onboarding (untrusted phone)", async () => {
+    globalThis.fetch = vi.fn(async (url: string | Request) => {
+      const u = typeof url === "string" ? url : (url as Request).url;
+      if (u.includes("/api/me")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            user: { phone: "+79990001122", bindings: { telegramId: "123" } },
+            platformAccess: {
+              canonicalUserId: "00000000-0000-4000-8000-000000000001",
+              dbRole: "client",
+              tier: "onboarding",
+              hasPhoneInDb: true,
+              phoneTrustedForPatient: false,
+              resolution: "resolved_canon",
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (u.includes("/api/auth/telegram-login/config")) {
+        return new Response(JSON.stringify({ ok: true, botUsername: "test_bot" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("", { status: 404 });
+    }) as typeof fetch;
+
+    render(
+      <MiniAppShareContactGate>
+        <div data-testid="inner">Inside</div>
+      </MiniAppShareContactGate>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("inner")).not.toBeInTheDocument();
+  });
+
   it("shows gate when telegram session has no phone", async () => {
     globalThis.fetch = vi.fn(async (url: string | Request) => {
       const u = typeof url === "string" ? url : (url as Request).url;

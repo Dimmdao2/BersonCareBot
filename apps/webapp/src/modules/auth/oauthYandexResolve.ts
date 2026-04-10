@@ -3,6 +3,10 @@ import { getPool } from "@/infra/db/client";
 import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 import type { OAuthBindingsPort } from "@/modules/auth/oauthBindingsPort";
+import {
+  TrustedPatientPhoneSource,
+  trustedPatientPhoneWriteAnchor,
+} from "@/modules/platform-access/trustedPhonePolicy";
 
 export type YandexOAuthResolveFailure =
   | "no_identity"      // Яндекс не вернул ни телефон, ни email
@@ -76,12 +80,20 @@ export async function resolveUserIdForYandexOAuth(
       const display = (input.displayName?.trim() || emailRaw || phoneNorm || "").slice(0, 500);
       const emailVerifiedAt = emailRaw ? new Date() : null;
       const ins = await pool.query<{ id: string }>(
-        `INSERT INTO platform_users (phone_normalized, display_name, email, email_verified_at, role)
-         VALUES ($1, $2, $3, $4, 'client')
+        `INSERT INTO platform_users (
+           phone_normalized, display_name, email, email_verified_at, role, patient_phone_trust_at
+         )
+         VALUES (
+           $1, $2, $3, $4, 'client',
+           CASE WHEN $1::text IS NOT NULL AND trim($1::text) <> '' THEN now() ELSE NULL END
+         )
          RETURNING id`,
         [phoneNorm, display, emailRaw, emailVerifiedAt],
       );
       userId = ins.rows[0].id;
+      if (phoneNorm) {
+        trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OAuthYandexVerifiedPhone);
+      }
     }
 
     const bind = await pool.query<{ user_id: string }>(

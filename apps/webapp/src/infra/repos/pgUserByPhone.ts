@@ -9,6 +9,10 @@ import { findCanonicalUserIdByPhone, resolveCanonicalUserId } from "@/infra/repo
 import { mergePlatformUsersInTransaction, pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
 import type { PoolClient } from "pg";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
+import {
+  TrustedPatientPhoneSource,
+  trustedPatientPhoneWriteAnchor,
+} from "@/modules/platform-access/trustedPhonePolicy";
 
 function rowToBindings(rows: { channel_code: string; external_id: string }[]): ChannelBindings {
   const bindings: ChannelBindings = {};
@@ -146,6 +150,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
           displayName,
           userId,
         ]);
+        trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
+        await client.query(
+          "UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid",
+          [userId],
+        );
         await client.query("COMMIT");
         return loadSessionUser(pool, userId);
       }
@@ -211,6 +220,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
         }
       }
 
+      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
+      await client.query(
+        "UPDATE platform_users SET patient_phone_trust_at = now(), updated_at = now() WHERE id = $1::uuid",
+        [userId],
+      );
       await client.query("COMMIT");
       return loadSessionUser(pool, userId);
     } catch (e) {

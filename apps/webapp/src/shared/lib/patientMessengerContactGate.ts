@@ -23,6 +23,9 @@ export async function getPatientMessengerContactGateDetail(): Promise<PatientMes
   const data = (await res.json().catch(() => ({}))) as {
     ok?: boolean;
     user?: { phone?: string | null; bindings?: { telegramId?: string | null; maxId?: string | null } };
+    platformAccess?: {
+      tier?: string | null;
+    } | null;
   };
   if (!data.ok || !data.user) {
     return { kind: "no_gate", hasTelegram: false, hasMax: false };
@@ -30,7 +33,10 @@ export async function getPatientMessengerContactGateDetail(): Promise<PatientMes
   const phone = data.user.phone?.trim();
   const hasTelegram = Boolean((data.user.bindings?.telegramId ?? "").trim());
   const hasMax = Boolean((data.user.bindings?.maxId ?? "").trim());
-  if (phone) {
+  /** Tier из БД (фаза A): patient только при доверенном телефоне; без поля — прежняя эвристика по `user.phone`. */
+  const patientTierOk =
+    data.platformAccess != null ? data.platformAccess.tier === "patient" : Boolean(phone);
+  if (patientTierOk) {
     return { kind: "no_gate", hasTelegram, hasMax };
   }
   if (hasTelegram || hasMax) {

@@ -2,6 +2,10 @@ import { getPool } from "@/infra/db/client";
 import { findCanonicalUserIdByChannelBinding } from "@/infra/repos/pgCanonicalPlatformUser";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import { mergePlatformUsersInTransaction, pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
+import {
+  TrustedPatientPhoneSource,
+  trustedPatientPhoneWriteAnchor,
+} from "@/modules/platform-access/trustedPhonePolicy";
 import type { PoolClient } from "pg";
 
 export type UserProjectionPort = {
@@ -163,8 +167,14 @@ async function upsertFromProjectionTx(
   if (candidateIds.length === 0) {
     const displayName = params.displayName ?? "";
     const ins = await client.query<{ id: string }>(
-      `INSERT INTO platform_users (integrator_user_id, phone_normalized, display_name, first_name, last_name, email)
-       VALUES ($1::bigint, $2, $3, $4, $5, $6) RETURNING id`,
+      `INSERT INTO platform_users (
+         integrator_user_id, phone_normalized, display_name, first_name, last_name, email,
+         patient_phone_trust_at
+       )
+       VALUES (
+         $1::bigint, $2, $3, $4, $5, $6,
+         CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN now() ELSE NULL END
+       ) RETURNING id`,
       [
         params.integratorUserId,
         params.phoneNormalized ?? null,
@@ -184,6 +194,10 @@ async function upsertFromProjectionTx(
          last_name = COALESCE($4::text, last_name),
          email = COALESCE($5::text, email),
          phone_normalized = COALESCE($6::text, phone_normalized),
+         patient_phone_trust_at = CASE
+           WHEN $6::text IS NOT NULL AND trim($6::text) <> '' THEN now()
+           ELSE patient_phone_trust_at
+         END,
          integrator_user_id = COALESCE(integrator_user_id, $7::bigint),
          updated_at = now()
        WHERE id = $1::uuid`,
@@ -257,8 +271,8 @@ async function ensureAppointmentClientTx(
     const ins = await client.query<{ id: string }>(
       `INSERT INTO platform_users (
          phone_normalized, display_name, first_name, last_name, email, role,
-         integrator_user_id
-       ) VALUES ($1, $2, $3, $4, $5, 'client', $6::bigint)
+         integrator_user_id, patient_phone_trust_at
+       ) VALUES ($1, $2, $3, $4, $5, 'client', $6::bigint, now())
        RETURNING id`,
       [
         params.phoneNormalized,
@@ -282,6 +296,10 @@ async function ensureAppointmentClientTx(
        email = COALESCE(email, $5::text),
        integrator_user_id = COALESCE(integrator_user_id, $6::bigint),
        phone_normalized = COALESCE(phone_normalized, $7::text),
+       patient_phone_trust_at = CASE
+         WHEN $7::text IS NOT NULL AND trim($7::text) <> '' THEN now()
+         ELSE patient_phone_trust_at
+       END,
        updated_at = now()
      WHERE id = $1::uuid`,
     [
@@ -309,6 +327,9 @@ export const pgUserProjectionPort: UserProjectionPort = {
       );
       const id = await upsertFromProjectionTx(client, params);
       await client.query("COMMIT");
+      if (params.phoneNormalized?.trim()) {
+        trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
+      }
       return { platformUserId: id };
     } catch (e) {
       await client.query("ROLLBACK");
@@ -328,6 +349,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
       );
       const id = await ensureAppointmentClientTx(client, params);
       await client.query("COMMIT");
+      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorEnsureClientFromAppointment);
       return { platformUserId: id };
     } catch (e) {
       await client.query("ROLLBACK");
@@ -349,8 +371,9 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
   async updatePhone(platformUserId, phoneNormalized) {
     const pool = getPool();
+    trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpdatePhone);
     await pool.query(
-      "UPDATE platform_users SET phone_normalized = $1, updated_at = now() WHERE id = $2",
+      "UPDATE platform_users SET phone_normalized = $1, patient_phone_trust_at = now(), updated_at = now() WHERE id = $2",
       [phoneNormalized, platformUserId],
     );
   },

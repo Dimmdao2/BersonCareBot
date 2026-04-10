@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { env, isProduction } from "@/config/env";
 import type { AppSession, SessionUser, UserRole } from "@/shared/types/session";
+import { isPlatformUserUuid } from "@/shared/platform-user/isPlatformUserUuid";
 import { decodeBase64Url, encodeBase64Url } from "@/shared/utils/base64url";
 import { resolveRoleAsync, isWhitelistedAsync } from "./envRole";
 import type { IdentityResolutionPort } from "./identityResolutionPort";
@@ -80,18 +81,13 @@ function decodeSession(raw: string): AppSession | null {
   return parsed.expiresAt > now ? parsed : null;
 }
 
-/** `platform_users.id` в webapp — UUID; не трогаем legacy `tg:…` и прочие не-UUID. */
-function looksLikePlatformUserUuid(userId: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-}
-
 /**
  * Подтягивает актуальные ФИО/телефон/bindings из БД и отсекает сессии после удаления строки в `platform_users`
  * (например ops `reset-user`), когда cookie ещё валиден по подписи.
  */
 async function resolveSessionUserAgainstDb(user: SessionUser): Promise<SessionUser | null> {
   if (!env.DATABASE_URL?.trim()) return user;
-  if (!looksLikePlatformUserUuid(user.userId)) return user;
+  if (!isPlatformUserUuid(user.userId)) return user;
   try {
     const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
     const fresh = await pgUserByPhonePort.findByUserId(user.userId);

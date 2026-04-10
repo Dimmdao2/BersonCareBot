@@ -113,6 +113,7 @@ describe("resolveUserIdForYandexOAuth", () => {
     expect(queryMock).toHaveBeenCalledTimes(5);
     const insertSql = queryMock.mock.calls[2]?.[0] as string;
     expect(insertSql).toContain("phone_normalized");
+    expect(insertSql).toContain("patient_phone_trust_at");
   });
 
   it("creates new user with email only (no phone) when no merge match", async () => {
