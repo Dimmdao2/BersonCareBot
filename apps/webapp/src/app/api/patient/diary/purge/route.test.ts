@@ -4,6 +4,11 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
+const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
+}));
+
 import * as authService from "@/modules/auth/service";
 import { POST } from "./route";
 
@@ -25,17 +30,20 @@ describe("POST /api/patient/diary/purge", () => {
   beforeEach(() => {
     purgeMock.mockClear();
     confirmPhoneAuthMock.mockReset();
-    vi.spyOn(authService, "getCurrentSession").mockResolvedValue({
-      user: {
-        userId: "u-1",
-        role: "client",
-        displayName: "Test",
-        phone: "+79990001122",
-        bindings: {},
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+      ok: true,
+      session: {
+        user: {
+          userId: "u-1",
+          role: "client",
+          displayName: "Test",
+          phone: "+79990001122",
+          bindings: {},
+        },
+        issuedAt: 0,
+        expiresAt: 9999999999,
+        reauth: { diaryPurgePinVerifiedUntil: Math.floor(Date.now() / 1000) + 600 },
       },
-      issuedAt: 0,
-      expiresAt: 9999999999,
-      reauth: { diaryPurgePinVerifiedUntil: Math.floor(Date.now() / 1000) + 600 },
     });
     vi.spyOn(authService, "clearDiaryPurgeReauth").mockResolvedValue(undefined);
     confirmPhoneAuthMock.mockResolvedValue({

@@ -1,10 +1,30 @@
 import type { ReactNode } from "react";
-import { MiniAppShareContactGate } from "@/shared/ui/patient/MiniAppShareContactGate";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { patientPathRequiresBoundPhone } from "@/app-layer/guards/patientPhonePolicy";
+import { routePaths } from "@/app-layer/routes/paths";
+import { getCurrentSession } from "@/modules/auth/service";
+import { PatientClientLayout } from "./PatientClientLayout";
 
 /**
- * Обёртка пациентского раздела: в Telegram Mini App без телефона в webapp — полноэкранная подсказка
- * «поделитесь контактом в боте» (см. docs/AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md).
+ * Пациент без привязанного телефона не попадает в разделы вне allowlist (дневник, напоминания, кабинет…).
+ * Путь передаётся из middleware (`x-bc-pathname` / `x-bc-search`).
  */
-export default function PatientLayout({ children }: { children: ReactNode }) {
-  return <MiniAppShareContactGate>{children}</MiniAppShareContactGate>;
+export default async function PatientLayout({ children }: { children: ReactNode }) {
+  const h = await headers();
+  const pathname = h.get("x-bc-pathname") ?? "";
+  const search = h.get("x-bc-search") ?? "";
+  const session = await getCurrentSession();
+
+  if (
+    session &&
+    session.user.role === "client" &&
+    !session.user.phone?.trim() &&
+    patientPathRequiresBoundPhone(pathname)
+  ) {
+    const returnTo = (pathname.trim() ? pathname : routePaths.patient) + search;
+    redirect(`${routePaths.bindPhone}?next=${encodeURIComponent(returnTo)}`);
+  }
+
+  return <PatientClientLayout>{children}</PatientClientLayout>;
 }

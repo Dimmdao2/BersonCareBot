@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,14 +67,20 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
   const [integratorBusy, setIntegratorBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const mergeCandidatesFetchRef = useRef<AbortController | null>(null);
+
   const loadCandidates = useCallback(async () => {
+    mergeCandidatesFetchRef.current?.abort();
+    const ac = new AbortController();
+    mergeCandidatesFetchRef.current = ac;
+
     setCandLoading(true);
     setCandError(null);
     try {
       const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
       const res = await fetch(
         `/api/doctor/clients/${encodeURIComponent(anchorUserId)}/merge-candidates${qs}`,
-        { credentials: "include" },
+        { credentials: "include", signal: ac.signal },
       );
       const data = (await res.json()) as { ok?: boolean; candidates?: CandidateRow[]; error?: string };
       if (!res.ok || !data.ok) {
@@ -87,18 +93,34 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
         return;
       }
       setCandidates(data.candidates ?? []);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (err && typeof err === "object" && "name" in err && (err as { name: string }).name === "AbortError") {
+        return;
+      }
       setCandError("network");
       setCandidates(null);
     } finally {
-      setCandLoading(false);
+      if (mergeCandidatesFetchRef.current === ac) {
+        setCandLoading(false);
+        mergeCandidatesFetchRef.current = null;
+      }
     }
   }, [anchorUserId, q]);
 
   useEffect(() => {
     if (!enabled || !sectionOpen) return;
     void loadCandidates();
+    return () => {
+      mergeCandidatesFetchRef.current?.abort();
+    };
   }, [enabled, sectionOpen, loadCandidates]);
+
+  useEffect(() => {
+    if (!sectionOpen) {
+      mergeCandidatesFetchRef.current?.abort();
+    }
+  }, [sectionOpen]);
 
   const loadAlignedPreview = useCallback(
     async (first: { targetId: string; duplicateId: string }) => {

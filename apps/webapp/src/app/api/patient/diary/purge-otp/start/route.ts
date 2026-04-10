@@ -1,28 +1,19 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession, isDiaryPurgePinReauthValid } from "@/modules/auth/service";
-import { canAccessPatient } from "@/modules/roles/service";
+import { isDiaryPurgePinReauthValid } from "@/modules/auth/service";
 
 /**
  * Отправка OTP на привязанный номер для удаления дневниковых данных.
  * Требует предварительного POST /api/auth/pin/verify.
  */
 export async function POST() {
-  const session = await getCurrentSession();
-  if (!session?.user) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessPatient(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
-  const phone = session.user.phone?.trim();
-  if (!phone) {
-    return NextResponse.json(
-      { ok: false, error: "no_phone", message: "Привяжите номер телефона в профиле" },
-      { status: 400 }
-    );
-  }
+  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.diary });
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
+  const phone = session.user.phone!.trim();
   if (!isDiaryPurgePinReauthValid(session)) {
     return NextResponse.json(
       { ok: false, error: "pin_reauth_required", message: "Сначала подтвердите PIN" },

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ReminderLinkedObjectType } from "@/modules/reminders/types";
@@ -14,10 +14,9 @@ const LINKED_TYPES = new Set<ReminderLinkedObjectType>([
 ]);
 
 export async function POST(req: Request) {
-  const session = await requirePatientAccess().catch(() => null);
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
+  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patientReminders });
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
 
   let body: Record<string, unknown>;
   try {

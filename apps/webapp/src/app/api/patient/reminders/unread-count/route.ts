@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
+import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessPatient } from "@/modules/roles/service";
+import { routePaths } from "@/app-layer/routes/paths";
 
 /**
  * GET /api/patient/reminders/unread-count — для polling из PatientHeader.
@@ -9,13 +9,9 @@ import { canAccessPatient } from "@/modules/roles/service";
  * Ошибки БД (нет колонки и т.п.) → graceful { ok: true, count: 0 }.
  */
 export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessPatient(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patient });
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
 
   const deps = buildAppDeps();
   try {

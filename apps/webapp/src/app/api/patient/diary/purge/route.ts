@@ -4,13 +4,9 @@ import { logger } from "@/infra/logging/logger";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
-import {
-  clearDiaryPurgeReauth,
-  getCurrentSession,
-  isDiaryPurgePinReauthValid,
-} from "@/modules/auth/service";
+import { clearDiaryPurgeReauth, isDiaryPurgePinReauthValid } from "@/modules/auth/service";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
-import { canAccessPatient } from "@/modules/roles/service";
+import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
 
 const bodySchema = z.object({
   challengeId: z.string().trim().min(1),
@@ -21,13 +17,9 @@ const bodySchema = z.object({
  * Финальное удаление всех дневниковых данных после PIN + OTP.
  */
 export async function POST(request: Request) {
-  const session = await getCurrentSession();
-  if (!session?.user) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessPatient(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.diary });
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
   if (!isDiaryPurgePinReauthValid(session)) {
     return NextResponse.json(
       { ok: false, error: "pin_reauth_required", message: "Сначала подтвердите PIN" },

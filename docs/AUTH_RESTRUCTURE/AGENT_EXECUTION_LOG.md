@@ -637,3 +637,19 @@ Gate verdict:
 Notes:
 - —
 ```
+
+```text
+[2026-04-10T08:45:00Z] [Patient phone + Mini App session] [FIX] agent
+Tasks done:
+- Обязательный нормализованный телефон для пациента: `patientPhonePolicy` + серверный `app/app/patient/layout.tsx` (с `x-bc-pathname` из middleware), `requirePatientAccessWithPhone` в server actions, `requirePatientApiSessionWithPhone` в `/api/patient/*` (напоминания, сообщения, дневник, online-intake).
+- Mini App: `ensureMessengerMiniAppWebappSession` (401 → `telegram-init` или `exchange` по `t`/`token`), гейт Telegram+MAX через `isMessengerMiniAppHost`, `patientMessengerContactGate`, `PatientSharePhoneViaBotPanel`; на `/bind-phone` в Mini App без SMS при наличии привязки к боту.
+- Документация: `guards.md`, `BOT_CONTACT_MINI_APP_GATE.md`, `modules/auth/auth.md`.
+Changed files:
+- apps/webapp: patientPhonePolicy (+ test), requireRole, guards, middleware, patient layout/bind-phone/reminders/diary/notifications actions, `/api/patient/*` routes + tests, MiniApp gate (+ test), miniAppSessionRecovery, patientMessengerContactGate, PatientSharePhoneViaBotPanel, PatientBindPhoneClient, PatientClientLayout, guestAccess, paths; docs AUTH_RESTRUCTURE; modules/auth/auth.md
+Checks:
+- pnpm run ci
+Gate verdict:
+- PASS
+Notes:
+- Редирект по телефону в layout не срабатывает при пустом `x-bc-pathname` (см. `guards.md`).
+```

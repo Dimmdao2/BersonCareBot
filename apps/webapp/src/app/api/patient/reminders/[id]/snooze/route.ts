@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 
 const ALLOWED = new Set([30, 60, 120]);
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
-  const session = await requirePatientAccess().catch(() => null);
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
+  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patientReminders });
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
 
   const { id: occurrenceId } = await context.params;
   if (!occurrenceId?.trim()) {

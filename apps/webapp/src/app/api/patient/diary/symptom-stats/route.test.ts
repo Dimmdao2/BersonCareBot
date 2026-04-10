@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
-const { getSessionMock, buildAppDepsMock, getTrackingMock, listRangeMock } = vi.hoisted(() => {
-  const getSessionMockInner = vi.fn();
+const { gateMock, buildAppDepsMock, getTrackingMock, listRangeMock } = vi.hoisted(() => {
+  const gateMockInner = vi.fn();
   const getTrackingMockInner = vi.fn();
   const listRangeMockInner = vi.fn();
   return {
-    getSessionMock: getSessionMockInner,
+    gateMock: gateMockInner,
     getTrackingMock: getTrackingMockInner,
     listRangeMock: listRangeMockInner,
     buildAppDepsMock: vi.fn(() => ({
@@ -21,52 +22,59 @@ const { getSessionMock, buildAppDepsMock, getTrackingMock, listRangeMock } = vi.
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePatientApiSessionWithPhone: gateMock,
 }));
 
 import { GET } from "./route";
 
+function okClient(userId: string) {
+  return {
+    ok: true as const,
+    session: { user: { userId, role: "client" as const, phone: "+79990001122", bindings: {} } },
+  };
+}
+
 describe("GET /api/patient/diary/symptom-stats", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    gateMock.mockReset();
     getTrackingMock.mockReset();
     listRangeMock.mockReset();
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    gateMock.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await GET(
-      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=t1&period=week&offset=0")
+      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=t1&period=week&offset=0"),
     );
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when logged in as non-patient", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
+  it("returns 401 when logged in as non-patient", async () => {
+    gateMock.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
     });
     const res = await GET(
-      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=tr-1&period=week&offset=0")
+      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=tr-1&period=week&offset=0"),
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("returns 404 when tracking is not owned by user", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     getTrackingMock.mockResolvedValue(null);
     const res = await GET(
-      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=other-tracking&period=week&offset=0")
+      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=other-tracking&period=week&offset=0"),
     );
     expect(res.status).toBe(404);
   });
 
   it("returns 200 with points for owned tracking", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     getTrackingMock.mockResolvedValue({
       id: "tr-1",
       userId: "u1",
@@ -90,7 +98,7 @@ describe("GET /api/patient/diary/symptom-stats", () => {
       },
     ]);
     const res = await GET(
-      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=tr-1&period=month&offset=0")
+      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=tr-1&period=month&offset=0"),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
@@ -100,19 +108,13 @@ describe("GET /api/patient/diary/symptom-stats", () => {
     };
     expect(data.ok).toBe(true);
     expect(data.period).toBe("month");
-    expect(
-      data.points.some(
-        (p) => p.date === "2025-03-01" && p.instant === 4 && p.daily === null
-      )
-    ).toBe(true);
+    expect(data.points.some((p) => p.date === "2025-03-01" && p.instant === 4 && p.daily === null)).toBe(true);
   });
 
   it("returns 400 for invalid period", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     const res = await GET(
-      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=tr-1&period=invalid")
+      new Request("http://localhost/api/patient/diary/symptom-stats?trackingId=tr-1&period=invalid"),
     );
     expect(res.status).toBe(400);
   });

@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
-const { getSessionMock, buildAppDepsMock, bootstrapMock, pollNewMock, sendTextMock, unreadMock } = vi.hoisted(() => {
-  const getSessionMockInner = vi.fn();
+const { gateMock, buildAppDepsMock, bootstrapMock, pollNewMock, sendTextMock, unreadMock } = vi.hoisted(() => {
+  const gateMockInner = vi.fn();
   const bootstrapMockInner = vi.fn();
   const pollNewMockInner = vi.fn();
   const sendTextMockInner = vi.fn();
   const unreadMockInner = vi.fn();
   return {
-    getSessionMock: getSessionMockInner,
+    gateMock: gateMockInner,
     bootstrapMock: bootstrapMockInner,
     pollNewMock: pollNewMockInner,
     sendTextMock: sendTextMockInner,
@@ -29,51 +30,58 @@ const { getSessionMock, buildAppDepsMock, bootstrapMock, pollNewMock, sendTextMo
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePatientApiSessionWithPhone: gateMock,
 }));
 
 import { GET, POST } from "./route";
 
+function okClient(userId: string, phone = "+79990001122") {
+  return {
+    ok: true as const,
+    session: { user: { userId, role: "client" as const, phone, bindings: {} } },
+  };
+}
+
 describe("GET /api/patient/messages", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    gateMock.mockReset();
     bootstrapMock.mockReset();
     pollNewMock.mockReset();
     unreadMock.mockReset();
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    gateMock.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await GET(new Request("http://localhost/api/patient/messages"));
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when not patient", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
+  it("returns 401 when not patient", async () => {
+    gateMock.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
     });
     const res = await GET(new Request("http://localhost/api/patient/messages"));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("returns 404 when polling foreign conversation", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     pollNewMock.mockResolvedValue(null);
     const res = await GET(
       new Request(
-        "http://localhost/api/patient/messages?conversationId=00000000-0000-4000-8000-000000000001&since=2025-01-01T00:00:00.000Z"
-      )
+        "http://localhost/api/patient/messages?conversationId=00000000-0000-4000-8000-000000000001&since=2025-01-01T00:00:00.000Z",
+      ),
     );
     expect(res.status).toBe(404);
   });
 
   it("returns 200 bootstrap with messages", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     bootstrapMock.mockResolvedValue({
       conversationId: "00000000-0000-4000-8000-000000000002",
       messages: [
@@ -103,9 +111,7 @@ describe("GET /api/patient/messages", () => {
   });
 
   it("returns 400 for invalid conversationId uuid", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     const res = await GET(new Request("http://localhost/api/patient/messages?conversationId=not-a-uuid"));
     expect(res.status).toBe(400);
   });
@@ -113,48 +119,47 @@ describe("GET /api/patient/messages", () => {
 
 describe("POST /api/patient/messages", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    gateMock.mockReset();
     sendTextMock.mockReset();
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    gateMock.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await POST(
       new Request("http://localhost/api/patient/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "hi", conversationId: "00000000-0000-4000-8000-000000000002" }),
-      })
+      }),
     );
     expect(res.status).toBe(401);
   });
 
   it("returns 404 when send fails not_found", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     sendTextMock.mockResolvedValue({ ok: false, error: "not_found" });
     const res = await POST(
       new Request("http://localhost/api/patient/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "hi", conversationId: "00000000-0000-4000-8000-000000000002" }),
-      })
+      }),
     );
     expect(res.status).toBe(404);
   });
 
   it("returns 200 on success", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     sendTextMock.mockResolvedValue({ ok: true });
     const res = await POST(
       new Request("http://localhost/api/patient/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "hi", conversationId: "00000000-0000-4000-8000-000000000002" }),
-      })
+      }),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean };
@@ -162,16 +167,14 @@ describe("POST /api/patient/messages", () => {
   });
 
   it("returns 403 when messaging is blocked for user", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     sendTextMock.mockResolvedValue({ ok: false, error: "blocked" });
     const res = await POST(
       new Request("http://localhost/api/patient/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "hi", conversationId: "00000000-0000-4000-8000-000000000002" }),
-      })
+      }),
     );
     expect(res.status).toBe(403);
   });

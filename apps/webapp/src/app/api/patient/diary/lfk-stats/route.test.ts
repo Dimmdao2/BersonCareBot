@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
-const { getSessionMock, buildAppDepsMock, getComplexMock, listComplexesMock, listRangeMock } = vi.hoisted(() => {
-  const getSessionMockInner = vi.fn();
+const { gateMock, buildAppDepsMock, getComplexMock, listComplexesMock, listRangeMock } = vi.hoisted(() => {
+  const gateMockInner = vi.fn();
   const getComplexMockInner = vi.fn();
   const listComplexesMockInner = vi.fn();
   const listRangeMockInner = vi.fn();
   return {
-    getSessionMock: getSessionMockInner,
+    gateMock: gateMockInner,
     getComplexMock: getComplexMockInner,
     listComplexesMock: listComplexesMockInner,
     listRangeMock: listRangeMockInner,
@@ -24,51 +25,60 @@ const { getSessionMock, buildAppDepsMock, getComplexMock, listComplexesMock, lis
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: getSessionMock,
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePatientApiSessionWithPhone: gateMock,
 }));
 
 import { GET } from "./route";
 
+function okClient(userId: string) {
+  return {
+    ok: true as const,
+    session: { user: { userId, role: "client" as const, phone: "+79990001122", bindings: {} } },
+  };
+}
+
 describe("GET /api/patient/diary/lfk-stats", () => {
   beforeEach(() => {
-    getSessionMock.mockReset();
+    gateMock.mockReset();
     getComplexMock.mockReset();
     listComplexesMock.mockReset();
     listRangeMock.mockReset();
   });
 
   it("returns 401 without session", async () => {
-    getSessionMock.mockResolvedValue(null);
+    gateMock.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await GET(new Request("http://localhost/api/patient/diary/lfk-stats?period=week&offset=0"));
     expect(res.status).toBe(401);
   });
 
-  it("returns 403 when logged in as non-patient", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "d1", role: "doctor", bindings: {} },
+  it("returns 401 when logged in as non-patient", async () => {
+    gateMock.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
     });
     const res = await GET(new Request("http://localhost/api/patient/diary/lfk-stats?period=week&offset=0"));
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it("returns 404 for foreign complexId", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
+    gateMock.mockResolvedValue(okClient("u1"));
     listComplexesMock.mockResolvedValue([]);
     getComplexMock.mockResolvedValue(null);
     const res = await GET(
-      new Request("http://localhost/api/patient/diary/lfk-stats?complexId=c-other&period=week&offset=0")
+      new Request("http://localhost/api/patient/diary/lfk-stats?complexId=c-other&period=week&offset=0"),
     );
     expect(res.status).toBe(404);
   });
 
   it("returns overview without complexId", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
-    listComplexesMock.mockResolvedValue([{ id: "c1", title: "A", userId: "u1", origin: "manual", isActive: true, createdAt: "", updatedAt: "" }]);
+    gateMock.mockResolvedValue(okClient("u1"));
+    listComplexesMock.mockResolvedValue([
+      { id: "c1", title: "A", userId: "u1", origin: "manual", isActive: true, createdAt: "", updatedAt: "" },
+    ]);
     listRangeMock.mockResolvedValue([]);
     const res = await GET(new Request("http://localhost/api/patient/diary/lfk-stats?period=week&offset=0"));
     expect(res.status).toBe(200);
@@ -85,10 +95,10 @@ describe("GET /api/patient/diary/lfk-stats", () => {
   });
 
   it("returns detail with sessions when complexId owned", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { userId: "u1", role: "client", bindings: {} },
-    });
-    listComplexesMock.mockResolvedValue([{ id: "c1", title: "A", userId: "u1", origin: "manual", isActive: true, createdAt: "", updatedAt: "" }]);
+    gateMock.mockResolvedValue(okClient("u1"));
+    listComplexesMock.mockResolvedValue([
+      { id: "c1", title: "A", userId: "u1", origin: "manual", isActive: true, createdAt: "", updatedAt: "" },
+    ]);
     getComplexMock.mockResolvedValue({
       id: "c1",
       userId: "u1",
@@ -112,7 +122,7 @@ describe("GET /api/patient/diary/lfk-stats", () => {
       },
     ]);
     const res = await GET(
-      new Request("http://localhost/api/patient/diary/lfk-stats?complexId=c1&period=week&offset=0")
+      new Request("http://localhost/api/patient/diary/lfk-stats?complexId=c1&period=week&offset=0"),
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as {

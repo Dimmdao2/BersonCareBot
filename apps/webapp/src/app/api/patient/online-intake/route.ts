@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessPatient } from "@/modules/roles/service";
+import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 
 const querySchema = z.object({
@@ -12,13 +12,9 @@ const querySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  }
-  if (!canAccessPatient(session.user.role)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  }
+  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.cabinet });
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
 
   const { searchParams } = new URL(request.url);
   const parsed = querySchema.safeParse(Object.fromEntries(searchParams));

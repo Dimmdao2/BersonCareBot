@@ -1,14 +1,15 @@
 /**
  * Страница привязки номера телефона для доступа к разделам с личными данными (записи, дневники, покупки).
  * Показывается при переходе в эти разделы без привязанного номера. После успешной привязки — редирект по ?next=.
+ * В Mini App (Telegram/MAX) при уже привязанном канале бота — сценарий «контакт в боте», без SMS на этой странице; в браузере — Telegram Login / OTP (см. `PatientBindPhoneClient`, `docs/AUTH_RESTRUCTURE/MASTER_PLAN.md`).
  */
 
 import { redirect } from "next/navigation";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { AppShell } from "@/shared/ui/AppShell";
-import { BindPhoneBlock } from "@/shared/ui/auth/BindPhoneBlock";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
+import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
 
 type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
 
@@ -21,9 +22,9 @@ export default async function BindPhonePage({ searchParams }: Props) {
   }
 
   const { reason } = await searchParams;
-  const channel = session.user.bindings.telegramId ? "telegram" : "web";
-  const chatId = session.user.bindings.telegramId ?? "";
   const supportContactHref = await getSupportContactUrl();
+  const telegramId = session.user.bindings.telegramId ?? "";
+  const maxId = session.user.bindings.maxId ?? "";
 
   const hint =
     reason === "oauth_phone_required"
@@ -33,7 +34,12 @@ export default async function BindPhonePage({ searchParams }: Props) {
   return (
     <AppShell title="Привязка телефона" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
       <section id="patient-bind-phone-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <BindPhoneBlock channel={channel} chatId={chatId} supportContactHref={supportContactHref} hint={hint} />
+        <PatientBindPhoneClient
+          telegramId={telegramId}
+          maxId={maxId}
+          supportContactHref={supportContactHref}
+          hint={hint}
+        />
       </section>
     </AppShell>
   );

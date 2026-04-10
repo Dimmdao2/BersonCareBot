@@ -3,9 +3,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // Mock next/cache (server action uses revalidatePath)
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-const mockRequirePatientAccess = vi.hoisted(() => vi.fn());
+const mockRequirePatientAccessWithPhone = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientAccess: mockRequirePatientAccess,
+  requirePatientAccessWithPhone: mockRequirePatientAccessWithPhone,
 }));
 
 const mockToggleCategory = vi.hoisted(() => vi.fn());
@@ -22,12 +22,12 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { REMINDER_INTEGRATOR_SYNC_WARNING } from "@/modules/reminders/service";
 import { toggleReminderCategory, updateReminderRule } from "./actions";
 
-const SESSION = { user: { userId: "uid-1" } };
+const SESSION = { user: { userId: "uid-1", phone: "+79990000000" } };
 
 describe("reminder server actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequirePatientAccess.mockResolvedValue(SESSION);
+    mockRequirePatientAccessWithPhone.mockResolvedValue(SESSION);
   });
 
   describe("toggleReminderCategory", () => {
@@ -52,7 +52,7 @@ describe("reminder server actions", () => {
     });
 
     it("redirects (throws) when unauthorized", async () => {
-      mockRequirePatientAccess.mockRejectedValue(new Error("unauthorized"));
+      mockRequirePatientAccessWithPhone.mockRejectedValue(new Error("unauthorized"));
       await expect(toggleReminderCategory("lfk", true)).rejects.toThrow();
     });
 
@@ -125,7 +125,7 @@ describe("reminder server actions", () => {
     });
 
     it("redirects (throws) when unauthorized", async () => {
-      mockRequirePatientAccess.mockRejectedValue(new Error("unauthorized"));
+      mockRequirePatientAccessWithPhone.mockRejectedValue(new Error("unauthorized"));
       await expect(updateReminderRule(validData)).rejects.toThrow();
     });
   });

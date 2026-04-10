@@ -1,4 +1,3 @@
-import { hasMessengerBinding } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { AppSession } from "@/shared/types/session";
 import { GuestPlaceholder } from "@/shared/ui/GuestPlaceholder";
@@ -20,7 +19,7 @@ export function CabinetGuestAccess({ session }: { session: AppSession | null }) 
   return (
     <GuestPlaceholder
       title="Мои приёмы"
-      description="Здесь отображаются ваши записи на приём и их история. Чтобы видеть список, нужен подтверждённый номер или подключённый мессенджер."
+      description="Здесь отображаются ваши записи на приём и их история. Чтобы видеть список, подтвердите номер телефона в профиле."
       actionLabel="Записаться на приём"
       actionHref={routePaths.patientBooking}
       secondaryLabel="Подтвердить номер"
@@ -29,9 +28,9 @@ export function CabinetGuestAccess({ session }: { session: AppSession | null }) 
   );
 }
 
-/** Подтверждённый телефон или мессенджер (без type predicate — иначе TS сужает ветку «гостя» до `null`). */
+/** Подтверждённый нормализованный телефон в webapp (для дневника и др.). */
 export function patientHasPhoneOrMessenger(session: AppSession): boolean {
-  return Boolean(session.user.phone?.trim() || hasMessengerBinding(session));
+  return Boolean(session.user.phone?.trim());
 }
 
 type DiaryGateProps = {
@@ -62,7 +61,7 @@ export function DiarySectionGuestAccess({
   return (
     <GuestPlaceholder
       title={title}
-      description="Для сохранения записей дневника подтвердите номер телефона или подключите мессенджер в профиле."
+      description="Для сохранения записей дневника подтвердите номер телефона."
       actionLabel="Подтвердить номер"
       actionHref={`${routePaths.bindPhone}?next=${next}`}
     />
@@ -85,7 +84,7 @@ export function PurchasesGuestAccess({ session }: { session: AppSession | null }
   return (
     <GuestPlaceholder
       title="Мои покупки"
-      description="Чтобы видеть покупки и доступы, подтвердите номер телефона или подключите мессенджер."
+      description="Чтобы видеть покупки и доступы, подтвердите номер телефона."
       actionLabel="Подтвердить номер"
       actionHref={`${routePaths.bindPhone}?next=${next}`}
     />
@@ -108,7 +107,7 @@ export function NotificationsGuestAccess({ session }: { session: AppSession | nu
   return (
     <GuestPlaceholder
       title="Подписки на уведомления"
-      description="Чтобы настроить каналы уведомлений, подтвердите номер телефона или подключите мессенджер в профиле."
+      description="Чтобы настроить каналы уведомлений, подтвердите номер телефона."
       actionLabel="Подтвердить номер"
       actionHref={`${routePaths.bindPhone}?next=${next}`}
     />

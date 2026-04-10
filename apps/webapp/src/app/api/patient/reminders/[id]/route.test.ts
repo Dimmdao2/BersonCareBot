@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 import type { ReminderRule } from "@/modules/reminders/types";
 
-const mockRequirePatientAccess = vi.hoisted(() => vi.fn());
+const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientAccess: mockRequirePatientAccess,
+  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
 }));
 
 vi.mock("next/cache", () => ({
@@ -23,7 +24,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { DELETE, PATCH } from "./route";
 
-const SESSION = { user: { userId: "platform-user-1" } };
+const SESSION = { user: { userId: "platform-user-1", role: "client" as const, phone: "+79990001122" } };
 
 const sampleRule = (): ReminderRule => ({
   id: "wp-1",
@@ -49,12 +50,15 @@ async function params(id: string) {
 describe("PATCH /api/patient/reminders/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequirePatientAccess.mockResolvedValue(SESSION);
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: SESSION });
     mockUpdateRule.mockResolvedValue({ ok: true, data: sampleRule() });
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockRequirePatientAccess.mockRejectedValue(new Error("no session"));
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await PATCH(
       new Request("http://localhost/api/patient/reminders/wp-1", {
         method: "PATCH",
@@ -108,12 +112,15 @@ describe("PATCH /api/patient/reminders/[id]", () => {
 describe("DELETE /api/patient/reminders/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequirePatientAccess.mockResolvedValue(SESSION);
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: SESSION });
     mockDeleteReminder.mockResolvedValue({ ok: true, data: { deletedId: "wp-1" } });
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockRequirePatientAccess.mockRejectedValue(new Error("no session"));
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await DELETE(new Request("http://localhost/api/patient/reminders/wp-1"), await params("wp-1"));
     expect(res.status).toBe(401);
   });

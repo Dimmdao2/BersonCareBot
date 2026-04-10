@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
   getUtcDayRange,
@@ -25,7 +25,7 @@ function parseSide(raw: unknown): "left" | "right" | "both" | null {
 export async function addSymptomEntry(
   formData: FormData,
 ): Promise<{ ok: boolean; reason?: "duplicate_instant" | "duplicate_daily" }> {
-  const session = await requirePatientAccess(routePaths.diary);
+  const session = await requirePatientAccessWithPhone(routePaths.diary);
   const deps = buildAppDeps();
   const trackingIdRaw = formData.get("trackingId");
   const valueRaw = formData.get("value");
@@ -111,7 +111,7 @@ export type CreateSymptomTrackingResult =
   | { ok: true; tracking: { id: string; symptomTitle: string } };
 
 export async function createSymptomTracking(formData: FormData): Promise<CreateSymptomTrackingResult> {
-  const session = await requirePatientAccess(routePaths.diary);
+  const session = await requirePatientAccessWithPhone(routePaths.diary);
   const deps = buildAppDeps();
 
   const symptomTitleRaw = formData.get("symptomTitle");
@@ -164,7 +164,7 @@ export async function createSymptomTracking(formData: FormData): Promise<CreateS
 }
 
 export async function renameSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
-  const session = await requirePatientAccess(routePaths.diary);
+  const session = await requirePatientAccessWithPhone(routePaths.diary);
   const trackingId = parseOptionalId(formData.get("trackingId"));
   const newTitleRaw = formData.get("newTitle");
   if (!trackingId || typeof newTitleRaw !== "string") return { ok: false };
@@ -189,7 +189,7 @@ export async function renameSymptomTracking(formData: FormData): Promise<{ ok: b
 }
 
 export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: boolean }> {
-  const session = await requirePatientAccess(routePaths.diary);
+  const session = await requirePatientAccessWithPhone(routePaths.diary);
   const trackingId = parseOptionalId(formData.get("trackingId"));
   if (!trackingId) return { ok: false };
   const deps = buildAppDeps();
@@ -210,7 +210,7 @@ export async function archiveSymptomTracking(formData: FormData): Promise<{ ok: 
 }
 
 export async function updateSymptomJournalEntry(formData: FormData): Promise<{ ok: boolean }> {
-  const session = await requirePatientAccess(routePaths.diarySymptomsJournal);
+  const session = await requirePatientAccessWithPhone(routePaths.diarySymptomsJournal);
   const entryIdRaw = formData.get("entryId");
   const entryId = typeof entryIdRaw === "string" ? entryIdRaw.trim() : "";
   const recordedAtRawVal = formData.get("recordedAt");
@@ -252,7 +252,7 @@ export async function updateSymptomJournalEntry(formData: FormData): Promise<{ o
 }
 
 export async function deleteSymptomJournalEntry(formData: FormData): Promise<{ ok: boolean }> {
-  const session = await requirePatientAccess(routePaths.diarySymptomsJournal);
+  const session = await requirePatientAccessWithPhone(routePaths.diarySymptomsJournal);
   const entryIdRaw = formData.get("entryId");
   const entryId = typeof entryIdRaw === "string" ? entryIdRaw.trim() : "";
   if (!entryId) return { ok: false };

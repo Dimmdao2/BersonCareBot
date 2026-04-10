@@ -1,13 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { NextResponse } from "next/server";
 
-const mockGetSession = vi.hoisted(() => vi.fn());
-vi.mock("@/modules/auth/service", () => ({
-  getCurrentSession: mockGetSession,
-}));
-
-const mockCanAccessPatient = vi.hoisted(() => vi.fn());
-vi.mock("@/modules/roles/service", () => ({
-  canAccessPatient: mockCanAccessPatient,
+const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
 }));
 
 const mockGetUnseenCount = vi.hoisted(() => vi.fn().mockResolvedValue(3));
@@ -22,17 +18,16 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 import { GET } from "./route";
 
 const PATIENT_SESSION = {
-  user: { userId: "platform-user-1", role: "patient" as const },
+  user: { userId: "platform-user-1", role: "client" as const, phone: "+79990001122" },
 };
 
 describe("GET /api/patient/reminders/unread-count", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCanAccessPatient.mockReturnValue(true);
   });
 
-  it("returns count for authenticated patient", async () => {
-    mockGetSession.mockResolvedValue(PATIENT_SESSION);
+  it("returns count for authenticated patient with phone", async () => {
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: PATIENT_SESSION });
     const res = await GET();
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -41,7 +36,10 @@ describe("GET /api/patient/reminders/unread-count", () => {
   });
 
   it("returns 401 when no session", async () => {
-    mockGetSession.mockResolvedValue(null);
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await GET();
     expect(res.status).toBe(401);
     const json = await res.json();
@@ -49,16 +47,18 @@ describe("GET /api/patient/reminders/unread-count", () => {
     expect(mockGetUnseenCount).not.toHaveBeenCalled();
   });
 
-  it("returns 403 when role is not patient", async () => {
-    mockGetSession.mockResolvedValue(PATIENT_SESSION);
-    mockCanAccessPatient.mockReturnValue(false);
+  it("returns 403 when patient has no phone", async () => {
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "phone_required" }, { status: 403 }),
+    });
     const res = await GET();
     expect(res.status).toBe(403);
     expect(mockGetUnseenCount).not.toHaveBeenCalled();
   });
 
   it("returns count 0 if getUnseenCount throws (graceful)", async () => {
-    mockGetSession.mockResolvedValue(PATIENT_SESSION);
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: PATIENT_SESSION });
     mockGetUnseenCount.mockRejectedValueOnce(new Error("column seen_at does not exist"));
     const res = await GET();
     const json = await res.json();

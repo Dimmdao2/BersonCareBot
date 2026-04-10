@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { routePaths } from "@/app-layer/routes/paths";
 
 export async function POST(req: Request) {
-  const session = await requirePatientAccess().catch(() => null);
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
+  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.patientReminders });
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
 
   let body: { occurrenceIds?: unknown; all?: unknown };
   try {

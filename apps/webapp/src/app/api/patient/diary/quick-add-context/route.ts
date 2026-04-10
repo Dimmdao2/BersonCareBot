@@ -2,18 +2,14 @@
  * GET /api/patient/diary/quick-add-context — списки трекингов и комплексов для FAB вне страницы дневника.
  */
 import { NextResponse } from "next/server";
+import { requirePatientApiSessionWithPhone } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getCurrentSession } from "@/modules/auth/service";
-import { canAccessPatient } from "@/modules/roles/service";
+import { routePaths } from "@/app-layer/routes/paths";
 
 export async function GET() {
-  const session = await getCurrentSession();
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  }
-  if (!canAccessPatient(session.user.role)) {
-    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-  }
+  const gate = await requirePatientApiSessionWithPhone({ returnPath: routePaths.diary });
+  if (!gate.ok) return gate.response;
+  const session = gate.session;
 
   const deps = buildAppDeps();
   const userId = session.user.userId;

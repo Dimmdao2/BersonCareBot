@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 
-const mockRequirePatientAccess = vi.hoisted(() => vi.fn());
+const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientAccess: mockRequirePatientAccess,
+  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
 }));
 
 vi.mock("next/cache", () => ({
@@ -20,7 +21,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { POST } from "./route";
 
-const SESSION = { user: { userId: "platform-user-1" } };
+const SESSION = { user: { userId: "platform-user-1", role: "client" as const, phone: "+79990001122" } };
 
 async function params(id: string) {
   return { params: Promise.resolve({ id }) };
@@ -39,7 +40,7 @@ function post(occurrenceId: string, init?: RequestInit & { json?: unknown }) {
 describe("POST /api/patient/reminders/[id]/skip", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequirePatientAccess.mockResolvedValue(SESSION);
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: SESSION });
     mockSkip.mockResolvedValue({
       ok: true,
       data: { occurrenceId: "occ-2", skippedAt: "2026-04-02T12:00:00.000Z" },
@@ -47,7 +48,10 @@ describe("POST /api/patient/reminders/[id]/skip", () => {
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockRequirePatientAccess.mockRejectedValue(new Error("no session"));
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await POST(post("occ-2", { json: {} }), await params("occ-2"));
     expect(res.status).toBe(401);
   });

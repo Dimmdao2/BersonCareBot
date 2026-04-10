@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { NextResponse } from "next/server";
 
-const mockRequirePatientAccess = vi.hoisted(() => vi.fn());
+const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientAccess: mockRequirePatientAccess,
+  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
 }));
 
 const mockMarkSeen = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
@@ -18,7 +19,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { POST } from "./route";
 
-const SESSION = { user: { userId: "platform-user-1" } };
+const SESSION = { user: { userId: "platform-user-1", role: "client" as const, phone: "+79990001122" } };
 
 function makeRequest(body: unknown) {
   return new Request("http://localhost/api/patient/reminders/mark-seen", {
@@ -31,13 +32,16 @@ function makeRequest(body: unknown) {
 describe("POST /api/patient/reminders/mark-seen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequirePatientAccess.mockResolvedValue(SESSION);
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: SESSION });
     mockMarkSeen.mockResolvedValue(undefined);
     mockMarkAllSeen.mockResolvedValue(undefined);
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockRequirePatientAccess.mockRejectedValue(new Error("unauthorized"));
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await POST(makeRequest({ occurrenceIds: ["id-1"] }));
     expect(res.status).toBe(401);
     const json = await res.json();

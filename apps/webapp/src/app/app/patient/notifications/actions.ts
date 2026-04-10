@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { parseChannelNotificationInput } from "./parseChannelPreferenceInput";
 
@@ -17,7 +17,7 @@ export async function setChannelNotificationEnabled(
   const { code, enabled: nextEnabled } = parsed;
 
   try {
-    const session = await requirePatientAccess(routePaths.notifications);
+    const session = await requirePatientAccessWithPhone(routePaths.notifications);
     const deps = buildAppDeps();
     const emailFields = await deps.userProjection.getProfileEmailFields(session.user.userId);
     const emailVerified = Boolean(emailFields.emailVerifiedAt);

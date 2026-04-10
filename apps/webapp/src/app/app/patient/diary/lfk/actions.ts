@@ -5,7 +5,7 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";
 
@@ -17,7 +17,7 @@ function parseOptionalInt(raw: unknown): number | null {
 
 /** Принимает данные формы, проверяет доступ пациента и комплекс, сохраняет отметку занятия и обновляет страницу. */
 export async function markLfkSession(formData: FormData) {
-  const session = await requirePatientAccess(routePaths.diary);
+  const session = await requirePatientAccessWithPhone(routePaths.diary);
   const complexId = formData.get("complexId");
   if (typeof complexId !== "string" || !complexId.trim()) {
     return;
@@ -68,7 +68,7 @@ export async function markLfkSession(formData: FormData) {
 }
 
 export async function createLfkComplex(formData: FormData) {
-  const session = await requirePatientAccess(routePaths.diary);
+  const session = await requirePatientAccessWithPhone(routePaths.diary);
   const title = (formData.get("complexTitle") as string)?.trim();
   if (!title) return;
   if (title.length > 200) return;
@@ -86,7 +86,7 @@ export async function createLfkComplex(formData: FormData) {
 }
 
 export async function updateLfkJournalSession(formData: FormData): Promise<{ ok: boolean }> {
-  const session = await requirePatientAccess(routePaths.diaryLfkJournal);
+  const session = await requirePatientAccessWithPhone(routePaths.diaryLfkJournal);
   const sessionIdRaw = formData.get("sessionId");
   const sessionId = typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
   const completedAtVal = formData.get("completedAt");
@@ -129,7 +129,7 @@ export async function updateLfkJournalSession(formData: FormData): Promise<{ ok:
 }
 
 export async function deleteLfkJournalSession(formData: FormData): Promise<{ ok: boolean }> {
-  const session = await requirePatientAccess(routePaths.diaryLfkJournal);
+  const session = await requirePatientAccessWithPhone(routePaths.diaryLfkJournal);
   const sessionIdRaw = formData.get("sessionId");
   const sessionId = typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
   if (!sessionId) return { ok: false };

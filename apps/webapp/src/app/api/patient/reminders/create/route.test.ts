@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NextResponse } from "next/server";
 import type { ReminderRule } from "@/modules/reminders/types";
 
-const mockRequirePatientAccess = vi.hoisted(() => vi.fn());
+const mockRequirePatientApiSessionWithPhone = vi.hoisted(() => vi.fn());
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requirePatientAccess: mockRequirePatientAccess,
+  requirePatientApiSessionWithPhone: mockRequirePatientApiSessionWithPhone,
 }));
 
 vi.mock("next/cache", () => ({
@@ -23,7 +24,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 
 import { POST } from "./route";
 
-const SESSION = { user: { userId: "platform-user-1" } };
+const SESSION = { user: { userId: "platform-user-1", role: "client" as const, phone: "+79990001122" } };
 
 const schedule = {
   intervalMinutes: 60,
@@ -69,13 +70,16 @@ function req(body: unknown) {
 describe("POST /api/patient/reminders/create", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequirePatientAccess.mockResolvedValue(SESSION);
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({ ok: true, session: SESSION });
     mockCreateObject.mockResolvedValue({ ok: true, data: sampleObjectRule() });
     mockCreateCustom.mockResolvedValue({ ok: true, data: sampleCustomRule() });
   });
 
   it("returns 401 when not authenticated", async () => {
-    mockRequirePatientAccess.mockRejectedValue(new Error("no session"));
+    mockRequirePatientApiSessionWithPhone.mockResolvedValue({
+      ok: false,
+      response: NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 }),
+    });
     const res = await POST(req({ linkedObjectType: "lfk_complex", linkedObjectId: "x", schedule }));
     expect(res.status).toBe(401);
   });

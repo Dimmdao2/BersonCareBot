@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { requirePatientAccess } from "@/app-layer/guards/requireRole";
+import { requirePatientAccessWithPhone } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { ReminderCategory } from "@/modules/reminders/types";
 
@@ -33,7 +33,7 @@ export async function toggleReminderCategory(
   category: ReminderCategory,
   enabled: boolean,
 ): Promise<ToggleResult> {
-  const session = await requirePatientAccess(routePaths.patientReminders);
+  const session = await requirePatientAccessWithPhone(routePaths.patientReminders);
   const parsed = toggleSchema.safeParse({ category, enabled });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Неверные данные" };
@@ -50,7 +50,7 @@ export async function toggleReminderCategory(
 export async function updateReminderRule(
   data: z.infer<typeof updateScheduleSchema>,
 ): Promise<UpdateScheduleResult> {
-  const session = await requirePatientAccess(routePaths.patientReminders);
+  const session = await requirePatientAccessWithPhone(routePaths.patientReminders);
   const parsed = updateScheduleSchema.safeParse(data);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Неверные данные" };

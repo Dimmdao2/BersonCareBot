@@ -47,7 +47,10 @@ export const routePaths = {
   doctorOnlineIntake: "/app/doctor/online-intake",
 } as const;
 
-/** Маршруты пациента, для которых нужна привязка номера телефона (дневники, покупки и т.д.). «Мои записи» и запись Rubitime — без обязательного телефона (заглушка в UI). Остальное (меню, уроки, скорая, контент) — без телефона. */
+/**
+ * Исторический список для документации. Фактическая политика: `patientPathRequiresBoundPhone`
+ * (`app-layer/guards/patientPhonePolicy.ts`) и серверный `app/app/patient/layout.tsx`.
+ */
 export const patientPathsRequiringPhone: readonly string[] = [
   routePaths.purchases,
   routePaths.diary,
