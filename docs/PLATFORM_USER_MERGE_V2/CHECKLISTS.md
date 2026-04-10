@@ -47,10 +47,11 @@
 
 ## Deploy 3 — Merge service + outbox + webapp realignment
 
-- [ ] `mergeIntegratorUsers(winnerId, loserId, …)` в транзакции, порядок блокировок детерминирован.
-- [ ] Политика по каждому типу события в `projection_outbox`: rewrite payload / пересчёт idempotency / cancel+replay (см. STAGE_3).
-- [ ] Webapp: job или controlled SQL batch для rekey таблиц с `integrator_user_id` (инвентаризация в STAGE_4).
-- [ ] Проверочные SQL из [`sql/README.md`](sql/README.md).
+- [ ] `mergeIntegratorUsers(winnerId, loserId, …)` в транзакции, порядок блокировок детерминирован ([`mergeIntegratorUsers.ts`](../../apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts)).
+- [ ] Политика по каждому типу события в `projection_outbox`: rewrite payload / пересчёт idempotency / cancel+replay (см. [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md), [`projectionOutboxMergePolicy.ts`](../../apps/integrator/src/infra/db/repos/projectionOutboxMergePolicy.ts)).
+- [ ] После тестового merge: projection health — отдельно `cancelled` vs `dead` ([`projection-health.mjs`](../../apps/integrator/scripts/projection-health.mjs)); рост `cancelled` от merge dedup ожидаем, `pending` должен сходиться.
+- [ ] Webapp: для каждой смердженной пары — [`sql/realign_webapp_integrator_user_id.sql`](sql/realign_webapp_integrator_user_id.sql) или `pnpm --dir apps/webapp realign-webapp-integrator-user -- --winner=… --loser=… --commit` (см. [`STAGE_4_WEBAPP_REALIGNMENT.md`](STAGE_4_WEBAPP_REALIGNMENT.md)).
+- [ ] Gate webapp: [`sql/diagnostics_webapp_integrator_user_id.sql`](sql/diagnostics_webapp_integrator_user_id.sql) — все нули; проверочные SQL — [`sql/README.md`](sql/README.md).
 
 **Gate:** на стенде/проде после тестового merge — нет loser id в целевых projection-таблицах webapp.
 

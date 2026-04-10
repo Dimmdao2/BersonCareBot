@@ -1,6 +1,7 @@
 "use client";
 
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 
 type Props = {
   title: string;
@@ -60,9 +61,9 @@ export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: P
               />
             </div>
           ) : (
-            <video controls preload="metadata" className="max-w-full rounded-lg">
+            <NoContextMenuVideo controls preload="metadata" className="max-w-full rounded-lg">
               <source src={videoUrl.trim()} />
-            </video>
+            </NoContextMenuVideo>
           )
         ) : (
           <p className="m-0 text-sm text-muted-foreground">Видео не выбрано</p>

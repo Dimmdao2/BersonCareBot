@@ -39,6 +39,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
       return reply.code(503).send({
         pendingCount: 0,
         deadCount: 0,
+        cancelledCount: 0,
         oldestPendingAt: null,
         processingCount: 0,
         retryDistribution: {},

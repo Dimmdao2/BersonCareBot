@@ -11,6 +11,7 @@ import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
 import { PageSection } from "@/components/common/layout/PageSection";
 import { AppShell } from "@/shared/ui/AppShell";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -83,9 +84,9 @@ export default async function ContentSlugPage({ params }: Props) {
                 />
               </div>
             ) : (
-              <video controls preload="metadata" className="max-w-full rounded-lg">
+              <NoContextMenuVideo controls preload="metadata" className="max-w-full rounded-lg">
                 <source src={videoPlayableUrl} />
-              </video>
+              </NoContextMenuVideo>
             )}
           </PageSection>
         ) : (

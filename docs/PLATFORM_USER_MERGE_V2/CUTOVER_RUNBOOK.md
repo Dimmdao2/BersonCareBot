@@ -55,8 +55,14 @@ set -a && source /opt/env/bersoncarebot/cutover.prod && set +a
 ## Deploy 3 (merge + realignment)
 
 - **Не включать** массовый merge без dry-run на копии или без пошагового пилота.
-- Выполнить диагностические запросы из [`sql/README.md`](sql/README.md).
-- Зафиксировать в `AGENT_EXECUTION_LOG.md` время merge, пары id, результат SQL gate-запросов.
+- Выполнить диагностические запросы из [`sql/README.md`](sql/README.md) (integrator + webapp шаблоны).
+- Зафиксировать в [`AGENT_EXECUTION_LOG.md`](AGENT_EXECUTION_LOG.md) время merge, пары id, результат SQL gate-запросов.
+- После **integrator** merge: `node apps/integrator/scripts/projection-health.mjs` — проверить `cancelledCount` (ожидаемый рост при dedup outbox), что `pending` drain стабилен и `dead` не всплыл из‑за merge.
+- После merge пары `(winner, loser)` на **webapp** БД: realignment `integrator_user_id` (Stage 4) — см. [`STAGE_4_WEBAPP_REALIGNMENT.md`](STAGE_4_WEBAPP_REALIGNMENT.md):
+  - префикс `set -a && source /opt/env/bersoncarebot/webapp.prod && set +a` (или cutover-файл, если так задан `DATABASE_URL` для webapp);
+  - опционально `psql` с [`sql/preview_webapp_realignment_collisions.sql`](sql/preview_webapp_realignment_collisions.sql) и [`sql/realign_webapp_integrator_user_id.sql`](sql/realign_webapp_integrator_user_id.sql) (`\set winner_id` / `\set loser_id` — в [`sql/README.md`](sql/README.md));
+  - либо из `apps/webapp`: `pnpm realign-webapp-integrator-user -- --winner=… --loser=…` (dry-run), затем с `--commit`;
+  - gate: [`sql/diagnostics_webapp_integrator_user_id.sql`](sql/diagnostics_webapp_integrator_user_id.sql) — все `cnt = 0` для `loser_id`.
 
 ## Deploy 4 (feature flag)
 

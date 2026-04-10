@@ -29,7 +29,8 @@
     "seed-booking-catalog": "tsx scripts/seed-booking-catalog-tochka-zdorovya.ts",
     "backfill-patient-bookings-v2": "tsx scripts/backfill-patient-bookings-v2.ts",
     "backfill-rubitime-compat-snapshots": "tsx scripts/backfill-rubitime-compat-snapshots.ts",
-    "backfill-rubitime-history-to-patient-bookings": "tsx scripts/backfill-rubitime-history-to-patient-bookings.ts"
+    "backfill-rubitime-history-to-patient-bookings": "tsx scripts/backfill-rubitime-history-to-patient-bookings.ts",
+    "realign-webapp-integrator-user": "tsx scripts/realign-webapp-integrator-user-projection.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1026.0",

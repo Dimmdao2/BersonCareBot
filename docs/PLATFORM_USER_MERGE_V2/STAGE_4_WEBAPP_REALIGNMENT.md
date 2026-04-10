@@ -15,7 +15,7 @@
 | `support_conversations` | `integrator_user_id` | COALESCE при upsert — realignment должен быть согласован |
 | `user_subscriptions_webapp` | `integrator_user_id` | |
 | `mailing_logs_webapp` | `integrator_user_id` | |
-| `support_question_messages` / `support_questions` | косвенно через conversation | уточнить при реализации |
+| `support_question_messages` / `support_questions` | — | отдельного `integrator_user_id` нет; связь через `conversation_id` → `support_conversations` (достаточно rekey родительской строки) |
 
 **Дополнительно:** `platform_users.integrator_user_id` на стороне duplicate/target — решается существующим webapp merge **после** integrator merge (Stage 5 flow).
 
@@ -34,15 +34,25 @@
 
 ## Реализация в репозитории
 
-Варианты:
+**SQL (webapp DB):**
 
-- Отдельный скрипт под `cutover.prod` (аналог [`deploy/host/run-stage13-cutover.sh`](../../deploy/host/run-stage13-cutover.sh)).
-- Internal admin/ops route с секретом — только если согласовано с security/nginx (см. HOST_DEPLOY_README для `/api/internal/`).
+- Транзакция rekey + dedup: [`sql/realign_webapp_integrator_user_id.sql`](sql/realign_webapp_integrator_user_id.sql).
+- Превью коллизий UNIQUE (topic / mailing): [`sql/preview_webapp_realignment_collisions.sql`](sql/preview_webapp_realignment_collisions.sql).
+- Gate (все `cnt` = 0 по `loser_id`): [`sql/diagnostics_webapp_integrator_user_id.sql`](sql/diagnostics_webapp_integrator_user_id.sql) — тело UNION строится из [`webappIntegratorUserProjectionRealignment.ts`](../../apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts) (CI сверяет файл с билдером).
+
+**Job (опционально к `psql`):** из `apps/webapp` при заданном `DATABASE_URL`:
+
+- `pnpm realign-webapp-integrator-user -- --winner=<id> --loser=<id>` — dry-run (счётчики);
+- то же с `--commit` — одна транзакция, эквивалент SQL-файла.
+
+Порядок env на production: [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md), [`../ARCHITECTURE/SERVER CONVENTIONS.md`](../ARCHITECTURE/SERVER%20CONVENTIONS.md).
+
+**Дополнительно (не реализовано как отдельный хост-скрипт v2):** controlled cutover-обёртка под `cutover.prod` или internal ops-route — только при отдельном согласовании (аналог [`deploy/host/run-stage13-cutover.sh`](../../deploy/host/run-stage13-cutover.sh); см. HOST_DEPLOY_README для `/api/internal/`).
 
 ## Gate
 
-- `SELECT COUNT(*) ... WHERE integrator_user_id = loser` = 0 для всех целевых таблиц.
-- Повторная проекция событий не создаёт новые loser-rows.
+- `diagnostics_webapp_integrator_user_id.sql` с `\set loser_id '…'` — все строки результата с `cnt = 0` (см. [`sql/README.md`](sql/README.md)).
+- Повторная проекция из integrator не создаёт новые loser-rows (канонический user id в outbox — Stage 2; окно worker — см. порядок выполнения выше).
 
 ## Связь с todo «merge-outbox-realignment»
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 
 type Props = {
   src: string;
@@ -35,8 +36,8 @@ export function VideoThumbnailPreview({ src, className }: Props) {
   }, [src]);
 
   return (
-    <video key={src} ref={ref} className={className} preload="metadata" muted playsInline>
+    <NoContextMenuVideo key={src} ref={ref} className={className} preload="metadata" muted playsInline>
       <source src={src} />
-    </video>
+    </NoContextMenuVideo>
   );
 }

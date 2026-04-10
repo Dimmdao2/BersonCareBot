@@ -132,3 +132,54 @@
 - **Тесты:** `canonicalUserId.test.ts`, `writePort.appointments.test.ts`.
 - **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator **630** tests, webapp 1391 tests, build, `pnpm audit --prod`).
 - **Gate verdict:** **PASS (repository + CI)** для pass 2 Stage 2.
+
+---
+
+## 2026-04-10 — Stage 3: transactional integrator merge + projection_outbox realignment
+
+- **Scope:** [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md) — merge двух `users.id` в integrator DB, перенос FK, `merged_into_user_id`, политика outbox без нарушения `UNIQUE(idempotency_key)`.
+- **Код integrator:** `apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts` — `mergeIntegratorUsers(winnerId, loserId, options)` в одной `db.tx`; блокировка строк `users` через `SELECT … ORDER BY id ASC FOR UPDATE`; перенос `identities` (пары duplicate `(resource, external_id)` → repoint `telegram_state` / `message_drafts` / `conversations` / `user_questions`, удаление loser identity; затем массовый `UPDATE identities.user_id`); дедуп и `UPDATE` для `contacts`, `user_reminder_rules`, `content_access_grants`, `user_subscriptions`, `mailing_logs`; realign `projection_outbox` для **`pending` только** (rewrite payload + пересчёт idempotency по правилам как в `writePort`, при конфликте ключа — `status = 'cancelled'` + `last_error`); финально `UPDATE users SET merged_into_user_id` для loser. `projectionOutboxMergePolicy.ts` — deep replace user id в JSON и `recomputeProjectionIdempotencyKeyAfterMerge` по типам событий (rewrite / dedup; replay через новый ключ при отсутствии коллизии).
+- **Тесты:** `projectionOutboxMergePolicy.test.ts`, `mergeIntegratorUsers.test.ts` (lock order, dry-run, dedup ветка).
+- **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator **642** tests на момент первой поставки; после follow-up — **646**, см. следующий блок).
+- **Webapp / blocker:** hard blocker webapp **не снимался**; Stage 4 realignment webapp — отдельно.
+- **Gate verdict:** **PASS (repository + CI)** после успешного полного CI (интегратор + webapp + build + audit).
+
+---
+
+## 2026-04-10 — Stage 3 follow-up: AUDIT_STAGE_3 MANDATORY §1–§5
+
+- **Scope:** [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md) — закрытие FINDING/GAP первоначального аудита; только integrator Stage 3.
+- **Код:** `mergeIntegratorUsers` — идемпотентный no-op при `loser.merged_into_user_id === winner` (`alreadyMerged: true`); ошибка, если loser указывает на **другого** пользователя. Outbox realign — только `pending`; расширенный отбор строк через `payload::text LIKE` для quoted `integratorUserId` / `integrator_user_id`. JSDoc merge + обновления [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md). `projectionHealth.ts` + `scripts/projection-health.mjs` — поле **`cancelledCount`** (отдельно от `dead`; gate не деградирует только из‑за cancelled).
+- **Документы:** [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md) §10 follow-up; [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md) Deploy 3; [`CHECKLISTS.md`](CHECKLISTS.md) Deploy 3.
+- **Тесты:** `mergeIntegratorUsers.test.ts` (alreadyMerged / wrong-alias), `projectionHealth.test.ts` (`cancelledCount`, degraded не от cancelled).
+- **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator **646** tests, webapp **1391** tests, build, `pnpm audit --prod`).
+- **Gate verdict:** **PASS (repository + CI)** после зелёного полного CI.
+
+---
+
+## 2026-04-10 — Stage 4: webapp projection realignment (integrator_user_id)
+
+- **Scope:** [`STAGE_4_WEBAPP_REALIGNMENT.md`](STAGE_4_WEBAPP_REALIGNMENT.md) — после integrator merge перепривязать webapp projection-таблицы с `integrator_user_id` с loser на winner; gate — ноль строк с loser id.
+- **SQL (webapp):** [`sql/preview_webapp_realignment_collisions.sql`](sql/preview_webapp_realignment_collisions.sql), [`sql/realign_webapp_integrator_user_id.sql`](sql/realign_webapp_integrator_user_id.sql); обновлён [`sql/README.md`](sql/README.md) (job-скрипт, шаги gate evidence).
+- **Код webapp:** `apps/webapp/scripts/realign-webapp-integrator-user-projection.ts` + `pnpm realign-webapp-integrator-user`; `apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts` + unit-тесты.
+- **Стратегия:** rekey через `UPDATE` для всех целевых таблиц; перед этим `DELETE` loser-строк, дублирующих `(winner, topic)` / `(winner, mailing)` на `user_subscriptions_webapp` и `mailing_logs_webapp` (как dedup в integrator `mergeIntegratorUsers`). `support_questions` / `support_question_messages` — только через `conversation_id`, отдельного столбца `integrator_user_id` нет.
+- **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator **646** tests, webapp **1394** tests, build, `pnpm audit --prod`).
+- **Gate verdict:** **PASS (repository + CI)** для Stage 4 артефактов (SQL + job + тесты парсинга/инвентаря таблиц).
+
+---
+
+## 2026-04-10 — Stage 4 follow-up: AUDIT_STAGE_4 §3 (единый gate SQL)
+
+- **Scope:** только Stage 4 / закрытие GAP из [`AUDIT_STAGE_4.md`](AUDIT_STAGE_4.md) §3 — дублирование UNION между `diagnostics_webapp_integrator_user_id.sql` и job.
+- **Код:** `WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS`, `buildWebappLoserIntegratorUserIdGateUnionSql` / `buildWebappLoserIntegratorUserIdDiagnosticsSqlNodePg`, `fullDiagnosticsWebappIntegratorUserIdSqlFileContent` в `webappIntegratorUserProjectionRealignment.ts`; `realign-webapp-integrator-user-projection.ts` использует билдер; vitest сверяет файл в `docs/.../sql/` с каноническим содержимым + равенство множеств gate/update таблиц.
+- **Документы:** обновлены [`AUDIT_STAGE_4.md`](AUDIT_STAGE_4.md) (§3, §5, §6 MANDATORY §2, §8 follow-up), [`sql/README.md`](sql/README.md).
+- **Проверки:** `pnpm install --frozen-lockfile` && **`pnpm run ci`** из корня — **OK** (integrator **646** tests, webapp **1397** tests, build, `pnpm audit --prod`).
+- **Gate verdict:** **PASS (repository + CI)** для follow-up AUDIT Stage 4.
+
+---
+
+## 2026-04-10 — Stage 3 / Stage 4: закрытие док-хвостов (спеки + runbook + чеклисты)
+
+- **Scope:** сверка выполнения Stage 3–4 в репозитории с документами; без изменения runtime-кода merge/realignment.
+- **Документы:** [`STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md`](STAGE_3_TRANSACTIONAL_MERGE_AND_OUTBOX.md) — блок «Реализация в репозитории» (пути к `mergeIntegratorUsers`, `projectionOutboxMergePolicy`, projection health); [`STAGE_4_WEBAPP_REALIGNMENT.md`](STAGE_4_WEBAPP_REALIGNMENT.md) — актуальные SQL/job, уточнение support questions, gate через diagnostics; [`CUTOVER_RUNBOOK.md`](CUTOVER_RUNBOOK.md) Deploy 3 — пошаговый webapp realignment + gate; [`CHECKLISTS.md`](CHECKLISTS.md) Deploy 3 — конкретные пути; [`README.md`](README.md) пакета — ссылки на AUDIT_STAGE_3/4 и Stage 4 код; [`AUDIT_STAGE_3.md`](AUDIT_STAGE_3.md) / [`AUDIT_STAGE_4.md`](AUDIT_STAGE_4.md) §6 — число webapp tests **1397** (монорепо).
+- **Проверки:** `pnpm --dir apps/integrator exec vitest run` — **646** passed; `pnpm --dir apps/webapp exec vitest run` — **1397** passed; полный **`pnpm run ci`** из корня — **OK** (lint, typecheck, build, `pnpm audit --prod`).

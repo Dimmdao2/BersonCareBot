@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { canRenderInlineImage } from "./mediaPreview";
 
@@ -36,7 +37,7 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
               <img src={item.url} alt="" className="max-h-[70vh] w-full rounded-md object-contain" />
             ) : item.kind === "video" ? (
               <div className="flex w-full min-w-0 justify-center rounded-md bg-muted/40">
-                <video
+                <NoContextMenuVideo
                   className="max-h-[70vh] max-w-full object-contain"
                   controls
                   preload="metadata"
@@ -44,7 +45,7 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
                   playsInline
                 >
                   <source src={item.url} />
-                </video>
+                </NoContextMenuVideo>
               </div>
             ) : item.kind === "audio" ? (
               <audio controls preload="metadata" className="w-full">

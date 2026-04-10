@@ -3,6 +3,8 @@ import type { DbPort } from '../../../kernel/contracts/index.js';
 export type ProjectionHealthSnapshot = {
   pendingCount: number;
   deadCount: number;
+  /** Rows intentionally excluded from delivery (e.g. merge outbox dedup); not the same as `dead` (DLQ). */
+  cancelledCount: number;
   oldestPendingAt: string | null;
   processingCount: number;
   /** Count of rows by attempts_done (e.g. { 0: 5, 1: 2, 2: 1 }) for pending + processing */
@@ -18,6 +20,7 @@ const DEFAULT_RETRY_THRESHOLD = 3;
 /**
  * Reads projection_outbox health for release gate and monitoring.
  * Summary covers all domains (single outbox). Reusable by health endpoint and CLI script.
+ * Includes **`cancelledCount`** (e.g. merge dedup) separately from **`deadCount`** (DLQ).
  */
 export async function getProjectionHealth(
   db: DbPort,
@@ -28,7 +31,7 @@ export async function getProjectionHealth(
     db.query<{ status: string; cnt: string }>(
       `SELECT status, count(*)::text AS cnt
        FROM projection_outbox
-       WHERE status IN ('pending', 'processing', 'dead')
+       WHERE status IN ('pending', 'processing', 'dead', 'cancelled')
        GROUP BY status`,
     ),
     db.query<{ next_try_at: string | null }>(
@@ -57,11 +60,13 @@ export async function getProjectionHealth(
 
   let pendingCount = 0;
   let deadCount = 0;
+  let cancelledCount = 0;
   let processingCount = 0;
   for (const row of countsRes.rows) {
     const n = parseInt(row.cnt, 10) || 0;
     if (row.status === 'pending') pendingCount = n;
     else if (row.status === 'dead') deadCount = n;
+    else if (row.status === 'cancelled') cancelledCount = n;
     else if (row.status === 'processing') processingCount = n;
   }
 
@@ -76,6 +81,7 @@ export async function getProjectionHealth(
   return {
     pendingCount,
     deadCount,
+    cancelledCount,
     oldestPendingAt,
     processingCount,
     retryDistribution,

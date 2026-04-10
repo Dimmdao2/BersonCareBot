@@ -48,6 +48,7 @@ describe('projectionHealth', () => {
     expect(snapshot).toEqual({
       pendingCount: 3,
       deadCount: 1,
+      cancelledCount: 0,
       oldestPendingAt: '2026-03-19T10:00:00Z',
       processingCount: 2,
       retryDistribution: { 0: 2, 1: 2, 2: 1 },
@@ -55,7 +56,7 @@ describe('projectionHealth', () => {
       retriesOverThreshold: 1,
     });
     expect(query).toHaveBeenCalledTimes(5);
-    expect(query.mock.calls[0]![0]).toContain("status IN ('pending', 'processing', 'dead')");
+    expect(query.mock.calls[0]![0]).toContain("status IN ('pending', 'processing', 'dead', 'cancelled')");
     expect(query.mock.calls[1]![0]).toContain("status = 'pending'");
     expect(query.mock.calls[2]![0]).toContain("attempts_done");
     expect(query.mock.calls[3]![0]).toContain("status = 'done'");
@@ -77,6 +78,7 @@ describe('projectionHealth', () => {
     expect(snapshot.deadCount).toBe(0);
     expect(snapshot.oldestPendingAt).toBeNull();
     expect(snapshot.processingCount).toBe(0);
+    expect(snapshot.cancelledCount).toBe(0);
     expect(snapshot.retryDistribution).toEqual({});
     expect(snapshot.lastSuccessAt).toBeNull();
     expect(snapshot.retriesOverThreshold).toBe(0);
@@ -95,6 +97,26 @@ describe('projectionHealth', () => {
 
     expect(query.mock.calls[4]![1]).toEqual([5]);
   });
+
+  it('returns cancelledCount when status cancelled is present', async () => {
+    const { db, query } = createDbMock();
+    query
+      .mockResolvedValueOnce({
+        rows: [
+          { status: 'pending', cnt: '1' },
+          { status: 'cancelled', cnt: '4' },
+          { status: 'dead', cnt: '0' },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ cnt: '0' }] });
+
+    const snapshot = await getProjectionHealth(db);
+    expect(snapshot.cancelledCount).toBe(4);
+    expect(snapshot.pendingCount).toBe(1);
+  });
 });
 
 describe('isProjectionHealthDegraded', () => {
@@ -102,6 +124,7 @@ describe('isProjectionHealthDegraded', () => {
     const snapshot: ProjectionHealthSnapshot = {
       pendingCount: 0,
       deadCount: 1,
+      cancelledCount: 0,
       oldestPendingAt: null,
       processingCount: 0,
       retryDistribution: {},
@@ -115,6 +138,7 @@ describe('isProjectionHealthDegraded', () => {
     const snapshot: ProjectionHealthSnapshot = {
       pendingCount: 2,
       deadCount: 0,
+      cancelledCount: 0,
       oldestPendingAt: null,
       processingCount: 0,
       retryDistribution: { 3: 2 },
@@ -128,6 +152,7 @@ describe('isProjectionHealthDegraded', () => {
     const snapshot: ProjectionHealthSnapshot = {
       pendingCount: 1,
       deadCount: 0,
+      cancelledCount: 0,
       oldestPendingAt: '2026-03-19T10:00:00Z',
       processingCount: 0,
       retryDistribution: { 0: 1 },
@@ -137,10 +162,25 @@ describe('isProjectionHealthDegraded', () => {
     expect(isProjectionHealthDegraded(snapshot)).toBe(false);
   });
 
+  it('does not treat cancelledCount alone as degraded', () => {
+    const snapshot: ProjectionHealthSnapshot = {
+      pendingCount: 0,
+      deadCount: 0,
+      cancelledCount: 99,
+      oldestPendingAt: null,
+      processingCount: 0,
+      retryDistribution: {},
+      lastSuccessAt: null,
+      retriesOverThreshold: 0,
+    };
+    expect(isProjectionHealthDegraded(snapshot)).toBe(false);
+  });
+
   it('respects allowDeadCount and allowRetriesOverThreshold', () => {
     const snapshot: ProjectionHealthSnapshot = {
       pendingCount: 0,
       deadCount: 1,
+      cancelledCount: 0,
       oldestPendingAt: null,
       processingCount: 0,
       retryDistribution: {},

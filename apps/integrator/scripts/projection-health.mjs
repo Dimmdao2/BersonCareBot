@@ -3,6 +3,7 @@
  * Prints projection_outbox health for release gate and deploy checklists.
  * Uses INTEGRATOR_DATABASE_URL when set (gate from monorepo root), else DATABASE_URL.
  * Exit code: 0 when not degraded (no dead, retriesOverThreshold within bounds); 1 otherwise.
+ * `cancelled` (e.g. merge dedup) is reported explicitly and does **not** mark degraded by itself.
  */
 import 'dotenv/config';
 import pg from 'pg';
@@ -18,7 +19,7 @@ async function getProjectionHealth(pool) {
     pool.query(
       `SELECT status, count(*)::text AS cnt
        FROM projection_outbox
-       WHERE status IN ('pending', 'processing', 'dead')
+       WHERE status IN ('pending', 'processing', 'dead', 'cancelled')
        GROUP BY status`,
     ),
     pool.query(
@@ -47,11 +48,13 @@ async function getProjectionHealth(pool) {
 
   let pendingCount = 0;
   let deadCount = 0;
+  let cancelledCount = 0;
   let processingCount = 0;
   for (const row of countsRes.rows) {
     const n = parseInt(row.cnt, 10) || 0;
     if (row.status === 'pending') pendingCount = n;
     else if (row.status === 'dead') deadCount = n;
+    else if (row.status === 'cancelled') cancelledCount = n;
     else if (row.status === 'processing') processingCount = n;
   }
 
@@ -66,6 +69,7 @@ async function getProjectionHealth(pool) {
   return {
     pendingCount,
     deadCount,
+    cancelledCount,
     oldestPendingAt,
     processingCount,
     retryDistribution,
