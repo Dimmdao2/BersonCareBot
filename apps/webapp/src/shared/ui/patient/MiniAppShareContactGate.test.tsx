@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 const mockPathname = vi.fn(() => "/app/patient");
@@ -18,8 +18,8 @@ describe("MiniAppShareContactGate", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockPathname.mockReturnValue("/app/patient");
-    (window as unknown as { Telegram?: { WebApp?: { initData: string } } }).Telegram = {
-      WebApp: { initData: "mock-init-data" },
+    (window as unknown as { Telegram?: { WebApp?: { initData: string; close?: () => void } } }).Telegram = {
+      WebApp: { initData: "mock-init-data", close: vi.fn() },
     };
   });
 
@@ -227,6 +227,64 @@ describe("MiniAppShareContactGate", () => {
       value: { ...window.location, search: origSearch },
     });
     delete (window as unknown as { WebApp?: unknown }).WebApp;
+  });
+
+  it("clicking Provide contact POSTs request-contact then closes WebApp", async () => {
+    const closeSpy = vi.fn();
+    (window as unknown as { Telegram?: { WebApp?: { initData: string; close: () => void } } }).Telegram = {
+      WebApp: { initData: "mock-init-data", close: closeSpy },
+    };
+
+    globalThis.fetch = vi.fn(async (url: string | Request) => {
+      const u = typeof url === "string" ? url : (url as Request).url;
+      if (u.includes("/api/me")) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            user: { phone: "", bindings: { telegramId: "123" } },
+            platformAccess: {
+              tier: "onboarding",
+              canonicalUserId: "00000000-0000-4000-8000-000000000099",
+              dbRole: "client",
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      if (u.includes("/api/patient/messenger/request-contact")) {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (u.includes("/api/auth/telegram-login/config")) {
+        return new Response(JSON.stringify({ ok: true, botUsername: "test_bot" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response("", { status: 404 });
+    }) as typeof fetch;
+
+    render(
+      <MiniAppShareContactGate>
+        <div data-testid="inner">Inside</div>
+      </MiniAppShareContactGate>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Предоставить контакт/i }));
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/patient/messenger/request-contact"),
+        expect.objectContaining({ method: "POST", credentials: "include" }),
+      );
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("skips gate on bind-phone path", async () => {

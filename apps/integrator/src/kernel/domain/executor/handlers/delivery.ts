@@ -19,6 +19,11 @@ import {
 } from '../helpers.js';
 import { applyMessageSendDeliveryPolicy } from '../deliveryPolicy.js';
 
+/** Avoid attaching WebApp reply rows until the user has linked a phone (contact gate). */
+function canAttachMainReplyKeyboard(ctx: DomainContext): boolean {
+  return ctx.base.linkedPhone === true;
+}
+
 function channelBindingsToTargets(bindings: Record<string, string> | null | undefined): Array<{ channel: 'telegram' | 'max'; externalId: string }> {
   if (!bindings || typeof bindings !== 'object') return [];
   const out: Array<{ channel: 'telegram' | 'max'; externalId: string }> = [];
@@ -63,7 +68,7 @@ export async function handleDelivery(
       message: { text: composedText },
       delivery,
     };
-    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user') {
+    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user' && canAttachMainReplyKeyboard(ctx)) {
       const chatId = asNumber(recipient.chatId);
       if (chatId !== null) {
         const replyMarkup = await buildMainReplyKeyboardMarkup({
@@ -101,7 +106,12 @@ export async function handleDelivery(
       ctx,
       templatePort: deps.templatePort,
     });
-    if (deps.sendMenuOnButtonPress === true && contentAudience(ctx) === 'user' && !resolvedParams.replyMarkup) {
+    if (
+      deps.sendMenuOnButtonPress === true
+      && contentAudience(ctx) === 'user'
+      && canAttachMainReplyKeyboard(ctx)
+      && !resolvedParams.replyMarkup
+    ) {
       const recipient = asRecord(resolvedParams.recipient);
       const chatId = asNumber(recipient.chatId);
       if (chatId !== null) {

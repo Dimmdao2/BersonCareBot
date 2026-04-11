@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { BookingSelection } from "./useBookingSelection";
 import type { BookingSlot } from "@/modules/patient-booking/types";
 import { mapBookingCreateErrorCodeToRu } from "./bookingCreateErrorMessages";
+import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
 
 type CreateBookingInput = {
   selection: BookingSelection;
@@ -14,6 +16,7 @@ type CreateBookingInput = {
 };
 
 export function useCreateBooking() {
+  const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,8 +51,16 @@ export function useCreateBooking() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        redirectTo?: string;
+      };
       if (!res.ok || json.ok !== true) {
+        if (redirectIfPatientActivationRequired(json, router)) {
+          setError(null);
+          return false;
+        }
         setError(mapBookingCreateErrorCodeToRu(json.error));
         return false;
       }

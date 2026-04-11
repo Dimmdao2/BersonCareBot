@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
 import type { BookingSelection } from "./useBookingSelection";
 import type { BookingSlot, BookingSlotsByDate } from "@/modules/patient-booking/types";
 
@@ -24,6 +26,7 @@ function buildQuery(selection: BookingSelection, date?: string): string {
 }
 
 export function useBookingSlots(selection: BookingSelection | null) {
+  const router = useRouter();
   const [state, setState] = useState<State>({
     loading: false,
     error: null,
@@ -43,8 +46,17 @@ export function useBookingSlots(selection: BookingSelection | null) {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetch(`/api/booking/slots?${query}`, { cache: "no-store" });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; slots?: BookingSlotsByDate[]; error?: string };
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        slots?: BookingSlotsByDate[];
+        error?: string;
+        redirectTo?: string;
+      };
       if (!res.ok || json.ok !== true) {
+        if (redirectIfPatientActivationRequired(json, router)) {
+          setState({ loading: false, error: null, data: [] });
+          return;
+        }
         setState({ loading: false, error: json.error ?? "Не удалось загрузить слоты", data: [] });
         return;
       }
@@ -56,7 +68,7 @@ export function useBookingSlots(selection: BookingSelection | null) {
     } catch {
       setState({ loading: false, error: "Ошибка сети при загрузке слотов", data: [] });
     }
-  }, [query]);
+  }, [query, router]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

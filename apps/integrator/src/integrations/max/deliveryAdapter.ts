@@ -40,12 +40,25 @@ function asNonEmptyString(value: unknown): string | null {
 
 /**
  * Convert Telegram-style reply_markup.inline_keyboard to MAX inline_keyboard attachment.
+ * Поддержка кнопки request_contact (API MAX: type request_contact в payload.buttons).
  */
 function toMaxInlineKeyboard(replyMarkup: unknown): AttachmentRequest[] | undefined {
-  const rm = replyMarkup as { inline_keyboard?: Array<Array<{ text?: string; callback_data?: string; url?: string }>> } | null;
+  const rm = replyMarkup as {
+    inline_keyboard?: Array<
+      Array<{
+        text?: string;
+        callback_data?: string;
+        url?: string;
+        request_contact?: boolean;
+      }>
+    >;
+  } | null;
   if (!rm?.inline_keyboard?.length) return undefined;
   const buttons: Button[][] = rm.inline_keyboard.map((row) =>
     row.map((btn): Button => {
+      if (btn.request_contact === true) {
+        return { type: 'request_contact', text: btn.text ?? 'Поделиться номером' } as Button;
+      }
       if (btn.url) return { type: 'link', text: btn.text ?? '', url: btn.url };
       return { type: 'callback', text: btn.text ?? '', payload: btn.callback_data ?? '' };
     }),

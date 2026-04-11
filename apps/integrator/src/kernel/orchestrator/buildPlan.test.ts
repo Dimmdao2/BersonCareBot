@@ -307,7 +307,7 @@ describe('orchestrator buildPlan', () => {
     });
   });
 
-  it('can fall back to a generic bookings callback script when linkedPhone context is absent', async () => {
+  it('for telegram callback without linked phone, central gate returns request-contact plan (no script load)', async () => {
     const event: IncomingEvent = {
       type: 'callback.received',
       meta: {
@@ -342,14 +342,61 @@ describe('orchestrator buildPlan', () => {
           },
           steps: [{ action: 'message.edit', mode: 'async', params: { text: 'show bookings' } }],
         },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(contentPort.getScriptsBySource).not.toHaveBeenCalled();
+    expect(plan).toHaveLength(3);
+    expect(plan[0]?.kind).toBe('user.state.set');
+    expect(plan[1]?.kind).toBe('message.replyKeyboard.show');
+    expect(plan[2]).toMatchObject({
+      kind: 'callback.answer',
+      payload: { callbackQueryId: 'cb-1' },
+    });
+  });
+
+  it('for callback with linked phone, resolves business scripts as before', async () => {
+    const event: IncomingEvent = {
+      type: 'callback.received',
+      meta: {
+        eventId: 'evt-bookings-linked-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          action: 'bookings.show',
+          chatId: 123,
+          channelUserId: 123,
+          callbackQueryId: 'cb-2',
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      linkedPhone: true,
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
         {
-          id: 'telegram.contact.link.request.bookings.fallback',
+          id: 'telegram.bookings.show',
           source: 'telegram',
           event: 'callback.received',
           match: {
             input: { action: 'bookings.show' },
+            context: { linkedPhone: true },
           },
-          steps: [{ action: 'callback.answer', mode: 'async', params: { callbackQueryId: '{{input.callbackQueryId}}' } }],
+          steps: [{ action: 'message.edit', mode: 'async', params: { text: 'show bookings' } }],
         },
       ]),
       getTemplate: vi.fn().mockResolvedValue(null),
@@ -361,11 +408,9 @@ describe('orchestrator buildPlan', () => {
 
     const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
 
+    expect(contentPort.getScriptsBySource).toHaveBeenCalledWith('telegram');
     expect(plan).toHaveLength(1);
-    expect(plan[0]).toMatchObject({
-      kind: 'callback.answer',
-      payload: { callbackQueryId: 'cb-1' },
-    });
+    expect(plan[0]?.payload).toMatchObject({ text: 'show bookings' });
   });
 
   it('uses declared priority as the first routing tie-breaker', async () => {

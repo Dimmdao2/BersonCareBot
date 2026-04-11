@@ -63,6 +63,37 @@ describe('max deliveryAdapter', () => {
     expect(adapter.canHandle(intent)).toBe(false);
   });
 
+  it('send message.send maps inline request_contact button', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.send',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        recipient: { chatId: 200 },
+        message: { text: 'Confirm phone' },
+        delivery: { channels: ['max'] },
+        replyMarkup: {
+          inline_keyboard: [[{ text: 'Share', request_contact: true }]],
+        },
+      },
+    });
+    expect(sendMaxMessageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        extra: expect.objectContaining({
+          attachments: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'inline_keyboard',
+              payload: {
+                buttons: [[{ type: 'request_contact', text: 'Share' }]],
+              },
+            }),
+          ]),
+        }),
+      }),
+    );
+  });
+
   it('send message.send calls sendMaxMessage', async () => {
     const adapter = createMaxDeliveryAdapter();
     await adapter.send({

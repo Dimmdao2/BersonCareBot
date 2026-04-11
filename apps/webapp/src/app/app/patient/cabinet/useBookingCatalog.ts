@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { redirectIfPatientActivationRequired } from "./bookingPatientActivation";
 
 export type CatalogCity = { id: string; code: string; title: string };
 
@@ -12,6 +14,7 @@ export type CatalogBranchService = {
 type CitiesState = { loading: boolean; error: string | null; cities: CatalogCity[] };
 
 export function useBookingCatalogCities(open: boolean) {
+  const router = useRouter();
   const [state, setState] = useState<CitiesState>({ loading: false, error: null, cities: [] });
 
   const load = useCallback(async () => {
@@ -22,8 +25,13 @@ export function useBookingCatalogCities(open: boolean) {
         ok?: boolean;
         cities?: CatalogCity[];
         error?: string;
+        redirectTo?: string;
       };
       if (!res.ok || json.ok !== true) {
+        if (redirectIfPatientActivationRequired(json, router)) {
+          setState({ loading: false, error: null, cities: [] });
+          return;
+        }
         setState({ loading: false, error: json.error ?? "Не удалось загрузить города", cities: [] });
         return;
       }
@@ -31,7 +39,7 @@ export function useBookingCatalogCities(open: boolean) {
     } catch {
       setState({ loading: false, error: "Ошибка сети", cities: [] });
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!open) return;
@@ -47,6 +55,7 @@ export function useBookingCatalogCities(open: boolean) {
 type ServicesState = { loading: boolean; error: string | null; services: CatalogBranchService[] };
 
 export function useBookingCatalogServices(cityCode: string | null, open: boolean) {
+  const router = useRouter();
   const [state, setState] = useState<ServicesState>({ loading: false, error: null, services: [] });
 
   const load = useCallback(async () => {
@@ -62,8 +71,13 @@ export function useBookingCatalogServices(cityCode: string | null, open: boolean
         ok?: boolean;
         services?: CatalogBranchService[];
         error?: string;
+        redirectTo?: string;
       };
       if (!res.ok || json.ok !== true) {
+        if (redirectIfPatientActivationRequired(json, router)) {
+          setState({ loading: false, error: null, services: [] });
+          return;
+        }
         setState({ loading: false, error: json.error ?? "Не удалось загрузить услуги", services: [] });
         return;
       }
@@ -71,7 +85,7 @@ export function useBookingCatalogServices(cityCode: string | null, open: boolean
     } catch {
       setState({ loading: false, error: "Ошибка сети", services: [] });
     }
-  }, [cityCode]);
+  }, [cityCode, router]);
 
   useEffect(() => {
     if (!open || !cityCode) return;

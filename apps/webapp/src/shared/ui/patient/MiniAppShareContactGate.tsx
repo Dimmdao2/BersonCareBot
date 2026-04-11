@@ -1,7 +1,9 @@
 "use client";
 
 /**
- * Мессенджерный Mini App (Telegram / MAX): сессия есть, телефона в webapp ещё нет — ждём контакт в боте → contact.linked.
+ * Страховочный слой Mini App (Telegram / MAX): WebApp уже открыт, tier пациента ещё не `patient` —
+ * ждём контакт в боте → `contact.linked`. Основной контроль — в integrator (меню без номера не отдаётся).
+ *
  * Перед проверкой: при 401 на `/api/me` — `POST /api/auth/telegram-init` (Telegram) или `POST /api/auth/exchange` (параметр `?t=` / `?token=`).
  * `/app/patient/bind-phone` гейт не блокирует (там встроенная подсказка «через бота» для Mini App).
  */
@@ -14,13 +16,15 @@ import {
   resolveBotHrefAfterMessengerSessionLoss,
   resolveMessengerContactGateBotHref,
 } from "@/shared/lib/patientMessengerContactGate";
-import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { closeMessengerMiniApp, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
+import toast from "react-hot-toast";
 import { PatientSharePhoneViaBotPanel } from "./PatientSharePhoneViaBotPanel";
 
 const POLL_MS = 2000;
 const MAX_POLLS = 45;
 
-type GateMode = "inactive" | "loading" | "blocked" | "timed_out" | "session_lost";
+type GateMode = "inactive" | "loading" | "blocked" | "timed_out" | "session_lost" | "me_unavailable";
 
 export function MiniAppShareContactGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -36,6 +40,23 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+  }, []);
+
+  const onProvideContact = useCallback(async () => {
+    const r = await postPatientMessengerRequestContact();
+    if (!r.ok) {
+      const msg =
+        r.error === "no_messenger_binding"
+          ? "Нет привязки к мессенджеру. Откройте приложение из бота."
+          : r.error === "not_required"
+            ? "Номер уже не требуется. Нажмите «Проверить снова»."
+            : r.error === "rate_limited"
+              ? "Запрос уже недавно отправляли. Подождите минуту или откройте чат с ботом."
+              : "Не удалось запросить контакт. Попробуйте позже.";
+      toast.error(msg);
+      return;
+    }
+    closeMessengerMiniApp();
   }, []);
 
   const releaseGate = useCallback(() => {
@@ -101,6 +122,26 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
         }
         return;
       }
+      if (detail.kind === "me_unavailable") {
+        const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
+        if (!cancelled) {
+          startTransition(() => {
+            setBotHref(href);
+            setMode("me_unavailable");
+          });
+        }
+        return;
+      }
+      if (detail.kind === "need_contact") {
+        const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
+        if (!cancelled) {
+          startTransition(() => {
+            setBotHref(href);
+            setMode("blocked");
+          });
+        }
+        return;
+      }
       if (pollCountRef.current >= MAX_POLLS) {
         clearPoll();
         startTransition(() => setMode("timed_out"));
@@ -122,6 +163,17 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
       }
       if (detail.kind === "no_gate") {
         startTransition(() => setMode("inactive"));
+        return;
+      }
+      if (detail.kind === "me_unavailable") {
+        const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
+        startTransition(() => {
+          setBotHref(href);
+          setMode("me_unavailable");
+        });
+        pollCountRef.current = 0;
+        void pollOnce();
+        intervalRef.current = setInterval(() => void pollOnce(), POLL_MS);
         return;
       }
 
@@ -158,6 +210,57 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
         });
         return;
       }
+      if (detail.kind === "me_unavailable") {
+        const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
+        startTransition(() => {
+          setBotHref(href);
+          setMode("me_unavailable");
+        });
+        pollCountRef.current = 0;
+        const pollOnceRetry = async (): Promise<void> => {
+          pollCountRef.current += 1;
+          await ensureMessengerMiniAppWebappSession(router);
+          const d = await getPatientMessengerContactGateDetail();
+          if (d.kind === "no_gate") {
+            releaseGate();
+            return;
+          }
+          if (d.kind === "unauthenticated") {
+            clearPoll();
+            const h = await resolveBotHrefAfterMessengerSessionLoss();
+            startTransition(() => {
+              setBotHref(h);
+              setMode("session_lost");
+            });
+            return;
+          }
+          if (d.kind === "me_unavailable") {
+            const h = await resolveMessengerContactGateBotHref(d.hasTelegram, d.hasMax);
+            startTransition(() => {
+              setBotHref(h);
+              setMode("me_unavailable");
+            });
+            return;
+          }
+          if (d.kind === "need_contact") {
+            const h = await resolveMessengerContactGateBotHref(d.hasTelegram, d.hasMax);
+            startTransition(() => {
+              setBotHref(h);
+              setMode("blocked");
+            });
+            return;
+          }
+          if (pollCountRef.current >= MAX_POLLS) {
+            clearPoll();
+            startTransition(() => setMode("timed_out"));
+            return;
+          }
+        };
+        clearPoll();
+        void pollOnceRetry();
+        intervalRef.current = setInterval(() => void pollOnceRetry(), POLL_MS);
+        return;
+      }
       const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
       startTransition(() => {
         setBotHref(href);
@@ -181,6 +284,22 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
           });
           return;
         }
+        if (d.kind === "me_unavailable") {
+          const h = await resolveMessengerContactGateBotHref(d.hasTelegram, d.hasMax);
+          startTransition(() => {
+            setBotHref(h);
+            setMode("me_unavailable");
+          });
+          return;
+        }
+        if (d.kind === "need_contact") {
+          const h = await resolveMessengerContactGateBotHref(d.hasTelegram, d.hasMax);
+          startTransition(() => {
+            setBotHref(h);
+            setMode("blocked");
+          });
+          return;
+        }
         if (pollCountRef.current >= MAX_POLLS) {
           clearPoll();
           startTransition(() => setMode("timed_out"));
@@ -199,7 +318,7 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
   if (mode === "loading") {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-background text-sm text-muted-foreground"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-background text-sm text-muted-foreground"
         role="status"
         aria-live="polite"
       >
@@ -210,10 +329,19 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
 
   return (
     <PatientSharePhoneViaBotPanel
-      mode={mode === "blocked" ? "blocked" : mode === "timed_out" ? "timed_out" : "session_lost"}
+      mode={
+        mode === "blocked"
+          ? "blocked"
+          : mode === "timed_out"
+            ? "timed_out"
+            : mode === "me_unavailable"
+              ? "me_unavailable"
+              : "session_lost"
+      }
       botHref={botHref}
       onRetry={onRetry}
       variant="overlay"
+      onProvideContact={onProvideContact}
     />
   );
 }

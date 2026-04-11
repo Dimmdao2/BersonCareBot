@@ -330,6 +330,83 @@ async function resolveBusinessScript(
   return selected;
 }
 
+/**
+ * Prod: inline callbacks without a linked phone must not run notification/booking/diary scripts.
+ * Single gate before script matching — same UX as `*.need_phone` scenarios (request contact + `callback.answer`).
+ * Skips admins. Falls through when `callbackQueryId` is missing (non-standard payload) or source is not telegram/max.
+ */
+function buildLinkedPhoneCallbackGatePlan(input: OrchestratorInput): OrchestratorPlan | null {
+  if (input.event.type !== 'callback.received') return null;
+  if (input.context.actor?.isAdmin === true) return null;
+  if (input.context.linkedPhone === true) return null;
+
+  const vars = normalizeMatchVars(input);
+  const inc = asRecord(vars.input) ?? {};
+  const callbackQueryId = typeof inc.callbackQueryId === 'string' ? inc.callbackQueryId.trim() : '';
+  if (!callbackQueryId) return null;
+
+  const source = input.event.meta.source;
+  const scriptSteps: ScriptStep[] =
+    source === 'max'
+      ? [
+          {
+            action: 'user.state.set',
+            mode: 'sync',
+            params: {
+              channelUserId: '{{actor.channelUserId}}',
+              state: 'await_contact:subscription',
+            },
+          },
+          {
+            action: 'message.send',
+            mode: 'async',
+            params: {
+              recipient: { chatId: '{{actor.chatId}}' },
+              templateKey: 'max:confirmPhoneForBooking',
+              delivery: { channels: ['max'], maxAttempts: 1 },
+              inlineKeyboard: [[{ textTemplateKey: 'max:requestContact.button', requestPhone: true }]],
+            },
+          },
+          {
+            action: 'callback.answer',
+            mode: 'async',
+            params: { callbackQueryId: '{{input.callbackQueryId}}' },
+          },
+        ]
+      : source === 'telegram'
+        ? [
+            {
+              action: 'user.state.set',
+              mode: 'sync',
+              params: {
+                channelUserId: '{{actor.channelUserId}}',
+                state: 'await_contact:subscription',
+              },
+            },
+            {
+              action: 'message.replyKeyboard.show',
+              mode: 'async',
+              params: {
+                chatId: '{{actor.chatId}}',
+                templateKey: 'telegram:confirmPhoneForBooking',
+                keyboard: [[{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }]],
+                resizeKeyboard: true,
+                oneTimeKeyboard: true,
+              },
+            },
+            {
+              action: 'callback.answer',
+              mode: 'async',
+              params: { callbackQueryId: '{{input.callbackQueryId}}' },
+            },
+          ]
+        : [];
+
+  if (scriptSteps.length === 0) return null;
+
+  return scriptSteps.map((step, index) => toPlanStep(step, input, index, vars));
+}
+
 /** Выбирает подходящий сценарий, подставляет переменные в шаги и возвращает план действий. */
 export async function buildPlan(
   input: OrchestratorInput,
@@ -338,6 +415,9 @@ export async function buildPlan(
   if (input.event.type === 'callback.received') {
     logger.debug({ input }, '[orchestrator][buildPlan] input');
   }
+  const gated = buildLinkedPhoneCallbackGatePlan(input);
+  if (gated !== null) return gated;
+
   const selected = await resolveBusinessScript(input, deps.contentPort);
   if (!selected) return [];
   const script = selected.script;

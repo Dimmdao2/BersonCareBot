@@ -7,7 +7,7 @@ import { CHANNEL_LIST } from "@/modules/channel-preferences/constants";
 import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 
 export type PatientMessengerContactGateDetail = {
-  kind: "no_gate" | "need_contact" | "unauthenticated";
+  kind: "no_gate" | "need_contact" | "unauthenticated" | "me_unavailable";
   hasTelegram: boolean;
   hasMax: boolean;
 };
@@ -17,8 +17,9 @@ export async function getPatientMessengerContactGateDetail(): Promise<PatientMes
   if (res.status === 401) {
     return { kind: "unauthenticated", hasTelegram: false, hasMax: false };
   }
+  /** Не снимаем гейт при 5xx/сетевом сбое: иначе контент откроется без подтверждённого tier patient. */
   if (!res.ok) {
-    return { kind: "no_gate", hasTelegram: false, hasMax: false };
+    return { kind: "me_unavailable", hasTelegram: false, hasMax: false };
   }
   const data = (await res.json().catch(() => ({}))) as {
     ok?: boolean;
@@ -26,6 +27,7 @@ export async function getPatientMessengerContactGateDetail(): Promise<PatientMes
     platformAccess?: {
       tier?: string | null;
     } | null;
+    platformAccessUnresolved?: boolean;
   };
   if (!data.ok || !data.user) {
     return { kind: "no_gate", hasTelegram: false, hasMax: false };
@@ -33,7 +35,11 @@ export async function getPatientMessengerContactGateDetail(): Promise<PatientMes
   const phone = data.user.phone?.trim();
   const hasTelegram = Boolean((data.user.bindings?.telegramId ?? "").trim());
   const hasMax = Boolean((data.user.bindings?.maxId ?? "").trim());
-  /** Tier из БД (фаза A): patient только при доверенном телефоне; без поля — прежняя эвристика по `user.phone`. */
+  /** DB tier lookup failed while `DATABASE_URL` is set — same fail-safe as `patientClientBusinessGate`: do not open by snapshot phone. */
+  if ((hasTelegram || hasMax) && data.platformAccessUnresolved === true) {
+    return { kind: "me_unavailable", hasTelegram, hasMax };
+  }
+  /** Tier из БД: patient только при доверенном телефоне; без `platformAccess` — прежняя эвристика по `user.phone` (legacy / без БД). */
   const patientTierOk =
     data.platformAccess != null ? data.platformAccess.tier === "patient" : Boolean(phone);
   if (patientTierOk) {

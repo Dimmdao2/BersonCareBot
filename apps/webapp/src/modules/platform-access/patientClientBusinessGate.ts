@@ -7,7 +7,7 @@ export type PatientBusinessGate = "allow" | "need_activation" | "stale_session";
 
 /**
  * Для `client`: при наличии `DATABASE_URL` — только `tier === "patient"` (`resolvePlatformAccessContext`);
- * иначе onboarding / legacy cookie не проходят (DoD §2 / SPEC §4). При ошибке БД — fallback на телефон в сессии.
+ * иначе onboarding / legacy cookie не проходят (DoD §2 / SPEC §4). При ошибке БД — **fail-safe** `need_activation` (не поднимать доступ по snapshot при неизвестном tier).
  * Для прочих ролей — `allow` (их политика — отдельные guards).
  */
 export async function patientClientBusinessGate(session: AppSession): Promise<PatientBusinessGate> {
@@ -23,7 +23,7 @@ export async function patientClientBusinessGate(session: AppSession): Promise<Pa
       if (ctx.tier !== "patient") return "need_activation";
       return "allow";
     } catch {
-      return session.user.phone?.trim() ? "allow" : "need_activation";
+      return "need_activation";
     }
   }
 

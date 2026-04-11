@@ -3,6 +3,7 @@ import type { NotificationsPort } from '../ports/notifications.js';
 import type { WebhookContent } from '../webhookContent.js';
 import type { IncomingUpdate, OutgoingAction } from '../types.js';
 import { handleStart, handleAsk, handleQuestion, handleBook, handleMore, handleDefaultIdle } from './handleMessage.js';
+import { mainMenuMarkup, requestPhoneLink } from './requestContactFlow.js';
 import {
   handleNotificationCallback,
   handleShowNotifications,
@@ -22,31 +23,6 @@ function normalizePhone(value: string): string | null {
   return null;
 }
 
-function mainMenuMarkup(content: WebhookContent) {
-  return {
-    keyboard: content.mainMenuKeyboard,
-    resize_keyboard: true,
-    one_time_keyboard: false,
-  };
-}
-
-async function requestPhoneLink(
-  chatId: number,
-  channelId: string,
-  userPort: ChannelUserPort,
-  content: WebhookContent,
-): Promise<OutgoingAction[]> {
-  await userPort.setUserState(channelId, 'await_contact:subscription');
-  return [
-    {
-      type: 'sendMessage',
-      chatId,
-      text: content.messages.confirmPhoneForBooking,
-      replyMarkup: content.requestContactKeyboard,
-    },
-  ];
-}
-
 function asNumericMessageId(value: number | string): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim().length > 0) {
@@ -59,6 +35,10 @@ function asNumericMessageId(value: number | string): number | null {
 /**
  * Single entry: map incoming update to list of outgoing actions.
  * Domain does not know about channel specifics; only internal types.
+ *
+ * **Production webhooks** use the orchestrator (`processAcceptedIncomingEvent` → `buildPlan` + `scripts.json`), not this function. Contact/phone gating in prod lives in scenarios (`context.linkedPhone`) and the callback gate in `buildPlan`. This module remains for tests and legacy reference; behavior here should mirror product rules but is not the runtime path for Telegram/Max.
+ *
+ * Mini App overlay + M2M request-contact is a secondary safety net if WebApp opens first.
  */
 export async function handleUpdate(
   incoming: IncomingUpdate,
@@ -75,6 +55,16 @@ export async function handleUpdate(
 
     if (messageId === null) {
       return [{ type: 'answerCallbackQuery', callbackQueryId: incoming.callbackQueryId }];
+    }
+
+    if (!(incoming.hasLinkedPhone ?? false)) {
+      const phoneActions = await requestPhoneLink(
+        incoming.chatId,
+        String(incoming.channelUserId),
+        userPort,
+        content,
+      );
+      return [...phoneActions, { type: 'answerCallbackQuery', callbackQueryId: incoming.callbackQueryId }];
     }
 
     if (data.startsWith('notify_')) {
@@ -97,18 +87,8 @@ export async function handleUpdate(
       );
       actions.push(...result);
     } else if (data === 'menu_my_bookings') {
-      if (!incoming.hasLinkedPhone) {
-        const result = await requestPhoneLink(
-          incoming.chatId,
-          String(incoming.channelUserId),
-          userPort,
-          content,
-        );
-        actions.push(...result);
-      } else {
       const result = await handleMyBookings(incoming.chatId, messageId, content);
       actions.push(...result);
-      }
     } else if (data === 'menu_back') {
       const result = await handleBack(incoming.chatId, messageId, content);
       actions.push(...result);
@@ -159,7 +139,7 @@ export async function handleUpdate(
   }
 
   if (text === content.mainMenu.ask) {
-    return handleAsk(chatId, channelId, userPort, content);
+    return handleAsk(chatId, channelId, userPort, content, incoming.hasLinkedPhone ?? false);
   }
 
   if (userState === 'waiting_for_question' && text) {
@@ -173,10 +153,13 @@ export async function handleUpdate(
     }
     if (text === content.mainMenu.more) {
       await userPort.setUserState(channelId, 'idle');
-      return handleMore(chatId, content);
+      return handleMore(chatId, channelId, userPort, content, incoming.hasLinkedPhone ?? false);
     }
     if (text === content.mainMenu.ask) {
-      return handleAsk(chatId, channelId, userPort, content);
+      return handleAsk(chatId, channelId, userPort, content, incoming.hasLinkedPhone ?? false);
+    }
+    if (!(incoming.hasLinkedPhone ?? false)) {
+      return requestPhoneLink(chatId, channelId, userPort, content);
     }
     return handleQuestion(chatId, channelId, text, userPort, content, adminForward);
   }
@@ -189,11 +172,11 @@ export async function handleUpdate(
   }
 
   if (text === content.mainMenu.more) {
-    return handleMore(chatId, content);
+    return handleMore(chatId, channelId, userPort, content, incoming.hasLinkedPhone ?? false);
   }
 
   if (userState === 'idle') {
-    return handleDefaultIdle(chatId, content);
+    return handleDefaultIdle(chatId, channelId, userPort, content, incoming.hasLinkedPhone ?? false);
   }
 
   return [];

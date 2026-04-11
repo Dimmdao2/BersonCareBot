@@ -156,6 +156,44 @@ describe('handleUpdate contact linking', () => {
     });
   });
 
+  it('requests contact when "more" pressed without linked phone', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'message',
+      chatId: 100,
+      channelId: '100',
+      text: 'more',
+      hasLinkedPhone: false,
+      userRow: { id: '1', channel_id: '100' },
+      userState: 'idle',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(userPort.setUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
+    expect(actions[0]).toMatchObject({
+      type: 'sendMessage',
+      chatId: 100,
+      text: 'confirm-contact',
+    });
+  });
+
+  it('requests contact when ask pressed without linked phone', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'message',
+      chatId: 100,
+      channelId: '100',
+      text: 'ask',
+      hasLinkedPhone: false,
+      userRow: { id: '1', channel_id: '100' },
+      userState: 'idle',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(userPort.setUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
+    expect(actions[0]).toMatchObject({ type: 'sendMessage', text: 'confirm-contact' });
+  });
+
   it('requests contact for callback "menu_my_bookings" without linked phone', async () => {
     const userPort = buildUserPort();
     const incoming: IncomingUpdate = {
@@ -179,5 +217,82 @@ describe('handleUpdate contact linking', () => {
       type: 'answerCallbackQuery',
       callbackQueryId: 'cbq-1',
     });
+  });
+
+  it('requests contact for notify callback without linked phone', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'callback',
+      chatId: 100,
+      messageId: 10,
+      channelUserId: 100,
+      hasLinkedPhone: false,
+      callbackData: 'notify_toggle_spb',
+      callbackQueryId: 'cbq-2',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(userPort.setUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
+    expect(actions[0]).toMatchObject({ type: 'sendMessage', text: 'confirm-contact' });
+    expect(actions[1]).toMatchObject({ type: 'answerCallbackQuery', callbackQueryId: 'cbq-2' });
+  });
+
+  it('opens my bookings inline when phone is linked', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'callback',
+      chatId: 100,
+      messageId: 10,
+      channelUserId: 100,
+      hasLinkedPhone: true,
+      callbackData: 'menu_my_bookings',
+      callbackQueryId: 'cbq-3',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(userPort.setUserState).not.toHaveBeenCalledWith('100', 'await_contact:subscription');
+    expect(actions.some((a) => a.type === 'editMessageText')).toBe(true);
+    expect(actions[actions.length - 1]).toMatchObject({
+      type: 'answerCallbackQuery',
+      callbackQueryId: 'cbq-3',
+    });
+  });
+
+  it('requests contact on /start with external payload when phone is not linked', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'message',
+      chatId: 100,
+      channelId: '100',
+      text: '/start rubitimeRec_ABC12',
+      hasLinkedPhone: false,
+      userRow: { id: '1', channel_id: '100' },
+      userState: 'idle',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(userPort.setUserState).toHaveBeenCalledWith('100', 'await_contact:subscription');
+    expect(actions[0]).toMatchObject({
+      type: 'sendMessage',
+      text: 'confirm-contact',
+      replyMarkup: content.requestContactKeyboard,
+    });
+  });
+
+  it('shows main menu on /start with external payload when phone is linked', async () => {
+    const userPort = buildUserPort();
+    const incoming: IncomingUpdate = {
+      kind: 'message',
+      chatId: 100,
+      channelId: '100',
+      text: '/start rubitimeRec_ABC12',
+      hasLinkedPhone: true,
+      userRow: { id: '1', channel_id: '100' },
+      userState: 'idle',
+    };
+
+    const actions = await handleUpdate(incoming, userPort, notificationsPort, content);
+    expect(userPort.setUserState).toHaveBeenCalledWith('100', 'idle');
+    expect(actions[0]).toMatchObject({ type: 'sendMessage', text: 'choose' });
   });
 });

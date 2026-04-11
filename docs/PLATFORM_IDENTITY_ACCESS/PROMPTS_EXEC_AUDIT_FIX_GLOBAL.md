@@ -273,3 +273,9 @@ Runbook — только дополнение к архитектурному р
 После изменений выполни `pnpm install --frozen-lockfile` и `pnpm run ci` из корня монорепо. Обнови `docs/PLATFORM_IDENTITY_ACCESS/AGENT_EXECUTION_LOG.md` строкой с датой, кратким описанием закрытия хвостов и ссылкой на коммит или PR. Не добавляй в документацию секреты.
 
 Если после фикса зазоры остаются — зафиксируй их в отчёте и в журнале; при необходимости повтори цикл **GLOBAL_AUDIT → GLOBAL_FIX** до вердикта «инициатива закрыта» или до явного решения владельца продукта о добивке вне текущего DoD.
+
+---
+
+## См. также: единый гейт контакта (бот + Mini App)
+
+Отдельный продуктовый трек (не фаза MASTER_PLAN A–E): [`../AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md`](../AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md). Карта кода и риски оркестратора — `SCENARIOS_AND_CODE_MAP.md` §8; журнал — `AGENT_EXECUTION_LOG.md` (блок «Единый гейт контакта»). Регрессия контента сценариев: `apps/integrator/src/content/userScriptsLinkedPhoneGate.test.ts` (при `linkedPhone: false` в шагах нет `webAppUrlFact` / `web_app`).

@@ -325,6 +325,36 @@ Canonical linking rules:
 
 ---
 
+## Flow 6b: BersonCare → Integrator (request-contact)
+
+**Направление:** webapp вызывает integrator, чтобы в **личный чат** пользователя ушло сообщение с кнопкой запроса контакта (Telegram: reply keyboard `request_contact`; MAX: inline `request_contact`). **Основной** сценарий привязки — действия пользователя **в боте** без привязанного номера в канале: сценарии `scripts.json` с `context.linkedPhone: false` и центральный гейт в `buildPlan` для callback (прод: `processAcceptedIncomingEvent` → `buildPlan`, не `handleUpdate`). M2M-вызов — **страховка** из Mini App, если WebApp уже открыт, а в `/api/me` ещё нет tier **patient** (см. `patientMessengerContactGate`).
+
+**Метод и URL:** `POST {INTEGRATOR_API_URL}/api/bersoncare/request-contact`
+
+**Заголовки:** как Flow 6 (`X-Bersoncare-Timestamp`, `X-Bersoncare-Signature`, raw JSON body).
+
+**Тело (JSON):**
+
+```json
+{
+  "channel": "telegram" | "max",
+  "recipientId": "внешний id пользователя в канале (chat id)",
+  "idempotencyKey": "строка с окном времени (webapp: bucket 5 минут на channel+recipientId)"
+}
+```
+
+**Ответы:** `200 { ok: true, status: "accepted" | "duplicate" }`, ошибки как у send-otp / relay-outbound (`invalid_signature`, `dispatch_failed`, …).
+
+**Идемпотентность (integrator):** дедуп по `idempotencyKey` хранится **в памяти процесса** (`Map` в обработчике `/api/bersoncare/request-contact`): при нескольких инстансах API у каждого свой набор ключей; TTL задаётся в коде роутера. Это осознанное ограничение без отдельного shared store.
+
+**Webapp → integrator:** если в сессии **оба** binding (Telegram и Max), заголовок **`X-Bersoncare-Contact-Channel: telegram | max` обязателен**; иначе **`400`** с `contact_channel_required`. При одном канале заголовок опционален (канал выводится из сессии). Лимит **60 с** на `userId` на route handler обновляется **только после успешного** ответа integrator (`ok: true`, в т.ч. **`duplicate`** — чат уже получил или дедупнул запрос).
+
+Для `telegram` integrator дополнительно выставляет состояние диалога `await_contact:subscription` (как при сценарии привязки в боте). Для **max** отдельного `setUserState` в PostgreSQL интегратора нет (состояние ведёт сценарий MAX).
+
+**Reply-меню Telegram (`sendMenuOnButtonPress`):** автоподмешивание главной reply-клавиатуры из `replyMenu.json` к `message.send` / `message.compose` для пользователя выполняется в executor **только при** `ctx.base.linkedPhone === true`, чтобы не обходить гейт контакта.
+
+---
+
 ## Flow: BersonCare → Integrator (Rubitime record create + projection)
 
 **Направление:** webapp → integrator → Rubitime API2 `create-record`. После успешного создания integrator автоматически запускает post-create projection: fetch записи → нормализация → Google Calendar sync (best-effort) → `booking.upsert` (→ `appointment_records` через projection outbox).

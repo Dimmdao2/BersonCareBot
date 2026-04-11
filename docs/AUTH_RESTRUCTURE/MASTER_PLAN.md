@@ -207,18 +207,18 @@ hash = HMAC-SHA256(secret_key, data_check_string)
 
 **Детальный план этапа (задачи, gate, канонический текст приветствия):** [`STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md`](STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md).
 
-**Цель:** при первом `/start` бот **всегда** запрашивает `request_contact`, если номер ещё не привязан. Номер сохраняется в `platform_users` webapp через проекцию (channel-link). Пользователь, входящий в Mini App, уже имеет номер — дополнительного ввода не нужно.
+**Цель:** при первом `/start` бот **всегда** запрашивает `request_contact`, если номер ещё не привязан в канале. Номер сохраняется в webapp через проекцию (`contact.linked` / channel-link). **Дополнение (2026-04):** без номера не отдаётся полноценное меню/WebApp при прочих действиях в чате (**прод:** `buildPlan` + `scripts.json` при `linkedPhone: false`, гейт колбэков в `resolver.ts`, executor `sendMenuOnButtonPress` только при `linkedPhone`; `handleUpdate` / `handleMessage` — вне webhook); Mini App при открытии WebApp без tier **patient** — **страховочный** гейт + M2M `request-contact` (см. [`BOT_CONTACT_MINI_APP_GATE.md`](BOT_CONTACT_MINI_APP_GATE.md), журнал `PLATFORM_IDENTITY_ACCESS/AGENT_EXECUTION_LOG.md`, регрессия контента `apps/integrator/src/content/userScriptsLinkedPhoneGate.test.ts`).
 
-**Задачи:**
+**Задачи (исходный Stage 6; по коду расширено):**
 
-- **S6.T01** — Аудит текущего flow `request_contact`: сейчас запрашивается только при `menu_my_bookings` и `book` когда нет `hasLinkedPhone`. Нужно запрашивать **при /start**, если нет номера.
-- **S6.T02** — `handleStart`: если `!hasLinkedPhone` → отправить приветственное сообщение (канонический текст — **S6.T06**), затем **сразу** показать клавиатуру `request_contact` (без отдельного шага до текста); после привязки номера — главное меню.
-- **S6.T03** — Проекция: после сохранения номера в `channel_users` (integrator) — отправить событие `phone.linked` в webapp (через существующий channel-link mechanism), чтобы `platform_users` получил номер.
-- **S6.T04** — Max бот: аналогичный flow с `request_contact` (если Max API это поддерживает — проверить документацию).
-- **S6.T05** — Тесты: /start без номера → приветствие → сразу запрос контакта → пользователь нажимает кнопку → номер сохранён → главное меню.
-- **S6.T06** — Контент первичного приветствия (Telegram и Max): канонический текст и правила эмодзи — в [`STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md`](STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md) (раздел «Канонический текст приветствия»).
+- **S6.T01** — Аудит веток `/start` и точек `request_contact` (выполнено; позже расширено единым гейтом по чату).
+- **S6.T02** — `handleStart`: если `!hasLinkedPhone` → приветствие (**S6.T06**) → сразу `request_contact`; после привязки — главное меню.
+- **S6.T03** — Проекция в webapp после сохранения номера в integrator (события channel-link / `contact.linked`).
+- **S6.T04** — Max: аналог запроса контакта и доставка (inline `request_contact` и т.д.).
+- **S6.T05** — Тесты: /start без номера → приветствие → запрос контакта → номер → меню; регрессия гейтов в домене и Mini App.
+- **S6.T06** — Канонический текст приветствия и эмодзи — в [`STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md`](STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md).
 
-**Gate:** первый `/start` без привязанного номера → приветствие по **S6.T06** → сразу запрос контакта. После привязки — Mini App авторизует без ввода номера. `pnpm run ci` зелёный.
+**Gate:** первый `/start` без номера → **S6.T06** → сразу `request_contact`; в чате без номера — запрос контакта вместо полноценного меню; после привязки и проекции — tier **patient** в webapp; Mini App без tier **patient** — оверлей до синхронизации. `pnpm run ci` зелёный.
 
 ---
 

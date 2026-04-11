@@ -40,7 +40,7 @@ export type ExecutorDeps = {
   deliveryDefaultsPort?: DeliveryDefaultsPort | null;
   contentCatalogPort?: ContentCatalogPort | null;
   protectedAccessPort?: ProtectedAccessPort | null;
-  /** When true, attach main reply keyboard (from replyMenu.json) to message.send to user when params have no keyboard. */
+  /** When true, attach main reply keyboard (from replyMenu.json) to user `message.send` / `message.compose` only if `ctx.base.linkedPhone === true`. */
   sendMenuOnButtonPress?: boolean;
   contentPort?: ContentPort;
   /** Policy for support relay message types. When set, relay checks allowed types and uses copyMessage where applicable. */
@@ -389,6 +389,9 @@ export async function buildReplyMarkup(input: {
       return Promise.all(row.map(async (item) => {
         const button = asRecord(item);
         const text = await renderButtonText({ button, ctx: input.ctx, templatePort: input.templatePort, vars: input.vars });
+        if (isPhoneRequestButton(button)) {
+          return { text, request_contact: true };
+        }
         const webAppUrlFact = asString(button.webAppUrlFact);
         const webAppUrl = webAppUrlFact
           ? (getFactByPath(facts, webAppUrlFact) as string | undefined)

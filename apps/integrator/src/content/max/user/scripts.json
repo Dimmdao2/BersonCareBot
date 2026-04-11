@@ -124,6 +124,70 @@
     ]
   },
   {
+    "id": "max.menu.more.need_phone",
+    "source": "max",
+    "event": "message.received",
+    "priority": 30,
+    "match": {
+      "input": { "action": "menu.more" },
+      "context": { "linkedPhone": false }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "await_contact:subscription"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:confirmPhoneForBooking",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:requestContact.button", "requestPhone": true }]
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.diary.open.need_phone",
+    "source": "max",
+    "event": "message.received",
+    "priority": 30,
+    "match": {
+      "input": { "action": "diary.open" },
+      "context": { "linkedPhone": false }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "await_contact:subscription"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:confirmPhoneForBooking",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:requestContact.button", "requestPhone": true }]
+          ]
+        }
+      }
+    ]
+  },
+  {
     "id": "max.more.menu",
     "source": "max",
     "event": "message.received",
@@ -465,6 +529,43 @@
           "templateKey": "max:menu.main.heading",
           "menu": "main",
           "delivery": { "channels": ["max"], "maxAttempts": 1 }
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.assistant.open.need_phone",
+    "source": "max",
+    "event": "callback.received",
+    "priority": 35,
+    "match": {
+      "input": { "action": "assistant.open" },
+      "context": { "linkedPhone": false }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "await_contact:subscription"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:confirmPhoneForBooking",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:requestContact.button", "requestPhone": true }]
+          ]
         }
       },
       {

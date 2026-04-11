@@ -2,12 +2,7 @@ import type { ChannelUserPort } from '../ports/user.js';
 import type { WebhookContent } from '../webhookContent.js';
 import type { OutgoingAction } from '../types.js';
 import { tryConsumeStart } from './onboarding.js';
-
-const mainMenuMarkup = (content: WebhookContent) => ({
-  keyboard: content.mainMenuKeyboard,
-  resize_keyboard: true,
-  one_time_keyboard: false,
-});
+import { mainMenuMarkup, requestPhoneLink } from './requestContactFlow.js';
 
 export async function handleStart(
   chatId: number,
@@ -27,6 +22,9 @@ export async function handleStart(
   const isExternalRecordId = /^[A-Za-z0-9_-]{1,120}$/.test(payload);
 
   if (isExternalRecordId) {
+    if (!hasLinkedPhone) {
+      return { consumed: true, actions: await requestPhoneLink(chatId, String(channelUserId), userPort, content) };
+    }
     await userPort.setUserState(String(channelUserId), 'idle');
     return {
       consumed: true,
@@ -75,7 +73,11 @@ export async function handleAsk(
   channelUserId: string,
   userPort: ChannelUserPort,
   content: WebhookContent,
+  hasLinkedPhone: boolean,
 ): Promise<OutgoingAction[]> {
+  if (!hasLinkedPhone) {
+    return requestPhoneLink(chatId, channelUserId, userPort, content);
+  }
   await userPort.setUserState(channelUserId, 'waiting_for_question');
   return [
     { type: 'sendMessage', chatId, text: content.messages.describeQuestion, replyMarkup: mainMenuMarkup(content) },
@@ -124,13 +126,31 @@ export async function handleBook(
   ];
 }
 
-export async function handleMore(chatId: number, content: WebhookContent): Promise<OutgoingAction[]> {
+export async function handleMore(
+  chatId: number,
+  channelUserId: string,
+  userPort: ChannelUserPort,
+  content: WebhookContent,
+  hasLinkedPhone: boolean,
+): Promise<OutgoingAction[]> {
+  if (!hasLinkedPhone) {
+    return requestPhoneLink(chatId, channelUserId, userPort, content);
+  }
   return [
     { type: 'sendMessage', chatId, text: content.messages.chooseMenu, replyMarkup: content.moreMenuInline },
   ];
 }
 
-export async function handleDefaultIdle(chatId: number, content: WebhookContent): Promise<OutgoingAction[]> {
+export async function handleDefaultIdle(
+  chatId: number,
+  channelUserId: string,
+  userPort: ChannelUserPort,
+  content: WebhookContent,
+  hasLinkedPhone: boolean,
+): Promise<OutgoingAction[]> {
+  if (!hasLinkedPhone) {
+    return requestPhoneLink(chatId, channelUserId, userPort, content);
+  }
   return [
     { type: 'sendMessage', chatId, text: content.messages.chooseMenu, replyMarkup: mainMenuMarkup(content) },
   ];

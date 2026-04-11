@@ -16,6 +16,9 @@ export function mapBookingCreateErrorCodeToRu(code: string | undefined): string 
   if (code === "catalog_unavailable") {
     return "Каталог записи временно недоступен. Попробуйте позже.";
   }
+  if (code === "patient_activation_required") {
+    return "Нужен подтверждённый номер телефона. Сейчас откроется экран привязки.";
+  }
   if (code === "unauthorized" || code === "forbidden") {
     return "Нет доступа. Войдите в аккаунт и попробуйте снова.";
   }

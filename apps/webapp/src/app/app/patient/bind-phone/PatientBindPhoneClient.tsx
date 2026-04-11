@@ -8,7 +8,9 @@ import {
   resolveBotHrefAfterMessengerSessionLoss,
   resolveMessengerContactGateBotHref,
 } from "@/shared/lib/patientMessengerContactGate";
-import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { closeMessengerMiniApp, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
+import toast from "react-hot-toast";
 import { BindPhoneBlock } from "@/shared/ui/auth/BindPhoneBlock";
 import { PatientSharePhoneViaBotPanel } from "@/shared/ui/patient/PatientSharePhoneViaBotPanel";
 
@@ -31,7 +33,7 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
   /** null — ждём решения или refresh после привязки номера (не показываем SMS в Mini App). */
   const [useMessengerPanel, setUseMessengerPanel] = useState<boolean | null>(null);
   const [botHref, setBotHref] = useState<string | null>(null);
-  const [panelMode, setPanelMode] = useState<"blocked" | "timed_out" | "session_lost">("blocked");
+  const [panelMode, setPanelMode] = useState<"blocked" | "timed_out" | "session_lost" | "me_unavailable">("blocked");
 
   const runRecoveryAndDecide = useCallback(async () => {
     await ensureMessengerMiniAppWebappSession(router);
@@ -54,9 +56,18 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
       });
       return;
     }
+    if (detail.kind === "me_unavailable") {
+      const href = await resolveMessengerContactGateBotHref(Boolean(tg), Boolean(mx));
+      startTransition(() => {
+        setBotHref(href);
+        setPanelMode("me_unavailable");
+        setUseMessengerPanel(true);
+      });
+      return;
+    }
     startTransition(() => setUseMessengerPanel(null));
     router.refresh();
-  }, [router]);
+  }, [router, tg, mx]);
 
   useEffect(() => {
     if (!mini || (!tg && !mx)) {
@@ -71,6 +82,21 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
     void runRecoveryAndDecide();
   }, [runRecoveryAndDecide]);
 
+  const onProvideContactMini = useCallback(async () => {
+    const r = await postPatientMessengerRequestContact();
+    if (!r.ok) {
+      toast.error(
+        r.error === "no_messenger_binding"
+          ? "Нет привязки к мессенджеру."
+          : r.error === "rate_limited"
+            ? "Подождите минуту перед повторной отправкой."
+            : "Не удалось запросить контакт.",
+      );
+      return;
+    }
+    closeMessengerMiniApp();
+  }, []);
+
   if (mini && (tg || mx)) {
     if (useMessengerPanel !== true) {
       return (
@@ -80,7 +106,13 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
       );
     }
     return (
-      <PatientSharePhoneViaBotPanel mode={panelMode} botHref={botHref} onRetry={onRetryMini} variant="embedded" />
+      <PatientSharePhoneViaBotPanel
+        mode={panelMode}
+        botHref={botHref}
+        onRetry={onRetryMini}
+        variant="embedded"
+        onProvideContact={onProvideContactMini}
+      />
     );
   }
 

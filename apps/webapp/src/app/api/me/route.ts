@@ -21,6 +21,7 @@ export async function GET() {
   const pinRow = await deps.userPins.getByUserId(session.user.userId);
 
   let platformAccess: MePlatformAccessPayload | null = null;
+  let platformAccessUnresolved = false;
   if (env.DATABASE_URL?.trim()) {
     try {
       const ctx = await resolvePlatformAccessContext(getPool(), {
@@ -37,6 +38,7 @@ export async function GET() {
       };
     } catch {
       platformAccess = null;
+      platformAccessUnresolved = true;
     }
   }
 
@@ -48,5 +50,6 @@ export async function GET() {
     },
     postLoginHints: session.postLoginHints,
     platformAccess,
+    ...(platformAccessUnresolved ? { platformAccessUnresolved: true as const } : {}),
   });
 }

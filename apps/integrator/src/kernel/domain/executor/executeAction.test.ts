@@ -1170,7 +1170,11 @@ describe('executeAction', () => {
         templateKey: 'telegram:questionAccepted',
         delivery: { channels: ['telegram'], maxAttempts: 1 },
       },
-    }, { ...ctx, event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { text: 'question', chatId: 123 } } } }, {
+    }, {
+      ...ctx,
+      base: { ...ctx.base, linkedPhone: true },
+      event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { text: 'question', chatId: 123 } } },
+    }, {
       templatePort,
       sendMenuOnButtonPress: true,
       contentPort: {
@@ -1223,7 +1227,11 @@ describe('executeAction', () => {
         templateKey: 'telegram:menu.more',
         delivery: { channels: ['telegram'], maxAttempts: 1 },
       },
-    }, { ...ctx, event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { action: 'menu.more', text: '⚙️ Меню', chatId: 123 } } } }, {
+    }, {
+      ...ctx,
+      base: { ...ctx.base, linkedPhone: true },
+      event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { action: 'menu.more', text: '⚙️ Меню', chatId: 123 } } },
+    }, {
       templatePort,
       sendMenuOnButtonPress: true,
       contentPort: {
@@ -1254,6 +1262,54 @@ describe('executeAction', () => {
         },
       },
     });
+  });
+
+  it('does not attach main reply keyboard when linkedPhone is false (contact gate)', async () => {
+    const templatePort = {
+      renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
+        text: templateId === 'questionAccepted'
+          ? 'Вопрос принят. Я отвечу вам в ближайшее время.'
+          : '',
+      })),
+    };
+
+    const result = await executeAction({
+      id: 'a17c',
+      type: 'message.send',
+      mode: 'async',
+      params: {
+        recipient: { chatId: 123 },
+        templateKey: 'telegram:questionAccepted',
+        delivery: { channels: ['telegram'], maxAttempts: 1 },
+      },
+    }, {
+      ...ctx,
+      base: { ...ctx.base, linkedPhone: false },
+      event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { text: 'question', chatId: 123 } } },
+    }, {
+      templatePort,
+      sendMenuOnButtonPress: true,
+      contentPort: {
+        getTemplate: vi.fn(),
+        getBundle: vi.fn().mockResolvedValue({
+          scripts: [],
+          templates: {},
+          mainReplyKeyboard: [[
+            { textTemplateKey: 'telegram:menu.book' },
+            { textTemplateKey: 'telegram:menu.more' },
+          ]],
+        }),
+      },
+    });
+
+    expect(result.intents?.[0]).toMatchObject({
+      type: 'message.send',
+      payload: {
+        recipient: { chatId: 123 },
+        message: { text: 'Вопрос принят. Я отвечу вам в ближайшее время.' },
+      },
+    });
+    expect((result.intents?.[0]?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
   });
 
   it('sends single intent for inline keyboard (no follow-up reply menu)', async () => {

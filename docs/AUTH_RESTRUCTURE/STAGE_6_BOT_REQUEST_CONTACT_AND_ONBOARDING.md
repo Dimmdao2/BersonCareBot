@@ -2,6 +2,10 @@
 
 Сводка в общем плане: `MASTER_PLAN.md` -> Stage 6.
 
+## Актуализация (после единого гейта, 2026-04)
+
+Исходный scope Stage 6 (приветствие + `/start`) **дополнен** в коде: **основной** контроль — в integrator (**прод:** `buildPlan` + `scripts.json` при `linkedPhone: false` + центральный гейт колбэков; см. `resolver.ts` и §8 `SCENARIOS_AND_CODE_MAP.md`); `handleUpdate` / `handleMessage` — вне webhook-пути. **Страховка** — `MiniAppShareContactGate`, `POST /api/patient/messenger/request-contact`, tier **patient** в `/api/me`. Журнал и ссылки: [`BOT_CONTACT_MINI_APP_GATE.md`](./BOT_CONTACT_MINI_APP_GATE.md), [`../PLATFORM_IDENTITY_ACCESS/AGENT_EXECUTION_LOG.md`](../PLATFORM_IDENTITY_ACCESS/AGENT_EXECUTION_LOG.md) (блок «Единый гейт контакта»).
+
 ## Цель этапа
 
 При первом `/start`, если номер телефона еще не привязан, бот всегда отправляет приветственное сообщение (канонический текст ниже) и сразу показывает клавиатуру `request_contact`. Номер сохраняется в integrator и проецируется в webapp: обновляется `platform_users.phone_normalized`, а для соответствующего мессенджера поддерживается `user_channel_bindings`.
@@ -100,9 +104,14 @@
 Это необходимо, чтобы вы могли видеть свои настройки, тренировки и историю записей одинаково на всех платформах: я работаю в Telegram, Max и обычном браузере. А скоро будет и приложение.
 ```
 
+## Два слоя контроля (бот + Mini App)
+
+- **Бот (основной):** без привязанного номера не выдаётся полноценное меню и действия с WebApp — везде, где это обрабатывается в домене, уходит `requestPhoneLink` / сценарные правила `linkedPhone: false` (см. `handleUpdate`, `handleMessage`, `requestContactFlow`, `scripts.json`).
+- **Mini App (страховка):** если WebApp уже открыт, а tier пациента ещё не `patient`, гейт в layout и `POST …/messenger/request-contact` дотаскивают пользователя до чата с кнопкой контакта. Подробнее: [`BOT_CONTACT_MINI_APP_GATE.md`](./BOT_CONTACT_MINI_APP_GATE.md).
+
 ## Webapp: Mini App до контакта
 
-Реализован гейт `MiniAppShareContactGate` в layout пациента (`app/app/patient/layout.tsx`): при открытии приложения из Telegram с `initData`, если в сессии есть привязка Telegram, но ещё нет телефона в webapp, показывается экран с ссылкой на бота и опросом `/api/me`. Подробнее: `BOT_CONTACT_MINI_APP_GATE.md`.
+Реализован гейт `MiniAppShareContactGate` в layout пациента (`app/app/patient/layout.tsx`): при открытии приложения из мессенджера, если в сессии есть привязка Telegram/Max, но ещё нет tier **patient** в webapp, показывается экран с опросом `/api/me`, кнопкой запроса контакта в чат и при необходимости ссылкой на бота. Подробнее: `BOT_CONTACT_MINI_APP_GATE.md`.
 
 ## Gate (критерий готовности)
 
