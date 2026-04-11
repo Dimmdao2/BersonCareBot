@@ -49,6 +49,14 @@ The service expects its own env file and database:
 
 See `ARCHITECTURE.md`, `INTEGRATOR_CONTRACT.md`, and `MVP_PLAN.md` for the canonical service structure.
 
+## Ops scripts and manual SQL
+
+Папка [`scripts/`](scripts/) — разовые и сервисные утилиты (backfill, reconcile, админка по телефону). Любые изменения `platform_users` / телефона **в обход UI** влияют на tier **patient** только если согласованы с колонкой **`patient_phone_trust_at`** (см. инициативу Platform Identity & Access).
+
+- **Чек-лист и порядок действий:** [`scripts/PLATFORM_IDENTITY_OPS.md`](scripts/PLATFORM_IDENTITY_OPS.md)
+- **Оглавление скриптов:** [`scripts/README.md`](scripts/README.md)
+- **Карта trusted paths в коде и ссылка на ops:** [`docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`](../../docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md) §8
+
 ## Описание модулей
 
 В каждой значимой папке внутри `src/` лежит файл с именем папки в формате `.md` (например `app/app.md`, `modules/diaries/diaries.md`, `infra/db/db.md`). В нём кратко описано назначение модуля и что он делает. При изменении или расширении модуля этот файл стоит дополнять (изменения, отклонения от изначальной логики, новые обязанности).

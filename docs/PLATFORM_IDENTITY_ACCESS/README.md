@@ -9,9 +9,12 @@
 | [`MASTER_PLAN.md`](MASTER_PLAN.md) | Генеральный план инициативы: цели, фазы, DoD, риски, связь с другими доками |
 | [`SPECIFICATION.md`](SPECIFICATION.md) | Нормативная спецификация: канон, tier, доверие, legacy, инварианты |
 | [`SCENARIOS_AND_CODE_MAP.md`](SCENARIOS_AND_CODE_MAP.md) | Подробные сценарии и привязка к модулям/файлам BersonCareBot |
+| [`../../apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](../../apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md) | Ops: ручные скрипты/SQL, телефон и `patient_phone_trust_at`, порядок действий вне UI |
+| [`../../apps/webapp/scripts/README.md`](../../apps/webapp/scripts/README.md) | Оглавление папки `apps/webapp/scripts` |
 | [`PHASE_D_DEEP_AUDIT_REPORT.md`](PHASE_D_DEEP_AUDIT_REPORT.md) | Отчёт глубокого поэтапного аудита фазы D (RSC/API/layout/actions); после **D-FIX 2026-04-11** P1 и часть P2 закрыты — см. вердикт в конце отчёта |
 | [`PHASE_E_AUDIT_REPORT.md`](PHASE_E_AUDIT_REPORT.md) | Первичный аудит фазы E (DoD §1–§4 и §8) |
 | [`PHASE_E_REAUDIT_REPORT.md`](PHASE_E_REAUDIT_REPORT.md) | Повторный аудит E, закрытие D-SA-1 (onboarding server actions) |
+| [`INDEPENDENT_DEEP_AUDIT_REPORT.md`](INDEPENDENT_DEEP_AUDIT_REPORT.md) | Независимый сквозной аудит по этапам 0–7 (2026-04-11), вердикт и P0–P2 |
 
 ## Связь с другими инициативами
 

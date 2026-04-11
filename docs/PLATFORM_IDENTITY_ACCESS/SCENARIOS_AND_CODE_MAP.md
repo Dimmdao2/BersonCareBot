@@ -141,6 +141,8 @@
 
 **Важно:** прочие писатели `phone_normalized` (скрипты в `apps/webapp/scripts/`, ручной SQL, новые репозитории) **не** считаются trusted, пока не добавлены в enum **и** не выставляют `patient_phone_trust_at` согласно решению в PR.
 
+**Ops вне приложения:** пошаговые правила для ручных правок и скриптов — [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](../../apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md); оглавление папки — [`apps/webapp/scripts/README.md`](../../apps/webapp/scripts/README.md). Утилита по номеру телефона (purge/reassign и т.д., в т.ч. `runStrictPurgePlatformUser`) — [`apps/webapp/scripts/user-phone-admin.ts`](../../apps/webapp/scripts/user-phone-admin.ts).
+
 Любое новое место, которое пишет телефон и должно влиять на patient-tier, **обязано** быть занесено в trusted policy **или** не влиять на tier до отдельного решения.
 
 ---

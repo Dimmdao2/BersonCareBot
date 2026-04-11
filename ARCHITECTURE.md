@@ -212,6 +212,14 @@
 - `src/infra/runtime/scheduler/main.ts`
   - scheduler tick entrypoint присутствует в кодовой базе
 
+## Webapp: операции с БД вне UI (скрипты, ручной SQL)
+
+Сервис `apps/webapp` хранит идентичность и **доверие к телефону** для tier **patient** в PostgreSQL (`platform_users.phone_normalized` и `patient_phone_trust_at`). Произвольные правки в обход приложения не проходят через закрытый перечень trusted writers в коде.
+
+- **Правила для агентов и операторов:** [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md) (порядок действий, когда выставлять доверие, предпочтение готовых инструментов вроде `user-phone-admin.ts` и продуктового merge).
+- **Продуктовая карта и enum trusted paths:** [`docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`](docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md) §8.
+- **Оглавление папки скриптов:** [`apps/webapp/scripts/README.md`](apps/webapp/scripts/README.md).
+
 ## Deploy model
 
 **Текущая модель (host):** Node.js на сервере, системный PostgreSQL, systemd, nginx. Бэкап БД перед миграциями, деплой через `deploy/host/deploy-prod.sh`. Подробно: `deploy/HOST_DEPLOY_README.md`.

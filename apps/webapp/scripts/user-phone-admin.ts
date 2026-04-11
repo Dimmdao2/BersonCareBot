@@ -60,6 +60,8 @@
  *
  * Строгий режим (после reset-user завершиться с кодом 2, если integrator не очищен):
  *   `USER_PHONE_ADMIN_STRICT_INTEGRATOR=1`
+ *
+ * Ручные правки БД / другие скрипты и tier «patient»: см. `PLATFORM_IDENTITY_OPS.md` в этой папке.
  */
 
 import { execFileSync } from "node:child_process";

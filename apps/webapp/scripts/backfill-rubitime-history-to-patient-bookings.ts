@@ -334,8 +334,8 @@ async function main(): Promise<void> {
       } else {
         if (!isDryRun) {
           const ins = await pool.query<{ id: string }>(
-            `INSERT INTO platform_users (phone_normalized, display_name, first_name, last_name, email)
-             VALUES ($1, $2, $3, $4, $5)
+            `INSERT INTO platform_users (phone_normalized, display_name, first_name, last_name, email, patient_phone_trust_at)
+             VALUES ($1, $2, $3, $4, $5, now())
              RETURNING id`,
             [phone, displayName ?? "", firstName, lastName, email],
           );

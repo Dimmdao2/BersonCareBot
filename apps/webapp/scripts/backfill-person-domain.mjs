@@ -179,8 +179,13 @@ async function main() {
             vals.push(u.displayName);
           }
           if (u.phone != null) {
-            updates.push(`phone_normalized = $${++idx}`);
+            const phoneIdx = ++idx;
+            updates.push(`phone_normalized = $${phoneIdx}`);
             vals.push(u.phone);
+            // Align with integrator projection trust (PLATFORM_IDENTITY_ACCESS / patient_phone_trust_at).
+            updates.push(
+              `patient_phone_trust_at = CASE WHEN $${phoneIdx}::text IS NOT NULL AND trim($${phoneIdx}::text) <> '' THEN now() ELSE patient_phone_trust_at END`,
+            );
           }
           if (updates.length > 0) {
             updates.push("updated_at = now()");
@@ -210,11 +215,17 @@ async function main() {
 
       if (!platformUserId && !dryRun) {
         const ins = await webapp.query(
-          `INSERT INTO platform_users (integrator_user_id, phone_normalized, display_name)
-           VALUES ($1, $2, $3)
+          `INSERT INTO platform_users (integrator_user_id, phone_normalized, display_name, patient_phone_trust_at)
+           VALUES ($1, $2, $3,
+             CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN now() ELSE NULL END)
            ON CONFLICT (integrator_user_id) DO UPDATE SET
              phone_normalized = COALESCE(EXCLUDED.phone_normalized, platform_users.phone_normalized),
              display_name = COALESCE(NULLIF(EXCLUDED.display_name, ''), platform_users.display_name),
+             patient_phone_trust_at = CASE
+               WHEN EXCLUDED.phone_normalized IS NOT NULL AND trim(EXCLUDED.phone_normalized::text) <> ''
+                 THEN COALESCE(platform_users.patient_phone_trust_at, now())
+               ELSE platform_users.patient_phone_trust_at
+             END,
              updated_at = now()
            RETURNING id`,
           [integratorUserId, u.phone ?? null, u.displayName ?? ""]

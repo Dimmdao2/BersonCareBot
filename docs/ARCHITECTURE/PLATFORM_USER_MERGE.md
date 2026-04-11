@@ -14,6 +14,10 @@
 
 Реализация **Platform User Merge v2** и репозиторное закрытие зафиксированы **2026-04-10** в [`STAGE_C_CLOSEOUT.md`](../PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md). Снятие жёсткого блокера `different_non_null_integrator_user_id` в webapp возможно **только** при включённом admin-флаге `platform_user_merge_v2_enabled` и соблюдении порядка «сначала integrator merge (при необходимости realignment webapp), затем webapp merge» — см. таблицу hard blockers и [`STAGE_5_FEATURE_FLAG_AND_FLOW_SWITCH.md`](../PLATFORM_USER_MERGE_V2/STAGE_5_FEATURE_FLAG_AND_FLOW_SWITCH.md).
 
+## Ручные операции и скрипты (вне UI)
+
+Слияние и удаление учёток **предпочтительно** через продуктовые пути (кабинет врача, код `pgPlatformUserMerge`) или утилиту [`apps/webapp/scripts/user-phone-admin.ts`](../../apps/webapp/scripts/user-phone-admin.ts). Общие правила для любых SQL/скриптов, затрагивающих телефон и tier patient: [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](../../apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md). Контекст trusted phone: [`../PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`](../PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md) §8.
+
 ## Цели
 
 - убрать появление новых кейсов `Неизвестный клиент` из Rubitime ingestion;

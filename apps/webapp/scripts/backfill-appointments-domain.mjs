@@ -144,13 +144,14 @@ async function main() {
           if (r.rowCount > 0) stats.patientsUpdated += 1;
         } else if (firstName || lastName || email || displayName) {
           const ins = await dst.query(
-            `INSERT INTO platform_users (phone_normalized, first_name, last_name, email, display_name)
-             VALUES ($1, $2, $3, $4, $5)
+            `INSERT INTO platform_users (phone_normalized, first_name, last_name, email, display_name, patient_phone_trust_at)
+             VALUES ($1, $2, $3, $4, $5, now())
              ON CONFLICT (phone_normalized) DO UPDATE SET
                first_name = COALESCE(EXCLUDED.first_name, platform_users.first_name),
                last_name = COALESCE(EXCLUDED.last_name, platform_users.last_name),
                email = COALESCE(EXCLUDED.email, platform_users.email),
                display_name = COALESCE(NULLIF(TRIM(EXCLUDED.display_name), ''), platform_users.display_name),
+               patient_phone_trust_at = COALESCE(platform_users.patient_phone_trust_at, now()),
                updated_at = now()
              RETURNING id`,
             [row.phone_normalized, firstName, lastName, email, displayName ?? ""]
