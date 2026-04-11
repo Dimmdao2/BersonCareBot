@@ -4,6 +4,7 @@ import {
   canSubmitManualMerge,
   getAlignedMergePreviewRequest,
   hardBlockerUi,
+  resolveMergePreviewAlignment,
   uuidEqualsNormalized,
   type MergePreviewApiOk,
 } from "./adminMergeAccountsLogic";
@@ -96,6 +97,32 @@ describe("getAlignedMergePreviewRequest", () => {
     const p = basePreview();
     const r = getAlignedMergePreviewRequest(T1, T2, p);
     expect(r.shouldRefetch).toBe(false);
+  });
+});
+
+describe("resolveMergePreviewAlignment", () => {
+  it("never refetches when alignToRecommendation is false", () => {
+    const p = basePreview({
+      targetId: T2,
+      duplicateId: T1,
+      recommendation: { suggestedTargetId: T1, suggestedDuplicateId: T2, basis: "x", defaultWinnerBias: "x" },
+    });
+    const r = resolveMergePreviewAlignment(false, T1, T2, p);
+    expect(r.shouldRefetch).toBe(false);
+    expect(r.targetId).toBe(T2);
+    expect(r.duplicateId).toBe(T1);
+  });
+
+  it("delegates to heuristic when alignToRecommendation is true", () => {
+    const p = basePreview({
+      targetId: T2,
+      duplicateId: T1,
+      recommendation: { suggestedTargetId: T1, suggestedDuplicateId: T2, basis: "x", defaultWinnerBias: "x" },
+    });
+    const r = resolveMergePreviewAlignment(true, T1, T2, p);
+    expect(r.shouldRefetch).toBe(true);
+    expect(r.targetId).toBe(T1);
+    expect(r.duplicateId).toBe(T2);
   });
 });
 

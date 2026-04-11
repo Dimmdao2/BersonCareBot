@@ -9,7 +9,8 @@
 - `ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` — что в env, что в `system_settings`.
 - `ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md` — CMS врача (`/app/doctor/content`), фильтр `?section=`, логирование сбоев БД и мягкая деградация UI.
 - `ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md` — продуктовая структура кабинета; в том числе **единый каркас webapp** (ширина колонки, `DoctorHeader`, `doctorWorkspaceLayout.ts`).
-- `ARCHITECTURE/PLATFORM_USER_MERGE.md` — canonical user, logical merge (`merged_into_id`), миграции 061-064 и правила read/write.
+- `ARCHITECTURE/PLATFORM_USER_MERGE.md` — canonical user, logical merge (`merged_into_id`), миграции 061-064 и правила read/write; admin API/UI для справочных подсказок по ФИО и поиска второй записи при ручном merge.
+- `ARCHITECTURE/ADMIN_NAME_MATCH_HINTS_PLAN_AND_EXECUTION_LOG.md` — план и факт выполнения этой доработки (журнал, post-audit hardening); см. также `REPORTS/USER_MERGE_EXECUTION_LOG.md`.
 - `REPORTS/CMS_DOCTOR_HUB_EXECUTION_LOG.md` — журнал выполнения по CMS-хабу врача (UI, runtime-логи).
 - `REPORTS/USER_MERGE_EXECUTION_LOG.md` — журнал выполнения инициативы Platform User Merge & Dedup.
 
@@ -21,7 +22,7 @@
 - **UTC и timezone (Rubitime, филиалы, отображение):** `TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md`  
   Журнал: `TIMEZONE_UTC_NORMALIZATION/AGENT_EXECUTION_LOG.md` · Глобальный аудит: `TIMEZONE_UTC_NORMALIZATION/AUDIT_GLOBAL.md`
 - **Rubitime: вебхук, журнал `rubitime_events`, ФИО, статусы 0–7, проекция:** `ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`
-- **Platform User Merge & Dedup:** архитектура `ARCHITECTURE/PLATFORM_USER_MERGE.md` · журнал `REPORTS/USER_MERGE_EXECUTION_LOG.md`
+- **Platform User Merge & Dedup:** архитектура `ARCHITECTURE/PLATFORM_USER_MERGE.md` · журнал `REPORTS/USER_MERGE_EXECUTION_LOG.md` · план/лог доработки ФИО/merge UI: `ARCHITECTURE/ADMIN_NAME_MATCH_HINTS_PLAN_AND_EXECUTION_LOG.md`
 - **Platform User Merge v2 (integrator canonical merge, снятие blocker двух `integrator_user_id`):** `PLATFORM_USER_MERGE_V2/MASTER_PLAN.md` · журнал `PLATFORM_USER_MERGE_V2/AGENT_EXECUTION_LOG.md` · runbook `PLATFORM_USER_MERGE_V2/CUTOVER_RUNBOOK.md` · закрытие `PLATFORM_USER_MERGE_V2/STAGE_C_CLOSEOUT.md` · аудит `PLATFORM_USER_MERGE_V2/AUDIT_STAGE_C.md`
 - **Video: переход на HLS (dual delivery с MP4, без простоя):** `VIDEO_HLS_DELIVERY/00-master-plan.md` · оглавление `VIDEO_HLS_DELIVERY/README.md` · журнал `VIDEO_HLS_DELIVERY/06-execution-log.md`
 

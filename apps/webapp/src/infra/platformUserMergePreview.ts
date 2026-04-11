@@ -809,3 +809,48 @@ export async function searchMergeCandidates(
   const r = await pool.query<MergeCandidateRow>(sql, params);
   return { ok: true, anchorUserId, candidates: r.rows };
 }
+
+/**
+ * Admin merge UI: search any canonical client by substring (no anchor overlap required).
+ * `limit` is clamped to 1..100; empty/whitespace `qRaw` returns [] without hitting the DB.
+ */
+export async function searchMergeUsersForManualMerge(
+  pool: Pool,
+  qRaw: string | null | undefined,
+  limit: number,
+): Promise<MergeCandidateRow[]> {
+  const q = normStr(qRaw ?? null);
+  if (!q || limit <= 0) {
+    return [];
+  }
+  const pattern = `%${q}%`;
+  const lim = Math.min(Math.max(1, limit), 100);
+  const sql = `
+    SELECT pu.id,
+           pu.display_name,
+           pu.phone_normalized,
+           pu.email,
+           pu.integrator_user_id::text AS integrator_user_id,
+           pu.created_at
+    FROM platform_users pu
+    WHERE pu.role = 'client'
+      AND pu.merged_into_id IS NULL
+      AND (
+        pu.id::text ILIKE $1
+        OR pu.phone_normalized ILIKE $1
+        OR pu.email ILIKE $1
+        OR pu.display_name ILIKE $1
+        OR pu.first_name ILIKE $1
+        OR pu.last_name ILIKE $1
+        OR pu.integrator_user_id::text ILIKE $1
+        OR EXISTS (
+          SELECT 1 FROM user_channel_bindings ucb
+          WHERE ucb.user_id = pu.id AND ucb.external_id ILIKE $1
+        )
+      )
+    ORDER BY pu.created_at DESC
+    LIMIT $2::int
+  `;
+  const r = await pool.query<MergeCandidateRow>(sql, [pattern, lim]);
+  return r.rows;
+}

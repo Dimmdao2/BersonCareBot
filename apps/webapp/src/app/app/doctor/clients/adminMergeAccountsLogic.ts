@@ -137,6 +137,21 @@ export function getAlignedMergePreviewRequest(
   return { targetId: preview.targetId, duplicateId: preview.duplicateId, shouldRefetch: false };
 }
 
+/**
+ * If `alignToRecommendation` is false, keeps the preview orientation from the admin’s chosen canonical side (no refetch to match heuristic).
+ */
+export function resolveMergePreviewAlignment(
+  alignToRecommendation: boolean,
+  anchorUserId: string,
+  secondUserId: string,
+  preview: MergePreviewApiOk,
+): { targetId: string; duplicateId: string; shouldRefetch: boolean } {
+  if (!alignToRecommendation) {
+    return { targetId: preview.targetId, duplicateId: preview.duplicateId, shouldRefetch: false };
+  }
+  return getAlignedMergePreviewRequest(anchorUserId, secondUserId, preview);
+}
+
 function defaultScalarWinner(preview: MergePreviewApiOk, field: ScalarKey): "target" | "duplicate" {
   const c = preview.scalarConflicts.find((x) => x.field === field);
   if (c) return c.recommendedWinner;

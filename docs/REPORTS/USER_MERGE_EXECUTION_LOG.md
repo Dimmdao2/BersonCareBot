@@ -1,5 +1,32 @@
 # USER MERGE EXECUTION LOG
 
+## 2026-04-11
+
+### Admin: справочные подсказки по ФИО и расширение ручного merge UI
+
+**Цель:** помочь администратору вручную находить возможные пары записей (TG / Rubitime и т.д.) без утверждения «дубликат подтверждён»; отдельный фильтр записей без телефона; произвольный поиск второй записи и явный выбор канонической стороны с опциональным отключением автоподстройки под эвристику preview.
+
+**Код:**
+
+- `apps/webapp/src/infra/platformUserNameMatchHints.ts` — SQL-отчёт `orderedGroups` / `swappedPairs`, фильтр `missingPhone`.
+- `apps/webapp/src/infra/platformUserMergePreview.ts` — `searchMergeUsersForManualMerge`.
+- `apps/webapp/src/app/api/doctor/clients/name-match-hints/route.ts`, `merge-user-search/route.ts` — guards, zod, `logger.info` (`name_match_hints`, `merge_user_search`).
+- `apps/webapp/src/app/app/doctor/clients/name-match-hints/page.tsx`, `NameMatchHintsClient.tsx` — страница отчёта; ссылка из `DoctorClientsPanel` при admin + admin mode.
+- `apps/webapp/src/app/app/doctor/clients/AdminMergeAccountsPanel.tsx` — поиск второй записи, радио канона, чекбокс «Подстроить ориентацию под рекомендацию preview».
+- `apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts` — `resolveMergePreviewAlignment`.
+
+**Тесты:** `platformUserNameMatchHints.test.ts`, route tests для новых API, расширение `adminMergeAccountsLogic.test.ts`, существующие тесты панели merge.
+
+**Документация:** `docs/ARCHITECTURE/PLATFORM_USER_MERGE.md`, `docs/ARCHITECTURE/ADMIN_NAME_MATCH_HINTS_PLAN_AND_EXECUTION_LOG.md` (план и журнал в репо), `docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`, строка в `docs/README.md`.
+
+**Проверка:** `pnpm run ci` (корень репозитория) — зелёный (2026-04-11, локально).
+
+**Follow-up (при росте БД):** при необходимости — индексы/материализация для `name-match-hints` (полный scan по `platform_users`).
+
+**Hardening (тот же релиз / сразу после):** отмена гонок `merge-preview` (AbortController + игнор устаревших ответов), отдельное отображение ошибок `merge-user-search`, синтетическая опция в `<select>` для второй записи из поиска, ссылки с отчёта ФИО с `scope=all`, сброс таблицы подсказок до нового запроса, сброс полей поиска после успешного merge.
+
+---
+
 ## 2026-04-09
 
 ### Scope

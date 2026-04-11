@@ -115,8 +115,12 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 - `GET /api/doctor/clients/:userId/merge-candidates` — список **других** канонических клиентов (`role = client`, `merged_into_id IS NULL`), которые делят с якорным пользователем хотя бы один идентификатор: нормализованный телефон, email (case-insensitive trim), `integrator_user_id`, либо пару `(channel_code, external_id)` в `user_channel_bindings`. Опционально `?q=` — дополнительное сужение подстрокой по id, телефону, email, имени, integrator id, `external_id` биндингов. Доступ: **admin + admin mode** (`requireAdminModeSession`). Если якорь не клиент — `400 not_client`; если якорь alias — `409 anchor_is_alias`; не найден — `404`.
 - `GET /api/doctor/clients/merge-preview?targetId=&duplicateId=` — полный preview для пары (порядок задаёт UI: target = каноническая «победившая» сторона для будущего apply). Доступ: **admin + admin mode**. Оба пользователя должны быть `role = client`, иначе `400 not_client`. Ответ JSON: camelCase поля профиля, биндинги, OAuth, `dependentCounts`, `hardBlockers`, `scalarConflicts` / `channelConflicts` / `oauthConflicts`, `autoMergeScalars`, `recommendation` (эвристика `pickMergeTargetId` как подсказка UI), `mergeAllowed` (нет hard blockers), **`v1MergeEngineCallable`** (можно ли вызвать **текущий** `mergePlatformUsersInTransaction` без `MergeConflictError`: те же hard blockers **и** отсутствие пары разных non-null `phone_normalized` — иначе движок падает до dependent-guard’ов).
+- `GET /api/doctor/clients/name-match-hints` — **справочный** отчёт для ручной проверки: группы канонических клиентов с одинаковыми нормализованными `first_name` + `last_name` (как в полях БД), и отдельно пары, где те же два токена встречаются в **переставленном** порядке между полями. Параметры: `missingPhone=1|true` — только строки без телефона (`phone_normalized IS NULL` или пустой trim); `limitGroups`, `limitMembersPerGroup`, `limitSwappedPairs` (числовые лимиты). Ответ включает `disclaimer`: совпадение ФИО **не** подтверждает личность (в отличие от сценария, когда клиент сам привязывает телефон к существующей записи). Логи: `action: name_match_hints` (агрегаты, без массивов ПДн). Реализация: `apps/webapp/src/infra/platformUserNameMatchHints.ts`, route `name-match-hints/route.ts`.
+- `GET /api/doctor/clients/merge-user-search?q=&limit=` — поиск **любого** канонического клиента по подстроке (id, телефон, email, имена, `integrator_user_id`, `external_id` биндингов), **без** требования пересечения strong-id с якорем карточки. Логи: `action: merge_user_search` (`qLength`, `resultCount`, `durationMs`). Реализация: `searchMergeUsersForManualMerge` в `platformUserMergePreview.ts`, route `merge-user-search/route.ts`.
 
-Реализация: `apps/webapp/src/infra/platformUserMergePreview.ts`, маршруты в `apps/webapp/src/app/api/doctor/clients/`.
+Реализация: `apps/webapp/src/infra/platformUserMergePreview.ts`, `platformUserNameMatchHints.ts`, маршруты в `apps/webapp/src/app/api/doctor/clients/`.
+
+План работ и журнал фактического выполнения (включая post-audit hardening): [`ADMIN_NAME_MATCH_HINTS_PLAN_AND_EXECUTION_LOG.md`](ADMIN_NAME_MATCH_HINTS_PLAN_AND_EXECUTION_LOG.md).
 
 ### Hard blockers (совпадают с guard’ами merge engine)
 
@@ -177,22 +181,30 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 Доступ: **только** `role === admin` и включённый **admin mode** (тот же guard, что `POST .../merge` и `GET .../merge-preview`; на карточке используется тот же флаг, что и для безвозвратного удаления).
 
-Поверхность: `/app/doctor/clients/[userId]` — блок **«Объединение учётных записей (admin)»** (`AdminMergeAccountsPanel`).
+Поверхность: `/app/doctor/clients/[userId]` — блок **«Объединение учётных записей (admin)»** (`AdminMergeAccountsPanel`). Отдельная страница **`/app/doctor/clients/name-match-hints`** (только admin + admin mode): кнопка «Запустить поиск» по отчёту `name-match-hints`, ссылка из списка клиентов при том же guard.
 
 Операторский поток:
 
 1. Развернуть блок → загрузка **`GET /api/doctor/clients/:userId/merge-candidates`** (опционально поиск `q`).
-2. Выбор второй записи в выпадающем списке → **`GET /api/doctor/clients/merge-preview?targetId=&duplicateId=`**; если эвристика `recommendation` задаёт другую ориентацию target/duplicate, UI **перезапрашивает** preview с `suggestedTargetId` / `suggestedDuplicateId` (каноническая сторона и дубликат совпадают с телом будущего `POST /merge`).
-3. **Side-by-side** таблица скаляров, отдельные строки для каналов `telegram` / `max` / `vk` и OAuth-конфликтов; для конфликтных полей — radio; для конфликтных каналов оператор выбирает только `target` / `duplicate`, а для каналов без конфликта отображается авто-поведение (`both`).
-4. **Жёсткие блокировки** (`hardBlockers`): отдельный блок с русскими пояснениями по коду; кнопка merge **неактивна**, пока `mergeAllowed === false` или список блокеров непустой (`canSubmitManualMerge` дублирует это на клиенте; сервер снова валидирует в транзакции).
-5. Если **`mergeAllowed`** и нет блокеров, но **`v1MergeEngineCallable === false`** (например два разных non-null телефона): показывается **пояснение**, что авто-merge без `ManualMergeResolution` упал бы; ручной merge с выбранным `resolution` остаётся допустимым.
-6. **Финальный предпросмотр** (текстовый список итоговых решений) перед кнопкой.
-7. **Двойное подтверждение**: `window.confirm` с предупреждением, затем ввод **UUID дубликата** (`duplicateId`); сравнение **без учёта регистра** hex, как для purge с подтверждением id.
-8. **`POST /api/doctor/clients/merge`** с `{ resolution }` из состояния UI (`buildDefaultManualMergeResolution` + правки оператора). Ответы без JSON или `403` показываются отдельным текстом.
+2. Вторая запись: выпадающий список по пересечениям **или** поле **`merge-user-search`** (минимум 2 символа) → выбор UUID второй стороны.
+3. **Канон после merge:** радиокнопки «текущая карточка» / «вторая выбранная запись» задают пару `(targetId, duplicateId)` для первого запроса preview.
+4. **Подстройка под рекомендацию preview:** чекбокс по умолчанию включён — если эвристика `recommendation` задаёт другую ориентацию target/duplicate, UI **перезапрашивает** preview с `suggestedTargetId` / `suggestedDuplicateId`. Если чекбокс **выкл.**, остаётся ориентация из п.3 без второго fetch (`resolveMergePreviewAlignment` в `adminMergeAccountsLogic.ts`).
+5. **`GET /api/doctor/clients/merge-preview?targetId=&duplicateId=`** — далее как раньше.
+6. **Side-by-side** таблица скаляров, отдельные строки для каналов `telegram` / `max` / `vk` и OAuth-конфликтов; для конфликтных полей — radio; для конфликтных каналов оператор выбирает только `target` / `duplicate`, а для каналов без конфликта отображается авто-поведение (`both`).
+7. **Жёсткие блокировки** (`hardBlockers`): отдельный блок с русскими пояснениями по коду; кнопка merge **неактивна**, пока `mergeAllowed === false` или список блокеров непустой (`canSubmitManualMerge` дублирует это на клиенте; сервер снова валидирует в транзакции).
+8. Если **`mergeAllowed`** и нет блокеров, но **`v1MergeEngineCallable === false`** (например два разных non-null телефона): показывается **пояснение**, что авто-merge без `ManualMergeResolution` упал бы; ручной merge с выбранным `resolution` остаётся допустимым.
+9. **Финальный предпросмотр** (текстовый список итоговых решений) перед кнопкой.
+10. **Двойное подтверждение**: `window.confirm` с предупреждением, затем ввод **UUID дубликата** (`duplicateId`); сравнение **без учёта регистра** hex, как для purge с подтверждением id.
+11. **`POST /api/doctor/clients/merge`** с `{ resolution }` из состояния UI (`buildDefaultManualMergeResolution` + правки оператора). Ответы без JSON или `403` показываются отдельным текстом.
 
 Отдельный блок **«История операций (audit)»** на той же карточке: **`GET /api/admin/audit-log?involvesPlatformUserId=<текущий uuid>`** — строки, где пользователь в `target_id` или в `details.candidateIds` у `auto_merge_conflict`; локальный счётчик нерешённых — только среди **загруженной страницы** (по умолчанию до 20 строк), не глобальный.
 
 Вкладка **«Лог операций»** в `/app/settings`: бейдж с **`openAutoMergeConflictCount`** — число **строк** `auto_merge_conflict` с `resolved_at IS NULL` (дедуп по `conflict_key` даёт одну открытую строку на конфликт; `repeat_count` на бейдж не влияет).
+
+**Устойчивость UI и навигация (после hardening):**
+- `merge-preview` в `AdminMergeAccountsPanel`: предыдущий запрос отменяется через `AbortController`; ответы от устаревших запросов не применяются (монотонный счётчик запроса), чтобы при быстрой смене второй записи или опций не показывался чужой preview. Пока блок merge **свёрнут**, preview не запрашивается, активный запрос при сворачивании отменяется.
+- Поиск второй записи (`merge-user-search`): сеть/403 показываются отдельно от пустого списка; UUID второй стороны, выбранной только из поиска, дублируется отдельной опцией в `<select>` и строкой с полным UUID.
+- Страница `/app/doctor/clients/name-match-hints`: ссылки на карточку ведут на `?scope=all&selected=<uuid>`; при новом запуске отчёта предыдущие строки очищаются до прихода ответа; «Назад» — в список **все подписчики** (`scope=all`).
 
 Чистая логика ориентации preview и проверки `canSubmitManualMerge` вынесена в `apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts` (тесты рядом).
 

@@ -1,3 +1,7 @@
+/**
+ * Admin manual merge UI: second user from overlap list or global search; optional fixed canonical side;
+ * merge-preview uses AbortSignal + monotonic request id so out-of-order responses never overwrite state.
+ */
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,13 +14,22 @@ import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution"
 import {
   buildDefaultManualMergeResolution,
   canSubmitManualMerge,
-  getAlignedMergePreviewRequest,
   hardBlockerUi,
+  resolveMergePreviewAlignment,
   uuidEqualsNormalized,
   type MergePreviewApiOk,
 } from "./adminMergeAccountsLogic";
 
 type CandidateRow = {
+  id: string;
+  displayName: string;
+  phoneNormalized: string | null;
+  email: string | null;
+  integratorUserId: string | null;
+  createdAt: string;
+};
+
+type MergeSearchRow = {
   id: string;
   displayName: string;
   phoneNormalized: string | null;
@@ -57,7 +70,13 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
   const [candLoading, setCandLoading] = useState(false);
   const [candError, setCandError] = useState<string | null>(null);
 
-  const [duplicateId, setDuplicateId] = useState<string>("");
+  const [secondUserId, setSecondUserId] = useState<string>("");
+  const [canonicalIsAnchor, setCanonicalIsAnchor] = useState(true);
+  const [alignToRecommendation, setAlignToRecommendation] = useState(true);
+  const [mergeSearchQ, setMergeSearchQ] = useState("");
+  const [mergeSearchResults, setMergeSearchResults] = useState<MergeSearchRow[]>([]);
+  const [mergeSearchLoading, setMergeSearchLoading] = useState(false);
+  const [mergeSearchError, setMergeSearchError] = useState<string | null>(null);
   const [preview, setPreview] = useState<MergePreviewApiOk | null>(null);
   const [resolution, setResolution] = useState<ManualMergeResolution | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -68,6 +87,9 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
   const [msg, setMsg] = useState<string | null>(null);
 
   const mergeCandidatesFetchRef = useRef<AbortController | null>(null);
+  /** Serializes merge-preview fetches; incremented on each new request so stale responses are ignored. */
+  const mergePreviewRequestIdRef = useRef(0);
+  const mergePreviewAbortRef = useRef<AbortController | null>(null);
 
   const loadCandidates = useCallback(async () => {
     mergeCandidatesFetchRef.current?.abort();
@@ -123,14 +145,28 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
   }, [sectionOpen]);
 
   const loadAlignedPreview = useCallback(
-    async (first: { targetId: string; duplicateId: string }) => {
+    async (opts: {
+      targetId: string;
+      duplicateId: string;
+      secondUserIdForPair: string;
+      alignToRecommendation: boolean;
+    }) => {
+      mergePreviewAbortRef.current?.abort();
+      const ac = new AbortController();
+      mergePreviewAbortRef.current = ac;
+      const requestId = ++mergePreviewRequestIdRef.current;
+
       setPreviewLoading(true);
       setPreviewError(null);
+      const isStale = () => requestId !== mergePreviewRequestIdRef.current;
+
       try {
-        const url = `/api/doctor/clients/merge-preview?targetId=${encodeURIComponent(first.targetId)}&duplicateId=${encodeURIComponent(first.duplicateId)}`;
-        const res = await fetch(url, { credentials: "include" });
+        const url = `/api/doctor/clients/merge-preview?targetId=${encodeURIComponent(opts.targetId)}&duplicateId=${encodeURIComponent(opts.duplicateId)}`;
+        const res = await fetch(url, { credentials: "include", signal: ac.signal });
+        if (isStale()) return;
         const data = (await res.json()) as MergePreviewApiOk | { ok: false; error?: string; message?: string };
         if (!res.ok || !data || (data as MergePreviewApiOk).ok !== true) {
+          if (isStale()) return;
           const err = data as { error?: string; message?: string };
           const pe =
             res.status === 403
@@ -142,14 +178,21 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
           return;
         }
         const ok = data as MergePreviewApiOk;
-        const aligned = getAlignedMergePreviewRequest(anchorUserId, first.duplicateId, ok);
+        const aligned = resolveMergePreviewAlignment(
+          opts.alignToRecommendation,
+          anchorUserId,
+          opts.secondUserIdForPair,
+          ok,
+        );
         if (aligned.shouldRefetch) {
           const res2 = await fetch(
             `/api/doctor/clients/merge-preview?targetId=${encodeURIComponent(aligned.targetId)}&duplicateId=${encodeURIComponent(aligned.duplicateId)}`,
-            { credentials: "include" },
+            { credentials: "include", signal: ac.signal },
           );
+          if (isStale()) return;
           const data2 = (await res2.json()) as MergePreviewApiOk | { ok: false };
           if (!res2.ok || !data2 || (data2 as MergePreviewApiOk).ok !== true) {
+            if (isStale()) return;
             setPreviewError(
               res2.status === 403
                 ? "Нужны роль admin и включённый режим администратора."
@@ -160,34 +203,133 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
             return;
           }
           const ok2 = data2 as MergePreviewApiOk;
+          if (isStale()) return;
           setPreview(ok2);
           setResolution(buildDefaultManualMergeResolution(ok2));
           return;
         }
+        if (isStale()) return;
         setPreview(ok);
         setResolution(buildDefaultManualMergeResolution(ok));
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (isStale()) return;
         setPreviewError("network");
         setPreview(null);
         setResolution(null);
       } finally {
-        setPreviewLoading(false);
+        if (requestId === mergePreviewRequestIdRef.current) {
+          setPreviewLoading(false);
+        }
       }
     },
     [anchorUserId],
   );
 
   useEffect(() => {
-    if (!duplicateId || !enabled) {
+    if (!sectionOpen) {
+      mergePreviewAbortRef.current?.abort();
+      mergePreviewAbortRef.current = null;
+    }
+  }, [sectionOpen]);
+
+  useEffect(() => {
+    if (!secondUserId || !enabled || !sectionOpen || secondUserId === anchorUserId) {
+      mergePreviewAbortRef.current?.abort();
+      mergePreviewAbortRef.current = null;
       setPreview(null);
       setResolution(null);
       setPreviewError(null);
+      setPreviewLoading(false);
       return;
     }
-    void loadAlignedPreview({ targetId: anchorUserId, duplicateId });
-  }, [anchorUserId, duplicateId, enabled, loadAlignedPreview]);
+    const targetId = canonicalIsAnchor ? anchorUserId : secondUserId;
+    const duplicateId = canonicalIsAnchor ? secondUserId : anchorUserId;
+    void loadAlignedPreview({
+      targetId,
+      duplicateId,
+      secondUserIdForPair: secondUserId,
+      alignToRecommendation,
+    });
+  }, [
+    anchorUserId,
+    secondUserId,
+    canonicalIsAnchor,
+    alignToRecommendation,
+    enabled,
+    sectionOpen,
+    loadAlignedPreview,
+  ]);
+
+  const mergeUserSearchAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (!enabled || !sectionOpen) {
+      mergeUserSearchAbortRef.current?.abort();
+      return;
+    }
+    const q = mergeSearchQ.trim();
+    if (q.length < 2) {
+      setMergeSearchResults([]);
+      setMergeSearchLoading(false);
+      setMergeSearchError(null);
+      return;
+    }
+    setMergeSearchLoading(true);
+    setMergeSearchError(null);
+    mergeUserSearchAbortRef.current?.abort();
+    const ac = new AbortController();
+    mergeUserSearchAbortRef.current = ac;
+    const tid = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/doctor/clients/merge-user-search?q=${encodeURIComponent(q)}&limit=30`,
+            { credentials: "include", signal: ac.signal },
+          );
+          const data = (await res.json()) as { ok?: boolean; users?: MergeSearchRow[]; error?: string };
+          if (mergeUserSearchAbortRef.current !== ac) return;
+          if (!res.ok || !data.ok) {
+            setMergeSearchResults([]);
+            setMergeSearchError(
+              res.status === 403
+                ? "Нужны роль admin и включённый режим администратора."
+                : data.error ?? `Поиск не удался (HTTP ${res.status}).`,
+            );
+            return;
+          }
+          setMergeSearchResults(data.users ?? []);
+          setMergeSearchError(null);
+        } catch (err) {
+          if (err instanceof DOMException && err.name === "AbortError") return;
+          if (mergeUserSearchAbortRef.current !== ac) return;
+          setMergeSearchResults([]);
+          setMergeSearchError("Сеть недоступна или запрос прерван.");
+        } finally {
+          if (mergeUserSearchAbortRef.current === ac) {
+            setMergeSearchLoading(false);
+            mergeUserSearchAbortRef.current = null;
+          }
+        }
+      })();
+    }, 350);
+    return () => {
+      window.clearTimeout(tid);
+      ac.abort();
+    };
+  }, [mergeSearchQ, sectionOpen, enabled]);
 
   const canMerge = preview && resolution ? canSubmitManualMerge(preview, resolution) : false;
+
+  const secondUserSelectExtraOption = useMemo(() => {
+    if (!secondUserId) return null;
+    const inOverlap = (candidates ?? []).some((c) => c.id === secondUserId);
+    if (inOverlap) return null;
+    const fromSearch = mergeSearchResults.find((u) => u.id === secondUserId);
+    const title = fromSearch
+      ? `${fromSearch.displayName} (из поиска)`
+      : "Выбранная запись (нет в списке пересечений)";
+    return { value: secondUserId, label: `${title} · ${secondUserId.slice(0, 8)}…` };
+  }, [secondUserId, candidates, mergeSearchResults]);
 
   const summaryLines = useMemo(() => {
     if (!preview || !resolution) return [];
@@ -251,7 +393,12 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
         return;
       }
       setMsg(dryRun ? "Integrator merge dry-run OK (проверка и блокировки)." : "Canonical merge в integrator выполнен. Обновите preview.");
-      await loadAlignedPreview({ targetId: preview.targetId, duplicateId: preview.duplicateId });
+      await loadAlignedPreview({
+        targetId: preview.targetId,
+        duplicateId: preview.duplicateId,
+        secondUserIdForPair: secondUserId,
+        alignToRecommendation,
+      });
     } catch {
       setMsg("network");
     } finally {
@@ -308,7 +455,12 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
         return;
       }
       setMsg("Объединение выполнено.");
-      setDuplicateId("");
+      setSecondUserId("");
+      setMergeSearchQ("");
+      setMergeSearchResults([]);
+      setMergeSearchError(null);
+      setCanonicalIsAnchor(true);
+      setAlignToRecommendation(true);
       setPreview(null);
       setResolution(null);
       setCandidates(null);
@@ -370,24 +522,106 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
           ) : null}
 
           <div className="space-y-1.5">
-            <Label htmlFor="merge-dup-select">Вторая запись (дубликат)</Label>
+            <Label htmlFor="merge-dup-select">Вторая запись (из списка пересечений)</Label>
             <select
               id="merge-dup-select"
               className={cn(
                 "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
                 "ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
               )}
-              value={duplicateId}
-              onChange={(e) => setDuplicateId(e.target.value)}
+              value={secondUserId}
+              onChange={(e) => setSecondUserId(e.target.value)}
             >
               <option value="">— выберите —</option>
+              {secondUserSelectExtraOption ? (
+                <option value={secondUserSelectExtraOption.value}>{secondUserSelectExtraOption.label}</option>
+              ) : null}
               {(candidates ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.displayName} · {c.phoneNormalized ?? "нет тел."} · {c.id.slice(0, 8)}…
                 </option>
               ))}
             </select>
+            {secondUserId ? (
+              <p className="text-xs text-muted-foreground font-mono break-all">
+                Текущая вторая сторона: {secondUserId}
+              </p>
+            ) : null}
           </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="merge-user-search-q">Поиск любой второй записи (подстрока)</Label>
+            <Input
+              id="merge-user-search-q"
+              value={mergeSearchQ}
+              onChange={(e) => setMergeSearchQ(e.target.value)}
+              placeholder="Минимум 2 символа: имя, фамилия, телефон, id…"
+              className="font-mono text-sm"
+              autoComplete="off"
+            />
+            {mergeSearchError ? (
+              <p className="text-xs text-destructive" role="alert">
+                {mergeSearchError}
+              </p>
+            ) : null}
+            {mergeSearchLoading ? (
+              <p className="text-xs text-muted-foreground">Поиск…</p>
+            ) : mergeSearchResults.length > 0 ? (
+              <ul className="m-0 max-h-48 list-none space-y-1 overflow-y-auto rounded-md border border-border/60 p-2 text-sm">
+                {mergeSearchResults
+                  .filter((u) => u.id !== anchorUserId)
+                  .map((u) => (
+                    <li key={u.id}>
+                      <button
+                        type="button"
+                        className={cn(
+                          "w-full rounded px-2 py-1.5 text-left hover:bg-muted/80",
+                          secondUserId === u.id && "bg-muted",
+                        )}
+                        onClick={() => setSecondUserId(u.id)}
+                      >
+                        <span className="font-medium">{u.displayName}</span>
+                        <span className="ml-2 font-mono text-xs text-muted-foreground">{u.id.slice(0, 8)}…</span>
+                        <span className="block text-xs text-muted-foreground">{u.phoneNormalized ?? "нет тел."}</span>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            ) : mergeSearchQ.trim().length >= 2 && !mergeSearchError ? (
+              <p className="text-xs text-muted-foreground">Ничего не найдено.</p>
+            ) : null}
+          </div>
+
+          <fieldset className="space-y-2 rounded-md border border-border/50 p-3">
+            <legend className="text-sm font-medium px-1">Каноническая запись после merge</legend>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="merge-canonical"
+                checked={canonicalIsAnchor}
+                onChange={() => setCanonicalIsAnchor(true)}
+              />
+              Текущая карточка (якорь)
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="merge-canonical"
+                checked={!canonicalIsAnchor}
+                onChange={() => setCanonicalIsAnchor(false)}
+                disabled={!secondUserId}
+              />
+              Вторая выбранная запись
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm pt-1 border-t border-border/40">
+              <input
+                type="checkbox"
+                checked={alignToRecommendation}
+                onChange={(e) => setAlignToRecommendation(e.target.checked)}
+              />
+              Подстроить ориентацию под рекомендацию preview (эвристика)
+            </label>
+          </fieldset>
 
           {previewLoading ? <p className="text-sm text-muted-foreground">Загрузка сравнения…</p> : null}
           {previewError ? (

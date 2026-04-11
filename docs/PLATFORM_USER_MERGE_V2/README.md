@@ -35,6 +35,6 @@
 - Integrator merge / outbox: `apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts`, `projectionOutboxMergePolicy.ts`
 - Webapp Stage 4 rekey: `apps/webapp/scripts/realign-webapp-integrator-user-projection.ts`, `apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts`
 - Integrator: `apps/integrator/src/infra/db/writePort.ts`, `projectionOutbox.ts`, миграции `apps/integrator/src/infra/db/migrations/core/`
-- Webapp merge: `apps/webapp/src/infra/repos/pgPlatformUserMerge.ts`, `platformUserMergePreview.ts`
+- Webapp merge: `apps/webapp/src/infra/repos/pgPlatformUserMerge.ts`, `platformUserMergePreview.ts`, справочные подсказки по ФИО для admin: `platformUserNameMatchHints.ts`, `GET /api/doctor/clients/name-match-hints` (см. `../ARCHITECTURE/PLATFORM_USER_MERGE.md`, план/журнал: `../ARCHITECTURE/ADMIN_NAME_MATCH_HINTS_PLAN_AND_EXECUTION_LOG.md`)
 - Ingestion: `apps/webapp/src/modules/integrator/events.ts`
 - Деплой: `deploy/host/deploy-prod.sh` — один push в `main` → integrator migrate → webapp migrate → рестарт всех сервисов

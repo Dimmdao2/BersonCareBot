@@ -27,6 +27,8 @@ type Props = {
   urlParams: UrlParams;
   /** Путь страницы списка (без завершающего слэша). */
   basePath?: string;
+  /** Ссылка на отчёт по ФИО: только admin + admin mode. */
+  showAdminNameMatchHintsLink?: boolean;
 };
 
 const DEFAULT_BASE = "/app/doctor/clients";
@@ -52,7 +54,12 @@ function appendListQueryParams(params: URLSearchParams, urlParams: UrlParams): v
   if (scope === "appointments" && urlParams.visitedMonth === "1") params.set("visitedMonth", "1");
 }
 
-export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_BASE }: Props) {
+export function DoctorClientsPanel({
+  allClients,
+  urlParams,
+  basePath = DEFAULT_BASE,
+  showAdminNameMatchHintsLink = false,
+}: Props) {
   const router = useRouter();
   const [search, setSearch] = useState(urlParams.q ?? "");
   const scope: ClientsScope =
@@ -187,6 +194,17 @@ export function DoctorClientsPanel({ allClients, urlParams, basePath = DEFAULT_B
         onChange={onFiltersChange}
         showVisitedMonthFilter={showVisitedMonthFilter}
       />
+
+      {showAdminNameMatchHintsLink ? (
+        <p className="text-sm">
+          <Link
+            href="/app/doctor/clients/name-match-hints"
+            className="text-primary underline-offset-4 hover:underline font-medium"
+          >
+            Кандидаты по совпадению ФИО (справочно)
+          </Link>
+        </p>
+      ) : null}
 
       {filtered.length === 0 ? (
         <p className="text-muted-foreground">Нет записей по текущим фильтрам.</p>

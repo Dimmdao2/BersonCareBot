@@ -79,7 +79,12 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
             id="doctor-clients-list-section"
             className="rounded-xl border border-border/60 bg-background p-4 shadow-sm flex flex-col gap-4"
           >
-            <DoctorClientsPanel allClients={allClients} urlParams={params} basePath={BASE} />
+            <DoctorClientsPanel
+              allClients={allClients}
+              urlParams={params}
+              basePath={BASE}
+              showAdminNameMatchHintsLink={session.user.role === "admin" && Boolean(session.adminMode)}
+            />
           </section>
         </div>
         {selectedProfile ? (

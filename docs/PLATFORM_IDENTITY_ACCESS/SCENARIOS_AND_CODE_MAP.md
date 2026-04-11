@@ -12,6 +12,7 @@
 | Резолв канона по `merged_into_id` | `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts` (`resolveCanonicalUserId`, `followMergedIntoChain`) |
 | Загрузка `SessionUser` с телефоном и bindings | `apps/webapp/src/infra/repos/pgUserByPhone.ts` (`findByUserId`, `createOrBind`, `loadSessionUser`) |
 | Слияние двух клиентов | `apps/webapp/src/infra/repos/pgPlatformUserMerge.ts` (`mergePlatformUsersInTransaction`, `pickMergeTargetId`) |
+| Admin: справочный поиск по ФИО и расширенный ручной merge | `GET /api/doctor/clients/name-match-hints`, `GET /api/doctor/clients/merge-user-search`; UI `/app/doctor/clients/name-match-hints` (ссылки с `scope=all`), `AdminMergeAccountsPanel.tsx` (отмена гонок `merge-preview`, ошибки поиска отдельно от пустого списка); инфра `platformUserNameMatchHints.ts`, `searchMergeUsersForManualMerge` в `platformUserMergePreview.ts` |
 
 **Инвариант:** после merge все чтения и записи от имени пользователя должны использовать **канонический** id (через `resolveCanonicalUserId` / `findByUserId`).
 
