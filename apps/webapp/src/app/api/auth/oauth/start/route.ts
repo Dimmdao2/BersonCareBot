@@ -17,7 +17,10 @@ import {
   getAppleOauthKeyId,
   getAppleOauthPrivateKey,
 } from "@/modules/system-settings/integrationRuntime";
-import { isOAuthStartRateLimited } from "@/modules/auth/oauthStartRateLimit";
+import {
+  isOAuthStartRateLimitedByKey,
+  resolveOAuthStartRateLimitClientKey,
+} from "@/modules/auth/oauthStartRateLimit";
 
 const OAUTH_STATE_TTL_SECONDS = 600; // 10 минут
 
@@ -32,7 +35,18 @@ const GOOGLE_LOGIN_SCOPES = ["openid", "email", "profile"].join(" ");
  * Подписанный `state` (без cookie); для Apple дополнительно `nonce` в authorize URL.
  */
 export async function POST(request: Request) {
-  if (await isOAuthStartRateLimited(request)) {
+  const identity = resolveOAuthStartRateLimitClientKey(request);
+  if (!identity.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "proxy_configuration",
+        message: "Запрос должен проходить через reverse proxy с заголовком X-Real-IP.",
+      },
+      { status: 503 },
+    );
+  }
+  if (await isOAuthStartRateLimitedByKey(identity.key)) {
     return NextResponse.json(
       { ok: false, error: "rate_limited", message: "Слишком много попыток. Попробуйте позже." },
       { status: 429 },

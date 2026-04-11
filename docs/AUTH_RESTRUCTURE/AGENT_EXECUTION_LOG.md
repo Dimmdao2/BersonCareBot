@@ -655,3 +655,21 @@ Notes:
 - (2026-04-10, фаза D PLATFORM_IDENTITY_ACCESS) каноническая политика маршрутов — `apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts`; shim `patientPhonePolicy.ts`.
 - (2026-04-11, фаза D PLATFORM_IDENTITY_ACCESS) RSC: `patientRscPersonalDataGate` в `apps/webapp/src/app-layer/guards/requireRole.ts` — чтение персональных данных из БД на страницах пациента с тем же `patientClientBusinessGate`, что API; см. `docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md` §7.
 ```
+
+```text
+[2026-04-11T12:00:00Z] [OAuth / oauth/start rate limit] [FINAL_AUDIT] agent
+Tasks done:
+- Сверка с планом: `resolveOAuthStartRateLimitClientKey` + `isOAuthStartRateLimitedByKey`; production без непустого `X-Real-IP` → лог `oauth_start_x_real_ip_required` (`reason: missing_x_real_ip`), без fallback-ключа; non-production → debug `oauth_start_missing_x_real_ip` + `OAUTH_START_FALLBACK_CLIENT_KEY`.
+- Маршрут `POST /api/auth/oauth/start`: при `!identity.ok` → **503** JSON `error: proxy_configuration`; `X-Forwarded-For` в ключе не используется.
+- Тесты: `oauthStartRateLimit.test.ts`, `oauthStartRateLimit.production.test.ts`, `route.proxy-configuration.test.ts`.
+- Документация: `modules/auth/auth.md`, `deploy/HOST_DEPLOY_README.md`, `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `docs/TODO.md` (убран backlog про глобальный fallback-bucket при отсутствии IP).
+Changed files (этот прогон — только журнал/README при необходимости):
+- docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
+- docs/README.md (краткая отсылка к контракту X-Real-IP)
+Checks:
+- pnpm run ci — exit 0
+Gate verdict:
+- PASS
+Notes:
+- **Критичных расхождений с планом не найдено.** Риск ниже критичного: fail-closed завязан на `NODE_ENV === "production"`; при ошибочно заданном `NODE_ENV` на хосте поведение может отличаться от ожидаемого — контролируется `webapp.prod` (`NODE_ENV=production`, см. SERVER CONVENTIONS).
+```

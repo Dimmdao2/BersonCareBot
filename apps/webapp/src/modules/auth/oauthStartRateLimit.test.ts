@@ -1,30 +1,76 @@
-import { describe, expect, it, vi } from "vitest";
-import { isOAuthStartRateLimited, oauthStartClientKeyFromRequest } from "./oauthStartRateLimit";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
-vi.mock("@/config/env", () => ({
-  env: {},
+const { errorMock, debugMock } = vi.hoisted(() => ({
+  errorMock: vi.fn(),
+  debugMock: vi.fn(),
 }));
 
-describe("oauthStartRateLimit", () => {
-  it("oauthStartClientKeyFromRequest prefers first X-Forwarded-For hop", () => {
-    const r = new Request("http://localhost/x", {
-      headers: { "x-forwarded-for": " 203.0.113.1 , 10.0.0.1" },
-    });
-    expect(oauthStartClientKeyFromRequest(r)).toBe("203.0.113.1");
+vi.mock("@/infra/logging/logger", () => ({
+  logger: {
+    error: errorMock,
+    debug: debugMock,
+  },
+}));
+
+vi.mock("@/config/env", () => ({
+  env: { NODE_ENV: "development" },
+}));
+
+import {
+  isOAuthStartRateLimitedByKey,
+  resolveOAuthStartRateLimitClientKey,
+  OAUTH_START_FALLBACK_CLIENT_KEY,
+} from "./oauthStartRateLimit";
+
+describe("oauthStartRateLimit (non-production)", () => {
+  beforeEach(() => {
+    errorMock.mockClear();
+    debugMock.mockClear();
   });
 
-  it("falls back to X-Real-Ip", () => {
+  it("resolveOAuthStartRateLimitClientKey uses X-Real-Ip when set", () => {
     const r = new Request("http://localhost/x", {
-      headers: { "x-real-ip": "198.51.100.2" },
+      headers: { "x-real-ip": " 198.51.100.2 " },
     });
-    expect(oauthStartClientKeyFromRequest(r)).toBe("198.51.100.2");
+    expect(resolveOAuthStartRateLimitClientKey(r)).toEqual({ ok: true, key: "198.51.100.2" });
+    expect(errorMock).not.toHaveBeenCalled();
+    expect(debugMock).not.toHaveBeenCalled();
   });
 
-  it("returns null when no proxy client IP — rate limit skipped", async () => {
+  it("ignores X-Forwarded-For (not trusted for rate limit key)", () => {
+    const r = new Request("http://localhost/x", {
+      headers: { "x-forwarded-for": "203.0.113.1, 10.0.0.1" },
+    });
+    expect(resolveOAuthStartRateLimitClientKey(r)).toEqual({
+      ok: true,
+      key: OAUTH_START_FALLBACK_CLIENT_KEY,
+    });
+    expect(debugMock).toHaveBeenCalledWith(
+      expect.objectContaining({ msg: "oauth_start_missing_x_real_ip", scope: "auth.oauth_start" }),
+    );
+    expect(errorMock).not.toHaveBeenCalled();
+  });
+
+  it("uses fallback key and logs debug when X-Real-Ip absent (non-production)", () => {
     const r = new Request("http://localhost/x");
-    expect(oauthStartClientKeyFromRequest(r)).toBeNull();
-    for (let i = 0; i < 5; i += 1) {
-      expect(await isOAuthStartRateLimited(r)).toBe(false);
+    expect(resolveOAuthStartRateLimitClientKey(r)).toEqual({
+      ok: true,
+      key: OAUTH_START_FALLBACK_CLIENT_KEY,
+    });
+    expect(debugMock).toHaveBeenCalledTimes(1);
+    expect(errorMock).not.toHaveBeenCalled();
+  });
+
+  it("rate limit still runs with fallback key (in-memory path)", async () => {
+    const r = new Request("http://localhost/x");
+    const resolved = resolveOAuthStartRateLimitClientKey(r);
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) throw new Error("expected fallback key branch");
+    expect(resolved.key).toBe(OAUTH_START_FALLBACK_CLIENT_KEY);
+    const { key } = resolved;
+    for (let i = 0; i < 60; i += 1) {
+      expect(await isOAuthStartRateLimitedByKey(key)).toBe(false);
     }
+    expect(await isOAuthStartRateLimitedByKey(key)).toBe(true);
   });
 });

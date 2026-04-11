@@ -216,6 +216,16 @@
 - `curl -s http://127.0.0.1:6200/api/health` -> `{"ok":true}`.
 - в логах webapp нет ошибок OAuth callback/CORS после переключения домена.
 
+### Client IP and Rate Limiting (webapp)
+
+- Публичный трафик на webapp должен идти **только через nginx** на upstream `http://127.0.0.1:6200`. Сервис слушает **loopback** (см. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`: `HOSTNAME`/`HOST` для webapp prod — `127.0.0.1`); прямой доступ к порту `6200` из интернета не должен быть открыт (firewall / отсутствие bind на `0.0.0.0`).
+- Для корректного rate limit на **`POST /api/auth/oauth/start`** приложение использует **только заголовок `X-Real-IP`**, который nginx выставляет как реальный адрес клиента, например:
+  - `proxy_set_header X-Real-IP $remote_addr;`
+- **`X-Forwarded-For` для этого лимита в приложении не используется:** при типичной директиве `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` клиент может прислать поддельный первый hop в цепочке; доверие к «первому IP из XFF» давало бы обход лимита.
+- **Production:** `X-Real-IP` **обязателен**. Если заголовок отсутствует или пустой, `POST /api/auth/oauth/start` отвечает **503** с `error: proxy_configuration` (не fallback bucket); в лог — `oauth_start_x_real_ip_required` (infra / ops). Это сигнал misconfigured proxy, а не нормальный пользовательский сценарий.
+- **Development / test** (`NODE_ENV` не `production`): без `X-Real-IP` допускается общий fallback-ключ для bucket лимита (см. `apps/webapp/src/modules/auth/oauthStartRateLimit.ts`).
+- Проверка на хосте после правок vhost: `sudo nginx -T | grep -i real_ip` (или убедиться, что в `location` для прокси на `6200` есть `X-Real-IP`).
+
 **Загрузка файлов (CMS / `POST /api/media/upload`):** в server-блоке vhost webapp задайте лимит тела запроса, иначе nginx ответит `413 Request Entity Too Large` до Next.js (дефолт nginx часто 1m). Рекомендация:
 
 ```nginx
@@ -250,6 +260,7 @@ location /api/internal/ {
     proxy_pass http://127.0.0.1:6200;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
 }

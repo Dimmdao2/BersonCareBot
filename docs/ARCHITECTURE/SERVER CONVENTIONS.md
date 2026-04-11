@@ -115,6 +115,8 @@
 - nginx слушает `80` и `443`;
 - webapp использует отдельный vhost `bersoncarebot-webapp`.
 
+**OAuth rate limit (`POST /api/auth/oauth/start`):** ключ лимита — только **`X-Real-IP`**, выставляемый nginx (`proxy_set_header X-Real-IP $remote_addr;`). `X-Forwarded-For` для этого лимита приложением не используется. В **production** отсутствие `X-Real-IP` — ошибка конфигурации прокси (ответ **503** `proxy_configuration`), а не деградация с общим bucket. Требования и примеры: `deploy/HOST_DEPLOY_README.md` → Nginx → Webapp → «Client IP and Rate Limiting».
+
 **Кэш HTML vs `/_next/static/` (webapp):** точные заголовки на production в audit не снимались; оператор проверяет `curl -I` и настройки CDN. Рекомендации (nginx без перекрытия `Cache-Control` от Next, политика CDN): `deploy/HOST_DEPLOY_README.md` → Nginx → Webapp → «Кэширование (Next.js, мини-приложение)».
 
 **Загрузка файлов:** для vhost webapp при **прокси-загрузке** (`POST /api/media/upload`, например markdown-тулбар) нужен `client_max_body_size` (рекомендация `55m` — см. `deploy/HOST_DEPLOY_README.md`). Основная библиотека медиа грузит файлы **напрямую в MinIO** (presigned URL); лимит nginx webapp на эти запросы не действует.
