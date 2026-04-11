@@ -43,7 +43,7 @@ vi.mock("@/infra/repos/pgUserByPhone", () => ({
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getYandexOauthClientId: vi.fn().mockResolvedValue("test-client-id"),
   getYandexOauthClientSecret: vi.fn().mockResolvedValue("test-client-secret"),
-  getYandexOauthRedirectUri: vi.fn().mockResolvedValue("http://localhost/api/auth/oauth/callback"),
+  getYandexOauthRedirectUri: vi.fn().mockResolvedValue("http://localhost/api/auth/oauth/callback/yandex"),
 }));
 
 vi.mock("@/config/env", () => ({
@@ -59,9 +59,10 @@ vi.mock("@/config/env", () => ({
 
 import { createSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import { GET } from "./route";
+import { GET as GET_YandexPath } from "./yandex/route";
 
 function makeRequest(params: Record<string, string>): Request {
-  const url = new URL("http://localhost/api/auth/oauth/callback");
+  const url = new URL("http://localhost/api/auth/oauth/callback/yandex");
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
@@ -72,7 +73,7 @@ function validYandexState(): string {
   return createSignedOAuthState("yandex", 600);
 }
 
-describe("GET /api/auth/oauth/callback — signed state", () => {
+describe("GET /api/auth/oauth/callback/yandex — signed state (legacy /callback delegates here)", () => {
   beforeEach(() => {
     exchangeYandexCodeMock.mockReset();
     fetchYandexUserInfoMock.mockReset();
@@ -100,7 +101,7 @@ describe("GET /api/auth/oauth/callback — signed state", () => {
   });
 });
 
-describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
+describe("GET /api/auth/oauth/callback/yandex — post-CSRF flow", () => {
   beforeEach(() => {
     exchangeYandexCodeMock.mockReset();
     fetchYandexUserInfoMock.mockReset();
@@ -222,7 +223,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
   });
 });
 
-describe("GET /api/auth/oauth/callback — resolveUserIdForYandexOAuth orchestration (spied)", () => {
+describe("GET /api/auth/oauth/callback/yandex — resolveUserIdForYandexOAuth orchestration (spied)", () => {
   let resolveSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -283,5 +284,30 @@ describe("GET /api/auth/oauth/callback — resolveUserIdForYandexOAuth orchestra
       }),
     );
     expect(res.headers.get("location") ?? "").toContain("/app/patient");
+  });
+});
+
+describe("Yandex OAuth callback path: legacy vs canonical", () => {
+  beforeEach(() => {
+    exchangeYandexCodeMock.mockReset();
+    fetchYandexUserInfoMock.mockReset();
+    setSessionMock.mockReset();
+    findUserMock.mockReset();
+    findByUserIdMock.mockReset();
+  });
+
+  it("legacy GET /api/auth/oauth/callback matches canonical /callback/yandex for CSRF 403", async () => {
+    const legacyUrl = new URL("http://localhost/api/auth/oauth/callback");
+    legacyUrl.searchParams.set("code", "x");
+    legacyUrl.searchParams.set("state", "bad");
+    const canonUrl = new URL("http://localhost/api/auth/oauth/callback/yandex");
+    canonUrl.searchParams.set("code", "x");
+    canonUrl.searchParams.set("state", "bad");
+
+    const rLegacy = await GET(new Request(legacyUrl.toString()));
+    const rCanon = await GET_YandexPath(new Request(canonUrl.toString()));
+
+    expect(rLegacy.status).toBe(403);
+    expect(rCanon.status).toBe(403);
   });
 });

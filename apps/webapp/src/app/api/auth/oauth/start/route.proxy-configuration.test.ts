@@ -68,7 +68,7 @@ describe("POST /api/auth/oauth/start (production proxy invariant)", () => {
   it("returns 200 with authUrl when X-Real-IP present and yandex configured", async () => {
     oauthMocks.getYandexOauthClientId.mockResolvedValue("test-client-id");
     oauthMocks.getYandexOauthClientSecret.mockResolvedValue("test-secret");
-    oauthMocks.getYandexOauthRedirectUri.mockResolvedValue("http://localhost/api/auth/oauth/callback");
+    oauthMocks.getYandexOauthRedirectUri.mockResolvedValue("http://localhost/api/auth/oauth/callback/yandex");
 
     const res = await POST(
       new Request("http://localhost/api/auth/oauth/start", {

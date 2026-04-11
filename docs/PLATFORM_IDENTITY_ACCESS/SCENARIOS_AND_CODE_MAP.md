@@ -76,7 +76,7 @@
 
 | Шаг | Где |
 |-----|-----|
-| Callback Yandex | `apps/webapp/src/app/api/auth/oauth/callback/route.ts` |
+| Callback Yandex | `apps/webapp/src/app/api/auth/oauth/callback/yandex/route.ts` (legacy: `callback/route.ts`) |
 | Редирект на bind-phone если нет телефона | тот же файл после `setSessionFromUser` |
 | Резолв пользователя OAuth | `apps/webapp/src/modules/auth/oauthYandexResolve.ts` и порты в callback |
 

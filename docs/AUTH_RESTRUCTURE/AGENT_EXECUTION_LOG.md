@@ -673,3 +673,15 @@ Gate verdict:
 Notes:
 - **Критичных расхождений с планом не найдено.** Риск ниже критичного: fail-closed завязан на `NODE_ENV === "production"`; при ошибочно заданном `NODE_ENV` на хосте поведение может отличаться от ожидаемого — контролируется `webapp.prod` (`NODE_ENV=production`, см. SERVER CONVENTIONS).
 ```
+
+```text
+[2026-04-11T19:30:00Z] [Yandex OAuth callback path] [FIX] agent
+Tasks done:
+- Канонический callback Яндекса: `GET /api/auth/oauth/callback/yandex` (`yandex_oauth_redirect_uri`); логика в `modules/auth/yandexOAuthCallbackHandler.ts`.
+- Legacy `GET /api/auth/oauth/callback` сохранён как алиас того же обработчика.
+- UI подсказка в `AuthProvidersSection`, обновлены `auth.md`, `SCENARIOS_AND_CODE_MAP.md`, `MASTER_PLAN.md`, тесты.
+Checks:
+- pnpm run ci — exit 0
+Notes:
+- После деплоя: в кабинете Яндекса и в `yandex_oauth_redirect_uri` указать `https://<домен>/api/auth/oauth/callback/yandex` (старый URL без `/yandex` продолжит работать до миграции).
+```

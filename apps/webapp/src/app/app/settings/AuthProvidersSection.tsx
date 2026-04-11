@@ -170,12 +170,18 @@ export function AuthProvidersSection({
               <span className="text-xs font-medium">Redirect URI (callback)</span>
               <Input
                 type="url"
-                placeholder="https://example.com/api/auth/oauth/callback"
+                placeholder="https://example.com/api/auth/oauth/callback/yandex"
                 value={yandexRedirect}
                 onChange={(e) => setYandexRedirect(e.target.value)}
                 disabled={isPending}
                 autoComplete="off"
               />
+              <span className="text-xs text-muted-foreground">
+                В кабинете Яндекса укажите{" "}
+                <code className="rounded bg-muted px-1">…/api/auth/oauth/callback/yandex</code>. Старый путь{" "}
+                <code className="rounded bg-muted px-1">…/api/auth/oauth/callback</code> без суффикса по-прежнему
+                обрабатывается, но не рекомендуется для новых настроек.
+              </span>
             </label>
           </section>
 

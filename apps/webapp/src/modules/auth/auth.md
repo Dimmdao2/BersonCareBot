@@ -33,7 +33,8 @@
 | Метод | Путь | Назначение |
 |--------|------|------------|
 | POST | `/api/auth/oauth/start` | Старт OAuth; body `{ "provider": "yandex" \| "google" \| "apple" }`; ответ `{ ok, authUrl }` или ошибка. **Rate limit:** до 60 стартов в час на ключ клиента (таблица `auth_rate_limit_events`, scope `auth.oauth_start`). Ключ — **только `X-Real-IP`** (nginx должен передать `$remote_addr`); **`X-Forwarded-For` не используется** — иначе при `$proxy_add_x_forwarded_for` клиент мог бы подставить левый первый hop и обойти лимит. **Production (`NODE_ENV=production`):** без непустого `X-Real-IP` маршрут отвечает **503** с `error: proxy_configuration` (нарушение инфраструктурного инварианта), лог `oauth_start_x_real_ip_required`. **Development / test:** без `X-Real-IP` — лог `oauth_start_missing_x_real_ip` (debug) и общий fallback-ключ `oauth_start:missing_x_real_ip` для локальной работы. |
-| GET | `/api/auth/oauth/callback` | Только Яндекс; подписанный `state` с purpose `yandex`. |
+| GET | `/api/auth/oauth/callback/yandex` | Яндекс OAuth; подписанный `state` с purpose `yandex`. Канонический redirect URI. |
+| GET | `/api/auth/oauth/callback` | Legacy: тот же обработчик, что `/callback/yandex` (совместимость со старыми redirect URI в кабинете Яндекса). |
 | GET | `/api/auth/oauth/callback/google` | Веб-логин Google; `state` — purpose `google_login`. |
 | POST | `/api/auth/oauth/callback/apple` | Sign in with Apple (`form_post`); `state` — purpose `apple`, `nonce` внутри подписанного payload и в `id_token`. |
 | GET | `/api/auth/oauth/providers` | Флаги `yandex` / `google` / `apple` (настроен ли провайдер), **без** секретов; `Cache-Control: private, no-store`. |
@@ -85,7 +86,7 @@
 
 ## API-маршруты (часто используемые)
 
-`/api/auth/exchange`, `/api/auth/telegram-init`, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET).
+`/api/auth/exchange`, `/api/auth/telegram-init`, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/yandex`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET).
 
 ## Операционные логи OTP
 
