@@ -51,28 +51,28 @@ vi.mock("@/config/env", () => ({
     DATABASE_URL: "",
     APP_BASE_URL: "http://localhost",
     NODE_ENV: "test",
+    SESSION_COOKIE_SECRET: "test-session-secret-16chars",
   },
   isProduction: false,
   webappReposAreInMemory: () => true,
 }));
 
+import { createSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import { GET } from "./route";
 
-const STATE = "test-state-uuid-1234";
-
-function makeRequest(params: Record<string, string>, cookieState?: string): Request {
+function makeRequest(params: Record<string, string>): Request {
   const url = new URL("http://localhost/api/auth/oauth/callback");
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
-  const headers: Record<string, string> = {};
-  if (cookieState !== undefined) {
-    headers["cookie"] = `oauth_state_yandex=${cookieState}`;
-  }
-  return new Request(url.toString(), { headers });
+  return new Request(url.toString());
 }
 
-describe("GET /api/auth/oauth/callback — CSRF state", () => {
+function validYandexState(): string {
+  return createSignedOAuthState("yandex", 600);
+}
+
+describe("GET /api/auth/oauth/callback — signed state", () => {
   beforeEach(() => {
     exchangeYandexCodeMock.mockReset();
     fetchYandexUserInfoMock.mockReset();
@@ -81,27 +81,21 @@ describe("GET /api/auth/oauth/callback — CSRF state", () => {
     findByUserIdMock.mockReset();
   });
 
-  it("returns 403 when no cookie and no query state", async () => {
+  it("returns 403 when query state is absent", async () => {
     const res = await GET(makeRequest({ code: "abc" }));
     expect(res.status).toBe(403);
     const json = (await res.json()) as { error: string };
     expect(json.error).toBe("oauth_csrf");
   });
 
-  it("returns 403 when cookie is set but query state is absent", async () => {
-    const res = await GET(makeRequest({ code: "abc" }, STATE));
-    expect(res.status).toBe(403);
-    const json = (await res.json()) as { error: string };
-    expect(json.error).toBe("oauth_csrf");
-  });
-
-  it("returns 403 when query state is set but cookie is absent", async () => {
-    const res = await GET(makeRequest({ code: "abc", state: STATE }));
+  it("returns 403 when state is not a valid signed token", async () => {
+    const res = await GET(makeRequest({ code: "abc", state: "not-a-token" }));
     expect(res.status).toBe(403);
   });
 
-  it("returns 403 when state mismatch (cookie != query)", async () => {
-    const res = await GET(makeRequest({ code: "abc", state: "different-state" }, STATE));
+  it("returns 403 when state is for another OAuth flow (wrong purpose)", async () => {
+    const gcalState = createSignedOAuthState("gcal", 600);
+    const res = await GET(makeRequest({ code: "abc", state: gcalState }));
     expect(res.status).toBe(403);
   });
 });
@@ -116,7 +110,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
   });
 
   it("redirects oauth=error when no code provided", async () => {
-    const res = await GET(makeRequest({ state: STATE }, STATE));
+    const res = await GET(makeRequest({ state: validYandexState() }));
     expect(res.status).toBeGreaterThanOrEqual(300);
     expect(res.status).toBeLessThan(400);
     const loc = res.headers.get("location") ?? "";
@@ -126,7 +120,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
 
   it("redirects oauth=error when exchange fails", async () => {
     exchangeYandexCodeMock.mockRejectedValue(new Error("yandex_token_exchange_failed: 400"));
-    const res = await GET(makeRequest({ code: "bad-code", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "bad-code", state: validYandexState() }));
     expect(res.status).toBeGreaterThanOrEqual(300);
     const loc = res.headers.get("location") ?? "";
     expect(loc).toContain("exchange_failed");
@@ -135,7 +129,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
   it("redirects oauth=error when user info fetch fails", async () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
     fetchYandexUserInfoMock.mockRejectedValue(new Error("yandex_userinfo_failed: 401"));
-    const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "code", state: validYandexState() }));
     const loc = res.headers.get("location") ?? "";
     expect(loc).toContain("userinfo_failed");
   });
@@ -144,7 +138,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
     fetchYandexUserInfoMock.mockResolvedValue({ id: "y1", email: null, phone: null, name: "X" });
     findUserMock.mockResolvedValue(null);
-    const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "code", state: validYandexState() }));
     const loc = res.headers.get("location") ?? "";
     expect(loc).toContain("no_identity");
   });
@@ -153,7 +147,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
     exchangeYandexCodeMock.mockResolvedValue({ accessToken: "tok" });
     fetchYandexUserInfoMock.mockResolvedValue({ id: "y1", email: "u@example.com", phone: null, name: "X" });
     findUserMock.mockResolvedValue(null);
-    const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "code", state: validYandexState() }));
     const loc = res.headers.get("location") ?? "";
     expect(loc).toContain("db_error");
   });
@@ -171,7 +165,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
     });
     setSessionMock.mockResolvedValue(undefined);
 
-    const res = await GET(makeRequest({ code: "valid-code", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "valid-code", state: validYandexState() }));
 
     expect(setSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -200,7 +194,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
     });
     setSessionMock.mockResolvedValue(undefined);
 
-    const res = await GET(makeRequest({ code: "code-nophone", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "code-nophone", state: validYandexState() }));
 
     expect(setSessionMock).toHaveBeenCalled();
     const loc = res.headers.get("location") ?? "";
@@ -222,7 +216,7 @@ describe("GET /api/auth/oauth/callback — post-CSRF flow", () => {
     });
     setSessionMock.mockRejectedValue(new Error("cookies_api_unavailable"));
 
-    const res = await GET(makeRequest({ code: "code2", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "code2", state: validYandexState() }));
     const loc = res.headers.get("location") ?? "";
     expect(loc).toContain("session_failed");
   });
@@ -249,7 +243,7 @@ describe("GET /api/auth/oauth/callback — resolveUserIdForYandexOAuth orchestra
     fetchYandexUserInfoMock.mockResolvedValue({ id: "ya-merge", email: "dup@ya.ru", phone: null, name: "D" });
     resolveSpy.mockResolvedValue({ ok: false, reason: "email_ambiguous" });
 
-    const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "code", state: validYandexState() }));
 
     expect(resolveSpy).toHaveBeenCalledWith(
       expect.anything(),
@@ -278,7 +272,7 @@ describe("GET /api/auth/oauth/callback — resolveUserIdForYandexOAuth orchestra
     });
     setSessionMock.mockResolvedValue(undefined);
 
-    const res = await GET(makeRequest({ code: "code", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "code", state: validYandexState() }));
 
     expect(resolveSpy).toHaveBeenCalled();
     expect(findByUserIdMock).toHaveBeenCalledWith("merged-platform-uuid");

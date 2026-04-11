@@ -49,6 +49,7 @@ const ACTION_FILTER_OPTIONS = [
   "media_delete",
   "reference_archive",
   "admin_mode_toggle",
+  "admin_client_profile_patch",
 ] as const;
 
 function actionTierLabel(action: string): string {
@@ -73,6 +74,7 @@ function actionTierLabel(action: string): string {
   if (
     action.startsWith("user_") ||
     action === "intake_status_change" ||
+    action === "admin_client_profile_patch" ||
     action.startsWith("auto_merge_conflict")
   ) {
     return "Клиент / данные";

@@ -51,6 +51,7 @@ export default async function DoctorClientProfilePage({
         listBasePath={listBasePath}
         isAdmin={session.user.role === "admin"}
         canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
+        canEditClientProfile={session.user.role === "admin" && Boolean(session.adminMode)}
         publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}
         assignLfkEnabled={Boolean(env.DATABASE_URL)}
       />

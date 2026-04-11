@@ -41,6 +41,11 @@ export type ClientIdentity = {
   isArchived: boolean;
   /** Даты привязки каналов (`user_channel_bindings.created_at`), ключ — `channel_code`. */
   channelBindingDates: Record<string, string>;
+  /** Поля `platform_users` (ФИО по частям, email); для карточки клиента и admin-редактирования. */
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  emailVerifiedAt?: string | null;
 };
 
 /** Метрики пациентов для дашборда врача (этап 9). */

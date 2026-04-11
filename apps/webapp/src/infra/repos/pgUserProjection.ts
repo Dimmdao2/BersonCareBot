@@ -48,6 +48,19 @@ export type UserProjectionPort = {
     email: string | null;
     emailVerifiedAt: string | null;
   }>;
+  /**
+   * Admin (webapp): правка ФИО/email канонического клиента по `platform_users.id`.
+   * Только `role = client`, `merged_into_id IS NULL`. Смена email сбрасывает верификацию при изменении значения.
+   */
+  patchAdminClientProfile: (params: {
+    platformUserId: string;
+    patch: {
+      displayName?: string;
+      firstName?: string | null;
+      lastName?: string | null;
+      email?: string | null;
+    };
+  }) => Promise<{ ok: true } | { ok: false; reason: "nothing_to_update" | "not_found_or_not_client" }>;
   /** Rubitime webhook → user.email.autobind (USER_TODO_STAGE; см. AUDIT-BACKLOG-024). */
   applyRubitimeEmailAutobind: (params: {
     phoneNormalized: string;
@@ -521,6 +534,61 @@ export const pgUserProjectionPort: UserProjectionPort = {
       emailVerifiedAt: row.email_verified_at ? row.email_verified_at.toISOString() : null,
     };
   },
+
+  async patchAdminClientProfile({ platformUserId, patch }) {
+    const pool = getPool();
+    const sets: string[] = ["updated_at = now()"];
+    const vals: unknown[] = [];
+    let n = 0;
+
+    if (patch.displayName !== undefined) {
+      n += 1;
+      sets.push(`display_name = $${n}`);
+      vals.push(patch.displayName);
+    }
+    if (patch.firstName !== undefined) {
+      n += 1;
+      sets.push(`first_name = $${n}`);
+      vals.push(patch.firstName);
+    }
+    if (patch.lastName !== undefined) {
+      n += 1;
+      sets.push(`last_name = $${n}`);
+      vals.push(patch.lastName);
+    }
+    if (patch.email !== undefined) {
+      n += 1;
+      const emailN = n;
+      sets.push(`email = $${emailN}`);
+      vals.push(patch.email);
+      sets.push(
+        `email_verified_at = CASE
+          WHEN $${emailN}::text IS NULL OR btrim(COALESCE($${emailN}::text, '')) = '' THEN NULL
+          WHEN lower(btrim(COALESCE($${emailN}::text, ''))) IS DISTINCT FROM lower(btrim(COALESCE(email, ''))) THEN NULL
+          ELSE email_verified_at
+        END`,
+      );
+    }
+
+    if (sets.length === 1) {
+      return { ok: false as const, reason: "nothing_to_update" as const };
+    }
+
+    n += 1;
+    const idPlaceholder = n;
+    vals.push(platformUserId);
+
+    const result = await pool.query(
+      `UPDATE platform_users SET ${sets.join(", ")}
+       WHERE id = $${idPlaceholder}::uuid AND role = 'client' AND merged_into_id IS NULL`,
+      vals,
+    );
+
+    if (result.rowCount === 0) {
+      return { ok: false as const, reason: "not_found_or_not_client" as const };
+    }
+    return { ok: true as const };
+  },
 };
 
 export const inMemoryUserProjectionPort: UserProjectionPort = {
@@ -534,4 +602,5 @@ export const inMemoryUserProjectionPort: UserProjectionPort = {
   updateRole: async () => {},
   getProfileEmailFields: async () => ({ email: null, emailVerifiedAt: null }),
   applyRubitimeEmailAutobind: async () => ({ outcome: "skipped_no_user" }),
+  patchAdminClientProfile: async () => ({ ok: true as const }),
 };

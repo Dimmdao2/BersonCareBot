@@ -42,22 +42,21 @@ vi.mock("@/modules/system-settings/configAdapter", () => ({
 }));
 
 vi.mock("@/config/env", () => ({
-  env: { APP_BASE_URL: "http://localhost" },
+  env: { APP_BASE_URL: "http://localhost", SESSION_COOKIE_SECRET: "test-session-secret-16chars" },
   isProduction: false,
 }));
 
+import { createSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import { GET } from "./route";
 
-const STATE = "test-state-uuid";
-
-function makeRequest(params: Record<string, string>, cookieState?: string): Request {
+function makeRequest(params: Record<string, string>): Request {
   const url = new URL("http://localhost/api/admin/google-calendar/callback");
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const headers: Record<string, string> = {};
-  if (cookieState !== undefined) {
-    headers["cookie"] = `oauth_state_gcal=${cookieState}`;
-  }
-  return new Request(url.toString(), { headers });
+  return new Request(url.toString());
+}
+
+function validGcalState(): string {
+  return createSignedOAuthState("gcal", 600);
 }
 
 describe("GET /api/admin/google-calendar/callback", () => {
@@ -71,37 +70,37 @@ describe("GET /api/admin/google-calendar/callback", () => {
 
   it("redirects with error when not authenticated", async () => {
     sessionMock.mockResolvedValue(null);
-    const res = await GET(makeRequest({ code: "c", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "c", state: validGcalState() }));
     expect(res.status).toBeGreaterThanOrEqual(300);
     expect(res.headers.get("location") ?? "").toContain("reason=unauthorized");
   });
 
-  it("redirects with error on CSRF mismatch", async () => {
-    const res = await GET(makeRequest({ code: "c", state: "wrong" }, STATE));
+  it("redirects with error on invalid signed state", async () => {
+    const res = await GET(makeRequest({ code: "c", state: "wrong" }));
     expect(res.headers.get("location") ?? "").toContain("reason=csrf");
   });
 
   it("redirects with error when no code", async () => {
-    const res = await GET(makeRequest({ state: STATE }, STATE));
+    const res = await GET(makeRequest({ state: validGcalState() }));
     expect(res.headers.get("location") ?? "").toContain("reason=no_code");
   });
 
   it("redirects with error when exchange fails", async () => {
     exchangeMock.mockRejectedValue(new Error("bad"));
-    const res = await GET(makeRequest({ code: "bad", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "bad", state: validGcalState() }));
     expect(res.headers.get("location") ?? "").toContain("reason=exchange_failed");
   });
 
   it("redirects with error when no refresh token returned", async () => {
     exchangeMock.mockResolvedValue({ accessToken: "at", refreshToken: null });
-    const res = await GET(makeRequest({ code: "c", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "c", state: validGcalState() }));
     expect(res.headers.get("location") ?? "").toContain("reason=no_refresh_token");
   });
 
   it("saves refresh token and redirects on success", async () => {
     exchangeMock.mockResolvedValue({ accessToken: "at", refreshToken: "rt" });
     emailMock.mockResolvedValue("user@gmail.com");
-    const res = await GET(makeRequest({ code: "good", state: STATE }, STATE));
+    const res = await GET(makeRequest({ code: "good", state: validGcalState() }));
     expect(res.headers.get("location") ?? "").toContain("gcal=connected");
     expect(updateSettingMock).toHaveBeenCalledWith(
       "google_refresh_token",
@@ -118,7 +117,7 @@ describe("GET /api/admin/google-calendar/callback", () => {
   });
 
   it("handles Google error param", async () => {
-    const res = await GET(makeRequest({ error: "access_denied", state: STATE }, STATE));
+    const res = await GET(makeRequest({ error: "access_denied", state: validGcalState() }));
     expect(res.headers.get("location") ?? "").toContain("reason=access_denied");
   });
 });

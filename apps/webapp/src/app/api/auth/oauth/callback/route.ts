@@ -14,39 +14,23 @@ import {
   getYandexOauthClientSecret,
   getYandexOauthRedirectUri,
 } from "@/modules/system-settings/integrationRuntime";
-
-const OAUTH_STATE_COOKIE = "oauth_state_yandex";
-
-/** Читает cookie из заголовка Request.headers без next/headers (тестируемо в unit). */
-function readCookieFromRequest(request: Request, name: string): string | null {
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  for (const chunk of cookieHeader.split(";")) {
-    const eq = chunk.indexOf("=");
-    if (eq === -1) continue;
-    const k = chunk.slice(0, eq).trim();
-    if (k === name) {
-      return chunk.slice(eq + 1).trim() || null;
-    }
-  }
-  return null;
-}
+import { verifySignedOAuthState } from "@/modules/auth/oauthSignedState";
 
 function redirectToAppQuery(reason: string): URL {
   return new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, env.APP_BASE_URL);
 }
 
 /**
- * Callback OAuth (Yandex): CSRF (state) → code → token → userinfo → resolve user (OAuth / email merge / create)
+ * Callback OAuth (Yandex): подписанный state → code → token → userinfo → resolve user (OAuth / email merge / create)
  * → сессия → redirect. Публичная кнопка в login UI не используется — только прямой вызов `/api/auth/oauth/start`.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";
-  const stateFromCookie = readCookieFromRequest(request, OAUTH_STATE_COOKIE) ?? "";
 
-  if (!stateFromQuery || !stateFromCookie || stateFromQuery !== stateFromCookie) {
+  if (!stateFromQuery || !verifySignedOAuthState(stateFromQuery, "yandex")) {
     return NextResponse.json(
-      { error: "oauth_csrf", message: "State mismatch или cookie отсутствует" },
+      { error: "oauth_csrf", message: "Недействительный или просроченный state" },
       { status: 403 },
     );
   }

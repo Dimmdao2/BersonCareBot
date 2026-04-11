@@ -170,6 +170,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
       const userRow = await pool.query(
         `SELECT id, display_name, phone_normalized, created_at,
+                first_name, last_name, email, email_verified_at,
                 COALESCE(is_blocked, false) AS is_blocked,
                 blocked_reason,
                 COALESCE(is_archived, false) AS is_archived
@@ -182,6 +183,10 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         display_name: string;
         phone_normalized: string | null;
         created_at: string;
+        first_name: string | null;
+        last_name: string | null;
+        email: string | null;
+        email_verified_at: Date | null;
         is_blocked: boolean;
         blocked_reason: string | null;
         is_archived: boolean;
@@ -211,6 +216,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         blockedReason: r.blocked_reason,
         isArchived: r.is_archived,
         channelBindingDates,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        email: r.email,
+        emailVerifiedAt: r.email_verified_at
+          ? r.email_verified_at instanceof Date
+            ? r.email_verified_at.toISOString()
+            : String(r.email_verified_at)
+          : null,
       };
     },
 

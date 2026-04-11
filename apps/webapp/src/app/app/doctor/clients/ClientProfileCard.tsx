@@ -12,6 +12,7 @@ import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AssignLfkTemplatePanel } from "./AssignLfkTemplatePanel";
 import { AdminDangerActions } from "./AdminDangerActions";
 import { AdminClientAuditHistorySection } from "./AdminClientAuditHistorySection";
+import { AdminClientProfileEditPanel } from "./AdminClientProfileEditPanel";
 import { AdminMergeAccountsPanel } from "./AdminMergeAccountsPanel";
 import { DoctorClientLifecycleActions } from "./DoctorClientLifecycleActions";
 import { DoctorNotesPanel } from "./DoctorNotesPanel";
@@ -28,6 +29,8 @@ type ClientProfileCardProps = {
   isAdmin?: boolean;
   /** Безвозвратное удаление: только admin + включённый adminMode. */
   canPermanentDelete?: boolean;
+  /** Правка ФИО/email в карточке: только admin + adminMode. */
+  canEditClientProfile?: boolean;
   publishedLfkTemplates?: { id: string; title: string }[];
   assignLfkEnabled?: boolean;
 };
@@ -40,6 +43,7 @@ export function ClientProfileCard({
   listBasePath = "/app/doctor/clients",
   isAdmin = false,
   canPermanentDelete = false,
+  canEditClientProfile = false,
   publishedLfkTemplates = [],
   assignLfkEnabled = false,
 }: ClientProfileCardProps) {
@@ -278,6 +282,17 @@ export function ClientProfileCard({
 
       {isAdmin ? (
         <AdminDangerActions userId={userId} sampleIntegratorRecordId={sampleRecordId} />
+      ) : null}
+
+      {canEditClientProfile ? (
+        <AdminClientProfileEditPanel
+          userId={userId}
+          displayName={identity.displayName}
+          firstName={identity.firstName}
+          lastName={identity.lastName}
+          email={identity.email}
+          emailVerifiedAt={identity.emailVerifiedAt}
+        />
       ) : null}
 
       {canPermanentDelete ? (

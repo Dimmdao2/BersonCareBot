@@ -22,7 +22,7 @@ vi.mock("@/modules/auth/service", () => ({
 }));
 
 vi.mock("@/config/env", () => ({
-  env: { APP_BASE_URL: "http://localhost" },
+  env: { APP_BASE_URL: "http://localhost", SESSION_COOKIE_SECRET: "test-session-secret-16chars" },
   isProduction: false,
 }));
 
@@ -69,5 +69,8 @@ describe("POST /api/admin/google-calendar/start", () => {
     expect(data.authUrl).toContain("client_id=test-client-id");
     expect(data.authUrl).toContain("access_type=offline");
     expect(data.authUrl).toContain("prompt=consent");
+    const u = new URL(data.authUrl);
+    const state = u.searchParams.get("state") ?? "";
+    expect(state.startsWith("v1.")).toBe(true);
   });
 });

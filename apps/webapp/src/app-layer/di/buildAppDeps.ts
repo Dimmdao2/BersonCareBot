@@ -558,6 +558,7 @@ function _buildAppDeps() {
       updateRole: userProjectionPort.updateRole,
       getProfileEmailFields: userProjectionPort.getProfileEmailFields,
       applyRubitimeEmailAutobind: userProjectionPort.applyRubitimeEmailAutobind,
+      patchAdminClientProfile: userProjectionPort.patchAdminClientProfile,
     },
     supportCommunication: supportCommunicationPort,
     /** Поддержка: чат webapp ↔ админ (этап 8). */

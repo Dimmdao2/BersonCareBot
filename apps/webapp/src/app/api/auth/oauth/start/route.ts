@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isProduction } from "@/config/env";
+import { createSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import {
   getYandexOauthClientId,
   getYandexOauthClientSecret,
   getYandexOauthRedirectUri,
 } from "@/modules/system-settings/integrationRuntime";
 
-const OAUTH_STATE_COOKIE = "oauth_state_yandex";
 const OAUTH_STATE_TTL_SECONDS = 600; // 10 минут
 
 const bodySchema = z.object({
@@ -16,7 +15,7 @@ const bodySchema = z.object({
 
 /**
  * Старт OAuth (служебный backend): Яндекс — при наличии ключей в `system_settings` (admin).
- * Генерирует state, httpOnly cookie, возвращает authUrl. Публичная кнопка в login UI не используется.
+ * Генерирует подписанный state (HMAC, без cookie), возвращает authUrl.
  * Google/Apple — отложено.
  */
 export async function POST(request: Request) {
@@ -46,7 +45,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const state = crypto.randomUUID();
+  const state = createSignedOAuthState("yandex", OAUTH_STATE_TTL_SECONDS);
 
   const authUrl = new URL("https://oauth.yandex.ru/authorize");
   authUrl.searchParams.set("response_type", "code");
@@ -55,13 +54,5 @@ export async function POST(request: Request) {
   authUrl.searchParams.set("scope", "login:info login:email login:default_phone");
   authUrl.searchParams.set("state", state);
 
-  const res = NextResponse.json({ ok: true, authUrl: authUrl.toString() });
-  res.cookies.set(OAUTH_STATE_COOKIE, state, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction,
-    path: "/",
-    maxAge: OAUTH_STATE_TTL_SECONDS,
-  });
-  return res;
+  return NextResponse.json({ ok: true, authUrl: authUrl.toString() });
 }

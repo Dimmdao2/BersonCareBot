@@ -17,33 +17,12 @@ import {
   exchangeGoogleCode,
   fetchGoogleUserEmail,
 } from "@/modules/google-calendar/googleOAuthHelpers";
-
-const OAUTH_STATE_COOKIE = "oauth_state_gcal";
-
-function readCookieFromRequest(request: Request, name: string): string | null {
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  for (const chunk of cookieHeader.split(";")) {
-    const eq = chunk.indexOf("=");
-    if (eq === -1) continue;
-    if (chunk.slice(0, eq).trim() === name) {
-      const raw = chunk.slice(eq + 1).trim();
-      if (!raw) return null;
-      try {
-        return decodeURIComponent(raw);
-      } catch {
-        return raw;
-      }
-    }
-  }
-  return null;
-}
+import { verifySignedOAuthState } from "@/modules/auth/oauthSignedState";
 
 function settingsRedirect(params: Record<string, string>): NextResponse {
   const url = new URL("/app/settings", env.APP_BASE_URL);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = NextResponse.redirect(url);
-  res.cookies.set(OAUTH_STATE_COOKIE, "", { maxAge: 0, path: "/" });
-  return res;
+  return NextResponse.redirect(url);
 }
 
 export async function GET(request: Request) {
@@ -54,9 +33,8 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";
-  const stateFromCookie = readCookieFromRequest(request, OAUTH_STATE_COOKIE) ?? "";
 
-  if (!stateFromQuery || !stateFromCookie || stateFromQuery !== stateFromCookie) {
+  if (!stateFromQuery || !verifySignedOAuthState(stateFromQuery, "gcal")) {
     return settingsRedirect({ gcal: "error", reason: "csrf" });
   }
 
