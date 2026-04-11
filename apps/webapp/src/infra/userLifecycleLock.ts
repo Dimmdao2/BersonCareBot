@@ -21,7 +21,7 @@ export async function withTwoUserLifecycleLocksExclusive<T>(
   try {
     await client.query("BEGIN");
     await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [x]);
-    await client.query(`SELECT pg_advisory_xact_lock(hashtext($2::text))`, [y]);
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [y]);
     const out = await fn(client);
     await client.query("COMMIT");
     return out;

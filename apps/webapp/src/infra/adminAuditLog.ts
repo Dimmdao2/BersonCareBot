@@ -230,8 +230,8 @@ export type ListAdminAuditLogParams = {
   action?: string;
   targetId?: string;
   /**
-   * Match rows where this platform user is `target_id` **or** listed in `details.candidateIds`
-   * for `auto_merge_conflict` (open or resolved — same filter as list).
+   * Match rows where this platform user is `target_id`, or listed in `details.candidateIds` for
+   * `auto_merge_conflict`, or matches `details.targetId` / `details.duplicateId` for `user_merge`.
    */
   involvesPlatformUserId?: string;
   status?: AuditLogStatus;
@@ -288,6 +288,10 @@ export async function listAdminAuditLog(pool: Pool, params: ListAdminAuditLogPar
           SELECT 1
           FROM jsonb_array_elements_text(COALESCE(l.details->'candidateIds', '[]'::jsonb)) AS cid
           WHERE cid = $${i}
+        )
+      ) OR (
+        l.action = 'user_merge' AND (
+          l.details->>'targetId' = $${i} OR l.details->>'duplicateId' = $${i}
         )
       ))`,
     );

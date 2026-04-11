@@ -85,9 +85,11 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled }: Prop
         </Button>
       </div>
       <p className="text-muted-foreground text-sm">
-        Записи журнала, где этот пользователь фигурирует как цель операции или как кандидат конфликта интеграции (
-        <span className="font-mono">auto_merge_conflict</span>
-        ). Нерешённые конфликты помечены отдельно.
+        Записи журнала, где этот пользователь встречается как{" "}
+        <span className="font-mono">target_id</span>, в кандидатах{" "}
+        <span className="font-mono">auto_merge_conflict</span> или в паре слияния{" "}
+        <span className="font-mono">user_merge</span> (<span className="font-mono">details.targetId</span> /{" "}
+        <span className="font-mono">duplicateId</span>). Нерешённые конфликты помечены отдельно.
       </p>
       {openConflictsHere.length > 0 ? (
         <p className="text-sm text-amber-800 dark:text-amber-300" role="status">

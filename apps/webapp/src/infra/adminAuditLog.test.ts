@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { computeConflictKeyFromCandidateIds, upsertOpenConflictLog, writeAuditLog } from "./adminAuditLog";
+import {
+  computeConflictKeyFromCandidateIds,
+  listAdminAuditLog,
+  upsertOpenConflictLog,
+  writeAuditLog,
+} from "./adminAuditLog";
 import type { Pool } from "pg";
 
 describe("computeConflictKeyFromCandidateIds", () => {
@@ -142,5 +147,30 @@ describe("upsertOpenConflictLog", () => {
     ).resolves.toBeUndefined();
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+});
+
+describe("listAdminAuditLog", () => {
+  it("involvesPlatformUserId SQL matches user_merge details and auto_merge_conflict candidateIds", async () => {
+    const uid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes("count(*)")) {
+        return { rows: [{ n: "0" }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const pool = { query } as unknown as Pool;
+
+    await listAdminAuditLog(pool, { page: 1, limit: 10, involvesPlatformUserId: uid });
+
+    const countCall = query.mock.calls.find((c) => String(c[0]).includes("count(*)"));
+    expect(countCall).toBeDefined();
+    const countSql = String(countCall?.[0]);
+    expect(countSql).toContain("auto_merge_conflict");
+    expect(countSql).toContain("candidateIds");
+    expect(countSql).toContain("user_merge");
+    expect(countSql).toContain("details->>'targetId'");
+    expect(countSql).toContain("details->>'duplicateId'");
+    expect(countSql).toContain(`l.target_id = $1`);
   });
 });
