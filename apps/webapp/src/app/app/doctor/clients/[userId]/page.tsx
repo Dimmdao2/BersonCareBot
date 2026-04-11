@@ -50,6 +50,7 @@ export default async function DoctorClientProfilePage({
         messageHistory={messageHistory.items}
         userId={userId}
         listBasePath={listBasePath}
+        suppressTopIdentityBanner
         isAdmin={session.user.role === "admin"}
         canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
         publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}

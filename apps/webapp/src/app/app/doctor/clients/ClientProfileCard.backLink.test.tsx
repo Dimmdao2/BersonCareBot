@@ -40,6 +40,51 @@ const minimalProfile: ClientProfile = {
 };
 
 describe("ClientProfileCard back link (scope)", () => {
+  it("shows client display name as prominent heading", () => {
+    render(
+      <ClientProfileCard
+        profile={minimalProfile}
+        messageDraft={null}
+        messageHistory={[]}
+        userId="u1"
+        listBasePath="/app/doctor/clients?scope=all"
+      />,
+    );
+    const heading = screen.getByRole("heading", { level: 2, name: "Test" });
+    expect(heading).toHaveAttribute("id", "doctor-client-display-name");
+  });
+
+  it("shows placeholder when display name is empty", () => {
+    const profileEmptyName: ClientProfile = {
+      ...minimalProfile,
+      identity: { ...minimalProfile.identity, displayName: "   " },
+    };
+    render(
+      <ClientProfileCard
+        profile={profileEmptyName}
+        messageDraft={null}
+        messageHistory={[]}
+        userId="u1"
+        listBasePath="/app/doctor/clients?scope=all"
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Имя не указано" })).toBeInTheDocument();
+  });
+
+  it("hides top identity banner when suppressTopIdentityBanner", () => {
+    render(
+      <ClientProfileCard
+        profile={minimalProfile}
+        messageDraft={null}
+        messageHistory={[]}
+        userId="u1"
+        listBasePath="/app/doctor/clients?scope=all"
+        suppressTopIdentityBanner
+      />,
+    );
+    expect(screen.queryByRole("heading", { level: 2, name: "Test" })).toBeNull();
+  });
+
   it("uses listBasePath with scope=all for href and подписчиков label", () => {
     const href = "/app/doctor/clients?scope=all";
     render(
