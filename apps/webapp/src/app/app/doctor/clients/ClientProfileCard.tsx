@@ -30,11 +30,6 @@ type ClientProfileCardProps = {
   canPermanentDelete?: boolean;
   publishedLfkTemplates?: { id: string; title: string }[];
   assignLfkEnabled?: boolean;
-  /**
-   * Скрыть верхний блок с ФИО (на `/clients/[userId]` имя уже в шапке `AppShell`).
-   * В master-detail со списком — не передавать, чтобы ФИО было видно в колонке деталей.
-   */
-  suppressTopIdentityBanner?: boolean;
 };
 
 export function ClientProfileCard({
@@ -47,7 +42,6 @@ export function ClientProfileCard({
   canPermanentDelete = false,
   publishedLfkTemplates = [],
   assignLfkEnabled = false,
-  suppressTopIdentityBanner = false,
 }: ClientProfileCardProps) {
   const {
     identity,
@@ -73,20 +67,18 @@ export function ClientProfileCard({
         : "К списку клиентов";
 
   return (
-    <>
-      {suppressTopIdentityBanner ? null : (
-        <header
-          id="doctor-client-identity-header"
-          className="mb-4 rounded-2xl border border-border bg-card p-4 shadow-sm"
+    <div id={`doctor-client-profile-page-${userId}`}>
+      <header
+        id="doctor-client-identity-header"
+        className="mb-4 rounded-2xl border border-border bg-card p-4 shadow-sm"
+      >
+        <h2
+          id="doctor-client-display-name"
+          className="text-2xl font-semibold tracking-tight text-foreground"
         >
-          <h2
-            id="doctor-client-display-name"
-            className="text-2xl font-semibold tracking-tight text-foreground"
-          >
-            {displayHeading}
-          </h2>
-        </header>
-      )}
+          {displayHeading}
+        </h2>
+      </header>
 
       {identity.isBlocked ? (
         <div
@@ -304,6 +296,6 @@ export function ClientProfileCard({
           {backLabel}
         </Link>
       </p>
-    </>
+    </div>
   );
 }

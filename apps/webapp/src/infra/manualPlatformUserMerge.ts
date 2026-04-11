@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { writeAuditLog } from "@/infra/adminAuditLog";
+import { fetchMergePartyDisplayLabels } from "@/infra/mergeAuditLabels";
 import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
 import { mergePlatformUsersInTransaction } from "@/infra/repos/pgPlatformUserMerge";
 import type { VerifiedDistinctIntegratorUserIds } from "@/infra/repos/pgPlatformUserMerge";
@@ -32,6 +33,7 @@ export async function runManualPlatformUserMerge(
   },
 ): Promise<ManualMergeOk | ManualMergeFail> {
   const { targetId, duplicateId } = resolution;
+  const partyLabels = await fetchMergePartyDisplayLabels(pool, targetId, duplicateId);
   try {
     await withTwoUserLifecycleLocksExclusive(pool, targetId, duplicateId, async (client) => {
       await mergePlatformUsersInTransaction(client, targetId, duplicateId, "manual", {
@@ -53,6 +55,8 @@ export async function runManualPlatformUserMerge(
       details: {
         targetId,
         duplicateId,
+        targetDisplayName: partyLabels.targetDisplayName,
+        duplicateDisplayName: partyLabels.duplicateDisplayName,
         phase: "merge_transaction",
         error: msg,
       },
@@ -68,6 +72,8 @@ export async function runManualPlatformUserMerge(
     details: {
       targetId,
       duplicateId,
+      targetDisplayName: partyLabels.targetDisplayName,
+      duplicateDisplayName: partyLabels.duplicateDisplayName,
       resolution,
       /** Operator-facing conflicts were resolved via `resolution` (no separate list in v1). */
       conflictsResolved: [],

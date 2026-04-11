@@ -7,6 +7,26 @@ const callMergeMock = vi.fn();
 const poolQueryMock = vi.fn();
 const poolReleaseMock = vi.fn();
 const poolConnectMock = vi.fn();
+const writeAuditLogMock = vi.fn();
+const loggerErrorMock = vi.fn();
+
+vi.mock("@/infra/adminAuditLog", () => ({
+  writeAuditLog: (...a: unknown[]) => writeAuditLogMock(...a),
+}));
+vi.mock("@/infra/logging/logger", () => ({
+  logger: {
+    error: (...a: unknown[]) => loggerErrorMock(...a),
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+vi.mock("@/infra/mergeAuditLabels", () => ({
+  fetchMergePartyDisplayLabels: vi.fn().mockResolvedValue({
+    targetDisplayName: "Target FIO",
+    duplicateDisplayName: "Dup FIO",
+  }),
+}));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: (...a: unknown[]) => getSessionMock(...a),
@@ -52,6 +72,9 @@ describe("POST /api/doctor/clients/integrator-merge (Stage 5)", () => {
     poolQueryMock.mockReset();
     poolReleaseMock.mockReset();
     poolConnectMock.mockReset();
+    writeAuditLogMock.mockReset();
+    loggerErrorMock.mockReset();
+    writeAuditLogMock.mockResolvedValue(undefined);
     getSessionMock.mockResolvedValue(adminOk);
     getConfigBoolMock.mockResolvedValue(true);
     poolConnectMock.mockResolvedValue({
@@ -96,6 +119,8 @@ describe("POST /api/doctor/clients/integrator-merge (Stage 5)", () => {
     expect(String(poolQueryMock.mock.calls[1]?.[0])).toContain("FOR UPDATE");
     expect(poolQueryMock).toHaveBeenNthCalledWith(3, "COMMIT");
     expect(poolReleaseMock).toHaveBeenCalledTimes(1);
+    expect(writeAuditLogMock).not.toHaveBeenCalled();
+    expect(loggerErrorMock).not.toHaveBeenCalled();
   });
 
   it("returns 403 when admin gate fails", async () => {
@@ -131,5 +156,21 @@ describe("POST /api/doctor/clients/integrator-merge (Stage 5)", () => {
     expect(res.status).toBe(503);
     expect(poolQueryMock).toHaveBeenNthCalledWith(3, "ROLLBACK");
     expect(poolReleaseMock).toHaveBeenCalledTimes(1);
+    expect(loggerErrorMock).toHaveBeenCalled();
+    expect(writeAuditLogMock).toHaveBeenCalledTimes(1);
+    expect(writeAuditLogMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        actorId: "a1",
+        action: "integrator_user_merge",
+        targetId: T,
+        status: "error",
+        details: expect.objectContaining({
+          phase: "integrator_timeout",
+          targetDisplayName: "Target FIO",
+          duplicateDisplayName: "Dup FIO",
+        }),
+      }),
+    );
   });
 });

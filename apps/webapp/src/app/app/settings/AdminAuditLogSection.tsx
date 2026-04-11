@@ -1,13 +1,14 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
+import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
 
 type AuditItem = {
   id: string;
@@ -41,6 +42,7 @@ const ACTION_FILTER_OPTIONS = [
   "user_purge",
   "user_purge_external_retry",
   "user_merge",
+  "integrator_user_merge",
   "settings_change",
   "doctor_settings_change",
   "appointment_soft_delete",
@@ -49,18 +51,12 @@ const ACTION_FILTER_OPTIONS = [
   "admin_mode_toggle",
 ] as const;
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isUuid(s: string | null): boolean {
-  return s != null && s.length > 0 && UUID_RE.test(s);
-}
-
 function actionTierLabel(action: string): string {
   const tier1 = new Set([
     "user_purge",
     "user_purge_external_retry",
     "user_merge",
+    "integrator_user_merge",
     "appointment_soft_delete",
     "media_delete",
     "reference_archive",
@@ -312,24 +308,11 @@ export function AdminAuditLogSection() {
                                 </p>
                               )}
                             </td>
-                            <td className="px-3 py-2 align-top font-mono text-xs break-all">
-                              {row.target_id ? (
-                                isUuid(row.target_id) ? (
-                                  <Link
-                                    href={`/app/doctor/clients/${encodeURIComponent(row.target_id)}`}
-                                    className="text-primary underline-offset-2 hover:underline"
-                                  >
-                                    {row.target_id}
-                                  </Link>
-                                ) : (
-                                  row.target_id
-                                )
-                              ) : (
-                                "—"
-                              )}
+                            <td className="px-3 py-2 align-top">
+                              <AuditLogMergeTarget row={row} />
                             </td>
                             <td className="px-3 py-2 align-top text-xs">
-                              {row.actor_display_name?.trim() || row.actor_id || "—"}
+                              {auditActorShortLabel(row.actor_id, row.action)}
                             </td>
                             <td className="px-3 py-2 align-top">
                               <div className="flex flex-col gap-1">

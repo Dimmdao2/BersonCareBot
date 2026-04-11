@@ -71,18 +71,19 @@ describe("ClientProfileCard back link (scope)", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Имя не указано" })).toBeInTheDocument();
   });
 
-  it("hides top identity banner when suppressTopIdentityBanner", () => {
-    render(
+  it("wraps content in doctor-client-profile-page-{userId} including identity heading", () => {
+    const { container } = render(
       <ClientProfileCard
         profile={minimalProfile}
         messageDraft={null}
         messageHistory={[]}
         userId="u1"
         listBasePath="/app/doctor/clients?scope=all"
-        suppressTopIdentityBanner
       />,
     );
-    expect(screen.queryByRole("heading", { level: 2, name: "Test" })).toBeNull();
+    const root = container.querySelector("#doctor-client-profile-page-u1");
+    expect(root).not.toBeNull();
+    expect(root).toContainElement(screen.getByRole("heading", { level: 2, name: "Test" }));
   });
 
   it("uses listBasePath with scope=all for href and подписчиков label", () => {

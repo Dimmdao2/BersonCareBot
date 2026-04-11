@@ -1,15 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
+import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
 
 type AuditItem = {
   id: string;
+  actor_id: string | null;
   action: string;
   target_id: string | null;
   conflict_key: string | null;
+  details: Record<string, unknown>;
   status: "ok" | "partial_failure" | "error";
   repeat_count: number;
   last_seen_at: string;
@@ -21,13 +24,6 @@ type Props = {
   platformUserId: string;
   enabled: boolean;
 };
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isUuid(s: string | null): boolean {
-  return s != null && s.length > 0 && UUID_RE.test(s);
-}
 
 export function AdminClientAuditHistorySection({ platformUserId, enabled }: Props) {
   const [open, setOpen] = useState(false);
@@ -88,8 +84,9 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled }: Prop
         Записи журнала, где этот пользователь встречается как{" "}
         <span className="font-mono">target_id</span>, в кандидатах{" "}
         <span className="font-mono">auto_merge_conflict</span> или в паре слияния{" "}
-        <span className="font-mono">user_merge</span> (<span className="font-mono">details.targetId</span> /{" "}
-        <span className="font-mono">duplicateId</span>). Нерешённые конфликты помечены отдельно.
+        <span className="font-mono">user_merge</span> / <span className="font-mono">integrator_user_merge</span> (
+        <span className="font-mono">details.targetId</span> / <span className="font-mono">duplicateId</span>).
+        Нерешённые конфликты помечены отдельно.
       </p>
       {openConflictsHere.length > 0 ? (
         <p className="text-sm text-amber-800 dark:text-amber-300" role="status">
@@ -127,17 +124,13 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled }: Prop
                     <Badge variant="secondary" className="text-[10px]">
                       {row.status}
                     </Badge>
+                    <span className="text-muted-foreground">актор: {auditActorShortLabel(row.actor_id, row.action)}</span>
                     {row.action === "auto_merge_conflict" && row.resolved_at == null && row.conflict_key ? (
                       <span className="text-amber-700 dark:text-amber-400">открыт</span>
                     ) : null}
                   </div>
-                  {row.target_id && isUuid(row.target_id) ? (
-                    <Link href={`/app/doctor/clients/${encodeURIComponent(row.target_id)}`} className="font-mono break-all text-primary underline">
-                      target: {row.target_id}
-                    </Link>
-                  ) : row.target_id ? (
-                    <span className="font-mono break-all">target: {row.target_id}</span>
-                  ) : null}
+                  <div className="text-[11px] text-muted-foreground">Цель</div>
+                  <AuditLogMergeTarget row={row} />
                   {row.action === "auto_merge_conflict" && row.repeat_count > 1 ? (
                     <span className="text-muted-foreground">Повторов: {row.repeat_count}</span>
                   ) : null}

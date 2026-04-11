@@ -6,6 +6,11 @@ import { MergeConflictError } from "@/infra/repos/platformUserMergeErrors";
 const writeAuditLogMock = vi.fn();
 const mergeTxMock = vi.fn();
 const withTwoLocksMock = vi.fn();
+const fetchMergePartyDisplayLabelsMock = vi.fn();
+
+vi.mock("@/infra/mergeAuditLabels", () => ({
+  fetchMergePartyDisplayLabels: (...a: unknown[]) => fetchMergePartyDisplayLabelsMock(...a),
+}));
 
 vi.mock("@/infra/adminAuditLog", () => ({
   writeAuditLog: (...a: unknown[]) => writeAuditLogMock(...a),
@@ -44,6 +49,11 @@ describe("runManualPlatformUserMerge", () => {
     writeAuditLogMock.mockReset();
     mergeTxMock.mockReset();
     withTwoLocksMock.mockReset();
+    fetchMergePartyDisplayLabelsMock.mockReset();
+    fetchMergePartyDisplayLabelsMock.mockResolvedValue({
+      targetDisplayName: "Canon Name",
+      duplicateDisplayName: "Duplicate Name",
+    });
     writeAuditLogMock.mockResolvedValue(undefined);
     mergeTxMock.mockResolvedValue(undefined);
     withTwoLocksMock.mockImplementation(
@@ -97,6 +107,8 @@ describe("runManualPlatformUserMerge", () => {
         targetId: t1,
         status: "ok",
         details: expect.objectContaining({
+          targetDisplayName: "Canon Name",
+          duplicateDisplayName: "Duplicate Name",
           resolution: baseResolution,
           conflictsResolved: [],
           dependentRowsMoved: {
@@ -127,6 +139,8 @@ describe("runManualPlatformUserMerge", () => {
         targetId: t1,
         status: "error",
         details: expect.objectContaining({
+          targetDisplayName: "Canon Name",
+          duplicateDisplayName: "Duplicate Name",
           phase: "merge_transaction",
           error: "two different non-null integrator_user_id",
         }),

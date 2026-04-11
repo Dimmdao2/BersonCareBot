@@ -43,20 +43,17 @@ export default async function DoctorClientProfilePage({
       backLabel="Клиенты"
       variant="doctor"
     >
-      <div id={`doctor-client-profile-page-${userId}`}>
       <ClientProfileCard
         profile={profile}
         messageDraft={messageDraft}
         messageHistory={messageHistory.items}
         userId={userId}
         listBasePath={listBasePath}
-        suppressTopIdentityBanner
         isAdmin={session.user.role === "admin"}
         canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
         publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}
         assignLfkEnabled={Boolean(env.DATABASE_URL)}
       />
-      </div>
     </AppShell>
   );
 }

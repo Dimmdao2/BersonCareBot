@@ -169,6 +169,7 @@ describe("listAdminAuditLog", () => {
     expect(countSql).toContain("auto_merge_conflict");
     expect(countSql).toContain("candidateIds");
     expect(countSql).toContain("user_merge");
+    expect(countSql).toContain("integrator_user_merge");
     expect(countSql).toContain("details->>'targetId'");
     expect(countSql).toContain("details->>'duplicateId'");
     expect(countSql).toContain(`l.target_id = $1`);
