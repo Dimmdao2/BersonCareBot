@@ -135,7 +135,7 @@ export function createWebappEventsPort(): WebappEventsPort {
       linkToken: string;
       channelCode: string;
       externalId: string;
-    }): Promise<{ ok: boolean; error?: string }> {
+    }): Promise<{ ok: boolean; error?: string; needsPhone?: boolean }> {
       if (!baseUrl || !secret) {
         return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
@@ -157,11 +157,19 @@ export function createWebappEventsPort(): WebappEventsPort {
           },
           body,
         });
-        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          needsPhone?: boolean;
+          status?: string;
+        };
         if (!res.ok) {
           return { ok: false, error: data.error ?? res.statusText };
         }
-        return { ok: data.ok === true };
+        if (data.ok !== true) {
+          return { ok: false, error: data.error ?? 'channel link rejected' };
+        }
+        return { ok: true, needsPhone: data.needsPhone === true };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false, error: message };

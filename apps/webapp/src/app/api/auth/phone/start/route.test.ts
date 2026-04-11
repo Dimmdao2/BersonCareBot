@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const startPhoneAuth = vi.fn();
+const findByPhone = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -8,7 +9,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       startPhoneAuth,
     },
     userByPhone: {
-      findByPhone: vi.fn().mockResolvedValue(null),
+      findByPhone,
       getVerifiedEmailForUser: vi.fn().mockResolvedValue(null),
     },
   }),
@@ -19,6 +20,8 @@ import { POST } from "./route";
 describe("POST /api/auth/phone/start", () => {
   beforeEach(() => {
     startPhoneAuth.mockReset();
+    findByPhone.mockReset();
+    findByPhone.mockResolvedValue(null);
     startPhoneAuth.mockResolvedValue({
       ok: true as const,
       challengeId: "test-challenge-id",
@@ -53,28 +56,45 @@ describe("POST /api/auth/phone/start", () => {
     expect(data.error).toBe("phone_required");
   });
 
-  it("returns 400 sms_ru_only when SMS requested for non-RU number", async () => {
+  it("returns 400 sms_disabled_web when SMS requested for web channel", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/phone/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: "+4915123456789", deliveryChannel: "sms" }),
+        body: JSON.stringify({ phone: "+79991234567", deliveryChannel: "sms" }),
       }),
     );
     expect(res.status).toBe(400);
     const data = (await res.json()) as { ok: boolean; error?: string; message?: string };
     expect(data.ok).toBe(false);
-    expect(data.error).toBe("sms_ru_only");
-    expect(data.message).toContain("РФ");
+    expect(data.error).toBe("sms_disabled_web");
     expect(startPhoneAuth).not.toHaveBeenCalled();
   });
 
-  it("returns 200 with challengeId for valid phone", async () => {
+  it("returns 400 sms_disabled_web when deliveryChannel omitted on web (implicit sms)", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/phone/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ phone: "+79991234567" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { ok: boolean; error?: string };
+    expect(data.error).toBe("sms_disabled_web");
+    expect(startPhoneAuth).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 with challengeId for valid phone and telegram delivery", async () => {
+    findByPhone.mockResolvedValue({
+      userId: "u-web-1",
+      bindings: { telegramId: "tg-1", maxId: null },
+    });
+    const res = await POST(
+      new Request("http://localhost/api/auth/phone/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ phone: "+79991234567", deliveryChannel: "telegram" }),
       })
     );
     expect(res.status).toBe(200);
@@ -86,6 +106,10 @@ describe("POST /api/auth/phone/start", () => {
   });
 
   it("returns 503 with user message when delivery_failed", async () => {
+    findByPhone.mockResolvedValue({
+      userId: "u-web-1",
+      bindings: { telegramId: "tg-1", maxId: null },
+    });
     startPhoneAuth.mockResolvedValueOnce({
       ok: false as const,
       code: "delivery_failed",
@@ -94,7 +118,7 @@ describe("POST /api/auth/phone/start", () => {
       new Request("http://localhost/api/auth/phone/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ phone: "+79991234567" }),
+        body: JSON.stringify({ phone: "+79991234567", deliveryChannel: "telegram" }),
       })
     );
     expect(res.status).toBe(503);

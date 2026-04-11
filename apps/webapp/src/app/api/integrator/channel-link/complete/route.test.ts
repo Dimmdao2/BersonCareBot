@@ -42,7 +42,11 @@ describe("POST /api/integrator/channel-link/complete", () => {
   });
 
   it("returns 200 for valid signature and body", async () => {
-    completeChannelLinkFromIntegratorMock.mockResolvedValueOnce({ ok: true });
+    completeChannelLinkFromIntegratorMock.mockResolvedValueOnce({
+      ok: true,
+      userId: "pu-1",
+      needsPhone: false,
+    });
     const body = JSON.stringify({
       linkToken: "link_abc123",
       channelCode: "telegram",
@@ -64,13 +68,18 @@ describe("POST /api/integrator/channel-link/complete", () => {
     );
 
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { ok: boolean };
+    const json = (await res.json()) as { ok: boolean; needsPhone?: boolean };
     expect(json.ok).toBe(true);
+    expect(json.needsPhone).toBe(false);
     expect(completeChannelLinkFromIntegratorMock).toHaveBeenCalledTimes(1);
   });
 
   it("accepts channelCode=max with valid signature", async () => {
-    completeChannelLinkFromIntegratorMock.mockResolvedValueOnce({ ok: true });
+    completeChannelLinkFromIntegratorMock.mockResolvedValueOnce({
+      ok: true,
+      userId: "pu-1",
+      needsPhone: false,
+    });
     const body = JSON.stringify({
       linkToken: "link_max123",
       channelCode: "max",
@@ -126,7 +135,11 @@ describe("POST /api/integrator/channel-link/complete", () => {
   });
 
   it("returns 200 already_used when token was already completed", async () => {
-    completeChannelLinkFromIntegratorMock.mockResolvedValueOnce({ ok: false, code: "used_token" });
+    completeChannelLinkFromIntegratorMock.mockResolvedValueOnce({
+      ok: false,
+      code: "used_token",
+      needsPhone: true,
+    });
     const body = JSON.stringify({
       linkToken: "link_abc123",
       channelCode: "telegram",
@@ -148,6 +161,6 @@ describe("POST /api/integrator/channel-link/complete", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, status: "already_used" });
+    expect(await res.json()).toEqual({ ok: true, status: "already_used", needsPhone: true });
   });
 });

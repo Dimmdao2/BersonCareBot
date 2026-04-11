@@ -42,8 +42,12 @@ export async function POST(request: Request) {
 
   if (!result.ok) {
     if (result.code === "used_token") {
-      // Idempotent completion for repeated webhook deliveries.
-      return NextResponse.json({ ok: true, status: "already_used" });
+      // Idempotent completion for repeated webhook deliveries; needsPhone — повторный запрос контакта в боте.
+      return NextResponse.json({
+        ok: true,
+        status: "already_used",
+        needsPhone: Boolean(result.needsPhone),
+      });
     }
     if (result.code === "conflict") {
       return NextResponse.json({ ok: false, error: "conflict" }, { status: 409 });
@@ -51,5 +55,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: result.code }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, needsPhone: result.needsPhone });
 }

@@ -15,7 +15,6 @@ type ChannelPickerProps = {
   methods: AuthMethodsPayload;
   disabled?: boolean;
   onChoose: (channel: "telegram" | "max" | "email") => void;
-  onChooseSms: () => void;
 };
 
 const PRIMARY_META: Record<
@@ -31,11 +30,10 @@ const PRIMARY_META: Record<
   sms: { label: "Получить код по SMS", aria: "Получить код по SMS" },
 };
 
-/** Выбор канала доставки OTP: основной канал (Telegram/Max) и «Другие способы» (в т.ч. SMS). */
-export function ChannelPicker({ methods, disabled, onChoose, onChooseSms }: ChannelPickerProps) {
+/** Выбор канала доставки OTP в вебе: только Telegram / Max (SMS отключён). */
+export function ChannelPicker({ methods, disabled, onChoose }: ChannelPickerProps) {
   const primary = pickPrimaryOtpChannelPublic(methods);
-  const smsOnlyFallback = primary == null && isOtpChannelAvailablePublic(methods, "sms");
-  const [expanded, setExpanded] = useState(smsOnlyFallback);
+  const [expanded, setExpanded] = useState(false);
 
   const others =
     primary == null
@@ -44,7 +42,7 @@ export function ChannelPicker({ methods, disabled, onChoose, onChooseSms }: Chan
           (ch) => ch !== primary && isOtpChannelAvailablePublic(methods, ch),
         );
 
-  const showOtherToggle = others.length > 0 || smsOnlyFallback;
+  const showOtherToggle = others.length > 0;
 
   const handlePrimary = () => {
     if (primary == null) return;
@@ -54,45 +52,12 @@ export function ChannelPicker({ methods, disabled, onChoose, onChooseSms }: Chan
   };
 
   if (primary == null) {
-    if (!smsOnlyFallback) {
-      return (
-        <div className={cn("flex max-w-sm flex-col gap-2")}>
-          <p className="text-sm text-muted-foreground">
-            Нет доступных способов получения кода для этого номера в вебе. Войдите через Telegram или укажите другой
-            номер.
-          </p>
-        </div>
-      );
-    }
-
     return (
-      <div className={cn("flex max-w-sm flex-col gap-2")} role="group" aria-label="Способ получения кода">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Выберите, где вам удобно получить код для входа:
+      <div className={cn("flex max-w-sm flex-col gap-2")}>
+        <p className="text-sm text-muted-foreground">
+          Для этого номера в браузере нет способа получить код: нужен Telegram или Max, привязанные к аккаунту. Войдите
+          через Яндекс, Google или Apple (если доступно) или укажите другой номер.
         </p>
-        <div className="my-1 border-t border-border" />
-        <button
-          type="button"
-          className="w-fit text-left text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-          disabled={disabled}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
-        >
-          Другие способы
-        </button>
-        {expanded ? (
-          <div className="flex flex-col gap-2 pl-1">
-            <button
-              type="button"
-              className="w-fit text-left text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-              disabled={disabled}
-              aria-label={PRIMARY_META.sms.aria}
-              onClick={() => onChooseSms()}
-            >
-              Получить код по SMS
-            </button>
-          </div>
-        ) : null}
       </div>
     );
   }
@@ -124,22 +89,6 @@ export function ChannelPicker({ methods, disabled, onChoose, onChooseSms }: Chan
           {expanded ? (
             <div className="flex flex-col gap-2 pl-1">
               {others.map((ch) => {
-                if (ch === "sms") {
-                  return (
-                    <button
-                      key="sms"
-                      type="button"
-                      className="w-fit text-left text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                      disabled={disabled}
-                      onClick={() => {
-                        onChooseSms();
-                        setExpanded(false);
-                      }}
-                    >
-                      Получить код по SMS
-                    </button>
-                  );
-                }
                 const label =
                   ch === "telegram"
                     ? "Telegram"
@@ -157,7 +106,9 @@ export function ChannelPicker({ methods, disabled, onChoose, onChooseSms }: Chan
                     disabled={disabled}
                     aria-label={aria}
                     onClick={() => {
-                      onChoose(ch);
+                      if (ch === "telegram" || ch === "max") {
+                        onChoose(ch);
+                      }
                       setExpanded(false);
                     }}
                   >

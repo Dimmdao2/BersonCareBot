@@ -1,32 +1,21 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Suspense } from "react";
-import { BindPhoneBlock } from "@/shared/ui/auth/BindPhoneBlock";
+import { PatientBindPhoneClient } from "@/app/app/patient/bind-phone/PatientBindPhoneClient";
 
 type Props = {
-  phoneChannel: "telegram" | "web";
-  phoneChatId: string;
-  nextPath: string;
+  telegramId: string;
+  maxId: string;
 };
 
-/** Блок привязки телефона на страницах кабинета / уведомлений (без редиректа на /bind-phone). */
-export function PatientBindPhoneSection({ phoneChannel, phoneChatId, nextPath }: Props) {
-  const router = useRouter();
+/** Блок привязки телефона на страницах кабинета (без редиректа на /bind-phone). Без SMS — только мессенджеры. */
+export function PatientBindPhoneSection({ telegramId, maxId }: Props) {
   return (
     <section id="patient-bind-phone-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
       <h2>Привяжите номер телефона</h2>
       <p className="text-muted-foreground text-sm">
-        Для доступа к этому разделу нужен подтверждённый номер или подключённый мессенджер из профиля.
+        Для доступа к этому разделу нужен подтверждённый номер через Telegram или Max.
       </p>
-      <Suspense fallback={<p className="text-muted-foreground text-sm">Загрузка…</p>}>
-        <BindPhoneBlock
-          channel={phoneChannel}
-          chatId={phoneChatId}
-          nextPathOverride={nextPath}
-          onBindSuccess={() => router.refresh()}
-        />
-      </Suspense>
+      <PatientBindPhoneClient telegramId={telegramId} maxId={maxId} />
     </section>
   );
 }

@@ -1,7 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { Pool } from "pg";
 import { getPool } from "@/infra/db/client";
 import { env } from "@/config/env";
 import { integratorWebhookSecret } from "@/config/env";
+import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 
 const SECRET_TTL_MIN = 10;
 
@@ -32,6 +34,21 @@ function hashToken(token: string): string {
     .update(`${token}:${integratorWebhookSecret() || "dev-channel-link"}`)
     .digest("hex");
 }
+
+/** Canonical platform user has no non-empty phone — мессенджер должен запросить контакт. */
+export async function platformUserNeedsPhoneBinding(pool: Pool, userId: string): Promise<boolean> {
+  const canonical = await resolveCanonicalUserId(pool, userId);
+  const res = await pool.query<{ phone_normalized: string | null }>(
+    `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid`,
+    [canonical],
+  );
+  const p = res.rows[0]?.phone_normalized;
+  return !(typeof p === "string" && p.trim().length > 0);
+}
+
+export type ChannelLinkCompleteResult =
+  | { ok: true; userId: string; needsPhone: boolean }
+  | { ok: false; code: string; needsPhone?: boolean };
 
 export type ChannelLinkStartResult =
   | { ok: true; url: string; expiresAtIso: string; manualCommand?: string }
@@ -92,7 +109,7 @@ export async function completeChannelLinkFromIntegrator(params: {
   linkToken: string;
   channelCode: "telegram" | "max";
   externalId: string;
-}): Promise<{ ok: true } | { ok: false; code: string }> {
+}): Promise<ChannelLinkCompleteResult> {
   const trimmed = params.linkToken.trim();
   if (!/^link_[A-Za-z0-9_-]+$/.test(trimmed)) {
     return { ok: false, code: "invalid_token" };
@@ -119,7 +136,8 @@ export async function completeChannelLinkFromIntegrator(params: {
   }
   const r = row.rows[0];
   if (r.used_at) {
-    return { ok: false, code: "used_token" };
+    const needsPhone = await platformUserNeedsPhoneBinding(pool, r.user_id);
+    return { ok: false, code: "used_token", needsPhone };
   }
   if (new Date(r.expires_at).getTime() < Date.now()) {
     return { ok: false, code: "unknown_or_expired" };
@@ -144,7 +162,12 @@ export async function completeChannelLinkFromIntegrator(params: {
     await pool.query("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1 AND used_at IS NULL", [
       r.id,
     ]);
-    return { ok: true };
+    const canonical = await resolveCanonicalUserId(pool, r.user_id);
+    if (canonical == null) {
+      return { ok: false, code: "user_not_found" };
+    }
+    const needsPhone = await platformUserNeedsPhoneBinding(pool, r.user_id);
+    return { ok: true, userId: canonical, needsPhone };
   }
 
   await pool.query(
@@ -154,5 +177,10 @@ export async function completeChannelLinkFromIntegrator(params: {
   );
   await pool.query("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1", [r.id]);
 
-  return { ok: true };
+  const canonical = await resolveCanonicalUserId(pool, r.user_id);
+  if (canonical == null) {
+    return { ok: false, code: "user_not_found" };
+  }
+  const needsPhone = await platformUserNeedsPhoneBinding(pool, r.user_id);
+  return { ok: true, userId: canonical, needsPhone };
 }

@@ -57,6 +57,7 @@ import {
 } from './helpers.js';
 import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
 import { ADMIN } from './templateKeys.js';
+import { dispatchRequestContactToUser } from '../../../integrations/bersoncare/dispatchRequestContact.js';
 
 const BOOKING_TYPES = new Set<string>(['booking.upsert', 'booking.event.insert']);
 const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
@@ -160,7 +161,40 @@ export async function executeAction(
           values: { channelLink: { ok: false, error: result.error } },
         };
       }
-      return { actionId: action.id, status: 'success', values: { channelLink: { ok: true } } };
+      const needsPhone = result.needsPhone === true;
+      const messengerChannel = channelCode === 'max' ? 'max' : 'telegram';
+      if (needsPhone && fullDeps.dispatchPort) {
+        if (messengerChannel === 'telegram' && !fullDeps.writePort) {
+          return {
+            actionId: action.id,
+            status: 'failed',
+            error: 'webapp.channelLink.complete: writePort required for Telegram contact prompt',
+            values: { channelLink: { ok: true, needsPhone: true, contactPrompt: 'skipped_no_write_port' } },
+          };
+        }
+        try {
+          await dispatchRequestContactToUser({
+            dispatchPort: fullDeps.dispatchPort,
+            ...(messengerChannel === 'telegram' ? { writePort: fullDeps.writePort } : {}),
+            channel: messengerChannel,
+            recipientId: externalId,
+            correlationId: `channel-link:${messengerChannel}:${externalId}`,
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            actionId: action.id,
+            status: 'failed',
+            error: `channel link contact prompt: ${msg}`,
+            values: { channelLink: { ok: true, needsPhone: true, contactPromptError: msg } },
+          };
+        }
+      }
+      return {
+        actionId: action.id,
+        status: 'success',
+        values: { channelLink: { ok: true, needsPhone, contactPromptSent: needsPhone } },
+      };
     }
 
     case 'booking.upsert': {

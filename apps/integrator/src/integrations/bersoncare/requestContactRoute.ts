@@ -4,20 +4,16 @@
  *
  * **Дедуп `idempotencyKey`:** `dedupMap` в памяти процесса (см. `DEDUP_TTL_MS`). Не shared между репликами — см. `INTEGRATOR_CONTRACT.md` Flow 6b.
  */
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { DbPort, DispatchPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
-import { setUserState } from '../../infra/db/repos/channelUsers.js';
+import { createDbWritePort } from '../../infra/db/writePort.js';
+import { dispatchRequestContactToUser } from './dispatchRequestContact.js';
 
 const WINDOW_SECONDS = 300;
 const DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
-
-/** Синхронно с telegram:user/templates.json */
-const CONFIRM_TEXT =
-  'Для работы с ботом и приложением необходимо привязать номер телефона. Это позволит вам получить доступ к своим данным на любой платформе: Телеграм, Max, мобильное веб-приложение и в обычном браузере.';
-const CONTACT_BUTTON_TEXT = '📲 Отправить номер телефона';
 
 const bodySchema = z.object({
   channel: z.enum(['telegram', 'max']),
@@ -39,23 +35,6 @@ function verifySignature(timestamp: string, rawBody: string, signature: string, 
   const left = Buffer.from(expected);
   const right = Buffer.from(signature);
   return left.length === right.length && timingSafeEqual(left, right);
-}
-
-function telegramReplyMarkup() {
-  return {
-    keyboard: [[{ text: CONTACT_BUTTON_TEXT, request_contact: true }]],
-    resize_keyboard: true,
-    one_time_keyboard: true,
-  };
-}
-
-/** MAX API: inline_keyboard с кнопкой type request_contact. */
-function maxInlineReplyMarkup() {
-  return {
-    inline_keyboard: [
-      [{ text: 'Поделиться номером телефона', request_contact: true } as Record<string, unknown>],
-    ],
-  };
 }
 
 export type BersoncareRequestContactDeps = {
@@ -126,32 +105,16 @@ export async function registerBersoncareRequestContactRoute(
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
 
-    if (channel === 'telegram') {
-      await setUserState(db, recipientId, 'await_contact:subscription');
-    }
-    // MAX: `setUserState` в БД интегратора завязан на `identities.resource='telegram'`; состояние MAX ведёт сценарий канала отдельно.
-
-    const eventId = `request-contact:${channel}:${randomUUID()}`;
-    const replyMarkup = channel === 'telegram' ? telegramReplyMarkup() : maxInlineReplyMarkup();
-
-    const intent = {
-      type: 'message.send' as const,
-      meta: {
-        eventId,
-        occurredAt: new Date().toISOString(),
-        source: channel,
-        correlationId: idempotencyKey,
-      },
-      payload: {
-        recipient: { chatId: recipientId },
-        message: { text: CONFIRM_TEXT },
-        replyMarkup,
-        delivery: { channels: [channel] },
-      },
-    };
+    const writePort = createDbWritePort({ db });
 
     try {
-      await dispatchPort.dispatchOutgoing(intent);
+      await dispatchRequestContactToUser({
+        dispatchPort,
+        writePort,
+        channel,
+        recipientId,
+        correlationId: idempotencyKey,
+      });
       registerKey(idempotencyKey);
       logger.info({ channel }, 'request-contact: dispatched');
       return reply.code(200).send({ ok: true, status: 'accepted' });

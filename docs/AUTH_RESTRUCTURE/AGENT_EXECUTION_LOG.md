@@ -685,3 +685,20 @@ Checks:
 Notes:
 - После деплоя: в кабинете Яндекса и в `yandex_oauth_redirect_uri` указать `https://<домен>/api/auth/oauth/callback/yandex` (старый URL без `/yandex` продолжит работать до миграции).
 ```
+
+```text
+[2026-04-11T22:00:00Z] [Post-audit: profile SMS + channel-link RL + docs] [FIX] agent
+Tasks done:
+- Профиль: `ProfileForm` — смена номера через `PatientBindPhoneClient` (channel-link / request-contact), без `BindPhoneBlock`; авто-закрытие режима «Изменить» при смене `phone` после refresh; удалены `BindPhoneBlock.tsx`, `PhoneAuthForm.tsx`.
+- `POST /api/auth/channel-link/start`: rate limit `isChannelLinkStartRateLimited` (scope `auth.channel_link_start`, ключ `userId`, 30/час, БД + in-memory); тест `channel-link/start/route.test.ts`; UI: `PatientBrowserMessengerBindPanel` — 429 и ссылка поддержки.
+- Документация: `apps/webapp/src/modules/auth/auth.md`, `docs/README.md`, `AUTH_RESTRUCTURE/AUDIT_STAGE_4.md`, `AUDIT_STAGE_5.md`, `AUDIT_STAGE_8.md`, `MASTER_PLAN.md` (S4.T04), этот журнал.
+Changed files:
+- apps/webapp: `channelLinkStartRateLimit.ts`, `channel-link/start/route.ts`, `ProfileForm.tsx`, `profile/page.tsx`, `PatientBindPhoneClient.tsx`, `PatientBrowserMessengerBindPanel.tsx`, удалены `BindPhoneBlock.tsx`, `PhoneAuthForm.tsx`; тесты `channel-link/start/route.test.ts`, `profile/ProfileForm.test.tsx`.
+- docs: как выше.
+Checks:
+- pnpm install --frozen-lockfile && pnpm run ci — exit 0
+Gate verdict:
+- PASS
+Notes:
+- Доверенный телефон после `contact.linked` по-прежнему через `TrustedPatientPhoneSource.IntegratorUpsertFromProjection` (`trustedPhonePolicy.ts`); отдельный код не менялся.
+```

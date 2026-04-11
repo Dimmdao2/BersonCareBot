@@ -11,9 +11,9 @@
 
 ## Публичный вход в вебе (приоритет)
 
-1. **Telegram Login Widget** — основной бесплатный вход с веб-страницы (`TelegramLoginButton`, конфиг бота в `system_settings`: `telegram_login_bot_username`).
-2. **Международный номер телефона** — `InternationalPhoneInput` + `check-phone` → OTP по выбранному каналу (SMS только для РФ-мобильных; см. `phoneValidation`, `checkPhoneMethods`).
-3. **SMS OTP** — fallback для +7, когда Telegram недоступен; доставка через интегратор (`SmsPort` / `integratorSmsAdapter`). Ошибки доставки не маскируются под «неверный формат» (`delivery_failed`).
+1. **OAuth (Яндекс / Google / Apple)** — если хотя бы один провайдер настроен (`/api/auth/oauth/providers`), стартовый экран `AuthFlowV2` — **OAuth-first** (`oauth_first`), затем «Войти по номеру телефона».
+2. **Telegram Login Widget** — когда OAuth выключены и задан `telegram_login_bot_username`: экран `landing` с виджетом и переходом на телефон.
+3. **Международный номер телефона** — `InternationalPhoneInput` + `check-phone` → OTP **только в Telegram или Max** (при привязке номера к мессенджеру). **SMS для `channel: web` отключён:** `POST /api/auth/phone/start` отвечает `sms_disabled_web`, если `deliveryChannel` — `sms` или не указан (раньше подразумевался SMS).
 
 **PIN** в публичном потоке входа **не показывается** (Stage 5); при необходимости re-auth для чувствительных действий — отдельные API (`pin/verify` и т.д.).
 
@@ -59,11 +59,21 @@
 
 ### Сессия после входа
 
-Общая логика `oauthWebSession.completeOAuthWebLoginRedirectUrls` (и аналог для Яндекса): `setSessionFromUser`, редирект по роли; **без телефона** — редирект на привязку номера (`bindPhone`, `reason=oauth_phone_required`), как у Яндекса без телефона.
+Общая логика `oauthWebSession.completeOAuthWebLoginRedirectUrls` (и аналог для Яндекса): `setSessionFromUser`, редирект по роли; **без телефона** — редирект на привязку номера (`/app/patient/bind-phone`, `reason=oauth_phone_required`). На странице привязки в браузере — **channel-link** (`POST /api/auth/channel-link/start`, deep link `link_*` в боте) и при уже привязанном чате — `POST /api/patient/messenger/request-contact`; SMS не используется.
+
+### Channel link (старт ссылки из сессии)
+
+- **`POST /api/auth/channel-link/start`** (авторизованный пациент): выдача deep link / команды Max. **Rate limit:** scope `auth.channel_link_start`, ключ — `userId` сессии (до **30** запросов за скользящий час в `auth_rate_limit_events`; без БД — in-memory fallback), аналогично `auth.messenger_start`. Ответ **429** `rate_limited` при превышении.
+
+### Channel link → integrator
+
+После успешного `POST /api/integrator/channel-link/complete` webapp возвращает JSON **`{ ok: true, needsPhone: boolean }`** (или `{ ok: true, status: "already_used", needsPhone }` для одноразового токена). Integrator в `executeAction` для `webapp.channelLink.complete` при `needsPhone` вызывает общую отправку запроса контакта (`dispatchRequestContactToUser`), чтобы пользователь поделился номером в чате.
 
 ### UI
 
-`AuthFlowV2`: кнопки провайдеров под Telegram и на шаге телефона; при отключённых провайдерах кнопки скрыты (данные с `/api/auth/oauth/providers`). SMS не автостарт: `pickPrimaryOtpChannelPublic` не возвращает `sms`; только SMS — шаг `choose_channel` с блоком «Другие способы» в `ChannelPicker`. На экранах иностранного номера и «нет OTP-канала» при настроенных провайдерах показаны те же OAuth-кнопки.
+`AuthFlowV2`: при включённых OAuth — экран `oauth_first`; иначе прежний порядок (Telegram landing или сразу телефон). На шаге телефона остаются компактные кнопки OAuth и ссылка «Другие способы входа». `ChannelPicker` и альтернативы в `OtpCodeForm` **не предлагают SMS** (`OTP_PUBLIC_OTHER_CHANNELS_ORDER` без `sms`). На экранах «иностранный номер» / «нет OTP-канала» — OAuth и при необходимости Telegram.
+
+**Профиль (`ProfileForm`):** смена номера — тот же сценарий, что на `/app/patient/bind-phone` (`PatientBindPhoneClient`, без SMS и без удалённых `BindPhoneBlock` / `PhoneAuthForm`).
 
 ### Ошибки и операции
 
@@ -76,7 +86,8 @@
 
 ## Телефон и OTP
 
-- **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`), верификация кода.
+- **startPhoneAuth** / **confirmPhoneAuth** (`phoneAuth.ts`) — челленджи, лимиты (`phoneOtpLimits`), верификация кода; доставка задаётся `PhoneOtpDelivery` (в т.ч. telegram / max / email).
+- HTTP `POST /api/auth/phone/start` для **`channel: web`** не принимает доставку **SMS** (`sms_disabled_web`).
 - Порты: **SmsPort**, **PhoneChallengeStore**, **UserByPhonePort**.
 
 ## Роль пользователя
@@ -86,7 +97,7 @@
 
 ## API-маршруты (часто используемые)
 
-`/api/auth/exchange`, `/api/auth/telegram-init`, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/yandex`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET).
+`/api/auth/exchange`, `/api/auth/telegram-init`, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/channel-link/start`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/yandex`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET).
 
 ## Операционные логи OTP
 

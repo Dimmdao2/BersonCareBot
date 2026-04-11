@@ -1,13 +1,17 @@
 import { inferMessengerChannelForRequestContact } from "@/shared/lib/messengerMiniApp";
 
 /** Клиентский POST: запрос контакта в чат через интегратор. */
-export async function postPatientMessengerRequestContact(): Promise<
-  { ok: true } | { ok: false; error: string }
-> {
-  const hint = inferMessengerChannelForRequestContact();
+export async function postPatientMessengerRequestContact(
+  channelOverride?: "telegram" | "max",
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const headers: Record<string, string> = {};
-  if (hint) {
-    headers["X-Bersoncare-Contact-Channel"] = hint;
+  if (channelOverride) {
+    headers["X-Bersoncare-Contact-Channel"] = channelOverride;
+  } else {
+    const hint = inferMessengerChannelForRequestContact();
+    if (hint) {
+      headers["X-Bersoncare-Contact-Channel"] = hint;
+    }
   }
   const res = await fetch("/api/patient/messenger/request-contact", {
     method: "POST",

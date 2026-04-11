@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env } from "@/config/env";
+import { isChannelLinkStartRateLimited } from "@/modules/auth/channelLinkStartRateLimit";
 import { getCurrentSession } from "@/modules/auth/service";
 import { startChannelLink } from "@/modules/auth/channelLink";
 
@@ -12,6 +13,14 @@ export async function POST(request: Request) {
   const session = await getCurrentSession();
   if (!session) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+
+  const uid = session.user.userId?.trim();
+  if (uid && (await isChannelLinkStartRateLimited(uid))) {
+    return NextResponse.json(
+      { ok: false, error: "rate_limited", message: "Слишком много запросов. Попробуйте позже." },
+      { status: 429 },
+    );
   }
 
   const json = (await request.json().catch(() => null)) as unknown;

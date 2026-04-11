@@ -17,8 +17,11 @@ export function pickPrimaryOtpChannel(methods: AuthMethodsPayload): OtpUiChannel
 /** Порядок в блоке «Другие способы»: мессенджеры и email, СМС последним. */
 export const OTP_OTHER_CHANNELS_ORDER: readonly OtpUiChannel[] = ["max", "email", "telegram", "sms"];
 
-/** Публичный вход: без email. SMS последним среди альтернатив на шаге кода. */
-export const OTP_PUBLIC_OTHER_CHANNELS_ORDER: readonly OtpUiChannel[] = ["max", "telegram", "sms"];
+/** Публичный вход: без email. SMS на сайте отключён — только мессенджеры. */
+export const OTP_PUBLIC_OTHER_CHANNELS_ORDER: readonly OtpUiChannel[] = ["max", "telegram"];
+
+/** Алиас: порядок альтернатив на шаге ввода кода (без SMS). */
+export const OTP_PUBLIC_NON_SMS_CHANNELS_ORDER = OTP_PUBLIC_OTHER_CHANNELS_ORDER;
 
 export function isOtpChannelAvailable(methods: AuthMethodsPayload, ch: OtpUiChannel): boolean {
   if (ch === "sms") return methods.sms === true;

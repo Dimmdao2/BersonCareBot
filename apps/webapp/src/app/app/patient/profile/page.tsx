@@ -43,8 +43,8 @@ export default async function PatientProfilePage() {
       emailVerified: Boolean(emailFields.emailVerifiedAt),
     }
   );
-  const phoneChannel = session.user.bindings.telegramId ? ("telegram" as const) : ("web" as const);
-  const phoneChatId = session.user.bindings.telegramId ?? "";
+  const telegramId = session.user.bindings.telegramId ?? "";
+  const maxId = session.user.bindings.maxId ?? "";
 
   const authOtpOptions = AUTH_OTP_ORDER.flatMap((code) => {
     const card = channelCards.find((c) => c.code === code);
@@ -78,8 +78,8 @@ export default async function PatientProfilePage() {
           <ProfileForm
             displayName={session.user.displayName}
             phone={session.user.phone ?? null}
-            phoneChannel={phoneChannel}
-            phoneChatId={phoneChatId}
+            telegramId={telegramId}
+            maxId={maxId}
             supportContactHref={supportContactHref}
             initialEmail={emailFields.email}
             emailVerified={Boolean(emailFields.emailVerifiedAt)}

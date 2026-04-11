@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Публичный поток входа (web): Telegram Login → телефон → OTP.
- * PIN в этом flow намеренно отключён (Stage 5); см. `docs/AUTH_RESTRUCTURE/auth.md`.
+ * Публичный поток входа (web): при включённых OAuth — экран OAuth-first; иначе Telegram Login или сразу телефон.
+ * OTP в вебе — только Telegram / Max (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
  */
 
 import { useEffect, useState } from "react";
@@ -37,10 +37,10 @@ function getWebChatId(): string {
 
 export type AuthFlowStep =
   | "entry_loading"
+  | "oauth_first"
   | "landing"
   | "phone"
   | "new_user_foreign"
-  | "new_user_sms"
   | "foreign_no_otp_channel"
   | "choose_channel"
   | "code";
@@ -56,7 +56,7 @@ function otpDescription(channel: OtpChannel, emailAddress?: string): string {
     case "email":
       return `Введите код, отправленный вам${emailAddress ? ` на ${emailAddress}` : " на email"}.`;
     default:
-      return "Введите код, отправленный вам по SMS.";
+      return "Введите код, отправленный вам.";
   }
 }
 
@@ -69,16 +69,6 @@ function buildAlternatives(
   for (const ch of OTP_PUBLIC_OTHER_CHANNELS_ORDER) {
     if (ch === currentChannel) continue;
     if (!isOtpChannelAvailablePublic(methods, ch)) continue;
-    if (ch === "sms") {
-      result.push({
-        label: "Получить код по SMS",
-        asText: true,
-        onClick: async () => {
-          await onChoose("sms");
-        },
-      });
-      continue;
-    }
     if (ch === "telegram") {
       result.push({
         label: "Получить код в Telegram",
@@ -131,7 +121,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState(60);
   const [smsStartCooldownSec, setSmsStartCooldownSec] = useState(0);
-  const [otpChannel, setOtpChannel] = useState<OtpChannel>("sms");
+  const [otpChannel, setOtpChannel] = useState<OtpChannel>("telegram");
   const [otpEntrySource, setOtpEntrySource] = useState<"registration" | "channel" | "auto" | null>(null);
 
   useEffect(() => {
@@ -144,28 +134,52 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
     let cancelled = false;
     if (isMessengerMiniAppHost()) {
       setTelegramBotUsername(null);
+      setOauthProviders({ yandex: false, google: false, apple: false });
       setStep("phone");
-    } else {
-      void fetch("/api/auth/telegram-login/config")
-        .then((r) => r.json())
-        .then((d: { botUsername?: string | null }) => {
-          if (cancelled) return;
-          const u = typeof d.botUsername === "string" ? d.botUsername.trim() : "";
-          if (u.length > 0) {
-            setTelegramBotUsername(u);
-            setStep("landing");
-          } else {
-            setTelegramBotUsername(null);
-            setStep("phone");
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setTelegramBotUsername(null);
-            setStep("phone");
-          }
-        });
+      return () => {
+        cancelled = true;
+      };
     }
+
+    void Promise.all([
+      fetch("/api/auth/telegram-login/config").then((r) => r.json()),
+      fetch("/api/auth/oauth/providers").then((r) => r.json()),
+    ])
+      .then(([tgData, oauthData]) => {
+        if (cancelled) return;
+        const u = typeof (tgData as { botUsername?: string | null }).botUsername === "string"
+          ? String((tgData as { botUsername?: string | null }).botUsername).trim()
+          : "";
+        setTelegramBotUsername(u.length > 0 ? u : null);
+
+        const d = oauthData as { ok?: boolean; yandex?: boolean; google?: boolean; apple?: boolean };
+        const op =
+          d?.ok === true
+            ? {
+                yandex: Boolean(d.yandex),
+                google: Boolean(d.google),
+                apple: Boolean(d.apple),
+              }
+            : { yandex: false, google: false, apple: false };
+        setOauthProviders(op);
+
+        const oauthOn = op.yandex || op.google || op.apple;
+        if (oauthOn) {
+          setStep("oauth_first");
+        } else if (u.length > 0) {
+          setStep("landing");
+        } else {
+          setStep("phone");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTelegramBotUsername(null);
+          setOauthProviders({ yandex: false, google: false, apple: false });
+          setStep("phone");
+        }
+      });
+
     return () => {
       cancelled = true;
     };
@@ -174,24 +188,6 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
   useEffect(() => {
     onStepChange?.(step);
   }, [step, onStepChange]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetch("/api/auth/oauth/providers")
-      .then((r) => r.json())
-      .then((d: { ok?: boolean; yandex?: boolean; google?: boolean; apple?: boolean }) => {
-        if (cancelled || !d?.ok) return;
-        setOauthProviders({
-          yandex: Boolean(d.yandex),
-          google: Boolean(d.google),
-          apple: Boolean(d.apple),
-        });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const startOauth = async (provider: "yandex" | "google" | "apple") => {
     setLoading(true);
@@ -226,7 +222,13 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
 
   const goBackToEntry = () => {
     setSmsStartCooldownSec(0);
-    setStep(telegramBotUsername ? "landing" : "phone");
+    if (showOauthRow && !isMessengerMiniAppHost()) {
+      setStep("oauth_first");
+    } else if (telegramBotUsername) {
+      setStep("landing");
+    } else {
+      setStep("phone");
+    }
     setPhone(null);
     setMethods(null);
   };
@@ -302,11 +304,13 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
       setExists(Boolean(data.exists));
       setMethods(data.methods);
       if (!data.exists) {
-        setStep(data.methods.sms ? "new_user_sms" : "new_user_foreign");
+        const hasMessenger =
+          isOtpChannelAvailablePublic(data.methods, "telegram") ||
+          isOtpChannelAvailablePublic(data.methods, "max");
+        setStep(hasMessenger ? "choose_channel" : "new_user_foreign");
       } else {
         const primary = pickOtpChannelWithPreferencePublic(data.methods, data.preferredOtpChannel);
         const hasPublicChannel =
-          isOtpChannelAvailablePublic(data.methods, "sms") ||
           isOtpChannelAvailablePublic(data.methods, "telegram") ||
           isOtpChannelAvailablePublic(data.methods, "max");
         if (primary == null) {
@@ -327,6 +331,68 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
     return (
       <div id="auth-flow-v2-entry-loading" className="py-6 text-sm text-muted-foreground">
         Загрузка…
+      </div>
+    );
+  }
+
+  if (step === "oauth_first") {
+    return (
+      <div id="auth-flow-v2-oauth-first" className="flex flex-col items-center gap-6 py-3 text-center">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
+        <p className="text-muted-foreground text-sm max-w-sm">
+          Войдите через аккаунт Яндекс, Google или Apple — или укажите номер телефона ниже.
+        </p>
+        <div className="flex w-full max-w-sm flex-col gap-2">
+          {oauthProviders.yandex ? (
+            <Button
+              type="button"
+              variant="default"
+              className="w-full"
+              disabled={loading}
+              onClick={() => void startOauth("yandex")}
+            >
+              Войти через Яндекс
+            </Button>
+          ) : null}
+          {oauthProviders.google ? (
+            <Button
+              type="button"
+              variant="default"
+              className="w-full"
+              disabled={loading}
+              onClick={() => void startOauth("google")}
+            >
+              Войти через Google
+            </Button>
+          ) : null}
+          {oauthProviders.apple ? (
+            <Button
+              type="button"
+              variant="default"
+              className="w-full"
+              disabled={loading}
+              onClick={() => void startOauth("apple")}
+            >
+              Войти через Apple
+            </Button>
+          ) : null}
+        </div>
+        {telegramBotUsername ? (
+          <>
+            <p className="text-center text-sm text-muted-foreground">или</p>
+            <TelegramLoginButton botUsername={telegramBotUsername} nextParam={nextParam} disabled={loading} />
+          </>
+        ) : null}
+        <p className="text-center text-sm text-muted-foreground">или</p>
+        <Button
+          type="button"
+          variant="outline"
+          className="mx-auto w-full max-w-sm"
+          disabled={loading}
+          onClick={() => setStep("phone")}
+        >
+          Войти по номеру телефона
+        </Button>
       </div>
     );
   }
@@ -397,47 +463,57 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
           Для входа или регистрации в приложении укажите номер телефона
         </p>
         {showOauthRow ? (
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-muted-foreground">Вход без номера</p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              {oauthProviders.yandex ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  disabled={loading}
-                  onClick={() => void startOauth("yandex")}
-                >
-                  Яндекс
-                </Button>
-              ) : null}
-              {oauthProviders.google ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  disabled={loading}
-                  onClick={() => void startOauth("google")}
-                >
-                  Google
-                </Button>
-              ) : null}
-              {oauthProviders.apple ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  disabled={loading}
-                  onClick={() => void startOauth("apple")}
-                >
-                  Apple
-                </Button>
-              ) : null}
+          <>
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto min-h-0 self-start px-0 py-0 text-sm font-normal text-muted-foreground"
+              onClick={() => setStep("oauth_first")}
+            >
+              Другие способы входа
+            </Button>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">Вход без номера</p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                {oauthProviders.yandex ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    disabled={loading}
+                    onClick={() => void startOauth("yandex")}
+                  >
+                    Яндекс
+                  </Button>
+                ) : null}
+                {oauthProviders.google ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    disabled={loading}
+                    onClick={() => void startOauth("google")}
+                  >
+                    Google
+                  </Button>
+                ) : null}
+                {oauthProviders.apple ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    disabled={loading}
+                    onClick={() => void startOauth("apple")}
+                  >
+                    Apple
+                  </Button>
+                ) : null}
+              </div>
             </div>
-          </div>
+          </>
         ) : null}
         <InternationalPhoneInput disabled={loading} onSubmit={runCheckPhone} submitLabel="Продолжить" />
         {telegramBotUsername ? (
@@ -458,10 +534,13 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
     return (
       <div id="auth-flow-v2-new-user-foreign" className="flex flex-col gap-3 py-3">
         <p className="text-muted-foreground text-sm">
-          SMS-код доступен только для российских мобильных номеров.
+          В браузере код подтверждения отправляется только в Telegram или Max, привязанные к номеру. SMS для входа с сайта
+          отключён.
           {showOauthRow
-            ? " Для входа с иностранным номером используйте Telegram или один из провайдеров ниже (Яндекс, Google, Apple)."
-            : " Для входа с иностранным номером используйте Telegram."}
+            ? " Войдите через Яндекс, Google или Apple или укажите другой номер."
+            : telegramBotUsername
+              ? " Воспользуйтесь входом через Telegram ниже."
+              : ""}
         </p>
         {showOauthRow ? (
           <div className="flex flex-col gap-2">
@@ -529,9 +608,10 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
     return (
       <div id="auth-flow-v2-foreign-no-otp" className="flex flex-col gap-3 py-3">
         <p className="text-muted-foreground text-sm">
-          Для этого номера в вебе нет способа получить код: SMS — только для номеров РФ.
+          Для этого номера в браузере нет способа получить код: нужны Telegram или Max, привязанные к аккаунту. SMS для
+          входа с сайта отключён.
           {showOauthRow
-            ? " Войдите через Telegram или воспользуйтесь входом без номера (Яндекс, Google, Apple) — кнопки ниже."
+            ? " Воспользуйтесь входом без номера (Яндекс, Google, Apple) — кнопки ниже."
             : telegramBotUsername
               ? " Войдите через Telegram."
               : ""}
@@ -607,36 +687,6 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
     );
   }
 
-  if (step === "new_user_sms" && methods) {
-    return (
-      <div id="auth-flow-v2-new-user" className="flex flex-col gap-3">
-        <p className="text-muted-foreground text-sm">Номер не найден. Получите код по SMS для регистрации.</p>
-        {smsStartCooldownSec > 0 ? (
-          <p className="text-muted-foreground text-sm" role="status">
-            Повторная отправка возможна через {smsStartCooldownSec} сек
-          </p>
-        ) : null}
-        <Button
-          type="button"
-          disabled={loading || smsStartCooldownSec > 0}
-          onClick={() => void startPhoneOtp("sms", "registration")}
-        >
-          Получить код по SMS
-        </Button>
-        <Button
-          type="button"
-          variant="link"
-          className="h-auto min-h-0 px-0 py-0 text-sm font-normal"
-          onClick={() => {
-            goBackToEntry();
-          }}
-        >
-          Изменить номер
-        </Button>
-      </div>
-    );
-  }
-
   if (step === "choose_channel" && methods) {
     return (
       <div id="auth-flow-v2-channel" className="flex flex-col gap-3">
@@ -645,12 +695,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             Повторная отправка возможна через {smsStartCooldownSec} сек
           </p>
         ) : null}
-        <ChannelPicker
-          methods={methods}
-          disabled={loading}
-          onChoose={(ch) => void startPhoneOtp(ch, "channel")}
-          onChooseSms={() => void startPhoneOtp("sms", "channel")}
-        />
+        <ChannelPicker methods={methods} disabled={loading} onChoose={(ch) => void startPhoneOtp(ch, "channel")} />
         <Button
           type="button"
           variant="link"
@@ -739,11 +784,14 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             return { kind: "error" as const, message: data.message ?? "Не удалось отправить код" };
           }}
           onBack={() => {
-            if (otpEntrySource === "registration") {
-              setStep(methods.sms ? "new_user_sms" : "new_user_foreign");
-            } else if (otpEntrySource === "channel" || otpEntrySource === "auto") setStep("choose_channel");
-            else if (exists) setStep("choose_channel");
-            else setStep(methods.sms ? "new_user_sms" : "new_user_foreign");
+            const hasMessenger =
+              isOtpChannelAvailablePublic(methods, "telegram") ||
+              isOtpChannelAvailablePublic(methods, "max");
+            if (exists || hasMessenger) {
+              setStep("choose_channel");
+            } else {
+              setStep("new_user_foreign");
+            }
           }}
         />
       </div>

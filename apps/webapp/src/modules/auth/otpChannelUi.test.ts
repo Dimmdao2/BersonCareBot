@@ -4,6 +4,8 @@ import {
   isOtpChannelAvailable,
   isOtpChannelAvailablePublic,
   OTP_OTHER_CHANNELS_ORDER,
+  OTP_PUBLIC_NON_SMS_CHANNELS_ORDER,
+  OTP_PUBLIC_OTHER_CHANNELS_ORDER,
   pickOtpChannelWithPreference,
   pickOtpChannelWithPreferencePublic,
   pickPrimaryOtpChannel,
@@ -30,6 +32,13 @@ describe("pickPrimaryOtpChannel", () => {
 describe("OTP_OTHER_CHANNELS_ORDER", () => {
   it("ends with sms", () => {
     expect(OTP_OTHER_CHANNELS_ORDER[OTP_OTHER_CHANNELS_ORDER.length - 1]).toBe("sms");
+  });
+});
+
+describe("OTP_PUBLIC_OTHER_CHANNELS_ORDER", () => {
+  it("has no sms (веб-вход без SMS)", () => {
+    expect(OTP_PUBLIC_OTHER_CHANNELS_ORDER).not.toContain("sms");
+    expect(OTP_PUBLIC_NON_SMS_CHANNELS_ORDER).toEqual(OTP_PUBLIC_OTHER_CHANNELS_ORDER);
   });
 });
 

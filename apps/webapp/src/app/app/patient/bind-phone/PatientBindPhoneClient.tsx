@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { ensureMessengerMiniAppWebappSession } from "@/shared/lib/miniAppSessionRecovery";
 import {
   getPatientMessengerContactGateDetail,
@@ -11,8 +12,8 @@ import {
 import { closeMessengerMiniApp, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
 import toast from "react-hot-toast";
-import { BindPhoneBlock } from "@/shared/ui/auth/BindPhoneBlock";
 import { PatientSharePhoneViaBotPanel } from "@/shared/ui/patient/PatientSharePhoneViaBotPanel";
+import { PatientBrowserMessengerBindPanel } from "./PatientBrowserMessengerBindPanel";
 
 type Props = {
   telegramId: string;
@@ -22,8 +23,8 @@ type Props = {
 };
 
 /**
- * В Mini App с привязкой к боту не показываем ввод SMS на этой странице — только сценарий «контакт в боте».
- * В обычном браузере — Telegram Login / OTP по {@link BindPhoneBlock} (канал telegram vs web).
+ * Mini App с привязкой к боту — панель «контакт в боте» (`PatientSharePhoneViaBotPanel`).
+ * Браузер: без TG/Max — {@link PatientBrowserMessengerBindPanel} (channel-link); с привязкой — запрос контакта через API + опрос `router.refresh`. SMS не используется.
  */
 export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, hint }: Props) {
   const router = useRouter();
@@ -78,6 +79,14 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
     void runRecoveryAndDecide();
   }, [mini, tg, mx, runRecoveryAndDecide]);
 
+  useEffect(() => {
+    if (mini || (!tg && !mx)) return;
+    const id = window.setInterval(() => {
+      router.refresh();
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [mini, tg, mx, router]);
+
   const onRetryMini = useCallback(() => {
     void runRecoveryAndDecide();
   }, [runRecoveryAndDecide]);
@@ -95,6 +104,23 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
       return;
     }
     closeMessengerMiniApp();
+  }, []);
+
+  const requestContactBrowser = useCallback(async (channel: "telegram" | "max") => {
+    const r = await postPatientMessengerRequestContact(channel);
+    if (!r.ok) {
+      toast.error(
+        r.error === "contact_channel_required"
+          ? "Выберите мессенджер."
+          : r.error === "no_messenger_binding"
+            ? "Нет привязки к мессенджеру."
+            : r.error === "rate_limited"
+              ? "Подождите минуту перед повторной отправкой."
+              : "Не удалось запросить контакт.",
+      );
+      return;
+    }
+    toast.success("Откройте чат с ботом и отправьте контакт по кнопке.");
   }, []);
 
   if (mini && (tg || mx)) {
@@ -116,12 +142,37 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
     );
   }
 
+  if (!tg && !mx) {
+    return <PatientBrowserMessengerBindPanel hint={hint} supportContactHref={supportContactHref} />;
+  }
+
   return (
-    <BindPhoneBlock
-      channel={tg ? "telegram" : "web"}
-      chatId={tg}
-      supportContactHref={supportContactHref}
-      hint={hint}
-    />
+    <div id="patient-bind-phone-messenger-contact" className="flex flex-col gap-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Привязка телефона</p>
+      <p className="text-muted-foreground text-sm">
+        {hint ??
+          "Чтобы подтвердить номер, отправьте контакт боту в мессенджере — нажмите кнопку ниже и следуйте подсказкам в чате."}
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        {tg ? (
+          <Button type="button" variant="outline" className="flex-1" onClick={() => void requestContactBrowser("telegram")}>
+            Запросить контакт в Telegram
+          </Button>
+        ) : null}
+        {mx ? (
+          <Button type="button" variant="outline" className="flex-1" onClick={() => void requestContactBrowser("max")}>
+            Запросить контакт в Max
+          </Button>
+        ) : null}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        После отправки номера в боте эта страница обновится сама (около раз в 4 секунды).
+      </p>
+      {supportContactHref ? (
+        <a href={supportContactHref} className="text-sm text-primary underline">
+          Связаться с поддержкой
+        </a>
+      ) : null}
+    </div>
   );
 }

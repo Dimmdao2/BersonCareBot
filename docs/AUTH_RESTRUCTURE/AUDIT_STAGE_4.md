@@ -4,6 +4,8 @@
 
 **Дата аудита:** 2026-04-04
 
+**Актуализация 2026-04-11:** для `POST /api/auth/phone/start` с **`channel: web`** SMS **запрещён** (`error: sms_disabled_web` при неявном или явном `deliveryChannel: sms` после валидации E.164). Публичный вход — OTP только Telegram/Max; шаг `new_user_sms` удалён из `AuthFlowV2`. Правило `sms_ru_only` остаётся для **`channel: telegram`** с доставкой SMS. Канон: `apps/webapp/src/modules/auth/auth.md`.
+
 ---
 
 ## Verdict
@@ -24,23 +26,24 @@
 
 ---
 
-### 2) Канал SMS + не-РФ → `sms_ru_only`
+### 2) Канал SMS + не-РФ → `sms_ru_only` *(только не-web или явный telegram-канал с SMS)*
 
-**Статус:** OK
+**Статус:** OK (с уточнением 2026-04-11)
 
-- `phone/start/route.ts`: после `isValidPhoneE164`, если `deliveryChannel === "sms"` (в т.ч. по умолчанию) и `!isRuMobile(normalized)` → **400**, `error: "sms_ru_only"`, сообщение про РФ; `startPhoneAuth` не вызывается.
-- **Тест:** `phone/start/route.test.ts` — «returns 400 sms_ru_only when SMS requested for non-RU number» (`+4915123456789`).
+- Для **`channel: web`** сначала отсекается SMS целиком → `sms_disabled_web` (см. актуализацию выше).
+- Для **`channel: telegram`** и `deliveryChannel === "sms"`: после `isValidPhoneE164`, если `!isRuMobile(normalized)` → **400** `sms_ru_only`; `startPhoneAuth` не вызывается.
+- **Тесты:** `phone/start/route.test.ts` — `sms_disabled_web` для web; при необходимости отдельные кейсы для telegram+SMS+не-РФ.
 
 ---
 
 ### 3) Сценарий `+7` работает
 
-**Статус:** OK
+**Статус:** OK (с уточнением 2026-04-11)
 
 - **check-phone:** тест «returns exists false for unknown phone» с `+79993456789` → `methods.sms: true`.
-- **phone/start:** тест «returns 200 with challengeId for valid phone» с `+79991234567` (default SMS).
-- **resolveAuthMethodsForPhone:** тест с `+79990000111` → `sms: true` для нового номера.
-- **UI:** при `methods.sms === true` новый пользователь попадает на шаг `new_user_sms` с кнопкой «Получить код по SMS» (`AuthFlowV2.tsx`).
+- **phone/start:** успех с `+7999…` при **`deliveryChannel: telegram`** (и привязке в БД) или `max` / `email`, не через web+SMS по умолчанию.
+- **resolveAuthMethodsForPhone:** тест с `+79990000111` → `sms: true` для нового номера (флаг в check-phone; публичный UI SMS не предлагает).
+- **UI:** новый пользователь с мессенджером — `choose_channel`; без мессенджера — `new_user_foreign` / OAuth (без `new_user_sms`).
 
 ---
 

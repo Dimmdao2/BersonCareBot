@@ -18,7 +18,7 @@
 
 **Статус:** OK
 
-- Файла `apps/webapp/src/shared/ui/auth/PhoneInput.tsx` в исходниках **нет**; публичный flow использует `InternationalPhoneInput` (`AuthFlowV2.tsx`); `PhoneAuthForm` / bind-phone — `InternationalPhoneField`.
+- Файла `apps/webapp/src/shared/ui/auth/PhoneInput.tsx` в исходниках **нет**; публичный flow использует `InternationalPhoneInput` (`AuthFlowV2.tsx`). `PhoneAuthForm` удалён (2026-04-11); привязка номера — `PatientBindPhoneClient` / channel-link.
 - Импорты `@/shared/ui/auth/PhoneInput` в `apps/webapp/src` **отсутствуют** (кроме библиотечного компонента `react-phone-number-input` и класса CSS `PhoneInput`).
 - Таблица файлов в `MASTER_PLAN.md` фиксирует: `PhoneInput.tsx` удалён, `InternationalPhoneInput.tsx` — актуальный UI.
 

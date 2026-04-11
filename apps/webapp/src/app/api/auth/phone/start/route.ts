@@ -18,7 +18,7 @@ const bodySchema = z.object({
 /**
  * Start phone auth. Для telegram channel/chatId берутся из тела (как на bind-phone);
  * для web при отсутствии chatId подставляется серверный UUID.
- * deliveryChannel: sms (по умолчанию) | telegram | max | email — куда отправить OTP.
+ * deliveryChannel: telegram | max | email | sms — куда отправить OTP. Для channel=web значение sms запрещено.
  */
 export async function POST(request: Request) {
   const raw = (await request.json().catch(() => null)) as unknown;
@@ -63,6 +63,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "invalid_phone", message: "Неверный формат номера" },
       { status: 400 }
+    );
+  }
+
+  if (channel === "web" && deliveryChannel === "sms") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "sms_disabled_web",
+        message: "SMS для входа с сайта отключён. Используйте код в Telegram или Max.",
+      },
+      { status: 400 },
     );
   }
 
@@ -153,6 +164,8 @@ export async function POST(request: Request) {
 
 function errorMessage(code: string): string {
   switch (code) {
+    case "sms_disabled_web":
+      return "SMS для входа с сайта отключён. Используйте код в Telegram или Max.";
     case "sms_ru_only":
       return "SMS доступно только для номеров РФ.";
     case "invalid_phone":

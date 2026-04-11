@@ -11,6 +11,10 @@ vi.mock("@/config/env", () => ({
   integratorWebhookSecret: () => "test-integrator-webhook-secret",
 }));
 
+vi.mock("@/infra/repos/pgCanonicalPlatformUser", () => ({
+  resolveCanonicalUserId: vi.fn(async (_pool: unknown, id: string) => id),
+}));
+
 import {
   completeChannelLinkFromIntegrator,
   setChannelLinkBindingConflictReporter,
@@ -49,7 +53,7 @@ describe("completeChannelLinkFromIntegrator", () => {
       externalId: "tg_1",
     });
 
-    expect(res).toEqual({ ok: false, code: "conflict" });
+    expect(res).toMatchObject({ ok: false, code: "conflict" });
     expect(reporter).toHaveBeenCalledWith({
       channelCode: "telegram",
       externalId: "tg_1",
@@ -75,7 +79,8 @@ describe("completeChannelLinkFromIntegrator", () => {
       .mockResolvedValueOnce({
         rows: [{ user_id: "u1" }],
       })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ phone_normalized: "+79990001122" }] });
 
     const res = await completeChannelLinkFromIntegrator({
       linkToken: "link_abc123",
@@ -83,8 +88,8 @@ describe("completeChannelLinkFromIntegrator", () => {
       externalId: "tg_1",
     });
 
-    expect(res).toEqual({ ok: true });
-    expect(queryMock).toHaveBeenCalledTimes(3);
+    expect(res).toEqual({ ok: true, userId: "u1", needsPhone: false });
+    expect(queryMock).toHaveBeenCalledTimes(4);
   });
 
   it("rejects expired token", async () => {
@@ -111,16 +116,18 @@ describe("completeChannelLinkFromIntegrator", () => {
 
   it("rejects already used token", async () => {
     queryMock.mockReset();
-    queryMock.mockResolvedValueOnce({
-      rows: [
-        {
-          id: "s1",
-          user_id: "u1",
-          expires_at: new Date(Date.now() + 60_000).toISOString(),
-          used_at: new Date().toISOString(),
-        },
-      ],
-    });
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "s1",
+            user_id: "u1",
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+            used_at: new Date().toISOString(),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ phone_normalized: null }] });
 
     const res = await completeChannelLinkFromIntegrator({
       linkToken: "link_abc123",
@@ -128,7 +135,7 @@ describe("completeChannelLinkFromIntegrator", () => {
       externalId: "tg_1",
     });
 
-    expect(res).toEqual({ ok: false, code: "used_token" });
+    expect(res).toEqual({ ok: false, code: "used_token", needsPhone: true });
   });
 });
 

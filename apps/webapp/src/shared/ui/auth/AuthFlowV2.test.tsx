@@ -61,7 +61,7 @@ describe("AuthFlowV2", () => {
           return oauthProvidersDisabled();
         }
         if (url.includes("/api/auth/check-phone")) {
-          return jsonRes({ ok: true, exists: true, methods: { sms: true, pin: true } });
+          return jsonRes({ ok: true, exists: true, methods: { sms: true, pin: true, telegram: true } });
         }
         if (url.includes("/api/auth/phone/start")) {
           return jsonRes({ ok: true, challengeId: "ch-pin-user", retryAfterSeconds: 60 });
@@ -73,9 +73,6 @@ describe("AuthFlowV2", () => {
     render(<AuthFlowV2 nextParam={null} />);
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
-
-    await screen.findByRole("button", { name: "Получить код по SMS" });
-    await user.click(screen.getByRole("button", { name: "Получить код по SMS" }));
 
     await screen.findByLabelText("Код подтверждения");
     expect(screen.queryByText(/PIN-код/i)).not.toBeInTheDocument();
@@ -91,7 +88,7 @@ describe("AuthFlowV2", () => {
           return oauthProvidersDisabled();
         }
         if (url.includes("/api/auth/check-phone")) {
-          return jsonRes({ ok: true, exists: true, methods: { sms: true, pin: false } });
+          return jsonRes({ ok: true, exists: true, methods: { sms: true, pin: false, telegram: true } });
         }
         if (url.includes("/api/auth/phone/start")) {
           return jsonRes({ ok: true, challengeId: "ch-new", retryAfterSeconds: 60 });
@@ -107,9 +104,6 @@ describe("AuthFlowV2", () => {
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
-    await screen.findByRole("button", { name: "Получить код по SMS" });
-    await user.click(screen.getByRole("button", { name: "Получить код по SMS" }));
-
     await screen.findByLabelText("Код подтверждения");
     await user.type(screen.getByLabelText("Код подтверждения"), "111111");
     await user.click(screen.getByRole("button", { name: "Войти" }));
@@ -118,7 +112,7 @@ describe("AuthFlowV2", () => {
     expect(screen.queryByText(/Придумайте PIN/i)).not.toBeInTheDocument();
   });
 
-  it("shows delivery_failed API message in toast for new user SMS start", async () => {
+  it("shows delivery_failed API message in toast for new user Telegram OTP start", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -128,7 +122,7 @@ describe("AuthFlowV2", () => {
           return oauthProvidersDisabled();
         }
         if (url.includes("/api/auth/check-phone")) {
-          return jsonRes({ ok: true, exists: false, methods: { sms: true, pin: false } });
+          return jsonRes({ ok: true, exists: false, methods: { sms: true, pin: false, telegram: true } });
         }
         if (url.includes("/api/auth/phone/start")) {
           return jsonRes(
@@ -148,8 +142,8 @@ describe("AuthFlowV2", () => {
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
-    await screen.findByRole("button", { name: "Получить код по SMS" });
-    await user.click(screen.getByRole("button", { name: "Получить код по SMS" }));
+    await screen.findByRole("button", { name: "Получить код в Telegram" });
+    await user.click(screen.getByRole("button", { name: "Получить код в Telegram" }));
 
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith("Не удалось отправить код. Попробуйте позже."),

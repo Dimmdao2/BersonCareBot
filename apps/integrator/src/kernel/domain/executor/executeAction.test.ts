@@ -1792,6 +1792,60 @@ describe('executeAction', () => {
     });
   });
 
+  it('webapp.channelLink.complete dispatches contact request for Max when needsPhone', async () => {
+    const completeChannelLink = vi.fn().mockResolvedValue({ ok: true, needsPhone: true });
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const webappEventsPort = {
+      completeChannelLink,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const action: Action = {
+      id: 'cl-max',
+      type: 'webapp.channelLink.complete',
+      mode: 'sync',
+      params: { linkToken: 'tok', channelCode: 'max', externalId: 'max-42' },
+    };
+    const result = await executeAction(action, ctx, {
+      webappEventsPort,
+      dispatchPort: { dispatchOutgoing },
+    });
+    expect(completeChannelLink).toHaveBeenCalledWith({
+      linkToken: 'tok',
+      channelCode: 'max',
+      externalId: 'max-42',
+    });
+    expect(dispatchOutgoing).toHaveBeenCalled();
+    expect(result.status).toBe('success');
+    expect((result.values as { channelLink?: { contactPromptSent?: boolean } }).channelLink?.contactPromptSent).toBe(
+      true,
+    );
+  });
+
+  it('webapp.channelLink.complete fails for Telegram when needsPhone without writePort', async () => {
+    const completeChannelLink = vi.fn().mockResolvedValue({ ok: true, needsPhone: true });
+    const dispatchOutgoing = vi.fn();
+    const webappEventsPort = {
+      completeChannelLink,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const action: Action = {
+      id: 'cl-tg',
+      type: 'webapp.channelLink.complete',
+      mode: 'sync',
+      params: { linkToken: 'tok', channelCode: 'telegram', externalId: '99' },
+    };
+    const result = await executeAction(action, ctx, {
+      webappEventsPort,
+      dispatchPort: { dispatchOutgoing },
+    });
+    expect(result.status).toBe('failed');
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
   describe('diary.symptom.afterTrackingCreated', () => {
     const telegramCtx: DomainContext = {
       ...ctx,

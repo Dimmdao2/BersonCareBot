@@ -181,7 +181,7 @@ hash = HMAC-SHA256(secret_key, data_check_string)
 - **S4.T01** — Хелпер `isRuMobile(phone: string): boolean` — определяет, что номер российский мобильный.
 - **S4.T02** — Обновить `resolveAuthMethodsForPhone`: для не-РФ номеров `sms: false`. Для всех — `telegramLogin: true` (если виджет настроен).
 - **S4.T03** — Обновить `AuthFlowV2`: после `check-phone` для не-РФ номеров не предлагать SMS. Публичный UI-порядок: Telegram Login (primary) + вход по телефону как secondary; Email/OAuth в публичном экране не показывать.
-- **S4.T04** — `phone/start/route.ts`: если `deliveryChannel === "sms"` и номер не РФ → `400 { error: "sms_ru_only", message: "SMS доступно только для номеров РФ" }`.
+- **S4.T04** — `phone/start/route.ts`: для **`channel: web`** SMS отключён (`sms_disabled_web`). Для **`channel: telegram`** при `deliveryChannel === "sms"` и не-РФ номере → `400 { error: "sms_ru_only", … }` (см. `auth.md`).
 - **S4.T05** — Тесты: не-РФ номер → check-phone возвращает `sms: false`; попытка отправить SMS → ошибка `sms_ru_only`.
 
 **Gate:** пользователь с номером +49... не видит опцию SMS; +7... — видит. `pnpm run ci` зелёный.

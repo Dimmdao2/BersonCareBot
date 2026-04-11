@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Suspense, useState } from "react";
+import { startTransition, Suspense, useEffect, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { BindPhoneBlock } from "@/shared/ui/auth/BindPhoneBlock";
+import { PatientBindPhoneClient } from "@/app/app/patient/bind-phone/PatientBindPhoneClient";
 import { EmailAccountPanel } from "@/shared/ui/EmailAccountPanel";
 import { InlineEditField } from "@/shared/ui/InlineEditField";
 import { updateDisplayName } from "./actions";
@@ -13,9 +13,8 @@ import { updateDisplayName } from "./actions";
 type Props = {
   displayName: string;
   phone: string | null;
-  /** Контекст для SMS-привязки (как на странице bind-phone). */
-  phoneChannel: "telegram" | "web";
-  phoneChatId: string;
+  telegramId: string;
+  maxId: string;
   supportContactHref: string;
   initialEmail: string | null;
   emailVerified: boolean;
@@ -24,20 +23,37 @@ type Props = {
 export function ProfileForm({
   displayName,
   phone,
-  phoneChannel,
-  phoneChatId,
+  telegramId,
+  maxId,
   supportContactHref,
   initialEmail,
   emailVerified,
 }: Props) {
   const router = useRouter();
   const [editingPhone, setEditingPhone] = useState(false);
+  const phoneAtEditStartRef = useRef<string | null>(null);
 
   const handleSaveName = async (next: string) => {
     const trimmedName = next.trim();
     if (!trimmedName || trimmedName === displayName) return;
     await updateDisplayName(trimmedName);
     router.refresh();
+  };
+
+  useEffect(() => {
+    if (!editingPhone || phone == null) return;
+    const start = phoneAtEditStartRef.current;
+    if (start != null && phone !== start) {
+      startTransition(() => {
+        setEditingPhone(false);
+        phoneAtEditStartRef.current = null;
+      });
+    }
+  }, [editingPhone, phone]);
+
+  const beginPhoneEdit = () => {
+    phoneAtEditStartRef.current = phone;
+    setEditingPhone(true);
   };
 
   return (
@@ -67,7 +83,7 @@ export function ProfileForm({
               variant="link"
               size="sm"
               className="text-primary h-auto min-h-0 px-0 py-0 text-sm font-medium"
-              onClick={() => setEditingPhone(true)}
+              onClick={beginPhoneEdit}
             >
               Изменить
             </Button>
@@ -78,23 +94,22 @@ export function ProfileForm({
         ) : null}
         {phone && editingPhone ? (
           <div className="flex flex-col gap-2 sm:max-w-md">
-            <Suspense fallback={<p className="text-muted-foreground text-sm">Загрузка формы…</p>}>
-              <BindPhoneBlock
-                channel={phoneChannel}
-                chatId={phoneChatId}
+            <Suspense fallback={<p className="text-muted-foreground text-sm">Загрузка…</p>}>
+              <PatientBindPhoneClient
+                telegramId={telegramId}
+                maxId={maxId}
                 supportContactHref={supportContactHref}
-                nextPathOverride="/app/patient/profile"
-                onBindSuccess={() => {
-                  setEditingPhone(false);
-                  router.refresh();
-                }}
+                hint="Чтобы обновить номер, подтвердите новый контакт в Telegram или Max. SMS в профиле не используется."
               />
             </Suspense>
             <Button
               type="button"
               variant="link"
               className="h-auto min-h-0 px-0 text-muted-foreground"
-              onClick={() => setEditingPhone(false)}
+              onClick={() => {
+                phoneAtEditStartRef.current = null;
+                setEditingPhone(false);
+              }}
             >
               Отмена
             </Button>

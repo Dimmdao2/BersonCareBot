@@ -18,7 +18,7 @@
 
 **Статус:** OK
 
-- Тип шагов `AuthFlowStep` в `AuthFlowV2.tsx` не содержит `set_pin` (только `entry_loading` | `landing` | `phone` | `new_user_foreign` | `new_user_sms` | `foreign_no_otp_channel` | `choose_channel` | `code`).
+- Тип шагов `AuthFlowStep` в `AuthFlowV2.tsx` не содержит `set_pin` (в т.ч. `oauth_first`; без `new_user_sms` с 2026-04-11).
 - В файле **нет** импорта `PinInput`, **нет** строки/ветки `set_pin`.
 - Комментарий в шапке файла: PIN в этом flow намеренно отключён (Stage 5); ссылка на `docs/AUTH_RESTRUCTURE/auth.md`.
 - **Тесты:** `AuthFlowV2.test.tsx` — при `methods.pin: true` пользователь попадает на OTP, без UI PIN; после успешного `phone/confirm` проверяется отсутствие текста про придумывание PIN.
@@ -50,7 +50,7 @@
 
 - Публичный вход: `AuthBootstrap` рендерит только `AuthFlowV2` (и обмен токена / initData) — **без** `PinInput`.
 - `PinInput` импортируется в **профиле** (`PinSection.tsx`, `DiaryDataPurgeSection.tsx`) и в тестах `PinInput.test.tsx`, **не** в `AuthFlowV2`, `AuthBootstrap`, `AppEntryLoginContent`.
-- `PhoneAuthForm` (содержит международное поле телефона без PIN) используется в `BindPhoneBlock`, не в корневом `/app` login.
+- Публичный ввод телефона — `InternationalPhoneInput` в `AuthFlowV2`; `PhoneAuthForm` / `BindPhoneBlock` **удалены** (2026-04-11); привязка/смена номера в кабинете — `PatientBindPhoneClient` / channel-link, не SMS.
 
 ---
 

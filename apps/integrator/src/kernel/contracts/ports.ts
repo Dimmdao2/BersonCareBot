@@ -354,7 +354,7 @@ export type WebappEventsPort = {
     linkToken: string;
     channelCode: string;
     externalId: string;
-  }): Promise<{ ok: boolean; error?: string }>;
+  }): Promise<{ ok: boolean; error?: string; needsPhone?: boolean }>;
 };
 
 /** Channel bindings for multi-channel delivery (telegramId, maxId). */
