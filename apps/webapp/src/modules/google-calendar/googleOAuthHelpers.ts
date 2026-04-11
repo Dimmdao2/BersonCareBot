@@ -97,3 +97,29 @@ export async function fetchGoogleUserEmail(accessToken: string): Promise<string 
     return null;
   }
 }
+
+export type GoogleUserProfile = {
+  sub: string;
+  email: string | null;
+  name: string | null;
+  /** Только при `true` email считается подтверждённым Google (merge / `email_verified_at`). */
+  emailVerified: boolean;
+};
+
+export async function fetchGoogleUserProfile(accessToken: string): Promise<GoogleUserProfile | null> {
+  try {
+    const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as Record<string, unknown>;
+    const sub = typeof json.id === "string" ? json.id : "";
+    if (!sub) return null;
+    const email = typeof json.email === "string" ? json.email : null;
+    const name = typeof json.name === "string" ? json.name : null;
+    const emailVerified = json.verified_email === true;
+    return { sub, email, name, emailVerified };
+  } catch {
+    return null;
+  }
+}

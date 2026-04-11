@@ -24,12 +24,48 @@
 - **Клиент Mini App (Telegram / MAX):** при 401 на `/api/me` до показа гейта — **`miniAppSessionRecovery.ensureMessengerMiniAppWebappSession`** (`telegram-init` или `exchange` по `?t=`/`?token=`). Разбор `/api/me` и ссылки на ботов — **`patientMessengerContactGate`** (`getPatientMessengerContactGateDetail`, `resolveMessengerContactGateBotHref`, `resolveBotHrefAfterMessengerSessionLoss`).
 - **exchangeIntegratorToken** — обмен JWT «войти в приложение» из бота на сессию вебаппа (payload: sub, role, displayName, phone, bindings, exp).
 
-## OAuth (Yandex)
+## OAuth (Яндекс, Google и Apple — веб-вход)
 
-- Backend flow реализован: `POST /api/auth/oauth/start` (provider `yandex`), `GET /api/auth/oauth/callback`.
-- Клиентские ID/secret и redirect URI хранятся в **`system_settings`** (admin): `yandex_oauth_client_id`, `yandex_oauth_client_secret`, `yandex_oauth_redirect_uri` — **не** в env webapp.
-- **Публичная кнопка «Войти через Яндекс» в AuthFlowV2 отсутствует**; метод служебный / прямой вызов API.
-- **Операции / `email_ambiguous`:** если в БД несколько строк `platform_users` с одним подтверждённым email, merge по email в `resolveUserIdForYandexOAuth` не выполняется — callback редиректит с `oauth=error&reason=email_ambiguous`. Оператору нужно устранить дубликаты (оставить одну запись с корректной связкой) и повторить вход через OAuth либо использовать уже существующую привязку `user_oauth_bindings`.
+Конфигурация — только **`system_settings`** (scope `admin`), не env. Зеркалирование ключей в БД integrator — по общим правилам (`updateSetting` / миграции); **компромисс:** в integrator копируется и `apple_oauth_private_key`, хотя код integrator его может не читать (расширенная поверхность хранения секрета).
+
+### Маршруты
+
+| Метод | Путь | Назначение |
+|--------|------|------------|
+| POST | `/api/auth/oauth/start` | Старт OAuth; body `{ "provider": "yandex" \| "google" \| "apple" }`; ответ `{ ok, authUrl }` или ошибка. **Rate limit:** при наличии IP в `X-Forwarded-For` / `X-Real-Ip` — до 60 стартов в час на IP (таблица `auth_rate_limit_events`, scope `auth.oauth_start`); без IP — лимит не навешивается. |
+| GET | `/api/auth/oauth/callback` | Только Яндекс; подписанный `state` с purpose `yandex`. |
+| GET | `/api/auth/oauth/callback/google` | Веб-логин Google; `state` — purpose `google_login`. |
+| POST | `/api/auth/oauth/callback/apple` | Sign in with Apple (`form_post`); `state` — purpose `apple`, `nonce` внутри подписанного payload и в `id_token`. |
+| GET | `/api/auth/oauth/providers` | Флаги `yandex` / `google` / `apple` (настроен ли провайдер), **без** секретов; `Cache-Control: private, no-store`. |
+
+### Подписанный `state` (CSRF)
+
+Модуль `oauthSignedState.ts`: HMAC-SHA256 от `SESSION_COOKIE_SECRET`, payload `{ p, exp, n, nonce? }`, отдельный **purpose** на поток (`yandex` | `gcal` | `google_login` | `apple`). Cookie для state не используется. Срок ~10 мин; **повторное использование** того же `state` до истечения `exp` теоретически возможно (как и у типичного signed-state); при ротации `SESSION_COOKIE_SECRET` незавершённые переходы сбрасываются.
+
+### Google: календарь и вход
+
+- Календарь: `google_client_id`, `google_client_secret`, **`google_redirect_uri`** → только admin calendar callback.
+- Вход: тот же client id/secret + **`google_oauth_login_redirect_uri`** → callback `/api/auth/oauth/callback/google`.
+- **Нельзя** записывать `google_refresh_token` из потока веб-логина: обмен кода даёт только access token для userinfo; `refresh_token` из ответа игнорируется. В authorize задано `access_type=online`, чтобы не запрашивать офлайн-доступ для входа.
+- **Email:** merge в существующую учётку по email и выставление `email_verified_at` для новой — только если в userinfo `verified_email === true`. Иначе email не участвует в merge с подтверждёнными записями в БД.
+
+### Apple
+
+- `id_token` проверяется через JWKS Apple (`jose`), audience = Services ID (`apple_oauth_client_id`), issuer Apple, **nonce**.
+- Email из токена считается подтверждённым Apple при наличии в claims (merge / `email_verified_at` по тем же правилам, что и для проверенного email).
+
+### Сессия после входа
+
+Общая логика `oauthWebSession.completeOAuthWebLoginRedirectUrls` (и аналог для Яндекса): `setSessionFromUser`, редирект по роли; **без телефона** — редирект на привязку номера (`bindPhone`, `reason=oauth_phone_required`), как у Яндекса без телефона.
+
+### UI
+
+`AuthFlowV2`: кнопки провайдеров под Telegram и на шаге телефона; при отключённых провайдерах кнопки скрыты (данные с `/api/auth/oauth/providers`). SMS не автостарт: `pickPrimaryOtpChannelPublic` не возвращает `sms`; только SMS — шаг `choose_channel` с блоком «Другие способы» в `ChannelPicker`. На экранах иностранного номера и «нет OTP-канала» при настроенных провайдерах показаны те же OAuth-кнопки.
+
+### Ошибки и операции
+
+- **`email_ambiguous`** (и для Яндекса, и для Google/Apple web): несколько `platform_users` с одним подтверждённым email — редирект `/app?oauth=error&reason=email_ambiguous`; нужна ручная дедупликация.
+- Ошибки Apple callback после `form_post` по возможности оформляются **редиректом** в приложение (`/app?oauth=error&reason=…`), а не JSON, чтобы пользователь не видел «сырой» ответ API.
 
 ## Email
 
@@ -47,7 +83,7 @@
 
 ## API-маршруты (часто используемые)
 
-`/api/auth/exchange`, `/api/auth/telegram-init`, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/oauth/start`, `/api/auth/oauth/callback`, `/api/auth/logout` (POST/GET).
+`/api/auth/exchange`, `/api/auth/telegram-init`, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET).
 
 ## Операционные логи OTP
 

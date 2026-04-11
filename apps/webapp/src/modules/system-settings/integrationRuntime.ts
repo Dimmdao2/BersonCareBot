@@ -54,3 +54,27 @@ export async function getGoogleCalendarId(): Promise<string> {
 export async function getGoogleCalendarEnabled(): Promise<boolean> {
   return getConfigBool("google_calendar_enabled", false);
 }
+
+export async function getGoogleOauthLoginRedirectUri(): Promise<string> {
+  return getConfigValue("google_oauth_login_redirect_uri", "");
+}
+
+export async function getAppleOauthClientId(): Promise<string> {
+  return getConfigValue("apple_oauth_client_id", "");
+}
+
+export async function getAppleOauthTeamId(): Promise<string> {
+  return getConfigValue("apple_oauth_team_id", "");
+}
+
+export async function getAppleOauthKeyId(): Promise<string> {
+  return getConfigValue("apple_oauth_key_id", "");
+}
+
+export async function getAppleOauthPrivateKey(): Promise<string> {
+  return getConfigValue("apple_oauth_private_key", "");
+}
+
+export async function getAppleOauthRedirectUri(): Promise<string> {
+  return getConfigValue("apple_oauth_redirect_uri", "");
+}

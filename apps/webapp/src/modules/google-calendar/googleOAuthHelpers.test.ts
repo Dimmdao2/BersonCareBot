@@ -8,6 +8,7 @@ import {
   refreshGoogleAccessToken,
   fetchGoogleCalendarList,
   fetchGoogleUserEmail,
+  fetchGoogleUserProfile,
 } from "./googleOAuthHelpers";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -101,6 +102,44 @@ describe("fetchGoogleCalendarList", () => {
   it("throws on 401", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ error: "unauthorized" }, 401));
     await expect(fetchGoogleCalendarList("tok")).rejects.toThrow("google_calendar_list_failed: 401");
+  });
+});
+
+describe("fetchGoogleUserProfile", () => {
+  it("returns sub, email, name and emailVerified from userinfo", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        id: "109876",
+        email: "u@gmail.com",
+        name: "User",
+        verified_email: true,
+      }),
+    );
+    const result = await fetchGoogleUserProfile("tok");
+    expect(result).toEqual({
+      sub: "109876",
+      email: "u@gmail.com",
+      name: "User",
+      emailVerified: true,
+    });
+  });
+
+  it("sets emailVerified false when Google did not confirm email", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        id: "109876",
+        email: "u@gmail.com",
+        verified_email: false,
+      }),
+    );
+    const result = await fetchGoogleUserProfile("tok");
+    expect(result?.emailVerified).toBe(false);
+  });
+
+  it("returns null when id missing", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ email: "a@b.c" }));
+    const result = await fetchGoogleUserProfile("tok");
+    expect(result).toBeNull();
   });
 });
 

@@ -45,6 +45,10 @@ describe("pickPrimaryOtpChannelPublic", () => {
     expect(pickPrimaryOtpChannelPublic({ sms: false, email: true })).toBeNull();
   });
 
+  it("returns null when only SMS (SMS через «Другие способы»)", () => {
+    expect(pickPrimaryOtpChannelPublic({ sms: true })).toBeNull();
+  });
+
   it("prefers telegram over sms", () => {
     expect(
       pickPrimaryOtpChannelPublic({ sms: true, telegram: true }),
@@ -62,7 +66,13 @@ describe("pickOtpChannelWithPreferencePublic", () => {
   it("ignores email preference", () => {
     expect(
       pickOtpChannelWithPreferencePublic({ sms: true, email: true }, "email"),
-    ).toBe("sms");
+    ).toBeNull();
+  });
+
+  it("ignores sms preference so auto-start never uses SMS", () => {
+    expect(
+      pickOtpChannelWithPreferencePublic({ sms: true, telegram: true }, "sms"),
+    ).toBe("telegram");
   });
 
   it("uses non-email preference when available", () => {

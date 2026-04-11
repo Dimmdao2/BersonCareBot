@@ -22,6 +22,8 @@ export enum TrustedPatientPhoneSource {
   IntegratorUpdatePhone = "integrator_update_phone",
   /** Новый пользователь с телефоном из Yandex OAuth (`oauthYandexResolve`). */
   OAuthYandexVerifiedPhone = "oauth_yandex_verified_phone",
+  /** Новый пользователь с телефоном из Google / Apple web OAuth (`oauthWebLoginResolve`). */
+  OAuthWebLoginVerifiedPhone = "oauth_web_login_verified_phone",
   /**
    * Слияние двух клиентов: доверие переносится с выбранной стороны телефона / max(timestamp).
    * Не создаёт нового доверия «из воздуха».

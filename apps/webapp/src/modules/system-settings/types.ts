@@ -28,6 +28,14 @@ export const ALLOWED_KEYS = [
   "google_calendar_id",
   "google_calendar_enabled",
   "google_connected_email",
+  /** Redirect URI for public web login with Google (separate from calendar callback). */
+  "google_oauth_login_redirect_uri",
+  /** Sign in with Apple (Services ID, team, key, .p8 PEM, redirect). */
+  "apple_oauth_client_id",
+  "apple_oauth_team_id",
+  "apple_oauth_key_id",
+  "apple_oauth_private_key",
+  "apple_oauth_redirect_uri",
   // Whitelist IDs
   "allowed_telegram_ids",
   "allowed_max_ids",

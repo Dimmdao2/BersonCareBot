@@ -22,7 +22,7 @@ function redirectToAppQuery(reason: string): URL {
 
 /**
  * Callback OAuth (Yandex): подписанный state → code → token → userinfo → resolve user (OAuth / email merge / create)
- * → сессия → redirect. Публичная кнопка в login UI не используется — только прямой вызов `/api/auth/oauth/start`.
+ * → сессия → redirect. Кнопка на экране входа вызывает тот же поток через `/api/auth/oauth/start`.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);

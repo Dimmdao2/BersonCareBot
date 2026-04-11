@@ -57,6 +57,11 @@ export default async function SettingsPage() {
     ? await deps.systemSettings.listSettingsByScope("admin")
     : [];
 
+  function adminStr(key: string): string {
+    const raw = getValueJson(adminSettingsList.find((x) => x.key === key)?.valueJson, "");
+    return typeof raw === "string" ? raw.trim() : "";
+  }
+
   const adminSettings = isAdmin && adminMode
     ? {
         devMode: Boolean(getValueJson(adminSettingsList.find((x) => x.key === "dev_mode")?.valueJson, false)),
@@ -118,6 +123,14 @@ export default async function SettingsPage() {
           );
           return typeof raw === "string" ? raw.trim() : "";
         })(),
+        googleClientId: adminStr("google_client_id"),
+        googleClientSecret: adminStr("google_client_secret"),
+        googleOauthLoginRedirectUri: adminStr("google_oauth_login_redirect_uri"),
+        appleOauthClientId: adminStr("apple_oauth_client_id"),
+        appleOauthTeamId: adminStr("apple_oauth_team_id"),
+        appleOauthKeyId: adminStr("apple_oauth_key_id"),
+        appleOauthPrivateKey: adminStr("apple_oauth_private_key"),
+        appleOauthRedirectUri: adminStr("apple_oauth_redirect_uri"),
       }
     : null;
 
@@ -131,11 +144,6 @@ export default async function SettingsPage() {
         doctorMaxIds: idArrayToString(adminSettingsList, "doctor_max_ids"),
       }
     : null;
-
-  function adminStr(key: string): string {
-    const raw = getValueJson(adminSettingsList.find((x) => x.key === key)?.valueJson, "");
-    return typeof raw === "string" ? raw.trim() : "";
-  }
 
   const googleCalendarConfig = isAdmin && adminMode
     ? {

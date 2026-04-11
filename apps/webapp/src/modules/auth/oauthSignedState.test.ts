@@ -4,7 +4,12 @@ vi.mock("@/config/env", () => ({
   env: { SESSION_COOKIE_SECRET: "test-session-secret-16chars" },
 }));
 
-import { createSignedOAuthState, verifySignedOAuthState } from "./oauthSignedState";
+import {
+  createAppleSignedOAuthState,
+  createSignedOAuthState,
+  parseVerifiedSignedOAuthState,
+  verifySignedOAuthState,
+} from "./oauthSignedState";
 
 describe("oauthSignedState", () => {
   afterEach(() => {
@@ -21,6 +26,20 @@ describe("oauthSignedState", () => {
     const t = createSignedOAuthState("gcal", 600);
     expect(verifySignedOAuthState(t, "gcal")).toBe(true);
     expect(verifySignedOAuthState(t, "yandex")).toBe(false);
+  });
+
+  it("verifies google_login token only as google_login", () => {
+    const t = createSignedOAuthState("google_login", 600);
+    expect(verifySignedOAuthState(t, "google_login")).toBe(true);
+    expect(verifySignedOAuthState(t, "yandex")).toBe(false);
+  });
+
+  it("apple state carries nonce verifiable as apple purpose", () => {
+    const { state, nonce } = createAppleSignedOAuthState(600);
+    expect(nonce.length).toBeGreaterThan(10);
+    expect(verifySignedOAuthState(state, "apple")).toBe(true);
+    const parsed = parseVerifiedSignedOAuthState(state, "apple");
+    expect(parsed?.nonce).toBe(nonce);
   });
 
   it("rejects tampered token", () => {

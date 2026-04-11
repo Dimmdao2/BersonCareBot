@@ -36,6 +36,10 @@ function jsonRes(data: unknown, init?: { ok?: boolean; status?: number }) {
   });
 }
 
+function oauthProvidersDisabled() {
+  return jsonRes({ ok: true, yandex: false, google: false, apple: false });
+}
+
 describe("AuthFlowV2", () => {
   beforeEach(() => {
     replace.mockClear();
@@ -53,6 +57,9 @@ describe("AuthFlowV2", () => {
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/oauth/providers")) {
+          return oauthProvidersDisabled();
+        }
         if (url.includes("/api/auth/check-phone")) {
           return jsonRes({ ok: true, exists: true, methods: { sms: true, pin: true } });
         }
@@ -67,6 +74,9 @@ describe("AuthFlowV2", () => {
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
+    await screen.findByRole("button", { name: "Получить код по SMS" });
+    await user.click(screen.getByRole("button", { name: "Получить код по SMS" }));
+
     await screen.findByLabelText("Код подтверждения");
     expect(screen.queryByText(/PIN-код/i)).not.toBeInTheDocument();
   });
@@ -77,6 +87,9 @@ describe("AuthFlowV2", () => {
       "fetch",
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/oauth/providers")) {
+          return oauthProvidersDisabled();
+        }
         if (url.includes("/api/auth/check-phone")) {
           return jsonRes({ ok: true, exists: true, methods: { sms: true, pin: false } });
         }
@@ -94,6 +107,9 @@ describe("AuthFlowV2", () => {
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
+    await screen.findByRole("button", { name: "Получить код по SMS" });
+    await user.click(screen.getByRole("button", { name: "Получить код по SMS" }));
+
     await screen.findByLabelText("Код подтверждения");
     await user.type(screen.getByLabelText("Код подтверждения"), "111111");
     await user.click(screen.getByRole("button", { name: "Войти" }));
@@ -108,6 +124,9 @@ describe("AuthFlowV2", () => {
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/oauth/providers")) {
+          return oauthProvidersDisabled();
+        }
         if (url.includes("/api/auth/check-phone")) {
           return jsonRes({ ok: true, exists: false, methods: { sms: true, pin: false } });
         }
@@ -146,6 +165,9 @@ describe("AuthFlowV2", () => {
         if (url.includes("/api/auth/telegram-login/config")) {
           return jsonRes({ ok: true, botUsername: "test_bot" });
         }
+        if (url.includes("/api/auth/oauth/providers")) {
+          return oauthProvidersDisabled();
+        }
         return jsonRes({});
       }),
     );
@@ -154,7 +176,7 @@ describe("AuthFlowV2", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Войти по номеру телефона" })).toBeInTheDocument());
   });
 
-  it("does not show Yandex OAuth in public login UI", async () => {
+  it("does not show OAuth buttons when providers endpoint reports all disabled", async () => {
     isMiniAppHost.mockReturnValue(false);
     vi.stubGlobal(
       "fetch",
@@ -163,13 +185,16 @@ describe("AuthFlowV2", () => {
         if (url.includes("/api/auth/telegram-login/config")) {
           return jsonRes({ ok: true, botUsername: "test_bot" });
         }
+        if (url.includes("/api/auth/oauth/providers")) {
+          return oauthProvidersDisabled();
+        }
         return jsonRes({});
       }),
     );
 
     render(<AuthFlowV2 nextParam={null} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "Войти по номеру телефона" })).toBeInTheDocument());
-    expect(screen.queryByText(/яндекс/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Yandex/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
   });
 });

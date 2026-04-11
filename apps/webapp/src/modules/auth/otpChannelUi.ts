@@ -17,7 +17,7 @@ export function pickPrimaryOtpChannel(methods: AuthMethodsPayload): OtpUiChannel
 /** Порядок в блоке «Другие способы»: мессенджеры и email, СМС последним. */
 export const OTP_OTHER_CHANNELS_ORDER: readonly OtpUiChannel[] = ["max", "email", "telegram", "sms"];
 
-/** Публичный вход: без email (email — только из профиля). Порядок «других» без email. */
+/** Публичный вход: без email. SMS последним среди альтернатив на шаге кода. */
 export const OTP_PUBLIC_OTHER_CHANNELS_ORDER: readonly OtpUiChannel[] = ["max", "telegram", "sms"];
 
 export function isOtpChannelAvailable(methods: AuthMethodsPayload, ch: OtpUiChannel): boolean {
@@ -34,13 +34,12 @@ export function isOtpChannelAvailablePublic(methods: AuthMethodsPayload, ch: Otp
 }
 
 /**
- * Публичный вход: Telegram → Max → SMS (без email).
- * `null`, если нет ни одного канала (например только email у иностранного номера).
+ * Публичный вход: главная кнопка — только Telegram / Max (SMS только через «Другие способы»).
+ * `null`, если доступен только SMS или только email у иностранного номера.
  */
 export function pickPrimaryOtpChannelPublic(methods: AuthMethodsPayload): OtpUiChannel | null {
   if (methods.telegram) return "telegram";
   if (methods.max) return "max";
-  if (methods.sms) return "sms";
   return null;
 }
 
@@ -63,7 +62,12 @@ export function pickOtpChannelWithPreferencePublic(
   methods: AuthMethodsPayload,
   preferred: OtpUiChannel | null | undefined,
 ): OtpUiChannel | null {
-  if (preferred && preferred !== "email" && isOtpChannelAvailablePublic(methods, preferred)) {
+  if (
+    preferred &&
+    preferred !== "email" &&
+    preferred !== "sms" &&
+    isOtpChannelAvailablePublic(methods, preferred)
+  ) {
     return preferred;
   }
   return pickPrimaryOtpChannelPublic(methods);

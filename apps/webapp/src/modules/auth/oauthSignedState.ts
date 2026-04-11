@@ -3,8 +3,8 @@ import { env } from "@/config/env";
 
 const VERSION = "v1";
 
-/** Публичный OAuth (Яндекс) и админский Google Calendar — разные `purpose`, подпись не взаимозаменима. */
-export type OAuthStatePurpose = "yandex" | "gcal";
+/** Публичный OAuth и админский Google Calendar — разные `purpose`, подпись не взаимозаменима. */
+export type OAuthStatePurpose = "yandex" | "gcal" | "google_login" | "apple";
 
 function requireSigningSecret(): string {
   const s = env.SESSION_COOKIE_SECRET ?? "";
@@ -32,41 +32,57 @@ function hmacSha256(secret: string, message: string): Buffer {
   return createHmac("sha256", secret).update(message, "utf8").digest();
 }
 
-type Payload = { p: OAuthStatePurpose; exp: number; n: string };
+type Payload = { p: OAuthStatePurpose; exp: number; n: string; nonce?: string };
 
-/**
- * Одноразовый подписанный `state` для OAuth (без cookie): провайдер видит только opaque строку;
- * сервер проверяет HMAC, срок и назначение.
- */
-export function createSignedOAuthState(purpose: OAuthStatePurpose, ttlSeconds: number): string {
+function signPayload(payload: Payload): string {
   const secret = requireSigningSecret();
-  const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
-  const n = randomUUID();
-  const payload: Payload = { p: purpose, exp, n };
   const payloadB64 = base64UrlEncode(Buffer.from(JSON.stringify(payload), "utf8"));
   const macInput = `${VERSION}.${payloadB64}`;
   const sigB64 = base64UrlEncode(hmacSha256(secret, macInput));
   return `${VERSION}.${payloadB64}.${sigB64}`;
 }
 
-export function verifySignedOAuthState(token: string, expectedPurpose: OAuthStatePurpose): boolean {
+/**
+ * Одноразовый подписанный `state` для OAuth (без cookie): провайдер видит только opaque строку;
+ * сервер проверяет HMAC, срок и назначение.
+ */
+export function createSignedOAuthState(purpose: OAuthStatePurpose, ttlSeconds: number): string {
+  const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
+  const payload: Payload = { p: purpose, exp, n: randomUUID() };
+  return signPayload(payload);
+}
+
+/** Apple: `state` + отдельный `nonce` для authorize и проверки в `id_token`. */
+export function createAppleSignedOAuthState(ttlSeconds: number): { state: string; nonce: string } {
+  const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
+  const nonce = randomUUID();
+  const payload: Payload = { p: "apple", exp, n: randomUUID(), nonce };
+  return { state: signPayload(payload), nonce };
+}
+
+export type VerifiedOAuthState = { nonce?: string };
+
+function verifyTokenInternal(
+  token: string,
+  expectedPurpose: OAuthStatePurpose,
+): VerifiedOAuthState | null {
   let secret: string;
   try {
     secret = requireSigningSecret();
   } catch {
-    return false;
+    return null;
   }
 
   const parts = token.split(".");
-  if (parts.length !== 3 || parts[0] !== VERSION) return false;
+  if (parts.length !== 3 || parts[0] !== VERSION) return null;
   const [, payloadB64, sigB64] = parts;
-  if (!payloadB64 || !sigB64) return false;
+  if (!payloadB64 || !sigB64) return null;
 
   let payloadRaw: unknown;
   try {
     payloadRaw = JSON.parse(base64UrlDecode(payloadB64).toString("utf8"));
   } catch {
-    return false;
+    return null;
   }
 
   if (
@@ -76,15 +92,15 @@ export function verifySignedOAuthState(token: string, expectedPurpose: OAuthStat
     !("exp" in payloadRaw) ||
     !("n" in payloadRaw)
   ) {
-    return false;
+    return null;
   }
 
-  const { p, exp, n } = payloadRaw as Record<string, unknown>;
+  const { p, exp, n, nonce } = payloadRaw as Record<string, unknown>;
   if (p !== expectedPurpose || typeof exp !== "number" || typeof n !== "string" || !n) {
-    return false;
+    return null;
   }
 
-  if (Math.floor(Date.now() / 1000) > exp) return false;
+  if (Math.floor(Date.now() / 1000) > exp) return null;
 
   const macInput = `${VERSION}.${payloadB64}`;
   const expectedSig = hmacSha256(secret, macInput);
@@ -92,10 +108,24 @@ export function verifySignedOAuthState(token: string, expectedPurpose: OAuthStat
   try {
     gotSig = base64UrlDecode(sigB64);
   } catch {
-    return false;
+    return null;
   }
-  if (gotSig.length !== expectedSig.length) return false;
-  if (!timingSafeEqual(gotSig, expectedSig)) return false;
+  if (gotSig.length !== expectedSig.length) return null;
+  if (!timingSafeEqual(gotSig, expectedSig)) return null;
 
-  return true;
+  if (nonce !== undefined && typeof nonce !== "string") return null;
+
+  return { nonce: typeof nonce === "string" ? nonce : undefined };
+}
+
+export function verifySignedOAuthState(token: string, expectedPurpose: OAuthStatePurpose): boolean {
+  return verifyTokenInternal(token, expectedPurpose) !== null;
+}
+
+/** После успешной проверки — извлечь `nonce` для Apple `id_token`. */
+export function parseVerifiedSignedOAuthState(
+  token: string,
+  expectedPurpose: OAuthStatePurpose,
+): VerifiedOAuthState | null {
+  return verifyTokenInternal(token, expectedPurpose);
 }
