@@ -302,12 +302,19 @@ async function ensureAppointmentClientTx(
 
   const userId = await mergeCandidates(client, uniq, "projection");
 
+  // Appointment/Rubitime projection: non-empty payload fields overwrite existing profile (display_name already did).
   await client.query(
     `UPDATE platform_users SET
        display_name = CASE WHEN $2::text IS NOT NULL AND trim($2::text) <> '' THEN $2::text ELSE display_name END,
-       first_name = COALESCE(first_name, $3::text),
-       last_name = COALESCE(last_name, $4::text),
-       email = COALESCE(email, $5::text),
+       first_name = CASE WHEN $3::text IS NOT NULL AND trim($3::text) <> '' THEN $3::text ELSE first_name END,
+       last_name = CASE WHEN $4::text IS NOT NULL AND trim($4::text) <> '' THEN $4::text ELSE last_name END,
+       email = CASE WHEN $5::text IS NOT NULL AND trim($5::text) <> '' THEN $5::text ELSE email END,
+       email_verified_at = CASE
+         WHEN $5::text IS NOT NULL AND trim($5::text) <> ''
+              AND lower(trim($5::text)) IS DISTINCT FROM lower(trim(coalesce(email, '')))
+           THEN NULL
+         ELSE email_verified_at
+       END,
        integrator_user_id = COALESCE(integrator_user_id, $6::bigint),
        phone_normalized = COALESCE(phone_normalized, $7::text),
        patient_phone_trust_at = CASE

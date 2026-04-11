@@ -236,41 +236,42 @@ export async function mergePlatformUsersInTransaction(
 
   await mergeUserChannelPreferences(client, targetId, duplicateId, manualResolution?.channelPreferences ?? "keep_newer");
 
+  // PG cannot infer one type for the same $n used as both ::text and ::uuid — use distinct placeholders.
   await client.query(
-    `UPDATE symptom_trackings SET user_id = $1::text, platform_user_id = $1::uuid
-     WHERE user_id = $2::text OR platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
+    `UPDATE symptom_trackings SET user_id = $1::text, platform_user_id = $2::uuid
+     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
+    [targetId, targetId, duplicateId, duplicateId],
   );
   await client.query(
-    `UPDATE symptom_entries SET user_id = $1::text, platform_user_id = $1::uuid
-     WHERE user_id = $2::text OR platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
+    `UPDATE symptom_entries SET user_id = $1::text, platform_user_id = $2::uuid
+     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
+    [targetId, targetId, duplicateId, duplicateId],
   );
   await client.query(
-    `UPDATE lfk_complexes SET user_id = $1::text, platform_user_id = $1::uuid
-     WHERE user_id = $2::text OR platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
+    `UPDATE lfk_complexes SET user_id = $1::text, platform_user_id = $2::uuid
+     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
+    [targetId, targetId, duplicateId, duplicateId],
   );
   await client.query(`UPDATE lfk_sessions SET user_id = $1::uuid WHERE user_id = $2::uuid`, [targetId, duplicateId]);
 
   await client.query(
-    `UPDATE message_log SET user_id = $1::text, platform_user_id = $1::uuid
-     WHERE user_id = $2::text OR platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
+    `UPDATE message_log SET user_id = $1::text, platform_user_id = $2::uuid
+     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
+    [targetId, targetId, duplicateId, duplicateId],
   );
 
   await client.query(
     `INSERT INTO news_item_views (news_id, user_id, viewed_at, platform_user_id)
-     SELECT news_id, $1::text, viewed_at, $1::uuid
+     SELECT news_id, $1::text, viewed_at, $2::uuid
      FROM news_item_views
-     WHERE user_id = $2::text OR platform_user_id = $2::uuid
+     WHERE user_id = $3::text OR platform_user_id = $4::uuid
      ON CONFLICT (news_id, user_id) DO UPDATE SET
        viewed_at = LEAST(news_item_views.viewed_at, EXCLUDED.viewed_at)`,
-    [targetId, duplicateId],
+    [targetId, targetId, duplicateId, duplicateId],
   );
   await client.query(
-    `DELETE FROM news_item_views WHERE user_id = $1::text OR platform_user_id = $1::uuid`,
-    [duplicateId],
+    `DELETE FROM news_item_views WHERE user_id = $1::text OR platform_user_id = $2::uuid`,
+    [duplicateId, duplicateId],
   );
 
   await client.query(`UPDATE media_files SET uploaded_by = $1::uuid WHERE uploaded_by = $2::uuid`, [
@@ -499,8 +500,8 @@ async function mergeUserChannelPreferences(
   if (strategy === "keep_target") {
     await client.query(
       `DELETE FROM user_channel_preferences
-       WHERE user_id = $1::text OR platform_user_id = $1::uuid`,
-      [duplicateId],
+       WHERE user_id = $1::text OR platform_user_id = $2::uuid`,
+      [duplicateId, duplicateId],
     );
     return;
   }
@@ -524,28 +525,28 @@ async function mergeUserChannelPreferences(
        updated_at = GREATEST(t.updated_at, d.updated_at),
        platform_user_id = $1::uuid
      FROM user_channel_preferences d
-     WHERE (t.user_id = $2::text OR t.platform_user_id = $2::uuid)
-       AND (d.user_id = $3::text OR d.platform_user_id = $3::uuid)
+     WHERE (t.user_id = $2::text OR t.platform_user_id = $3::uuid)
+       AND (d.user_id = $4::text OR d.platform_user_id = $5::uuid)
        AND t.channel_code = d.channel_code`,
-    [targetId, targetId, duplicateId],
+    [targetId, targetId, targetId, duplicateId, duplicateId],
   );
 
   await client.query(
     `DELETE FROM user_channel_preferences d
-     WHERE (d.user_id = $1::text OR d.platform_user_id = $1::uuid)
+     WHERE (d.user_id = $1::text OR d.platform_user_id = $2::uuid)
        AND EXISTS (
          SELECT 1 FROM user_channel_preferences t
-         WHERE (t.user_id = $2::text OR t.platform_user_id = $2::uuid)
+         WHERE (t.user_id = $3::text OR t.platform_user_id = $4::uuid)
            AND t.channel_code = d.channel_code
        )`,
-    [duplicateId, targetId],
+    [duplicateId, duplicateId, targetId, targetId],
   );
 
   await client.query(
     `UPDATE user_channel_preferences
-     SET user_id = $1::text, platform_user_id = $1::uuid
-     WHERE user_id = $2::text OR platform_user_id = $2::uuid`,
-    [targetId, duplicateId],
+     SET user_id = $1::text, platform_user_id = $2::uuid
+     WHERE user_id = $3::text OR platform_user_id = $4::uuid`,
+    [targetId, targetId, duplicateId, duplicateId],
   );
 }
 
@@ -559,18 +560,27 @@ async function assertSharedPhoneGuard(
   if (!pA || !pB || pA !== pB) return;
 
   async function meaningfulCount(uid: string): Promise<number> {
-    const q = [
-      `SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`,
-      `SELECT COUNT(*)::int AS c FROM doctor_notes WHERE user_id = $1::uuid`,
-      `SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = $1::uuid`,
-      `SELECT COUNT(*)::int AS c FROM symptom_trackings WHERE platform_user_id = $1::uuid OR user_id = $1::text`,
-      `SELECT COUNT(*)::int AS c FROM lfk_complexes WHERE platform_user_id = $1::uuid OR user_id = $1::text`,
-      `SELECT COUNT(*)::int AS c FROM patient_lfk_assignments WHERE patient_user_id = $1::uuid`,
-      `SELECT COUNT(*)::int AS c FROM message_log WHERE platform_user_id = $1::uuid OR user_id = $1::text`,
+    const q: { sql: string; params: [string] | [string, string] }[] = [
+      { sql: `SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`, params: [uid] },
+      { sql: `SELECT COUNT(*)::int AS c FROM doctor_notes WHERE user_id = $1::uuid`, params: [uid] },
+      { sql: `SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = $1::uuid`, params: [uid] },
+      {
+        sql: `SELECT COUNT(*)::int AS c FROM symptom_trackings WHERE platform_user_id = $1::uuid OR user_id = $2::text`,
+        params: [uid, uid],
+      },
+      {
+        sql: `SELECT COUNT(*)::int AS c FROM lfk_complexes WHERE platform_user_id = $1::uuid OR user_id = $2::text`,
+        params: [uid, uid],
+      },
+      { sql: `SELECT COUNT(*)::int AS c FROM patient_lfk_assignments WHERE patient_user_id = $1::uuid`, params: [uid] },
+      {
+        sql: `SELECT COUNT(*)::int AS c FROM message_log WHERE platform_user_id = $1::uuid OR user_id = $2::text`,
+        params: [uid, uid],
+      },
     ];
     let sum = 0;
-    for (const sql of q) {
-      const r = await client.query<{ c: number }>(sql, [uid]);
+    for (const { sql, params } of q) {
+      const r = await client.query<{ c: number }>(sql, params);
       sum += r.rows[0]?.c ?? 0;
     }
     return sum;
