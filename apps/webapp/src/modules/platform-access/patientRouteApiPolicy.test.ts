@@ -3,6 +3,7 @@ import {
   patientApiPathIsPatientBusinessSurface,
   patientPageMinAccessTier,
   patientPathRequiresBoundPhone,
+  patientPathsAllowedDuringPhoneActivation,
   patientServerActionPageAllowsOnboardingOnly,
   resolvePatientLayoutPathname,
 } from "./patientRouteApiPolicy";
@@ -26,6 +27,30 @@ describe("resolvePatientLayoutPathname", () => {
 
   it("returns empty when both missing", () => {
     expect(resolvePatientLayoutPathname(() => null)).toBe("");
+  });
+});
+
+describe("patientPathsAllowedDuringPhoneActivation", () => {
+  it("returns false for empty or non-patient paths", () => {
+    expect(patientPathsAllowedDuringPhoneActivation("")).toBe(false);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/doctor")).toBe(false);
+  });
+
+  it("allows bind-phone, help, support and their subtrees", () => {
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/bind-phone")).toBe(true);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/bind-phone/")).toBe(true);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/help")).toBe(true);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/help/faq")).toBe(true);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/support")).toBe(true);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/support/ticket")).toBe(true);
+  });
+
+  it("denies home, profile, cabinet, and booking during activation gate", () => {
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient")).toBe(false);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/profile")).toBe(false);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/cabinet")).toBe(false);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/booking/new")).toBe(false);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/diary")).toBe(false);
   });
 });
 

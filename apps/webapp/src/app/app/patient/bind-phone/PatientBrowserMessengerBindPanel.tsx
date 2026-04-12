@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { assignChannelLinkToBlankWindow } from "@/shared/lib/telegramChannelLinkOpen";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 const POLL_MS = 4000;
@@ -23,6 +24,10 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
   const [maxCommand, setMaxCommand] = useState<string | null>(null);
 
   const startLink = useCallback(async (channelCode: "telegram" | "max") => {
+    const blank =
+      channelCode === "telegram"
+        ? window.open("about:blank", "_blank", "noopener,noreferrer")
+        : null;
     setLoading(channelCode);
     setTelegramUrl(null);
     setMaxCommand(null);
@@ -40,17 +45,34 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
         message?: string;
       };
       if (res.status === 429 || data.error === "rate_limited") {
+        try {
+          blank?.close();
+        } catch {
+          /* ignore */
+        }
         toast.error(data.message ?? "Слишком много запросов. Попробуйте позже.");
         return;
       }
       if (!res.ok || !data.ok || !data.url) {
+        try {
+          blank?.close();
+        } catch {
+          /* ignore */
+        }
         toast.error(data.message ?? data.error ?? "Не удалось получить ссылку");
         return;
       }
       if (channelCode === "telegram") {
         setTelegramUrl(data.url);
-        window.open(data.url, "_blank", "noopener,noreferrer");
+        if (blank) {
+          assignChannelLinkToBlankWindow(blank, data.url, "telegram", navigator.userAgent);
+        }
       } else {
+        try {
+          blank?.close();
+        } catch {
+          /* ignore */
+        }
         setMaxCommand(data.manualCommand ?? null);
         if (data.manualCommand) {
           try {

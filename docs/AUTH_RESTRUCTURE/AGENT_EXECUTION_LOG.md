@@ -702,3 +702,41 @@ Gate verdict:
 Notes:
 - Доверенный телефон после `contact.linked` по-прежнему через `TrustedPatientPhoneSource.IntegratorUpsertFromProjection` (`trustedPhonePolicy.ts`); отдельный код не менялся.
 ```
+
+```text
+[2026-04-11T23:59:00Z] [OAuth bind-phone / TG UX + channel-link] [FIX] agent
+Tasks done:
+- Webapp: `telegramChannelLinkOpen.ts` (about:blank + tg:// на мобильных), `PatientBrowserMessengerBindPanel`, `ConnectMessengersBlock`; тесты `telegramChannelLinkOpen.test.ts`.
+- Webapp: `patientPathsAllowedDuringPhoneActivation` + редирект в `app/patient/layout.tsx` при `need_activation`; тесты `patientRouteApiPolicy.test.ts`.
+- Integrator: `telegram.admin.start.link` в `content/telegram/admin/scripts.json`, `excludeActions` на catch-all; тест `buildPlan.test.ts`.
+- Webapp: автомерж OAuth-stub при конфликте channel-link в `channelLink.ts`; тесты `channelLink.test.ts`.
+- Integrator: при неуспехе `webapp.channelLink.complete` — `message.send` + шаблоны `channelLink.completeFailed.*`, лог `channel_link_complete_failed`; тест `executeAction.test.ts`.
+- Документация: `apps/webapp/src/modules/auth/auth.md` (whitelist, автомерж, админский start.link, UX ссылок).
+Changed files:
+- apps/webapp: `telegramChannelLinkOpen.ts`, `telegramChannelLinkOpen.test.ts`, `PatientBrowserMessengerBindPanel.tsx`, `ConnectMessengersBlock.tsx`, `patientRouteApiPolicy.ts`, `patientRouteApiPolicy.test.ts`, `patient/layout.tsx`, `platform-access/index.ts`, `channelLink.ts`, `channelLink.test.ts`
+- apps/integrator: `admin/scripts.json`, `telegram/user/templates.json`, `max/user/templates.json`, `executeAction.ts`, `buildPlan.test.ts`, `executeAction.test.ts`
+- docs: `AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md`, `modules/auth/auth.md`
+Checks:
+- pnpm install --frozen-lockfile && pnpm run ci — exit 0
+Gate verdict:
+- PASS
+Notes:
+- См. `auth.md` для условий автомержа и имён лог-событий.
+```
+
+```text
+[2026-04-12T00:00:00Z] [ConnectMessengersBlock: Max + channel-link RL parity] [FIX] agent
+Tasks done:
+- `ConnectMessengersBlock`: для Max без `window.open(about:blank)` и без навигации на запасной URL; сброс `maxManualCommand` при новом старте; ответ **429** / `error: rate_limited` и прочие ошибки с телом `message` — как на bind-phone.
+- `telegramChannelLinkOpen.test.ts`: юнит-тесты `assignChannelLinkToBlankWindow`.
+- Документация: `apps/webapp/src/modules/auth/auth.md` (Max, 429 в обоих UI).
+Changed files:
+- apps/webapp: `ConnectMessengersBlock.tsx`, `shared/lib/telegramChannelLinkOpen.test.ts`, `modules/auth/auth.md`
+- docs: `AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md`
+Checks:
+- pnpm install --frozen-lockfile && pnpm run ci — exit 0
+Gate verdict:
+- PASS
+Notes:
+- Поведение привязки мессенджеров в профиле/настройках выровнено с `/app/patient/bind-phone` по аудиту post-plan.
+```

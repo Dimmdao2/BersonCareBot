@@ -1,9 +1,32 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MergeConflictError } from "@/infra/repos/platformUserMergeErrors";
 
 const queryMock = vi.fn();
+const clientQueryMock = vi.fn();
+const connectMock = vi.fn(async () => ({
+  query: clientQueryMock,
+  release: vi.fn(),
+}));
+
+const mergePlatformUsersInTransactionMock = vi.fn();
 
 vi.mock("@/infra/db/client", () => ({
-  getPool: () => ({ query: queryMock }),
+  getPool: () => ({
+    query: queryMock,
+    connect: connectMock,
+  }),
+}));
+
+vi.mock("@/infra/repos/pgPlatformUserMerge", () => ({
+  mergePlatformUsersInTransaction: (...args: unknown[]) => mergePlatformUsersInTransactionMock(...args),
+}));
+
+vi.mock("@/infra/logging/logger", () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 vi.mock("@/config/env", () => ({
@@ -26,12 +49,15 @@ describe("completeChannelLinkFromIntegrator", () => {
     setChannelLinkBindingConflictReporter((ctx) => {
       console.warn("[channel_link:binding_conflict]", ctx);
     });
+    queryMock.mockReset();
+    clientQueryMock.mockReset();
+    connectMock.mockClear();
+    mergePlatformUsersInTransactionMock.mockReset();
   });
 
-  it("returns conflict when external_id is bound to another user", async () => {
+  it("returns conflict when external_id is bound to another user and stub is not eligible for auto-merge", async () => {
     const reporter = vi.fn();
     setChannelLinkBindingConflictReporter(reporter);
-    queryMock.mockReset();
     queryMock
       .mockResolvedValueOnce({
         rows: [
@@ -45,6 +71,15 @@ describe("completeChannelLinkFromIntegrator", () => {
       })
       .mockResolvedValueOnce({
         rows: [{ user_id: "u2" }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            phone_normalized: null,
+            merged_into_id: null,
+            oauth_count: "0",
+          },
+        ],
       });
 
     const res = await completeChannelLinkFromIntegrator({
@@ -60,7 +95,109 @@ describe("completeChannelLinkFromIntegrator", () => {
       tokenUserId: "u1",
       existingUserId: "u2",
     });
-    expect(queryMock).toHaveBeenCalledTimes(2);
+    expect(connectMock).not.toHaveBeenCalled();
+    expect(mergePlatformUsersInTransactionMock).not.toHaveBeenCalled();
+    expect(queryMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("auto-merges oauth stub into TG owner and marks token used", async () => {
+    setChannelLinkBindingConflictReporter(vi.fn());
+    mergePlatformUsersInTransactionMock.mockResolvedValue({ targetId: "u2", duplicateId: "u1" });
+    clientQueryMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "s1",
+            user_id: "u1",
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+            used_at: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: "u2" }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            phone_normalized: null,
+            merged_into_id: null,
+            oauth_count: "1",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ phone_normalized: "+79990001122" }],
+      });
+
+    const res = await completeChannelLinkFromIntegrator({
+      linkToken: "link_abc123",
+      channelCode: "telegram",
+      externalId: "tg_1",
+    });
+
+    expect(res).toEqual({
+      ok: true,
+      userId: "u2",
+      needsPhone: false,
+      phoneNormalized: "+79990001122",
+    });
+    expect(connectMock).toHaveBeenCalledTimes(1);
+    expect(mergePlatformUsersInTransactionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "u2",
+      "u1",
+      "phone_bind"
+    );
+    expect(clientQueryMock).toHaveBeenCalledWith("BEGIN");
+    expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
+  });
+
+  it("returns conflict when auto-merge raises MergeConflictError", async () => {
+    setChannelLinkBindingConflictReporter(vi.fn());
+    mergePlatformUsersInTransactionMock.mockRejectedValue(
+      new MergeConflictError("merge: blocked", ["u2", "u1"])
+    );
+    clientQueryMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
+
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "s1",
+            user_id: "u1",
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+            used_at: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: "u2" }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            phone_normalized: null,
+            merged_into_id: null,
+            oauth_count: "1",
+          },
+        ],
+      });
+
+    const res = await completeChannelLinkFromIntegrator({
+      linkToken: "link_abc123",
+      channelCode: "telegram",
+      externalId: "tg_1",
+    });
+
+    expect(res).toMatchObject({ ok: false, code: "conflict" });
+    expect(clientQueryMock).toHaveBeenCalledWith("ROLLBACK");
+    expect(clientQueryMock).not.toHaveBeenCalledWith("COMMIT");
   });
 
   it("marks token used when binding already exists for same user", async () => {

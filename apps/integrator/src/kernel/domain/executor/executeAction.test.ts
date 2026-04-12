@@ -1846,6 +1846,59 @@ describe('executeAction', () => {
     expect(dispatchOutgoing).not.toHaveBeenCalled();
   });
 
+  it('webapp.channelLink.complete adds message.send intent when complete fails (Telegram)', async () => {
+    const completeChannelLink = vi.fn().mockResolvedValue({ ok: false, error: 'conflict' });
+    const webappEventsPort = {
+      completeChannelLink,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const tgCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-cl-fail',
+          occurredAt: '2026-04-11T12:00:00.000Z',
+          source: 'telegram',
+          userId: '111',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            text: '/start link_testtoken',
+            chatId: 111,
+            channelId: '111',
+            action: 'start.link',
+            linkSecret: 'link_testtoken',
+            userRow: null,
+            userState: '',
+          },
+        },
+      },
+    };
+    const action: Action = {
+      id: 'cl-tg-fail',
+      type: 'webapp.channelLink.complete',
+      mode: 'sync',
+      params: { linkToken: 'link_testtoken', channelCode: 'telegram', externalId: '111' },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({
+      text: 'Привязка не выполнена (конфликт).',
+    });
+    const result = await executeAction(action, tgCtx, {
+      webappEventsPort,
+      templatePort: { renderTemplate },
+    });
+    expect(result.status).toBe('failed');
+    expect(renderTemplate).toHaveBeenCalled();
+    const send = result.intents?.find((i) => i.type === 'message.send');
+    expect(send).toBeDefined();
+    expect((send?.payload as { message?: { text?: string } })?.message?.text).toContain('конфликт');
+    expect((send?.payload as { recipient?: { chatId?: number } })?.recipient?.chatId).toBe(111);
+  });
+
   it('webapp.channelLink.complete syncs phone and sends welcome intents for Telegram when phone already on platform', async () => {
     const completeChannelLink = vi.fn().mockResolvedValue({
       ok: true,

@@ -62,6 +62,10 @@
 
 Общая логика `oauthWebSession.completeOAuthWebLoginRedirectUrls` (и аналог для Яндекса): `setSessionFromUser`, редирект по роли; **без телефона** — редирект на привязку номера (`/app/patient/bind-phone`, `reason=oauth_phone_required`). На странице привязки в браузере — **channel-link** (`POST /api/auth/channel-link/start`, deep link `link_*` в боте) и при уже привязанном чате — `POST /api/patient/messenger/request-contact`; SMS не используется.
 
+### Пациент: `need_activation` и навигация
+
+При `patientClientBusinessGate === 'need_activation'` (OAuth без доверенного телефона в БД) пациентский layout редиректит на bind-phone для **всех** путей под `/app/patient`, кроме минимального whitelist **`patientPathsAllowedDuringPhoneActivation`** в `patientRouteApiPolicy.ts`: `/app/patient/bind-phone`, `/app/patient/help`, `/app/patient/support` (и подпути). На редирект пишется `logger` с `scope: patient_layout`, `event: patient_redirect_bind_phone`, `reason: need_activation`. Политика **`patientPathRequiresBoundPhone`** (гость / onboarding без БД) от этого отдельна и не заменяется.
+
 ### Channel link (старт ссылки из сессии)
 
 - **`POST /api/auth/channel-link/start`** (авторизованный пациент): выдача deep link / команды Max. **Rate limit:** scope `auth.channel_link_start`, ключ — `userId` сессии (до **30** запросов за скользящий час в `auth_rate_limit_events`; без БД — in-memory fallback), аналогично `auth.messenger_start`. Ответ **429** `rate_limited` при превышении.
@@ -69,6 +73,18 @@
 ### Channel link → integrator
 
 После успешного `POST /api/integrator/channel-link/complete` webapp возвращает JSON **`{ ok: true, needsPhone: boolean, phoneNormalized?: string }`** — `phoneNormalized` передаётся в integrator, когда номер уже есть у платформенного пользователя (чтобы в БД бота проставить контакт с label `telegram` и показать ответ в чате). Для повторной доставки токена: `{ ok: true, status: "already_used", needsPhone }`. Integrator при `needsPhone` шлёт запрос контакта (`dispatchRequestContactToUser`); при наличии `phoneNormalized` синхронизирует телефон и отправляет сообщение с шаблоном `telegram:afterPhoneLinked` и главным меню.
+
+**Конфликт привязки (TG уже у другого `platform_users`, токен выдан OAuth-stub):** прежний лог `[channel_link:binding_conflict]` сохраняется; при **строгих** условиях выполняется автомерж в транзакции: у пользователя токена пустой `phone_normalized`, есть хотя бы одна строка `user_oauth_bindings`, `merged_into_id IS NULL`; цель мержа — владелец существующей привязки TG; вызывается `mergePlatformUsersInTransaction(..., "phone_bind")`. Успех → токен помечается `used_at`, ответ как при обычной успешной привязке; канонический пользователь дальше через `resolveCanonicalUserId` / `findByUserId`. Иначе — `409 conflict`. Структурированные события в webapp: `channel_link_auto_merge_applied`, `channel_link_auto_merge_skipped`, `channel_link_auto_merge_tx_error` (`scope: channel_link`).
+
+**Ошибка complete в integrator:** при `ok: false` от webapp шаг `webapp.channelLink.complete` добавляет исходящее `message.send` с шаблонами `channelLink.completeFailed.*` (Telegram / Max), плюс `warn` с `event: channel_link_complete_failed`.
+
+**Админ в Telegram:** сценарий `telegram.admin.start.link` (приоритет выше catch-all) обрабатывает `/start link_*` так же, как пользовательский `telegram.start.link` — вызов `webapp.channelLink.complete`.
+
+### Открытие ссылки Telegram в браузере (bind-phone / профиль)
+
+Чтобы избежать блокировки всплывающих окон после `await fetch`, используется `shared/lib/telegramChannelLinkOpen.ts`: синхронно `window.open('about:blank')`, затем присвоение `location.href`; на мобильных UA при разборе `t.me/...?start=` подставляется `tg://resolve?domain=…&start=…`.
+
+**Max:** вкладку `about:blank` не открываем — только команда `/start link_…` в UI и копирование в буфер (как `PatientBrowserMessengerBindPanel`, так и `ConnectMessengersBlock`). **429** от `POST /api/auth/channel-link/start` (`rate_limited`): в обоих компонентах показывается сообщение пользователю (toast на bind-phone, текст ошибки в блоке настроек).
 
 ### UI
 

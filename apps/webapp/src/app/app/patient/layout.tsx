@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { patientPathRequiresBoundPhone, resolvePatientLayoutPathname } from "@/modules/platform-access";
+import {
+  patientPathRequiresBoundPhone,
+  patientPathsAllowedDuringPhoneActivation,
+  resolvePatientLayoutPathname,
+} from "@/modules/platform-access";
+import { logger } from "@/infra/logging/logger";
 import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -29,10 +34,13 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     if (gate === "stale_session") {
       redirect(`${routePaths.root}?next=${encodeURIComponent(returnTo)}`);
     }
-    if (gate === "need_activation" && !pathname.trim() && process.env.NODE_ENV !== "test") {
-      console.info("[patient_layout] need_activation unresolved_pathname (check middleware x-bc-pathname)");
-    }
-    if (gate === "need_activation" && patientPathRequiresBoundPhone(pathname)) {
+    if (gate === "need_activation" && !patientPathsAllowedDuringPhoneActivation(pathname)) {
+      logger.info({
+        scope: "patient_layout",
+        event: "patient_redirect_bind_phone",
+        pathname: pathname.trim() || "(empty)",
+        reason: "need_activation",
+      });
       redirect(`${routePaths.bindPhone}?next=${encodeURIComponent(returnTo)}`);
     }
     return <PatientClientLayout>{children}</PatientClientLayout>;

@@ -98,8 +98,29 @@ function patientPageAllowsGuestOptionalSession(path: string): boolean {
 }
 
 /**
+ * При `patientClientBusinessGate === 'need_activation'` (OAuth без доверенного телефона) пациент
+ * видит только эти пути; остальное под `/app/patient` — редирект на bind-phone.
+ * Пустой или не `/app/patient*` pathname → не разрешён (редирект).
+ */
+const PATH_PREFIXES_ALLOWED_DURING_PHONE_ACTIVATION = [
+  "/app/patient/bind-phone",
+  "/app/patient/help",
+  "/app/patient/support",
+] as const;
+
+export function patientPathsAllowedDuringPhoneActivation(pathname: string): boolean {
+  const raw = pathname.trim();
+  if (!raw || !raw.startsWith("/app/patient")) {
+    return false;
+  }
+  const path = normalizeAppPatientPath(raw);
+  return pathMatchesAnyPrefix(path, PATH_PREFIXES_ALLOWED_DURING_PHONE_ACTIVATION);
+}
+
+/**
  * Нужен ли tier **patient** для навигации по данному pathname (без query) в patient layout
- * при `need_activation` / без snapshot-телефона без БД.
+ * при отсутствии телефона **без БД** (snapshot в сессии) и для согласования tier страниц.
+ * Для ветки БД + `need_activation` используйте {@link patientPathsAllowedDuringPhoneActivation}.
  *
  * **Пустой pathname → false:** при неизвестном маршруте layout не делает редирект по tier, чтобы не
  * отправлять на bind-phone с главного `/app/patient`, если заголовок не проброшен.

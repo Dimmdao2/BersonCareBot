@@ -58,6 +58,7 @@ import {
 import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
 import { ADMIN } from './templateKeys.js';
 import { dispatchRequestContactToUser } from '../../../integrations/bersoncare/dispatchRequestContact.js';
+import { logger } from '../../../infra/observability/logger.js';
 
 const BOOKING_TYPES = new Set<string>(['booking.upsert', 'booking.event.insert']);
 const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
@@ -75,6 +76,30 @@ const DELIVERY_TYPES = new Set<string>([
   'message.compose', 'message.send', 'message.edit', 'message.replyMarkup.edit',
   'callback.answer', 'message.deliver', 'message.retry.enqueue', 'intent.enqueueDelivery',
 ]);
+
+function channelLinkCompleteFailureTemplateKey(source: string, errRaw: string | undefined): string {
+  const e = (errRaw ?? '').trim().toLowerCase();
+  const tail =
+    e === 'conflict'
+      ? 'channelLink.completeFailed.conflict'
+      : e === 'invalid_token' || e === 'unknown_or_expired' || e === 'used_token' || e.includes('expired')
+        ? 'channelLink.completeFailed.expired'
+        : 'channelLink.completeFailed.generic';
+  return `${source}:${tail}`;
+}
+
+function resolveChannelLinkFailureChatId(ctx: DomainContext, externalId: string): string | number | null {
+  const fromCtx = readIncomingChatId(ctx);
+  if (fromCtx !== null && String(fromCtx).trim() !== '') {
+    const n = Number(fromCtx);
+    if (Number.isFinite(n)) return n;
+    return String(fromCtx).trim();
+  }
+  const n = Number(externalId);
+  if (Number.isFinite(n)) return n;
+  const t = externalId.trim();
+  return t.length > 0 ? t : null;
+}
 
 
 export async function executeAction(
@@ -154,11 +179,50 @@ export async function executeAction(
       }
       const result = await port.completeChannelLink({ linkToken, channelCode, externalId });
       if (!result.ok) {
+        const errMsg = result.error ?? 'channel link failed';
+        logger.warn(
+          {
+            event: 'channel_link_complete_failed',
+            error: errMsg,
+            externalId,
+            channelCode,
+          },
+          '[webapp.channelLink.complete] failed',
+        );
+
+        const failureIntents: OutgoingIntent[] = [];
+        const tplPort = fullDeps.templatePort;
+        const source = ctx.event.meta.source;
+        if (tplPort && (source === 'telegram' || source === 'max')) {
+          const chatId = resolveChannelLinkFailureChatId(ctx, externalId);
+          if (chatId !== null) {
+            const templateKey = channelLinkCompleteFailureTemplateKey(source, errMsg);
+            const text = await renderText({
+              templateKey,
+              ctx,
+              templatePort: tplPort,
+            });
+            if (text.trim().length > 0) {
+              const channels = source === 'max' ? ['max'] : ['telegram'];
+              failureIntents.push({
+                type: 'message.send',
+                meta: buildIntentMeta({ ...action, id: `${action.id}:channel-link-failed` }, ctx),
+                payload: {
+                  recipient: { chatId },
+                  message: { text },
+                  delivery: { channels, maxAttempts: 1 },
+                },
+              });
+            }
+          }
+        }
+
         return {
           actionId: action.id,
           status: 'failed',
-          error: result.error ?? 'channel link failed',
+          error: errMsg,
           values: { channelLink: { ok: false, error: result.error } },
+          ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
         };
       }
       const needsPhone = result.needsPhone === true;

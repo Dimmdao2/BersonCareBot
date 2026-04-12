@@ -15,6 +15,7 @@ export {
   patientApiPathIsPatientBusinessSurface,
   patientPageMinAccessTier,
   patientPathRequiresBoundPhone,
+  patientPathsAllowedDuringPhoneActivation,
   patientServerActionPageAllowsOnboardingOnly,
   patientSessionSnapshotHasPhone,
   resolvePatientLayoutPathname,

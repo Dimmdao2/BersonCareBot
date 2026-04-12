@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
+import { assignChannelLinkToBlankWindow } from "@/shared/lib/telegramChannelLinkOpen";
 
 type Props = {
   channelCards: ChannelCard[];
@@ -37,8 +38,14 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   }
 
   async function startChannelLink(channelCode: "telegram" | "max"): Promise<void> {
+    /** Как на bind-phone: blank только для Telegram (popup после await); Max — команда в UI / буфер, без лишней вкладки. */
+    const blank =
+      channelCode === "telegram"
+        ? window.open("about:blank", "_blank", "noopener,noreferrer")
+        : null;
     setError(null);
     setBusy(channelCode);
+    setMaxManualCommand(null);
     try {
       const res = await fetch("/api/auth/channel-link/start", {
         method: "POST",
@@ -50,17 +57,35 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
         url?: string;
         manualCommand?: string;
         error?: string;
+        message?: string;
       };
-      if (data.ok && data.url) {
-        if (channelCode === "max") {
-          setMaxManualCommand(data.manualCommand ?? null);
-          if (data.manualCommand) {
-            await copyMaxCommand(data.manualCommand);
-          }
+      if (res.status === 429 || data.error === "rate_limited") {
+        try {
+          blank?.close();
+        } catch {
+          /* ignore */
         }
-        window.open(data.url, "_blank", "noopener,noreferrer");
-      } else {
-        setError("Не удалось получить ссылку. Попробуйте позже.");
+        setError(data.message ?? "Слишком много запросов. Попробуйте позже.");
+        return;
+      }
+      if (!res.ok || !data.ok || !data.url) {
+        try {
+          blank?.close();
+        } catch {
+          /* ignore */
+        }
+        setError(data.message ?? data.error ?? "Не удалось получить ссылку. Попробуйте позже.");
+        return;
+      }
+      if (channelCode === "max") {
+        setMaxManualCommand(data.manualCommand ?? null);
+        if (data.manualCommand) {
+          await copyMaxCommand(data.manualCommand);
+        }
+        return;
+      }
+      if (blank) {
+        assignChannelLinkToBlankWindow(blank, data.url, "telegram", navigator.userAgent);
       }
     } finally {
       setBusy(null);

@@ -1035,4 +1035,90 @@ describe('orchestrator buildPlan', () => {
       payload: { templateKey: 'max:onboardingWelcome' },
     });
   });
+
+  it('admin start.link selects webapp.channelLink.complete over catch-all admin test script', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-admin-start-link-1',
+        occurredAt: '2026-04-11T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          action: 'start.link',
+          linkSecret: 'link_tok_1',
+          channelId: 'tg-ext-1',
+          text: '/start link_tok_1',
+          chatId: 42,
+          channelUserId: 42,
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: true },
+      identityLinks: [],
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.admin.test.anyCommand',
+          source: 'telegram',
+          event: 'message.received',
+          priority: 1,
+          match: {
+            actor: { isAdmin: true },
+            input: { excludeActions: ['start.link'] },
+          },
+          steps: [
+            {
+              action: 'message.send',
+              mode: 'async',
+              params: { templateKey: 'telegram:admin.test.commandReceived' },
+            },
+          ],
+        },
+        {
+          id: 'telegram.admin.start.link',
+          source: 'telegram',
+          event: 'message.received',
+          priority: 20,
+          match: {
+            input: { action: 'start.link' },
+            actor: { isAdmin: true },
+          },
+          steps: [
+            {
+              action: 'webapp.channelLink.complete',
+              mode: 'sync',
+              params: {
+                linkToken: '{{input.linkSecret}}',
+                channelCode: 'telegram',
+                externalId: '{{input.channelId}}',
+              },
+            },
+          ],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]).toMatchObject({
+      kind: 'webapp.channelLink.complete',
+      payload: {
+        linkToken: 'link_tok_1',
+        channelCode: 'telegram',
+        externalId: 'tg-ext-1',
+      },
+    });
+  });
 });

@@ -288,12 +288,34 @@
 		]
 	},
 	{
+		"id": "telegram.admin.start.link",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 20,
+		"match": {
+			"input": { "action": "start.link" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "webapp.channelLink.complete",
+				"mode": "sync",
+				"params": {
+					"linkToken": "{{input.linkSecret}}",
+					"channelCode": "telegram",
+					"externalId": "{{input.channelId}}"
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.admin.test.anyCommand",
 		"source": "telegram",
 		"event": "message.received",
 		"priority": 1,
 		"match": {
-			"actor": { "isAdmin": true }
+			"actor": { "isAdmin": true },
+			"input": { "excludeActions": ["start.link"] }
 		},
 		"steps": [
 			{
