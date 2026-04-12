@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPool } from "@/infra/db/client";
+import { resolveMergePreviewIntegratorUserPresence } from "@/infra/mergePreviewIntegratorUserPresence";
 import { buildMergePreview } from "@/infra/platformUserMergePreview";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
@@ -103,5 +104,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "not_client", message: model.message }, { status: 400 });
   }
 
-  return NextResponse.json(serializePreview(model));
+  const integratorUserPresence = await resolveMergePreviewIntegratorUserPresence({
+    targetIntegratorUserId: model.target.integrator_user_id,
+    duplicateIntegratorUserId: model.duplicate.integrator_user_id,
+  });
+
+  return NextResponse.json({ ...serializePreview(model), integratorUserPresence });
 }

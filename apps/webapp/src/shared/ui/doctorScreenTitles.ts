@@ -6,6 +6,7 @@ export function getDoctorScreenTitle(pathname: string): string {
   if (p === "/app/doctor") return "Обзор";
 
   const exact: Record<string, string> = {
+    "/app/settings": "Настройки",
     "/app/doctor/clients": "Клиенты",
     "/app/doctor/appointments": "Записи",
     "/app/doctor/messages": "Сообщения",

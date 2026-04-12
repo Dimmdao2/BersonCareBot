@@ -4,11 +4,7 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDisplayTimezone";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
 import { cn } from "@/lib/utils";
-import { DoctorHeader } from "@/shared/ui/DoctorHeader";
-import {
-  DOCTOR_PAGE_CONTAINER_CLASS,
-  DOCTOR_WORKSPACE_TOP_PADDING_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
@@ -168,50 +164,45 @@ export default async function SettingsPage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <DoctorHeader userDisplayName={session.user.displayName} adminMode={adminMode} />
-      <div className={DOCTOR_WORKSPACE_TOP_PADDING_CLASS}>
-        <div className={cn(DOCTOR_PAGE_CONTAINER_CLASS, "pt-6")}>
-          <h1 className="mb-6 text-xl font-semibold">Настройки</h1>
-          <SettingsForm
-            patientLabel={String(patientLabel)}
-            smsFallbackEnabled={Boolean(smsFallbackEnabled)}
-          />
-          {isAdmin && (
-            <div className="mt-6">
-              <AdminModeToggle adminMode={adminMode} />
-            </div>
-          )}
-          {isAdmin && adminMode && adminSettings && (
-            <div className="mt-6">
-              <AdminSettingsTabsClient
-                diagnostics={
-                  <AdminSettingsSection
-                    devMode={adminSettings.devMode}
-                    debugForwardToAdmin={adminSettings.debugForwardToAdmin}
-                    integrationTestIds={adminSettings.integrationTestIds}
-                    importantFallbackDelayMinutes={adminSettings.importantFallbackDelayMinutes}
-                    platformUserMergeV2Enabled={adminSettings.platformUserMergeV2Enabled}
-                  />
-                }
-                appParams={appParametersConfig ? <AppParametersSection {...appParametersConfig} /> : null}
-                auth={authProvidersConfig ? <AuthProvidersSection {...authProvidersConfig} /> : null}
-                access={accessListsConfig ? <AccessListsSection {...accessListsConfig} /> : null}
-                integrations={
-                  googleCalendarConfig ? <GoogleCalendarSection {...googleCalendarConfig} /> : null
-                }
-                catalog={
-                  <>
-                    <BookingCatalogHelp />
-                    <RubitimeSection />
-                  </>
-                }
-                auditLog={<AdminAuditLogSection />}
-              />
-            </div>
-          )}
+    <div className={cn(DOCTOR_PAGE_CONTAINER_CLASS, "pt-6")}>
+      <h1 className="mb-6 text-xl font-semibold">Настройки</h1>
+      <SettingsForm
+        patientLabel={String(patientLabel)}
+        smsFallbackEnabled={Boolean(smsFallbackEnabled)}
+      />
+      {isAdmin && (
+        <div className="mt-6">
+          <AdminModeToggle adminMode={adminMode} />
         </div>
-      </div>
+      )}
+      {isAdmin && adminMode && adminSettings && (
+        <div className="mt-6">
+          <AdminSettingsTabsClient
+            diagnostics={
+              <AdminSettingsSection
+                devMode={adminSettings.devMode}
+                debugForwardToAdmin={adminSettings.debugForwardToAdmin}
+                integrationTestIds={adminSettings.integrationTestIds}
+                importantFallbackDelayMinutes={adminSettings.importantFallbackDelayMinutes}
+                platformUserMergeV2Enabled={adminSettings.platformUserMergeV2Enabled}
+              />
+            }
+            appParams={appParametersConfig ? <AppParametersSection {...appParametersConfig} /> : null}
+            auth={authProvidersConfig ? <AuthProvidersSection {...authProvidersConfig} /> : null}
+            access={accessListsConfig ? <AccessListsSection {...accessListsConfig} /> : null}
+            integrations={
+              googleCalendarConfig ? <GoogleCalendarSection {...googleCalendarConfig} /> : null
+            }
+            catalog={
+              <>
+                <BookingCatalogHelp />
+                <RubitimeSection />
+              </>
+            }
+            auditLog={<AdminAuditLogSection />}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, buildMergePreviewMock } = vi.hoisted(() => ({
+const { getSessionMock, buildMergePreviewMock, resolvePresenceMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   buildMergePreviewMock: vi.fn(),
+  resolvePresenceMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
@@ -14,6 +15,9 @@ vi.mock("@/infra/db/client", () => ({
 }));
 vi.mock("@/infra/platformUserMergePreview", () => ({
   buildMergePreview: (...args: unknown[]) => buildMergePreviewMock(...args),
+}));
+vi.mock("@/infra/mergePreviewIntegratorUserPresence", () => ({
+  resolveMergePreviewIntegratorUserPresence: (...args: unknown[]) => resolvePresenceMock(...args),
 }));
 
 import { GET } from "./route";
@@ -35,7 +39,13 @@ describe("GET /api/doctor/clients/merge-preview", () => {
   beforeEach(() => {
     getSessionMock.mockReset();
     buildMergePreviewMock.mockReset();
+    resolvePresenceMock.mockReset();
     getSessionMock.mockResolvedValue(adminOk);
+    resolvePresenceMock.mockResolvedValue({
+      target: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
+      duplicate: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
+      checkStatus: "skipped_no_integrator_db",
+    });
   });
 
   it("returns 403 when admin gate fails", async () => {
@@ -168,5 +178,11 @@ describe("GET /api/doctor/clients/merge-preview", () => {
     expect(body.target.displayName).toBe("A");
     expect(body.mergeAllowed).toBe(true);
     expect(body.v1MergeEngineCallable).toBe(true);
+    expect(resolvePresenceMock).toHaveBeenCalledWith({
+      targetIntegratorUserId: null,
+      duplicateIntegratorUserId: null,
+    });
+    const full = body as typeof body & { integratorUserPresence: { checkStatus: string } };
+    expect(full.integratorUserPresence.checkStatus).toBe("skipped_no_integrator_db");
   });
 });

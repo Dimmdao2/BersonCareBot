@@ -105,6 +105,11 @@ describe("AdminMergeAccountsPanel", () => {
             mergeAllowed: false,
             v1MergeEngineCallable: false,
             platformUserMergeV2Enabled: false,
+            integratorUserPresence: {
+              target: { webappIntegratorUserId: "1", rowExistsInIntegratorDb: true },
+              duplicate: { webappIntegratorUserId: "2", rowExistsInIntegratorDb: true },
+              checkStatus: "ok",
+            },
             hardBlockers: [
               {
                 code: "different_non_null_integrator_user_id",
@@ -224,6 +229,11 @@ describe("AdminMergeAccountsPanel", () => {
             mergeAllowed: true,
             v1MergeEngineCallable: true,
             platformUserMergeV2Enabled: false,
+            integratorUserPresence: {
+              target: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
+              duplicate: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
+              checkStatus: "ok",
+            },
             hardBlockers: [],
           }),
           { status: 200 },

@@ -6,7 +6,8 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { ClientProfile } from "@/modules/doctor-clients/service";
 import { cn } from "@/lib/utils";
@@ -73,7 +74,12 @@ function AccItem({
   );
 }
 
-export function ClientProfileCard({
+/** Состояние UI сбрасывается при смене клиента (`key` на внутреннем компоненте). */
+export function ClientProfileCard(props: ClientProfileCardProps) {
+  return <ClientProfileCardInner key={props.userId} {...props} />;
+}
+
+function ClientProfileCardInner({
   profile,
   messageDraft,
   messageHistory,
@@ -86,6 +92,7 @@ export function ClientProfileCard({
   assignLfkEnabled = false,
 }: ClientProfileCardProps) {
   const [openSection, setOpenSection] = useState<string | null>("contacts");
+  const [contactsEditing, setContactsEditing] = useState(false);
   const toggle = (id: string) => setOpenSection((cur) => (cur === id ? null : id));
 
   const {
@@ -113,18 +120,6 @@ export function ClientProfileCard({
 
   return (
     <div id={`doctor-client-profile-page-${userId}`} className="flex flex-col gap-3">
-      <header
-        id="doctor-client-identity-header"
-        className="rounded-2xl border border-border bg-card p-4 shadow-sm"
-      >
-        <h2
-          id="doctor-client-display-name"
-          className="text-2xl font-semibold tracking-tight text-foreground"
-        >
-          {displayHeading}
-        </h2>
-      </header>
-
       {identity.isBlocked ? (
         <div
           id="doctor-client-blocked-banner"
@@ -139,7 +134,41 @@ export function ClientProfileCard({
       <div className="flex flex-col gap-3">
         <AccItem id="contacts" title="Контакты и каналы" openSection={openSection} onToggle={toggle}>
           <div className="flex flex-col gap-4">
-            {identity.phone ? (
+            <div className="flex items-start justify-between gap-2">
+              <p id="doctor-client-display-name" className="min-w-0 text-sm font-medium text-foreground">
+                {displayHeading}
+              </p>
+              {canEditClientProfile ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0"
+                  aria-label={contactsEditing ? "Закончить правку" : "Править контакты и ФИО"}
+                  aria-pressed={contactsEditing}
+                  onClick={() => setContactsEditing((v) => !v)}
+                >
+                  <Pencil className="size-4" aria-hidden />
+                </Button>
+              ) : null}
+            </div>
+
+            {contactsEditing && canEditClientProfile ? (
+              <AdminClientProfileEditPanel
+                userId={userId}
+                displayName={identity.displayName}
+                firstName={identity.firstName}
+                lastName={identity.lastName}
+                email={identity.email}
+                emailVerifiedAt={identity.emailVerifiedAt}
+                phone={identity.phone}
+                embedded
+                onCancel={() => setContactsEditing(false)}
+                onSaved={() => setContactsEditing(false)}
+              />
+            ) : null}
+
+            {!contactsEditing && identity.phone ? (
               tel ? (
                 <p>
                   Телефон:{" "}
@@ -150,9 +179,8 @@ export function ClientProfileCard({
               ) : (
                 <p>Телефон: {identity.phone}</p>
               )
-            ) : (
-              <p>Телефон не указан</p>
-            )}
+            ) : null}
+            {!contactsEditing && !identity.phone ? <p>Телефон не указан</p> : null}
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Каналы</p>
             <ul id="doctor-client-channels-list" className="m-0 list-none p-0">
               {channelCards.map((ch) => (
@@ -184,20 +212,6 @@ export function ClientProfileCard({
             </p>
           </div>
         </AccItem>
-
-        {canEditClientProfile ? (
-          <AccItem id="admin-profile" title="Редактирование ФИО, телефона и email" openSection={openSection} onToggle={toggle}>
-            <AdminClientProfileEditPanel
-              userId={userId}
-              displayName={identity.displayName}
-              firstName={identity.firstName}
-              lastName={identity.lastName}
-              email={identity.email}
-              emailVerifiedAt={identity.emailVerifiedAt}
-              phone={identity.phone}
-            />
-          </AccItem>
-        ) : null}
 
         <AccItem id="lifecycle" title="Учётная запись и архив" openSection={openSection} onToggle={toggle}>
           <DoctorClientLifecycleActions

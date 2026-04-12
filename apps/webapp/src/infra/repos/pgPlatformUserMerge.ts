@@ -19,6 +19,11 @@ export type VerifiedDistinctIntegratorUserIds = {
 
 const CHANNEL_CODES = ["telegram", "max", "vk"] as const;
 
+/** Сравнение UUID из PostgreSQL (::text) и из сессии/запроса (регистр, дефисы). */
+function uuidTextEquals(a: string, b: string): boolean {
+  return a.replace(/-/g, "").toLowerCase() === b.replace(/-/g, "").toLowerCase();
+}
+
 type OauthRow = {
   user_id: string;
   provider: string;
@@ -350,14 +355,35 @@ export async function mergePlatformUsersInTransaction(
   return { targetId, duplicateId };
 }
 
+/**
+ * Все строки `user_channel_bindings` дубликата → цель. Нельзя INSERT+ON CONFLICT DO NOTHING:
+ * глобальный UNIQUE(channel_code, external_id) уже удерживается строкой дубликата.
+ */
+async function reassignAllUserChannelBindingsFromDuplicate(
+  client: PoolClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
+  await client.query(`UPDATE user_channel_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
+    targetId,
+    duplicateId,
+  ]);
+}
+
+/** Все `user_oauth_bindings` дубликата → цель (UNIQUE по provider+provider_user_id). */
+async function reassignAllUserOauthBindingsFromDuplicate(
+  client: PoolClient,
+  targetId: string,
+  duplicateId: string,
+): Promise<void> {
+  await client.query(`UPDATE user_oauth_bindings SET user_id = $1::uuid WHERE user_id = $2::uuid`, [
+    targetId,
+    duplicateId,
+  ]);
+}
+
 async function mergeChannelBindingsAuto(client: PoolClient, targetId: string, duplicateId: string): Promise<void> {
-  await client.query(
-    `INSERT INTO user_channel_bindings (user_id, channel_code, external_id, created_at)
-     SELECT $1::uuid, channel_code, external_id, created_at
-     FROM user_channel_bindings WHERE user_id = $2::uuid
-     ON CONFLICT (channel_code, external_id) DO NOTHING`,
-    [targetId, duplicateId],
-  );
+  await reassignAllUserChannelBindingsFromDuplicate(client, targetId, duplicateId);
   await client.query(`DELETE FROM user_channel_bindings WHERE user_id = $1::uuid`, [duplicateId]);
 }
 
@@ -376,8 +402,8 @@ async function mergeChannelBindingsManual(
          WHERE user_id = ANY($1::uuid[]) AND channel_code = $2`,
         [[targetId, duplicateId], ch],
       );
-      const hasTargetBinding = bindingPresence.rows.some((row) => row.user_id === targetId);
-      const hasDuplicateBinding = bindingPresence.rows.some((row) => row.user_id === duplicateId);
+      const hasTargetBinding = bindingPresence.rows.some((row) => uuidTextEquals(row.user_id, targetId));
+      const hasDuplicateBinding = bindingPresence.rows.some((row) => uuidTextEquals(row.user_id, duplicateId));
       if (hasTargetBinding && hasDuplicateBinding) {
         throw new MergeConflictError(`manual merge: channel ${ch} conflict requires target or duplicate`, [
           targetId,
@@ -385,10 +411,8 @@ async function mergeChannelBindingsManual(
         ]);
       }
       await client.query(
-        `INSERT INTO user_channel_bindings (user_id, channel_code, external_id, created_at)
-         SELECT $1::uuid, channel_code, external_id, created_at
-         FROM user_channel_bindings WHERE user_id = $2::uuid AND channel_code = $3
-         ON CONFLICT (channel_code, external_id) DO NOTHING`,
+        `UPDATE user_channel_bindings SET user_id = $1::uuid
+         WHERE user_id = $2::uuid AND channel_code = $3`,
         [targetId, duplicateId, ch],
       );
       await client.query(
@@ -416,13 +440,7 @@ async function mergeChannelBindingsManual(
 }
 
 async function mergeOauthBindingsAuto(client: PoolClient, targetId: string, duplicateId: string): Promise<void> {
-  await client.query(
-    `INSERT INTO user_oauth_bindings (user_id, provider, provider_user_id, email, created_at)
-     SELECT $1::uuid, provider, provider_user_id, email, created_at
-     FROM user_oauth_bindings WHERE user_id = $2::uuid
-     ON CONFLICT (provider, provider_user_id) DO NOTHING`,
-    [targetId, duplicateId],
-  );
+  await reassignAllUserOauthBindingsFromDuplicate(client, targetId, duplicateId);
   await client.query(`DELETE FROM user_oauth_bindings WHERE user_id = $1::uuid`, [duplicateId]);
 }
 
@@ -444,8 +462,8 @@ async function mergeOauthBindingsManual(
     byProvider.set(row.provider, list);
   }
   for (const [provider, rows] of byProvider) {
-    const onTarget = rows.find((x) => x.user_id === targetId);
-    const onDup = rows.find((x) => x.user_id === duplicateId);
+    const onTarget = rows.find((x) => uuidTextEquals(x.user_id, targetId));
+    const onDup = rows.find((x) => uuidTextEquals(x.user_id, duplicateId));
     if (onTarget && !onDup) {
       continue;
     }

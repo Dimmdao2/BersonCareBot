@@ -16,7 +16,8 @@ import {
   canSubmitManualMerge,
   hardBlockerUi,
   resolveMergePreviewAlignment,
-  uuidEqualsNormalized,
+  duplicateUuidFirstFourHex,
+  mergeDuplicatePrefixConfirmed,
   type MergePreviewApiOk,
 } from "./adminMergeAccountsLogic";
 
@@ -435,17 +436,20 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled, suspendHeavyFet
       !window.confirm(
         "Объединить учётные записи?\n\n" +
           "Дубликат станет алиасом (merged_into_id), его strong id будут очищены. " +
-          "Дальше потребуется ввести UUID дубликата для подтверждения.",
+          "Дальше введите первые 4 hex-символа UUID дубликата (как в подсказке).",
       )
     ) {
       return;
     }
+    const prefixHint = duplicateUuidFirstFourHex(preview.duplicateId);
     const typed = window.prompt(
-      `Введите UUID дубликата для подтверждения merge:\n(${preview.duplicateId})`,
+      `Введите первые 4 символа UUID дубликата (hex, без дефисов).\n` +
+        `Ожидается начало: ${prefixHint}…\n` +
+        `Полный id: ${preview.duplicateId}`,
     );
     if (typed === null) return;
-    if (!uuidEqualsNormalized(typed, preview.duplicateId)) {
-      setMsg("UUID не совпал — merge отменён.");
+    if (!mergeDuplicatePrefixConfirmed(typed, preview.duplicateId)) {
+      setMsg("Первые 4 символа не совпали с UUID дубликата — merge отменён.");
       return;
     }
 
@@ -706,6 +710,60 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled, suspendHeavyFet
                 </div>
               </div>
 
+              <div className="rounded-md border border-border/60 bg-muted/25 p-3 text-sm space-y-2">
+                <p className="font-medium">Integrator: строка в таблице users</p>
+                {preview.integratorUserPresence.checkStatus === "skipped_no_integrator_db" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Проверка недоступна: в env webapp нет строки подключения к БД integrator (
+                    <span className="font-mono">INTEGRATOR_DATABASE_URL</span>,{" "}
+                    <span className="font-mono">SOURCE_DATABASE_URL</span> и т.п. — см. purge/backfill).
+                  </p>
+                ) : null}
+                {preview.integratorUserPresence.checkStatus === "query_failed" ? (
+                  <p className="text-xs text-destructive" role="note">
+                    Запрос к БД integrator не выполнен.
+                  </p>
+                ) : null}
+                <ul className="space-y-1.5 text-xs">
+                  <li>
+                    <span className="text-muted-foreground">Целевой</span>
+                    {preview.integratorUserPresence.target.webappIntegratorUserId ? (
+                      <>
+                        : id{" "}
+                        <span className="font-mono">{preview.integratorUserPresence.target.webappIntegratorUserId}</span>
+                        {" — "}
+                        {preview.integratorUserPresence.target.rowExistsInIntegratorDb === true
+                          ? "в integrator есть"
+                          : preview.integratorUserPresence.target.rowExistsInIntegratorDb === false
+                            ? "в integrator нет (фантом)"
+                            : "неизвестно"}
+                      </>
+                    ) : (
+                      <>: integrator_user_id в webapp нет</>
+                    )}
+                  </li>
+                  <li>
+                    <span className="text-muted-foreground">Дубликат</span>
+                    {preview.integratorUserPresence.duplicate.webappIntegratorUserId ? (
+                      <>
+                        : id{" "}
+                        <span className="font-mono">
+                          {preview.integratorUserPresence.duplicate.webappIntegratorUserId}
+                        </span>
+                        {" — "}
+                        {preview.integratorUserPresence.duplicate.rowExistsInIntegratorDb === true
+                          ? "в integrator есть"
+                          : preview.integratorUserPresence.duplicate.rowExistsInIntegratorDb === false
+                            ? "в integrator нет (фантом)"
+                            : "неизвестно"}
+                      </>
+                    ) : (
+                      <>: integrator_user_id в webapp нет</>
+                    )}
+                  </li>
+                </ul>
+              </div>
+
               <div className="overflow-x-auto">
                 <p className="text-sm font-medium mb-2">Поля (рядом)</p>
                 <table className="w-full min-w-[560px] text-sm border-collapse">
@@ -955,7 +1013,9 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled, suspendHeavyFet
                 ) : !canMerge ? (
                   <p className="text-xs text-muted-foreground">Проверьте выбор OAuth и соответствие resolution паре.</p>
                 ) : (
-                  <p className="text-xs text-green-700 dark:text-green-400">Можно подтвердить merge (двойное подтверждение по UUID дубликата).</p>
+                  <p className="text-xs text-green-700 dark:text-green-400">
+                    Можно подтвердить merge (подтверждение — первые 4 hex-символа UUID дубликата).
+                  </p>
                 )}
               </div>
 

@@ -1,6 +1,7 @@
 /**
  * Pure helpers for admin manual merge UI — aligned with merge-preview JSON and ManualMergeResolution.
  */
+import type { MergePreviewIntegratorUserPresence } from "@/infra/mergePreviewIntegratorUserPresence";
 import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
 
 export type MergePreviewApiProfile = {
@@ -83,6 +84,8 @@ export type MergePreviewApiOk = {
   v1MergeEngineCallable: boolean;
   /** Mirrors admin `platform_user_merge_v2_enabled` at preview time. */
   platformUserMergeV2Enabled: boolean;
+  /** Наличие строки в integrator `users` для `integrator_user_id` из webapp (нужен `INTEGRATOR_DATABASE_URL` у webapp). */
+  integratorUserPresence: MergePreviewIntegratorUserPresence;
   hardBlockers: { code: string; message: string; details?: Record<string, unknown> }[];
 };
 
@@ -282,4 +285,20 @@ export function hardBlockerUi(code: string): { title: string; detail: string } {
 /** Case-insensitive UUID equality (hex), trims whitespace. */
 export function uuidEqualsNormalized(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** Первые 4 hex-цифры UUID (дефисы игнорируются), нижний регистр. */
+export function duplicateUuidFirstFourHex(duplicateId: string): string {
+  return duplicateId.replace(/[^0-9a-f]/gi, "").toLowerCase().slice(0, 4);
+}
+
+/**
+ * Подтверждение merge: пользователь вводит ровно те же 4 hex-символа в начале UUID дубликата
+ * (без дефисов, регистр не важен).
+ */
+export function mergeDuplicatePrefixConfirmed(input: string, duplicateId: string): boolean {
+  const want = duplicateUuidFirstFourHex(duplicateId);
+  if (want.length < 4) return false;
+  const got = input.replace(/[^0-9a-f]/gi, "").toLowerCase();
+  return got.length === 4 && got === want;
 }

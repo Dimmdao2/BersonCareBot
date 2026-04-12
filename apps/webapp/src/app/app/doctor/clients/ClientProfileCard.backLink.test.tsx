@@ -40,7 +40,7 @@ const minimalProfile: ClientProfile = {
 };
 
 describe("ClientProfileCard back link (scope)", () => {
-  it("shows client display name as prominent heading", () => {
+  it("shows client display name in contacts block", () => {
     render(
       <ClientProfileCard
         profile={minimalProfile}
@@ -50,8 +50,9 @@ describe("ClientProfileCard back link (scope)", () => {
         listBasePath="/app/doctor/clients?scope=all"
       />,
     );
-    const heading = screen.getByRole("heading", { level: 2, name: "Test" });
-    expect(heading).toHaveAttribute("id", "doctor-client-display-name");
+    const nameEl = document.getElementById("doctor-client-display-name");
+    expect(nameEl).not.toBeNull();
+    expect(nameEl).toHaveTextContent("Test");
   });
 
   it("shows placeholder when display name is empty", () => {
@@ -68,10 +69,11 @@ describe("ClientProfileCard back link (scope)", () => {
         listBasePath="/app/doctor/clients?scope=all"
       />,
     );
-    expect(screen.getByRole("heading", { level: 2, name: "Имя не указано" })).toBeInTheDocument();
+    const nameEl = document.getElementById("doctor-client-display-name");
+    expect(nameEl).toHaveTextContent("Имя не указано");
   });
 
-  it("wraps content in doctor-client-profile-page-{userId} including identity heading", () => {
+  it("wraps content in doctor-client-profile-page-{userId} including display name", () => {
     const { container } = render(
       <ClientProfileCard
         profile={minimalProfile}
@@ -83,7 +85,7 @@ describe("ClientProfileCard back link (scope)", () => {
     );
     const root = container.querySelector("#doctor-client-profile-page-u1");
     expect(root).not.toBeNull();
-    expect(root).toContainElement(screen.getByRole("heading", { level: 2, name: "Test" }));
+    expect(root).toContainElement(document.getElementById("doctor-client-display-name"));
   });
 
   it("uses listBasePath with scope=all for href and подписчиков label", () => {

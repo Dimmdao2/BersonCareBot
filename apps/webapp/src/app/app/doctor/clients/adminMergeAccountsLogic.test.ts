@@ -3,7 +3,9 @@ import {
   buildDefaultManualMergeResolution,
   canSubmitManualMerge,
   getAlignedMergePreviewRequest,
+  duplicateUuidFirstFourHex,
   hardBlockerUi,
+  mergeDuplicatePrefixConfirmed,
   resolveMergePreviewAlignment,
   uuidEqualsNormalized,
   type MergePreviewApiOk,
@@ -75,6 +77,11 @@ function basePreview(over: Partial<MergePreviewApiOk> = {}): MergePreviewApiOk {
     mergeAllowed: true,
     v1MergeEngineCallable: true,
     platformUserMergeV2Enabled: false,
+    integratorUserPresence: {
+      target: { webappIntegratorUserId: "1", rowExistsInIntegratorDb: true },
+      duplicate: { webappIntegratorUserId: null, rowExistsInIntegratorDb: null },
+      checkStatus: "ok",
+    },
     hardBlockers: [],
     ...over,
   };
@@ -204,5 +211,24 @@ describe("uuidEqualsNormalized", () => {
   });
   it("rejects different ids", () => {
     expect(uuidEqualsNormalized(T1, T2)).toBe(false);
+  });
+});
+
+describe("mergeDuplicatePrefixConfirmed", () => {
+  it("returns first four hex chars of duplicate UUID", () => {
+    expect(duplicateUuidFirstFourHex(T2)).toBe("bbbb");
+    expect(duplicateUuidFirstFourHex("BBBBBBBB-BBBB-4BBB-8BBB-BBBBBBBBBBBB")).toBe("bbbb");
+  });
+
+  it("accepts exactly four matching hex chars (case-insensitive, ignores hyphens in input)", () => {
+    expect(mergeDuplicatePrefixConfirmed("bbbb", T2)).toBe(true);
+    expect(mergeDuplicatePrefixConfirmed("BBBB", T2)).toBe(true);
+    expect(mergeDuplicatePrefixConfirmed("bb-bb", T2)).toBe(true);
+  });
+
+  it("rejects wrong prefix or wrong length", () => {
+    expect(mergeDuplicatePrefixConfirmed("aaaa", T2)).toBe(false);
+    expect(mergeDuplicatePrefixConfirmed("bbb", T2)).toBe(false);
+    expect(mergeDuplicatePrefixConfirmed("bbbbb", T2)).toBe(false);
   });
 });

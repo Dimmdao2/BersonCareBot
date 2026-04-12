@@ -6,7 +6,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { DOCTOR_MENU_LINKS, isDoctorNavItemActive } from "@/shared/ui/doctorNavLinks";
-import { DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import {
+  DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
+  DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
 
 const SIDEBAR_LINK_CLASS = cn(
   buttonVariants({ variant: "ghost" }),
@@ -18,7 +21,7 @@ type DoctorAdminSidebarProps = {
 };
 
 /**
- * Статическое левое меню админ-режима на md+; на мобильных скрыто (остаётся Sheet в шапке).
+ * Левое меню разделов кабинета на md+ (под полноширинной шапкой); на мобильных скрыто (Sheet в шапке).
  */
 export function DoctorAdminSidebar({ userDisplayName }: DoctorAdminSidebarProps) {
   const pathname = usePathname() ?? "/app/doctor";
@@ -28,9 +31,11 @@ export function DoctorAdminSidebar({ userDisplayName }: DoctorAdminSidebarProps)
       id="doctor-admin-sidebar"
       className={cn(
         "hidden md:flex",
-        "fixed inset-y-0 left-0 z-40 flex-col border-r border-border/70 bg-background",
         DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
-        "pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-4 pl-3 pr-2",
+        "shrink-0 flex-col border-r border-border/70 bg-background pb-4 pl-3 pr-2 pt-4",
+        "md:sticky md:self-start md:overflow-y-auto",
+        "md:max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-0.5rem)]",
+        DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
       )}
       aria-label="Разделы кабинета"
     >

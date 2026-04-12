@@ -12,7 +12,10 @@ const { Pool: PgPool } = pg;
 let integratorPoolSingleton: Pool | null = null;
 
 export function getIntegratorPoolForPurge(): Pool | null {
-  const raw = process.env.INTEGRATOR_DATABASE_URL?.trim() || process.env.USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL?.trim();
+  const raw =
+    process.env.INTEGRATOR_DATABASE_URL?.trim() ||
+    process.env.USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL?.trim() ||
+    process.env.SOURCE_DATABASE_URL?.trim();
   if (!raw) return null;
   try {
     const host = new URL(raw).hostname;

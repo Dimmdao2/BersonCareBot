@@ -15,6 +15,11 @@ type Props = {
   emailVerifiedAt: string | null | undefined;
   /** Нормализованный телефон из карточки (`platform_users.phone_normalized`). */
   phone: string | null | undefined;
+  /** В блоке «Контакты»: без отдельного заголовка, с кнопкой «Отмена». */
+  embedded?: boolean;
+  onCancel?: () => void;
+  /** После успешного сохранения (после refresh). */
+  onSaved?: () => void;
 };
 
 export function AdminClientProfileEditPanel({
@@ -25,6 +30,9 @@ export function AdminClientProfileEditPanel({
   email: initialEmail,
   emailVerifiedAt,
   phone: initialPhone,
+  embedded = false,
+  onCancel,
+  onSaved,
 }: Props) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(initialDisplayName);
@@ -83,6 +91,7 @@ export function AdminClientProfileEditPanel({
           return;
         }
         router.refresh();
+        onSaved?.();
       } catch {
         setError("Сеть недоступна.");
       } finally {
@@ -102,15 +111,23 @@ export function AdminClientProfileEditPanel({
       initialPhone,
       userId,
       router,
+      onSaved,
     ],
   );
 
+  const formId = embedded ? "admin-client-profile-edit-form-embedded" : "admin-client-profile-edit-form";
+
   return (
-    <div className="flex flex-col gap-4" aria-labelledby="admin-client-profile-edit-heading">
-      <h2 id="admin-client-profile-edit-heading" className="text-base font-semibold">
-        Данные клиента (админ)
-      </h2>
-      <form onSubmit={onSubmit} className="flex flex-col gap-3 max-w-lg">
+    <div
+      className="flex flex-col gap-4"
+      aria-labelledby={embedded ? undefined : "admin-client-profile-edit-heading"}
+    >
+      {embedded ? null : (
+        <h2 id="admin-client-profile-edit-heading" className="text-base font-semibold">
+          Данные клиента (админ)
+        </h2>
+      )}
+      <form id={formId} onSubmit={onSubmit} className="flex flex-col gap-3 max-w-lg">
         <div className="space-y-1.5">
           <Label htmlFor="admin-edit-display-name">Отображаемое имя (ФИО)</Label>
           <Input
@@ -174,9 +191,16 @@ export function AdminClientProfileEditPanel({
             {error}
           </p>
         ) : null}
-        <Button type="submit" disabled={pending} className="w-fit">
-          {pending ? "Сохранение…" : "Сохранить"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" disabled={pending} className="w-fit">
+            {pending ? "Сохранение…" : "Сохранить"}
+          </Button>
+          {embedded && onCancel ? (
+            <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>
+              Отмена
+            </Button>
+          ) : null}
+        </div>
       </form>
     </div>
   );

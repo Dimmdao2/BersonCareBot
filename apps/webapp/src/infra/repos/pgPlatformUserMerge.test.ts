@@ -297,6 +297,78 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
     ).rejects.toThrow(MergeConflictError);
   });
 
+  it('with bindings.telegram "both", reassigns duplicate-only messenger row to target (no INSERT+ON CONFLICT trap)', async () => {
+    const sqlLog: string[] = [];
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      const s = String(sql);
+      sqlLog.push(s);
+      if (s.includes("FOR UPDATE") && s.includes("FROM platform_users")) {
+        return {
+          rows: [
+            {
+              id: T,
+              phone_normalized: "+79000000000",
+              integrator_user_id: "100",
+              merged_into_id: null,
+              display_name: "A",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+            {
+              id: D,
+              phone_normalized: "+79000000001",
+              integrator_user_id: null,
+              merged_into_id: null,
+              display_name: "B",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date(),
+            },
+          ],
+        };
+      }
+      if (s.includes("FROM user_channel_bindings") && s.includes("user_id = ANY") && params?.[1] === "telegram") {
+        return { rows: [{ user_id: D }] };
+      }
+      if (s.includes("FROM user_channel_bindings") && s.includes("user_id = ANY")) {
+        return { rows: [] };
+      }
+      if (s.includes("FROM user_oauth_bindings WHERE user_id = ANY")) {
+        return { rows: [] };
+      }
+      if (s.includes("FROM user_pins")) {
+        return { rows: [] };
+      }
+      if (s.includes("patient_bookings pb1")) {
+        return { rows: [{ c: "0" }] };
+      }
+      if (s.includes("patient_lfk_assignments a")) {
+        return { rows: [{ c: "0" }] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const client = { query } as unknown as PoolClient;
+    await mergePlatformUsersInTransaction(client, T, D, "manual", { resolution: baseResolution() });
+
+    const upd = sqlLog.find(
+      (q) =>
+        q.includes("UPDATE user_channel_bindings SET user_id") &&
+        q.includes("WHERE user_id = $2::uuid AND channel_code = $3"),
+    );
+    expect(upd).toBeTruthy();
+    const ins = sqlLog.filter(
+      (q) => q.includes("INSERT INTO user_channel_bindings") && q.includes("ON CONFLICT (channel_code, external_id)"),
+    );
+    expect(ins.length).toBe(0);
+  });
+
   it('rejects "both" when both users already have a binding for the same channel', async () => {
     const query = vi.fn(async (sql: string, params?: unknown[]) => {
       const s = String(sql);
@@ -420,6 +492,76 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
       expect(e).toBeInstanceOf(MergeDependentConflictError);
       expect((e as MergeDependentConflictError).candidateIds).toEqual([T, D]);
     }
+  });
+
+  it("auto (projection) merge reassigns channel/oauth bindings via UPDATE, not INSERT+ON CONFLICT+DELETE trap", async () => {
+    const sqlLog: string[] = [];
+    const query = vi.fn(async (sql: string) => {
+      const s = String(sql);
+      sqlLog.push(s);
+      if (s.includes("FROM platform_users") && s.includes("FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: T,
+              phone_normalized: "+79000000000",
+              integrator_user_id: "100",
+              merged_into_id: null,
+              display_name: "A",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date("2020-01-01"),
+            },
+            {
+              id: D,
+              phone_normalized: "+79000000000",
+              integrator_user_id: null,
+              merged_into_id: null,
+              display_name: "B",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              created_at: new Date("2021-01-01"),
+            },
+          ],
+        };
+      }
+      if (s.includes("FROM user_oauth_bindings WHERE user_id = ANY")) {
+        return { rows: [] };
+      }
+      if (s.includes("FROM user_pins")) {
+        return { rows: [] };
+      }
+      if (s.includes("patient_bookings pb1")) {
+        return { rows: [{ c: "0" }] };
+      }
+      if (s.includes("patient_lfk_assignments a")) {
+        return { rows: [{ c: "0" }] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const client = { query } as unknown as PoolClient;
+    await mergePlatformUsersInTransaction(client, T, D, "projection");
+
+    expect(sqlLog.some((q) => q.includes("UPDATE user_channel_bindings SET user_id"))).toBe(true);
+    expect(sqlLog.some((q) => q.includes("UPDATE user_oauth_bindings SET user_id"))).toBe(true);
+    expect(
+      sqlLog.filter(
+        (q) =>
+          q.includes("INSERT INTO user_channel_bindings") && q.includes("ON CONFLICT (channel_code, external_id)"),
+      ),
+    ).toHaveLength(0);
+    expect(
+      sqlLog.filter(
+        (q) =>
+          q.includes("INSERT INTO user_oauth_bindings") && q.includes("ON CONFLICT (provider, provider_user_id)"),
+      ),
+    ).toHaveLength(0);
   });
 });
 

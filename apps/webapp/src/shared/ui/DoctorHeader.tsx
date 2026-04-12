@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { DOCTOR_MENU_LINKS } from "@/shared/ui/doctorNavLinks";
-import { DOCTOR_ADMIN_HEADER_LEFT_CLASS, DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
 
 type DoctorHeaderProps = {
@@ -58,7 +58,6 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
         className={cn(
           "fixed top-0 right-0 left-0 z-50 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80",
           adminMode ? "bg-destructive/10" : "bg-background/95",
-          hideMenuOnDesktop ? DOCTOR_ADMIN_HEADER_LEFT_CLASS : undefined,
         )}
       >
         <div className={DOCTOR_HEADER_INNER_CLASS}>
