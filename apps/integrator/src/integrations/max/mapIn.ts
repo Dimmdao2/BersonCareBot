@@ -21,8 +21,16 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
 };
 
 function getActionFromText(text: string): string {
-  const t = text?.trim() ?? '';
-  return MESSAGE_TEXT_TO_ACTION[t] ?? '';
+  const trimmed = text?.trim() ?? '';
+  if (!trimmed) return '';
+  if (MESSAGE_TEXT_TO_ACTION[trimmed]) return MESSAGE_TEXT_TO_ACTION[trimmed];
+  const firstToken = trimmed.split(/\s+/)[0] ?? '';
+  if (firstToken.startsWith('/') && firstToken.includes('@')) {
+    const cmd = firstToken.slice(0, firstToken.indexOf('@'));
+    const rest = trimmed.slice(firstToken.length);
+    return MESSAGE_TEXT_TO_ACTION[cmd + rest] ?? MESSAGE_TEXT_TO_ACTION[cmd] ?? '';
+  }
+  return '';
 }
 
 function parseStartLinkToken(value: string): string | null {

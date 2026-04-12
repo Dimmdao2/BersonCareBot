@@ -55,4 +55,9 @@ describe('normalizeTelegramMessageAction', () => {
     expect(normalizeTelegramMessageAction('⚙️ Меню')).toBe('menu.more');
     expect(normalizeTelegramMessageAction('📅 Запись на приём')).toBe('booking.open');
   });
+
+  it('maps /show_my_id and group form with @bot suffix', () => {
+    expect(normalizeTelegramMessageAction('/show_my_id')).toBe('debug.show_my_id');
+    expect(normalizeTelegramMessageAction('/show_my_id@SomeBot')).toBe('debug.show_my_id');
+  });
 });

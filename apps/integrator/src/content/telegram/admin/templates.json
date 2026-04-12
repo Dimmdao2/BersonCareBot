@@ -1,4 +1,5 @@
 {
+  "showMyId": "Ваш ID в Telegram: {{channelId}}",
   "admin.menu": "📊 Панель администратора",
   "admin.menu.hint": "Используйте кнопку меню (☰) для выбора раздела.",
   "admin.stats.bookings": "📅 Активных записей: {{activeBookings}}",

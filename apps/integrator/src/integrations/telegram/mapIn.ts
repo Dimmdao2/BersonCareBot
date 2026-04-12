@@ -159,7 +159,14 @@ export function normalizeTelegramAction(value: string): string {
 export function normalizeTelegramMessageAction(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return '';
-  return MESSAGE_TEXT_TO_ACTION[trimmed] ?? '';
+  if (MESSAGE_TEXT_TO_ACTION[trimmed]) return MESSAGE_TEXT_TO_ACTION[trimmed];
+  const firstToken = trimmed.split(/\s+/)[0] ?? '';
+  if (firstToken.startsWith('/') && firstToken.includes('@')) {
+    const cmd = firstToken.slice(0, firstToken.indexOf('@'));
+    const rest = trimmed.slice(firstToken.length);
+    return MESSAGE_TEXT_TO_ACTION[cmd + rest] ?? MESSAGE_TEXT_TO_ACTION[cmd] ?? '';
+  }
+  return '';
 }
 
 /** Проверяет, относится ли callback к настройкам уведомлений. */

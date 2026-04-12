@@ -19,12 +19,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import { DOCTOR_MENU_LINKS } from "@/shared/ui/doctorNavLinks";
+import { DOCTOR_ADMIN_HEADER_LEFT_CLASS, DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
   adminMode?: boolean;
+  /** Когда true (админ + левый сайдбар в layout), кнопка «Меню» скрыта на md+. */
+  hideMenuOnDesktop?: boolean;
 };
 
 const DOCTOR_SHEET_LINK_CLASS = cn(
@@ -35,19 +38,7 @@ const DOCTOR_SHEET_LINK_CLASS = cn(
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
 const HEADER_ICON_CLASS = cn(buttonVariants({ variant: "ghost", size: "icon" }), "size-10 shrink-0");
 
-const DOCTOR_MENU_LINKS: { id: string; label: string; href: string }[] = [
-  { id: "overview", label: "Обзор", href: "/app/doctor" },
-  { id: "clients", label: "Клиенты и подписчики", href: "/app/doctor/clients?scope=appointments" },
-  { id: "appointments", label: "Записи", href: "/app/doctor/appointments" },
-  { id: "messages", label: "Сообщения", href: "/app/doctor/messages" },
-  { id: "exercises", label: "Упражнения", href: "/app/doctor/exercises" },
-  { id: "lfk-templates", label: "Шаблоны ЛФК", href: "/app/doctor/lfk-templates" },
-  { id: "content", label: "CMS", href: "/app/doctor/content" },
-  { id: "broadcasts", label: "Рассылки", href: "/app/doctor/broadcasts" },
-  { id: "stats", label: "Статистика", href: "/app/doctor/stats" },
-];
-
-export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) {
+export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? "/app/doctor";
   const title = getDoctorScreenTitle(pathname);
@@ -66,7 +57,8 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
         id="doctor-header"
         className={cn(
           "fixed top-0 right-0 left-0 z-50 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80",
-          adminMode ? "bg-destructive/10" : "bg-background/95"
+          adminMode ? "bg-destructive/10" : "bg-background/95",
+          hideMenuOnDesktop ? DOCTOR_ADMIN_HEADER_LEFT_CLASS : undefined,
         )}
       >
         <div className={DOCTOR_HEADER_INNER_CLASS}>
@@ -131,7 +123,7 @@ export function DoctorHeader({ userDisplayName, adminMode }: DoctorHeaderProps) 
               id="doctor-menu-toggle"
               variant="ghost"
               size="icon"
-              className={HEADER_ICON_CLASS}
+              className={cn(HEADER_ICON_CLASS, hideMenuOnDesktop && "md:hidden")}
               aria-label="Меню"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(true)}

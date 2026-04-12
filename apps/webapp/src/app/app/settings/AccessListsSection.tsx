@@ -80,7 +80,10 @@ export function AccessListsSection({
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Доступ и роли</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Идентификаторы Telegram / Max для разрешения ролей. Несколько значений: пробел, запятая или новая строка.
+          Идентификаторы Telegram / Max для разрешения ролей. Несколько значений: пробел, запятая или новая строка. Свой
+          числовой ID в Telegram или Max можно получить командой{" "}
+          <span className="font-mono">/show_my_id</span> в личном чате с ботом (в группе —{" "}
+          <span className="font-mono">/show_my_id@имя_бота</span>).
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -91,7 +94,7 @@ export function AccessListsSection({
               <span className="text-xs font-medium">{label}</span>
               <textarea
                 className="min-h-16 rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                placeholder="123456789 987654321 max-user-1"
+                placeholder="узнайте через /show_my_id в боте"
                 value={vals[k]}
                 onChange={set(k)}
                 disabled={isPending}

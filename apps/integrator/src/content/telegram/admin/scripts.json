@@ -21,6 +21,30 @@
 		]
 	},
 	{
+		"id": "telegram.admin.debug.show_my_id",
+		"source": "telegram",
+		"event": "message.received",
+		"priority": 100,
+		"match": {
+			"input": { "action": "debug.show_my_id" },
+			"actor": { "isAdmin": true }
+		},
+		"steps": [
+			{
+				"action": "message.send",
+				"mode": "async",
+				"params": {
+					"recipient": { "chatId": "{{actor.chatId}}" },
+					"templateKey": "telegram:showMyId",
+					"vars": {
+						"channelId": "{{actor.channelUserId}}"
+					},
+					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+				}
+			}
+		]
+	},
+	{
 		"id": "telegram.admin.stats.bookings",
 		"source": "telegram",
 		"event": "message.received",

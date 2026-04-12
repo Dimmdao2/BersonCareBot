@@ -3,6 +3,11 @@
  * совпадают между `DoctorHeader` и `AppShell variant="doctor"`.
  */
 
+/** Левый сайдбар админ-режима на desktop (14rem); отступ основной колонки и сдвиг фиксированной шапки. */
+export const DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS = "w-56";
+export const DOCTOR_ADMIN_MAIN_OFFSET_CLASS = "md:pl-56";
+export const DOCTOR_ADMIN_HEADER_LEFT_CLASS = "md:left-56";
+
 /** Основной контент под фиксированной шапкой (safe-area + зазор под h-14). */
 export const DOCTOR_WORKSPACE_TOP_PADDING_CLASS =
   "pt-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)]";
