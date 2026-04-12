@@ -49,7 +49,7 @@ export type UserProjectionPort = {
     emailVerifiedAt: string | null;
   }>;
   /**
-   * Admin (webapp): правка ФИО/email канонического клиента по `platform_users.id`.
+   * Admin (webapp): правка ФИО/email/телефона канонического клиента по `platform_users.id`.
    * Только `role = client`, `merged_into_id IS NULL`. Смена email сбрасывает верификацию при изменении значения.
    */
   patchAdminClientProfile: (params: {
@@ -59,6 +59,7 @@ export type UserProjectionPort = {
       firstName?: string | null;
       lastName?: string | null;
       email?: string | null;
+      phoneNormalized?: string | null;
     };
   }) => Promise<{ ok: true } | { ok: false; reason: "nothing_to_update" | "not_found_or_not_client" }>;
   /** Rubitime webhook → user.email.autobind (USER_TODO_STAGE; см. AUDIT-BACKLOG-024). */
@@ -566,6 +567,19 @@ export const pgUserProjectionPort: UserProjectionPort = {
           WHEN $${emailN}::text IS NULL OR btrim(COALESCE($${emailN}::text, '')) = '' THEN NULL
           WHEN lower(btrim(COALESCE($${emailN}::text, ''))) IS DISTINCT FROM lower(btrim(COALESCE(email, ''))) THEN NULL
           ELSE email_verified_at
+        END`,
+      );
+    }
+    if (patch.phoneNormalized !== undefined) {
+      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.AdminManualProfilePatch);
+      n += 1;
+      const phoneN = n;
+      sets.push(`phone_normalized = $${phoneN}`);
+      vals.push(patch.phoneNormalized);
+      sets.push(
+        `patient_phone_trust_at = CASE
+          WHEN $${phoneN}::text IS NULL OR btrim(COALESCE($${phoneN}::text, '')) = '' THEN NULL
+          ELSE now()
         END`,
       );
     }

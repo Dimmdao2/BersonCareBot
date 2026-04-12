@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { AuditLogMergeTarget } from "@/components/admin/AuditLogMergeTarget";
 import { auditActorShortLabel } from "@/infra/adminAuditLogPresentation";
 
@@ -23,10 +22,11 @@ type AuditItem = {
 type Props = {
   platformUserId: string;
   enabled: boolean;
+  /** When true, do not load audit rows until expanded (e.g. accordion). */
+  suspendLoad?: boolean;
 };
 
-export function AdminClientAuditHistorySection({ platformUserId, enabled }: Props) {
-  const [open, setOpen] = useState(false);
+export function AdminClientAuditHistorySection({ platformUserId, enabled, suspendLoad = false }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<AuditItem[]>([]);
@@ -57,9 +57,9 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled }: Prop
   }, [platformUserId]);
 
   useEffect(() => {
-    if (!enabled || !open) return;
+    if (!enabled || suspendLoad) return;
     void load();
-  }, [enabled, open, load]);
+  }, [enabled, suspendLoad, load]);
 
   if (!enabled) return null;
 
@@ -68,78 +68,57 @@ export function AdminClientAuditHistorySection({ platformUserId, enabled }: Prop
   );
 
   return (
-    <section
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-3"
-      aria-labelledby="admin-client-audit-history-heading"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="admin-client-audit-history-heading" className="text-base font-semibold">
-          История операций (audit)
-        </h2>
-        <Button type="button" variant="outline" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          {open ? "Свернуть" : "Развернуть"}
-        </Button>
-      </div>
-      <p className="text-muted-foreground text-sm">
-        Записи журнала, где этот пользователь встречается как{" "}
-        <span className="font-mono">target_id</span>, в кандидатах{" "}
-        <span className="font-mono">auto_merge_conflict</span> или в паре слияния{" "}
-        <span className="font-mono">user_merge</span> / <span className="font-mono">integrator_user_merge</span> (
-        <span className="font-mono">details.targetId</span> / <span className="font-mono">duplicateId</span>).
-        Нерешённые конфликты помечены отдельно.
-      </p>
+    <div className="flex flex-col gap-3" aria-labelledby="admin-client-audit-history-heading">
+      <h2 id="admin-client-audit-history-heading" className="text-base font-semibold">
+        История операций (audit)
+      </h2>
       {openConflictsHere.length > 0 ? (
         <p className="text-sm text-amber-800 dark:text-amber-300" role="status">
-          Нерешённых <span className="font-mono">auto_merge_conflict</span> среди загруженных строк (до 20), не повторы
-          события:{" "}
+          Открытых конфликтов среди загруженных строк:{" "}
           <Badge variant="outline" className="font-mono">
             {openConflictsHere.length}
           </Badge>
         </p>
       ) : null}
 
-      {!open ? null : (
-        <>
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              Не удалось загрузить журнал ({error}).
-            </p>
-          ) : null}
-          {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
-          {!loading && items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Записей по этому пользователю пока нет.</p>
-          ) : null}
-          {!loading && items.length > 0 ? (
-            <ul className="m-0 list-none space-y-2 p-0" id="admin-client-audit-history-list">
-              {items.map((row) => (
-                <li
-                  key={row.id}
-                  className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs flex flex-col gap-1"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-muted-foreground">{new Date(row.created_at).toLocaleString()}</span>
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      {row.action}
-                    </Badge>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {row.status}
-                    </Badge>
-                    <span className="text-muted-foreground">актор: {auditActorShortLabel(row.actor_id, row.action)}</span>
-                    {row.action === "auto_merge_conflict" && row.resolved_at == null && row.conflict_key ? (
-                      <span className="text-amber-700 dark:text-amber-400">открыт</span>
-                    ) : null}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">Цель</div>
-                  <AuditLogMergeTarget row={row} />
-                  {row.action === "auto_merge_conflict" && row.repeat_count > 1 ? (
-                    <span className="text-muted-foreground">Повторов: {row.repeat_count}</span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </>
-      )}
-    </section>
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          Не удалось загрузить журнал ({error}).
+        </p>
+      ) : null}
+      {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
+      {!loading && !suspendLoad && items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Записей по этому пользователю пока нет.</p>
+      ) : null}
+      {!loading && !suspendLoad && items.length > 0 ? (
+        <ul className="m-0 list-none space-y-2 p-0" id="admin-client-audit-history-list">
+          {items.map((row) => (
+            <li
+              key={row.id}
+              className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs flex flex-col gap-1"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground">{new Date(row.created_at).toLocaleString()}</span>
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  {row.action}
+                </Badge>
+                <Badge variant="secondary" className="text-[10px]">
+                  {row.status}
+                </Badge>
+                <span className="text-muted-foreground">актор: {auditActorShortLabel(row.actor_id, row.action)}</span>
+                {row.action === "auto_merge_conflict" && row.resolved_at == null && row.conflict_key ? (
+                  <span className="text-amber-700 dark:text-amber-400">открыт</span>
+                ) : null}
+              </div>
+              <div className="text-[11px] text-muted-foreground">Цель</div>
+              <AuditLogMergeTarget row={row} />
+              {row.action === "auto_merge_conflict" && row.repeat_count > 1 ? (
+                <span className="text-muted-foreground">Повторов: {row.repeat_count}</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

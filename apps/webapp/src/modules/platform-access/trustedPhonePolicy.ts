@@ -29,6 +29,8 @@ export enum TrustedPatientPhoneSource {
    * Не создаёт нового доверия «из воздуха».
    */
   PlatformUserMerge = "platform_user_merge",
+  /** Ручное изменение телефона админом (`PATCH /api/admin/users/.../profile`). */
+  AdminManualProfilePatch = "admin_manual_profile_patch",
 }
 
 /** Имя колонки в БД; единственный признак trusted-активации на чтении tier. */

@@ -14,13 +14,6 @@ export const PLATFORM_COOKIE_MAX_AGE = 60 * 60 * 24; // 24h
 /** Совпадает с Tailwind `md:` */
 export const DESKTOP_BREAKPOINT = 768;
 
-/**
- * Минимальная ширина **viewport** (окна), при которой в админских настройках показывается
- * вертикальное меню разделов; ниже — выпадающий список.
- * Ниже `DESKTOP_BREAKPOINT`, чтобы типичные планшеты в портрете и узкие планшеты попадали в режим с меню слева; переключение делается через `matchMedia`, а не только через классы Tailwind.
- */
-export const ADMIN_SETTINGS_NAV_MIN_WIDTH_PX = 640;
-
 export type PlatformCookieSerializeOptions = {
   secure: boolean;
 };

@@ -3,6 +3,7 @@
  */
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import { env } from "@/config/env";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -38,7 +39,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
       scope === "all" ? `${BASE}?scope=all` : scope === "archived" ? `${BASE}?scope=archived` : BASE,
     );
   }
-  const [allClients, selectedData] = await Promise.all([
+  const [allClients, selectedData, publishedLfkTemplates] = await Promise.all([
     deps.doctorClients.listClients(
       scope === "archived"
         ? { archivedOnly: true }
@@ -58,6 +59,7 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
           profile ? { profile, messageDraft, messageHistory: messageHistory.items } : null,
         )
       : Promise.resolve(null),
+    deps.lfkTemplates.listTemplates({ status: "published" }),
   ]);
 
   const selectedProfile = selectedData?.profile ?? null;
@@ -96,9 +98,10 @@ export default async function DoctorClientsPage({ searchParams }: Props) {
               userId={selected!}
               listBasePath={listBasePathWithScope}
               isAdmin={session.user.role === "admin"}
-              canPermanentDelete={
-                session.user.role === "admin" && Boolean(session.adminMode)
-              }
+              canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
+              canEditClientProfile={session.user.role === "admin" && Boolean(session.adminMode)}
+              publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}
+              assignLfkEnabled={Boolean(env.DATABASE_URL)}
             />
           </div>
         ) : null}

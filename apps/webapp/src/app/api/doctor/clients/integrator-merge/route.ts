@@ -1,6 +1,7 @@
 /**
  * POST /api/doctor/clients/integrator-merge — integrator-side canonical user merge (admin + admin mode).
  * Requires `platform_user_merge_v2_enabled` and HMAC-configured integrator M2M. Run **before** webapp manual merge when both platform users have different integrator_user_id.
+ * If integrator returns `USER_NOT_FOUND` and only the duplicate’s (loser) id is missing in integrator.users, clears that `platform_users.integrator_user_id` so the operator can proceed with webapp merge (non–dry-run for the clear; dry-run returns a hint only).
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -60,6 +61,10 @@ const bodySchema = z.object({
   duplicateId: z.string().uuid(),
   dryRun: z.boolean().optional(),
 });
+
+function integratorUserIdNumericKey(id: string): string {
+  return String(BigInt(id.trim()));
+}
 
 export async function POST(request: Request) {
   const adminGate = await requireAdminModeSession();
@@ -230,6 +235,88 @@ export async function POST(request: Request) {
           { status: 503 },
         );
       }
+      let parsedHttpErr: { error?: string; missingIntegratorUserIds?: string[] } = {};
+      try {
+        parsedHttpErr = JSON.parse(merged.bodyText) as typeof parsedHttpErr;
+      } catch {
+        /* keep empty */
+      }
+      const missing = parsedHttpErr.missingIntegratorUserIds;
+      const loserKey = integratorUserIdNumericKey(loser);
+      const loserOnlyMissing =
+        merged.reason === "http" &&
+        merged.status === 400 &&
+        parsedHttpErr.error === "USER_NOT_FOUND" &&
+        Array.isArray(missing) &&
+        missing.length === 1 &&
+        integratorUserIdNumericKey(missing[0] ?? "") === loserKey;
+
+      if (loserOnlyMissing) {
+        if (dryRun === true) {
+          await client.query("ROLLBACK");
+          txOpen = false;
+          return NextResponse.json({
+            ok: true,
+            dryRun: true,
+            duplicateIntegratorUserMissingInIntegrator: true,
+            clearedIntegratorUserId: loser,
+          });
+        }
+        const up = await client.query(
+          `UPDATE platform_users SET integrator_user_id = NULL WHERE id = $1::uuid AND integrator_user_id = $2::bigint`,
+          [duplicateId, loser],
+        );
+        if (up.rowCount !== 1) {
+          await client.query("ROLLBACK");
+          txOpen = false;
+          await recordIntegratorMergeFailure({
+            pool,
+            actorId,
+            targetId,
+            duplicateId,
+            dryRun: false,
+            phase: "orphan_clear_race",
+            error: "UPDATE platform_users integrator_user_id clear: rowCount not 1",
+          });
+          return NextResponse.json(
+            { ok: false, error: "orphan_clear_failed", message: "Could not clear duplicate integrator_user_id (row changed?). Retry preview." },
+            { status: 409 },
+          );
+        }
+        await client.query("COMMIT");
+        txOpen = false;
+        const labels = await fetchMergePartyDisplayLabels(pool, targetId, duplicateId);
+        await writeAuditLog(pool, {
+          actorId,
+          action: "integrator_user_merge",
+          targetId,
+          status: "ok",
+          details: {
+            targetId,
+            duplicateId,
+            targetDisplayName: labels.targetDisplayName,
+            duplicateDisplayName: labels.duplicateDisplayName,
+            phase: "orphan_duplicate_integrator_id_cleared",
+            clearedIntegratorUserId: loser,
+          },
+        });
+        logger.info(
+          {
+            action: "integrator_user_merge",
+            phase: "orphan_duplicate_integrator_id_cleared",
+            targetId,
+            duplicateId,
+            clearedIntegratorUserId: loser,
+          },
+          "[integrator-merge] cleared phantom duplicate integrator_user_id",
+        );
+        return NextResponse.json({
+          ok: true,
+          orphanIntegratorIdCleared: true,
+          clearedIntegratorUserId: loser,
+        });
+      }
+
       let errBody: unknown = merged.bodyText;
       try {
         errBody = JSON.parse(merged.bodyText) as unknown;

@@ -12,7 +12,7 @@
 | Резолв канона по `merged_into_id` | `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts` (`resolveCanonicalUserId`, `followMergedIntoChain`) |
 | Загрузка `SessionUser` с телефоном и bindings | `apps/webapp/src/infra/repos/pgUserByPhone.ts` (`findByUserId`, `createOrBind`, `loadSessionUser`) |
 | Слияние двух клиентов | `apps/webapp/src/infra/repos/pgPlatformUserMerge.ts` (`mergePlatformUsersInTransaction`, `pickMergeTargetId`) |
-| Admin: справочный поиск по ФИО и расширенный ручной merge | `GET /api/doctor/clients/name-match-hints`, `GET /api/doctor/clients/merge-user-search`; UI `/app/doctor/clients/name-match-hints` (ссылки с `scope=all`), `AdminMergeAccountsPanel.tsx` (отмена гонок `merge-preview`, ошибки поиска отдельно от пустого списка); инфра `platformUserNameMatchHints.ts`, `searchMergeUsersForManualMerge` в `platformUserMergePreview.ts` |
+| Admin: справочный поиск по ФИО и расширенный ручной merge | `GET /api/doctor/clients/name-match-hints`, `GET /api/doctor/clients/merge-user-search`; UI `/app/doctor/clients/name-match-hints` (ссылки с `scope=all`), `AdminMergeAccountsPanel.tsx` внутри аккордеона карточки (`ClientProfileCard`), ленивые запросы кандидатов/preview при открытой секции, отмена гонок `merge-preview`, ошибки поиска отдельно от пустого списка; `POST /api/doctor/clients/integrator-merge` и сброс фантомного `integrator_user_id` у дубликата — см. `ARCHITECTURE/PLATFORM_USER_MERGE.md`; инфра `platformUserNameMatchHints.ts`, `searchMergeUsersForManualMerge` в `platformUserMergePreview.ts` |
 
 **Инвариант:** после merge все чтения и записи от имени пользователя должны использовать **канонический** id (через `resolveCanonicalUserId` / `findByUserId`).
 
@@ -137,6 +137,7 @@
 | `integrator_update_phone` | Тот же файл — `updatePhone`. |
 | `oauth_yandex_verified_phone` | `apps/webapp/src/modules/auth/oauthYandexResolve.ts` — INSERT нового пользователя с непустым нормализованным телефоном из Yandex. |
 | `platform_user_merge` | `apps/webapp/src/infra/repos/pgPlatformUserMerge.ts` — перенос/объединение `patient_phone_trust_at` при merge (auto + manual ветки `UPDATE platform_users AS pu`). |
+| `admin_manual_profile_patch` | `apps/webapp/src/infra/repos/pgUserProjection.ts` — `patchAdminClientProfile` при успешном `PATCH /api/admin/users/:userId/profile` (ФИО, email, телефон; нормализация `+7` и конфликт по `phone_normalized`). |
 
 **Access context / tier (единая точка резолва):** `resolvePlatformAccessContext` в `apps/webapp/src/modules/platform-access/resolvePlatformAccessContext.ts`; контракт `PlatformAccessContext` — поля `dbRole` и **`tier`** (как в SPECIFICATION §3; для doctor/admin — `tier: null`). Типы — `apps/webapp/src/modules/platform-access/types.ts`. Публичный re-export: `apps/webapp/src/modules/platform-access/index.ts`. **Patient business gate (C.02):** `patientClientBusinessGate` в `apps/webapp/src/modules/platform-access/patientClientBusinessGate.ts` — единый критерий для `requirePatientAccessWithPhone`, `requirePatientApiBusinessAccess` и layout patient-зоны при БД; при ошибке резолва канона в БД для `client` — **fail-safe** `need_activation` (не `allow` по snapshot).
 

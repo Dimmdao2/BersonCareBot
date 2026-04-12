@@ -137,7 +137,13 @@ export async function registerBersoncareUserMergeM2mRoutes(
       return reply.code(200).send({ ok: true, result });
     } catch (err) {
       if (err instanceof MergeIntegratorUsersError) {
-        return reply.code(400).send({ ok: false, error: err.code, message: err.message });
+        const missing = err.details?.missingIntegratorUserIds;
+        return reply.code(400).send({
+          ok: false,
+          error: err.code,
+          message: err.message,
+          ...(missing != null && missing.length > 0 ? { missingIntegratorUserIds: missing } : {}),
+        });
       }
       logger.error({ err }, 'bersoncare users/merge: merge failed');
       return reply.code(502).send({ ok: false, error: 'merge_failed' });

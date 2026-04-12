@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AdminMergeAccountsPanel } from "./AdminMergeAccountsPanel";
 
@@ -119,9 +119,11 @@ describe("AdminMergeAccountsPanel", () => {
     });
 
     render(<AdminMergeAccountsPanel anchorUserId={T1} enabled />);
-    await user.click(screen.getByRole("button", { name: /развернуть/i }));
 
     const select = screen.getByLabelText(/вторая запись/i);
+    await waitFor(() => {
+      expect(select.querySelector(`option[value="${T2}"]`)).not.toBeNull();
+    });
     await user.selectOptions(select, T2);
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
@@ -231,8 +233,11 @@ describe("AdminMergeAccountsPanel", () => {
     });
 
     render(<AdminMergeAccountsPanel anchorUserId={T1} enabled />);
-    await user.click(screen.getByRole("button", { name: /развернуть/i }));
-    await user.selectOptions(screen.getByLabelText(/вторая запись/i), T2);
+    const select2 = screen.getByLabelText(/вторая запись/i);
+    await waitFor(() => {
+      expect(select2.querySelector(`option[value="${T2}"]`)).not.toBeNull();
+    });
+    await user.selectOptions(select2, T2);
 
     await screen.findByText(/Каналы \(telegram \/ max \/ vk\)/i);
     expect(document.querySelectorAll('input[name="ch-telegram"]')).toHaveLength(2);

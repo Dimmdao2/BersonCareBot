@@ -217,6 +217,12 @@ Master-detail: слева список, справа карточка выбра
 
 Единая временная шкала: запись создана/отменена/перенесена, дневник заполнен, сообщение отправлено, привязка канала, смена телефона. Важно для контекста без перехода по экранам.
 
+### 6.9. Реализация в webapp (ориентир)
+
+- **Карточка** — `ClientProfileCard`: блоки как **аккордеон** (одна открытая секция; по умолчанию «Контакты»). На `/app/doctor/clients` и на `/app/doctor/clients/[userId]` один и тот же паттерн.
+- **Admin + admin mode:** секции «Объединение учётных записей» и «История операций» не дергают тяжёлые API, пока секция закрыта (ленивая загрузка).
+- **Редактирование профиля клиента админом** (ФИО, email, телефон): `PATCH /api/admin/users/:userId/profile` и панель `AdminClientProfileEditPanel`; доверие телефона — trusted source `admin_manual_profile_patch` (см. `PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md` §8).
+
 ---
 
 ## 7. Раздел «Записи»
@@ -343,6 +349,7 @@ Master-detail: слева список, справа карточка выбра
 - **Отступ под шапку** — общий класс `DOCTOR_WORKSPACE_TOP_PADDING_CLASS` (высота шапки, safe-area, небольшой зазор); для `/app/doctor` он задаётся в `apps/webapp/src/app/app/doctor/layout.tsx`, для `/app/settings` — на той же странице.
 - **Контент страниц** — контейнер **`DOCTOR_PAGE_CONTAINER_CLASS`** (`max-w-7xl`, те же `px`, `pb-8`): либо через **`AppShell` с `variant="doctor"`** (основной путь для экранов кабинета, включая онлайн-заявки), либо напрямую на `/app/settings`.
 - **Источник правды по классам** — `apps/webapp/src/shared/ui/doctorWorkspaceLayout.ts` (при смене максимальной ширины кабинета править там и проверить шапку и контейнер).
+- **Настройки `/app/settings` (вкладки admin):** вертикальный список вкладок (`TabsList` с `orientation="vertical"`) на всех ширинах экрана; содержимое вкладки справа (`AdminSettingsTabsClient`).
 
 Пациентский раздел (`variant="patient"`, узкая колонка) на это не распространяется.
 

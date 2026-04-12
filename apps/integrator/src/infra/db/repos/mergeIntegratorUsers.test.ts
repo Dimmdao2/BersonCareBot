@@ -84,6 +84,7 @@ describe('mergeIntegratorUsers', () => {
 
     await expect(mergeIntegratorUsers(db, '1', '2')).rejects.toMatchObject({
       code: 'USER_NOT_FOUND',
+      details: { missingIntegratorUserIds: ['2'] },
     });
   });
 

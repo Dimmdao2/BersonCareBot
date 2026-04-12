@@ -173,4 +173,80 @@ describe("POST /api/doctor/clients/integrator-merge (Stage 5)", () => {
       }),
     );
   });
+
+  it("clears duplicate integrator_user_id when integrator reports USER_NOT_FOUND for loser only", async () => {
+    poolQueryMock.mockImplementation(async (sql: string) => {
+      const s = String(sql);
+      if (s === "BEGIN") return { rows: [], rowCount: null };
+      if (s.includes("FROM platform_users") && s.includes("FOR UPDATE")) return { rows: twoClientsRows, rowCount: 2 };
+      if (s.includes("UPDATE platform_users") && s.includes("integrator_user_id = NULL"))
+        return { rows: [], rowCount: 1 };
+      if (s === "COMMIT") return { rows: [], rowCount: null };
+      return { rows: [], rowCount: 0 };
+    });
+    callMergeMock.mockResolvedValue({
+      ok: false,
+      reason: "http",
+      status: 400,
+      bodyText: JSON.stringify({
+        ok: false,
+        error: "USER_NOT_FOUND",
+        message: "winner or loser user row not found",
+        missingIntegratorUserIds: ["200"],
+      }),
+    });
+    const res = await POST(
+      new Request("http://localhost/api/doctor/clients/integrator-merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetId: T, duplicateId: D }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { ok?: boolean; orphanIntegratorIdCleared?: boolean };
+    expect(j.ok).toBe(true);
+    expect(j.orphanIntegratorIdCleared).toBe(true);
+    const updateCall = poolQueryMock.mock.calls.find((c) => String(c[0]).includes("UPDATE platform_users"));
+    expect(updateCall?.[0]).toContain("integrator_user_id = NULL");
+    expect(updateCall?.[1]).toEqual([D, "200"]);
+    expect(poolQueryMock.mock.calls.some((c) => c[0] === "COMMIT")).toBe(true);
+    expect(writeAuditLogMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: "ok",
+        details: expect.objectContaining({ phase: "orphan_duplicate_integrator_id_cleared" }),
+      }),
+    );
+  });
+
+  it("dry-run returns hint when loser integrator id is missing in integrator", async () => {
+    poolQueryMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: twoClientsRows })
+      .mockResolvedValueOnce({ rows: [] });
+    callMergeMock.mockResolvedValue({
+      ok: false,
+      reason: "http",
+      status: 400,
+      bodyText: JSON.stringify({
+        ok: false,
+        error: "USER_NOT_FOUND",
+        missingIntegratorUserIds: ["200"],
+      }),
+    });
+    const res = await POST(
+      new Request("http://localhost/api/doctor/clients/integrator-merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetId: T, duplicateId: D, dryRun: true }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const j = (await res.json()) as { ok?: boolean; dryRun?: boolean; duplicateIntegratorUserMissingInIntegrator?: boolean };
+    expect(j.ok).toBe(true);
+    expect(j.dryRun).toBe(true);
+    expect(j.duplicateIntegratorUserMissingInIntegrator).toBe(true);
+    expect(poolQueryMock).toHaveBeenNthCalledWith(3, "ROLLBACK");
+    expect(writeAuditLogMock).not.toHaveBeenCalled();
+  });
 });

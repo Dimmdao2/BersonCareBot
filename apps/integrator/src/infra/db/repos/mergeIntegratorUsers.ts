@@ -36,6 +36,7 @@ export class MergeIntegratorUsersError extends Error {
   constructor(
     readonly code: 'INVALID_USER_ID' | 'SAME_USER' | 'USER_NOT_FOUND' | 'ALREADY_MERGED_ALIAS',
     message: string,
+    readonly details?: { missingIntegratorUserIds?: string[] },
   ) {
     super(message);
     this.name = 'MergeIntegratorUsersError';
@@ -48,6 +49,11 @@ function assertNumericUserId(id: string, label: string): string {
     throw new MergeIntegratorUsersError('INVALID_USER_ID', `${label} must be a numeric integrator users.id`);
   }
   return t;
+}
+
+/** Canonical decimal string for bigint user ids (aligns PG `id::text` with request strings). */
+function integratorUserIdNumericKey(id: string): string {
+  return String(BigInt(id.trim()));
 }
 
 type UserRow = { id: string; merged_into_user_id: string | null };
@@ -167,14 +173,20 @@ export async function mergeIntegratorUsers(
        FROM users WHERE id IN ($1::bigint, $2::bigint)`,
       [winner, loser],
     );
+    const foundKeys = new Set(usersRes.rows.map((r) => integratorUserIdNumericKey(r.id)));
+    const missingIntegratorUserIds = [winner, loser].filter((id) => !foundKeys.has(integratorUserIdNumericKey(id)));
     if (usersRes.rows.length !== 2) {
-      throw new MergeIntegratorUsersError('USER_NOT_FOUND', 'winner or loser user row not found');
+      throw new MergeIntegratorUsersError('USER_NOT_FOUND', 'winner or loser user row not found', {
+        missingIntegratorUserIds,
+      });
     }
-    const byId = new Map(usersRes.rows.map((r) => [r.id, r]));
-    const wRow = byId.get(winner);
-    const lRow = byId.get(loser);
+    const byId = new Map(usersRes.rows.map((r) => [integratorUserIdNumericKey(r.id), r]));
+    const wRow = byId.get(integratorUserIdNumericKey(winner));
+    const lRow = byId.get(integratorUserIdNumericKey(loser));
     if (!wRow || !lRow) {
-      throw new MergeIntegratorUsersError('USER_NOT_FOUND', 'winner or loser user row not found');
+      throw new MergeIntegratorUsersError('USER_NOT_FOUND', 'winner or loser user row not found', {
+        missingIntegratorUserIds,
+      });
     }
     if (wRow.merged_into_user_id != null && wRow.merged_into_user_id !== '') {
       throw new MergeIntegratorUsersError('ALREADY_MERGED_ALIAS', 'winner is an alias (merged_into_user_id is set)');

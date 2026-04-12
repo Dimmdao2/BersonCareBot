@@ -13,6 +13,8 @@ type Props = {
   lastName: string | null | undefined;
   email: string | null | undefined;
   emailVerifiedAt: string | null | undefined;
+  /** Нормализованный телефон из карточки (`platform_users.phone_normalized`). */
+  phone: string | null | undefined;
 };
 
 export function AdminClientProfileEditPanel({
@@ -22,12 +24,14 @@ export function AdminClientProfileEditPanel({
   lastName: initialLast,
   email: initialEmail,
   emailVerifiedAt,
+  phone: initialPhone,
 }: Props) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [firstName, setFirstName] = useState(initialFirst ?? "");
   const [lastName, setLastName] = useState(initialLast ?? "");
   const [email, setEmail] = useState(initialEmail ?? "");
+  const [phone, setPhone] = useState(initialPhone ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -46,6 +50,11 @@ export function AdminClientProfileEditPanel({
         if (emailNorm !== initialEmailNorm) {
           body.email = emailNorm === "" ? null : emailNorm;
         }
+        const phoneNorm = phone.trim();
+        const initialPhoneNorm = (initialPhone ?? "").trim();
+        if (phoneNorm !== initialPhoneNorm) {
+          body.phone = phoneNorm === "" ? null : phoneNorm;
+        }
         if (Object.keys(body).length === 0) {
           setError("Нет изменений.");
           setPending(false);
@@ -61,6 +70,10 @@ export function AdminClientProfileEditPanel({
         if (!res.ok || json.ok !== true) {
           if (res.status === 409 && json.error === "email_conflict") {
             setError("Такой email уже занят другим пользователем.");
+          } else if (res.status === 409 && json.error === "phone_conflict") {
+            setError("Этот телефон уже привязан к другому пользователю.");
+          } else if (json.error === "invalid_phone") {
+            setError("Некорректный номер. Ожидается российский формат (например +79991234567).");
           } else if (json.error === "forbidden") {
             setError("Нужны роль admin и режим администратора.");
           } else {
@@ -81,28 +94,22 @@ export function AdminClientProfileEditPanel({
       firstName,
       lastName,
       email,
+      phone,
       initialDisplayName,
       initialFirst,
       initialLast,
       initialEmail,
+      initialPhone,
       userId,
       router,
     ],
   );
 
   return (
-    <section
-      className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4"
-      aria-labelledby="admin-client-profile-edit-heading"
-    >
-      <div>
-        <h2 id="admin-client-profile-edit-heading" className="text-base font-semibold">
-          Редактирование профиля (админ)
-        </h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Меняет данные в webapp. Интегратор узнает об обновлении при следующих событиях проекции.
-        </p>
-      </div>
+    <div className="flex flex-col gap-4" aria-labelledby="admin-client-profile-edit-heading">
+      <h2 id="admin-client-profile-edit-heading" className="text-base font-semibold">
+        Данные клиента (админ)
+      </h2>
       <form onSubmit={onSubmit} className="flex flex-col gap-3 max-w-lg">
         <div className="space-y-1.5">
           <Label htmlFor="admin-edit-display-name">Отображаемое имя (ФИО)</Label>
@@ -135,6 +142,18 @@ export function AdminClientProfileEditPanel({
           </div>
         </div>
         <div className="space-y-1.5">
+          <Label htmlFor="admin-edit-phone">Телефон (E.164, РФ)</Label>
+          <Input
+            id="admin-edit-phone"
+            type="tel"
+            value={phone}
+            onChange={(ev) => setPhone(ev.target.value)}
+            placeholder="+79991234567"
+            autoComplete="off"
+            maxLength={20}
+          />
+        </div>
+        <div className="space-y-1.5">
           <Label htmlFor="admin-edit-email">Email</Label>
           <Input
             id="admin-edit-email"
@@ -159,6 +178,6 @@ export function AdminClientProfileEditPanel({
           {pending ? "Сохранение…" : "Сохранить"}
         </Button>
       </form>
-    </section>
+    </div>
   );
 }

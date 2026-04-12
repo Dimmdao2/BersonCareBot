@@ -20,6 +20,7 @@
 - `POST {INTEGRATOR_API_URL}/api/integrator/users/canonical-pair` — тело `{ integratorUserIdA, integratorUserIdB }` → `{ ok, sameCanonical, canonicalA, canonicalB }`.
 - `POST {INTEGRATOR_API_URL}/api/integrator/users/merge` — тело `{ winnerIntegratorUserId, loserIntegratorUserId, dryRun? }` → вызов `mergeIntegratorUsers`.
 - **Webapp proxy (admin + admin mode):** `POST /api/doctor/clients/integrator-merge` — только при включённом `platform_user_merge_v2_enabled`; тело `{ targetId, duplicateId, dryRun? }` (winner integrator = `integrator_user_id` **целевого** platform user). Пара `platform_users` перечитывается под `FOR UPDATE`, а M2M вызов ограничен timeout.
+- **Фантомный integrator id у дубликата:** если integrator отвечает `USER_NOT_FOUND` и в JSON указано `missingIntegratorUserIds`, содержащее **только** id стороны дубликата, webapp при вызове **без** `dryRun` обнуляет `platform_users.integrator_user_id` у дубликата, пишет audit с `phase: orphan_duplicate_integrator_id_cleared` и позволяет дальше выполнить обычный webapp merge; при `dryRun: true` — только подсказка в ответе, без записи в БД.
 
 ## Изменения в коде (чек-лист)
 

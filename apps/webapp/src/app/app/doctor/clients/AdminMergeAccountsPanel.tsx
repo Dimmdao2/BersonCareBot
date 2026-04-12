@@ -42,6 +42,8 @@ type Props = {
   anchorUserId: string;
   /** Admin + admin mode — same guard as merge API */
   enabled: boolean;
+  /** When true, do not fetch merge-candidates until expanded (e.g. accordion). */
+  suspendHeavyFetch?: boolean;
 };
 
 const SCALAR_LABELS: Record<keyof ManualMergeResolution["fields"], string> = {
@@ -62,9 +64,8 @@ function FieldCell({ v }: { v: string | null }) {
   return <span className="break-all font-mono text-xs">{v ?? "—"}</span>;
 }
 
-export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
+export function AdminMergeAccountsPanel({ anchorUserId, enabled, suspendHeavyFetch = false }: Props) {
   const router = useRouter();
-  const [sectionOpen, setSectionOpen] = useState(false);
   const [q, setQ] = useState("");
   const [candidates, setCandidates] = useState<CandidateRow[] | null>(null);
   const [candLoading, setCandLoading] = useState(false);
@@ -131,18 +132,18 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
   }, [anchorUserId, q]);
 
   useEffect(() => {
-    if (!enabled || !sectionOpen) return;
+    if (!enabled || suspendHeavyFetch) return;
     void loadCandidates();
     return () => {
       mergeCandidatesFetchRef.current?.abort();
     };
-  }, [enabled, sectionOpen, loadCandidates]);
+  }, [enabled, suspendHeavyFetch, loadCandidates]);
 
   useEffect(() => {
-    if (!sectionOpen) {
+    if (suspendHeavyFetch) {
       mergeCandidatesFetchRef.current?.abort();
     }
-  }, [sectionOpen]);
+  }, [suspendHeavyFetch]);
 
   const loadAlignedPreview = useCallback(
     async (opts: {
@@ -227,14 +228,14 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
   );
 
   useEffect(() => {
-    if (!sectionOpen) {
+    if (suspendHeavyFetch) {
       mergePreviewAbortRef.current?.abort();
       mergePreviewAbortRef.current = null;
     }
-  }, [sectionOpen]);
+  }, [suspendHeavyFetch]);
 
   useEffect(() => {
-    if (!secondUserId || !enabled || !sectionOpen || secondUserId === anchorUserId) {
+    if (!secondUserId || !enabled || suspendHeavyFetch || secondUserId === anchorUserId) {
       mergePreviewAbortRef.current?.abort();
       mergePreviewAbortRef.current = null;
       setPreview(null);
@@ -257,13 +258,13 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
     canonicalIsAnchor,
     alignToRecommendation,
     enabled,
-    sectionOpen,
+    suspendHeavyFetch,
     loadAlignedPreview,
   ]);
 
   const mergeUserSearchAbortRef = useRef<AbortController | null>(null);
   useEffect(() => {
-    if (!enabled || !sectionOpen) {
+    if (!enabled || suspendHeavyFetch) {
       mergeUserSearchAbortRef.current?.abort();
       return;
     }
@@ -316,7 +317,7 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
       window.clearTimeout(tid);
       ac.abort();
     };
-  }, [mergeSearchQ, sectionOpen, enabled]);
+  }, [mergeSearchQ, suspendHeavyFetch, enabled]);
 
   const canMerge = preview && resolution ? canSubmitManualMerge(preview, resolution) : false;
 
@@ -387,7 +388,29 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
         error?: string;
         message?: string;
         result?: unknown;
+        dryRun?: boolean;
+        duplicateIntegratorUserMissingInIntegrator?: boolean;
+        clearedIntegratorUserId?: string;
+        orphanIntegratorIdCleared?: boolean;
       };
+      if (data.ok === true && data.dryRun === true && data.duplicateIntegratorUserMissingInIntegrator === true) {
+        setMsg(
+          "Dry-run: у дубликата нет пользователя в integrator (фантомный integrator_user_id). Нажмите «Выполнить integrator merge» без dry-run — привязка дубликата будет сброшена, затем обновите preview и делайте обычный merge.",
+        );
+        return;
+      }
+      if (data.ok === true && data.orphanIntegratorIdCleared === true) {
+        setMsg(
+          `Сброшен фантомный integrator_user_id у дубликата (${data.clearedIntegratorUserId ?? "?" }). Обновлён preview — дальше выполняйте обычный merge в webapp.`,
+        );
+        await loadAlignedPreview({
+          targetId: preview.targetId,
+          duplicateId: preview.duplicateId,
+          secondUserIdForPair: secondUserId,
+          alignToRecommendation,
+        });
+        return;
+      }
       if (!res.ok || !data.ok) {
         setMsg(data.message ?? data.error ?? `integrator_merge_failed (HTTP ${res.status})`);
         return;
@@ -473,33 +496,12 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
   if (!enabled) return null;
 
   return (
-    <section
-      className="rounded-2xl border border-violet-500/35 bg-card p-4 shadow-sm flex flex-col gap-3"
-      aria-labelledby="admin-merge-accounts-heading"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="admin-merge-accounts-heading" className="text-base font-semibold">
-          Объединение учётных записей (admin)
-        </h2>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setSectionOpen((o) => !o)}
-          aria-expanded={sectionOpen}
-        >
-          {sectionOpen ? "Свернуть" : "Развернуть"}
-        </Button>
-      </div>
-      <p className="text-muted-foreground text-sm">
-        Сравнение двух канонических клиентов, явный выбор победителей по полям и привязкам. При включённом флаге v2 в
-        настройках admin и разных <span className="font-mono">integrator_user_id</span> порядок: сначала canonical merge
-        в integrator (кнопка ниже при блокировке), при необходимости realignment проекций webapp, затем{" "}
-        <span className="font-mono">POST …/merge</span> как раньше.
-      </p>
+    <div className="flex flex-col gap-3" role="region" aria-labelledby="admin-merge-accounts-heading">
+      <h2 id="admin-merge-accounts-heading" className="text-base font-semibold">
+        Объединение учётных записей (admin)
+      </h2>
 
-      {!sectionOpen ? null : (
-        <>
+      <>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="space-y-1.5 flex-1">
               <Label htmlFor="merge-cand-q">Поиск среди кандидатов</Label>
@@ -657,10 +659,8 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
                 <div className="rounded-md border border-violet-500/40 bg-violet-500/10 p-3 text-sm space-y-2">
                   <p className="font-medium">Шаг 1 — integrator</p>
                   <p className="text-xs text-muted-foreground">
-                    Canonical merge в integrator: winner <span className="font-mono">{preview.target.integratorUserId}</span>{" "}
-                    (целевой platform user), loser <span className="font-mono">{preview.duplicate.integratorUserId}</span>{" "}
-                    (дубликат). После успеха обновится preview; при необходимости — realignment проекций webapp (ops), затем
-                    webapp merge.
+                    winner <span className="font-mono">{preview.target.integratorUserId}</span> · loser{" "}
+                    <span className="font-mono">{preview.duplicate.integratorUserId}</span>
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -688,18 +688,9 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
               {preview.mergeAllowed &&
               preview.hardBlockers.length === 0 &&
               !preview.v1MergeEngineCallable ? (
-                <div
-                  className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-xs text-amber-950 dark:text-amber-100"
-                  role="note"
-                >
-                  <p className="font-medium">Ограничение авто-merge (v1)</p>
-                  <p className="mt-1 text-muted-foreground dark:text-amber-200/90">
-                    Флаг <span className="font-mono">v1MergeEngineCallable</span> = false: старый путь merge без явного
-                    выбора полей (projection / phone_bind) для этой пары вызвал бы ошибку (часто из‑за двух разных
-                    non-null телефонов). Ручной merge с выбранным <span className="font-mono">resolution</span> всё
-                    равно допустим, если нет жёстких блокировок выше.
-                  </p>
-                </div>
+                <p className="text-xs text-muted-foreground" role="note">
+                  Авто-merge (v1) для этой пары недоступен; ручной merge с выбранными полями допустим.
+                </p>
               ) : null}
 
               <div className="grid gap-3 lg:grid-cols-2">
@@ -993,8 +984,7 @@ export function AdminMergeAccountsPanel({ anchorUserId, enabled }: Props) {
               {msg}
             </p>
           ) : null}
-        </>
-      )}
-    </section>
+      </>
+    </div>
   );
 }

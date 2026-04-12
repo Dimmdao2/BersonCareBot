@@ -1,5 +1,5 @@
 /**
- * PATCH /api/admin/users/:userId/profile — правка ФИО и email канонического клиента.
+ * PATCH /api/admin/users/:userId/profile — правка ФИО, email и телефона канонического клиента.
  * Guard: admin + admin mode.
  */
 import { NextResponse } from "next/server";
@@ -9,6 +9,7 @@ import { getPool } from "@/infra/db/client";
 import { writeAuditLog } from "@/infra/adminAuditLog";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
+import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
 const bodySchema = z
   .object({
@@ -16,22 +17,21 @@ const bodySchema = z
     firstName: z.union([z.string().max(200), z.null()]).optional(),
     lastName: z.union([z.string().max(200), z.null()]).optional(),
     email: z.union([z.string().email().max(320), z.literal(""), z.null()]).optional(),
+    phone: z.union([z.string().max(40), z.null()]).optional(),
   })
   .strict()
   .refine((o) => Object.keys(o).length > 0, { message: "empty_patch" });
 
-function normalizePatch(data: z.infer<typeof bodySchema>): {
+type AdminClientProfilePatch = {
   displayName?: string;
   firstName?: string | null;
   lastName?: string | null;
   email?: string | null;
-} {
-  const out: {
-    displayName?: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-  } = {};
+  phoneNormalized?: string | null;
+};
+
+function normalizePatch(data: z.infer<typeof bodySchema>): AdminClientProfilePatch {
+  const out: AdminClientProfilePatch = {};
   if (data.displayName !== undefined) out.displayName = data.displayName;
   if (data.firstName !== undefined) out.firstName = data.firstName;
   if (data.lastName !== undefined) out.lastName = data.lastName;
@@ -63,6 +63,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
   }
 
   const patch = normalizePatch(parsed.data);
+  if (parsed.data.phone !== undefined) {
+    if (parsed.data.phone === null || String(parsed.data.phone).trim() === "") {
+      patch.phoneNormalized = null;
+    } else {
+      const n = normalizeRuPhoneE164(String(parsed.data.phone).trim());
+      if (!/^\+7\d{10}$/.test(n)) {
+        return NextResponse.json({ ok: false, error: "invalid_phone" }, { status: 400 });
+      }
+      patch.phoneNormalized = n;
+    }
+  }
+
   const pool = getPool();
   const canonicalId = (await resolveCanonicalUserId(pool, userId)) ?? userId;
 
@@ -78,6 +90,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     );
     if (conflict.rows.length > 0) {
       return NextResponse.json({ ok: false, error: "email_conflict" }, { status: 409 });
+    }
+  }
+
+  if (patch.phoneNormalized !== undefined && patch.phoneNormalized !== null) {
+    const conflict = await pool.query<{ id: string }>(
+      `SELECT id FROM platform_users
+       WHERE id <> $1::uuid
+         AND merged_into_id IS NULL
+         AND phone_normalized IS NOT NULL
+         AND phone_normalized = $2
+       LIMIT 1`,
+      [canonicalId, patch.phoneNormalized],
+    );
+    if (conflict.rows.length > 0) {
+      return NextResponse.json({ ok: false, error: "phone_conflict" }, { status: 409 });
     }
   }
 
@@ -102,6 +129,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     details: {
       fields: fieldsChanged,
       emailTouched: patch.email !== undefined,
+      phoneTouched: patch.phoneNormalized !== undefined,
     },
     status: "ok",
   });
