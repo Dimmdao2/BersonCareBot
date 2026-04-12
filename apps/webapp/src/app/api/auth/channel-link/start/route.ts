@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { env } from "@/config/env";
 import { isChannelLinkStartRateLimited } from "@/modules/auth/channelLinkStartRateLimit";
 import { getCurrentSession } from "@/modules/auth/service";
 import { startChannelLink } from "@/modules/auth/channelLink";
+import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
 
 const bodySchema = z.object({
   channelCode: z.enum(["telegram", "max", "vk"]),
@@ -29,10 +29,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
   }
 
+  const botUsername = await getTelegramLoginBotUsername();
   const result = await startChannelLink({
     userId: session.user.userId,
     channelCode: parsed.data.channelCode,
-    botUsername: env.TELEGRAM_BOT_USERNAME.replace(/^@/, ""),
+    botUsername,
   });
 
   if (!result.ok) {

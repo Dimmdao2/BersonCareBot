@@ -1,12 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { findByPhoneMock, createPendingMock, rateLimitMock, tokenFactoryMock, hashTokenMock } = vi.hoisted(() => ({
-  findByPhoneMock: vi.fn(),
-  createPendingMock: vi.fn(),
-  rateLimitMock: vi.fn(),
-  tokenFactoryMock: vi.fn(),
-  hashTokenMock: vi.fn(),
-}));
+const { findByPhoneMock, createPendingMock, rateLimitMock, tokenFactoryMock, hashTokenMock, getTgBotMock } = vi.hoisted(
+  () => ({
+    findByPhoneMock: vi.fn(),
+    createPendingMock: vi.fn(),
+    rateLimitMock: vi.fn(),
+    tokenFactoryMock: vi.fn(),
+    hashTokenMock: vi.fn(),
+    getTgBotMock: vi.fn(),
+  }),
+);
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -24,9 +27,18 @@ vi.mock("@/modules/auth/messengerLoginToken", () => ({
   hashLoginTokenPlain: hashTokenMock,
 }));
 
+vi.mock("@/modules/system-settings/telegramLoginBotUsername", () => ({
+  getTelegramLoginBotUsername: () => getTgBotMock(),
+}));
+
 import { POST } from "./route";
 
 describe("POST /api/auth/messenger/start", () => {
+  beforeEach(() => {
+    getTgBotMock.mockReset();
+    getTgBotMock.mockResolvedValue("bersoncare_bot");
+  });
+
   it("returns 400 when phone is not valid E.164", async () => {
     const res = await POST(
       new Request("http://localhost/api/auth/messenger/start", {
@@ -80,7 +92,7 @@ describe("POST /api/auth/messenger/start", () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as { ok: boolean; deepLink: string | null; token?: string };
     expect(json.ok).toBe(true);
-    expect(json.deepLink).toContain("start=plain-token");
+    expect(json.deepLink).toBe("https://t.me/bersoncare_bot?start=plain-token");
     expect("token" in json).toBe(false);
   });
 });

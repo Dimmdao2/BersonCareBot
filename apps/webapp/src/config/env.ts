@@ -69,10 +69,13 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((value) => value === "true"),
+  /** Список через запятую: числовые Telegram user id людей (whitelist входа). Это не @username и не id бота. */
   ALLOWED_TELEGRAM_IDS: z.string().optional().default(""),
   /** Comma-separated MAX user ids allowed for webapp entry (when entry token has maxId). */
   ALLOWED_MAX_IDS: z.string().optional().default(""),
+  /** Числовой Telegram user id админа (аккаунт человека), не username бота. */
   ADMIN_TELEGRAM_ID: z.coerce.number().int().optional(),
+  /** Список через запятую: числовые Telegram user id врачей (люди), не username бота. */
   DOCTOR_TELEGRAM_IDS: z.string().optional().default(""),
   /** Comma-separated Max user ids treated as admin (role resolution + whitelist). */
   ADMIN_MAX_IDS: z.string().optional().default(""),
@@ -119,7 +122,10 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true"),
-  /** Имя Telegram-бота без @ для deep-link t.me/… (привязка канала). */
+  /**
+   * Публичный username бота без `@` (как в `t.me/<username>`), для fallback deep link / Login Widget.
+   * Не путать с числовым id бота из BotFather и с `ALLOWED_TELEGRAM_IDS` / `ADMIN_TELEGRAM_ID` (это id пользователей).
+   */
   TELEGRAM_BOT_USERNAME: z.string().min(1).default("bersoncare_bot"),
   /** Bearer token for POST /api/internal/* cron-style jobs. Empty → purge route returns 503. */
   INTERNAL_JOB_SECRET: z

@@ -13,6 +13,17 @@
 
 - Публичные ссылки: `support_contact_url`.
 - Telegram Login Widget: `telegram_login_bot_username`.
+
+### Telegram в webapp env: username бота vs числовые id
+
+Частая путаница:
+
+| Что | Где | Формат | Назначение |
+|-----|-----|--------|------------|
+| **Публичный username бота** | `TELEGRAM_BOT_USERNAME` (env, fallback) и/или **`telegram_login_bot_username`** в `system_settings` | строка **без** `@`, как в `t.me/your_bot` (например `bersoncare_bot`) | Deep links `https://t.me/…`, Telegram Login Widget (`data-telegram-login`). **Не** подставлять сюда числовой id бота из BotFather — для `t.me/` нужен именно username, если он задан у бота в Telegram. |
+| **Числовые id пользователей** | `ALLOWED_TELEGRAM_IDS`, `ADMIN_TELEGRAM_ID`, списки в БД (`allowed_telegram_ids`, …) | целые числа (Telegram user id аккаунтов людей) | Вайтлист/роли входа. Это **не** имя бота и **не** замена `telegram_login_bot_username`. |
+
+Итог: в env рядом могут лежать и **id людей** (whitelist), и отдельно **`TELEGRAM_BOT_USERNAME`** — это **не id**, а **handle бота** для ссылок и виджета.
 - **Yandex OAuth (backend-only):** `yandex_oauth_client_id`, `yandex_oauth_client_secret`, `yandex_oauth_redirect_uri` — редактирование через admin Settings; **не** дублировать в env webapp.
 - **Google Calendar OAuth + integration:** `google_client_id`, `google_client_secret`, `google_redirect_uri`, `google_refresh_token`, `google_calendar_id`, `google_calendar_enabled`, `google_connected_email` — управление через admin Settings UI (OAuth consent flow + выбор календаря). Env-переменные `GOOGLE_*` в integrator помечены `@deprecated` и оставлены как fallback на переходный период.
 - Отображение времени: **`app_display_timezone`** (IANA).

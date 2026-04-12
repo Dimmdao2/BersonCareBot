@@ -1,7 +1,10 @@
 import { env } from "@/config/env";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
 
-/** Имя бота для Telegram Login Widget (`data-telegram-login`), без `@`. */
+/**
+ * Публичный username бота без `@` для Login Widget и `https://t.me/…`.
+ * Не числовой id бота; канон — `telegram_login_bot_username` в БД, иначе fallback `env.TELEGRAM_BOT_USERNAME`.
+ */
 export async function getTelegramLoginBotUsername(): Promise<string> {
   const fallback = env.TELEGRAM_BOT_USERNAME.replace(/^@/, "").trim() || "bersoncare_bot";
   const raw = await getConfigValue("telegram_login_bot_username", fallback);

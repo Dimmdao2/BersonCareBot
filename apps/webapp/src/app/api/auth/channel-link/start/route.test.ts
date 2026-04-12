@@ -3,12 +3,10 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const getCurrentSessionMock = vi.hoisted(() => vi.fn());
 const rateLimitMock = vi.hoisted(() => vi.fn());
 const startChannelLinkMock = vi.hoisted(() => vi.fn());
+const getTelegramLoginBotUsernameMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/config/env", () => ({
-  env: {
-    TELEGRAM_BOT_USERNAME: "test_bot",
-    DATABASE_URL: "",
-  },
+vi.mock("@/modules/system-settings/telegramLoginBotUsername", () => ({
+  getTelegramLoginBotUsername: () => getTelegramLoginBotUsernameMock(),
 }));
 
 vi.mock("@/modules/auth/service", () => ({
@@ -30,6 +28,8 @@ describe("POST /api/auth/channel-link/start", () => {
     getCurrentSessionMock.mockReset();
     rateLimitMock.mockReset();
     startChannelLinkMock.mockReset();
+    getTelegramLoginBotUsernameMock.mockReset();
+    getTelegramLoginBotUsernameMock.mockResolvedValue("test_bot");
     rateLimitMock.mockResolvedValue(false);
     getCurrentSessionMock.mockResolvedValue({
       user: { userId: "user-1", role: "client", bindings: {} },
@@ -83,7 +83,7 @@ describe("POST /api/auth/channel-link/start", () => {
     expect(data.ok).toBe(true);
     expect(data.url).toContain("t.me");
     expect(startChannelLinkMock).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "user-1", channelCode: "telegram" }),
+      expect.objectContaining({ userId: "user-1", channelCode: "telegram", botUsername: "test_bot" }),
     );
   });
 });

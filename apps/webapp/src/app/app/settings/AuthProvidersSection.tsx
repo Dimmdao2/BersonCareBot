@@ -135,7 +135,9 @@ export function AuthProvidersSection({
                 autoComplete="off"
               />
               <span className="text-xs text-muted-foreground">
-                Публичное имя для кнопки «Войти через Telegram». Пустое — env TELEGRAM_BOT_USERNAME.
+                Публичный username бота без @ (как в t.me/…), не числовой id бота. Пустое — fallback из env{" "}
+                <code className="rounded bg-muted px-0.5">TELEGRAM_BOT_USERNAME</code> (тоже username, не id; env whitelist{" "}
+                <code className="rounded bg-muted px-0.5">ALLOWED_TELEGRAM_IDS</code> — это user id людей).
               </span>
             </label>
           </section>

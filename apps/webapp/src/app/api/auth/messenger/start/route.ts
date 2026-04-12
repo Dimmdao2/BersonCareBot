@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { env } from "@/config/env";
 import { createLoginTokenPlain, hashLoginTokenPlain } from "@/modules/auth/messengerLoginToken";
+import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
 import { isMessengerStartRateLimited } from "@/modules/auth/messengerStartRateLimit";
 import { normalizePhone } from "@/modules/auth/phoneNormalize";
 import { isValidPhoneE164 } from "@/modules/auth/phoneValidation";
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     expiresAt,
   });
 
-  const bot = env.TELEGRAM_BOT_USERNAME.replace(/^@/, "");
+  const bot = (await getTelegramLoginBotUsername()).replace(/^@/, "");
   const deepLink =
     parsed.data.method === "telegram"
       ? `https://t.me/${bot}?start=${encodeURIComponent(plain)}`
