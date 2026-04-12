@@ -5,7 +5,7 @@ import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MarkdownEditor } from "@/shared/ui/markdown/MarkdownEditor";
+import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { MediaLibraryPickerDialog } from "./MediaLibraryPickerDialog";
@@ -182,12 +182,13 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
         />
       </label>
 
-      <MarkdownEditor
+      <MarkdownEditorToastUi
         name="body_md"
         defaultValue={
           page ? (page.bodyMd.trim().length > 0 ? page.bodyMd : page.bodyHtml) : ""
         }
         key={`body-${page?.id ?? "new"}`}
+        onValueChange={setBodyMdValue}
       />
 
       <label className="flex items-center gap-2">

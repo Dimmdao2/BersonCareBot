@@ -8,7 +8,7 @@ const withAnalyzer = withBundleAnalyzer({
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
-  transpilePackages: ["react-phone-number-input"],
+  transpilePackages: ["react-phone-number-input", "@toast-ui/editor", "@toast-ui/react-editor"],
   experimental: {
     /** Allow importing canonical `normalizeToUtcInstant` from integrator shared (single source of truth). */
     externalDir: true,

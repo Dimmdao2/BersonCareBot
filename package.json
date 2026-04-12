@@ -52,6 +52,7 @@
   "pnpm": {
     "onlyBuiltDependencies": ["argon2"],
     "overrides": {
+      "dompurify": ">=3.3.2",
       "micromatch>picomatch": "2.3.2",
       "@dotenvx/dotenvx>picomatch": "4.0.4",
       "fdir>picomatch": "4.0.4",

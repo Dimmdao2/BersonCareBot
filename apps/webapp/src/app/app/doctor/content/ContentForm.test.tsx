@@ -1,8 +1,18 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+vi.mock("@/shared/ui/markdown/MarkdownEditorToastUi", async () => {
+  const { MarkdownEditor } = await import("@/shared/ui/markdown/MarkdownEditor");
+  return {
+    MarkdownEditorToastUi: (props: { name: string; defaultValue?: string }) => (
+      <MarkdownEditor name={props.name} defaultValue={props.defaultValue ?? ""} />
+    ),
+  };
+});
+
 import { ContentForm } from "./ContentForm";
 
 const testSections = [
