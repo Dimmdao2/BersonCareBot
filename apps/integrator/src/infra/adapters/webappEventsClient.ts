@@ -161,6 +161,7 @@ export function createWebappEventsPort(): WebappEventsPort {
           ok?: boolean;
           error?: string;
           needsPhone?: boolean;
+          phoneNormalized?: string;
           status?: string;
         };
         if (!res.ok) {
@@ -169,7 +170,11 @@ export function createWebappEventsPort(): WebappEventsPort {
         if (data.ok !== true) {
           return { ok: false, error: data.error ?? 'channel link rejected' };
         }
-        return { ok: true, needsPhone: data.needsPhone === true };
+        const phoneNorm =
+          typeof data.phoneNormalized === 'string' && data.phoneNormalized.trim().length > 0
+            ? data.phoneNormalized.trim()
+            : undefined;
+        return { ok: true, needsPhone: data.needsPhone === true, ...(phoneNorm ? { phoneNormalized: phoneNorm } : {}) };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false, error: message };

@@ -162,7 +162,31 @@ export async function executeAction(
         };
       }
       const needsPhone = result.needsPhone === true;
+      const phoneNormalized = asString(result.phoneNormalized);
       const messengerChannel = channelCode === 'max' ? 'max' : 'telegram';
+
+      const syncWrites: DbWriteMutation[] = [];
+      if (!needsPhone && phoneNormalized && fullDeps.writePort) {
+        if (messengerChannel === 'telegram') {
+          syncWrites.push({
+            type: 'user.phone.link',
+            params: { resource: 'telegram', channelUserId: externalId, phoneNormalized },
+          });
+          syncWrites.push({
+            type: 'user.state.set',
+            params: { resource: 'telegram', channelUserId: externalId, state: 'idle' },
+          });
+        } else if (messengerChannel === 'max') {
+          syncWrites.push({
+            type: 'user.phone.link',
+            params: { resource: 'max', channelUserId: externalId, phoneNormalized },
+          });
+        }
+      }
+      if (syncWrites.length > 0 && fullDeps.writePort) {
+        await persistWrites(fullDeps.writePort, syncWrites);
+      }
+
       if (needsPhone && fullDeps.dispatchPort) {
         if (messengerChannel === 'telegram' && !fullDeps.writePort) {
           return {
@@ -190,10 +214,41 @@ export async function executeAction(
           };
         }
       }
+
+      let intents: OutgoingIntent[] | undefined;
+      if (!needsPhone && messengerChannel === 'telegram' && fullDeps.templatePort) {
+        const rawChat = readIncomingChatId(ctx);
+        const fromEvent = rawChat !== null ? Number(rawChat) : NaN;
+        const chatId = Number.isFinite(fromEvent) ? fromEvent : Number(externalId);
+        if (Number.isFinite(chatId)) {
+          const welcomeAction: Action = {
+            id: `${action.id}:after-phone-linked`,
+            type: 'message.replyKeyboard.show',
+            mode: 'async',
+            params: {
+              chatId,
+              templateKey: 'telegram:afterPhoneLinked',
+              keyboard: [
+                [
+                  { textTemplateKey: 'telegram:menu.book' },
+                  { textTemplateKey: 'telegram:menu.diary', webAppUrlFact: 'links.webappDiaryUrl' },
+                  { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappHomeUrl' },
+                ],
+              ],
+              resizeKeyboard: true,
+            },
+          };
+          const welcomeResult = await executeAction(welcomeAction, ctx, fullDeps);
+          intents = welcomeResult.intents;
+        }
+      }
+
       return {
         actionId: action.id,
         status: 'success',
         values: { channelLink: { ok: true, needsPhone, contactPromptSent: needsPhone } },
+        ...(syncWrites.length > 0 ? { writes: syncWrites } : {}),
+        ...(intents !== undefined && intents.length > 0 ? { intents } : {}),
       };
     }
 

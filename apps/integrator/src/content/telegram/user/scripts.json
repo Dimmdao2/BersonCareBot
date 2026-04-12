@@ -948,7 +948,7 @@
 				"mode": "async",
 				"params": {
 					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:chooseMenu",
+					"templateKey": "telegram:afterPhoneLinked",
 					"keyboard": [
 						[
 							{ "textTemplateKey": "telegram:menu.book" },

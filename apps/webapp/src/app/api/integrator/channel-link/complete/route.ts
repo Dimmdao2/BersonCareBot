@@ -55,5 +55,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: result.code }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, needsPhone: result.needsPhone });
+  return NextResponse.json({
+    ok: true,
+    needsPhone: result.needsPhone,
+    ...(typeof result.phoneNormalized === "string" && result.phoneNormalized.trim().length > 0
+      ? { phoneNormalized: result.phoneNormalized.trim() }
+      : {}),
+  });
 }

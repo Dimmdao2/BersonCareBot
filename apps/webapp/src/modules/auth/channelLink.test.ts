@@ -88,7 +88,12 @@ describe("completeChannelLinkFromIntegrator", () => {
       externalId: "tg_1",
     });
 
-    expect(res).toEqual({ ok: true, userId: "u1", needsPhone: false });
+    expect(res).toEqual({
+      ok: true,
+      userId: "u1",
+      needsPhone: false,
+      phoneNormalized: "+79990001122",
+    });
     expect(queryMock).toHaveBeenCalledTimes(4);
   });
 

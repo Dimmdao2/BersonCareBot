@@ -1846,6 +1846,74 @@ describe('executeAction', () => {
     expect(dispatchOutgoing).not.toHaveBeenCalled();
   });
 
+  it('webapp.channelLink.complete syncs phone and sends welcome intents for Telegram when phone already on platform', async () => {
+    const completeChannelLink = vi.fn().mockResolvedValue({
+      ok: true,
+      needsPhone: false,
+      phoneNormalized: '+79990001122',
+    });
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const webappEventsPort = {
+      completeChannelLink,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const tgCtx: DomainContext = {
+      ...ctx,
+      base: {
+        ...ctx.base,
+        facts: {
+          links: {
+            webappDiaryUrl: 'https://app.example/diary',
+            webappHomeUrl: 'https://app.example/home',
+          },
+        },
+      },
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-cl',
+          occurredAt: '2026-03-05T12:00:00.000Z',
+          source: 'telegram',
+          userId: '111',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            text: '/start link_testtoken',
+            chatId: 111,
+            channelId: '111',
+            action: 'start.link',
+            linkSecret: 'link_testtoken',
+            userRow: null,
+            userState: '',
+          },
+        },
+      },
+    };
+    const action: Action = {
+      id: 'cl-tg-ok',
+      type: 'webapp.channelLink.complete',
+      mode: 'sync',
+      params: { linkToken: 'link_testtoken', channelCode: 'telegram', externalId: '111' },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({
+      text: 'Номер привязан. Вы можете остаться и продолжить в боте или вернуться в веб-приложение - возможности платформ одинаковые.',
+    });
+    const result = await executeAction(action, tgCtx, {
+      webappEventsPort,
+      writePort: { writeDb },
+      templatePort: { renderTemplate },
+    });
+    expect(result.status).toBe('success');
+    expect(writeDb).toHaveBeenCalled();
+    expect(renderTemplate).toHaveBeenCalled();
+    expect(result.intents?.some((i) => i.type === 'message.send')).toBe(true);
+    const send = result.intents?.find((i) => i.type === 'message.send');
+    expect((send?.payload as { message?: { text?: string } })?.message?.text).toContain('Номер привязан');
+  });
+
   describe('diary.symptom.afterTrackingCreated', () => {
     const telegramCtx: DomainContext = {
       ...ctx,

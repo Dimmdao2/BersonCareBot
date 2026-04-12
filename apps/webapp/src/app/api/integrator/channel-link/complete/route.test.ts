@@ -46,6 +46,7 @@ describe("POST /api/integrator/channel-link/complete", () => {
       ok: true,
       userId: "pu-1",
       needsPhone: false,
+      phoneNormalized: "+79990001122",
     });
     const body = JSON.stringify({
       linkToken: "link_abc123",
@@ -68,9 +69,10 @@ describe("POST /api/integrator/channel-link/complete", () => {
     );
 
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { ok: boolean; needsPhone?: boolean };
+    const json = (await res.json()) as { ok: boolean; needsPhone?: boolean; phoneNormalized?: string };
     expect(json.ok).toBe(true);
     expect(json.needsPhone).toBe(false);
+    expect(json.phoneNormalized).toBe("+79990001122");
     expect(completeChannelLinkFromIntegratorMock).toHaveBeenCalledTimes(1);
   });
 

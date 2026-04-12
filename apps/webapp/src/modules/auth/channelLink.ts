@@ -35,19 +35,28 @@ function hashToken(token: string): string {
     .digest("hex");
 }
 
-/** Canonical platform user has no non-empty phone — мессенджер должен запросить контакт. */
-export async function platformUserNeedsPhoneBinding(pool: Pool, userId: string): Promise<boolean> {
+async function platformPhoneBindingInfo(
+  pool: Pool,
+  userId: string
+): Promise<{ needsPhone: boolean; phoneNormalized?: string }> {
   const canonical = await resolveCanonicalUserId(pool, userId);
   const res = await pool.query<{ phone_normalized: string | null }>(
     `SELECT phone_normalized FROM platform_users WHERE id = $1::uuid`,
     [canonical],
   );
   const p = res.rows[0]?.phone_normalized;
-  return !(typeof p === "string" && p.trim().length > 0);
+  const phoneNormalized = typeof p === "string" && p.trim().length > 0 ? p.trim() : undefined;
+  return { needsPhone: phoneNormalized === undefined, phoneNormalized };
+}
+
+/** Canonical platform user has no non-empty phone — мессенджер должен запросить контакт. */
+export async function platformUserNeedsPhoneBinding(pool: Pool, userId: string): Promise<boolean> {
+  const { needsPhone } = await platformPhoneBindingInfo(pool, userId);
+  return needsPhone;
 }
 
 export type ChannelLinkCompleteResult =
-  | { ok: true; userId: string; needsPhone: boolean }
+  | { ok: true; userId: string; needsPhone: boolean; phoneNormalized?: string }
   | { ok: false; code: string; needsPhone?: boolean };
 
 export type ChannelLinkStartResult =
@@ -166,8 +175,8 @@ export async function completeChannelLinkFromIntegrator(params: {
     if (canonical == null) {
       return { ok: false, code: "user_not_found" };
     }
-    const needsPhone = await platformUserNeedsPhoneBinding(pool, r.user_id);
-    return { ok: true, userId: canonical, needsPhone };
+    const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, r.user_id);
+    return { ok: true, userId: canonical, needsPhone, ...(phoneNormalized ? { phoneNormalized } : {}) };
   }
 
   await pool.query(
@@ -181,6 +190,6 @@ export async function completeChannelLinkFromIntegrator(params: {
   if (canonical == null) {
     return { ok: false, code: "user_not_found" };
   }
-  const needsPhone = await platformUserNeedsPhoneBinding(pool, r.user_id);
-  return { ok: true, userId: canonical, needsPhone };
+  const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, r.user_id);
+  return { ok: true, userId: canonical, needsPhone, ...(phoneNormalized ? { phoneNormalized } : {}) };
 }
