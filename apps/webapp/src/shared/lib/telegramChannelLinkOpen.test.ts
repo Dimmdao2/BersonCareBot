@@ -1,11 +1,29 @@
-import { describe, expect, it, vi } from "vitest";
+/** @vitest-environment jsdom */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const inferSpy = vi.fn();
+
+vi.mock("@/shared/lib/messengerMiniApp", () => ({
+  inferMessengerChannelForRequestContact: () => inferSpy(),
+}));
+
 import {
   assignChannelLinkToBlankWindow,
   buildTgAppDeepLink,
+  finishChannelLinkNavigation,
   isLikelyMobileUserAgent,
   isMaxChannelDeepLinkUrl,
   pickTelegramOpenUrl,
 } from "./telegramChannelLinkOpen";
+
+beforeEach(() => {
+  inferSpy.mockReturnValue(undefined);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("isMaxChannelDeepLinkUrl", () => {
   it("returns true for max.ru with start param", () => {
@@ -124,5 +142,75 @@ describe("assignChannelLinkToBlankWindow", () => {
     } as unknown as Window;
     assignChannelLinkToBlankWindow(blankWin, "https://t.me/Bot?start=x", "telegram", desktopUa);
     expect(close).toHaveBeenCalled();
+  });
+});
+
+describe("finishChannelLinkNavigation", () => {
+  const desktopUa = "Mozilla/5.0 (Windows NT 10.0) Chrome/120";
+  const iphoneUa =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15";
+
+  it("calls openTelegramLink in Telegram mini app for telegram channel", () => {
+    const openTelegramLink = vi.fn();
+    const openLink = vi.fn();
+    vi.stubGlobal("Telegram", { WebApp: { openTelegramLink, openLink } });
+    inferSpy.mockReturnValue("telegram");
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url: "https://t.me/Bot?start=link_1",
+      channel: "telegram",
+      userAgent: desktopUa,
+    });
+
+    expect(openTelegramLink).toHaveBeenCalledWith("https://t.me/Bot?start=link_1");
+    expect(openLink).not.toHaveBeenCalled();
+  });
+
+  it("calls openLink with max.ru URL in Telegram mini app for max channel", () => {
+    const openLink = vi.fn();
+    vi.stubGlobal("Telegram", { WebApp: { openLink, openTelegramLink: vi.fn() } });
+    inferSpy.mockReturnValue("telegram");
+    const url = "https://max.ru/MyBot?start=link_abc";
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url,
+      channel: "max",
+      userAgent: iphoneUa,
+    });
+
+    expect(openLink).toHaveBeenCalledWith(url, { try_instant_view: false });
+  });
+
+  it("calls openMaxLink in MAX mini app for max deeplink", () => {
+    const openMaxLink = vi.fn();
+    vi.stubGlobal("WebApp", { openMaxLink, openLink: vi.fn() });
+    inferSpy.mockReturnValue("max");
+    const url = "https://max.ru/MyBot?start=link_abc";
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url,
+      channel: "max",
+      userAgent: desktopUa,
+    });
+
+    expect(openMaxLink).toHaveBeenCalledWith(url);
+  });
+
+  it("assigns blank window when not in mini app", () => {
+    inferSpy.mockReturnValue(undefined);
+    const loc = { href: "" };
+    const blankWin = { location: loc, close: vi.fn() } as unknown as Window;
+
+    finishChannelLinkNavigation({
+      blankWin,
+      url: "https://t.me/Bot?start=link_1",
+      channel: "telegram",
+      userAgent: desktopUa,
+    });
+
+    expect(loc.href).toBe("https://t.me/Bot?start=link_1");
   });
 });

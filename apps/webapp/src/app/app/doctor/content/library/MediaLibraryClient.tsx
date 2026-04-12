@@ -29,7 +29,7 @@ import { MediaCard } from "./MediaCard";
 import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { MediaLightbox } from "./MediaLightbox";
 import { canRenderInlineImage } from "./mediaPreview";
-import { VideoThumbnailPreview } from "./VideoThumbnailPreview";
+import { VideoThumbnailPreview } from "@/shared/ui/media/VideoThumbnailPreview";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
 type SortBy = "date" | "size" | "type";

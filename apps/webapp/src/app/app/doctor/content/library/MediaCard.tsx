@@ -2,7 +2,7 @@
 
 import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { canRenderInlineImage } from "./mediaPreview";
-import { VideoThumbnailPreview } from "./VideoThumbnailPreview";
+import { VideoThumbnailPreview } from "@/shared/ui/media/VideoThumbnailPreview";
 
 type MediaItem = {
   id: string;

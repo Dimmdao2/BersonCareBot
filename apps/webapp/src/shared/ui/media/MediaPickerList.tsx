@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { VideoThumbnailPreview } from "./library/VideoThumbnailPreview";
+import { VideoThumbnailPreview } from "@/shared/ui/media/VideoThumbnailPreview";
 
 export type MediaListItem = {
   id: string;
@@ -69,4 +69,3 @@ export function MediaPickerList({ items, loading, error, onSelect }: Props) {
     </div>
   );
 }
-

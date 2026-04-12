@@ -4,7 +4,7 @@ import { useCallback, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { insertLinePrefix, insertSnippet, wrapSelection } from "./markdownInsert";
-import { MediaUploader } from "./MediaUploader";
+import { MediaLibraryInsertDialog } from "./MediaLibraryInsertDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
 
 const MAX_BODY_MD = 50_000;
@@ -90,8 +90,8 @@ export function MarkdownEditor({
         >
           Список
         </Button>
-        <MediaUploader
-          onUploaded={(url, filename) => {
+        <MediaLibraryInsertDialog
+          onInsert={(url, filename) => {
             const safeName = filename.replace(/[[\]]/g, "");
             const imageExt = /\.(jpe?g|png|gif|webp)$/i.test(filename);
             const snippet = imageExt

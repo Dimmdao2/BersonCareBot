@@ -11,8 +11,9 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
 import {
-  assignChannelLinkToBlankWindow,
+  finishChannelLinkNavigation,
   isMaxChannelDeepLinkUrl,
+  shouldDeferChannelLinkBlankWindow,
 } from "@/shared/lib/telegramChannelLinkOpen";
 
 type Props = {
@@ -42,11 +43,10 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   }
 
   async function startChannelLink(channelCode: "telegram" | "max"): Promise<void> {
-    /** Telegram и Max (при диплинке с `?start=`): blank до await; иначе для Max вкладку закрываем. Без `noopener`. */
-    const blank =
-      channelCode === "telegram" || channelCode === "max"
-        ? window.open("about:blank", "_blank")
-        : null;
+    /** В обычном браузере — blank до await (обход popup-blocker). В TG/MAX Mini App — без blank (иначе «Open about:blank?»). */
+    const useBlank =
+      (channelCode === "telegram" || channelCode === "max") && !shouldDeferChannelLinkBlankWindow();
+    const blank = useBlank ? window.open("about:blank", "_blank") : null;
     setError(null);
     setBusy(channelCode);
     setMaxManualCommand(null);
@@ -86,9 +86,12 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
         const deep = typeof data.url === "string" && isMaxChannelDeepLinkUrl(data.url);
         if (deep) {
           setMaxOpenUrl(data.url);
-          if (blank) {
-            assignChannelLinkToBlankWindow(blank, data.url, "max", navigator.userAgent);
-          }
+          finishChannelLinkNavigation({
+            blankWin: blank,
+            url: data.url,
+            channel: "max",
+            userAgent: navigator.userAgent,
+          });
         } else {
           setMaxOpenUrl(null);
           try {
@@ -103,9 +106,12 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
         }
         return;
       }
-      if (blank) {
-        assignChannelLinkToBlankWindow(blank, data.url, "telegram", navigator.userAgent);
-      }
+      finishChannelLinkNavigation({
+        blankWin: blank,
+        url: data.url,
+        channel: "telegram",
+        userAgent: navigator.userAgent,
+      });
     } finally {
       setBusy(null);
     }
@@ -161,9 +167,20 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
                 {maxOpenUrl ? (
                   <p className="text-xs text-muted-foreground">
                     Если окно не открылось:{" "}
-                    <a href={maxOpenUrl} className="text-primary underline" target="_blank" rel="noreferrer">
+                    <button
+                      type="button"
+                      className="inline h-auto min-h-0 p-0 text-xs font-normal text-primary underline"
+                      onClick={() =>
+                        finishChannelLinkNavigation({
+                          blankWin: null,
+                          url: maxOpenUrl,
+                          channel: "max",
+                          userAgent: navigator.userAgent,
+                        })
+                      }
+                    >
                       открыть бота в MAX
-                    </a>
+                    </button>
                   </p>
                 ) : null}
                 {maxManualCommand ? (

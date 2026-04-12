@@ -2,7 +2,18 @@
  * Открытие deep link t.me после async fetch без popup-blocker: синхронно
  * `window.open('about:blank')`, затем присвоение `location.href`.
  * На мобильных — предпочтение `tg://resolve?domain=…&start=…` для открытия приложения Telegram.
+ *
+ * В **Telegram Mini App** нельзя открывать `about:blank` — WebView спрашивает «Open about:blank?»;
+ * используем `Telegram.WebApp.openTelegramLink` / `openLink`. В **MAX Mini App** — `WebApp.openMaxLink`
+ * для диплинков max.ru (см. dev.max.ru — MAX Bridge).
  */
+
+import { inferMessengerChannelForRequestContact } from "@/shared/lib/messengerMiniApp";
+
+/** Не открывать вкладку `about:blank` до fetch: в TG/MAX WebView это ломает UX. */
+export function shouldDeferChannelLinkBlankWindow(): boolean {
+  return inferMessengerChannelForRequestContact() !== undefined;
+}
 
 /** Детект мобильного UA для выбора tg:// vs https. */
 export function isLikelyMobileUserAgent(userAgent: string): boolean {
@@ -81,4 +92,78 @@ export function assignChannelLinkToBlankWindow(
       /* ignore */
     }
   }
+}
+
+type TelegramWebAppOpen = {
+  openTelegramLink?: (url: string) => void;
+  openLink?: (url: string, options?: { try_instant_view?: boolean }) => void;
+};
+
+type MaxWebAppOpen = {
+  openMaxLink?: (url: string) => void;
+  openLink?: (url: string) => void;
+};
+
+function safeCloseBlank(blankWin: Window | null): void {
+  try {
+    blankWin?.close();
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Завершает переход по ссылке привязки после POST: мост TG/MAX Mini App или вкладка about:blank.
+ * Для повторного открытия по ссылке из UI (без заранее открытой вкладки) передайте `blankWin: null`.
+ */
+export function finishChannelLinkNavigation(params: {
+  blankWin: Window | null;
+  url: string;
+  channel: ChannelLinkOpenChannel;
+  userAgent: string;
+}): void {
+  const { blankWin, url, channel, userAgent } = params;
+  const host = inferMessengerChannelForRequestContact();
+
+  if (host === "telegram") {
+    const tg = (window as Window & { Telegram?: { WebApp?: TelegramWebAppOpen } }).Telegram?.WebApp;
+    if (tg) {
+      if (channel === "telegram" && typeof tg.openTelegramLink === "function") {
+        tg.openTelegramLink(url);
+        safeCloseBlank(blankWin);
+        return;
+      }
+      if (typeof tg.openLink === "function") {
+        const toOpen = channel === "telegram" ? pickTelegramOpenUrl(url, userAgent) : url;
+        tg.openLink(toOpen, { try_instant_view: false });
+        safeCloseBlank(blankWin);
+        return;
+      }
+    }
+  }
+
+  if (host === "max") {
+    const w = (window as Window & { WebApp?: MaxWebAppOpen }).WebApp;
+    if (w) {
+      if (channel === "max" && isMaxChannelDeepLinkUrl(url) && typeof w.openMaxLink === "function") {
+        w.openMaxLink(url);
+        safeCloseBlank(blankWin);
+        return;
+      }
+      if (typeof w.openLink === "function") {
+        const toOpen = channel === "telegram" ? pickTelegramOpenUrl(url, userAgent) : url;
+        w.openLink(toOpen);
+        safeCloseBlank(blankWin);
+        return;
+      }
+    }
+  }
+
+  if (blankWin) {
+    assignChannelLinkToBlankWindow(blankWin, url, channel, userAgent);
+    return;
+  }
+
+  const toOpen = channel === "telegram" ? pickTelegramOpenUrl(url, userAgent) : url;
+  window.open(toOpen, "_blank", "noopener,noreferrer");
 }
