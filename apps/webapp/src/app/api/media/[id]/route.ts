@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { env } from "@/config/env";
+import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/infra/logging/logger";
 import { getStoredMediaBody } from "@/infra/repos/mockMediaStorage";
 import { getMediaS3KeyForRedirect } from "@/infra/repos/s3MediaStorage";
@@ -8,6 +8,18 @@ import { getCurrentSession } from "@/modules/auth/service";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function redirectPresignedOr503(s3Key: string): Promise<Response> {
+  try {
+    const signed = await presignGetUrl(s3Key);
+    const res = NextResponse.redirect(signed, 302);
+    res.headers.set("Cache-Control", "private, max-age=0, must-revalidate");
+    return res;
+  } catch (e) {
+    logger.error({ err: e }, "[media GET] presign failed");
+    return NextResponse.json({ error: "storage_error" }, { status: 503 });
+  }
+}
 
 export async function GET(
   _request: Request,
@@ -23,19 +35,19 @@ export async function GET(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  if (env.DATABASE_URL && UUID_RE.test(id)) {
+  const isUuid = UUID_RE.test(id);
+  const dbUrl = (env.DATABASE_URL ?? "").trim();
+
+  /** UUID in DB → bytes live in MinIO/S3; presigned GET only (never in-process mock). */
+  if (dbUrl && isUuid) {
     const s3Key = await getMediaS3KeyForRedirect(id);
     if (s3Key) {
-      try {
-        const signed = await presignGetUrl(s3Key);
-        const res = NextResponse.redirect(signed, 302);
-        res.headers.set("Cache-Control", "private, max-age=0, must-revalidate");
-        return res;
-      } catch (e) {
-        logger.error({ err: e }, "[media GET] presign failed");
-        return NextResponse.json({ error: "storage_error" }, { status: 503 });
-      }
+      return redirectPresignedOr503(s3Key);
     }
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
+  if (isS3MediaEnabled(env)) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 

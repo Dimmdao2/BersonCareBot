@@ -9,6 +9,7 @@ const getSessionMock = vi.fn();
 
 vi.mock("@/config/env", () => ({
   env: { DATABASE_URL: "postgres://test/db" },
+  isS3MediaEnabled: () => true,
 }));
 
 vi.mock("@/infra/repos/s3MediaStorage", () => ({
@@ -87,5 +88,15 @@ describe("GET /api/media/[id]", () => {
     expect(res.status).toBe(503);
     const body = (await res.json()) as { error?: string };
     expect(body.error).toBe("storage_error");
+  });
+
+  it("returns 404 for non-UUID id when S3 media is enabled (no in-memory fallback)", async () => {
+    const res = await GET(new Request("http://localhost/api/media/x"), {
+      params: Promise.resolve({ id: "media-1" }),
+    });
+
+    expect(res.status).toBe(404);
+    expect(getS3KeyMock).not.toHaveBeenCalled();
+    expect(getStoredMock).not.toHaveBeenCalled();
   });
 });

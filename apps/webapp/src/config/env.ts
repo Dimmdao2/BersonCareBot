@@ -227,6 +227,11 @@ if (!isNextBuildPhase) {
     if (!webhookSecret || webhookSecret.length < 16) {
       throw new Error("Production requires INTEGRATOR_WEBHOOK_SECRET or INTEGRATOR_SHARED_SECRET in env.");
     }
+    if ((parsed.DATABASE_URL ?? "").trim() && !isS3MediaEnabled(parsed)) {
+      throw new Error(
+        "Production with DATABASE_URL requires CMS media in MinIO/S3: set S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY, and S3_PRIVATE_BUCKET (see SERVER CONVENTIONS).",
+      );
+    }
   } else {
     if (!isTest) {
       if (!parsed.SESSION_COOKIE_SECRET || parsed.SESSION_COOKIE_SECRET.length < 16) {
