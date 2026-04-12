@@ -8,6 +8,8 @@ import { patchAdminSetting } from "./patchAdminSetting";
 
 export type AuthProvidersSectionProps = {
   telegramLoginBotUsername: string;
+  /** Ник бота MAX для диплинка max.ru/<nick>?start=… (channel-link). */
+  maxLoginBotNickname: string;
   yandexOauthClientId: string;
   yandexOauthClientSecret: string;
   yandexOauthRedirectUri: string;
@@ -37,6 +39,7 @@ function validateHttpUrl(label: string, raw: string): string | null {
 
 export function AuthProvidersSection({
   telegramLoginBotUsername,
+  maxLoginBotNickname,
   yandexOauthClientId,
   yandexOauthClientSecret,
   yandexOauthRedirectUri,
@@ -50,6 +53,7 @@ export function AuthProvidersSection({
   appleOauthRedirectUri,
 }: AuthProvidersSectionProps) {
   const [telegramBot, setTelegramBot] = useState(telegramLoginBotUsername);
+  const [maxBotNick, setMaxBotNick] = useState(maxLoginBotNickname);
   const [yandexId, setYandexId] = useState(yandexOauthClientId);
   const [yandexSecret, setYandexSecret] = useState(yandexOauthClientSecret);
   const [yandexRedirect, setYandexRedirect] = useState(yandexOauthRedirectUri);
@@ -87,6 +91,7 @@ export function AuthProvidersSection({
         }
         const results = await Promise.all([
           patchAdminSetting("telegram_login_bot_username", telegramBot.trim()),
+          patchAdminSetting("max_login_bot_nickname", maxBotNick.trim()),
           patchAdminSetting("yandex_oauth_client_id", yandexId.trim()),
           patchAdminSetting("yandex_oauth_client_secret", yandexSecret.trim()),
           patchAdminSetting("yandex_oauth_redirect_uri", yandexRedirect.trim()),
@@ -138,6 +143,38 @@ export function AuthProvidersSection({
                 Публичный username бота без @ (как в t.me/…), не числовой id бота. Пустое — fallback из env{" "}
                 <code className="rounded bg-muted px-0.5">TELEGRAM_BOT_USERNAME</code> (тоже username, не id; env whitelist{" "}
                 <code className="rounded bg-muted px-0.5">ALLOWED_TELEGRAM_IDS</code> — это user id людей).
+              </span>
+            </label>
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <p className="text-sm font-semibold">MAX — привязка в браузере (channel-link)</p>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium">Ник бота или ссылка max.ru</span>
+              <Input
+                type="text"
+                placeholder="id123456789_1_bot или https://max.ru/id123456789_1_bot"
+                value={maxBotNick}
+                onChange={(e) => setMaxBotNick(e.target.value)}
+                disabled={isPending}
+                autoComplete="off"
+                className="font-mono text-xs"
+              />
+              <span className="text-xs text-muted-foreground">
+                Для автоматического открытия бота с токеном привязки: ник из публичной ссылки (как в{" "}
+                <code className="rounded bg-muted px-0.5">max.ru/ник</code>
+                ). Можно вставить полный URL. Пустое — только команда{" "}
+                <code className="rounded bg-muted px-0.5">/start link_…</code> без перехода. Fallback: env{" "}
+                <code className="rounded bg-muted px-0.5">MAX_LOGIN_BOT_NICKNAME</code>. Документация:{" "}
+                <a
+                  className="text-primary underline"
+                  href="https://dev.max.ru/docs/chatbots/bots-coding/prepare#%D0%A0%D0%B0%D0%B1%D0%BE%D1%82%D0%B0%D0%B5%D0%BC%20%D1%81%20%D0%B4%D0%B8%D0%BF%D0%BB%D0%B8%D0%BD%D0%BA%D0%B0%D0%BC%D0%B8"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  MAX — диплинки
+                </a>
+                .
               </span>
             </label>
           </section>

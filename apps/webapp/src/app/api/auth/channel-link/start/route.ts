@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isChannelLinkStartRateLimited } from "@/modules/auth/channelLinkStartRateLimit";
 import { getCurrentSession } from "@/modules/auth/service";
 import { startChannelLink } from "@/modules/auth/channelLink";
+import { getMaxLoginBotNickname } from "@/modules/system-settings/maxLoginBotNickname";
 import { getTelegramLoginBotUsername } from "@/modules/system-settings/telegramLoginBotUsername";
 
 const bodySchema = z.object({
@@ -29,11 +30,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "validation_error" }, { status: 400 });
   }
 
-  const botUsername = await getTelegramLoginBotUsername();
+  const [botUsername, maxBotNickname] = await Promise.all([
+    getTelegramLoginBotUsername(),
+    getMaxLoginBotNickname(),
+  ]);
   const result = await startChannelLink({
     userId: session.user.userId,
     channelCode: parsed.data.channelCode,
     botUsername,
+    maxBotNickname,
   });
 
   if (!result.ok) {

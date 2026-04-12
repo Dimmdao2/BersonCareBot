@@ -10,7 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
-import { assignChannelLinkToBlankWindow } from "@/shared/lib/telegramChannelLinkOpen";
+import {
+  assignChannelLinkToBlankWindow,
+  isMaxChannelDeepLinkUrl,
+} from "@/shared/lib/telegramChannelLinkOpen";
 
 type Props = {
   channelCards: ChannelCard[];
@@ -28,6 +31,7 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [maxManualCommand, setMaxManualCommand] = useState<string | null>(null);
+  const [maxOpenUrl, setMaxOpenUrl] = useState<string | null>(null);
 
   async function copyMaxCommand(cmd: string): Promise<void> {
     try {
@@ -38,14 +42,15 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   }
 
   async function startChannelLink(channelCode: "telegram" | "max"): Promise<void> {
-    /** Как на bind-phone: blank только для Telegram (popup после await); Max — команда в UI / буфер, без лишней вкладки. */
+    /** Telegram и Max (при диплинке с `?start=`): blank до await; иначе для Max вкладку закрываем. Без `noopener`. */
     const blank =
-      channelCode === "telegram"
-        ? window.open("about:blank", "_blank", "noopener,noreferrer")
+      channelCode === "telegram" || channelCode === "max"
+        ? window.open("about:blank", "_blank")
         : null;
     setError(null);
     setBusy(channelCode);
     setMaxManualCommand(null);
+    setMaxOpenUrl(null);
     try {
       const res = await fetch("/api/auth/channel-link/start", {
         method: "POST",
@@ -78,6 +83,20 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
         return;
       }
       if (channelCode === "max") {
+        const deep = typeof data.url === "string" && isMaxChannelDeepLinkUrl(data.url);
+        if (deep) {
+          setMaxOpenUrl(data.url);
+          if (blank) {
+            assignChannelLinkToBlankWindow(blank, data.url, "max", navigator.userAgent);
+          }
+        } else {
+          setMaxOpenUrl(null);
+          try {
+            blank?.close();
+          } catch {
+            /* ignore */
+          }
+        }
         setMaxManualCommand(data.manualCommand ?? null);
         if (data.manualCommand) {
           await copyMaxCommand(data.manualCommand);
@@ -139,6 +158,14 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
                 >
                   {busy === "max" ? "…" : "Подключить"}
                 </Button>
+                {maxOpenUrl ? (
+                  <p className="text-xs text-muted-foreground">
+                    Если окно не открылось:{" "}
+                    <a href={maxOpenUrl} className="text-primary underline" target="_blank" rel="noreferrer">
+                      открыть бота в MAX
+                    </a>
+                  </p>
+                ) : null}
                 {maxManualCommand ? (
                   <div className="text-xs text-muted-foreground">
                     <p className="m-0">В чате с ботом MAX отправьте команду:</p>

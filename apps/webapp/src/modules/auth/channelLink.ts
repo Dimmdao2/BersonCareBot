@@ -7,6 +7,7 @@ import { logger } from "@/infra/logging/logger";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { mergePlatformUsersInTransaction } from "@/infra/repos/pgPlatformUserMerge";
 import { MergeConflictError } from "@/infra/repos/platformUserMergeErrors";
+import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
 
 const SECRET_TTL_MIN = 10;
 
@@ -106,6 +107,8 @@ export async function startChannelLink(params: {
   userId: string;
   channelCode: "telegram" | "max" | "vk";
   botUsername: string;
+  /** Ник бота MAX для `https://max.ru/<nick>?start=…` (пусто — только команда в чат). */
+  maxBotNickname?: string;
 }): Promise<ChannelLinkStartResult> {
   if (params.channelCode !== "telegram" && params.channelCode !== "max") {
     return { ok: false, code: "unsupported_channel" };
@@ -121,7 +124,19 @@ export async function startChannelLink(params: {
         url: `https://t.me/${params.botUsername}?start=${encodeURIComponent(startPayload)}`,
       };
     }
-    // MAX currently relies on manual command input in chat with bot.
+    const nick = normalizeMaxBotNicknameInput(params.maxBotNickname ?? "");
+    if (nick && startPayload.length <= 128) {
+      try {
+        const u = new URL(`https://max.ru/${encodeURIComponent(nick)}`);
+        u.searchParams.set("start", startPayload);
+        return {
+          url: u.toString(),
+          manualCommand: `/start ${startPayload}`,
+        };
+      } catch {
+        /* fall through */
+      }
+    }
     return {
       url: "https://max.ru/",
       manualCommand: `/start ${startPayload}`,

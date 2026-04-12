@@ -23,7 +23,7 @@
 - Пока в мессенджерном Mini App в `/api/me` нет tier **patient** (после `contact.linked` и проекции), пациентский layout показывает **`MiniAppShareContactGate`** — **страховка** поверх основного гейта в боте (см. `docs/AUTH_RESTRUCTURE/BOT_CONTACT_MINI_APP_GATE.md`). Контракт `contact.linked` синхронизирует `platform_users.phone_normalized` и `user_channel_bindings` через projection path.
 - **Клиент Mini App (Telegram / MAX):** при 401 на `/api/me` до показа гейта — **`miniAppSessionRecovery.ensureMessengerMiniAppWebappSession`** (`telegram-init` или `exchange` по `?t=`/`?token=`). Разбор `/api/me` и ссылки на ботов — **`patientMessengerContactGate`** (`getPatientMessengerContactGateDetail`, `resolveMessengerContactGateBotHref`, `resolveBotHrefAfterMessengerSessionLoss`).
 - **exchangeIntegratorToken** — обмен JWT «войти в приложение» из бота на сессию вебаппа (payload: sub, role, displayName, phone, bindings, exp).
-- **`POST /api/auth/channel-link/start`** (привязка TG/Max с `/app/patient/bind-phone` в браузере) и **`POST /api/auth/messenger/start`** (deep link после ввода телефона): для Telegram используют **`getTelegramLoginBotUsername()`** — **публичный username бота** (без `@`), как у Login Widget: `telegram_login_bot_username` в admin, иначе fallback `TELEGRAM_BOT_USERNAME`. Это **не** числовой id бота и **не** то же самое, что `ALLOWED_TELEGRAM_IDS` / `ADMIN_TELEGRAM_ID` (там — user id людей). Подробнее: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` → «Telegram в webapp env».
+- **`POST /api/auth/channel-link/start`** (привязка TG/Max с `/app/patient/bind-phone` в браузере) и **`POST /api/auth/messenger/start`** (deep link после ввода телефона): для Telegram — **`getTelegramLoginBotUsername()`** (`telegram_login_bot_username` в admin, иначе `TELEGRAM_BOT_USERNAME`). Для Max channel-link — **`getMaxLoginBotNickname()`**: порядок — `max_login_bot_nickname` в admin → **`MAX_LOGIN_BOT_NICKNAME`** в env → ник из **`CHANNEL_LIST`** (`modules/channel-preferences/constants.ts`, поле `openUrl` у MAX). При непустом нике ответ содержит диплинк `https://max.ru/<nick>?start=link_…` ([документация MAX](https://dev.max.ru/docs/chatbots/bots-coding/prepare)). Если ник нигде не задан — только команда `/start link_…` без автоперехода. **Не путать** с `ALLOWED_MAX_IDS` / whitelist (там — user id людей). Подробнее: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` → «Telegram в webapp env».
 
 ## OAuth (Яндекс, Google и Apple — веб-вход)
 
@@ -68,7 +68,7 @@
 
 ### Channel link (старт ссылки из сессии)
 
-- **`POST /api/auth/channel-link/start`** (авторизованный пациент): выдача deep link / команды Max. **Rate limit:** scope `auth.channel_link_start`, ключ — `userId` сессии (до **30** запросов за скользящий час в `auth_rate_limit_events`; без БД — in-memory fallback), аналогично `auth.messenger_start`. Ответ **429** `rate_limited` при превышении.
+- **`POST /api/auth/channel-link/start`** (авторизованный пациент): deep link Telegram (`t.me/…`) и при настроенном нике Max — `https://max.ru/<nick>?start=link_…`, иначе URL-заглушка и команда `/start link_…`. **Rate limit:** scope `auth.channel_link_start`, ключ — `userId` сессии (до **30** запросов за скользящий час в `auth_rate_limit_events`; без БД — in-memory fallback), аналогично `auth.messenger_start`. Ответ **429** `rate_limited` при превышении.
 
 ### Channel link → integrator
 
@@ -82,9 +82,9 @@
 
 ### Открытие ссылки Telegram в браузере (bind-phone / профиль)
 
-Чтобы избежать блокировки всплывающих окон после `await fetch`, используется `shared/lib/telegramChannelLinkOpen.ts`: синхронно `window.open('about:blank')`, затем присвоение `location.href`; на мобильных UA при разборе `t.me/...?start=` подставляется `tg://resolve?domain=…&start=…`.
+Чтобы избежать блокировки всплывающих окон после `await fetch`, используется `shared/lib/telegramChannelLinkOpen.ts`: синхронно `window.open('about:blank', '_blank')` **без** `noopener`/`noreferrer` (иначе часть браузеров возвращает `null`, вкладка остаётся пустой), затем присвоение `location.href`; на мобильных UA при разборе `t.me/...?start=` подставляется `tg://resolve?domain=…&start=…`.
 
-**Max:** вкладку `about:blank` не открываем — только команда `/start link_…` в UI и копирование в буфер (как `PatientBrowserMessengerBindPanel`, так и `ConnectMessengersBlock`). **429** от `POST /api/auth/channel-link/start` (`rate_limited`): в обоих компонентах показывается сообщение пользователю (toast на bind-phone, текст ошибки в блоке настроек).
+**Max:** если в ответе есть диплинк с `?start=`, тот же паттерн, что у Telegram: синхронно `about:blank`, затем `location.href` на `max.ru/…`. Иначе вкладку не открываем — команда в UI и буфер. **429** (`rate_limited`): toast на bind-phone, текст ошибки в `ConnectMessengersBlock`.
 
 ### UI
 

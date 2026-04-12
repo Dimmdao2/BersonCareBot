@@ -740,3 +740,35 @@ Gate verdict:
 Notes:
 - Поведение привязки мессенджеров в профиле/настройках выровнено с `/app/patient/bind-phone` по аудиту post-plan.
 ```
+
+```text
+[2026-04-12T12:30:00Z] [MAX channel-link deep link + max_login_bot_nickname] [FIX] agent
+Tasks done:
+- `system_settings` ключ `max_login_bot_nickname` (ALLOWED_KEYS), админка «Авторизация» — поле ника/URL; fallback env `MAX_LOGIN_BOT_NICKNAME`.
+- `getMaxLoginBotNickname` / нормализация URL `max.ru/…`; `startChannelLink` строит `https://max.ru/<nick>?start=link_…` ([MAX deeplinks](https://dev.max.ru/docs/chatbots/bots-coding/prepare)).
+- UI: при ответе с `?start=` — `about:blank` + переход для Max (`PatientBrowserMessengerBindPanel`, `ConnectMessengersBlock`).
+- Тесты: `maxLoginBotNickname.test.ts`, `channelLink.test.ts`, `channel-link/start/route.test.ts`, `env.test.ts`.
+- `auth.md`, `.env.example`.
+Changed files:
+- apps/webapp: `types.ts`, `maxLoginBotNickname.ts`, `channelLink.ts`, `channel-link/start/route.ts`, `admin/settings/route.ts`, `AuthProvidersSection.tsx`, `settings/page.tsx`, `env.ts`, bind-phone panel, `ConnectMessengersBlock.tsx`, тесты, `auth.md`, `.env.example`
+- docs: `AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md`
+Checks:
+- pnpm run ci — exit 0
+Gate verdict:
+- PASS
+```
+
+```text
+[2026-04-12T16:00:00Z] [MAX channel-link: verify + CHANNEL_LIST fallback + docs] [FIX] agent
+Tasks done:
+- Проверка цепочки: `getMaxLoginBotNickname()` — admin → env `MAX_LOGIN_BOT_NICKNAME` → `maxBotNicknameFromChannelList()` из `CHANNEL_LIST`; `startChannelLink` / UI профиля и bind-phone (`ConnectMessengersBlock`, `PatientBrowserMessengerBindPanel`).
+- `isMaxChannelDeepLinkUrl()` + запасная ссылка «открыть бота в MAX» при диплинке.
+- Документация: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` (max_login_bot_nickname, таблица MAX vs Max user id); `auth.md` в составе ветки.
+Changed files:
+- apps/webapp: Max channel-link (maxLoginBotNickname, channelLink, route, admin settings UI, env, ConnectMessengersBlock, PatientBrowserMessengerBindPanel, telegramChannelLinkOpen, тесты)
+- docs: `ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, `AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md`
+Checks:
+- pnpm install --frozen-lockfile && pnpm run ci — exit 0
+Gate verdict:
+- PASS
+```

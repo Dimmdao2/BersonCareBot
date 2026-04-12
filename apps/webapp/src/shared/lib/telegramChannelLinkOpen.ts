@@ -47,6 +47,17 @@ export function pickTelegramOpenUrl(tmeUrl: string, userAgent: string): string {
   return buildTgAppDeepLink(tmeUrl) ?? tmeUrl;
 }
 
+/** Ответ API channel-link для MAX с диплинком `https://max.ru/<nick>?start=…`. */
+export function isMaxChannelDeepLinkUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./i, "").toLowerCase();
+    return host === "max.ru" && u.searchParams.has("start");
+  } catch {
+    return false;
+  }
+}
+
 export type ChannelLinkOpenChannel = "telegram" | "max";
 
 /**

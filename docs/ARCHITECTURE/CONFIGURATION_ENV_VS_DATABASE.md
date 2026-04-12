@@ -13,6 +13,7 @@
 
 - Публичные ссылки: `support_contact_url`.
 - Telegram Login Widget: `telegram_login_bot_username`.
+- Диплинк MAX для привязки в браузере (`POST /api/auth/channel-link/start`): **`max_login_bot_nickname`** (ник или `https://max.ru/<nick>`). Fallback порядка чтения: env **`MAX_LOGIN_BOT_NICKNAME`** → ник из **`CHANNEL_LIST`** в `apps/webapp/src/modules/channel-preferences/constants.ts` (поле `openUrl` у канала MAX), см. `getMaxLoginBotNickname()`.
 
 ### Telegram в webapp env: username бота vs числовые id
 
@@ -24,6 +25,13 @@
 | **Числовые id пользователей** | `ALLOWED_TELEGRAM_IDS`, `ADMIN_TELEGRAM_ID`, списки в БД (`allowed_telegram_ids`, …) | целые числа (Telegram user id аккаунтов людей) | Вайтлист/роли входа. Это **не** имя бота и **не** замена `telegram_login_bot_username`. |
 
 Итог: в env рядом могут лежать и **id людей** (whitelist), и отдельно **`TELEGRAM_BOT_USERNAME`** — это **не id**, а **handle бота** для ссылок и виджета.
+
+### MAX: ник бота для channel-link vs числовые id пользователей
+
+| Что | Где | Назначение |
+|-----|-----|------------|
+| **Ник бота MAX** (путь `max.ru/<nick>`) | **`max_login_bot_nickname`** в `system_settings`, иначе **`MAX_LOGIN_BOT_NICKNAME`** в env, иначе разбор **`CHANNEL_LIST`** (`max.openUrl`) | Диплинк `https://max.ru/<nick>?start=link_…` при привязке из веба ([документация MAX](https://dev.max.ru/docs/chatbots/bots-coding/prepare)). |
+| **Числовые Max user id** | `allowed_max_ids`, `admin_max_ids`, `doctor_max_ids` и т.д. | Вайтлист/роли входа; **не** замена ника бота для диплинка. |
 - **Yandex OAuth (backend-only):** `yandex_oauth_client_id`, `yandex_oauth_client_secret`, `yandex_oauth_redirect_uri` — редактирование через admin Settings; **не** дублировать в env webapp.
 - **Google Calendar OAuth + integration:** `google_client_id`, `google_client_secret`, `google_redirect_uri`, `google_refresh_token`, `google_calendar_id`, `google_calendar_enabled`, `google_connected_email` — управление через admin Settings UI (OAuth consent flow + выбор календаря). Env-переменные `GOOGLE_*` в integrator помечены `@deprecated` и оставлены как fallback на переходный период.
 - Отображение времени: **`app_display_timezone`** (IANA).

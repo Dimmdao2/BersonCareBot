@@ -105,6 +105,13 @@ export default async function SettingsPage() {
           );
           return typeof raw === "string" ? raw.trim() : "";
         })(),
+        maxLoginBotNickname: (() => {
+          const raw = getValueJson(
+            adminSettingsList.find((x) => x.key === "max_login_bot_nickname")?.valueJson,
+            "",
+          );
+          return typeof raw === "string" ? raw.trim() : "";
+        })(),
         yandexOauthClientId: (() => {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "yandex_oauth_client_id")?.valueJson, "");
           return typeof raw === "string" ? raw.trim() : "";

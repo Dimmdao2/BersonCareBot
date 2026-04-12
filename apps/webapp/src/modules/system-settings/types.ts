@@ -14,6 +14,8 @@ export const ALLOWED_KEYS = [
   "support_contact_url",
   /** Имя бота для Telegram Login Widget (без @), публичный идентификатор виджета. */
   "telegram_login_bot_username",
+  /** Публичный ник бота MAX (сегмент `max.ru/<nick>`), для диплинка привязки channel-link. */
+  "max_login_bot_nickname",
   /** IANA-таймзона для отображения времени записей и слотов (например Europe/Moscow). */
   "app_display_timezone",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */

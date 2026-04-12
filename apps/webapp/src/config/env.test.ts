@@ -51,6 +51,7 @@ describe("checkInsecureSecretsForStartup", () => {
     S3_REGION: "us-east-1",
     S3_FORCE_PATH_STYLE: false,
     TELEGRAM_BOT_USERNAME: "bersoncare_bot",
+    MAX_LOGIN_BOT_NICKNAME: "",
     INTERNAL_JOB_SECRET: "",
     LOG_LEVEL: "info",
   };

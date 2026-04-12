@@ -3,8 +3,21 @@ import {
   assignChannelLinkToBlankWindow,
   buildTgAppDeepLink,
   isLikelyMobileUserAgent,
+  isMaxChannelDeepLinkUrl,
   pickTelegramOpenUrl,
 } from "./telegramChannelLinkOpen";
+
+describe("isMaxChannelDeepLinkUrl", () => {
+  it("returns true for max.ru with start param", () => {
+    expect(isMaxChannelDeepLinkUrl("https://max.ru/MyBot?start=link_abc")).toBe(true);
+    expect(isMaxChannelDeepLinkUrl("https://www.max.ru/MyBot?start=x")).toBe(true);
+  });
+
+  it("returns false without start or wrong host", () => {
+    expect(isMaxChannelDeepLinkUrl("https://max.ru/MyBot")).toBe(false);
+    expect(isMaxChannelDeepLinkUrl("https://example.com/?start=x")).toBe(false);
+  });
+});
 
 describe("isLikelyMobileUserAgent", () => {
   it("detects common mobile UAs", () => {

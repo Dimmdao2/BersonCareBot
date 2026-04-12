@@ -19,6 +19,7 @@ const ADMIN_SCOPE_KEYS = [
   "integration_test_ids",
   "support_contact_url",
   "telegram_login_bot_username",
+  "max_login_bot_nickname",
   "app_display_timezone",
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",

@@ -4,7 +4,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { assignChannelLinkToBlankWindow } from "@/shared/lib/telegramChannelLinkOpen";
+import {
+  assignChannelLinkToBlankWindow,
+  isMaxChannelDeepLinkUrl,
+} from "@/shared/lib/telegramChannelLinkOpen";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 const POLL_MS = 4000;
@@ -21,15 +24,18 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
   const router = useRouter();
   const [loading, setLoading] = useState<"telegram" | "max" | null>(null);
   const [telegramUrl, setTelegramUrl] = useState<string | null>(null);
+  const [maxOpenUrl, setMaxOpenUrl] = useState<string | null>(null);
   const [maxCommand, setMaxCommand] = useState<string | null>(null);
 
   const startLink = useCallback(async (channelCode: "telegram" | "max") => {
+    /** Без `noopener`: иначе часть браузеров возвращает `null`, вкладка остаётся пустой. Для Max — та же схема, если API вернул диплинк `?start=`. */
     const blank =
-      channelCode === "telegram"
-        ? window.open("about:blank", "_blank", "noopener,noreferrer")
+      channelCode === "telegram" || channelCode === "max"
+        ? window.open("about:blank", "_blank")
         : null;
     setLoading(channelCode);
     setTelegramUrl(null);
+    setMaxOpenUrl(null);
     setMaxCommand(null);
     try {
       const res = await fetch("/api/auth/channel-link/start", {
@@ -68,12 +74,21 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
           assignChannelLinkToBlankWindow(blank, data.url, "telegram", navigator.userAgent);
         }
       } else {
-        try {
-          blank?.close();
-        } catch {
-          /* ignore */
-        }
         setMaxCommand(data.manualCommand ?? null);
+        const deep = typeof data.url === "string" && isMaxChannelDeepLinkUrl(data.url);
+        if (deep) {
+          setMaxOpenUrl(data.url);
+          if (blank) {
+            assignChannelLinkToBlankWindow(blank, data.url, "max", navigator.userAgent);
+          }
+        } else {
+          setMaxOpenUrl(null);
+          try {
+            blank?.close();
+          } catch {
+            /* ignore */
+          }
+        }
         if (data.manualCommand) {
           try {
             await navigator.clipboard.writeText(data.manualCommand);
@@ -128,6 +143,14 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
           Если окно не открылось, перейдите по ссылке:{" "}
           <a href={telegramUrl} className="text-primary underline" target="_blank" rel="noreferrer">
             открыть бота
+          </a>
+        </p>
+      ) : null}
+      {maxOpenUrl ? (
+        <p className="text-xs text-muted-foreground">
+          Если окно не открылось:{" "}
+          <a href={maxOpenUrl} className="text-primary underline" target="_blank" rel="noreferrer">
+            открыть бота в MAX
           </a>
         </p>
       ) : null}

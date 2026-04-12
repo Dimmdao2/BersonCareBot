@@ -282,7 +282,7 @@ describe("completeChannelLinkFromIntegrator", () => {
 });
 
 describe("startChannelLink", () => {
-  it("creates max link challenge and returns manual command", async () => {
+  it("creates max link challenge and returns manual command when nick missing", async () => {
     queryMock.mockReset();
     queryMock.mockResolvedValue({ rows: [] });
 
@@ -299,5 +299,23 @@ describe("startChannelLink", () => {
       expect(result.expiresAtIso).toBeTruthy();
     }
     expect(queryMock).toHaveBeenCalled();
+  });
+
+  it("creates max deep link when maxBotNickname is set", async () => {
+    queryMock.mockReset();
+    queryMock.mockResolvedValue({ rows: [] });
+
+    const result = await startChannelLink({
+      userId: "u-max-1",
+      channelCode: "max",
+      botUsername: "bersoncare_bot",
+      maxBotNickname: "https://max.ru/CareMaxBot",
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.url).toMatch(/^https:\/\/max\.ru\/CareMaxBot\?start=link_[A-Za-z0-9_-]+$/);
+      expect(result.manualCommand).toMatch(/^\/start link_[A-Za-z0-9_-]+$/);
+    }
   });
 });

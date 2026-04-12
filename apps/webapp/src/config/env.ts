@@ -127,6 +127,13 @@ const envSchema = z.object({
    * Не путать с числовым id бота из BotFather и с `ALLOWED_TELEGRAM_IDS` / `ADMIN_TELEGRAM_ID` (это id пользователей).
    */
   TELEGRAM_BOT_USERNAME: z.string().min(1).default("bersoncare_bot"),
+  /**
+   * Fallback ник бота MAX для `https://max.ru/<nick>?start=…` (channel-link). Канон — `max_login_bot_nickname` в admin.
+   */
+  MAX_LOGIN_BOT_NICKNAME: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
   /** Bearer token for POST /api/internal/* cron-style jobs. Empty → purge route returns 503. */
   INTERNAL_JOB_SECRET: z
     .string()
@@ -171,6 +178,7 @@ const parsed = envSchema.parse({
   S3_REGION: process.env.S3_REGION,
   S3_FORCE_PATH_STYLE: process.env.S3_FORCE_PATH_STYLE,
   TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME?.trim() || "bersoncare_bot",
+  MAX_LOGIN_BOT_NICKNAME: process.env.MAX_LOGIN_BOT_NICKNAME,
   INTERNAL_JOB_SECRET: process.env.INTERNAL_JOB_SECRET,
   LOG_LEVEL: process.env.LOG_LEVEL,
 });
