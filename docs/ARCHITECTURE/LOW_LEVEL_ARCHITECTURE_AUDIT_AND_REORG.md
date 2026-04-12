@@ -99,7 +99,7 @@
 Ключевые места:
 
 - `webapp/src/modules/integrator/events.ts` вызывает `buildAppDeps()` изнутри модуля
-- `webapp/src/app/api/patient/question/route.ts` идет напрямую в env/external API
+- `webapp/src/app/api/patient/support/route.ts` идёт напрямую в env/external Telegram API
 - `webapp/src/app/api/media/[id]/route.ts` идет напрямую в repo
 - integrator routes местами собирают infra wiring прямо в route layer
 

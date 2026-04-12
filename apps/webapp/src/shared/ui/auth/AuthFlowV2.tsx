@@ -22,6 +22,7 @@ import { ChannelPicker } from "@/shared/ui/auth/ChannelPicker";
 import { OtpCodeForm, type OtpAlternativeEntry, type OtpResendOutcome } from "@/shared/ui/auth/OtpCodeForm";
 import { InternationalPhoneInput } from "@/shared/ui/auth/InternationalPhoneInput";
 import { TelegramLoginButton } from "@/shared/ui/auth/TelegramLoginButton";
+import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
@@ -666,12 +667,12 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
           </Button>
         ) : null}
         {supportContactHref ? (
-          <a
+          <SupportContactLink
             href={supportContactHref}
             className={cn(buttonVariants({ variant: "outline" }), "inline-flex w-full justify-center")}
           >
             Связаться с поддержкой
-          </a>
+          </SupportContactLink>
         ) : null}
         <Button
           type="button"

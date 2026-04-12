@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 const POLL_MS = 4000;
 
@@ -117,9 +118,9 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
         После нажатия Start в боте и отправки контакта эта страница обновится сама (или обновите вручную через несколько секунд).
       </p>
       {supportContactHref ? (
-        <a href={supportContactHref} className="text-sm text-primary underline">
+        <SupportContactLink href={supportContactHref} className="text-sm text-primary underline">
           Связаться с поддержкой
-        </a>
+        </SupportContactLink>
       ) : null}
     </div>
   );

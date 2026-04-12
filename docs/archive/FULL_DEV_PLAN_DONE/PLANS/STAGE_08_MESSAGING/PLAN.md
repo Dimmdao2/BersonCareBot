@@ -246,7 +246,7 @@
 
 **Разрешено:** `apps/webapp/src/shared/ui/AskQuestionFAB.tsx`, CSS в `globals.css` только через токены.
 
-**Запрещено:** ломать существующий POST `/api/patient/question` без миграции сценария «вопрос админу».
+**История:** POST `/api/patient/question` заменён на `/api/patient/support` (форма + email + контекст; сценарий «вопрос админу» сохранён).
 
 **Тесты:** e2e in-process — компонент импортируется.
 

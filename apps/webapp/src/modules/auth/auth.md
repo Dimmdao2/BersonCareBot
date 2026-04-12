@@ -68,7 +68,7 @@
 
 ### Channel link → integrator
 
-После успешного `POST /api/integrator/channel-link/complete` webapp возвращает JSON **`{ ok: true, needsPhone: boolean }`** (или `{ ok: true, status: "already_used", needsPhone }` для одноразового токена). Integrator в `executeAction` для `webapp.channelLink.complete` при `needsPhone` вызывает общую отправку запроса контакта (`dispatchRequestContactToUser`), чтобы пользователь поделился номером в чате.
+После успешного `POST /api/integrator/channel-link/complete` webapp возвращает JSON **`{ ok: true, needsPhone: boolean, phoneNormalized?: string }`** — `phoneNormalized` передаётся в integrator, когда номер уже есть у платформенного пользователя (чтобы в БД бота проставить контакт с label `telegram` и показать ответ в чате). Для повторной доставки токена: `{ ok: true, status: "already_used", needsPhone }`. Integrator при `needsPhone` шлёт запрос контакта (`dispatchRequestContactToUser`); при наличии `phoneNormalized` синхронизирует телефон и отправляет сообщение с шаблоном `telegram:afterPhoneLinked` и главным меню.
 
 ### UI
 
@@ -96,9 +96,18 @@
 - **resolveRoleAsync** — приоритет whitelist из `system_settings` (admin), fallback на env для совместимости.
 - **resolveRoleFromEnv** — синхронный fallback по env (Telegram/Max/телефоны).
 
+## Поддержка пациента (форма → Telegram админу)
+
+- **Страница:** `/app/patient/support` (константа `routePaths.patientSupport`). Доступ с `requirePatientAccess`; в layout не требуется tier **patient** (whitelist в `patientRouteApiPolicy`, как у `help` / `bind-phone`).
+- **API:** `POST /api/patient/support` — тело `{ email, message, surface?: "mini_app"|"browser", from?: string }`. Поле `from` — опциональный путь UI; в Telegram попадает только если начинается с `/app` (до 200 символов, без переводов строк).
+- **Гейт:** `patientClientBusinessGate` — отклоняется только `stale_session` (401); разрешены `allow` и `need_activation` (вопрос из onboarding, в т.ч. привязка телефона).
+- **Доставка:** `sendMessage` в Telegram на `env.ADMIN_TELEGRAM_ID` (должен быть **ненулевой** конечный числовой id чата) и токен бота из `getTelegramBotToken()` (env webapp). В текст включаются user id, ФИО, телефон, привязки мессенджеров, User-Agent, поверхность, опционально страница.
+- **Rate limit:** in-memory, **после** успешной отправки в Telegram, 60 с на ключ: `userId` → `u:…`, иначе нормализованный телефон → `p:…`, иначе первый hop `X-Forwarded-For` или `X-Real-IP` → `ip:…`, иначе общий ключ `anon:support`.
+- **Ссылка «Связаться с поддержкой»:** `system_settings.support_contact_url` (`getSupportContactUrl`), дефолт из `supportContactConstants` — внутренний путь формы; внешние URL допустимы. Рендер: `SupportContactLink` (`/app/…` → `Link`, иначе внешняя ссылка). В админке путь поддержки валидируется как `/app/…` или http(s).
+
 ## API-маршруты (часто используемые)
 
-`/api/auth/exchange`, `/api/auth/telegram-init`, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/channel-link/start`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/yandex`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET).
+`/api/auth/exchange`, `/api/auth/telegram-init`, `/api/auth/telegram-login/config`, `/api/auth/check-phone`, `/api/auth/phone/start`, `/api/auth/phone/confirm`, `/api/auth/channel-link/start`, `/api/auth/oauth/start`, `/api/auth/oauth/providers`, `/api/auth/oauth/callback`, `/api/auth/oauth/callback/yandex`, `/api/auth/oauth/callback/google`, `/api/auth/oauth/callback/apple`, `/api/auth/logout` (POST/GET). Пациентский контур: `POST /api/patient/support` (см. выше).
 
 ## Операционные логи OTP
 

@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { OTP_TOO_MANY_ATTEMPTS_MESSAGE } from "@/modules/auth/otpConstants";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
+import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
+import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 export type OtpConfirmResult =
   | { ok: true; redirectTo?: string }
@@ -60,10 +62,17 @@ export function OtpCodeForm({
   onResend,
   onBack,
 }: OtpCodeFormProps) {
-  const supportHref =
-    supportContactHref.trim().length > 0 && isSafeExternalHref(supportContactHref.trim())
-      ? supportContactHref.trim()
-      : DEFAULT_SUPPORT_CONTACT_URL;
+  function resolveSupportHref(raw: string): string {
+    const t = raw.trim();
+    if (isAppSupportPath(t)) return t;
+    if (isSafeExternalHref(t)) return t;
+    const d = DEFAULT_SUPPORT_CONTACT_URL.trim();
+    if (isAppSupportPath(d)) return d;
+    if (isSafeExternalHref(d)) return d;
+    return DEFAULT_SUPPORT_CONTACT_URL;
+  }
+
+  const supportHref = resolveSupportHref(supportContactHref ?? "");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -226,59 +235,53 @@ export function OtpCodeForm({
           ) : null}
         </div>
       ) : null}
-      {alternatives !== undefined ? (
+      {alternatives !== undefined && alternatives.length > 0 ? (
         <div className="flex flex-col gap-2">
-          {alternatives.length > 0 ? (
-            <>
-              <button
-                type="button"
-                className="w-fit text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                onClick={() => setAltExpanded((v) => !v)}
-                disabled={loading || resendLoading || hardBlocked}
-                aria-expanded={altExpanded}
-              >
-                Другие способы
-              </button>
-              {altExpanded ? (
-                <div className="flex flex-col gap-2 pl-1">
-                  {alternatives.map((alt, i) =>
-                    alt.asText ? (
-                      <button
-                        key={i}
-                        type="button"
-                        className="w-fit text-left text-sm text-muted-foreground underline"
-                        onClick={() => void alt.onClick()}
-                        disabled={loading || resendLoading || hardBlocked}
-                      >
-                        {alt.label}
-                      </button>
-                    ) : (
-                      <Button
-                        key={i}
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => void alt.onClick()}
-                        disabled={loading || resendLoading || hardBlocked}
-                      >
-                        {alt.label}
-                      </Button>
-                    ),
-                  )}
-                </div>
-              ) : null}
-            </>
-          ) : null}
-          <a
-            href={supportHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-fit text-sm text-muted-foreground underline"
+          <button
+            type="button"
+            className="w-fit text-sm text-muted-foreground underline hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            onClick={() => setAltExpanded((v) => !v)}
+            disabled={loading || resendLoading || hardBlocked}
+            aria-expanded={altExpanded}
           >
-            Написать в поддержку
-          </a>
+            Другие способы
+          </button>
+          {altExpanded ? (
+            <div className="flex flex-col gap-2 pl-1">
+              {alternatives.map((alt, i) =>
+                alt.asText ? (
+                  <button
+                    key={i}
+                    type="button"
+                    className="w-fit text-left text-sm text-muted-foreground underline"
+                    onClick={() => void alt.onClick()}
+                    disabled={loading || resendLoading || hardBlocked}
+                  >
+                    {alt.label}
+                  </button>
+                ) : (
+                  <Button
+                    key={i}
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void alt.onClick()}
+                    disabled={loading || resendLoading || hardBlocked}
+                  >
+                    {alt.label}
+                  </Button>
+                ),
+              )}
+            </div>
+          ) : null}
         </div>
       ) : null}
+      <SupportContactLink
+        href={supportHref}
+        className="w-fit text-sm text-muted-foreground underline hover:text-foreground"
+      >
+        Написать в поддержку
+      </SupportContactLink>
     </form>
   );
 }

@@ -3,12 +3,11 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { requirePatientAccess } from "@/app-layer/guards/requireRole";
 import { AppShell } from "@/shared/ui/AppShell";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
-import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
+import { HelpSupportLink } from "./HelpSupportLink";
 
 export default async function PatientHelpPage() {
   const session = await requirePatientAccess(routePaths.patientHelp);
   const supportUrl = await getSupportContactUrl();
-  const supportHref = isSafeExternalHref(supportUrl) ? supportUrl : null;
 
   return (
     <AppShell title="Справка" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
@@ -34,13 +33,7 @@ export default async function PatientHelpPage() {
             </Link>
           </li>
         </ul>
-        {supportHref ? (
-          <p className="text-sm">
-            <a href={supportHref} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-              Написать в поддержку
-            </a>
-          </p>
-        ) : null}
+        <HelpSupportLink href={supportUrl} />
       </section>
     </AppShell>
   );

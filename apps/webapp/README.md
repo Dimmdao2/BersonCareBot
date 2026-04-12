@@ -13,7 +13,7 @@ It is intentionally separated from the current `tgcarebot` integrator:
 ## URL Spaces
 
 - `/app` - common entrypoint with role resolution
-- `/app/patient` - patient workspace
+- `/app/patient` - patient workspace (в т.ч. `/app/patient/support` — форма обращения в поддержку, `POST /api/patient/support` → Telegram админу; см. `src/modules/auth/auth.md`)
 - `/app/doctor` - doctor workspace
 - `/app/settings` - shared settings space with role guards
 - `/api/*` - backend layer of the webapp service

@@ -52,6 +52,7 @@ const PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER = [
   "/app/patient/sections/",
   "/app/patient/content/",
   "/app/patient/help",
+  "/app/patient/support",
   "/app/patient/install",
   "/app/patient/address",
   /** Редиректы на sections — промежуточные URL без patient tier. */

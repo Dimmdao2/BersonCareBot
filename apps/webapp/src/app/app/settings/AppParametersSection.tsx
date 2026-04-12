@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { isValidSupportContactSetting } from "@/lib/url/isValidSupportContactSetting";
 import {
   getCachedIanaTimezonesSorted,
   isValidIanaTimeZoneId,
@@ -55,17 +56,9 @@ export function AppParametersSection({ supportContactUrl, appDisplayTimezone }: 
     startTransition(async () => {
       try {
         const supportRaw = support.trim();
-        if (supportRaw.length > 0) {
-          try {
-            const u = new URL(supportRaw);
-            if (u.protocol !== "https:" && u.protocol !== "http:") {
-              setError("Ссылка поддержки: только http(s)://");
-              return;
-            }
-          } catch {
-            setError("Ссылка поддержки: укажите валидный URL (например https://t.me/…)");
-            return;
-          }
+        if (supportRaw.length > 0 && !isValidSupportContactSetting(supportRaw)) {
+          setError("Ссылка поддержки: укажите путь /app/… или URL https://… (http допустим в dev)");
+          return;
         }
         const tzRaw = timezone.trim() || "Europe/Moscow";
         if (!isValidIanaTimeZoneId(tzRaw)) {
@@ -100,16 +93,16 @@ export function AppParametersSection({ supportContactUrl, appDisplayTimezone }: 
         <section className="flex flex-col gap-2">
           <p className="text-sm font-semibold">Контакты и поддержка</p>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Support contact URL (HTTPS)</span>
+            <span className="text-xs font-medium">Support contact (путь или URL)</span>
             <Input
-              type="url"
-              placeholder="https://t.me/your_support"
+              type="text"
+              placeholder="/app/patient/support или https://t.me/…"
               value={support}
               onChange={(e) => setSupport(e.target.value)}
               disabled={isPending}
             />
             <span className="text-xs text-muted-foreground">
-              Ссылка «Написать в поддержку» в формах OTP и на странице справки. Пустое — дефолт из кода.
+              Путь вида /app/… (форма в приложении) или внешняя ссылка https://… Пустое — дефолт из кода.
             </span>
           </label>
         </section>

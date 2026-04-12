@@ -12,6 +12,7 @@ import {
 import { closeMessengerMiniApp, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
 import toast from "react-hot-toast";
+import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import { PatientSharePhoneViaBotPanel } from "@/shared/ui/patient/PatientSharePhoneViaBotPanel";
 import { PatientBrowserMessengerBindPanel } from "./PatientBrowserMessengerBindPanel";
 
@@ -169,9 +170,9 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
         После отправки номера в боте эта страница обновится сама (около раз в 4 секунды).
       </p>
       {supportContactHref ? (
-        <a href={supportContactHref} className="text-sm text-primary underline">
+        <SupportContactLink href={supportContactHref} className="text-sm text-primary underline">
           Связаться с поддержкой
-        </a>
+        </SupportContactLink>
       ) : null}
     </div>
   );

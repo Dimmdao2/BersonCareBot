@@ -1,3 +1,5 @@
+import { DEFAULT_PATIENT_SUPPORT_PATH } from "@/modules/system-settings/supportContactConstants";
+
 export const routePaths = {
   root: "/app",
   patient: "/app/patient",
@@ -32,6 +34,8 @@ export const routePaths = {
   patientMessages: "/app/patient/messages",
   /** Справка (не в основном меню; прямой URL). */
   patientHelp: "/app/patient/help",
+  /** Форма обращения в поддержку (Telegram админу). */
+  patientSupport: DEFAULT_PATIENT_SUPPORT_PATH,
   /** Установка PWA / приложения (не в основном меню; прямой URL). */
   patientInstall: "/app/patient/install",
   /** Напоминания пациента. */
