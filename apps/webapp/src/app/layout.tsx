@@ -37,10 +37,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body>
         <TooltipProvider>
           <ClientToaster />
-          {/* Скрипт Telegram Mini App — нужен, когда приложение открывают из бота в Telegram. */}
+          {/* Telegram Mini App SDK: afterInteractive — не блокировать документ (Safari / частный режим
+              могут долго ждать telegram.org; до гидратации AuthBootstrap не показывает веб-вход). */}
           <Script
             src="https://telegram.org/js/telegram-web-app.js"
-            strategy="beforeInteractive"
+            strategy="afterInteractive"
           />
           <PlatformProvider serverHint={platformEntry}>{children}</PlatformProvider>
         </TooltipProvider>

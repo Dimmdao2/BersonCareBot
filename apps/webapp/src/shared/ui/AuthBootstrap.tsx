@@ -38,7 +38,8 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<{ status?: number; message?: string } | null>(null);
   const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("unknown");
-  const initDataTried = useRef(false);
+  /** Не дублировать POST /api/auth/telegram-init (в т.ч. при Strict Mode / смене deps). */
+  const telegramInitSentRef = useRef(false);
 
   // Обмен токена из адреса на сессию и редирект
   useEffect(() => {
@@ -82,54 +83,97 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     };
   }, [router, token, debug, nextParam]);
 
-  // Определить наличие initData (для показа формы телефона, когда нет Telegram)
-  useEffect(() => {
-    if (token || typeof window === "undefined") return;
-    const raw = window.Telegram?.WebApp?.initData?.trim() ?? "";
-    queueMicrotask(() => setInitDataStatus(raw ? "yes" : "no"));
-  }, [token]);
-
   const showPhoneFlow =
     !token && (initDataStatus === "no" || state === "error") && state !== "loading";
 
-  // Если токена в URL нет — пробуем войти по данным Mini App Telegram (открыто из бота)
+  /**
+   * SDK грузится afterInteractive: сначала определяем Mini App (initData) или обычный браузер,
+   * и один раз шлём telegram-init при непустом initData.
+   */
   useEffect(() => {
-    if (token || initDataTried.current || typeof window === "undefined") return;
+    if (token || typeof window === "undefined") return;
 
-    initDataTried.current = true;
-    const initData =
-      (typeof window !== "undefined" && window.Telegram?.WebApp?.initData?.trim()) || "";
-    if (!initData) return;
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
 
-    queueMicrotask(() => setState("loading"));
+    const stopPolling = () => {
+      if (intervalId !== undefined) {
+        clearInterval(intervalId);
+        intervalId = undefined;
+      }
+    };
 
-    void fetch("/api/auth/telegram-init", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ initData }),
-    })
-      .then(async (response) => {
-        const text = await response.text();
-        if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
-        if (response.status === 403 || response.status === 401) {
+    const runTelegramInit = (initData: string) => {
+      if (telegramInitSentRef.current) return;
+      telegramInitSentRef.current = true;
+      stopPolling();
+      queueMicrotask(() => setState("loading"));
+
+      void fetch("/api/auth/telegram-init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initData }),
+      })
+        .then(async (response) => {
+          const text = await response.text();
+          if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
+          if (response.status === 403 || response.status === 401) {
+            setState("error");
+            setError("Не удалось войти");
+            return;
+          }
+          if (!response.ok) return;
+          const payload = text
+            ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
+            : null;
+          if (!payload?.redirectTo) return;
+          const role = payload.role ?? "client";
+          const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
+          router.replace(target);
+        })
+        .catch((e) => {
           setState("error");
           setError("Не удалось войти");
-          return;
-        }
-        if (!response.ok) return;
-        const payload = text
-          ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
-          : null;
-        if (!payload?.redirectTo) return;
-        const role = payload.role ?? "client";
-        const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
-        router.replace(target);
-      })
-      .catch((e) => {
-        setState("error");
-        setError("Не удалось войти");
-        if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
-      });
+          if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
+        });
+    };
+
+    const tick = () => {
+      if (cancelled) return;
+      const webApp = window.Telegram?.WebApp;
+      const raw = webApp?.initData?.trim() ?? "";
+
+      if (raw) {
+        setInitDataStatus("yes");
+        runTelegramInit(raw);
+        return;
+      }
+
+      if (webApp) {
+        setInitDataStatus("no");
+        stopPolling();
+      }
+    };
+
+    tick();
+    intervalId = setInterval(tick, 75);
+
+    /** Разблокировать веб-вход, если SDK так и не объявился (unknown), не останавливая опрос initData. */
+    const giveUpUnblock = setTimeout(() => {
+      if (!cancelled) {
+        setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
+      }
+    }, 4000);
+    const maxPoll = setTimeout(() => {
+      stopPolling();
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      stopPolling();
+      clearTimeout(giveUpUnblock);
+      clearTimeout(maxPoll);
+    };
   }, [router, token, debug, nextParam]);
 
   if (showPhoneFlow) {
