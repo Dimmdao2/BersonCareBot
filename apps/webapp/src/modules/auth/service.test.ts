@@ -10,6 +10,7 @@ const TEST_ENTRY_SECRET = "test-integrator-entry-secret";
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getIntegratorWebappEntrySecret: async () => TEST_ENTRY_SECRET,
   getTelegramBotToken: async () => "",
+  getMaxBotApiKey: async () => "",
 }));
 
 const serviceSourcePath = join(dirname(fileURLToPath(import.meta.url)), "service.ts");

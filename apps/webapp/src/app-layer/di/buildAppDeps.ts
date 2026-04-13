@@ -9,6 +9,7 @@ import {
   getCurrentSession,
   exchangeIntegratorToken,
   exchangeTelegramInitData,
+  exchangeMaxInitData,
   exchangeTelegramLoginWidget,
   clearSession,
   setSessionFromUser,
@@ -374,6 +375,8 @@ function _buildAppDeps() {
         exchangeIntegratorToken(token, identityResolutionPort, userProjectionPort.updateRole),
       exchangeTelegramInitData: (initData: string) =>
         exchangeTelegramInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
+      exchangeMaxInitData: (initData: string) =>
+        exchangeMaxInitData(initData, identityResolutionPort, userProjectionPort.updateRole),
       exchangeTelegramLoginWidget: (payload: TelegramLoginWidgetPayload, webappEntryToken?: string | null) =>
         exchangeTelegramLoginWidget(payload, identityResolutionPort, userProjectionPort.updateRole, webappEntryToken),
       clearSession,

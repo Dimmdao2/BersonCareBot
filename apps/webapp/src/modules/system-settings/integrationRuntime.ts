@@ -1,6 +1,11 @@
 import { env, integratorWebhookSecret, integratorWebappEntrySecret } from "@/config/env";
 import { getConfigValue, getConfigBool } from "@/modules/system-settings/configAdapter";
 
+/** MAX Platform API key (как `MAX_API_KEY` у интегратора) — проверка подписи `window.WebApp.initData` в Mini App. */
+export async function getMaxBotApiKey(): Promise<string> {
+  return getConfigValue("max_bot_api_key", "");
+}
+
 export async function getIntegratorApiUrl(): Promise<string> {
   return env.INTEGRATOR_API_URL ?? "";
 }

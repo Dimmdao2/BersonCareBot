@@ -146,6 +146,7 @@ describe("buildAppDeps", () => {
     expect(typeof deps.auth.getCurrentSession).toBe("function");
     expect(typeof deps.auth.exchangeIntegratorToken).toBe("function");
     expect(typeof deps.auth.exchangeTelegramInitData).toBe("function");
+    expect(typeof deps.auth.exchangeMaxInitData).toBe("function");
     expect(typeof deps.auth.clearSession).toBe("function");
     expect(typeof deps.auth.setSessionFromUser).toBe("function");
     expect(typeof deps.auth.startPhoneAuth).toBe("function");

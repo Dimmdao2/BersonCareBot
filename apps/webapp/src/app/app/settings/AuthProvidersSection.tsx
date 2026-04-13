@@ -11,6 +11,8 @@ export type AuthProvidersSectionProps = {
   telegramLoginBotUsername: string;
   /** Ник бота MAX для диплинка max.ru/<nick>?start=… (channel-link). */
   maxLoginBotNickname: string;
+  /** MAX Bot API key — проверка Mini App initData (тот же ключ, что MAX_API_KEY у интегратора). */
+  maxBotApiKey: string;
   /** Ссылка для будущей кнопки «Вход с VK ID» на экране входа (https). */
   vkWebLoginUrl: string;
   yandexOauthClientId: string;
@@ -43,6 +45,7 @@ function validateHttpUrl(label: string, raw: string): string | null {
 export function AuthProvidersSection({
   telegramLoginBotUsername,
   maxLoginBotNickname,
+  maxBotApiKey,
   vkWebLoginUrl,
   yandexOauthClientId,
   yandexOauthClientSecret,
@@ -58,6 +61,7 @@ export function AuthProvidersSection({
 }: AuthProvidersSectionProps) {
   const [telegramBot, setTelegramBot] = useState(telegramLoginBotUsername);
   const [maxBotNick, setMaxBotNick] = useState(maxLoginBotNickname);
+  const [maxApiKey, setMaxApiKey] = useState(maxBotApiKey);
   const [vkLoginUrl, setVkLoginUrl] = useState(vkWebLoginUrl);
   const [yandexId, setYandexId] = useState(yandexOauthClientId);
   const [yandexSecret, setYandexSecret] = useState(yandexOauthClientSecret);
@@ -109,6 +113,7 @@ export function AuthProvidersSection({
         const results = await Promise.all([
           patchAdminSetting("telegram_login_bot_username", telegramBot.trim()),
           patchAdminSetting("max_login_bot_nickname", maxBotNick.trim()),
+          patchAdminSetting("max_bot_api_key", maxApiKey.trim()),
           patchAdminSetting("vk_web_login_url", vkTrim),
           patchAdminSetting("yandex_oauth_client_id", yandexId.trim()),
           patchAdminSetting("yandex_oauth_client_secret", yandexSecret.trim()),
@@ -191,6 +196,26 @@ export function AuthProvidersSection({
                   rel="noreferrer"
                 >
                   MAX — диплинки
+                </a>
+                .
+              </span>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium">MAX Bot API key (Mini App initData)</span>
+              <Input
+                type="password"
+                placeholder="Тот же ключ, что MAX_API_KEY в env интегратора"
+                value={maxApiKey}
+                onChange={(e) => setMaxApiKey(e.target.value)}
+                disabled={isPending}
+                autoComplete="off"
+                className="font-mono text-xs"
+              />
+              <span className="text-xs text-muted-foreground">
+                Нужен для входа в веб-приложение из MAX Mini App без <code className="rounded bg-muted px-0.5">?t=</code> в
+                URL. Подпись стартовых параметров —{" "}
+                <a className="text-primary underline" href="https://dev.max.ru/docs/webapps/validation" target="_blank" rel="noreferrer">
+                  dev.max.ru — валидация WebApp
                 </a>
                 .
               </span>

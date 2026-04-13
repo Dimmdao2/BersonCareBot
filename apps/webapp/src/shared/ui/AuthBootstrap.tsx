@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { AuthFlowV2, type AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
+import { getMaxWebAppInitDataForAuth } from "@/shared/lib/messengerMiniApp";
 
 type BootstrapState = "idle" | "loading" | "error";
 
@@ -37,10 +38,11 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   const [state, setState] = useState<BootstrapState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<{ status?: number; message?: string } | null>(null);
-  /** По умолчанию «веб»: не держать пустой экран до первого тика (раньше unknown + return null скрывали AuthFlowV2). */
-  const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("no");
+  /** `unknown` — ждём Mini App (Telegram initData или MAX WebApp.initData), не показываем сразу OAuth. */
+  const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("unknown");
   /** Один POST на монтирование (Strict Mode / повтор эффекта с тем же initData). */
   const telegramInitSentRef = useRef(false);
+  const maxInitSentRef = useRef(false);
 
   // Обмен токена из адреса на сессию и редирект
   useEffect(() => {
@@ -85,7 +87,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   }, [router, token, debug, nextParam]);
 
   const showPhoneFlow =
-    !token && (initDataStatus === "no" || state === "error") && state !== "loading";
+    !token && state !== "loading" && (state === "error" || initDataStatus === "no");
 
   /**
    * SDK — afterInteractive: пока нет `Telegram.WebApp`, сразу переводим в «веб» и монтируем AuthFlowV2
@@ -146,21 +148,70 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         });
     };
 
+    const runMaxInit = (initData: string) => {
+      if (maxInitSentRef.current) return;
+      maxInitSentRef.current = true;
+      stopPolling();
+      queueMicrotask(() => setState("loading"));
+
+      void fetch("/api/auth/max-init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initData }),
+      })
+        .then(async (response) => {
+          const text = await response.text();
+          if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
+          if (response.status === 403 || response.status === 401) {
+            setState("error");
+            setError("Не удалось войти");
+            return;
+          }
+          if (!response.ok) return;
+          const payload = text
+            ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
+            : null;
+          if (!payload?.redirectTo) return;
+          const role = payload.role ?? "client";
+          const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
+          router.replace(target);
+        })
+        .catch((e) => {
+          setState("error");
+          setError("Не удалось войти");
+          if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
+        });
+    };
+
     const tick = () => {
       if (cancelled) return;
       const elapsed = Date.now() - t0;
       const webApp = window.Telegram?.WebApp;
-      const raw = webApp?.initData?.trim() ?? "";
+      const rawTg = webApp?.initData?.trim() ?? "";
 
-      if (raw) {
+      if (rawTg) {
         setInitDataStatus("yes");
-        runTelegramInit(raw);
+        runTelegramInit(rawTg);
         return;
       }
+
+      const rawMax = getMaxWebAppInitDataForAuth();
+      if (rawMax) {
+        setInitDataStatus("yes");
+        runMaxInit(rawMax);
+        return;
+      }
+
+      const maxBridgeReady =
+        typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
+      const looksLikeMaxOnly = maxBridgeReady && !rawTg;
 
       if (!webApp) {
         stableWebAppEmptyTicks = 0;
         setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
+      } else if (looksLikeMaxOnly) {
+        stableWebAppEmptyTicks = 0;
+        setInitDataStatus("unknown");
       } else {
         setInitDataStatus("no");
         stableWebAppEmptyTicks++;
@@ -171,6 +222,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
       if (elapsed >= POLL_MS_MAX) {
         stopPolling();
+        queueMicrotask(() => setInitDataStatus((s) => (s === "unknown" ? "no" : s)));
       }
     };
 
@@ -192,20 +244,20 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   if (debug && !token) {
     const initLabel =
       initDataStatus === "yes"
-        ? "initData: да (есть, запрос на вход отправлен)"
+        ? "initData: да (запрос на вход отправлен — Telegram или MAX WebApp)"
         : initDataStatus === "no"
-          ? "initData: нет (открыто не в Mini App или Telegram не передал)"
+          ? "initData: нет (не Mini App или мессенджер не передал данные)"
           : "initData: проверяем…";
     return (
       <p className="break-all text-sm text-muted-foreground">
-        [debug] Нет токена в URL. Ожидается ?t=... или вход через Telegram (initData).
+        [debug] Нет токена в URL. Ожидается ?t=..., Telegram initData или MAX WebApp.initData.
         <br />
         {initLabel}
       </p>
     );
   }
 
-  if (!token && state !== "loading" && state !== "error") return null;
+  if (!token && state !== "loading" && state !== "error" && initDataStatus !== "unknown") return null;
 
   if (state === "error" && error) {
     return (

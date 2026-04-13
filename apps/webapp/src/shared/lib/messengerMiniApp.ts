@@ -51,6 +51,19 @@ export function isMessengerMiniAppHost(): boolean {
  * Telegram Mini App → telegram; MAX WebView (без TG initData/cookie) → max.
  * Сервер при **двух** binding без этого заголовка возвращает `400 contact_channel_required` — клиент должен передавать заголовок, когда хост миниаппа однозначен.
  */
+/**
+ * Сырой `initData` для MAX Mini App (`POST /api/auth/max-init`).
+ * Не используем строку, если уже есть Telegram initData (избегаем двойного входа).
+ */
+export function getMaxWebAppInitDataForAuth(): string {
+  if (typeof window === "undefined") return "";
+  const tgRaw = getTelegramWebApp()?.initData?.trim() ?? "";
+  if (tgRaw.length > 0) return "";
+  const w = (window as Window & { WebApp?: { initData?: string; ready?: () => void } }).WebApp;
+  if (!w || typeof w.ready !== "function") return "";
+  return typeof w.initData === "string" ? w.initData.trim() : "";
+}
+
 export function inferMessengerChannelForRequestContact(): "telegram" | "max" | undefined {
   if (typeof window === "undefined") return undefined;
   const tgWebApp = getTelegramWebApp();

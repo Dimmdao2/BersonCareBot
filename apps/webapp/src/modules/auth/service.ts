@@ -9,7 +9,12 @@ import type { IdentityResolutionPort, MessengerIdentityResolutionHints } from ".
 import { normalizePhone } from "./phoneAuth";
 import { isValidPhoneE164 } from "./phoneValidation";
 import { getRedirectPathForRole } from "./redirectPolicy";
-import { getIntegratorWebappEntrySecret, getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";
+import {
+  getIntegratorWebappEntrySecret,
+  getMaxBotApiKey,
+  getTelegramBotToken,
+} from "@/modules/system-settings/integrationRuntime";
+import { parseMaxWebAppInitDataValidated } from "@/modules/auth/maxWebAppInitValidate";
 import {
   verifyTelegramLoginWidgetSignature,
   type TelegramLoginWidgetPayload,
@@ -473,6 +478,91 @@ export async function exchangeTelegramInitData(
     phone: user.phone,
     telegramId: parsed.telegramId,
     maxId: user.bindings?.maxId,
+  });
+  if (user.role !== envRole) {
+    if (updateRoleFn) await updateRoleFn(user.userId, envRole);
+    user = { ...user, role: envRole };
+  }
+
+  const session = buildSession(user);
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isProduction,
+    path: "/",
+    maxAge: cookieMaxAgeSeconds(session),
+  });
+
+  return {
+    session,
+    redirectTo: getRedirectPathForRole(user.role),
+  };
+}
+
+async function validateMaxInitData(
+  initData: string,
+): Promise<{ maxUserId: string; role: UserRole; displayName?: string; startParam?: string } | null> {
+  const botToken = (await getMaxBotApiKey()).trim();
+  if (!botToken) return null;
+  const parsed = parseMaxWebAppInitDataValidated(initData, botToken);
+  if (!parsed) return null;
+  const role: UserRole = await resolveRoleAsync({ maxId: parsed.maxUserId });
+  return {
+    maxUserId: parsed.maxUserId,
+    role,
+    ...(parsed.displayName ? { displayName: parsed.displayName } : {}),
+    ...(parsed.startParam ? { startParam: parsed.startParam } : {}),
+  };
+}
+
+/** Валидация `window.WebApp.initData` (MAX Mini App) и создание сессии, аналог `exchangeTelegramInitData`. */
+export async function exchangeMaxInitData(
+  initData: string,
+  identityResolutionPort?: IdentityResolutionPort | null,
+  updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
+): Promise<ExchangeResult | null> {
+  const parsed = await validateMaxInitData(initData);
+  if (!parsed) return null;
+
+  const verifiedBinding = { channelCode: "max" as const, externalId: parsed.maxUserId };
+  const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(
+    parsed.startParam,
+    verifiedBinding,
+  );
+  if (resolutionHints && process.env.NODE_ENV !== "test") {
+    const kinds = [
+      resolutionHints.platformUserSub && "sub",
+      resolutionHints.integratorUserId && "integrator",
+      resolutionHints.phoneNormalized && "phone",
+    ]
+      .filter(Boolean)
+      .join(",");
+    console.info("[auth/max-init] resolution_hints_from=start_param kinds=%s", kinds);
+  }
+
+  let user: SessionUser;
+  if (identityResolutionPort) {
+    user = await identityResolutionPort.findOrCreateByChannelBinding({
+      channelCode: "max",
+      externalId: parsed.maxUserId,
+      displayName: parsed.displayName,
+      role: parsed.role,
+      ...(resolutionHints ? { resolutionHints } : {}),
+    });
+  } else {
+    user = {
+      userId: `max:${parsed.maxUserId}`,
+      role: parsed.role,
+      displayName: parsed.displayName ?? parsed.maxUserId,
+      bindings: { maxId: parsed.maxUserId },
+    };
+  }
+
+  const envRole = await resolveRoleAsync({
+    phone: user.phone,
+    telegramId: user.bindings?.telegramId,
+    maxId: parsed.maxUserId,
   });
   if (user.role !== envRole) {
     if (updateRoleFn) await updateRoleFn(user.userId, envRole);
