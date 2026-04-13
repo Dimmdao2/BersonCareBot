@@ -12,7 +12,8 @@ const UUID_RE =
 async function redirectPresignedOr503(s3Key: string): Promise<Response> {
   try {
     const signed = await presignGetUrl(s3Key);
-    const res = NextResponse.redirect(signed, 302);
+    /** 307 so clients (esp. Safari/WebKit video) re-issue GET+Range to the presigned URL; 302 often drops Range after redirect. */
+    const res = NextResponse.redirect(signed, 307);
     res.headers.set("Cache-Control", "private, max-age=0, must-revalidate");
     return res;
   } catch (e) {

@@ -60,7 +60,7 @@ describe("GET /api/media/[id]", () => {
       params: Promise.resolve({ id: testUuid }),
     });
 
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(307);
     expect(res.headers.get("Location")).toBe("https://fs.example/signed-get?token=abc");
     expect(res.headers.get("Cache-Control")).toContain("max-age=0");
     expect(getS3KeyMock).toHaveBeenCalledWith(testUuid);
