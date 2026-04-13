@@ -1238,4 +1238,84 @@ describe('orchestrator buildPlan', () => {
       },
     });
   });
+
+  it('max start.link beats conversation.user.message when both match (priority 55)', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-max-start-link-conv-1',
+        occurredAt: '2026-04-13T12:00:00.000Z',
+        source: 'max',
+      },
+      payload: {
+        incoming: {
+          action: 'start.link',
+          linkSecret: 'link_tok_max',
+          channelId: '9001',
+          text: '/start link_tok_max',
+          chatId: 9001,
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      hasOpenConversation: true,
+      linkedPhone: true,
+    };
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'max.conversation.user.message',
+          source: 'max',
+          event: 'message.received',
+          match: {
+            actor: { isAdmin: false },
+            context: { hasOpenConversation: true },
+            input: {
+              textPresent: true,
+              excludeActions: ['booking.open', 'menu.more', 'cabinet.open', 'diary.open'],
+              excludeTexts: ['/start', '/book'],
+            },
+          },
+          steps: [{ action: 'conversation.user.message', mode: 'sync', params: {} }],
+        },
+        {
+          id: 'max.start.link',
+          source: 'max',
+          event: 'message.received',
+          priority: 55,
+          match: { input: { action: 'start.link' } },
+          steps: [
+            {
+              action: 'webapp.channelLink.complete',
+              mode: 'sync',
+              params: {
+                linkToken: '{{input.linkSecret}}',
+                channelCode: 'max',
+                externalId: '{{input.channelId}}',
+              },
+            },
+          ],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0]?.kind).toBe('webapp.channelLink.complete');
+    expect(plan[0]?.payload).toMatchObject({
+      linkToken: 'link_tok_max',
+      channelCode: 'max',
+      externalId: '9001',
+    });
+  });
 });

@@ -3,6 +3,7 @@
 		"id": "telegram.start.link",
 		"source": "telegram",
 		"event": "message.received",
+		"priority": 55,
 		"match": {
 			"input": { "action": "start.link" }
 		},

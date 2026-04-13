@@ -162,7 +162,7 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
     if (/^\/start\s+noticeme$/i.test(text.trim())) {
       action = 'start.noticeme';
     }
-    const trimmedText = text.trim();
+    const trimmedText = text.replace(/^\uFEFF+/, '').trim();
     const linkStart = trimmedText.match(/^\/start\s+(link_[A-Za-z0-9_-]+)$/i);
     let linkSecretFromStart: string | null = null;
     if (linkStart) {

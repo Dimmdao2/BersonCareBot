@@ -6,6 +6,18 @@ import { describe, expect, it } from 'vitest';
 const dir = dirname(fileURLToPath(import.meta.url));
 
 describe('max user static content', () => {
+  it('scripts: max.start.link — высокий priority (выше диалога/reminder freeText) и externalId из channelId', () => {
+    const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
+      id: string;
+      priority?: number;
+      steps?: Array<{ action?: string; params?: Record<string, unknown> }>;
+    }>;
+    const link = scripts.find((s) => s.id === 'max.start.link');
+    expect(link?.priority).toBe(55);
+    const step = link?.steps?.find((s) => s.action === 'webapp.channelLink.complete');
+    expect((step?.params as { externalId?: string })?.externalId).toBe('{{input.channelId}}');
+  });
+
   it('scripts: max.start.onboarding — inline request_contact (как M2M и need_phone ветки)', () => {
     const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
       id: string;

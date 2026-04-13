@@ -34,7 +34,7 @@ function getActionFromText(text: string): string {
 }
 
 function parseStartLinkToken(value: string): string | null {
-  const trimmed = value.trim();
+  const trimmed = value.replace(/^\uFEFF+/, '').trim();
   const asCommand = trimmed.match(/^\/start\s+(link_[A-Za-z0-9_-]+)$/i);
   if (asCommand?.[1]) return asCommand[1];
   return /^link_[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;

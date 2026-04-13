@@ -29,6 +29,7 @@
     "id": "max.start.link",
     "source": "max",
     "event": "message.received",
+    "priority": 55,
     "match": {
       "input": { "action": "start.link" }
     },
@@ -39,7 +40,7 @@
         "params": {
           "linkToken": "{{input.linkSecret}}",
           "channelCode": "max",
-          "externalId": "{{actor.channelUserId}}"
+          "externalId": "{{input.channelId}}"
         }
       }
     ]
@@ -685,8 +686,9 @@
       "context": { "hasOpenConversation": true },
       "input": {
         "textPresent": true,
-        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
-        "excludeTexts": ["/start", "/book"]
+        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"],
+        "excludeTexts": ["/start", "/book"],
+        "excludeTextPrefixes": ["/start"]
       }
     },
     "steps": [
@@ -716,8 +718,9 @@
       "context": { "hasOpenConversation": false },
       "input": {
         "textPresent": true,
-        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
-        "excludeTexts": ["/start", "/book"]
+        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"],
+        "excludeTexts": ["/start", "/book"],
+        "excludeTextPrefixes": ["/start"]
       }
     },
     "steps": [
@@ -831,8 +834,9 @@
       "context": { "conversationState": { "$startsWith": "waiting_skip_reason:" } },
       "input": {
         "textPresent": true,
-        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open"],
-        "excludeTexts": ["/start", "/book"]
+        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"],
+        "excludeTexts": ["/start", "/book"],
+        "excludeTextPrefixes": ["/start"]
       }
     },
     "steps": [

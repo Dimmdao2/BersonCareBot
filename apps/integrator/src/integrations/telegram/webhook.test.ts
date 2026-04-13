@@ -99,6 +99,22 @@ describe('mapBodyToIncoming', () => {
       expect((incoming as { linkSecret?: string }).linkSecret).toBe('link_abC123-_');
     }
   });
+
+  it('parses /start link_<secret> with leading BOM to start.link', () => {
+    const body: TelegramWebhookBodyValidated = {
+      message: {
+        from: { id: 321, is_bot: false, first_name: 'Link' },
+        chat: { id: 321 },
+        text: '\uFEFF/start link_abC123-_',
+      },
+    };
+    const incoming = mapBodyToIncoming(body);
+    expect(incoming).not.toBeNull();
+    if (incoming?.kind === 'message') {
+      expect(incoming.action).toBe('start.link');
+      expect((incoming as { linkSecret?: string }).linkSecret).toBe('link_abC123-_');
+    }
+  });
 });
 
 describe('registerTelegramWebhookRoutes', () => {

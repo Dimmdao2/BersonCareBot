@@ -58,6 +58,24 @@ describe('max mapIn', () => {
     if (incoming?.kind === 'message') expect(incoming.action).toBe('booking.open');
   });
 
+  it('maps /start link_<secret> with leading BOM to start.link', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 201 },
+        body: { text: '\uFEFF/start link_abC123-_' },
+        sender: { user_id: 201 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.action).toBe('start.link');
+      expect((incoming as { linkSecret?: string }).linkSecret).toBe('link_abC123-_');
+    }
+  });
+
   it('maps /start link_<secret> to start.link and keeps linkSecret', () => {
     const body = {
       update_type: 'message_created' as const,
