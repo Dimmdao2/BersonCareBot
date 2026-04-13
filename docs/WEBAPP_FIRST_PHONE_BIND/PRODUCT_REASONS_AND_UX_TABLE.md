@@ -1,7 +1,7 @@
 # Продуктовые тексты и machine-reason (снимок для репозитория)
 
 Каноничная полная версия с контекстом и статусом трека — в плане Cursor `webapp-first_phone_bind_5069b809` (локально в IDE: `~/.cursor/plans/…`).  
-Здесь — **снимок таблицы** без привязки к машине разработчика; обновлять при изменении таксономии в коде (`PhoneLinkFailureReason`, `phoneLinkUserMessages.ts`).
+Здесь — **снимок таблицы** без привязки к машине разработчика; обновлять при изменении таксономии в коде (`PhoneLinkFailureReason`, `phoneLinkUserMessages.ts`). Операционные логи/метрики привязки и M2M emit: [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md), контракт: [`apps/webapp/INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md).
 
 | Ситуация | Machine reason | Что видит пользователь | CTA |
 |----------|----------------|------------------------|-----|

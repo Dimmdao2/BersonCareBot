@@ -8,6 +8,8 @@
 
 Если после загрузки контекста поле не задано, в [`buildBaseContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) выставляется **`linkedPhone: false`**, чтобы матчи сценариев с `context: { linkedPhone: false }` не отваливались на `undefined`.
 
+Привязка номера из сценария (`user.phone.link`, одна TX в `public` + integrator): структурные логи и имена метрик для мониторинга — [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](../WEBAPP_FIRST_PHONE_BIND/STAGE_05_OBSERVABILITY_TESTS_DOCS.md), контракт — [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md).
+
 ## Webhook: разбор текста сообщения (`mapBodyToIncoming`)
 
 Файл: [`apps/integrator/src/integrations/telegram/webhook.ts`](../../apps/integrator/src/integrations/telegram/webhook.ts). Для строк, начинающихся с `/start`, вызывается общий модуль [`messengerStartParse.ts`](../../apps/integrator/src/integrations/common/messengerStartParse.ts) (`parseMessengerStartCommand`).

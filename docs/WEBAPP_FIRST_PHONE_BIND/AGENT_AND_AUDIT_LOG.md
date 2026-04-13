@@ -29,6 +29,16 @@
 
 ## Записи
 
+### AUDIT 2026-04-13 — STAGE_05 (наблюдаемость, тесты, доки — закрыт)
+
+- **Этап / scope:** `STAGE_05_OBSERVABILITY_TESTS_DOCS.md` (чек-листы и todo Cursor: `admin-audit-logs`, `product-copy-contract`, `docs-contract`).
+- **Проверено по:** контекст этапа; чек-листы «Результат этапа» и «Чек-лист аудита»; соответствие [`INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) коду (`reason` / `sqlState` на `bind_tx_fail`, поля `metric` / emit).
+- **Найдено (исправлено):** не хватало полей `metric`, `channelCode` / `externalId` / `platformUserId` в успешном bind; emit при 200/202 без `ok: true` не помечался для агрегации; в журнале инициативы оставалась формулировка про «хвосты STAGE_05».
+- **Сделано:** `writePort` `user.phone.link` — `metric`, `channelCode`, `externalId`, `platformUserId`; `webappEventsClient.emit` — `integrator_emit_body_reject`; тесты emit; обновлены `INTEGRATOR_CONTRACT.md`, `auth.md`, `INTEGRATOR_TELEGRAM_START_SCRIPTS.md`, `PRODUCT_REASONS_AND_UX_TABLE.md`, `STAGE_05` (секция соответствия todo), аудит инициативы в этом файле; коммит в репозитории.
+- **Статус:** OK, этап закрыт.
+- **Артефакты:** коммит (см. git).
+- **CI:** pass (`pnpm run ci`).
+
 ### 2026-04-13 — STAGE_04 (UX, reasons, сценарии)
 
 - **Этап:** `STAGE_04_UX_REASONS_AND_SCRIPTS.md`.
@@ -62,12 +72,12 @@
 
 - **Этап:** STAGE_01 / STAGE_02 / STAGE_04 (частично).
 - **Действия:** миграция GRANT на `public` для integrator; `getLinkDataByIdentity` читает канон из `public` с fallback на `contacts`; исправлена передача `no_integrator_identity` из `writeDb` (результат TX, а не `return` из колбэка); ветка UX и тесты; снимок таблицы reason в [`PRODUCT_REASONS_AND_UX_TABLE.md`](PRODUCT_REASONS_AND_UX_TABLE.md); матрица 1↔2 и legacy двух БД в [`MASTER_PLAN.md`](MASTER_PLAN.md).
-- **Артефакты:** коммит(ы) в ветке разработки.
-- **CI:** ожидается `pnpm run ci` перед пушем.
+- **Артефакты:** коммит(ы) в репозитории.
+- **CI:** pass (`pnpm run ci`).
 
 ### AUDIT 2026-04-13 — Документация инициативы
 
 - **Этап / scope:** WEBAPP_FIRST_PHONE_BIND (полнота планов).
 - **Проверено по:** чек-листы STAGE_01–06 (логическая полнота после правок).
 - **Найдено:** устранены внешняя-only опора для UX-таблицы, отсутствие миграции GRANT в репо, окно рассинхрона read path, баг `no_integrator_identity` внутри `db.tx`, пустой журнал.
-- **Статус:** gaps сокращены; STAGE_03 закрыт по чек-листу в `STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`; хвосты STAGE_05 (метрики/аудит-логи), STAGE_06 — по отдельным задачам.
+- **Статус:** gaps сокращены; STAGE_03 закрыт по чек-листу в `STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`; STAGE_05 закрыт по [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md) (логи/метрики-поля, тесты, контракт, журнал аудита); STAGE_06 — по отдельным задачам.

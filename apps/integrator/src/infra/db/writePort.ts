@@ -397,10 +397,15 @@ export function createDbWritePort(input: {
         }
         case 'user.phone.link': {
           const resource = readResource(mutation.params);
+          const channelUserId = readChannelUserId(mutation.params);
+          const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
           const bindLogBase = {
             event: 'messenger_phone_bind_tx' as const,
             bindOutcome: 'bind_tx_fail' as const,
             resource,
+            channelCode: resource,
+            ...(channelUserId ? { externalId: channelUserId } : {}),
+            metric: 'messenger_bind_tx_fail' as const,
             ...(asNonEmptyString(mutation.params.correlationId)
               ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
               : {}),
@@ -409,8 +414,6 @@ export function createDbWritePort(input: {
             logger.warn({ ...bindLogBase, reason: 'unsupported_resource' }, 'bind_tx_fail');
             return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
           }
-          const channelUserId = readChannelUserId(mutation.params);
-          const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
           if (!channelUserId || !phoneNormalized) {
             logger.warn({ ...bindLogBase, reason: 'missing_input' }, 'bind_tx_fail');
             return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
@@ -419,6 +422,7 @@ export function createDbWritePort(input: {
           try {
             let applied = false;
             let phoneLinkEarly: DbWriteDbResult | undefined;
+            let platformUserIdForLog: string | undefined;
             await db.tx(async (txDb) => {
               if (resource === 'max') {
                 await ensureIdentityForMessenger(txDb, { resource: 'max', externalId: channelUserId });
@@ -436,12 +440,13 @@ export function createDbWritePort(input: {
                 return;
               }
               const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, rawUid);
-              await applyMessengerPhonePublicBind(txDb, {
+              const { platformUserId } = await applyMessengerPhonePublicBind(txDb, {
                 channelCode: resource,
                 externalId: channelUserId,
                 phoneNormalized,
                 canonicalIntegratorUserId: canonicalUid,
               });
+              platformUserIdForLog = platformUserId;
               const outcome = await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
               if (outcome === 'failed') {
                 throw new MessengerPhoneLinkError('db_transient_failure');
@@ -467,7 +472,11 @@ export function createDbWritePort(input: {
               {
                 event: 'messenger_phone_bind_tx',
                 bindOutcome: 'bind_tx_ok',
+                metric: 'messenger_bind_ok',
                 resource,
+                channelCode: resource,
+                externalId: channelUserId,
+                platformUserId: platformUserIdForLog,
                 phoneSuffix,
                 ...(asNonEmptyString(mutation.params.correlationId)
                   ? { correlationId: asNonEmptyString(mutation.params.correlationId) }

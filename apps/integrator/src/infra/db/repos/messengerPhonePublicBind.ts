@@ -35,7 +35,7 @@ export async function applyMessengerPhonePublicBind(
     phoneNormalized: string;
     canonicalIntegratorUserId: string;
   },
-): Promise<void> {
+): Promise<{ platformUserId: string }> {
   const { channelCode, externalId, phoneNormalized, canonicalIntegratorUserId } = input;
 
   const bindRes = await db.query<{
@@ -110,4 +110,6 @@ export async function applyMessengerPhonePublicBind(
     logger.error({ err }, '[messengerPhone] public platform_users UPDATE failed');
     throw new MessengerPhoneLinkError('db_transient_failure', { cause: err });
   }
+
+  return { platformUserId };
 }

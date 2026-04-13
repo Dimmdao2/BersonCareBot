@@ -87,6 +87,15 @@ describe("createWebappEventsPort emit", () => {
     });
     expect(result.ok).toBe(false);
     expect(result.status).toBe(202);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metric: "integrator_emit_body_reject",
+        eventType: "diary.lfk.complex.created",
+        httpStatus: 202,
+        error: "busy",
+      }),
+      "webapp events emit: response ok is not true",
+    );
   });
 
   it("treats 202 with missing ok field as failure", async () => {
@@ -120,10 +129,34 @@ describe("createWebappEventsPort emit", () => {
     expect(result.ok).toBe(false);
     expect(warnSpy).toHaveBeenCalledWith(
       expect.objectContaining({
+        metric: "integrator_emit_body_reject",
         eventType: "user.upserted",
         httpStatus: 200,
       }),
       "webapp events emit: response body is not valid JSON",
+    );
+  });
+
+  it("logs integrator_emit_body_reject when 200 has empty body", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => "",
+    });
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort();
+    const result = await port.emit({
+      eventType: "user.upserted",
+      occurredAt: new Date().toISOString(),
+      payload: { integratorUserId: "9" },
+    });
+    expect(result.ok).toBe(false);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metric: "integrator_emit_body_reject",
+        eventType: "user.upserted",
+        httpStatus: 200,
+      }),
+      "webapp events emit: empty response body",
     );
   });
 });

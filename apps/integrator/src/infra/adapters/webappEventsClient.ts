@@ -82,12 +82,15 @@ export function createWebappEventsPort(): WebappEventsPort {
         });
         const text = await res.text().catch(() => '');
         let parsed: { ok?: boolean; error?: string } = {};
+        let jsonParsed = false;
         if (text) {
           try {
             parsed = JSON.parse(text) as { ok?: boolean; error?: string };
+            jsonParsed = true;
           } catch {
             logger.warn(
               {
+                metric: 'integrator_emit_body_reject',
                 eventType: event.eventType,
                 httpStatus: res.status,
                 bodySnippet: text.slice(0, 500),
@@ -99,6 +102,28 @@ export function createWebappEventsPort(): WebappEventsPort {
         const ok =
           (res.status === 200 || res.status === 202) &&
           parsed.ok === true;
+        if (!ok && (res.status === 200 || res.status === 202)) {
+          if (jsonParsed) {
+            logger.warn(
+              {
+                metric: 'integrator_emit_body_reject',
+                eventType: event.eventType,
+                httpStatus: res.status,
+                ...(typeof parsed.error === 'string' ? { error: parsed.error } : {}),
+              },
+              'webapp events emit: response ok is not true',
+            );
+          } else if (!text) {
+            logger.warn(
+              {
+                metric: 'integrator_emit_body_reject',
+                eventType: event.eventType,
+                httpStatus: res.status,
+              },
+              'webapp events emit: empty response body',
+            );
+          }
+        }
         return {
           ok,
           status: res.status,
