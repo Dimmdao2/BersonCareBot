@@ -4,6 +4,68 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
+/** Ответ успешного POST permanent-delete (фрагмент `details` из strict purge). */
+type PermanentDeleteDetails = {
+  integratorError?: string | null;
+  s3Failures?: { key: string; error: string }[];
+  mediaRowDeleteErrors?: { id: string; error: string }[];
+};
+
+function buildPermanentDeleteAdminNotice(args: {
+  outcome?: string;
+  integratorSkipped?: boolean;
+  details?: PermanentDeleteDetails;
+}): string | null {
+  const { outcome, integratorSkipped, details: d } = args;
+  const s3n = d?.s3Failures?.length ?? 0;
+  const mediaErrN = d?.mediaRowDeleteErrors?.length ?? 0;
+  const intErr = typeof d?.integratorError === "string" && d.integratorError.trim().length > 0 ? d.integratorError.trim() : null;
+
+  const needsNotice =
+    integratorSkipped === true ||
+    (outcome != null && outcome !== "completed") ||
+    intErr != null ||
+    s3n > 0 ||
+    mediaErrN > 0;
+
+  if (!needsNotice) return null;
+
+  const parts: string[] = ["Учётная запись в веб-приложении удалена."];
+
+  if (integratorSkipped) {
+    parts.push(
+      "Очистка БД интегратора (бот) в этом запросе не выполнялась: не настроен пул подключения к БД integrator на стороне webapp.",
+    );
+  }
+
+  if (outcome != null && outcome !== "completed") {
+    parts.push(
+      `Внешняя очистка завершена не полностью (итог: ${outcome}). Ниже — детали, если сервер их вернул.`,
+    );
+  }
+
+  if (intErr) {
+    parts.push(`Ошибка очистки integrator:\n${intErr}`);
+  }
+
+  if (s3n > 0) {
+    const preview = (d?.s3Failures ?? [])
+      .slice(0, 3)
+      .map((f) => `• ${f.key}: ${f.error}`)
+      .join("\n");
+    const tail = s3n > 3 ? `\n… и ещё ${s3n - 3}` : "";
+    parts.push(`Ошибки удаления объектов S3 (${s3n}):\n${preview}${tail}`);
+  }
+
+  if (mediaErrN > 0) {
+    parts.push(`Не удалось удалить ${mediaErrN} строк(и) в media_files (см. лог операций).`);
+  }
+
+  parts.push('Полные данные — «Настройки» → «Лог операций», действие user_purge (JSON в «Детали»).');
+
+  return parts.join("\n\n");
+}
+
 type Props = {
   userId: string;
   isArchived: boolean;
@@ -107,6 +169,7 @@ export function DoctorClientLifecycleActions({
         message?: string;
         integratorSkipped?: boolean;
         outcome?: string;
+        details?: PermanentDeleteDetails;
       };
       if (!res.ok || !data.ok) {
         if (data.error === "must_archive_first") {
@@ -118,14 +181,13 @@ export function DoctorClientLifecycleActions({
         }
         return;
       }
-      if (data.outcome && data.outcome !== "completed") {
-        window.alert(
-          "Запись в веб-приложении удалена, но внешняя очистка (S3 или integrator) завершилась не полностью. Проверьте «Лог операций» в настройках администратора и при необходимости повторите cleanup.",
-        );
-      } else if (data.integratorSkipped) {
-        window.alert(
-          "Учётная запись удалена из веб-приложения. Интегратор (бот) мог не очиститься автоматически — при необходимости выполните очистку вручную на сервере.",
-        );
+      const adminNotice = buildPermanentDeleteAdminNotice({
+        outcome: data.outcome,
+        integratorSkipped: data.integratorSkipped,
+        details: data.details,
+      });
+      if (adminNotice) {
+        window.alert(adminNotice);
       }
       router.push(listBasePath);
       router.refresh();

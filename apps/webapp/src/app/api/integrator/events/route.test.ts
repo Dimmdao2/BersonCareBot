@@ -179,6 +179,41 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).toHaveBeenCalledTimes(1);
   });
 
+  it("same idempotency key and business payload with different occurredAt does not 409 and caches once", async () => {
+    handleIntegratorEventMock.mockResolvedValueOnce({ accepted: true });
+    const headers = {
+      "x-bersoncare-timestamp": "1700000000",
+      "x-bersoncare-signature": "sig",
+      "x-bersoncare-idempotency-key": "idem-same-payload-diff-at",
+      "content-type": "application/json",
+    };
+    const bodyA = JSON.stringify({
+      eventType: "user.upserted",
+      occurredAt: "2026-01-01T00:00:00.000Z",
+      payload: { integratorUserId: "1" },
+    });
+    const bodyB = JSON.stringify({
+      eventType: "user.upserted",
+      occurredAt: "2026-01-02T00:00:00.000Z",
+      payload: { integratorUserId: "1" },
+    });
+
+    const first = await POST(
+      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyA }),
+    );
+    const second = await POST(
+      new Request("http://localhost/api/integrator/events", { method: "POST", headers, body: bodyB }),
+    );
+
+    const firstJson = await first.json();
+    const secondJson = await second.json();
+
+    expect(first.status).toBe(202);
+    expect(second.status).toBe(202);
+    expect(secondJson).toEqual(firstJson);
+    expect(handleIntegratorEventMock).toHaveBeenCalledTimes(1);
+  });
+
   it("returns 409 when same idempotency key is reused with different payload", async () => {
     handleIntegratorEventMock.mockResolvedValue({ accepted: true });
     const bodyA = JSON.stringify({ eventType: "user.upserted", payload: { integratorUserId: "1" } });
