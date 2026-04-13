@@ -90,19 +90,17 @@ npx tsx scripts/check-max.ts
 
 ## 4. Связка MAX с вебапп
 
-Вебапп **не** заводит отдельный «MAX токен» (как отдельный TELEGRAM_BOT_TOKEN). Вход из MAX идёт так же, как из Telegram:
+Два поддерживаемых пути входа в вебапп из MAX:
 
-1. Пользователь в MAX нажимает кнопку/ссылку «Открыть приложение».
-2. Интегратор формирует подписанную ссылку на вебапп с параметром `?t=<signed-token>` (тот же механизм, что и для Telegram).
-3. В payload токена интегратор передаёт привязку к каналу MAX: `bindings.maxId`.
-4. Вебапп по приходу на `/app?t=...` вызывает `POST /api/auth/exchange`, создаёт сессию и при необходимости привязывает `maxId` к пользователю.
+1. **Подписанная ссылка с `?t=<signed-token>`** (как у Telegram): интегратор формирует URL на `APP_BASE_URL/app?t=...`; в payload — привязка `bindings.maxId`. Вебапп вызывает `POST /api/auth/exchange` и создаёт сессию.
+2. **MAX Mini App без токена в URL:** клиент открывает `APP_BASE_URL/app` внутри WebView; среда передаёт строку **`initData`**. Вебапп проверяет подпись через MAX Platform API, используя секрет бота из **`system_settings`** (ключ **`max_bot_api_key`**, admin; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`). HTTP: **`POST /api/auth/max-init`**. На странице `/app` опрос и отправка `initData` делают **`AuthBootstrap`** и восстановление сессии в `miniAppSessionRecovery` (при 401 на `/api/me`).
 
-Что нужно в **вебапп**:
+Что нужно в **вебапп** (bootstrap / интеграция с ботом):
 
-- Те же переменные, что и для Telegram: `INTEGRATOR_SHARED_SECRET` (или отдельные `INTEGRATOR_WEBAPP_ENTRY_SECRET` / `INTEGRATOR_WEBHOOK_SECRET`), `APP_BASE_URL`.
-- Дополнительных MAX-специфичных ключей в вебапп не требуется.
+- `INTEGRATOR_SHARED_SECRET` (или `INTEGRATOR_WEBAPP_ENTRY_SECRET` / `INTEGRATOR_WEBHOOK_SECRET` по вашей схеме), `APP_BASE_URL`.
+- В admin Settings задать **`max_bot_api_key`** (совпадает с ключом бота в MAX API для валидации `initData`).
 
-То есть: **подключение MAX к вебапп** = корректная выдача интегратором ссылок с `?t=...` при действиях пользователя в MAX и одинаковые настройки интегратора/вебапп (секреты, APP_BASE_URL).
+Интегратор по-прежнему использует **`MAX_API_KEY`** в своём env для webhook и исходящих вызовов; webapp читает **`max_bot_api_key`** из БД, а не дублирует `MAX_API_KEY` в env webapp.
 
 ---
 
@@ -113,8 +111,9 @@ npx tsx scripts/check-max.ts
 - [ ] В MAX зарегистрирован webhook: URL = `https://<интегратор>/webhook/max`, `secret` = `MAX_WEBHOOK_SECRET`.
 - [ ] В сценариях интегратора для кнопок/ссылок «Открыть приложение» используется тот же генератор подписанного токена, что и для Telegram, с подстановкой `maxId` в `bindings`.
 - [ ] В вебапп заданы `INTEGRATOR_*` и `APP_BASE_URL`; для входа по MAX в вебапп при необходимости задать `ALLOWED_MAX_IDS` (список разрешённых max user id через запятую).
+- [ ] В admin webapp сохранён **`max_bot_api_key`** (подпись MAX Mini App `initData`), если пользователи открывают приложение из WebView без `?t=...`.
 
-После этого MAX бот подключён к интегратору (webhook + отправка сообщений), а вебапп принимает пользователей из MAX через общий механизм `?t=...`.
+После этого MAX бот подключён к интегратору (webhook + отправка сообщений), а вебапп принимает пользователей из MAX через **`?t=...`** и/или **Mini App `max-init`**.
 
 ---
 
@@ -123,7 +122,7 @@ npx tsx scripts/check-max.ts
 1. В MAX откройте чат с ботом: для приветствия с меню можно отправить `/start` (deep link `link_*` и т.п.) или дождаться сценария старта; команда **`/menu`** в списке команд бота открывает то же главное меню (как reply-меню в Telegram).
 2. Должно прийти сообщение с inline-меню: в первом ряду — запись на приём, дневник, «ещё»; ниже — пункты из раздела «ещё» (скорая помощь, персональный помощник, уроки, мои записи, уведомления).
 3. Нажмите «Персональный помощник» — должно прийти сообщение с кнопкой «Открыть приложение» (если интегратор настроен: `APP_BASE_URL`, entry secret).
-4. Нажмите «Открыть приложение» — откроется браузер с `APP_BASE_URL/app?t=...`; вебапп выполнит обмен токена и создаст сессию (при заданном `ALLOWED_MAX_IDS` в вебапп или без whitelist в dev).
+4. Нажмите «Открыть приложение» — откроется браузер с `APP_BASE_URL/app?t=...` (или WebView на `/app` с `initData`); вебапп выполнит `exchange` или `max-init` и создаст сессию (при заданном `ALLOWED_MAX_IDS` в вебапп или без whitelist в dev).
 
 При ошибках: проверьте логи интегратора (webhook received, pipeline accepted), наличие `links.webappEntryUrl` в facts для MAX (логировать при необходимости) и переменные вебапп `INTEGRATOR_WEBAPP_ENTRY_SECRET` / `APP_BASE_URL`.
 

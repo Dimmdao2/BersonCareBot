@@ -14,6 +14,7 @@
 - Публичные ссылки: `support_contact_url`.
 - Telegram Login Widget: `telegram_login_bot_username`.
 - Диплинк MAX для привязки в браузере (`POST /api/auth/channel-link/start`): **`max_login_bot_nickname`** (ник или `https://max.ru/<nick>`). Fallback порядка чтения: env **`MAX_LOGIN_BOT_NICKNAME`** → ник из **`CHANNEL_LIST`** в `apps/webapp/src/modules/channel-preferences/constants.ts` (поле `openUrl` у канала MAX), см. `getMaxLoginBotNickname()`.
+- Подпись MAX Mini App `initData` на webapp: **`max_bot_api_key`** (тот же секрет, что у бота в MAX Platform API для проверки подписи; не путать с webhook-secret интегратора). Хранится в **`system_settings`** (admin), UI в `/app/settings`; после сохранения зеркалируется в integrator через `updateSetting` / sync.
 
 ### Telegram в webapp env: username бота vs числовые id
 

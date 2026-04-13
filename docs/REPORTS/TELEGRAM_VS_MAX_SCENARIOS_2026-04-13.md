@@ -1,7 +1,7 @@
 # Telegram и Max: сценарии, совпадения и актуальность
 
 **Дата:** 2026-04-13  
-**Обновлено:** 2026-04-13 (синхронизация с кодом после ветки MAX booking / slash / support draft).
+**Обновлено:** 2026-04-13 (MAX Mini App `max-init` / `max_bot_api_key`; см. `apps/webapp/src/modules/auth/auth.md`, `ARCHITECTURE/MAX_SETUP.md` §4).
 
 **Основа:** код `apps/integrator/src/content/*/user/scripts.json`, `mapIn` (Telegram / Max), доки `AUTH_RESTRUCTURE/`, `BOT_CONTACT_MINI_APP_GATE.md`, `SCENARIOS_AND_CODE_MAP.md`.
 
@@ -12,6 +12,7 @@
 - **Один движок** (webhook → `buildPlan` → `scripts.json`), но **контент и разбор входа разные**. Telegram по-прежнему богаче по deep link и админ-командам.
 - **Политика «сначала телефон в канале»** и **страховка Mini App** описаны в коде и доках; таблица `telegram.start` / `max.start` при `linkedPhone: true` в [`INTEGRATOR_TELEGRAM_START_SCRIPTS.md`](../AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md) приведена в соответствие с JSON (после `/start` с телефоном показывается меню).
 - **Max — запись на приём:** есть сценарии `max.booking.*`, `max.bookings.show`, slash **`/book`**, **`/diary`**, **`/menu`** и факты `links.webapp*` в webhook; цепочка inline «Назад» согласована с идеей `booking.menu` (см. [`TELEGRAM_BOOKING_INLINE_NAV.md`](../AUTH_RESTRUCTURE/TELEGRAM_BOOKING_INLINE_NAV.md)).
+- **Вебапп из MAX Mini App без `?t=`:** сессия поднимается через **`POST /api/auth/max-init`** и **`max_bot_api_key`** в admin Settings (не путать с `MAX_WEBHOOK_SECRET` интегратора). Поведение на `/app` — **`AuthBootstrap`** + восстановление при 401 (`miniAppSessionRecovery`), паритет с Telegram `telegram-init`.
 - **Оставшаяся дыра Max:** callback **`notifications.show`** в [`menu.json`](../../apps/integrator/src/content/max/user/menu.json) — **отдельного сценария в `max/user/scripts.json` нет**; нажатие может дать пустой план, пока не добавят сценарий или не уберут кнопку.
 
 ---

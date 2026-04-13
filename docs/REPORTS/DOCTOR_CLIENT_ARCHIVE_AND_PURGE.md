@@ -96,7 +96,8 @@
    - Таблицы из `IDENTITY_TABLES` (привязки каналов, PIN, login tokens, OAuth).
    - `DELETE FROM platform_users WHERE id = ...`.
 3. **После COMMIT webapp — внешняя очистка (не одна транзакция с webapp):**
-   - Параллельно и **независимо**: удаление объектов S3 по собранным ключам (per-key ошибки агрегируются) и `deleteIntegratorPhoneData` в integrator (отдельная транзакция в БД integrator). Оба шага выполняются без short-circuit при ошибке в другом.
+   - Параллельно и **независимо**: удаление объектов S3 по собранным ключам (per-key ошибки агрегируются) и очистка в integrator (отдельные вызовы в БД integrator). Оба шага выполняются без short-circuit при ошибке в другом.
+   - **Integrator:** кроме сопоставления по `phone_normalized` и `integrator_user_id`, в post-commit передаётся **снимок** строк **`user_channel_bindings`** (telegram/max), прочитанный **до** `DELETE platform_users` в транзакции webapp; по ним резолвятся дополнительные `users.id` в БД бота и удаляются мессенджерные контакты (в т.ч. когда в webapp не было заполнено `integrator_user_id`).
    - Для `media_files`: строки с `s3_key IS NULL` удаляются как DB-only артефакты; для строк с `s3_key` после успешного удаления объекта в S3 выполняется `DELETE FROM media_files` по id (если S3 отключён в окружении — только удаление строк БД).
 4. **Аудит:** `writeAuditLog` в **отдельной** транзакции после основной: `ok` / `partial_failure` / `error`; при rollback webapp — запись об ошибке, сам аудит не откатывается вместе с purge.
 5. **Итог API:** `outcome`: `completed` | `partial_failed` | `needs_retry` (интегратор не очистился при наличии пула, без ошибок S3); `integratorSkipped: true`, если пул integrator не настроен.

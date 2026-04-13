@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Блок входа: обмен токена из ссылки на сессию, вход через Telegram initData или по номеру телефона (AuthFlowV2).
- * Если в адресе есть токен (t или token) — обмен на сессию. Если нет — пробует initData Telegram;
- * при отсутствии или ошибке — форма входа по номеру через AuthFlowV2 (check-phone, OTP; публичный flow без шага PIN — см. docs/AUTH_RESTRUCTURE/auth.md).
+ * Блок входа: обмен токена из ссылки на сессию, вход через initData Mini App (Telegram или MAX) или по номеру (AuthFlowV2).
+ * Если в адресе есть токен (t или token) — обмен на сессию. Если нет — опрос `Telegram.WebApp.initData` и MAX WebApp bridge;
+ * при отсутствии или ошибке — форма входа по номеру через AuthFlowV2 (check-phone, OTP; публичный flow без шага PIN — см. `modules/auth/auth.md`).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { AuthFlowV2, type AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
@@ -113,13 +113,17 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       }
     };
 
-    const runTelegramInit = (initData: string) => {
-      if (telegramInitSentRef.current) return;
-      telegramInitSentRef.current = true;
+    const postMessengerInit = (
+      endpoint: "/api/auth/telegram-init" | "/api/auth/max-init",
+      initData: string,
+      sentRef: MutableRefObject<boolean>,
+    ) => {
+      if (sentRef.current) return;
+      sentRef.current = true;
       stopPolling();
       queueMicrotask(() => setState("loading"));
 
-      void fetch("/api/auth/telegram-init", {
+      void fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ initData }),
@@ -148,40 +152,9 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         });
     };
 
-    const runMaxInit = (initData: string) => {
-      if (maxInitSentRef.current) return;
-      maxInitSentRef.current = true;
-      stopPolling();
-      queueMicrotask(() => setState("loading"));
-
-      void fetch("/api/auth/max-init", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ initData }),
-      })
-        .then(async (response) => {
-          const text = await response.text();
-          if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
-          if (response.status === 403 || response.status === 401) {
-            setState("error");
-            setError("Не удалось войти");
-            return;
-          }
-          if (!response.ok) return;
-          const payload = text
-            ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
-            : null;
-          if (!payload?.redirectTo) return;
-          const role = payload.role ?? "client";
-          const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
-          router.replace(target);
-        })
-        .catch((e) => {
-          setState("error");
-          setError("Не удалось войти");
-          if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
-        });
-    };
+    const runTelegramInit = (initData: string) =>
+      postMessengerInit("/api/auth/telegram-init", initData, telegramInitSentRef);
+    const runMaxInit = (initData: string) => postMessengerInit("/api/auth/max-init", initData, maxInitSentRef);
 
     const tick = () => {
       if (cancelled) return;
