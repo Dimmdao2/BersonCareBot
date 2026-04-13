@@ -1,3 +1,11 @@
+/** Нет строки `identities` для этого чата — рассинхрон или гонка; не путать с временной ошибкой БД. */
+export function phoneLinkNoIntegratorIdentityUserMessage(source: string): string {
+  if (source === 'telegram') {
+    return 'Сессия бота не синхронизирована. Откройте мини-приложение из этого бота или отправьте /start, затем снова поделитесь контактом.';
+  }
+  return 'Сессия не синхронизирована. Откройте приложение из бота или начните диалог заново, затем снова поделитесь контактом.';
+}
+
 /** Нет строки в `user_channel_bindings` — сначала открыть мини-приложение из бота / пройти привязку канала. */
 export function phoneLinkNoBindingUserMessage(source: string): string {
   if (source === 'telegram') {
@@ -22,7 +30,7 @@ export function phoneLinkConflictUserMessage(source: string): string {
   return 'Данный номер уже привязан к другому аккаунту. Напишите в поддержку для решения вопроса.';
 }
 
-/** Ошибка БД, отсутствие identity или сбой порта записи — не путать с конфликтом номера. */
+/** Транзиент БД / неопределённый сбой записи — не путать с конфликтом номера (`no_integrator_identity` — отдельный текст). */
 export function phoneLinkSaveFailedUserMessage(): string {
   return 'Не удалось сохранить номер. Попробуйте позже или напишите в поддержку.';
 }

@@ -26,7 +26,10 @@ vi.mock('../../infra/db/branchTimezone.js', () => ({
   createGetBranchTimezoneWithDataQuality: () => async () => 'Europe/Moscow',
 }));
 
-import { runPostCreateProjection } from './postCreateProjection.js';
+import {
+  RUBITIME_POST_CREATE_GET_RECORD_RETRY_MS,
+  runPostCreateProjection,
+} from './postCreateProjection.js';
 
 const RECORD_ID = 'rec-42';
 
@@ -81,15 +84,22 @@ describe('runPostCreateProjection', () => {
   });
 
   it('fetch failure after retry returns projectionOk=false', async () => {
-    mockFetchRubitimeRecordById.mockClear();
-    mockFetchRubitimeRecordById.mockRejectedValue(new Error('RUBITIME_API_ERROR'));
-    const deps = makeDeps();
-    const result = await runPostCreateProjection(RECORD_ID, deps);
+    vi.useFakeTimers();
+    try {
+      mockFetchRubitimeRecordById.mockClear();
+      mockFetchRubitimeRecordById.mockRejectedValue(new Error('RUBITIME_API_ERROR'));
+      const deps = makeDeps();
+      const promise = runPostCreateProjection(RECORD_ID, deps);
+      await vi.advanceTimersByTimeAsync(RUBITIME_POST_CREATE_GET_RECORD_RETRY_MS);
+      const result = await promise;
 
-    expect(result.projectionOk).toBe(false);
-    expect(result.error).toBe('fetch_failed');
-    expect(mockFetchRubitimeRecordById).toHaveBeenCalledTimes(2);
-    expect(deps.dbWritePort.writeDb).not.toHaveBeenCalled();
+      expect(result.projectionOk).toBe(false);
+      expect(result.error).toBe('fetch_failed');
+      expect(mockFetchRubitimeRecordById).toHaveBeenCalledTimes(2);
+      expect(deps.dbWritePort.writeDb).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('gcal failure is non-fatal: writeDb still called', async () => {

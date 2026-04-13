@@ -1,5 +1,7 @@
 # Этап 2: Чтение link-data для оркестратора из `public` (bindings + `platform_users`)
 
+**Реализация (код):** `getLinkDataByIdentity` в `apps/integrator/src/infra/db/repos/channelUsers.ts` — телефон: `COALESCE` канона из `public` (binding → `platform_users`, обход `merged_into_id`) и legacy-поля `integrator.contacts` с `label = resource`.
+
 ## Контекст
 
 Сегодня `loadUserContext` → `readPort` `user.byIdentity` → **`getLinkDataByIdentity`** (`apps/integrator/src/infra/db/repos/channelUsers.ts`) возвращает строку по **`integrator.identities`** и телефон из **`integrator.contacts`** с `label = resource` (`telegram` / `max`). Это задаёт **`phoneNormalized`** и флаг **`linkedPhone`** в сценариях.

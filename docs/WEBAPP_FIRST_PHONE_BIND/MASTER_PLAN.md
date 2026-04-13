@@ -4,10 +4,19 @@
 
 ## Исходные материалы
 
-- План Cursor (полный текст, продуктовая модель, риски):  
-  `~/.cursor/plans/webapp-first_phone_bind_5069b809.plan.md` (в репозитории копировать путь из IDE).
+- **Таблица reason ↔ UX (снимок в репо):** [`PRODUCT_REASONS_AND_UX_TABLE.md`](PRODUCT_REASONS_AND_UX_TABLE.md).
+- План Cursor (расширенный контекст, mermaid, журнал статусов): `~/.cursor/plans/webapp-first_phone_bind_5069b809.plan.md` — опционально; для ревью и CI опираться на файлы в `docs/WEBAPP_FIRST_PHONE_BIND/`.
 - Связанные доки репозитория:  
   `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md` · `apps/webapp/INTEGRATOR_CONTRACT.md` · `apps/webapp/src/modules/auth/auth.md` · `docs/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md`.
+
+## Матрица совместимости этапов 1 и 2
+
+| Состояние | Поведение |
+|-----------|-----------|
+| Этап **1** без **2** | После TX `user.phone.link` в том же коммите обновляются и `public`, и `integrator.contacts`; `linkedPhone` в оркестраторе остаётся согласованным с webapp по телефону, пока запись идёт только этим путём. |
+| Этап **2** без **1** | Чтение из `public` без TX bind на запись — возможен рассинхрон при старых путях записи только в `contacts`; не рекомендуется как целевое сочетание. |
+| **1 + 2** (цель) | Канон для сценариев = `public` с fallback на `contacts`; новые привязки пишутся TX в оба слоя. |
+| Две **разные** БД (legacy) | Путь «одна TX `public` + `integrator`» **недоступен**; оставлять HTTP/worker или отдельный runbook до unified — не расширять TX-путь до cutover на одну PostgreSQL. |
 
 ## Цели инициативы
 

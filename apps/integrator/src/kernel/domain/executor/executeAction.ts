@@ -64,6 +64,7 @@ import {
   phoneLinkConflictUserMessage,
   phoneLinkIntegratorMismatchUserMessage,
   phoneLinkNoBindingUserMessage,
+  phoneLinkNoIntegratorIdentityUserMessage,
   phoneLinkSaveFailedUserMessage,
 } from '../../../shared/phoneLinkUserMessages.js';
 
@@ -656,6 +657,8 @@ export async function executeAction(
         let text: string;
         if (reason === 'no_channel_binding') {
           text = phoneLinkNoBindingUserMessage(source);
+        } else if (reason === 'no_integrator_identity') {
+          text = phoneLinkNoIntegratorIdentityUserMessage(source);
         } else if (reason === 'phone_owned_by_other_user') {
           text = phoneLinkConflictUserMessage(source);
         } else if (reason === 'integrator_id_mismatch') {

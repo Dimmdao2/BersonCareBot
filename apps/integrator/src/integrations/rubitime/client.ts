@@ -81,6 +81,10 @@ async function postRubitimeApi2(input: {
     if (parsed.status !== 'ok') {
       const apiMessage = typeof parsed.message === 'string' ? parsed.message : 'unknown error';
       if (isRubitimeConsecutiveRequestLimitMessage(apiMessage) && attempt < 2) {
+        // No sleep here: the next loop iteration goes through `withRubitimeApiThrottle` again,
+        // which blocks until min interval since the *previous* api2 call finished (Rubitime
+        // still counts this HTTP 200 + error body as a request). The caller's HTTP (e.g. M2M
+        // create-record) stays open for that whole server-side wait — webapp can show a loading state.
         continue;
       }
       throw new Error(`RUBITIME_API_ERROR: ${apiMessage}`);

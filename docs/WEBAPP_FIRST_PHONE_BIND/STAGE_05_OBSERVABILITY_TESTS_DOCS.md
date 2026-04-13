@@ -2,7 +2,7 @@
 
 ## Контекст
 
-Без пустых `catch` и без «успеха» на неоднозначном HTTP-теле. Для TX bind — структурные поля: `correlationId`, `channelCode`, `externalId`, `platformUserId` (если есть), machine reason, `SQLSTATE` при ошибке.
+Без пустых `catch` и без «успеха» на неоднозначном HTTP-теле. Для signed **`GET`** к webapp — та же строгость, что для `emit`: успех только при `ok === true` в JSON (зафиксировано в `INTEGRATOR_CONTRACT.md`). Для TX bind — структурные поля: `correlationId`, `channelCode`, `externalId`, `platformUserId` (если есть), machine reason, `SQLSTATE` при ошибке.
 
 Тесты: integrator — TX bind (testcontainers или реальный PG по политике репо); webapp — bind-модуль/route при наличии; регресс request-contact / await_contact.
 

@@ -11,6 +11,10 @@
 - `rubitime_create_retry_jobs` — очередь delivery/retry-задач с полным `message.deliver` payload.
 - `booking_calendar_map` — связка rubitime_record_id с gcal_event_id для Google Calendar.
 
+### Исходящий API2 (pacing между запросами)
+
+- `rubitime_api_throttle` — одна строка `id = 1`, поле `last_completed_at`: глобальный интервал **~5500 ms** между *завершением* одного исходящего вызова `https://rubitime.ru/api2/*` и началом следующего (координация `pg_advisory_lock` + обновление времени в БД). Миграция: `20260413_0001_rubitime_api_throttle.sql`. См. `rubitimeApiThrottle.ts`, отчёт `docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`.
+
 ### Справочники онлайн-записи (booking-сторона)
 
 Заменяют env-переменную `RUBITIME_SCHEDULE_MAPPING`. Данные управляются через admin UI webapp.
@@ -39,6 +43,7 @@ webapp GET /api/booking/slots
 webapp POST /api/booking/create
   → integrator POST /api/bersoncare/rubitime/create-record
     → resolveScheduleParams() → DB: rubitime_booking_profiles JOIN branches/services/cooperators
-    → createRubitimeRecord({ branch_id, cooperator_id, service_id, record, name, phone, email })
-    → return recordId
+    → createRubitimeRecord(...) — через postRubitimeApi2 + withRubitimeApiThrottle (интервал к api2)
+    → runPostCreateProjection(recordId): get-record (при ошибке — пауза 5200 ms + повтор) → … → booking.upsert
+    → HTTP 200 webapp (пока шаги выше не завершены, запрос webapp к integrator обычно висит — лоадер в UI)
 ```

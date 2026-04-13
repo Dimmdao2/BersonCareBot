@@ -9,6 +9,8 @@
 
 Инфра: `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md` · план Cursor §1–2.
 
+**GRANT в репозитории:** миграция `apps/integrator/src/infra/db/migrations/core/20260413_0002_integrator_grants_public_messenger_canon.sql` (`SELECT` на `public.user_channel_bindings`, `SELECT`+`UPDATE` на `public.platform_users` для `CURRENT_USER`). Если миграции крутятся **под суперпользователем**, выдайте те же права **роли приложения integrator** отдельно в runbook деплоя (иначе `GRANT TO CURRENT_USER` попадёт не на ту роль).
+
 ## Результат этапа
 
 - [ ] Ветка `user.phone.link` выполняет **одну** `tx`: обновление `public` (binding-first) + `integrator` согласованно.

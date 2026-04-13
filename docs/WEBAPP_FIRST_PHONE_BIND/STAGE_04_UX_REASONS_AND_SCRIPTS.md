@@ -2,7 +2,7 @@
 
 ## Контекст
 
-Пользователь должен получать **честный** исход: отдельные тексты для **транзиентной БД**, **нет binding**, **номер у другого аккаунта**, **integrator id mismatch**, **indeterminate** — см. таблицу в плане Cursor. Реализация: метаданные из `writeDb` → `phoneLinkUserMessages` → ветки в `executeAction` / контент.
+Пользователь должен получать **честный** исход: отдельные тексты для **транзиентной БД**, **нет binding**, **номер у другого аккаунта**, **integrator id mismatch**, **indeterminate** — см. таблицу в плане Cursor. Реализация: метаданные из `writeDb` → `phoneLinkUserMessages` → ветки в `executeAction` / контент. Стабильные коды: см. [`PRODUCT_REASONS_AND_UX_TABLE.md`](PRODUCT_REASONS_AND_UX_TABLE.md) (в т.ч. `no_integrator_identity` отдельно от транзиента БД).
 
 Сценарии Telegram и Max: после `user.phone.link` **успех** («Номер привязан») только если sync-шаг реально применился (`userPhoneLinkApplied`, `abortPlan`).
 

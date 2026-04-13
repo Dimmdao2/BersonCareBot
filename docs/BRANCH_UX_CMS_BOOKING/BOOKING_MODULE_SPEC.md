@@ -46,7 +46,7 @@ Rubitime предоставляет:
    b. Синхронизирует в Rubitime (API2) через integrator M2M create-record
    c. Отправляет подтверждение пациенту через бота (Telegram/MAX) — emitBookingEvent
 5. Backend (integrator — post-create projection, синхронно в create-record):
-   a. Fetch записи из Rubitime
+   a. Fetch записи из Rubitime (все исходящие api2 — через общий throttle **~5500 ms** между запросами; при сбое первого get-record — пауза **5200 ms** и повтор)
    b. Нормализация timezone
    c. Google Calendar sync (best-effort, non-blocking)
    d. booking.upsert → rubitime_records + projection outbox
@@ -55,6 +55,8 @@ Rubitime предоставляет:
 ```
 
 > **Важно:** GCal sync и doctor projection происходят на стороне integrator внутри M2M `create-record`, а не через обратный webhook Rubitime. Webhook может прийти позже и обновить запись (idempotent upsert).
+
+> **Rubitime API2 / UX:** пока integrator не вернул ответ на M2M `create-record`, запрос webapp к integrator обычно **не завершён** (в т.ч. из‑за throttle и повторов к api2) — в UI бронирования нужен **индикатор ожидания**. Детали: `docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`, `apps/webapp/INTEGRATOR_CONTRACT.md`.
 
 ### 3.3. Поток отмены/переноса
 

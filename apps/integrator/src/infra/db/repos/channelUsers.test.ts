@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
 import {
   findByPhone,
+  getLinkDataByIdentity,
   getNotificationSettings,
   getUserLinkData,
   getUserState,
@@ -207,9 +208,33 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     const [linkSql] = query.mock.calls[1] ?? [];
     const linkSqlText = String(linkSql);
     expect(linkSqlText).toContain('FROM identities i');
+    expect(linkSqlText).toContain('public.user_channel_bindings');
+    expect(linkSqlText).toContain('public.platform_users');
     expect(linkSqlText).toContain('LEFT JOIN LATERAL');
     expect(linkSqlText).toContain('FROM contacts c');
     expect(linkSqlText).toContain('c.label = $1');
+  });
+
+  it('getLinkDataByIdentity uses public canon phone when integrator contact is empty', async () => {
+    const { db, query } = createDbMock();
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          user_id: '7',
+          channel_id: '555',
+          username: 'bob',
+          user_state: 'idle',
+          phone: '+79991112233',
+        },
+      ],
+      rowCount: 1,
+    } as DbQueryResult);
+
+    const row = await getLinkDataByIdentity(db, 'telegram', '555');
+    expect(row?.phoneNormalized).toBe('+79991112233');
+    const [sql] = query.mock.calls[0] ?? [];
+    // eslint-disable-next-line no-secrets/no-secrets -- asserts SQL shape, not a secret
+    expect(String(sql)).toContain('COALESCE(NULLIF(TRIM(pub.phone_normalized');
   });
 
   describe('tryConsumeStart', () => {

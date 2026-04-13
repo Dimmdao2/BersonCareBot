@@ -409,9 +409,11 @@ export async function getUserLinkData(
  * Returns user/link data by (resource, external_id). State and profile come from
  * integration-specific tables when available (e.g. telegram_state); otherwise identities + contacts only.
  *
- * Phone for `linkedPhone` / orchestrator: only a contact with `label` equal to this **resource**
- * (`telegram` from {@link setUserPhone}, `max` from the same for Max). Any other phone on the user
- * (e.g. merged from web without messenger label) must **not** skip `/start` onboarding in the bot.
+ * Phone for `linkedPhone` / orchestrator: **webapp canon first** — `public.platform_users.phone_normalized`
+ * via `public.user_channel_bindings` for this channel, resolving `merged_into_id` to the surviving row;
+ * if empty, falls back to integrator `contacts` with `label` equal to this **resource** (legacy / repair).
+ * Any other phone on the user (e.g. merged from web without messenger label) must **not** skip `/start`
+ * onboarding in the bot.
  */
 export async function getLinkDataByIdentity(
   db: DbPort,
@@ -419,10 +421,28 @@ export async function getLinkDataByIdentity(
   externalId: string,
 ): Promise<ChannelUserLinkRow | null> {
   if (resource === 'telegram') {
+    /* eslint-disable-next-line no-secrets/no-secrets -- SQL query text */
     const query = `
-      SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id, ts.username, ts.state AS user_state, cp.phone
+      SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id, ts.username, ts.state AS user_state,
+             COALESCE(NULLIF(TRIM(pub.phone_normalized), ''), cp.phone) AS phone
       FROM identities i
       LEFT JOIN telegram_state ts ON ts.identity_id = i.id
+      LEFT JOIN LATERAL (
+        WITH RECURSIVE pu_chain AS (
+          SELECT pu.id, pu.phone_normalized, pu.merged_into_id
+          FROM public.user_channel_bindings ucb
+          INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
+          WHERE ucb.channel_code = i.resource AND ucb.external_id = i.external_id
+          UNION ALL
+          SELECT p.id, p.phone_normalized, p.merged_into_id
+          FROM public.platform_users p
+          INNER JOIN pu_chain c ON p.id = c.merged_into_id
+        )
+        SELECT phone_normalized
+        FROM pu_chain
+        WHERE merged_into_id IS NULL
+        LIMIT 1
+      ) pub ON true
       LEFT JOIN LATERAL (
         SELECT c.value_normalized AS phone
         FROM contacts c
@@ -460,9 +480,27 @@ export async function getLinkDataByIdentity(
     }
   }
 
+  /* eslint-disable-next-line no-secrets/no-secrets -- SQL query text */
   const query = `
-    SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id, cp.phone
+    SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id,
+           COALESCE(NULLIF(TRIM(pub.phone_normalized), ''), cp.phone) AS phone
     FROM identities i
+    LEFT JOIN LATERAL (
+      WITH RECURSIVE pu_chain AS (
+        SELECT pu.id, pu.phone_normalized, pu.merged_into_id
+        FROM public.user_channel_bindings ucb
+        INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
+        WHERE ucb.channel_code = i.resource AND ucb.external_id = i.external_id
+        UNION ALL
+        SELECT p.id, p.phone_normalized, p.merged_into_id
+        FROM public.platform_users p
+        INNER JOIN pu_chain c ON p.id = c.merged_into_id
+      )
+      SELECT phone_normalized
+      FROM pu_chain
+      WHERE merged_into_id IS NULL
+      LIMIT 1
+    ) pub ON true
     LEFT JOIN LATERAL (
       SELECT c.value_normalized AS phone
       FROM contacts c

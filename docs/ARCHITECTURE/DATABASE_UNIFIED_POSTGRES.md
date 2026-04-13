@@ -31,4 +31,4 @@
 ## Связанные документы
 
 - `CONFIGURATION_ENV_VS_DATABASE.md` — env, `system_settings`, зеркало настроек.
-- План привязки телефона / TX-first: `.cursor/plans/webapp-first_phone_bind_5069b809.plan.md` (в репозитории планов Cursor).
+- План привязки телефона / TX-first: `docs/WEBAPP_FIRST_PHONE_BIND/MASTER_PLAN.md` · снимок reason/UX: `docs/WEBAPP_FIRST_PHONE_BIND/PRODUCT_REASONS_AND_UX_TABLE.md` (полный Cursor-план — опционально в `~/.cursor/plans/webapp-first_phone_bind_5069b809.plan.md`).

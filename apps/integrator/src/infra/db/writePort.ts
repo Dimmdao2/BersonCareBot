@@ -394,6 +394,7 @@ export function createDbWritePort(input: {
           }
           try {
             let applied = false;
+            let phoneLinkEarly: DbWriteDbResult | undefined;
             await db.tx(async (txDb) => {
               if (resource === 'max') {
                 await ensureIdentityForMessenger(txDb, { resource: 'max', externalId: channelUserId });
@@ -407,7 +408,8 @@ export function createDbWritePort(input: {
               );
               const rawUid = idPeek.rows[0]?.user_id ?? null;
               if (!rawUid) {
-                throw new MessengerPhoneLinkError('db_transient_failure');
+                phoneLinkEarly = { userPhoneLinkApplied: false, phoneLinkReason: 'no_integrator_identity' };
+                return;
               }
               const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, rawUid);
               await applyMessengerPhonePublicBind(txDb, {
@@ -425,6 +427,7 @@ export function createDbWritePort(input: {
               }
               applied = true;
             });
+            if (phoneLinkEarly) return phoneLinkEarly;
             return { userPhoneLinkApplied: applied };
           } catch (err) {
             if (err instanceof MessengerPhoneLinkError) {

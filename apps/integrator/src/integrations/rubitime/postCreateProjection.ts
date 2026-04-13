@@ -4,6 +4,12 @@
  * and write booking.upsert so that appointment_records projection is populated
  * without waiting for a Rubitime webhook.
  *
+ * Rubitime API2 enforces a minimum gap (~5s) between consecutive requests per key.
+ * Right after `create-record`, `get-record` can fail with their rate limit; we wait
+ * {@link RUBITIME_POST_CREATE_GET_RECORD_RETRY_MS} before a second fetch so the
+ * intent is obvious in code. All api2 calls also go through the integrator-wide
+ * throttle (`withRubitimeApiThrottle`, 5500 ms) for multi-process safety.
+ *
  * This is intentionally a lightweight path that does NOT run the full
  * eventGateway / script runner to avoid duplicate notifications (those are
  * already sent via the booking.created lifecycle event from webapp).
@@ -19,6 +25,13 @@ import {
   syncRubitimeWebhookBodyToGoogleCalendar,
 } from './connector.js';
 import type { RubitimeWebhookBodyValidated } from './schema.js';
+
+/** Margin over Rubitime's ~5s consecutive-request window before retrying `get-record` after a failure. */
+export const RUBITIME_POST_CREATE_GET_RECORD_RETRY_MS = 5200;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export type PostCreateProjectionDeps = {
   dispatchPort: DispatchPort;
@@ -43,6 +56,7 @@ export async function runPostCreateProjection(
     fetchedRecord = await fetchRubitimeRecordById({ recordId }) as Record<string, unknown>;
   } catch {
     try {
+      await sleep(RUBITIME_POST_CREATE_GET_RECORD_RETRY_MS);
       fetchedRecord = await fetchRubitimeRecordById({ recordId }) as Record<string, unknown>;
     } catch (err) {
       logger.warn({ err, recordId }, '[postCreateProjection] fetch failed after retry');

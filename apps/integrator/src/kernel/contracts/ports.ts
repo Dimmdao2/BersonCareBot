@@ -106,6 +106,8 @@ export type PhoneLinkFailureReason =
   | 'no_channel_binding'
   | 'phone_owned_by_other_user'
   | 'integrator_id_mismatch'
+  /** Нет строки identities для пары (resource, externalId) — не ретраить как «транзиент БД». */
+  | 'no_integrator_identity'
   | 'db_transient_failure';
 
 /** Метаданные отдельных мутаций `writeDb` (остальные кейсы возвращают `undefined`). */

@@ -32,9 +32,9 @@ Rubitime передаёт `name` как полную строку (часто Ф
 1. `POST /api/booking/create` → `patient_bookings` (confirmed) → `emitBookingEvent('booking.created')` → TG/MAX уведомления + напоминания.
 
 **Doctor projection + GCal path (integrator):**
-1. Webapp → `POST /api/bersoncare/rubitime/create-record` (M2M) → integrator создаёт запись в Rubitime API → получает `recordId`.
+1. Webapp → `POST /api/bersoncare/rubitime/create-record` (M2M) → integrator создаёт запись в Rubitime API → получает `recordId`. Пока integrator не ответил, исходящий запрос webapp к integrator **обычно открыт** всё время ожиданий throttle и повторов api2 — на стороне webapp нужен **индикатор загрузки** (см. `apps/webapp/INTEGRATOR_CONTRACT.md`).
 2. `runPostCreateProjection(recordId)` (файл `postCreateProjection.ts`) выполняет:
-   - `fetchRubitimeRecordById` — забрать полную запись из Rubitime (1 retry через 500ms).
+   - `fetchRubitimeRecordById` — забрать полную запись из Rubitime; при ошибке — пауза **5200 ms**, затем вторая попытка. Все вызовы api2 (включая повтор после ответа Rubitime про «5 second / consecutive requests») проходят через общий throttle **5500 ms** (`rubitime_api_throttle`): следующий вызов не стартует, пока не выдержан интервал после *завершения* предыдущего. Подробнее: `docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`.
    - Синтетический `RubitimeWebhookBodyValidated` c `from: 'webapp'`, `event: 'event-create-record'`.
    - `prepareRubitimeWebhookIngress` — нормализация timezone.
    - `syncRubitimeWebhookBodyToGoogleCalendar` — Google Calendar sync (best-effort, non-fatal).

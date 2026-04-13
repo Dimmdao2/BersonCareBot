@@ -12,10 +12,8 @@ function sleep(ms: number): Promise<void> {
 }
 
 function throttleDisabled(): boolean {
-  return (
-    process.env.NODE_ENV === 'test' ||
-    process.env.INTEGRATOR_SKIP_RUBITIME_THROTTLE === '1'
-  );
+  // Unit tests: no DB; production/staging always pace api2 (Rubitime enforces ~5s between calls).
+  return process.env.NODE_ENV === 'test';
 }
 
 /**
