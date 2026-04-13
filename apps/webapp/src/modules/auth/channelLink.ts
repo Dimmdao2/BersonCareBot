@@ -219,6 +219,36 @@ export async function completeChannelLinkFromIntegrator(params: {
         tokenUserId: r.user_id,
         existingUserId: boundUserId,
       });
+      /** «Пустой» владелец привязки (нет телефона) — не считаем строку конкурирующим аккаунтом: диплинк переносит Max/TG на пользователя токена. */
+      const existingPhone = await platformPhoneBindingInfo(pool, boundUserId);
+      if (existingPhone.needsPhone) {
+        logger.info({
+          scope: "channel_link",
+          event: "channel_link_binding_takeover",
+          reason: "existing_owner_no_phone",
+          channelCode: params.channelCode,
+          externalId: params.externalId,
+          fromUserId: boundUserId,
+          toUserId: r.user_id,
+        });
+        await pool.query(
+          `UPDATE user_channel_bindings SET user_id = $1::uuid WHERE channel_code = $2 AND external_id = $3`,
+          [r.user_id, params.channelCode, params.externalId],
+        );
+        await pool.query("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1 AND used_at IS NULL", [r.id]);
+        const canonical = await resolveCanonicalUserId(pool, r.user_id);
+        if (canonical == null) {
+          return { ok: false, code: "user_not_found" };
+        }
+        const phone = await platformPhoneBindingInfo(pool, r.user_id);
+        return {
+          ok: true,
+          userId: canonical,
+          needsPhone: phone.needsPhone,
+          ...(phone.phoneNormalized ? { phoneNormalized: phone.phoneNormalized } : {}),
+        };
+      }
+
       const stubGate = await channelLinkOauthStubEligibleForAutoMerge(pool, r.user_id);
       if (!stubGate.ok) {
         logger.warn({
