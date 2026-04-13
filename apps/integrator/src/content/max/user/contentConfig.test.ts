@@ -6,6 +6,21 @@ import { describe, expect, it } from 'vitest';
 const dir = dirname(fileURLToPath(import.meta.url));
 
 describe('max user static content', () => {
+  it('scripts: max.start.onboarding — inline request_contact (как M2M и need_phone ветки)', () => {
+    const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
+      id: string;
+      steps?: Array<{ action?: string; params?: Record<string, unknown> }>;
+    }>;
+    const onb = scripts.find((s) => s.id === 'max.start.onboarding');
+    expect(onb).toBeTruthy();
+    const stateStep = onb?.steps?.find((s) => s.action === 'user.state.set');
+    expect((stateStep?.params as { state?: string })?.state).toBe('await_contact:subscription');
+    const sendStep = onb?.steps?.find((s) => s.action === 'message.send');
+    expect(sendStep?.params?.inlineKeyboard).toEqual([
+      [{ textTemplateKey: 'max:requestContact.button', requestPhone: true }],
+    ]);
+  });
+
   it('scripts: max.assistant.open — кнопка открытия webapp через web_app (Mini App), не url', () => {
     const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
       id: string;

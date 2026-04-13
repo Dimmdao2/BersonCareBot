@@ -40,7 +40,7 @@ export type DispatchRequestContactParams = {
 
 /**
  * Устанавливает await_contact для Telegram (через writePort), шлёт сообщение с кнопкой контакта.
- * MAX: только inline request_contact (состояние ведёт сценарий канала).
+ * MAX: inline-кнопка `request_contact` в том же сообщении (см. `max/user/scripts.json`, API — `type: request_contact` в `deliveryAdapter`).
  *
  * Перед `user.state.set` обязателен `user.upsert`: `setUserState` пишет в `telegram_state` только при
  * существующей строке в `identities`. Иначе M2M-запрос из Mini App (без предшествующего /start)

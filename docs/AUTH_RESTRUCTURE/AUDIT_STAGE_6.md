@@ -29,19 +29,19 @@
 
 **Telegram** — `onboardingWelcome` в `apps/integrator/src/content/telegram/user/templates.json`: краткий текст про привязку номера для всех платформ + кнопка `request_contact` в одном `message.replyKeyboard.show`.
 
-**Max** — `max:onboardingWelcome`: краткий текст + просьба отправить вложение с контактом (отдельной кнопки «поделиться контактом» в Max нет).
+**Max** — `max:onboardingWelcome`: краткий текст + inline-кнопка запроса контакта в том же `message.send` (как в ветках `need_phone` и M2M); вложение контакта остаётся запасным путём.
 
 ---
 
 ### 2) `request_contact` сразу после приветствия
 
-**Статус:** OK (Telegram)
+**Статус:** OK (Telegram + Max)
 
 Сценарий `telegram.start.onboarding` (`scripts.json`): шаг `message.replyKeyboard.show` с `templateKey: "telegram:onboardingWelcome"` и кнопкой `requestPhone: true` в **одном** действии — пользователь получает полный текст приветствия и клавиатуру с запросом контакта без отдельного предшествующего сообщения.
 
 Legacy-путь: `handleUpdate.test.ts` — при `/start` без номера одно действие `sendMessage` с текстом onboarding и `replyMarkup` с `request_contact`.
 
-**Max:** отдельной кнопки как в Telegram нет; первый шаг — `message.send` с `max:onboardingWelcome` (канон + инструкция 📎), что соответствует заявленному workaround в stage-доке.
+**Max:** сценарий `max.start.onboarding`: перед сообщением — `user.state.set` → `await_contact:subscription`; затем `message.send` с тем же смыслом приветствия и **inline** `requestPhone: true` (не reply-клавиатура, но тот же запрос контакта через API Max).
 
 ---
 

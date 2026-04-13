@@ -35,8 +35,8 @@
 
 1. **Часть веток email в UI сохранена как технический контракт, но публично недостижима.**
    В `AuthFlowV2` есть generic-ветки описания email-канала, однако публичный порядок каналов (`OTP_PUBLIC_OTHER_CHANNELS_ORDER`) и `isOtpChannelAvailablePublic` исключают email в публичном входе.
-2. **Max onboarding использует documented workaround.**
-   Для Max нет Telegram-like кнопки `request_contact`; применяется текстовая инструкция с вложением контакта (соответствует Stage 6 документу и аудиту).
+2. **Max onboarding — inline `request_contact` (не reply-клавиатура).**
+   В `max.start.onboarding` пользователь получает кнопку шаринга контакта в inline-сообщении (как в остальных Max-ветках и M2M); вложение контакта — дополнительный путь. См. `max/user/scripts.json`, `deliveryAdapter`.
 
 ## gate closure status (Stages 1-8)
 

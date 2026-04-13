@@ -1108,9 +1108,17 @@ describe('orchestrator buildPlan', () => {
           },
           steps: [
             {
+              action: 'user.state.set',
+              mode: 'sync',
+              params: { channelUserId: '{{actor.channelUserId}}', state: 'await_contact:subscription' },
+            },
+            {
               action: 'message.send',
               mode: 'async',
-              params: { templateKey: 'max:onboardingWelcome' },
+              params: {
+                templateKey: 'max:onboardingWelcome',
+                inlineKeyboard: [[{ textTemplateKey: 'max:requestContact.button', requestPhone: true }]],
+              },
             },
           ],
         },
@@ -1134,8 +1142,12 @@ describe('orchestrator buildPlan', () => {
 
     const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
 
-    expect(plan).toHaveLength(1);
+    expect(plan).toHaveLength(2);
     expect(plan[0]).toMatchObject({
+      kind: 'user.state.set',
+      payload: { state: 'await_contact:subscription' },
+    });
+    expect(plan[1]).toMatchObject({
       kind: 'message.send',
       payload: { templateKey: 'max:onboardingWelcome' },
     });

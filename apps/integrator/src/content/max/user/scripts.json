@@ -58,12 +58,23 @@
     },
     "steps": [
       {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "await_contact:subscription"
+        }
+      },
+      {
         "action": "message.send",
         "mode": "async",
         "params": {
           "recipient": { "chatId": "{{actor.chatId}}" },
           "templateKey": "max:onboardingWelcome",
-          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:requestContact.button", "requestPhone": true }]
+          ]
         }
       }
     ]

@@ -60,7 +60,7 @@
 Файл: [`apps/integrator/src/content/max/user/scripts.json`](../../apps/integrator/src/content/max/user/scripts.json).  
 Те же идеи: `max.start.onboarding` / `max.start` с `$startsWith` и тем же `excludeActions`; разбор текста в [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts) (не дублирует все Telegram deep link).
 
-- **`max.start.onboarding`:** одно `message.send` с коротким `max:onboardingWelcome` (привязка для всех платформ + просьба отправить вложение с контактом — отдельной кнопки «поделиться контактом» в Max нет).
+- **`max.start.onboarding`:** `user.state.set` → `await_contact:subscription`, затем `message.send` с `max:onboardingWelcome` и **inline**-клавиатурой (`max:requestContact.button`, `requestPhone: true` → в API Max `type: request_contact`, см. `deliveryAdapter`). Текст дублирует смысл Telegram: кнопка + опционально вложение контакта.
 - **`max.start`** при `linkedPhone: true`: только `user.state.set` → `idle`, **без сообщения** на `/start`.
 - После успешной привязки номера в чате срабатывает `max.contact.phone.link` → `max:phoneLinkedWelcome` + главное меню (`inlineKeyboard`).
 
