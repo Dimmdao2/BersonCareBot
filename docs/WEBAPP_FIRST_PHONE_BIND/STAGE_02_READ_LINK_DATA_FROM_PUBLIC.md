@@ -35,7 +35,7 @@
 
 - [x] Пользователь с binding и телефоном в `platform_users` → `linkedPhone === true`, корректный `phoneNormalized` в контексте.
 - [x] Binding есть, телефона нет → `linkedPhone === false` (как в strict-воронке до шаринга).
-- [x] Нет identity в integrator → по-прежнему `null` или согласованное поведение (зафиксировать в коде/логе).
+- [x] Нет identity в integrator → `null` (нет строки); **ошибка SQL** при чтении → исключение после лога (не маскируется под «нет пользователя»).
 - [x] Есть только старый телефон в `contacts` без записи в `public` после cutover TX — задокументировать ожидание (временный дрейф до миграции данных или явный repair); не молчаливый wrong success.
 - [x] `pnpm run ci`; при необходимости — точечные тесты на `readPort` / `handleIncomingEvent` / `buildPlan` с моком БД.
 

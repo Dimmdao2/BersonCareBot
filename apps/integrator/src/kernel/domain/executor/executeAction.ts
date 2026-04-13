@@ -699,7 +699,11 @@ export async function executeAction(
         } else if (reason === 'db_transient_failure' || indeterminate) {
           text = phoneLinkSaveFailedUserMessage();
         } else {
-          text = phoneLinkConflictUserMessage(source);
+          logger.warn(
+            { actionId: action.id, reason },
+            'user.phone.link: unexpected phoneLinkReason for failed bind; using save-failed copy',
+          );
+          text = phoneLinkSaveFailedUserMessage();
         }
         const replyMarkup = phoneLinkFailureReplyMarkup(ctx, source, reason);
         const intents: OutgoingIntent[] = [{

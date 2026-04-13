@@ -360,9 +360,8 @@ export async function executeMessengerPhoneHttpBind(
       return { ok: false, reason: "db_transient_failure", phoneLinkIndeterminate: true };
     }
 
-    await client.query("COMMIT");
-
     if (phoneLinkEarly) {
+      await client.query("ROLLBACK");
       if (!phoneLinkEarly.ok) {
         logger.warn(
           {
@@ -376,6 +375,8 @@ export async function executeMessengerPhoneHttpBind(
       }
       return phoneLinkEarly;
     }
+
+    await client.query("COMMIT");
 
     if (applied && platformUserIdForLog) {
       logger.info(

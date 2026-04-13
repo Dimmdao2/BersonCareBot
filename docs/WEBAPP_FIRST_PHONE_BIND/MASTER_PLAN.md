@@ -58,7 +58,7 @@
 
 ## Журнал и аудиты
 
-Все даты, решения, результаты аудита и ссылки на PR — в [`AGENT_AND_AUDIT_LOG.md`](AGENT_AND_AUDIT_LOG.md).
+Все даты, решения, результаты аудита и ссылки на PR — в [`AGENT_AND_AUDIT_LOG.md`](AGENT_AND_AUDIT_LOG.md). Отложенные задачи (общий TX-модуль, продуктовые хвосты §7–8 аудита) — [`NEXT_AGENT_TASKS.md`](NEXT_AGENT_TASKS.md); пункт в глобальном backlog: [`../TODO.md`](../TODO.md).
 
 ## Общий регресс перед пушем
 

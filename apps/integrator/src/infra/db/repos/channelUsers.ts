@@ -414,6 +414,8 @@ export async function getUserLinkData(
  * if empty, falls back to integrator `contacts` with `label` equal to this **resource** (legacy / repair).
  * Any other phone on the user (e.g. merged from web without messenger label) must **not** skip `/start`
  * onboarding in the bot.
+ *
+ * **SQL failure:** rethrows after logging (does not return `null` — `null` means no matching identity row).
  */
 export async function getLinkDataByIdentity(
   db: DbPort,
@@ -475,8 +477,11 @@ export async function getLinkDataByIdentity(
         userState: row.user_state,
       };
     } catch (err) {
-      logger.error({ err }, 'getLinkDataByIdentity telegram error');
-      return null;
+      logger.error(
+        { err, resource, externalId, branch: 'telegram' },
+        'getLinkDataByIdentity telegram error',
+      );
+      throw err;
     }
   }
 
@@ -525,8 +530,8 @@ export async function getLinkDataByIdentity(
       userState: null,
     };
   } catch (err) {
-    logger.error({ err }, 'getLinkDataByIdentity error');
-    return null;
+    logger.error({ err, resource, externalId, branch: 'non_telegram' }, 'getLinkDataByIdentity error');
+    throw err;
   }
 }
 
@@ -551,7 +556,8 @@ export async function getChannelIdsByUserId(
         chatId: Number.isFinite(chatId) ? chatId : 0,
       };
     }).filter((row) => row.chatId > 0);
-  } catch {
+  } catch (err) {
+    logger.warn({ err, userId }, 'getChannelIdsByUserId: query failed');
     return [];
   }
 }

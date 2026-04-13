@@ -599,7 +599,7 @@ describe('executeAction', () => {
     });
   });
 
-  it('user.phone.link conflict: message to user and abortPlan, no success writes', async () => {
+  it('user.phone.link not applied without phoneLinkReason: save-failed copy, abortPlan, no success writes', async () => {
     const writeDb = vi.fn().mockResolvedValue({ userPhoneLinkApplied: false });
     const messageCtx: DomainContext = {
       ...ctx,
@@ -631,7 +631,7 @@ describe('executeAction', () => {
     expect(result.intents?.[0]?.payload).toMatchObject({
       recipient: { chatId: 999001 },
       message: {
-        text: 'Данный номер уже привязан к другому аккаунту Telegram. Напишите в поддержку для решения вопроса.',
+        text: 'Не удалось сохранить номер. Попробуйте позже или напишите в поддержку.',
       },
     });
   });
