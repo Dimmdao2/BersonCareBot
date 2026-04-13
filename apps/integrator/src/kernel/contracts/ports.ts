@@ -101,9 +101,19 @@ export type DbReadPort = {
   readDb<T = unknown>(query: DbReadQuery): Promise<T>;
 };
 
+/** Метаданные отдельных мутаций `writeDb` (остальные кейсы возвращают `undefined`). */
+export type DbWriteDbResult = {
+  userPhoneLinkApplied: boolean;
+  /** Ошибка БД / нет identity: не показывать копию «номер у другого аккаунта». */
+  phoneLinkIndeterminate?: boolean;
+};
+
+/** Исход `setUserPhone` в репозитории (integrator). */
+export type SetUserPhoneOutcome = 'applied' | 'noop_conflict' | 'failed';
+
 /** Порт записи данных, используемый orchestrator/domain. */
 export type DbWritePort = {
-  writeDb(mutation: DbWriteMutation): Promise<void>;
+  writeDb(mutation: DbWriteMutation): Promise<void | DbWriteDbResult>;
 };
 
 /** Порт отправки исходящих намерений во внешний транспорт. */
@@ -209,7 +219,8 @@ export type ActorResolutionPort = {
 export type ChannelUserPort = {
   upsertUser(from: ChannelUserFrom | null | undefined): Promise<ChannelUserRow | null>;
   setUserState(channelUserId: string, state: string | null): Promise<void>;
-  setUserPhone(channelUserId: string, phoneNormalized: string): Promise<void>;
+  /** `noop_conflict` — номер у другого пользователя; `failed` — БД или нет identity. */
+  setUserPhone(channelUserId: string, phoneNormalized: string): Promise<SetUserPhoneOutcome>;
   getUserState(channelUserId: string): Promise<string | null>;
   tryAdvanceLastUpdateId(channelUserId: number, updateId: number): Promise<boolean>;
   tryConsumeStart(channelUserId: number): Promise<boolean>;

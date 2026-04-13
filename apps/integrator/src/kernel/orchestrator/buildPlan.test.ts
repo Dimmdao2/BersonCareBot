@@ -3,11 +3,122 @@ import type { BaseContext, ContentPort, ContextQueryPort, IncomingEvent } from '
 import { buildPlan } from './resolver.js';
 
 describe('orchestrator buildPlan', () => {
-  it('can fall back to a generic booking.open script when linkedPhone context is absent', async () => {
+  it('gates reply-keyboard menu action booking.open when linkedPhone is not true (before script resolver)', async () => {
     const event: IncomingEvent = {
       type: 'message.received',
       meta: {
         eventId: 'evt-bookingopen-fallback-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          action: 'booking.open',
+          text: '📅 Запись на приём',
+          chatId: 123,
+          channelUserId: 123,
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      linkedPhone: false,
+    };
+
+    const getScriptsBySource = vi.fn().mockResolvedValue([
+      {
+        id: 'telegram.booking.open.fallback',
+        source: 'telegram',
+        event: 'message.received',
+        match: { input: { action: 'booking.open' } },
+        steps: [{ action: 'noop', mode: 'sync', params: {} }],
+      },
+    ]);
+    const contentPort: ContentPort = {
+      getScriptsBySource,
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(getScriptsBySource).not.toHaveBeenCalled();
+    expect(plan).toHaveLength(2);
+    expect(plan[0]).toMatchObject({
+      kind: 'user.state.set',
+      payload: { state: 'await_contact:subscription' },
+    });
+    expect(plan[1]).toMatchObject({
+      kind: 'message.replyKeyboard.show',
+      payload: { templateKey: 'telegram:confirmPhoneForBooking' },
+    });
+  });
+
+  it('gates reply-keyboard menu by message text when action is empty (same as booking.open)', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-bookingopen-text-only-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          text: '📅 Запись на приём',
+          chatId: 123,
+          channelUserId: 123,
+        },
+      },
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+      linkedPhone: false,
+    };
+
+    const getScriptsBySource = vi.fn().mockResolvedValue([
+      {
+        id: 'telegram.booking.open.fallback',
+        source: 'telegram',
+        event: 'message.received',
+        match: { input: { action: 'booking.open' } },
+        steps: [{ action: 'noop', mode: 'sync', params: {} }],
+      },
+    ]);
+    const contentPort: ContentPort = {
+      getScriptsBySource,
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+
+    const plan = await buildPlan({ event, context: baseContext }, { contentPort, contextQueryPort });
+
+    expect(getScriptsBySource).not.toHaveBeenCalled();
+    expect(plan).toHaveLength(2);
+    expect(plan[0]).toMatchObject({
+      kind: 'user.state.set',
+      payload: { state: 'await_contact:subscription' },
+    });
+    expect(plan[1]).toMatchObject({
+      kind: 'message.replyKeyboard.show',
+      payload: { templateKey: 'telegram:confirmPhoneForBooking' },
+    });
+  });
+
+  it('allows booking.open to resolve from scripts when linkedPhone is true', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-bookingopen-linked-1',
         occurredAt: '2026-03-05T12:00:00.000Z',
         source: 'telegram',
       },
@@ -23,6 +134,7 @@ describe('orchestrator buildPlan', () => {
     const baseContext: BaseContext = {
       actor: { isAdmin: false },
       identityLinks: [],
+      linkedPhone: true,
     };
 
     const contentPort: ContentPort = {
@@ -35,16 +147,7 @@ describe('orchestrator buildPlan', () => {
             input: { action: 'booking.open' },
             context: { linkedPhone: true },
           },
-          steps: [{ action: 'message.inlineKeyboard.show', mode: 'async', params: { text: 'open booking' } }],
-        },
-        {
-          id: 'telegram.booking.open.fallback',
-          source: 'telegram',
-          event: 'message.received',
-          match: {
-            input: { action: 'booking.open' },
-          },
-          steps: [{ action: 'message.replyKeyboard.show', mode: 'async', params: { text: 'fallback' } }],
+          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'telegram:bookingMessage' } }],
         },
       ]),
       getTemplate: vi.fn().mockResolvedValue(null),
@@ -58,8 +161,8 @@ describe('orchestrator buildPlan', () => {
 
     expect(plan).toHaveLength(1);
     expect(plan[0]).toMatchObject({
-      kind: 'message.replyKeyboard.show',
-      payload: { text: 'fallback' },
+      kind: 'message.send',
+      payload: { templateKey: 'telegram:bookingMessage' },
     });
   });
   it('requests extra context and builds plan', async () => {
@@ -433,6 +536,7 @@ describe('orchestrator buildPlan', () => {
     const baseContext: BaseContext = {
       actor: { isAdmin: false },
       identityLinks: [],
+      linkedPhone: true,
     };
 
     const contentPort: ContentPort = {
@@ -492,6 +596,7 @@ describe('orchestrator buildPlan', () => {
       actor: { isAdmin: false },
       identityLinks: [],
       hasOpenConversation: false,
+      linkedPhone: true,
     };
 
     const contentPort: ContentPort = {
@@ -518,7 +623,7 @@ describe('orchestrator buildPlan', () => {
           id: 'telegram.more.menu',
           source: 'telegram',
           event: 'message.received',
-          match: { input: { action: 'menu.more' } },
+          match: { input: { action: 'menu.more' }, context: { linkedPhone: true } },
           steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'telegram:menu.webapp.prompt' } }],
         },
       ]),

@@ -20,6 +20,7 @@ const ADMIN_SCOPE_KEYS = [
   "support_contact_url",
   "telegram_login_bot_username",
   "max_login_bot_nickname",
+  "vk_web_login_url",
   "app_display_timezone",
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",

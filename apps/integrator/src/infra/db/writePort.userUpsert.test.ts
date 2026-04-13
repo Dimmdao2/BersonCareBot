@@ -26,8 +26,17 @@ function makeMockDb(capture: {
     }
 
     // max identity lookup after ensureIdentityForMessenger()
-    if (sql.includes("SELECT user_id::text AS user_id FROM identities")) {
+    if (sql.includes("SELECT user_id::text AS user_id FROM identities") && !sql.includes("FROM identities i")) {
       return { rows: [{ user_id: "uid-max" }] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+
+    // setUserPhone: identities by resource + external_id
+    if (sql.includes("FROM identities i") && sql.includes("i.resource = $2")) {
+      return { rows: [{ user_id: "uid-tg" }], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+
+    if (sql.includes("INSERT INTO contacts") && sql.includes("ON CONFLICT")) {
+      return { rows: [], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
     }
 
     return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;

@@ -193,4 +193,41 @@ describe("AuthFlowV2", () => {
     expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
   });
+
+  it("«Другие способы входа» shows Max and VK links without duplicating OAuth row", async () => {
+    const user = userEvent.setup();
+    isMiniAppHost.mockReturnValue(false);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/telegram-login/config")) {
+          return jsonRes({ ok: true, botUsername: "test_bot" });
+        }
+        if (url.includes("/api/auth/oauth/providers")) {
+          return jsonRes({ ok: true, yandex: true, google: false, apple: false });
+        }
+        if (url.includes("/api/auth/login/alternatives-config")) {
+          return jsonRes({
+            ok: true,
+            telegramBotUsername: "test_bot",
+            maxBotOpenUrl: "https://max.ru/test_bot_nick",
+            vkWebLoginUrl: "https://id.vk.com/auth",
+          });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(<AuthFlowV2 nextParam={null} />);
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    await user.click(screen.getByRole("button", { name: "Другие способы входа" }));
+
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-other-methods")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
+    const maxLink = await screen.findByRole("link", { name: "Открыть бота в Max" });
+    expect(maxLink).toHaveAttribute("href", "https://max.ru/test_bot_nick");
+    const vkLink = screen.getByRole("link", { name: "Войти с VK ID" });
+    expect(vkLink).toHaveAttribute("href", "https://id.vk.com/auth");
+  });
 });

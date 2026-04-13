@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
+import { LOGIN_CTA_WIDTH_CLASS } from "@/shared/ui/auth/loginChrome";
 import { cn } from "@/lib/utils";
 
 declare global {
@@ -93,11 +94,12 @@ export function TelegramLoginButton({ botUsername, nextParam, disabled, classNam
   }
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div className={cn("mx-auto flex w-[242px] max-w-full flex-col items-center gap-2", className)}>
       <div
         ref={containerRef}
         className={cn(
-          "[&_.tgme_widget_login_button]:!w-full [&_iframe]:!max-w-none",
+          LOGIN_CTA_WIDTH_CLASS,
+          "max-w-full [&_.tgme_widget_login_button]:!w-full [&_iframe]:!h-10 [&_iframe]:!min-h-[40px] [&_iframe]:!w-[242px] [&_iframe]:!max-w-none",
           busy || disabled ? "pointer-events-none opacity-60" : "",
         )}
         aria-busy={busy || disabled}

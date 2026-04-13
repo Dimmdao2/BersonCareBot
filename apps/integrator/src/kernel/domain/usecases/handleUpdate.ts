@@ -10,6 +10,7 @@ import {
   handleMyBookings,
   handleBack,
 } from './handleCallback.js';
+import { phoneLinkConflictUserMessage, phoneLinkSaveFailedUserMessage } from '../../../shared/phoneLinkUserMessages.js';
 
 function normalizePhone(value: string): string | null {
   const digits = value.replace(/[^\d+]/g, '');
@@ -114,7 +115,19 @@ export async function handleUpdate(
         },
       ];
     }
-    await userPort.setUserPhone(channelId, normalized);
+    const outcome = await userPort.setUserPhone(channelId, normalized);
+    if (outcome === 'noop_conflict') {
+      return [
+        {
+          type: 'sendMessage',
+          chatId,
+          text: phoneLinkConflictUserMessage('telegram'),
+        },
+      ];
+    }
+    if (outcome === 'failed') {
+      return [{ type: 'sendMessage', chatId, text: phoneLinkSaveFailedUserMessage() }];
+    }
     await userPort.setUserState(channelId, 'idle');
     return [
       {

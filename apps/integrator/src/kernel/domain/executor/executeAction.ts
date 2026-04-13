@@ -9,6 +9,7 @@ import type {
   Action,
   ActionResult,
   ContentCatalogPort,
+  DbWriteDbResult,
   DbWriteMutation,
   DomainContext,
   NotificationSettings,
@@ -59,6 +60,7 @@ import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
 import { ADMIN } from './templateKeys.js';
 import { dispatchRequestContactToUser } from '../../../integrations/bersoncare/dispatchRequestContact.js';
 import { logger } from '../../../infra/observability/logger.js';
+import { phoneLinkConflictUserMessage, phoneLinkSaveFailedUserMessage } from '../../../shared/phoneLinkUserMessages.js';
 
 const BOOKING_TYPES = new Set<string>(['booking.upsert', 'booking.event.insert']);
 const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
@@ -616,19 +618,62 @@ export async function executeAction(
     case 'user.phone.link': {
       const channelUserId = action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx);
       const phoneNormalized = asString(action.params.phoneNormalized) ?? readIncomingPhone(ctx);
-      const writes: DbWriteMutation[] = phoneNormalized ? [{
+      if (!phoneNormalized || !deps.writePort) {
+        return {
+          actionId: action.id,
+          status: 'skipped',
+          error: 'PHONE_LINK_INPUT_MISSING',
+        };
+      }
+      const write: DbWriteMutation = {
         type: 'user.phone.link',
         params: {
           resource: ctx.event.meta.source,
           channelUserId,
           phoneNormalized,
         },
-      }] : [];
-      await persistWrites(deps.writePort, writes);
+      };
+      const meta = await deps.writePort.writeDb(write);
+      const hasMeta =
+        typeof meta === 'object' && meta !== null && 'userPhoneLinkApplied' in meta;
+      if (!hasMeta) {
+        logger.warn({ actionId: action.id }, 'user.phone.link: writeDb missing userPhoneLinkApplied');
+      }
+      const m = hasMeta ? (meta as DbWriteDbResult) : null;
+      const indeterminate = !hasMeta || m?.phoneLinkIndeterminate === true;
+      const conflict = hasMeta && m && !m.userPhoneLinkApplied && !m.phoneLinkIndeterminate;
+
+      if (indeterminate || conflict) {
+        const chatIdStr = readIncomingChatId(ctx);
+        const chatIdParsed = chatIdStr != null ? Number(chatIdStr) : NaN;
+        const source = ctx.event.meta.source ?? 'telegram';
+        const text = indeterminate
+          ? phoneLinkSaveFailedUserMessage()
+          : phoneLinkConflictUserMessage(source);
+        const intents: OutgoingIntent[] = [{
+          type: 'message.send',
+          meta: buildIntentMeta(action, ctx),
+          payload: {
+            recipient:
+              chatIdStr != null && Number.isFinite(chatIdParsed)
+                ? { chatId: chatIdParsed }
+                : { chatId: chatIdStr ?? undefined },
+            message: { text },
+            delivery: { channels: [source], maxAttempts: 1 },
+          },
+        }];
+        return {
+          actionId: action.id,
+          status: 'success',
+          abortPlan: true,
+          intents,
+        };
+      }
+
       return {
         actionId: action.id,
         status: 'success',
-        ...(writes.length > 0 ? { writes } : {}),
+        writes: [write],
       };
     }
 

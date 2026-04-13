@@ -6,6 +6,11 @@
 
 Исходный scope Stage 6 (приветствие + `/start`) **дополнен** в коде: **основной** контроль — в integrator (**прод:** `buildPlan` + `scripts.json` при `linkedPhone: false` + центральный гейт колбэков; см. `resolver.ts` и §8 `SCENARIOS_AND_CODE_MAP.md`); `handleUpdate` / `handleMessage` — вне webhook-пути. **Страховка** — `MiniAppShareContactGate`, `POST /api/patient/messenger/request-contact`, tier **patient** в `/api/me`. Журнал и ссылки: [`BOT_CONTACT_MINI_APP_GATE.md`](./BOT_CONTACT_MINI_APP_GATE.md), [`../PLATFORM_IDENTITY_ACCESS/AGENT_EXECUTION_LOG.md`](../PLATFORM_IDENTITY_ACCESS/AGENT_EXECUTION_LOG.md) (блок «Единый гейт контакта»).
 
+Дополнительно зафиксировано в коде (2026-04):
+
+- **Гейт reply-меню по тексту:** если у `message.received` нет `input.action`, но текст совпадает с подписью кнопки главного меню (Запись / Дневник / …), перед матчингом сценариев применяется тот же план запроса контакта, что и при явном `booking.open` / `menu.more` / `cabinet.open` / `diary.open` (`telegramReplyTextToMenuAction` в `mapIn.ts`, использование в `buildLinkedPhoneMessageMenuGatePlan` в `resolver.ts`).
+- **Привязка номера (`user.phone.link`):** репозиторий `setUserPhone` возвращает исход `applied` | `noop_conflict` | `failed`; `writeDb` пробрасывает `userPhoneLinkApplied` и при сбое БД / отсутствии identity — `phoneLinkIndeterminate`. Пользователю текст про «номер у другого аккаунта Telegram» показывается **только** при конфликте (`noop_conflict` / явный `userPhoneLinkApplied: false` без indeterminate); при indeterminate — нейтральное «Не удалось сохранить номер…» (`phoneLinkUserMessages.ts`, `executeAction.ts`, legacy `handleUpdate`).
+
 ## Цель этапа
 
 При первом `/start`, если номер телефона еще не привязан, бот всегда отправляет приветственное сообщение (канонический текст ниже) и сразу показывает клавиатуру `request_contact`. Номер сохраняется в integrator и проецируется в webapp: обновляется `platform_users.phone_normalized`, а для соответствующего мессенджера поддерживается `user_channel_bindings`.

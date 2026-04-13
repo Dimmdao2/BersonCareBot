@@ -165,4 +165,147 @@ describe('incomingEventPipeline', () => {
       }),
     }));
   });
+
+  it('skips orchestrator when telegramStartDedup returns false (repeat /start within window)', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const readDb = vi.fn().mockResolvedValue({
+      channelId: '42',
+      phoneNormalized: null,
+      userState: 'idle',
+    });
+    const telegramStartDedup = vi.fn().mockResolvedValue(false);
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.start.onboarding',
+          source: 'telegram',
+          event: 'message.received',
+          steps: [
+            {
+              action: 'message.send',
+              mode: 'async',
+              params: {
+                recipient: { chatId: 1 },
+                message: { text: 'welcome' },
+                delivery: { channels: ['telegram'], maxAttempts: 1 },
+              },
+            },
+          ],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+    const orchestrator: Orchestrator = createOrchestrator({ contentPort, contextQueryPort });
+    const templatePort = createTemplatePort({ contentPort });
+
+    const pipeline = createIncomingEventPipeline({
+      readPort: { readDb },
+      writePort: { writeDb },
+      queuePort: { enqueue },
+      dispatchPort: { dispatchOutgoing },
+      orchestrator,
+      templatePort,
+      telegramStartDedup,
+    });
+
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-dedup-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          channelId: '42',
+          chatId: 42,
+          text: '/start',
+          action: '',
+        },
+      },
+    };
+
+    await pipeline.run(event);
+
+    expect(telegramStartDedup).toHaveBeenCalledWith(42);
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+    expect(readDb).not.toHaveBeenCalled();
+  });
+
+  it('does not call telegramStartDedup for /start link deep link', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const readDb = vi.fn().mockResolvedValue({
+      channelId: '42',
+      phoneNormalized: null,
+      userState: 'idle',
+    });
+    const telegramStartDedup = vi.fn().mockResolvedValue(false);
+
+    const contentPort: ContentPort = {
+      getScriptsBySource: vi.fn().mockResolvedValue([
+        {
+          id: 'telegram.start.link',
+          source: 'telegram',
+          event: 'message.received',
+          steps: [
+            {
+              action: 'message.send',
+              mode: 'async',
+              params: {
+                recipient: { chatId: 1 },
+                message: { text: 'linked' },
+                delivery: { channels: ['telegram'], maxAttempts: 1 },
+              },
+            },
+          ],
+        },
+      ]),
+      getTemplate: vi.fn().mockResolvedValue(null),
+    };
+    const contextQueryPort: ContextQueryPort = {
+      request: vi.fn().mockResolvedValue({}),
+    };
+    const orchestrator: Orchestrator = createOrchestrator({ contentPort, contextQueryPort });
+    const templatePort = createTemplatePort({ contentPort });
+
+    const pipeline = createIncomingEventPipeline({
+      readPort: { readDb },
+      writePort: { writeDb },
+      queuePort: { enqueue },
+      dispatchPort: { dispatchOutgoing },
+      orchestrator,
+      templatePort,
+      telegramStartDedup,
+    });
+
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-dedup-link',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {
+        incoming: {
+          channelId: '42',
+          chatId: 42,
+          text: '/start link_abc',
+          action: 'start.link',
+        },
+      },
+    };
+
+    await pipeline.run(event);
+
+    expect(telegramStartDedup).not.toHaveBeenCalled();
+    expect(dispatchOutgoing).toHaveBeenCalled();
+  });
 });

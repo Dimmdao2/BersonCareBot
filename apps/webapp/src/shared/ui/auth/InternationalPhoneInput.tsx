@@ -87,7 +87,10 @@ export function InternationalPhoneInput({
   const canSubmit = Boolean(value && isValidPhoneNumber(value));
 
   return (
-    <form className={cn("flex max-w-sm flex-col gap-2")} onSubmit={handleSubmit}>
+    <form
+      className={cn("mx-auto flex w-[242px] max-w-full flex-col gap-2")}
+      onSubmit={handleSubmit}
+    >
       <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground" htmlFor={id}>
         Номер телефона
       </label>
@@ -108,7 +111,12 @@ export function InternationalPhoneInput({
         />
       </div>
       {showError ? <p className="text-destructive text-sm">Введите корректный номер</p> : null}
-      <Button type="submit" disabled={disabled || !canSubmit} aria-label={submitLabel}>
+      <Button
+        type="submit"
+        className="h-10 w-full shrink-0"
+        disabled={disabled || !canSubmit}
+        aria-label={submitLabel}
+      >
         {disabled ? "Подождите…" : submitLabel}
       </Button>
     </form>

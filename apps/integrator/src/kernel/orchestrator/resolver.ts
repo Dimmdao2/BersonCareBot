@@ -16,6 +16,8 @@ import type {
   OrchestratorPlanStep,
 } from '../contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
+import { telegramReplyTextToMenuAction } from '../../integrations/telegram/mapIn.js';
+import { TELEGRAM_START_SPECIAL_ACTIONS } from './telegramStartConstants.js';
 
 type StepWhen = {
   path?: string;
@@ -331,6 +333,96 @@ async function resolveBusinessScript(
 }
 
 /**
+ * Reply-keyboard «меню» приходит как `message.received` с `input.action`, не как callback — отдельно от
+ * {@link buildLinkedPhoneCallbackGatePlan}. Без телефона (канальный контакт) такие нажатия не должны
+ * открывать сценарии записи/дневника/кабинета.
+ */
+const MESSAGE_MENU_ACTIONS_NEED_PHONE = new Set([
+  'booking.open',
+  'menu.more',
+  'cabinet.open',
+  'diary.open',
+]);
+
+function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): OrchestratorPlan | null {
+  if (input.event.type !== 'message.received') return null;
+  if (input.context.actor?.isAdmin === true) return null;
+  if (input.context.linkedPhone === true) return null;
+  const source = input.event.meta.source;
+  if (source !== 'telegram' && source !== 'max') return null;
+
+  const vars = normalizeMatchVars(input);
+  const inc = asRecord(vars.input) ?? {};
+  const text = typeof inc.text === 'string' ? inc.text.trim() : '';
+  const action = typeof inc.action === 'string' ? inc.action.trim() : '';
+  const menuActionFromText =
+    source === 'telegram' && text && !action ? telegramReplyTextToMenuAction(text) : null;
+  const effectiveAction = action || menuActionFromText || '';
+
+  if (text.startsWith('/start')) return null;
+  if (action && TELEGRAM_START_SPECIAL_ACTIONS.has(action)) return null;
+
+  const conv = input.context.conversationState;
+  if (typeof conv === 'string' && conv.startsWith('await_contact:')) return null;
+
+  if (isTruthyString(inc.phone) || isTruthyString(inc.contactPhone)) return null;
+  if (input.context.hasActiveDraft === true) return null;
+  if (conv === 'waiting_for_question') return null;
+  if (typeof conv === 'string' && (conv.startsWith('diary.') || conv.startsWith('waiting_skip_reason:'))) {
+    return null;
+  }
+  if (isTruthyString(inc.relayMessageType)) return null;
+
+  if (!effectiveAction || !MESSAGE_MENU_ACTIONS_NEED_PHONE.has(effectiveAction)) return null;
+
+  const scriptSteps: ScriptStep[] =
+    source === 'max'
+      ? [
+          {
+            action: 'user.state.set',
+            mode: 'sync',
+            params: {
+              channelUserId: '{{actor.channelUserId}}',
+              state: 'await_contact:subscription',
+            },
+          },
+          {
+            action: 'message.send',
+            mode: 'async',
+            params: {
+              recipient: { chatId: '{{actor.chatId}}' },
+              templateKey: 'max:confirmPhoneForBooking',
+              delivery: { channels: ['max'], maxAttempts: 1 },
+              inlineKeyboard: [[{ textTemplateKey: 'max:requestContact.button', requestPhone: true }]],
+            },
+          },
+        ]
+      : [
+          {
+            action: 'user.state.set',
+            mode: 'sync',
+            params: {
+              channelUserId: '{{actor.channelUserId}}',
+              state: 'await_contact:subscription',
+            },
+          },
+          {
+            action: 'message.replyKeyboard.show',
+            mode: 'async',
+            params: {
+              chatId: '{{actor.chatId}}',
+              templateKey: 'telegram:confirmPhoneForBooking',
+              keyboard: [[{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }]],
+              resizeKeyboard: true,
+              oneTimeKeyboard: true,
+            },
+          },
+        ];
+
+  return scriptSteps.map((step, index) => toPlanStep(step, input, index, vars));
+}
+
+/**
  * Prod: inline callbacks without a linked phone must not run notification/booking/diary scripts.
  * Single gate before script matching — same UX as `*.need_phone` scenarios (request contact + `callback.answer`).
  * Skips admins. Falls through when `callbackQueryId` is missing (non-standard payload) or source is not telegram/max.
@@ -415,6 +507,9 @@ export async function buildPlan(
   if (input.event.type === 'callback.received') {
     logger.debug({ input }, '[orchestrator][buildPlan] input');
   }
+  const menuMessageGated = buildLinkedPhoneMessageMenuGatePlan(input);
+  if (menuMessageGated !== null) return menuMessageGated;
+
   const gated = buildLinkedPhoneCallbackGatePlan(input);
   if (gated !== null) return gated;
 

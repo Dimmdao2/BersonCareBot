@@ -191,7 +191,10 @@
     "id": "max.more.menu",
     "source": "max",
     "event": "message.received",
-    "match": { "input": { "action": "menu.more" } },
+    "match": {
+      "input": { "action": "menu.more" },
+      "context": { "linkedPhone": true }
+    },
     "steps": [
       {
         "action": "message.inlineKeyboard.show",
@@ -209,7 +212,10 @@
     "id": "max.diary.open",
     "source": "max",
     "event": "message.received",
-    "match": { "input": { "action": "diary.open" } },
+    "match": {
+      "input": { "action": "diary.open" },
+      "context": { "linkedPhone": true }
+    },
     "steps": [
       {
         "action": "message.inlineKeyboard.show",

@@ -53,14 +53,14 @@ export default async function BindPhonePage({ searchParams }: Props) {
 
   return (
     <AppShell title="Привязка телефона" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
-      <section id="patient-bind-phone-section" className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
+      <div id="patient-bind-phone-section" className="flex flex-col gap-4">
         <PatientBindPhoneClient
           telegramId={telegramId}
           maxId={maxId}
           supportContactHref={supportContactHref}
           hint={hint}
         />
-      </section>
+      </div>
     </AppShell>
   );
 }

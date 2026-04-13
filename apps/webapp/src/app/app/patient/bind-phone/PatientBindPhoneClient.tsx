@@ -2,17 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { usePatientPhonePromptChrome } from "@/shared/ui/patient/PatientPhonePromptChromeContext";
 import { ensureMessengerMiniAppWebappSession } from "@/shared/lib/miniAppSessionRecovery";
 import {
   getPatientMessengerContactGateDetail,
   resolveBotHrefAfterMessengerSessionLoss,
   resolveMessengerContactGateBotHref,
 } from "@/shared/lib/patientMessengerContactGate";
-import { closeMessengerMiniApp, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { closeMessengerMiniApp, inferMessengerChannelForRequestContact, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
 import toast from "react-hot-toast";
-import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import { PatientSharePhoneViaBotPanel } from "@/shared/ui/patient/PatientSharePhoneViaBotPanel";
 import { PatientBrowserMessengerBindPanel } from "./PatientBrowserMessengerBindPanel";
 
@@ -24,15 +23,15 @@ type Props = {
 };
 
 /**
- * Mini App с привязкой к боту — панель «контакт в боте» (`PatientSharePhoneViaBotPanel`).
- * Браузер: без TG/Max — {@link PatientBrowserMessengerBindPanel} (channel-link); с привязкой — запрос контакта через API + опрос `router.refresh`. SMS не используется.
+ * Единый блок «контакт в боте» (`PatientSharePhoneViaBotPanel`) в Mini App и в браузере при привязке TG/Max.
+ * Без привязки к мессенджеру — {@link PatientBrowserMessengerBindPanel}. SMS не используется.
  */
 export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, hint }: Props) {
   const router = useRouter();
+  const phoneChrome = usePatientPhonePromptChrome();
   const tg = telegramId?.trim() ?? "";
   const mx = maxId?.trim() ?? "";
-  const mini = isMessengerMiniAppHost();
-  /** null — ждём решения или refresh после привязки номера (не показываем SMS в Mini App). */
+  /** null — ждём решения или refresh после привязки номера. */
   const [useMessengerPanel, setUseMessengerPanel] = useState<boolean | null>(null);
   const [botHref, setBotHref] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<"blocked" | "timed_out" | "session_lost" | "me_unavailable">("blocked");
@@ -72,40 +71,34 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
   }, [router, tg, mx]);
 
   useEffect(() => {
-    if (!mini || (!tg && !mx)) {
+    if (!tg && !mx) {
       startTransition(() => setUseMessengerPanel(false));
       return;
     }
     startTransition(() => setUseMessengerPanel(null));
     void runRecoveryAndDecide();
-  }, [mini, tg, mx, runRecoveryAndDecide]);
+  }, [tg, mx, runRecoveryAndDecide]);
 
   useEffect(() => {
-    if (mini || (!tg && !mx)) return;
+    if (!tg && !mx || isMessengerMiniAppHost()) return;
     const id = window.setInterval(() => {
       router.refresh();
     }, 4000);
     return () => window.clearInterval(id);
-  }, [mini, tg, mx, router]);
+  }, [tg, mx, router]);
+
+  useEffect(() => {
+    if (!phoneChrome || !isMessengerMiniAppHost()) {
+      return;
+    }
+    const onPhoneFlow = Boolean(tg || mx) && (useMessengerPanel === true || useMessengerPanel === null);
+    phoneChrome.setSuppressPatientHeader(onPhoneFlow);
+    return () => phoneChrome.setSuppressPatientHeader(false);
+  }, [phoneChrome, tg, mx, useMessengerPanel]);
 
   const onRetryMini = useCallback(() => {
     void runRecoveryAndDecide();
   }, [runRecoveryAndDecide]);
-
-  const onProvideContactMini = useCallback(async () => {
-    const r = await postPatientMessengerRequestContact();
-    if (!r.ok) {
-      toast.error(
-        r.error === "no_messenger_binding"
-          ? "Нет привязки к мессенджеру."
-          : r.error === "rate_limited"
-            ? "Подождите минуту перед повторной отправкой."
-            : "Не удалось запросить контакт.",
-      );
-      return;
-    }
-    closeMessengerMiniApp();
-  }, []);
 
   const requestContactBrowser = useCallback(async (channel: "telegram" | "max") => {
     const r = await postPatientMessengerRequestContact(channel);
@@ -124,7 +117,33 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
     toast.success("Откройте чат с ботом и отправьте контакт по кнопке.");
   }, []);
 
-  if (mini && (tg || mx)) {
+  const onProvideContact = useCallback(async () => {
+    if (isMessengerMiniAppHost()) {
+      const r = await postPatientMessengerRequestContact();
+      if (!r.ok) {
+        toast.error(
+          r.error === "no_messenger_binding"
+            ? "Нет привязки к мессенджеру."
+            : r.error === "rate_limited"
+              ? "Подождите минуту перед повторной отправкой."
+              : "Не удалось запросить контакт.",
+        );
+        return;
+      }
+      closeMessengerMiniApp();
+      return;
+    }
+    const inferred = inferMessengerChannelForRequestContact();
+    const channel: "telegram" | "max" | null =
+      inferred ?? (tg && !mx ? "telegram" : mx && !tg ? "max" : tg ? "telegram" : mx ? "max" : null);
+    if (!channel) {
+      toast.error("Не удалось определить мессенджер.");
+      return;
+    }
+    await requestContactBrowser(channel);
+  }, [tg, mx, requestContactBrowser]);
+
+  if (tg || mx) {
     if (useMessengerPanel !== true) {
       return (
         <div className="flex min-h-[12rem] items-center justify-center text-sm text-muted-foreground" role="status">
@@ -133,47 +152,20 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
       );
     }
     return (
-      <PatientSharePhoneViaBotPanel
-        mode={panelMode}
-        botHref={botHref}
-        onRetry={onRetryMini}
-        variant="embedded"
-        onProvideContact={onProvideContactMini}
-      />
+      <div id="patient-bind-phone-messenger-unified" className="flex flex-col gap-4">
+        {hint ? <p className="text-muted-foreground text-sm">{hint}</p> : null}
+        <PatientSharePhoneViaBotPanel
+          mode={panelMode}
+          botHref={botHref}
+          onRetry={onRetryMini}
+          variant="embedded"
+          onProvideContact={onProvideContact}
+          showRetryButton
+          supportContactHref={supportContactHref}
+        />
+      </div>
     );
   }
 
-  if (!tg && !mx) {
-    return <PatientBrowserMessengerBindPanel hint={hint} supportContactHref={supportContactHref} />;
-  }
-
-  return (
-    <div id="patient-bind-phone-messenger-contact" className="flex flex-col gap-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Привязка телефона</p>
-      <p className="text-muted-foreground text-sm">
-        {hint ??
-          "Чтобы подтвердить номер, отправьте контакт боту в мессенджере — нажмите кнопку ниже и следуйте подсказкам в чате."}
-      </p>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {tg ? (
-          <Button type="button" variant="outline" className="flex-1" onClick={() => void requestContactBrowser("telegram")}>
-            Запросить контакт в Telegram
-          </Button>
-        ) : null}
-        {mx ? (
-          <Button type="button" variant="outline" className="flex-1" onClick={() => void requestContactBrowser("max")}>
-            Запросить контакт в Max
-          </Button>
-        ) : null}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        После отправки номера в боте эта страница обновится сама (около раз в 4 секунды).
-      </p>
-      {supportContactHref ? (
-        <SupportContactLink href={supportContactHref} className="text-sm text-primary underline">
-          Связаться с поддержкой
-        </SupportContactLink>
-      ) : null}
-    </div>
-  );
+  return <PatientBrowserMessengerBindPanel hint={hint} supportContactHref={supportContactHref} />;
 }

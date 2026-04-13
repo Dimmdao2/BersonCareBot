@@ -31,13 +31,15 @@
 
 - Оркестратор оверлея: [`MiniAppShareContactGate`](../../apps/webapp/src/shared/ui/patient/MiniAppShareContactGate.tsx).
 - Общий UI блок: [`PatientSharePhoneViaBotPanel`](../../apps/webapp/src/shared/ui/patient/PatientSharePhoneViaBotPanel.tsx).
-- Страница привязки в Mini App: [`PatientBindPhoneClient`](../../apps/webapp/src/app/app/patient/bind-phone/PatientBindPhoneClient.tsx) + [`bind-phone/page.tsx`](../../apps/webapp/src/app/app/patient/bind-phone/page.tsx).
+- **Скрытие внутренней шапки пациента** (назад / домой / заголовок / настройки) в мини-приложении, пока активен полноэкранный гейт или экран запроса контакта на `/bind-phone`: контекст [`PatientPhonePromptChromeContext`](../../apps/webapp/src/shared/ui/patient/PatientPhonePromptChromeContext.tsx), обёртка шапки [`PatientGatedHeader`](../../apps/webapp/src/shared/ui/PatientGatedHeader.tsx) в [`AppShell`](../../apps/webapp/src/shared/ui/AppShell.tsx) (`variant="patient"`). Нативная полоса Telegram не затрагивается.
+- Страница привязки в Mini App: [`PatientBindPhoneClient`](../../apps/webapp/src/app/app/patient/bind-phone/PatientBindPhoneClient.tsx) — тот же блок `PatientSharePhoneViaBotPanel`, что и у оверлея (единый текст и кнопки в Mini App и в браузере при привязке TG/Max) + [`bind-phone/page.tsx`](../../apps/webapp/src/app/app/patient/bind-phone/page.tsx).
 - Клиентская логика `/api/me` и ссылок: [`patientMessengerContactGate.ts`](../../apps/webapp/src/shared/lib/patientMessengerContactGate.ts).
 - Восстановление сессии при 401: [`miniAppSessionRecovery.ts`](../../apps/webapp/src/shared/lib/miniAppSessionRecovery.ts).
-- Обёртка layout: [`PatientClientLayout`](../../apps/webapp/src/app/app/patient/PatientClientLayout.tsx).
+- Обёртка layout: [`PatientClientLayout`](../../apps/webapp/src/app/app/patient/PatientClientLayout.tsx) (провайдер контекста шапки + `MiniAppShareContactGate`).
 - Серверный layout и редирект «нужен телефон»: [`layout.tsx`](../../apps/webapp/src/app/app/patient/layout.tsx), политика путей [`patientRouteApiPolicy.ts`](../../apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts) (shim: [`patientPhonePolicy.ts`](../../apps/webapp/src/app-layer/guards/patientPhonePolicy.ts)), заголовки в [`middleware.ts`](../../apps/webapp/src/middleware.ts).
 
 ## Связанные документы
 
 - Сценарий бота и `request_contact`: [STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md](./STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md).
 - Разбор сценариев `/start` в integrator: [INTEGRATOR_TELEGRAM_START_SCRIPTS.md](./INTEGRATOR_TELEGRAM_START_SCRIPTS.md).
+- Inline «Назад» в ветке записи на приём (callback `booking.menu`): [TELEGRAM_BOOKING_INLINE_NAV.md](./TELEGRAM_BOOKING_INLINE_NAV.md).

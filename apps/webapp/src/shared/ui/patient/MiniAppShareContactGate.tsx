@@ -19,6 +19,7 @@ import {
 import { closeMessengerMiniApp, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
 import toast from "react-hot-toast";
+import { usePatientPhonePromptChrome } from "@/shared/ui/patient/PatientPhonePromptChromeContext";
 import { PatientSharePhoneViaBotPanel } from "./PatientSharePhoneViaBotPanel";
 
 const POLL_MS = 2000;
@@ -29,6 +30,7 @@ type GateMode = "inactive" | "loading" | "blocked" | "timed_out" | "session_lost
 export function MiniAppShareContactGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const phoneChrome = usePatientPhonePromptChrome();
   const [mode, setMode] = useState<GateMode>("inactive");
   const [botHref, setBotHref] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -76,6 +78,15 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
     }
     startTransition(() => setMode("loading"));
   }, []);
+
+  useEffect(() => {
+    if (!phoneChrome || !isMessengerMiniAppHost()) {
+      return;
+    }
+    const suppress = mode !== "inactive";
+    phoneChrome.setSuppressPatientHeader(suppress);
+    return () => phoneChrome.setSuppressPatientHeader(false);
+  }, [mode, phoneChrome]);
 
   useEffect(() => {
     if (pathname?.includes("/bind-phone")) {

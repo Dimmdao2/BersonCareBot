@@ -85,6 +85,8 @@ export type DeliveryAttemptResult = {
 export type ActionResult = {
   actionId: string;
   status: 'success' | 'failed' | 'queued' | 'skipped';
+  /** Остановить оставшиеся шаги сценария без статуса `failed` (например конфликт привязки телефона). */
+  abortPlan?: boolean;
   values?: Record<string, unknown>;
   writes?: DbWriteMutation[];
   intents?: OutgoingIntent[];

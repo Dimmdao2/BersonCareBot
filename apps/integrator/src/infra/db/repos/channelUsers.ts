@@ -6,6 +6,7 @@ import type {
   NotificationSettingsPatch,
   NotificationsPort,
   DbPort,
+  SetUserPhoneOutcome,
 } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
 import { resolveCanonicalIntegratorUserId } from './canonicalUserId.js';
@@ -25,7 +26,10 @@ export type ChannelUserLinkRow = {
   userState: string | null;
 };
 
-/** Anti-dup for rapid start events. */
+/** Окно подавления повторного «голого» /start (другой `update_id`, тот же смысл). Не путать с gateway dedup по `update_id`. */
+export const TELEGRAM_START_DEBOUNCE_SECONDS = 3;
+
+/** Anti-dup for rapid start events (legacy handleStart + orchestrator pipeline). */
 export async function tryConsumeStart(db: DbPort, channelUserId: number): Promise<boolean> {
   const sql = `
     UPDATE telegram_state ts
@@ -34,11 +38,11 @@ export async function tryConsumeStart(db: DbPort, channelUserId: number): Promis
     WHERE ts.identity_id = i.id
       AND i.resource = 'telegram'
       AND i.external_id = $1
-      AND (ts.last_start_at IS NULL OR ts.last_start_at < now() - interval '5 seconds')
+      AND (ts.last_start_at IS NULL OR ts.last_start_at < now() - ($2::int * interval '1 second'))
     RETURNING ts.identity_id;
   `;
   try {
-    const res = await db.query(sql, [String(channelUserId)]);
+    const res = await db.query(sql, [String(channelUserId), TELEGRAM_START_DEBOUNCE_SECONDS]);
     return (res.rowCount ?? 0) > 0;
   } catch (err) {
     logger.error({ err }, 'tryConsumeStart error');
@@ -509,7 +513,7 @@ export async function setUserPhone(
   channelUserId: string,
   phoneNormalized: string,
   resource: string = "telegram",
-): Promise<void> {
+): Promise<SetUserPhoneOutcome> {
   const idRes = await db.query<{ user_id: string }>(
     `SELECT i.user_id::text AS user_id
      FROM identities i
@@ -519,7 +523,7 @@ export async function setUserPhone(
     [channelUserId, resource],
   );
   const rawUserId = idRes.rows[0]?.user_id;
-  if (!rawUserId) return;
+  if (!rawUserId) return 'failed';
 
   const userId = await resolveCanonicalIntegratorUserId(db, rawUserId);
 
@@ -534,9 +538,11 @@ export async function setUserPhone(
     WHERE contacts.user_id = $1::bigint
   `;
   try {
-    await db.query(query, [userId, phoneNormalized, resource]);
+    const res = await db.query(query, [userId, phoneNormalized, resource]);
+    return (res.rowCount ?? 0) > 0 ? 'applied' : 'noop_conflict';
   } catch (err) {
     logger.error({ err }, 'setUserPhone error');
+    return 'failed';
   }
 }
 
@@ -545,8 +551,8 @@ export function createChannelUserPort(db: DbPort): ChannelUserPort & Notificatio
   return {
     upsertUser: (from) => upsertUser(db, from),
     setUserState: (channelUserId, state) => setUserState(db, channelUserId, state),
-    setUserPhone: (channelUserId, phoneNormalized, resource?: string) =>
-      setUserPhone(db, channelUserId, phoneNormalized, resource ?? "telegram"),
+    setUserPhone: (channelUserId, phoneNormalized) =>
+      setUserPhone(db, channelUserId, phoneNormalized, "telegram"),
     getUserState: (channelUserId) => getUserState(db, channelUserId),
     tryAdvanceLastUpdateId: (channelUserId, updateId) => tryAdvanceLastUpdateId(db, channelUserId, updateId),
     tryConsumeStart: (channelUserId) => tryConsumeStart(db, channelUserId),

@@ -83,7 +83,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
       } as DbQueryResult<{ merged_into_user_id: string | null }>)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
 
-    await setUserPhone(db, '123', '+79990001122');
+    await expect(setUserPhone(db, '123', '+79990001122')).resolves.toBe('applied');
 
     const [idSql, idParams] = query.mock.calls[0] ?? [];
     expect(String(idSql)).toContain('FROM identities i');
@@ -109,9 +109,9 @@ describe('channelUsers repo (identity/contact/state split)', () => {
         rows: [{ merged_into_user_id: null }],
         rowCount: 1,
       } as DbQueryResult<{ merged_into_user_id: string | null }>)
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult);
 
-    await setUserPhone(db, '456', '+79990001122');
+    await expect(setUserPhone(db, '456', '+79990001122')).resolves.toBe('noop_conflict');
 
     const [insSql] = query.mock.calls[2] ?? [];
     const sqlText = String(insSql);
@@ -136,7 +136,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
       } as DbQueryResult<{ merged_into_user_id: string | null }>)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
 
-    await setUserPhone(db, '999', '+79990001122');
+    await expect(setUserPhone(db, '999', '+79990001122')).resolves.toBe('applied');
 
     const [, insParams] = query.mock.calls[3] ?? [];
     expect(insParams?.[0]).toBe('100');

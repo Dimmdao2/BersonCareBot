@@ -154,6 +154,7 @@ export const deliveryJobSchema = z.object({
 export const actionResultSchema = z.object({
   actionId: z.string().min(1),
   status: z.enum(['success', 'failed', 'queued', 'skipped']),
+  abortPlan: z.boolean().optional(),
   values: z.record(z.string(), z.unknown()).optional(),
   writes: z.array(z.lazy(() => dbWriteMutationSchema)).optional(),
   intents: z.array(outgoingIntentSchema).optional(),

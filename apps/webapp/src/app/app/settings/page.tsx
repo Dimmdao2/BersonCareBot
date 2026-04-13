@@ -108,6 +108,10 @@ export default async function SettingsPage() {
           );
           return typeof raw === "string" ? raw.trim() : "";
         })(),
+        vkWebLoginUrl: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "vk_web_login_url")?.valueJson, "");
+          return typeof raw === "string" ? raw.trim() : "";
+        })(),
         yandexOauthClientId: (() => {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "yandex_oauth_client_id")?.valueJson, "");
           return typeof raw === "string" ? raw.trim() : "";

@@ -18,6 +18,25 @@ describe('telegram user static content', () => {
     ]);
   });
 
+  it('scripts: telegram.booking.menu — тот же экран записи через message.edit (назад из подменю записи)', () => {
+    const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
+      id: string;
+      steps?: Array<{ action?: string; params?: Record<string, unknown> }>;
+    }>;
+    const menu = scripts.find((s) => s.id === 'telegram.booking.menu');
+    expect(menu).toBeTruthy();
+    const editStep = menu?.steps?.find(
+      (step) =>
+        step.action === 'message.edit'
+        && (step.params as { _when?: { and?: Array<{ path?: string }> } })?._when?.and?.[0]?.path === 'facts.links.webappCabinetUrl',
+    );
+    expect(editStep?.params?.inlineKeyboard).toEqual([
+      [{ textTemplateKey: 'telegram:bookingMenu.my', webAppUrlFact: 'links.webappCabinetUrl' }],
+      [{ textTemplateKey: 'telegram:bookingsScreen.prepare', callbackData: 'info.prepare' }],
+      [{ textTemplateKey: 'telegram:bookingsScreen.address', webAppUrlFact: 'links.webappAddressUrl' }],
+    ]);
+  });
+
   it('scripts: telegram.booking.open — под текстом записи три inline-кнопки столбиком (кабинет webapp, подготовка, адрес webapp)', () => {
     const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
       id: string;

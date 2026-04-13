@@ -4,12 +4,15 @@ import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { patchAdminSetting } from "./patchAdminSetting";
 
 export type AuthProvidersSectionProps = {
   telegramLoginBotUsername: string;
   /** Ник бота MAX для диплинка max.ru/<nick>?start=… (channel-link). */
   maxLoginBotNickname: string;
+  /** Ссылка для кнопки «Вход с VK ID» на экране «Другие способы» (https). */
+  vkWebLoginUrl: string;
   yandexOauthClientId: string;
   yandexOauthClientSecret: string;
   yandexOauthRedirectUri: string;
@@ -40,6 +43,7 @@ function validateHttpUrl(label: string, raw: string): string | null {
 export function AuthProvidersSection({
   telegramLoginBotUsername,
   maxLoginBotNickname,
+  vkWebLoginUrl,
   yandexOauthClientId,
   yandexOauthClientSecret,
   yandexOauthRedirectUri,
@@ -54,6 +58,7 @@ export function AuthProvidersSection({
 }: AuthProvidersSectionProps) {
   const [telegramBot, setTelegramBot] = useState(telegramLoginBotUsername);
   const [maxBotNick, setMaxBotNick] = useState(maxLoginBotNickname);
+  const [vkLoginUrl, setVkLoginUrl] = useState(vkWebLoginUrl);
   const [yandexId, setYandexId] = useState(yandexOauthClientId);
   const [yandexSecret, setYandexSecret] = useState(yandexOauthClientSecret);
   const [yandexRedirect, setYandexRedirect] = useState(yandexOauthRedirectUri);
@@ -89,9 +94,22 @@ export function AuthProvidersSection({
           setError(aRedirErr);
           return;
         }
+        const vkTrim = vkLoginUrl.trim();
+        if (vkTrim.length > 0) {
+          const vkErr = validateHttpUrl("Ссылка VK ID", vkTrim);
+          if (vkErr) {
+            setError(vkErr);
+            return;
+          }
+          if (!isSafeExternalHref(vkTrim)) {
+            setError("Ссылка VK ID: только http(s)://");
+            return;
+          }
+        }
         const results = await Promise.all([
           patchAdminSetting("telegram_login_bot_username", telegramBot.trim()),
           patchAdminSetting("max_login_bot_nickname", maxBotNick.trim()),
+          patchAdminSetting("vk_web_login_url", vkTrim),
           patchAdminSetting("yandex_oauth_client_id", yandexId.trim()),
           patchAdminSetting("yandex_oauth_client_secret", yandexSecret.trim()),
           patchAdminSetting("yandex_oauth_redirect_uri", yandexRedirect.trim()),
@@ -175,6 +193,26 @@ export function AuthProvidersSection({
                   MAX — диплинки
                 </a>
                 .
+              </span>
+            </label>
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <p className="text-sm font-semibold">VK ID — кнопка на экране «Другие способы входа»</p>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium">URL входа (https)</span>
+              <Input
+                type="url"
+                placeholder="https://id.vk.com/… или ссылка на мини-приложение"
+                value={vkLoginUrl}
+                onChange={(e) => setVkLoginUrl(e.target.value)}
+                disabled={isPending}
+                autoComplete="off"
+                className="font-mono text-xs"
+              />
+              <span className="text-xs text-muted-foreground">
+                Пустое — кнопка «Войти с VK ID» на публичном входе не показывается. Реализация OAuth на стороне VK — вне
+                этого поля; здесь только куда вести пользователя.
               </span>
             </label>
           </section>

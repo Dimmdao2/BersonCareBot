@@ -1,9 +1,16 @@
 import Fastify from 'fastify';
 import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
+import type { DbPort } from '../../kernel/contracts/index.js';
 import { registerBersoncareRequestContactRoute } from './requestContactRoute.js';
 
 const TEST_SECRET = 'test-secret-request-contact';
+
+/** `user.upsert` в writePort идёт через `db.tx`; для route-тестов достаточно прокинуть тот же `query`. */
+function dbWithTx(query: DbPort['query']): DbPort {
+  const tx = vi.fn(async <T>(fn: (d: DbPort) => Promise<T>) => fn({ query, tx } as DbPort));
+  return { query, tx } as DbPort;
+}
 
 function sign(timestamp: string, rawBody: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('base64url');
@@ -56,7 +63,7 @@ describe('POST /api/bersoncare/request-contact', () => {
     const app = await buildApp({
       dispatchPort: { dispatchOutgoing },
       sharedSecret: TEST_SECRET,
-      db: { query } as never,
+      db: dbWithTx(query),
     });
     const bodyObj = {
       channel: 'telegram' as const,
@@ -140,10 +147,11 @@ describe('POST /api/bersoncare/request-contact', () => {
 
   it('deduplicates by idempotencyKey', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    const query = vi.fn().mockResolvedValue({ rows: [] });
     const app = await buildApp({
       dispatchPort: { dispatchOutgoing },
       sharedSecret: TEST_SECRET,
-      db: { query: vi.fn().mockResolvedValue({ rows: [] }) } as never,
+      db: dbWithTx(query),
     });
     const bodyObj = {
       channel: 'telegram' as const,

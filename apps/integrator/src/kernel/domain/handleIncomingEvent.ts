@@ -302,6 +302,7 @@ export async function handleIncomingEvent(
     if (result.intents) intents.push(...result.intents);
     if (result.jobs) jobs.push(...result.jobs);
     if (result.status === 'failed') break;
+    if (result.abortPlan) break;
   }
 
   return { context, actions, results, writes, intents, jobs };

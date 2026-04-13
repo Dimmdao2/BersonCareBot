@@ -5,6 +5,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 export type PatientSharePhonePanelMode = "blocked" | "timed_out" | "session_lost" | "me_unavailable";
 
@@ -15,6 +16,9 @@ type Props = {
   variant?: "overlay" | "embedded";
   /** Mini App (страховка): пуш запроса контакта в чат через API и закрыть WebView. */
   onProvideContact?: () => Promise<void>;
+  /** По умолчанию true (оверлей-гейт). На `/bind-phone` в embedded — без ручного опроса. */
+  showRetryButton?: boolean;
+  supportContactHref?: string;
 };
 
 export function PatientSharePhoneViaBotPanel({
@@ -23,6 +27,8 @@ export function PatientSharePhoneViaBotPanel({
   onRetry,
   variant = "overlay",
   onProvideContact,
+  showRetryButton = true,
+  supportContactHref,
 }: Props) {
   const [busy, setBusy] = useState(false);
 
@@ -30,11 +36,15 @@ export function PatientSharePhoneViaBotPanel({
     mode === "session_lost"
       ? "Не удалось восстановить вход в приложение. Если вы открыли ссылку из бота, вернитесь и откройте приложение ещё раз. При открытии из Max убедитесь, что в ссылке есть параметр входа от бота."
       : mode === "me_unavailable"
-        ? "Не удалось проверить статус аккаунта. Нажмите «Проверить снова». Если ошибка повторяется, откройте чат с ботом и отправьте контакт по кнопке там."
+        ? showRetryButton
+          ? "Не удалось проверить статус аккаунта. Нажмите «Проверить снова». Если ошибка повторяется, откройте чат с ботом и отправьте контакт по кнопке там."
+          : "Не удалось проверить статус аккаунта. Если ошибка повторяется, откройте чат с ботом и отправьте контакт по кнопке там."
         : mode === "timed_out"
-          ? "Не удалось подтвердить номер автоматически за отведённое время. Нажмите «Предоставить контакт» — в чате появится кнопка для номера. Либо нажмите «Проверить снова»."
+          ? showRetryButton
+            ? "Не удалось подтвердить номер автоматически за отведённое время. Нажмите «Предоставить контакт» — в чате появится кнопка для номера. В мини-приложении оно может закрыться — откройте снова из бота; в браузере страница обновится сама. Либо нажмите «Проверить снова»."
+            : "Не удалось подтвердить номер автоматически за отведённое время. Нажмите «Предоставить контакт» — в чате появится кнопка для номера. В мини-приложении оно может закрыться — откройте снова из бота; в браузере страница обновится сама."
           : onProvideContact
-            ? "Нажмите «Предоставить контакт»: бот отправит в чат кнопку для номера, мини-приложение закроется. После отправки контакта снова откройте приложение из бота."
+            ? "Нажмите «Предоставить контакт»: в чате появится кнопка для номера. В мини-приложении окно часто закрывается — снова откройте приложение из бота; в обычном браузере эта страница обновится сама (примерно раз в несколько секунд)."
             : "Откройте чат с ботом и нажмите кнопку с запросом контакта. Когда номер привяжется, приложение продолжит работу.";
 
   const title =
@@ -78,10 +88,17 @@ export function PatientSharePhoneViaBotPanel({
             Открыть бота
           </Link>
         ) : null}
-        <Button type="button" variant="outline" onClick={onRetry}>
-          Проверить снова
-        </Button>
+        {showRetryButton ? (
+          <Button type="button" variant="outline" onClick={onRetry}>
+            Проверить снова
+          </Button>
+        ) : null}
       </div>
+      {supportContactHref ? (
+        <SupportContactLink href={supportContactHref} className="text-sm text-primary underline">
+          Связаться с поддержкой
+        </SupportContactLink>
+      ) : null}
     </>
   );
 

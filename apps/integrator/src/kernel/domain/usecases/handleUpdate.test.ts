@@ -31,7 +31,7 @@ function buildUserPort(): ChannelUserPort {
   return {
     upsertUser: vi.fn().mockResolvedValue({ id: '1', channel_id: '100' }),
     setUserState: vi.fn().mockResolvedValue(undefined),
-    setUserPhone: vi.fn().mockResolvedValue(undefined),
+    setUserPhone: vi.fn().mockResolvedValue('applied'),
     getUserState: vi.fn().mockResolvedValue('idle'),
     tryAdvanceLastUpdateId: vi.fn().mockResolvedValue(true),
     tryConsumeStart: vi.fn().mockResolvedValue(true),

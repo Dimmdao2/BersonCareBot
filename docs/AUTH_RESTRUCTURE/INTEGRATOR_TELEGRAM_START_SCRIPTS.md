@@ -25,6 +25,17 @@
 
 Логирование: после маппинга для сообщений с текстом, начинающимся с `/start`, пишется **`debug`** с ключом **`telegramStart`**: `action`, `recordIdPresent`, `linkSecretPresent`, `phoneFromDeepLink` (без самого номера).
 
+## Единый список «особых» `/start` действий
+
+Файл: [`apps/integrator/src/kernel/orchestrator/telegramStartConstants.ts`](../../apps/integrator/src/kernel/orchestrator/telegramStartConstants.ts) — экспорт **`TELEGRAM_START_SPECIAL_ACTIONS`** (`start.link`, `start.noticeme`, `start.setrubitimerecord`, `start.setphone`, `start.set`).
+
+Он должен совпадать с:
+
+- разбором deep link в webhook / `mapBodyToIncoming` (см. таблицу выше);
+- полем **`excludeActions`** у `telegram.start` / `telegram.start.onboarding` в `scripts.json`;
+- исключениями для антидубликата «голого» `/start` в [`incomingEventPipeline.ts`](../../apps/integrator/src/kernel/eventGateway/incomingEventPipeline.ts) (`allowTelegramStartThroughDedup`: при `action` из этого набора дедуп **не** применяется);
+- проверкой в [`buildLinkedPhoneMessageMenuGatePlan`](../../apps/integrator/src/kernel/orchestrator/resolver.ts): при ненулевом `input.action` из этого набора message-level гейт контакта **не** перекрывает сценарий.
+
 ## Основные id в `content/telegram/user/scripts.json`
 
 | id | Match | priority | Смысл |
@@ -61,7 +72,7 @@
 | [`rubitimeDeepLink.test.ts`](../../apps/integrator/src/kernel/orchestrator/rubitimeDeepLink.test.ts) | `setrubitimerecord` не уходит в «общий» текстовый сценарий |
 | [`webhook.test.ts`](../../apps/integrator/src/integrations/telegram/webhook.test.ts) | `mapBodyToIncoming`: contact, `setrubitimerecord`, `setphone`, `link` |
 
-Проекция `contact.linked` в webapp: [`events.test.ts`](../../apps/webapp/src/modules/integrator/events.test.ts); запись в БД при `user.phone.link`: [`writePort`](../../apps/integrator/src/infra/db/writePort.ts).
+Проекция `contact.linked` в webapp: [`events.test.ts`](../../apps/webapp/src/modules/integrator/events.test.ts); запись в БД при `user.phone.link`: [`writePort`](../../apps/integrator/src/infra/db/writePort.ts) (`setUserPhone` → `applied` / `noop_conflict` / `failed`; метаданные `userPhoneLinkApplied`, опционально `phoneLinkIndeterminate` для исполнителя сценариев).
 
 ## Legacy
 

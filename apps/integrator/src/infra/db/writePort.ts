@@ -1,4 +1,10 @@
-import type { DbPort, DbReadPort, DbWriteMutation, DbWritePort } from '../../kernel/contracts/index.js';
+import type {
+  DbPort,
+  DbReadPort,
+  DbWriteDbResult,
+  DbWriteMutation,
+  DbWritePort,
+} from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { upsertRecord, insertEvent } from './repos/bookingRecords.js';
 import { setUserPhone, setUserState, updateNotificationSettings, upsertUser } from './repos/channelUsers.js';
@@ -156,7 +162,7 @@ export function createDbWritePort(input: {
   const db = input.db ?? createDbPort();
   const readPort = input.readPort;
   return {
-    async writeDb(mutation: DbWriteMutation): Promise<void> {
+    async writeDb(mutation: DbWriteMutation): Promise<void | DbWriteDbResult> {
       switch (mutation.type) {
         case 'booking.upsert': {
           const params = mutation.params as BookingUpsertParams;
@@ -358,15 +364,27 @@ export function createDbWritePort(input: {
         }
         case 'user.phone.link': {
           const resource = readResource(mutation.params);
-          if (resource !== 'telegram' && resource !== 'max') return;
+          if (resource !== 'telegram' && resource !== 'max') {
+            return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
+          }
           const channelUserId = readChannelUserId(mutation.params);
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
-          if (!channelUserId || !phoneNormalized) return;
+          if (!channelUserId || !phoneNormalized) {
+            return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
+          }
+          let applied = false;
+          let indeterminate = false;
           await db.tx(async (txDb) => {
             if (resource === "max") {
               await ensureIdentityForMessenger(txDb, { resource: "max", externalId: channelUserId });
             }
-            await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
+            const outcome = await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
+            if (outcome === 'failed') {
+              indeterminate = true;
+              return;
+            }
+            if (outcome === 'noop_conflict') return;
+            applied = true;
             if (readPort) {
               const link = await readPort.readDb<{ userId?: string } | null>({
                 type: 'user.byIdentity',
@@ -395,7 +413,10 @@ export function createDbWritePort(input: {
               }
             }
           });
-          return;
+          if (indeterminate) {
+            return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
+          }
+          return { userPhoneLinkApplied: applied };
         }
         case 'draft.upsert': {
           const resource = readResource(mutation.params);

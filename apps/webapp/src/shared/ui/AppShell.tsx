@@ -3,7 +3,7 @@
  * Используется на всех страницах после входа: пациент, врач, настройки. В шапке — заголовок,
  * опционально кнопка «Назад», имя и роль пользователя, ссылка «Настройки». Контент страницы
  * передаётся в children. Отображается везде внутри /app (кроме корневого layout).
- * Для пациента (variant="patient") — PatientHeader: единая шапка по платформам (см. patientNavByPlatform).
+ * Для пациента (variant="patient") — {@link PatientGatedHeader}: шапка скрывается в мини-приложении на экране запроса телефона.
  * Для кабинета врача (variant="doctor") — только контейнер контента; шапка `DoctorHeader` в layout `/app/doctor` или на `/app/settings`. Ширина и отступы — `doctorWorkspaceLayout.ts`.
  */
 
@@ -11,7 +11,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
-import { PatientHeader } from "@/shared/ui/PatientHeader";
+import { PatientGatedHeader } from "@/shared/ui/PatientGatedHeader";
 import { PatientQuickAddFAB } from "@/app/app/patient/components/PatientQuickAddFAB";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
@@ -41,6 +41,8 @@ type AppShellProps = {
   patientHideHome?: boolean;
   /** См. {@link PatientHeader}: скрыть правые иконки шапки. */
   patientHideRightIcons?: boolean;
+  /** См. {@link PatientHeader}: заголовок по центру (экраны входа). */
+  patientBrandTitleBar?: boolean;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -57,6 +59,7 @@ export function AppShell({
   patientEmbedMain = false,
   patientHideHome = false,
   patientHideRightIcons = false,
+  patientBrandTitleBar = false,
 }: AppShellProps) {
   if (variant === "patient") {
     return (
@@ -69,13 +72,14 @@ export function AppShell({
             : "safe-padding-patient gap-3",
         )}
       >
-        <PatientHeader
+        <PatientGatedHeader
           pageTitle={title}
           showBack={!!backHref}
           backHref={backHref}
           backLabel={backLabel}
           hideHome={patientHideHome}
           hideRightIcons={patientHideRightIcons}
+          brandTitleBar={patientBrandTitleBar}
         />
         <main
           id="app-shell-content"

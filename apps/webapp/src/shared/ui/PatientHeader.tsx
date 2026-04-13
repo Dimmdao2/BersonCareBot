@@ -49,6 +49,8 @@ type PatientHeaderProps = {
   hideHome?: boolean;
   /** Скрыть правые иконки (настройки и т.д.), оставить только заголовок и «Назад». */
   hideRightIcons?: boolean;
+  /** Заголовок по центру экрана (экраны входа): «назад»/«домой» слева, иконки справа, без смещения заголовка. */
+  brandTitleBar?: boolean;
 };
 
 export function PatientHeader({
@@ -58,6 +60,7 @@ export function PatientHeader({
   backLabel = "Назад",
   hideHome = false,
   hideRightIcons = false,
+  brandTitleBar = false,
 }: PatientHeaderProps) {
   const router = useRouter();
   const platform = usePlatform();
@@ -150,58 +153,83 @@ export function PatientHeader({
     }
   };
 
+  const leftNav = (
+    <div className="flex shrink-0 items-center gap-1">
+      {showBack ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={HEADER_ICON_CLASS}
+          onClick={goBack}
+          aria-label={backLabel}
+        >
+          <ChevronLeft className="size-[22px]" aria-hidden />
+        </Button>
+      ) : (
+        <span className="inline-flex w-10 shrink-0" aria-hidden />
+      )}
+      {hideHome ? (
+        <span className="inline-flex w-10 shrink-0" aria-hidden />
+      ) : (
+        <Link
+          href="/app/patient"
+          prefetch={false}
+          aria-label="Главное меню"
+          className={HEADER_ICON_CLASS}
+        >
+          <Home className="size-[22px]" aria-hidden />
+        </Link>
+      )}
+    </div>
+  );
+
+  const titleMuted = (
+    <p
+      className="truncate text-[13px] font-medium text-muted-foreground"
+      title={pageTitle}
+    >
+      {pageTitle}
+    </p>
+  );
+
+  const titleBrand = (
+    <p
+      className="truncate text-center text-base font-semibold tracking-tight text-foreground"
+      title={pageTitle}
+    >
+      {pageTitle}
+    </p>
+  );
+
+  const rightIcons = (
+    <div className="flex shrink-0 items-center gap-1">
+      {headerRightIds.map(renderHeaderIcon)}
+    </div>
+  );
+
   return (
     <>
       <header
         id="patient-header"
         className="safe-bleed-x sticky top-0 z-40 shrink-0 border-b border-border/60 bg-[var(--patient-surface)] py-2 shadow-sm"
       >
-        <div
-          id="patient-header-row"
-          className="flex items-center gap-1.5"
-        >
-          <div className="flex shrink-0 items-center gap-1">
-            {showBack ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={HEADER_ICON_CLASS}
-                onClick={goBack}
-                aria-label={backLabel}
-              >
-                <ChevronLeft className="size-[22px]" aria-hidden />
-              </Button>
-            ) : (
-              <span className="inline-flex w-10 shrink-0" aria-hidden />
-            )}
-            {hideHome ? (
-              <span className="inline-flex w-10 shrink-0" aria-hidden />
-            ) : (
-              <Link
-                href="/app/patient"
-                prefetch={false}
-                aria-label="Главное меню"
-                className={HEADER_ICON_CLASS}
-              >
-                <Home className="size-[22px]" aria-hidden />
-              </Link>
-            )}
+        {brandTitleBar ? (
+          <div
+            id="patient-header-row"
+            className="grid w-full grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-1 px-0.5"
+          >
+            <div className="flex min-w-0 items-center justify-start gap-1">{leftNav}</div>
+            <div className="min-w-0 max-w-[min(100vw-6rem,280px)] px-1">{titleBrand}</div>
+            <div className="flex min-w-0 items-center justify-end gap-1">{rightIcons}</div>
           </div>
-
-          <div className="min-w-0 flex-1 text-center">
-            <p
-              className="truncate text-[13px] font-medium text-muted-foreground"
-              title={pageTitle}
-            >
-              {pageTitle}
-            </p>
+        ) : (
+          <div id="patient-header-row" className="flex items-center gap-1.5">
+            {leftNav}
+            <div className="min-w-0 flex-1 text-center">{titleMuted}</div>
+            {rightIcons}
           </div>
-
-          <div className="flex shrink-0 items-center gap-1">
-            {headerRightIds.map(renderHeaderIcon)}
-          </div>
-        </div>
+        )}
       </header>
 
       {nav.hasSheetMenu ? (

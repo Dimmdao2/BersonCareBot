@@ -31,6 +31,7 @@ import type {
 } from '../kernel/contracts/index.js';
 import { logger } from '../infra/observability/logger.js';
 import { createPostgresIdempotencyPort } from '../infra/db/repos/idempotencyKeys.js';
+import { tryConsumeStart } from '../infra/db/repos/channelUsers.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
 import { createActorResolutionPort } from '../infra/adapters/actorResolutionPort.js';
 import { createContentCatalogPort } from '../infra/adapters/contentCatalogPort.js';
@@ -228,6 +229,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     supportRelayPolicy: defaultSupportRelayPolicy,
     webappEventsPort,
     deliveryTargetsPort,
+    telegramStartDedup: (telegramUserId) => tryConsumeStart(dbPort, telegramUserId),
     ...(remindersWebappWritesPort !== undefined ? { remindersWebappWritesPort } : {}),
   });
 

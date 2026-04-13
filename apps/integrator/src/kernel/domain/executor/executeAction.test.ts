@@ -415,7 +415,9 @@ describe('executeAction', () => {
   });
 
   it('handles user.state.set and user.phone.link', async () => {
-    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const writeDb = vi.fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ userPhoneLinkApplied: true });
 
     const stateResult = await executeAction({
       id: 'a7',
@@ -435,11 +437,84 @@ describe('executeAction', () => {
     }, ctx, { writePort: { writeDb } });
 
     expect(phoneResult.status).toBe('success');
+    expect(phoneResult.writes?.[0]?.type).toBe('user.phone.link');
     expect(writeDb).toHaveBeenCalledTimes(2);
   });
 
-  it('falls back to incoming actor and contact when linking phone', async () => {
+  it('user.phone.link conflict: message to user and abortPlan, no success writes', async () => {
+    const writeDb = vi.fn().mockResolvedValue({ userPhoneLinkApplied: false });
+    const messageCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: { ...ctx.event.meta, source: 'telegram' },
+        payload: {
+          incoming: {
+            channelUserId: '123',
+            chatId: 999001,
+            contactPhone: '+79191234567',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'phone-conflict',
+        type: 'user.phone.link',
+        mode: 'sync',
+        params: { channelUserId: '123', phoneNormalized: '+79191234567' },
+      },
+      messageCtx,
+      { writePort: { writeDb } },
+    );
+    expect(result.status).toBe('success');
+    expect(result.abortPlan).toBe(true);
+    expect(result.writes).toBeUndefined();
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      recipient: { chatId: 999001 },
+      message: {
+        text: 'Данный номер уже привязан к другому аккаунту Telegram. Напишите в поддержку для решения вопроса.',
+      },
+    });
+  });
+
+  it('user.phone.link indeterminate: generic save-failed copy when writeDb omits metadata', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
+    const messageCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: { ...ctx.event.meta, source: 'telegram' },
+        payload: {
+          incoming: {
+            channelUserId: '123',
+            chatId: 999001,
+            contactPhone: '+79191234567',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'phone-indeterminate',
+        type: 'user.phone.link',
+        mode: 'sync',
+        params: { channelUserId: '123', phoneNormalized: '+79191234567' },
+      },
+      messageCtx,
+      { writePort: { writeDb } },
+    );
+    expect(result.status).toBe('success');
+    expect(result.abortPlan).toBe(true);
+    expect(result.writes).toBeUndefined();
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      recipient: { chatId: 999001 },
+      message: { text: 'Не удалось сохранить номер. Попробуйте позже или напишите в поддержку.' },
+    });
+  });
+
+  it('falls back to incoming actor and contact when linking phone', async () => {
+    const writeDb = vi.fn().mockResolvedValue({ userPhoneLinkApplied: true });
     const messageCtx: DomainContext = {
       ...ctx,
       event: {

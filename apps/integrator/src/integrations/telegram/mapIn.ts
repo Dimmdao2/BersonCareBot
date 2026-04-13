@@ -48,6 +48,25 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 
+const TELEGRAM_REPLY_MENU_ACTIONS = new Set([
+  'booking.open',
+  'menu.more',
+  'cabinet.open',
+  'diary.open',
+]);
+
+/**
+ * Текст с reply-клавиатуры главного меню → action (если это пункт меню, требующий привязки).
+ * Должен совпадать с ключами {@link MESSAGE_TEXT_TO_ACTION} для этих кнопок.
+ */
+export function telegramReplyTextToMenuAction(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const act = MESSAGE_TEXT_TO_ACTION[trimmed];
+  if (act && TELEGRAM_REPLY_MENU_ACTIONS.has(act)) return act;
+  return null;
+}
+
 /** Приводит введённый номер телефона к формату +7... для сохранения и проверки. */
 export function normalizeTelegramContactPhone(value: string): string | null {
   const digits = value.replace(/[^\d+]/g, '');

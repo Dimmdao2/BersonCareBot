@@ -9,13 +9,14 @@ import { PatientSupportForm } from "@/app/app/patient/support/PatientSupportForm
 export default function LoginContactSupportPage() {
   return (
     <AppShell
-      title="Связь с поддержкой"
+      title="BersonCare"
       user={null}
       variant="patient"
       backHref="/app"
       backLabel="К входу"
       patientHideHome
       patientHideRightIcons
+      patientBrandTitleBar
     >
       <section
         id="login-contact-support-section"

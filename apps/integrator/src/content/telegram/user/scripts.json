@@ -119,7 +119,7 @@
 					"templateKey": "telegram:noBookings",
 					"vars": { "queries": "{{queries}}" },
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }],
+						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }],
 						[
 							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
 							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
@@ -141,7 +141,7 @@
 					"templateKey": "telegram:bookingsList",
 					"vars": { "queries": "{{queries}}" },
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }],
+						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }],
 						[
 							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
 							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
@@ -759,6 +759,65 @@
 		]
 	},
 	{
+		"id": "telegram.booking.menu",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": { "action": "booking.menu" },
+			"context": { "linkedPhone": true }
+		},
+		"steps": [
+			{
+				"action": "user.state.set",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "idle"
+				}
+			},
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"_when": {
+						"and": [
+							{ "path": "facts.links.webappCabinetUrl", "truthy": true },
+							{ "path": "facts.links.webappAddressUrl", "truthy": true }
+						]
+					},
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:bookingMessage",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }]
+					]
+				}
+			},
+			{
+				"action": "message.edit",
+				"mode": "async",
+				"params": {
+					"_when": { "path": "facts.links.webappCabinetUrl", "truthy": false },
+					"chatId": "{{actor.chatId}}",
+					"messageId": "{{input.messageId}}",
+					"templateKey": "telegram:bookingMessage",
+					"inlineKeyboard": [
+						[{ "textTemplateKey": "telegram:bookingMenu.my", "callbackData": "bookings.show" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }]
+					]
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+			}
+		]
+	},
+	{
 		"id": "telegram.booking.open.fallback",
 		"source": "telegram",
 		"event": "message.received",
@@ -1236,7 +1295,8 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "menu.more" }
+			"input": { "action": "menu.more" },
+			"context": { "linkedPhone": true }
 		},
 		"steps": [
 			{
@@ -1271,7 +1331,8 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "cabinet.open" }
+			"input": { "action": "cabinet.open" },
+			"context": { "linkedPhone": true }
 		},
 		"steps": [
 			{
@@ -1297,7 +1358,8 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "cabinet.open" }
+			"input": { "action": "cabinet.open" },
+			"context": { "linkedPhone": true }
 		},
 		"steps": [
 			{
@@ -1330,7 +1392,8 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "diary.open" }
+			"input": { "action": "diary.open" },
+			"context": { "linkedPhone": true }
 		},
 		"steps": [
 			{
@@ -2345,7 +2408,7 @@
 					"inlineKeyboard": [
 						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
 						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
 					]
 				}
 			},
@@ -2362,7 +2425,7 @@
 					"inlineKeyboard": [
 						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
 						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
 					]
 				}
 			},
@@ -2390,7 +2453,7 @@
 					"templateKey": "telegram:info.prepare.body",
 					"parseMode": "HTML",
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "bookings.show" }]
+						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
 					]
 				}
 			},
@@ -2418,7 +2481,7 @@
 					"templateKey": "telegram:info.address.body",
 					"parseMode": "HTML",
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "bookings.show" }]
+						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
 					]
 				}
 			},
