@@ -102,7 +102,9 @@ async function discoverIntegrationMigrations(integrationsRoot: string): Promise<
   return result;
 }
 
-// Находит все миграции (core + интеграции)
+// Находит все миграции (core + интеграции), порядок — по имени файла (дата+суффикс).
+// Раньше шли все core, затем все интеграции; из-за этого на пустой БД core-миграции вроде
+// stage13 freeze ссылались на таблицы, которые создаются только в telegram/rubitime позже.
 async function discoverMigrations(): Promise<MigrationFile[]> {
   const appRoot = getAppRoot();
   const coreDir = join(appRoot, 'src', 'infra', 'db', 'migrations', 'core');
@@ -111,7 +113,9 @@ async function discoverMigrations(): Promise<MigrationFile[]> {
   const core = await discoverCoreMigrations(coreDir);
   const integrations = await discoverIntegrationMigrations(integrationsRoot);
 
-  return [...core, ...integrations];
+  const merged = [...core, ...integrations];
+  merged.sort((a, b) => a.fileName.localeCompare(b.fileName));
+  return merged;
 }
 
 
