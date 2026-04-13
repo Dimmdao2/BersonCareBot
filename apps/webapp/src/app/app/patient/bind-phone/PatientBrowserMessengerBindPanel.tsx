@@ -4,11 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import {
-  finishChannelLinkNavigation,
-  isMaxChannelDeepLinkUrl,
-  shouldDeferChannelLinkBlankWindow,
-} from "@/shared/lib/telegramChannelLinkOpen";
+import { finishChannelLinkNavigation, isMaxChannelDeepLinkUrl } from "@/shared/lib/telegramChannelLinkOpen";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 const POLL_MS = 4000;
@@ -29,9 +25,7 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
   const [maxCommand, setMaxCommand] = useState<string | null>(null);
 
   const startLink = useCallback(async (channelCode: "telegram" | "max") => {
-    const useBlank =
-      (channelCode === "telegram" || channelCode === "max") && !shouldDeferChannelLinkBlankWindow();
-    const blank = useBlank ? window.open("about:blank", "_blank") : null;
+    const blank = null as Window | null;
     setLoading(channelCode);
     setTelegramUrl(null);
     setMaxOpenUrl(null);

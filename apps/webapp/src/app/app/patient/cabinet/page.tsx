@@ -16,6 +16,8 @@ import { CabinetIntakeHistory } from "./CabinetIntakeHistory";
 import { getOnlineIntakeService } from "@/app-layer/di/onlineIntakeDeps";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 
+export const dynamic = "force-dynamic";
+
 export default async function PatientCabinetPage() {
   const session = await getOptionalPatientSession();
   const dataGate = await patientRscPersonalDataGate(session, routePaths.cabinet);

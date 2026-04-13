@@ -12,7 +12,7 @@ vi.mock("@/infra/repos/rubitimeBranchServiceLookup", () => ({
   lookupBranchServiceByRubitimeIds: lookupMock,
 }));
 
-import { pgPatientBookingsPort } from "./pgPatientBookings";
+import { mapRubitimeStatusToPatientBookingStatus, pgPatientBookingsPort } from "./pgPatientBookings";
 import type { CreatePendingPatientBookingInput } from "@/modules/patient-booking/ports";
 
 const SLOT_START = new Date("2026-05-01T10:00:00.000Z");
@@ -330,5 +330,15 @@ describe("pgPatientBookingsPort", () => {
       expect(insertArgs![16]).toBeNull();
       expect(insertArgs![20]).toBe("minimal");
     });
+  });
+});
+
+describe("mapRubitimeStatusToPatientBookingStatus", () => {
+  it("maps Russian cancelled labels", () => {
+    expect(mapRubitimeStatusToPatientBookingStatus("Отменен клиентом")).toBe("cancelled");
+  });
+
+  it("maps latin canceled", () => {
+    expect(mapRubitimeStatusToPatientBookingStatus("canceled")).toBe("cancelled");
   });
 });

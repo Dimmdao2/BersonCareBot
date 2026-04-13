@@ -516,7 +516,8 @@ async function mergeCompatProjectionFields(input: MergeCompatInput, slotStartIso
 
 export function mapRubitimeStatusToPatientBookingStatus(rawStatus: string): PatientBookingStatus {
   const x = rawStatus.toLowerCase();
-  if (x.includes("cancel")) return "cancelled";
+  // Latin Rubitime + русские подписи статусов без слова «cancel»
+  if (x.includes("cancel") || x.includes("отмен")) return "cancelled";
   if (x.includes("resched")) return "rescheduled";
   if (x.includes("complete")) return "completed";
   if (x.includes("no_show")) return "no_show";

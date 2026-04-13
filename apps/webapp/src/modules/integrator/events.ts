@@ -10,6 +10,8 @@ import type { SubscriptionMailingProjectionPort } from "@/infra/repos/pgSubscrip
 import type { BranchesProjectionPort } from "@/infra/repos/pgBranches";
 import type { PatientBookingService } from "@/modules/patient-booking/ports";
 import { mapRubitimeStatusToPatientBookingStatus } from "@/infra/repos/pgPatientBookings";
+import { revalidatePath } from "next/cache";
+import { routePaths } from "@/app-layer/routes/paths";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 
@@ -957,6 +959,8 @@ export async function handleIntegratorEvent(
         rubitimeCooperatorId,
         rubitimeManageUrl,
       });
+      revalidatePath(routePaths.cabinet);
+      revalidatePath(routePaths.patient);
       return { accepted: true };
     } catch (err) {
       const deferred = await acceptAfterMergeConflict(deps, err, "appointment.record.upserted", auditPayload);

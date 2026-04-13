@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
 import {

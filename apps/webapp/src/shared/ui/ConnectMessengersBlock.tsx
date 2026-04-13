@@ -10,11 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
-import {
-  finishChannelLinkNavigation,
-  isMaxChannelDeepLinkUrl,
-  shouldDeferChannelLinkBlankWindow,
-} from "@/shared/lib/telegramChannelLinkOpen";
+import { finishChannelLinkNavigation, isMaxChannelDeepLinkUrl } from "@/shared/lib/telegramChannelLinkOpen";
 
 type Props = {
   channelCards: ChannelCard[];
@@ -43,10 +39,8 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
   }
 
   async function startChannelLink(channelCode: "telegram" | "max"): Promise<void> {
-    /** В обычном браузере — blank до await (обход popup-blocker). В TG/MAX Mini App — без blank (иначе «Open about:blank?»). */
-    const useBlank =
-      (channelCode === "telegram" || channelCode === "max") && !shouldDeferChannelLinkBlankWindow();
-    const blank = useBlank ? window.open("about:blank", "_blank") : null;
+    /** Не открываем `about:blank` до fetch: в WebView Telegram/MAX это даёт диалог «Open about:blank?»; `finishChannelLinkNavigation` использует WebApp.openLink / window.open(url). */
+    const blank = null as Window | null;
     setError(null);
     setBusy(channelCode);
     setMaxManualCommand(null);

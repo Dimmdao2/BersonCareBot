@@ -10,7 +10,10 @@
 
 import { inferMessengerChannelForRequestContact } from "@/shared/lib/messengerMiniApp";
 
-/** Не открывать вкладку `about:blank` до fetch: в TG/MAX WebView это ломает UX. */
+/**
+ * Раньше использовалось, чтобы решить, открывать ли преждевременную вкладку `about:blank`.
+ * UI channel-link больше не открывает `about:blank` до fetch (диалог в WebView); функция оставлена на случай внешних вызовов.
+ */
 export function shouldDeferChannelLinkBlankWindow(): boolean {
   return inferMessengerChannelForRequestContact() !== undefined;
 }
