@@ -19,7 +19,7 @@
     "test:e2e": "pnpm --dir apps/integrator test:e2e",
     "lint": "eslint . && pnpm --dir apps/webapp run lint",
     "lint:fix": "eslint . --fix && pnpm --dir apps/webapp run lint --fix",
-    "typecheck": "pnpm -r --parallel run typecheck",
+    "typecheck": "pnpm --dir packages/booking-rubitime-sync run build && pnpm -r --parallel run typecheck",
     "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:webapp && pnpm build && pnpm build:webapp && pnpm audit --prod",
     "check": "pnpm ci",
     "audit": "pnpm audit --prod",

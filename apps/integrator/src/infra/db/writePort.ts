@@ -293,7 +293,10 @@ export function createDbWritePort(input: {
                 rubitimeCooperatorId: rawCooperatorId,
                 rubitimeManageUrl,
               },
-              { logCompat: (msg, meta) => logger.warn({ msg, ...meta }, '[booking.upsert] compat-sync') },
+              {
+                logCompat: (msg: string, meta: Record<string, unknown>) =>
+                  logger.warn({ msg, ...meta }, '[booking.upsert] compat-sync'),
+              },
             );
           });
           return;
