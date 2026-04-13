@@ -11,7 +11,8 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 | Text message | full | full | `message_created` with `message.text` mapped to `message.received`. |
 | Callback (button press) | full | full | `message_callback` with `callback_id`, `payload` mapped to `callback.received`. |
 | Contact request | full | partial | MAX has `request_contact` button type; flow parity not yet verified. |
-| /start, bot_started | full | full | `bot_started` and `/start` text both open start flow. |
+| /start, bot_started | full | full | `bot_started` and `/start` text both open start flow (`max.start` / onboarding). |
+| Slash commands in bot menu | full (Telegram menu button / text) | partial | MAX `setMyCommands`: **`book`**, **`diary`**, **`menu`** only (no **`start`** in command list). Mapped in [`mapIn.ts`](../../apps/integrator/src/integrations/max/mapIn.ts) to `booking.open`, `nav.webapp.diary`, `nav.webapp.menu`. |
 | Reply keyboard (persistent bottom buttons) | full | unsupported | MAX uses inline keyboard only; we use inline menu as fallback. |
 
 ## Outgoing
@@ -37,8 +38,8 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 
 | Mechanic | Telegram | MAX | Notes |
 |----------|----------|-----|------|
-| Open Web App (Mini App) | full | partial | MAX has `open_app` button type; URL and init data flow to be verified. |
-| Deep link with start param | full | partial | Depends on MAX deep link format. |
+| Open Web App (Mini App) | full | partial | Inline **`link`** buttons with webapp URLs (facts `links.webapp*Url`); [`deliveryAdapter`](../../apps/integrator/src/integrations/max/deliveryAdapter.ts) maps Telegram-style `web_app` markup where applicable. `open_app` / init data — по необходимости отдельная проверка. |
+| Deep link with start param | full | partial | `link_*` channel-link token parsed in [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts) like Telegram; прочие `/start …` из Telegram в Max **не** дублируются текстом. |
 
 ## Webhook and dev workflow
 
@@ -51,5 +52,5 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 ## Summary
 
 - **Fully supported in MAX for MVP:** receive text/callback, send text, inline keyboard, edit message, answer callback, HTML/Markdown.
-- **Partial / not yet used:** contact request, open_app (Web App), deep links.
+- **Partial / verify in prod:** contact request parity, `open_app` vs `link` entry, глубина deep link под все сценарии Telegram.
 - **Unsupported (with fallback):** reply keyboard → use inline keyboard for main menu.

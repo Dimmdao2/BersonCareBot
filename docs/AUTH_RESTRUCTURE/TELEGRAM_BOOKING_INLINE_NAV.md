@@ -13,7 +13,7 @@
 
 ## Область
 
-Только **Telegram** (`scripts.json` user). **Max** отдельный контент; аналогичные кнопки при появлении того же UX нужно синхронизировать вручную.
+**Telegram:** как выше. **Max:** в [`apps/integrator/src/content/max/user/scripts.json`](../../apps/integrator/src/content/max/user/scripts.json) добавлены сценарии **`max.booking.open`**, **`max.booking.menu`**, **`max.booking.open.callback`** (и ветки **`need_phone`**), плюс **`max.bookings.show`** — тот же «хаб» записи (виджет / мои записи / инфо / адрес) и возврат через **`booking.menu`**, что и в Telegram. При изменении цепочки в Telegram имеет смысл сверять Max-ветку и шаблоны с префиксом **`max:`**.
 
 ## Тест
 

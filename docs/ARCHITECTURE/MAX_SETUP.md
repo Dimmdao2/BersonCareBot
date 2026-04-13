@@ -139,7 +139,9 @@ npx tsx scripts/check-max.ts
 - Это не полный аналог telegram-style menu button: в MAX сейчас основной UX строится на командах бота и inline-кнопках в сообщениях.
 - Сейчас для support relay в MAX гарантированно поддерживается только **текст**.
 - Если пользователь или администратор отправляет в MAX неподдерживаемый тип сообщения, бот отвечает, что пока поддерживается только текст и пересылка медиа появится позже.
+- Сводка отличий сценариев Telegram vs MAX (гэпы, slash, меню): [`docs/REPORTS/TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md`](../REPORTS/TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md). Матрица возможностей API: [`MAX_CAPABILITY_MATRIX.md`](MAX_CAPABILITY_MATRIX.md).
 - Следующий этап:
+  - сценарий под callback **`notifications.show`** в меню «ещё» или временное снятие кнопки, пока сценария нет;
   - определить типы вложений MAX (`image`, `file`, `audio`, `video`, `sticker`, `contact`, `location`) в webhook;
   - реализовать пересылку медиа через MAX API вместо текущего текстового fallback;
   - отдельно исследовать UX постоянного меню в MAX: сейчас используются inline-кнопки, а не telegram-style reply keyboard/menu button.

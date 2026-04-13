@@ -45,7 +45,7 @@
 | `telegram.start.setrubitimerecord` | `action: start.setrubitimerecord` | 0 | Rubitime: `recordId` → запись → телефон из записи → `user.phone.link` |
 | `telegram.start.noticeme` | `action: start.noticeme` | 0 | В т.ч. запрос контакта |
 | `telegram.start.onboarding` | `text` **$startsWith** `/start`, **`excludeActions`**, `linkedPhone: false` | **15** | Короткий текст (`telegram:onboardingWelcome`) + кнопка `request_contact` в одном `message.replyKeyboard.show` |
-| `telegram.start` | то же по `text`, `linkedPhone: true` | 0 | Только `user.state.set` → `idle` — **без исходящих сообщений** (welcome/меню не шлём) |
+| `telegram.start` | то же по `text`, `linkedPhone: true` | 0 | `user.state.set` → `idle`, затем **`message.replyKeyboard.show`** с шаблоном **`telegram:chooseMenu`** и reply-меню (Запись / Дневник с WebApp / Ещё) — как постоянное напоминание главного меню после `/start` |
 
 ### Почему онбординг не пересекается с payload
 
@@ -61,7 +61,7 @@
 Те же идеи: `max.start.onboarding` / `max.start` с `$startsWith` и тем же `excludeActions`; разбор текста в [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts) (не дублирует все Telegram deep link).
 
 - **`max.start.onboarding`:** `user.state.set` → `await_contact:subscription`, затем `message.send` с `max:onboardingWelcome` и **inline**-клавиатурой (`max:requestContact.button`, `requestPhone: true` → в API Max `type: request_contact`, см. `deliveryAdapter`). Текст дублирует смысл Telegram: кнопка + опционально вложение контакта.
-- **`max.start`** при `linkedPhone: true`: только `user.state.set` → `idle`, **без сообщения** на `/start`.
+- **`max.start`** при `linkedPhone: true`: `user.state.set` → `idle`, затем **`message.inlineKeyboard.show`** с **`max:welcome`** и меню **`main`** (inline-аналог reply-меню Telegram). Команды бота **`/book`**, **`/diary`**, **`/menu`** регистрируются отдельно (`setupMaxCommands`) и **не** дублируют `/start` в списке команд.
 - После успешной привязки номера в чате срабатывает `max.contact.phone.link` → `max:phoneLinkedWelcome` + главное меню (`inlineKeyboard`).
 
 ## Тесты
