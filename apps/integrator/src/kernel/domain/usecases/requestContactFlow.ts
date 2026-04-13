@@ -7,6 +7,7 @@ export function mainMenuMarkup(content: WebhookContent) {
     keyboard: content.mainMenuKeyboard,
     resize_keyboard: true,
     one_time_keyboard: false,
+    is_persistent: true,
   };
 }
 

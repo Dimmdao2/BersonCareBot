@@ -1100,7 +1100,12 @@ describe('executeAction', () => {
       payload: {
         recipient: { chatId: 123 },
         message: { text: 'Выберите действие' },
-        replyMarkup: { keyboard: [[{ text: '📅 Запись на приём' }]], resize_keyboard: true, one_time_keyboard: false },
+        replyMarkup: {
+          keyboard: [[{ text: '📅 Запись на приём' }]],
+          resize_keyboard: true,
+          one_time_keyboard: false,
+          is_persistent: true,
+        },
       },
     });
 
@@ -1141,6 +1146,7 @@ describe('executeAction', () => {
           keyboard: [[{ text: '⚙️ Меню', web_app: { url: 'https://webapp.example/app?ctx=bot' } }]],
           resize_keyboard: true,
           one_time_keyboard: false,
+          is_persistent: true,
         },
       },
     });
@@ -1277,6 +1283,7 @@ describe('executeAction', () => {
           ]],
           resize_keyboard: true,
           one_time_keyboard: false,
+          is_persistent: true,
         },
       },
     });
@@ -1334,6 +1341,7 @@ describe('executeAction', () => {
           ]],
           resize_keyboard: true,
           one_time_keyboard: false,
+          is_persistent: true,
         },
       },
     });

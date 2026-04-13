@@ -375,10 +375,13 @@ export async function buildReplyMarkup(input: {
         keyboard.push([{ text: cancelButtonText }]);
       }
     }
+    const oneTime = input.params.oneTimeKeyboard === true;
     return {
       keyboard,
       resize_keyboard: input.params.resizeKeyboard === true,
-      one_time_keyboard: input.params.oneTimeKeyboard === true,
+      one_time_keyboard: oneTime,
+      /** Bot API 6.6+: main menu stays visible; avoids collapse to the input-field keyboard icon (iOS). */
+      ...(!oneTime ? { is_persistent: true } : {}),
     };
   }
 
