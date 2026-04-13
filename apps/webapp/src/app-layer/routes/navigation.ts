@@ -19,16 +19,16 @@ export const patientNavByPlatform: Record<PlatformMode, PatientNavConfig> = {
     hasSheetMenu: false,
     showLogout: false,
   },
-  /** Браузер (и PWA): шапка отличается от мини-приложения в боте — сообщения и разделы в гамбургере справа. */
+  /** Браузер и PWA: та же шапка, что в мини-приложении бота (шестерёнка), без бокового меню. */
   mobile: {
-    headerRightIcons: ["messages", "menu"],
-    hasSheetMenu: true,
-    showLogout: true,
+    headerRightIcons: ["settings"],
+    hasSheetMenu: false,
+    showLogout: false,
   },
   desktop: {
-    headerRightIcons: ["messages", "menu"],
-    hasSheetMenu: true,
-    showLogout: true,
+    headerRightIcons: ["settings"],
+    hasSheetMenu: false,
+    showLogout: false,
   },
 };
 

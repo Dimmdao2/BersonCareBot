@@ -26,11 +26,9 @@ describe("patientNavByPlatform", () => {
     expect(patientNavByPlatform.bot.showLogout).toBe(false);
   });
 
-  it("mobile and desktop share header icons (browser: messages, hamburger menu)", () => {
-    expect(patientNavByPlatform.mobile.headerRightIcons).toEqual(["messages", "menu"]);
-    expect(patientNavByPlatform.desktop.headerRightIcons).toEqual(
-      patientNavByPlatform.mobile.headerRightIcons,
-    );
+  it("mobile and desktop match bot header (settings only, no sheet menu)", () => {
+    expect(patientNavByPlatform.mobile).toEqual(patientNavByPlatform.bot);
+    expect(patientNavByPlatform.desktop).toEqual(patientNavByPlatform.bot);
   });
 
 });

@@ -86,7 +86,7 @@ export function AppEntryLoginContent({ allowDevBypass, supportContactHref }: App
       <Suspense fallback={<p className="text-muted-foreground">Загрузка...</p>}>
         <AuthBootstrap supportContactHref={supportContactHref} onAuthStepChange={onAuthStepChange} />
       </Suspense>
-      <LegalFooterLinks className="mt-8" />
+      <LegalFooterLinks className="mt-8" supportHref={supportContactHref} />
     </>
   );
 }

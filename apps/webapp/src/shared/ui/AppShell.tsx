@@ -3,7 +3,7 @@
  * Используется на всех страницах после входа: пациент, врач, настройки. В шапке — заголовок,
  * опционально кнопка «Назад», имя и роль пользователя, ссылка «Настройки». Контент страницы
  * передаётся в children. Отображается везде внутри /app (кроме корневого layout).
- * Для пациента (variant="patient") — PatientHeader: в боте и в браузере разная правая часть шапки (см. patientNavByPlatform).
+ * Для пациента (variant="patient") — PatientHeader: единая шапка по платформам (см. patientNavByPlatform).
  * Для кабинета врача (variant="doctor") — только контейнер контента; шапка `DoctorHeader` в layout `/app/doctor` или на `/app/settings`. Ширина и отступы — `doctorWorkspaceLayout.ts`.
  */
 
@@ -26,7 +26,7 @@ type AppShellProps = {
   backLabel?: string;
   /** Уменьшенный заголовок, когда есть кнопка «Назад». */
   titleSmall?: boolean;
-  /** Вариант шапки: по умолчанию — заголовок и действия; patient — стрелка назад, BERSONCARE, гамбургер; doctor — широкий layout. */
+  /** Вариант шапки: по умолчанию — заголовок и действия; patient — шапка кабинета пациента; doctor — широкий layout. */
   variant?: "default" | "patient" | "doctor";
   /** Доп. плавающий UI для пациента (например QuickAdd на дневнике). */
   patientFloatingSlot?: ReactNode;
@@ -37,6 +37,10 @@ type AppShellProps = {
    * компактный нижний отступ (без поля под FAB).
    */
   patientEmbedMain?: boolean;
+  /** См. {@link PatientHeader}: скрыть «домой» на главную пациента. */
+  patientHideHome?: boolean;
+  /** См. {@link PatientHeader}: скрыть правые иконки шапки. */
+  patientHideRightIcons?: boolean;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -51,6 +55,8 @@ export function AppShell({
   patientFloatingSlot,
   hidePatientQuickAddFAB = false,
   patientEmbedMain = false,
+  patientHideHome = false,
+  patientHideRightIcons = false,
 }: AppShellProps) {
   if (variant === "patient") {
     return (
@@ -68,6 +74,8 @@ export function AppShell({
           showBack={!!backHref}
           backHref={backHref}
           backLabel={backLabel}
+          hideHome={patientHideHome}
+          hideRightIcons={patientHideRightIcons}
         />
         <main
           id="app-shell-content"

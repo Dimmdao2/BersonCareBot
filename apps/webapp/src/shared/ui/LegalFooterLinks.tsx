@@ -1,12 +1,16 @@
 import Link from "next/link";
+import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 import { cn } from "@/lib/utils";
 
 type LegalFooterLinksProps = {
   className?: string;
+  /** Внутренний путь `/app/…` или безопасный внешний URL — см. `SupportContactLink`. */
+  supportHref?: string;
 };
 
 /** Компактные ссылки на публичные правовые страницы (OAuth consent screen, подвал экранов). */
-export function LegalFooterLinks({ className }: LegalFooterLinksProps) {
+export function LegalFooterLinks({ className, supportHref }: LegalFooterLinksProps) {
+  const support = supportHref?.trim() ?? "";
   return (
     <nav
       className={cn(
@@ -24,6 +28,16 @@ export function LegalFooterLinks({ className }: LegalFooterLinksProps) {
       <Link href="/legal/privacy" className="underline underline-offset-2 hover:text-foreground">
         Политика конфиденциальности
       </Link>
+      {support ? (
+        <>
+          <span className="text-border" aria-hidden>
+            ·
+          </span>
+          <SupportContactLink href={support} className="underline underline-offset-2 hover:text-foreground">
+            Связь с поддержкой
+          </SupportContactLink>
+        </>
+      ) : null}
     </nav>
   );
 }

@@ -49,25 +49,14 @@ describe("PatientHeader", () => {
     vi.unstubAllGlobals();
   });
 
-  it("logout uses POST form to /api/auth/logout", async () => {
-    const { userEvent } = await import("@testing-library/user-event");
-    const user = userEvent.setup();
+  it("shows settings link to /app/settings (browser header aligned with bot)", () => {
     render(<PatientHeader pageTitle="Тест" />);
-    await user.click(screen.getByRole("button", { name: "Меню" }));
-    const logoutBtn = screen.getByRole("button", { name: "Выйти" });
-    const form = logoutBtn.closest("form");
-    expect(form).toHaveAttribute("method", "post");
-    expect(form).toHaveAttribute("action", "/api/auth/logout");
+    expect(screen.getByRole("link", { name: "Настройки" })).toHaveAttribute("href", "/app/settings");
   });
 
-  it("menu includes Записаться на приём", async () => {
-    const { userEvent } = await import("@testing-library/user-event");
-    const user = userEvent.setup();
-    render(<PatientHeader pageTitle="Тест" />);
-    await user.click(screen.getByRole("button", { name: "Меню" }));
-    expect(screen.getByRole("link", { name: "Записаться на приём" })).toHaveAttribute(
-      "href",
-      "/app/patient/booking",
-    );
+  it("hides home and right icons when requested", () => {
+    render(<PatientHeader pageTitle="Тест" hideHome hideRightIcons />);
+    expect(screen.queryByRole("link", { name: "Главное меню" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Настройки" })).not.toBeInTheDocument();
   });
 });

@@ -9,7 +9,10 @@ import { redirect } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
-import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
+import {
+  getSupportContactUrl,
+  resolveSupportContactHrefForLoginFlow,
+} from "@/modules/system-settings/supportContactUrl";
 import { AppShell } from "@/shared/ui/AppShell";
 import { AppEntryLoginContent } from "./AppEntryLoginContent";
 
@@ -30,10 +33,10 @@ export default async function AppEntryPage({
   }
 
   const allowDevBypass = env.ALLOW_DEV_AUTH_BYPASS === true && env.NODE_ENV !== "production";
-  const supportContactHref = await getSupportContactUrl();
+  const supportContactHref = resolveSupportContactHrefForLoginFlow(await getSupportContactUrl());
 
   return (
-    <AppShell title="Вход" user={null} variant="patient">
+    <AppShell title="Вход" user={null} variant="patient" patientHideHome>
       <AppEntryLoginContent allowDevBypass={allowDevBypass} supportContactHref={supportContactHref} />
     </AppShell>
   );

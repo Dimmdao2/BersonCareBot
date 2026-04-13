@@ -12,9 +12,11 @@ const MAX_LEN = 4000;
 
 type Props = {
   defaultEmail: string;
+  /** По умолчанию — сессия пациента; для экрана до входа — `/api/public/support`. */
+  supportSubmitPath?: string;
 };
 
-export function PatientSupportForm({ defaultEmail }: Props) {
+export function PatientSupportForm({ defaultEmail, supportSubmitPath = "/api/patient/support" }: Props) {
   const pathname = usePathname();
   const [email, setEmail] = useState(defaultEmail.trim());
   const [message, setMessage] = useState("");
@@ -37,7 +39,7 @@ export function PatientSupportForm({ defaultEmail }: Props) {
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/patient/support", {
+      const res = await fetch(supportSubmitPath, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -67,7 +69,7 @@ export function PatientSupportForm({ defaultEmail }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [email, message, pathname]);
+  }, [email, message, pathname, supportSubmitPath]);
 
   return (
     <div className="flex flex-col gap-4">

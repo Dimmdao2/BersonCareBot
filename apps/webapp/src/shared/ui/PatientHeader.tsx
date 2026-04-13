@@ -45,6 +45,10 @@ type PatientHeaderProps = {
   showBack?: boolean;
   backHref?: string;
   backLabel?: string;
+  /** Не показывать ссылку на главную пациента (экран входа и публичная поддержка). */
+  hideHome?: boolean;
+  /** Скрыть правые иконки (настройки и т.д.), оставить только заголовок и «Назад». */
+  hideRightIcons?: boolean;
 };
 
 export function PatientHeader({
@@ -52,12 +56,15 @@ export function PatientHeader({
   showBack,
   backHref,
   backLabel = "Назад",
+  hideHome = false,
+  hideRightIcons = false,
 }: PatientHeaderProps) {
   const router = useRouter();
   const platform = usePlatform();
   const nav = patientNavByPlatform[platform];
   const [menuOpen, setMenuOpen] = useState(false);
-  const reminderUnread = useReminderUnreadCount(nav.headerRightIcons.includes("reminders"));
+  const headerRightIds = hideRightIcons ? [] : nav.headerRightIcons;
+  const reminderUnread = useReminderUnreadCount(headerRightIds.includes("reminders"));
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -168,14 +175,18 @@ export function PatientHeader({
             ) : (
               <span className="inline-flex w-10 shrink-0" aria-hidden />
             )}
-            <Link
-              href="/app/patient"
-              prefetch={false}
-              aria-label="Главное меню"
-              className={HEADER_ICON_CLASS}
-            >
-              <Home className="size-[22px]" aria-hidden />
-            </Link>
+            {hideHome ? (
+              <span className="inline-flex w-10 shrink-0" aria-hidden />
+            ) : (
+              <Link
+                href="/app/patient"
+                prefetch={false}
+                aria-label="Главное меню"
+                className={HEADER_ICON_CLASS}
+              >
+                <Home className="size-[22px]" aria-hidden />
+              </Link>
+            )}
           </div>
 
           <div className="min-w-0 flex-1 text-center">
@@ -188,7 +199,7 @@ export function PatientHeader({
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            {nav.headerRightIcons.map(renderHeaderIcon)}
+            {headerRightIds.map(renderHeaderIcon)}
           </div>
         </div>
       </header>

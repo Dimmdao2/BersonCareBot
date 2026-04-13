@@ -1,7 +1,12 @@
-import { DEFAULT_PATIENT_SUPPORT_PATH } from "@/modules/system-settings/supportContactConstants";
+import {
+  DEFAULT_PATIENT_SUPPORT_PATH,
+  LOGIN_CONTACT_SUPPORT_PATH,
+} from "@/modules/system-settings/supportContactConstants";
 
 export const routePaths = {
   root: "/app",
+  /** Поддержка с экрана входа (гость, без сессии). */
+  loginContactSupport: LOGIN_CONTACT_SUPPORT_PATH,
   patient: "/app/patient",
   doctor: "/app/doctor",
   settings: "/app/settings",

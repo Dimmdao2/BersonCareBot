@@ -9,8 +9,10 @@ import {
 import { logger } from "@/infra/logging/logger";
 import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
+import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { getCurrentSession } from "@/modules/auth/service";
 import { patientClientBusinessGate } from "@/modules/platform-access";
+import { canAccessPatient } from "@/modules/roles/service";
 import { PatientClientLayout } from "./PatientClientLayout";
 
 /**
@@ -23,8 +25,13 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   const search = h.get("x-bc-search") ?? "";
   const session = await getCurrentSession();
 
-  if (!session || session.user.role !== "client") {
-    return <PatientClientLayout>{children}</PatientClientLayout>;
+  if (!session) {
+    const returnTo = (pathname.trim() ? pathname : routePaths.patient) + search;
+    redirect(`${routePaths.root}?next=${encodeURIComponent(returnTo)}`);
+  }
+
+  if (!canAccessPatient(session.user.role)) {
+    redirect(getPostAuthRedirectTarget(session.user.role, null));
   }
 
   const returnTo = (pathname.trim() ? pathname : routePaths.patient) + search;
