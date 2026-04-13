@@ -44,28 +44,31 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
     }
   }, []);
 
-  const onProvideContact = useCallback(async () => {
-    const r = await postPatientMessengerRequestContact();
-    if (!r.ok) {
-      const msg =
-        r.error === "no_messenger_binding"
-          ? "Нет привязки к мессенджеру. Откройте приложение из бота."
-          : r.error === "not_required"
-            ? "Номер уже не требуется. Нажмите «Проверить снова»."
-            : r.error === "rate_limited"
-              ? "Запрос уже недавно отправляли. Подождите минуту или откройте чат с ботом."
-              : "Не удалось запросить контакт. Попробуйте позже.";
-      toast.error(msg);
-      return;
-    }
-    closeMessengerMiniApp();
-  }, []);
-
   const releaseGate = useCallback(() => {
     clearPoll();
     startTransition(() => setMode("inactive"));
     router.refresh();
   }, [clearPoll, router]);
+
+  const onProvideContact = useCallback(async () => {
+    const r = await postPatientMessengerRequestContact();
+    if (!r.ok) {
+      if (r.error === "not_required") {
+        closeMessengerMiniApp();
+        releaseGate();
+        return;
+      }
+      const msg =
+        r.error === "no_messenger_binding"
+          ? "Нет привязки к мессенджеру. Откройте приложение из бота."
+          : r.error === "rate_limited"
+            ? "Запрос уже недавно отправляли. Подождите минуту или откройте чат с ботом."
+            : "Не удалось запросить контакт. Попробуйте позже.";
+      toast.error(msg);
+      return;
+    }
+    closeMessengerMiniApp();
+  }, [releaseGate]);
 
   useLayoutEffect(() => {
     if (!isMessengerMiniAppHost()) {

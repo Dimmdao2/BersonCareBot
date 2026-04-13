@@ -95,10 +95,7 @@ describe("writePort user.upsert projection payload", () => {
   it("emits contact.linked with channel identity payload", async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[] };
     const db = makeMockDb(capture);
-    const readPort = {
-      readDb: vi.fn().mockResolvedValue({ userId: "uid-tg" }),
-    };
-    const writePort = createDbWritePort({ db, readPort });
+    const writePort = createDbWritePort({ db });
 
     await writePort.writeDb({
       type: "user.phone.link",

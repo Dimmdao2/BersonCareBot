@@ -172,7 +172,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     ...(subscriptionMailingReadsPort !== undefined ? { subscriptionMailingReadsPort } : {}),
   });
   const webappEventsPort = createWebappEventsPort();
-  const dbWritePort = input.dbWritePort ?? createDbWritePort({ db: dbPort, readPort: dbReadPort });
+  const dbWritePort =
+    input.dbWritePort ??
+    createDbWritePort({ db: dbPort, readPort: dbReadPort, webappEventsPort });
   const queuePort = input.queuePort ?? createPostgresJobQueue({
     db: dbPort,
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,

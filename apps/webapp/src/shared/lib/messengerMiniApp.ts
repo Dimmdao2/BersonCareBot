@@ -40,7 +40,12 @@ export function isMessengerMiniAppHost(): boolean {
   return Boolean(webApp && typeof webApp.ready === "function");
 }
 
-/** Закрыть WebView мини-приложения (Telegram / MAX), если API доступен. */
+/**
+ * Закрыть WebView мини-приложения, если клиент отдаёт метод закрытия.
+ *
+ * - **Telegram:** [`Telegram.WebApp.close()`](https://core.telegram.org/bots/webapps#initializing-mini-apps) (в типах репозитория опционален).
+ * - **MAX:** в публичной доке dev.max.ru перечислены `requestContact`, `openLink`, `BackButton`, и т.д.; отдельного раздела про закрытие WebView может не быть — при наличии у `window.WebApp.close` вызываем его (часто совместимо с Telegram WebApp bridge).
+ */
 /**
  * Подсказка для M2M request-contact: в какой канал слать клавиатуру, если в сессии есть оба binding.
  * Telegram Mini App → telegram; MAX WebView (без TG initData/cookie) → max.

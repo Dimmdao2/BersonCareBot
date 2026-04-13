@@ -4,6 +4,7 @@ import type {
   DbWriteDbResult,
   DbWriteMutation,
   DbWritePort,
+  WebappEventsPort,
 } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
 import { upsertRecord, insertEvent } from './repos/bookingRecords.js';
@@ -43,7 +44,8 @@ import {
   USER_SUBSCRIPTION_UPSERTED,
   MAILING_LOG_SENT,
 } from '../../kernel/contracts/index.js';
-import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
+import type { ProjectionFanoutInput } from './repos/projectionFanout.js';
+import { tryEmitWebappProjectionThenEnqueue } from './repos/projectionFanout.js';
 import { projectionIdempotencyKey, hashPayload, hashPayloadExcludingKeys } from './repos/projectionKeys.js';
 import {
   canonicalizeIntegratorUserIdKeysInObject,
@@ -158,9 +160,19 @@ function readResource(params: Record<string, unknown>): string {
 export function createDbWritePort(input: {
   db?: DbPort;
   readPort?: DbReadPort;
+  /** When set, projection events are POSTed to webapp immediately after commit; outbox only on failure. */
+  webappEventsPort?: WebappEventsPort;
 } = {}): DbWritePort {
   const db = input.db ?? createDbPort();
   const readPort = input.readPort;
+  const webappEventsPort = input.webappEventsPort;
+
+  async function fanoutProjectionsAfterTx(pending: ProjectionFanoutInput[]): Promise<void> {
+    for (const ev of pending) {
+      await tryEmitWebappProjectionThenEnqueue(db, webappEventsPort, ev);
+    }
+  }
+
   return {
     async writeDb(mutation: DbWriteMutation): Promise<void | DbWriteDbResult> {
       switch (mutation.type) {
@@ -230,6 +242,7 @@ export function createDbWritePort(input: {
           const timeNormalizationFieldErrors = readTimeNormalizationFieldErrors(
             params.timeNormalizationFieldErrors,
           );
+          const pendingProjections: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await upsertRecord(txDb, {
               externalRecordId,
@@ -267,7 +280,7 @@ export function createDbWritePort(input: {
                 ? { timeNormalizationFieldErrors }
                 : {}),
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingProjections.push({
               eventType: APPOINTMENT_RECORD_UPSERTED,
               idempotencyKey: projectionIdempotencyKey(
                 APPOINTMENT_RECORD_UPSERTED,
@@ -278,6 +291,7 @@ export function createDbWritePort(input: {
               payload: projectionPayload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingProjections);
           return;
         }
         case 'event.log': {
@@ -312,6 +326,7 @@ export function createDbWritePort(input: {
           const firstName = asNullableString(mutation.params.firstName);
           const lastName = asNullableString(mutation.params.lastName);
           if (!externalId) return;
+          const pendingUserUpsert: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             let integratorUserId: string | null;
             if (resource === 'telegram') {
@@ -341,7 +356,7 @@ export function createDbWritePort(input: {
               externalId,
               displayName: [firstName, lastName].filter(Boolean).join(' ') || undefined,
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingUserUpsert.push({
               eventType: 'user.upserted',
               idempotencyKey: projectionIdempotencyKey(
                 'user.upserted',
@@ -352,6 +367,7 @@ export function createDbWritePort(input: {
               payload: projectionPayload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingUserUpsert);
           return;
         }
         case 'user.state.set': {
@@ -374,6 +390,7 @@ export function createDbWritePort(input: {
           }
           let applied = false;
           let indeterminate = false;
+          const pendingPhoneLink: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             if (resource === "max") {
               await ensureIdentityForMessenger(txDb, { resource: "max", externalId: channelUserId });
@@ -385,34 +402,36 @@ export function createDbWritePort(input: {
             }
             if (outcome === 'noop_conflict') return;
             applied = true;
-            if (readPort) {
-              const link = await readPort.readDb<{ userId?: string } | null>({
-                type: 'user.byIdentity',
-                params: { resource, externalId: channelUserId },
+            // Fanout using the same identity row setUserPhone used (not readPort / getLinkDataByIdentity).
+            const idPeek = await txDb.query<{ user_id: string }>(
+              `SELECT i.user_id::text AS user_id
+               FROM identities i
+               WHERE i.resource = $2 AND i.external_id = $1
+               LIMIT 1`,
+              [channelUserId, resource],
+            );
+            const rawUid = idPeek.rows[0]?.user_id ?? null;
+            if (rawUid) {
+              const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, rawUid);
+              const projectionPayload: Record<string, unknown> = {
+                integratorUserId: canonicalUid,
+                phoneNormalized,
+                channelCode: resource,
+                externalId: channelUserId,
+              };
+              pendingPhoneLink.push({
+                eventType: 'contact.linked',
+                idempotencyKey: projectionIdempotencyKey(
+                  'contact.linked',
+                  canonicalUid,
+                  hashPayload(projectionPayload),
+                ),
+                occurredAt: new Date().toISOString(),
+                payload: projectionPayload,
               });
-              const uid = link && typeof link === 'object' && typeof link.userId === 'string'
-                ? link.userId : null;
-              if (uid) {
-                const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, uid);
-                const projectionPayload: Record<string, unknown> = {
-                  integratorUserId: canonicalUid,
-                  phoneNormalized,
-                  channelCode: resource,
-                  externalId: channelUserId,
-                };
-                await enqueueProjectionEvent(txDb, {
-                  eventType: 'contact.linked',
-                  idempotencyKey: projectionIdempotencyKey(
-                    'contact.linked',
-                    canonicalUid,
-                    hashPayload(projectionPayload),
-                  ),
-                  occurredAt: new Date().toISOString(),
-                  payload: projectionPayload,
-                });
-              }
             }
           });
+          await fanoutProjectionsAfterTx(pendingPhoneLink);
           if (indeterminate) {
             return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
           }
@@ -463,6 +482,7 @@ export function createDbWritePort(input: {
           const openedAt = asNonEmptyString(mutation.params.openedAt);
           const lastMessageAt = asNonEmptyString(mutation.params.lastMessageAt) ?? openedAt;
           if (!resource || !externalId || !source || !id || !openedAt || !lastMessageAt) return;
+          const pendingConvOpen: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await insertConversation(txDb, {
               id,
@@ -494,7 +514,7 @@ export function createDbWritePort(input: {
               channelCode: resource,
               channelExternalId: externalId,
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingConvOpen.push({
               eventType: 'support.conversation.opened',
               idempotencyKey: projectionIdempotencyKey(
                 'support.conversation.opened',
@@ -505,6 +525,7 @@ export function createDbWritePort(input: {
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingConvOpen);
           return;
         }
         case 'conversation.message.add': {
@@ -518,6 +539,7 @@ export function createDbWritePort(input: {
           const externalMessageId = asNullableString(mutation.params.externalMessageId);
           const messageType = asNullableString(mutation.params.messageType) ?? 'text';
           if (!id || !conversationId || !senderRole || !text || !createdAt) return;
+          const pendingConvMsg: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await insertConversationMessage(txDb, {
               id,
@@ -540,13 +562,14 @@ export function createDbWritePort(input: {
               externalMessageId: externalMessageId ?? null,
               createdAt,
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingConvMsg.push({
               eventType: 'support.conversation.message.appended',
               idempotencyKey: projectionIdempotencyKey('support.conversation.message.appended', id, hashPayload(payload)),
               occurredAt: createdAt,
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingConvMsg);
           return;
         }
         case 'conversation.state.set': {
@@ -556,6 +579,7 @@ export function createDbWritePort(input: {
           const closedAt = asNullableString(mutation.params.closedAt);
           const closeReason = asNullableString(mutation.params.closeReason);
           if (!id || !status) return;
+          const pendingConvState: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await setConversationState(txDb, {
               id,
@@ -571,13 +595,14 @@ export function createDbWritePort(input: {
               closedAt: closedAt ?? null,
               closeReason: closeReason ?? null,
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingConvState.push({
               eventType: 'support.conversation.status.changed',
               idempotencyKey: projectionIdempotencyKey('support.conversation.status.changed', id, hashPayload(payload)),
               occurredAt: new Date().toISOString(),
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingConvState);
           return;
         }
         case 'question.create': {
@@ -587,6 +612,7 @@ export function createDbWritePort(input: {
           const text = asNonEmptyString(mutation.params.text);
           const createdAt = asNonEmptyString(mutation.params.createdAt);
           if (!id || !userIdentityId || !text || !createdAt) return;
+          const pendingQCreate: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await insertUserQuestion(txDb, {
               id,
@@ -604,7 +630,7 @@ export function createDbWritePort(input: {
               status: 'open',
               createdAt,
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingQCreate.push({
               eventType: 'support.question.created',
               idempotencyKey: projectionIdempotencyKey(
                 'support.question.created',
@@ -615,6 +641,7 @@ export function createDbWritePort(input: {
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingQCreate);
           return;
         }
         case 'question.message.add': {
@@ -624,6 +651,7 @@ export function createDbWritePort(input: {
           const messageText = asNonEmptyString(mutation.params.messageText);
           const createdAt = asNonEmptyString(mutation.params.createdAt);
           if (!id || !questionId || (senderType !== 'user' && senderType !== 'admin') || !messageText || !createdAt) return;
+          const pendingQM: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await insertQuestionMessage(txDb, {
               id,
@@ -639,32 +667,35 @@ export function createDbWritePort(input: {
               text: messageText,
               createdAt,
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingQM.push({
               eventType: 'support.question.message.appended',
               idempotencyKey: projectionIdempotencyKey('support.question.message.appended', id, hashPayload(payload)),
               occurredAt: createdAt,
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingQM);
           return;
         }
         case 'question.markAnswered': {
           const questionId = asNonEmptyString(mutation.params.questionId);
           const answeredAt = asNonEmptyString(mutation.params.answeredAt);
           if (!questionId || !answeredAt) return;
+          const pendingQA: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await setQuestionAnswered(txDb, { questionId, answeredAt });
             const payload: Record<string, unknown> = {
               integratorQuestionId: questionId,
               answeredAt,
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingQA.push({
               eventType: 'support.question.answered',
               idempotencyKey: projectionIdempotencyKey('support.question.answered', questionId, hashPayload(payload)),
               occurredAt: answeredAt,
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingQA);
           return;
         }
         case 'notifications.update': {
@@ -678,6 +709,7 @@ export function createDbWritePort(input: {
           if (typeof mutation.params.notify_online === 'boolean') settings.notify_online = mutation.params.notify_online;
           if (typeof mutation.params.notify_bookings === 'boolean') settings.notify_bookings = mutation.params.notify_bookings;
           if (Object.keys(settings).length === 0) return;
+          const pendingPrefs: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await updateNotificationSettings(txDb, channelUserId, settings);
             if (readPort) {
@@ -697,7 +729,7 @@ export function createDbWritePort(input: {
                   .filter(([k]) => k in topicMap)
                   .map(([k, v]) => ({ topicCode: topicMap[k], isEnabled: v }));
                 if (topics.length > 0) {
-                  await enqueueProjectionEvent(txDb, {
+                  pendingPrefs.push({
                     eventType: 'preferences.updated',
                     idempotencyKey: projectionIdempotencyKey(
                       'preferences.updated',
@@ -711,6 +743,7 @@ export function createDbWritePort(input: {
               }
             }
           });
+          await fanoutProjectionsAfterTx(pendingPrefs);
           return;
         }
         case 'reminders.rule.upsert': {
@@ -732,6 +765,7 @@ export function createDbWritePort(input: {
             return;
           }
           const isEnabled = mutation.params.isEnabled === true;
+          const pendingRule: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
             const updatedAt = await upsertReminderRule(txDb, {
@@ -761,13 +795,14 @@ export function createDbWritePort(input: {
               contentMode,
             };
             const payload = { ...keyPayload, updatedAt };
-            await enqueueProjectionEvent(txDb, {
+            pendingRule.push({
               eventType: REMINDER_RULE_UPSERTED,
               idempotencyKey: projectionIdempotencyKey(REMINDER_RULE_UPSERTED, id, hashPayload(keyPayload)),
               occurredAt: updatedAt,
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingRule);
           return;
         }
         case 'reminders.occurrence.upsertPlanned': {
@@ -793,6 +828,7 @@ export function createDbWritePort(input: {
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
           const channel = asNonEmptyString(mutation.params.channel);
           if (!occurrenceId || !channel) return;
+          const pendingOccSent: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await markReminderOccurrenceSent(txDb, occurrenceId, channel);
             const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
@@ -808,7 +844,7 @@ export function createDbWritePort(input: {
                 errorCode: ctx.errorCode,
                 occurredAt: ctx.occurredAt,
               };
-              await enqueueProjectionEvent(txDb, {
+              pendingOccSent.push({
                 eventType: REMINDER_OCCURRENCE_FINALIZED,
                 idempotencyKey: projectionIdempotencyKey(
                   REMINDER_OCCURRENCE_FINALIZED,
@@ -820,12 +856,14 @@ export function createDbWritePort(input: {
               });
             }
           });
+          await fanoutProjectionsAfterTx(pendingOccSent);
           return;
         }
         case 'reminders.occurrence.markFailed': {
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
           const channel = asNonEmptyString(mutation.params.channel);
           if (!occurrenceId || !channel) return;
+          const pendingOccFail: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await markReminderOccurrenceFailed(
               txDb,
@@ -846,7 +884,7 @@ export function createDbWritePort(input: {
                 errorCode: ctx.errorCode,
                 occurredAt: ctx.occurredAt,
               };
-              await enqueueProjectionEvent(txDb, {
+              pendingOccFail.push({
                 eventType: REMINDER_OCCURRENCE_FINALIZED,
                 idempotencyKey: projectionIdempotencyKey(
                   REMINDER_OCCURRENCE_FINALIZED,
@@ -858,6 +896,7 @@ export function createDbWritePort(input: {
               });
             }
           });
+          await fanoutProjectionsAfterTx(pendingOccFail);
           return;
         }
         case 'reminders.occurrence.reschedulePlanned': {
@@ -882,6 +921,7 @@ export function createDbWritePort(input: {
           const payloadJson = typeof mutation.params.payloadJson === 'object' && mutation.params.payloadJson !== null
             ? mutation.params.payloadJson as Record<string, unknown>
             : {};
+          const pendingDelLog: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             const createdAt = await insertReminderDeliveryLog(txDb, {
               id,
@@ -905,7 +945,7 @@ export function createDbWritePort(input: {
                 payloadJson,
                 createdAt,
               };
-              await enqueueProjectionEvent(txDb, {
+              pendingDelLog.push({
                 eventType: REMINDER_DELIVERY_LOGGED,
                 idempotencyKey: projectionIdempotencyKey(REMINDER_DELIVERY_LOGGED, id, hashPayload(payload)),
                 occurredAt: createdAt,
@@ -913,6 +953,7 @@ export function createDbWritePort(input: {
               });
             }
           });
+          await fanoutProjectionsAfterTx(pendingDelLog);
           return;
         }
         case 'content.access.grant.create': {
@@ -925,6 +966,7 @@ export function createDbWritePort(input: {
           const metaJson = typeof mutation.params.metaJson === 'object' && mutation.params.metaJson !== null
             ? mutation.params.metaJson as Record<string, unknown>
             : {};
+          const pendingContent: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, userId);
             const createdAt = await createContentAccessGrant(txDb, {
@@ -947,13 +989,14 @@ export function createDbWritePort(input: {
               metaJson,
               createdAt,
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingContent.push({
               eventType: CONTENT_ACCESS_GRANTED,
               idempotencyKey: projectionIdempotencyKey(CONTENT_ACCESS_GRANTED, id, hashPayload(payload)),
               occurredAt: createdAt,
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingContent);
           return;
         }
         case 'delivery.attempt.log': {
@@ -981,6 +1024,7 @@ export function createDbWritePort(input: {
           const payloadJson = typeof dalParams.payload === 'object' && dalParams.payload !== null
             ? (dalParams.payload as Record<string, unknown>) : {};
           const occurredAt = asNonEmptyString(dalParams.occurredAt) ?? new Date().toISOString();
+          const pendingDal: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             await insertDeliveryAttemptLog(txDb, dalParams);
             const payload: Record<string, unknown> = {
@@ -994,13 +1038,14 @@ export function createDbWritePort(input: {
               occurredAt,
             };
             const key = intentEventId ?? correlationId ?? `del-${hashPayload(payload)}`;
-            await enqueueProjectionEvent(txDb, {
+            pendingDal.push({
               eventType: 'support.delivery.attempt.logged',
               idempotencyKey: projectionIdempotencyKey('support.delivery.attempt.logged', String(key), hashPayload(payload)),
               occurredAt,
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingDal);
           return;
         }
         case 'mailing.topic.upsert': {
@@ -1014,22 +1059,22 @@ export function createDbWritePort(input: {
             return;
           }
           const updatedAt = new Date().toISOString();
-          await db.tx(async (txDb) => {
-            const payload: Record<string, unknown> = {
-              integratorTopicId: String(topicId),
-              code,
-              title,
-              key,
-              isActive,
-              updatedAt,
-            };
-            await enqueueProjectionEvent(txDb, {
+          const payload: Record<string, unknown> = {
+            integratorTopicId: String(topicId),
+            code,
+            title,
+            key,
+            isActive,
+            updatedAt,
+          };
+          await fanoutProjectionsAfterTx([
+            {
               eventType: MAILING_TOPIC_UPSERTED,
               idempotencyKey: projectionIdempotencyKey(MAILING_TOPIC_UPSERTED, String(topicId), hashPayload(payload)),
               occurredAt: updatedAt,
               payload,
-            });
-          });
+            },
+          ]);
           return;
         }
         case 'user.subscription.upsert': {
@@ -1041,15 +1086,15 @@ export function createDbWritePort(input: {
             return;
           }
           const updatedAt = new Date().toISOString();
-          await db.tx(async (txDb) => {
-            const canonicalUserId = await resolveCanonicalIntegratorUserId(txDb, String(userId));
-            const payload: Record<string, unknown> = {
-              integratorUserId: canonicalUserId,
-              integratorTopicId: String(topicId),
-              isActive,
-              updatedAt,
-            };
-            await enqueueProjectionEvent(txDb, {
+          const canonicalUserId = await resolveCanonicalIntegratorUserId(db, String(userId));
+          const payload: Record<string, unknown> = {
+            integratorUserId: canonicalUserId,
+            integratorTopicId: String(topicId),
+            isActive,
+            updatedAt,
+          };
+          await fanoutProjectionsAfterTx([
+            {
               eventType: USER_SUBSCRIPTION_UPSERTED,
               idempotencyKey: projectionIdempotencyKey(
                 USER_SUBSCRIPTION_UPSERTED,
@@ -1058,8 +1103,8 @@ export function createDbWritePort(input: {
               ),
               occurredAt: updatedAt,
               payload,
-            });
-          });
+            },
+          ]);
           return;
         }
         case 'mailing.log.append': {
@@ -1072,6 +1117,7 @@ export function createDbWritePort(input: {
             logger.warn({ mutationType: mutation.type }, 'skip mailing.log.append: missing required fields');
             return;
           }
+          const pendingMailLog: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
             const canonicalUserIdStr = await resolveCanonicalIntegratorUserId(txDb, String(userId));
             const canonicalUserIdNum = Number(canonicalUserIdStr);
@@ -1096,7 +1142,7 @@ export function createDbWritePort(input: {
               sentAt,
               errorText: error,
             };
-            await enqueueProjectionEvent(txDb, {
+            pendingMailLog.push({
               eventType: MAILING_LOG_SENT,
               idempotencyKey: projectionIdempotencyKey(
                 MAILING_LOG_SENT,
@@ -1107,6 +1153,7 @@ export function createDbWritePort(input: {
               payload,
             });
           });
+          await fanoutProjectionsAfterTx(pendingMailLog);
           return;
         }
         case 'message.retry.enqueue': {

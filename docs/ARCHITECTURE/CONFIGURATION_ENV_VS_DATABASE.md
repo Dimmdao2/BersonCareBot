@@ -70,6 +70,14 @@
 
 **Файлы:** `apps/webapp/src/modules/system-settings/service.ts`, `syncToIntegrator.ts`; integrator: `apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts`, миграция `apps/integrator/src/infra/db/migrations/core/20260406_0002_create_system_settings.sql`.
 
+### Доставка webapp ↔ integrator при сбоях HTTP
+
+При **двух отдельных БД** обмен идёт подписанными POST; при недоступности пира очередь в БД — запасной путь, а не основной.
+
+- **Integrator → webapp (проекции):** после коммита транзакции события собираются и сначала отправляются в webapp по HTTP (`webappEventsPort.emit` / `POST /api/integrator/events`). При ошибке сети/5xx строка попадает в **`projection_outbox`** в БД integrator и обрабатывается существующим worker’ом (`bersoncarebot-worker-prod.service`). Код: `apps/integrator/src/infra/db/repos/projectionFanout.ts`, `createDbWritePort` + `fanoutProjectionsAfterTx`.
+
+- **Webapp → integrator (настройки, напоминания и др.):** `syncSettingToIntegrator`, `notifyIntegrator` и связанные вызовы сначала делают немедленный POST; при сбое (кроме отсутствия URL/секрета там, где это задокументировано в коде) полезная нагрузка записывается в таблицу **`integrator_push_outbox`** (миграция webapp `071_integrator_push_outbox.sql`). Повторная доставка — операторским/фоновым запуском скрипта из каталога webapp: `pnpm integrator-push-outbox-tick` (см. `apps/webapp/package.json`). На production нужен периодический запуск с загруженным `webapp.prod` (имена unit/cron в репозитории не зафиксированы — завести при выкатке).
+
 ## Что НЕ хранится в документации
 
 - Значения секретов, паролей, полных connection string с паролем — только имена ключей env или ключей `system_settings`.

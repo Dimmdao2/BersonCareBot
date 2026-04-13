@@ -11,7 +11,16 @@ vi.mock("@/modules/system-settings/integrationRuntime", () => ({
 
 // Mock fetch
 const mockFetch = vi.hoisted(() => vi.fn());
+const enqueueIntegratorPushMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.stubGlobal("fetch", mockFetch);
+
+vi.mock("@/infra/integrator-push/integratorPushOutbox", () => ({
+  enqueueIntegratorPush: enqueueIntegratorPushMock,
+}));
+
+vi.mock("@/infra/db/client", () => ({
+  getPool: () => ({ query: vi.fn() }),
+}));
 
 import { notifyIntegratorRuleUpdated } from "./notifyIntegrator";
 import type { ReminderRule } from "./types";
@@ -36,9 +45,10 @@ const baseRule: ReminderRule = {
 describe("notifyIntegratorRuleUpdated", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetch.mockResolvedValue({ ok: true });
+    mockFetch.mockResolvedValue({ ok: true, text: async () => "" });
     runtimeConfig.baseUrl = "https://integrator.example";
     runtimeConfig.secret = "test-secret";
+    enqueueIntegratorPushMock.mockClear();
   });
 
   it("posts signed payload to integrator reminders/rules endpoint", async () => {
@@ -61,13 +71,20 @@ describe("notifyIntegratorRuleUpdated", () => {
     expect(body.idempotencyKey).toMatch(/^rule_rule-abc_\d+$/);
   });
 
-  it("throws when integrator responds non-200", async () => {
+  it("enqueues outbox when integrator responds non-200", async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 500,
       text: () => Promise.resolve("internal error"),
     });
-    await expect(notifyIntegratorRuleUpdated(baseRule)).rejects.toThrow("integrator responded 500");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await notifyIntegratorRuleUpdated(baseRule);
+    expect(enqueueIntegratorPushMock).toHaveBeenCalledTimes(1);
+    expect(enqueueIntegratorPushMock.mock.calls[0]![1]).toMatchObject({
+      kind: "reminder_rule_upsert",
+      idempotencyKey: "reminder_rule:rule-abc",
+    });
+    warnSpy.mockRestore();
   });
 
   it("skips and warns when INTEGRATOR_API_URL not set", async () => {

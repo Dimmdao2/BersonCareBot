@@ -4,13 +4,16 @@
  *
  * **Call site:** only {@link createSystemSettingsService} after successful `upsert`, so every
  * API/UI path that updates `system_settings` triggers sync without duplicating calls in routes.
+ *
+ * **Delivery:** immediate signed POST; on failure (except missing config) row is written to
+ * `integrator_push_outbox` for {@link runIntegratorPushWorkerTick}.
  */
-import { createHmac } from "node:crypto";
-import { getIntegratorApiUrl, getIntegratorWebhookSecret } from "@/modules/system-settings/integrationRuntime";
-
-function signPayload(timestamp: string, rawBody: string, secret: string): string {
-  return createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("base64url");
-}
+import { getPool } from "@/infra/db/client";
+import { enqueueIntegratorPush } from "@/infra/integrator-push/integratorPushOutbox";
+import {
+  postSystemSettingsSyncToIntegrator,
+  type SystemSettingsSyncWireInput,
+} from "@/infra/integrator-push/integratorM2mPosts";
 
 /** Aligns stored `value_json` with the wire shape expected by integrator (same as admin route normalization). */
 export function normalizeStoredValueJsonForIntegratorSync(valueJson: unknown): { value: unknown } {
@@ -20,44 +23,33 @@ export function normalizeStoredValueJsonForIntegratorSync(valueJson: unknown): {
   return { value: valueJson };
 }
 
-export async function syncSettingToIntegrator(input: {
-  key: string;
-  scope: "global" | "doctor" | "admin";
-  valueJson: { value: unknown };
-  updatedBy?: string | null;
-}): Promise<void> {
-  const baseUrl = (await getIntegratorApiUrl()).trim();
-  const secret = (await getIntegratorWebhookSecret()).trim();
-
-  if (!baseUrl || !secret) {
-    console.warn(
-      "[system_settings] syncToIntegrator: INTEGRATOR_API_URL or INTEGRATOR_WEBHOOK_SECRET not configured, skipping",
-    );
-    return;
-  }
-
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const body = JSON.stringify({
-    key: input.key,
-    scope: input.scope,
-    valueJson: input.valueJson,
-    ...(input.updatedBy != null && input.updatedBy !== "" ? { updatedBy: String(input.updatedBy) } : {}),
-  });
-  const signature = signPayload(timestamp, body, secret);
-  const url = `${baseUrl.replace(/\/$/, "")}/api/integrator/settings/sync`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-bersoncare-timestamp": timestamp,
-      "x-bersoncare-signature": signature,
-    },
-    body,
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`integrator responded ${res.status}: ${text.slice(0, 200)}`);
+export async function syncSettingToIntegrator(input: SystemSettingsSyncWireInput): Promise<void> {
+  try {
+    await postSystemSettingsSyncToIntegrator(input);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "integrator_m2m_unconfigured") {
+      console.warn(
+        "[system_settings] syncToIntegrator: INTEGRATOR_API_URL or INTEGRATOR_WEBHOOK_SECRET not configured, skipping",
+      );
+      return;
+    }
+    try {
+      const pool = getPool();
+      await enqueueIntegratorPush(pool, {
+        kind: "system_settings_sync",
+        idempotencyKey: `settings:${input.scope}:${input.key}`,
+        payload: {
+          key: input.key,
+          scope: input.scope,
+          valueJson: input.valueJson,
+          ...(input.updatedBy != null && input.updatedBy !== "" ? { updatedBy: String(input.updatedBy) } : {}),
+        },
+      });
+    } catch (enqueueErr) {
+      console.error("[system_settings] syncToIntegrator: enqueue failed after HTTP error:", enqueueErr);
+      return;
+    }
+    console.warn("[system_settings] syncToIntegrator: immediate POST failed, enqueued for retry:", msg);
   }
 }

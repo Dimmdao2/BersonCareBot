@@ -419,10 +419,11 @@ export async function getLinkDataByIdentity(
       const row = res.rows[0];
       if (!row) return null;
       const chatId = Number(row.channel_id);
-      if (!Number.isFinite(chatId)) return null;
+      // Like the Max branch below: never drop the row when external_id does not parse as a finite
+      // number — userId/phoneNormalized are still valid (projection, linkedPhone, admin-facing reads).
       return {
         userId: row.user_id,
-        chatId,
+        chatId: Number.isFinite(chatId) ? chatId : 0,
         channelId: row.channel_id,
         username: row.username,
         phoneNormalized: row.phone,

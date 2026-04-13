@@ -349,6 +349,8 @@ Canonical linking rules:
 
 **Webapp → integrator:** если в сессии **оба** binding (Telegram и Max), заголовок **`X-Bersoncare-Contact-Channel: telegram | max` обязателен**; иначе **`400`** с `contact_channel_required`. При одном канале заголовок опционален (канал выводится из сессии). Лимит **60 с** на `userId` на route handler обновляется **только после успешного** ответа integrator (`ok: true`, в т.ч. **`duplicate`** — чат уже получил или дедупнул запрос).
 
+**До вызова integrator:** `POST /api/patient/messenger/request-contact` может вернуть **`400 { ok: false, error: "not_required" }`**, если активация телефона уже не в состоянии `need_activation` — тогда integrator не вызывается; Mini App снимает гейт и закрывает WebView (`closeMessengerMiniApp`), без отдельной кнопки «Проверить снова».
+
 Для `telegram` integrator дополнительно выставляет состояние диалога `await_contact:subscription` (как при сценарии привязки в боте). Для **max** отдельного `setUserState` в PostgreSQL интегратора нет (состояние ведёт сценарий MAX).
 
 **Reply-меню Telegram (`sendMenuOnButtonPress`):** автоподмешивание главной reply-клавиатуры из `replyMenu.json` к `message.send` / `message.compose` для пользователя выполняется в executor **только при** `ctx.base.linkedPhone === true`, чтобы не обходить гейт контакта.

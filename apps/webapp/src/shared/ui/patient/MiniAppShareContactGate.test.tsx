@@ -276,6 +276,8 @@ describe("MiniAppShareContactGate", () => {
       expect(screen.getByRole("alertdialog")).toBeInTheDocument();
     });
 
+    expect(screen.queryByRole("button", { name: /Проверить снова/i })).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: /Предоставить контакт/i }));
 
     await waitFor(() => {

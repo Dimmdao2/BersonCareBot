@@ -1,14 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchMock = vi.hoisted(() => vi.fn());
+const enqueueIntegratorPushMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.stubGlobal("fetch", fetchMock);
+
+vi.mock("@/infra/integrator-push/integratorPushOutbox", () => ({
+  enqueueIntegratorPush: enqueueIntegratorPushMock,
+}));
 
 import { normalizeStoredValueJsonForIntegratorSync, syncSettingToIntegrator } from "./syncToIntegrator";
 
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({
   getIntegratorApiUrl: vi.fn().mockResolvedValue("https://integrator.example"),
   getIntegratorWebhookSecret: vi.fn().mockResolvedValue("test-shared-secret-16chars"),
+}));
+
+vi.mock("@/infra/db/client", () => ({
+  getPool: () => ({ query: vi.fn() }),
 }));
 
 describe("normalizeStoredValueJsonForIntegratorSync", () => {
@@ -27,6 +36,7 @@ describe("syncSettingToIntegrator", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     fetchMock.mockResolvedValue({ ok: true, text: async () => "" });
+    enqueueIntegratorPushMock.mockClear();
   });
 
   it("POSTs signed body to integrator settings/sync", async () => {
@@ -55,14 +65,20 @@ describe("syncSettingToIntegrator", () => {
     expect(typeof (init.headers as Record<string, string>)["x-bersoncare-signature"]).toBe("string");
   });
 
-  it("throws when integrator returns non-ok", async () => {
+  it("enqueues outbox when integrator returns non-ok", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 502, text: async () => "bad" });
-    await expect(
-      syncSettingToIntegrator({
-        key: "dev_mode",
-        scope: "admin",
-        valueJson: { value: false },
-      }),
-    ).rejects.toThrow(/integrator responded 502/);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await syncSettingToIntegrator({
+      key: "dev_mode",
+      scope: "admin",
+      valueJson: { value: false },
+    });
+    expect(enqueueIntegratorPushMock).toHaveBeenCalledTimes(1);
+    expect(enqueueIntegratorPushMock.mock.calls[0]![1]).toMatchObject({
+      kind: "system_settings_sync",
+      idempotencyKey: "settings:admin:dev_mode",
+      payload: { key: "dev_mode", scope: "admin", valueJson: { value: false } },
+    });
+    warnSpy.mockRestore();
   });
 });

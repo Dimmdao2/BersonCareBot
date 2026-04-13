@@ -121,6 +121,11 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
     if (isMessengerMiniAppHost()) {
       const r = await postPatientMessengerRequestContact();
       if (!r.ok) {
+        if (r.error === "not_required") {
+          closeMessengerMiniApp();
+          await runRecoveryAndDecide();
+          return;
+        }
         toast.error(
           r.error === "no_messenger_binding"
             ? "Нет привязки к мессенджеру."
@@ -141,7 +146,7 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
       return;
     }
     await requestContactBrowser(channel);
-  }, [tg, mx, requestContactBrowser]);
+  }, [tg, mx, requestContactBrowser, runRecoveryAndDecide]);
 
   if (tg || mx) {
     if (useMessengerPanel !== true) {

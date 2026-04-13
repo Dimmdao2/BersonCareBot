@@ -35,8 +35,6 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
         scope,
         valueJson: normalizeStoredValueJsonForIntegratorSync(result.valueJson),
         updatedBy: result.updatedBy,
-      }).catch(() => {
-        /* best-effort: integrator DB mirrors webapp; webapp is source of truth */
       });
       return result;
     },
