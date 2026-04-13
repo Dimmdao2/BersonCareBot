@@ -6,6 +6,7 @@ import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { telegramIncomingToEvent } from './connector.js';
 import { telegramConfig } from './config.js';
 import { buildWebappEntryUrl } from '../webappEntryToken.js';
+import { parseMessengerStartCommand } from '../common/messengerStartParse.js';
 import { normalizeTelegramAction, normalizeTelegramContactPhone, normalizeTelegramMessageAction } from './mapIn.js';
 import { getMessageTypeFromTelegramMessage } from './supportRelayTypes.js';
 import { ensureNoMenuButtonForUser, setupTelegramMenuButton } from './setupMenuButton.js';
@@ -97,20 +98,6 @@ export type TelegramWebhookDeps = {
   ) => Promise<string | undefined>;
 };
 
-/** Payload после `setphone_` в deep link `?start=setphone_...` (текст входящего сообщения). */
-function normalizePhoneFromSetphoneStartPayload(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const direct = normalizeTelegramContactPhone(trimmed);
-  if (direct) return direct;
-  try {
-    const decoded = decodeURIComponent(trimmed.replace(/\+/g, '%2B'));
-    return normalizeTelegramContactPhone(decoded);
-  } catch {
-    return normalizeTelegramContactPhone(trimmed);
-  }
-}
-
 /** Exported for tests (contact ownership, setphone deep link). */
 export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingUpdate | null {
   if (body.callback_query) {
@@ -157,40 +144,18 @@ export function mapBodyToIncoming(body: TelegramWebhookBodyValidated): IncomingU
       typeof contact?.phone_number === 'string' && contact.user_id === fromId;
     const normalizedPhone =
       contactOwnedBySender ? normalizeTelegramContactPhone(contact.phone_number) : null;
-    let action = normalizeTelegramMessageAction(text);
-    let recordIdFromStart: string | null = null;
-    if (/^\/start\s+noticeme$/i.test(text.trim())) {
-      action = 'start.noticeme';
-    }
     const trimmedText = text.replace(/^\uFEFF+/, '').trim();
-    const linkStart = trimmedText.match(/^\/start(?:@[^\s]+)?\s+(link_[A-Za-z0-9_-]+)$/i);
+    const dictionaryAction = normalizeTelegramMessageAction(text);
+    let action = dictionaryAction;
+    let recordIdFromStart: string | null = null;
     let linkSecretFromStart: string | null = null;
-    if (linkStart) {
-      action = 'start.link';
-      linkSecretFromStart = linkStart[1] ?? null;
-    }
-    const setrubitimerecordPrefix = /^\/start\s+setrubitimerecord_/i;
-    if (setrubitimerecordPrefix.test(trimmedText)) {
-      action = 'start.setrubitimerecord';
-      const suffix = trimmedText.replace(setrubitimerecordPrefix, '').trim().slice(0, 120);
-      if (/^[A-Za-z0-9_-]+$/.test(suffix)) {
-        recordIdFromStart = suffix;
-      }
-    }
-    /** Deep link `t.me/bot?start=setphone_<digits>` → привязка номера без онбординга (см. telegram.start.setphone). */
     let phoneFromSetphoneStart: string | null = null;
-    if (!action) {
-      const setphoneMatch = /^\/start\s+setphone_(.+)$/i.exec(trimmedText);
-      if (setphoneMatch) {
-        const normalizedSetphone = normalizePhoneFromSetphoneStartPayload(setphoneMatch[1] ?? '');
-        if (normalizedSetphone) {
-          action = 'start.setphone';
-          phoneFromSetphoneStart = normalizedSetphone;
-        }
-      }
-    }
-    if (!action && /^\/start\s+set\w+/i.test(trimmedText)) {
-      action = 'start.set';
+    if (trimmedText.startsWith('/start')) {
+      const p = parseMessengerStartCommand(trimmedText, dictionaryAction);
+      action = p.action;
+      if (p.linkSecret !== undefined) linkSecretFromStart = p.linkSecret;
+      if (p.recordId !== undefined) recordIdFromStart = p.recordId;
+      if (p.phone !== undefined) phoneFromSetphoneStart = p.phone;
     }
     const relayMessageType = getMessageTypeFromTelegramMessage(body.message);
     const phoneOut = phoneFromSetphoneStart ?? normalizedPhone;

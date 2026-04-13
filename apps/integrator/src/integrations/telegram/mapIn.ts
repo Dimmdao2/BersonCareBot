@@ -13,21 +13,13 @@ import type {
 import { telegramConfig } from './config.js';
 import type { TelegramWebhookBodyValidated } from './schema.js';
 
-export const NOTIFY_KEYS = ['notify_toggle_spb', 'notify_toggle_msk', 'notify_toggle_online', 'notify_toggle_all'] as const;
-export const MENU_NOTIFICATIONS = 'menu_notifications';
 export const MENU_MY_BOOKINGS = 'menu_my_bookings';
 export const MENU_BACK = 'menu_back';
 export const REQUEST_PHONE_CANCEL_TEXT = 'Вернуться в меню';
 
 const LEGACY_CALLBACK_TO_ACTION: Record<string, string> = {
-  menu_notifications: 'notifications.show',
   menu_my_bookings: 'bookings.show',
   menu_back: 'menu.back',
-  notify_toggle_spb: 'notifications.toggle.spb',
-  notify_toggle_msk: 'notifications.toggle.msk',
-  notify_toggle_online: 'notifications.toggle.online',
-  notify_toggle_bookings: 'notifications.toggle.bookings',
-  notify_toggle_all: 'notifications.toggle.all',
 };
 
 const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
@@ -93,7 +85,8 @@ type DynamicActionResult = {
   questionConfirm?: 'yes' | 'no';
 };
 
-export function normalizeDynamicTelegramAction(value: string): DynamicActionResult {
+/** Разбор callback payload для Telegram и Max (общий формат `callbackData`). */
+export function normalizeChannelCallbackPayload(value: string): DynamicActionResult {
   const trimmed = value.trim();
   if (!trimmed) return { action: '' };
   for (const prefix of ['admin_reply:', 'admin_reply_continue:', 'admin_close_dialog:', 'dialogs.view:']) {
@@ -171,8 +164,13 @@ export function normalizeDynamicTelegramAction(value: string): DynamicActionResu
   return { action: LEGACY_CALLBACK_TO_ACTION[trimmed] ?? trimmed };
 }
 
+/** @deprecated Используйте {@link normalizeChannelCallbackPayload} */
+export function normalizeDynamicTelegramAction(value: string): DynamicActionResult {
+  return normalizeChannelCallbackPayload(value);
+}
+
 export function normalizeTelegramAction(value: string): string {
-  return normalizeDynamicTelegramAction(value).action;
+  return normalizeChannelCallbackPayload(value).action;
 }
 
 export function normalizeTelegramMessageAction(value: string): string {
@@ -186,11 +184,6 @@ export function normalizeTelegramMessageAction(value: string): string {
     return MESSAGE_TEXT_TO_ACTION[cmd + rest] ?? MESSAGE_TEXT_TO_ACTION[cmd] ?? '';
   }
   return '';
-}
-
-/** Проверяет, относится ли callback к настройкам уведомлений. */
-export function isNotifyCallback(data: string): boolean {
-  return data.startsWith('notify_');
 }
 
 export type FromTelegramContext = {
@@ -217,7 +210,7 @@ export function fromTelegram(
     const chatId = cq.message?.chat?.id;
     const messageId = cq.message?.message_id;
     if (typeof chatId !== 'number' || typeof messageId !== 'number') return null;
-    const normalized = normalizeDynamicTelegramAction(cq.data ?? '');
+    const normalized = normalizeChannelCallbackPayload(cq.data ?? '');
     const update: IncomingCallbackUpdate = {
       kind: 'callback',
       chatId,

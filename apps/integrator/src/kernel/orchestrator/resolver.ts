@@ -17,7 +17,7 @@ import type {
 } from '../contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { telegramReplyTextToMenuAction } from '../../integrations/telegram/mapIn.js';
-import { TELEGRAM_START_SPECIAL_ACTIONS } from './telegramStartConstants.js';
+import { MESSENGER_START_SPECIAL_ACTIONS } from './messengerStartConstants.js';
 
 type StepWhen = {
   path?: string;
@@ -360,7 +360,7 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
   const effectiveAction = action || menuActionFromText || '';
 
   if (text.startsWith('/start')) return null;
-  if (action && TELEGRAM_START_SPECIAL_ACTIONS.has(action)) return null;
+  if (action && MESSENGER_START_SPECIAL_ACTIONS.has(action)) return null;
 
   const conv = input.context.conversationState;
   if (typeof conv === 'string' && conv.startsWith('await_contact:')) return null;

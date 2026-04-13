@@ -292,7 +292,7 @@ describe('orchestrator buildPlan', () => {
       },
       payload: {
         incoming: {
-          action: 'notifications.show',
+          action: 'reminders.dashboard',
           chatId: 123,
           messageId: 77,
         },
@@ -307,10 +307,10 @@ describe('orchestrator buildPlan', () => {
     const contentPort: ContentPort = {
       getScriptsBySource: vi.fn().mockResolvedValue([
         {
-          id: 'telegram.notifications.show',
+          id: 'telegram.reminders.dashboard.test',
           source: 'telegram',
           event: 'callback.received',
-          match: { input: { action: 'notifications.show' } },
+          match: { input: { action: 'reminders.dashboard' } },
           steps: [
             {
               action: 'message.edit',
@@ -319,16 +319,16 @@ describe('orchestrator buildPlan', () => {
                 chatId: '{{input.chatId}}',
                 messageId: '{{input.messageId}}',
                 inlineKeyboard: [[{
-                  textTemplateKey: 'telegram:notifications.label.spb',
-                  prefixTemplateKey: 'telegram:notifications.togglePrefix',
-                  callbackData: 'notifications.toggle.spb',
+                  textTemplateKey: 'telegram:reminders.category.exercise',
+                  prefixTemplateKey: 'telegram:reminders.togglePrefix',
+                  callbackData: 'reminders.toggle.exercise',
                 }]],
               },
             },
           ],
         },
       ]),
-      getTemplate: vi.fn().mockResolvedValue({ id: 'notifications.label.spb', text: 'Петербург' }),
+      getTemplate: vi.fn().mockResolvedValue({ id: 'reminders.category.exercise', text: 'Упражнения' }),
     };
 
     const contextQueryPort: ContextQueryPort = {
@@ -340,9 +340,9 @@ describe('orchestrator buildPlan', () => {
     expect(plan).toHaveLength(1);
     expect(plan[0]?.payload).toMatchObject({
       inlineKeyboard: [[{
-        textTemplateKey: 'telegram:notifications.label.spb',
-        prefixTemplateKey: 'telegram:notifications.togglePrefix',
-        callbackData: 'notifications.toggle.spb',
+        textTemplateKey: 'telegram:reminders.category.exercise',
+        prefixTemplateKey: 'telegram:reminders.togglePrefix',
+        callbackData: 'reminders.toggle.exercise',
       }]],
     });
   });

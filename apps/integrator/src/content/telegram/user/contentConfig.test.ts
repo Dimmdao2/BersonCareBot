@@ -55,21 +55,15 @@ describe('telegram user static content', () => {
     ]);
   });
 
-  it('scripts: telegram.assistant.open — кнопка открытия webapp через web_app (Mini App), не url', () => {
-    const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
-      id: string;
-      steps?: Array<{ action?: string; params?: Record<string, unknown> }>;
-    }>;
-    const assistant = scripts.find((s) => s.id === 'telegram.assistant.open');
-    expect(assistant).toBeTruthy();
-    const editStep = assistant?.steps?.find(
-      (step) =>
-        step.action === 'message.edit'
-        && (step.params as { _when?: { path?: string } })?._when?.path === 'facts.links.webappEntryUrl',
-    );
-    expect(editStep?.params?.inlineKeyboard).toEqual([
-      [{ textTemplateKey: 'telegram:assistant.webapp.openButton', webAppUrlFact: 'links.webappEntryUrl' }],
-      [{ text: '⬅️ Назад', callbackData: 'menu.back' }],
+  it('menu.json main — одна строка: запись, дневник, меню (webapp)', () => {
+    const menus = JSON.parse(readFileSync(join(dir, 'menu.json'), 'utf8')) as {
+      main: Array<Array<{ textTemplateKey?: string; callbackData?: string; webAppUrlFact?: string }>>;
+    };
+    expect(menus.main).toHaveLength(1);
+    expect(menus.main[0]).toEqual([
+      { textTemplateKey: 'telegram:menu.book', callbackData: 'booking.open' },
+      { textTemplateKey: 'telegram:menu.diary', webAppUrlFact: 'links.webappDiaryUrl', callbackData: 'diary.open' },
+      { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappHomeUrl', callbackData: 'menu.more' },
     ]);
   });
 });

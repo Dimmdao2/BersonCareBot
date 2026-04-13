@@ -4,6 +4,8 @@
  *
  * Требуется: .env с DATABASE_URL и BOOKING_URL.
  * Мок Telegram: подмена globalThis.fetch до загрузки приложения.
+ *
+ * Сценарии без бот-UI настроек уведомлений (убран из content); уведомления — в вебаппе.
  */
 import { readdir, readFile } from 'node:fs/promises';
 import type { DeliveryJob, OutgoingIntent } from '../src/kernel/contracts/index.js';
@@ -104,10 +106,6 @@ function getExpected(name: string): ScenarioExpect {
       return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     case '07_default_idle':
       return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
-    case '08_callback_notifications':
-      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
-    case '09_callback_toggle_spb':
-      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
     case '10_callback_my_bookings':
       return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'sendMessage' };
     case '11_callback_back':
@@ -121,8 +119,6 @@ function getExpected(name: string): ScenarioExpect {
   }
 }
 
-const E2E_TEST_TELEGRAM_ID = '111222333';
-
 /** E2E запускаются только по явному флагу RUN_E2E_TESTS=true. */
 const runE2E = process.env.RUN_E2E_TESTS === 'true';
 
@@ -133,12 +129,10 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
   const idempotencyKeys = new Set<string>();
 
   const inMemoryState = {
-    users: new Map<string, { id: string; telegram_id: string }>(),
     states: new Map<string, string>(),
     phones: new Map<string, string>(),
     lastUpdateId: new Map<number, number>(),
     lastStartAt: new Set<number>(),
-    notifications: new Map<number, { notify_spb: boolean; notify_msk: boolean; notify_online: boolean }>(),
   };
 
   const asChannelUserId = (value: unknown): string | null => {
@@ -149,15 +143,6 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
 
   const dbReadPort = {
     async readDb<T = unknown>(query: { type: string; params: Record<string, unknown> }): Promise<T> {
-      if (query.type === 'notifications.settings') {
-        const id = query.params.channelUserId;
-        const key = typeof id === 'number' && Number.isFinite(id) ? id : Number.NaN;
-        const settings = Number.isFinite(key)
-          ? inMemoryState.notifications.get(key) ?? { notify_spb: false, notify_msk: false, notify_online: false }
-          : { notify_spb: false, notify_msk: false, notify_online: false };
-        return settings as T;
-      }
-
       if (query.type === 'user.lookup') {
         const by = query.params.by;
         const value = query.params.value;
@@ -211,22 +196,6 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
         }
         return;
       }
-
-      if (mutation.type === 'notifications.update') {
-        const id = mutation.params.channelUserId;
-        const channelUserId = typeof id === 'number' && Number.isFinite(id) ? id : null;
-        if (channelUserId === null) return;
-        const prev = inMemoryState.notifications.get(channelUserId) ?? {
-          notify_spb: false,
-          notify_msk: false,
-          notify_online: false,
-        };
-        inMemoryState.notifications.set(channelUserId, {
-          notify_spb: typeof mutation.params.notify_spb === 'boolean' ? mutation.params.notify_spb : prev.notify_spb,
-          notify_msk: typeof mutation.params.notify_msk === 'boolean' ? mutation.params.notify_msk : prev.notify_msk,
-          notify_online: typeof mutation.params.notify_online === 'boolean' ? mutation.params.notify_online : prev.notify_online,
-        });
-      }
     },
   };
 
@@ -238,68 +207,6 @@ describe.skipIf(!runE2E)('Webhook scenarios (e2e)', () => {
   };
 
   let dispatchPort: { dispatchOutgoing: (intent: OutgoingIntent) => Promise<void> };
-
-  const userPort = {
-    async upsertTelegramUser(from: { id: number } | null | undefined) {
-      if (!from?.id) return null;
-      const telegramId = String(from.id);
-      const existing = inMemoryState.users.get(telegramId);
-      if (existing) return existing;
-      const row = { id: telegramId, telegram_id: telegramId };
-      inMemoryState.users.set(telegramId, row);
-      return row;
-    },
-    async setTelegramUserState(telegramId: string, state: string | null) {
-      if (state == null) inMemoryState.states.delete(telegramId);
-      else inMemoryState.states.set(telegramId, state);
-    },
-    async setTelegramUserPhone(telegramId: string, phoneNormalized: string) {
-      inMemoryState.phones.set(telegramId, phoneNormalized);
-    },
-    async getTelegramUserState(telegramId: string) {
-      return inMemoryState.states.get(telegramId) ?? null;
-    },
-    async tryAdvanceLastUpdateId(telegramId: number, updateId: number) {
-      const prev = inMemoryState.lastUpdateId.get(telegramId) ?? -1;
-      if (updateId <= prev) return false;
-      inMemoryState.lastUpdateId.set(telegramId, updateId);
-      return true;
-    },
-    async tryConsumeStart(telegramId: number) {
-      if (inMemoryState.lastStartAt.has(telegramId)) return false;
-      inMemoryState.lastStartAt.add(telegramId);
-      return true;
-    },
-  };
-
-  const getNotificationSettings = async (telegramId: number) =>
-    inMemoryState.notifications.get(telegramId) ?? {
-      notify_spb: false,
-      notify_msk: false,
-      notify_online: false,
-    };
-
-  const notificationsPort = {
-    getNotificationSettings,
-    async updateNotificationSettings(
-      telegramId: number,
-      settings: { notify_spb?: boolean; notify_msk?: boolean; notify_online?: boolean },
-    ) {
-      const prev = await getNotificationSettings(telegramId);
-      inMemoryState.notifications.set(telegramId, { ...prev, ...settings });
-    },
-  };
-
-  const getTelegramUserLinkData = async (telegramId: string) => {
-    const user = inMemoryState.users.get(telegramId);
-    if (!user) return null;
-    return {
-      chatId: Number(telegramId),
-      telegramId,
-      username: null,
-      phoneNormalized: inMemoryState.phones.get(telegramId) ?? null,
-    };
-  };
 
   beforeAll(async () => {
     fixtures = await loadFixtures();

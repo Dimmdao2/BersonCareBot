@@ -772,3 +772,46 @@ Checks:
 Gate verdict:
 - PASS
 ```
+
+## Initiative: `BOT_MENU_MAX_START_PARITY_2026-04`
+
+План: меню ботов (Запись / Дневник / Меню), паритет deep link `/start` Max/Telegram, косметика, доки. Фаза 2 (debounce голого `/start` для Max) не делалась — в документации зафиксировано.
+
+```text
+[2026-04-13T12:52:00Z] [BOT_MENU_MAX_START_PARITY_2026-04] [FINAL_AUDIT] agent
+Tasks done:
+- Фаза 1: общий `messengerStartParse` (canonicalize + parse), Telegram `webhook` и Max `fromMax`/`webhook` + debug `maxStart`; `MESSENGER_START_SPECIAL_ACTIONS` в `messengerStartConstants.ts`; тесты `messengerStartParse.test.ts`, расширен `mapIn.test.ts` (Max).
+- Фаза 2: отменена (дедуп голого `/start` только Telegram, `tryConsumeStart` без `resource=max`).
+- Фаза 3: `menu.json` (TG/Max) — одна строка main; `max.more.menu` как у Telegram (вебапп); удалены сценарии старого «ещё», уведомлений из бота, чистка `mapIn` (TG), шаблонов и тестов (`buildPlan`, `contentRegistry`, `contentConfig`, `executeAction`, connector).
+- Фаза 4: `normalizeChannelCallbackPayload` (+ deprecated alias), Max импортирует новое имя; `auth/service.ts` — `console.info` resolution hints только при `DEBUG_AUTH=1` (не в test); `auth.md` — строка про DEBUG_AUTH.
+- Доки: `INTEGRATOR_TELEGRAM_START_SCRIPTS.md`, `TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md`, `SCENARIOS_AND_CODE_MAP.md`, `MAX_SETUP.md`, `MAX_CAPABILITY_MATRIX.md`, `TELEGRAM_BOOKING_INLINE_NAV.md` (связь с `menu.back`).
+- Линт: в `messengerStartParse.test.ts` аргумент `setphone_…` собран без литерала с высокой энтропией (`no-secrets/no-secrets`).
+Changed files (основные):
+- apps/integrator: `integrations/common/messengerStartParse.ts`, `.test.ts`, `telegram/webhook.ts`, `max/mapIn.ts`, `max/webhook.ts`, `telegram/mapIn.ts`, `kernel/orchestrator/messengerStartConstants.ts`, `resolver.ts`, `incomingEventPipeline.ts`, content `menu.json` x2, `scripts.json` x2, `templates.json` x2, затронутые тесты оркестратора/контента/executor.
+- apps/webapp: `modules/auth/service.ts`, `modules/auth/auth.md`.
+- docs: перечисленные выше + этот лог.
+Checks:
+- ci: `pnpm install --frozen-lockfile && pnpm run ci` — exit 0 (lint, typecheck, test integrator 705 passed, test:webapp, build, build:webapp, audit --prod).
+Evidence:
+- Паритет диплинков Max/TG через общий парсер; главное меню — три кнопки + «Меню» → вебапп.
+Gate verdict:
+- PASS
+Notes:
+- Старые сообщения в чате с удалёнными inline-кнопками могут давать пустой план — осознанное ограничение.
+```
+
+```text
+[2026-04-13T16:00:00Z] [BOT_MENU_MAX_START_PARITY_2026-04] [FIX] agent
+Tasks done:
+- Проверка после merge: устранён doc drift — `MAX_SETUP.md` §6 смоук и §7 «Следующий этап» без старого «ещё»/notifications; `INTEGRATOR_TELEGRAM_START_SCRIPTS.md` — reply-меню после `/start` описано как Запись/Дневник/Меню; `TELEGRAM_VS_MAX_SCENARIOS` — схема потока без ложного «все сообщения через messengerStartParse»; `CONTENT_AND_SCRIPTS_FLOW.md` — примеры callback; `mapIn.test.ts` (Max) — payload коллбека `menu.more` вместо удалённого `notifications.show`.
+Changed files:
+- docs/ARCHITECTURE/MAX_SETUP.md, CONTENT_AND_SCRIPTS_FLOW.md
+- docs/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md
+- docs/REPORTS/TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md
+- apps/integrator/src/integrations/max/mapIn.test.ts
+- docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
+Checks:
+- ci: `pnpm run ci` — exit 0
+Gate verdict:
+- PASS
+```

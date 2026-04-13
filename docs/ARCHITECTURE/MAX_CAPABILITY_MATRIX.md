@@ -39,7 +39,7 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 | Mechanic | Telegram | MAX | Notes |
 |----------|----------|-----|------|
 | Open Web App (Mini App) | full | partial | Inline **`link`** buttons with webapp URLs (facts `links.webapp*Url`); [`deliveryAdapter`](../../apps/integrator/src/integrations/max/deliveryAdapter.ts) maps Telegram-style `web_app` markup where applicable. `open_app` / init data — по необходимости отдельная проверка. |
-| Deep link with start param | full | partial | `link_*` channel-link token parsed in [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts) like Telegram; прочие `/start …` из Telegram в Max **не** дублируются текстом. |
+| Deep link with start param | full | full | `link_*`, `setphone_*`, `setrubitimerecord_*`, `noticeme`, `start.set*` — тот же разбор, что в Telegram, через [`messengerStartParse`](../../apps/integrator/src/integrations/common/messengerStartParse.ts) в [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts); payload `bot_started` без префикса `/start` канонизируется. |
 
 ## Webhook and dev workflow
 

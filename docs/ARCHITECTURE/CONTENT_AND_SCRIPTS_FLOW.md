@@ -31,7 +31,7 @@
   - **context** — из `input.context` (например `linkedPhone`, `conversationState`);
   - спец. поля: `textPresent`, `phonePresent`, `excludeActions`, `excludeTexts`.
 
-Для коллбеков обычно матчится `input.action` (например `notifications.show`, `menu.back`). Для сообщений — `input.text` или `input.action` (кнопки).
+Для коллбеков обычно матчится `input.action` (например `menu.more`, `menu.back`, `booking.open`). Для сообщений — `input.text` или `input.action` (кнопки).
 
 ## Меню из одного источника
 

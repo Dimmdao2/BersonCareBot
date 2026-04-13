@@ -29,9 +29,17 @@ export type ChannelUserLinkRow = {
 /** Окно подавления повторного «голого» /start (другой `update_id`, тот же смысл). Не путать с gateway dedup по `update_id`. */
 export const TELEGRAM_START_DEBOUNCE_SECONDS = 3;
 
-/** Anti-dup for rapid start events (legacy handleStart + orchestrator pipeline). */
+/**
+ * Anti-dup for rapid «голый» /start (legacy handleStart + orchestrator `telegramStartDedup`).
+ * Returns false only when the same Telegram user already had /start within the debounce window.
+ *
+ * If there is no `identities`/`telegram_state` row yet (e.g. integrator user was purged), the UPDATE
+ * touches 0 rows — that must **not** block onboarding; otherwise the pipeline drops /start silently.
+ */
 export async function tryConsumeStart(db: DbPort, channelUserId: number): Promise<boolean> {
-  const sql = `
+  const externalId = String(channelUserId);
+  const debounceSec = TELEGRAM_START_DEBOUNCE_SECONDS;
+  const updateSql = `
     UPDATE telegram_state ts
     SET last_start_at = now(), updated_at = now()
     FROM identities i
@@ -42,11 +50,28 @@ export async function tryConsumeStart(db: DbPort, channelUserId: number): Promis
     RETURNING ts.identity_id;
   `;
   try {
-    const res = await db.query(sql, [String(channelUserId), TELEGRAM_START_DEBOUNCE_SECONDS]);
-    return (res.rowCount ?? 0) > 0;
+    const res = await db.query(updateSql, [externalId, debounceSec]);
+    if ((res.rowCount ?? 0) > 0) return true;
+
+    const recentSql = `
+      SELECT 1
+      FROM telegram_state ts
+      INNER JOIN identities i ON ts.identity_id = i.id
+      WHERE i.resource = 'telegram'
+        AND i.external_id = $1
+        AND ts.last_start_at IS NOT NULL
+        AND ts.last_start_at >= now() - ($2::int * interval '1 second')
+      LIMIT 1
+    `;
+    const recent = await db.query(recentSql, [externalId, debounceSec]);
+    if ((recent.rowCount ?? 0) > 0) return false;
+
+    return true;
   } catch (err) {
+    // Fail-open: denying here drops the whole Telegram pipeline (silent /start). Prefer a possible
+    // duplicate welcome over a bricked chat when the DB hiccups.
     logger.error({ err }, 'tryConsumeStart error');
-    return false;
+    return true;
   }
 }
 

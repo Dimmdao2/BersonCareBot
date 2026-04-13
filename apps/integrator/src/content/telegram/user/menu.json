@@ -5,10 +5,10 @@
     [{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
   ],
   "main": [
-    [{ "textTemplateKey": "telegram:moreMenu.emergencyHelp", "callbackData": "content.emergency_help" }],
-    [{ "textTemplateKey": "telegram:moreMenu.personalAssistant", "callbackData": "assistant.open", "webAppUrlFact": "links.webappEntryUrl" }],
-    [{ "textTemplateKey": "telegram:moreMenu.usefulLessons", "callbackData": "content.useful_lessons" }],
-    [{ "textTemplateKey": "telegram:moreMenu.myBookings", "callbackData": "bookings.show" }],
-    [{ "textTemplateKey": "telegram:moreMenu.notifications", "callbackData": "notifications.show" }]
+    [
+      { "textTemplateKey": "telegram:menu.book", "callbackData": "booking.open" },
+      { "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl", "callbackData": "diary.open" },
+      { "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl", "callbackData": "menu.more" }
+    ]
   ]
 }

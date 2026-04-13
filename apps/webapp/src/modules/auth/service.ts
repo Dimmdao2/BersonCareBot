@@ -444,7 +444,7 @@ export async function exchangeTelegramInitData(
     parsed.startParam,
     verifiedBinding,
   );
-  if (resolutionHints && process.env.NODE_ENV !== "test") {
+  if (resolutionHints && process.env.NODE_ENV !== "test" && process.env.DEBUG_AUTH === "1") {
     const kinds = [
       resolutionHints.platformUserSub && "sub",
       resolutionHints.integratorUserId && "integrator",
@@ -530,7 +530,7 @@ export async function exchangeMaxInitData(
     parsed.startParam,
     verifiedBinding,
   );
-  if (resolutionHints && process.env.NODE_ENV !== "test") {
+  if (resolutionHints && process.env.NODE_ENV !== "test" && process.env.DEBUG_AUTH === "1") {
     const kinds = [
       resolutionHints.platformUserSub && "sub",
       resolutionHints.integratorUserId && "integrator",
@@ -616,7 +616,7 @@ export async function exchangeTelegramLoginWidget(
     webappEntryToken,
     verifiedBinding,
   );
-  if (resolutionHints && process.env.NODE_ENV !== "test") {
+  if (resolutionHints && process.env.NODE_ENV !== "test" && process.env.DEBUG_AUTH === "1") {
     const kinds = [
       resolutionHints.platformUserSub && "sub",
       resolutionHints.integratorUserId && "integrator",

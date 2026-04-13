@@ -131,6 +131,23 @@ export async function registerMaxWebhookRoutes(
         return reply.code(200).send({ ok: true });
       }
 
+      if (incoming.kind === 'message') {
+        const trimmed = incoming.text?.trim() ?? '';
+        if (trimmed.startsWith('/start')) {
+          reqLogger.debug(
+            {
+              maxStart: {
+                action: incoming.action ?? '',
+                recordIdPresent: typeof incoming.recordId === 'string' && incoming.recordId.length > 0,
+                linkSecretPresent: typeof incoming.linkSecret === 'string' && incoming.linkSecret.length > 0,
+                phoneFromDeepLink: incoming.action === 'start.setphone' && typeof incoming.phone === 'string',
+              },
+            },
+            '[max] /start classified',
+          );
+        }
+      }
+
       const event = maxIncomingToEvent({
         incoming,
         correlationId,

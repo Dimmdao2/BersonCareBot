@@ -212,6 +212,53 @@ describe('max mapIn', () => {
     if (incoming?.kind === 'message') expect(incoming.text).toBe('/start');
   });
 
+  it('maps bot_started payload bare link_* to start.link', () => {
+    const body = {
+      update_type: 'bot_started' as const,
+      timestamp: 1,
+      payload: 'link_deepMax1',
+      chat_id: 301,
+      user: { user_id: 301 },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.action).toBe('start.link');
+      expect(incoming.linkSecret).toBe('link_deepMax1');
+      expect(incoming.text).toBe('/start link_deepMax1');
+    }
+  });
+
+  it('maps message_created /start noticeme to start.noticeme', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 201 },
+        body: { text: '/start noticeme' },
+        sender: { user_id: 201 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.action).toBe('start.noticeme');
+  });
+
+  it('maps message_created bare noticeme via canonicalize to start.noticeme', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 201 },
+        body: { text: 'noticeme' },
+        sender: { user_id: 201 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') expect(incoming.action).toBe('start.noticeme');
+  });
+
   it('maps user_added to /start-like message', () => {
     const body = {
       update_type: 'user_added' as const,
@@ -243,7 +290,7 @@ describe('max mapIn', () => {
       update_type: 'message_callback' as const,
       timestamp: 1,
       message_id: 'root-mid-99',
-      callback: { callback_id: 'cb-1', payload: 'notifications.show', user: { user_id: 202 } },
+      callback: { callback_id: 'cb-1', payload: 'menu.more', user: { user_id: 202 } },
       message: { recipient: { chat_id: 202 }, body: {}, sender: { user_id: 12345 } },
     };
     const incoming = fromMax(body);
@@ -257,7 +304,7 @@ describe('max mapIn', () => {
     const body = {
       update_type: 'message_callback' as const,
       timestamp: 1,
-      callback: { callback_id: 'cb-1', payload: 'notifications.show', user: { user_id: 202 } },
+      callback: { callback_id: 'cb-1', payload: 'menu.more', user: { user_id: 202 } },
       message: { recipient: { chat_id: 202 }, body: {}, sender: { user_id: 12345 } },
     };
     const incoming = fromMax(body);

@@ -30,16 +30,16 @@ describe('contentRegistry', () => {
     await expect(loadContentRegistry({ rootDir: root })).rejects.toThrow(/forbidden to prevent shadow runtime content/);
   });
 
-  it('keeps notifications.show self-sufficient by fetching state before rendering', async () => {
+  it('keeps telegram.more.menu as webapp entry (message.received)', async () => {
     const root = path.resolve(process.cwd(), 'src/content');
     const registry = await loadContentRegistry({ rootDir: root });
     const telegramUser = getContentBundle(registry, 'telegram/user');
-    const script = telegramUser?.scripts.find((item) => item.id === 'telegram.notifications.show');
+    const script = telegramUser?.scripts.find((item) => item.id === 'telegram.more.menu');
 
-    expect(script?.steps[0]).toMatchObject({
-      action: 'notifications.get',
-      mode: 'sync',
+    expect(script?.match).toMatchObject({
+      input: { action: 'menu.more' },
     });
+    expect(script?.steps.some((s) => s.action === 'message.send')).toBe(true);
   });
 
   it('keeps booking.open safe by providing a fallback script', async () => {
@@ -95,7 +95,11 @@ describe('contentRegistry', () => {
       const hasScript = scripts.some((script) => {
         const match = script.match as Record<string, unknown> | undefined;
         const input = match?.input as Record<string, unknown> | undefined;
-        return script.event === 'callback.received' && input?.action === action;
+        const ev = script.event;
+        return (
+          (ev === 'callback.received' || ev === 'message.received')
+          && input?.action === action
+        );
       });
       expect(hasScript).toBe(true);
     }

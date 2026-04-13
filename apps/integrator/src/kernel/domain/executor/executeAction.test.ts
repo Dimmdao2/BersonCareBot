@@ -1160,13 +1160,11 @@ describe('executeAction', () => {
           ? 'Выберите действие'
           : templateId === 'menu.book'
             ? '📅 Запись на приём'
-            : templateId === 'moreMenu.notifications'
-              ? '🔔 Настройки уведомлений'
-              : templateId === 'requestPhone.cancelButton'
-                ? 'Вернуться в меню'
-                : templateId === 'requestContact.button'
-                  ? 'Предоставить контакт'
-                  : 'Служебное сообщение',
+            : templateId === 'requestPhone.cancelButton'
+              ? 'Вернуться в меню'
+              : templateId === 'requestContact.button'
+                ? 'Предоставить контакт'
+                : 'Служебное сообщение',
       })),
     };
 
@@ -1273,7 +1271,7 @@ describe('executeAction', () => {
       params: {
         chatId: 123,
         text: 'inline',
-        inlineKeyboard: [[{ textTemplateKey: 'telegram:moreMenu.notifications', callbackData: 'menu_notifications' }]],
+        inlineKeyboard: [[{ textTemplateKey: 'telegram:menu.book', callbackData: 'booking.open' }]],
       },
     }, ctx, { templatePort });
 
@@ -1282,7 +1280,7 @@ describe('executeAction', () => {
       payload: {
         recipient: { chatId: 123 },
         message: { text: 'inline' },
-        replyMarkup: { inline_keyboard: [[{ text: '🔔 Настройки уведомлений', callback_data: 'menu_notifications' }]] },
+        replyMarkup: { inline_keyboard: [[{ text: '📅 Запись на приём', callback_data: 'booking.open' }]] },
       },
     });
 
@@ -1485,13 +1483,11 @@ describe('executeAction', () => {
   it('sends single intent for inline keyboard (no follow-up reply menu)', async () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
-        text: templateId === 'moreMenu.notifications'
-          ? '🔔 Настройки уведомлений'
-          : templateId === 'menu.book'
-            ? '📅 Запись на приём'
-            : templateId === 'menu.more'
-              ? '⚙️ Меню'
-              : '',
+        text: templateId === 'menu.book'
+          ? '📅 Запись на приём'
+          : templateId === 'menu.more'
+            ? '⚙️ Меню'
+            : '',
       })),
     };
 
@@ -1502,7 +1498,7 @@ describe('executeAction', () => {
       params: {
         chatId: 123,
         text: 'inline',
-        inlineKeyboard: [[{ textTemplateKey: 'telegram:moreMenu.notifications', callbackData: 'menu_notifications' }]],
+        inlineKeyboard: [[{ textTemplateKey: 'telegram:menu.book', callbackData: 'booking.open' }]],
       },
     }, { ...ctx, event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' } } }, {
       templatePort,
@@ -1526,7 +1522,7 @@ describe('executeAction', () => {
       payload: {
         recipient: { chatId: 123 },
         message: { text: 'inline' },
-        replyMarkup: { inline_keyboard: [[{ text: '🔔 Настройки уведомлений', callback_data: 'menu_notifications' }]] },
+        replyMarkup: { inline_keyboard: [[{ text: '📅 Запись на приём', callback_data: 'booking.open' }]] },
       },
     });
   });

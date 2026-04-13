@@ -10,7 +10,7 @@
 
 ## Webhook: разбор текста сообщения (`mapBodyToIncoming`)
 
-Файл: [`apps/integrator/src/integrations/telegram/webhook.ts`](../../apps/integrator/src/integrations/telegram/webhook.ts).
+Файл: [`apps/integrator/src/integrations/telegram/webhook.ts`](../../apps/integrator/src/integrations/telegram/webhook.ts). Для строк, начинающихся с `/start`, вызывается общий модуль [`messengerStartParse.ts`](../../apps/integrator/src/integrations/common/messengerStartParse.ts) (`parseMessengerStartCommand`).
 
 Порядок для входящего текста (важен для конкурирующих префиксов):
 
@@ -27,11 +27,11 @@
 
 ## Единый список «особых» `/start` действий
 
-Файл: [`apps/integrator/src/kernel/orchestrator/telegramStartConstants.ts`](../../apps/integrator/src/kernel/orchestrator/telegramStartConstants.ts) — экспорт **`TELEGRAM_START_SPECIAL_ACTIONS`** (`start.link`, `start.noticeme`, `start.setrubitimerecord`, `start.setphone`, `start.set`).
+Файл: [`apps/integrator/src/kernel/orchestrator/messengerStartConstants.ts`](../../apps/integrator/src/kernel/orchestrator/messengerStartConstants.ts) — экспорт **`MESSENGER_START_SPECIAL_ACTIONS`** (`start.link`, `start.noticeme`, `start.setrubitimerecord`, `start.setphone`, `start.set`). Алиас **`TELEGRAM_START_SPECIAL_ACTIONS`** = тот же набор (устаревшее имя).
 
 Он должен совпадать с:
 
-- разбором deep link в webhook / `mapBodyToIncoming` (см. таблицу выше);
+- разбором deep link в `messengerStartParse` / webhook / `fromMax` (см. таблицу выше);
 - полем **`excludeActions`** у `telegram.start` / `telegram.start.onboarding` в `scripts.json`;
 - исключениями для антидубликата «голого» `/start` в [`incomingEventPipeline.ts`](../../apps/integrator/src/kernel/eventGateway/incomingEventPipeline.ts) (`allowTelegramStartThroughDedup`: при `action` из этого набора дедуп **не** применяется);
 - проверкой в [`buildLinkedPhoneMessageMenuGatePlan`](../../apps/integrator/src/kernel/orchestrator/resolver.ts): при ненулевом `input.action` из этого набора message-level гейт контакта **не** перекрывает сценарий.
@@ -41,11 +41,11 @@
 | id | Match | priority | Смысл |
 |----|--------|----------|--------|
 | `telegram.start.link` | `action: start.link` | 0 | Завершение channel link (`linkSecret` → webapp) |
-| `telegram.start.setphone` | `action: start.setphone` | **20** | Deep link: `user.phone.link` по `input.phone`, затем короткое `telegram:startSetphoneWelcome` + reply-меню (Запись / Дневник / Ещё) |
+| `telegram.start.setphone` | `action: start.setphone` | **20** | Deep link: `user.phone.link` по `input.phone`, затем короткое `telegram:startSetphoneWelcome` + reply-меню (Запись / Дневник / Меню — см. `menu.json` `main`) |
 | `telegram.start.setrubitimerecord` | `action: start.setrubitimerecord` | 0 | Rubitime: `recordId` → запись → телефон из записи → `user.phone.link` |
 | `telegram.start.noticeme` | `action: start.noticeme` | 0 | В т.ч. запрос контакта |
 | `telegram.start.onboarding` | `text` **$startsWith** `/start`, **`excludeActions`**, `linkedPhone: false` | **15** | Короткий текст (`telegram:onboardingWelcome`) + кнопка `request_contact` в одном `message.replyKeyboard.show` |
-| `telegram.start` | то же по `text`, `linkedPhone: true` | 0 | `user.state.set` → `idle`, затем **`message.replyKeyboard.show`** с шаблоном **`telegram:chooseMenu`** и reply-меню (Запись / Дневник с WebApp / Ещё) — как постоянное напоминание главного меню после `/start` |
+| `telegram.start` | то же по `text`, `linkedPhone: true` | 0 | `user.state.set` → `idle`, затем **`message.replyKeyboard.show`** с шаблоном **`telegram:chooseMenu`** и reply-меню из **`menu.json`** `main` (Запись / Дневник с WebApp / Меню с WebApp на дом) — как постоянное напоминание главного меню после `/start` |
 
 ### Почему онбординг не пересекается с payload
 
@@ -58,11 +58,12 @@
 ## Max
 
 Файл: [`apps/integrator/src/content/max/user/scripts.json`](../../apps/integrator/src/content/max/user/scripts.json).  
-Те же идеи: `max.start.onboarding` / `max.start` с `$startsWith` и тем же `excludeActions`; разбор текста в [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts) (не дублирует все Telegram deep link).
+Те же идеи: `max.start.onboarding` / `max.start` с `$startsWith` и тем же `excludeActions`. Разбор **`/start` deep link** совпадает с Telegram: [`canonicalizeMessengerStartText`](../../apps/integrator/src/integrations/common/messengerStartParse.ts) + [`parseMessengerStartCommand`](../../apps/integrator/src/integrations/common/messengerStartParse.ts) в [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts) для `message_created` (текст) и `bot_started` (payload без префикса `/start` нормализуется к `/start …`). Лог **`debug`**: ключ **`maxStart`** в [`webhook.ts` Max](../../apps/integrator/src/integrations/max/webhook.ts) (аналог `telegramStart`).
 
 - **`max.start.onboarding`:** `user.state.set` → `await_contact:subscription`, затем `message.send` с `max:onboardingWelcome` и **inline**-клавиатурой (`max:requestContact.button`, `requestPhone: true` → в API Max `type: request_contact`, см. `deliveryAdapter`). Текст дублирует смысл Telegram: кнопка + опционально вложение контакта.
-- **`max.start`** при `linkedPhone: true`: `user.state.set` → `idle`, затем **`message.inlineKeyboard.show`** с **`max:welcome`** и меню **`main`** (inline-аналог reply-меню Telegram). Команды бота **`/book`**, **`/diary`**, **`/menu`** регистрируются отдельно (`setupMaxCommands`) и **не** дублируют `/start` в списке команд.
+- **`max.start`** при `linkedPhone: true`: `user.state.set` → `idle`, затем **`message.inlineKeyboard.show`** с **`max:welcome`** и меню **`main`** (одна строка: Запись / Дневник / Меню — см. [`menu.json`](../../apps/integrator/src/content/max/user/menu.json)). Команды бота **`/book`**, **`/diary`**, **`/menu`** регистрируются отдельно (`setupMaxCommands`) и **не** дублируют `/start` в списке команд.
 - После успешной привязки номера в чате срабатывает `max.contact.phone.link` → `max:phoneLinkedWelcome` + главное меню (`inlineKeyboard`).
+- **Антидуп «голого» `/start`:** в [`incomingEventPipeline.ts`](../../apps/integrator/src/kernel/eventGateway/incomingEventPipeline.ts) по-прежнему только **`telegram`** (`tryConsumeStart` в SQL привязан к `identities.resource = 'telegram'`). Для Max повторный «голый» `/start` в окне секунд **не** подавляется на этом уровне (паритет диплинков — да; debounce как у TG — отдельная задача при необходимости).
 
 ## Тесты
 
@@ -71,6 +72,8 @@
 | [`buildPlan.test.ts`](../../apps/integrator/src/kernel/orchestrator/buildPlan.test.ts) | Onboarding vs `linkedPhone`, при `linkedPhone: true` на `/start` — план из `user.state.set`; deep link `/start …`, цепочка контакта |
 | [`rubitimeDeepLink.test.ts`](../../apps/integrator/src/kernel/orchestrator/rubitimeDeepLink.test.ts) | `setrubitimerecord` не уходит в «общий» текстовый сценарий |
 | [`webhook.test.ts`](../../apps/integrator/src/integrations/telegram/webhook.test.ts) | `mapBodyToIncoming`: contact, `setrubitimerecord`, `setphone`, `link` |
+| [`messengerStartParse.test.ts`](../../apps/integrator/src/integrations/common/messengerStartParse.test.ts) | Канонизация payload и `parseMessengerStartCommand` |
+| [`mapIn.test.ts` (max)](../../apps/integrator/src/integrations/max/mapIn.test.ts) | Max: `/start` и `bot_started` с теми же deep link, что в Telegram |
 
 Проекция `contact.linked` в webapp: [`events.test.ts`](../../apps/webapp/src/modules/integrator/events.test.ts); запись в БД при `user.phone.link`: [`writePort`](../../apps/integrator/src/infra/db/writePort.ts) (`setUserPhone` → `applied` / `noop_conflict` / `failed`; метаданные `userPhoneLinkApplied`, опционально `phoneLinkIndeterminate` для исполнителя сценариев).
 

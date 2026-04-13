@@ -5,6 +5,8 @@
  * Run: pnpm run scenarios
  * Requires: .env with DATABASE_URL and BOOKING_URL.
  * Telegram keys are read from src/integrations/telegram/config.ts.
+ *
+ * Фикстуры без бот-уведомлений (см. content); уведомления настраиваются в вебаппе.
  */
 
 import { readdir, readFile } from 'node:fs/promises';
@@ -114,10 +116,6 @@ function getExpected(name: string): ScenarioExpect {
       return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
     case '07_default_idle':
       return { ...base, minTelegramCalls: 1, firstMethod: 'sendMessage' };
-    case '08_callback_notifications':
-      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
-    case '09_callback_toggle_spb':
-      return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'editMessageText' };
     case '10_callback_my_bookings':
       return { ...base, minTelegramCalls: 1, maxTelegramCalls: 2, firstMethod: 'sendMessage' };
     case '11_callback_back':
@@ -134,7 +132,6 @@ function getExpected(name: string): ScenarioExpect {
 const inMemoryState = {
   states: new Map<string, string>(),
   phones: new Map<string, string>(),
-  notifications: new Map<number, { notify_spb: boolean; notify_msk: boolean; notify_online: boolean }>(),
 };
 const idempotencyKeys = new Set<string>();
 
@@ -146,15 +143,6 @@ const asChannelUserId = (value: unknown): string | null => {
 
 const dbReadPort = {
   async readDb<T = unknown>(query: { type: string; params: Record<string, unknown> }): Promise<T> {
-    if (query.type === 'notifications.settings') {
-      const id = query.params.channelUserId;
-      const key = typeof id === 'number' && Number.isFinite(id) ? id : Number.NaN;
-      const settings = Number.isFinite(key)
-        ? inMemoryState.notifications.get(key) ?? { notify_spb: false, notify_msk: false, notify_online: false }
-        : { notify_spb: false, notify_msk: false, notify_online: false };
-      return settings as T;
-    }
-
     if (query.type === 'user.lookup') {
       const by = query.params.by;
       const value = query.params.value;
@@ -207,22 +195,6 @@ const dbWritePort = {
         inMemoryState.phones.set(channelUserId, phoneNormalized);
       }
       return;
-    }
-
-    if (mutation.type === 'notifications.update') {
-      const id = mutation.params.channelUserId;
-      const channelUserId = typeof id === 'number' && Number.isFinite(id) ? id : null;
-      if (channelUserId === null) return;
-      const prev = inMemoryState.notifications.get(channelUserId) ?? {
-        notify_spb: false,
-        notify_msk: false,
-        notify_online: false,
-      };
-      inMemoryState.notifications.set(channelUserId, {
-        notify_spb: typeof mutation.params.notify_spb === 'boolean' ? mutation.params.notify_spb : prev.notify_spb,
-        notify_msk: typeof mutation.params.notify_msk === 'boolean' ? mutation.params.notify_msk : prev.notify_msk,
-        notify_online: typeof mutation.params.notify_online === 'boolean' ? mutation.params.notify_online : prev.notify_online,
-      });
     }
   },
 };

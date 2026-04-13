@@ -1,7 +1,8 @@
 import type { IncomingCallbackUpdate, IncomingMessageUpdate, IncomingUpdate } from '../../kernel/domain/types.js';
 import type { MaxUpdateValidated } from './schema.js';
 import type { SupportRelayMessageType } from '../../kernel/domain/supportRelay/messageTypes.js';
-import { normalizeDynamicTelegramAction, normalizeTelegramContactPhone } from '../telegram/mapIn.js';
+import { canonicalizeMessengerStartText, parseMessengerStartCommand } from '../common/messengerStartParse.js';
+import { normalizeChannelCallbackPayload, normalizeTelegramContactPhone } from '../telegram/mapIn.js';
 
 /** Map MAX button payload / text to internal action (e.g. for menu). */
 const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
@@ -33,14 +34,6 @@ function getActionFromText(text: string): string {
     return MESSAGE_TEXT_TO_ACTION[cmd + rest] ?? MESSAGE_TEXT_TO_ACTION[cmd] ?? '';
   }
   return '';
-}
-
-function parseStartLinkToken(value: string): string | null {
-  const trimmed = value.replace(/^\uFEFF+/, '').trim();
-  /** `/start link_*` and `/start@BotName link_*` (как в Telegram при выборе команды из меню). */
-  const asCommand = trimmed.match(/^\/start(?:@[^\s]+)?\s+(link_[A-Za-z0-9_-]+)$/i);
-  if (asCommand?.[1]) return asCommand[1];
-  return /^link_[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;
 }
 
 function getChatIdFromMessage(msg: MaxUpdateValidated['message']): number | null {
@@ -123,7 +116,7 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
     const chatId = getChatIdFromMessage(body.message) ?? userId ?? null;
     const messageId = getCallbackMessageId(body);
     if (!callbackId || chatId === null || userId == null || !messageId) return null;
-    const normalized = normalizeDynamicTelegramAction(payload);
+    const normalized = normalizeChannelCallbackPayload(payload);
     const update: IncomingCallbackUpdate = {
       kind: 'callback',
       chatId,
@@ -157,8 +150,23 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
     const userId = getUserIdFromMessage(msg);
     if (chatId === null || userId == null) return null;
     const contactPhone = getContactPhoneFromMaxMessage(msg);
-    const startLinkToken = parseStartLinkToken(text);
-    const action = startLinkToken ? 'start.link' : getActionFromText(text);
+    const canonical = canonicalizeMessengerStartText(text);
+    const trimmedStart = canonical.replace(/^\uFEFF+/, '').trim();
+    let action: string;
+    let linkSecret: string | undefined;
+    let recordId: string | undefined;
+    let phoneFromStart: string | undefined;
+    if (trimmedStart.startsWith('/start')) {
+      const dictAction = getActionFromText(text);
+      const p = parseMessengerStartCommand(trimmedStart, dictAction);
+      action = p.action;
+      if (p.linkSecret !== undefined) linkSecret = p.linkSecret;
+      if (p.recordId !== undefined) recordId = p.recordId;
+      if (p.phone !== undefined) phoneFromStart = p.phone;
+    } else {
+      action = getActionFromText(text);
+    }
+    const phoneOut = phoneFromStart ?? contactPhone ?? undefined;
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
@@ -166,8 +174,9 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       ...(getMessageIdFromMessage(msg) ? { messageId: getMessageIdFromMessage(msg) as string } : {}),
       text,
       action,
-      ...(startLinkToken ? { linkSecret: startLinkToken } : {}),
-      ...(contactPhone ? { phone: contactPhone } : {}),
+      ...(linkSecret !== undefined ? { linkSecret } : {}),
+      ...(recordId !== undefined ? { recordId } : {}),
+      ...(phoneOut ? { phone: phoneOut } : {}),
       ...(getRelayMessageTypeFromMaxMessage(msg) ? { relayMessageType: getRelayMessageTypeFromMaxMessage(msg) as SupportRelayMessageType } : {}),
       ...(typeof msg.sender?.username === 'string' ? { channelUsername: msg.sender.username } : {}),
       ...(typeof msg.sender?.first_name === 'string' ? { channelFirstName: msg.sender.first_name } : {}),
@@ -187,14 +196,23 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
       (typeof body.payload === 'string' && body.payload.trim().length > 0 ? body.payload : null)
       ?? (typeof body.data === 'string' && body.data.trim().length > 0 ? body.data : null)
       ?? (typeof msg?.body?.text === 'string' ? msg.body.text : null);
-    const startLinkToken = payloadRaw ? parseStartLinkToken(payloadRaw) : null;
+    const rawTrim = typeof payloadRaw === 'string' ? payloadRaw.trim() : '';
+    const canonical = rawTrim ? canonicalizeMessengerStartText(rawTrim) : '/start';
+    const effectiveStart = canonical.startsWith('/start')
+      ? canonical.trim()
+      : rawTrim
+        ? `/start ${rawTrim}`
+        : '/start';
+    const p = parseMessengerStartCommand(effectiveStart.trim(), '');
     const update: IncomingMessageUpdate = {
       kind: 'message',
       chatId,
       channelId: String(userId),
-      text: startLinkToken ? `/start ${startLinkToken}` : '/start',
-      action: startLinkToken ? 'start.link' : '',
-      ...(startLinkToken ? { linkSecret: startLinkToken } : {}),
+      text: effectiveStart.trim(),
+      action: p.action,
+      ...(p.linkSecret !== undefined ? { linkSecret: p.linkSecret } : {}),
+      ...(p.recordId !== undefined ? { recordId: p.recordId } : {}),
+      ...(p.phone !== undefined ? { phone: p.phone } : {}),
       ...(typeof (msg?.sender?.username ?? body.user?.username) === 'string' ? { channelUsername: (msg?.sender?.username ?? body.user?.username) as string } : {}),
       ...(typeof (msg?.sender?.first_name ?? body.user?.first_name) === 'string' ? { channelFirstName: (msg?.sender?.first_name ?? body.user?.first_name) as string } : {}),
       ...(typeof (msg?.sender?.last_name ?? body.user?.last_name) === 'string' ? { channelLastName: (msg?.sender?.last_name ?? body.user?.last_name) as string } : {}),

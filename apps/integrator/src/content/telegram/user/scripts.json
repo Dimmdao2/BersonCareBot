@@ -5,7 +5,9 @@
 		"event": "message.received",
 		"priority": 55,
 		"match": {
-			"input": { "action": "start.link" }
+			"input": {
+				"action": "start.link"
+			}
 		},
 		"steps": [
 			{
@@ -25,7 +27,9 @@
 		"event": "message.received",
 		"priority": 20,
 		"match": {
-			"input": { "action": "start.setphone" }
+			"input": {
+				"action": "start.setphone"
+			}
 		},
 		"steps": [
 			{
@@ -52,9 +56,17 @@
 					"templateKey": "telegram:startSetphoneWelcome",
 					"keyboard": [
 						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
-							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+							{
+								"textTemplateKey": "telegram:menu.book"
+							},
+							{
+								"textTemplateKey": "telegram:menu.diary",
+								"webAppUrlFact": "links.webappDiaryUrl"
+							},
+							{
+								"textTemplateKey": "telegram:menu.more",
+								"webAppUrlFact": "links.webappHomeUrl"
+							}
 						]
 					],
 					"resizeKeyboard": true
@@ -67,7 +79,9 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "start.setrubitimerecord" }
+			"input": {
+				"action": "start.setrubitimerecord"
+			}
 		},
 		"conditions": [
 			{
@@ -92,7 +106,10 @@
 				"action": "user.phone.link",
 				"mode": "sync",
 				"params": {
-					"_when": { "path": "queries.bookingRecord.record.phoneNormalized", "truthy": true },
+					"_when": {
+						"path": "queries.bookingRecord.record.phoneNormalized",
+						"truthy": true
+					},
 					"channelUserId": "{{actor.channelUserId}}",
 					"phoneNormalized": "{{queries.bookingRecord.record.phoneNormalized}}"
 				}
@@ -101,7 +118,10 @@
 				"action": "user.state.set",
 				"mode": "sync",
 				"params": {
-					"_when": { "path": "queries.bookingRecord.record.phoneNormalized", "truthy": true },
+					"_when": {
+						"path": "queries.bookingRecord.record.phoneNormalized",
+						"truthy": true
+					},
 					"channelUserId": "{{actor.channelUserId}}",
 					"state": "idle"
 				}
@@ -112,18 +132,37 @@
 				"params": {
 					"_when": {
 						"and": [
-							{ "path": "queries.bookingRecord.record.phoneNormalized", "truthy": true },
-							{ "path": "queries.bookings.items.length", "equals": 0 }
+							{
+								"path": "queries.bookingRecord.record.phoneNormalized",
+								"truthy": true
+							},
+							{
+								"path": "queries.bookings.items.length",
+								"equals": 0
+							}
 						]
 					},
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:noBookings",
-					"vars": { "queries": "{{queries}}" },
+					"vars": {
+						"queries": "{{queries}}"
+					},
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }],
 						[
-							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
-							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
+							{
+								"text": "⬅️ Назад",
+								"callbackData": "booking.menu"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.prepare",
+								"callbackData": "info.prepare"
+							},
+							{
+								"textTemplateKey": "telegram:bookingsScreen.address",
+								"callbackData": "info.address"
+							}
 						]
 					]
 				}
@@ -134,18 +173,37 @@
 				"params": {
 					"_when": {
 						"and": [
-							{ "path": "queries.bookingRecord.record.phoneNormalized", "truthy": true },
-							{ "path": "queries.bookings.items.length", "truthy": true }
+							{
+								"path": "queries.bookingRecord.record.phoneNormalized",
+								"truthy": true
+							},
+							{
+								"path": "queries.bookings.items.length",
+								"truthy": true
+							}
 						]
 					},
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:bookingsList",
-					"vars": { "queries": "{{queries}}" },
+					"vars": {
+						"queries": "{{queries}}"
+					},
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }],
 						[
-							{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" },
-							{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }
+							{
+								"text": "⬅️ Назад",
+								"callbackData": "booking.menu"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.prepare",
+								"callbackData": "info.prepare"
+							},
+							{
+								"textTemplateKey": "telegram:bookingsScreen.address",
+								"callbackData": "info.address"
+							}
 						]
 					]
 				}
@@ -154,7 +212,10 @@
 				"action": "user.state.set",
 				"mode": "sync",
 				"params": {
-					"_when": { "path": "queries.bookingRecord.record.phoneNormalized", "truthy": false },
+					"_when": {
+						"path": "queries.bookingRecord.record.phoneNormalized",
+						"truthy": false
+					},
 					"channelUserId": "{{actor.channelUserId}}",
 					"state": "await_contact:subscription"
 				}
@@ -163,7 +224,10 @@
 				"action": "message.replyKeyboard.show",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "queries.bookingRecord.record.phoneNormalized", "truthy": false },
+					"_when": {
+						"path": "queries.bookingRecord.record.phoneNormalized",
+						"truthy": false
+					},
 					"chatId": "{{actor.chatId}}",
 					"templateKey": "telegram:confirmPhoneForBooking",
 					"keyboard": [
@@ -185,7 +249,9 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "start.noticeme" }
+			"input": {
+				"action": "start.noticeme"
+			}
 		},
 		"steps": [
 			{
@@ -223,10 +289,20 @@
 		"priority": 15,
 		"match": {
 			"input": {
-				"text": { "$startsWith": "/start" },
-				"excludeActions": ["start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"]
+				"text": {
+					"$startsWith": "/start"
+				},
+				"excludeActions": [
+					"start.link",
+					"start.noticeme",
+					"start.setrubitimerecord",
+					"start.setphone",
+					"start.set"
+				]
 			},
-			"context": { "linkedPhone": false }
+			"context": {
+				"linkedPhone": false
+			}
 		},
 		"steps": [
 			{
@@ -263,10 +339,20 @@
 		"event": "message.received",
 		"match": {
 			"input": {
-				"text": { "$startsWith": "/start" },
-				"excludeActions": ["start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"]
+				"text": {
+					"$startsWith": "/start"
+				},
+				"excludeActions": [
+					"start.link",
+					"start.noticeme",
+					"start.setrubitimerecord",
+					"start.setphone",
+					"start.set"
+				]
 			},
-			"context": { "linkedPhone": true }
+			"context": {
+				"linkedPhone": true
+			}
 		},
 		"steps": [
 			{
@@ -285,9 +371,17 @@
 					"templateKey": "telegram:chooseMenu",
 					"keyboard": [
 						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
-							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+							{
+								"textTemplateKey": "telegram:menu.book"
+							},
+							{
+								"textTemplateKey": "telegram:menu.diary",
+								"webAppUrlFact": "links.webappDiaryUrl"
+							},
+							{
+								"textTemplateKey": "telegram:menu.more",
+								"webAppUrlFact": "links.webappHomeUrl"
+							}
 						]
 					],
 					"resizeKeyboard": true
@@ -301,19 +395,28 @@
 		"event": "message.received",
 		"priority": 100,
 		"match": {
-			"input": { "action": "debug.show_my_id" }
+			"input": {
+				"action": "debug.show_my_id"
+			}
 		},
 		"steps": [
 			{
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"templateKey": "telegram:showMyId",
 					"vars": {
 						"channelId": "{{actor.channelUserId}}"
 					},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					}
 				}
 			}
 		]
@@ -324,9 +427,15 @@
 		"event": "message.received",
 		"priority": 30,
 		"match": {
-			"actor": { "isAdmin": false },
-			"input": { "action": "question.ask" },
-			"context": { "linkedPhone": false }
+			"actor": {
+				"isAdmin": false
+			},
+			"input": {
+				"action": "question.ask"
+			},
+			"context": {
+				"linkedPhone": false
+			}
 		},
 		"steps": [
 			{
@@ -362,9 +471,15 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"actor": { "isAdmin": false },
-			"input": { "action": "question.ask" },
-			"context": { "linkedPhone": true }
+			"actor": {
+				"isAdmin": false
+			},
+			"input": {
+				"action": "question.ask"
+			},
+			"context": {
+				"linkedPhone": true
+			}
 		},
 		"steps": [
 			{
@@ -379,9 +494,16 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
 					"templateKey": "telegram:describeQuestion"
 				}
 			}
@@ -392,12 +514,34 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"context": { "conversationState": "waiting_for_question" },
+			"context": {
+				"conversationState": "waiting_for_question"
+			},
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.setrubitimerecord", "start.noticeme", "start.set"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "📓 Дневник", "Дневник", "👤 Кабинет", "Кабинет"],
-				"excludeTextPrefixes": ["/start"]
+				"excludeActions": [
+					"booking.open",
+					"menu.more",
+					"cabinet.open",
+					"diary.open",
+					"start.setrubitimerecord",
+					"start.noticeme",
+					"start.set"
+				],
+				"excludeTexts": [
+					"/start",
+					"⚙️ Меню",
+					"Меню",
+					"📅 Запись на приём",
+					"Запись на приём",
+					"📓 Дневник",
+					"Дневник",
+					"👤 Кабинет",
+					"Кабинет"
+				],
+				"excludeTextPrefixes": [
+					"/start"
+				]
 			}
 		},
 		"steps": [
@@ -416,8 +560,14 @@
 					"templateKey": "telegram:confirmQuestion",
 					"inlineKeyboard": [
 						[
-							{ "text": "Да", "callbackData": "q_confirm:yes" },
-							{ "text": "Нет", "callbackData": "q_confirm:no" }
+							{
+								"text": "Да",
+								"callbackData": "q_confirm:yes"
+							},
+							{
+								"text": "Нет",
+								"callbackData": "q_confirm:no"
+							}
 						]
 					]
 				}
@@ -431,13 +581,39 @@
 		"match": {
 			"context": {
 				"hasActiveDraft": true,
-				"conversationState": { "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title", "waiting_for_question"] }
+				"conversationState": {
+					"$notIn": [
+						"diary.symptom.awaiting_title",
+						"diary.lfk.awaiting_title",
+						"waiting_for_question"
+					]
+				}
 			},
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.setrubitimerecord", "start.noticeme", "start.set"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "📓 Дневник", "Дневник", "👤 Кабинет", "Кабинет"],
-				"excludeTextPrefixes": ["/start"]
+				"excludeActions": [
+					"booking.open",
+					"menu.more",
+					"cabinet.open",
+					"diary.open",
+					"start.setrubitimerecord",
+					"start.noticeme",
+					"start.set"
+				],
+				"excludeTexts": [
+					"/start",
+					"⚙️ Меню",
+					"Меню",
+					"📅 Запись на приём",
+					"Запись на приём",
+					"📓 Дневник",
+					"Дневник",
+					"👤 Кабинет",
+					"Кабинет"
+				],
+				"excludeTextPrefixes": [
+					"/start"
+				]
 			}
 		},
 		"steps": [
@@ -456,8 +632,14 @@
 					"templateKey": "telegram:confirmQuestion",
 					"inlineKeyboard": [
 						[
-							{ "text": "Да", "callbackData": "q_confirm:yes" },
-							{ "text": "Нет", "callbackData": "q_confirm:no" }
+							{
+								"text": "Да",
+								"callbackData": "q_confirm:yes"
+							},
+							{
+								"text": "Нет",
+								"callbackData": "q_confirm:no"
+							}
 						]
 					]
 				}
@@ -469,8 +651,12 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"context": { "hasActiveDraft": true },
-			"input": { "action": "q_confirm:yes" }
+			"context": {
+				"hasActiveDraft": true
+			},
+			"input": {
+				"action": "q_confirm:yes"
+			}
 		},
 		"steps": [
 			{
@@ -493,9 +679,16 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
 					"templateKey": "telegram:questionAccepted"
 				}
 			},
@@ -514,8 +707,12 @@
 		"event": "callback.received",
 		"priority": 20,
 		"match": {
-			"context": { "hasActiveDraft": true },
-			"input": { "action": "q_confirm:no" }
+			"context": {
+				"hasActiveDraft": true
+			},
+			"input": {
+				"action": "q_confirm:no"
+			}
 		},
 		"steps": [
 			{
@@ -537,9 +734,16 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
 					"templateKey": "telegram:questionCancelled"
 				}
 			},
@@ -557,7 +761,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "rem_snooze" }
+			"input": {
+				"action": "rem_snooze"
+			}
 		},
 		"steps": [
 			{
@@ -585,7 +791,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "rem_skip" }
+			"input": {
+				"action": "rem_skip"
+			}
 		},
 		"steps": [
 			{
@@ -612,7 +820,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "rem_skip_r" }
+			"input": {
+				"action": "rem_skip_r"
+			}
 		},
 		"steps": [
 			{
@@ -641,13 +851,39 @@
 		"event": "message.received",
 		"priority": 50,
 		"match": {
-			"actor": { "isAdmin": false },
-			"context": { "conversationState": { "$startsWith": "waiting_skip_reason:" } },
+			"actor": {
+				"isAdmin": false
+			},
+			"context": {
+				"conversationState": {
+					"$startsWith": "waiting_skip_reason:"
+				}
+			},
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.setrubitimerecord", "start.noticeme", "start.set"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "📓 Дневник", "Дневник", "👤 Кабинет", "Кабинет"],
-				"excludeTextPrefixes": ["/start"]
+				"excludeActions": [
+					"booking.open",
+					"menu.more",
+					"cabinet.open",
+					"diary.open",
+					"start.setrubitimerecord",
+					"start.noticeme",
+					"start.set"
+				],
+				"excludeTexts": [
+					"/start",
+					"⚙️ Меню",
+					"Меню",
+					"📅 Запись на приём",
+					"Запись на приём",
+					"📓 Дневник",
+					"Дневник",
+					"👤 Кабинет",
+					"Кабинет"
+				],
+				"excludeTextPrefixes": [
+					"/start"
+				]
 			}
 		},
 		"steps": [
@@ -667,8 +903,12 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "booking.open" },
-			"context": { "linkedPhone": true }
+			"input": {
+				"action": "booking.open"
+			},
+			"context": {
+				"linkedPhone": true
+			}
 		},
 		"steps": [
 			{
@@ -685,18 +925,46 @@
 				"params": {
 					"_when": {
 						"and": [
-							{ "path": "facts.links.webappCabinetUrl", "truthy": true },
-							{ "path": "facts.links.webappAddressUrl", "truthy": true }
+							{
+								"path": "facts.links.webappCabinetUrl",
+								"truthy": true
+							},
+							{
+								"path": "facts.links.webappAddressUrl",
+								"truthy": true
+							}
 						]
 					},
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
 					"templateKey": "telegram:bookingMessage",
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }]
+						[
+							{
+								"textTemplateKey": "telegram:bookingMenu.my",
+								"webAppUrlFact": "links.webappCabinetUrl"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.prepare",
+								"callbackData": "info.prepare"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.address",
+								"webAppUrlFact": "links.webappAddressUrl"
+							}
+						]
 					]
 				}
 			},
@@ -704,15 +972,40 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "facts.links.webappCabinetUrl", "truthy": false },
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"_when": {
+						"path": "facts.links.webappCabinetUrl",
+						"truthy": false
+					},
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
 					"templateKey": "telegram:bookingMessage",
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:bookingMenu.my", "callbackData": "bookings.show" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }]
+						[
+							{
+								"textTemplateKey": "telegram:bookingMenu.my",
+								"callbackData": "bookings.show"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.prepare",
+								"callbackData": "info.prepare"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.address",
+								"callbackData": "info.address"
+							}
+						]
 					]
 				}
 			}
@@ -723,8 +1016,12 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "booking.menu" },
-			"context": { "linkedPhone": true }
+			"input": {
+				"action": "booking.menu"
+			},
+			"context": {
+				"linkedPhone": true
+			}
 		},
 		"steps": [
 			{
@@ -741,17 +1038,38 @@
 				"params": {
 					"_when": {
 						"and": [
-							{ "path": "facts.links.webappCabinetUrl", "truthy": true },
-							{ "path": "facts.links.webappAddressUrl", "truthy": true }
+							{
+								"path": "facts.links.webappCabinetUrl",
+								"truthy": true
+							},
+							{
+								"path": "facts.links.webappAddressUrl",
+								"truthy": true
+							}
 						]
 					},
 					"chatId": "{{actor.chatId}}",
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:bookingMessage",
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }]
+						[
+							{
+								"textTemplateKey": "telegram:bookingMenu.my",
+								"webAppUrlFact": "links.webappCabinetUrl"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.prepare",
+								"callbackData": "info.prepare"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.address",
+								"webAppUrlFact": "links.webappAddressUrl"
+							}
+						]
 					]
 				}
 			},
@@ -759,21 +1077,41 @@
 				"action": "message.edit",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "facts.links.webappCabinetUrl", "truthy": false },
+					"_when": {
+						"path": "facts.links.webappCabinetUrl",
+						"truthy": false
+					},
 					"chatId": "{{actor.chatId}}",
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:bookingMessage",
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:bookingMenu.my", "callbackData": "bookings.show" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }]
+						[
+							{
+								"textTemplateKey": "telegram:bookingMenu.my",
+								"callbackData": "bookings.show"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.prepare",
+								"callbackData": "info.prepare"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.address",
+								"callbackData": "info.address"
+							}
+						]
 					]
 				}
 			},
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
@@ -782,7 +1120,9 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "booking.open" }
+			"input": {
+				"action": "booking.open"
+			}
 		},
 		"steps": [
 			{
@@ -818,8 +1158,12 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "booking.open" },
-			"context": { "linkedPhone": false }
+			"input": {
+				"action": "booking.open"
+			},
+			"context": {
+				"linkedPhone": false
+			}
 		},
 		"steps": [
 			{
@@ -855,8 +1199,12 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "bookings.show" },
-			"context": { "linkedPhone": false }
+			"input": {
+				"action": "bookings.show"
+			},
+			"context": {
+				"linkedPhone": false
+			}
 		},
 		"steps": [
 			{
@@ -899,7 +1247,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "bookings.show" }
+			"input": {
+				"action": "bookings.show"
+			}
 		},
 		"steps": [
 			{
@@ -942,8 +1292,12 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"context": { "conversationState": "await_contact:subscription" },
-			"input": { "phonePresent": true }
+			"context": {
+				"conversationState": "await_contact:subscription"
+			},
+			"input": {
+				"phonePresent": true
+			}
 		},
 		"steps": [
 			{
@@ -970,9 +1324,17 @@
 					"templateKey": "telegram:afterPhoneLinked",
 					"keyboard": [
 						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
-							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+							{
+								"textTemplateKey": "telegram:menu.book"
+							},
+							{
+								"textTemplateKey": "telegram:menu.diary",
+								"webAppUrlFact": "links.webappDiaryUrl"
+							},
+							{
+								"textTemplateKey": "telegram:menu.more",
+								"webAppUrlFact": "links.webappHomeUrl"
+							}
 						]
 					],
 					"resizeKeyboard": true
@@ -985,8 +1347,12 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"context": { "conversationState": "await_contact:subscription" },
-			"input": { "action": "phone.request.cancel" }
+			"context": {
+				"conversationState": "await_contact:subscription"
+			},
+			"input": {
+				"action": "phone.request.cancel"
+			}
 		},
 		"steps": [
 			{
@@ -1022,8 +1388,12 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"context": { "conversationState": "await_contact:subscription" },
-			"input": { "phonePresent": false }
+			"context": {
+				"conversationState": "await_contact:subscription"
+			},
+			"input": {
+				"phonePresent": false
+			}
 		},
 		"steps": [
 			{
@@ -1052,8 +1422,12 @@
 		"event": "message.received",
 		"priority": 30,
 		"match": {
-			"input": { "action": "menu.more" },
-			"context": { "linkedPhone": false }
+			"input": {
+				"action": "menu.more"
+			},
+			"context": {
+				"linkedPhone": false
+			}
 		},
 		"steps": [
 			{
@@ -1090,8 +1464,12 @@
 		"event": "message.received",
 		"priority": 30,
 		"match": {
-			"input": { "action": "cabinet.open" },
-			"context": { "linkedPhone": false }
+			"input": {
+				"action": "cabinet.open"
+			},
+			"context": {
+				"linkedPhone": false
+			}
 		},
 		"steps": [
 			{
@@ -1128,8 +1506,12 @@
 		"event": "callback.received",
 		"priority": 30,
 		"match": {
-			"input": { "action": "cabinet.open" },
-			"context": { "linkedPhone": false }
+			"input": {
+				"action": "cabinet.open"
+			},
+			"context": {
+				"linkedPhone": false
+			}
 		},
 		"steps": [
 			{
@@ -1173,46 +1555,12 @@
 		"event": "message.received",
 		"priority": 30,
 		"match": {
-			"input": { "action": "diary.open" },
-			"context": { "linkedPhone": false }
-		},
-		"steps": [
-			{
-				"action": "user.state.set",
-				"mode": "sync",
-				"params": {
-					"channelUserId": "{{actor.channelUserId}}",
-					"state": "await_contact:subscription"
-				}
+			"input": {
+				"action": "diary.open"
 			},
-			{
-				"action": "message.replyKeyboard.show",
-				"mode": "async",
-				"params": {
-					"chatId": "{{actor.chatId}}",
-					"templateKey": "telegram:confirmPhoneForBooking",
-					"keyboard": [
-						[
-							{
-								"textTemplateKey": "telegram:requestContact.button",
-								"requestPhone": true
-							}
-						]
-					],
-					"resizeKeyboard": true,
-					"oneTimeKeyboard": true
-				}
+			"context": {
+				"linkedPhone": false
 			}
-		]
-	},
-	{
-		"id": "telegram.assistant.open.need_phone",
-		"source": "telegram",
-		"event": "callback.received",
-		"priority": 35,
-		"match": {
-			"input": { "action": "assistant.open" },
-			"context": { "linkedPhone": false }
 		},
 		"steps": [
 			{
@@ -1239,13 +1587,6 @@
 					],
 					"resizeKeyboard": true,
 					"oneTimeKeyboard": true
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
-					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}
 		]
@@ -1255,21 +1596,40 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "menu.more" },
-			"context": { "linkedPhone": true }
+			"input": {
+				"action": "menu.more"
+			},
+			"context": {
+				"linkedPhone": true
+			}
 		},
 		"steps": [
 			{
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "facts.links.webappHomeUrl", "truthy": true },
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"_when": {
+						"path": "facts.links.webappHomeUrl",
+						"truthy": true
+					},
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
 					"templateKey": "telegram:menu.webapp.prompt",
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:menu.webapp.openButton", "webAppUrlFact": "links.webappHomeUrl" }]
+						[
+							{
+								"textTemplateKey": "telegram:menu.webapp.openButton",
+								"webAppUrlFact": "links.webappHomeUrl"
+							}
+						]
 					]
 				}
 			},
@@ -1277,10 +1637,20 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "facts.links.webappHomeUrl", "truthy": false },
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"_when": {
+						"path": "facts.links.webappHomeUrl",
+						"truthy": false
+					},
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
 					"templateKey": "telegram:notImplemented"
 				}
 			}
@@ -1291,8 +1661,12 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "cabinet.open" },
-			"context": { "linkedPhone": true }
+			"input": {
+				"action": "cabinet.open"
+			},
+			"context": {
+				"linkedPhone": true
+			}
 		},
 		"steps": [
 			{
@@ -1303,9 +1677,17 @@
 					"templateKey": "telegram:cabinet.placeholder",
 					"keyboard": [
 						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
-							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+							{
+								"textTemplateKey": "telegram:menu.book"
+							},
+							{
+								"textTemplateKey": "telegram:menu.diary",
+								"webAppUrlFact": "links.webappDiaryUrl"
+							},
+							{
+								"textTemplateKey": "telegram:menu.more",
+								"webAppUrlFact": "links.webappHomeUrl"
+							}
 						]
 					],
 					"resizeKeyboard": true
@@ -1318,8 +1700,12 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "cabinet.open" },
-			"context": { "linkedPhone": true }
+			"input": {
+				"action": "cabinet.open"
+			},
+			"context": {
+				"linkedPhone": true
+			}
 		},
 		"steps": [
 			{
@@ -1330,9 +1716,17 @@
 					"templateKey": "telegram:cabinet.placeholder",
 					"keyboard": [
 						[
-							{ "textTemplateKey": "telegram:menu.book" },
-							{ "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl" },
-							{ "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl" }
+							{
+								"textTemplateKey": "telegram:menu.book"
+							},
+							{
+								"textTemplateKey": "telegram:menu.diary",
+								"webAppUrlFact": "links.webappDiaryUrl"
+							},
+							{
+								"textTemplateKey": "telegram:menu.more",
+								"webAppUrlFact": "links.webappHomeUrl"
+							}
 						]
 					],
 					"resizeKeyboard": true
@@ -1352,21 +1746,40 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"input": { "action": "diary.open" },
-			"context": { "linkedPhone": true }
+			"input": {
+				"action": "diary.open"
+			},
+			"context": {
+				"linkedPhone": true
+			}
 		},
 		"steps": [
 			{
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "facts.links.webappDiaryUrl", "truthy": true },
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"_when": {
+						"path": "facts.links.webappDiaryUrl",
+						"truthy": true
+					},
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
 					"templateKey": "telegram:diary.webapp.prompt",
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:diary.webapp.openButton", "webAppUrlFact": "links.webappDiaryUrl" }]
+						[
+							{
+								"textTemplateKey": "telegram:diary.webapp.openButton",
+								"webAppUrlFact": "links.webappDiaryUrl"
+							}
+						]
 					]
 				}
 			},
@@ -1374,10 +1787,20 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "facts.links.webappDiaryUrl", "truthy": false },
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"_when": {
+						"path": "facts.links.webappDiaryUrl",
+						"truthy": false
+					},
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
 					"templateKey": "telegram:notImplemented"
 				}
 			}
@@ -1388,7 +1811,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.symptom.open" }
+			"input": {
+				"action": "diary.symptom.open"
+			}
 		},
 		"steps": [
 			{
@@ -1407,7 +1832,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.symptom.select" }
+			"input": {
+				"action": "diary.symptom.select"
+			}
 		},
 		"steps": [
 			{
@@ -1427,7 +1854,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.symptom.value" }
+			"input": {
+				"action": "diary.symptom.value"
+			}
 		},
 		"steps": [
 			{
@@ -1448,7 +1877,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.symptom.entryType" }
+			"input": {
+				"action": "diary.symptom.entryType"
+			}
 		},
 		"steps": [
 			{
@@ -1470,7 +1901,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.symptom.add" }
+			"input": {
+				"action": "diary.symptom.add"
+			}
 		},
 		"steps": [
 			{
@@ -1489,7 +1922,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.symptom.back" }
+			"input": {
+				"action": "diary.symptom.back"
+			}
 		},
 		"steps": [
 			{
@@ -1516,8 +1951,12 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"actor": { "userState": "diary.symptom.awaiting_title" },
-			"input": { "textPresent": true }
+			"actor": {
+				"userState": "diary.symptom.awaiting_title"
+			},
+			"input": {
+				"textPresent": true
+			}
 		},
 		"steps": [
 			{
@@ -1553,7 +1992,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.lfk.open" }
+			"input": {
+				"action": "diary.lfk.open"
+			}
 		},
 		"steps": [
 			{
@@ -1572,7 +2013,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.lfk.select" }
+			"input": {
+				"action": "diary.lfk.select"
+			}
 		},
 		"steps": [
 			{
@@ -1592,7 +2035,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.lfk.session" }
+			"input": {
+				"action": "diary.lfk.session"
+			}
 		},
 		"steps": [
 			{
@@ -1612,7 +2057,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.lfk.add" }
+			"input": {
+				"action": "diary.lfk.add"
+			}
 		},
 		"steps": [
 			{
@@ -1631,8 +2078,12 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"actor": { "userState": "diary.lfk.awaiting_title" },
-			"input": { "textPresent": true }
+			"actor": {
+				"userState": "diary.lfk.awaiting_title"
+			},
+			"input": {
+				"textPresent": true
+			}
 		},
 		"steps": [
 			{
@@ -1657,10 +2108,24 @@
 				"action": "message.send",
 				"mode": "async",
 				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
+					"recipient": {
+						"chatId": "{{actor.chatId}}"
+					},
 					"templateKey": "telegram:diary.lfk.sessionSuccess",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"inlineKeyboard": [[{ "text": "⬅️ К списку ЛФК", "callbackData": "diary.lfk.open" }]]
+					"delivery": {
+						"channels": [
+							"telegram"
+						],
+						"maxAttempts": 1
+					},
+					"inlineKeyboard": [
+						[
+							{
+								"text": "⬅️ К списку ЛФК",
+								"callbackData": "diary.lfk.open"
+							}
+						]
+					]
 				}
 			}
 		]
@@ -1670,7 +2135,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "diary.lfk.back" }
+			"input": {
+				"action": "diary.lfk.back"
+			}
 		},
 		"steps": [
 			{
@@ -1694,48 +2161,6 @@
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
-			}
-		]
-	},
-	{
-		"id": "telegram.assistant.open",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": {
-			"input": { "action": "assistant.open" }
-		},
-		"steps": [
-			{
-				"action": "message.edit",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "facts.links.webappEntryUrl", "truthy": true },
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"templateKey": "telegram:assistant.webapp.prompt",
-					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:assistant.webapp.openButton", "webAppUrlFact": "links.webappEntryUrl" }],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-					]
-				}
-			},
-			{
-				"action": "message.edit",
-				"mode": "async",
-				"params": {
-					"_when": { "path": "facts.links.webappEntryUrl", "truthy": false },
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"templateKey": "telegram:assistant.webapp.prompt",
-					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-					]
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
 				"params": {
 					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
@@ -1747,7 +2172,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "reminders.dashboard" }
+			"input": {
+				"action": "reminders.dashboard"
+			}
 		},
 		"steps": [
 			{
@@ -1766,12 +2193,62 @@
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:reminders.dashboard.title",
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:reminders.category.exercise", "callbackData": "reminders.toggle.exercise" }, { "text": "Расписание", "callbackData": "reminders.cycle.exercise" }],
-						[{ "textTemplateKey": "telegram:reminders.category.warmup", "callbackData": "reminders.toggle.warmup" }, { "text": "Расписание", "callbackData": "reminders.cycle.warmup" }],
-						[{ "textTemplateKey": "telegram:reminders.category.breathing", "callbackData": "reminders.toggle.breathing" }, { "text": "Расписание", "callbackData": "reminders.cycle.breathing" }],
-						[{ "textTemplateKey": "telegram:reminders.category.water", "callbackData": "reminders.toggle.water" }, { "text": "Расписание", "callbackData": "reminders.cycle.water" }],
-						[{ "textTemplateKey": "telegram:reminders.category.supplements_medication", "callbackData": "reminders.toggle.supplements_medication" }, { "text": "Расписание", "callbackData": "reminders.cycle.supplements_medication" }],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
+						[
+							{
+								"textTemplateKey": "telegram:reminders.category.exercise",
+								"callbackData": "reminders.toggle.exercise"
+							},
+							{
+								"text": "Расписание",
+								"callbackData": "reminders.cycle.exercise"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:reminders.category.warmup",
+								"callbackData": "reminders.toggle.warmup"
+							},
+							{
+								"text": "Расписание",
+								"callbackData": "reminders.cycle.warmup"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:reminders.category.breathing",
+								"callbackData": "reminders.toggle.breathing"
+							},
+							{
+								"text": "Расписание",
+								"callbackData": "reminders.cycle.breathing"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:reminders.category.water",
+								"callbackData": "reminders.toggle.water"
+							},
+							{
+								"text": "Расписание",
+								"callbackData": "reminders.cycle.water"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:reminders.category.supplements_medication",
+								"callbackData": "reminders.toggle.supplements_medication"
+							},
+							{
+								"text": "Расписание",
+								"callbackData": "reminders.cycle.supplements_medication"
+							}
+						],
+						[
+							{
+								"text": "⬅️ Назад",
+								"callbackData": "menu.back"
+							}
+						]
 					]
 				}
 			},
@@ -1782,301 +2259,32 @@
 					"callbackQueryId": "{{input.callbackQueryId}}"
 				}
 			}
-		]
-	},
-	{
-		"id": "telegram.content.useful_lessons",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": {
-			"input": { "action": "content.useful_lessons" }
-		},
-		"steps": [
-			{
-				"action": "content.section.open",
-				"mode": "sync",
-				"params": {
-					"section": "useful_lessons",
-					"chatId": "{{actor.chatId}}"
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
-					"callbackQueryId": "{{input.callbackQueryId}}"
-				}
-			}
-		]
-	},
-	{
-		"id": "telegram.content.emergency_help",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": {
-			"input": { "action": "content.emergency_help" }
-		},
-		"steps": [
-			{
-				"action": "message.edit",
-				"mode": "async",
-				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"templateKey": "telegram:emergency.prompt",
-					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:emergency.back_pain", "callbackData": "emergency.back_pain" }],
-						[{ "textTemplateKey": "telegram:emergency.neck_pain", "callbackData": "emergency.neck_pain" }],
-						[{ "textTemplateKey": "telegram:emergency.headache", "callbackData": "emergency.headache" }],
-						[{ "textTemplateKey": "telegram:emergency.injury", "callbackData": "emergency.injury" }],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-					]
-				}
-			},
-			{
-				"action": "callback.answer",
-				"mode": "async",
-				"params": {
-					"callbackQueryId": "{{input.callbackQueryId}}"
-				}
-			}
-		]
-	},
-	{
-		"id": "telegram.emergency.back_pain",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "emergency.back_pain" } },
-		"steps": [
-			{
-				"action": "message.compose",
-				"mode": "async",
-				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
-					"templateKey": "telegram:emergency.placeholder",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-				}
-			},
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.emergency.neck_pain",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "emergency.neck_pain" } },
-		"steps": [
-			{
-				"action": "message.compose",
-				"mode": "async",
-				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
-					"templateKey": "telegram:emergency.placeholder",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-				}
-			},
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.emergency.headache",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "emergency.headache" } },
-		"steps": [
-			{
-				"action": "message.compose",
-				"mode": "async",
-				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
-					"templateKey": "telegram:emergency.placeholder",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-				}
-			},
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.emergency.injury",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "emergency.injury" } },
-		"steps": [
-			{
-				"action": "message.compose",
-				"mode": "async",
-				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
-					"templateKey": "telegram:emergency.placeholder",
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 }
-				}
-			},
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
 		]
 	},
 	{
 		"id": "telegram.reminders.toggle.exercise",
 		"source": "telegram",
 		"event": "callback.received",
-		"match": { "input": { "action": "reminders.toggle.exercise" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "exercise" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.reminders.toggle.warmup",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "reminders.toggle.warmup" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "warmup" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.reminders.toggle.water",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "reminders.toggle.water" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "water" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.reminders.toggle.breathing",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "reminders.toggle.breathing" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "breathing" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.reminders.toggle.supplements_medication",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "reminders.toggle.supplements_medication" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.toggle", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "supplements_medication" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.reminders.cycle.exercise",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "reminders.cycle.exercise" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "exercise" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.reminders.cycle.warmup",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "reminders.cycle.warmup" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "warmup" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.reminders.cycle.water",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "reminders.cycle.water" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "water" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.reminders.cycle.breathing",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "reminders.cycle.breathing" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "breathing" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.reminders.cycle.supplements_medication",
-		"source": "telegram",
-		"event": "callback.received",
-		"match": { "input": { "action": "reminders.cycle.supplements_medication" } },
-		"steps": [
-			{ "action": "reminders.rules.get", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "resource": "telegram" } },
-			{ "action": "reminders.rule.cyclePreset", "mode": "sync", "params": { "channelUserId": "{{actor.channelUserId}}", "category": "supplements_medication" } },
-			{ "action": "callback.answer", "mode": "async", "params": { "callbackQueryId": "{{input.callbackQueryId}}" } }
-		]
-	},
-	{
-		"id": "telegram.notifications.show",
-		"source": "telegram",
-		"event": "callback.received",
 		"match": {
-			"input": { "action": "notifications.show" }
+			"input": {
+				"action": "reminders.toggle.exercise"
+			}
 		},
 		"steps": [
 			{
-				"action": "notifications.get",
+				"action": "reminders.rules.get",
 				"mode": "sync",
 				"params": {
-					"channelUserId": "{{actor.channelUserId}}"
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram"
 				}
 			},
 			{
-				"action": "message.edit",
-				"mode": "async",
+				"action": "reminders.rule.toggle",
+				"mode": "sync",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
-					"inlineKeyboard": [
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.spb",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.spb"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.msk",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.msk"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.online",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.online"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.bookings",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.bookings"
-							}
-						],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-					]
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "exercise"
 				}
 			},
 			{
@@ -2089,254 +2297,317 @@
 		]
 	},
 	{
-		"id": "telegram.notifications.toggle.spb",
+		"id": "telegram.reminders.toggle.warmup",
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "notifications.toggle.spb" }
+			"input": {
+				"action": "reminders.toggle.warmup"
+			}
 		},
 		"steps": [
 			{
-				"action": "notifications.toggle",
+				"action": "reminders.rules.get",
 				"mode": "sync",
 				"params": {
 					"channelUserId": "{{actor.channelUserId}}",
-					"toggleKey": "notify_toggle_spb"
+					"resource": "telegram"
 				}
 			},
 			{
-				"action": "message.edit",
-				"mode": "async",
+				"action": "reminders.rule.toggle",
+				"mode": "sync",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
-					"inlineKeyboard": [
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.spb",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.spb"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.msk",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.msk"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.online",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.online"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.bookings",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.bookings"
-							}
-						],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-					]
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "warmup"
 				}
 			},
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
 	{
-		"id": "telegram.notifications.toggle.msk",
+		"id": "telegram.reminders.toggle.water",
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "notifications.toggle.msk" }
+			"input": {
+				"action": "reminders.toggle.water"
+			}
 		},
 		"steps": [
 			{
-				"action": "notifications.toggle",
+				"action": "reminders.rules.get",
 				"mode": "sync",
 				"params": {
 					"channelUserId": "{{actor.channelUserId}}",
-					"toggleKey": "notify_toggle_msk"
+					"resource": "telegram"
 				}
 			},
 			{
-				"action": "message.edit",
-				"mode": "async",
+				"action": "reminders.rule.toggle",
+				"mode": "sync",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
-					"inlineKeyboard": [
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.spb",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.spb"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.msk",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.msk"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.online",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.online"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.bookings",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.bookings"
-							}
-						],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-					]
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "water"
 				}
 			},
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
 	{
-		"id": "telegram.notifications.toggle.online",
+		"id": "telegram.reminders.toggle.breathing",
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "notifications.toggle.online" }
+			"input": {
+				"action": "reminders.toggle.breathing"
+			}
 		},
 		"steps": [
 			{
-				"action": "notifications.toggle",
+				"action": "reminders.rules.get",
 				"mode": "sync",
 				"params": {
 					"channelUserId": "{{actor.channelUserId}}",
-					"toggleKey": "notify_toggle_online"
+					"resource": "telegram"
 				}
 			},
 			{
-				"action": "message.edit",
-				"mode": "async",
+				"action": "reminders.rule.toggle",
+				"mode": "sync",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
-					"inlineKeyboard": [
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.spb",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.spb"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.msk",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.msk"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.online",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.online"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.bookings",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.bookings"
-							}
-						],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-					]
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "breathing"
 				}
 			},
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
 	{
-		"id": "telegram.notifications.toggle.bookings",
+		"id": "telegram.reminders.toggle.supplements_medication",
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "notifications.toggle.bookings" }
+			"input": {
+				"action": "reminders.toggle.supplements_medication"
+			}
 		},
 		"steps": [
 			{
-				"action": "notifications.toggle",
+				"action": "reminders.rules.get",
 				"mode": "sync",
 				"params": {
 					"channelUserId": "{{actor.channelUserId}}",
-					"toggleKey": "notify_toggle_bookings"
+					"resource": "telegram"
 				}
 			},
 			{
-				"action": "message.edit",
-				"mode": "async",
+				"action": "reminders.rule.toggle",
+				"mode": "sync",
 				"params": {
-					"chatId": "{{actor.chatId}}",
-					"messageId": "{{input.messageId}}",
-					"text": "🔔 Настройки уведомлений\n\nВыберите интересующие вас категории:",
-					"inlineKeyboard": [
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.spb",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.spb"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.msk",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.msk"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.online",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.online"
-							}
-						],
-						[
-							{
-								"textTemplateKey": "telegram:notifications.label.bookings",
-								"prefixTemplateKey": "telegram:notifications.togglePrefix",
-								"callbackData": "notifications.toggle.bookings"
-							}
-						],
-						[{ "text": "⬅️ Назад", "callbackData": "menu.back" }]
-					]
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "supplements_medication"
 				}
 			},
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.exercise",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "reminders.cycle.exercise"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.rules.get",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram"
+				}
+			},
+			{
+				"action": "reminders.rule.cyclePreset",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "exercise"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.warmup",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "reminders.cycle.warmup"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.rules.get",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram"
+				}
+			},
+			{
+				"action": "reminders.rule.cyclePreset",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "warmup"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.water",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "reminders.cycle.water"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.rules.get",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram"
+				}
+			},
+			{
+				"action": "reminders.rule.cyclePreset",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "water"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.breathing",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "reminders.cycle.breathing"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.rules.get",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram"
+				}
+			},
+			{
+				"action": "reminders.rule.cyclePreset",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "breathing"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
+			}
+		]
+	},
+	{
+		"id": "telegram.reminders.cycle.supplements_medication",
+		"source": "telegram",
+		"event": "callback.received",
+		"match": {
+			"input": {
+				"action": "reminders.cycle.supplements_medication"
+			}
+		},
+		"steps": [
+			{
+				"action": "reminders.rules.get",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"resource": "telegram"
+				}
+			},
+			{
+				"action": "reminders.rule.cyclePreset",
+				"mode": "sync",
+				"params": {
+					"channelUserId": "{{actor.channelUserId}}",
+					"category": "supplements_medication"
+				}
+			},
+			{
+				"action": "callback.answer",
+				"mode": "async",
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
@@ -2345,14 +2616,21 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "bookings.show" },
-			"context": { "linkedPhone": true }
+			"input": {
+				"action": "bookings.show"
+			},
+			"context": {
+				"linkedPhone": true
+			}
 		},
 		"conditions": [
 			{
 				"kind": "context.query",
 				"name": "bookings",
-				"query": { "type": "bookings.forUser", "userId": "{{context.phoneNormalized}}" }
+				"query": {
+					"type": "bookings.forUser",
+					"userId": "{{context.phoneNormalized}}"
+				}
 			}
 		],
 		"steps": [
@@ -2360,15 +2638,35 @@
 				"action": "message.edit",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "queries.bookings.items.length", "equals": 0 },
+					"_when": {
+						"path": "queries.bookings.items.length",
+						"equals": 0
+					},
 					"chatId": "{{actor.chatId}}",
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:noBookings",
-					"vars": { "queries": "{{queries}}" },
+					"vars": {
+						"queries": "{{queries}}"
+					},
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }],
-						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.prepare",
+								"callbackData": "info.prepare"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.address",
+								"callbackData": "info.address"
+							}
+						],
+						[
+							{
+								"text": "⬅️ Назад",
+								"callbackData": "booking.menu"
+							}
+						]
 					]
 				}
 			},
@@ -2376,23 +2674,45 @@
 				"action": "message.edit",
 				"mode": "async",
 				"params": {
-					"_when": { "path": "queries.bookings.items.length", "truthy": true },
+					"_when": {
+						"path": "queries.bookings.items.length",
+						"truthy": true
+					},
 					"chatId": "{{actor.chatId}}",
 					"messageId": "{{input.messageId}}",
 					"templateKey": "telegram:bookingsList",
-					"vars": { "queries": "{{queries}}" },
+					"vars": {
+						"queries": "{{queries}}"
+					},
 					"parseMode": "HTML",
 					"inlineKeyboard": [
-						[{ "textTemplateKey": "telegram:bookingsScreen.prepare", "callbackData": "info.prepare" }],
-						[{ "textTemplateKey": "telegram:bookingsScreen.address", "callbackData": "info.address" }],
-						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.prepare",
+								"callbackData": "info.prepare"
+							}
+						],
+						[
+							{
+								"textTemplateKey": "telegram:bookingsScreen.address",
+								"callbackData": "info.address"
+							}
+						],
+						[
+							{
+								"text": "⬅️ Назад",
+								"callbackData": "booking.menu"
+							}
+						]
 					]
 				}
 			},
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
@@ -2401,7 +2721,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "info.prepare" }
+			"input": {
+				"action": "info.prepare"
+			}
 		},
 		"steps": [
 			{
@@ -2413,14 +2735,21 @@
 					"templateKey": "telegram:info.prepare.body",
 					"parseMode": "HTML",
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
+						[
+							{
+								"text": "⬅️ Назад",
+								"callbackData": "booking.menu"
+							}
+						]
 					]
 				}
 			},
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
@@ -2429,7 +2758,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "info.address" }
+			"input": {
+				"action": "info.address"
+			}
 		},
 		"steps": [
 			{
@@ -2441,14 +2772,21 @@
 					"templateKey": "telegram:info.address.body",
 					"parseMode": "HTML",
 					"inlineKeyboard": [
-						[{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
+						[
+							{
+								"text": "⬅️ Назад",
+								"callbackData": "booking.menu"
+							}
+						]
 					]
 				}
 			},
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
@@ -2457,7 +2795,9 @@
 		"source": "telegram",
 		"event": "callback.received",
 		"match": {
-			"input": { "action": "menu.back" }
+			"input": {
+				"action": "menu.back"
+			}
 		},
 		"steps": [
 			{
@@ -2473,7 +2813,9 @@
 			{
 				"action": "callback.answer",
 				"mode": "async",
-				"params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+				"params": {
+					"callbackQueryId": "{{input.callbackQueryId}}"
+				}
 			}
 		]
 	},
@@ -2482,15 +2824,42 @@
 		"source": "telegram",
 		"event": "message.received",
 		"match": {
-			"actor": { "isAdmin": false },
+			"actor": {
+				"isAdmin": false
+			},
 			"context": {
-				"conversationState": { "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title"] }
+				"conversationState": {
+					"$notIn": [
+						"diary.symptom.awaiting_title",
+						"diary.lfk.awaiting_title"
+					]
+				}
 			},
 			"input": {
 				"textPresent": true,
-				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.setrubitimerecord", "start.noticeme", "start.set"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "📓 Дневник", "Дневник", "👤 Кабинет", "Кабинет"],
-				"excludeTextPrefixes": ["/start"]
+				"excludeActions": [
+					"booking.open",
+					"menu.more",
+					"cabinet.open",
+					"diary.open",
+					"start.setrubitimerecord",
+					"start.noticeme",
+					"start.set"
+				],
+				"excludeTexts": [
+					"/start",
+					"⚙️ Меню",
+					"Меню",
+					"📅 Запись на приём",
+					"Запись на приём",
+					"📓 Дневник",
+					"Дневник",
+					"👤 Кабинет",
+					"Кабинет"
+				],
+				"excludeTextPrefixes": [
+					"/start"
+				]
 			}
 		},
 		"steps": [
@@ -2509,8 +2878,14 @@
 					"templateKey": "telegram:confirmQuestion",
 					"inlineKeyboard": [
 						[
-							{ "text": "Да", "callbackData": "q_confirm:yes" },
-							{ "text": "Нет", "callbackData": "q_confirm:no" }
+							{
+								"text": "Да",
+								"callbackData": "q_confirm:yes"
+							},
+							{
+								"text": "Нет",
+								"callbackData": "q_confirm:no"
+							}
 						]
 					]
 				}

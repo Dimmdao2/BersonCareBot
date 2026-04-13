@@ -17,7 +17,7 @@ import type {
 } from '../contracts/index.js';
 import type { SupportRelayPolicy } from '../domain/executor/helpers.js';
 import { executeDomainAction, processAcceptedIncomingEvent } from '../domain/index.js';
-import { TELEGRAM_START_SPECIAL_ACTIONS } from '../orchestrator/telegramStartConstants.js';
+import { MESSENGER_START_SPECIAL_ACTIONS } from '../orchestrator/messengerStartConstants.js';
 
 export type IncomingEventPipelineDeps = {
   readPort: DbReadPort;
@@ -111,7 +111,7 @@ async function allowTelegramStartThroughDedup(
   const text = typeof incoming.text === 'string' ? incoming.text.trim() : '';
   if (!text.startsWith('/start')) return true;
   const action = typeof incoming.action === 'string' ? incoming.action.trim() : '';
-  if (action && TELEGRAM_START_SPECIAL_ACTIONS.has(action)) return true;
+  if (action && MESSENGER_START_SPECIAL_ACTIONS.has(action)) return true;
   const rawId = asNumberString(incoming.channelUserId) ?? asString(incoming.channelId) ?? asString(event.meta.userId);
   const telegramUserId = rawId ? Number(rawId) : NaN;
   if (!Number.isFinite(telegramUserId)) return true;

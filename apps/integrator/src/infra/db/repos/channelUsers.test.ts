@@ -8,6 +8,7 @@ import {
   setUserPhone,
   setUserState,
   tryAdvanceLastUpdateId,
+  tryConsumeStart,
   upsertUser,
   updateNotificationSettings,
 } from './channelUsers.js';
@@ -209,5 +210,32 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(linkSqlText).toContain('LEFT JOIN LATERAL');
     expect(linkSqlText).toContain('FROM contacts c');
     expect(linkSqlText).toContain('c.label = $1');
+  });
+
+  describe('tryConsumeStart', () => {
+    it('returns true when UPDATE succeeds (slot consumed)', async () => {
+      const { db, query } = createDbMock();
+      query.mockResolvedValueOnce({ rows: [{ identity_id: '1' }], rowCount: 1 } as DbQueryResult);
+      await expect(tryConsumeStart(db, 42)).resolves.toBe(true);
+      expect(query).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns false only when identity exists and last_start_at is inside debounce window', async () => {
+      const { db, query } = createDbMock();
+      query
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult)
+        .mockResolvedValueOnce({ rows: [{ '?column?': 1 }], rowCount: 1 } as DbQueryResult);
+      await expect(tryConsumeStart(db, 42)).resolves.toBe(false);
+      expect(query).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns true when no identity/state (e.g. after purge) so /start is not swallowed', async () => {
+      const { db, query } = createDbMock();
+      query
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult)
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult);
+      await expect(tryConsumeStart(db, 42)).resolves.toBe(true);
+      expect(query).toHaveBeenCalledTimes(2);
+    });
   });
 });

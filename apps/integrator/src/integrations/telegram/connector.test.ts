@@ -5,15 +5,13 @@ import { fromTelegram, normalizeTelegramAction } from './mapIn.js';
 
 describe('normalizeTelegramAction', () => {
   it('maps legacy callback keys to canonical action keys', () => {
-    expect(normalizeTelegramAction('menu_notifications')).toBe('notifications.show');
     expect(normalizeTelegramAction('menu_my_bookings')).toBe('bookings.show');
     expect(normalizeTelegramAction('menu_back')).toBe('menu.back');
-    expect(normalizeTelegramAction('notify_toggle_spb')).toBe('notifications.toggle.spb');
   });
 
   it('keeps canonical action keys unchanged', () => {
-    expect(normalizeTelegramAction('notifications.toggle.online')).toBe('notifications.toggle.online');
     expect(normalizeTelegramAction('bookings.show')).toBe('bookings.show');
+    expect(normalizeTelegramAction('menu.back')).toBe('menu.back');
   });
 });
 
@@ -30,7 +28,7 @@ describe('fromTelegram', () => {
             chat: { id: 123, type: 'private' },
             date: 1700000000,
           },
-          data: 'menu_notifications',
+          data: 'menu_my_bookings',
         },
       },
       { userRow: null, telegramId: '123' },
@@ -38,8 +36,8 @@ describe('fromTelegram', () => {
 
     expect(update).toMatchObject({
       kind: 'callback',
-      action: 'notifications.show',
-      callbackData: 'notifications.show',
+      action: 'bookings.show',
+      callbackData: 'bookings.show',
     });
     expect(update && 'hasLinkedPhone' in update ? update.hasLinkedPhone : undefined).toBeUndefined();
   });
@@ -174,7 +172,7 @@ describe('telegramIncomingToEvent', () => {
       chatId: 123,
       messageId: 10,
       channelUserId: 123,
-      callbackData: 'menu_notifications',
+      callbackData: 'menu_my_bookings',
       callbackQueryId: 'cb-1',
     };
 
