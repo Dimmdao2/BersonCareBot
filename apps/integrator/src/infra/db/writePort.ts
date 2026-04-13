@@ -157,6 +157,19 @@ function readResource(params: Record<string, unknown>): string {
   return r ?? 'telegram';
 }
 
+/** Last digits only — avoid logging full E.164 in clear text. */
+function phoneLogSuffix(phoneNormalized: string): string {
+  const d = phoneNormalized.replace(/\D/g, '');
+  if (d.length <= 4) return '****';
+  return d.slice(-4);
+}
+
+function pgSqlStateFromUnknown(err: unknown): string | undefined {
+  if (typeof err !== 'object' || err === null) return undefined;
+  const code = (err as { code?: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
+}
+
 /**
  * Creates the default DbWritePort implementation used by eventGateway.
  * It maps canonical write mutations to existing infra repositories.
@@ -384,14 +397,25 @@ export function createDbWritePort(input: {
         }
         case 'user.phone.link': {
           const resource = readResource(mutation.params);
+          const bindLogBase = {
+            event: 'messenger_phone_bind_tx' as const,
+            bindOutcome: 'bind_tx_fail' as const,
+            resource,
+            ...(asNonEmptyString(mutation.params.correlationId)
+              ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
+              : {}),
+          };
           if (resource !== 'telegram' && resource !== 'max') {
+            logger.warn({ ...bindLogBase, reason: 'unsupported_resource' }, 'bind_tx_fail');
             return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
           }
           const channelUserId = readChannelUserId(mutation.params);
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
           if (!channelUserId || !phoneNormalized) {
+            logger.warn({ ...bindLogBase, reason: 'missing_input' }, 'bind_tx_fail');
             return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
           }
+          const phoneSuffix = phoneLogSuffix(phoneNormalized);
           try {
             let applied = false;
             let phoneLinkEarly: DbWriteDbResult | undefined;
@@ -427,16 +451,58 @@ export function createDbWritePort(input: {
               }
               applied = true;
             });
-            if (phoneLinkEarly) return phoneLinkEarly;
+            if (phoneLinkEarly) {
+              logger.warn(
+                {
+                  ...bindLogBase,
+                  bindOutcome: 'bind_tx_fail',
+                  reason: phoneLinkEarly.phoneLinkReason ?? 'no_integrator_identity',
+                  phoneSuffix,
+                },
+                'bind_tx_fail',
+              );
+              return phoneLinkEarly;
+            }
+            logger.info(
+              {
+                event: 'messenger_phone_bind_tx',
+                bindOutcome: 'bind_tx_ok',
+                resource,
+                phoneSuffix,
+                ...(asNonEmptyString(mutation.params.correlationId)
+                  ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
+                  : {}),
+              },
+              'bind_tx_ok',
+            );
             return { userPhoneLinkApplied: applied };
           } catch (err) {
             if (err instanceof MessengerPhoneLinkError) {
+              const cause = (err as Error & { cause?: unknown }).cause;
+              const sqlState = pgSqlStateFromUnknown(cause) ?? pgSqlStateFromUnknown(err);
+              logger.warn(
+                {
+                  ...bindLogBase,
+                  reason: err.code,
+                  ...(sqlState ? { sqlState } : {}),
+                  phoneSuffix,
+                },
+                'bind_tx_fail',
+              );
               if (err.code === 'db_transient_failure') {
                 return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true, phoneLinkReason: err.code };
               }
               return { userPhoneLinkApplied: false, phoneLinkReason: err.code };
             }
-            logger.error({ err }, 'user.phone.link: unexpected error');
+            const sqlState = pgSqlStateFromUnknown(err);
+            logger.error(
+              { err, ...bindLogBase, ...(sqlState ? { sqlState } : {}), phoneSuffix },
+              'user.phone.link: unexpected error',
+            );
+            logger.warn(
+              { ...bindLogBase, reason: 'db_transient_failure', ...(sqlState ? { sqlState } : {}), phoneSuffix },
+              'bind_tx_fail',
+            );
             return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true, phoneLinkReason: 'db_transient_failure' };
           }
         }

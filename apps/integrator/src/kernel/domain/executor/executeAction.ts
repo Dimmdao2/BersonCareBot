@@ -242,7 +242,12 @@ export async function executeAction(
         if (messengerChannel === 'telegram') {
           syncWrites.push({
             type: 'user.phone.link',
-            params: { resource: 'telegram', channelUserId: externalId, phoneNormalized },
+            params: {
+              resource: 'telegram',
+              channelUserId: externalId,
+              phoneNormalized,
+              ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+            },
           });
           syncWrites.push({
             type: 'user.state.set',
@@ -251,7 +256,12 @@ export async function executeAction(
         } else if (messengerChannel === 'max') {
           syncWrites.push({
             type: 'user.phone.link',
-            params: { resource: 'max', channelUserId: externalId, phoneNormalized },
+            params: {
+              resource: 'max',
+              channelUserId: externalId,
+              phoneNormalized,
+              ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
+            },
           });
         }
       }
@@ -637,6 +647,7 @@ export async function executeAction(
           resource: ctx.event.meta.source,
           channelUserId,
           phoneNormalized,
+          ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
         },
       };
       const meta = await deps.writePort.writeDb(write);

@@ -15,7 +15,7 @@
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
 
-**PostgreSQL (unified):** `DATABASE_URL` здесь и в `webapp.prod` должен указывать на **одну** базу; роль integrator использует схемы `integrator` и `public` (`search_path`, GRANT). См. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../../docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md).
+**PostgreSQL (unified):** `DATABASE_URL` в `api.prod` и в `webapp.prod` указывает на **одну** базу; **одна и та же роль** PostgreSQL используется и для webapp, и для integrator — доступ к схемам **`public` и `integrator`** у одного пользователя БД (`search_path`, при необходимости GRANT из миграций). См. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../../docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md). Если миграции integrator выполнялись суперпользователем, те же `GRANT` на `public` (в т.ч. `USAGE` на схему и права на таблицы канона) должны быть у **роли из `DATABASE_URL`** — см. миграции `20260413_0002`, `20260413_0003` и [`docs/WEBAPP_FIRST_PHONE_BIND/STAGE_01_BIND_TX_AND_GRANTS.md`](../../docs/WEBAPP_FIRST_PHONE_BIND/STAGE_01_BIND_TX_AND_GRANTS.md).
 
 Обязательные ключи по текущему runtime:
 

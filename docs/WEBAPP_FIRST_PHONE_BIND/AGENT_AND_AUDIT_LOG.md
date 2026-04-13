@@ -29,6 +29,14 @@
 
 ## Записи
 
+### AUDIT 2026-04-13 — STAGE_01 (bind TX + GRANT + срез fanout)
+
+- **Этап / scope:** `STAGE_01_BIND_TX_AND_GRANTS.md` — реализация и инфра-права.
+- **Проверено по:** чек-лист «Результат этапа» + «Чек-лист аудита» в том же файле.
+- **Найдено:** в миграциях были только table-level `GRANT` на `public` без **`GRANT USAGE ON SCHEMA public`**, хотя [`DATABASE_UNIFIED_POSTGRES.md`](../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) требует `USAGE` на схемы; остальные пункты (одна `tx`, нет `contact.linked` на phone path, метаданные `writeDb`, логи `bind_tx_*`, `webappEventsClient.emit` + `ok`, тесты) — соответствуют.
+- **Исправления:** добавлена миграция `apps/integrator/src/infra/db/migrations/core/20260413_0003_integrator_grant_usage_on_public_schema.sql`; тест «public UPDATE failure до integrator — нет записи в contacts» в `writePort.userUpsert.test.ts`; ссылка в `20260413_0002_…sql`; примечание в `deploy/env/README.md` про зеркалирование прав роли приложения после прогона под суперпользователем; чек-листы STAGE_01 отмечены выполненными.
+- **Статус:** OK по коду репозитория; на production-хосте после деплоя убедиться, что миграции применены и роль из `DATABASE_URL` имеет те же права, что и при миграции (если миграции шли не тем же пользователем).
+
 ### 2026-04-13 — Закрытие пробелов ревью (план + код)
 
 - **Этап:** STAGE_01 / STAGE_02 / STAGE_04 (частично).
