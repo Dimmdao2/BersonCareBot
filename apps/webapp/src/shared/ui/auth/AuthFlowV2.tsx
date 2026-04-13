@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Публичный поток входа (web): при включённых OAuth — экран OAuth-first; иначе Telegram Login или сразу телефон.
+ * Публичный поток входа (web): OAuth-first и Telegram Login; телефон — отдельный шаг; экран «Другие способы» без текста про телефон.
  * OTP в вебе — только Telegram / Max (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
  */
 
@@ -26,6 +26,10 @@ import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
+/** Основные кнопки входа: выше, не на всю ширину, сильнее скругление, больше вертикальный интервал рядом. */
+const LOGIN_CTA_BUTTON_CLASS =
+  "h-12 min-w-[200px] max-w-[280px] rounded-full px-8 text-base font-medium shadow-sm";
+
 function getWebChatId(): string {
   if (typeof window === "undefined") return "";
   let id = sessionStorage.getItem(WEB_CHAT_ID_KEY);
@@ -39,6 +43,7 @@ function getWebChatId(): string {
 export type AuthFlowStep =
   | "entry_loading"
   | "oauth_first"
+  | "other_methods"
   | "landing"
   | "phone"
   | "new_user_foreign"
@@ -110,6 +115,8 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
   const router = useRouter();
   const [step, setStep] = useState<AuthFlowStep>("entry_loading");
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
+  /** После ответа /api/auth/telegram-login/config (или сразу в Mini App). До этого показываем слот кнопки Telegram. */
+  const [telegramLoginConfigLoaded, setTelegramLoginConfigLoaded] = useState(false);
   const [oauthProviders, setOauthProviders] = useState<OauthProviderFlags>({
     yandex: false,
     google: false,
@@ -135,6 +142,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
     let cancelled = false;
     if (isMessengerMiniAppHost()) {
       setTelegramBotUsername(null);
+      setTelegramLoginConfigLoaded(true);
       setOauthProviders({ yandex: false, google: false, apple: false });
       setStep("phone");
       return () => {
@@ -142,43 +150,67 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
       };
     }
 
-    void Promise.all([
-      fetch("/api/auth/telegram-login/config").then((r) => r.json()),
-      fetch("/api/auth/oauth/providers").then((r) => r.json()),
-    ])
-      .then(([tgData, oauthData]) => {
-        if (cancelled) return;
-        const u = typeof (tgData as { botUsername?: string | null }).botUsername === "string"
-          ? String((tgData as { botUsername?: string | null }).botUsername).trim()
-          : "";
-        setTelegramBotUsername(u.length > 0 ? u : null);
+    const emptyOauth: OauthProviderFlags = { yandex: false, google: false, apple: false };
+    let oauthResolved = false;
+    let tgResolved = false;
+    let oauthOp = emptyOauth;
+    let tgUsername: string | null = null;
 
+    const finishNonOauthStep = () => {
+      if (cancelled || !oauthResolved || !tgResolved) return;
+      const oauthOn = oauthOp.yandex || oauthOp.google || oauthOp.apple;
+      if (oauthOn) return;
+      setStep(tgUsername && tgUsername.length > 0 ? "landing" : "phone");
+    };
+
+    void fetch("/api/auth/oauth/providers")
+      .then((r) => r.json().catch(() => ({})))
+      .then((oauthData) => {
+        if (cancelled) return;
         const d = oauthData as { ok?: boolean; yandex?: boolean; google?: boolean; apple?: boolean };
-        const op =
+        oauthOp =
           d?.ok === true
             ? {
                 yandex: Boolean(d.yandex),
                 google: Boolean(d.google),
                 apple: Boolean(d.apple),
               }
-            : { yandex: false, google: false, apple: false };
-        setOauthProviders(op);
-
-        const oauthOn = op.yandex || op.google || op.apple;
-        if (oauthOn) {
+            : emptyOauth;
+        setOauthProviders(oauthOp);
+        oauthResolved = true;
+        if (oauthOp.yandex || oauthOp.google || oauthOp.apple) {
           setStep("oauth_first");
-        } else if (u.length > 0) {
-          setStep("landing");
-        } else {
-          setStep("phone");
         }
+        finishNonOauthStep();
       })
       .catch(() => {
-        if (!cancelled) {
-          setTelegramBotUsername(null);
-          setOauthProviders({ yandex: false, google: false, apple: false });
-          setStep("phone");
-        }
+        if (cancelled) return;
+        oauthOp = emptyOauth;
+        setOauthProviders(emptyOauth);
+        oauthResolved = true;
+        finishNonOauthStep();
+      });
+
+    void fetch("/api/auth/telegram-login/config")
+      .then((r) => r.json().catch(() => ({})))
+      .then((tgData) => {
+        if (cancelled) return;
+        const u = typeof (tgData as { botUsername?: string | null }).botUsername === "string"
+          ? String((tgData as { botUsername?: string | null }).botUsername).trim()
+          : "";
+        tgUsername = u.length > 0 ? u : null;
+        setTelegramBotUsername(tgUsername);
+        setTelegramLoginConfigLoaded(true);
+        tgResolved = true;
+        finishNonOauthStep();
+      })
+      .catch(() => {
+        if (cancelled) return;
+        tgUsername = null;
+        setTelegramBotUsername(null);
+        setTelegramLoginConfigLoaded(true);
+        tgResolved = true;
+        finishNonOauthStep();
       });
 
     return () => {
@@ -220,6 +252,13 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
 
   const showOauthRow =
     oauthProviders.yandex || oauthProviders.google || oauthProviders.apple;
+
+  const telegramWidgetReady =
+    telegramLoginConfigLoaded &&
+    telegramBotUsername !== null &&
+    telegramBotUsername.length > 0;
+  /** Пока конфиг грузится — считаем, что Telegram-вход может появиться; после ответа — только если бот задан. */
+  const showTelegramAuthSlot = !telegramLoginConfigLoaded || telegramWidgetReady;
 
   const goBackToEntry = () => {
     setSmsStartCooldownSec(0);
@@ -338,17 +377,17 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
 
   if (step === "oauth_first") {
     return (
-      <div id="auth-flow-v2-oauth-first" className="flex flex-col items-center gap-6 py-3 text-center">
+      <div id="auth-flow-v2-oauth-first" className="flex flex-col items-center gap-5 px-4 py-3 text-center">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
         <p className="text-muted-foreground text-sm max-w-sm">
-          Войдите через аккаунт Яндекс, Google или Apple — или укажите номер телефона ниже.
+          Войдите через Яндекс, Google или Apple либо через бота в Telegram.
         </p>
-        <div className="flex w-full max-w-sm flex-col gap-2">
+        <div className="flex w-full flex-col items-center gap-4">
           {oauthProviders.yandex ? (
             <Button
               type="button"
               variant="default"
-              className="w-full"
+              className={LOGIN_CTA_BUTTON_CLASS}
               disabled={loading}
               onClick={() => void startOauth("yandex")}
             >
@@ -359,7 +398,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             <Button
               type="button"
               variant="default"
-              className="w-full"
+              className={LOGIN_CTA_BUTTON_CLASS}
               disabled={loading}
               onClick={() => void startOauth("google")}
             >
@@ -370,7 +409,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             <Button
               type="button"
               variant="default"
-              className="w-full"
+              className={LOGIN_CTA_BUTTON_CLASS}
               disabled={loading}
               onClick={() => void startOauth("apple")}
             >
@@ -378,17 +417,121 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             </Button>
           ) : null}
         </div>
-        {telegramBotUsername ? (
-          <>
-            <p className="text-center text-sm text-muted-foreground">или</p>
-            <TelegramLoginButton botUsername={telegramBotUsername} nextParam={nextParam} disabled={loading} />
-          </>
+        {showTelegramAuthSlot ? (
+          <div className="flex w-full flex-col items-center gap-4">
+            {telegramWidgetReady && telegramBotUsername ? (
+              <TelegramLoginButton
+                botUsername={telegramBotUsername}
+                nextParam={nextParam}
+                disabled={loading}
+                className="w-full max-w-[280px]"
+              />
+            ) : (
+              <Button
+                type="button"
+                variant="default"
+                className={cn(LOGIN_CTA_BUTTON_CLASS, "animate-pulse")}
+                disabled
+                aria-busy="true"
+              >
+                Войти через Telegram…
+              </Button>
+            )}
+          </div>
         ) : null}
-        <p className="text-center text-sm text-muted-foreground">или</p>
         <Button
           type="button"
-          variant="outline"
-          className="mx-auto w-full max-w-sm"
+          variant="ghost"
+          className="h-auto min-h-0 py-2 text-sm font-normal text-muted-foreground hover:text-foreground"
+          disabled={loading}
+          onClick={() => setStep("other_methods")}
+        >
+          Другие способы входа
+        </Button>
+      </div>
+    );
+  }
+
+  if (step === "other_methods") {
+    return (
+      <div id="auth-flow-v2-other-methods" className="flex flex-col gap-5 px-4 py-3 text-center">
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-auto min-h-0 self-start px-2 py-1 text-sm font-normal text-muted-foreground hover:text-foreground"
+          disabled={loading}
+          onClick={() => setStep("oauth_first")}
+        >
+          ← К основным способам
+        </Button>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Другие способы входа</p>
+          <p className="mt-2 text-muted-foreground text-sm text-balance">
+            Те же аккаунты Яндекс, Google и Apple и вход через бота Telegram. Подтверждение email выполняется в профиле
+            после входа в приложение.
+          </p>
+        </div>
+        <div className="flex w-full flex-col items-center gap-4">
+          {oauthProviders.yandex ? (
+            <Button
+              type="button"
+              variant="default"
+              className={LOGIN_CTA_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => void startOauth("yandex")}
+            >
+              Войти через Яндекс
+            </Button>
+          ) : null}
+          {oauthProviders.google ? (
+            <Button
+              type="button"
+              variant="default"
+              className={LOGIN_CTA_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => void startOauth("google")}
+            >
+              Войти через Google
+            </Button>
+          ) : null}
+          {oauthProviders.apple ? (
+            <Button
+              type="button"
+              variant="default"
+              className={LOGIN_CTA_BUTTON_CLASS}
+              disabled={loading}
+              onClick={() => void startOauth("apple")}
+            >
+              Войти через Apple
+            </Button>
+          ) : null}
+        </div>
+        {showTelegramAuthSlot ? (
+          <div className="flex w-full flex-col items-center gap-4">
+            {telegramWidgetReady && telegramBotUsername ? (
+              <TelegramLoginButton
+                botUsername={telegramBotUsername}
+                nextParam={nextParam}
+                disabled={loading}
+                className="w-full max-w-[280px]"
+              />
+            ) : (
+              <Button
+                type="button"
+                variant="default"
+                className={cn(LOGIN_CTA_BUTTON_CLASS, "animate-pulse")}
+                disabled
+                aria-busy="true"
+              >
+                Войти через Telegram…
+              </Button>
+            )}
+          </div>
+        ) : null}
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto min-h-0 text-sm text-muted-foreground"
           disabled={loading}
           onClick={() => setStep("phone")}
         >
@@ -400,57 +543,58 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
 
   if (step === "landing" && telegramBotUsername) {
     return (
-      <div id="auth-flow-v2-landing" className="flex flex-col items-center gap-6 py-3 text-center">
-        <TelegramLoginButton botUsername={telegramBotUsername} nextParam={nextParam} disabled={loading} />
+      <div id="auth-flow-v2-landing" className="flex flex-col items-center gap-5 px-4 py-3 text-center">
+        <TelegramLoginButton
+          botUsername={telegramBotUsername}
+          nextParam={nextParam}
+          disabled={loading}
+          className="w-full max-w-[280px]"
+        />
         {showOauthRow ? (
-          <>
-            <p className="text-center text-sm text-muted-foreground">или</p>
-            <div className="flex w-full max-w-sm flex-col gap-2">
-              {oauthProviders.yandex ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={loading}
-                  onClick={() => void startOauth("yandex")}
-                >
-                  Войти через Яндекс
-                </Button>
-              ) : null}
-              {oauthProviders.google ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={loading}
-                  onClick={() => void startOauth("google")}
-                >
-                  Войти через Google
-                </Button>
-              ) : null}
-              {oauthProviders.apple ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  disabled={loading}
-                  onClick={() => void startOauth("apple")}
-                >
-                  Войти через Apple
-                </Button>
-              ) : null}
-            </div>
-          </>
+          <div className="flex w-full flex-col items-center gap-4">
+            {oauthProviders.yandex ? (
+              <Button
+                type="button"
+                variant="default"
+                className={LOGIN_CTA_BUTTON_CLASS}
+                disabled={loading}
+                onClick={() => void startOauth("yandex")}
+              >
+                Войти через Яндекс
+              </Button>
+            ) : null}
+            {oauthProviders.google ? (
+              <Button
+                type="button"
+                variant="default"
+                className={LOGIN_CTA_BUTTON_CLASS}
+                disabled={loading}
+                onClick={() => void startOauth("google")}
+              >
+                Войти через Google
+              </Button>
+            ) : null}
+            {oauthProviders.apple ? (
+              <Button
+                type="button"
+                variant="default"
+                className={LOGIN_CTA_BUTTON_CLASS}
+                disabled={loading}
+                onClick={() => void startOauth("apple")}
+              >
+                Войти через Apple
+              </Button>
+            ) : null}
+          </div>
         ) : null}
-        <p className="text-center text-sm text-muted-foreground">или</p>
         <Button
           type="button"
-          variant="outline"
-          className="mx-auto w-full max-w-sm"
+          variant="ghost"
+          className="h-auto min-h-0 py-2 text-sm font-normal text-muted-foreground hover:text-foreground"
           disabled={loading}
-          onClick={() => setStep("phone")}
+          onClick={() => setStep("other_methods")}
         >
-          Войти по номеру телефона
+          Другие способы входа
         </Button>
       </div>
     );
@@ -471,7 +615,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
               className="h-auto min-h-0 self-start px-0 py-0 text-sm font-normal text-muted-foreground"
               onClick={() => setStep("oauth_first")}
             >
-              Другие способы входа
+              Соцсети и Telegram
             </Button>
             <div className="flex flex-col gap-2">
               <p className="text-xs text-muted-foreground">Вход без номера</p>
@@ -517,14 +661,15 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
           </>
         ) : null}
         <InternationalPhoneInput disabled={loading} onSubmit={runCheckPhone} submitLabel="Продолжить" />
-        {telegramBotUsername ? (
+        {showTelegramAuthSlot ? (
           <Button
             type="button"
             variant="link"
-            className="h-auto min-h-0 px-0 py-0 text-sm font-normal text-muted-foreground"
-            onClick={() => setStep("landing")}
+            className="h-auto min-h-0 px-0 py-0 text-sm font-normal text-muted-foreground disabled:opacity-60"
+            disabled={loading || !telegramWidgetReady}
+            onClick={() => telegramWidgetReady && setStep("landing")}
           >
-            Войти через Telegram
+            {telegramLoginConfigLoaded ? "Войти через Telegram" : "Войти через Telegram…"}
           </Button>
         ) : null}
       </div>
@@ -539,7 +684,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
           отключён.
           {showOauthRow
             ? " Войдите через Яндекс, Google или Apple или укажите другой номер."
-            : telegramBotUsername
+            : showTelegramAuthSlot
               ? " Воспользуйтесь входом через Telegram ниже."
               : ""}
         </p>
@@ -586,9 +731,13 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             </div>
           </div>
         ) : null}
-        {telegramBotUsername ? (
-          <Button type="button" disabled={loading} onClick={() => setStep("landing")}>
-            Войти через Telegram
+        {showTelegramAuthSlot ? (
+          <Button
+            type="button"
+            disabled={loading || !telegramWidgetReady}
+            onClick={() => telegramWidgetReady && setStep("landing")}
+          >
+            {telegramLoginConfigLoaded ? "Войти через Telegram" : "Войти через Telegram…"}
           </Button>
         ) : null}
         <Button
@@ -613,7 +762,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
           входа с сайта отключён.
           {showOauthRow
             ? " Воспользуйтесь входом без номера (Яндекс, Google, Apple) — кнопки ниже."
-            : telegramBotUsername
+            : showTelegramAuthSlot
               ? " Войдите через Telegram."
               : ""}
           {supportContactHref ? " При необходимости обратитесь в поддержку." : ""}
@@ -661,9 +810,13 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             </div>
           </div>
         ) : null}
-        {telegramBotUsername ? (
-          <Button type="button" disabled={loading} onClick={() => setStep("landing")}>
-            Войти через Telegram
+        {showTelegramAuthSlot ? (
+          <Button
+            type="button"
+            disabled={loading || !telegramWidgetReady}
+            onClick={() => telegramWidgetReady && setStep("landing")}
+          >
+            {telegramLoginConfigLoaded ? "Войти через Telegram" : "Войти через Telegram…"}
           </Button>
         ) : null}
         {supportContactHref ? (

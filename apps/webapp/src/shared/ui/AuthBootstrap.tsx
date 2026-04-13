@@ -37,8 +37,9 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   const [state, setState] = useState<BootstrapState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<{ status?: number; message?: string } | null>(null);
-  const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("unknown");
-  /** Не дублировать POST /api/auth/telegram-init (в т.ч. при Strict Mode / смене deps). */
+  /** По умолчанию «веб»: не держать пустой экран до первого тика (раньше unknown + return null скрывали AuthFlowV2). */
+  const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("no");
+  /** Один POST на монтирование (Strict Mode / повтор эффекта с тем же initData). */
   const telegramInitSentRef = useRef(false);
 
   // Обмен токена из адреса на сессию и редирект
@@ -87,14 +88,21 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     !token && (initDataStatus === "no" || state === "error") && state !== "loading";
 
   /**
-   * SDK грузится afterInteractive: сначала определяем Mini App (initData) или обычный браузер,
-   * и один раз шлём telegram-init при непустом initData.
+   * SDK — afterInteractive: пока нет `Telegram.WebApp`, сразу переводим в «веб» и монтируем AuthFlowV2
+   * (OAuth / Telegram Login), но опрос не глушим — если позже появится initData (Mini App), шлём
+   * telegram-init. Не останавливать опрос при первом же WebApp с пустым initData.
    */
   useEffect(() => {
     if (token || typeof window === "undefined") return;
 
+    const POLL_MS_MAX = 15000;
+    const TICK_MS = 100;
+    const STABLE_EMPTY_TICKS = 10;
+
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | undefined;
+    let stableWebAppEmptyTicks = 0;
+    const t0 = Date.now();
 
     const stopPolling = () => {
       if (intervalId !== undefined) {
@@ -140,6 +148,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
     const tick = () => {
       if (cancelled) return;
+      const elapsed = Date.now() - t0;
       const webApp = window.Telegram?.WebApp;
       const raw = webApp?.initData?.trim() ?? "";
 
@@ -149,30 +158,28 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         return;
       }
 
-      if (webApp) {
+      if (!webApp) {
+        stableWebAppEmptyTicks = 0;
+        setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
+      } else {
         setInitDataStatus("no");
+        stableWebAppEmptyTicks++;
+        if (stableWebAppEmptyTicks >= STABLE_EMPTY_TICKS) {
+          stopPolling();
+        }
+      }
+
+      if (elapsed >= POLL_MS_MAX) {
         stopPolling();
       }
     };
 
+    intervalId = setInterval(tick, TICK_MS);
     tick();
-    intervalId = setInterval(tick, 75);
-
-    /** Разблокировать веб-вход, если SDK так и не объявился (unknown), не останавливая опрос initData. */
-    const giveUpUnblock = setTimeout(() => {
-      if (!cancelled) {
-        setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
-      }
-    }, 4000);
-    const maxPoll = setTimeout(() => {
-      stopPolling();
-    }, 15000);
 
     return () => {
       cancelled = true;
       stopPolling();
-      clearTimeout(giveUpUnblock);
-      clearTimeout(maxPoll);
     };
   }, [router, token, debug, nextParam]);
 
