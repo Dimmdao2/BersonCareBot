@@ -196,6 +196,8 @@
 - `integrator.idempotency_keys`
 - `public.idempotency_keys` (исторически «webapp»)
 
+Целевой набор колонок в обеих схемах совпадает: `key` (PK), `request_hash`, `status`, `response_body`, `expires_at`. Webapp использует это для идемпотентности HTTP (`apps/webapp/src/infra/idempotency/pgStore.ts`, POST `/api/integrator/events`). Входящие вебхуки integrator (Telegram, Max и др.) дедуплицируются через `createPostgresIdempotencyPort` в `apps/integrator/src/infra/db/repos/idempotencyKeys.ts`: для строк только дедупа шлюза пишется sentinel `request_hash` (`__integrator_incoming_event__`), `status = 200`, `response_body = {}`. Старые установки integrator, где таблица была только с `key` + `expires_at`, подтягиваются миграцией `20260414_0001_integrator_idempotency_keys_webapp_columns.sql`.
+
 ---
 
 ## 4. Dumps

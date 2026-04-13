@@ -27,10 +27,10 @@ export async function upsertBookingCalendarMap(
   );
 
   await db.query(
-    `UPDATE rubitime_records
+    `UPDATE public.patient_bookings
         SET gcal_event_id = $2,
             updated_at = now()
-      WHERE rubitime_record_id = $1`,
+      WHERE rubitime_id = $1`,
     [input.rubitimeRecordId, input.gcalEventId],
   );
 }
@@ -45,10 +45,10 @@ export async function deleteBookingCalendarMap(
     [rubitimeRecordId],
   );
   await db.query(
-    `UPDATE rubitime_records
+    `UPDATE public.patient_bookings
         SET gcal_event_id = NULL,
             updated_at = now()
-      WHERE rubitime_record_id = $1`,
+      WHERE rubitime_id = $1`,
     [rubitimeRecordId],
   );
 }

@@ -7,7 +7,7 @@
     "dev": "tsx watch src/main.ts",
     "worker:dev": "tsx watch src/infra/runtime/worker/main.ts",
     "clean": "rm -rf dist",
-    "build": "pnpm run clean && tsc -p tsconfig.build.json",
+    "build": "pnpm --dir ../../packages/booking-rubitime-sync run build && pnpm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "worker:start": "node dist/infra/runtime/worker/main.js",
     "test": "vitest --run",
@@ -33,6 +33,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@bersoncare/booking-rubitime-sync": "workspace:*",
     "@maxhub/max-bot-api": "^0.2.2",
     "dotenv": "^17.4.1",
     "fastify": "^5.8.3",

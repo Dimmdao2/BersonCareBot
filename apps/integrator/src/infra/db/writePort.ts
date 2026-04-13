@@ -7,7 +7,7 @@ import type {
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
-import { upsertRecord, insertEvent } from './repos/bookingRecords.js';
+import { insertEvent } from './repos/bookingRecords.js';
 import { setUserPhone, setUserState, updateNotificationSettings, upsertUser } from './repos/channelUsers.js';
 import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
 import {
@@ -43,7 +43,6 @@ import {
   REMINDER_OCCURRENCE_FINALIZED,
   REMINDER_DELIVERY_LOGGED,
   CONTENT_ACCESS_GRANTED,
-  APPOINTMENT_RECORD_UPSERTED,
   MAILING_TOPIC_UPSERTED,
   USER_SUBSCRIPTION_UPSERTED,
   MAILING_LOG_SENT,
@@ -60,6 +59,9 @@ import { logger } from '../observability/logger.js';
 import { insertMailingLog } from './repos/mailingLogs.js';
 import { normalizeRuPhoneE164 } from '../phone/normalizeRuPhoneE164.js';
 import { isExplicitZonedIsoInstant } from '../../shared/explicitZonedIsoInstant.js';
+import { mapRubitimeStatusToPatientBookingStatus, upsertPatientBookingFromRubitime } from '@bersoncare/booking-rubitime-sync';
+import { upsertAppointmentRecordFromBookingMutation } from './repos/publicAppointmentRecordSync.js';
+import { resolvePlatformUserIdForRubitimeBooking } from './repos/resolvePlatformUserIdForRubitimeBooking.js';
 
 type BookingUpsertParams = {
   externalRecordId?: unknown;
@@ -83,6 +85,7 @@ type BookingUpsertParams = {
   gcalEventId?: unknown;
   timeNormalizationStatus?: unknown;
   timeNormalizationFieldErrors?: unknown;
+  integratorUserId?: unknown;
 };
 
 function asNonEmptyString(value: unknown): string | null {
@@ -104,25 +107,6 @@ function parseNameToFirstLast(name: string): { firstName: string | null; lastNam
   if (parts.length === 1) return { firstName: parts[0] ?? null, lastName: null };
   if (parts.length === 2) return { lastName: parts[0] ?? null, firstName: parts[1] ?? null };
   return { firstName: null, lastName: null };
-}
-
-function readTimeNormalizationStatus(value: unknown): 'ok' | 'degraded' {
-  return value === 'degraded' ? 'degraded' : 'ok';
-}
-
-function readTimeNormalizationFieldErrors(
-  value: unknown,
-): Array<{ field: string; reason: string }> {
-  if (!Array.isArray(value)) return [];
-  const out: Array<{ field: string; reason: string }> = [];
-  for (const item of value) {
-    if (typeof item !== 'object' || item === null) continue;
-    const rec = item as Record<string, unknown>;
-    const field = typeof rec.field === 'string' ? rec.field : '';
-    const reason = typeof rec.reason === 'string' ? rec.reason : '';
-    if (field && reason) out.push({ field, reason });
-  }
-  return out;
 }
 
 function asFiniteNumber(value: unknown): number | null {
@@ -213,7 +197,6 @@ export function createDbWritePort(input: {
             : {};
           const lastEvent = asNonEmptyString(params.lastEvent) ?? 'unknown';
           const updatedAt = new Date().toISOString();
-          const rawEmail = asNullableString(params.patientEmail) ?? asNullableString(payloadJson.email);
           const rawBranchId =
             asNullableString(params.integratorBranchId) ??
             asNullableString(payloadJson.branch_id) ??
@@ -222,7 +205,6 @@ export function createDbWritePort(input: {
             asNullableString(params.branchName) ??
             asNullableString(payloadJson.branch_name) ??
             asNullableString(payloadJson.branch_title);
-          const gcalEventId = asNullableString(params.gcalEventId);
           // Stage 11 compat-sync enrichment fields.
           const rawServiceId =
             asNullableString(params.serviceId) ??
@@ -255,60 +237,65 @@ export function createDbWritePort(input: {
             asNullableString(params.patientFirstName) ?? parsedFromName.firstName;
           const patientLastName: string | null =
             asNullableString(params.patientLastName) ?? parsedFromName.lastName;
-          const timeNormalizationStatus = readTimeNormalizationStatus(params.timeNormalizationStatus);
-          const timeNormalizationFieldErrors = readTimeNormalizationFieldErrors(
-            params.timeNormalizationFieldErrors,
-          );
-          const pendingProjections: ProjectionFanoutInput[] = [];
           await db.tx(async (txDb) => {
-            await upsertRecord(txDb, {
-              externalRecordId,
-              phoneNormalized,
-              recordAt,
-              status,
-              gcalEventId,
-              payloadJson,
-              lastEvent,
-            });
             const payloadJsonForProjection: Record<string, unknown> =
               typeof payloadJson === 'object' && payloadJson !== null && !Array.isArray(payloadJson)
                 ? (JSON.parse(JSON.stringify(payloadJson)) as Record<string, unknown>)
                 : {};
             await canonicalizeIntegratorUserIdKeysInObject(txDb, payloadJsonForProjection);
-            const projectionPayload: Record<string, unknown> = {
+            await upsertAppointmentRecordFromBookingMutation(txDb, {
               integratorRecordId: externalRecordId,
-              phoneNormalized: phoneNormalized ?? null,
-              recordAt: recordAt ?? null,
-              dateTimeEnd: rawDateTimeEnd ?? null,
+              phoneNormalized,
+              recordAt,
               status,
               payloadJson: payloadJsonForProjection,
               lastEvent,
               updatedAt,
-              patientFirstName: patientFirstName ?? null,
-              patientLastName: patientLastName ?? null,
-              patientEmail: rawEmail ?? null,
-              integratorBranchId: rawBranchId ?? null,
-              branchName: rawBranchName ?? null,
-              serviceId: rawServiceId ?? null,
-              serviceName: rawServiceName ?? null,
-              rubitimeCooperatorId: rawCooperatorId ?? null,
-              timeNormalizationStatus,
-              ...(timeNormalizationFieldErrors.length > 0
-                ? { timeNormalizationFieldErrors }
-                : {}),
-            };
-            pendingProjections.push({
-              eventType: APPOINTMENT_RECORD_UPSERTED,
-              idempotencyKey: projectionIdempotencyKey(
-                APPOINTMENT_RECORD_UPSERTED,
-                externalRecordId,
-                hashPayload(projectionPayload),
-              ),
-              occurredAt: updatedAt,
-              payload: projectionPayload,
+              branchId: null,
             });
+            const fullNameFromPayload =
+              typeof payloadJson.name === 'string' && payloadJson.name.trim().length > 0
+                ? payloadJson.name.trim()
+                : null;
+            const payloadContactName =
+              patientFirstName ??
+              fullNameFromPayload ??
+              ([patientLastName, patientFirstName].filter(Boolean).join(' ').trim() || null);
+            const integratorUserIdTop =
+              asNullableString(params.integratorUserId) ??
+              asNullableString(payloadJsonForProjection.integratorUserId) ??
+              asNullableString(payloadJsonForProjection.integrator_user_id) ??
+              null;
+            const resolvedUserId = await resolvePlatformUserIdForRubitimeBooking(
+              txDb,
+              phoneNormalized,
+              integratorUserIdTop,
+            );
+            const rubitimeManageUrl =
+              asNullableString(payloadJson.url) ??
+              asNullableString(payloadJson.link) ??
+              asNullableString(payloadJson.record_url);
+            await upsertPatientBookingFromRubitime(
+              txDb,
+              normalizeRuPhoneE164,
+              {
+                rubitimeId: externalRecordId,
+                status: mapRubitimeStatusToPatientBookingStatus(status),
+                slotStart: recordAt,
+                slotEnd: rawDateTimeEnd,
+                userId: resolvedUserId,
+                contactPhone: phoneNormalized ?? '',
+                contactName: payloadContactName,
+                branchTitle: rawBranchName,
+                serviceTitle: rawServiceName,
+                rubitimeBranchId: rawBranchId,
+                rubitimeServiceId: rawServiceId,
+                rubitimeCooperatorId: rawCooperatorId,
+                rubitimeManageUrl,
+              },
+              { logCompat: (msg, meta) => logger.warn({ msg, ...meta }, '[booking.upsert] compat-sync') },
+            );
           });
-          await fanoutProjectionsAfterTx(pendingProjections);
           return;
         }
         case 'event.log': {

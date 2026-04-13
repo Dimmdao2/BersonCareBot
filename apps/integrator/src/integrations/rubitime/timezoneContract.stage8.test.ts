@@ -71,18 +71,14 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
     const botMsk = formatBookingRuDateTime(incoming.recordAt ?? null, "Europe/Moscow");
     expect(botMsk).toBe("7 апр. 2026 г., 11:00");
 
-    const capture: { rubitimeParams: unknown[]; projectionRecordAt: unknown } = {
-      rubitimeParams: [],
+    const capture: { appointmentParams: unknown[]; projectionRecordAt: unknown } = {
+      appointmentParams: [],
       projectionRecordAt: undefined,
     };
     const query = vi.fn(async (sql: string, params: unknown[]) => {
-      if (typeof sql === "string" && sql.includes("rubitime_records")) {
-        capture.rubitimeParams = [...params];
-      }
-      if (typeof sql === "string" && sql.includes("projection_outbox")) {
-        const payloadJson = params[3] as string;
-        const payload = JSON.parse(payloadJson) as { recordAt?: string };
-        capture.projectionRecordAt = payload.recordAt;
+      if (typeof sql === "string" && sql.includes("INSERT INTO public.appointment_records")) {
+        capture.appointmentParams = [...params];
+        capture.projectionRecordAt = params[2];
       }
       return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
     });
@@ -102,7 +98,7 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
         timeNormalizationStatus: "ok",
       },
     });
-    expect(capture.rubitimeParams[2]).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
+    expect(capture.appointmentParams[2]).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
     expect(capture.projectionRecordAt).toBe(STAGE8_EXPECTED_MOSCOW_UTC_ISO);
   });
 
@@ -158,10 +154,10 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
     expect(upsertEvent).not.toHaveBeenCalled();
     expect(deleteEvent).not.toHaveBeenCalled();
 
-    const captureNull: { rubitimeParams: unknown[] } = { rubitimeParams: [] };
+    const captureNull: { appointmentParams: unknown[] } = { appointmentParams: [] };
     const queryWrite = vi.fn(async (sql: string, params: unknown[]) => {
-      if (typeof sql === "string" && sql.includes("rubitime_records")) {
-        captureNull.rubitimeParams = [...params];
+      if (typeof sql === "string" && sql.includes("INSERT INTO public.appointment_records")) {
+        captureNull.appointmentParams = [...params];
       }
       return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
     });
@@ -181,7 +177,7 @@ describe("Stage 8 timezone contract (STAGE_8_CONTRACT_TESTS)", () => {
         timeNormalizationStatus: "degraded",
       },
     });
-    expect(captureNull.rubitimeParams[2]).toBeNull();
+    expect(captureNull.appointmentParams[2]).toBeNull();
   });
 
   it("S8.T05: invalid branch IANA in DB — fallback MSK, incident + Telegram, ingest still normalizes", async () => {

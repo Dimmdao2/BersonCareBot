@@ -1,12 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
-import { APPOINTMENT_RECORD_UPSERTED } from '../../kernel/contracts/index.js';
 import { createDbWritePort } from './writePort.js';
 
-describe('writePort booking.upsert projection', () => {
-  function makeMockDb(capture: {
-    projectionInserts: { eventType: string; idempotencyKey: string; payload: unknown }[];
-  }): DbPort {
+describe('writePort booking.upsert → public schema (unified DB)', () => {
+  function makeMockDb(capture: { sqlCalls: string[] }): DbPort {
     const query = vi.fn(async (sql: string, params: unknown[]) => {
       if (typeof sql === 'string' && sql.includes('merged_into_user_id') && sql.includes('FROM users')) {
         const id = String((params as string[])[0] ?? '');
@@ -15,20 +12,7 @@ describe('writePort booking.upsert projection', () => {
         }
         return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort['query']>>;
       }
-      if (typeof sql === 'string' && sql.includes('projection_outbox')) {
-        const [eventType, idempotencyKey, _occurredAt, payloadJson] = params as [string, string, string, string];
-        let payload: unknown = {};
-        try {
-          payload = JSON.parse(payloadJson) as Record<string, unknown>;
-        } catch {
-          // ignore
-        }
-        capture.projectionInserts.push({ eventType, idempotencyKey, payload });
-        return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
-      }
-      if (typeof sql === 'string' && sql.includes('rubitime_records')) {
-        return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
-      }
+      capture.sqlCalls.push(sql);
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
     });
     const tx = vi.fn(async (fn: (txDb: DbPort) => Promise<void>) => {
@@ -37,8 +21,8 @@ describe('writePort booking.upsert projection', () => {
     return { query, tx } as DbPort;
   }
 
-  it('booking.upsert enqueues appointment.record.upserted in same tx', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+  it('booking.upsert writes appointment_records + patient_bookings in tx (no HTTP projection outbox)', async () => {
+    const capture = { sqlCalls: [] as string[] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -52,20 +36,14 @@ describe('writePort booking.upsert projection', () => {
         lastEvent: 'event-create',
       },
     });
-    expect(capture.projectionInserts.length).toBe(1);
-    const ev = capture.projectionInserts[0]!;
-    expect(ev.eventType).toBe(APPOINTMENT_RECORD_UPSERTED);
-    const payload = ev.payload as Record<string, unknown>;
-    expect(payload.integratorRecordId).toBe('rec-app-1');
-    expect(payload.phoneNormalized).toBe('+79991234567');
-    expect(payload.recordAt).toBe('2025-06-01T10:00:00.000Z');
-    expect(payload.status).toBe('created');
-    expect(payload.lastEvent).toBe('event-create');
-    expect(ev.idempotencyKey.startsWith(`${APPOINTMENT_RECORD_UPSERTED}:rec-app-1:`)).toBe(true);
+    const joined = capture.sqlCalls.join('\n');
+    expect(joined).toContain('INSERT INTO public.appointment_records');
+    expect(joined).toContain('public.patient_bookings');
+    expect(joined).not.toContain('projection_outbox');
   });
 
-  it('booking.upsert canonicalizes integrator ids inside payloadJson for projection only', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+  it('booking.upsert canonicalizes integrator ids inside payloadJson before public writes', async () => {
+    const capture = { sqlCalls: [] as string[] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     const payloadJson = { integrator_user_id: '2', link: 'https://rubitime.example/r' };
@@ -80,23 +58,20 @@ describe('writePort booking.upsert projection', () => {
         lastEvent: 'sync',
       },
     });
-    const rubitimeCalls = (db.query as ReturnType<typeof vi.fn>).mock.calls.filter((c) =>
-      String(c[0]).includes('rubitime_records'),
-    );
-    const lastRubitimeParams = rubitimeCalls[rubitimeCalls.length - 1]?.[1] as unknown[] | undefined;
-    const storedPayloadJson = lastRubitimeParams?.[5];
-    expect(JSON.parse(String(storedPayloadJson))).toEqual(payloadJson);
-
-    const pj = (capture.projectionInserts[0]!.payload as Record<string, unknown>).payloadJson as Record<
-      string,
-      unknown
-    >;
-    expect(pj.integrator_user_id).toBe('100');
-    expect(pj.link).toBe('https://rubitime.example/r');
+    const appointmentInsert = capture.sqlCalls.find((s) => s.includes('INSERT INTO public.appointment_records'));
+    expect(appointmentInsert).toBeDefined();
+    const payloadParam = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(
+      (c) => String(c[0]).includes('INSERT INTO public.appointment_records'),
+    )?.[1] as unknown[] | undefined;
+    const payloadJsonStr = payloadParam?.[4];
+    expect(JSON.parse(String(payloadJsonStr))).toMatchObject({
+      integrator_user_id: '100',
+      link: 'https://rubitime.example/r',
+    });
   });
 
-  it('booking.upsert keeps ISO-Z recordAt and passes timeNormalization metadata to projection', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+  it('booking.upsert keeps ISO-Z recordAt for public appointment row', async () => {
+    const capture = { sqlCalls: [] as string[] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -109,21 +84,17 @@ describe('writePort booking.upsert projection', () => {
         status: 'updated',
         payloadJson: { service_id: 10, service_name: 'Consult' },
         lastEvent: 'updated',
-        timeNormalizationStatus: 'ok',
-        timeNormalizationFieldErrors: [],
       },
     });
-    const payload = capture.projectionInserts[0]!.payload as Record<string, unknown>;
-    expect(payload.recordAt).toBe('2026-04-07T08:00:00.000Z');
-    expect(payload.dateTimeEnd).toBe('2026-04-07T09:00:00.000Z');
-    expect(payload.timeNormalizationStatus).toBe('ok');
-    expect(payload.timeNormalizationFieldErrors).toBeUndefined();
-    expect(payload.serviceId).toBe('10');
-    expect(payload.serviceName).toBe('Consult');
+    const call = (db.query as ReturnType<typeof vi.fn>).mock.calls.find((c) =>
+      String(c[0]).includes('INSERT INTO public.appointment_records'),
+    );
+    const params = call?.[1] as unknown[];
+    expect(params?.[2]).toBe('2026-04-07T08:00:00.000Z');
   });
 
   it('booking.upsert drops naive recordAt so SQL never gets session-TZ interpretation', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
+    const capture = { sqlCalls: [] as string[] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
     await writePort.writeDb({
@@ -137,8 +108,11 @@ describe('writePort booking.upsert projection', () => {
         lastEvent: 'updated',
       },
     });
-    const payload = capture.projectionInserts[0]!.payload as Record<string, unknown>;
-    expect(payload.recordAt).toBeNull();
+    const call = (db.query as ReturnType<typeof vi.fn>).mock.calls.find((c) =>
+      String(c[0]).includes('INSERT INTO public.appointment_records'),
+    );
+    const params = call?.[1] as unknown[];
+    expect(params?.[2]).toBeNull();
   });
 
   it('event.log booking writes action field as event (not "unknown")', async () => {
@@ -147,7 +121,11 @@ describe('writePort booking.upsert projection', () => {
       if (typeof sql === 'string' && sql.includes('rubitime_events')) {
         const [externalRecordId, event, payloadJsonStr] = params as [string | null, string, string];
         let payloadJson: unknown = {};
-        try { payloadJson = JSON.parse(payloadJsonStr); } catch { /* */ }
+        try {
+          payloadJson = JSON.parse(payloadJsonStr);
+        } catch {
+          /* */
+        }
         eventInserts.push({ externalRecordId, event, payloadJson });
       }
       return { rows: [] } as Awaited<ReturnType<DbPort['query']>>;
@@ -199,31 +177,5 @@ describe('writePort booking.upsert projection', () => {
       params: { eventStore: 'booking', body: { recordId: 'y' } },
     });
     expect(eventInserts[0]!.event).toBe('unknown');
-  });
-
-  it('booking.upsert includes timeNormalizationFieldErrors when degraded', async () => {
-    const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: unknown }[] };
-    const db = makeMockDb(capture);
-    const writePort = createDbWritePort({ db });
-    await writePort.writeDb({
-      type: 'booking.upsert',
-      params: {
-        externalRecordId: 'rec-degraded',
-        phoneNormalized: '+79990001122',
-        recordAt: null,
-        status: 'updated',
-        payloadJson: { link: 'https://x.example' },
-        lastEvent: 'updated',
-        timeNormalizationStatus: 'degraded',
-        timeNormalizationFieldErrors: [{ field: 'recordAt', reason: 'unsupported_format' }],
-      },
-    });
-    const payload = capture.projectionInserts[0]!.payload as Record<string, unknown>;
-    expect(payload.recordAt).toBeNull();
-    expect(payload.timeNormalizationStatus).toBe('degraded');
-    expect(payload.timeNormalizationFieldErrors).toEqual([
-      { field: 'recordAt', reason: 'unsupported_format' },
-    ]);
-    expect(payload.payloadJson).toEqual({ link: 'https://x.example' });
   });
 });

@@ -16,6 +16,8 @@ export default [
       "admin/node_modules/**",
       "apps/webapp/**",
       "apps/integrator/dist/**",
+      // Local/untracked workspace packages (pnpm-workspace lists only apps/* until a package is merged).
+      "packages/**",
     ],
   },
 

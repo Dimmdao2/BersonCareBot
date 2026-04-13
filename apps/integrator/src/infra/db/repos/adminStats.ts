@@ -20,8 +20,10 @@ export async function getAdminStats(db: DbPort): Promise<AdminStats> {
 async function getActiveBookingsCount(db: DbPort): Promise<number> {
   const query = `
     SELECT COUNT(*)::int AS cnt
-    FROM rubitime_records
+    FROM public.appointment_records
     WHERE status IN ('created', 'updated')
+      AND deleted_at IS NULL
+      AND (record_at IS NULL OR record_at >= now())
   `;
   try {
     const res = await db.query<{ cnt: number }>(query);
@@ -63,12 +65,13 @@ async function getUserCountsByIntegration(db: DbPort): Promise<AdminStats['userC
     logger.error({ err }, 'get telegram user counts failed');
   }
 
-  // RubiTime: уникальные телефоны в rubitime_records
+  // RubiTime: уникальные телефоны в проекции webapp (`public.appointment_records`)
   try {
     const rubitimeRes = await db.query<{ cnt: number }>(`
       SELECT COUNT(DISTINCT phone_normalized)::int AS cnt
-      FROM rubitime_records
+      FROM public.appointment_records
       WHERE phone_normalized IS NOT NULL AND TRIM(phone_normalized) != ''
+        AND deleted_at IS NULL
     `);
     const row = rubitimeRes.rows[0];
     if (row != null) {
