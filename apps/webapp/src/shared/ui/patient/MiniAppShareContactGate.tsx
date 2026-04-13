@@ -83,10 +83,14 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
     if (!phoneChrome || !isMessengerMiniAppHost()) {
       return;
     }
+    /** На `/bind-phone` suppress выставляет `PatientBindPhoneClient`; не трогаем — иначе при `mode === "inactive"` перезапишем true → false (родительский эффект после дочернего). */
+    if (pathname?.includes("/bind-phone")) {
+      return;
+    }
     const suppress = mode !== "inactive";
     phoneChrome.setSuppressPatientHeader(suppress);
     return () => phoneChrome.setSuppressPatientHeader(false);
-  }, [mode, phoneChrome]);
+  }, [mode, phoneChrome, pathname]);
 
   useEffect(() => {
     if (pathname?.includes("/bind-phone")) {

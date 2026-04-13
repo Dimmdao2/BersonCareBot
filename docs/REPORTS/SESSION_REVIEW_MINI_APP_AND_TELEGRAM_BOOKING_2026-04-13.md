@@ -34,3 +34,20 @@
 ## Проверки
 
 Перед пушем: `pnpm install --frozen-lockfile && pnpm run ci` (как в `.cursor/rules/pre-push-ci.mdc`).
+
+---
+
+## Повторный аудит (follow-up)
+
+### Исправлено: гонка suppress шапки на `/bind-phone`
+
+**Симптом:** в Mini App на странице привязки телефона внутренняя шапка могла снова показываться: `MiniAppShareContactGate` при `mode === "inactive"` вызывал `setSuppressPatientHeader(false)` в `useEffect`, который в дереве React выполняется **после** эффекта дочернего `PatientBindPhoneClient`, перезаписывая `true`.
+
+**Исправление:** в `MiniAppShareContactGate` при `pathname` с `/bind-phone` эффект управления suppress **не выполняется** — флаг остаётся за `PatientBindPhoneClient`.
+
+### Зафиксировано без кода
+
+- **`telegram.booking.menu`:** сценарий только при `linkedPhone: true`; без телефона срабатывает центральный callback-гейт в `resolver.ts` (запрос контакта).
+- **`telegram.booking.menu` / `telegram.booking.open`:** два шага `message.edit` с `_when`; если задан только `webappCabinetUrl` без `webappAddressUrl` (или наоборот), оба условия могут не выполниться — тогда остаётся только `callback.answer` (редкая конфигурация фактов).
+- **Max:** сценарий `booking.menu` не дублировался; inline-запись в Max при необходимости синхронизировать отдельно.
+- **Оставшиеся `menu.back` в `scripts.json`:** относятся к дневнику, уведомлениям, ассистенту и т.д., не к цепочке «Запись на приём» после правки.

@@ -29,7 +29,7 @@
 
 ## Код
 
-- Оркестратор оверлея: [`MiniAppShareContactGate`](../../apps/webapp/src/shared/ui/patient/MiniAppShareContactGate.tsx).
+- Оркестратор оверлея: [`MiniAppShareContactGate`](../../apps/webapp/src/shared/ui/patient/MiniAppShareContactGate.tsx) — на пути `/app/patient/bind-phone` не сбрасывает `suppressPatientHeader` (его задаёт страница привязки), чтобы не перезаписать флаг после дочернего `useEffect`.
 - Общий UI блок: [`PatientSharePhoneViaBotPanel`](../../apps/webapp/src/shared/ui/patient/PatientSharePhoneViaBotPanel.tsx).
 - **Скрытие внутренней шапки пациента** (назад / домой / заголовок / настройки) в мини-приложении, пока активен полноэкранный гейт или экран запроса контакта на `/bind-phone`: контекст [`PatientPhonePromptChromeContext`](../../apps/webapp/src/shared/ui/patient/PatientPhonePromptChromeContext.tsx), обёртка шапки [`PatientGatedHeader`](../../apps/webapp/src/shared/ui/PatientGatedHeader.tsx) в [`AppShell`](../../apps/webapp/src/shared/ui/AppShell.tsx) (`variant="patient"`). Нативная полоса Telegram не затрагивается.
 - Страница привязки в Mini App: [`PatientBindPhoneClient`](../../apps/webapp/src/app/app/patient/bind-phone/PatientBindPhoneClient.tsx) — тот же блок `PatientSharePhoneViaBotPanel`, что и у оверлея (единый текст и кнопки в Mini App и в браузере при привязке TG/Max) + [`bind-phone/page.tsx`](../../apps/webapp/src/app/app/patient/bind-phone/page.tsx).
