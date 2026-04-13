@@ -31,12 +31,12 @@ Default local URL: `http://127.0.0.1:5200/app`
 
 ## Environment
 
-The service expects its own env file and database:
+The service expects its own env file:
 
-- development env: `webapp/.env.dev`
+- development env: `apps/webapp/.env.dev` (или symlink from `webapp/.env.dev` depending on layout)
 - production env: `/opt/env/bersoncarebot/webapp.prod`
-- development DB (typical name): `bcb_webapp_dev` (локально может быть отдельная БД от integrator)
-- production: `DATABASE_URL` совпадает с integrator — одна БД, см. `SERVER CONVENTIONS.md` / `DATABASE_UNIFIED_POSTGRES.md`
+
+**PostgreSQL:** в production **`DATABASE_URL` совпадает** с integrator (`api.prod`): **одна** база, **одна** роль PostgreSQL, схемы `public` (webapp) и `integrator` (бот). В dev удобно завести одну базу с обеими схемами; до выравнивания возможны два URL. См. `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
 
 ## Design Rules
 

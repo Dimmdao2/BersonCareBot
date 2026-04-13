@@ -6,9 +6,9 @@
 
 ## Требования к окружению
 
-- `DATABASE_URL` — webapp (целевая схема **`public`**).
-- `INTEGRATOR_DATABASE_URL` (или `SOURCE_DATABASE_URL`) — источник integrator (схема **`integrator`**; при unified — часто **тот же** `DATABASE_URL`).
-- Миграции **уже применены** (обе схемы в одной БД или две отдельные БД в legacy).
+- `DATABASE_URL` — подключение к базе со схемой **`public`** (целевые таблицы webapp).
+- `INTEGRATOR_DATABASE_URL` (или `SOURCE_DATABASE_URL`) — подключение для чтения схемы **`integrator`**. В **unified** production это **та же** строка, что и `DATABASE_URL` (**одна** роль PostgreSQL, одна база).
+- Миграции **уже применены** (обе схемы в одной БД; legacy — две отдельные БД).
 
 Рекомендуемая схема env:
 

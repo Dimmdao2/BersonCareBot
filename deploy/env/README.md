@@ -43,13 +43,13 @@
 - `MAX_API_KEY=...`
 - `MAX_WEBHOOK_SECRET=...`
 
-Шаблон для integrator production в репозитории:
+Шаблоны integrator в репозитории:
 
-- root `.env.example`
+- корень: `.env.example`
+- `deploy/env/.env.prod.example`, `deploy/env/.env.dev.example`
 
 Важно:
 
-- `deploy/env/.env.prod.example` **сейчас отсутствует** в репозитории;
 - если в значении есть `$`, строку в env брать в одинарные кавычки;
 - этот файл `source`-ится bash-скриптами деплоя, поэтому синтаксис должен быть bash-compatible.
 
@@ -122,8 +122,8 @@ curl -s http://127.0.0.1:6200/api/health
 
 Обязательные ключи:
 
-- `DATABASE_URL='...'` — webapp production DB
-- `INTEGRATOR_DATABASE_URL='...'` или `SOURCE_DATABASE_URL='...'` — integrator production DB
+- `DATABASE_URL='...'` — подключение к базе, в которой есть схема **`public`** (целевые таблицы webapp).
+- `INTEGRATOR_DATABASE_URL='...'` или `SOURCE_DATABASE_URL='...'` — подключение к данным integrator (схема **`integrator`**). В **unified** production обычно **та же строка**, что и `DATABASE_URL` (та же роль БД, та же база).
 
 Шаблон:
 
@@ -132,7 +132,7 @@ curl -s http://127.0.0.1:6200/api/health
 Важно:
 
 - это **не runtime env** для `bersoncarebot-webapp-prod.service`;
-- после unification `INTEGRATOR_DATABASE_URL` в этом файле может совпадать с `DATABASE_URL` (одна БД, разные схемы); в legacy — второй URL указывал на отдельную integrator БД.
+- после unification оба URL **совпадают**; в legacy cutover второй URL указывал на **отдельную** integrator-базу.
 
 ---
 
@@ -187,8 +187,8 @@ curl -s http://127.0.0.1:6200/api/health
 
 Обязательные ключи:
 
-- `DATABASE_URL='...'` — webapp dev DB
-- `INTEGRATOR_DATABASE_URL='...'` или `SOURCE_DATABASE_URL='...'` — integrator dev DB
+- `DATABASE_URL='...'` — база со схемой `public` (webapp).
+- `INTEGRATOR_DATABASE_URL='...'` или `SOURCE_DATABASE_URL='...'` — база/схема integrator; при unified dev **часто та же строка**, что `DATABASE_URL`.
 
 Шаблон:
 

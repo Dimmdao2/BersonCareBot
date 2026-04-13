@@ -39,10 +39,9 @@ It does not replace the existing integrator.
 
 Hard rules:
 
-- no direct SQL access across services
-- no imports across service source trees
-- no shared domain tables
-- communication only via signed links, webhook contracts, and verified contact linking
+- **No imports** across service source trees (`apps/integrator` ↔ `apps/webapp`); remain separate Node processes and code ownership.
+- **One PostgreSQL** in production: same `DATABASE_URL` and DB **role** for both services; canonical platform data in schema **`public`**, integrator runtime in **`integrator`** — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`. Integrator writes to `public` only through repository/transaction code agreed in that doc, not by importing webapp modules.
+- **Cross-process** integration where not same-DB SQL: signed entry links, webhooks, `INTEGRATOR_API_URL`, verified contact linking, HTTP sync and outbox queues as fallback.
 
 ## Layering Model
 

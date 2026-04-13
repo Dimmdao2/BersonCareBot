@@ -1,8 +1,10 @@
 # Текущая структура БД
 
-Документ описывает фактическую текущую структуру БД по локальному schema dump.
+Документ описывает объекты PostgreSQL по **схемам** и по приложениям в репозитории.
 
-**Production (2026-04):** обе «ветки» ниже могут жить в **одной** PostgreSQL как схемы `integrator` и `public` — см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md). Дампы и заголовки разделов отражают разделение по **приложению** (integrator vs webapp), а не обязательно по отдельному инстансу БД.
+**Целевой production (2026-04):** webapp и integrator подключаются к **одной** базе одной и той же **строкой `DATABASE_URL`** и **одной ролью** PostgreSQL; разделение данных — схемы **`integrator`** и **`public`**, не отдельные базы и не два URL в runtime — см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md), [`SERVER CONVENTIONS.md`](./SERVER%20CONVENTIONS.md).
+
+Ниже разделы названы по **схемам** (как в SQL). Дампы в `DB_DUMPS/` могли сниматься с отдельных dev-баз; логическая карта та же.
 
 Источник:
 
@@ -14,12 +16,12 @@
 
 Документ покрывает:
 
-1. текущую структуру БД `apps/integrator`;
-2. текущую структуру БД `apps/webapp`.
+1. схему **`integrator`** (код и миграции в `apps/integrator`);
+2. схему **`public`** (webapp-канон; миграции в `apps/webapp/migrations`).
 
 ---
 
-## 1. БД `integrator`
+## 1. Схема `integrator`
 
 ### 1.1 User / identity / contacts
 
@@ -83,11 +85,11 @@
 - `idempotency_keys`
 - `delivery_attempt_logs`
 - `projection_outbox` (очередь событий для проекции в webapp; мониторинг через projection health)
-- `schema_migrations`
+- `schema_migrations` — журнал SQL-миграций integrator (`version`, например `core:…`, `telegram:…`)
 
 ---
 
-## 2. БД `webapp`
+## 2. Схема `public` (webapp)
 
 ### 2.1 Users / bindings / preferences
 
@@ -116,7 +118,7 @@
 - `broadcast_audit`
 - `admin_audit_log` — персистентный журнал операций админки (опасные действия, смена настроек, конфликты auto-merge и т.д.); UI «Лог операций» в `/app/settings`, API `GET /api/admin/audit-log`. Миграция `066_admin_audit_log.sql`. Подробности и политика записи: `docs/REPORTS/STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md`, план strict purge §0.
 - `idempotency_keys`
-- `schema_migrations`
+- `webapp_schema_migrations` — учёт SQL-миграций webapp (`apps/webapp/migrations/*.sql`); отдельное имя от `integrator.schema_migrations` (`version`) и от исторической `public.schema_migrations (filename)`, см. `apps/webapp/scripts/run-migrations.mjs`
 
 ### 2.4 Support / communication (проекция из integrator)
 
@@ -180,11 +182,11 @@
 - Booking хранится в `rubitime_records`.
 - В `integrator` уже есть отдельные домены для messaging, reminders, mailings и runtime tables.
 
-### 3.2 `webapp`
+### 3.2 Схема `public`
 
-- `webapp` уже имеет собственную user model (`platform_users`, `user_channel_bindings`, `user_notification_topics`).
-- `webapp` уже имеет собственные diary tables (symptom, LFK).
-- `webapp` уже имеет собственные auth/audit/runtime tables.
+- Канон платформы: `platform_users`, `user_channel_bindings`, `user_notification_topics`.
+- Дневники: symptom, LFK и связанные таблицы.
+- Auth / audit / runtime в `public` (в т.ч. idempotency для webapp).
 - Таблицы 2.4–2.7 — проекция данных из integrator; первичный перенос через backfill. **Актуально (2026-04):** одна БД, схемы `integrator` + `public`; целевой путь — **прямой SQL** из integrator в `public`, HTTP projection и worker — **legacy / fallback** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md), [Stage 13 ownership map](./STAGE13_OWNERSHIP_MAP.md)).
 
 ### 3.3 Общие имена таблиц
@@ -198,15 +200,15 @@
 
 ## 4. Dumps
 
-- [Integrator schema dump](./DB_DUMPS/integrator_bersoncarebot_dev_schema.sql)
-- [Webapp schema dump](./DB_DUMPS/webapp_bcb_webapp_dev_schema.sql)
+- [Дамп схемы integrator](./DB_DUMPS/integrator_bersoncarebot_dev_schema.sql) (исторически снят с отдельной dev-базы)
+- [Дамп схемы public](./DB_DUMPS/webapp_bcb_webapp_dev_schema.sql) (webapp; unified — обе схемы в одной БД)
 
 Актуальный список таблиц в коде: миграции `apps/integrator` (integrator), `apps/webapp/migrations/` (webapp). Дампы в DB_DUMPS могут отставать от последних миграций; для полной схемы после миграций смотреть `\dt` в psql или вывод миграций.
 
 ## 5. Перенос данных (backfill / reconcile)
 
-- **Источник:** БД integrator (`DATABASE_URL` из api.prod).
-- **Цель:** БД webapp (`DATABASE_URL` из webapp.prod).
+- **Окружение:** при **unified** Postgres один и тот же `DATABASE_URL` (и та же роль БД) для api и webapp; скрипты читают схему **`integrator`** как источник и **`public`** как цель (в `cutover.*` второй URL часто **дублирует** первый).
+- **Legacy:** при двух отдельных базах — разные URL в `cutover.prod`; порядок скриптов тот же.
 - **Скрипты backfill и reconcile:** см. [DATA_MIGRATION_CHECKLIST.md](../../deploy/DATA_MIGRATION_CHECKLIST.md).
 - **Владелец данных и статусы таблиц:** [STAGE13_OWNERSHIP_MAP.md](./STAGE13_OWNERSHIP_MAP.md).
 

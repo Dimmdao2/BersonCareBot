@@ -272,7 +272,7 @@ location /api/internal/ {
 
 - webapp сервис активен (`bersoncarebot-webapp-prod.service`) и `GET /api/health` отвечает `{"ok":true,...}`;
 - в `webapp.prod` присутствуют `DATABASE_URL`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_PRIVATE_BUCKET`, `INTERNAL_JOB_SECRET`;
-- миграция `060_media_files_status_retry.sql` применена (запись в `schema_migrations`), колонки/constraint/index присутствуют;
+- миграция `060_media_files_status_retry.sql` применена (запись в `webapp_schema_migrations`), колонки/constraint/index присутствуют;
 - ручной вызов purge c Bearer на loopback возвращает `{"ok":true,...}`;
 - cron файл `/etc/cron.d/bersoncarebot-media-purge` установлен (каждую минуту, loopback URL).
 
@@ -381,13 +381,13 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 
 Обязательные ключи:
 
-- `DATABASE_URL=...` — webapp production DB
-- `INTEGRATOR_DATABASE_URL=...` или `SOURCE_DATABASE_URL=...` — integrator production DB
+- `DATABASE_URL=...` — база со схемой **`public`**
+- `INTEGRATOR_DATABASE_URL=...` или `SOURCE_DATABASE_URL=...` — доступ к схеме **`integrator`**; при **unified** Postgres **та же строка**, что и `DATABASE_URL` (одна база, одна роль БД)
 
 Важно:
 
 - это не runtime env для `bersoncarebot-webapp-prod.service`;
-- `webapp.prod` не обязан содержать integrator DB URL;
+- `webapp.prod` не обязан дублировать cutover-переменные — URL для скриптов живут в `cutover.prod`;
 - preferred схема для cutover/gate — отдельный `cutover.prod`.
 
 ### Dev env

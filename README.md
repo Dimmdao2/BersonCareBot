@@ -38,7 +38,7 @@ pnpm run worker:dev
 Обязательные env-переменные:
 
 - `BOOKING_URL`
-- `DATABASE_URL`
+- `DATABASE_URL` — в production совпадает у webapp и integrator (одна база PostgreSQL, схемы `public` и `integrator`; см. `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`)
 
 Часто используемые опциональные:
 

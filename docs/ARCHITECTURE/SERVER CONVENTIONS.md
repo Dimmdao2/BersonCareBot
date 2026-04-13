@@ -321,17 +321,13 @@
 
 ### Env templates в репозитории
 
-Есть:
-
-- `.env.example`
+- `.env.example` (integrator / корень)
 - `apps/webapp/.env.example`
-- `deploy/env/.env.webapp.prod.example`
-- `deploy/env/.env.webapp.dev.example`
-
-Отсутствуют:
-
-- `deploy/env/.env.prod.example`
-- `deploy/env/.env.dev.example`
+- `deploy/env/.env.dev.example` — шаблон integrator dev (`DATABASE_URL`; при unified — та же база, что у webapp)
+- `deploy/env/.env.prod.example` — шаблон integrator prod
+- `deploy/env/.env.webapp.dev.example`, `deploy/env/.env.webapp.prod.example`
+- `deploy/env/.env.cutover.dev.example`, `deploy/env/.env.cutover.prod.example` — backfill/reconcile (два ключа; при unified часто **одинаковая** строка)
+- `deploy/env/webapp/.env.dev.example`, `deploy/env/webapp/.env.prod.example` — дубликаты путей для совместимости; канон списка env: [`deploy/env/README.md`](../../deploy/env/README.md)
 
 ---
 
