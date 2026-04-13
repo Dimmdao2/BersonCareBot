@@ -167,7 +167,8 @@ describe("AuthFlowV2", () => {
     );
 
     render(<AuthFlowV2 nextParam={null} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Войти по номеру телефона" })).toBeInTheDocument());
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-landing")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Другие способы входа" })).toBeInTheDocument();
   });
 
   it("does not show OAuth buttons when providers endpoint reports all disabled", async () => {
@@ -187,7 +188,8 @@ describe("AuthFlowV2", () => {
     );
 
     render(<AuthFlowV2 nextParam={null} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: "Войти по номеру телефона" })).toBeInTheDocument());
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-landing")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Другие способы входа" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
   });
