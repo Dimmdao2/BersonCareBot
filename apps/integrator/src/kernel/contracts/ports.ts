@@ -101,11 +101,20 @@ export type DbReadPort = {
   readDb<T = unknown>(query: DbReadQuery): Promise<T>;
 };
 
+/** Семантический отказ привязки телефона (TX `public` + integrator); не смешивать с конфликтом номера в UI. */
+export type PhoneLinkFailureReason =
+  | 'no_channel_binding'
+  | 'phone_owned_by_other_user'
+  | 'integrator_id_mismatch'
+  | 'db_transient_failure';
+
 /** Метаданные отдельных мутаций `writeDb` (остальные кейсы возвращают `undefined`). */
 export type DbWriteDbResult = {
   userPhoneLinkApplied: boolean;
   /** Ошибка БД / нет identity: не показывать копию «номер у другого аккаунта». */
   phoneLinkIndeterminate?: boolean;
+  /** Уточнение при `userPhoneLinkApplied: false` (binding-first TX-путь). */
+  phoneLinkReason?: PhoneLinkFailureReason;
 };
 
 /** Исход `setUserPhone` в репозитории (integrator). */

@@ -389,6 +389,8 @@ Canonical linking rules:
 
 **Политика ошибок:** ошибка Rubitime API = ошибка для юзера (502). Projection (fetch/gcal/upsert) — non-blocking: HTTP 200 возвращается с `projectionWarning`, если projection не прошла. Webapp не блокирует UX при projection failure — webhook Rubitime впоследствии закроет gap.
 
+**Интервал между вызовами Rubitime API2 (integrator):** по правилам Rubitime запросы к `https://rubitime.ru/api2/*` не чаще одного раза в ~5 секунд на API-ключ. В integrator все исходящие вызовы api2 (`create-record`, `get-record`, `get-schedule`, `update-record`, `remove-record`) проходят через общий throttle: минимум **5500 ms** между завершением одного запроса и началом следующего, координация между процессами — `pg_advisory_lock` + таблица `rubitime_api_throttle` (миграция `rubitime:20260413_0001_rubitime_api_throttle.sql`). После деплоя нужно применить миграции integrator; при отсутствии строки throttle — ошибка `RUBITIME_THROTTLE_ROW_MISSING`. Аварийное отключение (только инциденты): переменная окружения процесса integrator **`INTEGRATOR_SKIP_RUBITIME_THROTTLE=1`**. Подробности и backlog очереди/async/мультислотов: `docs/REPORTS/RUBITIME_API2_PACING_AND_PHASE2_BACKLOG.md`.
+
 ---
 
 ## Flow: BersonCare → Integrator (Rubitime record reverse API)

@@ -1,12 +1,38 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DbPort } from "../../kernel/contracts/index.js";
 import { createDbWritePort } from "./writePort.js";
-import { hashPayload, projectionIdempotencyKey } from "./repos/projectionKeys.js";
 
 function makeMockDb(capture: {
   projectionInserts: { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[];
 }) {
   const query = vi.fn(async (sql: string, params: unknown[]) => {
+    if (sql.includes("user_channel_bindings")) {
+      return {
+        rows: [
+          {
+            platform_user_id: "00000000-0000-4000-8000-000000000001",
+            existing_int_uid: null,
+          },
+        ],
+      } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    if (
+      sql.includes("public.platform_users") &&
+      sql.includes("phone_normalized = $1") &&
+      sql.includes("id <> $2::uuid")
+    ) {
+      return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    if (
+      sql.includes("public.platform_users") &&
+      sql.includes("integrator_user_id = $1::bigint") &&
+      sql.includes("id <> $2::uuid")
+    ) {
+      return { rows: [] } as Awaited<ReturnType<DbPort["query"]>>;
+    }
+    if (sql.includes("UPDATE public.platform_users")) {
+      return { rows: [], rowCount: 1 } as Awaited<ReturnType<DbPort["query"]>>;
+    }
     if (sql.includes("merged_into_user_id") && sql.includes("FROM users")) {
       return { rows: [{ merged_into_user_id: null }] } as Awaited<ReturnType<DbPort["query"]>>;
     }
@@ -92,12 +118,12 @@ describe("writePort user.upsert projection payload", () => {
     expect(ev.payload.externalId).toBe("555123");
   });
 
-  it("emits contact.linked with channel identity payload", async () => {
+  it("user.phone.link updates public + integrator without contact.linked projection fanout", async () => {
     const capture = { projectionInserts: [] as { eventType: string; idempotencyKey: string; payload: Record<string, unknown> }[] };
     const db = makeMockDb(capture);
     const writePort = createDbWritePort({ db });
 
-    await writePort.writeDb({
+    const meta = await writePort.writeDb({
       type: "user.phone.link",
       params: {
         resource: "telegram",
@@ -106,19 +132,8 @@ describe("writePort user.upsert projection payload", () => {
       },
     });
 
-    expect(capture.projectionInserts).toHaveLength(1);
-    const ev = capture.projectionInserts[0]!;
-    const expectedPayload = {
-      integratorUserId: "uid-tg",
-      phoneNormalized: "+79990001122",
-      channelCode: "telegram",
-      externalId: "123",
-    };
-    expect(ev.eventType).toBe("contact.linked");
-    expect(ev.payload).toEqual(expectedPayload);
-    expect(ev.idempotencyKey).toBe(
-      projectionIdempotencyKey("contact.linked", "uid-tg", hashPayload(expectedPayload))
-    );
+    expect(capture.projectionInserts).toHaveLength(0);
+    expect(meta).toMatchObject({ userPhoneLinkApplied: true });
   });
 });
 

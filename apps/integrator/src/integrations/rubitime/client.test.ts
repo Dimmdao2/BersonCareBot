@@ -46,6 +46,34 @@ describe('fetchRubitimeRecordById', () => {
       fetchImpl,
     })).rejects.toThrow('RUBITIME_API_ERROR');
   });
+
+  it('retries once when Rubitime returns consecutive-request limit then succeeds', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: 'error',
+            message: 'Limit on the number of consecutive requests: 5 seconds',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: 'ok',
+            message: 'Success',
+            data: { id: 321, phone: '+79990001122' },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      );
+
+    const result = await fetchRubitimeRecordById({ recordId: '321', fetchImpl });
+
+    expect(result).toMatchObject({ id: 321 });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('updateRubitimeRecord / removeRubitimeRecord', () => {

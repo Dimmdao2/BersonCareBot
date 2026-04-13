@@ -1,4 +1,11 @@
 import { getRubitimeApiKey } from './runtimeConfig.js';
+import { withRubitimeApiThrottle } from './rubitimeApiThrottle.js';
+
+/** Rubitime HTTP 200 + body error (still counts as a request on their side). */
+function isRubitimeConsecutiveRequestLimitMessage(message: string): boolean {
+  const m = message.toLowerCase();
+  return m.includes('consecutive requests') || m.includes('5 second');
+}
 
 type RubitimeApiEnvelope<TData> = {
   status?: string;
@@ -34,12 +41,16 @@ async function postRubitimeApi2(input: {
 
   let lastHttpError: Error | undefined;
   for (let attempt = 0; attempt < 3; attempt++) {
-    let response: Response;
+    let pack: { status: number; ok: boolean; raw: string };
     try {
-      response = await fetchImpl(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: bodyJson,
+      pack = await withRubitimeApiThrottle(async () => {
+        const response = await fetchImpl(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: bodyJson,
+        });
+        const raw = await response.text();
+        return { status: response.status, ok: response.ok, raw };
       });
     } catch (e) {
       if (e instanceof TypeError && attempt < 2) {
@@ -49,15 +60,16 @@ async function postRubitimeApi2(input: {
       throw e;
     }
 
-    const raw = await response.text();
-    if (!response.ok) {
-      lastHttpError = new Error(`RUBITIME_HTTP_${response.status}: ${raw.slice(0, 300)}`);
-      if (response.status >= 500 && attempt < 2) {
+    if (!pack.ok) {
+      lastHttpError = new Error(`RUBITIME_HTTP_${pack.status}: ${pack.raw.slice(0, 300)}`);
+      if (pack.status >= 500 && attempt < 2) {
         await sleep(RUBITIME_API_RETRY_BACKOFF_MS[attempt] ?? 2000);
         continue;
       }
       throw lastHttpError;
     }
+
+    const raw = pack.raw;
 
     let parsed: RubitimeApiEnvelope<unknown>;
     try {
@@ -67,7 +79,11 @@ async function postRubitimeApi2(input: {
     }
 
     if (parsed.status !== 'ok') {
-      throw new Error(`RUBITIME_API_ERROR: ${parsed.message ?? 'unknown error'}`);
+      const apiMessage = typeof parsed.message === 'string' ? parsed.message : 'unknown error';
+      if (isRubitimeConsecutiveRequestLimitMessage(apiMessage) && attempt < 2) {
+        continue;
+      }
+      throw new Error(`RUBITIME_API_ERROR: ${apiMessage}`);
     }
 
     const data = asRecord(parsed.data);

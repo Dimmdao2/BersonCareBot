@@ -2,7 +2,7 @@
 
 /**
  * Страховочный слой Mini App (Telegram / MAX): WebApp уже открыт, tier пациента ещё не `patient` —
- * ждём контакт в боте → `contact.linked`. Основной контроль — в integrator (меню без номера не отдаётся).
+ * ждём контакт в боте → привязка в БД (TX integrator + `public`). Основной контроль — в integrator (меню без номера не отдаётся).
  *
  * Перед проверкой: при 401 на `/api/me` — `POST /api/auth/telegram-init` (Telegram) или `POST /api/auth/exchange` (параметр `?t=` / `?token=`).
  * `/app/patient/bind-phone` гейт не блокирует (там встроенная подсказка «через бота» для Mini App).
@@ -67,8 +67,9 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
       toast.error(msg);
       return;
     }
+    router.refresh();
     closeMessengerMiniApp();
-  }, [releaseGate]);
+  }, [releaseGate, router]);
 
   useLayoutEffect(() => {
     if (!isMessengerMiniAppHost()) {

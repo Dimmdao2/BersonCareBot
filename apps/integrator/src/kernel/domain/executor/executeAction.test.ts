@@ -441,6 +441,43 @@ describe('executeAction', () => {
     expect(writeDb).toHaveBeenCalledTimes(2);
   });
 
+  it('user.phone.link no_channel_binding: dedicated copy', async () => {
+    const writeDb = vi.fn().mockResolvedValue({
+      userPhoneLinkApplied: false,
+      phoneLinkReason: 'no_channel_binding',
+    });
+    const messageCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: { ...ctx.event.meta, source: 'telegram' },
+        payload: {
+          incoming: {
+            channelUserId: '123',
+            chatId: 999001,
+            contactPhone: '+79191234567',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'phone-no-binding',
+        type: 'user.phone.link',
+        mode: 'sync',
+        params: { channelUserId: '123', phoneNormalized: '+79191234567' },
+      },
+      messageCtx,
+      { writePort: { writeDb } },
+    );
+    expect(result.abortPlan).toBe(true);
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      message: {
+        text: 'Сначала откройте приложение из этого бота (кнопка меню), затем снова поделитесь контактом.',
+      },
+    });
+  });
+
   it('user.phone.link conflict: message to user and abortPlan, no success writes', async () => {
     const writeDb = vi.fn().mockResolvedValue({ userPhoneLinkApplied: false });
     const messageCtx: DomainContext = {

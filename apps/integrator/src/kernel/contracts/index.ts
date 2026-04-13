@@ -82,6 +82,7 @@ export type {
   DbReadQueryType,
   DbWriteDbResult,
   DbWriteMutation,
+  PhoneLinkFailureReason,
   SetUserPhoneOutcome,
   DbWriteMutationType,
   DbWritePort,

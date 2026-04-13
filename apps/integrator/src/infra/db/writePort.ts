@@ -11,6 +11,10 @@ import { upsertRecord, insertEvent } from './repos/bookingRecords.js';
 import { setUserPhone, setUserState, updateNotificationSettings, upsertUser } from './repos/channelUsers.js';
 import { appendMessageLog, insertDeliveryAttemptLog } from './repos/messageLogs.js';
 import {
+  applyMessengerPhonePublicBind,
+  MessengerPhoneLinkError,
+} from './repos/messengerPhonePublicBind.js';
+import {
   cancelDraftByIdentity,
   ensureIdentityForMessenger,
   insertConversation,
@@ -388,54 +392,50 @@ export function createDbWritePort(input: {
           if (!channelUserId || !phoneNormalized) {
             return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
           }
-          let applied = false;
-          let indeterminate = false;
-          const pendingPhoneLink: ProjectionFanoutInput[] = [];
-          await db.tx(async (txDb) => {
-            if (resource === "max") {
-              await ensureIdentityForMessenger(txDb, { resource: "max", externalId: channelUserId });
-            }
-            const outcome = await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
-            if (outcome === 'failed') {
-              indeterminate = true;
-              return;
-            }
-            if (outcome === 'noop_conflict') return;
-            applied = true;
-            // Fanout using the same identity row setUserPhone used (not readPort / getLinkDataByIdentity).
-            const idPeek = await txDb.query<{ user_id: string }>(
-              `SELECT i.user_id::text AS user_id
-               FROM identities i
-               WHERE i.resource = $2 AND i.external_id = $1
-               LIMIT 1`,
-              [channelUserId, resource],
-            );
-            const rawUid = idPeek.rows[0]?.user_id ?? null;
-            if (rawUid) {
+          try {
+            let applied = false;
+            await db.tx(async (txDb) => {
+              if (resource === 'max') {
+                await ensureIdentityForMessenger(txDb, { resource: 'max', externalId: channelUserId });
+              }
+              const idPeek = await txDb.query<{ user_id: string }>(
+                `SELECT i.user_id::text AS user_id
+                 FROM identities i
+                 WHERE i.resource = $2 AND i.external_id = $1
+                 LIMIT 1`,
+                [channelUserId, resource],
+              );
+              const rawUid = idPeek.rows[0]?.user_id ?? null;
+              if (!rawUid) {
+                throw new MessengerPhoneLinkError('db_transient_failure');
+              }
               const canonicalUid = await resolveCanonicalIntegratorUserId(txDb, rawUid);
-              const projectionPayload: Record<string, unknown> = {
-                integratorUserId: canonicalUid,
-                phoneNormalized,
+              await applyMessengerPhonePublicBind(txDb, {
                 channelCode: resource,
                 externalId: channelUserId,
-              };
-              pendingPhoneLink.push({
-                eventType: 'contact.linked',
-                idempotencyKey: projectionIdempotencyKey(
-                  'contact.linked',
-                  canonicalUid,
-                  hashPayload(projectionPayload),
-                ),
-                occurredAt: new Date().toISOString(),
-                payload: projectionPayload,
+                phoneNormalized,
+                canonicalIntegratorUserId: canonicalUid,
               });
+              const outcome = await setUserPhone(txDb, channelUserId, phoneNormalized, resource);
+              if (outcome === 'failed') {
+                throw new MessengerPhoneLinkError('db_transient_failure');
+              }
+              if (outcome === 'noop_conflict') {
+                throw new MessengerPhoneLinkError('phone_owned_by_other_user');
+              }
+              applied = true;
+            });
+            return { userPhoneLinkApplied: applied };
+          } catch (err) {
+            if (err instanceof MessengerPhoneLinkError) {
+              if (err.code === 'db_transient_failure') {
+                return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true, phoneLinkReason: err.code };
+              }
+              return { userPhoneLinkApplied: false, phoneLinkReason: err.code };
             }
-          });
-          await fanoutProjectionsAfterTx(pendingPhoneLink);
-          if (indeterminate) {
-            return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
+            logger.error({ err }, 'user.phone.link: unexpected error');
+            return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true, phoneLinkReason: 'db_transient_failure' };
           }
-          return { userPhoneLinkApplied: applied };
         }
         case 'draft.upsert': {
           const resource = readResource(mutation.params);

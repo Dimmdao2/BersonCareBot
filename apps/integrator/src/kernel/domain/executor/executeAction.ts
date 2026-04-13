@@ -60,7 +60,12 @@ import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
 import { ADMIN } from './templateKeys.js';
 import { dispatchRequestContactToUser } from '../../../integrations/bersoncare/dispatchRequestContact.js';
 import { logger } from '../../../infra/observability/logger.js';
-import { phoneLinkConflictUserMessage, phoneLinkSaveFailedUserMessage } from '../../../shared/phoneLinkUserMessages.js';
+import {
+  phoneLinkConflictUserMessage,
+  phoneLinkIntegratorMismatchUserMessage,
+  phoneLinkNoBindingUserMessage,
+  phoneLinkSaveFailedUserMessage,
+} from '../../../shared/phoneLinkUserMessages.js';
 
 const BOOKING_TYPES = new Set<string>(['booking.upsert', 'booking.event.insert']);
 const NOTIFICATION_TYPES = new Set<string>(['notifications.get', 'notifications.toggle']);
@@ -641,15 +646,25 @@ export async function executeAction(
       }
       const m = hasMeta ? (meta as DbWriteDbResult) : null;
       const indeterminate = !hasMeta || m?.phoneLinkIndeterminate === true;
-      const conflict = hasMeta && m && !m.userPhoneLinkApplied && !m.phoneLinkIndeterminate;
+      const notApplied = hasMeta && m && !m.userPhoneLinkApplied;
 
-      if (indeterminate || conflict) {
+      if (notApplied || indeterminate) {
         const chatIdStr = readIncomingChatId(ctx);
         const chatIdParsed = chatIdStr != null ? Number(chatIdStr) : NaN;
         const source = ctx.event.meta.source ?? 'telegram';
-        const text = indeterminate
-          ? phoneLinkSaveFailedUserMessage()
-          : phoneLinkConflictUserMessage(source);
+        const reason = m?.phoneLinkReason;
+        let text: string;
+        if (reason === 'no_channel_binding') {
+          text = phoneLinkNoBindingUserMessage(source);
+        } else if (reason === 'phone_owned_by_other_user') {
+          text = phoneLinkConflictUserMessage(source);
+        } else if (reason === 'integrator_id_mismatch') {
+          text = phoneLinkIntegratorMismatchUserMessage(source);
+        } else if (indeterminate) {
+          text = phoneLinkSaveFailedUserMessage();
+        } else {
+          text = phoneLinkConflictUserMessage(source);
+        }
         const intents: OutgoingIntent[] = [{
           type: 'message.send',
           meta: buildIntentMeta(action, ctx),

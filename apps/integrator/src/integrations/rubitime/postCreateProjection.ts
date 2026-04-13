@@ -32,10 +32,6 @@ export type PostCreateProjectionResult = {
   error?: string;
 };
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export async function runPostCreateProjection(
   recordId: string,
   deps: PostCreateProjectionDeps,
@@ -47,7 +43,6 @@ export async function runPostCreateProjection(
     fetchedRecord = await fetchRubitimeRecordById({ recordId }) as Record<string, unknown>;
   } catch {
     try {
-      await sleep(500);
       fetchedRecord = await fetchRubitimeRecordById({ recordId }) as Record<string, unknown>;
     } catch (err) {
       logger.warn({ err, recordId }, '[postCreateProjection] fetch failed after retry');

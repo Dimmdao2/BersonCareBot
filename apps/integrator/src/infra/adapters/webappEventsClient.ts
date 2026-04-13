@@ -79,8 +79,21 @@ export function createWebappEventsPort(): WebappEventsPort {
           headers,
           body,
         });
-        const ok = res.ok || res.status === 202;
-        return { ok, status: res.status, ...(ok ? {} : { error: await res.text().catch(() => res.statusText) }) };
+        const text = await res.text().catch(() => '');
+        let parsed: { ok?: boolean; error?: string } = {};
+        try {
+          parsed = text ? (JSON.parse(text) as { ok?: boolean; error?: string }) : {};
+        } catch {
+          parsed = {};
+        }
+        const ok =
+          (res.status === 200 || res.status === 202) &&
+          parsed.ok === true;
+        return {
+          ok,
+          status: res.status,
+          ...(ok ? {} : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
+        };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return { ok: false, status: 0, error: message };
