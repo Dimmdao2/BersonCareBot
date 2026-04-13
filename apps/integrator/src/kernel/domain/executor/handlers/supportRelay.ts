@@ -57,12 +57,14 @@ export async function handleConversationUserMessage(
   const externalId = readExternalActorId(ctx);
   const source = asString(action.params.source) ?? ctx.event.meta.source;
   const adminChannel = ctx.event.meta.source;
-  const text = asString(action.params.text) ?? readIncomingText(ctx);
+  const explicitText = asString(action.params.text);
+  const text = explicitText ?? readIncomingText(ctx);
   const relayMessageType = readRelayMessageType(ctx) ?? 'text';
+  const effectiveRelayType = explicitText !== null ? 'text' : relayMessageType;
   if (!externalId || !source) {
     return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING' };
   }
-  if (relayMessageType === 'text' && !text) {
+  if (effectiveRelayType === 'text' && !text) {
     return { actionId: action.id, status: 'skipped', error: 'CONVERSATION_USER_MESSAGE_INPUT_MISSING' };
   }
   const conversation = await deps.readPort.readDb<Record<string, unknown> | null>({
@@ -79,7 +81,7 @@ export async function handleConversationUserMessage(
     return { actionId: action.id, status: 'skipped', error: 'OPEN_CONVERSATION_NOT_FOUND' };
   }
   const policy = deps.supportRelayPolicy;
-  if (policy && !policy.isAllowedUserToAdmin(relayMessageType)) {
+  if (policy && !policy.isAllowedUserToAdmin(effectiveRelayType)) {
     const refusalChatId = asNumber(readIncoming(ctx).chatId);
     const refusalText = source !== 'max' && deps.templatePort
       ? (await renderText({ templateKey: RELAY_USER.UNSUPPORTED_TYPE, ctx, templatePort: deps.templatePort }))
@@ -105,10 +107,10 @@ export async function handleConversationUserMessage(
         id: randomUUID(),
         conversationId,
         senderRole: 'user',
-        text: text ?? (relayMessageType !== 'text' ? `[${relayMessageType}]` : ''),
+        text: text ?? (effectiveRelayType !== 'text' ? `[${effectiveRelayType}]` : ''),
         source,
-        externalChatId: readIncomingChatId(ctx),
-        externalMessageId: readIncomingMessageId(ctx),
+        externalChatId: asString(action.params.externalChatId) ?? readIncomingChatId(ctx),
+        externalMessageId: asString(action.params.externalMessageId) ?? readIncomingMessageId(ctx),
         createdAt: ctx.nowIso,
       },
     },
@@ -142,7 +144,7 @@ export async function handleConversationUserMessage(
   const userMessageIdRaw = readIncomingMessageId(ctx);
   const userMessageId = userMessageIdRaw !== null && Number.isFinite(Number(userMessageIdRaw)) ? Number(userMessageIdRaw) : null;
   const intents: OutgoingIntent[] = [];
-  if (source === 'telegram' && userChatId !== null && userMessageId !== null) {
+  if (source === 'telegram' && userChatId !== null && userMessageId !== null && explicitText === null) {
     intents.push({
       type: 'message.copy',
       meta: buildIntentMeta(action, ctx),
@@ -153,7 +155,7 @@ export async function handleConversationUserMessage(
         delivery: channelDeliveryPayload(adminChannel),
       },
     });
-  } else if (relayMessageType === 'text' && text) {
+  } else if (effectiveRelayType === 'text' && text) {
     intents.push({
       type: 'message.send',
       meta: buildIntentMeta(action, ctx),

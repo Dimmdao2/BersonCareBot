@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 const dir = dirname(fileURLToPath(import.meta.url));
 
 describe('max user static content', () => {
-  it('scripts: max.start.link — высокий priority (выше диалога/reminder freeText) и externalId из channelId', () => {
+  it('scripts: max.start.link — высокий priority (выше диалога/reminder freeText) и externalId = meta.userId (id пользователя MAX)', () => {
     const scripts = JSON.parse(readFileSync(join(dir, 'scripts.json'), 'utf8')) as Array<{
       id: string;
       priority?: number;
@@ -15,7 +15,7 @@ describe('max user static content', () => {
     const link = scripts.find((s) => s.id === 'max.start.link');
     expect(link?.priority).toBe(55);
     const step = link?.steps?.find((s) => s.action === 'webapp.channelLink.complete');
-    expect((step?.params as { externalId?: string })?.externalId).toBe('{{input.channelId}}');
+    expect((step?.params as { externalId?: string })?.externalId).toBe('{{meta.userId}}');
   });
 
   it('scripts: max.start.onboarding — inline request_contact (как M2M и need_phone ветки)', () => {

@@ -6,6 +6,7 @@ import { completeChannelLinkFromIntegrator } from "@/modules/auth/channelLink";
 const bodySchema = z.object({
   linkToken: z.string().min(4).max(500),
   channelCode: z.enum(["telegram", "max"]),
+  /** ID пользователя в мессенджере (Telegram id / MAX user_id), строка; не chat_id чата. */
   externalId: z.string().min(1).max(64),
 });
 

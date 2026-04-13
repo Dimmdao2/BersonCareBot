@@ -72,7 +72,7 @@ const MENU_DEFAULT_SCRIPT = {
   event: 'message.received',
   match: {
     actor: { isAdmin: false },
-    context: { hasOpenConversation: false, conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] } },
+    context: { conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] } },
     input: {
       textPresent: true,
       excludeActions: ['booking.open', 'menu.more', 'cabinet.open', 'diary.open', 'start.setrubitimerecord', 'start.noticeme', 'start.set'],

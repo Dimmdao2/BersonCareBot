@@ -16,8 +16,9 @@ export async function setupMaxCommands(): Promise<void> {
   const ok = await setMaxBotCommands(
     { apiKey },
     [
-      { name: 'start', description: 'Главное меню' },
-      { name: 'book', description: 'Записаться на прием' },
+      { name: 'book', description: 'Запись на приём' },
+      { name: 'diary', description: 'Дневник' },
+      { name: 'menu', description: 'Меню' },
     ],
   );
 

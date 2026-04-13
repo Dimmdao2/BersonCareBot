@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { isAppSupportPath } from "@/lib/url/isAppSupportPath";
 import { isSafeExternalHref } from "@/lib/url/isSafeExternalHref";
 import { cn } from "@/lib/utils";
@@ -11,15 +10,19 @@ type SupportContactLinkProps = {
   children: React.ReactNode;
 };
 
-/** Внутренний путь `/app/...` → `Link`; иначе безопасный внешний URL → `<a target="_blank">`. */
+/**
+ * Внутренний путь `/app/...` → нативный `<a>` (полная загрузка документа), чтобы после деплоя не ловить
+ * «Failed to load chunk»: клиентский `Link` оставляет старый бандл и тянет уже удалённые чанки.
+ * Внешний URL — `<a target="_blank">`.
+ */
 export function SupportContactLink({ href, className, children }: SupportContactLinkProps) {
   const h = href.trim();
   if (!h) return null;
   if (isAppSupportPath(h)) {
     return (
-      <Link href={h} className={cn(className)}>
+      <a href={h} className={cn(className)}>
         {children}
-      </Link>
+      </a>
     );
   }
   if (!isSafeExternalHref(h)) return null;

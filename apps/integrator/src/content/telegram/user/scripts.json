@@ -14,7 +14,7 @@
 				"params": {
 					"linkToken": "{{input.linkSecret}}",
 					"channelCode": "telegram",
-					"externalId": "{{input.channelId}}"
+					"externalId": "{{meta.userId}}"
 				}
 			}
 		]
@@ -368,17 +368,11 @@
 		},
 		"steps": [
 			{
-				"action": "admin.forward",
-				"mode": "async",
+				"action": "user.state.set",
+				"mode": "sync",
 				"params": {
-					"chatId": "{{facts.adminChatId}}",
-					"templateKey": "telegram:adminForward",
-					"vars": {
-						"name": "{{facts.actor.displayName}}",
-						"username": "{{actor.username}}",
-						"channelId": "{{actor.channelUserId}}",
-						"messageText": "{{input.text}}"
-					}
+					"channelUserId": "{{actor.channelUserId}}",
+					"state": "waiting_for_question"
 				}
 			},
 			{
@@ -388,7 +382,7 @@
 					"recipient": { "chatId": "{{actor.chatId}}" },
 					"message": {},
 					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:questionAccepted"
+					"templateKey": "telegram:describeQuestion"
 				}
 			}
 		]
@@ -437,7 +431,6 @@
 		"match": {
 			"context": {
 				"hasActiveDraft": true,
-				"hasOpenConversation": false,
 				"conversationState": { "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title", "waiting_for_question"] }
 			},
 			"input": {
@@ -665,40 +658,6 @@
 					"channelUserId": "{{actor.channelUserId}}",
 					"resource": "telegram",
 					"chatId": "{{actor.chatId}}"
-				}
-			}
-		]
-	},
-	{
-		"id": "telegram.conversation.user.message",
-		"source": "telegram",
-		"event": "message.received",
-		"match": {
-			"actor": { "isAdmin": false },
-			"context": { "hasOpenConversation": true },
-			"input": {
-				"textPresent": true,
-				"excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.setrubitimerecord", "start.noticeme", "start.set"],
-				"excludeTexts": ["/start", "⚙️ Меню", "Меню", "📅 Запись на приём", "Запись на приём", "📓 Дневник", "Дневник", "👤 Кабинет", "Кабинет"],
-				"excludeTextPrefixes": ["/start"]
-			}
-		},
-		"steps": [
-			{
-				"action": "conversation.user.message",
-				"mode": "sync",
-				"params": {
-					"source": "telegram"
-				}
-			},
-			{
-				"action": "message.send",
-				"mode": "async",
-				"params": {
-					"recipient": { "chatId": "{{actor.chatId}}" },
-					"message": {},
-					"delivery": { "channels": ["telegram"], "maxAttempts": 1 },
-					"templateKey": "telegram:dialogMessageAccepted"
 				}
 			}
 		]
@@ -2525,7 +2484,6 @@
 		"match": {
 			"actor": { "isAdmin": false },
 			"context": {
-				"hasOpenConversation": false,
 				"conversationState": { "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title"] }
 			},
 			"input": {

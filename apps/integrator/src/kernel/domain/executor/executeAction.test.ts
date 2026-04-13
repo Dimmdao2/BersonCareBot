@@ -644,17 +644,19 @@ describe('executeAction', () => {
 
   it('sends draft by creating conversation and notifying admin', async () => {
     const writeDb = vi.fn().mockResolvedValue(undefined);
-    const readDb = vi.fn().mockResolvedValue({
-      id: 'draft-1',
-      source: 'telegram',
-      channel_id: '123',
-      username: 'alice',
-      first_name: 'Alice',
-      last_name: 'Example',
-      external_chat_id: '123',
-      external_message_id: '55',
-      draft_text_current: 'Последний текст вопроса',
-    });
+    const readDb = vi.fn()
+      .mockResolvedValueOnce({
+        id: 'draft-1',
+        source: 'telegram',
+        channel_id: '123',
+        username: 'alice',
+        first_name: 'Alice',
+        last_name: 'Example',
+        external_chat_id: '123',
+        external_message_id: '55',
+        draft_text_current: 'Последний текст вопроса',
+      })
+      .mockResolvedValueOnce(null);
     const templatePort = {
       renderTemplate: vi.fn().mockResolvedValue({
         text: 'Новый вопрос\nОт: Alice Example (@alice)\nTelegram ID: 123\nТекст:\nПоследний текст вопроса',
@@ -703,6 +705,10 @@ describe('executeAction', () => {
       type: 'draft.activeByIdentity',
       params: { resource: 'telegram', externalId: '123', source: 'telegram' },
     });
+    expect(readDb).toHaveBeenCalledWith({
+      type: 'conversation.openByIdentity',
+      params: { resource: 'telegram', externalId: '123', source: 'telegram' },
+    });
     expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({
       type: 'conversation.open',
       params: expect.objectContaining({
@@ -725,6 +731,87 @@ describe('executeAction', () => {
         message: { text: expect.stringContaining('Последний текст вопроса') },
       },
     });
+  });
+
+  it('draft.send appends to existing open conversation and cancels draft', async () => {
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const draftRow = {
+      id: 'draft-1',
+      source: 'telegram',
+      channel_id: '123',
+      username: 'alice',
+      first_name: 'Alice',
+      last_name: 'Example',
+      external_chat_id: '123',
+      external_message_id: '55',
+      draft_text_current: 'Дополнение к диалогу',
+    };
+    const openConv = {
+      id: 'conv-open',
+      source: 'telegram',
+      status: 'waiting_admin',
+      user_channel_id: '123',
+      username: 'alice',
+      first_name: 'Alice',
+      last_name: 'Example',
+    };
+    const readDb = vi.fn()
+      .mockResolvedValueOnce(draftRow)
+      .mockResolvedValueOnce(openConv)
+      .mockResolvedValueOnce(openConv);
+
+    const draftCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'callback.received',
+        meta: {
+          ...ctx.event.meta,
+          source: 'telegram',
+          userId: '123',
+        },
+        payload: {
+          incoming: {
+            chatId: 123,
+            channelUserId: 123,
+            action: 'q_confirm:yes',
+            callbackQueryId: 'cb-append',
+          },
+        },
+      },
+      base: {
+        ...ctx.base,
+        facts: { adminChatId: 999 },
+      },
+    };
+
+    const result = await executeAction({
+      id: 'draft-send-append',
+      type: 'draft.send',
+      mode: 'sync',
+      params: {
+        source: 'telegram',
+        adminTemplateKey: 'telegram:adminForward',
+      },
+    }, draftCtx, {
+      readPort: { readDb },
+      writePort: { writeDb },
+      templatePort: {
+        renderTemplate: vi.fn().mockResolvedValue({ text: 'x' }),
+      },
+    });
+
+    expect(result.status).toBe('success');
+    expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({ type: 'draft.cancel' }));
+    expect(writeDb).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'conversation.message.add',
+      params: expect.objectContaining({
+        conversationId: 'conv-open',
+        text: 'Дополнение к диалогу',
+      }),
+    }));
+    expect(writeDb).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'conversation.open' }));
+    expect(result.values?.hasActiveDraft).toBe(false);
+    expect(result.intents?.some((i) => i.type === 'message.send')).toBe(true);
   });
 
   it('routes open conversation user and admin messages through conversation actions', async () => {
@@ -1601,6 +1688,50 @@ describe('executeAction', () => {
         recipient: { chatId: 999 },
         message: { text: expect.stringContaining('Новое сообщение') },
       });
+    });
+
+    it('conversation.user.message: explicit params.text skips message.copy (e.g. after draft confirm)', async () => {
+      const writeDb = vi.fn().mockResolvedValue(undefined);
+      const readDb = vi.fn().mockResolvedValue({
+        id: 'conv-1',
+        source: 'telegram',
+        user_channel_id: '123',
+        first_name: 'A',
+        last_name: 'B',
+        username: 'u',
+      });
+      const userCtx: DomainContext = {
+        ...ctx,
+        event: {
+          type: 'callback.received',
+          meta: { ...ctx.event.meta, source: 'telegram', userId: '123' },
+          payload: {
+            incoming: {
+              chatId: 123,
+              channelUserId: 123,
+              messageId: 777,
+              callbackQueryId: 'cb-1',
+            },
+          },
+        },
+        base: { ...ctx.base, facts: { adminChatId: 999 } },
+      };
+      const result = await executeAction({
+        id: 'u-explicit-text',
+        type: 'conversation.user.message',
+        mode: 'sync',
+        params: { source: 'telegram', text: 'Текст из черновика' },
+      }, userCtx, {
+        readPort: { readDb },
+        writePort: { writeDb },
+        supportRelayPolicy: createSupportRelayPolicy(['text', 'photo'], ['text']),
+      });
+      expect(result.status).toBe('success');
+      expect(result.intents?.some((i) => i.type === 'message.copy')).toBe(false);
+      expect(result.intents?.some(
+        (i) => i.type === 'message.send'
+          && (i.payload as { message?: { text?: string } }).message?.text === 'Текст из черновика',
+      )).toBe(true);
     });
 
     it('conversation.user.message: routes MAX text to MAX admin chat without telegram copy', async () => {

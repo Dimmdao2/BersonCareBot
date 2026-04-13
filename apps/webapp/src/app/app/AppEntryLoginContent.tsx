@@ -13,13 +13,12 @@ import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
 import type { AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
 
-/** Видна до первого события шага, на OAuth-first, доп. способах, landing Telegram и шаге телефона. */
+/** Видна до первого события шага, на OAuth-first, landing Telegram и шаге телефона. */
 export function shouldShowRegistrationPlaque(authStep: AuthFlowStep | null): boolean {
   return (
     authStep === null ||
     authStep === "entry_loading" ||
     authStep === "oauth_first" ||
-    authStep === "other_methods" ||
     authStep === "landing" ||
     authStep === "phone"
   );

@@ -40,6 +40,10 @@ function oauthProvidersDisabled() {
   return jsonRes({ ok: true, yandex: false, google: false, apple: false });
 }
 
+function oauthProvidersAppleOnly() {
+  return jsonRes({ ok: true, yandex: false, google: false, apple: true });
+}
+
 describe("AuthFlowV2", () => {
   beforeEach(() => {
     replace.mockClear();
@@ -168,7 +172,8 @@ describe("AuthFlowV2", () => {
 
     render(<AuthFlowV2 nextParam={null} />);
     await waitFor(() => expect(document.getElementById("auth-flow-v2-landing")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Другие способы входа" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Войти по номеру телефона" })).toBeInTheDocument();
   });
 
   it("does not show OAuth buttons when providers endpoint reports all disabled", async () => {
@@ -189,13 +194,12 @@ describe("AuthFlowV2", () => {
 
     render(<AuthFlowV2 nextParam={null} />);
     await waitFor(() => expect(document.getElementById("auth-flow-v2-landing")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Другие способы входа" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
   });
 
-  it("«Другие способы входа» shows Max and VK links without duplicating OAuth row", async () => {
-    const user = userEvent.setup();
+  it("oauth-first shows Max link from alternatives-config (no «Другие способы» screen)", async () => {
     isMiniAppHost.mockReturnValue(false);
     vi.stubGlobal(
       "fetch",
@@ -221,13 +225,60 @@ describe("AuthFlowV2", () => {
 
     render(<AuthFlowV2 nextParam={null} />);
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
-    await user.click(screen.getByRole("button", { name: "Другие способы входа" }));
-
-    await waitFor(() => expect(document.getElementById("auth-flow-v2-other-methods")).toBeTruthy());
-    expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
-    const maxLink = await screen.findByRole("link", { name: "Открыть бота в Max" });
+    expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
+    const maxLink = await screen.findByRole("link", { name: "Войти через Max" });
     expect(maxLink).toHaveAttribute("href", "https://max.ru/test_bot_nick");
-    const vkLink = screen.getByRole("link", { name: "Войти с VK ID" });
-    expect(vkLink).toHaveAttribute("href", "https://id.vk.com/auth");
+    expect(screen.queryByRole("link", { name: "Войти с VK ID" })).not.toBeInTheDocument();
+  });
+
+  it("does not show Apple when Yandex or Google is enabled alongside Apple", async () => {
+    isMiniAppHost.mockReturnValue(false);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/telegram-login/config")) {
+          return jsonRes({ ok: true, botUsername: "test_bot" });
+        }
+        if (url.includes("/api/auth/oauth/providers")) {
+          return jsonRes({ ok: true, yandex: true, google: false, apple: true });
+        }
+        if (url.includes("/api/auth/login/alternatives-config")) {
+          return jsonRes({ ok: true, telegramBotUsername: "test_bot" });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(<AuthFlowV2 nextParam={null} />);
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Войти через Яндекс" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Войти через Apple" })).not.toBeInTheDocument();
+  });
+
+  it("shows Apple when only Apple OAuth is configured (Yandex and Google off)", async () => {
+    isMiniAppHost.mockReturnValue(false);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = typeof input === "string" ? input : input.toString();
+        if (url.includes("/api/auth/telegram-login/config")) {
+          return jsonRes({ ok: true, botUsername: "test_bot" });
+        }
+        if (url.includes("/api/auth/oauth/providers")) {
+          return oauthProvidersAppleOnly();
+        }
+        if (url.includes("/api/auth/login/alternatives-config")) {
+          return jsonRes({ ok: true, maxBotOpenUrl: null, telegramBotUsername: "test_bot" });
+        }
+        return jsonRes({});
+      }),
+    );
+
+    render(<AuthFlowV2 nextParam={null} />);
+    await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Войти через Apple" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Войти через Google" })).not.toBeInTheDocument();
   });
 });

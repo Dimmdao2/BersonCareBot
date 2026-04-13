@@ -17,6 +17,8 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   '/unanswered': 'admin.questions.unanswered',
   '/show_my_id': 'debug.show_my_id',
   '/book': 'booking.open',
+  '/diary': 'nav.webapp.diary',
+  '/menu': 'nav.webapp.menu',
   'Неотвеченные вопросы': 'admin.questions.unanswered',
 };
 
@@ -35,7 +37,8 @@ function getActionFromText(text: string): string {
 
 function parseStartLinkToken(value: string): string | null {
   const trimmed = value.replace(/^\uFEFF+/, '').trim();
-  const asCommand = trimmed.match(/^\/start\s+(link_[A-Za-z0-9_-]+)$/i);
+  /** `/start link_*` and `/start@BotName link_*` (как в Telegram при выборе команды из меню). */
+  const asCommand = trimmed.match(/^\/start(?:@[^\s]+)?\s+(link_[A-Za-z0-9_-]+)$/i);
   if (asCommand?.[1]) return asCommand[1];
   return /^link_[A-Za-z0-9_-]+$/.test(trimmed) ? trimmed : null;
 }
@@ -57,6 +60,13 @@ function getUserIdFromMessage(msg: MaxUpdateValidated['message']): number | null
 
 function getMessageIdFromMessage(msg: MaxUpdateValidated['message']): string | null {
   return typeof msg?.body?.mid === 'string' && msg.body.mid.trim().length > 0 ? msg.body.mid : null;
+}
+
+function getCallbackMessageId(body: MaxUpdateValidated): string | null {
+  const fromMessage = getMessageIdFromMessage(body.message);
+  if (fromMessage) return fromMessage;
+  const root = typeof body.message_id === 'string' ? body.message_id.trim() : '';
+  return root.length > 0 ? root : null;
 }
 
 function getContactPhoneFromMaxMessage(msg: MaxUpdateValidated['message']): string | null {
@@ -111,7 +121,7 @@ export function fromMax(body: MaxUpdateValidated): IncomingUpdate | null {
     const payload = typeof body.callback.payload === 'string' ? body.callback.payload : '';
     const userId = body.callback.user?.user_id;
     const chatId = getChatIdFromMessage(body.message) ?? userId ?? null;
-    const messageId = getMessageIdFromMessage(body.message);
+    const messageId = getCallbackMessageId(body);
     if (!callbackId || chatId === null || userId == null || !messageId) return null;
     const normalized = normalizeDynamicTelegramAction(payload);
     const update: IncomingCallbackUpdate = {

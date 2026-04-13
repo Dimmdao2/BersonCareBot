@@ -11,9 +11,7 @@ export type LoginAlternativesPublicConfig = {
   vkWebLoginUrl: string | null;
 };
 
-/**
- * Публичные подсказки для экрана «Другие способы входа» (без секретов).
- */
+/** Публичные URL для экрана входа (Max, VK и т.д.), без секретов. */
 export async function getLoginAlternativesPublicConfig(): Promise<LoginAlternativesPublicConfig> {
   const tgRaw = (await getTelegramLoginBotUsername()).trim().replace(/^@/, "");
   const nick = normalizeMaxBotNicknameInput(await getMaxLoginBotNickname());

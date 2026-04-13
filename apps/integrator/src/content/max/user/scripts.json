@@ -18,7 +18,7 @@
         "mode": "async",
         "params": {
           "chatId": "{{actor.chatId}}",
-          "templateKey": "max:phoneLinkedWelcome",
+          "templateKey": "max:welcome",
           "menu": "main",
           "delivery": { "channels": ["max"], "maxAttempts": 1 }
         }
@@ -40,7 +40,7 @@
         "params": {
           "linkToken": "{{input.linkSecret}}",
           "channelCode": "max",
-          "externalId": "{{input.channelId}}"
+          "externalId": "{{meta.userId}}"
         }
       }
     ]
@@ -105,10 +105,517 @@
         "mode": "async",
         "params": {
           "chatId": "{{actor.chatId}}",
-          "templateKey": "max:chooseMenu",
+          "templateKey": "max:welcome",
           "menu": "main",
           "delivery": { "channels": ["max"], "maxAttempts": 1 }
         }
+      }
+    ]
+  },
+  {
+    "id": "max.nav.webapp.diary",
+    "source": "max",
+    "event": "message.received",
+    "priority": 28,
+    "match": {
+      "input": { "action": "nav.webapp.diary" },
+      "context": { "linkedPhone": true }
+    },
+    "steps": [
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:diary.webapp.prompt",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:diary.webapp.openButton", "webAppUrlFact": "links.webappDiaryUrl", "callbackData": "diary.open" }]
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.nav.webapp.diary.need_phone",
+    "source": "max",
+    "event": "message.received",
+    "priority": 30,
+    "match": {
+      "input": { "action": "nav.webapp.diary" },
+      "context": { "linkedPhone": false }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "await_contact:subscription"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:confirmPhoneForBooking",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:requestContact.button", "requestPhone": true }]
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.nav.webapp.menu",
+    "source": "max",
+    "event": "message.received",
+    "priority": 28,
+    "match": {
+      "input": { "action": "nav.webapp.menu" },
+      "context": { "linkedPhone": true }
+    },
+    "steps": [
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:menu.webapp.prompt",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:menu.webapp.openButton", "webAppUrlFact": "links.webappHomeUrl", "callbackData": "menu.more" }]
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.nav.webapp.menu.need_phone",
+    "source": "max",
+    "event": "message.received",
+    "priority": 30,
+    "match": {
+      "input": { "action": "nav.webapp.menu" },
+      "context": { "linkedPhone": false }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "await_contact:subscription"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:confirmPhoneForBooking",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:requestContact.button", "requestPhone": true }]
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.booking.open",
+    "source": "max",
+    "event": "message.received",
+    "match": {
+      "input": { "action": "booking.open" },
+      "context": { "linkedPhone": true }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "idle"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "_when": {
+            "and": [
+              { "path": "facts.links.webappCabinetUrl", "truthy": true },
+              { "path": "facts.links.webappAddressUrl", "truthy": true }
+            ]
+          },
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "message": {},
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "templateKey": "max:bookingMessage",
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" }],
+            [{ "textTemplateKey": "max:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+            [{ "textTemplateKey": "max:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }]
+          ]
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "_when": { "path": "facts.links.webappCabinetUrl", "truthy": false },
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "message": {},
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "templateKey": "max:bookingMessage",
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:bookingMenu.my", "callbackData": "bookings.show" }],
+            [{ "textTemplateKey": "max:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+            [{ "textTemplateKey": "max:bookingsScreen.address", "callbackData": "info.address" }]
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.booking.open.need_phone",
+    "source": "max",
+    "event": "message.received",
+    "match": {
+      "input": { "action": "booking.open" },
+      "context": { "linkedPhone": false }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "await_contact:subscription"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:confirmPhoneForBooking",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:requestContact.button", "requestPhone": true }]
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.booking.menu",
+    "source": "max",
+    "event": "callback.received",
+    "match": {
+      "input": { "action": "booking.menu" },
+      "context": { "linkedPhone": true }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "idle"
+        }
+      },
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "_when": {
+            "and": [
+              { "path": "facts.links.webappCabinetUrl", "truthy": true },
+              { "path": "facts.links.webappAddressUrl", "truthy": true }
+            ]
+          },
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:bookingMessage",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" }],
+            [{ "textTemplateKey": "max:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+            [{ "textTemplateKey": "max:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }]
+          ]
+        }
+      },
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "_when": { "path": "facts.links.webappCabinetUrl", "truthy": false },
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:bookingMessage",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:bookingMenu.my", "callbackData": "bookings.show" }],
+            [{ "textTemplateKey": "max:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+            [{ "textTemplateKey": "max:bookingsScreen.address", "callbackData": "info.address" }]
+          ]
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.booking.open.callback",
+    "source": "max",
+    "event": "callback.received",
+    "match": {
+      "input": { "action": "booking.open" },
+      "context": { "linkedPhone": true }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "idle"
+        }
+      },
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "_when": {
+            "and": [
+              { "path": "facts.links.webappCabinetUrl", "truthy": true },
+              { "path": "facts.links.webappAddressUrl", "truthy": true }
+            ]
+          },
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:bookingMessage",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:bookingMenu.my", "webAppUrlFact": "links.webappCabinetUrl" }],
+            [{ "textTemplateKey": "max:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+            [{ "textTemplateKey": "max:bookingsScreen.address", "webAppUrlFact": "links.webappAddressUrl" }]
+          ]
+        }
+      },
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "_when": { "path": "facts.links.webappCabinetUrl", "truthy": false },
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:bookingMessage",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:bookingMenu.my", "callbackData": "bookings.show" }],
+            [{ "textTemplateKey": "max:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+            [{ "textTemplateKey": "max:bookingsScreen.address", "callbackData": "info.address" }]
+          ]
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.booking.open.callback.need_phone",
+    "source": "max",
+    "event": "callback.received",
+    "priority": 35,
+    "match": {
+      "input": { "action": "booking.open" },
+      "context": { "linkedPhone": false }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "await_contact:subscription"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:confirmPhoneForBooking",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:requestContact.button", "requestPhone": true }]
+          ]
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.bookings.show",
+    "source": "max",
+    "event": "callback.received",
+    "match": {
+      "input": { "action": "bookings.show" },
+      "context": { "linkedPhone": true }
+    },
+    "conditions": [
+      {
+        "kind": "context.query",
+        "name": "bookings",
+        "query": { "type": "bookings.forUser", "userId": "{{context.phoneNormalized}}" }
+      }
+    ],
+    "steps": [
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "_when": { "path": "queries.bookings.items.length", "equals": 0 },
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:noBookings",
+          "vars": { "queries": "{{queries}}" },
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+            [{ "textTemplateKey": "max:bookingsScreen.address", "callbackData": "info.address" }],
+            [{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
+          ]
+        }
+      },
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "_when": { "path": "queries.bookings.items.length", "truthy": true },
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:bookingsList",
+          "vars": { "queries": "{{queries}}" },
+          "parseMode": "HTML",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:bookingsScreen.prepare", "callbackData": "info.prepare" }],
+            [{ "textTemplateKey": "max:bookingsScreen.address", "callbackData": "info.address" }],
+            [{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
+          ]
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.bookings.show.need_phone",
+    "source": "max",
+    "event": "callback.received",
+    "priority": 35,
+    "match": {
+      "input": { "action": "bookings.show" },
+      "context": { "linkedPhone": false }
+    },
+    "steps": [
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "await_contact:subscription"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "templateKey": "max:confirmPhoneForBooking",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "textTemplateKey": "max:requestContact.button", "requestPhone": true }]
+          ]
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.info.prepare",
+    "source": "max",
+    "event": "callback.received",
+    "match": { "input": { "action": "info.prepare" } },
+    "steps": [
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:info.prepare.body",
+          "parseMode": "HTML",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
+          ]
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
+      }
+    ]
+  },
+  {
+    "id": "max.info.address",
+    "source": "max",
+    "event": "callback.received",
+    "match": { "input": { "action": "info.address" } },
+    "steps": [
+      {
+        "action": "message.edit",
+        "mode": "async",
+        "params": {
+          "chatId": "{{actor.chatId}}",
+          "messageId": "{{input.messageId}}",
+          "templateKey": "max:info.address.body",
+          "parseMode": "HTML",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [{ "text": "⬅️ Назад", "callbackData": "booking.menu" }]
+          ]
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": { "callbackQueryId": "{{input.callbackQueryId}}" }
       }
     ]
   },
@@ -678,56 +1185,69 @@
     ]
   },
   {
-    "id": "max.conversation.user.message",
+    "id": "max.draft.replace",
     "source": "max",
     "event": "message.received",
     "match": {
       "actor": { "isAdmin": false },
-      "context": { "hasOpenConversation": true },
+      "context": {
+        "hasActiveDraft": true,
+        "conversationState": { "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title"] }
+      },
       "input": {
         "textPresent": true,
-        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"],
-        "excludeTexts": ["/start", "/book"],
+        "excludeActions": ["booking.open", "nav.webapp.diary", "nav.webapp.menu", "menu.more", "cabinet.open", "diary.open", "start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"],
+        "excludeTexts": ["/start", "/book", "/diary", "/menu"],
         "excludeTextPrefixes": ["/start"]
       }
     },
     "steps": [
       {
-        "action": "conversation.user.message",
+        "action": "draft.replaceFromMessage",
         "mode": "sync",
         "params": { "source": "max" }
       },
       {
-        "action": "message.send",
+        "action": "message.inlineKeyboard.show",
         "mode": "async",
         "params": {
-          "recipient": { "chatId": "{{actor.chatId}}" },
-          "message": {},
+          "chatId": "{{actor.chatId}}",
+          "templateKey": "max:confirmQuestion",
           "delivery": { "channels": ["max"], "maxAttempts": 1 },
-          "templateKey": "max:dialogMessageAccepted"
+          "inlineKeyboard": [
+            [
+              { "text": "Да", "callbackData": "q_confirm:yes" },
+              { "text": "Нет", "callbackData": "q_confirm:no" }
+            ]
+          ]
         }
       }
     ]
   },
   {
-    "id": "max.conversation.openWithMessage",
+    "id": "max.draft.send",
     "source": "max",
-    "event": "message.received",
+    "event": "callback.received",
     "match": {
-      "actor": { "isAdmin": false },
-      "context": { "hasOpenConversation": false },
-      "input": {
-        "textPresent": true,
-        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"],
-        "excludeTexts": ["/start", "/book"],
-        "excludeTextPrefixes": ["/start"]
-      }
+      "context": { "hasActiveDraft": true },
+      "input": { "action": "q_confirm:yes" }
     },
     "steps": [
       {
-        "action": "conversation.openWithMessage",
+        "action": "draft.send",
         "mode": "sync",
-        "params": { "source": "max" }
+        "params": {
+          "source": "max",
+          "adminTemplateKey": "max:adminForward"
+        }
+      },
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "idle"
+        }
       },
       {
         "action": "message.send",
@@ -736,7 +1256,58 @@
           "recipient": { "chatId": "{{actor.chatId}}" },
           "message": {},
           "delivery": { "channels": ["max"], "maxAttempts": 1 },
-          "templateKey": "max:dialogMessageAccepted"
+          "templateKey": "max:questionAccepted"
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": {
+          "callbackQueryId": "{{input.callbackQueryId}}"
+        }
+      }
+    ]
+  },
+  {
+    "id": "max.q_confirm.no",
+    "source": "max",
+    "event": "callback.received",
+    "priority": 20,
+    "match": {
+      "context": { "hasActiveDraft": true },
+      "input": { "action": "q_confirm:no" }
+    },
+    "steps": [
+      {
+        "action": "draft.cancel",
+        "mode": "sync",
+        "params": {
+          "source": "max"
+        }
+      },
+      {
+        "action": "user.state.set",
+        "mode": "sync",
+        "params": {
+          "channelUserId": "{{actor.channelUserId}}",
+          "state": "idle"
+        }
+      },
+      {
+        "action": "message.send",
+        "mode": "async",
+        "params": {
+          "recipient": { "chatId": "{{actor.chatId}}" },
+          "message": {},
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "templateKey": "max:questionCancelled"
+        }
+      },
+      {
+        "action": "callback.answer",
+        "mode": "async",
+        "params": {
+          "callbackQueryId": "{{input.callbackQueryId}}"
         }
       }
     ]
@@ -834,8 +1405,8 @@
       "context": { "conversationState": { "$startsWith": "waiting_skip_reason:" } },
       "input": {
         "textPresent": true,
-        "excludeActions": ["booking.open", "menu.more", "cabinet.open", "diary.open", "start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"],
-        "excludeTexts": ["/start", "/book"],
+        "excludeActions": ["booking.open", "nav.webapp.diary", "nav.webapp.menu", "menu.more", "cabinet.open", "diary.open", "start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"],
+        "excludeTexts": ["/start", "/book", "/diary", "/menu"],
         "excludeTextPrefixes": ["/start"]
       }
     },
@@ -855,16 +1426,39 @@
     "id": "max.default",
     "source": "max",
     "event": "message.received",
-    "match": { "input": { "textPresent": true } },
+    "match": {
+      "actor": { "isAdmin": false },
+      "context": {
+        "conversationState": { "$notIn": ["diary.symptom.awaiting_title", "diary.lfk.awaiting_title"] }
+      },
+      "input": {
+        "textPresent": true,
+        "excludeActions": ["booking.open", "nav.webapp.diary", "nav.webapp.menu", "menu.more", "cabinet.open", "diary.open", "start.link", "start.noticeme", "start.setrubitimerecord", "start.setphone", "start.set"],
+        "excludeTexts": ["/start", "/book", "/diary", "/menu"],
+        "excludeTextPrefixes": ["/start"]
+      }
+    },
     "steps": [
+      {
+        "action": "draft.upsertFromMessage",
+        "mode": "sync",
+        "params": {
+          "source": "max"
+        }
+      },
       {
         "action": "message.inlineKeyboard.show",
         "mode": "async",
         "params": {
           "chatId": "{{actor.chatId}}",
-          "templateKey": "max:chooseMenu",
-          "menu": "main",
-          "delivery": { "channels": ["max"], "maxAttempts": 1 }
+          "templateKey": "max:confirmQuestion",
+          "delivery": { "channels": ["max"], "maxAttempts": 1 },
+          "inlineKeyboard": [
+            [
+              { "text": "Да", "callbackData": "q_confirm:yes" },
+              { "text": "Нет", "callbackData": "q_confirm:no" }
+            ]
+          ]
         }
       }
     ]

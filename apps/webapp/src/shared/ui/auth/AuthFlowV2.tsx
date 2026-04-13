@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * Публичный поток входа (web): OAuth-first и Telegram Login; телефон — отдельный шаг; экран «Другие способы» без текста про телефон.
+ * Публичный поток входа (web): Яндекс, Google, Telegram, Max; телефон — отдельный шаг.
+ * Apple показывается только если включён Apple и при этом выключены Яндекс и Google (резерв для таких деплоев).
  * OTP в вебе — только Telegram / Max (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
  */
 
@@ -43,7 +44,6 @@ function getWebChatId(): string {
 export type AuthFlowStep =
   | "entry_loading"
   | "oauth_first"
-  | "other_methods"
   | "landing"
   | "phone"
   | "new_user_foreign"
@@ -103,6 +103,42 @@ function buildAlternatives(
   return result;
 }
 
+function MaxLoginCta({
+  maxAltLoading,
+  maxOpenUrl,
+  variant,
+}: {
+  maxAltLoading: boolean;
+  maxOpenUrl: string | null;
+  variant: "primary" | "outline";
+}) {
+  const cls = variant === "primary" ? AUTH_LOGIN_PRIMARY_BUTTON_CLASS : AUTH_LOGIN_OUTLINE_BUTTON_CLASS;
+  if (maxAltLoading) {
+    return (
+      <Button
+        type="button"
+        variant={variant === "primary" ? "default" : "outline"}
+        className={cn(cls, "animate-pulse")}
+        disabled
+        aria-busy="true"
+      >
+        {variant === "primary" ? "Войти через Max…" : "Max…"}
+      </Button>
+    );
+  }
+  if (!maxOpenUrl) return null;
+  return (
+    <a
+      href={maxOpenUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(buttonVariants({ variant: variant === "primary" ? "default" : "outline" }), cls)}
+    >
+      {variant === "primary" ? "Войти через Max" : "Max"}
+    </a>
+  );
+}
+
 type AuthFlowV2Props = {
   nextParam: string | null;
   supportContactHref?: string;
@@ -111,10 +147,10 @@ type AuthFlowV2Props = {
 
 type OauthProviderFlags = { yandex: boolean; google: boolean; apple: boolean };
 
-type OtherLoginAlternativesState =
+type MaxBotOpenUrlState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; maxBotOpenUrl: string | null; vkWebLoginUrl: string | null };
+  | { status: "ready"; url: string | null };
 
 export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: AuthFlowV2Props) {
   const router = useRouter();
@@ -136,7 +172,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
   const [smsStartCooldownSec, setSmsStartCooldownSec] = useState(0);
   const [otpChannel, setOtpChannel] = useState<OtpChannel>("telegram");
   const [otpEntrySource, setOtpEntrySource] = useState<"registration" | "channel" | "auto" | null>(null);
-  const [otherAlternatives, setOtherAlternatives] = useState<OtherLoginAlternativesState>({ status: "idle" });
+  const [maxBotOpenUrl, setMaxBotOpenUrl] = useState<MaxBotOpenUrlState>({ status: "idle" });
 
   useEffect(() => {
     if (smsStartCooldownSec <= 0) return;
@@ -225,10 +261,9 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
   }, []);
 
   useEffect(() => {
-    if (step !== "other_methods") return;
+    if (isMessengerMiniAppHost()) return;
     let cancelled = false;
-    /** Не сбрасывать в loading при повторном заходе — избегаем мигания; фоновый refetch обновит данные. */
-    setOtherAlternatives((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
+    setMaxBotOpenUrl((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
     void fetch("/api/auth/login/alternatives-config")
       .then((r) => r.json().catch(() => ({})))
       .then((d) => {
@@ -236,35 +271,30 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
         const data = d as {
           ok?: boolean;
           maxBotOpenUrl?: unknown;
-          vkWebLoginUrl?: unknown;
           telegramBotUsername?: unknown;
         };
         if (data?.ok !== true) {
-          setOtherAlternatives({ status: "ready", maxBotOpenUrl: null, vkWebLoginUrl: null });
+          setMaxBotOpenUrl({ status: "ready", url: null });
           return;
         }
         const maxU =
           typeof data.maxBotOpenUrl === "string" && data.maxBotOpenUrl.trim().length > 0
             ? data.maxBotOpenUrl.trim()
             : null;
-        const vkU =
-          typeof data.vkWebLoginUrl === "string" && data.vkWebLoginUrl.trim().length > 0
-            ? data.vkWebLoginUrl.trim()
-            : null;
-        setOtherAlternatives({ status: "ready", maxBotOpenUrl: maxU, vkWebLoginUrl: vkU });
+        setMaxBotOpenUrl({ status: "ready", url: maxU });
         const tg =
           typeof data.telegramBotUsername === "string" ? data.telegramBotUsername.trim().replace(/^@/, "") : "";
         if (tg.length > 0) setTelegramBotUsername(tg);
       })
       .catch(() => {
         if (!cancelled) {
-          setOtherAlternatives({ status: "ready", maxBotOpenUrl: null, vkWebLoginUrl: null });
+          setMaxBotOpenUrl({ status: "ready", url: null });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [step]);
+  }, []);
 
   useEffect(() => {
     onStepChange?.(step);
@@ -298,8 +328,33 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
     }
   };
 
-  const showOauthRow =
-    oauthProviders.yandex || oauthProviders.google || oauthProviders.apple;
+  const showOauthRow = oauthProviders.yandex || oauthProviders.google;
+  /** Apple в основном ряду только если нет Яндекса и Google — иначе основной набор провайдеров без Apple (продуктовое правило). */
+  const showAppleFallback =
+    oauthProviders.apple && !oauthProviders.yandex && !oauthProviders.google;
+  const hasWebOauthAlternatives = showOauthRow || showAppleFallback;
+
+  const maxAltLoading = maxBotOpenUrl.status === "loading" || maxBotOpenUrl.status === "idle";
+  const maxOpenUrl = maxBotOpenUrl.status === "ready" ? maxBotOpenUrl.url : null;
+
+  const oauthEntrySubtitle = (() => {
+    const parts: string[] = [];
+    if (oauthProviders.yandex) parts.push("Яндекс");
+    if (oauthProviders.google) parts.push("Google");
+    if (showAppleFallback) parts.push("Apple");
+    if (parts.length === 0) return "Войдите через Telegram или Max.";
+    return `Войдите через ${parts.join(", ")}, Telegram или Max.`;
+  })();
+
+  /** Подпись к компактному ряду на шаге телефона (без Telegram — он отдельной ссылкой ниже). Max — только если есть загрузка или ссылка. */
+  const phoneOauthCompactCaption = (() => {
+    const bits: string[] = [];
+    if (oauthProviders.yandex) bits.push("Яндекс");
+    if (oauthProviders.google) bits.push("Google");
+    if (showAppleFallback) bits.push("Apple");
+    if (maxAltLoading || maxOpenUrl) bits.push("Max");
+    return bits.join(", ");
+  })();
 
   const telegramWidgetReady =
     telegramLoginConfigLoaded &&
@@ -310,7 +365,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
 
   const goBackToEntry = () => {
     setSmsStartCooldownSec(0);
-    if (showOauthRow && !isMessengerMiniAppHost()) {
+    if (hasWebOauthAlternatives && !isMessengerMiniAppHost()) {
       setStep("oauth_first");
     } else if (telegramBotUsername) {
       setStep("landing");
@@ -427,9 +482,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
     return (
       <div id="auth-flow-v2-oauth-first" className="flex flex-col items-center gap-5 px-4 py-3 text-center">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
-        <p className="text-muted-foreground text-sm max-w-sm">
-          Войдите через Яндекс, Google или Apple либо через бота в Telegram.
-        </p>
+        <p className="text-muted-foreground text-sm max-w-sm">{oauthEntrySubtitle}</p>
         <div className="flex w-full flex-col items-center gap-4">
           {oauthProviders.yandex ? (
             <Button
@@ -453,7 +506,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
               Войти через Google
             </Button>
           ) : null}
-          {oauthProviders.apple ? (
+          {showAppleFallback ? (
             <Button
               type="button"
               variant="default"
@@ -482,128 +535,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             )}
           </div>
         ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-auto min-h-0 py-2 text-sm font-normal text-muted-foreground hover:text-foreground"
-          disabled={loading}
-          onClick={() => setStep("other_methods")}
-        >
-          Другие способы входа
-        </Button>
-      </div>
-    );
-  }
-
-  if (step === "other_methods") {
-    const altReady = otherAlternatives.status === "ready";
-    const maxOpenUrl = altReady ? otherAlternatives.maxBotOpenUrl : null;
-    const vkOpenUrl = altReady ? otherAlternatives.vkWebLoginUrl : null;
-    /** `idle` до первого commit useEffect — не показывать «не настроено» до запроса. */
-    const altLoading =
-      otherAlternatives.status === "loading" || otherAlternatives.status === "idle";
-
-    return (
-      <div id="auth-flow-v2-other-methods" className="flex flex-col gap-5 px-4 py-3 text-center">
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-auto min-h-0 self-center px-2 py-1 text-sm font-normal text-muted-foreground hover:text-foreground"
-          disabled={loading}
-          onClick={() => {
-            if (showOauthRow && !isMessengerMiniAppHost()) {
-              setStep("oauth_first");
-            } else if (telegramBotUsername) {
-              setStep("landing");
-            } else {
-              setStep("phone");
-            }
-          }}
-        >
-          ← К основным способам
-        </Button>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Другие способы входа</p>
-          <p className="mt-2 text-muted-foreground text-sm text-balance">
-            Вход через ботов в Telegram и Max, с VK ID или по номеру телефона. Яндекс, Google и Apple — на основном
-            экране.
-          </p>
-        </div>
-        <div className="flex w-full flex-col items-center gap-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход через бота</p>
-          {showTelegramAuthSlot ? (
-            <div className="flex w-full flex-col items-center gap-1">
-              <span className="text-xs text-muted-foreground">Telegram</span>
-              {telegramWidgetReady && telegramBotUsername ? (
-                <TelegramLoginButton botUsername={telegramBotUsername} nextParam={nextParam} disabled={loading} />
-              ) : (
-                <Button
-                  type="button"
-                  variant="default"
-                  className={cn(AUTH_LOGIN_PRIMARY_BUTTON_CLASS, "animate-pulse")}
-                  disabled
-                  aria-busy="true"
-                >
-                  Войти через Telegram…
-                </Button>
-              )}
-            </div>
-          ) : null}
-          <div className="flex w-full flex-col items-center gap-1">
-            <span className="text-xs text-muted-foreground">Max</span>
-            {altLoading ? (
-              <Button
-                type="button"
-                variant="default"
-                className={cn(AUTH_LOGIN_PRIMARY_BUTTON_CLASS, "animate-pulse")}
-                disabled
-                aria-busy="true"
-              >
-                Открыть бота в Max…
-              </Button>
-            ) : maxOpenUrl ? (
-              <a
-                href={maxOpenUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(buttonVariants({ variant: "default" }), AUTH_LOGIN_PRIMARY_BUTTON_CLASS)}
-              >
-                Открыть бота в Max
-              </a>
-            ) : (
-              <p className="text-xs text-muted-foreground max-w-sm text-balance">
-                Ссылка на бота Max не настроена (ник в настройках администратора).
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex w-full flex-col items-center gap-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">VK ID</p>
-          {altLoading ? (
-            <Button
-              type="button"
-              variant="outline"
-              className={cn(AUTH_LOGIN_OUTLINE_BUTTON_CLASS, "animate-pulse")}
-              disabled
-              aria-busy="true"
-            >
-              Войти с VK ID…
-            </Button>
-          ) : vkOpenUrl ? (
-            <a
-              href={vkOpenUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(buttonVariants({ variant: "outline" }), AUTH_LOGIN_OUTLINE_BUTTON_CLASS)}
-            >
-              Войти с VK ID
-            </a>
-          ) : (
-            <p className="text-xs text-muted-foreground max-w-sm text-balance">
-              Ссылка VK ID не задана в настройках администратора.
-            </p>
-          )}
-        </div>
+        <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="primary" />
         <Button
           type="button"
           variant="link"
@@ -620,8 +552,9 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
   if (step === "landing" && telegramBotUsername) {
     return (
       <div id="auth-flow-v2-landing" className="flex flex-col items-center gap-5 px-4 py-3 text-center">
-        <TelegramLoginButton botUsername={telegramBotUsername} nextParam={nextParam} disabled={loading} />
-        {showOauthRow ? (
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Вход</p>
+        <p className="text-muted-foreground text-sm max-w-sm">{oauthEntrySubtitle}</p>
+        {showOauthRow || showAppleFallback ? (
           <div className="flex w-full flex-col items-center gap-4">
             {oauthProviders.yandex ? (
               <Button
@@ -645,7 +578,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                 Войти через Google
               </Button>
             ) : null}
-            {oauthProviders.apple ? (
+            {showAppleFallback ? (
               <Button
                 type="button"
                 variant="default"
@@ -658,14 +591,16 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             ) : null}
           </div>
         ) : null}
+        <TelegramLoginButton botUsername={telegramBotUsername} nextParam={nextParam} disabled={loading} />
+        <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="primary" />
         <Button
           type="button"
-          variant="ghost"
-          className="h-auto min-h-0 py-2 text-sm font-normal text-muted-foreground hover:text-foreground"
+          variant="link"
+          className="h-auto min-h-0 text-sm text-muted-foreground"
           disabled={loading}
-          onClick={() => setStep("other_methods")}
+          onClick={() => setStep("phone")}
         >
-          Другие способы входа
+          Войти по номеру телефона
         </Button>
       </div>
     );
@@ -678,7 +613,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
         <p className="text-muted-foreground max-w-sm text-sm text-balance">
           Для входа или регистрации в приложении укажите номер телефона
         </p>
-        {showOauthRow ? (
+        {hasWebOauthAlternatives ? (
           <>
             <Button
               type="button"
@@ -686,10 +621,10 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
               className="h-auto min-h-0 px-0 py-0 text-sm font-normal text-muted-foreground"
               onClick={() => setStep("oauth_first")}
             >
-              Соцсети и Telegram
+              Вход без номера
             </Button>
             <div className="flex w-full flex-col items-center gap-2">
-              <p className="text-xs text-muted-foreground">Вход без номера</p>
+              <p className="text-xs text-muted-foreground">{phoneOauthCompactCaption}</p>
               <div className="flex flex-col items-center gap-2">
                 {oauthProviders.yandex ? (
                   <Button
@@ -713,7 +648,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                     Google
                   </Button>
                 ) : null}
-                {oauthProviders.apple ? (
+                {showAppleFallback ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -724,6 +659,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                     Apple
                   </Button>
                 ) : null}
+                <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="outline" />
               </div>
             </div>
           </>
@@ -750,13 +686,17 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
         <p className="text-muted-foreground max-w-sm text-sm text-balance">
           В браузере код подтверждения отправляется только в Telegram или Max, привязанные к номеру. SMS для входа с сайта
           отключён.
-          {showOauthRow
-            ? " Войдите через Яндекс, Google или Apple или укажите другой номер."
+          {hasWebOauthAlternatives
+            ? showOauthRow
+              ? " Войдите через Яндекс или Google, укажите другой номер или откройте бота в Max (кнопки ниже)."
+              : " Войдите через Apple, укажите другой номер или откройте бота в Max (кнопки ниже)."
             : showTelegramAuthSlot
               ? " Воспользуйтесь входом через Telegram ниже."
-              : ""}
+              : maxOpenUrl
+                ? " Откройте бота в Max — кнопка ниже."
+                : ""}
         </p>
-        {showOauthRow ? (
+        {hasWebOauthAlternatives ? (
           <div className="flex w-full flex-col items-center gap-2">
             <p className="text-xs text-muted-foreground">Вход без номера</p>
             <div className="flex flex-col items-center gap-2">
@@ -782,7 +722,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                   Google
                 </Button>
               ) : null}
-              {oauthProviders.apple ? (
+              {showAppleFallback ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -793,8 +733,19 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                   Apple
                 </Button>
               ) : null}
+              <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="outline" />
             </div>
           </div>
+        ) : null}
+        {!hasWebOauthAlternatives && maxOpenUrl ? (
+          <a
+            href={maxOpenUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(buttonVariants({ variant: "default" }), AUTH_LOGIN_PRIMARY_BUTTON_CLASS)}
+          >
+            Войти через Max
+          </a>
         ) : null}
         {showTelegramAuthSlot ? (
           <Button
@@ -827,14 +778,18 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
         <p className="text-muted-foreground max-w-sm text-sm text-balance">
           Для этого номера в браузере нет способа получить код: нужны Telegram или Max, привязанные к аккаунту. SMS для
           входа с сайта отключён.
-          {showOauthRow
-            ? " Воспользуйтесь входом без номера (Яндекс, Google, Apple) — кнопки ниже."
+          {hasWebOauthAlternatives
+            ? showOauthRow
+              ? " Воспользуйтесь входом без номера (Яндекс, Google, Max) — кнопки ниже."
+              : " Воспользуйтесь входом без номера (Apple, Max) — кнопки ниже."
             : showTelegramAuthSlot
               ? " Войдите через Telegram."
-              : ""}
+              : maxOpenUrl
+                ? " Откройте бота в Max — кнопка ниже."
+                : ""}
           {supportContactHref ? " При необходимости обратитесь в поддержку." : ""}
         </p>
-        {showOauthRow ? (
+        {hasWebOauthAlternatives ? (
           <div className="flex w-full flex-col items-center gap-2">
             <p className="text-xs text-muted-foreground">Вход без номера</p>
             <div className="flex flex-col items-center gap-2">
@@ -860,7 +815,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                   Google
                 </Button>
               ) : null}
-              {oauthProviders.apple ? (
+              {showAppleFallback ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -871,8 +826,19 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                   Apple
                 </Button>
               ) : null}
+              <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="outline" />
             </div>
           </div>
+        ) : null}
+        {!hasWebOauthAlternatives && maxOpenUrl ? (
+          <a
+            href={maxOpenUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(buttonVariants({ variant: "default" }), AUTH_LOGIN_PRIMARY_BUTTON_CLASS)}
+          >
+            Войти через Max
+          </a>
         ) : null}
         {showTelegramAuthSlot ? (
           <Button

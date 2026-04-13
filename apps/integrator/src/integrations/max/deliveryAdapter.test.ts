@@ -94,6 +94,37 @@ describe('max deliveryAdapter', () => {
     );
   });
 
+  it('send message.send maps Telegram-style web_app button to MAX link', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.send',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        recipient: { chatId: 200 },
+        message: { text: 'Open app' },
+        delivery: { channels: ['max'] },
+        replyMarkup: {
+          inline_keyboard: [[{ text: 'Веб-приложение', web_app: { url: 'https://app.example/t?ctx=bot' } }]],
+        },
+      },
+    });
+    expect(sendMaxMessageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        extra: expect.objectContaining({
+          attachments: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'inline_keyboard',
+              payload: {
+                buttons: [[{ type: 'link', text: 'Веб-приложение', url: 'https://app.example/t?ctx=bot' }]],
+              },
+            }),
+          ]),
+        }),
+      }),
+    );
+  });
+
   it('send message.send calls sendMaxMessage', async () => {
     const adapter = createMaxDeliveryAdapter();
     await adapter.send({

@@ -44,7 +44,17 @@ async function buildMaxLinks(
   });
   if (!webappEntryUrl) return {};
   const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
-  return { links: { webappEntryUrl: baseWebappUrl } };
+  const enc = (p: string) => encodeURIComponent(p);
+  return {
+    links: {
+      webappEntryUrl: baseWebappUrl,
+      webappHomeUrl: `${baseWebappUrl}&next=${enc('/app/patient')}`,
+      webappDiaryUrl: `${baseWebappUrl}&next=${enc('/app/patient/diary?tab=symptoms')}`,
+      webappCabinetUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,
+      webappAddressUrl: `${baseWebappUrl}&next=${enc('/app/patient/address')}`,
+      bookingUrl: `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`,
+    },
+  };
 }
 
 async function buildMaxFacts(

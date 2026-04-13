@@ -11,10 +11,6 @@ describe("shouldShowRegistrationPlaque", () => {
     expect(shouldShowRegistrationPlaque("oauth_first")).toBe(true);
   });
 
-  it("shows on other-methods step", () => {
-    expect(shouldShowRegistrationPlaque("other_methods")).toBe(true);
-  });
-
   it("hides after user leaves phone step", () => {
     expect(shouldShowRegistrationPlaque("new_user_foreign")).toBe(false);
     expect(shouldShowRegistrationPlaque("choose_channel")).toBe(false);

@@ -608,7 +608,6 @@ describe('orchestrator buildPlan', () => {
           match: {
             actor: { isAdmin: false },
             context: {
-              hasOpenConversation: false,
               conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] },
             },
             input: {
@@ -671,7 +670,7 @@ describe('orchestrator buildPlan', () => {
           event: 'message.received',
           match: {
             actor: { isAdmin: false },
-            context: { hasOpenConversation: false },
+            context: {},
             input: {
               textPresent: true,
               excludeTexts: ['/start'],
@@ -724,7 +723,6 @@ describe('orchestrator buildPlan', () => {
           match: {
             actor: { isAdmin: false },
             context: {
-              hasOpenConversation: false,
               conversationState: { $notIn: ['diary.symptom.awaiting_title', 'diary.lfk.awaiting_title'] },
             },
             input: {
@@ -1160,6 +1158,7 @@ describe('orchestrator buildPlan', () => {
         eventId: 'evt-admin-start-link-1',
         occurredAt: '2026-04-11T12:00:00.000Z',
         source: 'telegram',
+        userId: 'tg-ext-1',
       },
       payload: {
         incoming: {
@@ -1213,7 +1212,7 @@ describe('orchestrator buildPlan', () => {
               params: {
                 linkToken: '{{input.linkSecret}}',
                 channelCode: 'telegram',
-                externalId: '{{input.channelId}}',
+                externalId: '{{meta.userId}}',
               },
             },
           ],
@@ -1239,13 +1238,14 @@ describe('orchestrator buildPlan', () => {
     });
   });
 
-  it('max start.link beats conversation.user.message when both match (priority 55)', async () => {
+  it('max start.link beats free-text fallback when both match (priority 55)', async () => {
     const event: IncomingEvent = {
       type: 'message.received',
       meta: {
         eventId: 'evt-max-start-link-conv-1',
         occurredAt: '2026-04-13T12:00:00.000Z',
         source: 'max',
+        userId: '9001',
       },
       payload: {
         incoming: {
@@ -1268,7 +1268,7 @@ describe('orchestrator buildPlan', () => {
     const contentPort: ContentPort = {
       getScriptsBySource: vi.fn().mockResolvedValue([
         {
-          id: 'max.conversation.user.message',
+          id: 'max.free.text.fallback',
           source: 'max',
           event: 'message.received',
           match: {
@@ -1276,11 +1276,11 @@ describe('orchestrator buildPlan', () => {
             context: { hasOpenConversation: true },
             input: {
               textPresent: true,
-              excludeActions: ['booking.open', 'menu.more', 'cabinet.open', 'diary.open'],
+              excludeActions: ['start.link', 'booking.open', 'menu.more', 'cabinet.open', 'diary.open'],
               excludeTexts: ['/start', '/book'],
             },
           },
-          steps: [{ action: 'conversation.user.message', mode: 'sync', params: {} }],
+          steps: [{ action: 'message.send', mode: 'async', params: { templateKey: 'max:chooseMenu' } }],
         },
         {
           id: 'max.start.link',
@@ -1295,7 +1295,7 @@ describe('orchestrator buildPlan', () => {
               params: {
                 linkToken: '{{input.linkSecret}}',
                 channelCode: 'max',
-                externalId: '{{input.channelId}}',
+                externalId: '{{meta.userId}}',
               },
             },
           ],

@@ -785,6 +785,48 @@ export async function executeAction(
         };
       }
 
+      const openConversation = await deps.readPort.readDb<Record<string, unknown> | null>({
+        type: 'conversation.openByIdentity',
+        params: {
+          resource: ctx.event.meta.source,
+          externalId,
+          source,
+        },
+      });
+      const openConversationId = asString(openConversation?.id);
+      if (openConversationId) {
+        const cancelWrite: DbWriteMutation = {
+          type: 'draft.cancel',
+          params: {
+            resource: ctx.event.meta.source,
+            externalId,
+            source,
+          },
+        };
+        await persistWrites(deps.writePort, [cancelWrite]);
+        const relayAction: Action = {
+          id: action.id,
+          type: 'conversation.user.message',
+          mode: action.mode,
+          params: {
+            source,
+            text: draftTextCurrent,
+            externalChatId: asString(draft.external_chat_id) ?? undefined,
+            externalMessageId: asString(draft.external_message_id) ?? undefined,
+          },
+        };
+        const relayResult = await handleConversationUserMessage(relayAction, ctx, fullDeps);
+        return {
+          ...relayResult,
+          actionId: action.id,
+          writes: [cancelWrite, ...(relayResult.writes ?? [])],
+          values: {
+            ...relayResult.values,
+            hasActiveDraft: false,
+          },
+        };
+      }
+
       const conversationId = randomUUID();
       const firstMessageId = randomUUID();
       const questionId = randomUUID();

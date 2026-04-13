@@ -11,7 +11,7 @@
 
 ## Публичный вход в вебе (приоритет)
 
-1. **OAuth (Яндекс / Google / Apple)** — если хотя бы один провайдер настроен (`/api/auth/oauth/providers`), стартовый экран `AuthFlowV2` — **OAuth-first** (`oauth_first`), затем «Войти по номеру телефона».
+1. **OAuth (Яндекс / Google / Apple)** — если хотя бы один провайдер настроен (`/api/auth/oauth/providers`), стартовый экран `AuthFlowV2` — **OAuth-first** (`oauth_first`), затем «Войти по номеру телефона». На главном экране **Apple не показывается**, если включены Яндекс или Google (основной набор — Яндекс, Google, Telegram, Max). Кнопка **«Войти через Apple»** доступна только в режиме **только Apple** (оба флага Яндекс и Google выключены в провайдерах).
 2. **Telegram Login Widget** — когда OAuth выключены и задан `telegram_login_bot_username`: экран `landing` с виджетом и переходом на телефон.
 3. **Международный номер телефона** — `InternationalPhoneInput` + `check-phone` → OTP **только в Telegram или Max** (при привязке номера к мессенджеру). **SMS для `channel: web` отключён:** `POST /api/auth/phone/start` отвечает `sms_disabled_web`, если `deliveryChannel` — `sms` или не указан (раньше подразумевался SMS).
 
@@ -88,7 +88,7 @@
 
 ### UI
 
-`AuthFlowV2`: при включённых OAuth — экран `oauth_first`; иначе прежний порядок (Telegram landing или сразу телефон). На шаге телефона остаются компактные кнопки OAuth и ссылка «Другие способы входа». `ChannelPicker` и альтернативы в `OtpCodeForm` **не предлагают SMS** (`OTP_PUBLIC_OTHER_CHANNELS_ORDER` без `sms`). На экранах «иностранный номер» / «нет OTP-канала» — OAuth и при необходимости Telegram.
+`AuthFlowV2`: при включённых OAuth — экран `oauth_first` (Яндекс, Google, при необходимости только-Apple, Telegram Login, ссылка на бота **Max** из `GET /api/auth/login/alternatives-config`, «Войти по номеру телефона»); иначе порядок **Telegram `landing`** или сразу телефон. Отдельного экрана «Другие способы входа» нет. Публичный конфиг `alternatives-config` по-прежнему может отдавать `vkWebLoginUrl` — кнопка VK на входе подключается в UI отдельно, когда будет нужна. `ChannelPicker` и альтернативы в `OtpCodeForm` **не предлагают SMS** (`OTP_PUBLIC_OTHER_CHANNELS_ORDER` без `sms`). На экранах «иностранный номер» / «нет OTP-канала» — компактные OAuth / Apple (fallback) / Max и при необходимости Telegram.
 
 **Профиль (`ProfileForm`):** смена номера — тот же сценарий, что на `/app/patient/bind-phone` (`PatientBindPhoneClient`, без SMS и без удалённых `BindPhoneBlock` / `PhoneAuthForm`).
 
@@ -119,7 +119,7 @@
 - **Гейт:** `patientClientBusinessGate` — отклоняется только `stale_session` (401); разрешены `allow` и `need_activation` (вопрос из onboarding, в т.ч. привязка телефона).
 - **Доставка:** `sendMessage` в Telegram на `env.ADMIN_TELEGRAM_ID` (должен быть **ненулевой** конечный числовой id чата) и токен бота из `getTelegramBotToken()` (env webapp). В текст включаются user id, ФИО, телефон, привязки мессенджеров, User-Agent, поверхность, опционально страница.
 - **Rate limit:** in-memory, **после** успешной отправки в Telegram, 60 с на ключ: `userId` → `u:…`, иначе нормализованный телефон → `p:…`, иначе первый hop `X-Forwarded-For` или `X-Real-IP` → `ip:…`, иначе общий ключ `anon:support`.
-- **Ссылка «Связаться с поддержкой»:** `system_settings.support_contact_url` (`getSupportContactUrl`), дефолт из `supportContactConstants` — внутренний путь формы; внешние URL допустимы. Рендер: `SupportContactLink` (`/app/…` → `Link`, иначе внешняя ссылка). В админке путь поддержки валидируется как `/app/…` или http(s).
+- **Ссылка «Связаться с поддержкой»:** `system_settings.support_contact_url` (`getSupportContactUrl`), дефолт из `supportContactConstants` — внутренний путь формы; внешние URL допустимы. Рендер: `SupportContactLink`: внутренние пути `/app/…` — **нативный `<a href>`** (полная загрузка документа, чтобы избежать ошибок загрузки чанков Next.js после деплоя при устаревшем клиентском бундле); внешние URL — `<a target="_blank" rel="noopener noreferrer">`. В админке путь поддержки валидируется как `/app/…` или http(s).
 
 ## API-маршруты (часто используемые)
 

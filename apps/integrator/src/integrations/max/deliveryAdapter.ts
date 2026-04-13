@@ -49,6 +49,7 @@ function toMaxInlineKeyboard(replyMarkup: unknown): AttachmentRequest[] | undefi
         text?: string;
         callback_data?: string;
         url?: string;
+        web_app?: { url?: string };
         request_contact?: boolean;
       }>
     >;
@@ -58,6 +59,10 @@ function toMaxInlineKeyboard(replyMarkup: unknown): AttachmentRequest[] | undefi
     row.map((btn): Button => {
       if (btn.request_contact === true) {
         return { type: 'request_contact', text: btn.text ?? 'Поделиться номером' } as Button;
+      }
+      const webAppUrl = typeof btn.web_app?.url === 'string' ? btn.web_app.url.trim() : '';
+      if (webAppUrl.length > 0) {
+        return { type: 'link', text: btn.text ?? '', url: webAppUrl };
       }
       if (btn.url) return { type: 'link', text: btn.text ?? '', url: btn.url };
       return { type: 'callback', text: btn.text ?? '', payload: btn.callback_data ?? '' };

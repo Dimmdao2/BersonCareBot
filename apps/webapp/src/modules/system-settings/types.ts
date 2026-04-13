@@ -16,7 +16,7 @@ export const ALLOWED_KEYS = [
   "telegram_login_bot_username",
   /** Публичный ник бота MAX (сегмент `max.ru/<nick>`), для диплинка привязки channel-link. */
   "max_login_bot_nickname",
-  /** Публичная ссылка «Вход с VK ID» на экране «Другие способы» (OAuth / vk.me / мини-приложение — задаёт админ). */
+  /** Публичная ссылка «Вход с VK ID» для экрана входа (OAuth / vk.me / мини-приложение — задаёт админ; UI кнопки — по мере подключения). */
   "vk_web_login_url",
   /** IANA-таймзона для отображения времени записей и слотов (например Europe/Moscow). */
   "app_display_timezone",

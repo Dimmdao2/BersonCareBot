@@ -327,7 +327,7 @@
 				"params": {
 					"linkToken": "{{input.linkSecret}}",
 					"channelCode": "telegram",
-					"externalId": "{{input.channelId}}"
+					"externalId": "{{meta.userId}}"
 				}
 			}
 		]

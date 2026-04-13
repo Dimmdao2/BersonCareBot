@@ -43,6 +43,33 @@ describe('max mapIn', () => {
     if (incoming?.kind === 'message') expect(incoming.action).toBe('menu.more');
   });
 
+  it('maps /diary and /menu to webapp nav actions', () => {
+    const diary = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 201 },
+        body: { text: '/diary' },
+        sender: { user_id: 201 },
+      },
+    };
+    const menu = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 202 },
+        body: { text: '/menu' },
+        sender: { user_id: 202 },
+      },
+    };
+    const d = fromMax(diary);
+    expect(d?.kind).toBe('message');
+    if (d?.kind === 'message') expect(d.action).toBe('nav.webapp.diary');
+    const m = fromMax(menu);
+    expect(m?.kind).toBe('message');
+    if (m?.kind === 'message') expect(m.action).toBe('nav.webapp.menu');
+  });
+
   it('maps /book command to booking.open', () => {
     const body = {
       update_type: 'message_created' as const,
@@ -65,6 +92,24 @@ describe('max mapIn', () => {
       message: {
         recipient: { chat_id: 201 },
         body: { text: '\uFEFF/start link_abC123-_' },
+        sender: { user_id: 201 },
+      },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('message');
+    if (incoming?.kind === 'message') {
+      expect(incoming.action).toBe('start.link');
+      expect((incoming as { linkSecret?: string }).linkSecret).toBe('link_abC123-_');
+    }
+  });
+
+  it('maps /start@BotName link_<secret> to start.link (меню команд с суффиксом бота)', () => {
+    const body = {
+      update_type: 'message_created' as const,
+      timestamp: 1,
+      message: {
+        recipient: { chat_id: 201 },
+        body: { text: '/start@MyMaxBot link_abC123-_' },
         sender: { user_id: 201 },
       },
     };
@@ -193,7 +238,22 @@ describe('max mapIn', () => {
     expect(incoming).toBeNull();
   });
 
-  it('returns null for message_callback without message mid', () => {
+  it('maps message_callback when body.mid missing but update.message_id present', () => {
+    const body = {
+      update_type: 'message_callback' as const,
+      timestamp: 1,
+      message_id: 'root-mid-99',
+      callback: { callback_id: 'cb-1', payload: 'notifications.show', user: { user_id: 202 } },
+      message: { recipient: { chat_id: 202 }, body: {}, sender: { user_id: 12345 } },
+    };
+    const incoming = fromMax(body);
+    expect(incoming?.kind).toBe('callback');
+    if (incoming?.kind === 'callback') {
+      expect(incoming.messageId).toBe('root-mid-99');
+    }
+  });
+
+  it('returns null for message_callback without message mid and without update.message_id', () => {
     const body = {
       update_type: 'message_callback' as const,
       timestamp: 1,

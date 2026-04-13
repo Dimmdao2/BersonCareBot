@@ -1,12 +1,12 @@
 # Публичный вход (web), PIN и архитектура auth
 
-Каноническое описание модуля авторизации в коде: **`apps/webapp/src/modules/auth/auth.md`** (Telegram Login primary, OTP, OAuth backend-only, роли, API).
+Каноническое описание модуля авторизации в коде: **`apps/webapp/src/modules/auth/auth.md`** (Telegram Login, OTP, OAuth в веб-UI, роли, API). Краткий отчёт по актуальному экрану входа: `docs/REPORTS/LOGIN_WEBAPP_UX_SYNC_2026-04-13.md`.
 
 ## Текущий контракт (Stage 5+)
 
 - В **публичном** потоке входа на `/app` (`AuthFlowV2`) шаги **ввода PIN** и **установки PIN после OTP** отключены: после успешного SMS/Telegram/OTP пользователь сразу попадает в приложение по `redirectTo`.
 - **PIN** остаётся опциональной функцией: API `POST /api/auth/pin/login`, `POST /api/auth/pin/set`, `POST /api/auth/pin/verify` и сценарии в **профиле** / отдельных экранах не удалялись.
-- **Yandex OAuth** — только backend (`/api/auth/oauth/*`), ключи в `system_settings`; в публичном UI кнопки нет.
+- **OAuth (Яндекс / Google / Apple / Max)** — см. канон `apps/webapp/src/modules/auth/auth.md`: публичные кнопки в `AuthFlowV2`, Apple только в режиме «только Apple» (без Яндекса и Google в провайдерах).
 - **Email** — канал OTP и профиль; не единственный обязательный способ входа на первом экране.
 
 См. реализацию UI: `apps/webapp/src/shared/ui/auth/AuthFlowV2.tsx`.

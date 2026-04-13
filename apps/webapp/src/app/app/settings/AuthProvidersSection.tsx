@@ -11,7 +11,7 @@ export type AuthProvidersSectionProps = {
   telegramLoginBotUsername: string;
   /** Ник бота MAX для диплинка max.ru/<nick>?start=… (channel-link). */
   maxLoginBotNickname: string;
-  /** Ссылка для кнопки «Вход с VK ID» на экране «Другие способы» (https). */
+  /** Ссылка для будущей кнопки «Вход с VK ID» на экране входа (https). */
   vkWebLoginUrl: string;
   yandexOauthClientId: string;
   yandexOauthClientSecret: string;
@@ -198,7 +198,7 @@ export function AuthProvidersSection({
           </section>
 
           <section className="flex flex-col gap-2">
-            <p className="text-sm font-semibold">VK ID — кнопка на экране «Другие способы входа»</p>
+            <p className="text-sm font-semibold">VK ID (URL для будущей кнопки на экране входа)</p>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium">URL входа (https)</span>
               <Input
@@ -211,8 +211,8 @@ export function AuthProvidersSection({
                 className="font-mono text-xs"
               />
               <span className="text-xs text-muted-foreground">
-                Пустое — кнопка «Войти с VK ID» на публичном входе не показывается. Реализация OAuth на стороне VK — вне
-                этого поля; здесь только куда вести пользователя.
+                Пустое — ссылка не отдаётся в публичный API. Кнопка на входе будет добавлена отдельно. Реализация OAuth на
+                стороне VK — вне этого поля; здесь только куда вести пользователя.
               </span>
             </label>
           </section>
