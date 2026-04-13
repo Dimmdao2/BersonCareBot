@@ -29,6 +29,13 @@
 
 ## Записи
 
+### 2026-04-13 — STAGE_04 (UX, reasons, сценарии)
+
+- **Этап:** `STAGE_04_UX_REASONS_AND_SCRIPTS.md`.
+- **Действия:** TX-путь `user.phone.link`: раздельные тексты по `PhoneLinkFailureReason`; транзиент и indeterminate — `phoneLinkSaveFailedUserMessage`; при `no_channel_binding` и `facts.links.webappHomeUrl` — inline «Открыть мини-приложение» для Telegram и Max. Тесты `executeAction`, `phoneLinkUserMessages`, `handleIncomingEvent` (`abortPlan`). Обновлены `STAGE_04`, `PRODUCT_REASONS_AND_UX_TABLE.md`.
+- **Артефакты:** коммит в репозитории.
+- **CI:** pass (`pnpm run ci`).
+
 ### 2026-04-13 — STAGE_03 (legacy emit, contact.linked, 422)
 
 - **Этап:** `STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`.

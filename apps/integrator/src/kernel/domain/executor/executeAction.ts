@@ -14,6 +14,7 @@ import type {
   DomainContext,
   NotificationSettings,
   OutgoingIntent,
+  PhoneLinkFailureReason,
 } from '../../contracts/index.js';
 import type { ReminderCategory, ReminderRuleRecord } from '../../contracts/reminders.js';
 import {
@@ -109,6 +110,27 @@ function resolveChannelLinkFailureChatId(ctx: DomainContext, externalId: string)
   return t.length > 0 ? t : null;
 }
 
+/** Inline-кнопка открытия webapp при `no_channel_binding`, если в контексте есть URL (Telegram `web_app`, MAX → link). */
+function readWebappHomeUrlFromFacts(ctx: DomainContext): string | null {
+  const facts = asRecord(ctx.base?.facts ?? {});
+  const links = asRecord(facts.links);
+  const u = links?.webappHomeUrl;
+  return typeof u === 'string' && u.trim().length > 0 ? u.trim() : null;
+}
+
+function phoneLinkFailureReplyMarkup(
+  ctx: DomainContext,
+  source: string,
+  reason: PhoneLinkFailureReason | undefined,
+): { inline_keyboard: Array<Array<{ text: string; web_app: { url: string } }>> } | undefined {
+  if (reason !== 'no_channel_binding') return undefined;
+  if (source !== 'telegram' && source !== 'max') return undefined;
+  const url = readWebappHomeUrlFromFacts(ctx);
+  if (!url) return undefined;
+  return {
+    inline_keyboard: [[{ text: 'Открыть мини-приложение', web_app: { url } }]],
+  };
+}
 
 export async function executeAction(
   action: Action,
@@ -674,11 +696,12 @@ export async function executeAction(
           text = phoneLinkConflictUserMessage(source);
         } else if (reason === 'integrator_id_mismatch') {
           text = phoneLinkIntegratorMismatchUserMessage(source);
-        } else if (indeterminate) {
+        } else if (reason === 'db_transient_failure' || indeterminate) {
           text = phoneLinkSaveFailedUserMessage();
         } else {
           text = phoneLinkConflictUserMessage(source);
         }
+        const replyMarkup = phoneLinkFailureReplyMarkup(ctx, source, reason);
         const intents: OutgoingIntent[] = [{
           type: 'message.send',
           meta: buildIntentMeta(action, ctx),
@@ -688,6 +711,7 @@ export async function executeAction(
                 ? { chatId: chatIdParsed }
                 : { chatId: chatIdStr ?? undefined },
             message: { text },
+            ...(replyMarkup ? { replyMarkup } : {}),
             delivery: { channels: [source], maxAttempts: 1 },
           },
         }];

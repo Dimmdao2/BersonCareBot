@@ -476,6 +476,90 @@ describe('executeAction', () => {
         text: 'Сначала откройте приложение из этого бота (кнопка меню), затем снова поделитесь контактом.',
       },
     });
+    expect((result.intents?.[0]?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
+  });
+
+  it('user.phone.link no_channel_binding: webapp CTA when facts.links.webappHomeUrl present (telegram)', async () => {
+    const writeDb = vi.fn().mockResolvedValue({
+      userPhoneLinkApplied: false,
+      phoneLinkReason: 'no_channel_binding',
+    });
+    const messageCtx: DomainContext = {
+      ...ctx,
+      base: {
+        ...ctx.base,
+        facts: { links: { webappHomeUrl: 'https://app.example/mini' } },
+      },
+      event: {
+        type: 'message.received',
+        meta: { ...ctx.event.meta, source: 'telegram' },
+        payload: {
+          incoming: {
+            channelUserId: '123',
+            chatId: 999001,
+            contactPhone: '+79191234567',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'phone-no-binding-cta',
+        type: 'user.phone.link',
+        mode: 'sync',
+        params: { channelUserId: '123', phoneNormalized: '+79191234567' },
+      },
+      messageCtx,
+      { writePort: { writeDb } },
+    );
+    expect(result.abortPlan).toBe(true);
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      replyMarkup: {
+        inline_keyboard: [[{ text: 'Открыть мини-приложение', web_app: { url: 'https://app.example/mini' } }]],
+      },
+    });
+  });
+
+  it('user.phone.link no_channel_binding: webapp CTA when facts present (max)', async () => {
+    const writeDb = vi.fn().mockResolvedValue({
+      userPhoneLinkApplied: false,
+      phoneLinkReason: 'no_channel_binding',
+    });
+    const messageCtx: DomainContext = {
+      ...ctx,
+      base: {
+        ...ctx.base,
+        facts: { links: { webappHomeUrl: 'https://app.example/max' } },
+      },
+      event: {
+        type: 'message.received',
+        meta: { ...ctx.event.meta, source: 'max' },
+        payload: {
+          incoming: {
+            channelUserId: '123',
+            chatId: 999002,
+            contactPhone: '+79191234567',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'phone-no-binding-max',
+        type: 'user.phone.link',
+        mode: 'sync',
+        params: { channelUserId: '123', phoneNormalized: '+79191234567' },
+      },
+      messageCtx,
+      { writePort: { writeDb } },
+    );
+    expect(result.abortPlan).toBe(true);
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      delivery: { channels: ['max'] },
+      replyMarkup: {
+        inline_keyboard: [[{ text: 'Открыть мини-приложение', web_app: { url: 'https://app.example/max' } }]],
+      },
+    });
   });
 
   it('user.phone.link no_integrator_identity: resync copy, not conflict or generic save-failed', async () => {
@@ -548,6 +632,118 @@ describe('executeAction', () => {
       recipient: { chatId: 999001 },
       message: {
         text: 'Данный номер уже привязан к другому аккаунту Telegram. Напишите в поддержку для решения вопроса.',
+      },
+    });
+  });
+
+  it('user.phone.link integrator_id_mismatch: support copy, not conflict', async () => {
+    const writeDb = vi.fn().mockResolvedValue({
+      userPhoneLinkApplied: false,
+      phoneLinkReason: 'integrator_id_mismatch',
+    });
+    const messageCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: { ...ctx.event.meta, source: 'telegram' },
+        payload: {
+          incoming: {
+            channelUserId: '123',
+            chatId: 999001,
+            contactPhone: '+79191234567',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'phone-integ-mismatch',
+        type: 'user.phone.link',
+        mode: 'sync',
+        params: { channelUserId: '123', phoneNormalized: '+79191234567' },
+      },
+      messageCtx,
+      { writePort: { writeDb } },
+    );
+    expect(result.abortPlan).toBe(true);
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      message: {
+        text: 'Не удалось сопоставить аккаунт с приложением. Напишите в поддержку.',
+      },
+    });
+  });
+
+  it('user.phone.link phone_owned_by_other_user: conflict copy when reason explicit', async () => {
+    const writeDb = vi.fn().mockResolvedValue({
+      userPhoneLinkApplied: false,
+      phoneLinkReason: 'phone_owned_by_other_user',
+    });
+    const messageCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: { ...ctx.event.meta, source: 'telegram' },
+        payload: {
+          incoming: {
+            channelUserId: '123',
+            chatId: 999001,
+            contactPhone: '+79191234567',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'phone-owned-other',
+        type: 'user.phone.link',
+        mode: 'sync',
+        params: { channelUserId: '123', phoneNormalized: '+79191234567' },
+      },
+      messageCtx,
+      { writePort: { writeDb } },
+    );
+    expect(result.abortPlan).toBe(true);
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      message: {
+        text: 'Данный номер уже привязан к другому аккаунту Telegram. Напишите в поддержку для решения вопроса.',
+      },
+    });
+  });
+
+  it('user.phone.link db_transient_failure: save-failed copy, not conflict', async () => {
+    const writeDb = vi.fn().mockResolvedValue({
+      userPhoneLinkApplied: false,
+      phoneLinkReason: 'db_transient_failure',
+      phoneLinkIndeterminate: true,
+    });
+    const messageCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: { ...ctx.event.meta, source: 'telegram' },
+        payload: {
+          incoming: {
+            channelUserId: '123',
+            chatId: 999001,
+            contactPhone: '+79191234567',
+          },
+        },
+      },
+    };
+    const result = await executeAction(
+      {
+        id: 'phone-db-transient',
+        type: 'user.phone.link',
+        mode: 'sync',
+        params: { channelUserId: '123', phoneNormalized: '+79191234567' },
+      },
+      messageCtx,
+      { writePort: { writeDb } },
+    );
+    expect(result.abortPlan).toBe(true);
+    expect(result.intents?.[0]?.payload).toMatchObject({
+      message: {
+        text: 'Не удалось сохранить номер. Попробуйте позже или напишите в поддержку.',
       },
     });
   });

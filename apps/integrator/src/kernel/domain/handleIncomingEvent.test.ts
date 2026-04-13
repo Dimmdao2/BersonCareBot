@@ -263,4 +263,53 @@ describe('handleIncomingEvent (v3)', () => {
       },
     });
   });
+
+  it('stops scenario on abortPlan (no subsequent steps / intents after failed user.phone.link)', async () => {
+    const event: IncomingEvent = {
+      type: 'message.received',
+      meta: {
+        eventId: 'evt-abort-1',
+        occurredAt: '2026-03-05T12:00:00.000Z',
+        source: 'telegram',
+      },
+      payload: {},
+    };
+
+    const baseContext: BaseContext = {
+      actor: { isAdmin: false },
+      identityLinks: [],
+    };
+
+    const buildPlan = vi.fn().mockResolvedValue([
+      { id: 'bind', kind: 'user.phone.link', mode: 'sync', payload: {} },
+      { id: 'after', kind: 'message.send', mode: 'async', payload: { text: 'Номер привязан' } },
+    ]) as unknown as () => Promise<Step[]>;
+
+    const executeAction = vi.fn<
+      (action: { id: string; type: string }, context: DomainContext) => Promise<ActionResult>
+    >().mockImplementation(async (action) => {
+      if (action.id === 'bind') {
+        return {
+          actionId: 'bind',
+          status: 'success',
+          abortPlan: true,
+          intents: [{ type: 'message.send', meta: event.meta, payload: { message: { text: 'ошибка' } } }],
+        };
+      }
+      return { actionId: action.id, status: 'success' };
+    });
+
+    const result = await handleIncomingEvent(event, {
+      buildBaseContext: vi.fn().mockResolvedValue(baseContext),
+      buildPlan,
+      executeAction,
+    });
+
+    expect(executeAction).toHaveBeenCalledTimes(1);
+    expect(result.actions).toHaveLength(2);
+    expect(result.results).toHaveLength(1);
+    expect(result.intents.some((i) => (i.payload as { message?: { text?: string } }).message?.text === 'Номер привязан')).toBe(
+      false,
+    );
+  });
 });
