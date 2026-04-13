@@ -133,6 +133,10 @@
 
 Ключ в таблице **`idempotency_keys`** строится от **семантического** тела события: из JSON убираются поля, не меняющие смысл доставки (в т.ч. верхнеуровневый `occurredAt` и дублирующий `idempotencyKey` внутри body), затем стабильная сериализация и хеш. Повтор с тем же смыслом после успешной обработки отдаёт **кэшированный ответ**; расхождение смысла при том же внешнем ключе — **409**. Если клиент добавляет **новые** верхнеуровневые поля к событию, они участвуют в хеше — возможен ложный конфликт, пока формат не стабилизирован.
 
+## Integrator → webapp: опциональный `POST /api/integrator/messenger-phone/bind`
+
+Только для **внешнего** M2M-клиента (другой сервис, админка): та же транзакция, что **`user.phone.link`** в integrator (`public` binding-first + `integrator.contacts`), подпись **`x-bersoncare-timestamp` / `x-bersoncare-signature`**, обязательный **`x-bersoncare-idempotency-key`**. Семантический хеш для кеша успешного ответа — поля **`channelCode`**, **`externalId`**, **`phoneNormalized`** (`apps/webapp/src/infra/idempotency/messengerPhoneBindRequestHash.ts`). При **одной БД** сценарии бота **не** вызывают этот URL — привязка идёт через `user.phone.link` в процессе integrator. Контракт и коды ответов: `apps/webapp/INTEGRATOR_CONTRACT.md`, этап: `docs/WEBAPP_FIRST_PHONE_BIND/STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`.
+
 ## Операционные логи OTP
 
 При отправке кода через `createIntegratorSmsAdapter` пишется структурированная строка `phone_otp_delivery` (JSON в stdout) с маской номера и каналом — для мониторинга объёма SMS без утечки секретов и полного номера.

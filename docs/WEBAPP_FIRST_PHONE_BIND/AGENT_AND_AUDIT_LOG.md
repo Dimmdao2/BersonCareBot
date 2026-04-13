@@ -29,6 +29,22 @@
 
 ## Записи
 
+### AUDIT 2026-04-14 — STAGE_06 (повторный аудит, полное покрытие чек-листа)
+
+- **Этап / scope:** `STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md` — закрытие хвостов после первичной реализации.
+- **Проверено по:** чек-лист аудита этапа 6; отсутствие вызовов маршрута из hot path (поиск `messenger-phone/bind` в репозитории); соответствие `INTEGRATOR_CONTRACT.md` / `auth.md` / `api.md`.
+- **Найдено / закрыто:** не хватало автотестов для **400** (нет idempotency header), **503** + `indeterminate`, **422** для `no_integrator_identity` и `integrator_id_mismatch`, **409** (тот же ключ, другое семантическое тело), ветки **`channelCode: max`**; обновлены перекрёстные ссылки в документации проекта.
+- **Статус:** OK, пробелов по задачам этапа 6 не остаётся.
+- **CI:** pass (`pnpm run ci`).
+
+### AUDIT 2026-04-13 — STAGE_06 (опциональный signed HTTP bind)
+
+- **Этап / scope:** `STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md` — `POST /api/integrator/messenger-phone/bind`.
+- **Проверено по:** чек-листы «Результат этапа» и «Чек-лист аудита»; контракт в `apps/webapp/INTEGRATOR_CONTRACT.md`.
+- **Сделано:** маршрут с `verifyIntegratorSignature`, обязательным `x-bersoncare-idempotency-key`, кешем успешных ответов; тот же TX, что `user.phone.link`, в `messengerPhoneHttpBindExecute.ts` (SQL синхронизирован с integrator-репами; без импорта из `apps/integrator`, иначе падает `next build` на `.js`-путях integrator); коды 401 / 422 / 503 / 409; тесты `route.test.ts`; документация контракта.
+- **Статус:** OK, этап закрыт.
+- **CI:** pass (`pnpm run ci`).
+
 ### AUDIT 2026-04-13 — STAGE_05 (наблюдаемость, тесты, доки — закрыт)
 
 - **Этап / scope:** `STAGE_05_OBSERVABILITY_TESTS_DOCS.md` (чек-листы и todo Cursor: `admin-audit-logs`, `product-copy-contract`, `docs-contract`).
@@ -80,4 +96,4 @@
 - **Этап / scope:** WEBAPP_FIRST_PHONE_BIND (полнота планов).
 - **Проверено по:** чек-листы STAGE_01–06 (логическая полнота после правок).
 - **Найдено:** устранены внешняя-only опора для UX-таблицы, отсутствие миграции GRANT в репо, окно рассинхрона read path, баг `no_integrator_identity` внутри `db.tx`, пустой журнал.
-- **Статус:** gaps сокращены; STAGE_03 закрыт по чек-листу в `STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`; STAGE_05 закрыт по [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md) (логи/метрики-поля, тесты, контракт, журнал аудита); STAGE_06 — по отдельным задачам.
+- **Статус:** gaps сокращены; STAGE_03 закрыт по чек-листу в `STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`; STAGE_05 закрыт по [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md) (логи/метрики-поля, тесты, контракт, журнал аудита); STAGE_06 закрыт по [`STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`](STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md).

@@ -53,7 +53,7 @@
 | `error-taxonomy` (добавить reason/тесты) | [`STAGE_04_…`](STAGE_04_UX_REASONS_AND_SCRIPTS.md) |
 | `admin-audit-logs` | [`STAGE_05_OBSERVABILITY_TESTS_DOCS.md`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md) |
 | `product-copy-contract`, `docs-contract` | [`STAGE_05_…`](STAGE_05_OBSERVABILITY_TESTS_DOCS.md) |
-| `webapp-bind-route` | [`STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`](STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md) |
+| `webapp-bind-route` | [`STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md`](STAGE_06_OPTIONAL_HTTP_BIND_ROUTE.md) — реализовано; повторный аудит и полное покрытие чек-листа: [`AGENT_AND_AUDIT_LOG.md`](AGENT_AND_AUDIT_LOG.md) (2026-04-14) |
 | `single-db-bind-tx`, `integrator-bind-writeport`, `grants-search-path`, `no-binding-policy`, `mini-app-refresh` | в основном [`STAGE_01_…`](STAGE_01_BIND_TX_AND_GRANTS.md) (+ UX в STAGE_04 для текстов) |
 
 ## Журнал и аудиты
