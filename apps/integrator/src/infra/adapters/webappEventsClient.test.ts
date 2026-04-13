@@ -1,0 +1,129 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { logger } from "../observability/logger.js";
+
+const { mockIntegratorWebhookSecret } = vi.hoisted(() => ({
+  /** Min length for webhook HMAC; not a production secret. */
+  mockIntegratorWebhookSecret: "test_mock_integrator_webhook_secret________",
+}));
+
+vi.mock("../../config/env.js", () => ({
+  env: {
+    NODE_ENV: "test",
+    LOG_LEVEL: "silent",
+    HOST: "127.0.0.1",
+    PORT: 3000,
+    DATABASE_URL: "postgres://localhost:5432/test",
+    BOOKING_URL: "https://example.com",
+    APP_BASE_URL: "https://webapp.test",
+    CONTENT_SERVICE_BASE_URL: "",
+    CONTENT_ACCESS_HMAC_SECRET: "",
+    GOOGLE_CALENDAR_ENABLED: false,
+    GOOGLE_CLIENT_ID: "",
+    GOOGLE_CLIENT_SECRET: "",
+    GOOGLE_REDIRECT_URI: "",
+    GOOGLE_CALENDAR_ID: "",
+    GOOGLE_REFRESH_TOKEN: "",
+  },
+  integratorWebhookSecret: () => mockIntegratorWebhookSecret,
+  integratorWebappEntrySecret: () => mockIntegratorWebhookSecret,
+}));
+
+describe("createWebappEventsPort emit", () => {
+  const originalFetch = globalThis.fetch;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    warnSpy.mockRestore();
+  });
+
+  it("treats 202 with ok true as success", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      status: 202,
+      text: async () => JSON.stringify({ ok: true, accepted: true }),
+    });
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort();
+    const result = await port.emit({
+      eventType: "user.upserted",
+      occurredAt: new Date().toISOString(),
+      payload: { integratorUserId: "1" },
+    });
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe(202);
+  });
+
+  it("treats 200 with ok true as success (same contract as 202)", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, accepted: true }),
+    });
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort();
+    const result = await port.emit({
+      eventType: "user.upserted",
+      occurredAt: new Date().toISOString(),
+      payload: { integratorUserId: "2" },
+    });
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe(200);
+  });
+
+  it("treats 202 without ok true as failure (integrator must not complete projection)", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      status: 202,
+      text: async () => JSON.stringify({ ok: false, error: "busy" }),
+    });
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort();
+    const result = await port.emit({
+      eventType: "diary.lfk.complex.created",
+      occurredAt: new Date().toISOString(),
+      payload: { userId: "u1", title: "t" },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(202);
+  });
+
+  it("treats 202 with missing ok field as failure", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      status: 202,
+      text: async () => JSON.stringify({ accepted: true }),
+    });
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort();
+    const result = await port.emit({
+      eventType: "reminder.rule.upserted",
+      occurredAt: new Date().toISOString(),
+      payload: {},
+    });
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(202);
+  });
+
+  it("logs and fails when response body is not valid JSON", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      status: 200,
+      text: async () => "<html>not json</html>",
+    });
+    const { createWebappEventsPort } = await import("./webappEventsClient.js");
+    const port = createWebappEventsPort();
+    const result = await port.emit({
+      eventType: "user.upserted",
+      occurredAt: new Date().toISOString(),
+      payload: { integratorUserId: "1" },
+    });
+    expect(result.ok).toBe(false);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "user.upserted",
+        httpStatus: 200,
+      }),
+      "webapp events emit: response body is not valid JSON",
+    );
+  });
+});

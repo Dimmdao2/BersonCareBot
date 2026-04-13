@@ -29,6 +29,20 @@
 
 ## Записи
 
+### 2026-04-13 — STAGE_03 (legacy emit, contact.linked, 422)
+
+- **Этап:** `STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`.
+- **Действия:** `webappEventsClient.emit` — успех только при `ok === true`; невалидный JSON ответа → warn + неуспех; тесты в `webappEventsClient.test.ts`. `contact.linked` — идемпотентный fast-path при совпадении телефона на строке integrator без channel/external в payload; Postgres `23505` → `retryable: false` (HTTP 422) для projection upsert на `contact.linked` / `user.upserted` / `preferences.updated`; `findByIntegratorId` возвращает `phoneNormalized` для проверки. Док: чек-листы STAGE_03, секция Legacy emit surface.
+- **Артефакты:** коммит в репозитории.
+- **CI:** pass (`pnpm run ci`).
+
+### 2026-04-13 — STAGE_02 (read link-data из public)
+
+- **Этап:** `STAGE_02_READ_LINK_DATA_FROM_PUBLIC.md`.
+- **Действия:** подтверждена реализация `getLinkDataByIdentity` (`public` bindings → `platform_users` + `merged_into_id`, `COALESCE` с `contacts.label = resource`); добавлены тесты (max-ветка, пустой телефон, legacy fallback); чек-листы STAGE_02 отмечены; уточнён абзац про `linkedPhone` в `INTEGRATOR_TELEGRAM_START_SCRIPTS.md`.
+- **Артефакты:** коммит в репозитории.
+- **CI:** pass (`pnpm run ci`).
+
 ### AUDIT 2026-04-13 — STAGE_01 (bind TX + GRANT + срез fanout)
 
 - **Этап / scope:** `STAGE_01_BIND_TX_AND_GRANTS.md` — реализация и инфра-права.
@@ -49,4 +63,4 @@
 - **Этап / scope:** WEBAPP_FIRST_PHONE_BIND (полнота планов).
 - **Проверено по:** чек-листы STAGE_01–06 (логическая полнота после правок).
 - **Найдено:** устранены внешняя-only опора для UX-таблицы, отсутствие миграции GRANT в репо, окно рассинхрона read path, баг `no_integrator_identity` внутри `db.tx`, пустой журнал.
-- **Статус:** gaps сокращены; хвосты STAGE_03 (идемпотентность legacy `contact.linked`), STAGE_05 (метрики/аудит-логи), STAGE_06 — по отдельным задачам.
+- **Статус:** gaps сокращены; STAGE_03 закрыт по чек-листу в `STAGE_03_LEGACY_EMIT_AND_CONTACT_LINKED.md`; хвосты STAGE_05 (метрики/аудит-логи), STAGE_06 — по отдельным задачам.

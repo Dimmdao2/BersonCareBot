@@ -63,6 +63,28 @@ describe("POST /api/integrator/events", () => {
     expect(handleIntegratorEventMock).not.toHaveBeenCalled();
   });
 
+  it("returns 422 when handler marks non-retryable semantic failure", async () => {
+    handleIntegratorEventMock.mockResolvedValueOnce({
+      accepted: false,
+      reason: "duplicate key",
+      retryable: false,
+    });
+    const response = await POST(
+      new Request("http://localhost/api/integrator/events", {
+        method: "POST",
+        headers: {
+          "x-bersoncare-timestamp": "1700000000",
+          "x-bersoncare-signature": "sig",
+          "x-bersoncare-idempotency-key": "idem-422",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ eventType: "contact.linked", payload: { integratorUserId: "1", phoneNormalized: "+79990001122" } }),
+      }),
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ ok: false, accepted: false });
+  });
+
   it("returns 400 on header/body idempotency mismatch", async () => {
     const response = await POST(
       new Request("http://localhost/api/integrator/events", {

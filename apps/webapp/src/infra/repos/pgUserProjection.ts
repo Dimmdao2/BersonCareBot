@@ -28,7 +28,10 @@ export type UserProjectionPort = {
     lastName?: string | null;
     email?: string | null;
   }) => Promise<{ platformUserId: string }>;
-  findByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
+  findByIntegratorId: (integratorUserId: string) => Promise<{
+    platformUserId: string;
+    phoneNormalized?: string | null;
+  } | null>;
   updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
   updateDisplayName: (platformUserId: string, displayName: string) => Promise<void>;
   /** Update profile (first_name, last_name, email, display_name) by phone; no-op if no user found. */
@@ -396,12 +399,14 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
   async findByIntegratorId(integratorUserId) {
     const pool = getPool();
-    const result = await pool.query<{ id: string }>(
-      `SELECT id FROM platform_users
+    const result = await pool.query<{ id: string; phone_normalized: string | null }>(
+      `SELECT id, phone_normalized FROM platform_users
        WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL`,
       [integratorUserId],
     );
-    return result.rows.length > 0 ? { platformUserId: result.rows[0].id } : null;
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0]!;
+    return { platformUserId: row.id, phoneNormalized: row.phone_normalized };
   },
 
   async updatePhone(platformUserId, phoneNormalized) {

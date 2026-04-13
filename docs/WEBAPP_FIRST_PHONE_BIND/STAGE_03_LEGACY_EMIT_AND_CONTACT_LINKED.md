@@ -12,14 +12,27 @@
 
 ## Результат этапа
 
-- [ ] Для **не-телефонных** M2M: тест на 202 + `{ ok: false }` / без `ok` → integrator **не** завершает проекцию как успех.
-- [ ] `contact.linked`: идемпотентность и корректные коды до полного удаления продюсера с phone path.
-- [ ] Документировано, какие event types ещё идут через emit/worker и до какой даты/версии.
+- [x] Для **не-телефонных** M2M: тест на 202 + `{ ok: false }` / без `ok` → integrator **не** завершает проекцию как успех (`webappEventsClient.test.ts`).
+- [x] `contact.linked`: идемпотентность и корректные коды до полного удаления продюсера с phone path (см. ниже).
+- [x] Зафиксировано, какие типы событий идут через sync `emit` + outbox/worker (см. «Legacy emit surface»).
+
+## Legacy emit surface (инвентаризация репозитория)
+
+**Интегратор → webapp `POST /api/integrator/events`**
+
+1. **После TX в `writeDb` (`tryEmitWebappProjectionThenEnqueue`)** — при неуспешном sync в очередь `projection_outbox` (воркер ретраит emit). Типы из `apps/integrator/src/infra/db/writePort.ts`:  
+   `appointment.record.upserted`, `user.upserted`, поддержка (`support.*`), `preferences.updated`, напоминания (`reminder.*`, `content.access.granted`), рассылки (`mailing.*`, `user.subscription.upserted`).  
+   **Phone path:** `contact.linked` сюда больше не пишется (см. STAGE_01); в outbox могут оставаться **старые** записи до дренажа.
+2. **Напрямую из оркестратора** — `await webappEventsPort.emit(...)` в сценариях дневника и др. (`executeAction.ts` и смежные handlers), без outbox.
+3. **Парсинг ответа** — `apps/integrator/src/infra/adapters/webappEventsClient.ts`: успех только при `(200|202) && body.ok === true`; тело не JSON → `ok: false` + структурный warn в лог.
+4. **Воркер** — `isRecoverableWebappEmitFailure`: 422/404 не ретраятся; 503/5xx/сеть — ретраи с backoff (`projectionWorker.ts`).
+
+Версия/дата отключения продюсера `contact.linked` — по мере дренажа outbox на контуре; в коде phone-bind TX остаётся единственным путём записи канона.
 
 ## Чек-лист аудита (этап 3)
 
-- [ ] Юнит/интеграционный тест: 202 без успешного тела → неуспех для integrator.
-- [ ] 200/202 с `{ ok: true }` → успех.
-- [ ] Повтор старого `contact.linked` после TX-cutover не портит строку, уже обновлённую bind.
-- [ ] Нет бесконечного ретрая на семантических 422 (конфликт номера / integrator id).
-- [ ] `pnpm run ci`.
+- [x] Юнит/интеграционный тест: 202 без успешного тела → неуспех для integrator.
+- [x] 200/202 с `{ ok: true }` → успех.
+- [x] Повтор старого `contact.linked` после TX-cutover: fast-path, если у строки integrator уже тот же телефон и в событии нет пары channel+external (идемпотентный accept без повторного upsert); при channel+external upsert остаётся (ON CONFLICT по binding).
+- [x] Нет бесконечного ретрая на семантических 422: `unique_violation` (23505) из projection upsert → `retryable: false` для `contact.linked` / `user.upserted` / `preferences.updated`.
+- [x] `pnpm run ci`.

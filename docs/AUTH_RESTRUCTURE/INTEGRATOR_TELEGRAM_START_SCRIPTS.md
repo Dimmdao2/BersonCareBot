@@ -4,7 +4,7 @@
 
 ## Контекст `linkedPhone`
 
-Задаётся в [`loadUserContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) по данным [`getLinkDataByIdentity`](../../apps/integrator/src/infra/db/repos/channelUsers.ts): телефон берётся **только** из строки `contacts`, у которой `label` совпадает с каналом (`'telegram'` или `'max'`), т.е. номер, привязанный через `setUserPhone` / шаринг в мессенджере. Любой другой телефон у того же `user_id` (без такого `label`) **не** считается привязкой к боту и **не** отключает `telegram.start.onboarding`.
+Задаётся в [`loadUserContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) по данным [`getLinkDataByIdentity`](../../apps/integrator/src/infra/db/repos/channelUsers.ts): **канон для сценариев** — `public.platform_users.phone_normalized` по `public.user_channel_bindings` для пары `(channel_code, external_id)` (с обходом `merged_into_id`); если в `public` номера нет — **fallback** на `integrator.contacts.value_normalized` с `label` = ресурсу канала (`'telegram'` / `'max'`). Любой другой телефон у того же `user_id` в `contacts` (без такого `label`) **не** считается привязкой к боту и **не** отключает `telegram.start.onboarding`.
 
 Если после загрузки контекста поле не задано, в [`buildBaseContext`](../../apps/integrator/src/kernel/domain/handleIncomingEvent.ts) выставляется **`linkedPhone: false`**, чтобы матчи сценариев с `context: { linkedPhone: false }` не отваливались на `undefined`.
 

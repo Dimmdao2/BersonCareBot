@@ -120,7 +120,10 @@ export type IntegratorEventsDeps = {
       channelCode?: string;
       externalId?: string;
     }) => Promise<{ platformUserId: string }>;
-    findByIntegratorId: (integratorUserId: string) => Promise<{ platformUserId: string } | null>;
+    findByIntegratorId: (integratorUserId: string) => Promise<{
+      platformUserId: string;
+      phoneNormalized?: string | null;
+    } | null>;
     findByPhone?: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
     updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
     updateProfileByPhone: (params: {
@@ -185,6 +188,11 @@ function coerceToFiniteInt(value: unknown): number | null {
 
 function isMergeDomainConflict(err: unknown): err is MergeConflictError | MergeDependentConflictError {
   return err instanceof MergeConflictError || err instanceof MergeDependentConflictError;
+}
+
+/** Postgres `unique_violation` — retrying the same projection event will not help; use HTTP 422 for worker DLQ. */
+function isNonRetryableProjectionUpsertError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505";
 }
 
 function extractIntegratorUserIdsFromPayload(payload: Record<string, unknown>): string[] {
@@ -385,7 +393,11 @@ export async function handleIntegratorEvent(
       const deferred = await acceptAfterMergeConflict(deps, err, "user.upserted", payload);
       if (deferred) return deferred;
       const reason = err instanceof Error ? err.message : "unknown error";
-      return { accepted: false, reason: `user.upserted: ${reason}` };
+      return {
+        accepted: false,
+        reason: `user.upserted: ${reason}`,
+        retryable: isNonRetryableProjectionUpsertError(err) ? false : undefined,
+      };
     }
   }
 
@@ -401,6 +413,17 @@ export async function handleIntegratorEvent(
     if (!deps.users) {
       return { accepted: false, reason: "contact.linked: users dep not available" };
     }
+    const existingIntegratorRow = await deps.users.findByIntegratorId(integratorUserId);
+    if (
+      existingIntegratorRow &&
+      existingIntegratorRow.phoneNormalized === phoneNormalized &&
+      (!channelCode || !externalId)
+    ) {
+      return {
+        accepted: true,
+        reason: "contact.linked: idempotent replay (integrator row already has this phone)",
+      };
+    }
     try {
       await deps.users.upsertFromProjection({
         integratorUserId,
@@ -414,7 +437,11 @@ export async function handleIntegratorEvent(
       const deferred = await acceptAfterMergeConflict(deps, err, "contact.linked", payload);
       if (deferred) return deferred;
       const reason = err instanceof Error ? err.message : "unknown error";
-      return { accepted: false, reason: `contact.linked: ${reason}` };
+      return {
+        accepted: false,
+        reason: `contact.linked: ${reason}`,
+        retryable: isNonRetryableProjectionUpsertError(err) ? false : undefined,
+      };
     }
   }
 
@@ -450,7 +477,11 @@ export async function handleIntegratorEvent(
       const deferred = await acceptAfterMergeConflict(deps, err, "preferences.updated", payload);
       if (deferred) return deferred;
       const reason = err instanceof Error ? err.message : "unknown error";
-      return { accepted: false, reason: `preferences.updated: ${reason}` };
+      return {
+        accepted: false,
+        reason: `preferences.updated: ${reason}`,
+        retryable: isNonRetryableProjectionUpsertError(err) ? false : undefined,
+      };
     }
   }
 

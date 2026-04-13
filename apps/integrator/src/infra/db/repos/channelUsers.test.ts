@@ -237,6 +237,65 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(String(sql)).toContain('COALESCE(NULLIF(TRIM(pub.phone_normalized');
   });
 
+  it('getLinkDataByIdentity (max) uses public bindings + COALESCE(contacts) without telegram_state', async () => {
+    const { db, query } = createDbMock();
+    query.mockResolvedValueOnce({
+      rows: [{ user_id: '3', channel_id: '999', phone: '+79990000000' }],
+      rowCount: 1,
+    } as DbQueryResult);
+
+    const row = await getLinkDataByIdentity(db, 'max', '999');
+    expect(row?.phoneNormalized).toBe('+79990000000');
+    expect(row?.username).toBeNull();
+    expect(row?.userState).toBeNull();
+    const [sql] = query.mock.calls[0] ?? [];
+    const sqlText = String(sql);
+    expect(sqlText).toContain('public.user_channel_bindings');
+    // eslint-disable-next-line no-secrets/no-secrets -- asserts SQL shape, not a secret
+    expect(sqlText).toContain('COALESCE(NULLIF(TRIM(pub.phone_normalized');
+    expect(sqlText).toContain('c.label = $1');
+    expect(sqlText).not.toContain('telegram_state');
+  });
+
+  it('getLinkDataByIdentity returns null phone when neither public nor labeled contact has a number', async () => {
+    const { db, query } = createDbMock();
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          user_id: '1',
+          channel_id: '1',
+          username: 'u',
+          user_state: 'idle',
+          phone: null,
+        },
+      ],
+      rowCount: 1,
+    } as DbQueryResult);
+
+    const row = await getLinkDataByIdentity(db, 'telegram', '1');
+    expect(row?.userId).toBe('1');
+    expect(row?.phoneNormalized).toBeNull();
+  });
+
+  it('getLinkDataByIdentity falls back to integrator contact when public has no phone yet', async () => {
+    const { db, query } = createDbMock();
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          user_id: '1',
+          channel_id: '1',
+          username: null,
+          user_state: null,
+          phone: '+79997776655',
+        },
+      ],
+      rowCount: 1,
+    } as DbQueryResult);
+
+    const row = await getLinkDataByIdentity(db, 'telegram', '1');
+    expect(row?.phoneNormalized).toBe('+79997776655');
+  });
+
   describe('tryConsumeStart', () => {
     it('returns true when UPDATE succeeds (slot consumed)', async () => {
       const { db, query } = createDbMock();

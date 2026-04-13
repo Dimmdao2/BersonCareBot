@@ -10,6 +10,7 @@ import type {
   WebappLfkComplex,
   WebappSymptomTracking,
 } from '../../kernel/contracts/index.js';
+import { logger } from '../observability/logger.js';
 import { buildIntegratorEventsHttpBody } from './jsonStableStringify.js';
 
 function sign(timestamp: string, body: string, secret: string): string {
@@ -81,10 +82,19 @@ export function createWebappEventsPort(): WebappEventsPort {
         });
         const text = await res.text().catch(() => '');
         let parsed: { ok?: boolean; error?: string } = {};
-        try {
-          parsed = text ? (JSON.parse(text) as { ok?: boolean; error?: string }) : {};
-        } catch {
-          parsed = {};
+        if (text) {
+          try {
+            parsed = JSON.parse(text) as { ok?: boolean; error?: string };
+          } catch {
+            logger.warn(
+              {
+                eventType: event.eventType,
+                httpStatus: res.status,
+                bodySnippet: text.slice(0, 500),
+              },
+              'webapp events emit: response body is not valid JSON',
+            );
+          }
         }
         const ok =
           (res.status === 200 || res.status === 202) &&

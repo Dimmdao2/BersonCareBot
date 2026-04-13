@@ -260,7 +260,7 @@ describe("handleIntegratorEvent", () => {
   it("passes channel binding fields from contact.linked to projection upsert", async () => {
     const users = {
       upsertFromProjection: vi.fn().mockResolvedValue({ platformUserId: "platform-1" }),
-      findByIntegratorId: vi.fn(),
+      findByIntegratorId: vi.fn().mockResolvedValue(null),
       updatePhone: vi.fn().mockResolvedValue(undefined),
       updateProfileByPhone: vi.fn(),
       ensureClientFromAppointmentProjection: vi.fn(),
@@ -287,6 +287,88 @@ describe("handleIntegratorEvent", () => {
       externalId: "tg77777",
     });
     expect(users.updatePhone).not.toHaveBeenCalled();
+  });
+
+  it("contact.linked skips upsert when integrator row already has same phone and no channel binding in payload", async () => {
+    const upsertFromProjection = vi.fn();
+    const findByIntegratorId = vi.fn().mockResolvedValue({
+      platformUserId: "plat-1",
+      phoneNormalized: "+70001112233",
+    });
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "contact.linked",
+        payload: { integratorUserId: "77777", phoneNormalized: "+70001112233" },
+      },
+      {
+        ...mockDeps,
+        users: {
+          upsertFromProjection,
+          findByIntegratorId,
+          updatePhone: vi.fn(),
+          updateProfileByPhone: vi.fn(),
+          ensureClientFromAppointmentProjection: vi.fn(),
+          applyRubitimeEmailAutobind: vi.fn(),
+        },
+      },
+    );
+    expect(result.accepted).toBe(true);
+    expect(upsertFromProjection).not.toHaveBeenCalled();
+  });
+
+  it("contact.linked still upserts when channel+external present even if phone matches integrator row", async () => {
+    const upsertFromProjection = vi.fn().mockResolvedValue({ platformUserId: "plat-1" });
+    const findByIntegratorId = vi.fn().mockResolvedValue({
+      platformUserId: "plat-1",
+      phoneNormalized: "+70001112233",
+    });
+    await handleIntegratorEvent(
+      {
+        eventType: "contact.linked",
+        payload: {
+          integratorUserId: "77777",
+          phoneNormalized: "+70001112233",
+          channelCode: "telegram",
+          externalId: "tg77777",
+        },
+      },
+      {
+        ...mockDeps,
+        users: {
+          upsertFromProjection,
+          findByIntegratorId,
+          updatePhone: vi.fn(),
+          updateProfileByPhone: vi.fn(),
+          ensureClientFromAppointmentProjection: vi.fn(),
+          applyRubitimeEmailAutobind: vi.fn(),
+        },
+      },
+    );
+    expect(upsertFromProjection).toHaveBeenCalledTimes(1);
+  });
+
+  it("contact.linked postgres unique_violation is not retryable (422 path)", async () => {
+    const pgErr = Object.assign(new Error("duplicate key value violates unique constraint"), { code: "23505" });
+    const upsertFromProjection = vi.fn().mockRejectedValue(pgErr);
+    const result = await handleIntegratorEvent(
+      {
+        eventType: "contact.linked",
+        payload: { integratorUserId: "77", phoneNormalized: "+79000000001" },
+      },
+      {
+        ...mockDeps,
+        users: {
+          upsertFromProjection,
+          findByIntegratorId: vi.fn().mockResolvedValue(null),
+          updatePhone: vi.fn(),
+          updateProfileByPhone: vi.fn(),
+          ensureClientFromAppointmentProjection: vi.fn(),
+          applyRubitimeEmailAutobind: vi.fn(),
+        },
+      },
+    );
+    expect(result.accepted).toBe(false);
+    expect(result.retryable).toBe(false);
   });
 
   it("preferences.updated creates skeleton user if user.upserted not received yet", async () => {

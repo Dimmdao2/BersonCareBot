@@ -26,19 +26,21 @@
 
 ## Результат этапа
 
-- [ ] Для пары `(resource, externalId)` телефон для **`linkedPhone` / `phoneNormalized`** в контексте оркестратора берётся из **`public`** (через binding → `platform_users`), с явными правилами: пустой телефон → `linkedPhone === false`.
-- [ ] Семантика **label = resource** в `contacts` не ломает продукт: сценарии онбординга/гейты совпадают с тем, что видит webapp по канону.
-- [ ] Ветки **telegram** и **max** в `getLinkDataByIdentity` обновлены согласованно (или общий helper).
-- [ ] Регресс: `resolveIntegratorUserIdForMessenger` и admin lookup по каналу ведут себя ожидаемо (при смене источника телефона `userId` из identities **не** исчезает).
+- [x] Для пары `(resource, externalId)` телефон для **`linkedPhone` / `phoneNormalized`** в контексте оркестратора берётся из **`public`** (через binding → `platform_users`), с явными правилами: пустой телефон → `linkedPhone === false`.
+- [x] Семантика **label = resource** в `contacts` не ломает продукт: сценарии онбординга/гейты совпадают с тем, что видит webapp по канону.
+- [x] Ветки **telegram** и **max** в `getLinkDataByIdentity` обновлены согласованно (или общий helper).
+- [x] Регресс: `resolveIntegratorUserIdForMessenger` и admin lookup по каналу ведут себя ожидаемо (при смене источника телефона `userId` из identities **не** исчезает).
 
 ## Чек-лист аудита (этап 2)
 
-- [ ] Пользователь с binding и телефоном в `platform_users` → `linkedPhone === true`, корректный `phoneNormalized` в контексте.
-- [ ] Binding есть, телефона нет → `linkedPhone === false` (как в strict-воронке до шаринга).
-- [ ] Нет identity в integrator → по-прежнему `null` или согласованное поведение (зафиксировать в коде/логе).
-- [ ] Есть только старый телефон в `contacts` без записи в `public` после cutover TX — задокументировать ожидание (временный дрейф до миграции данных или явный repair); не молчаливый wrong success.
-- [ ] `pnpm run ci`; при необходимости — точечные тесты на `readPort` / `handleIncomingEvent` / `buildPlan` с моком БД.
+- [x] Пользователь с binding и телефоном в `platform_users` → `linkedPhone === true`, корректный `phoneNormalized` в контексте.
+- [x] Binding есть, телефона нет → `linkedPhone === false` (как в strict-воронке до шаринга).
+- [x] Нет identity в integrator → по-прежнему `null` или согласованное поведение (зафиксировать в коде/логе).
+- [x] Есть только старый телефон в `contacts` без записи в `public` после cutover TX — задокументировать ожидание (временный дрейф до миграции данных или явный repair); не молчаливый wrong success.
+- [x] `pnpm run ci`; при необходимости — точечные тесты на `readPort` / `handleIncomingEvent` / `buildPlan` с моком БД.
 
 ## Примечание про «старые данные»
 
 Если запись новых привязок всегда идёт через TX bind, **Rubitime и операционные потоки не теряют строки** — старые расхождения ограничены по времени. Для разового выравнивания исторических рядов при необходимости — отдельный ops/SQL шаг (не блокер этапа, но пункт аудита при cutover).
+
+**Ожидание для read path:** `phoneNormalized` = `COALESCE(public.platform_users.phone_normalized` после обхода `merged_into_id`, затем **fallback** на `integrator.contacts.value_normalized` с `label = resource`). Пока в `public` ещё нет телефона, бот может показывать `linkedPhone === true` по **legacy**-строке в `contacts` — это сознательный fallback до выравнивания данных, не «тихий» обход канона при наличии противореча в двух слоях (противоречие по тем же полям — отдельная операционная тема).
