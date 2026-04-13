@@ -54,30 +54,38 @@
 
 ## Интегратор (отдельное приложение)
 
-- Integrator читает свои секреты и URL из **своего** env (`apps/integrator`); это не смешивается с `system_settings` webapp, кроме общей БД если используется один PostgreSQL для проекций.
-- **Исключение: Google Calendar** — integrator `runtimeConfig.ts` читает `system_settings` из зеркалированной таблицы в integrator DB (push от webapp через `syncSettingToIntegrator`), с **пофайловым** слиянием с env: для каждого поля (`clientId`, `secret`, `redirectUri`, `calendarId`, `refreshToken`, `enabled`) используется значение из БД, если строка/флаг заданы; иначе — env. Так частично синхронизированная БД не затирает рабочий env пустыми полями. Кэш сбрасывается при приёме `google_*` ключей через `/api/integrator/settings/sync`.
+- Integrator читает свои секреты и URL из **своего** env (`apps/integrator`); это не смешивается с `system_settings` webapp, кроме случая **одной PostgreSQL** (см. ниже).
+- **Исключение: Google Calendar** — integrator `runtimeConfig.ts` читает `system_settings` из зеркалированной таблицы в схеме integrator (push от webapp через `syncSettingToIntegrator` или прямой SQL после рефакторинга), с **пофайловым** слиянием с env: для каждого поля (`clientId`, `secret`, `redirectUri`, `calendarId`, `refreshToken`, `enabled`) используется значение из БД, если строка/флаг заданы; иначе — env. Так частично синхронизированная БД не затирает рабочий env пустыми полями. Кэш сбрасывается при приёме `google_*` ключей через `/api/integrator/settings/sync`.
 
-### Две отдельные БД: зеркало `system_settings` в integrator
+### Одна БД, схемы `public` и `integrator` (актуально)
 
-На проде у webapp и integrator часто **разные** PostgreSQL (`bcb_webapp_prod` и `tgcarebot` — см. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`). Таблица `system_settings` создаётся **webapp-миграциями**; в БД integrator — **отдельная миграция** с тем же контрактом колонок (`key`, `scope`, `value_json`, …), без FK на `platform_users`.
+**Обновлённая модель (2026-04):** на production webapp и integrator подключаются к **одной** базе PostgreSQL (`DATABASE_URL` в `api.prod` и `webapp.prod` совпадает). Таблицы webapp/канона — в схеме **`public`**; таблицы integrator — в схеме **`integrator`**. Запись канона и связей пациента из integrator в `public` — **прямой SQL в транзакции**, без обязательного HTTP в webapp как основного пути. Подробнее: [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md).
 
-**Единственный канонический путь записи в webapp:** `createSystemSettingsService` → `updateSetting` → `port.upsert` (PostgreSQL webapp). Сразу после успешного upsert вызывается **`syncSettingToIntegrator`** (подписанный HTTP `POST` на integrator `POST /api/integrator/settings/sync`). Так синхронизируются **и** admin PATCH, **и** doctor PATCH, **и** любой будущий код, который пишет настройки только через сервис.
+### Зеркало `system_settings` (webapp → integrator)
+
+Таблица `system_settings` в **`public`** создаётся **webapp-миграциями**; в схеме integrator — **отдельная миграция** с тем же контрактом колонок (`key`, `scope`, `value_json`, …), без FK на `platform_users`. При **одной БД** это две таблицы в **разных схемах** одного кластера; код integrator по-прежнему может получать настройки из `integrator.system_settings`.
+
+**Канонический путь записи из webapp:** `createSystemSettingsService` → `updateSetting` → upsert в **`public.system_settings`**. После успешного upsert вызывается **`syncSettingToIntegrator`** (подписанный HTTP `POST` на integrator `POST /api/integrator/settings/sync`) — пока контракт не переведён на запись в `integrator.system_settings` тем же процессом/SQL без round-trip.
 
 **Правила для агентов и разработчиков:**
 
-1. **Новый ключ** — добавить в `ALLOWED_KEYS` (`apps/webapp/src/modules/system-settings/types.ts`), UI/API при необходимости, затем **тот же** `(key, scope)` должен оказаться в integrator после следующего сохранения в админке (push). Ручные SQL-вставки только в webapp оставляют integrator без строки до следующего PATCH.
+1. **Новый ключ** — добавить в `ALLOWED_KEYS` (`apps/webapp/src/modules/system-settings/types.ts`), UI/API при необходимости, затем **тот же** `(key, scope)` должен оказаться в integrator после следующего сохранения в админке (push) или после прямой синхронизации схем.
 2. **Не дублировать** вызовы sync в route handlers — только через `updateSetting`.
-3. **Скрипты и миграции**, которые меняют `system_settings` в webapp напрямую, должны либо повторить строку в integrator (одинаковые `key`, `scope`, `value_json`), либо документировать одноразовый backfill и при необходимости вызвать тот же HTTP sync из ops.
+3. **Скрипты и миграции**, которые меняют `system_settings` в `public` напрямую, должны либо повторить строку в `integrator.system_settings`, либо документировать одноразовый backfill и при необходимости вызвать тот же HTTP sync из ops.
 
 **Файлы:** `apps/webapp/src/modules/system-settings/service.ts`, `syncToIntegrator.ts`; integrator: `apps/integrator/src/integrations/bersoncare/settingsSyncRoute.ts`, миграция `apps/integrator/src/infra/db/migrations/core/20260406_0002_create_system_settings.sql`.
 
-### Доставка webapp ↔ integrator при сбоях HTTP
+### Legacy: две отдельные БД
 
-При **двух отдельных БД** обмен идёт подписанными POST; при недоступности пира очередь в БД — запасной путь, а не основной.
+До unification на проде могли быть **две** базы (`tgcarebot` / `bcb_webapp_prod` и т.п.). Cutover/backfill-скрипты и `cutover.prod` с `INTEGRATOR_DATABASE_URL` описывают этот **исторический** режим. Новые фичи не проектировать под «две БД + HTTP как единственный способ записи канона».
 
-- **Integrator → webapp (проекции):** после коммита транзакции события собираются и сначала отправляются в webapp по HTTP (`webappEventsPort.emit` / `POST /api/integrator/events`). При ошибке сети/5xx строка попадает в **`projection_outbox`** в БД integrator и обрабатывается существующим worker’ом (`bersoncarebot-worker-prod.service`). Код: `apps/integrator/src/infra/db/repos/projectionFanout.ts`, `createDbWritePort` + `fanoutProjectionsAfterTx`.
+### Доставка HTTP и очереди (fallback / legacy-потоки)
 
-- **Webapp → integrator (настройки, напоминания и др.):** `syncSettingToIntegrator`, `notifyIntegrator` и связанные вызовы сначала делают немедленный POST; при сбое (кроме отсутствия URL/секрета там, где это задокументировано в коде) полезная нагрузка записывается в таблицу **`integrator_push_outbox`** (миграция webapp `071_integrator_push_outbox.sql`). Повторная доставка — операторским/фоновым запуском скрипта из каталога webapp: `pnpm integrator-push-outbox-tick` (см. `apps/webapp/package.json`). На production нужен периодический запуск с загруженным `webapp.prod` (имена unit/cron в репозитории не зафиксированы — завести при выкатке).
+При **разнесённых** процессах webapp и integrator обмен по-прежнему может идти подписанными POST. **Очереди в БД** (`projection_outbox`, `integrator_push_outbox`) и worker — **запасной путь** при сбоях и для кода, ещё не переведённого на прямой SQL в одной БД; не позиционировать их как основной механизм для новых сценариев записи в `public`.
+
+- **Integrator → webapp (проекции, legacy):** после коммита транзакции события могут отправляться в webapp по HTTP (`webappEventsPort.emit` / `POST /api/integrator/events`). При ошибке сети/5xx строка может попасть в **`integrator.projection_outbox`** и обрабатываться worker’ом (`bersoncarebot-worker-prod.service`). Код: `apps/integrator/src/infra/db/repos/projectionFanout.ts`, `createDbWritePort` + `fanoutProjectionsAfterTx`.
+
+- **Webapp → integrator:** `syncSettingToIntegrator`, `notifyIntegrator` и связанные вызовы сначала делают немедленный POST; при сбое полезная нагрузка может записываться в **`public.integrator_push_outbox`** (миграция webapp `071_integrator_push_outbox.sql`). Повторная доставка — `pnpm integrator-push-outbox-tick` (см. `apps/webapp/package.json`).
 
 ## Что НЕ хранится в документации
 

@@ -96,7 +96,7 @@
    - Таблицы из `IDENTITY_TABLES` (привязки каналов, PIN, login tokens, OAuth).
    - `DELETE FROM platform_users WHERE id = ...`.
 3. **После COMMIT webapp — внешняя очистка (не одна транзакция с webapp):**
-   - Параллельно и **независимо**: удаление объектов S3 по собранным ключам (per-key ошибки агрегируются) и очистка в integrator (отдельные вызовы в БД integrator). Оба шага выполняются без short-circuit при ошибке в другом.
+   - Параллельно и **независимо**: удаление объектов S3 по собранным ключам (per-key ошибки агрегируются) и очистка в integrator (отдельные вызовы в схему **`integrator`** — та же PostgreSQL, что и webapp, при unified model). Оба шага выполняются без short-circuit при ошибке в другом.
    - **Integrator:** кроме сопоставления по `phone_normalized` и `integrator_user_id`, в post-commit передаётся **снимок** строк **`user_channel_bindings`** (telegram/max), прочитанный **до** `DELETE platform_users` в транзакции webapp; по ним резолвятся дополнительные `users.id` в БД бота и удаляются мессенджерные контакты (в т.ч. когда в webapp не было заполнено `integrator_user_id`).
    - Для `media_files`: строки с `s3_key IS NULL` удаляются как DB-only артефакты; для строк с `s3_key` после успешного удаления объекта в S3 выполняется `DELETE FROM media_files` по id (если S3 отключён в окружении — только удаление строк БД).
 4. **Аудит:** `writeAuditLog` в **отдельной** транзакции после основной: `ok` / `partial_failure` / `error`; при rollback webapp — запись об ошибке, сам аудит не откатывается вместе с purge.
@@ -112,7 +112,7 @@
 - **Дополнительно закрывается по `integrator_user_id`:** webapp-проекции без прямой UUID-связи (`reminder_delivery_events`, `reminder_occurrence_history`, `user_subscriptions_webapp`, `mailing_logs_webapp`, `support_questions`, `support_question_messages` и др.).
 - **Удаляется каскадно через FK `ON DELETE CASCADE`:** `channel_link_secrets`, `auth_methods`, `email_verifications`, `email_otp_challenges`, `lfk_sessions` и другие таблицы, где удаление завязано на `platform_users(id)`.
 - **Медиа и S3:** strict purge собирает артефакты до DELETE: `online_intake_attachments.s3_key` и `media_files` по `uploaded_by` (включая строки без `s3_key` для DB-only cleanup). После commit удаляются объекты в private bucket и затем строки `media_files` при успешном S3 delete; строки без `s3_key` удаляются напрямую. Если в процессе purge S3 «выключен» в конфиге webapp (`isS3MediaEnabled`), в `details`/`audit` выставляется **`intakeS3ObjectsNotDeletedBucketDisabled`** при наличии S3-ключей — объекты в bucket могли не удалиться (операционный сигнал). Для повтора внешнего хвоста audit хранит `artifact`, `phoneNormalized`, `webappIntegratorUserId`, `resolvedIntegratorUserIds`; `retryStrictPurgeExternalCleanup` использует этот payload без повторного удаления `platform_users`.
-- **Критичный операционный риск:** если webapp запущен без корректного `INTEGRATOR_DATABASE_URL` для integrator БД, ответ содержит `integratorSkipped: true` и bot-side данные останутся. Для ретеста `/start` это означает, что Telegram может продолжить считать номер привязанным.
+- **Критичный операционный риск:** если пул к integrator-данным не настроен (в legacy — пустой/неверный `INTEGRATOR_DATABASE_URL` при **двух** БД; при unified — ошибка подключения к той же БД/схеме `integrator`), ответ содержит `integratorSkipped: true` и bot-side данные останутся. Для ретеста `/start` это означает, что Telegram может продолжить считать номер привязанным.
 
 ---
 

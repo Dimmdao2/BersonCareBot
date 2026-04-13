@@ -4,7 +4,7 @@
 
 - [ ] Локально: `pnpm run ci` (как в GitHub Actions).
 - [ ] Ветка: `feature/merge-v2-deploy-N-...` (N = 1…4).
-- [ ] На проде деплой идёт через [`deploy/host/deploy-prod.sh`](../../deploy/host/deploy-prod.sh): бэкап **обеих** БД → миграции integrator → миграции webapp → рестарт `bersoncarebot-api-prod`, `bersoncarebot-worker-prod`, `bersoncarebot-webapp-prod`.
+- [ ] На проде деплой идёт через [`deploy/host/deploy-prod.sh`](../../deploy/host/deploy-prod.sh): бэкап (скрипт может сделать два прохода по `api.prod`/`webapp.prod`; при unified — одна БД) → миграции integrator → миграции webapp → рестарт `bersoncarebot-api-prod`, `bersoncarebot-worker-prod`, `bersoncarebot-webapp-prod`.
 - [ ] После деплоя: health API (`/health`), webapp (`/api/health`), при необходимости [`apps/integrator/scripts/projection-health.mjs`](../../apps/integrator/scripts/projection-health.mjs).
 - [ ] Мониторинг: `admin_audit_log` — `user_purge`, `user_merge`, `auto_merge_conflict` (см. [`STAGE_A_V1_STABILIZATION.md`](STAGE_A_V1_STABILIZATION.md)).
 
@@ -18,7 +18,7 @@
 | CI-only webapp | Скрипт `deploy-webapp-prod.sh` существует, в CI **не** используется; для v2 cross-DB — предпочтительно только полный `deploy-prod.sh`. |
 | Обратная совместимость | Пока webapp не меняется, новая колонка/инвариант integrator не должен ломать существующий webapp runtime. |
 
-Имена БД на production (не секреты): см. [`../ARCHITECTURE/SERVER CONVENTIONS.md`](../ARCHITECTURE/SERVER%20CONVENTIONS.md) — integrator `tgcarebot`, webapp `bcb_webapp_prod`.
+Имена БД и схемы на production: см. [`../ARCHITECTURE/SERVER CONVENTIONS.md`](../ARCHITECTURE/SERVER%20CONVENTIONS.md) и [`../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) — **одна** БД, схемы `integrator` / `public` (старые имена отдельных БД — только historical).
 
 ---
 

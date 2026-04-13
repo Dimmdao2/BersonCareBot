@@ -7,6 +7,7 @@
 ## Архитектура и эксплуатация
 
 - `ARCHITECTURE/SERVER CONVENTIONS.md` — среда выполнения, пути, сервисы (источник фактов для деплоя).
+- `ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md` — **одна** PostgreSQL для webapp+integrator, схемы `public` / `integrator`, прямой SQL vs очередь как fallback.
 - **Webapp: ручные скрипты / SQL и tier patient (телефон + `patient_phone_trust_at`):** [`apps/webapp/scripts/README.md`](../apps/webapp/scripts/README.md) · детально: [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](../apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md) · контекст в карте сценариев: `PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md` §8.
 - `ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` — что в env, что в `system_settings`.
 - `ARCHITECTURE/DOCTOR_CMS_AND_RUNTIME.md` — CMS врача (`/app/doctor/content`), фильтр `?section=`, логирование сбоев БД и мягкая деградация UI.

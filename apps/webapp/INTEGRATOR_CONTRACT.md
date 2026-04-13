@@ -2,6 +2,8 @@
 
 This document defines the explicit contract between `tgcarebot` and `webapp`.
 
+**Runtime note (2026-04):** production uses **one** PostgreSQL (`integrator` + `public` schemas). Machine-to-machine HTTP below remains for **cross-service** calls (separate Node processes). It is **not** the primary way to persist patient canon when integrator already has DB access to `public` — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
+
 **JSON Schemas** (canonical payload shapes):
 
 - [Webapp entry token payload](../../contracts/webapp-entry-token.json) — decoded payload of `?t=<signed-token>` (bindings may include telegramId, maxId)
@@ -11,7 +13,7 @@ This document defines the explicit contract between `tgcarebot` and `webapp`.
 
 ## Contract Principles
 
-- no direct database reads between services
+- **Legacy wording:** «no direct database reads between services» applied when integrator and webapp had **separate** databases. With **unified** PostgreSQL, integrator may read/write `public` per product rules; M2M HTTP stays for endpoints that are still process-boundary contracts (idempotency, auth, routing).
 - all machine-to-machine calls are authenticated with a shared secret
 - all machine-to-machine writes are idempotent
 - transport/channel semantics stay in `tgcarebot`

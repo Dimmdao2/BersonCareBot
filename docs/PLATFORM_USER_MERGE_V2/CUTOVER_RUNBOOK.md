@@ -6,7 +6,7 @@
 
 1. Убедиться, что merge в `main` прошёл `pnpm run ci` в CI.
 2. Деплой на хост выполняется job **Deploy** в `.github/workflows/ci.yml` (SSH → `deploy/host/deploy-prod.sh`).
-3. Скрипт сам вызывает `postgres-backup.sh pre-migrations` — в `/opt/backups/postgres/pre-migrations/` должны появиться **два** `.dump` (integrator + webapp).
+3. Скрипт сам вызывает `postgres-backup.sh pre-migrations` — в `/opt/backups/postgres/pre-migrations/` появляются до **двух** `.dump` (при unified — часто два идентичных файла одной БД; см. [`../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md)).
 
 ## Подключение к БД (обязательный префикс)
 
@@ -24,11 +24,11 @@ set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_database();"
 ```
 
-**Две БД (backfill / reconcile / диагностика):**
+**Cutover env (backfill / reconcile / диагностика):**
 
 ```bash
 set -a && source /opt/env/bersoncarebot/cutover.prod && set +a
-# DATABASE_URL → webapp; INTEGRATOR_DATABASE_URL → integrator
+# DATABASE_URL → целевая схема public; INTEGRATOR_DATABASE_URL → схема integrator (legacy: разные БД; unified: часто та же строка)
 ```
 
 Не вызывать `psql "$DATABASE_URL"` без предварительного `source` нужного env-файла.

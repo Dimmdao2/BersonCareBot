@@ -27,6 +27,14 @@
 
 ---
 
+## Модель PostgreSQL (обновление 2026-04)
+
+**Актуально:** integrator и webapp используют **одну** базу данных: в `api.prod` и `webapp.prod` задаётся **один и тот же** `DATABASE_URL`. Данные разделены **схемами**: канон пациента и webapp-таблицы — в **`public`**, таблицы integrator — в **`integrator`**. Integrator читает и пишет в обе схемы **напрямую SQL** (роль с `search_path` и GRANT), без обязательного **HTTP** и **worker/ретраев** как основного пути для этих операций. Очередь (`projection_outbox` и т.п.) — **fallback** при временных сбоях и для ещё не переведённого legacy-потока.
+
+Подробно: [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md).
+
+---
+
 ## Текущее состояние хоста
 
 | Параметр | Значение |
@@ -35,7 +43,7 @@
 | ОС | `Ubuntu 24.04.4 LTS` |
 | Runtime model | Node.js напрямую на хосте через `systemd` |
 | Reverse proxy | `nginx` |
-| База данных | system PostgreSQL на `127.0.0.1:5432` |
+| База данных | system PostgreSQL на `127.0.0.1:5432`; **одна** runtime-БД для api+webapp, схемы `integrator` + `public` (см. раздел «Модель PostgreSQL») |
 | Deploy user | `deploy` |
 | Backup root | `/opt/backups` |
 
@@ -161,7 +169,7 @@
 - `HOST=127.0.0.1`
 - `PORT=6200`
 - `APP_BASE_URL=https://bersoncare.ru`
-- `DATABASE_URL=...` (webapp БД)
+- `DATABASE_URL=...` (после unification — **та же** БД, что в `api.prod`; схема **`public`**)
 - `SESSION_COOKIE_SECRET=...`
 - `INTEGRATOR_SHARED_SECRET=...`
 - `INTEGRATOR_API_URL=https://tgcarebot.bersonservices.ru`
@@ -173,7 +181,7 @@
 - `INTERNAL_JOB_SECRET` — опционально; если задан, позволяет cron дергать purge очереди удаления медиа (см. отчёт S3 private media).
 - `LOG_LEVEL` — опционально (pino в webapp; по умолчанию в коде `info`).
 
-Для обычного runtime webapp **не нужно** хранить integrator DB в `webapp.prod`.
+Для обычного runtime webapp **не нужен** отдельный URL «второй» БД в `webapp.prod` — он совпадает с integrator (`DATABASE_UNIFIED_POSTGRES.md`).
 
 Для cutover/backfill/reconcile/gate-скриптов используется отдельный файл:
 
@@ -183,12 +191,12 @@
 
 - отдельный ops-only env для `backfill-*`, `reconcile-*`, `projection-health`, `stage*-gate`;
 - не используется как runtime env для `bersoncarebot-webapp-prod.service`;
-- позволяет не хранить integrator DB URL в `webapp.prod`.
+- при **legacy** двух БД позволял не дублировать integrator URL в `webapp.prod`; после unification переменные могут указывать на **одну** базу.
 
 Ожидаемые ключи:
 
-- `DATABASE_URL` — **webapp** DB (`bcb_webapp_prod`);
-- `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — **integrator** DB (`tgcarebot`).
+- `DATABASE_URL` — целевая БД webapp-миграций (схема **`public`**); после unification совпадает с `webapp.prod`;
+- `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` — источник integrator-данных; после unification часто **та же** строка, что `DATABASE_URL`, либо отдельная только в dev/миграционных сценариях.
 
 Скрипты репозитория автоматически пытаются загрузить cutover env в таком порядке:
 
@@ -331,37 +339,33 @@
 
 - PostgreSQL слушает только `127.0.0.1:5432`.
 - `/opt/backups` существует.
-- Каноническая версия скрипта бэкапа в репозитории: [`deploy/postgres/postgres-backup.sh`](../../deploy/postgres/postgres-backup.sh) — **обе** production-бД: integrator (`DATABASE_URL` из `api.prod`, обычно `tgcarebot`) и webapp (`DATABASE_URL` из `webapp.prod`, обычно `bcb_webapp_prod`). На хосте ожидается установка в `/opt/backups/scripts/postgres-backup.sh` (см. [`deploy/postgres/README.md`](../../deploy/postgres/README.md)). Режимы: `pre-migrations`, `hourly`, `daily`, `manual` — см. скрипт.
+- Каноническая версия скрипта бэкапа в репозитории: [`deploy/postgres/postgres-backup.sh`](../../deploy/postgres/postgres-backup.sh). После unification `DATABASE_URL` в `api.prod` и `webapp.prod` **совпадает** — скрипт по-прежнему читает оба env-файла и может создать **два идентичных дампа** одной БД; имеет смысл упростить до одного прохода. На хосте ожидается установка в `/opt/backups/scripts/postgres-backup.sh` (см. [`deploy/postgres/README.md`](../../deploy/postgres/README.md)). Режимы: `pre-migrations`, `hourly`, `daily`, `manual` — см. скрипт.
 - `/opt/env/bersoncarebot` существует и принадлежит `deploy`.
 - Команда со снимком `pg_database` в этом audit оборвалась по shell-ошибке, поэтому точные current DB owners в этот документ не включены.
 - Для базы и владельцев пока опираться на `deploy/HOST_DEPLOY_README.md`, пока не будет отдельного успешного postgres snapshot.
 
 ### Data migration / доступ к БД (production)
 
-Для проверки переноса данных и backfill/reconcile нужны две БД: **integrator** (источник) и **webapp** (целевая).
+**Текущий runtime:** одна БД; `DATABASE_URL` в `api.prod` и `webapp.prod` **одинаковый**. Для SQL в webapp-таблицах используйте схему **`public`**, для integrator — **`integrator`** (или `search_path`, заданный роли).
 
-| Назначение | Переменная | Где задана на проде |
-|------------|------------|----------------------|
-| Integrator (источник) | `DATABASE_URL` | `/opt/env/bersoncarebot/api.prod` |
-| Webapp (целевая) | `DATABASE_URL` | `/opt/env/bersoncarebot/webapp.prod` |
-| Integrator для webapp (backfill/reconcile) | `INTEGRATOR_DATABASE_URL` или `SOURCE_DATABASE_URL` | `/opt/env/bersoncarebot/cutover.prod` — preferred; значение = та же строка, что `DATABASE_URL` в `api.prod` |
+Файл **`cutover.prod`** и переменные `INTEGRATOR_DATABASE_URL` / `SOURCE_DATABASE_URL` остаются для **legacy** cutover/backfill-скриптов и dev-симметрии; на проде после unification они могут указывать на **ту же** строку, что и `DATABASE_URL` (или быть не нужны — см. конкретный скрипт).
 
-Подтвержденные **имена production БД** (по env preview на `2026-03-21`, без секретов):
+**Исторические имена БД** (до unification, для старых отчётов; не считать текущим обязательным состоянием):
 
-| Назначение | Файл env | Переменная | Имя БД |
-|------------|----------|------------|--------|
-| Integrator | `/opt/env/bersoncarebot/api.prod` | `DATABASE_URL` | `tgcarebot` |
-| Webapp | `/opt/env/bersoncarebot/webapp.prod` | `DATABASE_URL` | `bcb_webapp_prod` |
-| Integrator для webapp backfill/reconcile | `/opt/env/bersoncarebot/cutover.prod` | `INTEGRATOR_DATABASE_URL` | должно указывать на `tgcarebot` |
+| Назначение (legacy) | Было (пример) |
+|---------------------|---------------|
+| Отдельная БД integrator | `tgcarebot` |
+| Отдельная БД webapp | `bcb_webapp_prod` |
 
 Подключение к psql на проде (под пользователем, у которого есть доступ к БД):
 
 ```bash
-# Загрузить env и подключиться к нужной БД (значения не коммитить).
+# Загрузить env и подключиться (значения не коммитить).
 # Обязательно сначала source — иначе DATABASE_URL пустой и psql уйдёт в локальный сокет
 # от имени пользователя ОС (часто root) → FATAL: role "root" does not exist.
-set -a && source /opt/env/bersoncarebot/api.prod && set +a && psql "$DATABASE_URL"    # integrator
-set -a && source /opt/env/bersoncarebot/webapp.prod && set +a && psql "$DATABASE_URL" # webapp
+# После unification оба варианта попадают в одну и ту же БД; для явного search_path:
+set -a && source /opt/env/bersoncarebot/webapp.prod && set +a && psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SHOW search_path;"
+set -a && source /opt/env/bersoncarebot/api.prod && set +a && psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT current_schema();"
 ```
 
 Если на хосте psql запускают от имени `postgres`: `sudo -u postgres psql -d <имя_базы>`. Имена баз и пользователей берут из соответствующих env-файлов (см. примеры в `deploy/env/.env.webapp.prod.example`; для api — корневой `.env.example`).
@@ -394,9 +398,9 @@ grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /opt/env/bersoncarebot/cutover.prod 2>/dev/nu
 
 | Чего не хватает | Как проверить | Как вписать |
 |-----------------|---------------|-------------|
-| `INTEGRATOR_DATABASE_URL` для cutover-скриптов | В `/opt/env/bersoncarebot/cutover.prod` нет `INTEGRATOR_DATABASE_URL` (и нет `SOURCE_DATABASE_URL`) | Создать `/opt/env/bersoncarebot/cutover.prod`; взять значение `DATABASE_URL` из `/opt/env/bersoncarebot/api.prod` и записать как `INTEGRATOR_DATABASE_URL='...'`. `DATABASE_URL` в этом файле должен указывать на webapp DB из `webapp.prod`. |
-| Имена баз для psql | Не знаете, к какой базе подключаться | Из `api.prod`: `source /opt/env/bersoncarebot/api.prod && echo "$DATABASE_URL"` — в URL будет имя базы (после последнего `/`). Аналогично для webapp из `webapp.prod`. Или после п.1 смотреть вывод списка баз. |
-| Backup перед миграциями | Не уверены, что дампы создаются | Канонический скрипт: репозиторий `deploy/postgres/postgres-backup.sh` → на хосте `/opt/backups/scripts/postgres-backup.sh`. Запуск: `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`. В `/opt/backups/postgres/pre-migrations/` должны появиться **два** файла `*.dump` (integrator + webapp). |
+| `INTEGRATOR_DATABASE_URL` для cutover-скриптов | Скрипт требует `cutover.prod`, а файла нет | Для **legacy** двух-БД: создать `cutover.prod` с `DATABASE_URL` = webapp и `INTEGRATOR_DATABASE_URL` = старая integrator БД. После **unification** оба URL часто **совпадают** — см. `DATABASE_UNIFIED_POSTGRES.md`. |
+| Имена баз для psql | Не знаете, к какой базе подключаться | `source` нужный env и смотреть имя в `DATABASE_URL` (после последнего `/`). Для схем: `SET search_path TO integrator, public` или префиксы `public.` / `integrator.`. |
+| Backup перед миграциями | Не уверены, что дампы создаются | Канонический скрипт: репозиторий `deploy/postgres/postgres-backup.sh` → на хосте `/opt/backups/scripts/postgres-backup.sh`. Запуск: `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`. После unification возможны **два одинаковых** `*.dump` — нормально до упрощения скрипта. |
 
 **4. После добавления переменных:** backfill/reconcile запускать с хоста (или с машины, где доступны те же env), см. `deploy/DATA_MIGRATION_CHECKLIST.md`.
 

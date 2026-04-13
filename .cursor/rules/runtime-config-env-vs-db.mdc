@@ -20,8 +20,8 @@ When adding or moving configuration:
 
 ## Integrator
 
-- Integrator may have its **own** `system_settings` table (separate DB); rows are **pushed** from webapp after each `updateSetting` (see `service.ts` / `syncToIntegrator.ts`). Do not assume a shared PostgreSQL unless deploy docs say so.
+- Integrator has `integrator.system_settings` (mirror of `public.system_settings`); rows are **pushed** from webapp after each `updateSetting` via `syncSettingToIntegrator` until refactored to direct SQL (see `service.ts` / `syncToIntegrator.ts`). Production uses **one** PostgreSQL with schemas `integrator` and `public` — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
 - Do not add new env vars for values that belong in `system_settings`.
-- When adding or changing keys: follow `.cursor/rules/system-settings-integrator-mirror.mdc` so both DBs stay aligned.
+- When adding or changing keys: follow `.cursor/rules/system-settings-integrator-mirror.mdc` so both schemas stay aligned.
 
 See `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.

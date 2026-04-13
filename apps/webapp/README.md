@@ -2,13 +2,12 @@
 
 `webapp/` is a standalone fullstack `Next.js` service for the BersonCare platform.
 
-It is intentionally separated from the current `tgcarebot` integrator:
+It is intentionally separated from the current `tgcarebot` integrator **as a process**:
 
 - `tgcarebot` owns channels, scenarios, inbound messaging, outbound delivery, and retry worker logic
 - `webapp` owns the platform UI, roles, cabinets, diaries, lessons, reminders scheduler, and future billing/program logic
-- the services use different databases
-- the services do not read each other's domain tables directly
-- integration happens only through signed entry links, webhook contracts, and verified contact linking
+- **PostgreSQL (production, 2026-04):** одна база, схемы `integrator` и `public`; integrator пишет/читает канон в `public` напрямую SQL где код переведён; HTTP/webhook — для контрактов между **процессами**, не как единственный способ записи в ту же БД (см. `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`)
+- integration also uses signed entry links, webhook contracts, and verified contact linking
 
 ## URL Spaces
 
@@ -36,8 +35,8 @@ The service expects its own env file and database:
 
 - development env: `webapp/.env.dev`
 - production env: `/opt/env/bersoncarebot/webapp.prod`
-- development DB: `bcb_webapp_dev`
-- production DB: `bcb_webapp_prod`
+- development DB (typical name): `bcb_webapp_dev` (локально может быть отдельная БД от integrator)
+- production: `DATABASE_URL` совпадает с integrator — одна БД, см. `SERVER CONVENTIONS.md` / `DATABASE_UNIFIED_POSTGRES.md`
 
 ## Design Rules
 

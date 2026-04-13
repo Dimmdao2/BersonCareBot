@@ -2,6 +2,8 @@
 
 Документ описывает фактическую текущую структуру БД по локальному schema dump.
 
+**Production (2026-04):** обе «ветки» ниже могут жить в **одной** PostgreSQL как схемы `integrator` и `public` — см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md). Дампы и заголовки разделов отражают разделение по **приложению** (integrator vs webapp), а не обязательно по отдельному инстансу БД.
+
 Источник:
 
 - `docs/ARCHITECTURE/DB_DUMPS/integrator_bersoncarebot_dev_schema.sql`
@@ -183,14 +185,14 @@
 - `webapp` уже имеет собственную user model (`platform_users`, `user_channel_bindings`, `user_notification_topics`).
 - `webapp` уже имеет собственные diary tables (symptom, LFK).
 - `webapp` уже имеет собственные auth/audit/runtime tables.
-- Таблицы 2.4–2.7 — проекция данных из integrator; первичный перенос через backfill, дальнейшая синхронизация через projection worker (см. [Stage 13 ownership map](./STAGE13_OWNERSHIP_MAP.md)).
+- Таблицы 2.4–2.7 — проекция данных из integrator; первичный перенос через backfill. **Актуально (2026-04):** одна БД, схемы `integrator` + `public`; целевой путь — **прямой SQL** из integrator в `public`, HTTP projection и worker — **legacy / fallback** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md), [Stage 13 ownership map](./STAGE13_OWNERSHIP_MAP.md)).
 
 ### 3.3 Общие имена таблиц
 
-В обеих БД есть таблица `idempotency_keys`, но это разные схемы:
+В одной БД (unified) таблица `idempotency_keys` может существовать в обеих схемах:
 
 - `integrator.idempotency_keys`
-- `webapp.idempotency_keys`
+- `public.idempotency_keys` (исторически «webapp»)
 
 ---
 

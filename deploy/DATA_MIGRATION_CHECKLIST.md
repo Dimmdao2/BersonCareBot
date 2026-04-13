@@ -2,11 +2,13 @@
 
 При первом развёртывании webapp или при миграции на новую БД необходимо перенести данные из integrator в webapp и проверить целостность. Порядок обязателен.
 
+**Актуально (2026-04):** production — **одна** PostgreSQL, схемы `integrator` и `public`; скрипты по-прежнему принимают два URL в `cutover.prod`, но они могут быть **одинаковыми**. См. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md).
+
 ## Требования к окружению
 
-- `DATABASE_URL` — webapp (целевая БД).
-- `INTEGRATOR_DATABASE_URL` (или `SOURCE_DATABASE_URL`) — integrator (источник).
-- Миграции **уже применены** к обеим БД (integrator и webapp).
+- `DATABASE_URL` — webapp (целевая схема **`public`**).
+- `INTEGRATOR_DATABASE_URL` (или `SOURCE_DATABASE_URL`) — источник integrator (схема **`integrator`**; при unified — часто **тот же** `DATABASE_URL`).
+- Миграции **уже применены** (обе схемы в одной БД или две отдельные БД в legacy).
 
 Рекомендуемая схема env:
 
@@ -72,8 +74,8 @@ pnpm run stage13-gate
 Почему не включено без флага:
 
 - Backfill идемпотентен, но тяжёлый; обычно это one-time операция после миграций/cutover.
-- Reconcile и gate требуют двух БД (webapp + integrator) и корректных env.
-- Для обычных релизов повторный backfill не обязателен (онлайн-проекция из integrator в webapp работает через projection worker).
+- Reconcile и gate требуют корректных `cutover` env (два URL или один на unified).
+- Для обычных релизов повторный backfill не обязателен; онлайн-изменения в `public` — **прямой SQL** из integrator там, где код переведён; HTTP projection + worker — **legacy / fallback**.
 
 ### Integrator: freeze legacy таблиц (Stage 13)
 

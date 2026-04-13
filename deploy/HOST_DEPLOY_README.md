@@ -30,7 +30,7 @@
 | Webapp (prod) | `127.0.0.1:6200` |
 | Public integrator URL | `https://tgcarebot.bersonservices.ru` |
 | Public webapp URL | `https://bersoncare.ru` |
-| Backup script | `/opt/backups/scripts/postgres-backup.sh` (источник в репо: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh)) |
+| Backup script | `/opt/backups/scripts/postgres-backup.sh` (источник в репо: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh)); при **одной** БД см. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md) |
 
 ### GitHub Actions (репозиторий)
 
@@ -127,18 +127,18 @@
 
 Скрипт `/opt/backups/scripts/postgres-backup.sh` вызывается с первым аргументом `pre-migrations` перед миграциями в deploy-prod и в deploy-webapp-prod.
 
-**Каноническая реализация** живёт в репозитории: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh). Установка на хост: см. [`deploy/postgres/README.md`](../postgres/README.md). Скрипт делает `pg_dump -Fc` **обеих** production-бД (integrator из `api.prod`, webapp из `webapp.prod`).
+**Каноническая реализация** живёт в репозитории: [`deploy/postgres/postgres-backup.sh`](../postgres/postgres-backup.sh). Установка на хост: см. [`deploy/postgres/README.md`](../postgres/README.md). Скрипт читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`** и делает до **двух** `pg_dump -Fc`. После **unification** URL совпадают — получаются **два идентичных дампа** одной БД (допустимо до упрощения скрипта).
 
 **Ожидаемое поведение (оператор должен обеспечить на хосте):**
 
 1. **Вызов:** `postgres-backup.sh pre-migrations`
 2. **Назначение:** снимок БД перед применением миграций для возможности отката.
 3. **Куда писать:** каталог `/opt/backups/postgres/pre-migrations/`. Имена файлов: `integrator_<dbname>_<timestamp>.dump` и `webapp_<dbname>_<timestamp>.dump` (custom format).
-4. **Какие БД:** всегда обе — integrator и webapp (см. выше). Отдельный регламент «только webapp» при webapp-only деплое не требуется: лишний дамп integrator безвреден.
+4. **Какие БД:** при **двух** разных `DATABASE_URL` — два дампа; при **одной** БД — два файла с одним и тем же содержимым.
 
-Режим **`hourly`** (и при необходимости `daily` / `manual`) использует те же две БД и пишет в `/opt/backups/postgres/hourly/` и т.д. — см. скрипт.
+Режим **`hourly`** (и при необходимости `daily` / `manual`) использует те же env-файлы и пишет в `/opt/backups/postgres/hourly/` и т.д. — см. скрипт.
 
-**Проверка на хосте:** после установки скрипта из репо убедиться, что в `/opt/backups/postgres/pre-migrations/` появляются **два** `.dump` после `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations`.
+**Проверка на хосте:** после установки скрипта из репо убедиться, что в `/opt/backups/postgres/pre-migrations/` появляются **два** `.dump` после `sudo /opt/backups/scripts/postgres-backup.sh pre-migrations` (или один уникальный дамп, если скрипт уже упрощён).
 
 ---
 

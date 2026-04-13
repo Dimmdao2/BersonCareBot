@@ -37,7 +37,7 @@
 ## 4. Non-goals (явно вне этой инициативы или позже)
 
 - Физическое удаление legacy-строк `platform_users` без телефона.
-- Замена двух БД (webapp / integrator) одной.
+- Дальнейшая инфраструктурная миграция БД вне identity: **unification** PostgreSQL зафиксирована в [`../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md).
 - Полная перестройка **Platform User Merge v2** — инициатива **использует** merge как подстраховку; см. [`../PLATFORM_USER_MERGE_V2/MASTER_PLAN.md`](../PLATFORM_USER_MERGE_V2/MASTER_PLAN.md).
 - Изменение бизнес-правил Rubitime вне связи с идентичностью (отдельные доки).
 

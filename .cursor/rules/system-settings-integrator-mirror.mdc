@@ -1,20 +1,20 @@
 ---
-description: Webapp and integrator use separate DBs; system_settings must stay mirrored via service-layer sync and identical keys.
+description: system_settings lives in public (webapp) and is mirrored to integrator schema; use updateSetting; keys aligned.
 alwaysApply: true
 ---
 
-# system_settings: webapp DB + integrator DB (mirror)
+# system_settings: `public` + integrator schema (mirror)
 
-Production often uses **two PostgreSQL databases** (webapp and integrator). Both have a `system_settings` table with the same logical keys `(key, scope)` and JSON `value_json`.
+Production uses **one PostgreSQL database** with schemas **`public`** (webapp tables including `system_settings`) and **`integrator`**. Integrator holds a mirror table `system_settings` with the same logical keys `(key, scope)` and JSON `value_json`. Until refactored, push from webapp may still use signed HTTP `syncSettingToIntegrator`; do not bypass `updateSetting` for writes from webapp.
 
 ## Mandatory rules for agents
 
 1. **Never** insert/update `system_settings` only in one DB in application code. **Always** go through webapp `createSystemSettingsService().updateSetting` (or the same path used by admin/doctor Settings API), which runs `syncSettingToIntegrator` after upsert.
-2. **New setting keys:** add to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` first. Use the **same string** for `key` and the same `scope` (`admin` | `doctor` | `global`) in both databases. Do not invent divergent key names per app.
-3. **Migrations / SQL scripts / seeds** that write `system_settings` in webapp must either:
-   - duplicate the same row into integrator’s `system_settings` in an integrator migration, **or**
+2. **New setting keys:** add to `ALLOWED_KEYS` in `apps/webapp/src/modules/system-settings/types.ts` first. Use the **same string** for `key` and the same `scope` (`admin` | `doctor` | `global`) in both `public.system_settings` and `integrator.system_settings`. Do not invent divergent key names per app.
+3. **Migrations / SQL scripts / seeds** that write `system_settings` in `public` must either:
+   - duplicate the same row into `integrator.system_settings` in a migration, **or**
    - document a follow-up admin “save” in Settings UI to push via HTTP sync, **or**
    - call the same sync mechanism from a one-off ops script (signed POST to integrator).
 4. **Do not** add a second sync call in Next.js route handlers; sync lives in `service.ts` only.
 
-Canonical doc: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md` (section «Две отдельные БД»).
+Canonical docs: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`, `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.

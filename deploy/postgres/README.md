@@ -1,6 +1,6 @@
 # PostgreSQL backup (production)
 
-Дамп обеих БД (integrator + webapp из `api.prod` / `webapp.prod`). Скрипт: [`postgres-backup.sh`](./postgres-backup.sh).
+Дамп по `DATABASE_URL` из `api.prod` и `webapp.prod` (до двух проходов). После **unification** оба URL совпадают — получаются два идентичных дампа одной БД; см. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../../docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md). Скрипт: [`postgres-backup.sh`](./postgres-backup.sh).
 
 **Установка:**
 

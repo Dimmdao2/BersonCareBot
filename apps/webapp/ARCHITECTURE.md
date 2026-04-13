@@ -15,7 +15,7 @@ It does not replace the existing integrator.
 
 ## Boundary With `tgcarebot`
 
-`tgcarebot` and `webapp` are separate services with separate ownership.
+`tgcarebot` and `webapp` are separate **services** (processes) with separate ownership. They may share **one** PostgreSQL database (`integrator` and `public` schemas); see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`.
 
 `tgcarebot` owns:
 

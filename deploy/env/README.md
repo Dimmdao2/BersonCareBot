@@ -15,6 +15,8 @@
 - `bersoncarebot-api-prod.service`
 - `bersoncarebot-worker-prod.service`
 
+**PostgreSQL (unified):** `DATABASE_URL` здесь и в `webapp.prod` должен указывать на **одну** базу; роль integrator использует схемы `integrator` и `public` (`search_path`, GRANT). См. [`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`](../../docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md).
+
 Обязательные ключи по текущему runtime:
 
 - `NODE_ENV=production`
@@ -130,7 +132,7 @@ curl -s http://127.0.0.1:6200/api/health
 Важно:
 
 - это **не runtime env** для `bersoncarebot-webapp-prod.service`;
-- файл нужен, чтобы не хранить integrator DB URL в `webapp.prod`.
+- после unification `INTEGRATOR_DATABASE_URL` в этом файле может совпадать с `DATABASE_URL` (одна БД, разные схемы); в legacy — второй URL указывал на отдельную integrator БД.
 
 ---
 
@@ -219,7 +221,7 @@ sudo systemctl restart bersoncarebot-webapp-prod.service
 
 ## Backup PostgreSQL (pre-migrations / hourly)
 
-Скрипт `deploy/postgres/postgres-backup.sh` читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`** и делает дамп **обеих** БД. Установка и cron: [`deploy/postgres/README.md`](../postgres/README.md).
+Скрипт `deploy/postgres/postgres-backup.sh` читает `DATABASE_URL` из **`api.prod`** и **`webapp.prod`**. При **разных** URL — два дампа; при **unified** — два файла с одним содержимым (см. `DATABASE_UNIFIED_POSTGRES.md`). Установка и cron: [`deploy/postgres/README.md`](../postgres/README.md).
 
 ---
 

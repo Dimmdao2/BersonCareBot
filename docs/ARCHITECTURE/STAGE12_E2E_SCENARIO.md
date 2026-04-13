@@ -5,6 +5,7 @@
 ## Предусловия
 
 - Webapp и integrator запущены.
+- Для reconcile: `DATABASE_URL` и `INTEGRATOR_DATABASE_URL` в cutover env; при **unified** PostgreSQL оба могут совпадать — см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md).
 - В окружении заданы `APP_BASE_URL` (для integrator) и webhook secret (для подписи запросов к webapp).
 - В webapp есть хотя бы один topic (через backfill или ingest из integrator).
 
