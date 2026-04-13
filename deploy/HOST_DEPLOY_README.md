@@ -576,7 +576,10 @@ sudo systemctl status \
 
 ```bash
 curl -s http://127.0.0.1:3200/health
+curl -s http://127.0.0.1:3200/health/projection
 curl -s http://127.0.0.1:6200/api/health
+# то же snapshot projection_outbox через webapp (прокси на integrator):
+curl -s http://127.0.0.1:6200/api/health/projection
 ```
 
 ### nginx

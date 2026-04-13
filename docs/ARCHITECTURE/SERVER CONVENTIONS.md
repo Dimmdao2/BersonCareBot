@@ -105,6 +105,8 @@
 - `https://tgcarebot.bersonservices.ru` -> `http://127.0.0.1:3200`
 - `https://bersoncare.ru` -> `http://127.0.0.1:6200`
 
+**Projection health (`projection_outbox`, integrator DB):** канонически **`GET /health/projection`** на хосте integrator (публичный пример: `https://tgcarebot.bersonservices.ru/health/projection`). На webapp добавлены прокси с тем же JSON: **`GET /api/health/projection`**, **`GET /health/projection`**, **`GET /app/health/projection`** — серверный fetch на `{INTEGRATOR_API_URL}/health/projection`; при пустом `INTEGRATOR_API_URL` ответ **503** `integrator_url_not_configured`.
+
 Дополнительно в `tgcarebot` vhost есть legacy-path:
 
 - `/admin/` -> `http://127.0.0.1:8080/`
