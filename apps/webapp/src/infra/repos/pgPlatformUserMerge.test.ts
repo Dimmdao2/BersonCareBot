@@ -563,6 +563,70 @@ describe("mergePlatformUsersInTransaction (manual)", () => {
       ),
     ).toHaveLength(0);
   });
+
+  it("phone_bind clears duplicate integrator_user_id when target has phone and stub has conflicting id", async () => {
+    const sqlLog: string[] = [];
+    const query = vi.fn(async (sql: string) => {
+      const s = String(sql);
+      sqlLog.push(s);
+      if (s.includes("FROM platform_users") && s.includes("FOR UPDATE")) {
+        return {
+          rows: [
+            {
+              id: T,
+              phone_normalized: "+79000000000",
+              integrator_user_id: "100",
+              merged_into_id: null,
+              display_name: "A",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              patient_phone_trust_at: new Date(),
+              created_at: new Date("2020-01-01"),
+            },
+            {
+              id: D,
+              phone_normalized: null,
+              integrator_user_id: "200",
+              merged_into_id: null,
+              display_name: "B",
+              first_name: null,
+              last_name: null,
+              email: null,
+              email_verified_at: null,
+              role: "client",
+              patient_phone_trust_at: null,
+              created_at: new Date("2021-01-01"),
+            },
+          ],
+        };
+      }
+      if (s.includes("FROM user_channel_bindings") && s.includes("user_id = ANY")) {
+        return { rows: [] };
+      }
+      if (s.includes("FROM user_oauth_bindings WHERE user_id = ANY")) {
+        return { rows: [] };
+      }
+      if (s.includes("FROM user_pins")) {
+        return { rows: [] };
+      }
+      if (s.includes("patient_bookings pb1")) {
+        return { rows: [{ c: "0" }] };
+      }
+      if (s.includes("patient_lfk_assignments a")) {
+        return { rows: [{ c: "0" }] };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const client = { query } as unknown as PoolClient;
+    await mergePlatformUsersInTransaction(client, T, D, "phone_bind");
+
+    expect(sqlLog.some((q) => q.includes("integrator_user_id = NULL") && q.includes("WHERE id = $1::uuid"))).toBe(
+      true,
+    );
+  });
 });
 
 describe("MergeDependentConflictError", () => {

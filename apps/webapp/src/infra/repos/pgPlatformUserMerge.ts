@@ -136,8 +136,36 @@ export async function mergePlatformUsersInTransaction(
   if (!manualResolution && pA && pB && pA !== pB) {
     throw new MergeConflictError("merge: two different non-null phone numbers", [targetId, duplicateId]);
   }
-  const iA = a.integrator_user_id?.trim() || null;
-  const iB = b.integrator_user_id?.trim() || null;
+  let iA = a.integrator_user_id?.trim() || null;
+  let iB = b.integrator_user_id?.trim() || null;
+
+  /**
+   * Channel-link / phone_bind: поглощаем «stub» без телефона, у которого уже есть integrator_user_id
+   * из мессенджера (другой id, чем у аккаунта с телефоном). Иначе merge блокируется, хотя COALESCE в UPDATE
+   * оставил бы id канонического аккаунта.
+   */
+  if (
+    reason === "phone_bind" &&
+    !manualResolution &&
+    pA &&
+    !pB &&
+    iA &&
+    iB &&
+    iA !== iB
+  ) {
+    await client.query(
+      `UPDATE platform_users SET integrator_user_id = NULL, updated_at = now() WHERE id = $1::uuid`,
+      [duplicateId],
+    );
+    iB = null;
+    logger.info({
+      scope: "platform_merge",
+      event: "phone_bind_drop_duplicate_integrator_user_id",
+      targetId,
+      duplicateId,
+    });
+  }
+
   if (iA && iB && iA !== iB) {
     const relaxed =
       reason === "manual" &&
