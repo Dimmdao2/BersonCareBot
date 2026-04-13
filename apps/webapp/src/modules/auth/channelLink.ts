@@ -219,33 +219,74 @@ export async function completeChannelLinkFromIntegrator(params: {
         tokenUserId: r.user_id,
         existingUserId: boundUserId,
       });
-      /** «Пустой» владелец привязки (нет телефона) — не считаем строку конкурирующим аккаунтом: диплинк переносит Max/TG на пользователя токена. */
+      /**
+       * Владелец строки привязки без телефона — считаем дубликатом/«хвостом»: полный merge в пользователя токена
+       * (диплинк), а не только UPDATE одной строки `user_channel_bindings`.
+       */
       const existingPhone = await platformPhoneBindingInfo(pool, boundUserId);
       if (existingPhone.needsPhone) {
+        const client = await pool.connect();
+        try {
+          await client.query("BEGIN");
+          try {
+            await mergePlatformUsersInTransaction(client, r.user_id, boundUserId, "phone_bind");
+          } catch (err) {
+            await client.query("ROLLBACK");
+            const mergeMessage = err instanceof MergeConflictError ? err.message : String(err);
+            logger.warn({
+              scope: "channel_link",
+              event: "channel_link_auto_merge_skipped",
+              reason: "merge_failed",
+              mergeMessage,
+              subReason: "existing_owner_no_phone",
+              targetId: r.user_id,
+              duplicateId: boundUserId,
+              channelCode: params.channelCode,
+            });
+            return { ok: false, code: "conflict" };
+          }
+          await client.query(
+            "UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL",
+            [r.id],
+          );
+          await client.query("COMMIT");
+        } catch (err) {
+          try {
+            await client.query("ROLLBACK");
+          } catch {
+            /* ignore */
+          }
+          logger.error({
+            err,
+            scope: "channel_link",
+            event: "channel_link_auto_merge_tx_error",
+            targetId: r.user_id,
+            duplicateId: boundUserId,
+            subReason: "existing_owner_no_phone",
+          });
+          return { ok: false, code: "conflict" };
+        } finally {
+          client.release();
+        }
+
         logger.info({
           scope: "channel_link",
-          event: "channel_link_binding_takeover",
+          event: "channel_link_auto_merge_applied",
           reason: "existing_owner_no_phone",
+          targetId: r.user_id,
+          duplicateId: boundUserId,
           channelCode: params.channelCode,
-          externalId: params.externalId,
-          fromUserId: boundUserId,
-          toUserId: r.user_id,
         });
-        await pool.query(
-          `UPDATE user_channel_bindings SET user_id = $1::uuid WHERE channel_code = $2 AND external_id = $3`,
-          [r.user_id, params.channelCode, params.externalId],
-        );
-        await pool.query("UPDATE channel_link_secrets SET used_at = now() WHERE id = $1 AND used_at IS NULL", [r.id]);
-        const canonical = await resolveCanonicalUserId(pool, r.user_id);
-        if (canonical == null) {
+        const canonicalAfterMerge = await resolveCanonicalUserId(pool, r.user_id);
+        if (canonicalAfterMerge == null) {
           return { ok: false, code: "user_not_found" };
         }
-        const phone = await platformPhoneBindingInfo(pool, r.user_id);
+        const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, r.user_id);
         return {
           ok: true,
-          userId: canonical,
-          needsPhone: phone.needsPhone,
-          ...(phone.phoneNormalized ? { phoneNormalized: phone.phoneNormalized } : {}),
+          userId: canonicalAfterMerge,
+          needsPhone,
+          ...(phoneNormalized ? { phoneNormalized } : {}),
         };
       }
 

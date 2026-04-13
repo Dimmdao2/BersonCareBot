@@ -209,8 +209,14 @@ describe("completeChannelLinkFromIntegrator", () => {
     expect(clientQueryMock).not.toHaveBeenCalledWith("COMMIT");
   });
 
-  it("reassigns binding to token user when existing owner has no phone (deep link wins)", async () => {
+  it("merges binding owner without phone into token user (full merge, not only binding row)", async () => {
     setChannelLinkBindingConflictReporter(vi.fn());
+    mergePlatformUsersInTransactionMock.mockResolvedValueOnce({ targetId: "u1", duplicateId: "u2" });
+    clientQueryMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
     queryMock
       .mockResolvedValueOnce({
         rows: [
@@ -228,8 +234,6 @@ describe("completeChannelLinkFromIntegrator", () => {
       .mockResolvedValueOnce({
         rows: [{ phone_normalized: null }],
       })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ phone_normalized: "+79990001122" }] });
 
     const res = await completeChannelLinkFromIntegrator({
@@ -244,11 +248,15 @@ describe("completeChannelLinkFromIntegrator", () => {
       needsPhone: false,
       phoneNormalized: "+79990001122",
     });
-    expect(mergePlatformUsersInTransactionMock).not.toHaveBeenCalled();
-    expect(queryMock).toHaveBeenCalledWith(
-      "UPDATE user_channel_bindings SET user_id = $1::uuid WHERE channel_code = $2 AND external_id = $3",
-      ["u1", "max", "207278131"],
+    expect(connectMock).toHaveBeenCalledTimes(1);
+    expect(mergePlatformUsersInTransactionMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "u1",
+      "u2",
+      "phone_bind",
     );
+    expect(clientQueryMock).toHaveBeenCalledWith("BEGIN");
+    expect(clientQueryMock).toHaveBeenCalledWith("COMMIT");
   });
 
   it("marks token used when binding already exists for same user", async () => {
