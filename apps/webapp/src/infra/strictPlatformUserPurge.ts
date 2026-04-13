@@ -6,11 +6,13 @@ import { getPool } from "@/infra/db/client";
 import {
   collectPurgeArtifactKeys,
   deleteIntegratorPhoneDataWithResult,
+  fetchMessengerBindingsForIntegratorCleanup,
   getIntegratorPoolForPurge,
   isPlatformUserUuid,
   phoneDigits,
   resolveIntegratorUserIds,
   runWebappPurgeCoreInTransaction,
+  type MessengerBindingForIntegratorCleanup,
   type PurgeArtifactKeys,
   type PurgePlatformUserRow,
 } from "@/infra/platformUserFullPurge";
@@ -74,6 +76,7 @@ function buildExternalCleanupAuditDetails(args: {
   webappIntegratorUserId: string | null;
   artifact: PurgeArtifactKeys;
   resolvedIntegratorUserIds: string[];
+  messengerBindingsCount: number;
 }) {
   return {
     outcome: args.outcome,
@@ -81,6 +84,7 @@ function buildExternalCleanupAuditDetails(args: {
     phoneNormalized: args.phoneNormalized,
     webappIntegratorUserId: args.webappIntegratorUserId,
     resolvedIntegratorUserIds: args.resolvedIntegratorUserIds,
+    messengerBindingsCount: args.messengerBindingsCount,
     artifact: args.artifact,
     mediaDeleted: args.details.mediaRowsDeleted,
     s3KeysAttempted: args.details.s3KeysAttempted,
@@ -100,6 +104,7 @@ async function runPostCommitArtifactCleanup(
   digs: string,
   integratorUserIds: string[],
   integratorPool: ReturnType<typeof getIntegratorPoolForPurge>,
+  messengerBindings: MessengerBindingForIntegratorCleanup[],
 ): Promise<PostCommitDetails> {
   const s3Enabled = isS3MediaEnabled(env);
   const details: PostCommitDetails = {
@@ -160,7 +165,12 @@ async function runPostCommitArtifactCleanup(
   };
 
   const runIntegrator = async (): Promise<void> => {
-    const res = await deleteIntegratorPhoneDataWithResult(integratorPool, digs, integratorUserIds);
+    const res = await deleteIntegratorPhoneDataWithResult(
+      integratorPool,
+      digs,
+      integratorUserIds,
+      messengerBindings,
+    );
     if (res.ok && res.skipped) {
       details.integratorCleaned = false;
       details.integratorError = null;
@@ -241,12 +251,14 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
 
   const userSnapshot: PurgePlatformUserRow = { ...userBefore };
   let artifact: PurgeArtifactKeys = { intakeS3Keys: [], mediaFiles: [] };
+  let messengerBindings: MessengerBindingForIntegratorCleanup[] = [];
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     await client.query(`SELECT pg_advisory_xact_lock(hashtext($1::text))`, [userSnapshot.id]);
     artifact = await collectPurgeArtifactKeys(client, userSnapshot.id);
+    messengerBindings = await fetchMessengerBindingsForIntegratorCleanup(client, userSnapshot.id);
     await runWebappPurgeCoreInTransaction(client, userSnapshot);
     await client.query("COMMIT");
   } catch (e) {
@@ -272,9 +284,14 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
 
   const digs = userSnapshot.phone_normalized?.trim() ? phoneDigits(userSnapshot.phone_normalized) : "";
   const integratorPool = getIntegratorPoolForPurge();
-  const intIds = await resolveIntegratorUserIds(integratorPool, digs, userSnapshot.integrator_user_id);
+  const intIds = await resolveIntegratorUserIds(
+    integratorPool,
+    digs,
+    userSnapshot.integrator_user_id,
+    messengerBindings,
+  );
 
-  const details = await runPostCommitArtifactCleanup(pool, artifact, digs, intIds, integratorPool);
+  const details = await runPostCommitArtifactCleanup(pool, artifact, digs, intIds, integratorPool, messengerBindings);
 
   const integratorSkipped = !integratorPool;
   const outcome = deriveOutcome(details, integratorPool);
@@ -294,6 +311,7 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
         webappIntegratorUserId: userSnapshot.integrator_user_id,
         artifact,
         resolvedIntegratorUserIds: intIds,
+        messengerBindingsCount: messengerBindings.length,
       }),
     });
   }
@@ -325,7 +343,7 @@ export async function retryStrictPurgeExternalCleanup(params: {
   const integratorPool = getIntegratorPoolForPurge();
   const intIds = await resolveIntegratorUserIds(integratorPool, digs, params.webappIntegratorUserId);
 
-  const details = await runPostCommitArtifactCleanup(pool, params.artifact, digs, intIds, integratorPool);
+  const details = await runPostCommitArtifactCleanup(pool, params.artifact, digs, intIds, integratorPool, []);
   const integratorSkipped = !integratorPool;
   const outcome = deriveOutcome(details, integratorPool);
 
@@ -343,6 +361,7 @@ export async function retryStrictPurgeExternalCleanup(params: {
         webappIntegratorUserId: params.webappIntegratorUserId,
         artifact: params.artifact,
         resolvedIntegratorUserIds: intIds,
+        messengerBindingsCount: 0,
       }),
     });
   }

@@ -217,10 +217,32 @@ export async function runWebappPurgeCoreInTransaction(client: PoolClient, user: 
   await client.query(`DELETE FROM platform_users WHERE id = $1`, [user.id]);
 }
 
+/** Messenger rows in webapp `user_channel_bindings` that map to integrator `identities.resource`. */
+const INTEGRATOR_CLEANUP_CHANNEL_CODES = new Set(["telegram", "max"]);
+
+export type MessengerBindingForIntegratorCleanup = {
+  channel_code: string;
+  external_id: string;
+};
+
+/** Load bindings before webapp deletes `user_channel_bindings` (same purge transaction). */
+export async function fetchMessengerBindingsForIntegratorCleanup(
+  client: PoolClient,
+  userId: string,
+): Promise<MessengerBindingForIntegratorCleanup[]> {
+  const r = await client.query<{ channel_code: string; external_id: string }>(
+    `SELECT channel_code, external_id FROM user_channel_bindings
+     WHERE user_id = $1::uuid AND channel_code IN ('telegram', 'max')`,
+    [userId],
+  );
+  return r.rows;
+}
+
 export async function resolveIntegratorUserIds(
   integratorDb: Pool | null,
   digs: string,
   webappIntegratorUserId: string | null,
+  messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
 ): Promise<string[]> {
   if (!integratorDb) return [];
   const ids = new Set<string>();
@@ -236,17 +258,56 @@ export async function resolveIntegratorUserIds(
     );
     for (const row of r.rows) ids.add(row.user_id);
   }
+  if (messengerBindings && messengerBindings.length > 0) {
+    for (const b of messengerBindings) {
+      if (!INTEGRATOR_CLEANUP_CHANNEL_CODES.has(b.channel_code)) continue;
+      const ext = typeof b.external_id === "string" ? b.external_id.trim() : "";
+      if (!ext) continue;
+      const r = await integratorDb.query<{ user_id: string }>(
+        `SELECT user_id::text AS user_id FROM identities
+         WHERE resource = $1 AND external_id = $2 LIMIT 1`,
+        [b.channel_code, ext],
+      );
+      const id = r.rows[0]?.user_id;
+      if (id && /^\d+$/.test(id)) ids.add(id);
+    }
+  }
   return [...ids];
+}
+
+async function clearMessengerAttributedPhonesForBindings(
+  client: PoolClient,
+  bindings: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
+): Promise<void> {
+  for (const b of bindings) {
+    if (!INTEGRATOR_CLEANUP_CHANNEL_CODES.has(b.channel_code)) continue;
+    const ext = typeof b.external_id === "string" ? b.external_id.trim() : "";
+    if (!ext) continue;
+    await client.query(
+      `DELETE FROM contacts c
+       USING identities i
+       WHERE i.resource = $1 AND i.external_id = $2
+         AND c.user_id = i.user_id
+         AND c.type = 'phone'
+         AND c.label = $1`,
+      [b.channel_code, ext],
+    );
+  }
 }
 
 export async function deleteIntegratorPhoneData(
   integratorDb: Pool,
   digs: string,
   integratorUserIds: string[],
+  messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
 ): Promise<void> {
   const client = await integratorDb.connect();
   try {
     await client.query("BEGIN");
+
+    if (messengerBindings && messengerBindings.length > 0) {
+      await clearMessengerAttributedPhonesForBindings(client, messengerBindings);
+    }
 
     await client.query(
       `DELETE FROM rubitime_events e
@@ -295,12 +356,13 @@ export async function deleteIntegratorPhoneDataWithResult(
   integratorDb: Pool | null,
   digs: string,
   integratorUserIds: string[],
+  messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
 ): Promise<IntegratorPurgeCleanupResult> {
   if (!integratorDb) {
     return { ok: true, skipped: true };
   }
   try {
-    await deleteIntegratorPhoneData(integratorDb, digs, integratorUserIds);
+    await deleteIntegratorPhoneData(integratorDb, digs, integratorUserIds, messengerBindings);
     return { ok: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

@@ -236,6 +236,7 @@ describe("runStrictPurgePlatformUser", () => {
           phoneNormalized: "+70000000000",
           webappIntegratorUserId: "42",
           resolvedIntegratorUserIds: ["42", "84"],
+          messengerBindingsCount: 0,
           artifact: {
             intakeS3Keys: ["intake-k1"],
             mediaFiles: [{ id: "00000000-0000-4000-8000-0000000000cc", s3Key: "media-k1" }],
