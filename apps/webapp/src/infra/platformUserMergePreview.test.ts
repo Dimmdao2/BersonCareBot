@@ -240,4 +240,32 @@ describe("analyzeMergePreviewModel", () => {
     expect(m.hardBlockers.some((b) => b.code === "shared_phone_both_have_meaningful_data")).toBe(true);
     expect(m.mergeAllowed).toBe(false);
   });
+
+  it("autoMergeScalars: same phone — older row names beat newer bot-style (preview order vs URL order)", () => {
+    const newerBot = row({
+      id: "00000000-0000-4000-8000-000000000001",
+      phone_normalized: "+79000000000",
+      display_name: "BotNick",
+      first_name: "Wrong",
+      last_name: "Name",
+      created_at: new Date("2022-01-01T00:00:00.000Z"),
+    });
+    const olderCrm = row({
+      id: "00000000-0000-4000-8000-000000000002",
+      phone_normalized: "+79000000000",
+      display_name: "Иван П.",
+      first_name: "Иван",
+      last_name: "Петров",
+      created_at: new Date("2020-06-01T00:00:00.000Z"),
+    });
+    const m = analyzeMergePreviewModel(newerBot, olderCrm, baseOpts({}));
+    const first = m.autoMergeScalars.find((s) => s.field === "first_name");
+    const last = m.autoMergeScalars.find((s) => s.field === "last_name");
+    const disp = m.autoMergeScalars.find((s) => s.field === "display_name");
+    expect(first?.effectiveValue).toBe("Иван");
+    expect(last?.effectiveValue).toBe("Петров");
+    expect(disp?.effectiveValue).toBe("Иван П.");
+    expect(m.recommendation.suggestedTargetId).toBe(olderCrm.id);
+    expect(m.recommendation.suggestedDuplicateId).toBe(newerBot.id);
+  });
 });

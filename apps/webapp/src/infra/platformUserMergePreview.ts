@@ -4,6 +4,11 @@
  */
 import type { Pool } from "pg";
 import { checkIntegratorCanonicalPair } from "@/infra/integrations/integratorUserMergeM2mClient";
+import {
+  effectiveAutoMergedDisplayName,
+  effectiveAutoMergedFirstName,
+  effectiveAutoMergedLastName,
+} from "@/infra/repos/autoMergeScalarEffective";
 import { pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
 import { logger } from "@/infra/logging/logger";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
@@ -219,6 +224,18 @@ function scalarConflict(
   }
   if (tv == null || dv == null || tv === dv) return null;
   if (field === "email" && emailsEqual(tv, dv)) return null;
+
+  const pT = normStr(target.phone_normalized);
+  const pD = normStr(duplicate.phone_normalized);
+  if (
+    (field === "display_name" || field === "first_name" || field === "last_name") &&
+    pT != null &&
+    pD != null &&
+    pT === pD
+  ) {
+    return null;
+  }
+
   const older =
     target.created_at.getTime() <= duplicate.created_at.getTime() ? ("target" as const) : ("duplicate" as const);
   return {
@@ -410,6 +427,10 @@ export function analyzeMergePreviewModel(
     }
   }
 
+  /** Rows in the same roles as `pu` / `dup` in `mergePlatformUsersInTransaction` (after pickMergeTargetId). */
+  const mergePu = picked.target === target.id ? target : duplicate;
+  const mergeDup = picked.duplicate === duplicate.id ? duplicate : target;
+
   const autoMergeScalars: MergePreviewAutoMergeScalar[] = [];
   for (const f of SCALAR_FIELDS) {
     if (scalarConflicts.some((c) => c.field === f)) continue;
@@ -417,26 +438,24 @@ export function analyzeMergePreviewModel(
     let note: string;
     switch (f) {
       case "phone_normalized":
-        effective = normStr(target.phone_normalized) ?? normStr(duplicate.phone_normalized);
-        note = "COALESCE(target, duplicate) — matches current merge engine.";
+        effective = normStr(mergePu.phone_normalized) ?? normStr(mergeDup.phone_normalized);
+        note = "COALESCE after pickMergeTargetId — matches merge engine (auto).";
         break;
-      case "display_name": {
-        const pu = normStr(target.display_name);
-        const pd = normStr(duplicate.display_name);
-        // Same CASE as merge UPDATE: duplicate wins only when target empty and duplicate non-empty.
-        if (pd && !pu) {
-          effective = pd;
-        } else {
-          effective = pu ?? pd;
-        }
-        note = "CASE display_name — matches mergePlatformUsersInTransaction.";
+      case "display_name":
+        effective = effectiveAutoMergedDisplayName(mergePu, mergeDup);
+        note = "Phone-holding row, then older created_at — matches mergePlatformUsersInTransaction (auto).";
         break;
-      }
       case "first_name":
+        effective = effectiveAutoMergedFirstName(mergePu, mergeDup);
+        note = "Phone / older-created name priority — matches mergePlatformUsersInTransaction (auto).";
+        break;
       case "last_name":
+        effective = effectiveAutoMergedLastName(mergePu, mergeDup);
+        note = "Phone / older-created name priority — matches mergePlatformUsersInTransaction (auto).";
+        break;
       case "email":
-        effective = normStr(target[f]) ?? normStr(duplicate[f]);
-        note = "COALESCE(target, duplicate) — matches current merge engine.";
+        effective = normStr(mergePu.email) ?? normStr(mergeDup.email);
+        note = "COALESCE after pickMergeTargetId — matches merge engine (auto).";
         break;
       default:
         effective = null;

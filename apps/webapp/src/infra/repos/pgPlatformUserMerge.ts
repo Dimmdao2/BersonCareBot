@@ -325,12 +325,73 @@ export async function mergePlatformUsersInTransaction(
          END,
          integrator_user_id = COALESCE(pu.integrator_user_id, dup.integrator_user_id),
          display_name = CASE
-           WHEN dup.display_name IS NOT NULL AND trim(dup.display_name) <> '' AND (pu.display_name IS NULL OR trim(pu.display_name) = '')
-           THEN dup.display_name
-           ELSE pu.display_name
+           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
+            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
+           THEN CASE
+             WHEN trim(COALESCE(pu.display_name, '')) <> '' THEN pu.display_name
+             WHEN trim(COALESCE(dup.display_name, '')) <> '' THEN dup.display_name
+             ELSE COALESCE(pu.display_name, dup.display_name, '')
+           END
+           WHEN NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
+            AND NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NULL
+           THEN CASE
+             WHEN trim(COALESCE(dup.display_name, '')) <> '' THEN dup.display_name
+             WHEN trim(COALESCE(pu.display_name, '')) <> '' THEN pu.display_name
+             ELSE COALESCE(pu.display_name, dup.display_name, '')
+           END
+           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
+            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
+           THEN CASE
+             WHEN pu.created_at <= dup.created_at THEN
+               CASE
+                 WHEN trim(COALESCE(pu.display_name, '')) <> '' THEN pu.display_name
+                 WHEN trim(COALESCE(dup.display_name, '')) <> '' THEN dup.display_name
+                 ELSE COALESCE(pu.display_name, dup.display_name, '')
+               END
+             ELSE
+               CASE
+                 WHEN trim(COALESCE(dup.display_name, '')) <> '' THEN dup.display_name
+                 WHEN trim(COALESCE(pu.display_name, '')) <> '' THEN pu.display_name
+                 ELSE COALESCE(pu.display_name, dup.display_name, '')
+               END
+           END
+           ELSE CASE
+             WHEN trim(COALESCE(dup.display_name, '')) <> ''
+              AND trim(COALESCE(pu.display_name, '')) = ''
+             THEN dup.display_name
+             ELSE pu.display_name
+           END
          END,
-         first_name = COALESCE(pu.first_name, dup.first_name),
-         last_name = COALESCE(pu.last_name, dup.last_name),
+         first_name = CASE
+           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
+            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
+           THEN COALESCE(pu.first_name, dup.first_name)
+           WHEN NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
+            AND NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NULL
+           THEN COALESCE(dup.first_name, pu.first_name)
+           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
+            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
+           THEN CASE
+             WHEN pu.created_at <= dup.created_at THEN COALESCE(pu.first_name, dup.first_name)
+             ELSE COALESCE(dup.first_name, pu.first_name)
+           END
+           ELSE COALESCE(pu.first_name, dup.first_name)
+         END,
+         last_name = CASE
+           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
+            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
+           THEN COALESCE(pu.last_name, dup.last_name)
+           WHEN NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
+            AND NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NULL
+           THEN COALESCE(dup.last_name, pu.last_name)
+           WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
+            AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NOT NULL
+           THEN CASE
+             WHEN pu.created_at <= dup.created_at THEN COALESCE(pu.last_name, dup.last_name)
+             ELSE COALESCE(dup.last_name, pu.last_name)
+           END
+           ELSE COALESCE(pu.last_name, dup.last_name)
+         END,
          email = ${chosenEmailSql},
          email_verified_at = ${preservedEmailVerifiedAtSql(chosenEmailSql)},
          updated_at = now()
@@ -665,23 +726,33 @@ async function assertPatientLfkAssignmentsSafe(
   }
 }
 
-/** Pick canonical target id from two distinct candidate ids using plan D.3. */
+/**
+ * Pick canonical target id from two distinct candidate ids.
+ * Priority: row with phone vs without → **older created_at** (Rubitime / CRM row before bot stub) → integrator id → stable id.
+ * Older `created_at` avoids choosing a newer bot-linked row over an existing phone client when both share the same number.
+ */
 export function pickMergeTargetId(
   a: PickMergeTargetCandidate,
   b: PickMergeTargetCandidate,
 ): { target: string; duplicate: string } {
-  const score = (r: PickMergeTargetCandidate) => ({
-    hasPhone: r.phone_normalized?.trim() ? 1 : 0,
-    hasInt: r.integrator_user_id?.trim() ? 1 : 0,
-    created: r.created_at.getTime(),
-  });
-  const sa = score(a);
-  const sb = score(b);
-  if (sa.hasPhone !== sb.hasPhone) {
-    return sa.hasPhone > sb.hasPhone ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
+  const hasPhone = (r: PickMergeTargetCandidate) => (r.phone_normalized?.trim() ? 1 : 0);
+  const pa = hasPhone(a);
+  const pb = hasPhone(b);
+  if (pa !== pb) {
+    return pa > pb ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
   }
-  if (sa.hasInt !== sb.hasInt) {
-    return sa.hasInt > sb.hasInt ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
+
+  const ca = a.created_at.getTime();
+  const cb = b.created_at.getTime();
+  if (ca !== cb) {
+    return ca < cb ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
   }
-  return sa.created <= sb.created ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
+
+  const ia = a.integrator_user_id?.trim() ? 1 : 0;
+  const ib = b.integrator_user_id?.trim() ? 1 : 0;
+  if (ia !== ib) {
+    return ia > ib ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
+  }
+
+  return a.id <= b.id ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
 }

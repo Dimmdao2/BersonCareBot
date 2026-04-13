@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
 import type { ManualMergeResolution } from "@/infra/repos/manualMergeResolution";
 import { MergeConflictError, MergeDependentConflictError } from "@/infra/repos/platformUserMergeErrors";
-import { mergePlatformUsersInTransaction } from "@/infra/repos/pgPlatformUserMerge";
+import { mergePlatformUsersInTransaction, pickMergeTargetId } from "@/infra/repos/pgPlatformUserMerge";
 
 const uid = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, "0")}`;
 const T = uid(1);
@@ -569,5 +569,40 @@ describe("MergeDependentConflictError", () => {
   it("exposes candidateIds like MergeConflictError", () => {
     const e = new MergeDependentConflictError("x", ["a", "b"]);
     expect(e.candidateIds).toEqual(["a", "b"]);
+  });
+});
+
+describe("pickMergeTargetId", () => {
+  const cand = (
+    id: string,
+    phone: string | null,
+    integrator: string | null,
+    created: string,
+  ) => ({
+    id,
+    phone_normalized: phone,
+    integrator_user_id: integrator,
+    created_at: new Date(created),
+  });
+
+  it("prefers row with phone when the other has none", () => {
+    const withPhone = cand("a", "+7900", null, "2021-01-01");
+    const noPhone = cand("b", null, "99", "2020-01-01");
+    expect(pickMergeTargetId(withPhone, noPhone)).toEqual({ target: "a", duplicate: "b" });
+    expect(pickMergeTargetId(noPhone, withPhone)).toEqual({ target: "a", duplicate: "b" });
+  });
+
+  it("when both share phone, prefers older created_at over integrator id", () => {
+    const olderNoInt = cand("crm", "+7900", null, "2020-01-01");
+    const newerBot = cand("bot", "+7900", "100", "2021-06-01");
+    expect(pickMergeTargetId(olderNoInt, newerBot)).toEqual({ target: "crm", duplicate: "bot" });
+    expect(pickMergeTargetId(newerBot, olderNoInt)).toEqual({ target: "crm", duplicate: "bot" });
+  });
+
+  it("when both share phone and same created_at, falls back to integrator id", () => {
+    const d = "2020-01-01";
+    const withInt = cand("a", "+7900", "1", d);
+    const noInt = cand("b", "+7900", null, d);
+    expect(pickMergeTargetId(withInt, noInt)).toEqual({ target: "a", duplicate: "b" });
   });
 });
