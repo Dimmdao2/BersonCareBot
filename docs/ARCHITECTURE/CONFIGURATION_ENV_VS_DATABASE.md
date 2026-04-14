@@ -37,7 +37,7 @@
 - **Google Calendar OAuth + integration:** `google_client_id`, `google_client_secret`, `google_redirect_uri`, `google_refresh_token`, `google_calendar_id`, `google_calendar_enabled`, `google_connected_email` — управление через admin Settings UI (OAuth consent flow + выбор календаря). Env-переменные `GOOGLE_*` в integrator помечены `@deprecated` и оставлены как fallback на переходный период.
 - Отображение времени: **`app_display_timezone`** (IANA).
 - Вайтлисты: `allowed_telegram_ids`, `allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`, `doctor_max_ids`, `admin_phones`, `doctor_phones`, `allowed_phones`. На странице `/app/settings` (вкладка «Доступ и роли») в UI редактируются списки **Telegram / Max ID**; ключи `admin_phones`, `doctor_phones`, `allowed_phones` поддерживаются тем же `PATCH /api/admin/settings`, отдельной формы в этом экране пока нет.
-- Операционные флаги: `dev_mode`, `debug_forward_to_admin`, `important_fallback_delay_minutes`, `integration_test_ids`, `sms_fallback_enabled` (doctor scope и др. — см. `ALLOWED_KEYS`).
+- Операционные флаги: `dev_mode`, `debug_forward_to_admin`, **`max_debug_page_enabled`** (показ диагностического маршрута `/max-debug` для MAX Mini App; по умолчанию выключено; только админ Settings, не env), `important_fallback_delay_minutes`, `integration_test_ids`, `sms_fallback_enabled` (doctor scope и др. — см. `ALLOWED_KEYS`).
 
 **Таблицы-справочники интегратора** — несекретные бизнес-контракты (Rubitime mapping и т.д.), см. отдельные миграции.
 
