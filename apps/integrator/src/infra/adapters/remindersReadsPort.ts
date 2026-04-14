@@ -6,7 +6,8 @@
 import { createHmac } from 'node:crypto';
 import { createDbPort } from '../db/client.js';
 import { DEFAULT_APP_DISPLAY_TIMEZONE, getAppDisplayTimezone } from '../../config/appTimezone.js';
-import { env, integratorWebhookSecret } from '../../config/env.js';
+import { getAppBaseUrl } from '../../config/appBaseUrl.js';
+import { integratorWebhookSecret } from '../../config/env.js';
 import type {
   DbPort,
   DispatchPort,
@@ -53,10 +54,11 @@ type WebappHistoryRow = {
 };
 
 async function fetchRemindersGet<T>(
+  db: DbPort,
   pathname: string,
   search: string,
 ): Promise<{ ok: boolean; data?: T; status: number }> {
-  const baseUrl = env.APP_BASE_URL ?? '';
+  const baseUrl = await getAppBaseUrl(db);
   const secret = integratorWebhookSecret();
   if (!baseUrl || !secret) {
     return { ok: false, status: 0 };
@@ -129,6 +131,7 @@ export function createRemindersReadsPort(deps?: {
     async listRulesForUser(integratorUserId: string) {
       const search = new URLSearchParams({ integratorUserId });
       const result = await fetchRemindersGet<{ rules?: WebappRuleRow[] }>(
+        db,
         '/api/integrator/reminders/rules',
         search.toString(),
       );
@@ -144,6 +147,7 @@ export function createRemindersReadsPort(deps?: {
     async getRuleForUserAndCategory(integratorUserId: string, category: string) {
       const search = new URLSearchParams({ integratorUserId, category });
       const result = await fetchRemindersGet<{ rule?: WebappRuleRow | null }>(
+        db,
         '/api/integrator/reminders/rules/by-category',
         search.toString(),
       );
@@ -160,6 +164,7 @@ export function createRemindersReadsPort(deps?: {
     async listHistoryForUser(integratorUserId: string, limit = 50) {
       const search = new URLSearchParams({ integratorUserId, limit: String(limit) });
       const result = await fetchRemindersGet<{ history?: WebappHistoryRow[] }>(
+        db,
         '/api/integrator/reminders/history',
         search.toString(),
       );

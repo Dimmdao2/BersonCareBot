@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 
 const exchangeMaxInitDataMock = vi.fn();
 
+vi.mock("@/infra/logging/logger", () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     auth: {
@@ -25,7 +33,7 @@ describe("POST /api/auth/max-init", () => {
   });
 
   it("returns 403 when initData is denied", async () => {
-    exchangeMaxInitDataMock.mockResolvedValueOnce(null);
+    exchangeMaxInitDataMock.mockResolvedValueOnce({ denied: true, reason: "signature_mismatch" });
     const res = await POST(
       new Request("http://localhost/api/auth/max-init", {
         method: "POST",

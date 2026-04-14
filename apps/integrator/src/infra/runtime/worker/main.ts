@@ -1,6 +1,7 @@
 import '../../../config/loadEnv.js';
 import { appSettings } from '../../../config/appSettings.js';
 import { createPostgresJobQueue } from '../../adapters/jobQueuePort.js';
+import { getAppBaseUrl } from '../../../config/appBaseUrl.js';
 import { createWebappEventsPort } from '../../adapters/webappEventsClient.js';
 import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
@@ -15,7 +16,9 @@ async function startWorker(): Promise<void> {
   const { buildDeps } = await import('../../../app/di.js');
   const deps = buildDeps();
   const projectionDb = createDbPort();
-  const webappEvents = createWebappEventsPort();
+  const webappEvents = createWebappEventsPort({
+    getAppBaseUrl: () => getAppBaseUrl(projectionDb),
+  });
   const queue = createPostgresJobQueue({
     db: createDbPort(),
     retryDelaySeconds: appSettings.runtime.worker.retryDelaySeconds,

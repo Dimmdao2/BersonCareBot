@@ -16,11 +16,13 @@ export type MaxWebhookDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | undefined>;
+  getAppBaseUrl?: () => Promise<string>;
 };
 
 async function buildMaxLinks(
   data: MaxUpdateValidated,
-  resolveIntegratorUserIdForMessenger?: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'],
+  resolveIntegratorUserIdForMessenger: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'] | undefined,
+  appBaseUrl: string | undefined,
 ): Promise<Record<string, unknown>> {
   const maxId = data.message?.sender?.user_id ?? data.callback?.user?.user_id ?? data.user?.user_id;
   if (maxId == null || typeof maxId !== 'number') return {};
@@ -37,11 +39,14 @@ async function buildMaxLinks(
   } catch {
     integratorUserId = undefined;
   }
-  const webappEntryUrl = buildWebappEntryUrlForMax({
-    maxId: String(maxId),
-    ...(displayName ? { displayName } : {}),
-    ...(integratorUserId !== undefined ? { integratorUserId } : {}),
-  });
+  const webappEntryUrl = buildWebappEntryUrlForMax(
+    {
+      maxId: String(maxId),
+      ...(displayName ? { displayName } : {}),
+      ...(integratorUserId !== undefined ? { integratorUserId } : {}),
+    },
+    appBaseUrl,
+  );
   if (!webappEntryUrl) return {};
   const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
   const enc = (p: string) => encodeURIComponent(p);
@@ -59,8 +64,10 @@ async function buildMaxLinks(
 
 async function buildMaxFacts(
   data: MaxUpdateValidated,
-  resolveIntegratorUserIdForMessenger?: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'],
+  resolveIntegratorUserIdForMessenger: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'] | undefined,
+  getAppBaseUrl: MaxWebhookDeps['getAppBaseUrl'],
 ): Promise<Record<string, unknown>> {
+  const appBaseUrl = getAppBaseUrl ? await getAppBaseUrl() : undefined;
   const adminChatId = maxConfig.adminChatId;
   const adminUserId = maxConfig.adminUserId;
   const chatId = data.message?.recipient?.chat_id ?? data.chat_id;
@@ -69,7 +76,7 @@ async function buildMaxFacts(
     (typeof adminUserId === 'number' && typeof senderUserId === 'number' && adminUserId === senderUserId)
     || (typeof adminUserId !== 'number' && typeof adminChatId === 'number' && typeof chatId === 'number' && adminChatId === chatId);
   return {
-    ...(await buildMaxLinks(data, resolveIntegratorUserIdForMessenger)),
+    ...(await buildMaxLinks(data, resolveIntegratorUserIdForMessenger, appBaseUrl)),
     ...(typeof adminChatId === 'number' ? { adminChatId } : {}),
     ...(typeof adminUserId === 'number' ? { adminUserId } : {}),
     ...((typeof chatId === 'number' || typeof senderUserId === 'number') ? { isAdmin } : {}),
@@ -87,6 +94,7 @@ export async function registerMaxWebhookRoutes(
 ): Promise<void> {
   await setupMaxCommands();
   const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
+  const getAppBaseUrl = deps.getAppBaseUrl;
 
   app.post('/webhook/max', async (request, reply) => {
     const correlationId = request.id;
@@ -152,7 +160,7 @@ export async function registerMaxWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: await buildMaxFacts(parseResult.data, resolveIntegratorUserIdForMessenger),
+        facts: await buildMaxFacts(parseResult.data, resolveIntegratorUserIdForMessenger, getAppBaseUrl),
       });
       const result = await deps.eventGateway.handleIncomingEvent(event);
       if (result.status === 'rejected') {

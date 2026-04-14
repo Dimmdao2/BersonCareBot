@@ -5,7 +5,14 @@ vi.mock('../../config/env.js', () => ({
   integratorWebhookSecret: () => 'test-secret-16chars!!',
 }));
 
+vi.mock('../../config/appBaseUrl.js', () => ({
+  getAppBaseUrl: async () => 'https://webapp.test',
+}));
+
+import type { DbPort } from '../../kernel/contracts/index.js';
 import { createRemindersReadsPort } from './remindersReadsPort.js';
+
+const mockDb = {} as DbPort;
 
 const originalFetch = globalThis.fetch;
 
@@ -45,7 +52,7 @@ describe('remindersReadsPort', () => {
         ],
       }),
     });
-    const port = createRemindersReadsPort();
+    const port = createRemindersReadsPort({ db: mockDb });
     const list = await port.listRulesForUser('42');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0]!;
@@ -59,7 +66,7 @@ describe('remindersReadsPort', () => {
 
   it('listRulesForUser returns [] on network error', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
-    const port = createRemindersReadsPort();
+    const port = createRemindersReadsPort({ db: mockDb });
     const list = await port.listRulesForUser('42');
     expect(list).toEqual([]);
   });
@@ -85,7 +92,7 @@ describe('remindersReadsPort', () => {
         },
       }),
     });
-    const port = createRemindersReadsPort();
+    const port = createRemindersReadsPort({ db: mockDb });
     const rule = await port.getRuleForUserAndCategory('42', 'exercise');
     expect(rule).not.toBeNull();
     expect(rule!.id).toBe('rule-1');
@@ -94,7 +101,7 @@ describe('remindersReadsPort', () => {
 
   it('getRuleForUserAndCategory returns null on fetch error', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
-    const port = createRemindersReadsPort();
+    const port = createRemindersReadsPort({ db: mockDb });
     const rule = await port.getRuleForUserAndCategory('42', 'exercise');
     expect(rule).toBeNull();
   });
@@ -117,7 +124,7 @@ describe('remindersReadsPort', () => {
         ],
       }),
     });
-    const port = createRemindersReadsPort();
+    const port = createRemindersReadsPort({ db: mockDb });
     const history = await port.listHistoryForUser('42', 50);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0]!;
@@ -131,7 +138,7 @@ describe('remindersReadsPort', () => {
 
   it('listHistoryForUser returns [] on network error', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
-    const port = createRemindersReadsPort();
+    const port = createRemindersReadsPort({ db: mockDb });
     const history = await port.listHistoryForUser('42');
     expect(history).toEqual([]);
   });

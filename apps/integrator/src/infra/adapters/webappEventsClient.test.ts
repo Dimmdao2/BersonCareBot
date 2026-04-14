@@ -47,7 +47,7 @@ describe("createWebappEventsPort emit", () => {
       text: async () => JSON.stringify({ ok: true, accepted: true }),
     });
     const { createWebappEventsPort } = await import("./webappEventsClient.js");
-    const port = createWebappEventsPort();
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
     const result = await port.emit({
       eventType: "user.upserted",
       occurredAt: new Date().toISOString(),
@@ -63,7 +63,7 @@ describe("createWebappEventsPort emit", () => {
       text: async () => JSON.stringify({ ok: true, accepted: true }),
     });
     const { createWebappEventsPort } = await import("./webappEventsClient.js");
-    const port = createWebappEventsPort();
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
     const result = await port.emit({
       eventType: "user.upserted",
       occurredAt: new Date().toISOString(),
@@ -79,7 +79,7 @@ describe("createWebappEventsPort emit", () => {
       text: async () => JSON.stringify({ ok: false, error: "busy" }),
     });
     const { createWebappEventsPort } = await import("./webappEventsClient.js");
-    const port = createWebappEventsPort();
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
     const result = await port.emit({
       eventType: "diary.lfk.complex.created",
       occurredAt: new Date().toISOString(),
@@ -104,7 +104,7 @@ describe("createWebappEventsPort emit", () => {
       text: async () => JSON.stringify({ accepted: true }),
     });
     const { createWebappEventsPort } = await import("./webappEventsClient.js");
-    const port = createWebappEventsPort();
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
     const result = await port.emit({
       eventType: "reminder.rule.upserted",
       occurredAt: new Date().toISOString(),
@@ -120,7 +120,7 @@ describe("createWebappEventsPort emit", () => {
       text: async () => "<html>not json</html>",
     });
     const { createWebappEventsPort } = await import("./webappEventsClient.js");
-    const port = createWebappEventsPort();
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
     const result = await port.emit({
       eventType: "user.upserted",
       occurredAt: new Date().toISOString(),
@@ -143,7 +143,7 @@ describe("createWebappEventsPort emit", () => {
       text: async () => "",
     });
     const { createWebappEventsPort } = await import("./webappEventsClient.js");
-    const port = createWebappEventsPort();
+    const port = createWebappEventsPort({ getAppBaseUrl: async () => "https://webapp.test" });
     const result = await port.emit({
       eventType: "user.upserted",
       occurredAt: new Date().toISOString(),

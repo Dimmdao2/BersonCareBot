@@ -4,7 +4,9 @@
  * On network/error returns null or [] (safe fallback).
  */
 import { createHmac } from 'node:crypto';
-import { env, integratorWebhookSecret } from '../../config/env.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import { getAppBaseUrl } from '../../config/appBaseUrl.js';
+import { integratorWebhookSecret } from '../../config/env.js';
 import type {
   AppointmentsReadsPort,
   BookingRecordForLinking,
@@ -31,10 +33,11 @@ type WebappRecordListItem = {
 };
 
 async function fetchAppointmentsGet<T>(
+  db: DbPort,
   pathname: string,
   search: string,
 ): Promise<{ ok: boolean; data?: T; status: number }> {
-  const baseUrl = env.APP_BASE_URL ?? '';
+  const baseUrl = await getAppBaseUrl(db);
   const secret = integratorWebhookSecret();
   if (!baseUrl || !secret) {
     return { ok: false, status: 0 };
@@ -70,11 +73,13 @@ function parseRecordAt(value: unknown): Date | null {
   return null;
 }
 
-export function createAppointmentsReadsPort(): AppointmentsReadsPort {
+export function createAppointmentsReadsPort(deps: { db: DbPort }): AppointmentsReadsPort {
+  const { db } = deps;
   return {
     async getRecordByExternalId(externalRecordId: string): Promise<BookingRecordForLinking | null> {
       const search = new URLSearchParams({ integratorRecordId: externalRecordId });
       const result = await fetchAppointmentsGet<{ record?: WebappRecord | null }>(
+        db,
         '/api/integrator/appointments/record',
         search.toString(),
       );
@@ -95,6 +100,7 @@ export function createAppointmentsReadsPort(): AppointmentsReadsPort {
     async getActiveRecordsByPhone(phoneNormalized: string): Promise<ActiveBookingRecord[]> {
       const search = new URLSearchParams({ phoneNormalized });
       const result = await fetchAppointmentsGet<{ records?: WebappRecordListItem[] }>(
+        db,
         '/api/integrator/appointments/active-by-user',
         search.toString(),
       );

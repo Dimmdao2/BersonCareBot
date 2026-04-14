@@ -11,6 +11,7 @@ import { createDbPort } from '../infra/db/client.js';
 import { getLinkDataByIdentity } from '../infra/db/repos/channelUsers.js';
 import { registerRubitimeRecordM2mRoutes } from '../integrations/rubitime/recordM2mRoute.js';
 import { registerRubitimeAdminM2mRoutes } from '../integrations/rubitime/adminM2mRoute.js';
+import { getAppBaseUrl } from '../config/appBaseUrl.js';
 import { integratorWebhookSecret } from '../config/env.js';
 import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
 
@@ -120,11 +121,15 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     sharedSecret: integratorWebhookSecret(),
   });
 
+  const webhookRouteDb = createDbPort();
+  const getAppBaseUrlForWebhooks = (): Promise<string> => getAppBaseUrl(webhookRouteDb);
+
   if (deps.registerTelegramWebhookRoutes) {
     app.register(async (instance) => {
       await deps.registerTelegramWebhookRoutes?.(instance, {
         eventGateway: deps.eventGateway,
         resolveIntegratorUserIdForMessenger,
+        getAppBaseUrl: getAppBaseUrlForWebhooks,
       });
     });
   }
@@ -144,6 +149,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
       await deps.registerMaxWebhookRoutes?.(instance, {
         eventGateway: deps.eventGateway,
         resolveIntegratorUserIdForMessenger,
+        getAppBaseUrl: getAppBaseUrlForWebhooks,
       });
     });
   }

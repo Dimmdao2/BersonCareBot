@@ -4,7 +4,9 @@
  * On network/error returns [] (safe fallback).
  */
 import { createHmac } from 'node:crypto';
-import { env, integratorWebhookSecret } from '../../config/env.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import { getAppBaseUrl } from '../../config/appBaseUrl.js';
+import { integratorWebhookSecret } from '../../config/env.js';
 import type {
   SubscriptionMailingReadsPort,
   MailingTopicReadRow,
@@ -16,10 +18,11 @@ function signGet(timestamp: string, canonicalGet: string, secret: string): strin
 }
 
 async function fetchSubscriptionsGet<T>(
+  db: DbPort,
   pathname: string,
   search: string,
 ): Promise<{ ok: boolean; data?: T; status: number }> {
-  const baseUrl = env.APP_BASE_URL ?? '';
+  const baseUrl = await getAppBaseUrl(db);
   const secret = integratorWebhookSecret();
   if (!baseUrl || !secret) {
     return { ok: false, status: 0 };
@@ -46,10 +49,12 @@ async function fetchSubscriptionsGet<T>(
   }
 }
 
-export function createSubscriptionMailingReadsPort(): SubscriptionMailingReadsPort {
+export function createSubscriptionMailingReadsPort(deps: { db: DbPort }): SubscriptionMailingReadsPort {
+  const { db } = deps;
   return {
     async listTopics(): Promise<MailingTopicReadRow[]> {
       const result = await fetchSubscriptionsGet<{ topics?: Array<{ id?: string; code?: string; title?: string; key?: string; isActive?: boolean }> }>(
+        db,
         '/api/integrator/subscriptions/topics',
         '',
       );
@@ -67,7 +72,7 @@ export function createSubscriptionMailingReadsPort(): SubscriptionMailingReadsPo
       const search = new URLSearchParams({ integratorUserId });
       const result = await fetchSubscriptionsGet<{
         subscriptions?: Array<{ topicId?: string; topicCode?: string; isActive?: boolean }>;
-      }>('/api/integrator/subscriptions/for-user', search.toString());
+      }>(db, '/api/integrator/subscriptions/for-user', search.toString());
       if (!result.ok || !result.data?.subscriptions) return [];
       return result.data.subscriptions.map((s) => ({
         integratorTopicId: typeof s.topicId === 'string' ? s.topicId : String(s.topicId ?? ''),

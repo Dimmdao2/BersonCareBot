@@ -3,7 +3,9 @@
  * Used for admin product reads when readPort delegates to webapp.
  */
 import { createHmac } from 'node:crypto';
-import { env, integratorWebhookSecret } from '../../config/env.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import { getAppBaseUrl } from '../../config/appBaseUrl.js';
+import { integratorWebhookSecret } from '../../config/env.js';
 import type {
   CommunicationReadsPort,
   CommunicationConversationListItem,
@@ -98,10 +100,11 @@ function mapQuestion(row: WebappQuestionRow): CommunicationQuestionListItem {
 }
 
 async function fetchCommunicationGet<T>(
+  db: DbPort,
   pathname: string,
   search: string,
 ): Promise<{ ok: boolean; data?: T; status: number }> {
-  const baseUrl = env.APP_BASE_URL ?? '';
+  const baseUrl = await getAppBaseUrl(db);
   const secret = integratorWebhookSecret();
   if (!baseUrl || !secret) {
     return { ok: false, status: 0 };
@@ -123,13 +126,15 @@ async function fetchCommunicationGet<T>(
   }
 }
 
-export function createCommunicationReadsPort(): CommunicationReadsPort {
+export function createCommunicationReadsPort(deps: { db: DbPort }): CommunicationReadsPort {
+  const { db } = deps;
   return {
     async listOpenConversations(params: { source?: string; limit?: number }) {
       const search = new URLSearchParams();
       if (params.source?.trim()) search.set('source', params.source.trim());
       if (params.limit != null && params.limit > 0) search.set('limit', String(params.limit));
       const result = await fetchCommunicationGet<{ conversations?: WebappConversationRow[] }>(
+        db,
         '/api/integrator/communication/conversations',
         search.toString(),
       );
@@ -140,7 +145,7 @@ export function createCommunicationReadsPort(): CommunicationReadsPort {
 
     async getConversationById(integratorConversationId: string) {
       const pathname = `/api/integrator/communication/conversations/${encodeURIComponent(integratorConversationId)}`;
-      const result = await fetchCommunicationGet<{ conversation?: WebappConversationRow }>(pathname, '');
+      const result = await fetchCommunicationGet<{ conversation?: WebappConversationRow }>(db, pathname, '');
       if (!result.ok || result.status === 404 || !result.data?.conversation) return null;
       return mapConversationDetail(result.data.conversation);
     },
@@ -149,6 +154,7 @@ export function createCommunicationReadsPort(): CommunicationReadsPort {
       const search = new URLSearchParams();
       if (params.limit != null && params.limit > 0) search.set('limit', String(params.limit));
       const result = await fetchCommunicationGet<{ questions?: WebappQuestionRow[] }>(
+        db,
         '/api/integrator/communication/questions',
         search.toString(),
       );
@@ -159,7 +165,11 @@ export function createCommunicationReadsPort(): CommunicationReadsPort {
 
     async getQuestionByConversationId(integratorConversationId: string) {
       const pathname = `/api/integrator/communication/questions/by-conversation/${encodeURIComponent(integratorConversationId)}`;
-      const result = await fetchCommunicationGet<{ question?: { id: string; answered: boolean } | null }>(pathname, '');
+      const result = await fetchCommunicationGet<{ question?: { id: string; answered: boolean } | null }>(
+        db,
+        pathname,
+        '',
+      );
       if (!result.ok) return null;
       const q = result.data?.question;
       if (q == null) return null;

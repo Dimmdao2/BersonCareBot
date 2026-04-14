@@ -1,5 +1,16 @@
 import { env, integratorWebhookSecret, integratorWebappEntrySecret } from "@/config/env";
-import { getConfigValue, getConfigBool } from "@/modules/system-settings/configAdapter";
+import { getConfigValue, getConfigBool, getConfigValueSync } from "@/modules/system-settings/configAdapter";
+
+/** Публичный URL веб-приложения (admin `app_base_url`), без завершающего `/`. */
+export async function getAppBaseUrl(): Promise<string> {
+  const v = await getConfigValue("app_base_url", env.APP_BASE_URL);
+  return v.trim().replace(/\/$/, "") || env.APP_BASE_URL.replace(/\/$/, "");
+}
+
+/** Синхронно: кэш или env (для редиректов без await). */
+export function getAppBaseUrlSync(): string {
+  return getConfigValueSync("app_base_url", env.APP_BASE_URL).trim().replace(/\/$/, "") || env.APP_BASE_URL.replace(/\/$/, "");
+}
 
 /** MAX Platform API key (как `MAX_API_KEY` у интегратора) — проверка подписи `window.WebApp.initData` в Mini App. */
 export async function getMaxBotApiKey(): Promise<string> {

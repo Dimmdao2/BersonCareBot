@@ -7,7 +7,8 @@ import { join } from 'path';
 import type { FastifyInstance } from 'fastify';
 import { getAppRoot } from '../config/appRoot.js';
 import { appSettings } from '../config/appSettings.js';
-import { env, integratorWebhookSecret } from '../config/env.js';
+import { integratorWebhookSecret } from '../config/env.js';
+import { getAppBaseUrl } from '../config/appBaseUrl.js';
 import { createDbPort, healthCheckDb } from '../infra/db/client.js';
 import { getProjectionHealth } from '../infra/db/repos/projectionHealth.js';
 import { createDbReadPort } from '../infra/db/readPort.js';
@@ -71,6 +72,8 @@ export type MessengerWebappEntryIdentityDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | undefined>;
+  /** Публичный origin вебаппа (`system_settings.app_base_url` / env). */
+  getAppBaseUrl?: () => Promise<string>;
 };
 
 export type TelegramRoutesRegistrar = (
@@ -139,31 +142,25 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     : createSmscStub(logger);
 
   const dbPort = createDbPort();
-  const communicationReadsPort = createCommunicationReadsPort();
+  const communicationReadsPort = createCommunicationReadsPort({ db: dbPort });
   /** Filled after `dispatchPort` is constructed (reminders reads need Telegram on display-TZ fallback). */
   const dispatchPortForReminders: { current?: DispatchPort } = {};
-  /** Without webapp base URL + webhook secret, reminder product reads stay on integrator DB (safe fallback). */
+  /** Without webhook secret, reminder product reads stay on integrator DB (safe fallback). Base URL: DB `app_base_url` or env. */
   const remindersReadsPort =
-    env.APP_BASE_URL && integratorWebhookSecret().length >= 16
+    integratorWebhookSecret().length >= 16
       ? createRemindersReadsPort({
           db: dbPort,
           getDispatchPort: () => dispatchPortForReminders.current,
         })
       : undefined;
   const remindersWebappWritesPort =
-    env.APP_BASE_URL && integratorWebhookSecret().length >= 16
-      ? createRemindersWritesPort()
-      : undefined;
+    integratorWebhookSecret().length >= 16 ? createRemindersWritesPort({ db: dbPort }) : undefined;
   /** Same condition: appointment product reads from webapp when configured. */
   const appointmentsReadsPort =
-    env.APP_BASE_URL && integratorWebhookSecret().length >= 16
-      ? createAppointmentsReadsPort()
-      : undefined;
+    integratorWebhookSecret().length >= 16 ? createAppointmentsReadsPort({ db: dbPort }) : undefined;
   /** Subscription/mailing product reads from webapp when configured. */
   const subscriptionMailingReadsPort =
-    env.APP_BASE_URL && integratorWebhookSecret().length >= 16
-      ? createSubscriptionMailingReadsPort()
-      : undefined;
+    integratorWebhookSecret().length >= 16 ? createSubscriptionMailingReadsPort({ db: dbPort }) : undefined;
   const dbReadPort = input.dbReadPort ?? createDbReadPort({
     db: dbPort,
     communicationReadsPort,
@@ -171,7 +168,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     ...(appointmentsReadsPort !== undefined ? { appointmentsReadsPort } : {}),
     ...(subscriptionMailingReadsPort !== undefined ? { subscriptionMailingReadsPort } : {}),
   });
-  const webappEventsPort = createWebappEventsPort();
+  const webappEventsPort = createWebappEventsPort({
+    getAppBaseUrl: () => getAppBaseUrl(dbPort),
+  });
   const dbWritePort =
     input.dbWritePort ??
     createDbWritePort({ db: dbPort, readPort: dbReadPort, webappEventsPort });
@@ -182,10 +181,15 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const contentPort = createContentPort({ rootDir: join(getAppRoot(), 'src', 'content') });
   const contentCatalogPort = createContentCatalogPort();
-  const deliveryTargetsPort = createDeliveryTargetsPort();
+  const deliveryTargetsPort = createDeliveryTargetsPort({
+    getAppBaseUrl: () => getAppBaseUrl(dbPort),
+  });
   const contextQueryPort = createContextQueryPort({
     readPort: dbReadPort,
-    webappBaseUrl: env.APP_BASE_URL ?? null,
+    getWebappBaseUrl: async () => {
+      const u = await getAppBaseUrl(dbPort);
+      return u.trim().length > 0 ? u : null;
+    },
     deliveryTargetsPort,
   });
   const templatePort = createTemplatePort({ contentPort });
@@ -248,6 +252,8 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     maxConfig.enabled
       ? (input.registerMaxWebhookRoutes ?? registerMaxWebhookRoutes)
       : undefined;
+
+  void getAppBaseUrl(dbPort).catch(() => {});
 
   return {
     healthCheckDb,

@@ -2,17 +2,20 @@
  * Signed POST to webapp integrator reminder occurrence actions (snooze / skip).
  */
 import { createHmac } from 'node:crypto';
+import type { DbPort } from '../../kernel/contracts/index.js';
 import type { RemindersWebappWritesPort } from '../../kernel/contracts/index.js';
-import { env, integratorWebhookSecret } from '../../config/env.js';
+import { getAppBaseUrl } from '../../config/appBaseUrl.js';
+import { integratorWebhookSecret } from '../../config/env.js';
 
 function sign(timestamp: string, body: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('base64url');
 }
 
-export function createRemindersWritesPort(): RemindersWebappWritesPort {
+export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebappWritesPort {
+  const { db } = deps;
   return {
     async postOccurrenceSnooze(input) {
-      const baseUrl = env.APP_BASE_URL ?? '';
+      const baseUrl = await getAppBaseUrl(db);
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret) {
         return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
@@ -51,7 +54,7 @@ export function createRemindersWritesPort(): RemindersWebappWritesPort {
     },
 
     async postOccurrenceSkip(input) {
-      const baseUrl = env.APP_BASE_URL ?? '';
+      const baseUrl = await getAppBaseUrl(db);
       const secret = integratorWebhookSecret();
       if (!baseUrl || !secret) {
         return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };

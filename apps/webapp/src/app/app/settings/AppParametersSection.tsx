@@ -20,11 +20,29 @@ import {
 import { patchAdminSetting } from "./patchAdminSetting";
 
 export type AppParametersSectionProps = {
+  /** Публичный origin веб-приложения (https://…), без завершающего слеша. */
+  appBaseUrl: string;
   supportContactUrl: string;
   appDisplayTimezone: string;
 };
 
-export function AppParametersSection({ supportContactUrl, appDisplayTimezone }: AppParametersSectionProps) {
+function isValidAppBaseUrl(raw: string): boolean {
+  const t = raw.trim();
+  if (t.length === 0) return true;
+  try {
+    const u = new URL(t);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export function AppParametersSection({
+  appBaseUrl,
+  supportContactUrl,
+  appDisplayTimezone,
+}: AppParametersSectionProps) {
+  const [appUrl, setAppUrl] = useState(appBaseUrl);
   const [support, setSupport] = useState(supportContactUrl);
   const [timezone, setTimezone] = useState(appDisplayTimezone);
   const [tzFilter, setTzFilter] = useState("");
@@ -55,6 +73,11 @@ export function AppParametersSection({ supportContactUrl, appDisplayTimezone }: 
     setError(null);
     startTransition(async () => {
       try {
+        const appUrlRaw = appUrl.trim();
+        if (appUrlRaw.length > 0 && !isValidAppBaseUrl(appUrlRaw)) {
+          setError("Публичный URL приложения: укажите https://… (http допустим в dev) или оставьте пустым для env");
+          return;
+        }
         const supportRaw = support.trim();
         if (supportRaw.length > 0 && !isValidSupportContactSetting(supportRaw)) {
           setError("Ссылка поддержки: укажите путь /app/… или URL https://… (http допустим в dev)");
@@ -66,6 +89,7 @@ export function AppParametersSection({ supportContactUrl, appDisplayTimezone }: 
           return;
         }
         const results = await Promise.all([
+          patchAdminSetting("app_base_url", appUrlRaw),
           patchAdminSetting("support_contact_url", supportRaw),
           patchAdminSetting("app_display_timezone", tzRaw),
         ]);
@@ -90,6 +114,25 @@ export function AppParametersSection({ supportContactUrl, appDisplayTimezone }: 
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
+        <section className="flex flex-col gap-2">
+          <p className="text-sm font-semibold">Публичный URL приложения</p>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium">App base URL (origin)</span>
+            <Input
+              type="url"
+              placeholder="https://bersoncare.ru"
+              value={appUrl}
+              onChange={(e) => setAppUrl(e.target.value)}
+              disabled={isPending}
+              autoComplete="off"
+            />
+            <span className="text-xs text-muted-foreground">
+              Без завершающего /. Ссылки для ботов и OAuth строятся отсюда; пусто — используется{" "}
+              <code className="rounded bg-muted px-1">APP_BASE_URL</code> из окружения.
+            </span>
+          </label>
+        </section>
+
         <section className="flex flex-col gap-2">
           <p className="text-sm font-semibold">Контакты и поддержка</p>
           <label className="flex flex-col gap-1">

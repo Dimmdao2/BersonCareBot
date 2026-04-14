@@ -1,5 +1,6 @@
 import { ALLOWED_KEYS, type SystemSettingKey, type SystemSettingScope, type SystemSetting } from "./types";
 import type { SystemSettingsPort } from "./ports";
+import { invalidateConfigKey } from "./configAdapter";
 import {
   normalizeStoredValueJsonForIntegratorSync,
   syncSettingToIntegrator,
@@ -36,6 +37,9 @@ export function createSystemSettingsService(port: SystemSettingsPort) {
         valueJson: normalizeStoredValueJsonForIntegratorSync(result.valueJson),
         updatedBy: result.updatedBy,
       });
+      if (key === "app_base_url") {
+        invalidateConfigKey("app_base_url");
+      }
       return result;
     },
 

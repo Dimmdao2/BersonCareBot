@@ -10,9 +10,13 @@ vi.mock("@/modules/messaging/relayOutbound", () => ({
   relayOutbound: relayMock,
 }));
 
-vi.mock("@/modules/system-settings/configAdapter", () => ({
-  getConfigValue: (key: string, fallback: string) => getConfigValueMock(key, fallback),
-}));
+vi.mock("@/modules/system-settings/configAdapter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/system-settings/configAdapter")>();
+  return {
+    ...actual,
+    getConfigValue: (key: string, fallback: string) => getConfigValueMock(key, fallback),
+  };
+});
 
 import { buildIntakeDeepLink, createIntakeNotificationRelay } from "./intakeNotificationRelay";
 

@@ -37,9 +37,13 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/modules/system-settings/configAdapter", () => ({
-  invalidateConfigKey: vi.fn(),
-}));
+vi.mock("@/modules/system-settings/configAdapter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/modules/system-settings/configAdapter")>();
+  return {
+    ...actual,
+    invalidateConfigKey: vi.fn(),
+  };
+});
 
 vi.mock("@/config/env", () => ({
   env: { APP_BASE_URL: "http://localhost", SESSION_COOKIE_SECRET: "test-session-secret-16chars" },

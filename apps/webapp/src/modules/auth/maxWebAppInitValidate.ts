@@ -3,6 +3,20 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 /** Согласовано с `TELEGRAM_INIT_DATA_MAX_AGE_SEC` в `service.ts` — окно жизни стартовых параметров. */
 export const MAX_WEBAPP_INIT_DATA_MAX_AGE_SEC = 3600;
 
+/** Понятная причина отказа без логирования значений полей initData. */
+export type MaxInitDataRejectReason =
+  | "empty_bot_token"
+  | "hash_missing_or_duplicate"
+  | "hash_decode_failed"
+  | "hash_invalid_hex"
+  | "pair_decode_failed"
+  | "auth_date_missing"
+  | "auth_date_expired"
+  | "user_missing"
+  | "user_json_invalid"
+  | "user_id_missing"
+  | "signature_mismatch";
+
 function splitInitDataPairs(raw: string): [string, string][] {
   const trimmed = raw.trim();
   if (!trimmed) return [];
@@ -19,27 +33,31 @@ export type ParsedMaxWebAppInitData = {
   startParam?: string;
 };
 
+export type MaxInitParseResult =
+  | { ok: true; data: ParsedMaxWebAppInitData }
+  | { ok: false; reason: MaxInitDataRejectReason };
+
 /**
  * Проверка подписи стартовых параметров MAX Mini App (`window.WebApp.initData`).
  * Алгоритм: https://dev.max.ru/docs/webapps/validation
+ * Возвращает код отказа для диагностики (логи), без утечки секретов.
  */
-export function parseMaxWebAppInitDataValidated(
-  initData: string,
-  botToken: string,
-): ParsedMaxWebAppInitData | null {
+export function parseMaxWebAppInitDataDetailed(initData: string, botToken: string): MaxInitParseResult {
   const token = botToken.trim();
-  if (!token) return null;
+  if (!token) return { ok: false, reason: "empty_bot_token" };
 
   const pairs = splitInitDataPairs(initData);
   const hashEntries = pairs.filter(([k]) => k === "hash");
-  if (hashEntries.length !== 1) return null;
+  if (hashEntries.length !== 1) return { ok: false, reason: "hash_missing_or_duplicate" };
   let providedHashHex: string;
   try {
     providedHashHex = decodeURIComponent(hashEntries[0]![1] ?? "").trim().toLowerCase();
   } catch {
-    return null;
+    return { ok: false, reason: "hash_decode_failed" };
   }
-  if (!providedHashHex || !/^[0-9a-f]+$/i.test(providedHashHex)) return null;
+  if (!providedHashHex || !/^[0-9a-f]+$/i.test(providedHashHex)) {
+    return { ok: false, reason: "hash_invalid_hex" };
+  }
 
   const decoded: [string, string][] = [];
   for (const [k, v] of pairs) {
@@ -47,7 +65,7 @@ export function parseMaxWebAppInitDataValidated(
     try {
       decoded.push([k, decodeURIComponent(v)]);
     } catch {
-      return null;
+      return { ok: false, reason: "pair_decode_failed" };
     }
   }
 
@@ -67,18 +85,20 @@ export function parseMaxWebAppInitDataValidated(
     if (k === "start_param" && v.trim() !== "") startParam = v.trim();
   }
 
-  if (authDateNum == null) return null;
-  if (Math.floor(Date.now() / 1000) - authDateNum > MAX_WEBAPP_INIT_DATA_MAX_AGE_SEC) return null;
-  if (!userJson) return null;
+  if (authDateNum == null) return { ok: false, reason: "auth_date_missing" };
+  if (Math.floor(Date.now() / 1000) - authDateNum > MAX_WEBAPP_INIT_DATA_MAX_AGE_SEC) {
+    return { ok: false, reason: "auth_date_expired" };
+  }
+  if (!userJson) return { ok: false, reason: "user_missing" };
 
   let user: { id?: number | string; first_name?: string; last_name?: string };
   try {
     user = JSON.parse(userJson) as { id?: number | string; first_name?: string; last_name?: string };
   } catch {
-    return null;
+    return { ok: false, reason: "user_json_invalid" };
   }
   const maxUserId = user.id != null ? String(user.id).trim() : "";
-  if (!maxUserId) return null;
+  if (!maxUserId) return { ok: false, reason: "user_id_missing" };
 
   signPairs.sort((a, b) => a[0].localeCompare(b[0]));
   const launchParams = signPairs.map(([k, v]) => `${k}=${v}`).join("\n");
@@ -88,15 +108,31 @@ export function parseMaxWebAppInitDataValidated(
 
   const a = Buffer.from(computedHex, "hex");
   const b = Buffer.from(providedHashHex, "hex");
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    return { ok: false, reason: "signature_mismatch" };
+  }
 
   const fn = typeof user.first_name === "string" ? user.first_name.trim() : "";
   const ln = typeof user.last_name === "string" ? user.last_name.trim() : "";
   const displayName = [fn, ln].filter(Boolean).join(" ").trim() || undefined;
 
   return {
-    maxUserId,
-    ...(displayName ? { displayName } : {}),
-    ...(startParam ? { startParam } : {}),
+    ok: true,
+    data: {
+      maxUserId,
+      ...(displayName ? { displayName } : {}),
+      ...(startParam ? { startParam } : {}),
+    },
   };
+}
+
+/**
+ * Успешный разбор или `null` (обратная совместимость для вызовов без диагностики).
+ */
+export function parseMaxWebAppInitDataValidated(
+  initData: string,
+  botToken: string,
+): ParsedMaxWebAppInitData | null {
+  const r = parseMaxWebAppInitDataDetailed(initData, botToken);
+  return r.ok ? r.data : null;
 }

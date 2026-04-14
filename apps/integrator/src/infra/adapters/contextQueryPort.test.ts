@@ -18,7 +18,7 @@ describe('contextQueryPort', () => {
 
     const port = createContextQueryPort({
       readPort,
-      webappBaseUrl: null,
+      getWebappBaseUrl: async () => null,
       deliveryTargetsPort,
     });
 
@@ -41,7 +41,7 @@ describe('contextQueryPort', () => {
 
     const port = createContextQueryPort({
       readPort,
-      webappBaseUrl: null,
+      getWebappBaseUrl: async () => null,
       deliveryTargetsPort,
     });
 
@@ -61,7 +61,7 @@ describe('contextQueryPort', () => {
     const { readPort, readDb } = createReadPortMock();
     const port = createContextQueryPort({
       readPort,
-      webappBaseUrl: null,
+      getWebappBaseUrl: async () => null,
       deliveryTargetsPort: null,
     });
 
@@ -80,7 +80,7 @@ describe('contextQueryPort', () => {
     const { readPort, readDb } = createReadPortMock();
     const port = createContextQueryPort({
       readPort,
-      webappBaseUrl: null,
+      getWebappBaseUrl: async () => null,
       deliveryTargetsPort: null,
     });
 

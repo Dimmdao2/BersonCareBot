@@ -1,4 +1,4 @@
-import { env } from "@/config/env";
+import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import type { ReminderLinkedObjectType } from "./types";
 
 const KNOWN: ReminderLinkedObjectType[] = ["lfk_complex", "content_section", "content_page", "custom"];
@@ -10,13 +10,13 @@ function narrowLinkedType(raw: string | null): ReminderLinkedObjectType | null {
 
 /**
  * Patient deep links for integrator reminder payloads (STAGE_1_CONTRACTS S1.T07).
- * Uses APP_BASE_URL (infra bootstrap); DB public URL can be wired later without changing paths.
+ * Base URL: admin `app_base_url` or env `APP_BASE_URL`.
  */
 export function buildReminderDeepLink(params: {
   linkedObjectType: ReminderLinkedObjectType | string | null;
   linkedObjectId: string | null;
 }): string {
-  const base = env.APP_BASE_URL.replace(/\/$/, "");
+  const base = getAppBaseUrlSync().replace(/\/$/, "");
   const linkedObjectType = narrowLinkedType(
     typeof params.linkedObjectType === "string" ? params.linkedObjectType : null,
   );

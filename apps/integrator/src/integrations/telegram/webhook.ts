@@ -30,7 +30,9 @@ function buildActorFromBody(body: TelegramWebhookBodyValidated): Record<string, 
 export async function buildLinksFromBody(
   body: TelegramWebhookBodyValidated,
   resolveIntegratorUserIdForMessenger?: TelegramWebhookDeps['resolveIntegratorUserIdForMessenger'],
+  getAppBaseUrl?: () => Promise<string>,
 ): Promise<Record<string, unknown>> {
+  const appBaseUrl = getAppBaseUrl ? await getAppBaseUrl() : undefined;
   const from = body.callback_query?.from ?? body.message?.from;
   const displayName = from ? joinDisplayName(from) : undefined;
   const chatId = body.callback_query?.message?.chat?.id ?? body.message?.chat?.id;
@@ -44,11 +46,14 @@ export async function buildLinksFromBody(
     } catch {
       integratorUserId = undefined;
     }
-    const webappEntryUrl = buildWebappEntryUrl({
-      chatId,
-      ...(displayName !== undefined && displayName !== '' ? { displayName } : {}),
-      ...(integratorUserId !== undefined ? { integratorUserId } : {}),
-    });
+    const webappEntryUrl = buildWebappEntryUrl(
+      {
+        chatId,
+        ...(displayName !== undefined && displayName !== '' ? { displayName } : {}),
+        ...(integratorUserId !== undefined ? { integratorUserId } : {}),
+      },
+      appBaseUrl ?? null,
+    );
     if (webappEntryUrl) {
       const baseWebappUrl = `${webappEntryUrl}&ctx=bot`;
       links.webappEntryUrl = baseWebappUrl;
@@ -80,11 +85,12 @@ function buildAdminFacts(body: TelegramWebhookBodyValidated): Record<string, unk
 
 async function buildTelegramFacts(
   body: TelegramWebhookBodyValidated,
-  resolveIntegratorUserIdForMessenger?: TelegramWebhookDeps['resolveIntegratorUserIdForMessenger'],
+  resolveIntegratorUserIdForMessenger: TelegramWebhookDeps['resolveIntegratorUserIdForMessenger'] | undefined,
+  getAppBaseUrl: TelegramWebhookDeps['getAppBaseUrl'],
 ): Promise<Record<string, unknown>> {
   return {
     ...buildActorFromBody(body),
-    ...(await buildLinksFromBody(body, resolveIntegratorUserIdForMessenger)),
+    ...(await buildLinksFromBody(body, resolveIntegratorUserIdForMessenger, getAppBaseUrl)),
     ...buildAdminFacts(body),
   };
 }
@@ -96,6 +102,8 @@ export type TelegramWebhookDeps = {
     externalId: string,
     resource: 'telegram' | 'max',
   ) => Promise<string | undefined>;
+  /** Публичный origin вебаппа (admin `app_base_url` / env); для ссылок в кнопках WebApp. */
+  getAppBaseUrl?: () => Promise<string>;
 };
 
 /** Exported for tests (contact ownership, setphone deep link). */
@@ -191,6 +199,7 @@ export async function registerTelegramWebhookRoutes(
   deps: TelegramWebhookDeps,
 ): Promise<void> {
   const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
+  const getAppBaseUrl = deps.getAppBaseUrl;
   await setupTelegramMenuButton();
 
   app.post('/webhook/telegram', async (request, reply) => {
@@ -249,7 +258,7 @@ export async function registerTelegramWebhookRoutes(
         incoming,
         correlationId,
         eventId,
-        facts: await buildTelegramFacts(body, resolveIntegratorUserIdForMessenger),
+        facts: await buildTelegramFacts(body, resolveIntegratorUserIdForMessenger, getAppBaseUrl),
         ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
       });
       const result = await deps.eventGateway.handleIncomingEvent(event);

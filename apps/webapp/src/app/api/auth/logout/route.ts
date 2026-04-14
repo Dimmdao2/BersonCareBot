@@ -1,12 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { env } from "@/config/env";
+import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 
 const LOGIN_PATH = "/app";
 
 function loginRedirectUrl(request: NextRequest): URL {
-  const base = env.APP_BASE_URL || request.url;
+  const base = getAppBaseUrlSync() || request.url;
   return new URL(LOGIN_PATH, base);
 }
 

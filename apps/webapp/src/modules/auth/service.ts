@@ -14,7 +14,10 @@ import {
   getMaxBotApiKey,
   getTelegramBotToken,
 } from "@/modules/system-settings/integrationRuntime";
-import { parseMaxWebAppInitDataValidated } from "@/modules/auth/maxWebAppInitValidate";
+import {
+  parseMaxWebAppInitDataDetailed,
+  type MaxInitDataRejectReason,
+} from "@/modules/auth/maxWebAppInitValidate";
 import {
   verifyTelegramLoginWidgetSignature,
   type TelegramLoginWidgetPayload,
@@ -39,7 +42,7 @@ type IntegratorTokenPayload = {
   exp: number;
 };
 
-type ExchangeResult = {
+export type ExchangeResult = {
   session: AppSession;
   redirectTo: string;
 };
@@ -500,19 +503,34 @@ export async function exchangeTelegramInitData(
   };
 }
 
+/** Причина отказа MAX initData: валидация строки или отсутствие ключа в admin settings. */
+export type MaxInitDenyReason = MaxInitDataRejectReason | "max_bot_api_key_missing";
+
+export type MaxInitExchangeDenied = { denied: true; reason: MaxInitDenyReason };
+
+type ValidateMaxOk = {
+  maxUserId: string;
+  role: UserRole;
+  displayName?: string;
+  startParam?: string;
+};
+
 async function validateMaxInitData(
   initData: string,
-): Promise<{ maxUserId: string; role: UserRole; displayName?: string; startParam?: string } | null> {
+): Promise<{ ok: true; data: ValidateMaxOk } | { ok: false; reason: MaxInitDenyReason }> {
   const botToken = (await getMaxBotApiKey()).trim();
-  if (!botToken) return null;
-  const parsed = parseMaxWebAppInitDataValidated(initData, botToken);
-  if (!parsed) return null;
-  const role: UserRole = await resolveRoleAsync({ maxId: parsed.maxUserId });
+  if (!botToken) return { ok: false, reason: "max_bot_api_key_missing" };
+  const parseRes = parseMaxWebAppInitDataDetailed(initData, botToken);
+  if (!parseRes.ok) return { ok: false, reason: parseRes.reason };
+  const role: UserRole = await resolveRoleAsync({ maxId: parseRes.data.maxUserId });
   return {
-    maxUserId: parsed.maxUserId,
-    role,
-    ...(parsed.displayName ? { displayName: parsed.displayName } : {}),
-    ...(parsed.startParam ? { startParam: parsed.startParam } : {}),
+    ok: true,
+    data: {
+      maxUserId: parseRes.data.maxUserId,
+      role,
+      ...(parseRes.data.displayName ? { displayName: parseRes.data.displayName } : {}),
+      ...(parseRes.data.startParam ? { startParam: parseRes.data.startParam } : {}),
+    },
   };
 }
 
@@ -521,9 +539,10 @@ export async function exchangeMaxInitData(
   initData: string,
   identityResolutionPort?: IdentityResolutionPort | null,
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
-): Promise<ExchangeResult | null> {
-  const parsed = await validateMaxInitData(initData);
-  if (!parsed) return null;
+): Promise<ExchangeResult | MaxInitExchangeDenied> {
+  const validated = await validateMaxInitData(initData);
+  if (!validated.ok) return { denied: true, reason: validated.reason };
+  const parsed = validated.data;
 
   const verifiedBinding = { channelCode: "max" as const, externalId: parsed.maxUserId };
   const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(

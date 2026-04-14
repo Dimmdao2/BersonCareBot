@@ -4,9 +4,9 @@
  * and connected email to system_settings(admin), redirects to Settings.
  */
 import { NextResponse } from "next/server";
-import { env } from "@/config/env";
 import { getCurrentSession } from "@/modules/auth/service";
 import {
+  getAppBaseUrl,
   getGoogleClientId,
   getGoogleClientSecret,
   getGoogleRedirectUri,
@@ -19,8 +19,9 @@ import {
 } from "@/modules/google-calendar/googleOAuthHelpers";
 import { verifySignedOAuthState } from "@/modules/auth/oauthSignedState";
 
-function settingsRedirect(params: Record<string, string>): NextResponse {
-  const url = new URL("/app/settings", env.APP_BASE_URL);
+async function settingsRedirect(params: Record<string, string>): Promise<NextResponse> {
+  const appBase = await getAppBaseUrl();
+  const url = new URL("/app/settings", appBase);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return NextResponse.redirect(url);
 }
@@ -28,24 +29,24 @@ function settingsRedirect(params: Record<string, string>): NextResponse {
 export async function GET(request: Request) {
   const session = await getCurrentSession();
   if (!session || session.user.role !== "admin") {
-    return settingsRedirect({ gcal: "error", reason: "unauthorized" });
+    return await settingsRedirect({ gcal: "error", reason: "unauthorized" });
   }
 
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";
 
   if (!stateFromQuery || !verifySignedOAuthState(stateFromQuery, "gcal")) {
-    return settingsRedirect({ gcal: "error", reason: "csrf" });
+    return await settingsRedirect({ gcal: "error", reason: "csrf" });
   }
 
   const errorParam = url.searchParams.get("error");
   if (errorParam) {
-    return settingsRedirect({ gcal: "error", reason: errorParam });
+    return await settingsRedirect({ gcal: "error", reason: errorParam });
   }
 
   const code = url.searchParams.get("code");
   if (!code) {
-    return settingsRedirect({ gcal: "error", reason: "no_code" });
+    return await settingsRedirect({ gcal: "error", reason: "no_code" });
   }
 
   const clientId = (await getGoogleClientId()).trim();
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
   const redirectUri = (await getGoogleRedirectUri()).trim();
 
   if (!clientId || !clientSecret || !redirectUri) {
-    return settingsRedirect({ gcal: "error", reason: "not_configured" });
+    return await settingsRedirect({ gcal: "error", reason: "not_configured" });
   }
 
   let accessToken: string;
@@ -63,11 +64,11 @@ export async function GET(request: Request) {
     accessToken = tokens.accessToken;
     refreshToken = tokens.refreshToken;
   } catch {
-    return settingsRedirect({ gcal: "error", reason: "exchange_failed" });
+    return await settingsRedirect({ gcal: "error", reason: "exchange_failed" });
   }
 
   if (!refreshToken) {
-    return settingsRedirect({ gcal: "error", reason: "no_refresh_token" });
+    return await settingsRedirect({ gcal: "error", reason: "no_refresh_token" });
   }
 
   const deps = buildAppDeps();
@@ -82,5 +83,5 @@ export async function GET(request: Request) {
     invalidateConfigKey("google_connected_email");
   }
 
-  return settingsRedirect({ gcal: "connected" });
+  return await settingsRedirect({ gcal: "connected" });
 }

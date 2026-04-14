@@ -5,7 +5,14 @@ vi.mock('../../config/env.js', () => ({
   integratorWebhookSecret: () => 'test-secret-16chars!!',
 }));
 
+vi.mock('../../config/appBaseUrl.js', () => ({
+  getAppBaseUrl: async () => 'https://webapp.test',
+}));
+
+import type { DbPort } from '../../kernel/contracts/index.js';
 import { createCommunicationReadsPort } from './communicationReadsPort.js';
+
+const mockDb = {} as DbPort;
 
 const originalFetch = globalThis.fetch;
 
@@ -47,7 +54,7 @@ describe('communicationReadsPort', () => {
         ],
       }),
     });
-    const port = createCommunicationReadsPort();
+    const port = createCommunicationReadsPort({ db: mockDb });
     const list = await port.listOpenConversations({ source: 'telegram', limit: 10 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0]!;
@@ -86,7 +93,7 @@ describe('communicationReadsPort', () => {
         },
       }),
     });
-    const port = createCommunicationReadsPort();
+    const port = createCommunicationReadsPort({ db: mockDb });
     const conv = await port.getConversationById('conv-2');
     expect(conv).not.toBeNull();
     expect(conv!.id).toBe('conv-2');
@@ -95,7 +102,7 @@ describe('communicationReadsPort', () => {
 
   it('getConversationById returns null for 404', async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({ ok: false, error: 'not_found' }) });
-    const port = createCommunicationReadsPort();
+    const port = createCommunicationReadsPort({ db: mockDb });
     const conv = await port.getConversationById('conv-missing');
     expect(conv).toBeNull();
   });
@@ -121,7 +128,7 @@ describe('communicationReadsPort', () => {
         ],
       }),
     });
-    const port = createCommunicationReadsPort();
+    const port = createCommunicationReadsPort({ db: mockDb });
     const list = await port.listUnansweredQuestions({ limit: 20 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0]!;
@@ -138,7 +145,7 @@ describe('communicationReadsPort', () => {
       status: 200,
       json: async () => ({ ok: true, question: { id: 'q-2', answered: true } }),
     });
-    const port = createCommunicationReadsPort();
+    const port = createCommunicationReadsPort({ db: mockDb });
     const q = await port.getQuestionByConversationId('conv-2');
     expect(q).not.toBeNull();
     expect(q!.id).toBe('q-2');
@@ -151,21 +158,21 @@ describe('communicationReadsPort', () => {
       status: 200,
       json: async () => ({ ok: true, question: null }),
     });
-    const port = createCommunicationReadsPort();
+    const port = createCommunicationReadsPort({ db: mockDb });
     const q = await port.getQuestionByConversationId('conv-no-q');
     expect(q).toBeNull();
   });
 
   it('returns empty list when webapp is unreachable', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network error'));
-    const port = createCommunicationReadsPort();
+    const port = createCommunicationReadsPort({ db: mockDb });
     const list = await port.listOpenConversations({});
     expect(list).toEqual([]);
   });
 
   it('returns null for getConversationById when fetch throws', async () => {
     fetchMock.mockRejectedValueOnce(new Error('timeout'));
-    const port = createCommunicationReadsPort();
+    const port = createCommunicationReadsPort({ db: mockDb });
     const conv = await port.getConversationById('conv-1');
     expect(conv).toBeNull();
   });

@@ -57,14 +57,23 @@ function resolveRoleAndBindings(params: WebappEntrySource): {
   };
 }
 
+function effectiveAppBaseUrl(override?: string | null): string | null {
+  const v = normalizeBase(override ?? env.APP_BASE_URL ?? '');
+  return v.length > 0 ? v : null;
+}
+
+function normalizeBase(s: string): string {
+  return s.trim().replace(/\/$/, '');
+}
+
 /**
  * Source-agnostic: builds signed webapp-entry token for telegram or max.
- * Returns null if APP_BASE_URL or entry secret are not set.
+ * Returns null if base URL (override, else env `APP_BASE_URL`) or entry secret are not set.
+ * @param appBaseUrlOverride — из `getAppBaseUrl(db)` / admin `app_base_url`; иначе env.
  */
-export function buildWebappEntryTokenFromSource(params: WebappEntrySource): string | null {
-  const baseUrl = env.APP_BASE_URL;
+export function buildWebappEntryTokenFromSource(params: WebappEntrySource, appBaseUrlOverride?: string | null): string | null {
   const secret = integratorWebappEntrySecret();
-  if (!baseUrl || !secret) return null;
+  if (!effectiveAppBaseUrl(appBaseUrlOverride) || !secret) return null;
 
   const { role, sub, bindings } = resolveRoleAndBindings(params);
   const now = Math.floor(Date.now() / 1000);
@@ -92,10 +101,11 @@ export function buildWebappEntryTokenFromSource(params: WebappEntrySource): stri
 /**
  * Returns the full webapp entry URL with signed token (source-agnostic).
  */
-export function buildWebappEntryUrlFromSource(params: WebappEntrySource): string | null {
-  const token = buildWebappEntryTokenFromSource(params);
+export function buildWebappEntryUrlFromSource(params: WebappEntrySource, appBaseUrlOverride?: string | null): string | null {
+  const token = buildWebappEntryTokenFromSource(params, appBaseUrlOverride);
   if (!token) return null;
-  const baseUrl = env.APP_BASE_URL!.replace(/\/$/, '');
+  const baseUrl = effectiveAppBaseUrl(appBaseUrlOverride);
+  if (!baseUrl) return null;
   return `${baseUrl}/app?t=${encodeURIComponent(token)}`;
 }
 
@@ -124,25 +134,31 @@ export function buildWebappEntryTokenForMax(params: {
 }
 
 /** Returns the full webapp entry URL for MAX user. */
-export function buildWebappEntryUrlForMax(params: {
-  maxId: string;
-  displayName?: string;
-  integratorUserId?: string;
-}): string | null {
+export function buildWebappEntryUrlForMax(
+  params: {
+    maxId: string;
+    displayName?: string;
+    integratorUserId?: string;
+  },
+  appBaseUrlOverride?: string | null,
+): string | null {
   const src: WebappEntrySource = { source: 'max', maxId: params.maxId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
   if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
-  return buildWebappEntryUrlFromSource(src);
+  return buildWebappEntryUrlFromSource(src, appBaseUrlOverride);
 }
 
 /** Returns the full webapp entry URL for Telegram user. */
-export function buildWebappEntryUrl(params: {
-  chatId: number;
-  displayName?: string;
-  integratorUserId?: string;
-}): string | null {
+export function buildWebappEntryUrl(
+  params: {
+    chatId: number;
+    displayName?: string;
+    integratorUserId?: string;
+  },
+  appBaseUrlOverride?: string | null,
+): string | null {
   const src: WebappEntrySource = { source: 'telegram', chatId: params.chatId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
   if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
-  return buildWebappEntryUrlFromSource(src);
+  return buildWebappEntryUrlFromSource(src, appBaseUrlOverride);
 }

@@ -10,6 +10,8 @@ export const ALLOWED_KEYS = [
   "important_fallback_delay_minutes",
   "integration_test_ids",
   // Non-secret runtime config
+  /** Публичный origin веб-приложения (https://…), без завершающего /. Ссылки /app/… строятся от него. Fallback: env APP_BASE_URL. */
+  "app_base_url",
   /** Публичная ссылка поддержки (HTTPS), например https://t.me/… */
   "support_contact_url",
   /** Имя бота для Telegram Login Widget (без @), публичный идентификатор виджета. */

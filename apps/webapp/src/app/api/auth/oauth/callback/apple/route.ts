@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { env, webappReposAreInMemory } from "@/config/env";
+import { webappReposAreInMemory } from "@/config/env";
 import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import {
   getAppleOauthClientId,
@@ -7,6 +7,7 @@ import {
   getAppleOauthTeamId,
   getAppleOauthKeyId,
   getAppleOauthPrivateKey,
+  getAppBaseUrl,
 } from "@/modules/system-settings/integrationRuntime";
 import {
   buildAppleClientSecretJwt,
@@ -26,10 +27,11 @@ import {
  * POST /api/auth/oauth/callback/apple — Sign in with Apple (`response_mode=form_post`).
  */
 export async function POST(request: Request) {
+  const appBase = await getAppBaseUrl();
   const ct = request.headers.get("content-type") ?? "";
   if (!ct.includes("application/x-www-form-urlencoded")) {
     return NextResponse.redirect(
-      new URL(oauthWebLoginErrorRedirect("invalid_content_type"), env.APP_BASE_URL),
+      new URL(oauthWebLoginErrorRedirect("invalid_content_type"), appBase),
     );
   }
 
@@ -38,25 +40,25 @@ export async function POST(request: Request) {
     const text = await request.text();
     params = new URLSearchParams(text);
   } catch {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("invalid_body"), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("invalid_body"), appBase));
   }
 
   const stateRaw = params.get("state") ?? "";
   const verified = parseVerifiedSignedOAuthState(stateRaw, "apple");
   if (!verified || !verified.nonce) {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("invalid_state"), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("invalid_state"), appBase));
   }
 
   const errorParam = params.get("error");
   if (errorParam) {
     return NextResponse.redirect(
-      new URL(oauthWebLoginErrorRedirect(errorParam.slice(0, 80)), env.APP_BASE_URL),
+      new URL(oauthWebLoginErrorRedirect(errorParam.slice(0, 80)), appBase),
     );
   }
 
   const code = params.get("code");
   if (!code) {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_code"), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_code"), appBase));
   }
 
   const clientId = (await getAppleOauthClientId()).trim();
@@ -66,7 +68,7 @@ export async function POST(request: Request) {
   const privateKey = (await getAppleOauthPrivateKey()).trim();
 
   if (!clientId || !redirectUri || !teamId || !keyId || !privateKey) {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("not_configured"), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("not_configured"), appBase));
   }
 
   let clientSecretJwt: string;
@@ -78,7 +80,7 @@ export async function POST(request: Request) {
       privateKeyPem: privateKey,
     });
   } catch {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("apple_jwt_failed"), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("apple_jwt_failed"), appBase));
   }
 
   let idToken: string | undefined;
@@ -91,11 +93,11 @@ export async function POST(request: Request) {
     });
     idToken = tokens.id_token;
   } catch {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("exchange_failed"), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("exchange_failed"), appBase));
   }
 
   if (!idToken) {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_id_token"), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_id_token"), appBase));
   }
 
   let claims: { sub: string; email?: string };
@@ -106,7 +108,7 @@ export async function POST(request: Request) {
       expectedNonce: verified.nonce,
     });
   } catch {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("id_token_invalid"), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("id_token_invalid"), appBase));
   }
 
   const userFromForm = parseAppleUserNameJson(params.get("user"));
@@ -128,12 +130,12 @@ export async function POST(request: Request) {
   if (!resolved.ok) {
     const r = resolved.reason;
     if (r === "no_identity") {
-      return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_identity"), env.APP_BASE_URL));
+      return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("no_identity"), appBase));
     }
     if (r === "email_ambiguous") {
-      return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("email_ambiguous"), env.APP_BASE_URL));
+      return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("email_ambiguous"), appBase));
     }
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("db_error"), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("db_error"), appBase));
   }
 
   const done = await completeOAuthWebLoginRedirectUrls({
@@ -142,7 +144,7 @@ export async function POST(request: Request) {
   });
 
   if (!done.ok) {
-    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect(done.reason), env.APP_BASE_URL));
+    return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect(done.reason), appBase));
   }
 
   return NextResponse.redirect(done.redirectUrl);

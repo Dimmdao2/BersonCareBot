@@ -1,4 +1,4 @@
-import { env } from "@/config/env";
+import { getAppBaseUrl } from "@/modules/system-settings/integrationRuntime";
 import { setSessionFromUser } from "@/modules/auth/service";
 import { getRedirectPathForRole } from "@/modules/auth/redirectPolicy";
 import { resolveRoleAsync } from "@/modules/auth/envRole";
@@ -16,6 +16,7 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   userId: string;
   displayNameHint: string;
 }): Promise<{ ok: true; redirectUrl: string } | { ok: false; reason: string }> {
+  const appBase = await getAppBaseUrl();
   let sessionUser;
   try {
     sessionUser = await pgUserByPhonePort.findByUserId(opts.userId);
@@ -47,11 +48,11 @@ export async function completeOAuthWebLoginRedirectUrls(opts: {
   const finalRedirect = getRedirectPathForRole(role);
 
   if (!sessionUser.phone) {
-    const bindPhoneUrl = new URL(routePaths.bindPhone, env.APP_BASE_URL);
+    const bindPhoneUrl = new URL(routePaths.bindPhone, appBase);
     bindPhoneUrl.searchParams.set("next", finalRedirect);
     bindPhoneUrl.searchParams.set("reason", "oauth_phone_required");
     return { ok: true, redirectUrl: bindPhoneUrl.toString() };
   }
 
-  return { ok: true, redirectUrl: new URL(finalRedirect, env.APP_BASE_URL).toString() };
+  return { ok: true, redirectUrl: new URL(finalRedirect, appBase).toString() };
 }

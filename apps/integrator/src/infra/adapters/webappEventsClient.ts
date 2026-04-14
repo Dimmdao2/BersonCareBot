@@ -3,7 +3,7 @@
  * Contract: webapp/INTEGRATOR_CONTRACT.md; GET sign payload: timestamp.canonicalGet (canonicalGet = "GET pathname?query").
  */
 import { createHash, createHmac } from 'node:crypto';
-import { env, integratorWebhookSecret } from '../../config/env.js';
+import { integratorWebhookSecret } from '../../config/env.js';
 import type {
   WebappEventBody,
   WebappEventsPort,
@@ -52,12 +52,12 @@ async function fetchSignedGet<T>(input: {
   }
 }
 
-export function createWebappEventsPort(): WebappEventsPort {
-  const baseUrl = env.APP_BASE_URL ?? '';
+export function createWebappEventsPort(deps: { getAppBaseUrl: () => Promise<string> }): WebappEventsPort {
   const secret = integratorWebhookSecret();
 
   return {
     async emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }> {
+      const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
         return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
       }
@@ -140,6 +140,7 @@ export function createWebappEventsPort(): WebappEventsPort {
       trackings?: WebappSymptomTracking[];
       error?: string;
     }> {
+      const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
         return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
@@ -162,6 +163,7 @@ export function createWebappEventsPort(): WebappEventsPort {
       complexes?: WebappLfkComplex[];
       error?: string;
     }> {
+      const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
         return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }
@@ -184,6 +186,7 @@ export function createWebappEventsPort(): WebappEventsPort {
       channelCode: string;
       externalId: string;
     }): Promise<{ ok: boolean; error?: string; needsPhone?: boolean }> {
+      const baseUrl = await deps.getAppBaseUrl();
       if (!baseUrl || !secret) {
         return { ok: false, error: 'APP_BASE_URL or webhook secret not set' };
       }

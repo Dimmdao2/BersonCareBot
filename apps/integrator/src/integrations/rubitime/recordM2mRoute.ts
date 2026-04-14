@@ -5,6 +5,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { logger } from '../../infra/observability/logger.js';
+import { getAppBaseUrl } from '../../config/appBaseUrl.js';
 import { createDbPort } from '../../infra/db/client.js';
 import { enqueueMessageRetryJob } from '../../infra/db/repos/jobQueue.js';
 import { createDeliveryTargetsPort } from '../../infra/adapters/deliveryTargetsPort.js';
@@ -135,7 +136,9 @@ async function sendLinkedChannelMessage(input: {
   eventId: string;
 }): Promise<void> {
   if (!input.phoneNormalized) return;
-  const deliveryTargets = createDeliveryTargetsPort();
+  const deliveryTargets = createDeliveryTargetsPort({
+    getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
+  });
   const bindings = await deliveryTargets.getTargetsByPhone(input.phoneNormalized);
   if (!bindings) return;
 
@@ -225,7 +228,9 @@ async function scheduleBookingReminders(input: {
   patientName: string | null;
   timeZone: string;
 }): Promise<void> {
-  const deliveryTargets = createDeliveryTargetsPort();
+  const deliveryTargets = createDeliveryTargetsPort({
+    getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
+  });
   const bindings = input.phoneNormalized
     ? await deliveryTargets.getTargetsByPhone(input.phoneNormalized)
     : null;

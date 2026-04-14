@@ -10,21 +10,22 @@ import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
 import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
 import { routePaths } from "@/app-layer/routes/paths";
 import {
+  getAppBaseUrl,
   getYandexOauthClientId,
   getYandexOauthClientSecret,
   getYandexOauthRedirectUri,
 } from "@/modules/system-settings/integrationRuntime";
 import { verifySignedOAuthState } from "@/modules/auth/oauthSignedState";
 
-function redirectToAppQuery(reason: string): URL {
-  return new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, env.APP_BASE_URL);
-}
-
 /**
  * Yandex OAuth callback: signed state → code → token → userinfo → resolve user → session → redirect.
  * Used by {@link GET} on `/api/auth/oauth/callback/yandex` and legacy `/api/auth/oauth/callback`.
  */
 export async function handleYandexOAuthCallbackGet(request: Request): Promise<NextResponse> {
+  const appBase = await getAppBaseUrl();
+  const redirectToAppQuery = (reason: string): URL =>
+    new URL(`/app?oauth=error&reason=${encodeURIComponent(reason)}`, appBase);
+
   const url = new URL(request.url);
   const stateFromQuery = url.searchParams.get("state") ?? "";
 
@@ -40,7 +41,7 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   const secret = (await getYandexOauthClientSecret()).trim();
 
   if (!clientId || !redirectUri || !secret) {
-    return NextResponse.redirect(new URL("/app?oauth=disabled&reason=not_configured", env.APP_BASE_URL));
+    return NextResponse.redirect(new URL("/app?oauth=disabled&reason=not_configured", appBase));
   }
 
   const code = url.searchParams.get("code");
@@ -124,11 +125,11 @@ export async function handleYandexOAuthCallbackGet(request: Request): Promise<Ne
   const finalRedirect = getRedirectPathForRole(role);
 
   if (!sessionUser.phone) {
-    const bindPhoneUrl = new URL(routePaths.bindPhone, env.APP_BASE_URL);
+    const bindPhoneUrl = new URL(routePaths.bindPhone, appBase);
     bindPhoneUrl.searchParams.set("next", finalRedirect);
     bindPhoneUrl.searchParams.set("reason", "oauth_phone_required");
     return NextResponse.redirect(bindPhoneUrl);
   }
 
-  return NextResponse.redirect(new URL(finalRedirect, env.APP_BASE_URL));
+  return NextResponse.redirect(new URL(finalRedirect, appBase));
 }

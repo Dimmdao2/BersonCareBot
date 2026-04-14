@@ -1,4 +1,4 @@
-import { env } from "@/config/env";
+import { getAppBaseUrlSync } from "@/modules/system-settings/integrationRuntime";
 import { relayOutbound } from "@/modules/messaging/relayOutbound";
 import { getConfigValue } from "@/modules/system-settings/configAdapter";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
@@ -39,10 +39,10 @@ export function buildIntakeNotifyText(input: {
 
 /**
  * Deep-link на карточку заявки (online intake request id = UUID).
- * База: `APP_BASE_URL` (bootstrap deploy). При пустом `requestId` — только список (без регресса).
+ * База: admin `app_base_url` или env `APP_BASE_URL`. При пустом `requestId` — только список (без регресса).
  */
 export function buildIntakeDeepLink(requestId: string): string {
-  const base = (env.APP_BASE_URL ?? "").replace(/\/$/, "");
+  const base = getAppBaseUrlSync().replace(/\/$/, "");
   if (!base) {
     return "";
   }

@@ -17,9 +17,11 @@ const ADMIN_SCOPE_KEYS = [
   "platform_user_merge_v2_enabled",
   "important_fallback_delay_minutes",
   "integration_test_ids",
+  "app_base_url",
   "support_contact_url",
   "telegram_login_bot_username",
   "max_login_bot_nickname",
+  "max_bot_api_key",
   "vk_web_login_url",
   "app_display_timezone",
   "yandex_oauth_client_id",
@@ -57,6 +59,7 @@ const patchSchema = z.object({
 });
 
 const SECRET_LIKE_KEYS = new Set<string>([
+  "max_bot_api_key",
   "yandex_oauth_client_secret",
   "google_client_secret",
   "google_refresh_token",

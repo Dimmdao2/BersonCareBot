@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { env } from "@/config/env";
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from "@/modules/system-settings/appDisplayTimezone";
 import { DEFAULT_SUPPORT_CONTACT_URL } from "@/modules/system-settings/supportContactConstants";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,11 @@ export default async function SettingsPage() {
 
   const appParametersConfig = isAdmin && adminMode
     ? {
+        appBaseUrl: (() => {
+          const raw = getValueJson(adminSettingsList.find((x) => x.key === "app_base_url")?.valueJson, "");
+          const s = typeof raw === "string" ? raw.trim() : "";
+          return s.length > 0 ? s : env.APP_BASE_URL.replace(/\/$/, "");
+        })(),
         supportContactUrl: (() => {
           const raw = getValueJson(adminSettingsList.find((x) => x.key === "support_contact_url")?.valueJson, "");
           const s = typeof raw === "string" ? raw.trim() : "";

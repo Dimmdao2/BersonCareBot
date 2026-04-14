@@ -39,19 +39,16 @@ function bindingsToLookupItem(
   return null;
 }
 
-/** Optional base URL of the webapp (e.g. https://webapp.example.com). Used as fallback for booking item links when RubiTime does not provide one. */
+/** Optional resolver for webapp base URL (admin `app_base_url` or env). Used as fallback for booking item links when RubiTime does not provide one. */
 export type ContextQueryPortInput = {
   readPort: DbReadPort;
-  webappBaseUrl?: string | null;
+  getWebappBaseUrl?: () => Promise<string | null>;
   /** Webapp-backed delivery targets; used for product-side person/channel lookup instead of legacy readPort user.lookup. */
   deliveryTargetsPort?: DeliveryTargetsPort | null;
 };
 
 export function createContextQueryPort(input: ContextQueryPortInput): ContextQueryPort {
-  const webappBaseUrl = typeof input.webappBaseUrl === 'string' && input.webappBaseUrl.trim().length > 0
-    ? input.webappBaseUrl.replace(/\/$/, '')
-    : null;
-  const cabinetFallbackLink = webappBaseUrl ? `${webappBaseUrl}/app/patient/cabinet` : null;
+  const getWebappBaseUrl = input.getWebappBaseUrl;
   const deliveryTargetsPort = input.deliveryTargetsPort ?? null;
 
   return {
@@ -77,6 +74,12 @@ export function createContextQueryPort(input: ContextQueryPortInput): ContextQue
             type: 'booking.activeByUser',
             params: { userId },
           });
+          let cabinetFallbackLink: string | null = null;
+          if (getWebappBaseUrl) {
+            const w = await getWebappBaseUrl();
+            const base = typeof w === 'string' && w.trim().length > 0 ? w.trim().replace(/\/$/, '') : null;
+            cabinetFallbackLink = base ? `${base}/app/patient/cabinet` : null;
+          }
           const items = Array.isArray(rawItems)
             ? rawItems.map((item) => ({
                 ...item,

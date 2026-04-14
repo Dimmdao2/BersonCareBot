@@ -6,7 +6,14 @@ vi.mock('../../config/env.js', () => ({
   integratorWebhookSecret: () => 'test-secret-16chars!!',
 }));
 
+vi.mock('../../config/appBaseUrl.js', () => ({
+  getAppBaseUrl: async () => 'https://webapp.test',
+}));
+
+import type { DbPort } from '../../kernel/contracts/index.js';
 import { createSubscriptionMailingReadsPort } from './subscriptionMailingReadsPort.js';
+
+const mockDb = {} as DbPort;
 
 const originalFetch = globalThis.fetch;
 
@@ -33,7 +40,7 @@ describe('subscriptionMailingReadsPort', () => {
         ],
       }),
     });
-    const port = createSubscriptionMailingReadsPort();
+    const port = createSubscriptionMailingReadsPort({ db: mockDb });
     const list = await port.listTopics();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, opts] = fetchMock.mock.calls[0]!;
@@ -52,7 +59,7 @@ describe('subscriptionMailingReadsPort', () => {
 
   it('listTopics returns [] when fetch rejects', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
-    const port = createSubscriptionMailingReadsPort();
+    const port = createSubscriptionMailingReadsPort({ db: mockDb });
     const list = await port.listTopics();
     expect(list).toEqual([]);
   });
@@ -63,7 +70,7 @@ describe('subscriptionMailingReadsPort', () => {
       status: 503,
       json: async () => ({ ok: false }),
     });
-    const port = createSubscriptionMailingReadsPort();
+    const port = createSubscriptionMailingReadsPort({ db: mockDb });
     const list = await port.listTopics();
     expect(list).toEqual([]);
   });
@@ -74,7 +81,7 @@ describe('subscriptionMailingReadsPort', () => {
       status: 200,
       json: async () => ({ ok: false }),
     });
-    const port = createSubscriptionMailingReadsPort();
+    const port = createSubscriptionMailingReadsPort({ db: mockDb });
     const list = await port.listTopics();
     expect(list).toEqual([]);
   });
@@ -90,7 +97,7 @@ describe('subscriptionMailingReadsPort', () => {
         ],
       }),
     });
-    const port = createSubscriptionMailingReadsPort();
+    const port = createSubscriptionMailingReadsPort({ db: mockDb });
     const list = await port.getSubscriptionsByUserId('42');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0]!;
@@ -106,7 +113,7 @@ describe('subscriptionMailingReadsPort', () => {
 
   it('getSubscriptionsByUserId returns [] when fetch rejects', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
-    const port = createSubscriptionMailingReadsPort();
+    const port = createSubscriptionMailingReadsPort({ db: mockDb });
     const list = await port.getSubscriptionsByUserId('42');
     expect(list).toEqual([]);
   });
@@ -117,7 +124,7 @@ describe('subscriptionMailingReadsPort', () => {
       status: 503,
       json: async () => ({ ok: false }),
     });
-    const port = createSubscriptionMailingReadsPort();
+    const port = createSubscriptionMailingReadsPort({ db: mockDb });
     const list = await port.getSubscriptionsByUserId('42');
     expect(list).toEqual([]);
   });

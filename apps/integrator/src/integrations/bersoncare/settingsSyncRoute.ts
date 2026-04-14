@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
+import { invalidateAppBaseUrlCache } from '../../config/appBaseUrl.js';
 import { invalidateAppDisplayTimezoneCache } from '../../config/appTimezone.js';
 import { invalidateGoogleCalendarConfigCache } from '../google-calendar/runtimeConfig.js';
 
@@ -92,6 +93,9 @@ export async function registerBersoncareSettingsSyncRoute(
       return reply.code(502).send({ ok: false, error: 'write_failed' });
     }
 
+    if (key === 'app_base_url') {
+      invalidateAppBaseUrlCache();
+    }
     if (key === 'app_display_timezone') {
       invalidateAppDisplayTimezoneCache();
     }

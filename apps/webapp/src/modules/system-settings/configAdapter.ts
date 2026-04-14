@@ -53,6 +53,18 @@ async function fetchFromDb(key: string): Promise<string | null> {
 }
 
 /**
+ * Synchronous read: cache hit → env fallback (no DB). Use after async warm-up or accept first-hit env.
+ */
+export function getConfigValueSync(key: string, envFallback: string): string {
+  const now = Date.now();
+  const cached = cache.get(key);
+  if (cached && now - cached.fetchedAt < TTL_MS) {
+    return cached.value;
+  }
+  return envFallback;
+}
+
+/**
  * Get a runtime config value.
  * Order: in-memory cache → system_settings DB → envFallback.
  *

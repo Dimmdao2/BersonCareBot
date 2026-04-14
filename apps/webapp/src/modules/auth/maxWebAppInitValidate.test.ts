@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { parseMaxWebAppInitDataValidated } from "./maxWebAppInitValidate";
+import { parseMaxWebAppInitDataValidated, parseMaxWebAppInitDataDetailed } from "./maxWebAppInitValidate";
 
 function buildSignedMaxInitData(botToken: string, userId: number): string {
   const authDate = Math.floor(Date.now() / 1000);
@@ -47,5 +47,31 @@ describe("parseMaxWebAppInitDataValidated", () => {
     let raw = buildSignedMaxInitData(token, 1);
     raw = raw.replace(encodeURIComponent("1"), encodeURIComponent("2"));
     expect(parseMaxWebAppInitDataValidated(raw, token)).toBeNull();
+  });
+});
+
+describe("parseMaxWebAppInitDataDetailed", () => {
+  it("returns signature_mismatch when bot token does not match signature", () => {
+    const token = "test-max-bot-token-32chars!!";
+    const raw = buildSignedMaxInitData(token, 1);
+    expect(parseMaxWebAppInitDataDetailed(raw, "other-token")).toEqual({
+      ok: false,
+      reason: "signature_mismatch",
+    });
+  });
+
+  it("returns empty_bot_token when token is blank", () => {
+    expect(parseMaxWebAppInitDataDetailed("auth_date=1&user=%7B%22id%22%3A1%7D&hash=ab", "   ")).toEqual({
+      ok: false,
+      reason: "empty_bot_token",
+    });
+  });
+
+  it("returns hash_missing_or_duplicate when hash field is absent", () => {
+    const r = parseMaxWebAppInitDataDetailed(
+      "user=%7B%22id%22%3A1%7D&auth_date=9999999999",
+      "test-max-bot-token-32chars!!",
+    );
+    expect(r).toEqual({ ok: false, reason: "hash_missing_or_duplicate" });
   });
 });

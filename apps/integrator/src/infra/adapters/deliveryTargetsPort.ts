@@ -3,15 +3,18 @@
  * Used for Rubitime/booking and reminder fan-out to all linked channels.
  */
 import { createHmac } from 'node:crypto';
-import { env, integratorWebhookSecret } from '../../config/env.js';
+import { integratorWebhookSecret } from '../../config/env.js';
 import type { DeliveryTargetsPort, DeliveryTargetsChannelBindings } from '../../kernel/contracts/index.js';
 
 function signGet(timestamp: string, canonicalGet: string, secret: string): string {
   return createHmac('sha256', secret).update(`${timestamp}.${canonicalGet}`).digest('base64url');
 }
 
-async function fetchDeliveryTargets(query: Record<string, string>): Promise<DeliveryTargetsChannelBindings | null> {
-  const baseUrl = env.APP_BASE_URL ?? '';
+async function fetchDeliveryTargets(
+  getAppBaseUrl: () => Promise<string>,
+  query: Record<string, string>,
+): Promise<DeliveryTargetsChannelBindings | null> {
+  const baseUrl = await getAppBaseUrl();
   const secret = integratorWebhookSecret();
   if (!baseUrl || !secret) return null;
 
@@ -36,18 +39,20 @@ async function fetchDeliveryTargets(query: Record<string, string>): Promise<Deli
   }
 }
 
-export function createDeliveryTargetsPort(): DeliveryTargetsPort {
+export function createDeliveryTargetsPort(deps: { getAppBaseUrl: () => Promise<string> }): DeliveryTargetsPort {
+  const { getAppBaseUrl } = deps;
   return {
     async getTargetsByPhone(phoneNormalized: string): Promise<DeliveryTargetsChannelBindings | null> {
       if (!phoneNormalized || !phoneNormalized.trim()) return null;
-      return fetchDeliveryTargets({ phone: phoneNormalized.trim() });
+      return fetchDeliveryTargets(getAppBaseUrl, { phone: phoneNormalized.trim() });
     },
     async getTargetsByChannelBinding(params: {
       telegramId?: string;
       maxId?: string;
     }): Promise<DeliveryTargetsChannelBindings | null> {
-      if (params.telegramId?.trim()) return fetchDeliveryTargets({ telegramId: params.telegramId.trim() });
-      if (params.maxId?.trim()) return fetchDeliveryTargets({ maxId: params.maxId.trim() });
+      if (params.telegramId?.trim())
+        return fetchDeliveryTargets(getAppBaseUrl, { telegramId: params.telegramId.trim() });
+      if (params.maxId?.trim()) return fetchDeliveryTargets(getAppBaseUrl, { maxId: params.maxId.trim() });
       return null;
     },
   };

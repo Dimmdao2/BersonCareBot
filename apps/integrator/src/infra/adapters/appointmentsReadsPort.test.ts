@@ -5,7 +5,14 @@ vi.mock('../../config/env.js', () => ({
   integratorWebhookSecret: () => 'test-secret-16chars!!',
 }));
 
+vi.mock('../../config/appBaseUrl.js', () => ({
+  getAppBaseUrl: async () => 'https://webapp.test',
+}));
+
+import type { DbPort } from '../../kernel/contracts/index.js';
 import { createAppointmentsReadsPort } from './appointmentsReadsPort.js';
+
+const mockDb = {} as DbPort;
 
 const originalFetch = globalThis.fetch;
 
@@ -36,7 +43,7 @@ describe('appointmentsReadsPort', () => {
         },
       }),
     });
-    const port = createAppointmentsReadsPort();
+    const port = createAppointmentsReadsPort({ db: mockDb });
     const record = await port.getRecordByExternalId('rec-1');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0]!;
@@ -58,14 +65,14 @@ describe('appointmentsReadsPort', () => {
       status: 200,
       json: async () => ({ ok: true, record: null }),
     });
-    const port = createAppointmentsReadsPort();
+    const port = createAppointmentsReadsPort({ db: mockDb });
     const record = await port.getRecordByExternalId('rec-missing');
     expect(record).toBeNull();
   });
 
   it('getRecordByExternalId returns null on network error', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
-    const port = createAppointmentsReadsPort();
+    const port = createAppointmentsReadsPort({ db: mockDb });
     const record = await port.getRecordByExternalId('rec-1');
     expect(record).toBeNull();
   });
@@ -76,7 +83,7 @@ describe('appointmentsReadsPort', () => {
       status: 503,
       json: async () => ({ ok: false }),
     });
-    const port = createAppointmentsReadsPort();
+    const port = createAppointmentsReadsPort({ db: mockDb });
     const record = await port.getRecordByExternalId('rec-1');
     expect(record).toBeNull();
   });
@@ -97,7 +104,7 @@ describe('appointmentsReadsPort', () => {
         ],
       }),
     });
-    const port = createAppointmentsReadsPort();
+    const port = createAppointmentsReadsPort({ db: mockDb });
     const list = await port.getActiveRecordsByPhone('+79991234567');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url] = fetchMock.mock.calls[0]!;
@@ -112,7 +119,7 @@ describe('appointmentsReadsPort', () => {
 
   it('getActiveRecordsByPhone returns [] on network error', async () => {
     fetchMock.mockRejectedValueOnce(new Error('network'));
-    const port = createAppointmentsReadsPort();
+    const port = createAppointmentsReadsPort({ db: mockDb });
     const list = await port.getActiveRecordsByPhone('+79991234567');
     expect(list).toEqual([]);
   });
@@ -123,7 +130,7 @@ describe('appointmentsReadsPort', () => {
       status: 503,
       json: async () => ({}),
     });
-    const port = createAppointmentsReadsPort();
+    const port = createAppointmentsReadsPort({ db: mockDb });
     const list = await port.getActiveRecordsByPhone('+79991234567');
     expect(list).toEqual([]);
   });

@@ -1,8 +1,8 @@
 /**
  * Patient deep links for integrator reminder sends (STAGE_1 S1.T07).
- * Mirrors webapp `buildReminderDeepLink` paths; base URL from infra bootstrap.
+ * Mirrors webapp `buildReminderDeepLink` paths; base URL from admin `app_base_url` or env.
  */
-import { env } from '../../../config/env.js';
+import { getAppBaseUrlSync } from '../../../config/appBaseUrl.js';
 
 const KNOWN = new Set(['lfk_complex', 'content_section', 'content_page', 'custom']);
 
@@ -10,7 +10,7 @@ export function buildPatientReminderDeepLink(params: {
   linkedObjectType: string | null | undefined;
   linkedObjectId: string | null | undefined;
 }): string {
-  const base = (env.APP_BASE_URL ?? '').replace(/\/$/, '');
+  const base = getAppBaseUrlSync().replace(/\/$/, '');
   if (!base) return '/app/patient/reminders?from=reminder';
   const rawType = typeof params.linkedObjectType === 'string' ? params.linkedObjectType.trim() : '';
   const linkedObjectType = KNOWN.has(rawType) ? rawType : null;
