@@ -27,6 +27,7 @@ function requestDiagnostics(request: Request): {
   queryArgs: string;
   userAgent: string | null;
   authFlow: "max_initData";
+  correlationId: string | null;
 } {
   const u = new URL(request.url);
   const queryArgs = u.search.startsWith("?") ? u.search.slice(1) : u.search;
@@ -35,6 +36,7 @@ function requestDiagnostics(request: Request): {
     queryArgs,
     userAgent: request.headers.get("user-agent"),
     authFlow: "max_initData",
+    correlationId: request.headers.get("x-bc-auth-correlation-id"),
   };
 }
 

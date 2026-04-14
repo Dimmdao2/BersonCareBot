@@ -2,17 +2,22 @@
 
 /**
  * Блок входа: обмен токена из ссылки на сессию, вход через initData Mini App (Telegram или MAX) или по номеру (AuthFlowV2).
- * Разделение сценариев: `authEntryFlow.ts` (telegram / max / browser). Для MAX query JWT не основной путь;
- * при `ctx=max` токен в URL не используется; иначе initData обрабатывается раньше отложенного `auth/exchange`.
+ * Стратегия опроса и ожидания MAX bridge: `messengerAuthStrategy.ts`. URL-only классификация: `authEntryFlow.ts`.
  */
 
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   classifyAuthEntryFlowFromSearchParams,
   shouldSuppressQueryJwtForMaxCtx,
   type AuthEntryFlow,
 } from "@/modules/auth/authEntryFlow";
+import {
+  MAX_INIT_DATA_TIMEOUT_USER_MESSAGE,
+  MESSENGER_INIT_POLL_CAP_MS,
+  isLikelyMaxMiniAppSurface,
+  shouldDeferPhoneLoginWhileMaxBridgeMayLoad,
+} from "@/modules/auth/messengerAuthStrategy";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { AuthFlowV2, type AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
 import { MaxBridgeScript } from "@/shared/ui/MaxBridgeScript";
@@ -38,11 +43,20 @@ const TOKEN_FALLBACK_MS = 1100;
 
 function logAuthBootstrap(
   message: string,
-  fields: { flow: AuthEntryFlow; [k: string]: string | number | boolean | undefined },
+  fields: { flow: AuthEntryFlow; correlationId: string; [k: string]: string | number | boolean | undefined },
 ): void {
   if (process.env.NODE_ENV === "test") return;
-  const { flow, ...rest } = fields;
-  console.info(`[auth/bootstrap] ${message}`, { flow, ...rest });
+  const { flow, correlationId, ...rest } = fields;
+  console.info(`[auth/bootstrap] ${message}`, { flow, correlationId, ...rest });
+}
+
+function parseJsonSafe(text: string): { redirectTo?: string; role?: "client" | "doctor" | "admin" } | null {
+  if (!text.trim()) return null;
+  try {
+    return JSON.parse(text) as { redirectTo?: string; role?: "client" | "doctor" | "admin" };
+  } catch {
+    return null;
+  }
 }
 
 /** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — AuthFlowV2. */
@@ -54,6 +68,13 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   const token = suppressQueryJwt ? null : rawToken;
   const nextParam = searchParams.get("next");
   const debug = searchParams.get("debug") === "1";
+  const correlationId = useMemo(() => {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+      return crypto.randomUUID();
+    }
+    return `bc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 11)}`;
+  }, []);
+
   const [state, setState] = useState<BootstrapState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<{ status?: number; message?: string } | null>(null);
@@ -73,7 +94,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
     const flowHint = classifyAuthEntryFlowFromSearchParams(searchParams);
 
-    const POLL_MS_MAX = 15000;
+    const POLL_MS_MAX = MESSENGER_INIT_POLL_CAP_MS;
     const TICK_MS = 100;
     const STABLE_EMPTY_TICKS = 10;
 
@@ -81,6 +102,11 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     let intervalId: ReturnType<typeof setInterval> | undefined;
     let stableWebAppEmptyTicks = 0;
     const t0 = Date.now();
+
+    const authHeaders = (): Record<string, string> => ({
+      "content-type": "application/json",
+      "x-bc-auth-correlation-id": correlationId,
+    });
 
     const stopPolling = () => {
       if (intervalId !== undefined) {
@@ -99,38 +125,54 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       stopPolling();
       queueMicrotask(() => setState("loading"));
 
+      const entry = endpoint === "/api/auth/max-init" ? "max_initData" : "telegram_initData";
       if (endpoint === "/api/auth/max-init") {
         logAuthBootstrap("client max-init", {
           flow: flowHint,
+          correlationId,
           initDataLength: initData.length,
-          entry: "max_initData",
+          entry,
         });
       } else {
         logAuthBootstrap("client telegram-init", {
           flow: flowHint,
+          correlationId,
           initDataLength: initData.length,
-          entry: "telegram_initData",
+          entry,
         });
       }
 
       void fetch(endpoint, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify({ initData }),
       })
         .then(async (response) => {
           const text = await response.text();
           if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
-          if (response.status === 403 || response.status === 401) {
+          if (!response.ok) {
+            setState("error");
+            if (response.status >= 500) {
+              setError("Сервис временно недоступен. Попробуйте позже.");
+            } else if (endpoint === "/api/auth/max-init" && response.status === 400) {
+              setError("Некорректные данные для входа через MAX.");
+            } else {
+              setError("Не удалось войти");
+            }
+            logAuthBootstrap("messenger-init failed", {
+              flow: flowHint,
+              correlationId,
+              entry,
+              httpStatus: response.status,
+            });
+            return;
+          }
+          const payload = parseJsonSafe(text);
+          if (!payload?.redirectTo) {
             setState("error");
             setError("Не удалось войти");
             return;
           }
-          if (!response.ok) return;
-          const payload = text
-            ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
-            : null;
-          if (!payload?.redirectTo) return;
           const role = payload.role ?? "client";
           const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
           router.replace(target);
@@ -139,13 +181,17 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           setState("error");
           setError("Не удалось войти");
           if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
+          logAuthBootstrap("messenger-init network error", {
+            flow: flowHint,
+            correlationId,
+            entry,
+          });
         });
     };
 
     const runTelegramInit = (initData: string) =>
       postMessengerInit("/api/auth/telegram-init", initData, telegramInitSentRef);
-    const runMaxInit = (initData: string) =>
-      postMessengerInit("/api/auth/max-init", initData, maxInitSentRef);
+    const runMaxInit = (initData: string) => postMessengerInit("/api/auth/max-init", initData, maxInitSentRef);
 
     const postTokenExchange = (t: string) => {
       if (tokenExchangeSentRef.current) return;
@@ -154,28 +200,30 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       queueMicrotask(() => setState("loading"));
       logAuthBootstrap("client auth/exchange (query jwt)", {
         flow: flowHint,
+        correlationId,
         tokenLen: t.length,
         entry: "integrator_jwt",
       });
 
       void fetch("/api/auth/exchange", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: authHeaders(),
         body: JSON.stringify({ token: t }),
       })
         .then(async (response) => {
           const text = await response.text();
           if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
-          if (response.status === 403 || response.status === 401) {
+          if (!response.ok) {
+            setState("error");
+            setError(response.status >= 500 ? "Сервис временно недоступен. Попробуйте позже." : "Не удалось войти");
+            return;
+          }
+          const payload = parseJsonSafe(text);
+          if (!payload?.redirectTo) {
             setState("error");
             setError("Не удалось войти");
             return;
           }
-          if (!response.ok) throw new Error(`auth exchange failed: ${response.status}`);
-          const payload = text
-            ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
-            : null;
-          if (!payload) return;
           const role = payload.role ?? "client";
           const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
           router.replace(target);
@@ -208,19 +256,32 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
       const maxBridgeReady =
         typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
-      const looksLikeMaxOnly = maxBridgeReady && !rawTg;
 
-      if (!webApp) {
-        stableWebAppEmptyTicks = 0;
-        setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
-      } else if (looksLikeMaxOnly) {
-        stableWebAppEmptyTicks = 0;
+      const deferPhone = shouldDeferPhoneLoginWhileMaxBridgeMayLoad({
+        token,
+        elapsedMs: elapsed,
+        telegramInitDataEmpty: true,
+        maxInitDataEmpty: true,
+        maxBridgeReady,
+      });
+
+      if (deferPhone) {
         setInitDataStatus("unknown");
       } else {
-        setInitDataStatus("no");
-        stableWebAppEmptyTicks++;
-        if (stableWebAppEmptyTicks >= STABLE_EMPTY_TICKS) {
-          stopPolling();
+        const looksLikeMaxOnly = isLikelyMaxMiniAppSurface(true, maxBridgeReady);
+
+        if (!webApp) {
+          stableWebAppEmptyTicks = 0;
+          setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
+        } else if (looksLikeMaxOnly) {
+          stableWebAppEmptyTicks = 0;
+          setInitDataStatus("unknown");
+        } else {
+          setInitDataStatus("no");
+          stableWebAppEmptyTicks++;
+          if (stableWebAppEmptyTicks >= STABLE_EMPTY_TICKS) {
+            stopPolling();
+          }
         }
       }
 
@@ -237,7 +298,25 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
       if (elapsed >= POLL_MS_MAX) {
         stopPolling();
-        queueMicrotask(() => setInitDataStatus((s) => (s === "unknown" ? "no" : s)));
+        const maxR =
+          typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
+        const stillNoInit = !getMaxWebAppInitDataForAuth().trim();
+        const maxSurface = isLikelyMaxMiniAppSurface(true, maxR);
+        if (
+          !token &&
+          maxSurface &&
+          stillNoInit &&
+          !telegramInitSentRef.current &&
+          !maxInitSentRef.current
+        ) {
+          queueMicrotask(() => {
+            setState("error");
+            setError(MAX_INIT_DATA_TIMEOUT_USER_MESSAGE);
+            logAuthBootstrap("max initData timeout", { flow: flowHint, correlationId, entry: "max_timeout" });
+          });
+        } else {
+          queueMicrotask(() => setInitDataStatus((s) => (s === "unknown" ? "no" : s)));
+        }
       }
     };
 
@@ -248,7 +327,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       cancelled = true;
       stopPolling();
     };
-  }, [router, searchParams, token, debug, nextParam]);
+  }, [router, searchParams, token, debug, nextParam, correlationId]);
 
   const showPhoneFlow =
     !token && state !== "loading" && (state === "error" || initDataStatus === "no");
@@ -276,7 +355,9 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       <>
         <MaxBridgeScript active={loadMaxBridge} />
         <p className="break-all text-sm text-muted-foreground">
-          [debug] Нет токена в URL. Ожидается ?t=..., Telegram initData или MAX WebApp.initData.
+          [debug] correlation: {correlationId}
+          <br />
+          Нет токена в URL. Ожидается ?t=..., Telegram initData или MAX WebApp.initData.
           <br />
           {initLabel}
           {suppressQueryJwt ? (
@@ -299,7 +380,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         <p className="text-muted-foreground">{error}</p>
         {debug && debugInfo && (
           <pre className="whitespace-pre-wrap text-left text-xs text-muted-foreground">
-            [debug] status: {debugInfo.status ?? "—"} {debugInfo.message ?? ""}
+            [debug] correlation: {correlationId} status: {debugInfo.status ?? "—"} {debugInfo.message ?? ""}
           </pre>
         )}
       </>
@@ -312,7 +393,11 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       <p className="text-muted-foreground">
         {token ? "Проверяем токен интегратора и создаем сессию..." : "Проверяем вход..."}
       </p>
-      {debug && <p className="text-xs text-muted-foreground">[debug] state: {state}</p>}
+      {debug && (
+        <p className="text-xs text-muted-foreground">
+          [debug] state: {state} correlation: {correlationId}
+        </p>
+      )}
     </>
   );
 }
