@@ -6,6 +6,8 @@ export const ALLOWED_KEYS = [
   "patient_label",
   "sms_fallback_enabled",
   "debug_forward_to_admin",
+  /** Включает маршрут `/max-debug` (диагностика MAX Mini App в браузере; без включения — 404). Управляется только из админки, не через ENV. */
+  "max_debug_page_enabled",
   "dev_mode",
   "important_fallback_delay_minutes",
   "integration_test_ids",
