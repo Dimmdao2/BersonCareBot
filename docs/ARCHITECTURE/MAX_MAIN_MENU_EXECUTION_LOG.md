@@ -119,5 +119,6 @@
 ## CI и push (пост-аудит)
 
 - `pnpm run ci` — успех (lint, typecheck, integrator + webapp tests, build, audit).
-- Коммит и push — см. историю git после выполнения.
+- Коммит: `cbce51b` — `feat(max): empty bot commands, auto main inline menu, post-audit guard`
+- Ветка `main` запушена в `origin`.
 
