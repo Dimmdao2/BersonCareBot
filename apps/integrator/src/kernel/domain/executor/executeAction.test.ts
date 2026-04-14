@@ -2447,6 +2447,64 @@ describe('executeAction', () => {
     expect((send?.payload as { message?: { text?: string } })?.message?.text).toContain('Номер привязан');
   });
 
+  it('webapp.channelLink.complete sends afterChannelLinked for Max when phone already on platform', async () => {
+    const completeChannelLink = vi.fn().mockResolvedValue({
+      ok: true,
+      needsPhone: false,
+      phoneNormalized: '+79990001122',
+    });
+    const writeDb = vi.fn().mockResolvedValue(undefined);
+    const webappEventsPort = {
+      completeChannelLink,
+      emit: vi.fn(),
+      listSymptomTrackings: vi.fn(),
+      listLfkComplexes: vi.fn(),
+    };
+    const maxCtx: DomainContext = {
+      ...ctx,
+      event: {
+        type: 'message.received',
+        meta: {
+          eventId: 'evt-cl-max',
+          occurredAt: '2026-04-13T12:00:00.000Z',
+          source: 'max',
+          userId: '207278131',
+        },
+        payload: {
+          incoming: {
+            kind: 'message',
+            text: '/start link_testtoken',
+            chatId: 5090177,
+            channelId: '207278131',
+            action: 'start.link',
+            linkSecret: 'link_testtoken',
+          },
+        },
+      },
+    };
+    const action: Action = {
+      id: 'cl-max-ok',
+      type: 'webapp.channelLink.complete',
+      mode: 'sync',
+      params: { linkToken: 'link_testtoken', channelCode: 'max', externalId: '207278131' },
+    };
+    const renderTemplate = vi.fn().mockResolvedValue({
+      text: '✅ Аккаунт MAX привязан к вашему профилю.',
+    });
+    const result = await executeAction(action, maxCtx, {
+      webappEventsPort,
+      writePort: { writeDb },
+      templatePort: { renderTemplate },
+    });
+    expect(result.status).toBe('success');
+    expect(writeDb).toHaveBeenCalled();
+    expect(renderTemplate).toHaveBeenCalled();
+    const send = result.intents?.find((i) => i.type === 'message.send');
+    expect(send).toBeDefined();
+    expect((send?.payload as { message?: { text?: string } })?.message?.text).toContain('привязан');
+    expect((send?.payload as { delivery?: { channels?: string[] } }).delivery?.channels).toEqual(['max']);
+  });
+
   describe('diary.symptom.afterTrackingCreated', () => {
     const telegramCtx: DomainContext = {
       ...ctx,

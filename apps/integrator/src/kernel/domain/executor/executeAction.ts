@@ -345,6 +345,28 @@ export async function executeAction(
           const welcomeResult = await executeAction(welcomeAction, ctx, fullDeps);
           intents = welcomeResult.intents;
         }
+      } else if (!needsPhone && messengerChannel === 'max' && fullDeps.templatePort) {
+        const chatIdResolved = resolveChannelLinkFailureChatId(ctx, externalId);
+        if (chatIdResolved !== null) {
+          const text = await renderText({
+            templateKey: 'max:afterChannelLinked',
+            ctx,
+            templatePort: fullDeps.templatePort,
+          });
+          if (text.trim().length > 0) {
+            intents = [
+              {
+                type: 'message.send',
+                meta: buildIntentMeta({ ...action, id: `${action.id}:after-channel-linked` }, ctx),
+                payload: {
+                  recipient: { chatId: chatIdResolved },
+                  message: { text },
+                  delivery: { channels: ['max'], maxAttempts: 1 },
+                },
+              },
+            ];
+          }
+        }
       }
 
       return {
