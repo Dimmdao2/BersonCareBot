@@ -36,12 +36,14 @@ function parseMaxPlatformUserId(value: unknown): number | undefined {
 }
 
 /**
- * Prefer `meta.userId`; fallback to `recipient.chatId` (DM: same id; jobs may omit meta.userId).
+ * Use **`recipient.chatId`** first — it is always the MAX user targeted by this send (DM id == contact id).
+ * Fallback to **`meta.userId`** when recipient is missing (some edits) or non-numeric.
+ * Preferring chatId avoids wrong `contact_id` when `meta` comes from another channel (e.g. rubitime fan-out).
  */
 function maxContactIdForOpenApp(intent: OutgoingIntent, payload: DeliveryPayload): number | undefined {
-  const fromMeta = parseMaxPlatformUserId(intent.meta?.userId);
-  if (fromMeta !== undefined) return fromMeta;
-  return parseMaxPlatformUserId(payload.recipient?.chatId);
+  const fromRecipient = parseMaxPlatformUserId(payload.recipient?.chatId);
+  if (fromRecipient !== undefined) return fromRecipient;
+  return parseMaxPlatformUserId(intent.meta?.userId);
 }
 
 function readChannel(intent: OutgoingIntent): string | null {

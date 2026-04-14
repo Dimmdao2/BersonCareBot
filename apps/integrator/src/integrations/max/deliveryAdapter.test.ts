@@ -95,7 +95,7 @@ describe('max deliveryAdapter', () => {
     );
   });
 
-  it('send message.send maps Telegram-style web_app button to MAX open_app (mini app in client)', async () => {
+  it('send message.send maps Telegram-style web_app button to MAX open_app (contact_id from recipient.chatId)', async () => {
     const adapter = createMaxDeliveryAdapter();
     await adapter.send({
       type: 'message.send',
@@ -123,7 +123,7 @@ describe('max deliveryAdapter', () => {
                       type: 'open_app',
                       text: 'Веб-приложение',
                       web_app: 'https://app.example/t?ctx=bot',
-                      contact_id: 207278131,
+                      contact_id: 200,
                     },
                   ],
                 ],
@@ -133,6 +133,42 @@ describe('max deliveryAdapter', () => {
         }),
       }),
     );
+  });
+
+  it('send message.send prefers recipient.chatId over meta.userId for contact_id (multi-channel fan-out safe)', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.send',
+      meta: { eventId: 'e', occurredAt: '', source: 'rubitime', userId: '999999999' },
+      payload: {
+        recipient: { chatId: 555 },
+        message: { text: 'x' },
+        delivery: { channels: ['max'] },
+        replyMarkup: {
+          inline_keyboard: [[{ text: 'App', web_app: { url: 'https://app.example/a' } }]],
+        },
+      },
+    });
+    const call = sendMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
+    const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload?.buttons?.[0]?.[0] as Record<string, unknown>;
+    expect(btn?.contact_id).toBe(555);
+  });
+
+  it('send message.replyMarkup.edit falls back to meta.userId when recipient.chatId absent', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.replyMarkup.edit',
+      meta: { eventId: 'e', occurredAt: '', source: 'max', userId: '777' },
+      payload: {
+        messageId: 'm1',
+        replyMarkup: {
+          inline_keyboard: [[{ text: 'App', web_app: { url: 'https://app.example/x' } }]],
+        },
+      },
+    });
+    const call = editMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
+    const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload?.buttons?.[0]?.[0] as Record<string, unknown>;
+    expect(btn?.contact_id).toBe(777);
   });
 
   it('send message.send sets contact_id from recipient.chatId when meta.userId missing (DM / jobs)', async () => {

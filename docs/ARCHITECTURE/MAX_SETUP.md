@@ -102,7 +102,7 @@ npx tsx scripts/check-max.ts
 
 Интегратор по-прежнему использует **`MAX_API_KEY`** в своём env для webhook и исходящих вызовов; webapp читает **`max_bot_api_key`** из БД, а не дублирует `MAX_API_KEY` в env webapp.
 
-Кнопки «открыть приложение» из сценариев используют Telegram-разметку `web_app`; модуль [`deliveryAdapter.ts`](../../apps/integrator/src/integrations/max/deliveryAdapter.ts) преобразует её в кнопку MAX **`open_app`** (не `link`), чтобы не уводить пользователя во внешний браузер.
+Кнопки «открыть приложение» из сценариев используют Telegram-разметку `web_app`; модуль [`deliveryAdapter.ts`](../../apps/integrator/src/integrations/max/deliveryAdapter.ts) преобразует её в кнопку MAX **`open_app`** (не `link`), чтобы не уводить пользователя во внешний браузер. В API уходит **`contact_id`** = числовой `chat_id` получателя (если есть), иначе из meta — для корректного `initData`/логина в мини-приложении.
 
 ---
 
