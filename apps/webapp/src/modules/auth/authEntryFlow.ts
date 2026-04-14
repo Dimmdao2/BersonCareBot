@@ -29,39 +29,3 @@ export function classifyAuthEntryFlowFromSearchParams(searchParams: URLSearchPar
   if (bot === "bot") return "telegram";
   return "browser";
 }
-
-export type ClientMessengerProbe = {
-  hasTelegramWebApp: boolean;
-  telegramInitDataLength: number;
-  hasMaxWebApp: boolean;
-  maxInitDataLength: number;
-  maxReady: boolean;
-};
-
-export function probeClientMessengerEnv(): ClientMessengerProbe {
-  if (typeof window === "undefined") {
-    return {
-      hasTelegramWebApp: false,
-      telegramInitDataLength: 0,
-      hasMaxWebApp: false,
-      maxInitDataLength: 0,
-      maxReady: false,
-    };
-  }
-  const tg = window.Telegram?.WebApp;
-  const tgInit = typeof tg?.initData === "string" ? tg.initData.trim() : "";
-  const max = (window as Window & { WebApp?: { initData?: string; ready?: () => void } }).WebApp;
-  const maxInit = typeof max?.initData === "string" ? max.initData.trim() : "";
-  return {
-    hasTelegramWebApp: Boolean(tg),
-    telegramInitDataLength: tgInit.length,
-    hasMaxWebApp: Boolean(max),
-    maxInitDataLength: maxInit.length,
-    maxReady: typeof max?.ready === "function",
-  };
-}
-
-/**
- * Среда похожа на MAX Mini App: есть bridge `WebApp.ready`, при этом нет данных Telegram initData.
- * Используется, чтобы не отправлять query JWT, пока ждём `WebApp.initData`.
- */
