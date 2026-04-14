@@ -176,12 +176,45 @@ export function createPgAppointmentProjectionPort(): AppointmentProjectionPort {
 
     async softDeleteByIntegratorId(integratorRecordId: string): Promise<boolean> {
       const pool = getPool();
-      const r = await pool.query(
-        `UPDATE appointment_records SET deleted_at = now(), updated_at = now()
-         WHERE integrator_record_id = $1 AND deleted_at IS NULL`,
-        [integratorRecordId]
-      );
-      return (r.rowCount ?? 0) > 0;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const r = await client.query(
+          `UPDATE appointment_records SET deleted_at = now(), updated_at = now()
+           WHERE integrator_record_id = $1 AND deleted_at IS NULL`,
+          [integratorRecordId],
+        );
+        const updated = (r.rowCount ?? 0) > 0;
+        if (updated) {
+          await client.query(
+            `UPDATE patient_bookings
+             SET status = 'cancelled',
+                 cancelled_at = COALESCE(cancelled_at, now()),
+                 cancel_reason = CASE
+                   WHEN cancel_reason IS NULL OR TRIM(cancel_reason) = '' THEN $2
+                   ELSE cancel_reason
+                 END,
+                 updated_at = now()
+             WHERE rubitime_id = $1
+               AND status IN (
+                 'creating',
+                 'confirmed',
+                 'rescheduled',
+                 'cancelling',
+                 'cancel_failed',
+                 'failed_sync'
+               )`,
+            [integratorRecordId, "admin_soft_delete"],
+          );
+        }
+        await client.query("COMMIT");
+        return updated;
+      } catch (err) {
+        await client.query("ROLLBACK");
+        throw err;
+      } finally {
+        client.release();
+      }
     },
   };
 }

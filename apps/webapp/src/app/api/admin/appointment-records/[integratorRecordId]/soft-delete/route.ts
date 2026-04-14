@@ -1,5 +1,7 @@
 /**
  * POST /api/admin/appointment-records/:integratorRecordId/soft-delete — пометить запись удалённой (admin only).
+ * Пишет `appointment_records.deleted_at` и при совпадении `patient_bookings.rubitime_id` отменяет активные статусы
+ * (чтобы запись ушла из кабинета пациента).
  */
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
