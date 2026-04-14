@@ -6,6 +6,27 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 
 export type SectionVisibilityState = { ok: boolean; error?: string };
 
+export async function setSectionRequiresAuth(slug: string, requiresAuth: boolean): Promise<SectionVisibilityState> {
+  await requireDoctorAccess();
+  const s = slug?.trim();
+  if (!s) return { ok: false, error: "Нет slug" };
+
+  const deps = buildAppDeps();
+  try {
+    await deps.contentSections.update(s, { requiresAuth });
+  } catch (e) {
+    console.error("setSectionRequiresAuth", e);
+    return { ok: false, error: "Не удалось обновить доступ" };
+  }
+
+  revalidatePath("/app/doctor/content/sections");
+  revalidatePath("/app/doctor/content");
+  revalidatePath("/app/patient");
+  revalidatePath("/app/patient/sections", "layout");
+  revalidatePath("/api/menu");
+  return { ok: true };
+}
+
 export async function setSectionVisibility(slug: string, isVisible: boolean): Promise<SectionVisibilityState> {
   await requireDoctorAccess();
   const s = slug?.trim();

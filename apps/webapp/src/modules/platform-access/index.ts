@@ -21,3 +21,4 @@ export {
   resolvePatientLayoutPathname,
 } from "./patientRouteApiPolicy";
 export { patientOnboardingServerActionSurfaceOk } from "./onboardingServerActionSurface";
+export { resolvePatientCanViewAuthOnlyContent } from "./resolvePatientCanViewAuthOnlyContent";

@@ -22,6 +22,7 @@ describe("menu service", () => {
           description: "",
           sortOrder: 1,
           isVisible: true,
+          requiresAuth: false,
         },
       ],
     });

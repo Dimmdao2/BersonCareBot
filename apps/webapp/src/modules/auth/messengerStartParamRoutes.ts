@@ -19,6 +19,8 @@ const START_PARAM_TO_PATH: Record<string, string> = {
   help: routePaths.patientHelp,
   install: routePaths.patientInstall,
   reminders: routePaths.patientReminders,
+  /** Каталог разделов CMS (как кнопка «Уроки и тренировки» на главной миниаппа). */
+  sections: routePaths.patientSectionsIndex,
   notifications: routePaths.notifications,
   diary: routePaths.diary,
   lessons: routePaths.lessons,

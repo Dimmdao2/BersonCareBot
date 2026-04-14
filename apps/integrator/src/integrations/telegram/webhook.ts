@@ -59,6 +59,7 @@ export async function buildLinksFromBody(
       links.webappEntryUrl = baseWebappUrl;
       const enc = (p: string) => encodeURIComponent(p);
       links.webappHomeUrl = `${baseWebappUrl}&next=${enc('/app/patient')}`;
+      links.webappRemindersUrl = `${baseWebappUrl}&next=${enc('/app/patient/reminders')}`;
       links.webappDiaryUrl = `${baseWebappUrl}&next=${enc('/app/patient/diary?tab=symptoms')}`;
       links.webappCabinetUrl = `${baseWebappUrl}&next=${enc('/app/patient/cabinet')}`;
       links.webappAddressUrl = `${baseWebappUrl}&next=${enc('/app/patient/address')}`;

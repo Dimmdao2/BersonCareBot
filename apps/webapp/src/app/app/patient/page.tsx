@@ -17,7 +17,9 @@ import {
 } from "@/modules/patient-home/newsMotivation";
 import { getPatientHomeBannerTopic, listRecentMailingLogsForPlatformUser } from "@/modules/patient-home/repository";
 import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
+import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
+import { PatientMiniAppPatientHome } from "./home/PatientMiniAppPatientHome";
 import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
 import { PatientHomeBrowserHero } from "./home/PatientHomeBrowserHero";
@@ -39,9 +41,11 @@ export default async function PatientHomePage() {
   const blocks = new Set<HomeBlockId>(patientHomeBlocksForEntry(platformEntry));
 
   const deps = buildAppDeps();
+  const canViewAuthSections =
+    session?.user != null ? await resolvePatientCanViewAuthOnlyContent(session) : false;
   let contentSections: Awaited<ReturnType<typeof deps.contentSections.listVisible>> = [];
   try {
-    contentSections = await deps.contentSections.listVisible();
+    contentSections = await deps.contentSections.listVisible({ viewAuthOnlySections: canViewAuthSections });
   } catch (err) {
     logServerRuntimeError("app/patient/home", err);
   }
@@ -75,6 +79,19 @@ export default async function PatientHomePage() {
 
   if (personalDataOk && session?.user && homeNews) {
     void incrementNewsViews(homeNews.id, session.user.userId);
+  }
+
+  const miniAppPatientHome =
+    platformEntry === "bot" &&
+    session?.user != null &&
+    canViewAuthSections;
+
+  if (miniAppPatientHome) {
+    return (
+      <AppShell title="Главное меню" user={session.user} variant="patient">
+        <PatientMiniAppPatientHome platformUserId={session.user.userId} />
+      </AppShell>
+    );
   }
 
   return (

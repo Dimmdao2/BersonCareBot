@@ -281,7 +281,7 @@
 						[
 							{
 								"textTemplateKey": "max:menu.webapp.openButton",
-								"webAppUrlFact": "links.webappHomeUrl"
+								"webAppUrlFact": "links.webappRemindersUrl"
 							}
 						]
 					]
@@ -1188,7 +1188,7 @@
 				"mode": "async",
 				"params": {
 					"_when": {
-						"path": "facts.links.webappHomeUrl",
+						"path": "facts.links.webappRemindersUrl",
 						"truthy": true
 					},
 					"recipient": {
@@ -1206,7 +1206,7 @@
 						[
 							{
 								"textTemplateKey": "max:menu.webapp.openButton",
-								"webAppUrlFact": "links.webappHomeUrl"
+								"webAppUrlFact": "links.webappRemindersUrl"
 							}
 						]
 					]
@@ -1217,7 +1217,7 @@
 				"mode": "async",
 				"params": {
 					"_when": {
-						"path": "facts.links.webappHomeUrl",
+						"path": "facts.links.webappRemindersUrl",
 						"truthy": false
 					},
 					"recipient": {

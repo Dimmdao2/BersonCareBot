@@ -30,6 +30,7 @@ export default async function DoctorContentSectionsPage() {
     title: s.title,
     sortOrder: s.sortOrder,
     isVisible: s.isVisible,
+    requiresAuth: s.requiresAuth,
   }));
 
   return (

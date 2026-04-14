@@ -498,9 +498,15 @@ export async function exchangeTelegramInitData(
     maxAge: cookieMaxAgeSeconds(session),
   });
 
+  let redirectTo = getRedirectPathForRole(user.role);
+  if (user.role === "client" && parsed.startParam) {
+    const fromParam = mapMaxStartParamToPatientPath(parsed.startParam);
+    if (fromParam) redirectTo = fromParam;
+  }
+
   return {
     session,
-    redirectTo: getRedirectPathForRole(user.role),
+    redirectTo,
   };
 }
 

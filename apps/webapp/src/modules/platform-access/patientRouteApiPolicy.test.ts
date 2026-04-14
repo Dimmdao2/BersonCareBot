@@ -45,6 +45,11 @@ describe("patientPathsAllowedDuringPhoneActivation", () => {
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient/support/ticket")).toBe(true);
   });
 
+  it("allows public sections catalog during activation gate (next=/app/patient/sections)", () => {
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/sections")).toBe(true);
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/sections/")).toBe(true);
+  });
+
   it("denies home, profile, cabinet, and booking during activation gate", () => {
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient")).toBe(false);
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient/profile")).toBe(false);

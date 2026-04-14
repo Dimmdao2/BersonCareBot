@@ -8,6 +8,7 @@
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { PageSection } from "@/components/common/layout/PageSection";
 import { AppShell } from "@/shared/ui/AppShell";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
@@ -45,6 +46,11 @@ export default async function ContentSlugPage({ params }: Props) {
   const { slug } = await params;
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
+  const dbRow = await deps.contentPages.getBySlug(slug);
+  if (dbRow?.requiresAuth) {
+    const canView = await resolvePatientCanViewAuthOnlyContent(session);
+    if (!canView) notFound();
+  }
   const item = await deps.contentCatalog.getBySlug(slug);
   if (!item) notFound();
 

@@ -7,30 +7,45 @@ export type ContentSectionRow = {
   description: string;
   sortOrder: number;
   isVisible: boolean;
+  /** Если true — только tier patient (см. `requires_auth` в БД). */
+  requiresAuth: boolean;
+};
+
+export type ListVisibleContentSectionsOpts = {
+  /**
+   * Если false — только разделы без `requires_auth` (гость / onboarding).
+   * Если true — все с `is_visible` (как раньше по смыслу для tier patient).
+   * @default true
+   */
+  viewAuthOnlySections?: boolean;
 };
 
 export type ContentSectionsPort = {
-  listVisible: () => Promise<ContentSectionRow[]>;
+  listVisible: (opts?: ListVisibleContentSectionsOpts) => Promise<ContentSectionRow[]>;
   listAll: () => Promise<ContentSectionRow[]>;
   getBySlug: (slug: string) => Promise<ContentSectionRow | null>;
   upsert: (section: Omit<ContentSectionRow, "id"> & { id?: string }) => Promise<string>;
   update: (
     slug: string,
-    patch: Partial<Pick<ContentSectionRow, "title" | "description" | "sortOrder" | "isVisible">>,
+    patch: Partial<
+      Pick<ContentSectionRow, "title" | "description" | "sortOrder" | "isVisible" | "requiresAuth">
+    >,
   ) => Promise<void>;
   /** Выставить `sort_order` по порядку slug (0..n-1) в одной транзакции. */
   reorderSlugs: (orderedSlugs: string[]) => Promise<void>;
 };
 
-const SELECT_COLS = `id, slug, title, description, sort_order, is_visible`;
+const SELECT_COLS = `id, slug, title, description, sort_order, is_visible, requires_auth`;
 
 export function createPgContentSectionsPort(): ContentSectionsPort {
   return {
-    async listVisible() {
+    async listVisible(opts?: ListVisibleContentSectionsOpts) {
+      const viewAuthOnlySections = opts?.viewAuthOnlySections !== false;
       const pool = getPool();
+      const authClause = viewAuthOnlySections ? "" : " AND requires_auth = false";
       const res = await pool.query(
         `SELECT ${SELECT_COLS} FROM content_sections
-         WHERE is_visible = true
+         WHERE is_visible = true${authClause}
          ORDER BY sort_order, title`,
       );
       return res.rows.map(mapRow);
@@ -50,16 +65,24 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
     async upsert(section) {
       const pool = getPool();
       const res = await pool.query(
-        `INSERT INTO content_sections (slug, title, description, sort_order, is_visible)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO content_sections (slug, title, description, sort_order, is_visible, requires_auth)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (slug) DO UPDATE SET
            title = EXCLUDED.title,
            description = EXCLUDED.description,
            sort_order = EXCLUDED.sort_order,
            is_visible = EXCLUDED.is_visible,
+           requires_auth = EXCLUDED.requires_auth,
            updated_at = now()
          RETURNING id`,
-        [section.slug, section.title, section.description, section.sortOrder, section.isVisible],
+        [
+          section.slug,
+          section.title,
+          section.description,
+          section.sortOrder,
+          section.isVisible,
+          section.requiresAuth ?? false,
+        ],
       );
       return res.rows[0].id as string;
     },
@@ -83,6 +106,10 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       if (patch.isVisible !== undefined) {
         sets.push(`is_visible = $${n++}`);
         vals.push(patch.isVisible);
+      }
+      if (patch.requiresAuth !== undefined) {
+        sets.push(`requires_auth = $${n++}`);
+        vals.push(patch.requiresAuth);
       }
       if (sets.length === 0) return;
       vals.push(slug);
@@ -123,6 +150,7 @@ function mapRow(row: Record<string, unknown>): ContentSectionRow {
     description: (row.description as string) ?? "",
     sortOrder: row.sort_order as number,
     isVisible: row.is_visible as boolean,
+    requiresAuth: Boolean(row.requires_auth),
   };
 }
 
@@ -140,9 +168,10 @@ export const inMemoryContentSectionsPort: ContentSectionsPort = {
 export function createInMemoryContentSectionsPort(): ContentSectionsPort {
   const memory = new Map<string, ContentSectionRow>();
   return {
-    async listVisible() {
+    async listVisible(opts?: ListVisibleContentSectionsOpts) {
+      const viewAuthOnlySections = opts?.viewAuthOnlySections !== false;
       return [...memory.values()]
-        .filter((r) => r.isVisible)
+        .filter((r) => r.isVisible && (viewAuthOnlySections || !r.requiresAuth))
         .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
     },
     async listAll() {
@@ -160,6 +189,7 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         description: section.description,
         sortOrder: section.sortOrder,
         isVisible: section.isVisible,
+        requiresAuth: section.requiresAuth ?? false,
       };
       memory.set(section.slug, row);
       return id;
@@ -173,6 +203,7 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         ...(patch.description !== undefined ? { description: patch.description } : {}),
         ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
         ...(patch.isVisible !== undefined ? { isVisible: patch.isVisible } : {}),
+        ...(patch.requiresAuth !== undefined ? { requiresAuth: patch.requiresAuth } : {}),
       });
     },
     async reorderSlugs(orderedSlugs) {

@@ -27,6 +27,7 @@ export default async function DoctorContentSectionEditPage({ params }: Props) {
             description: row.description,
             sortOrder: row.sortOrder,
             isVisible: row.isVisible,
+            requiresAuth: row.requiresAuth,
           }}
         />
       </section>

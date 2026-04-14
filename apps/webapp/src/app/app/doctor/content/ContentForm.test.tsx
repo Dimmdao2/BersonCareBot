@@ -23,6 +23,7 @@ const testSections = [
     description: "",
     sortOrder: 0,
     isVisible: true,
+    requiresAuth: false,
   },
 ];
 

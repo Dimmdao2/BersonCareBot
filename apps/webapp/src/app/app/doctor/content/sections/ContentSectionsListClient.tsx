@@ -20,7 +20,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { EllipsisVertical, Eye, EyeOff } from "lucide-react";
+import { EllipsisVertical, Eye, EyeOff, Shield, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -32,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { reorderContentSections } from "./reorderContentSections";
-import { setSectionVisibility } from "./sectionVisibilityActions";
+import { setSectionRequiresAuth, setSectionVisibility } from "./sectionVisibilityActions";
 
 export type SectionListRow = {
   id: string;
@@ -40,6 +40,7 @@ export type SectionListRow = {
   title: string;
   sortOrder: number;
   isVisible: boolean;
+  requiresAuth: boolean;
 };
 
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
@@ -65,11 +66,15 @@ function DragHandle({ listeners, attributes }: { listeners: Record<string, unkno
 function SortableSectionRow({
   row,
   visPending,
+  authPending,
   onToggleVisible,
+  onToggleRequiresAuth,
 }: {
   row: SectionListRow;
   visPending: boolean;
+  authPending: boolean;
   onToggleVisible: (slug: string, next: boolean) => void;
+  onToggleRequiresAuth: (slug: string, next: boolean) => void;
 }) {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.slug });
@@ -112,6 +117,22 @@ function SortableSectionRow({
             <EyeOff className="size-4 text-muted-foreground" aria-hidden />
           )}
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-9 shrink-0 rounded-full border border-border/80"
+          disabled={authPending}
+          title={row.requiresAuth ? "Только для залогиненных" : "Публично в каталоге"}
+          aria-label={row.requiresAuth ? "Только для залогиненных" : "Публично в каталоге"}
+          onClick={() => onToggleRequiresAuth(row.slug, !row.requiresAuth)}
+        >
+          {row.requiresAuth ? (
+            <Shield className="size-4 text-amber-700 dark:text-amber-500" aria-hidden />
+          ) : (
+            <ShieldOff className="size-4 text-muted-foreground" aria-hidden />
+          )}
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger
             className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-transparent hover:bg-muted"
@@ -140,6 +161,7 @@ export function ContentSectionsListClient({ initialSections }: { initialSections
   const [items, setItems] = useState(initialSections);
   const [pending, startTransition] = useTransition();
   const [visPending, startVisTransition] = useTransition();
+  const [authPending, startAuthTransition] = useTransition();
 
   useEffect(() => {
     setItems(initialSections);
@@ -182,6 +204,15 @@ export function ContentSectionsListClient({ initialSections }: { initialSections
     });
   }, []);
 
+  const onToggleRequiresAuth = useCallback((slug: string, next: boolean) => {
+    startAuthTransition(async () => {
+      const res = await setSectionRequiresAuth(slug, next);
+      if (res.ok) {
+        setItems((prev) => prev.map((r) => (r.slug === slug ? { ...r, requiresAuth: next } : r)));
+      }
+    });
+  }, []);
+
   if (items.length === 0) {
     return <p className="text-sm text-muted-foreground">Нет разделов. Создайте первый раздел или проверьте подключение к БД.</p>;
   }
@@ -195,7 +226,9 @@ export function ContentSectionsListClient({ initialSections }: { initialSections
               key={row.slug}
               row={row}
               visPending={visPending}
+              authPending={authPending}
               onToggleVisible={onToggleVisible}
+              onToggleRequiresAuth={onToggleRequiresAuth}
             />
           ))}
         </ul>

@@ -336,7 +336,7 @@ export async function executeAction(
                 [
                   { textTemplateKey: 'telegram:menu.book' },
                   { textTemplateKey: 'telegram:menu.diary', webAppUrlFact: 'links.webappDiaryUrl' },
-                  { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappHomeUrl' },
+                  { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappRemindersUrl' },
                 ],
               ],
               resizeKeyboard: true,

@@ -19,8 +19,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Shield, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContentLifecycleDropdown } from "./ContentLifecycleDropdown";
+import { setContentPageRequiresAuth } from "./contentPageAuthActions";
 import { reorderContentPagesInSection } from "./reorderContentPages";
 
 export type ContentPageListRow = {
@@ -30,6 +32,7 @@ export type ContentPageListRow = {
   title: string;
   sortOrder: number;
   isPublished: boolean;
+  requiresAuth: boolean;
   archivedAt: string | null;
   deletedAt: string | null;
 };
@@ -54,7 +57,15 @@ function DragHandle({ listeners, attributes }: { listeners: Record<string, unkno
   );
 }
 
-function SortablePageRow({ page }: { page: ContentPageListRow }) {
+function SortablePageRow({
+  page,
+  authPending,
+  onToggleRequiresAuth,
+}: {
+  page: ContentPageListRow;
+  authPending: boolean;
+  onToggleRequiresAuth: (id: string, next: boolean) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -78,6 +89,22 @@ function SortablePageRow({ page }: { page: ContentPageListRow }) {
         </Link>
         <p className="truncate font-mono text-xs text-muted-foreground">{page.slug}</p>
       </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-9 shrink-0 rounded-full border border-border/80"
+        disabled={authPending}
+        title={page.requiresAuth ? "Только для залогиненных" : "Публичная страница"}
+        aria-label={page.requiresAuth ? "Только для залогиненных" : "Публичная страница"}
+        onClick={() => onToggleRequiresAuth(page.id, !page.requiresAuth)}
+      >
+        {page.requiresAuth ? (
+          <Shield className="size-4 text-amber-700 dark:text-amber-500" aria-hidden />
+        ) : (
+          <ShieldOff className="size-4 text-muted-foreground" aria-hidden />
+        )}
+      </Button>
       <ContentLifecycleDropdown page={page} />
     </li>
   );
@@ -97,6 +124,7 @@ export function ContentPagesSectionList({
 }) {
   const [items, setItems] = useState(initialPages);
   const [pending, startTransition] = useTransition();
+  const [authPending, startAuthTransition] = useTransition();
 
   useEffect(() => {
     setItems(initialPages);
@@ -130,6 +158,15 @@ export function ContentPagesSectionList({
     [sectionSlug],
   );
 
+  const onToggleRequiresAuth = useCallback((id: string, next: boolean) => {
+    startAuthTransition(async () => {
+      const res = await setContentPageRequiresAuth(id, next);
+      if (res.ok) {
+        setItems((prev) => prev.map((p) => (p.id === id ? { ...p, requiresAuth: next } : p)));
+      }
+    });
+  }, []);
+
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-2">
@@ -148,7 +185,12 @@ export function ContentPagesSectionList({
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-2" aria-busy={pending}>
             {items.map((p) => (
-              <SortablePageRow key={p.id} page={p} />
+              <SortablePageRow
+                key={p.id}
+                page={p}
+                authPending={authPending}
+                onToggleRequiresAuth={onToggleRequiresAuth}
+              />
             ))}
           </ul>
         </SortableContext>

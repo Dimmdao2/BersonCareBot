@@ -8,7 +8,7 @@
     [
       { "textTemplateKey": "telegram:menu.book", "callbackData": "booking.open" },
       { "textTemplateKey": "telegram:menu.diary", "webAppUrlFact": "links.webappDiaryUrl", "callbackData": "diary.open" },
-      { "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappHomeUrl", "callbackData": "menu.more" }
+      { "textTemplateKey": "telegram:menu.more", "webAppUrlFact": "links.webappRemindersUrl", "callbackData": "menu.more" }
     ]
   ]
 }

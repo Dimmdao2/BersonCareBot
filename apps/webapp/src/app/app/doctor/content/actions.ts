@@ -44,6 +44,7 @@ export async function saveContentPage(
   const bodyHtmlStored = bodyMd.length > 0 ? "" : bodyHtmlLegacy;
   if (slug.length > 200) return { ok: false, error: "Slug слишком длинный" };
   const isPublished = formData.get("is_published") === "on";
+  const requiresAuth = formData.get("requires_auth") === "on";
   const videoUrlRaw = (formData.get("video_url") as string)?.trim() || "";
   const imageUrlRaw = (formData.get("image_url") as string)?.trim() || "";
   const videoUrl = videoUrlRaw.length ? videoUrlRaw : null;
@@ -98,6 +99,7 @@ export async function saveContentPage(
       bodyHtml: bodyHtmlStored,
       sortOrder,
       isPublished,
+      requiresAuth,
       videoUrl,
       videoType,
       imageUrl,

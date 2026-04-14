@@ -18,6 +18,7 @@ export async function saveContentSection(
   const description = (formData.get("description") as string)?.trim() || "";
   const sortOrder = parseInt(formData.get("sort_order") as string, 10) || 0;
   const isVisible = formData.get("is_visible") === "on";
+  const requiresAuth = formData.get("requires_auth") === "on";
 
   if (!slug || !title) {
     return { ok: false, error: "Заполните slug и заголовок" };
@@ -38,6 +39,7 @@ export async function saveContentSection(
       description,
       sortOrder,
       isVisible,
+      requiresAuth,
     });
   } catch (err) {
     console.error("saveContentSection failed:", err);

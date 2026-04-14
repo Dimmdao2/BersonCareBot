@@ -12,6 +12,8 @@ export type ContentPageRow = {
   bodyHtml: string;
   sortOrder: number;
   isPublished: boolean;
+  /** Если true — только tier patient. */
+  requiresAuth: boolean;
   videoUrl: string | null;
   videoType: string | null;
   imageUrl: string | null;
@@ -19,14 +21,20 @@ export type ContentPageRow = {
   deletedAt: string | null;
 };
 
+export type ListContentPagesBySectionOpts = {
+  /** Если false — только страницы без `requires_auth` (каталог для гостя). @default true */
+  viewAuthOnlyPages?: boolean;
+};
+
 export type ContentPageLifecyclePatch = {
   isPublished?: boolean;
   archivedAt?: string | null;
   deletedAt?: string | null;
+  requiresAuth?: boolean;
 };
 
 export type ContentPagesPort = {
-  listBySection: (section: string) => Promise<ContentPageRow[]>;
+  listBySection: (section: string, opts?: ListContentPagesBySectionOpts) => Promise<ContentPageRow[]>;
   getBySlug: (slug: string) => Promise<ContentPageRow | null>;
   getById: (id: string) => Promise<ContentPageRow | null>;
   listAll: () => Promise<ContentPageRow[]>;
@@ -37,18 +45,20 @@ export type ContentPagesPort = {
 };
 
 const SELECT_COLS = `id, section, slug, title, summary, body_md, body_html, sort_order, is_published,
-  video_url, video_type, image_url, archived_at, deleted_at`;
+  requires_auth, video_url, video_type, image_url, archived_at, deleted_at`;
 
 const PATIENT_VISIBLE = `is_published = true AND archived_at IS NULL AND deleted_at IS NULL`;
 
 export function createPgContentPagesPort(): ContentPagesPort {
   return {
-    async listBySection(section) {
+    async listBySection(section, opts?: ListContentPagesBySectionOpts) {
+      const viewAuthOnlyPages = opts?.viewAuthOnlyPages !== false;
       const pool = getPool();
+      const authClause = viewAuthOnlyPages ? "" : " AND requires_auth = false";
       const res = await pool.query(
         `SELECT ${SELECT_COLS}
-         FROM content_pages WHERE section = $1 AND ${PATIENT_VISIBLE} ORDER BY sort_order, title`,
-        [section]
+         FROM content_pages WHERE section = $1 AND ${PATIENT_VISIBLE}${authClause} ORDER BY sort_order, title`,
+        [section],
       );
       return res.rows.map(mapRow);
     },
@@ -77,16 +87,29 @@ export function createPgContentPagesPort(): ContentPagesPort {
     async upsert(page) {
       const pool = getPool();
       const res = await pool.query(
-        `INSERT INTO content_pages (section, slug, title, summary, body_md, body_html, sort_order, is_published, video_url, video_type, image_url)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO content_pages (section, slug, title, summary, body_md, body_html, sort_order, is_published, requires_auth, video_url, video_type, image_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (section, slug) DO UPDATE SET
            title = EXCLUDED.title, summary = EXCLUDED.summary, body_md = EXCLUDED.body_md, body_html = EXCLUDED.body_html,
            sort_order = EXCLUDED.sort_order, is_published = EXCLUDED.is_published,
+           requires_auth = EXCLUDED.requires_auth,
            video_url = EXCLUDED.video_url, video_type = EXCLUDED.video_type,
            image_url = EXCLUDED.image_url, updated_at = now()
          RETURNING id`,
-        [page.section, page.slug, page.title, page.summary, page.bodyMd, page.bodyHtml,
-         page.sortOrder, page.isPublished, page.videoUrl, page.videoType, page.imageUrl]
+        [
+          page.section,
+          page.slug,
+          page.title,
+          page.summary,
+          page.bodyMd,
+          page.bodyHtml,
+          page.sortOrder,
+          page.isPublished,
+          page.requiresAuth ?? false,
+          page.videoUrl,
+          page.videoType,
+          page.imageUrl,
+        ],
       );
       return res.rows[0].id;
     },
@@ -106,6 +129,10 @@ export function createPgContentPagesPort(): ContentPagesPort {
       if (patch.deletedAt !== undefined) {
         sets.push(`deleted_at = $${n++}`);
         vals.push(patch.deletedAt);
+      }
+      if (patch.requiresAuth !== undefined) {
+        sets.push(`requires_auth = $${n++}`);
+        vals.push(patch.requiresAuth);
       }
       if (sets.length === 0) return;
       vals.push(id);
@@ -167,6 +194,7 @@ function mapRow(row: Record<string, unknown>): ContentPageRow {
     bodyHtml: (row.body_html as string) ?? "",
     sortOrder: row.sort_order as number,
     isPublished: row.is_published as boolean,
+    requiresAuth: Boolean(row.requires_auth),
     videoUrl: (row.video_url as string) ?? null,
     videoType: (row.video_type as string) ?? null,
     imageUrl: (row.image_url as string) ?? null,

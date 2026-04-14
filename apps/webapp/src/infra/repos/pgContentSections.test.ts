@@ -23,6 +23,7 @@ describe("createInMemoryContentSectionsPort", () => {
       description: "",
       sortOrder: 2,
       isVisible: true,
+      requiresAuth: false,
     });
     const row = await p.getBySlug("warmups");
     expect(row?.title).toBe("Разминки");
@@ -37,6 +38,7 @@ describe("createInMemoryContentSectionsPort", () => {
       description: "",
       sortOrder: 0,
       isVisible: false,
+      requiresAuth: false,
     });
     expect(await p.listVisible()).toEqual([]);
     expect((await p.listAll()).length).toBe(1);
@@ -44,8 +46,22 @@ describe("createInMemoryContentSectionsPort", () => {
 
   it("reorderSlugs updates sort_order indices", async () => {
     const p = createInMemoryContentSectionsPort();
-    await p.upsert({ slug: "a", title: "A", description: "", sortOrder: 0, isVisible: true });
-    await p.upsert({ slug: "b", title: "B", description: "", sortOrder: 1, isVisible: true });
+    await p.upsert({
+      slug: "a",
+      title: "A",
+      description: "",
+      sortOrder: 0,
+      isVisible: true,
+      requiresAuth: false,
+    });
+    await p.upsert({
+      slug: "b",
+      title: "B",
+      description: "",
+      sortOrder: 1,
+      isVisible: true,
+      requiresAuth: false,
+    });
     await p.reorderSlugs(["b", "a"]);
     const all = await p.listAll();
     expect(all.find((r) => r.slug === "b")?.sortOrder).toBe(0);

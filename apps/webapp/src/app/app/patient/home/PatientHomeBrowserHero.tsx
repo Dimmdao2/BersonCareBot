@@ -37,7 +37,7 @@ export function PatientHomeBrowserHero() {
         id="patient-home-browser-link-assistant"
         className={cardClass}
       >
-        <h2 className="text-base font-semibold">Личный помощник</h2>
+        <h2 className="text-base font-semibold">Помощник</h2>
         <p className="mt-2 text-sm text-muted-foreground">Напоминания и уведомления</p>
       </Link>
     </section>

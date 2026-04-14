@@ -41,7 +41,7 @@ describe('max user static content', () => {
     expect(menus.main[0]).toEqual([
       { textTemplateKey: 'max:menu.book', webAppUrlFact: 'links.bookingUrl', callbackData: 'booking.open' },
       { textTemplateKey: 'max:menu.diary', webAppUrlFact: 'links.webappDiaryUrl', callbackData: 'diary.open' },
-      { textTemplateKey: 'max:menu.more', webAppUrlFact: 'links.webappHomeUrl', callbackData: 'menu.more' },
+      { textTemplateKey: 'max:menu.more', webAppUrlFact: 'links.webappRemindersUrl', callbackData: 'menu.more' },
     ]);
   });
 
@@ -55,7 +55,7 @@ describe('max user static content', () => {
     const send = more?.steps?.find(
       (s) =>
         s.action === 'message.send'
-        && (s.params as { _when?: { path?: string } })?._when?.path === 'facts.links.webappHomeUrl',
+        && (s.params as { _when?: { path?: string } })?._when?.path === 'facts.links.webappRemindersUrl',
     );
     expect(send?.params?.templateKey).toBe('max:menu.webapp.prompt');
   });

@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
 import { SectionWarmupsReminderBar } from "../SectionWarmupsReminderBar";
@@ -22,7 +23,10 @@ export default async function PatientSectionPage({ params }: Props) {
   const section = await deps.contentSections.getBySlug(slug);
   if (!section || !section.isVisible) notFound();
 
-  const pages = await deps.contentPages.listBySection(slug);
+  const canViewAuth = await resolvePatientCanViewAuthOnlyContent(session);
+  if (section.requiresAuth && !canViewAuth) notFound();
+
+  const pages = await deps.contentPages.listBySection(slug, { viewAuthOnlyPages: canViewAuth });
 
   let warmupsReminderJson: ReturnType<typeof reminderRuleToPatientJson> | null = null;
   let warmupsPersonalBar = false;

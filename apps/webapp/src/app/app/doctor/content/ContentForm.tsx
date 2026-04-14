@@ -22,6 +22,7 @@ type ContentPage = {
   bodyHtml: string;
   sortOrder: number;
   isPublished: boolean;
+  requiresAuth: boolean;
   videoUrl: string | null;
   imageUrl?: string | null;
   archivedAt?: string | null;
@@ -199,6 +200,18 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
           key={`pub-${page?.id ?? "new"}`}
         />
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Опубликовано</span>
+      </label>
+
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          name="requires_auth"
+          defaultChecked={page?.requiresAuth ?? false}
+          key={`req-${page?.id ?? "new"}`}
+        />
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Только для залогиненных (щит)
+        </span>
       </label>
 
       <div className="flex flex-col gap-1">

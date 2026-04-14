@@ -10,8 +10,12 @@ import { routePaths } from "@/app-layer/routes/paths";
 import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
 import { patientSessionSnapshotHasPhone, resolvePlatformAccessContext } from "@/modules/platform-access";
+import Link from "next/link";
 import { AppShell } from "@/shared/ui/AppShell";
+import { buttonVariants } from "@/components/ui/button-variants";
+import { cn } from "@/lib/utils";
 import { getSupportContactUrl } from "@/modules/system-settings/supportContactUrl";
+import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { PatientBindPhoneClient } from "./PatientBindPhoneClient";
 
 type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
@@ -42,9 +46,13 @@ export default async function BindPhonePage({ searchParams }: Props) {
   }
 
   const { reason } = await searchParams;
-  const supportContactHref = await getSupportContactUrl();
+  const [supportContactHref, platformEntry] = await Promise.all([
+    getSupportContactUrl(),
+    getPlatformEntry(),
+  ]);
   const telegramId = session.user.bindings.telegramId ?? "";
   const maxId = session.user.bindings.maxId ?? "";
+  const isBotMiniApp = platformEntry === "bot";
 
   const hint =
     reason === "oauth_phone_required"
@@ -52,7 +60,15 @@ export default async function BindPhonePage({ searchParams }: Props) {
       : undefined;
 
   return (
-    <AppShell title="Привязка телефона" user={session.user} backHref={routePaths.patient} backLabel="Меню" variant="patient">
+    <AppShell
+      title="Привязка телефона"
+      user={session.user}
+      backHref={routePaths.patient}
+      backLabel="Меню"
+      variant="patient"
+      patientHideHome={isBotMiniApp}
+      patientHideRightIcons={isBotMiniApp}
+    >
       <div id="patient-bind-phone-section" className="flex flex-col gap-4">
         <PatientBindPhoneClient
           telegramId={telegramId}
@@ -60,6 +76,28 @@ export default async function BindPhonePage({ searchParams }: Props) {
           supportContactHref={supportContactHref}
           hint={hint}
         />
+        {isBotMiniApp ? (
+          <div
+            id="patient-bind-phone-miniapp-extras"
+            className="border-border/80 flex flex-col gap-2 border-t pt-4"
+          >
+            <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+              Пока без телефона
+            </p>
+            <Link
+              href={routePaths.patientSectionsIndex}
+              className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "justify-center")}
+            >
+              Уроки и тренировки
+            </Link>
+            <Link
+              href={supportContactHref}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "justify-center")}
+            >
+              Связаться с поддержкой
+            </Link>
+          </div>
+        ) : null}
       </div>
     </AppShell>
   );

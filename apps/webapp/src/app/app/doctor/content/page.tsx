@@ -73,6 +73,7 @@ export default async function DoctorContentPage({ searchParams }: Props) {
     title: p.title,
     sortOrder: p.sortOrder,
     isPublished: p.isPublished,
+    requiresAuth: p.requiresAuth,
     archivedAt: p.archivedAt,
     deletedAt: p.deletedAt,
   });

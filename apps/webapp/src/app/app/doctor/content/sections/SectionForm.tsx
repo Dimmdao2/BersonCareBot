@@ -13,6 +13,7 @@ type SectionRow = {
   description: string;
   sortOrder: number;
   isVisible: boolean;
+  requiresAuth: boolean;
 };
 
 export function SectionForm({ section }: { section?: SectionRow }) {
@@ -134,6 +135,18 @@ export function SectionForm({ section }: { section?: SectionRow }) {
           key={`vis-${section?.slug ?? "new"}`}
         />
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Виден пациентам</span>
+      </label>
+
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          name="requires_auth"
+          defaultChecked={section?.requiresAuth ?? false}
+          key={`req-${section?.slug ?? "new"}`}
+        />
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Только для залогиненных (щит)
+        </span>
       </label>
 
       <Button type="submit" disabled={pending}>

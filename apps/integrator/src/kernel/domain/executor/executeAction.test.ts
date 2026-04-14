@@ -1537,14 +1537,14 @@ describe('executeAction', () => {
       params: {
         chatId: 321,
         templateKey: 'telegram:chooseMenu',
-        keyboard: [[{ textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappHomeUrl' }]],
+        keyboard: [[{ textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappRemindersUrl' }]],
         resizeKeyboard: true,
       },
     }, {
       ...ctx,
       base: {
         ...ctx.base,
-        facts: { links: { webappHomeUrl: 'https://webapp.example/app?ctx=bot' } },
+        facts: { links: { webappRemindersUrl: 'https://webapp.example/app?ctx=bot' } },
       },
     }, {
       templatePort: {
@@ -1552,7 +1552,7 @@ describe('executeAction', () => {
           text: templateId === 'chooseMenu'
             ? 'Выберите действие'
             : templateId === 'menu.more'
-              ? '⚙️ Меню'
+              ? 'Помощник'
               : '',
         })),
       },
@@ -1564,7 +1564,7 @@ describe('executeAction', () => {
         recipient: { chatId: 321 },
         message: { text: 'Выберите действие' },
         replyMarkup: {
-          keyboard: [[{ text: '⚙️ Меню', web_app: { url: 'https://webapp.example/app?ctx=bot' } }]],
+          keyboard: [[{ text: 'Помощник', web_app: { url: 'https://webapp.example/app?ctx=bot' } }]],
           resize_keyboard: true,
           one_time_keyboard: false,
           is_persistent: true,
@@ -1658,7 +1658,7 @@ describe('executeAction', () => {
           : templateId === 'menu.book'
             ? '📅 Запись на приём'
             : templateId === 'menu.more'
-              ? '⚙️ Меню'
+              ? 'Помощник'
               : '',
       })),
     };
@@ -1700,7 +1700,7 @@ describe('executeAction', () => {
         replyMarkup: {
           keyboard: [[
             { text: '📅 Запись на приём' },
-            { text: '⚙️ Меню' },
+            { text: 'Помощник' },
           ]],
           resize_keyboard: true,
           one_time_keyboard: false,
@@ -1710,11 +1710,11 @@ describe('executeAction', () => {
     });
   });
 
-  it('attaches main reply keyboard when user pressed Меню or Запись на приём', async () => {
+  it('attaches main reply keyboard when user pressed Помощник or Запись на приём', async () => {
     const templatePort = {
       renderTemplate: vi.fn().mockImplementation(async ({ templateId }) => ({
         text: templateId === 'menu.more'
-          ? '⚙️ Меню'
+          ? 'Помощник'
           : templateId === 'menu.book'
             ? '📅 Запись на приём'
             : '',
@@ -1733,7 +1733,7 @@ describe('executeAction', () => {
     }, {
       ...ctx,
       base: { ...ctx.base, linkedPhone: true },
-      event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { action: 'menu.more', text: '⚙️ Меню', chatId: 123 } } },
+      event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' }, payload: { incoming: { action: 'menu.more', text: 'Помощник', chatId: 123 } } },
     }, {
       templatePort,
       sendMenuOnButtonPress: true,
@@ -1754,11 +1754,11 @@ describe('executeAction', () => {
       type: 'message.send',
       payload: {
         recipient: { chatId: 123 },
-        message: { text: '⚙️ Меню' },
+        message: { text: 'Помощник' },
         replyMarkup: {
           keyboard: [[
             { text: '📅 Запись на приём' },
-            { text: '⚙️ Меню' },
+            { text: 'Помощник' },
           ]],
           resize_keyboard: true,
           one_time_keyboard: false,
@@ -1823,7 +1823,7 @@ describe('executeAction', () => {
         if (id === 'questionAccepted') return { text: 'Вопрос принят.' };
         if (id === 'menu.book') return { text: '📅 Запись на приём' };
         if (id === 'menu.diary') return { text: '📓 Дневник' };
-        if (id === 'menu.more') return { text: '⚙️ Меню' };
+        if (id === 'menu.more') return { text: 'Помощник' };
         return { text: '' };
       }),
     };
@@ -1846,7 +1846,7 @@ describe('executeAction', () => {
           links: {
             bookingUrl,
             webappDiaryUrl: 'https://app.example/d',
-            webappHomeUrl: 'https://app.example/h',
+            webappRemindersUrl: 'https://app.example/h',
           },
         },
       },
@@ -1868,7 +1868,7 @@ describe('executeAction', () => {
                 main: [[
                   { textTemplateKey: 'max:menu.book', webAppUrlFact: 'links.bookingUrl' },
                   { textTemplateKey: 'max:menu.diary', webAppUrlFact: 'links.webappDiaryUrl' },
-                  { textTemplateKey: 'max:menu.more', webAppUrlFact: 'links.webappHomeUrl' },
+                  { textTemplateKey: 'max:menu.more', webAppUrlFact: 'links.webappRemindersUrl' },
                 ]],
               },
             };
@@ -1887,7 +1887,7 @@ describe('executeAction', () => {
       web_app: { url: bookingUrl },
     });
     expect(payload?.replyMarkup?.inline_keyboard?.[0]?.[2]).toMatchObject({
-      text: '⚙️ Меню',
+      text: 'Помощник',
       web_app: { url: 'https://app.example/h' },
     });
   });
@@ -1932,7 +1932,7 @@ describe('executeAction', () => {
         text: templateId === 'menu.book'
           ? '📅 Запись на приём'
           : templateId === 'menu.more'
-            ? '⚙️ Меню'
+            ? 'Помощник'
             : '',
       })),
     };
@@ -1979,7 +1979,7 @@ describe('executeAction', () => {
         text: templateId === 'menu.book'
           ? '📅 Запись на приём'
           : templateId === 'menu.more'
-            ? '⚙️ Меню'
+            ? 'Помощник'
             : '',
       })),
     };

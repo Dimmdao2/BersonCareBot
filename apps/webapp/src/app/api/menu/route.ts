@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
+import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 
 export async function GET() {
   const deps = buildAppDeps();
@@ -14,7 +15,8 @@ export async function GET() {
   let contentSections: Awaited<ReturnType<typeof deps.contentSections.listVisible>> = [];
   if (role === "client") {
     try {
-      contentSections = await deps.contentSections.listVisible();
+      const canView = await resolvePatientCanViewAuthOnlyContent(session);
+      contentSections = await deps.contentSections.listVisible({ viewAuthOnlySections: canView });
     } catch (err) {
       logServerRuntimeError("api/menu", err);
     }

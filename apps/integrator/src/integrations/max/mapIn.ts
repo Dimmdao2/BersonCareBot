@@ -10,6 +10,7 @@ const MESSAGE_TEXT_TO_ACTION: Record<string, string> = {
   'Запись на приём': 'booking.open',
   '⚙️ Меню': 'menu.more',
   'Меню': 'menu.more',
+  'Помощник': 'menu.more',
   '📓 Дневник': 'diary.open',
   'Дневник': 'diary.open',
   '/admin_bookings': 'admin.stats.bookings',

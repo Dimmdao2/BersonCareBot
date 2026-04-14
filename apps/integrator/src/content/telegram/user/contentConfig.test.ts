@@ -14,7 +14,7 @@ describe('telegram user static content', () => {
     expect(rows[0]).toEqual([
       { textTemplateKey: 'telegram:menu.book' },
       { textTemplateKey: 'telegram:menu.diary', webAppUrlFact: 'links.webappDiaryUrl' },
-      { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappHomeUrl' },
+      { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappRemindersUrl' },
     ]);
   });
 
@@ -63,7 +63,7 @@ describe('telegram user static content', () => {
     expect(menus.main[0]).toEqual([
       { textTemplateKey: 'telegram:menu.book', callbackData: 'booking.open' },
       { textTemplateKey: 'telegram:menu.diary', webAppUrlFact: 'links.webappDiaryUrl', callbackData: 'diary.open' },
-      { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappHomeUrl', callbackData: 'menu.more' },
+      { textTemplateKey: 'telegram:menu.more', webAppUrlFact: 'links.webappRemindersUrl', callbackData: 'menu.more' },
     ]);
   });
 });

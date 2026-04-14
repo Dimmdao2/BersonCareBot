@@ -10,6 +10,8 @@ export const routePaths = {
   patient: "/app/patient",
   doctor: "/app/doctor",
   settings: "/app/settings",
+  /** Каталог разделов CMS (публичные + при tier patient). */
+  patientSectionsIndex: "/app/patient/sections",
   lessons: "/app/patient/sections/lessons",
   emergency: "/app/patient/sections/emergency",
   cabinet: "/app/patient/cabinet",

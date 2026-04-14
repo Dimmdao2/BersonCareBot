@@ -49,6 +49,7 @@ export function resolvePatientLayoutPathname(getHeader: HeaderGetter): string {
 const PATIENT_PAGE_PREFIXES_WITHOUT_PATIENT_TIER = [
   "/app/patient/bind-phone",
   "/app/patient/profile",
+  "/app/patient/sections",
   "/app/patient/sections/",
   "/app/patient/content/",
   "/app/patient/help",
@@ -91,6 +92,7 @@ function patientPageAllowsGuestOptionalSession(path: string): boolean {
   if (path === "/app/patient/address") return true;
   if (path === "/app/patient/lessons" || path === "/app/patient/emergency") return true;
   if (path.startsWith("/app/patient/booking")) return true;
+  if (path === "/app/patient/sections") return true;
   if (path.startsWith("/app/patient/sections/")) return true;
   if (path.startsWith("/app/patient/content/")) return true;
   if (path.startsWith("/app/patient/diary")) return true;
@@ -106,6 +108,8 @@ const PATH_PREFIXES_ALLOWED_DURING_PHONE_ACTIVATION = [
   "/app/patient/bind-phone",
   "/app/patient/help",
   "/app/patient/support",
+  "/app/patient/sections",
+  "/app/patient/sections/",
 ] as const;
 
 export function patientPathsAllowedDuringPhoneActivation(pathname: string): boolean {

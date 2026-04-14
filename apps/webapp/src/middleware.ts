@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { handlePlatformContextRequest } from "@/middleware/platformContext";
 
 export function middleware(request: NextRequest) {
+  /** Диагностическая страница печатает сырой initData в DOM — только вне production. */
+  if (request.nextUrl.pathname === "/max-debug" && process.env.NODE_ENV === "production") {
+    return new NextResponse(null, { status: 404 });
+  }
+
   const ctxResponse = handlePlatformContextRequest(request);
   if (ctxResponse.headers.has("location")) {
     return ctxResponse;
@@ -22,5 +27,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app", "/app/:path*"],
+  matcher: ["/app", "/app/:path*", "/max-debug"],
 };
