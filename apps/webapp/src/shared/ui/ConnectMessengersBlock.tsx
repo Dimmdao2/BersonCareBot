@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChannelCard } from "@/modules/channel-preferences/types";
-import { finishChannelLinkNavigation, isMaxChannelDeepLinkUrl } from "@/shared/lib/telegramChannelLinkOpen";
+import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
 
 type Props = {
   channelCards: ChannelCard[];
@@ -77,23 +77,13 @@ export function ConnectMessengersBlock({ channelCards, implementedOnly = true, s
         return;
       }
       if (channelCode === "max") {
-        const deep = typeof data.url === "string" && isMaxChannelDeepLinkUrl(data.url);
-        if (deep) {
-          setMaxOpenUrl(data.url);
-          finishChannelLinkNavigation({
-            blankWin: blank,
-            url: data.url,
-            channel: "max",
-            userAgent: navigator.userAgent,
-          });
-        } else {
-          setMaxOpenUrl(null);
-          try {
-            blank?.close();
-          } catch {
-            /* ignore */
-          }
-        }
+        setMaxOpenUrl(data.url);
+        finishChannelLinkNavigation({
+          blankWin: blank,
+          url: data.url,
+          channel: "max",
+          userAgent: navigator.userAgent,
+        });
         setMaxManualCommand(data.manualCommand ?? null);
         if (data.manualCommand) {
           await copyMaxCommand(data.manualCommand);

@@ -118,6 +118,10 @@ function safeCloseBlank(blankWin: Window | null): void {
 /**
  * Завершает переход по ссылке привязки после POST: мост TG/MAX Mini App или вкладка about:blank.
  * Для повторного открытия по ссылке из UI (без заранее открытой вкладки) передайте `blankWin: null`.
+ *
+ * Важно: не опираемся только на `inferMessengerChannelForRequestContact()` для ветки Telegram —
+ * `initData`/cookie иногда ещё не готовы, тогда раньше выполнялся `window.open` и в WebView Telegram
+ * навигация блокировалась; при этом `Telegram.WebApp` уже есть — используем `openLink`/`openTelegramLink`.
  */
 export function finishChannelLinkNavigation(params: {
   blankWin: Window | null;
@@ -126,24 +130,23 @@ export function finishChannelLinkNavigation(params: {
   userAgent: string;
 }): void {
   const { blankWin, url, channel, userAgent } = params;
-  const host = inferMessengerChannelForRequestContact();
 
-  if (host === "telegram") {
-    const tg = (window as Window & { Telegram?: { WebApp?: TelegramWebAppOpen } }).Telegram?.WebApp;
-    if (tg) {
-      if (channel === "telegram" && typeof tg.openTelegramLink === "function") {
-        tg.openTelegramLink(url);
-        safeCloseBlank(blankWin);
-        return;
-      }
-      if (typeof tg.openLink === "function") {
-        const toOpen = channel === "telegram" ? pickTelegramOpenUrl(url, userAgent) : url;
-        tg.openLink(toOpen, { try_instant_view: false });
-        safeCloseBlank(blankWin);
-        return;
-      }
+  const tg = (window as Window & { Telegram?: { WebApp?: TelegramWebAppOpen } }).Telegram?.WebApp;
+  if (tg) {
+    if (channel === "telegram" && typeof tg.openTelegramLink === "function") {
+      tg.openTelegramLink(url);
+      safeCloseBlank(blankWin);
+      return;
+    }
+    if (typeof tg.openLink === "function") {
+      const toOpen = channel === "telegram" ? pickTelegramOpenUrl(url, userAgent) : url;
+      tg.openLink(toOpen, { try_instant_view: false });
+      safeCloseBlank(blankWin);
+      return;
     }
   }
+
+  const host = inferMessengerChannelForRequestContact();
 
   if (host === "max") {
     const w = (window as Window & { WebApp?: MaxWebAppOpen }).WebApp;

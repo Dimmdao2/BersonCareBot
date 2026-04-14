@@ -183,6 +183,22 @@ describe("finishChannelLinkNavigation", () => {
     expect(openLink).toHaveBeenCalledWith(url, { try_instant_view: false });
   });
 
+  it("uses Telegram.WebApp.openLink for max even when inferMessengerChannel is undefined (avoids blocked window.open)", () => {
+    const openLink = vi.fn();
+    vi.stubGlobal("Telegram", { WebApp: { openLink, openTelegramLink: vi.fn() } });
+    inferSpy.mockReturnValue(undefined);
+    const url = "https://max.ru/MyBot?start=link_abc";
+
+    finishChannelLinkNavigation({
+      blankWin: null,
+      url,
+      channel: "max",
+      userAgent: iphoneUa,
+    });
+
+    expect(openLink).toHaveBeenCalledWith(url, { try_instant_view: false });
+  });
+
   it("calls openMaxLink in MAX mini app for max deeplink", () => {
     const openMaxLink = vi.fn();
     vi.stubGlobal("WebApp", { openMaxLink, openLink: vi.fn() });

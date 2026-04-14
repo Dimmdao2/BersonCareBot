@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { finishChannelLinkNavigation, isMaxChannelDeepLinkUrl } from "@/shared/lib/telegramChannelLinkOpen";
+import { finishChannelLinkNavigation } from "@/shared/lib/telegramChannelLinkOpen";
 import { SupportContactLink } from "@/shared/ui/SupportContactLink";
 
 const POLL_MS = 4000;
@@ -71,23 +71,13 @@ export function PatientBrowserMessengerBindPanel({ hint, supportContactHref }: P
         });
       } else {
         setMaxCommand(data.manualCommand ?? null);
-        const deep = typeof data.url === "string" && isMaxChannelDeepLinkUrl(data.url);
-        if (deep) {
-          setMaxOpenUrl(data.url);
-          finishChannelLinkNavigation({
-            blankWin: blank,
-            url: data.url,
-            channel: "max",
-            userAgent: navigator.userAgent,
-          });
-        } else {
-          setMaxOpenUrl(null);
-          try {
-            blank?.close();
-          } catch {
-            /* ignore */
-          }
-        }
+        setMaxOpenUrl(data.url);
+        finishChannelLinkNavigation({
+          blankWin: blank,
+          url: data.url,
+          channel: "max",
+          userAgent: navigator.userAgent,
+        });
         if (data.manualCommand) {
           try {
             await navigator.clipboard.writeText(data.manualCommand);
