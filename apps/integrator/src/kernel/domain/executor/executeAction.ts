@@ -110,7 +110,7 @@ function resolveChannelLinkFailureChatId(ctx: DomainContext, externalId: string)
   return t.length > 0 ? t : null;
 }
 
-/** Inline-кнопка открытия webapp при `no_channel_binding`, если в контексте есть URL (Telegram `web_app`, MAX → link). */
+/** Inline-кнопка открытия webapp при `no_channel_binding`, если в контексте есть URL (Telegram `web_app`; MAX → `open_app` в deliveryAdapter). */
 function readWebappHomeUrlFromFacts(ctx: DomainContext): string | null {
   const facts = asRecord(ctx.base?.facts ?? {});
   const links = asRecord(facts.links);

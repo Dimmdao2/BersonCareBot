@@ -135,7 +135,7 @@ describe('max deliveryAdapter', () => {
     );
   });
 
-  it('send message.send maps web_app to open_app without contact_id when meta.userId missing', async () => {
+  it('send message.send sets contact_id from recipient.chatId when meta.userId missing (DM / jobs)', async () => {
     const adapter = createMaxDeliveryAdapter();
     await adapter.send({
       type: 'message.send',
@@ -153,7 +153,32 @@ describe('max deliveryAdapter', () => {
     const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload?.buttons?.[0]?.[0] as Record<string, unknown>;
     expect(btn?.type).toBe('open_app');
     expect(btn?.web_app).toBe('https://app.example/x');
-    expect(btn?.contact_id).toBeUndefined();
+    expect(btn?.contact_id).toBe(200);
+  });
+
+  it('send message.send maps reply keyboard web_app rows to open_app (merged with inline)', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.send',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        recipient: { chatId: 42 },
+        message: { text: 'Menu' },
+        delivery: { channels: ['max'] },
+        replyMarkup: {
+          keyboard: [[{ text: 'Home', web_app: { url: 'https://app.example/' } }]],
+          inline_keyboard: [[{ text: 'Inline', web_app: { url: 'https://app.example/i' } }]],
+        },
+      },
+    });
+    const call = sendMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
+    const rows = (call?.extra?.attachments?.[0] as { payload?: { buttons?: Record<string, unknown>[][] } })?.payload?.buttons;
+    expect(rows).toHaveLength(2);
+    expect(rows?.[0]?.[0]?.type).toBe('open_app');
+    expect(rows?.[0]?.[0]?.web_app).toBe('https://app.example/i');
+    expect(rows?.[1]?.[0]?.type).toBe('open_app');
+    expect(rows?.[1]?.[0]?.web_app).toBe('https://app.example/');
+    expect(rows?.[0]?.[0]?.contact_id).toBe(42);
   });
 
   it('send message.send maps plain url button to MAX link', async () => {

@@ -17,13 +17,6 @@ export type MaxOpenAppButtonPayload = {
   contact_id?: number;
 };
 
-function maxContactIdFromIntent(intent: OutgoingIntent): number | undefined {
-  const u = intent.meta?.userId;
-  if (typeof u === 'string' && /^\d+$/.test(u.trim())) return Number(u.trim());
-  if (typeof u === 'number' && Number.isFinite(u)) return u;
-  return undefined;
-}
-
 type DeliveryPayload = {
   recipient?: { chatId?: unknown };
   message?: { text?: unknown };
@@ -34,6 +27,22 @@ type DeliveryPayload = {
   parse_mode?: string;
   delivery?: { channels?: unknown };
 } & Record<string, unknown>;
+
+/** MAX user id for `open_app.contact_id` (initData / login context). */
+function parseMaxPlatformUserId(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim());
+  return undefined;
+}
+
+/**
+ * Prefer `meta.userId`; fallback to `recipient.chatId` (DM: same id; jobs may omit meta.userId).
+ */
+function maxContactIdForOpenApp(intent: OutgoingIntent, payload: DeliveryPayload): number | undefined {
+  const fromMeta = parseMaxPlatformUserId(intent.meta?.userId);
+  if (fromMeta !== undefined) return fromMeta;
+  return parseMaxPlatformUserId(payload.recipient?.chatId);
+}
 
 function readChannel(intent: OutgoingIntent): string | null {
   if (intent.type !== 'message.send') return intent.meta.source || null;
@@ -59,8 +68,17 @@ function asNonEmptyString(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
+type TelegramStyleKeyboardRow = Array<{
+  text?: string;
+  callback_data?: string;
+  url?: string;
+  web_app?: { url?: string };
+  request_contact?: boolean;
+}>;
+
 /**
- * Convert Telegram-style reply_markup.inline_keyboard to MAX inline_keyboard attachment.
+ * Convert Telegram-style `reply_markup` to MAX `inline_keyboard` attachment.
+ * - Merges **`inline_keyboard`** and **`keyboard`** (reply keyboard) rows — MAX only has inline attachments.
  * - `web_app` → **`open_app`** (мини-приложение в клиенте MAX, не внешний браузер).
  * - `url` → `link` (обычная ссылка).
  * - `request_contact` — как в API MAX.
@@ -70,18 +88,14 @@ function toMaxInlineKeyboard(
   opts?: { contactId?: number },
 ): AttachmentRequest[] | undefined {
   const rm = replyMarkup as {
-    inline_keyboard?: Array<
-      Array<{
-        text?: string;
-        callback_data?: string;
-        url?: string;
-        web_app?: { url?: string };
-        request_contact?: boolean;
-      }>
-    >;
+    inline_keyboard?: TelegramStyleKeyboardRow[];
+    keyboard?: TelegramStyleKeyboardRow[];
   } | null;
-  if (!rm?.inline_keyboard?.length) return undefined;
-  const buttons = rm.inline_keyboard.map((row) =>
+  const rows: TelegramStyleKeyboardRow[] = [];
+  if (rm?.inline_keyboard?.length) rows.push(...rm.inline_keyboard);
+  if (rm?.keyboard?.length) rows.push(...rm.keyboard);
+  if (rows.length === 0) return undefined;
+  const buttons = rows.map((row) =>
     row.map((btn): Button | MaxOpenAppButtonPayload => {
       if (btn.request_contact === true) {
         return { type: 'request_contact', text: btn.text ?? 'Поделиться номером' } as Button;
@@ -134,7 +148,7 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         if (chatId === null || !text) {
           throw new Error('MAX_PAYLOAD_INVALID: recipient.chatId and message.text required');
         }
-        const sendContactId = maxContactIdFromIntent(intent);
+        const sendContactId = maxContactIdForOpenApp(intent, payload);
         const attachments = toMaxInlineKeyboard(
           payload.replyMarkup,
           sendContactId !== undefined ? { contactId: sendContactId } : undefined,
@@ -156,7 +170,7 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         if (!stringMessageId || !text) {
           throw new Error('MAX_PAYLOAD_INVALID: messageId and message.text required for edit');
         }
-        const editContactId = maxContactIdFromIntent(intent);
+        const editContactId = maxContactIdForOpenApp(intent, payload);
         const attachments = toMaxInlineKeyboard(
           payload.replyMarkup,
           editContactId !== undefined ? { contactId: editContactId } : undefined,
@@ -178,7 +192,7 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         if (!stringMessageId) {
           throw new Error('MAX_PAYLOAD_INVALID: messageId required for replyMarkup edit');
         }
-        const markupContactId = maxContactIdFromIntent(intent);
+        const markupContactId = maxContactIdForOpenApp(intent, payload);
         const attachments = toMaxInlineKeyboard(
           payload.replyMarkup,
           markupContactId !== undefined ? { contactId: markupContactId } : undefined,
