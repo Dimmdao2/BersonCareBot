@@ -95,6 +95,32 @@ describe('max deliveryAdapter', () => {
     );
   });
 
+  it('send message.send maps a row of three web_app buttons to three open_app (main menu parity)', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.send',
+      meta: { eventId: 'e', occurredAt: '', source: 'max', userId: '1' },
+      payload: {
+        recipient: { chatId: 42 },
+        message: { text: 'hello' },
+        delivery: { channels: ['max'] },
+        replyMarkup: {
+          inline_keyboard: [[
+            { text: 'A', web_app: { url: 'https://app.example/a' } },
+            { text: 'B', web_app: { url: 'https://app.example/b' } },
+            { text: 'C', web_app: { url: 'https://app.example/c' } },
+          ]],
+        },
+      },
+    });
+    const call = sendMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
+    const row = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload?.buttons?.[0] as Array<{ type?: string; web_app?: string }>;
+    expect(row).toHaveLength(3);
+    expect(row?.every((b) => b.type === 'open_app')).toBe(true);
+    expect(row?.[0]?.web_app).toBe('https://app.example/a');
+    expect(row?.[2]?.web_app).toBe('https://app.example/c');
+  });
+
   it('send message.send maps Telegram-style web_app button to MAX open_app (contact_id from recipient.chatId)', async () => {
     const adapter = createMaxDeliveryAdapter();
     await adapter.send({

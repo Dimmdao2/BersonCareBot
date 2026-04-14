@@ -7,6 +7,7 @@ import {
   asNumber,
   asStringArray,
   buildMainReplyKeyboardMarkup,
+  buildMaxMainInlineKeyboardMarkup,
   buildDeliveryJob,
   buildIntentMeta,
   buildMessageDeliverJob,
@@ -22,6 +23,34 @@ import { applyMessageSendDeliveryPolicy } from '../deliveryPolicy.js';
 /** Avoid attaching WebApp reply rows until the user has linked a phone (contact gate). */
 function canAttachMainReplyKeyboard(ctx: DomainContext): boolean {
   return ctx.base.linkedPhone === true;
+}
+
+function deliveryTargetsMax(delivery: Record<string, unknown>, ctx: DomainContext): boolean {
+  const channels = asStringArray(delivery.channels);
+  if (channels.includes('max')) return true;
+  return channels.length === 0 && ctx.event.meta.source === 'max';
+}
+
+/** Подмешивание `menus.main` (max/user) к исходящим в MAX без своей разметки — см. `MAX_CAPABILITY_MATRIX.md`. */
+async function enrichPayloadWithMaxMainInlineIfApplicable(
+  payload: Record<string, unknown>,
+  ctx: DomainContext,
+  deps: ExecutorDeps,
+): Promise<Record<string, unknown>> {
+  if (contentAudience(ctx) !== 'user' || !canAttachMainReplyKeyboard(ctx)) return payload;
+  if (payload.replyMarkup) return payload;
+  const recipient = asRecord(payload.recipient);
+  /** MAX send требует `recipient.chatId`; не подмешиваем меню к phone-only payload (напр. Rubitime до fan-out). */
+  if (asNumber(recipient.chatId) === null) return payload;
+  const delivery = asRecord(payload.delivery);
+  if (!deliveryTargetsMax(delivery, ctx)) return payload;
+  const replyMarkup = await buildMaxMainInlineKeyboardMarkup({
+    ctx,
+    templatePort: deps.templatePort,
+    contentPort: deps.contentPort,
+  });
+  if (!replyMarkup) return payload;
+  return { ...payload, replyMarkup };
 }
 
 function channelBindingsToTargets(bindings: Record<string, string> | null | undefined): Array<{ channel: 'telegram' | 'max'; externalId: string }> {
@@ -81,6 +110,7 @@ export async function handleDelivery(
         }
       }
     }
+    firstPayload = await enrichPayloadWithMaxMainInlineIfApplicable(firstPayload, ctx, deps);
     const intents: OutgoingIntent[] = [{
       type: 'message.send',
       meta: {
@@ -137,21 +167,27 @@ export async function handleDelivery(
         const maxAttempts = typeof delivery.maxAttempts === 'number' && Number.isFinite(delivery.maxAttempts)
           ? Math.max(1, Math.trunc(delivery.maxAttempts))
           : 1;
-        const intents: OutgoingIntent[] = targets.map((target) => {
-          const chatId = target.channel === 'telegram' ? Number(target.externalId) : (Number(target.externalId) || target.externalId);
-          return {
-            type: 'message.send' as const,
-            meta: buildIntentMeta(action, ctx),
-            payload: {
+        const intents: OutgoingIntent[] = await Promise.all(
+          targets.map(async (target) => {
+            const chatId = target.channel === 'telegram' ? Number(target.externalId) : (Number(target.externalId) || target.externalId);
+            let payload: Record<string, unknown> = {
               ...resolvedParams,
               recipient: { chatId },
               delivery: { channels: [target.channel], maxAttempts },
-            },
-          };
-        });
+            };
+            payload = await enrichPayloadWithMaxMainInlineIfApplicable(payload, ctx, deps);
+            return {
+              type: 'message.send' as const,
+              meta: buildIntentMeta(action, ctx),
+              payload,
+            };
+          }),
+        );
         return { actionId: action.id, status: 'success', intents };
       }
     }
+
+    resolvedParams = await enrichPayloadWithMaxMainInlineIfApplicable(resolvedParams, ctx, deps);
 
     const intents: OutgoingIntent[] = [{
       type: 'message.send',

@@ -23,6 +23,7 @@ import type {
   WebappEventsPort,
 } from '../../contracts/index.js';
 import { applyMessageSendDeliveryPolicy } from './deliveryPolicy.js';
+import { logger } from '../../../infra/observability/logger.js';
 
 /** Policy for support relay: which message types are allowed user→admin and admin→user. */
 export type SupportRelayPolicy = {
@@ -256,6 +257,34 @@ export async function buildMainReplyKeyboardMarkup(input: {
   if (!bundle?.mainReplyKeyboard || !Array.isArray(bundle.mainReplyKeyboard)) return undefined;
   return buildReplyMarkup({
     params: { keyboard: bundle.mainReplyKeyboard, resizeKeyboard: true },
+    ctx: input.ctx,
+    templatePort: input.templatePort,
+  });
+}
+
+/**
+ * Главное инлайн-меню MAX (`menus.main` из бандла max/user): три WebApp-кнопки, если заданы facts с URL.
+ * Не зависит от `ctx.event.meta.source` — используется при исходящей доставке в канал `max`.
+ */
+export async function buildMaxMainInlineKeyboardMarkup(input: {
+  ctx: DomainContext;
+  templatePort: TemplatePort | undefined;
+  contentPort: ContentPort | undefined;
+}): Promise<unknown | undefined> {
+  if (contentAudience(input.ctx) !== 'user' || !input.templatePort || !input.contentPort?.getBundle) return undefined;
+  const bundle = await input.contentPort.getBundle({ source: 'max', audience: 'user' });
+  const menus = bundle?.menus;
+  if (!menus || typeof menus !== 'object') {
+    logger.warn('max main inline menu: missing menus in max/user bundle');
+    return undefined;
+  }
+  const main = (menus as Record<string, unknown>).main;
+  if (!Array.isArray(main) || main.length === 0) {
+    logger.warn('max main inline menu: menus.main empty');
+    return undefined;
+  }
+  return buildReplyMarkup({
+    params: { inlineKeyboard: main },
     ctx: input.ctx,
     templatePort: input.templatePort,
   });

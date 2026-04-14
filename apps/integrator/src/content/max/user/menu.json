@@ -6,7 +6,7 @@
   ],
   "main": [
     [
-      { "textTemplateKey": "max:menu.book", "callbackData": "booking.open" },
+      { "textTemplateKey": "max:menu.book", "webAppUrlFact": "links.bookingUrl", "callbackData": "booking.open" },
       { "textTemplateKey": "max:menu.diary", "webAppUrlFact": "links.webappDiaryUrl", "callbackData": "diary.open" },
       { "textTemplateKey": "max:menu.more", "webAppUrlFact": "links.webappHomeUrl", "callbackData": "menu.more" }
     ]

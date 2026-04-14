@@ -51,6 +51,8 @@ npx tsx scripts/check-max.ts
 
 В production при `MAX_ENABLED=true` и пустом `MAX_API_KEY` интегратор при старте выведет предупреждение (аналогично `TELEGRAM_BOT_TOKEN`).
 
+При старте webhook вызывается **`setMyCommands` с пустым списком** — в клиенте MAX не отображаются slash-команды бота; навигация через инлайн-кнопки сценариев (см. `MAX_CAPABILITY_MATRIX.md`).
+
 ---
 
 ## 3. Регистрация webhook в MAX
@@ -121,7 +123,7 @@ npx tsx scripts/check-max.ts
 
 ## 6. Smoke-проверка (start → меню → открытие вебапп)
 
-1. В MAX откройте чат с ботом: для приветствия с меню можно отправить `/start` (те же deep link параметры, что у Telegram: `link_*`, `setphone_…`, Rubitime, `noticeme` и т.д. — см. [`INTEGRATOR_TELEGRAM_START_SCRIPTS.md`](../AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md)) или дождаться сценария старта; команда **`/menu`** в списке команд бота открывает промпт с кнопкой вебаппа (как **«Меню»** в Telegram после упрощения главного меню).
+1. В MAX откройте чат с ботом: для приветствия с меню можно отправить `/start` (те же deep link параметры, что у Telegram: `link_*`, `setphone_…`, Rubitime, `noticeme` и т.д. — см. [`INTEGRATOR_TELEGRAM_START_SCRIPTS.md`](../AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md)) или дождаться сценария старта; текст **`/menu`** по-прежнему обрабатывается ботом (`mapIn.ts`), но **список команд у бота в UI пустой** — главное меню через инлайн-кнопки под сообщениями.
 2. После старта с привязанным номером — **одна строка** inline-кнопок: запись на приём, дневник (WebApp), **Меню** (WebApp на дом). Отдельного развёрнутого блока «ещё» в боте нет; уведомления и прочее — в вебаппе.
 3. Нажмите **«Меню»** — сообщение с текстом-подсказкой и кнопкой открытия вебаппа (если в facts задан `links.webappHomeUrl`; иначе шаблон «не настроено»).
 4. Откройте вебапп с кнопки — интегратор шлёт кнопку **`open_app`** (поле `web_app` = URL с `?t=...&ctx=bot`), мини-приложение открывается **внутри клиента MAX** с MAX Bridge и `initData` (`POST /api/auth/max-init`). Если пользователь открыл тот же URL как обычную ссылку (`link`) во внешнем браузере — работает только обмен по **`?t=`** (`exchange`), без `initData`.

@@ -12,7 +12,7 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 | Callback (button press) | full | full | `message_callback` with `callback_id`, `payload` mapped to `callback.received`. |
 | Contact request | full | partial | MAX has `request_contact` button type; flow parity not yet verified. |
 | /start, bot_started | full | full | `bot_started` and `/start` text both open start flow (`max.start` / onboarding). |
-| Slash commands in bot menu | full (Telegram menu button / text) | partial | MAX `setMyCommands`: **`book`**, **`diary`**, **`menu`** only (no **`start`** in command list). Mapped in [`mapIn.ts`](../../apps/integrator/src/integrations/max/mapIn.ts) to `booking.open`, `nav.webapp.diary`, `nav.webapp.menu`. |
+| Slash commands in bot menu | full (Telegram menu button / text) | partial | MAX `setMyCommands`: **пустой список** (на старте webhook в [`setupCommands.ts`](../../apps/integrator/src/integrations/max/setupCommands.ts)); главное меню — инлайн-кнопки. Текстовые **`/book`**, **`/diary`**, **`/menu`** по-прежнему обрабатываются в [`mapIn.ts`](../../apps/integrator/src/integrations/max/mapIn.ts) (`booking.open`, `nav.webapp.diary`, `nav.webapp.menu`) — это независимо от списка команд в UI. |
 | Reply keyboard (persistent bottom buttons) | full | unsupported | MAX uses inline keyboard only; we use inline menu as fallback. |
 
 ## Outgoing
@@ -52,5 +52,6 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 ## Summary
 
 - **Fully supported in MAX for MVP:** receive text/callback, send text, inline keyboard, edit message, answer callback, HTML/Markdown.
+- **Авто-главное меню (executor):** к `message.send` / `message.compose` в канал MAX подмешивается строка `menus.main` только при **`linkedPhone`**, числовом **`recipient.chatId`**, отсутствии своей `replyMarkup` и доставке в max (в т.ч. отдельный интент при Rubitime fan-out). Без `chatId` меню не подмешивается — иначе отправка в MAX невозможна. См. `delivery.ts`, `INTEGRATOR_CONTRACT.md`.
 - **Partial / verify in prod:** contact request parity, глубина deep link под все сценарии Telegram.
 - **Unsupported (with fallback):** reply keyboard → use inline keyboard for main menu.

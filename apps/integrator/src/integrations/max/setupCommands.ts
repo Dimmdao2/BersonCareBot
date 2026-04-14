@@ -13,17 +13,11 @@ export async function setupMaxCommands(): Promise<void> {
   const apiKey = await getMaxApiKey();
   if (!apiKey) return;
 
-  const ok = await setMaxBotCommands(
-    { apiKey },
-    [
-      { name: 'book', description: 'Запись на приём' },
-      { name: 'diary', description: 'Дневник' },
-      { name: 'menu', description: 'Меню' },
-    ],
-  );
+  /** Пустой список — убираем slash-команды из меню клиента MAX; навигация через инлайн-кнопки. */
+  const ok = await setMaxBotCommands({ apiKey }, []);
 
   if (ok) {
-    logger.info('MAX: setMyCommands ok');
+    logger.info('MAX: setMyCommands ok (empty command list)');
     return;
   }
 

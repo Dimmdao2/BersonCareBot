@@ -361,6 +361,8 @@ Canonical linking rules:
 
 **Reply-меню Telegram (`sendMenuOnButtonPress`):** автоподмешивание главной reply-клавиатуры из `replyMenu.json` к `message.send` / `message.compose` для пользователя выполняется в executor **только при** `ctx.base.linkedPhone === true`, чтобы не обходить гейт контакта.
 
+**Главное инлайн-меню MAX:** для исходящих `message.send` / `message.compose`, если в `delivery.channels` есть **`max`** (или канал не задан и `event.meta.source === 'max'`), у пользователя **`linkedPhone === true`**, в payload задан числовой **`recipient.chatId`** (иначе MAX send недопустим и меню не подмешивается — напр. телефон без fan-out) и ещё **нет** `replyMarkup`, executor подмешивает **`menus.main`** из контент-бандла **`max/user`** (три кнопки WebApp из фактов `links.*`). При fan-out с Rubitime обогащение применяется **отдельно** к каждому интенту с каналом `max`, чтобы не подмешивать MAX-клавиатуру в Telegram.
+
 ---
 
 ## Flow: BersonCare → Integrator (Rubitime record create + projection)

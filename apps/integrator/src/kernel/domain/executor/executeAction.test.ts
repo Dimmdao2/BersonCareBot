@@ -225,6 +225,72 @@ describe('executeAction', () => {
     });
   });
 
+  it('rubitime fan-out: only max intent gets auto main inline keyboard when linkedPhone', async () => {
+    const deliveryTargetsPort = {
+      getTargetsByPhone: async () => ({ telegramId: '123', maxId: '456' }),
+      getTargetsByChannelBinding: async () => null,
+    };
+    const templatePort = {
+      renderTemplate: vi.fn().mockImplementation(async ({ templateId }: { templateId: string }) => {
+        if (templateId === 'menu.book') return { text: '📅 Запись' };
+        return { text: '' };
+      }),
+    };
+    const contentPort = {
+      getTemplate: vi.fn(),
+      getBundle: vi.fn().mockImplementation(async (scope: { source: string }) => {
+        if (scope.source === 'max') {
+          return {
+            scripts: [],
+            templates: {},
+            menus: {
+              main: [[{ textTemplateKey: 'max:menu.book', webAppUrlFact: 'links.bookingUrl' }]],
+            },
+          };
+        }
+        return { scripts: [], templates: {} };
+      }),
+    };
+    const result = await executeAction(
+      {
+        id: 'a6d-menu-split',
+        type: 'message.send',
+        mode: 'async',
+        params: {
+          recipient: { phoneNormalized: '+79990001122' },
+          recipientPolicy: { lookupByPhone: true },
+          message: { text: 'Booking confirmed' },
+          delivery: { channels: ['telegram'], maxAttempts: 1 },
+        },
+      },
+      {
+        ...ctx,
+        base: {
+          ...ctx.base,
+          linkedPhone: true,
+          facts: { links: { bookingUrl: 'https://app.example/book' } },
+        },
+        event: {
+          ...ctx.event,
+          meta: { ...ctx.event.meta, source: 'rubitime' },
+          payload: { incoming: { phone: '89643805480', action: 'created' } },
+        },
+      },
+      { deliveryTargetsPort, contentPort, templatePort },
+    );
+    const telegramIntent = result.intents?.find(
+      (i) => i.type === 'message.send' && (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels?.[0] === 'telegram',
+    );
+    const maxIntent = result.intents?.find(
+      (i) => i.type === 'message.send' && (i.payload as { delivery?: { channels?: string[] } }).delivery?.channels?.[0] === 'max',
+    );
+    expect((telegramIntent?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
+    expect((maxIntent?.payload as { replyMarkup?: { inline_keyboard?: unknown[][] } }).replyMarkup?.inline_keyboard?.[0]?.[0]).toMatchObject({
+      text: '📅 Запись',
+      web_app: { url: 'https://app.example/book' },
+    });
+  });
+
   it('applies rubitime delivery policy when message.send fields are missing', async () => {
     const deliveryDefaultsPort = {
       getDeliveryDefaults: async (source: string, options?: { inputAction?: string }) =>
@@ -1747,6 +1813,116 @@ describe('executeAction', () => {
         message: { text: 'Вопрос принят. Я отвечу вам в ближайшее время.' },
       },
     });
+    expect((result.intents?.[0]?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
+  });
+
+  it('attaches max main inline keyboard to message.send for max channel when linkedPhone', async () => {
+    const templatePort = {
+      renderTemplate: vi.fn().mockImplementation(async ({ templateId }: { templateId: string }) => {
+        const id = String(templateId);
+        if (id === 'questionAccepted') return { text: 'Вопрос принят.' };
+        if (id === 'menu.book') return { text: '📅 Запись на приём' };
+        if (id === 'menu.diary') return { text: '📓 Дневник' };
+        if (id === 'menu.more') return { text: '⚙️ Меню' };
+        return { text: '' };
+      }),
+    };
+    const bookingUrl = 'https://app.example/t?ctx=bot&next=cabinet';
+    const result = await executeAction({
+      id: 'max-inline-main-1',
+      type: 'message.send',
+      mode: 'async',
+      params: {
+        recipient: { chatId: 999 },
+        templateKey: 'max:questionAccepted',
+        delivery: { channels: ['max'], maxAttempts: 1 },
+      },
+    }, {
+      ...ctx,
+      base: {
+        ...ctx.base,
+        linkedPhone: true,
+        facts: {
+          links: {
+            bookingUrl,
+            webappDiaryUrl: 'https://app.example/d',
+            webappHomeUrl: 'https://app.example/h',
+          },
+        },
+      },
+      event: {
+        ...ctx.event,
+        meta: { ...ctx.event.meta, source: 'max' },
+        payload: { incoming: { chatId: 999 } },
+      },
+    }, {
+      templatePort,
+      contentPort: {
+        getTemplate: vi.fn(),
+        getBundle: vi.fn().mockImplementation(async (scope: { source: string }) => {
+          if (scope.source === 'max') {
+            return {
+              scripts: [],
+              templates: {},
+              menus: {
+                main: [[
+                  { textTemplateKey: 'max:menu.book', webAppUrlFact: 'links.bookingUrl' },
+                  { textTemplateKey: 'max:menu.diary', webAppUrlFact: 'links.webappDiaryUrl' },
+                  { textTemplateKey: 'max:menu.more', webAppUrlFact: 'links.webappHomeUrl' },
+                ]],
+              },
+            };
+          }
+          return { scripts: [], templates: {} };
+        }),
+      },
+    });
+
+    const payload = result.intents?.[0]?.payload as {
+      replyMarkup?: { inline_keyboard?: Array<Array<{ text: string; web_app?: { url: string } }>> };
+    };
+    expect(payload?.replyMarkup?.inline_keyboard?.[0]).toHaveLength(3);
+    expect(payload?.replyMarkup?.inline_keyboard?.[0]?.[0]).toMatchObject({
+      text: '📅 Запись на приём',
+      web_app: { url: bookingUrl },
+    });
+    expect(payload?.replyMarkup?.inline_keyboard?.[0]?.[2]).toMatchObject({
+      text: '⚙️ Меню',
+      web_app: { url: 'https://app.example/h' },
+    });
+  });
+
+  it('does not attach max main inline when delivery is telegram only', async () => {
+    const templatePort = {
+      renderTemplate: vi.fn().mockResolvedValue({ text: 'ok' }),
+    };
+    const result = await executeAction({
+      id: 'max-inline-skip-tg',
+      type: 'message.send',
+      mode: 'async',
+      params: {
+        recipient: { chatId: 1 },
+        templateKey: 'telegram:questionAccepted',
+        delivery: { channels: ['telegram'], maxAttempts: 1 },
+      },
+    }, {
+      ...ctx,
+      base: { ...ctx.base, linkedPhone: true, facts: { links: { bookingUrl: 'https://x' } } },
+      event: { ...ctx.event, meta: { ...ctx.event.meta, source: 'telegram' } },
+    }, {
+      templatePort,
+      contentPort: {
+        getTemplate: vi.fn(),
+        getBundle: vi.fn().mockResolvedValue({
+          scripts: [],
+          templates: {},
+          menus: {
+            main: [[{ textTemplateKey: 'max:menu.book', webAppUrlFact: 'links.bookingUrl' }]],
+          },
+        }),
+      },
+    });
+
     expect((result.intents?.[0]?.payload as { replyMarkup?: unknown }).replyMarkup).toBeUndefined();
   });
 

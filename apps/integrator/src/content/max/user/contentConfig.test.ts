@@ -39,7 +39,7 @@ describe('max user static content', () => {
     };
     expect(menus.main).toHaveLength(1);
     expect(menus.main[0]).toEqual([
-      { textTemplateKey: 'max:menu.book', callbackData: 'booking.open' },
+      { textTemplateKey: 'max:menu.book', webAppUrlFact: 'links.bookingUrl', callbackData: 'booking.open' },
       { textTemplateKey: 'max:menu.diary', webAppUrlFact: 'links.webappDiaryUrl', callbackData: 'diary.open' },
       { textTemplateKey: 'max:menu.more', webAppUrlFact: 'links.webappHomeUrl', callbackData: 'menu.more' },
     ]);
