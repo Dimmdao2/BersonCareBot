@@ -20,7 +20,7 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 | Mechanic | Telegram | MAX | Notes |
 |----------|----------|-----|------|
 | Send text | full | full | POST `/messages?user_id=`. |
-| Send with inline keyboard | full | full | `attachments` with `inline_keyboard` and `callback` / `link` buttons. |
+| Send with inline keyboard | full | full | `attachments` with `inline_keyboard`: `callback`, `link`, `request_contact`, **`open_app`**. |
 | Edit message text | full | full | PUT `/messages?message_id=` (MAX allows edit within 24h). |
 | Edit message reply markup | full | full | Same PUT with `attachments` (inline keyboard). |
 | Answer callback | full | full | POST `/answers` with `callback_id`. |
@@ -38,7 +38,7 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 
 | Mechanic | Telegram | MAX | Notes |
 |----------|----------|-----|------|
-| Open Web App (Mini App) | full | partial | Inline **`link`** buttons with webapp URLs (facts `links.webapp*Url`); [`deliveryAdapter`](../../apps/integrator/src/integrations/max/deliveryAdapter.ts) maps Telegram-style `web_app` markup where applicable. `open_app` / init data — по необходимости отдельная проверка. |
+| Open Web App (Mini App) | full | full | Оркестратор собирает Telegram-style `web_app: { url }` из фактов (`links.webapp*Url`). [`deliveryAdapter`](../../apps/integrator/src/integrations/max/deliveryAdapter.ts) отправляет в MAX API кнопку **`type: open_app`** с полем **`web_app`** (URL мини-приложения), опционально **`contact_id`** из `meta.userId` — мини-приложение открывается **в клиенте MAX** с MAX Bridge (`initData`). Обычные URL без `web_app` остаются **`link`** (внешняя вкладка). См. [документацию MAX](https://dev.max.ru/docs-api) — типы кнопок, [MAX Bridge](https://dev.max.ru/docs/webapps/bridge). |
 | Deep link with start param | full | full | `link_*`, `setphone_*`, `setrubitimerecord_*`, `noticeme`, `start.set*` — тот же разбор, что в Telegram, через [`messengerStartParse`](../../apps/integrator/src/integrations/common/messengerStartParse.ts) в [`fromMax`](../../apps/integrator/src/integrations/max/mapIn.ts); payload `bot_started` без префикса `/start` канонизируется. |
 
 ## Webhook and dev workflow
@@ -52,5 +52,5 @@ Reference: [MAX API docs](https://dev.max.ru/docs-api), [Telegram Bot API](https
 ## Summary
 
 - **Fully supported in MAX for MVP:** receive text/callback, send text, inline keyboard, edit message, answer callback, HTML/Markdown.
-- **Partial / verify in prod:** contact request parity, `open_app` vs `link` entry, глубина deep link под все сценарии Telegram.
+- **Partial / verify in prod:** contact request parity, глубина deep link под все сценарии Telegram.
 - **Unsupported (with fallback):** reply keyboard → use inline keyboard for main menu.

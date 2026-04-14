@@ -102,6 +102,8 @@ npx tsx scripts/check-max.ts
 
 Интегратор по-прежнему использует **`MAX_API_KEY`** в своём env для webhook и исходящих вызовов; webapp читает **`max_bot_api_key`** из БД, а не дублирует `MAX_API_KEY` в env webapp.
 
+Кнопки «открыть приложение» из сценариев используют Telegram-разметку `web_app`; модуль [`deliveryAdapter.ts`](../../apps/integrator/src/integrations/max/deliveryAdapter.ts) преобразует её в кнопку MAX **`open_app`** (не `link`), чтобы не уводить пользователя во внешний браузер.
+
 ---
 
 ## 5. Краткий чеклист
@@ -122,7 +124,7 @@ npx tsx scripts/check-max.ts
 1. В MAX откройте чат с ботом: для приветствия с меню можно отправить `/start` (те же deep link параметры, что у Telegram: `link_*`, `setphone_…`, Rubitime, `noticeme` и т.д. — см. [`INTEGRATOR_TELEGRAM_START_SCRIPTS.md`](../AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md)) или дождаться сценария старта; команда **`/menu`** в списке команд бота открывает промпт с кнопкой вебаппа (как **«Меню»** в Telegram после упрощения главного меню).
 2. После старта с привязанным номером — **одна строка** inline-кнопок: запись на приём, дневник (WebApp), **Меню** (WebApp на дом). Отдельного развёрнутого блока «ещё» в боте нет; уведомления и прочее — в вебаппе.
 3. Нажмите **«Меню»** — сообщение с текстом-подсказкой и кнопкой открытия вебаппа (если в facts задан `links.webappHomeUrl`; иначе шаблон «не настроено»).
-4. Откройте вебапп с кнопки — браузер с `APP_BASE_URL/app?t=...` или WebView на `/app` с `initData`; вебапп выполнит `exchange` или `max-init` и создаст сессию (при заданном `ALLOWED_MAX_IDS` в вебапп или без whitelist в dev).
+4. Откройте вебапп с кнопки — интегратор шлёт кнопку **`open_app`** (поле `web_app` = URL с `?t=...&ctx=bot`), мини-приложение открывается **внутри клиента MAX** с MAX Bridge и `initData` (`POST /api/auth/max-init`). Если пользователь открыл тот же URL как обычную ссылку (`link`) во внешнем браузере — работает только обмен по **`?t=`** (`exchange`), без `initData`.
 
 При ошибках: проверьте логи интегратора (webhook received, pipeline accepted), наличие `links.webappEntryUrl` в facts для MAX (логировать при необходимости) и переменные вебапп `INTEGRATOR_WEBAPP_ENTRY_SECRET` / `APP_BASE_URL`.
 

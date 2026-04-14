@@ -3,6 +3,27 @@ import type { AttachmentRequest, Button } from '@maxhub/max-bot-api/types';
 import * as maxClient from './client.js';
 import { getMaxApiKey } from './runtimeConfig.js';
 
+/**
+ * MAX Platform API: `open_app` открывает мини-приложение внутри клиента (MAX Bridge + initData).
+ * Схема полей: `schemes.OpenAppButton` в max-bot-api-client-go (`type`, `text`, `web_app`, `payload?`, `contact_id?`).
+ * SDK `@maxhub/max-bot-api@0.2.2` в типе `Button` этого варианта ещё не содержит — отправляем JSON как в API.
+ */
+export type MaxOpenAppButtonPayload = {
+  type: 'open_app';
+  text: string;
+  /** URL мини-приложения (как в Telegram `web_app.url`). */
+  web_app: string;
+  payload?: string;
+  contact_id?: number;
+};
+
+function maxContactIdFromIntent(intent: OutgoingIntent): number | undefined {
+  const u = intent.meta?.userId;
+  if (typeof u === 'string' && /^\d+$/.test(u.trim())) return Number(u.trim());
+  if (typeof u === 'number' && Number.isFinite(u)) return u;
+  return undefined;
+}
+
 type DeliveryPayload = {
   recipient?: { chatId?: unknown };
   message?: { text?: unknown };
@@ -40,9 +61,14 @@ function asNonEmptyString(value: unknown): string | null {
 
 /**
  * Convert Telegram-style reply_markup.inline_keyboard to MAX inline_keyboard attachment.
- * Поддержка кнопки request_contact (API MAX: type request_contact в payload.buttons).
+ * - `web_app` → **`open_app`** (мини-приложение в клиенте MAX, не внешний браузер).
+ * - `url` → `link` (обычная ссылка).
+ * - `request_contact` — как в API MAX.
  */
-function toMaxInlineKeyboard(replyMarkup: unknown): AttachmentRequest[] | undefined {
+function toMaxInlineKeyboard(
+  replyMarkup: unknown,
+  opts?: { contactId?: number },
+): AttachmentRequest[] | undefined {
   const rm = replyMarkup as {
     inline_keyboard?: Array<
       Array<{
@@ -55,20 +81,34 @@ function toMaxInlineKeyboard(replyMarkup: unknown): AttachmentRequest[] | undefi
     >;
   } | null;
   if (!rm?.inline_keyboard?.length) return undefined;
-  const buttons: Button[][] = rm.inline_keyboard.map((row) =>
-    row.map((btn): Button => {
+  const buttons = rm.inline_keyboard.map((row) =>
+    row.map((btn): Button | MaxOpenAppButtonPayload => {
       if (btn.request_contact === true) {
         return { type: 'request_contact', text: btn.text ?? 'Поделиться номером' } as Button;
       }
       const webAppUrl = typeof btn.web_app?.url === 'string' ? btn.web_app.url.trim() : '';
       if (webAppUrl.length > 0) {
-        return { type: 'link', text: btn.text ?? '', url: webAppUrl };
+        const open: MaxOpenAppButtonPayload = {
+          type: 'open_app',
+          text: btn.text ?? '',
+          web_app: webAppUrl,
+        };
+        const cid = opts?.contactId;
+        if (cid !== undefined && Number.isFinite(cid)) {
+          open.contact_id = Math.trunc(cid);
+        }
+        return open;
       }
       if (btn.url) return { type: 'link', text: btn.text ?? '', url: btn.url };
       return { type: 'callback', text: btn.text ?? '', payload: btn.callback_data ?? '' };
     }),
   );
-  return [{ type: 'inline_keyboard', payload: { buttons } }];
+  return [
+    {
+      type: 'inline_keyboard',
+      payload: { buttons: buttons as unknown as Button[][] },
+    },
+  ];
 }
 
 export function createMaxDeliveryAdapter(): DeliveryAdapter {
@@ -94,7 +134,11 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         if (chatId === null || !text) {
           throw new Error('MAX_PAYLOAD_INVALID: recipient.chatId and message.text required');
         }
-        const attachments = toMaxInlineKeyboard(payload.replyMarkup);
+        const sendContactId = maxContactIdFromIntent(intent);
+        const attachments = toMaxInlineKeyboard(
+          payload.replyMarkup,
+          sendContactId !== undefined ? { contactId: sendContactId } : undefined,
+        );
         const result = await maxClient.sendMaxMessage(config, {
           chatId,
           text,
@@ -112,7 +156,11 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         if (!stringMessageId || !text) {
           throw new Error('MAX_PAYLOAD_INVALID: messageId and message.text required for edit');
         }
-        const attachments = toMaxInlineKeyboard(payload.replyMarkup);
+        const editContactId = maxContactIdFromIntent(intent);
+        const attachments = toMaxInlineKeyboard(
+          payload.replyMarkup,
+          editContactId !== undefined ? { contactId: editContactId } : undefined,
+        );
         const result = await maxClient.editMaxMessage(config, {
           messageId: stringMessageId,
           extra: {
@@ -130,7 +178,11 @@ export function createMaxDeliveryAdapter(): DeliveryAdapter {
         if (!stringMessageId) {
           throw new Error('MAX_PAYLOAD_INVALID: messageId required for replyMarkup edit');
         }
-        const attachments = toMaxInlineKeyboard(payload.replyMarkup);
+        const markupContactId = maxContactIdFromIntent(intent);
+        const attachments = toMaxInlineKeyboard(
+          payload.replyMarkup,
+          markupContactId !== undefined ? { contactId: markupContactId } : undefined,
+        );
         const result = await maxClient.editMaxMessage(config, {
           messageId: stringMessageId,
           extra: {

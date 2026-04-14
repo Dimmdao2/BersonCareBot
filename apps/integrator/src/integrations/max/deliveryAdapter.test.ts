@@ -14,6 +14,7 @@ import { createMaxDeliveryAdapter } from './deliveryAdapter.js';
 
 describe('max deliveryAdapter', () => {
   beforeEach(() => {
+    sendMaxMessageMock.mockClear();
     sendMaxMessageMock.mockResolvedValue({});
     answerMaxCallbackMock.mockResolvedValue(true);
     editMaxMessageMock.mockResolvedValue(true);
@@ -94,11 +95,11 @@ describe('max deliveryAdapter', () => {
     );
   });
 
-  it('send message.send maps Telegram-style web_app button to MAX link', async () => {
+  it('send message.send maps Telegram-style web_app button to MAX open_app (mini app in client)', async () => {
     const adapter = createMaxDeliveryAdapter();
     await adapter.send({
       type: 'message.send',
-      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      meta: { eventId: 'e', occurredAt: '', source: 'max', userId: '207278131' },
       payload: {
         recipient: { chatId: 200 },
         message: { text: 'Open app' },
@@ -116,7 +117,68 @@ describe('max deliveryAdapter', () => {
             expect.objectContaining({
               type: 'inline_keyboard',
               payload: {
-                buttons: [[{ type: 'link', text: 'Веб-приложение', url: 'https://app.example/t?ctx=bot' }]],
+                buttons: [
+                  [
+                    {
+                      type: 'open_app',
+                      text: 'Веб-приложение',
+                      web_app: 'https://app.example/t?ctx=bot',
+                      contact_id: 207278131,
+                    },
+                  ],
+                ],
+              },
+            }),
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('send message.send maps web_app to open_app without contact_id when meta.userId missing', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.send',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        recipient: { chatId: 200 },
+        message: { text: 'Open' },
+        delivery: { channels: ['max'] },
+        replyMarkup: {
+          inline_keyboard: [[{ text: 'App', web_app: { url: 'https://app.example/x' } }]],
+        },
+      },
+    });
+    const call = sendMaxMessageMock.mock.calls[0]?.[1] as { extra?: { attachments?: unknown[] } };
+    const btn = (call?.extra?.attachments?.[0] as { payload?: { buttons?: unknown[][] } })?.payload?.buttons?.[0]?.[0] as Record<string, unknown>;
+    expect(btn?.type).toBe('open_app');
+    expect(btn?.web_app).toBe('https://app.example/x');
+    expect(btn?.contact_id).toBeUndefined();
+  });
+
+  it('send message.send maps plain url button to MAX link', async () => {
+    const adapter = createMaxDeliveryAdapter();
+    await adapter.send({
+      type: 'message.send',
+      meta: { eventId: 'e', occurredAt: '', source: 'max' },
+      payload: {
+        recipient: { chatId: 200 },
+        message: { text: 'See site' },
+        delivery: { channels: ['max'] },
+        replyMarkup: {
+          inline_keyboard: [[{ text: 'Сайт', url: 'https://example.com/' }]],
+        },
+      },
+    });
+    expect(sendMaxMessageMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        extra: expect.objectContaining({
+          attachments: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'inline_keyboard',
+              payload: {
+                buttons: [[{ type: 'link', text: 'Сайт', url: 'https://example.com/' }]],
               },
             }),
           ]),
