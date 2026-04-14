@@ -2,14 +2,20 @@
 
 /**
  * Блок входа: обмен токена из ссылки на сессию, вход через initData Mini App (Telegram или MAX) или по номеру (AuthFlowV2).
- * Если в адресе есть токен (t или token) — обмен на сессию. Если нет — опрос `Telegram.WebApp.initData` и MAX WebApp bridge;
- * при отсутствии или ошибке — форма входа по номеру через AuthFlowV2 (check-phone, OTP; публичный flow без шага PIN — см. `modules/auth/auth.md`).
+ * Разделение сценариев: `authEntryFlow.ts` (telegram / max / browser). Для MAX query JWT не основной путь;
+ * при `ctx=max` токен в URL не используется; иначе initData обрабатывается раньше отложенного `auth/exchange`.
  */
 
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  classifyAuthEntryFlowFromSearchParams,
+  shouldSuppressQueryJwtForMaxCtx,
+  type AuthEntryFlow,
+} from "@/modules/auth/authEntryFlow";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { AuthFlowV2, type AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
+import { MaxBridgeScript } from "@/shared/ui/MaxBridgeScript";
 import { getMaxWebAppInitDataForAuth } from "@/shared/lib/messengerMiniApp";
 
 type BootstrapState = "idle" | "loading" | "error";
@@ -28,11 +34,24 @@ type AuthBootstrapProps = {
   onAuthStepChange?: (step: AuthFlowStep) => void;
 };
 
+const TOKEN_FALLBACK_MS = 1100;
+
+function logAuthBootstrap(
+  message: string,
+  fields: { flow: AuthEntryFlow; [k: string]: string | number | boolean | undefined },
+): void {
+  if (process.env.NODE_ENV === "test") return;
+  const { flow, ...rest } = fields;
+  console.info(`[auth/bootstrap] ${message}`, { flow, ...rest });
+}
+
 /** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — AuthFlowV2. */
 export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBootstrapProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("t") ?? searchParams.get("token");
+  const suppressQueryJwt = shouldSuppressQueryJwtForMaxCtx(searchParams);
+  const rawToken = searchParams.get("t") ?? searchParams.get("token");
+  const token = suppressQueryJwt ? null : rawToken;
   const nextParam = searchParams.get("next");
   const debug = searchParams.get("debug") === "1";
   const [state, setState] = useState<BootstrapState>("idle");
@@ -43,59 +62,16 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   /** Один POST на монтирование (Strict Mode / повтор эффекта с тем же initData). */
   const telegramInitSentRef = useRef(false);
   const maxInitSentRef = useRef(false);
-
-  // Обмен токена из адреса на сессию и редирект
-  useEffect(() => {
-    if (!token) return;
-
-    let active = true;
-    queueMicrotask(() => setState("loading"));
-
-    void fetch("/api/auth/exchange", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token }),
-    })
-      .then(async (response) => {
-        const text = await response.text();
-        if (debug && active) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
-        if (response.status === 403 || response.status === 401) {
-          setState("error");
-          setError("Не удалось войти");
-          return;
-        }
-        if (!response.ok) throw new Error(`auth exchange failed: ${response.status}`);
-        const payload = text
-          ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
-          : null;
-        if (!active || !payload) return;
-        const role = payload.role ?? "client";
-        const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
-        router.replace(target);
-      })
-      .catch((e) => {
-        if (active) {
-          setState("error");
-          setError("Не удалось войти");
-          if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [router, token, debug, nextParam]);
-
-  const showPhoneFlow =
-    !token && state !== "loading" && (state === "error" || initDataStatus === "no");
+  const tokenExchangeSentRef = useRef(false);
 
   /**
-   * SDK — afterInteractive: пока нет `Telegram.WebApp`, сразу переводим в «веб» и монтируем AuthFlowV2
-   * (OAuth / Telegram Login), но опрос не глушим — если позже появится initData (Mini App), шлём
-   * telegram-init. Не останавливать опрос при первом же WebApp с пустым initData.
+   * Единый клиентский bootstrap: опрос initData (Telegram → MAX), затем отложенный обмен JWT;
+   * при `ctx=max` JWT из query не используется (см. `shouldSuppressQueryJwtForMaxCtx`).
    */
   useEffect(() => {
-    if (token || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
+
+    const flowHint = classifyAuthEntryFlowFromSearchParams(searchParams);
 
     const POLL_MS_MAX = 15000;
     const TICK_MS = 100;
@@ -122,6 +98,20 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       sentRef.current = true;
       stopPolling();
       queueMicrotask(() => setState("loading"));
+
+      if (endpoint === "/api/auth/max-init") {
+        logAuthBootstrap("client max-init", {
+          flow: flowHint,
+          initDataLength: initData.length,
+          entry: "max_initData",
+        });
+      } else {
+        logAuthBootstrap("client telegram-init", {
+          flow: flowHint,
+          initDataLength: initData.length,
+          entry: "telegram_initData",
+        });
+      }
 
       void fetch(endpoint, {
         method: "POST",
@@ -154,7 +144,48 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
     const runTelegramInit = (initData: string) =>
       postMessengerInit("/api/auth/telegram-init", initData, telegramInitSentRef);
-    const runMaxInit = (initData: string) => postMessengerInit("/api/auth/max-init", initData, maxInitSentRef);
+    const runMaxInit = (initData: string) =>
+      postMessengerInit("/api/auth/max-init", initData, maxInitSentRef);
+
+    const postTokenExchange = (t: string) => {
+      if (tokenExchangeSentRef.current) return;
+      tokenExchangeSentRef.current = true;
+      stopPolling();
+      queueMicrotask(() => setState("loading"));
+      logAuthBootstrap("client auth/exchange (query jwt)", {
+        flow: flowHint,
+        tokenLen: t.length,
+        entry: "integrator_jwt",
+      });
+
+      void fetch("/api/auth/exchange", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: t }),
+      })
+        .then(async (response) => {
+          const text = await response.text();
+          if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
+          if (response.status === 403 || response.status === 401) {
+            setState("error");
+            setError("Не удалось войти");
+            return;
+          }
+          if (!response.ok) throw new Error(`auth exchange failed: ${response.status}`);
+          const payload = text
+            ? (JSON.parse(text) as { redirectTo: string; role?: "client" | "doctor" | "admin" })
+            : null;
+          if (!payload) return;
+          const role = payload.role ?? "client";
+          const target = getPostAuthRedirectTarget(role, nextParam, payload.redirectTo);
+          router.replace(target);
+        })
+        .catch((e) => {
+          setState("error");
+          setError("Не удалось войти");
+          if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
+        });
+    };
 
     const tick = () => {
       if (cancelled) return;
@@ -193,6 +224,17 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         }
       }
 
+      if (
+        token &&
+        !telegramInitSentRef.current &&
+        !maxInitSentRef.current &&
+        !tokenExchangeSentRef.current
+      ) {
+        if (elapsed >= TOKEN_FALLBACK_MS && stableWebAppEmptyTicks >= STABLE_EMPTY_TICKS) {
+          postTokenExchange(token);
+        }
+      }
+
       if (elapsed >= POLL_MS_MAX) {
         stopPolling();
         queueMicrotask(() => setInitDataStatus((s) => (s === "unknown" ? "no" : s)));
@@ -206,11 +248,20 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       cancelled = true;
       stopPolling();
     };
-  }, [router, token, debug, nextParam]);
+  }, [router, searchParams, token, debug, nextParam]);
+
+  const showPhoneFlow =
+    !token && state !== "loading" && (state === "error" || initDataStatus === "no");
+
+  /** Bridge MAX только без query JWT — см. `MaxBridgeScript`. */
+  const loadMaxBridge = token == null;
 
   if (showPhoneFlow) {
     return (
-      <AuthFlowV2 nextParam={nextParam} supportContactHref={supportContactHref} onStepChange={onAuthStepChange} />
+      <>
+        <MaxBridgeScript active={loadMaxBridge} />
+        <AuthFlowV2 nextParam={nextParam} supportContactHref={supportContactHref} onStepChange={onAuthStepChange} />
+      </>
     );
   }
 
@@ -222,11 +273,20 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           ? "initData: нет (не Mini App или мессенджер не передал данные)"
           : "initData: проверяем…";
     return (
-      <p className="break-all text-sm text-muted-foreground">
-        [debug] Нет токена в URL. Ожидается ?t=..., Telegram initData или MAX WebApp.initData.
-        <br />
-        {initLabel}
-      </p>
+      <>
+        <MaxBridgeScript active={loadMaxBridge} />
+        <p className="break-all text-sm text-muted-foreground">
+          [debug] Нет токена в URL. Ожидается ?t=..., Telegram initData или MAX WebApp.initData.
+          <br />
+          {initLabel}
+          {suppressQueryJwt ? (
+            <>
+              <br />
+              ctx=max — query JWT отключён; вход через initData или телефон.
+            </>
+          ) : null}
+        </p>
+      </>
     );
   }
 
@@ -235,6 +295,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   if (state === "error" && error) {
     return (
       <>
+        <MaxBridgeScript active={loadMaxBridge} />
         <p className="text-muted-foreground">{error}</p>
         {debug && debugInfo && (
           <pre className="whitespace-pre-wrap text-left text-xs text-muted-foreground">
@@ -247,6 +308,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
   return (
     <>
+      <MaxBridgeScript active={loadMaxBridge} />
       <p className="text-muted-foreground">
         {token ? "Проверяем токен интегратора и создаем сессию..." : "Проверяем вход..."}
       </p>

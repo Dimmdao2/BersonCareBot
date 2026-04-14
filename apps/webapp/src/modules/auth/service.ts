@@ -18,6 +18,7 @@ import {
   parseMaxWebAppInitDataDetailed,
   type MaxInitDataRejectReason,
 } from "@/modules/auth/maxWebAppInitValidate";
+import { mapMaxStartParamToPatientPath } from "@/modules/auth/messengerStartParamRoutes";
 import {
   verifyTelegramLoginWidgetSignature,
   type TelegramLoginWidgetPayload,
@@ -598,9 +599,15 @@ export async function exchangeMaxInitData(
     maxAge: cookieMaxAgeSeconds(session),
   });
 
+  let redirectTo = getRedirectPathForRole(user.role);
+  if (user.role === "client" && parsed.startParam) {
+    const fromParam = mapMaxStartParamToPatientPath(parsed.startParam);
+    if (fromParam) redirectTo = fromParam;
+  }
+
   return {
     session,
-    redirectTo: getRedirectPathForRole(user.role),
+    redirectTo,
   };
 }
 
