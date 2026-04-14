@@ -110,6 +110,8 @@ const PATH_PREFIXES_ALLOWED_DURING_PHONE_ACTIVATION = [
   "/app/patient/support",
   "/app/patient/sections",
   "/app/patient/sections/",
+  /** Публичные материалы CMS (`requires_auth = false`); доступность текста — на странице RSC. */
+  "/app/patient/content/",
 ] as const;
 
 export function patientPathsAllowedDuringPhoneActivation(pathname: string): boolean {

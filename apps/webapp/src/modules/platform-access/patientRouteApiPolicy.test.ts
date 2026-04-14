@@ -50,6 +50,10 @@ describe("patientPathsAllowedDuringPhoneActivation", () => {
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient/sections/")).toBe(true);
   });
 
+  it("allows public CMS material paths during activation gate (requires_auth enforced on RSC)", () => {
+    expect(patientPathsAllowedDuringPhoneActivation("/app/patient/content/public-slug")).toBe(true);
+  });
+
   it("denies home, profile, cabinet, and booking during activation gate", () => {
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient")).toBe(false);
     expect(patientPathsAllowedDuringPhoneActivation("/app/patient/profile")).toBe(false);

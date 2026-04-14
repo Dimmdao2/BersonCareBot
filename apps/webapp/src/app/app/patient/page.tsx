@@ -1,8 +1,9 @@
 /**
  * Главное меню пациента («/app/patient»).
- * Доступно без входа (гость): общие блоки; персональные секции — при наличии сессии.
- * Набор блоков фильтруется по PlatformEntry (bot vs standalone).
- * Сверху — карточки «Кабинет» / «Дневник» (см. PatientHomeBrowserHero). Запись на приём — в меню.
+ * Layout `/app/patient` требует сессию (`layout.tsx`); без неё — редирект на `/app?next=…`.
+ * На этой странице — опциональная сессия (`getOptionalPatientSession`): блоки с персональными данными
+ * только при `patientRscPersonalDataGate === allow`. Набор блоков — по PlatformEntry (bot vs standalone).
+ * В боте при tier patient — отдельная главная миниаппа (`PatientMiniAppPatientHome`).
  */
 
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";

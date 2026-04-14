@@ -1,26 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { middleware } from "@/middleware";
 import { handlePlatformContextRequest } from "@/middleware/platformContext";
 import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
 describe("middleware /max-debug", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("returns 404 in production (no raw initData in HTML)", () => {
-    const prev = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     const req = new NextRequest("https://example.com/max-debug");
     const res = middleware(req);
     expect(res.status).toBe(404);
-    process.env.NODE_ENV = prev;
   });
 
   it("allows max-debug outside production", () => {
-    const prev = process.env.NODE_ENV;
-    process.env.NODE_ENV = "development";
+    vi.stubEnv("NODE_ENV", "development");
     const req = new NextRequest("http://localhost/max-debug");
     const res = middleware(req);
     expect(res.status).not.toBe(404);
-    process.env.NODE_ENV = prev;
   });
 });
 
