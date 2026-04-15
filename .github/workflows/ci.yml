@@ -80,7 +80,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-pnpm
-      - run: pnpm audit
+      - run: pnpm run audit
       - uses: ./.github/actions/cancel-on-failure
 
   deploy:
