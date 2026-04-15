@@ -37,37 +37,46 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
   const [panelMode, setPanelMode] = useState<"blocked" | "timed_out" | "session_lost" | "me_unavailable">("blocked");
 
   const runRecoveryAndDecide = useCallback(async () => {
-    await ensureMessengerMiniAppWebappSession(router);
-    const detail = await getPatientMessengerContactGateDetail();
-    if (detail.kind === "unauthenticated") {
-      const href = await resolveBotHrefAfterMessengerSessionLoss();
-      startTransition(() => {
-        setBotHref(href);
-        setPanelMode("session_lost");
-        setUseMessengerPanel(true);
-      });
-      return;
-    }
-    if (detail.kind === "need_contact") {
-      const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
-      startTransition(() => {
-        setBotHref(href);
-        setPanelMode("blocked");
-        setUseMessengerPanel(true);
-      });
-      return;
-    }
-    if (detail.kind === "me_unavailable") {
+    try {
+      await ensureMessengerMiniAppWebappSession(router);
+      const detail = await getPatientMessengerContactGateDetail();
+      if (detail.kind === "unauthenticated") {
+        const href = await resolveBotHrefAfterMessengerSessionLoss();
+        startTransition(() => {
+          setBotHref(href);
+          setPanelMode("session_lost");
+          setUseMessengerPanel(true);
+        });
+        return;
+      }
+      if (detail.kind === "need_contact") {
+        const href = await resolveMessengerContactGateBotHref(detail.hasTelegram, detail.hasMax);
+        startTransition(() => {
+          setBotHref(href);
+          setPanelMode("blocked");
+          setUseMessengerPanel(true);
+        });
+        return;
+      }
+      if (detail.kind === "me_unavailable") {
+        const href = await resolveMessengerContactGateBotHref(Boolean(tg), Boolean(mx));
+        startTransition(() => {
+          setBotHref(href);
+          setPanelMode("me_unavailable");
+          setUseMessengerPanel(true);
+        });
+        return;
+      }
+      startTransition(() => setUseMessengerPanel(null));
+      router.refresh();
+    } catch {
       const href = await resolveMessengerContactGateBotHref(Boolean(tg), Boolean(mx));
       startTransition(() => {
         setBotHref(href);
         setPanelMode("me_unavailable");
         setUseMessengerPanel(true);
       });
-      return;
     }
-    startTransition(() => setUseMessengerPanel(null));
-    router.refresh();
   }, [router, tg, mx]);
 
   useEffect(() => {

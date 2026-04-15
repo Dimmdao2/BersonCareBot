@@ -13,6 +13,7 @@ import { invalidateConfigKey } from "@/modules/system-settings/configAdapter";
 const ADMIN_SCOPE_KEYS = [
   "sms_fallback_enabled",
   "debug_forward_to_admin",
+  "max_debug_page_enabled",
   "dev_mode",
   "platform_user_merge_v2_enabled",
   "integrator_linked_phone_source",

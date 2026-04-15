@@ -13,7 +13,12 @@ export type PatientMessengerContactGateDetail = {
 };
 
 export async function getPatientMessengerContactGateDetail(): Promise<PatientMessengerContactGateDetail> {
-  const res = await fetch("/api/me", { credentials: "include" });
+  let res: Response;
+  try {
+    res = await fetch("/api/me", { credentials: "include" });
+  } catch {
+    return { kind: "me_unavailable", hasTelegram: false, hasMax: false };
+  }
   if (res.status === 401) {
     return { kind: "unauthenticated", hasTelegram: false, hasMax: false };
   }

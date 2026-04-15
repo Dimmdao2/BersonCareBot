@@ -14,6 +14,7 @@ describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
         telegramInitDataEmpty: true,
         maxInitDataEmpty: true,
         maxBridgeReady: false,
+        messengerMiniAppContext: true,
       }),
     ).toBe(true);
   });
@@ -26,6 +27,20 @@ describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
         telegramInitDataEmpty: true,
         maxInitDataEmpty: true,
         maxBridgeReady: false,
+        messengerMiniAppContext: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not defer in plain browser without messenger mini app context", () => {
+    expect(
+      shouldDeferPhoneLoginWhileMaxBridgeMayLoad({
+        token: null,
+        elapsedMs: 0,
+        telegramInitDataEmpty: true,
+        maxInitDataEmpty: true,
+        maxBridgeReady: false,
+        messengerMiniAppContext: false,
       }),
     ).toBe(false);
   });
@@ -38,6 +53,7 @@ describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
         telegramInitDataEmpty: true,
         maxInitDataEmpty: true,
         maxBridgeReady: false,
+        messengerMiniAppContext: true,
       }),
     ).toBe(false);
   });
@@ -50,6 +66,7 @@ describe("shouldDeferPhoneLoginWhileMaxBridgeMayLoad", () => {
         telegramInitDataEmpty: true,
         maxInitDataEmpty: true,
         maxBridgeReady: true,
+        messengerMiniAppContext: true,
       }),
     ).toBe(false);
   });

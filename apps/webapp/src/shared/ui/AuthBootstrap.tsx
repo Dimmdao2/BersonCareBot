@@ -19,7 +19,7 @@ import {
   MAX_INIT_DATA_TIMEOUT_USER_MESSAGE,
   MESSENGER_INIT_POLL_CAP_MS,
   MESSENGER_MINIAPP_INIT_TIMEOUT_USER_MESSAGE,
-  STALE_BOT_PLATFORM_COOKIE_STANDALONE_MESSAGE,
+  MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE,
   isLikelyMaxMiniAppSurface,
   shouldDeferPhoneLoginWhileMaxBridgeMayLoad,
 } from "@/modules/auth/messengerAuthStrategy";
@@ -70,6 +70,47 @@ function parseJsonSafe(text: string): { redirectTo?: string; role?: "client" | "
   }
 }
 
+function parseMessengerInitErrorBody(text: string): { error?: string } | null {
+  if (!text.trim()) return null;
+  try {
+    return JSON.parse(text) as { error?: string };
+  } catch {
+    return null;
+  }
+}
+
+/** Подсказки «открыть бота» при access_denied в miniapp (публичные конфиги). */
+async function loadMiniappAuthHelpLinks(): Promise<{ telegramHref: string | null; maxHref: string | null }> {
+  try {
+    const [tgRes, altRes] = await Promise.all([
+      fetch("/api/auth/telegram-login/config"),
+      fetch("/api/auth/login/alternatives-config"),
+    ]);
+    const tgJson = (await tgRes.json().catch(() => ({}))) as { ok?: boolean; botUsername?: string | null };
+    const altJson = (await altRes.json().catch(() => ({}))) as {
+      ok?: boolean;
+      maxBotOpenUrl?: unknown;
+    };
+    const tgU =
+      tgJson?.ok === true && typeof tgJson.botUsername === "string"
+        ? tgJson.botUsername.trim().replace(/^@/, "")
+        : "";
+    const telegramHref = tgU.length > 0 ? `https://t.me/${tgU}` : null;
+    const maxU =
+      altJson?.ok === true && typeof altJson.maxBotOpenUrl === "string" && altJson.maxBotOpenUrl.trim().length > 0
+        ? altJson.maxBotOpenUrl.trim()
+        : null;
+    return { telegramHref, maxHref: maxU };
+  } catch {
+    return { telegramHref: null, maxHref: null };
+  }
+}
+
+function clearStaleBotPlatformCookie(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+}
+
 /** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — AuthFlowV2. */
 export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBootstrapProps) {
   const router = useRouter();
@@ -111,6 +152,11 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
   const [state, setState] = useState<BootstrapState>("idle");
   const [error, setError] = useState<string | null>(null);
+  /** Ссылки на ботов при `access_denied` miniapp init (публичные конфиги). */
+  const [miniappHelpLinks, setMiniappHelpLinks] = useState<{ telegram: string | null; max: string | null }>({
+    telegram: null,
+    max: null,
+  });
   const [debugInfo, setDebugInfo] = useState<{ status?: number; message?: string } | null>(null);
   /** `unknown` — ждём Mini App (Telegram initData или MAX WebApp.initData), не показываем сразу OAuth. */
   const [initDataStatus, setInitDataStatus] = useState<"unknown" | "yes" | "no">("unknown");
@@ -155,6 +201,23 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       }
     };
 
+    const applyStaleBotCookieResolvedToWeb = () => {
+      stopPolling();
+      clearStaleBotPlatformCookie();
+      setMessengerEntryFromClient(false);
+      setMessengerRetryNoPhone(false);
+      setMiniappHelpLinks({ telegram: null, max: null });
+      setState("idle");
+      setError(null);
+      setInitDataStatus("no");
+      logAuthBootstrap("stale platform bot cookie cleared → web auth", {
+        flow: flowHint,
+        correlationId,
+        entry: "stale_bot_cookie_web_auth",
+      });
+      queueMicrotask(() => router.refresh());
+    };
+
     const postMessengerInit = (
       endpoint: "/api/auth/telegram-init" | "/api/auth/max-init",
       initData: string,
@@ -192,12 +255,22 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
           if (!response.ok) {
             setState("error");
+            const errBody = parseMessengerInitErrorBody(text);
+            const accessDenied = response.status === 403 && errBody?.error === "access_denied";
             if (response.status >= 500) {
               setError("Сервис временно недоступен. Попробуйте позже.");
+              setMiniappHelpLinks({ telegram: null, max: null });
             } else if (endpoint === "/api/auth/max-init" && response.status === 400) {
               setError("Некорректные данные для входа через MAX.");
+              setMiniappHelpLinks({ telegram: null, max: null });
+            } else if (accessDenied) {
+              setError(MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE);
+              void loadMiniappAuthHelpLinks().then((links) => {
+                setMiniappHelpLinks({ telegram: links.telegramHref, max: links.maxHref });
+              });
             } else {
               setError("Не удалось войти");
+              setMiniappHelpLinks({ telegram: null, max: null });
             }
             logAuthBootstrap("messenger-init failed", {
               flow: flowHint,
@@ -220,6 +293,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         .catch((e) => {
           setState("error");
           setError("Не удалось войти");
+          setMiniappHelpLinks({ telegram: null, max: null });
           if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
           logAuthBootstrap("messenger-init network error", {
             flow: flowHint,
@@ -297,12 +371,36 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       const maxBridgeReady =
         typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
 
+      const ctxEarly = readMessengerCtxParam(searchParams);
+      const cookieOnlyMessenger =
+        readPlatformCookieBot() &&
+        ctxEarly !== BOT_ENTRY_CTX_QUERY &&
+        ctxEarly !== MAX_ENTRY_CTX_QUERY;
+      const maxSurfaceEarly = isLikelyMaxMiniAppSurface(true, maxBridgeReady);
+      /** Как при `POLL_MS_MAX`: внешний браузер с TG-скриптом (`platform=web`) или полное отсутствие `Telegram.WebApp` — не ждать poll до конца. */
+      const staleBotStandaloneBrowser =
+        isTelegramWebAppExternalBrowserSurface() || typeof window.Telegram?.WebApp === "undefined";
+      const staleBotCookieToWebAuth =
+        cookieOnlyMessenger &&
+        messengerEntryFromUrlOrCookie() &&
+        !maxSurfaceEarly &&
+        !maxBridgeReady &&
+        !rawTg &&
+        !rawMax &&
+        staleBotStandaloneBrowser;
+
+      if (staleBotCookieToWebAuth) {
+        applyStaleBotCookieResolvedToWeb();
+        return;
+      }
+
       const deferPhone = shouldDeferPhoneLoginWhileMaxBridgeMayLoad({
         token,
         elapsedMs: elapsed,
         telegramInitDataEmpty: true,
         maxInitDataEmpty: true,
         maxBridgeReady,
+        messengerMiniAppContext: messengerEntryFromUrlOrCookie(),
       });
 
       if (deferPhone) {
@@ -376,18 +474,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
               (isTelegramWebAppExternalBrowserSurface() || typeof window.Telegram?.WebApp === "undefined");
 
             if (staleBotCookieInExternalBrowser) {
-              document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
-              setMessengerEntryFromClient(false);
-              setMessengerRetryNoPhone(true);
-              logAuthBootstrap("stale platform bot cookie cleared", {
-                flow: flowHint,
-                correlationId,
-                entry: "stale_bot_cookie_external_browser",
-              });
-              setState("error");
-              setError(STALE_BOT_PLATFORM_COOKIE_STANDALONE_MESSAGE);
-              setInitDataStatus("unknown");
-              router.refresh();
+              applyStaleBotCookieResolvedToWeb();
               return;
             }
 
@@ -425,6 +512,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     tokenExchangeSentRef.current = false;
     setState("idle");
     setError(null);
+    setMiniappHelpLinks({ telegram: null, max: null });
     setInitDataStatus("unknown");
     setDebugInfo(null);
     setRetryKey((k) => k + 1);
@@ -487,11 +575,36 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     return null;
 
   if (state === "error" && error) {
+    const showHelpLinks = Boolean(miniappHelpLinks.telegram || miniappHelpLinks.max);
     return (
       <>
         <MaxBridgeScript active={loadMaxBridge} />
         <p className="text-muted-foreground">{error}</p>
-        {isMessengerMiniAppEntry || messengerRetryNoPhone ? (
+        {showHelpLinks ? (
+          <div className="mt-3 flex flex-col items-center gap-2 text-sm">
+            {miniappHelpLinks.telegram ? (
+              <a
+                className="text-primary underline"
+                href={miniappHelpLinks.telegram}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Открыть бота в Telegram
+              </a>
+            ) : null}
+            {miniappHelpLinks.max ? (
+              <a
+                className="text-primary underline"
+                href={miniappHelpLinks.max}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Открыть бота в Max
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+        {isMessengerMiniAppEntry || messengerRetryNoPhone || error === MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE ? (
           <div className="mt-4">
             <Button type="button" variant="secondary" onClick={handleMessengerAuthRetry}>
               Повторить

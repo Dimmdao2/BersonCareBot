@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { MediaPickerList, type MediaListItem } from "@/shared/ui/media/MediaPickerList";
+import { MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS } from "@/shared/ui/media/mediaLibrarySearchDebounceMs";
 
 function subscribeMobileViewport(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -34,40 +35,60 @@ type Props = {
 export function MediaLibraryInsertDialog({ onInsert }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<MediaListItem[]>([]);
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
+  const openWasFalseRef = useRef(true);
 
   const url = useMemo(() => {
     const p = new URLSearchParams();
     p.set("kind", "all");
     p.set("sortBy", "date");
     p.set("sortDir", "desc");
-    if (query.trim()) p.set("q", query.trim());
+    if (debouncedQuery.trim()) p.set("q", debouncedQuery.trim());
     p.set("limit", "80");
     return `/api/admin/media?${p.toString()}`;
-  }, [query]);
+  }, [debouncedQuery]);
+
+  useEffect(() => {
+    if (!open) {
+      openWasFalseRef.current = true;
+      return;
+    }
+    if (openWasFalseRef.current) {
+      openWasFalseRef.current = false;
+      queueMicrotask(() => setDebouncedQuery(query.trim()));
+      return;
+    }
+    const t = window.setTimeout(() => setDebouncedQuery(query.trim()), MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(t);
+  }, [open, query]);
 
   useEffect(() => {
     if (!open) return;
-    let cancelled = false;
-    fetch(url, { credentials: "same-origin" })
+    const ac = new AbortController();
+    queueMicrotask(() => {
+      setLoading(true);
+      setError(null);
+    });
+    fetch(url, { credentials: "same-origin", signal: ac.signal })
       .then(async (res) => {
         const data = (await res.json()) as { ok?: boolean; items?: MediaListItem[]; error?: string };
         if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
-        if (!cancelled) setItems(data.items ?? []);
+        if (!ac.signal.aborted) setItems(data.items ?? []);
       })
-      .catch(() => {
-        if (!cancelled) setError("Не удалось загрузить библиотеку");
+      .catch((e: unknown) => {
+        if (ac.signal.aborted) return;
+        const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
+        if (name === "AbortError") return;
+        setError("Не удалось загрузить библиотеку");
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!ac.signal.aborted) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-      setLoading(false);
-    };
+    return () => ac.abort();
   }, [open, url]);
 
   function handlePicked(item: MediaListItem) {
@@ -91,7 +112,6 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
           <Input
             value={query}
             onChange={(e) => {
-              setLoading(true);
               setError(null);
               setQuery(e.target.value);
             }}
@@ -111,6 +131,7 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
         size="sm"
         onClick={() => {
           setQuery("");
+          setDebouncedQuery("");
           setError(null);
           setLoading(true);
           setOpen(true);

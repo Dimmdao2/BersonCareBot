@@ -158,6 +158,7 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
           <MediaLibraryPickerDialog
             kind="image_or_video"
             value={mediaUrl}
+            selectedPreviewKind={mediaType || undefined}
             pickerTitle="Изображение, GIF или видео"
             onChange={(url, meta) => {
               setMediaUrl(url);

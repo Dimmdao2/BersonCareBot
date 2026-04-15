@@ -115,6 +115,27 @@ describe("PATCH /api/admin/settings", () => {
     expect(res.status).toBe(200);
   });
 
+  it("returns 200 for admin updating max_debug_page_enabled (AdminSettingsSection body)", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "max_debug_page_enabled",
+      scope: "admin",
+      valueJson: { value: true },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "max_debug_page_enabled", value: { value: true } }),
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith("max_debug_page_enabled", "admin", { value: true }, "a1");
+  });
+
   it("returns 200 for admin updating app_base_url", async () => {
     getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
     getSettingMock.mockResolvedValue(null);

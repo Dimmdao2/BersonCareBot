@@ -49,7 +49,7 @@ describe("AuthBootstrap", () => {
     expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
   });
 
-  it("при устаревшем bot-cookie в обычном браузере сбрасывает cookie и даёт Повторить без телефонного флоу", async () => {
+  it("при устаревшем bot-cookie в обычном браузере сбрасывает cookie и показывает веб-вход (телефон)", async () => {
     document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
     mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
     window.history.pushState({}, "", "/");
@@ -60,39 +60,43 @@ describe("AuthBootstrap", () => {
     render(<AuthBootstrap />);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(16_000);
+      await vi.advanceTimersByTimeAsync(500);
     });
 
-    expect(screen.queryByText(/укажите номер телефона/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
-    expect(screen.getByText(/Вход по номеру телефона здесь недоступен/i)).toBeInTheDocument();
+    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
     expect(mockRefresh).toHaveBeenCalled();
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
   });
 
-  it("после Повторить при stale-cookie не показывает телефонный флоу до следующего таймаута", async () => {
+  it("при устаревшем bot-cookie без window.Telegram сразу сбрасывает cookie и показывает веб-вход", async () => {
     document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
     mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
     window.history.pushState({}, "", "/");
-    (window as Window & { Telegram?: { WebApp?: { platform: string; initData?: string } } }).Telegram = {
-      WebApp: { platform: "web", initData: "" },
-    };
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
 
     render(<AuthBootstrap />);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(16_000);
+      await vi.advanceTimersByTimeAsync(500);
     });
+
+    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
+    expect(mockRefresh).toHaveBeenCalled();
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+  });
+
+  it("в обычном браузере без ctx не ждёт grace MAX bridge и показывает веб-вход", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+
+    render(<AuthBootstrap />);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /повторить/i }));
+      await vi.advanceTimersByTimeAsync(500);
     });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(6_000);
-    });
-
-    expect(screen.queryByText(/укажите номер телефона/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
   });
 
   it("при ctx=bot не показывает телефонный флоу после таймаута initData и даёт Повторить", async () => {
@@ -120,6 +124,12 @@ describe("AuthBootstrap", () => {
           return new Response(JSON.stringify({ ok: false, error: "access_denied" }), { status: 403 });
         }
       }
+      if (url.includes("telegram-login/config")) {
+        return new Response(JSON.stringify({ ok: true, botUsername: "testcarebot" }), { status: 200 });
+      }
+      if (url.includes("alternatives-config")) {
+        return new Response(JSON.stringify({ ok: true, maxBotOpenUrl: "https://max.ru/test_bot" }), { status: 200 });
+      }
       return new Response(
         JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
         { status: 200 },
@@ -134,6 +144,7 @@ describe("AuthBootstrap", () => {
     });
 
     expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(screen.getByText(/Активируйте бота/i)).toBeInTheDocument();
     expect(telegramInitPosts).toBe(1);
 
     await act(async () => {

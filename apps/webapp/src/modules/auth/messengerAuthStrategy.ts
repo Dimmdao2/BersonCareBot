@@ -16,13 +16,18 @@ export const MAX_INIT_DATA_TIMEOUT_USER_MESSAGE =
 export const MESSENGER_MINIAPP_INIT_TIMEOUT_USER_MESSAGE =
   "Не удалось получить данные для входа из мини-приложения. Нажмите «Повторить» или откройте мини-приложение снова из чата с ботом.";
 
-/** Устаревший `bersoncare_platform=bot` в обычном браузере: вход по телефону не предлагаем (политика miniapp-аудита). */
+/** Устаревший `bersoncare_platform=bot` в обычном браузере: cookie сбрасывается, далее показывается обычный веб-вход. */
 export const STALE_BOT_PLATFORM_COOKIE_STANDALONE_MESSAGE =
-  "Обнаружена устаревшая сессия входа из мини-приложения. Нажмите «Повторить» или откройте приложение снова из чата с ботом. Вход по номеру телефона здесь недоступен.";
+  "Обнаружена устаревшая метка входа из мини-приложения в обычном браузере — она сброшена. Ниже доступен вход через сайт (OAuth или номер телефона).";
+
+/** Отказ miniapp init (например whitelist / не нажат Start): явная подсказка пользователю. */
+export const MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE =
+  "Активируйте бота: откройте чат с ботом и нажмите Start, затем снова откройте приложение из бота. Если уже нажимали Start — нажмите «Повторить».";
 
 /**
  * Пока нет query JWT, Telegram initData пустой, а MAX bridge ещё не загрузился —
  * не показываем форму телефона (иначе пользователь MAX видит «обычный сайт» до появления initData).
+ * Только в контексте возможного мессенджерного mini app (`messengerMiniAppContext`), иначе обычный браузер не ждёт bridge.
  */
 export function shouldDeferPhoneLoginWhileMaxBridgeMayLoad(input: {
   token: string | null;
@@ -30,7 +35,9 @@ export function shouldDeferPhoneLoginWhileMaxBridgeMayLoad(input: {
   telegramInitDataEmpty: boolean;
   maxInitDataEmpty: boolean;
   maxBridgeReady: boolean;
+  messengerMiniAppContext: boolean;
 }): boolean {
+  if (!input.messengerMiniAppContext) return false;
   if (input.token != null) return false;
   if (!input.telegramInitDataEmpty) return false;
   if (!input.maxInitDataEmpty) return false;
