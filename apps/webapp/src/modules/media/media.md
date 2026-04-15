@@ -5,6 +5,7 @@
 ## Возможности
 
 - Загрузка в библиотеку (роль doctor/admin): **легаси** presigned single-PUT (`presign` → PUT → `confirm`) или **multipart** direct-to-S3 при поддержке клиентом и флаге `s3Multipart` из `GET /api/media/s3-status`. Клиент библиотеки после неуспешного multipart делает **best-effort** `POST /api/media/multipart/abort` (в т.ч. из `libraryMultipartUpload` при ошибке после `init`). Ошибки `part-url` / `complete`: отдельно `session_expired`, `session_state_conflict` и `session_not_found` (см. `api.md`).
+- **UI врача:** основной поток — экран библиотеки (`/app/doctor/content/library`) для загрузки; в CMS и упражнениях выбор существующего файла через `GET /api/admin/media` (picker / диалог вставки в Markdown). Fallback `POST /api/media/upload` (multipart, ~до 50 МБ) остаётся для сервисных сценариев и тестов, не как основной путь из редактора Markdown.
 - Получение медиа по id: `GET /api/media/{id}` (сессия, 302 на presigned GET в private-бакет).
 - Листинг с фильтрацией/сортировкой и **папками**: `folderId`, `includeDescendants` в list API.
 - **Иерархия папок** (`media_folders`): CRUD через admin API; в UI библиотеки — хлебные крошки и дочерние папки с действиями переименовать / переместить / удалить (пустая папка). Перемещение файла — `PATCH /api/admin/media/[id]` с `folderId`.

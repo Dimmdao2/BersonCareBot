@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { useActionState, useState } from "react";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,10 @@ import {
 } from "@/components/ui/select";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
-import { archiveDoctorExercise, saveDoctorExercise } from "./actions";
+import { API_MEDIA_URL_RE } from "@/shared/lib/mediaUrlPolicy";
+import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
+import { archiveDoctorExercise, saveDoctorExercise, type SaveDoctorExerciseState } from "./actions";
+import { exerciseMediaTypeFromPick } from "./exerciseMediaFromLibrary";
 
 const LOAD_OPTIONS: { value: ExerciseLoadType; label: string }[] = [
   { value: "strength", label: "Силовая" },
@@ -31,18 +34,32 @@ type ExerciseFormProps = {
 };
 
 export function ExerciseForm({ exercise }: ExerciseFormProps) {
+  const [saveState, formAction, savePending] = useActionState(saveDoctorExercise, null as SaveDoctorExerciseState | null);
   const [regionRefId, setRegionRefId] = useState<string | null>(exercise?.regionRefId ?? null);
   const [regionLabel, setRegionLabel] = useState("");
   const [loadType, setLoadType] = useState<ExerciseLoadType | "">(exercise?.loadType ?? "");
   const [difficulty, setDifficulty] = useState<number>(exercise?.difficulty1_10 ?? 5);
 
+  const initialMedia = exercise?.media[0];
+  const [mediaUrl, setMediaUrl] = useState(initialMedia?.mediaUrl ?? "");
+  const [mediaType, setMediaType] = useState<"" | "image" | "video" | "gif">(initialMedia?.mediaType ?? "");
+
   const tagsStr = exercise?.tags?.join(", ") ?? "";
+
+  const showLegacyMediaWarning = Boolean(mediaUrl.trim() && !API_MEDIA_URL_RE.test(mediaUrl.trim()));
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
-      <form action={saveDoctorExercise} className="flex flex-col gap-4">
+      <form action={formAction} className="flex flex-col gap-4">
+        {saveState?.error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {saveState.error}
+          </p>
+        ) : null}
         {exercise ? <input type="hidden" name="id" value={exercise.id} /> : null}
         <input type="hidden" name="regionRefId" value={regionRefId ?? ""} />
+        <input type="hidden" name="mediaUrl" value={mediaUrl} />
+        <input type="hidden" name="mediaType" value={mediaType} />
 
         <div className="flex flex-col gap-2">
           <Label htmlFor="ex-title">Название</Label>
@@ -138,29 +155,27 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
 
         <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
           <p className="text-sm font-medium">Медиа (опционально)</p>
-          <Input
-            name="mediaUrl"
-            type="url"
-            placeholder="https://…"
-            defaultValue={exercise?.media[0]?.mediaUrl ?? ""}
+          <MediaLibraryPickerDialog
+            kind="image_or_video"
+            value={mediaUrl}
+            pickerTitle="Изображение, GIF или видео"
+            onChange={(url, meta) => {
+              setMediaUrl(url);
+              if (url && meta) setMediaType(exerciseMediaTypeFromPick(meta));
+              else setMediaType("");
+            }}
           />
-          <div className="flex flex-wrap gap-2">
-            <Label className="text-xs text-muted-foreground">Тип файла</Label>
-            <select
-              name="mediaType"
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              defaultValue={exercise?.media[0]?.mediaType ?? ""}
-            >
-              <option value="">—</option>
-              <option value="image">Изображение</option>
-              <option value="video">Видео</option>
-              <option value="gif">GIF</option>
-            </select>
-          </div>
+          {showLegacyMediaWarning ? (
+            <p className="text-xs text-amber-800">
+              Сохранён внешний URL: для новых медиа выберите файл из библиотеки (/api/media/…).
+            </p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button type="submit">{exercise ? "Сохранить" : "Создать упражнение"}</Button>
+          <Button type="submit" disabled={savePending}>
+            {savePending ? "Сохранение…" : exercise ? "Сохранить" : "Создать упражнение"}
+          </Button>
           <Link href="/app/doctor/exercises" className={cn(buttonVariants({ variant: "outline" }))}>
             К списку
           </Link>

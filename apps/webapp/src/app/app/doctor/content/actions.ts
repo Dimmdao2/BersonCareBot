@@ -3,15 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
 export type SaveContentPageState = { ok: boolean; error?: string };
-
-const API_MEDIA_URL_RE =
-  /^\/api\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function isLegacyAbsoluteUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value);
-}
 
 export async function saveContentPage(
   _prev: SaveContentPageState | null,

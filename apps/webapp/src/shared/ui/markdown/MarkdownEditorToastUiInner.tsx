@@ -63,7 +63,7 @@ export default function MarkdownEditorToastUiInner({
         До {maxLength.toLocaleString("ru-RU")} символов. Редактор Toast UI (Markdown + предпросмотр). Таблицы и
         GitHub Flavored Markdown поддерживаются панелью инструментов.
       </p>
-      <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Вставки из медиатеки">
+      <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Вставки из библиотеки файлов">
         <MediaLibraryInsertDialog onInsert={insertFromMedia} />
       </div>
       <div className="toastui-editor-host overflow-hidden rounded-xl border border-border [&_.toastui-editor-defaultUI]:rounded-b-xl [&_.toastui-editor-defaultUI-toolbar]:rounded-t-xl">

@@ -1,12 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { MediaPickerList, type MediaListItem } from "@/shared/ui/media/MediaPickerList";
-import { MediaUploader } from "./MediaUploader";
 
 function subscribeMobileViewport(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -23,12 +23,13 @@ function getMobileViewportSnapshot(): boolean {
 }
 
 type Props = {
-  /** После выбора из библиотеки или успешной загрузки. */
+  /** После выбора из библиотеки. */
   onInsert: (url: string, filename: string) => void;
 };
 
 /**
- * Попап: медиабиблиотека (все типы) + загрузка нового файла для вставки в Markdown.
+ * Попап: выбор файла из медиабиблиотеки для вставки в Markdown.
+ * Новые файлы загружаются на экране «Библиотека файлов» в CMS.
  */
 export function MediaLibraryInsertDialog({ onInsert }: Props) {
   const [open, setOpen] = useState(false);
@@ -65,6 +66,7 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
       });
     return () => {
       cancelled = true;
+      setLoading(false);
     };
   }, [open, url]);
 
@@ -73,17 +75,15 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
     setOpen(false);
   }
 
-  function handleUploaded(uploadUrl: string, filename: string) {
-    onInsert(uploadUrl, filename);
-    setOpen(false);
-  }
-
   const body = (
     <div className="flex flex-col gap-4">
-      <div className="rounded-md border border-border bg-muted/20 p-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Новый файл</p>
-        <MediaUploader onUploaded={handleUploaded} />
-      </div>
+      <p className="m-0 text-sm text-muted-foreground">
+        Чтобы загрузить новые файлы, откройте{" "}
+        <Link href="/app/doctor/content/library" className="font-medium text-primary underline underline-offset-2">
+          библиотеку файлов
+        </Link>
+        , затем вернитесь и вставьте нужный файл отсюда.
+      </p>
       <div className="flex flex-col gap-2">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Библиотека</p>
         <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm">
@@ -116,13 +116,13 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
           setOpen(true);
         }}
       >
-        Вставить файл
+        Вставить из библиотеки
       </Button>
       {isMobileViewport ? (
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetContent side="bottom" className="max-h-[90vh] overflow-auto">
             <SheetHeader>
-              <SheetTitle>Файл из библиотеки или загрузка</SheetTitle>
+              <SheetTitle>Библиотека файлов</SheetTitle>
             </SheetHeader>
             <div className="mt-3">{body}</div>
           </SheetContent>
@@ -131,7 +131,7 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="max-h-[85vh] overflow-auto sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Файл из библиотеки или загрузка</DialogTitle>
+              <DialogTitle>Библиотека файлов</DialogTitle>
             </DialogHeader>
             {body}
           </DialogContent>

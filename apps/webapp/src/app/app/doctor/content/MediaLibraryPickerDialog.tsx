@@ -7,7 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { MediaPickerList, type MediaListItem } from "@/shared/ui/media/MediaPickerList";
 
-type MediaKind = "image" | "video";
+export type MediaLibraryPickerKind = "image" | "video" | "image_or_video";
+
+export type MediaLibraryPickMeta = Pick<MediaListItem, "kind" | "mimeType" | "filename">;
 
 function subscribeMobileViewport(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -24,14 +26,25 @@ function getMobileViewportSnapshot(): boolean {
 }
 
 type Props = {
-  kind: MediaKind;
+  kind: MediaLibraryPickerKind;
   value: string;
-  onChange: (nextUrl: string) => void;
+  onChange: (nextUrl: string, meta?: MediaLibraryPickMeta) => void;
   /** Library folder filter: `null` = root only; `undefined` = all files. */
   folderId?: string | null;
+  /** Overrides dialog/sheet title (default: «Библиотека файлов»). */
+  pickerTitle?: string;
+  /** Overrides main button label (default: «Выбрать из библиотеки»). */
+  selectButtonLabel?: string;
 };
 
-export function MediaLibraryPickerDialog({ kind, value, onChange, folderId }: Props) {
+export function MediaLibraryPickerDialog({
+  kind,
+  value,
+  onChange,
+  folderId,
+  pickerTitle = "Библиотека файлов",
+  selectButtonLabel = "Выбрать из библиотеки",
+}: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -39,9 +52,11 @@ export function MediaLibraryPickerDialog({ kind, value, onChange, folderId }: Pr
   const [items, setItems] = useState<MediaListItem[]>([]);
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
 
-  const url = useMemo(() => {
+  const apiKind = kind === "image_or_video" ? "all" : kind;
+
+  const fetchUrl = useMemo(() => {
     const p = new URLSearchParams();
-    p.set("kind", kind);
+    p.set("kind", apiKind);
     p.set("sortBy", "date");
     p.set("sortDir", "desc");
     if (query.trim()) p.set("q", query.trim());
@@ -51,12 +66,17 @@ export function MediaLibraryPickerDialog({ kind, value, onChange, folderId }: Pr
       else p.set("folderId", folderId);
     }
     return `/api/admin/media?${p.toString()}`;
-  }, [kind, query, folderId]);
+  }, [apiKind, query, folderId]);
+
+  const displayItems = useMemo(() => {
+    if (kind !== "image_or_video") return items;
+    return items.filter((i) => i.kind === "image" || i.kind === "video");
+  }, [items, kind]);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    fetch(url, { credentials: "same-origin" })
+    fetch(fetchUrl, { credentials: "same-origin" })
       .then(async (res) => {
         const data = (await res.json()) as { ok?: boolean; items?: MediaListItem[]; error?: string };
         if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
@@ -70,8 +90,9 @@ export function MediaLibraryPickerDialog({ kind, value, onChange, folderId }: Pr
       });
     return () => {
       cancelled = true;
+      setLoading(false);
     };
-  }, [open, url]);
+  }, [open, fetchUrl]);
 
   const isApiMedia =
     value.startsWith("/api/media/") || /^https?:\/\//i.test(value.trim());
@@ -91,11 +112,11 @@ export function MediaLibraryPickerDialog({ kind, value, onChange, folderId }: Pr
         />
       </label>
       <MediaPickerList
-        items={items}
+        items={displayItems}
         loading={loading}
         error={error}
         onSelect={(item) => {
-          onChange(item.url);
+          onChange(item.url, { kind: item.kind, mimeType: item.mimeType, filename: item.filename });
           setOpen(false);
         }}
       />
@@ -114,7 +135,7 @@ export function MediaLibraryPickerDialog({ kind, value, onChange, folderId }: Pr
             setOpen(true);
           }}
         >
-          Выбрать из библиотеки
+          {selectButtonLabel}
         </Button>
         <Button type="button" variant="ghost" onClick={() => onChange("")}>
           Очистить
@@ -141,7 +162,7 @@ export function MediaLibraryPickerDialog({ kind, value, onChange, folderId }: Pr
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetContent side="bottom" className="max-h-[90vh] overflow-auto">
             <SheetHeader>
-              <SheetTitle>Библиотека файлов</SheetTitle>
+              <SheetTitle>{pickerTitle}</SheetTitle>
             </SheetHeader>
             <div className="mt-3">{pickerBody}</div>
           </SheetContent>
@@ -150,7 +171,7 @@ export function MediaLibraryPickerDialog({ kind, value, onChange, folderId }: Pr
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="max-h-[85vh] overflow-auto">
             <DialogHeader>
-              <DialogTitle>Библиотека файлов</DialogTitle>
+              <DialogTitle>{pickerTitle}</DialogTitle>
             </DialogHeader>
             {pickerBody}
           </DialogContent>

@@ -51,7 +51,7 @@ export function MarkdownEditor({
         До {maxLength.toLocaleString("ru-RU")} символов. Поддерживается Markdown (заголовки, списки, ссылки,
         таблицы).
       </p>
-      <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Вставки Markdown">
+      <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Форматирование Markdown и вставка из библиотеки">
         <Button
           type="button"
           variant="outline"

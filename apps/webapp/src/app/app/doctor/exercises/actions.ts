@@ -5,8 +5,11 @@ import { redirect } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
 const EXERCISES_PATH = "/app/doctor/exercises";
+
+export type SaveDoctorExerciseState = { ok: boolean; error?: string };
 
 function parseTags(raw: FormDataEntryValue | null): string[] | null {
   if (typeof raw !== "string" || !raw.trim()) return null;
@@ -26,13 +29,33 @@ function parseLoadType(raw: FormDataEntryValue | null): ExerciseLoadType | null 
   return null;
 }
 
+function validateExerciseMedia(mediaUrl: string | null, mediaType: "image" | "video" | "gif" | null): string | null {
+  if (mediaType && !mediaUrl) {
+    return "Некорректные данные медиа: очистите медиа и выберите файл снова.";
+  }
+  if (mediaUrl && !mediaType) {
+    return "Выберите файл из библиотеки — не указан тип медиа.";
+  }
+  if (mediaUrl && !(API_MEDIA_URL_RE.test(mediaUrl) || isLegacyAbsoluteUrl(mediaUrl))) {
+    return "Медиа должно быть из библиотеки файлов (/api/media/…) или допустимый legacy URL (https://…).";
+  }
+  return null;
+}
+
 /** Создание или обновление упражнения из формы врача. */
-export async function saveDoctorExercise(formData: FormData) {
+export async function saveDoctorExercise(
+  _prev: SaveDoctorExerciseState | null,
+  formData: FormData,
+): Promise<SaveDoctorExerciseState> {
   const session = await requireDoctorAccess();
   const idRaw = formData.get("id");
   const id = typeof idRaw === "string" && idRaw.trim() ? idRaw.trim() : null;
 
   const title = (formData.get("title") as string)?.trim() ?? "";
+  if (!title) {
+    return { ok: false, error: "Укажите название" };
+  }
+
   const description = (formData.get("description") as string)?.trim() || null;
   const regionRefRaw = formData.get("regionRefId");
   const regionRefId =
@@ -47,12 +70,18 @@ export async function saveDoctorExercise(formData: FormData) {
   const contraindications = (formData.get("contraindications") as string)?.trim() || null;
   const tags = parseTags(formData.get("tags"));
 
-  const mediaUrl = (formData.get("mediaUrl") as string)?.trim() || null;
+  const mediaUrlRaw = (formData.get("mediaUrl") as string)?.trim() || "";
+  const mediaUrl = mediaUrlRaw.length ? mediaUrlRaw : null;
   const mediaTypeRaw = formData.get("mediaType");
   const mediaType =
     mediaTypeRaw === "image" || mediaTypeRaw === "video" || mediaTypeRaw === "gif"
       ? mediaTypeRaw
       : null;
+
+  const mediaError = validateExerciseMedia(mediaUrl, mediaType);
+  if (mediaError) {
+    return { ok: false, error: mediaError };
+  }
 
   const deps = buildAppDeps();
 
@@ -65,12 +94,7 @@ export async function saveDoctorExercise(formData: FormData) {
       difficulty1_10,
       contraindications,
       tags,
-      media:
-        mediaUrl && mediaType
-          ? [{ mediaUrl, mediaType, sortOrder: 0 }]
-          : mediaUrl === "" && !mediaType
-            ? []
-            : undefined,
+      media: mediaUrl && mediaType ? [{ mediaUrl, mediaType, sortOrder: 0 }] : [],
     });
     revalidatePath(EXERCISES_PATH);
     revalidatePath(`${EXERCISES_PATH}/${id}`);
@@ -88,7 +112,7 @@ export async function saveDoctorExercise(formData: FormData) {
       tags,
       media: mediaUrl && mediaType ? [{ mediaUrl, mediaType, sortOrder: 0 }] : undefined,
     },
-    session.user.userId
+    session.user.userId,
   );
   revalidatePath(EXERCISES_PATH);
   redirect(`${EXERCISES_PATH}/${created.id}`);
