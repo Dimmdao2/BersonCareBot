@@ -20,9 +20,9 @@
     "lint": "eslint . && pnpm --dir apps/webapp run lint",
     "lint:fix": "eslint . --fix && pnpm --dir apps/webapp run lint --fix",
     "typecheck": "bash scripts/ensure-booking-sync-built.sh && pnpm -r --parallel run typecheck",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:webapp && pnpm build && pnpm build:webapp && pnpm audit --prod",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:webapp && pnpm build && pnpm build:webapp && node scripts/registry-prod-audit.mjs",
     "check": "pnpm ci",
-    "audit": "pnpm audit --prod",
+    "audit": "node scripts/registry-prod-audit.mjs",
     "format": "prettier -w .",
     "migrate": "pnpm --dir apps/integrator run migrate",
     "db:migrate": "pnpm --dir apps/integrator run db:migrate",
@@ -48,7 +48,7 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@10.30.1",
+  "packageManager": "pnpm@10.33.0",
   "pnpm": {
     "onlyBuiltDependencies": ["argon2"],
     "overrides": {

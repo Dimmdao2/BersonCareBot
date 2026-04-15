@@ -9,8 +9,8 @@ import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 type AdminSettings = {
   devMode: boolean;
   debugForwardToAdmin: boolean;
-  /** Показ маршрута `/max-debug` (диагностика MAX Mini App); без включения — 404. */
-  maxDebugPageEnabled: boolean;
+  /** Полный initData в journalctl webapp при открытии миниаппа (MAX и Telegram). */
+  miniappAuthVerboseServerLog: boolean;
   integrationTestIds: string[];
   importantFallbackDelayMinutes: number;
   platformUserMergeV2Enabled: boolean;
@@ -31,14 +31,14 @@ async function patchAdminSetting(key: string, value: unknown): Promise<boolean> 
 export function AdminSettingsSection({
   devMode,
   debugForwardToAdmin,
-  maxDebugPageEnabled,
+  miniappAuthVerboseServerLog,
   integrationTestIds,
   importantFallbackDelayMinutes,
   platformUserMergeV2Enabled,
 }: AdminSettingsSectionProps) {
   const [devModeVal, setDevModeVal] = useState(devMode);
   const [debugForward, setDebugForward] = useState(debugForwardToAdmin);
-  const [maxDebug, setMaxDebug] = useState(maxDebugPageEnabled);
+  const [miniappVerbose, setMiniappVerbose] = useState(miniappAuthVerboseServerLog);
   const [testIdsText, setTestIdsText] = useState(() => integrationTestIds.join(" "));
   const [fallbackDelay, setFallbackDelay] = useState(importantFallbackDelayMinutes);
   const [mergeV2, setMergeV2] = useState(platformUserMergeV2Enabled);
@@ -57,7 +57,7 @@ export function AdminSettingsSection({
         const results = await Promise.all([
           patchAdminSetting("dev_mode", devModeVal),
           patchAdminSetting("debug_forward_to_admin", debugForward),
-          patchAdminSetting("max_debug_page_enabled", maxDebug),
+          patchAdminSetting("max_debug_page_enabled", miniappVerbose),
           patchAdminSetting("integration_test_ids", testIds),
           patchAdminSetting("important_fallback_delay_minutes", fallbackDelay),
           patchAdminSetting("platform_user_merge_v2_enabled", mergeV2),
@@ -98,10 +98,10 @@ export function AdminSettingsSection({
         />
 
         <LabeledSwitch
-          label="Страница /max-debug (диагностика MAX Mini App)"
-          hint="Показывать маршрут с сырым initData в браузере. На проде держите выключенным; для staging включайте по необходимости."
-          checked={maxDebug}
-          onCheckedChange={setMaxDebug}
+          label="Mini App: полный initData в логах сервера (journalctl)"
+          hint="Включает запись сырой строки initData от Telegram и MAX в лог процесса webapp при POST /api/auth/telegram-init и max-init. Содержит идентификаторы и подпись — только кратковременно для отладки, на проде выключено."
+          checked={miniappVerbose}
+          onCheckedChange={setMiniappVerbose}
           disabled={isPending}
           switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
         />

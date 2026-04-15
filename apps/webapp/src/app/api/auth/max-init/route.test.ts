@@ -15,6 +15,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     auth: {
       exchangeMaxInitData: exchangeMaxInitDataMock,
     },
+    systemSettings: {
+      getSetting: vi.fn().mockResolvedValue(null),
+    },
   }),
 }));
 

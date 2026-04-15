@@ -7,6 +7,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     auth: {
       exchangeTelegramInitData: exchangeTelegramInitDataMock,
     },
+    systemSettings: {
+      getSetting: vi.fn().mockResolvedValue(null),
+    },
   }),
 }));
 

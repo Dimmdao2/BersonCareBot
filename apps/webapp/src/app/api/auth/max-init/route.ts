@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuthVerboseServerLog";
 import { logger } from "@/infra/logging/logger";
 import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
@@ -64,6 +65,21 @@ export async function POST(request: Request) {
   const { initData } = parsed.data;
   const fields = maxInitDataLogFields(initData);
 
+  const deps = buildAppDeps();
+  const verboseServerLog = await isMiniappAuthVerboseServerLogEnabled(deps);
+  if (verboseServerLog) {
+    logger.info(
+      {
+        route: ROUTE,
+        outcome: "verbose_raw_log",
+        messenger: "max",
+        ...diag,
+        initDataRawFull: initData,
+      },
+      "MINIAPP_AUTH_VERBOSE: полный initData (MAX), см. journalctl webapp",
+    );
+  }
+
   logger.info(
     {
       route: ROUTE,
@@ -74,8 +90,6 @@ export async function POST(request: Request) {
     },
     "MAX Mini App: получен initData, проверка подписи",
   );
-
-  const deps = buildAppDeps();
   const result = await deps.auth.exchangeMaxInitData(initData);
   if (result && "denied" in result && result.denied) {
     logger.warn(

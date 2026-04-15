@@ -63,7 +63,7 @@ export default async function SettingsPage() {
     ? {
         devMode: Boolean(getValueJson(adminSettingsList.find((x) => x.key === "dev_mode")?.valueJson, false)),
         debugForwardToAdmin: Boolean(getValueJson(adminSettingsList.find((x) => x.key === "debug_forward_to_admin")?.valueJson, false)),
-        maxDebugPageEnabled: Boolean(
+        miniappAuthVerboseServerLog: Boolean(
           getValueJson(adminSettingsList.find((x) => x.key === "max_debug_page_enabled")?.valueJson, false),
         ),
         integrationTestIds: (() => {
@@ -199,7 +199,7 @@ export default async function SettingsPage() {
               <AdminSettingsSection
                 devMode={adminSettings.devMode}
                 debugForwardToAdmin={adminSettings.debugForwardToAdmin}
-                maxDebugPageEnabled={adminSettings.maxDebugPageEnabled}
+                miniappAuthVerboseServerLog={adminSettings.miniappAuthVerboseServerLog}
                 integrationTestIds={adminSettings.integrationTestIds}
                 importantFallbackDelayMinutes={adminSettings.importantFallbackDelayMinutes}
                 platformUserMergeV2Enabled={adminSettings.platformUserMergeV2Enabled}
