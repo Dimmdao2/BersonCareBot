@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { LabeledSwitch } from "@/components/common/form/LabeledSwitch";
 import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 
+export type IntegratorLinkedPhoneSource = "public_then_contacts" | "public_only" | "contacts_only";
+
 type AdminSettings = {
   devMode: boolean;
   debugForwardToAdmin: boolean;
@@ -14,6 +16,8 @@ type AdminSettings = {
   integrationTestIds: string[];
   importantFallbackDelayMinutes: number;
   platformUserMergeV2Enabled: boolean;
+  /** Как integrator собирает `linkedPhone`: public vs legacy `integrator.contacts`. */
+  integratorLinkedPhoneSource: IntegratorLinkedPhoneSource;
 };
 
 type AdminSettingsSectionProps = AdminSettings;
@@ -35,6 +39,7 @@ export function AdminSettingsSection({
   integrationTestIds,
   importantFallbackDelayMinutes,
   platformUserMergeV2Enabled,
+  integratorLinkedPhoneSource,
 }: AdminSettingsSectionProps) {
   const [devModeVal, setDevModeVal] = useState(devMode);
   const [debugForward, setDebugForward] = useState(debugForwardToAdmin);
@@ -42,6 +47,7 @@ export function AdminSettingsSection({
   const [testIdsText, setTestIdsText] = useState(() => integrationTestIds.join(" "));
   const [fallbackDelay, setFallbackDelay] = useState(importantFallbackDelayMinutes);
   const [mergeV2, setMergeV2] = useState(platformUserMergeV2Enabled);
+  const [linkedPhoneSource, setLinkedPhoneSource] = useState(integratorLinkedPhoneSource);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -61,6 +67,7 @@ export function AdminSettingsSection({
           patchAdminSetting("integration_test_ids", testIds),
           patchAdminSetting("important_fallback_delay_minutes", fallbackDelay),
           patchAdminSetting("platform_user_merge_v2_enabled", mergeV2),
+          patchAdminSetting("integrator_linked_phone_source", linkedPhoneSource),
         ]);
         if (results.some((r) => !r)) {
           setError("Не удалось сохранить часть настроек");
@@ -114,6 +121,29 @@ export function AdminSettingsSection({
           disabled={isPending}
           switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
         />
+
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium" htmlFor="integrator-linked-phone-source">
+            Integrator: источник linkedPhone
+          </label>
+          <select
+            id="integrator-linked-phone-source"
+            className="max-w-xl rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            value={linkedPhoneSource}
+            onChange={(e) => setLinkedPhoneSource(e.target.value as IntegratorLinkedPhoneSource)}
+            disabled={isPending}
+          >
+            <option value="public_then_contacts">
+              public_then_contacts — сначала public.platform_users, иначе legacy contacts (по умолчанию)
+            </option>
+            <option value="public_only">public_only — только канон webapp (целевой режим)</option>
+            <option value="contacts_only">contacts_only — только legacy contacts (аварийный откат)</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Влияет на /start и меню: при public_only без телефона в public потребуется контакт, даже если номер
+            остался только в integrator.contacts.
+          </p>
+        </div>
 
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium" htmlFor="test-ids-textarea">

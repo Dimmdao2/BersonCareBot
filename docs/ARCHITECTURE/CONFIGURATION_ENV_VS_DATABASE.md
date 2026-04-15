@@ -38,6 +38,7 @@
 - Отображение времени: **`app_display_timezone`** (IANA).
 - Вайтлисты: `allowed_telegram_ids`, `allowed_max_ids`, `admin_telegram_ids`, `doctor_telegram_ids`, `admin_max_ids`, `doctor_max_ids`, `admin_phones`, `doctor_phones`, `allowed_phones`. На странице `/app/settings` (вкладка «Доступ и роли») в UI редактируются списки **Telegram / Max ID**; ключи `admin_phones`, `doctor_phones`, `allowed_phones` поддерживаются тем же `PATCH /api/admin/settings`, отдельной формы в этом экране пока нет.
 - Операционные флаги: `dev_mode`, `debug_forward_to_admin`, **`max_debug_page_enabled`** (показ диагностического маршрута `/max-debug` для MAX Mini App; по умолчанию выключено; только админ Settings, не env), `important_fallback_delay_minutes`, `integration_test_ids`, `sms_fallback_enabled` (doctor scope и др. — см. `ALLOWED_KEYS`).
+- **Integrator `linkedPhone`:** строковый ключ **`integrator_linked_phone_source`** (`public_then_contacts` \| `public_only` \| `contacts_only`) — как объединять телефон из `public.platform_users` и legacy `integrator.contacts` при гейте `/start` и меню; редактирование в `/app/settings` (админ, диагностика), зеркало в `integrator.system_settings`.
 
 **Таблицы-справочники интегратора** — несекретные бизнес-контракты (Rubitime mapping и т.д.), см. отдельные миграции.
 

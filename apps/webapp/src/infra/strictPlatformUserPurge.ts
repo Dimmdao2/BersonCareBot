@@ -19,9 +19,9 @@ import {
 import { deleteS3ObjectsWithPerKeyResults, type S3PerKeyDeleteResult } from "@/infra/s3/client";
 
 /**
- * - `completed` — webapp commit + S3 + integrator (or integrator skipped when pool unset) all successful.
+ * - `completed` — webapp commit + S3 + integrator cleanup successful (or integrator work not required).
  * - `partial_failed` — webapp committed; S3/media cleanup had failures.
- * - `needs_retry` — webapp committed; S3/media ok but integrator cleanup failed (or only integrator had issues without S3 problems).
+ * - `needs_retry` — webapp committed; integrator cleanup was **required** but had no DB pool, failed, or S3 clean while integrator missed.
  */
 export type StrictPurgeOutcome = "completed" | "partial_failed" | "needs_retry";
 
@@ -71,6 +71,7 @@ type PostCommitDetails = StrictPurgeSuccess["details"];
 function buildExternalCleanupAuditDetails(args: {
   outcome: StrictPurgeOutcome;
   integratorSkipped: boolean;
+  integratorCleanupNeeded: boolean;
   details: PostCommitDetails;
   phoneNormalized: string | null;
   webappIntegratorUserId: string | null;
@@ -81,6 +82,7 @@ function buildExternalCleanupAuditDetails(args: {
   return {
     outcome: args.outcome,
     integratorSkipped: args.integratorSkipped,
+    integratorCleanupNeeded: args.integratorCleanupNeeded,
     phoneNormalized: args.phoneNormalized,
     webappIntegratorUserId: args.webappIntegratorUserId,
     resolvedIntegratorUserIds: args.resolvedIntegratorUserIds,
@@ -96,6 +98,25 @@ function buildExternalCleanupAuditDetails(args: {
     s3Configured: isS3MediaEnabled(env),
     intakeS3ObjectsNotDeletedBucketDisabled: args.details.intakeS3ObjectsNotDeletedBucketDisabled,
   };
+}
+
+/** Same rule as `resolveIntegratorUserIds`: numeric integrator.users id from webapp projection. */
+function hasNumericWebappIntegratorUserId(webappIntegratorUserId: string | null | undefined): boolean {
+  const t = webappIntegratorUserId?.trim() ?? "";
+  return t.length > 0 && /^\d+$/.test(t);
+}
+
+function integratorCleanupNeeded(params: {
+  messengerBindings: ReadonlyArray<MessengerBindingForIntegratorCleanup>;
+  digs: string;
+  integratorUserIds: string[];
+  webappIntegratorUserId: string | null;
+}): boolean {
+  if (params.messengerBindings.length > 0) return true;
+  if (params.integratorUserIds.length > 0) return true;
+  if (hasNumericWebappIntegratorUserId(params.webappIntegratorUserId)) return true;
+  if (params.digs.length >= 10) return true;
+  return false;
 }
 
 async function runPostCommitArtifactCleanup(
@@ -192,9 +213,15 @@ async function runPostCommitArtifactCleanup(
 function deriveOutcome(
   details: PostCommitDetails,
   integratorPool: ReturnType<typeof getIntegratorPoolForPurge>,
+  cleanupNeeded: boolean,
 ): StrictPurgeOutcome {
   const s3Problems = details.s3Failures.length > 0 || details.mediaRowDeleteErrors.length > 0;
   const intProblem = Boolean(integratorPool && details.integratorError);
+  const integratorMissed = cleanupNeeded && !integratorPool;
+
+  if (integratorMissed && !s3Problems) {
+    return "needs_retry";
+  }
   if (!s3Problems && !intProblem) return "completed";
   if (s3Problems) return "partial_failed";
   if (intProblem) return "needs_retry";
@@ -294,7 +321,13 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
   const details = await runPostCommitArtifactCleanup(pool, artifact, digs, intIds, integratorPool, messengerBindings);
 
   const integratorSkipped = !integratorPool;
-  const outcome = deriveOutcome(details, integratorPool);
+  const cleanupNeeded = integratorCleanupNeeded({
+    messengerBindings,
+    digs,
+    integratorUserIds: intIds,
+    webappIntegratorUserId: userSnapshot.integrator_user_id,
+  });
+  const outcome = deriveOutcome(details, integratorPool, cleanupNeeded);
 
   if (auditEnabled) {
     const auditStatus = outcome === "completed" ? "ok" : "partial_failure";
@@ -306,6 +339,7 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
       details: buildExternalCleanupAuditDetails({
         outcome,
         integratorSkipped,
+        integratorCleanupNeeded: cleanupNeeded,
         details,
         phoneNormalized: userSnapshot.phone_normalized,
         webappIntegratorUserId: userSnapshot.integrator_user_id,
@@ -345,7 +379,13 @@ export async function retryStrictPurgeExternalCleanup(params: {
 
   const details = await runPostCommitArtifactCleanup(pool, params.artifact, digs, intIds, integratorPool, []);
   const integratorSkipped = !integratorPool;
-  const outcome = deriveOutcome(details, integratorPool);
+  const cleanupNeeded = integratorCleanupNeeded({
+    messengerBindings: [],
+    digs,
+    integratorUserIds: intIds,
+    webappIntegratorUserId: params.webappIntegratorUserId,
+  });
+  const outcome = deriveOutcome(details, integratorPool, cleanupNeeded);
 
   if (auditEnabled) {
     await writeAuditLog(pool, {
@@ -356,6 +396,7 @@ export async function retryStrictPurgeExternalCleanup(params: {
       details: buildExternalCleanupAuditDetails({
         outcome,
         integratorSkipped,
+        integratorCleanupNeeded: cleanupNeeded,
         details,
         phoneNormalized: params.phoneNormalized,
         webappIntegratorUserId: params.webappIntegratorUserId,

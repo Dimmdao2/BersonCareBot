@@ -9,22 +9,74 @@ import { getPool } from "@/infra/db/client";
 
 const { Pool: PgPool } = pg;
 
-let integratorPoolSingleton: Pool | null = null;
+/** Pools keyed by final connection string (unified DB uses `search_path=integrator,public`). */
+const integratorPurgePools = new Map<string, Pool>();
 
-export function getIntegratorPoolForPurge(): Pool | null {
-  const raw =
-    process.env.INTEGRATOR_DATABASE_URL?.trim() ||
-    process.env.USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL?.trim() ||
-    process.env.SOURCE_DATABASE_URL?.trim();
-  if (!raw) return null;
+function trimEnv(name: string): string {
+  return process.env[name]?.trim() ?? "";
+}
+
+function isUsablePostgresUrl(raw: string): boolean {
+  if (!raw) return false;
   try {
     const host = new URL(raw).hostname;
-    if (host === "base") return null;
+    if (host === "base") return false;
+    return true;
   } catch {
-    return null;
+    return false;
   }
-  integratorPoolSingleton ??= new PgPool({ connectionString: raw, max: 3 });
-  return integratorPoolSingleton;
+}
+
+/**
+ * When webapp and integrator share one PostgreSQL, force `search_path` so unqualified
+ * `contacts` / `identities` / `users` resolve to `integrator.*` (not `public.*`).
+ */
+export function appendIntegratorSearchPathToConnectionString(connectionString: string): string {
+  try {
+    const u = new URL(connectionString);
+    u.searchParams.set("options", "-c search_path=integrator,public");
+    return u.toString();
+  } catch {
+    return connectionString;
+  }
+}
+
+/**
+ * Pool for post-commit integrator cleanup during strict purge / merge preview checks.
+ * - Legacy: `INTEGRATOR_DATABASE_URL` | `USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL` | `SOURCE_DATABASE_URL` only.
+ * - Unified: falls back to `DATABASE_URL` with `search_path=integrator,public`.
+ * - If explicit integrator URL equals `DATABASE_URL`, same `search_path` is applied (single cluster, integrator schema).
+ */
+export function getIntegratorPoolForPurge(): Pool | null {
+  const explicit =
+    trimEnv("INTEGRATOR_DATABASE_URL") ||
+    trimEnv("USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL") ||
+    trimEnv("SOURCE_DATABASE_URL");
+  const databaseUrl = trimEnv("DATABASE_URL");
+
+  let baseUrl: string | null = null;
+  let useIntegratorSearchPath = false;
+
+  if (explicit && isUsablePostgresUrl(explicit)) {
+    baseUrl = explicit;
+    if (databaseUrl && explicit === databaseUrl) {
+      useIntegratorSearchPath = true;
+    }
+  } else if (databaseUrl && isUsablePostgresUrl(databaseUrl)) {
+    baseUrl = databaseUrl;
+    useIntegratorSearchPath = true;
+  }
+
+  if (!baseUrl) return null;
+
+  const connectionString = useIntegratorSearchPath ? appendIntegratorSearchPathToConnectionString(baseUrl) : baseUrl;
+
+  let pool = integratorPurgePools.get(connectionString);
+  if (!pool) {
+    pool = new PgPool({ connectionString, max: 3 });
+    integratorPurgePools.set(connectionString, pool);
+  }
+  return pool;
 }
 
 /** Только цифры; для сопоставления записей по номеру. */

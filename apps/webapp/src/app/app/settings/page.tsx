@@ -10,7 +10,7 @@ import { parseIdTokens } from "@/shared/parsers/parseIdTokens";
 import { SettingsForm } from "./SettingsForm";
 import { AdminModeToggle } from "./AdminModeToggle";
 import { AdminSettingsTabsClient } from "./AdminSettingsTabsClient";
-import { AdminSettingsSection } from "./AdminSettingsSection";
+import { AdminSettingsSection, type IntegratorLinkedPhoneSource } from "./AdminSettingsSection";
 import { AppParametersSection } from "./AppParametersSection";
 import { AuthProvidersSection } from "./AuthProvidersSection";
 import { AccessListsSection } from "./AccessListsSection";
@@ -77,6 +77,15 @@ export default async function SettingsPage() {
             false,
           );
           return raw === true || raw === "true";
+        })(),
+        integratorLinkedPhoneSource: ((): IntegratorLinkedPhoneSource => {
+          const raw = getValueJson<unknown>(
+            adminSettingsList.find((x) => x.key === "integrator_linked_phone_source")?.valueJson,
+            "public_then_contacts",
+          );
+          const s = typeof raw === "string" ? raw.trim() : "";
+          if (s === "public_only" || s === "contacts_only" || s === "public_then_contacts") return s;
+          return "public_then_contacts";
         })(),
       }
     : null;
@@ -203,6 +212,7 @@ export default async function SettingsPage() {
                 integrationTestIds={adminSettings.integrationTestIds}
                 importantFallbackDelayMinutes={adminSettings.importantFallbackDelayMinutes}
                 platformUserMergeV2Enabled={adminSettings.platformUserMergeV2Enabled}
+                integratorLinkedPhoneSource={adminSettings.integratorLinkedPhoneSource}
               />
             }
             appParams={appParametersConfig ? <AppParametersSection {...appParametersConfig} /> : null}

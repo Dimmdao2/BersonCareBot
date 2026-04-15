@@ -187,4 +187,88 @@ describe("PATCH /api/admin/settings", () => {
     );
     expect(res.status).toBe(401);
   });
+
+  it("returns 400 for invalid integrator_linked_phone_source string", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "integrator_linked_phone_source", value: { value: "not_a_mode" } }),
+      })
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { ok: boolean; error?: string };
+    expect(body.ok).toBe(false);
+    expect(body.error).toBe("invalid_value");
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for integrator_linked_phone_source when value is not a string", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "integrator_linked_phone_source", value: { value: 1 } }),
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 and trims integrator_linked_phone_source for admin", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "integrator_linked_phone_source",
+      scope: "admin",
+      valueJson: { value: "public_only" },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "integrator_linked_phone_source",
+          value: { value: "  public_only  " },
+        }),
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "integrator_linked_phone_source",
+      "admin",
+      { value: "public_only" },
+      "a1",
+    );
+  });
+
+  it("accepts integrator_linked_phone_source as bare string value", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "integrator_linked_phone_source",
+      scope: "admin",
+      valueJson: { value: "contacts_only" },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "integrator_linked_phone_source", value: "contacts_only" }),
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "integrator_linked_phone_source",
+      "admin",
+      { value: "contacts_only" },
+      "a1",
+    );
+  });
 });

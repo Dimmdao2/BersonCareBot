@@ -15,6 +15,7 @@ const ADMIN_SCOPE_KEYS = [
   "debug_forward_to_admin",
   "dev_mode",
   "platform_user_merge_v2_enabled",
+  "integrator_linked_phone_source",
   "important_fallback_delay_minutes",
   "integration_test_ids",
   "app_base_url",
@@ -73,6 +74,22 @@ function normalizeValueJson(value: unknown): { value: unknown } {
   return { value };
 }
 
+const INTEGRATOR_LINKED_PHONE_SOURCE_ALLOWED = new Set([
+  "public_then_contacts",
+  "public_only",
+  "contacts_only",
+]);
+
+function assertValidIntegratorLinkedPhoneSourceValue(
+  normalized: { value: unknown },
+): { ok: true; value: string } | { ok: false } {
+  const inner = normalized.value;
+  if (typeof inner !== "string") return { ok: false };
+  const t = inner.trim();
+  if (!INTEGRATOR_LINKED_PHONE_SOURCE_ALLOWED.has(t)) return { ok: false };
+  return { ok: true, value: t };
+}
+
 function auditValueForLog(key: string, value: unknown): unknown {
   if (SECRET_LIKE_KEYS.has(key)) return "[REDACTED]";
   return value;
@@ -110,7 +127,15 @@ export async function PATCH(request: Request) {
 
   const deps = buildAppDeps();
 
-  const normalizedValue = normalizeValueJson(parsed.data.value);
+  let normalizedValue = normalizeValueJson(parsed.data.value);
+
+  if (parsed.data.key === "integrator_linked_phone_source") {
+    const checked = assertValidIntegratorLinkedPhoneSourceValue(normalizedValue);
+    if (!checked.ok) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: checked.value };
+  }
 
   // Audit log перед обновлением (секреты редактируются без вывода raw значения в logs).
   const oldSetting = await deps.systemSettings.getSetting(parsed.data.key, "admin");

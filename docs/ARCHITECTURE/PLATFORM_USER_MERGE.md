@@ -101,6 +101,8 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 
 **Manual merge (v1):** `runManualPlatformUserMerge` берёт **два** exclusive lock’а на отсортированной паре `(targetId, duplicateId)` в одной транзакции (`withTwoUserLifecycleLocksExclusive` в `userLifecycleLock.ts`), затем `mergePlatformUsersInTransaction(..., "manual", { resolution })` — тот же протокол ключа, что и strict purge, без гонки с shared upload/intake на том же пользователе.
 
+**Post-commit integrator cleanup:** `deleteIntegratorPhoneData` вызывается через `getIntegratorPoolForPurge()` — при **одной БД** допускается fallback на `DATABASE_URL` с `search_path=integrator,public` (см. `platformUserFullPurge.ts`). Если очистка integrator **нужна**, но пула нет, strict purge даёт **`needs_retry`**, а не «зелёный» `completed` (`strictPlatformUserPurge.ts`).
+
 ## Что явно не входит в текущую фазу
 
 - physical delete/archiving merged alias rows;

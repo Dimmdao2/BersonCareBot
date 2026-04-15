@@ -23,6 +23,13 @@
 - **Webapp → integrator API** (`INTEGRATOR_API_URL`): исходящие действия бота, настройки sync, merge и т.д. — это **вызовы сервиса**, не дублирование «второй копии» канона в другой БД.
 - **Integrator → webapp HTTP** — только там, где контракт ещё не переведён на общий SQL; такие вызовы **снимать по одному**, не расширять для новых сценариев записи канона.
 
+## Webapp → integrator SQL cleanup (purge / merge-preview)
+
+- `getIntegratorPoolForPurge()` (`apps/webapp/src/infra/platformUserFullPurge.ts`) поднимает пул для post-commit `DELETE` в схеме **integrator** (`contacts`, `identities`, `users`, rubitime-таблицы и т.д.).
+- В **unified** режиме, если отдельный `INTEGRATOR_DATABASE_URL` не задан, используется **`DATABASE_URL`** с параметром подключения `options=-c search_path=integrator,public`, чтобы неполные имена таблиц резолвились в `integrator.*`, а не в `public.*`.
+- Если integrator-очистка **требовалась** (телефон ≥10 цифр, bindings telegram/max, или найденные integrator user id), но пула нет — `runStrictPurgePlatformUser` возвращает **`outcome: needs_retry`**, а не `completed` (`strictPlatformUserPurge.ts`).
+- Журнал миграции и ops-SQL: [`INTEGRATOR_PLATFORM_USER_MIGRATION_EXECUTION_LOG.md`](./INTEGRATOR_PLATFORM_USER_MIGRATION_EXECUTION_LOG.md).
+
 ## Документация и скрипты
 
 - Старые упоминания «две БД», `INTEGRATOR_DATABASE_URL` как **обязательно другой** хост/база — **legacy** для cutover/backfill-скриптов и dev, пока локально не выровняли.

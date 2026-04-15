@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
 import {
   findByPhone,
@@ -13,6 +13,7 @@ import {
   upsertUser,
   updateNotificationSettings,
 } from './channelUsers.js';
+import { resetIntegratorLinkedPhoneSourceCacheForTests } from './linkedPhoneSource.js';
 
 function createDbMock() {
   const queryMock = vi.fn();
@@ -24,7 +25,26 @@ function createDbMock() {
   return { db, query: queryMock };
 }
 
+/** `getLinkDataByIdentity` / `getUserLinkData` always query `integrator_linked_phone_source` first. */
+function mockDefaultLinkedPhoneStrategyQuery(query: ReturnType<typeof createDbMock>['query']) {
+  query.mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult);
+}
+
+function mockLinkedPhoneStrategyQuery(
+  query: ReturnType<typeof createDbMock>['query'],
+  strategy: 'public_only' | 'public_then_contacts' | 'contacts_only',
+) {
+  query.mockResolvedValueOnce({
+    rows: [{ value_json: { value: strategy } }],
+    rowCount: 1,
+  } as DbQueryResult<{ value_json: unknown }>);
+}
+
 describe('channelUsers repo (identity/contact/state split)', () => {
+  beforeEach(() => {
+    resetIntegratorLinkedPhoneSourceCacheForTests();
+  });
+
   it('upsertUser uses canonical identities and telegram_state only', async () => {
     const { db, query } = createDbMock();
     query.mockResolvedValueOnce({
@@ -191,10 +211,25 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(findSqlText).toContain('JOIN identities i');
     expect(findSqlText).toContain('LEFT JOIN telegram_state ts');
 
+    mockDefaultLinkedPhoneStrategyQuery(query);
     query.mockResolvedValueOnce({
-      rows: [{ channel_id: '123', username: 'alice', user_state: 'idle', phone: '+79990001122' }],
+      rows: [
+        {
+          channel_id: '123',
+          username: 'alice',
+          user_state: 'idle',
+          pub_phone: '+79990001122',
+          legacy_contact_phone: null,
+        },
+      ],
       rowCount: 1,
-    } as DbQueryResult<{ channel_id: string; username: string | null; user_state: string | null; phone: string | null }>);
+    } as DbQueryResult<{
+      channel_id: string;
+      username: string | null;
+      user_state: string | null;
+      pub_phone: string | null;
+      legacy_contact_phone: string | null;
+    }>);
 
     const byChannel = await getUserLinkData(db, '123');
     expect(byChannel).toEqual({
@@ -205,7 +240,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
       userState: 'idle',
     });
 
-    const [linkSql] = query.mock.calls[1] ?? [];
+    const [linkSql] = query.mock.calls[2] ?? [];
     const linkSqlText = String(linkSql);
     expect(linkSqlText).toContain('FROM identities i');
     expect(linkSqlText).toContain('public.user_channel_bindings');
@@ -217,6 +252,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
   it('getLinkDataByIdentity uses public canon phone when integrator contact is empty', async () => {
     const { db, query } = createDbMock();
+    mockDefaultLinkedPhoneStrategyQuery(query);
     query.mockResolvedValueOnce({
       rows: [
         {
@@ -224,7 +260,8 @@ describe('channelUsers repo (identity/contact/state split)', () => {
           channel_id: '555',
           username: 'bob',
           user_state: 'idle',
-          phone: '+79991112233',
+          pub_phone: '+79991112233',
+          legacy_contact_phone: null,
         },
       ],
       rowCount: 1,
@@ -232,15 +269,25 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
     const row = await getLinkDataByIdentity(db, 'telegram', '555');
     expect(row?.phoneNormalized).toBe('+79991112233');
-    const [sql] = query.mock.calls[0] ?? [];
+    const [sql] = query.mock.calls[1] ?? [];
+    const sqlText = String(sql);
     // eslint-disable-next-line no-secrets/no-secrets -- asserts SQL shape, not a secret
-    expect(String(sql)).toContain('COALESCE(NULLIF(TRIM(pub.phone_normalized');
+    expect(sqlText).toContain('NULLIF(TRIM(pub.phone_normalized');
+    expect(sqlText).toContain('legacy_contact_phone');
   });
 
-  it('getLinkDataByIdentity (max) uses public bindings + COALESCE(contacts) without telegram_state', async () => {
+  it('getLinkDataByIdentity (max) uses public bindings + legacy contacts without telegram_state', async () => {
     const { db, query } = createDbMock();
+    mockDefaultLinkedPhoneStrategyQuery(query);
     query.mockResolvedValueOnce({
-      rows: [{ user_id: '3', channel_id: '999', phone: '+79990000000' }],
+      rows: [
+        {
+          user_id: '3',
+          channel_id: '999',
+          pub_phone: '+79990000000',
+          legacy_contact_phone: null,
+        },
+      ],
       rowCount: 1,
     } as DbQueryResult);
 
@@ -248,17 +295,18 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(row?.phoneNormalized).toBe('+79990000000');
     expect(row?.username).toBeNull();
     expect(row?.userState).toBeNull();
-    const [sql] = query.mock.calls[0] ?? [];
+    const [sql] = query.mock.calls[1] ?? [];
     const sqlText = String(sql);
     expect(sqlText).toContain('public.user_channel_bindings');
-    // eslint-disable-next-line no-secrets/no-secrets -- asserts SQL shape, not a secret
-    expect(sqlText).toContain('COALESCE(NULLIF(TRIM(pub.phone_normalized');
+    expect(sqlText).toContain('pub_phone');
+    expect(sqlText).toContain('legacy_contact_phone');
     expect(sqlText).toContain('c.label = $1');
     expect(sqlText).not.toContain('telegram_state');
   });
 
   it('getLinkDataByIdentity returns null phone when neither public nor labeled contact has a number', async () => {
     const { db, query } = createDbMock();
+    mockDefaultLinkedPhoneStrategyQuery(query);
     query.mockResolvedValueOnce({
       rows: [
         {
@@ -266,7 +314,8 @@ describe('channelUsers repo (identity/contact/state split)', () => {
           channel_id: '1',
           username: 'u',
           user_state: 'idle',
-          phone: null,
+          pub_phone: null,
+          legacy_contact_phone: null,
         },
       ],
       rowCount: 1,
@@ -279,6 +328,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
   it('getLinkDataByIdentity falls back to integrator contact when public has no phone yet', async () => {
     const { db, query } = createDbMock();
+    mockDefaultLinkedPhoneStrategyQuery(query);
     query.mockResolvedValueOnce({
       rows: [
         {
@@ -286,7 +336,8 @@ describe('channelUsers repo (identity/contact/state split)', () => {
           channel_id: '1',
           username: null,
           user_state: null,
-          phone: '+79997776655',
+          pub_phone: null,
+          legacy_contact_phone: '+79997776655',
         },
       ],
       rowCount: 1,
@@ -294,6 +345,27 @@ describe('channelUsers repo (identity/contact/state split)', () => {
 
     const row = await getLinkDataByIdentity(db, 'telegram', '1');
     expect(row?.phoneNormalized).toBe('+79997776655');
+  });
+
+  it('getLinkDataByIdentity public_only ignores legacy contact when public is empty', async () => {
+    const { db, query } = createDbMock();
+    mockLinkedPhoneStrategyQuery(query, 'public_only');
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          user_id: '1',
+          channel_id: '1',
+          username: null,
+          user_state: null,
+          pub_phone: null,
+          legacy_contact_phone: '+79997776655',
+        },
+      ],
+      rowCount: 1,
+    } as DbQueryResult);
+
+    const row = await getLinkDataByIdentity(db, 'telegram', '1');
+    expect(row?.phoneNormalized).toBeNull();
   });
 
   describe('tryConsumeStart', () => {

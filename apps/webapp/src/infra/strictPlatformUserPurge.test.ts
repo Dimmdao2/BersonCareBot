@@ -2,6 +2,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const { getIntegratorPoolMockRef } = vi.hoisted(() => ({
+  getIntegratorPoolMockRef: { current: {} as unknown },
+}));
+
 const writeAuditLogMock = vi.fn();
 const collectKeysMock = vi.fn();
 const runCoreMock = vi.fn();
@@ -30,7 +34,7 @@ vi.mock("@/infra/platformUserFullPurge", async () => {
     runWebappPurgeCoreInTransaction: (...a: unknown[]) => runCoreMock(...a),
     deleteIntegratorPhoneDataWithResult: (...a: unknown[]) => deleteIntegratorResultMock(...a),
     resolveIntegratorUserIds: (...a: unknown[]) => resolveIntegratorIdsMock(...a),
-    getIntegratorPoolForPurge: () => ({}),
+    getIntegratorPoolForPurge: () => getIntegratorPoolMockRef.current as import("pg").Pool | null,
   };
 });
 
@@ -53,6 +57,7 @@ const uid = "00000000-0000-4000-8000-000000000099";
 
 describe("runStrictPurgePlatformUser", () => {
   beforeEach(() => {
+    getIntegratorPoolMockRef.current = {};
     writeAuditLogMock.mockResolvedValue(undefined);
     collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
     runCoreMock.mockResolvedValue(undefined);
@@ -177,6 +182,87 @@ describe("runStrictPurgePlatformUser", () => {
     if (r.ok) expect(r.details.mediaRowsDeleted).toBe(1);
   });
 
+  it("when integrator DB pool is missing but cleanup is required, outcome is needs_retry (not completed)", async () => {
+    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
+    getIntegratorPoolMockRef.current = null;
+    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
+    deleteS3Mock.mockResolvedValue([]);
+    deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
+    resolveIntegratorIdsMock.mockResolvedValue([]);
+
+    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.integratorSkipped).toBe(true);
+      expect(r.outcome).toBe("needs_retry");
+    }
+  });
+
+  it("when integrator pool is null and only webappIntegratorUserId signals cleanup (no phone, no bindings), outcome is needs_retry", async () => {
+    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
+    getIntegratorPoolMockRef.current = null;
+    poolQueryMock.mockImplementation((sql: string) => {
+      if (String(sql).includes("FROM platform_users WHERE id")) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: uid,
+              phone_normalized: null,
+              integrator_user_id: "99",
+              role: "client",
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
+    deleteS3Mock.mockResolvedValue([]);
+    deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
+    resolveIntegratorIdsMock.mockResolvedValue([]);
+
+    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.integratorSkipped).toBe(true);
+      expect(r.outcome).toBe("needs_retry");
+    }
+  });
+
+  it("when integrator pool is null and no integrator cleanup is needed, outcome is completed", async () => {
+    const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
+    getIntegratorPoolMockRef.current = null;
+    poolQueryMock.mockImplementation((sql: string) => {
+      if (String(sql).includes("FROM platform_users WHERE id")) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: uid,
+              phone_normalized: null,
+              integrator_user_id: null,
+              role: "client",
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+    collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
+    deleteS3Mock.mockResolvedValue([]);
+    deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
+    resolveIntegratorIdsMock.mockResolvedValue([]);
+
+    const r = await runStrictPurgePlatformUser({ targetId: uid, actorId: null, audit: { enabled: false } });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.integratorSkipped).toBe(true);
+      expect(r.outcome).toBe("completed");
+    }
+  });
+
   it("integrator-only failure yields needs_retry when S3 path is clean", async () => {
     const { runStrictPurgePlatformUser } = await import("@/infra/strictPlatformUserPurge");
     collectKeysMock.mockResolvedValue({ intakeS3Keys: [], mediaFiles: [] });
@@ -233,6 +319,7 @@ describe("runStrictPurgePlatformUser", () => {
         action: "user_purge",
         status: "ok",
         details: expect.objectContaining({
+          integratorCleanupNeeded: true,
           phoneNormalized: "+70000000000",
           webappIntegratorUserId: "42",
           resolvedIntegratorUserIds: ["42", "84"],
@@ -249,6 +336,7 @@ describe("runStrictPurgePlatformUser", () => {
 
 describe("retryStrictPurgeExternalCleanup", () => {
   beforeEach(() => {
+    getIntegratorPoolMockRef.current = {};
     writeAuditLogMock.mockResolvedValue(undefined);
     deleteS3Mock.mockResolvedValue([]);
     deleteIntegratorResultMock.mockResolvedValue({ ok: true, skipped: true });
@@ -258,9 +346,40 @@ describe("retryStrictPurgeExternalCleanup", () => {
 
   it("smoke: runs post-commit helpers", async () => {
     const { retryStrictPurgeExternalCleanup } = await import("@/infra/strictPlatformUserPurge");
+    getIntegratorPoolMockRef.current = null;
     const r = await retryStrictPurgeExternalCleanup({
       phoneNormalized: "+70000000000",
       webappIntegratorUserId: "1",
+      artifact: { intakeS3Keys: [], mediaFiles: [] },
+      actorId: null,
+      audit: { enabled: false },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.outcome).toBe("needs_retry");
+  });
+
+  it("when pool is null and only webappIntegratorUserId signals cleanup (no phone), outcome is needs_retry", async () => {
+    const { retryStrictPurgeExternalCleanup } = await import("@/infra/strictPlatformUserPurge");
+    getIntegratorPoolMockRef.current = null;
+    resolveIntegratorIdsMock.mockResolvedValue([]);
+    const r = await retryStrictPurgeExternalCleanup({
+      phoneNormalized: null,
+      webappIntegratorUserId: "7",
+      artifact: { intakeS3Keys: [], mediaFiles: [] },
+      actorId: null,
+      audit: { enabled: false },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.outcome).toBe("needs_retry");
+  });
+
+  it("when pool is null and no cleanup signals, retry outcome is completed", async () => {
+    const { retryStrictPurgeExternalCleanup } = await import("@/infra/strictPlatformUserPurge");
+    getIntegratorPoolMockRef.current = null;
+    resolveIntegratorIdsMock.mockResolvedValue([]);
+    const r = await retryStrictPurgeExternalCleanup({
+      phoneNormalized: null,
+      webappIntegratorUserId: null,
       artifact: { intakeS3Keys: [], mediaFiles: [] },
       actorId: null,
       audit: { enabled: false },

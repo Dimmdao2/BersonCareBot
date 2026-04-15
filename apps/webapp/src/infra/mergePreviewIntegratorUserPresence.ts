@@ -79,8 +79,10 @@ async function resolveWithPool(
 }
 
 /**
- * Для merge-preview: есть ли в integrator.public.users строка с id = platform_users.integrator_user_id.
- * Без URL к БД integrator в env webapp (`INTEGRATOR_DATABASE_URL`, `USER_PHONE_ADMIN_INTEGRATOR_DATABASE_URL`, `SOURCE_DATABASE_URL` — см. `getIntegratorPoolForPurge`) — `skipped_no_integrator_db`.
+ * Для merge-preview: есть ли строка `integrator.users` с id = platform_users.integrator_user_id.
+ * `getIntegratorPoolForPurge()` использует те же env, что purge, **и** при unified PostgreSQL — fallback на
+ * `DATABASE_URL` с `search_path=integrator,public`, так что `FROM users` резолвится в `integrator.users`.
+ * Если ни одного URL нет — `skipped_no_integrator_db`.
  */
 export async function resolveMergePreviewIntegratorUserPresence(params: {
   targetIntegratorUserId: string | null | undefined;

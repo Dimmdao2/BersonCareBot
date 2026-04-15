@@ -10,6 +10,10 @@ import type {
 } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
 import { resolveCanonicalIntegratorUserId } from './canonicalUserId.js';
+import {
+  getIntegratorLinkedPhoneSource,
+  resolveLinkedPhoneNormalized,
+} from './linkedPhoneSource.js';
 
 export type ChannelUserByPhone = {
   chatId: number;
@@ -409,11 +413,9 @@ export async function getUserLinkData(
  * Returns user/link data by (resource, external_id). State and profile come from
  * integration-specific tables when available (e.g. telegram_state); otherwise identities + contacts only.
  *
- * Phone for `linkedPhone` / orchestrator: **webapp canon first** — `public.platform_users.phone_normalized`
- * via `public.user_channel_bindings` for this channel, resolving `merged_into_id` to the surviving row;
- * if empty, falls back to integrator `contacts` with `label` equal to this **resource** (legacy / repair).
- * Any other phone on the user (e.g. merged from web without messenger label) must **not** skip `/start`
- * onboarding in the bot.
+ * Phone for linkedPhone / orchestrator: normalized phone from platform_users (via user_channel_bindings
+ * and merged_into_id chain), optionally combined with legacy messenger-labeled contacts rows, per admin
+ * integrator_linked_phone_source (public_only | public_then_contacts | contacts_only).
  *
  * **SQL failure:** rethrows after logging (does not return `null` — `null` means no matching identity row).
  */
@@ -422,11 +424,13 @@ export async function getLinkDataByIdentity(
   resource: string,
   externalId: string,
 ): Promise<ChannelUserLinkRow | null> {
+  const strategy = await getIntegratorLinkedPhoneSource(db);
+
   if (resource === 'telegram') {
-    /* eslint-disable-next-line no-secrets/no-secrets -- SQL query text */
     const query = `
       SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id, ts.username, ts.state AS user_state,
-             COALESCE(NULLIF(TRIM(pub.phone_normalized), ''), cp.phone) AS phone
+             NULLIF(TRIM(pub.phone_normalized), '') AS pub_phone,
+             cp.phone AS legacy_contact_phone
       FROM identities i
       LEFT JOIN telegram_state ts ON ts.identity_id = i.id
       LEFT JOIN LATERAL (
@@ -461,10 +465,32 @@ export async function getLinkDataByIdentity(
         channel_id: string;
         username: string | null;
         user_state: string | null;
-        phone: string | null;
+        pub_phone: string | null;
+        legacy_contact_phone: string | null;
       }>(query, [resource, externalId]);
       const row = res.rows[0];
       if (!row) return null;
+      const pub = row.pub_phone;
+      const leg = row.legacy_contact_phone;
+      const phone = resolveLinkedPhoneNormalized(strategy, pub, leg);
+      if (strategy === 'public_then_contacts' && !pub?.trim() && leg?.trim()) {
+        logger.info(
+          { event: 'linked_phone_legacy_fallback', resource, externalId, strategy },
+          'linkedPhone: empty public.phone_normalized, using integrator.contacts (label=resource)',
+        );
+      }
+      if (strategy === 'public_then_contacts' && pub?.trim() && leg?.trim() && pub.trim() !== leg.trim()) {
+        logger.info(
+          { event: 'linked_phone_drift_mismatch', resource, externalId, strategy },
+          'linkedPhone: public.platform_users and integrator.contacts disagree; COALESCE prefers public',
+        );
+      }
+      if (strategy === 'public_only' && !pub?.trim() && leg?.trim()) {
+        logger.info(
+          { event: 'linked_phone_drift_suppressed', resource, externalId, strategy },
+          'linkedPhone: legacy contact exists but public_only ignores it',
+        );
+      }
       const chatId = Number(row.channel_id);
       // Like the Max branch below: never drop the row when external_id does not parse as a finite
       // number — userId/phoneNormalized are still valid (projection, linkedPhone, admin-facing reads).
@@ -473,7 +499,7 @@ export async function getLinkDataByIdentity(
         chatId: Number.isFinite(chatId) ? chatId : 0,
         channelId: row.channel_id,
         username: row.username,
-        phoneNormalized: row.phone,
+        phoneNormalized: phone,
         userState: row.user_state,
       };
     } catch (err) {
@@ -485,10 +511,10 @@ export async function getLinkDataByIdentity(
     }
   }
 
-  /* eslint-disable-next-line no-secrets/no-secrets -- SQL query text */
   const query = `
     SELECT i.user_id::text AS user_id, i.external_id::text AS channel_id,
-           COALESCE(NULLIF(TRIM(pub.phone_normalized), ''), cp.phone) AS phone
+           NULLIF(TRIM(pub.phone_normalized), '') AS pub_phone,
+           cp.phone AS legacy_contact_phone
     FROM identities i
     LEFT JOIN LATERAL (
       WITH RECURSIVE pu_chain AS (
@@ -517,16 +543,42 @@ export async function getLinkDataByIdentity(
     LIMIT 1
   `;
   try {
-    const res = await db.query<{ user_id: string; channel_id: string; phone: string | null }>(query, [resource, externalId]);
+    const res = await db.query<{
+      user_id: string;
+      channel_id: string;
+      pub_phone: string | null;
+      legacy_contact_phone: string | null;
+    }>(query, [resource, externalId]);
     const row = res.rows[0];
     if (!row) return null;
+    const pub = row.pub_phone;
+    const leg = row.legacy_contact_phone;
+    const phone = resolveLinkedPhoneNormalized(strategy, pub, leg);
+    if (strategy === 'public_then_contacts' && !pub?.trim() && leg?.trim()) {
+      logger.info(
+        { event: 'linked_phone_legacy_fallback', resource, externalId, strategy },
+        'linkedPhone: empty public.phone_normalized, using integrator.contacts (label=resource)',
+      );
+    }
+    if (strategy === 'public_then_contacts' && pub?.trim() && leg?.trim() && pub.trim() !== leg.trim()) {
+      logger.info(
+        { event: 'linked_phone_drift_mismatch', resource, externalId, strategy },
+        'linkedPhone: public.platform_users and integrator.contacts disagree; COALESCE prefers public',
+      );
+    }
+    if (strategy === 'public_only' && !pub?.trim() && leg?.trim()) {
+      logger.info(
+        { event: 'linked_phone_drift_suppressed', resource, externalId, strategy },
+        'linkedPhone: legacy contact exists but public_only ignores it',
+      );
+    }
     const chatId = Number(row.channel_id);
     return {
       userId: row.user_id,
       chatId: Number.isFinite(chatId) ? chatId : 0,
       channelId: row.channel_id,
       username: null,
-      phoneNormalized: row.phone,
+      phoneNormalized: phone,
       userState: null,
     };
   } catch (err) {
@@ -575,8 +627,11 @@ export async function getIdentityIdByResourceAndExternalId(
 }
 
 /**
- * Links phone to a channel user. Safe against takeover: if the phone is already linked to another
- * user, the update is not applied (idempotent re-link only for the same user).
+ * Links phone to a channel user via integrator `contacts` (messenger-labeled row). Canonical
+ * patient phone for webapp remains `public.platform_users`; keep purge + `integrator_linked_phone_source`
+ * aligned to avoid ghost `linkedPhone` from orphaned contacts.
+ * Safe against takeover: if the phone is already linked to another user, the update is not applied
+ * (idempotent re-link only for the same user).
  */
 export async function setUserPhone(
   db: DbPort,

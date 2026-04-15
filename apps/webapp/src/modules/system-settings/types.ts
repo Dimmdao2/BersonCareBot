@@ -3,6 +3,11 @@ export const ALLOWED_KEYS = [
   // Operational flags
   /** When true, manual merge allows two platform users with different integrator_user_id only after integrator canonical merge (same canonical users.id); see Stage 5 PLATFORM_USER_MERGE_V2. */
   "platform_user_merge_v2_enabled",
+  /**
+   * Integrator `linkedPhone`: how to combine `public.platform_users` vs legacy `integrator.contacts` (label=channel).
+   * `public_then_contacts` (default) → COALESCE(public, contacts); `public_only` → onboarding if no public phone; `contacts_only` → emergency rollback.
+   */
+  "integrator_linked_phone_source",
   "patient_label",
   "sms_fallback_enabled",
   "debug_forward_to_admin",
