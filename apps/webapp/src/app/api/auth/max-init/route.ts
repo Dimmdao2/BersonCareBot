@@ -54,6 +54,8 @@ export async function POST(request: Request) {
       {
         route: ROUTE,
         outcome: "invalid_body",
+        messenger: "max",
+        miniappAuthOutcome: "invalid_body",
         ...diag,
         hasInitData: false,
         validationOk: false,
@@ -119,6 +121,7 @@ export async function POST(request: Request) {
     {
       route: ROUTE,
       outcome: "ok",
+      miniappAuthOutcome: "session_ok",
       validationOk: true,
       ...diag,
       ...fields,

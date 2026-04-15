@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
+import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
 const exchangeTelegramInitDataMock = vi.fn();
+
+vi.mock("@/infra/logging/logger", () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -13,6 +22,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+import { logger } from "@/infra/logging/logger";
 import { POST } from "./route";
 
 describe("POST /api/auth/telegram-init", () => {
@@ -25,6 +35,23 @@ describe("POST /api/auth/telegram-init", () => {
       })
     );
     expect(res.status).toBe(400);
+  });
+
+  it("logs miniappAuthOutcome invalid_body on 400", async () => {
+    await POST(
+      new Request("http://localhost/api/auth/telegram-init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      })
+    );
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: "auth/telegram-init",
+        miniappAuthOutcome: "invalid_body",
+      }),
+      expect.stringContaining("Telegram Mini App"),
+    );
   });
 
   it("returns 403 when initData is denied", async () => {
@@ -67,5 +94,8 @@ describe("POST /api/auth/telegram-init", () => {
       role: "client",
       redirectTo: "/app/patient",
     });
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain(`${PLATFORM_COOKIE_NAME}=bot`);
+    expect(setCookie.toLowerCase()).not.toContain("httponly");
   });
 });

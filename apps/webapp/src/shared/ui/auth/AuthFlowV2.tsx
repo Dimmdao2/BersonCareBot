@@ -31,6 +31,8 @@ import {
 
 const WEB_CHAT_ID_KEY = "bersoncare_web_chat_id";
 
+const SMS_DISABLED_WEB_MESSAGE = "SMS для входа с сайта отключён. Используйте код в Telegram или Max.";
+
 function getWebChatId(): string {
   if (typeof window === "undefined") return "";
   let id = sessionStorage.getItem(WEB_CHAT_ID_KEY);
@@ -388,6 +390,10 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
   ): Promise<OtpResendOutcome> => {
     const effectivePhone = phoneForRequest ?? phone;
     if (!effectivePhone) return { kind: "error", message: "Нет номера телефона" };
+    if (deliveryChannel === "sms") {
+      toast.error(SMS_DISABLED_WEB_MESSAGE);
+      return { kind: "error", message: SMS_DISABLED_WEB_MESSAGE };
+    }
     setLoading(true);
     try {
       const chatId = getWebChatId();
@@ -943,6 +949,9 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
           }}
           onResend={async () => {
             if (!phone) return { kind: "error" as const, message: "Нет номера" };
+            if (otpChannel === "sms") {
+              return { kind: "error" as const, message: SMS_DISABLED_WEB_MESSAGE };
+            }
             const chatId = getWebChatId();
             const res = await fetch("/api/auth/phone/start", {
               method: "POST",

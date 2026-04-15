@@ -4,7 +4,7 @@ import type { UserPinsPort } from "./userPinsPort";
 import { isRuMobile } from "./phoneValidation";
 
 export type AuthMethodsPayload = {
-  /** SMS OTP только для российских мобильных номеров (+7…). */
+  /** SMS OTP (для контрактов вне публичного веб-входа). На `/app` через `check-phone` всегда `false`. */
   sms: boolean;
   pin?: boolean;
   telegram?: boolean;
@@ -27,6 +27,8 @@ export type AuthMethodsPayload = {
 
 export type ResolveAuthMethodsOptions = {
   telegramLoginAvailable?: boolean;
+  /** Публичный веб-вход по номеру на `/app`: SMS не используется (см. `POST /api/auth/phone/start` + `sms_disabled_web`). */
+  suppressSmsForPublicWebLogin?: boolean;
 };
 
 export async function resolveAuthMethodsForPhone(
@@ -41,7 +43,8 @@ export async function resolveAuthMethodsForPhone(
   | { exists: false; methods: AuthMethodsPayload }
   | { exists: true; userId: string; methods: AuthMethodsPayload }
 > {
-  const smsAllowed = isRuMobile(normalizedPhone);
+  const smsAllowed =
+    options?.suppressSmsForPublicWebLogin === true ? false : isRuMobile(normalizedPhone);
   const telegramLogin = options?.telegramLoginAvailable === true;
 
   const user = await ports.userByPhonePort.findByPhone(normalizedPhone);

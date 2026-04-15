@@ -28,6 +28,20 @@ describe("resolveAuthMethodsForPhone", () => {
     expect(r.methods.sms).toBe(false);
   });
 
+  it("forces sms false when suppressSmsForPublicWebLogin", async () => {
+    const r = await resolveAuthMethodsForPhone(
+      "+79990000555",
+      {
+        userByPhonePort: inMemoryUserByPhonePort,
+        userPinsPort: inMemoryUserPinsPort,
+        oauthBindingsPort: inMemoryOAuthBindingsPort,
+      },
+      { suppressSmsForPublicWebLogin: true },
+    );
+    expect(r.exists).toBe(false);
+    expect(r.methods.sms).toBe(false);
+  });
+
   it("sets telegramLogin when option is true", async () => {
     const r = await resolveAuthMethodsForPhone(
       "+79990000444",

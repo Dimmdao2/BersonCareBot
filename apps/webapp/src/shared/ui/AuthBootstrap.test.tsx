@@ -1,0 +1,149 @@
+/** @vitest-environment jsdom */
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
+import { AuthBootstrap } from "./AuthBootstrap";
+
+const mockReplace = vi.fn();
+const mockRefresh = vi.fn();
+const mockUseSearchParams = vi.fn(() => new URLSearchParams("ctx=bot"));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace, refresh: mockRefresh }),
+  useSearchParams: () => mockUseSearchParams(),
+}));
+
+describe("AuthBootstrap", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockReplace.mockClear();
+    mockRefresh.mockClear();
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("ctx=bot"));
+    window.history.pushState({}, "", "/?ctx=bot");
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+    delete (window as unknown as { WebApp?: unknown }).WebApp;
+  });
+
+  it.skip("в обычном браузере без ctx после таймаута показывает телефонный флоу", async () => {
+    // Отключено: по политике miniapp-аудита на `/app` не включаем телефонный AuthFlowV2 из этого сценария.
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    render(<AuthBootstrap />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(16_000);
+    });
+
+    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
+  });
+
+  it("при устаревшем bot-cookie в обычном браузере сбрасывает cookie и даёт Повторить без телефонного флоу", async () => {
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    (window as Window & { Telegram?: { WebApp?: { platform: string; initData?: string } } }).Telegram = {
+      WebApp: { platform: "web", initData: "" },
+    };
+
+    render(<AuthBootstrap />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(16_000);
+    });
+
+    expect(screen.queryByText(/укажите номер телефона/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(screen.getByText(/Вход по номеру телефона здесь недоступен/i)).toBeInTheDocument();
+    expect(mockRefresh).toHaveBeenCalled();
+    expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
+  });
+
+  it("после Повторить при stale-cookie не показывает телефонный флоу до следующего таймаута", async () => {
+    document.cookie = `${PLATFORM_COOKIE_NAME}=bot; path=/`;
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    (window as Window & { Telegram?: { WebApp?: { platform: string; initData?: string } } }).Telegram = {
+      WebApp: { platform: "web", initData: "" },
+    };
+
+    render(<AuthBootstrap />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(16_000);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /повторить/i }));
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+
+    expect(screen.queryByText(/укажите номер телефона/i)).not.toBeInTheDocument();
+  });
+
+  it("при ctx=bot не показывает телефонный флоу после таймаута initData и даёт Повторить", async () => {
+    render(<AuthBootstrap />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(16_000);
+    });
+
+    expect(screen.queryByText(/укажите номер телефона/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(screen.getByText(/Не удалось получить данные для входа/i)).toBeInTheDocument();
+  });
+
+  it("при ошибке telegram-init в ctx=bot показывает Повторить и повторяет POST после retry", async () => {
+    (window as Window & { Telegram?: { WebApp?: { initData: string } } }).Telegram = {
+      WebApp: { initData: "fake-init-data" },
+    };
+    let telegramInitPosts = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("telegram-init")) {
+        telegramInitPosts += 1;
+        if (telegramInitPosts === 1) {
+          return new Response(JSON.stringify({ ok: false, error: "access_denied" }), { status: 403 });
+        }
+      }
+      return new Response(
+        JSON.stringify({ ok: true, role: "client", redirectTo: "/app/patient" }),
+        { status: 200 },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    expect(telegramInitPosts).toBe(1);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /повторить/i }));
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+
+    expect(telegramInitPosts).toBe(2);
+  });
+});

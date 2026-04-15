@@ -5,23 +5,34 @@
  * Стратегия опроса и ожидания MAX bridge: `messengerAuthStrategy.ts`. URL-only классификация: `authEntryFlow.ts`.
  */
 
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  BOT_ENTRY_CTX_QUERY,
+  MAX_ENTRY_CTX_QUERY,
   classifyAuthEntryFlowFromSearchParams,
-  shouldSuppressQueryJwtForMaxCtx,
+  readMessengerCtxParam,
+  shouldSuppressQueryJwtForMessengerMiniApp,
   type AuthEntryFlow,
 } from "@/modules/auth/authEntryFlow";
 import {
   MAX_INIT_DATA_TIMEOUT_USER_MESSAGE,
   MESSENGER_INIT_POLL_CAP_MS,
+  MESSENGER_MINIAPP_INIT_TIMEOUT_USER_MESSAGE,
+  STALE_BOT_PLATFORM_COOKIE_STANDALONE_MESSAGE,
   isLikelyMaxMiniAppSurface,
   shouldDeferPhoneLoginWhileMaxBridgeMayLoad,
 } from "@/modules/auth/messengerAuthStrategy";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
+import { Button } from "@/components/ui/button";
 import { AuthFlowV2, type AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
 import { MaxBridgeScript } from "@/shared/ui/MaxBridgeScript";
-import { getMaxWebAppInitDataForAuth } from "@/shared/lib/messengerMiniApp";
+import {
+  getMaxWebAppInitDataForAuth,
+  isTelegramWebAppExternalBrowserSurface,
+  readPlatformCookieBot,
+} from "@/shared/lib/messengerMiniApp";
+import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
 type BootstrapState = "idle" | "loading" | "error";
 
@@ -63,11 +74,34 @@ function parseJsonSafe(text: string): { redirectTo?: string; role?: "client" | "
 export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBootstrapProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const suppressQueryJwt = shouldSuppressQueryJwtForMaxCtx(searchParams);
+  const suppressQueryJwt = shouldSuppressQueryJwtForMessengerMiniApp(searchParams);
   const rawToken = searchParams.get("t") ?? searchParams.get("token");
   const token = suppressQueryJwt ? null : rawToken;
   const nextParam = searchParams.get("next");
   const debug = searchParams.get("debug") === "1";
+  const ctxParam = readMessengerCtxParam(searchParams);
+  const [messengerEntryFromClient, setMessengerEntryFromClient] = useState(false);
+  /** После сброса устаревшего bot-cookie: показываем miniapp-стиль error+retry без телефонного `AuthFlowV2`. */
+  const [messengerRetryNoPhone, setMessengerRetryNoPhone] = useState(false);
+  const messengerRetryNoPhoneRef = useRef(messengerRetryNoPhone);
+  messengerRetryNoPhoneRef.current = messengerRetryNoPhone;
+  const [retryKey, setRetryKey] = useState(0);
+  const isMessengerMiniAppEntry =
+    messengerEntryFromClient ||
+    ctxParam === BOT_ENTRY_CTX_QUERY ||
+    ctxParam === MAX_ENTRY_CTX_QUERY;
+
+  useLayoutEffect(() => {
+    const fromNext = readMessengerCtxParam(searchParams);
+    if (fromNext === BOT_ENTRY_CTX_QUERY || fromNext === MAX_ENTRY_CTX_QUERY) {
+      setMessengerEntryFromClient(true);
+      setMessengerRetryNoPhone(false);
+      return;
+    }
+    if (typeof document === "undefined") return;
+    setMessengerEntryFromClient(readPlatformCookieBot());
+  }, [searchParams]);
+
   const correlationId = useMemo(() => {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
       return crypto.randomUUID();
@@ -87,12 +121,18 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
   /**
    * Единый клиентский bootstrap: опрос initData (Telegram → MAX), затем отложенный обмен JWT;
-   * при `ctx=max` JWT из query не используется (см. `shouldSuppressQueryJwtForMaxCtx`).
+   * при `ctx=bot` / `ctx=max` JWT из query не используется (см. `shouldSuppressQueryJwtForMessengerMiniApp`).
    */
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const flowHint = classifyAuthEntryFlowFromSearchParams(searchParams);
+
+    const messengerEntryFromUrlOrCookie = (): boolean => {
+      const fromNext = readMessengerCtxParam(searchParams);
+      if (fromNext === BOT_ENTRY_CTX_QUERY || fromNext === MAX_ENTRY_CTX_QUERY) return true;
+      return readPlatformCookieBot();
+    };
 
     const POLL_MS_MAX = MESSENGER_INIT_POLL_CAP_MS;
     const TICK_MS = 100;
@@ -272,8 +312,20 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
         if (!webApp) {
           stableWebAppEmptyTicks = 0;
-          setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
+          if (!messengerEntryFromUrlOrCookie()) {
+            setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
+            if (!messengerRetryNoPhoneRef.current) {
+              setMessengerRetryNoPhone(false);
+            }
+          } else {
+            setInitDataStatus("unknown");
+          }
         } else if (looksLikeMaxOnly) {
+          stableWebAppEmptyTicks = 0;
+          setInitDataStatus("unknown");
+        } else if (messengerEntryFromUrlOrCookie()) {
+          // `ctx=bot` / `ctx=max` или cookie `bot`: не переводим в `no` раньше POLL_CAP
+          // (иначе опрос останавливается ~1s и таймаут/stale-cookie не срабатывают).
           stableWebAppEmptyTicks = 0;
           setInitDataStatus("unknown");
         } else {
@@ -300,19 +352,57 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         stopPolling();
         const maxR =
           typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
-        const stillNoInit = !getMaxWebAppInitDataForAuth().trim();
+        const tgInit = window.Telegram?.WebApp?.initData?.trim() ?? "";
+        const stillNoInit = !tgInit && !getMaxWebAppInitDataForAuth().trim();
         const maxSurface = isLikelyMaxMiniAppSurface(true, maxR);
+        const messengerEntry = messengerEntryFromUrlOrCookie();
         if (
           !token &&
-          maxSurface &&
           stillNoInit &&
           !telegramInitSentRef.current &&
           !maxInitSentRef.current
         ) {
           queueMicrotask(() => {
-            setState("error");
-            setError(MAX_INIT_DATA_TIMEOUT_USER_MESSAGE);
-            logAuthBootstrap("max initData timeout", { flow: flowHint, correlationId, entry: "max_timeout" });
+            const ctxFromUrl = readMessengerCtxParam(searchParams);
+            const cookieOnlyMessengerEntry =
+              readPlatformCookieBot() &&
+              ctxFromUrl !== BOT_ENTRY_CTX_QUERY &&
+              ctxFromUrl !== MAX_ENTRY_CTX_QUERY;
+            const staleBotCookieInExternalBrowser =
+              messengerEntry &&
+              cookieOnlyMessengerEntry &&
+              !maxSurface &&
+              !maxR &&
+              (isTelegramWebAppExternalBrowserSurface() || typeof window.Telegram?.WebApp === "undefined");
+
+            if (staleBotCookieInExternalBrowser) {
+              document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+              setMessengerEntryFromClient(false);
+              setMessengerRetryNoPhone(true);
+              logAuthBootstrap("stale platform bot cookie cleared", {
+                flow: flowHint,
+                correlationId,
+                entry: "stale_bot_cookie_external_browser",
+              });
+              setState("error");
+              setError(STALE_BOT_PLATFORM_COOKIE_STANDALONE_MESSAGE);
+              setInitDataStatus("unknown");
+              router.refresh();
+              return;
+            }
+
+            if (messengerEntry) {
+              setState("error");
+              setError(maxSurface ? MAX_INIT_DATA_TIMEOUT_USER_MESSAGE : MESSENGER_MINIAPP_INIT_TIMEOUT_USER_MESSAGE);
+              logAuthBootstrap("messenger initData timeout", {
+                flow: flowHint,
+                correlationId,
+                entry: maxSurface ? "max_timeout" : "messenger_timeout",
+              });
+            } else {
+              setInitDataStatus((s) => (s === "unknown" ? "no" : s));
+              setMessengerRetryNoPhone(false);
+            }
           });
         } else {
           queueMicrotask(() => setInitDataStatus((s) => (s === "unknown" ? "no" : s)));
@@ -327,10 +417,25 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       cancelled = true;
       stopPolling();
     };
-  }, [router, searchParams, token, debug, nextParam, correlationId]);
+  }, [router, searchParams, token, debug, nextParam, correlationId, retryKey]);
+
+  const handleMessengerAuthRetry = () => {
+    telegramInitSentRef.current = false;
+    maxInitSentRef.current = false;
+    tokenExchangeSentRef.current = false;
+    setState("idle");
+    setError(null);
+    setInitDataStatus("unknown");
+    setDebugInfo(null);
+    setRetryKey((k) => k + 1);
+  };
 
   const showPhoneFlow =
-    !token && state !== "loading" && (state === "error" || initDataStatus === "no");
+    !isMessengerMiniAppEntry &&
+    !messengerRetryNoPhone &&
+    !token &&
+    state !== "loading" &&
+    (state === "error" || initDataStatus === "no");
 
   /** Bridge MAX только без query JWT — см. `MaxBridgeScript`. */
   const loadMaxBridge = token == null;
@@ -363,7 +468,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           {suppressQueryJwt ? (
             <>
               <br />
-              ctx=max — query JWT отключён; вход через initData или телефон.
+              ctx=bot / ctx=max — query JWT отключён; вход только через initData (мини-приложение).
             </>
           ) : null}
         </p>
@@ -371,13 +476,28 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     );
   }
 
-  if (!token && state !== "loading" && state !== "error" && initDataStatus !== "unknown") return null;
+  if (
+    !isMessengerMiniAppEntry &&
+    !token &&
+    state !== "loading" &&
+    state !== "error" &&
+    initDataStatus !== "unknown" &&
+    !messengerRetryNoPhone
+  )
+    return null;
 
   if (state === "error" && error) {
     return (
       <>
         <MaxBridgeScript active={loadMaxBridge} />
         <p className="text-muted-foreground">{error}</p>
+        {isMessengerMiniAppEntry || messengerRetryNoPhone ? (
+          <div className="mt-4">
+            <Button type="button" variant="secondary" onClick={handleMessengerAuthRetry}>
+              Повторить
+            </Button>
+          </div>
+        ) : null}
         {debug && debugInfo && (
           <pre className="whitespace-pre-wrap text-left text-xs text-muted-foreground">
             [debug] correlation: {correlationId} status: {debugInfo.status ?? "—"} {debugInfo.message ?? ""}

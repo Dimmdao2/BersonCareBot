@@ -19,7 +19,8 @@ export type MaxWebhookDeps = {
   getAppBaseUrl?: () => Promise<string>;
 };
 
-async function buildMaxLinks(
+/** Экспорт для тестов контракта URL miniapp (`ctx=bot`, `next=`). */
+export async function buildMaxLinks(
   data: MaxUpdateValidated,
   resolveIntegratorUserIdForMessenger: MaxWebhookDeps['resolveIntegratorUserIdForMessenger'] | undefined,
   appBaseUrl: string | undefined,

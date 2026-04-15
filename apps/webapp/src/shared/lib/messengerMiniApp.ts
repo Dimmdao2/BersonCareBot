@@ -17,11 +17,26 @@ function getTelegramWebApp(): TelegramMiniWebApp | undefined {
   return window.Telegram?.WebApp as TelegramMiniWebApp | undefined;
 }
 
-function readPlatformCookieBot(): boolean {
+export function readPlatformCookieBot(): boolean {
   if (typeof document === "undefined") return false;
   const m = document.cookie.match(new RegExp(`(?:^|; )${PLATFORM_COOKIE_NAME}=([^;]*)`));
   const raw = m?.[1] ? decodeURIComponent(m[1]) : "";
   return raw === "bot";
+}
+
+/**
+ * `telegram-web-app.js` подключается и в обычном браузере: тогда `WebApp.platform` обычно `web` / `weba` / `webk` / `unknown`,
+ * либо ещё не выставлен (пустая строка). Во встроенном WebView клиента Telegram — `ios` / `android` / `tdesktop` и т.д.
+ * Нужно, чтобы не держать пользователя в miniapp-ветке из‑за устаревшего `bersoncare_platform=bot` cookie.
+ */
+export function isTelegramWebAppExternalBrowserSurface(): boolean {
+  if (typeof window === "undefined") return false;
+  const tg = window.Telegram?.WebApp as { platform?: string } | undefined;
+  if (!tg) return false;
+  const p = typeof tg.platform === "string" ? tg.platform.toLowerCase().trim() : "";
+  if (p === "web" || p === "weba" || p === "webk" || p === "unknown") return true;
+  if (p === "") return true;
+  return false;
 }
 
 export function isMessengerMiniAppHost(): boolean {

@@ -106,6 +106,8 @@ npx tsx scripts/check-max.ts
 
 Кнопки «открыть приложение» из сценариев используют Telegram-разметку `web_app`; модуль [`deliveryAdapter.ts`](../../apps/integrator/src/integrations/max/deliveryAdapter.ts) преобразует её в кнопку MAX **`open_app`** (не `link`), чтобы не уводить пользователя во внешний браузер. В API уходит **`contact_id`** = числовой `chat_id` получателя (если есть), иначе из meta — для корректного `initData`/логина в мини-приложении.
 
+**Канон miniapp-входа (Telegram + MAX):** в ссылках на webapp используется **`?ctx=bot`** (интегратор добавляет его к базовому URL). Middleware выставляет cookie платформы `bersoncare_platform=bot` и убирает `ctx` из URL; legacy **`?ctx=max`** обрабатывается так же (cookie `bot`, strip). JWT в query (`?t=`) в этих контекстах **не** используется как основной вход — только `initData` и `POST /api/auth/telegram-init` или **`POST /api/auth/max-init`**. После успешного `telegram-init` webapp выставляет ту же platform-cookie `bot`, что и после `max-init`, чтобы клиент не уходил в standalone-ветку. При таймауте/ошибке initData на `/app` показывается сообщение и кнопка **«Повторить»**, без автоматического перехода в телефонный `AuthFlowV2` (см. `docs/ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md`). На клиенте `AuthBootstrap` определяет miniapp-контекст по **`useSearchParams()` (Next) и cookie**, а не по «сырому» `window.location`, чтобы не расходиться с URL после redirect.
+
 ---
 
 ## 5. Краткий чеклист

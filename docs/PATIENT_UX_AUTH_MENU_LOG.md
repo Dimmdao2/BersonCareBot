@@ -57,3 +57,19 @@
 2. Добавление симптома выполняется из строки трекинга и обновляет статистику/журнал по клиентскому событию.
 3. График симптома показывает две отдельные серии (`instant`, `daily`) с легендой и разными цветами.
 4. В профиле добавлен destructive-flow удаления дневниковых данных с двумя факторами подтверждения (PIN и SMS OTP), без удаления профиля пользователя.
+
+---
+
+Дата: 2026-04-15
+
+## Mini App auth: `ctx=bot`, без авто-телефона
+
+| Изменение | Суть |
+|-----------|------|
+| Канон URL | `?ctx=bot` для кнопок бота (TG/MAX); `?ctx=max` в middleware трактуется как legacy и тоже приводит к cookie `bot`. |
+| Query JWT | При `ctx=bot` / `ctx=max` токен `?t=` не подставляется в сессию — вход через `initData` + `telegram-init` / `max-init`. |
+| Ошибка initData | Экран с **«Повторить»**, без автоматического показа телефонного флоу в miniapp-контексте. |
+| Сессия TG | После успешного `POST /api/auth/telegram-init` выставляется platform-cookie `bot` (как у `max-init`). |
+| Аудит 2026-04-15 | `AuthBootstrap`: контекст miniapp по **`useSearchParams` + cookie** (не «сырой» `window.location`); **`PlatformProvider`**: при `serverHint=bot` не сбрасывать bot-режим при гонке детектора; integrator — тесты `ctx=bot`/`next` в `webhook.links.test.ts`; grep по логам — **`SERVER CONVENTIONS.md`**. |
+
+Журнал правок и CI: `docs/ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md`.

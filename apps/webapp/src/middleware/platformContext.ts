@@ -10,15 +10,15 @@ export type PlatformContextHandlerOptions = {
 };
 
 /**
- * Если в URL есть `?ctx=bot`, ставит cookie платформы и редиректит без параметра.
+ * Если в URL есть `?ctx=bot` (канон) или legacy `?ctx=max`, ставит cookie платформы `bot` и редиректит без параметра.
  * Вынесено для unit-тестов; вызывается из `src/middleware.ts`.
  */
 export function handlePlatformContextRequest(
   request: NextRequest,
   opts?: PlatformContextHandlerOptions,
 ): NextResponse {
-  const ctx = request.nextUrl.searchParams.get("ctx");
-  if (ctx !== "bot") {
+  const ctx = request.nextUrl.searchParams.get("ctx")?.trim();
+  if (ctx !== "bot" && ctx !== "max") {
     return NextResponse.next();
   }
 

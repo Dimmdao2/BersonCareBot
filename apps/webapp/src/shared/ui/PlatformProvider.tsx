@@ -47,7 +47,8 @@ export function PlatformProvider({ serverHint, children }: Props) {
     const syncFromEnvironment = () => {
       if (cancelled) return;
       const inMini = isMessengerMiniAppHost();
-      const desiredEntry: PlatformEntry = inMini ? "bot" : "standalone";
+      /** Не понижать cookie/mode с `bot`, пока клиент не увидел WebView (иначе гонка после middleware). */
+      const desiredEntry: PlatformEntry = inMini || serverHint === "bot" ? "bot" : "standalone";
       if (serverHint !== desiredEntry) {
         document.cookie = serializePlatformCookie(desiredEntry, { secure: isSecureClient() });
         if (syncedEntryRef.current !== desiredEntry) {
@@ -55,7 +56,7 @@ export function PlatformProvider({ serverHint, children }: Props) {
           router.refresh();
         }
       }
-      if (inMini) {
+      if (inMini || serverHint === "bot") {
         setMode("bot");
         return;
       }

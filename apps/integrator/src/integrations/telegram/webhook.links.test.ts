@@ -25,4 +25,13 @@ describe('buildLinksFromBody bookingUrl', () => {
     expect(links.bookingUrl).toBe(links.webappCabinetUrl);
     expect(links.bookingUrl).toContain(encodeURIComponent('/app/patient/cabinet'));
   });
+
+  it('добавляет ctx=bot и next= к ссылкам webapp', async () => {
+    const facts = await buildLinksFromBody(body);
+    const links = facts.links as Record<string, string>;
+    expect(links.webappEntryUrl).toContain('ctx=bot');
+    expect(links.webappHomeUrl).toContain('ctx=bot');
+    expect(links.webappHomeUrl).toContain('next=');
+    expect(links.webappRemindersUrl).toContain(encodeURIComponent('/app/patient/reminders'));
+  });
 });

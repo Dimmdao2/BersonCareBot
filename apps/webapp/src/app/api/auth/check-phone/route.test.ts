@@ -61,7 +61,7 @@ describe("POST /api/auth/check-phone", () => {
     const data = (await res.json()) as { ok: boolean; exists: boolean; methods: { sms: boolean } };
     expect(data.ok).toBe(true);
     expect(data.exists).toBe(false);
-    expect(data.methods.sms).toBe(true);
+    expect(data.methods.sms).toBe(false);
   });
 
   it("returns exists true when user is in store", async () => {

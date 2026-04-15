@@ -21,6 +21,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+import { logger } from "@/infra/logging/logger";
 import { POST } from "./route";
 
 describe("POST /api/auth/max-init", () => {
@@ -33,6 +34,23 @@ describe("POST /api/auth/max-init", () => {
       }),
     );
     expect(res.status).toBe(400);
+  });
+
+  it("logs miniappAuthOutcome invalid_body on 400", async () => {
+    await POST(
+      new Request("http://localhost/api/auth/max-init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+    );
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: "auth/max-init",
+        miniappAuthOutcome: "invalid_body",
+      }),
+      expect.stringContaining("MAX Mini App"),
+    );
   });
 
   it("returns 403 when initData is denied", async () => {

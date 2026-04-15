@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       userPinsPort: deps.userPins,
       oauthBindingsPort: deps.oauthBindings,
     },
-    { telegramLoginAvailable },
+    { telegramLoginAvailable, suppressSmsForPublicWebLogin: true },
   );
 
   let preferredOtpChannel: OtpUiChannel | null = null;

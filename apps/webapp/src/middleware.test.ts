@@ -17,6 +17,16 @@ describe("handlePlatformContextRequest", () => {
     expect(res.status).toBe(200);
   });
 
+  it("redirects without ctx=max (legacy) and sets platform cookie", () => {
+    const req = new NextRequest("http://localhost/app/patient?ctx=max&keep=1");
+    const res = handlePlatformContextRequest(req, { isProduction: false });
+    expect(res.status).toBeGreaterThanOrEqual(300);
+    expect(res.status).toBeLessThan(400);
+    expect(res.headers.get("location")).toBe("http://localhost/app/patient?keep=1");
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain(`${PLATFORM_COOKIE_NAME}=bot`);
+  });
+
   it("redirects without ctx=bot and sets platform cookie", () => {
     const req = new NextRequest("http://localhost/app/patient?ctx=bot&keep=1");
     const res = handlePlatformContextRequest(req, { isProduction: false });
