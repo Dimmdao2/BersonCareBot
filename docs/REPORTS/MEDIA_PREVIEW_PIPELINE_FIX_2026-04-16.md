@@ -65,6 +65,10 @@ pnpm install --frozen-lockfile && pnpm run ci
 
 Результат: **успех**, `exit code 0` (lint, typecheck, integrator test, webapp test, build, build:webapp, audit).
 
+### 5. Push
+
+Коммит: `e06f700` на `main` → `origin/main`.
+
 ---
 
 ## Ссылка на исходный аудит
