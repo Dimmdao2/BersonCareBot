@@ -20,12 +20,14 @@ export async function saveExerciseInline(
   if (result.wasUpdate) {
     revalidatePath(`${EXERCISES_PATH}/${result.exerciseId}`);
   }
-  redirect(`${EXERCISES_PATH}?view=list&selected=${encodeURIComponent(result.exerciseId)}`);
+  const view = formData.get("view") === "tiles" ? "tiles" : "list";
+  redirect(`${EXERCISES_PATH}?view=${view}&selected=${encodeURIComponent(result.exerciseId)}`);
 }
 
 export async function archiveExerciseInline(formData: FormData) {
   const result = await archiveDoctorExerciseCore(formData);
-  if (!result.archivedId) redirect(`${EXERCISES_PATH}?view=list`);
+  const view = formData.get("view") === "tiles" ? "tiles" : "list";
+  if (!result.archivedId) redirect(`${EXERCISES_PATH}?view=${view}`);
   revalidatePath(EXERCISES_PATH);
-  redirect(`${EXERCISES_PATH}?view=list`);
+  redirect(`${EXERCISES_PATH}?view=${view}`);
 }

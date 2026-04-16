@@ -35,6 +35,8 @@ type ExerciseFormProps = {
   saveAction?: (_prev: SaveDoctorExerciseState | null, formData: FormData) => Promise<SaveDoctorExerciseState>;
   archiveAction?: (formData: FormData) => Promise<void>;
   backHref?: string;
+  /** Current exercises list view — passed as hidden field for inline redirects after save/archive. */
+  viewHint?: string;
 };
 
 export function ExerciseForm({
@@ -42,6 +44,7 @@ export function ExerciseForm({
   saveAction = saveDoctorExercise,
   archiveAction = archiveDoctorExercise,
   backHref = "/app/doctor/exercises",
+  viewHint,
 }: ExerciseFormProps) {
   const [saveState, formAction, savePending] = useActionState(saveAction, null as SaveDoctorExerciseState | null);
   const [regionRefId, setRegionRefId] = useState<string | null>(exercise?.regionRefId ?? null);
@@ -66,6 +69,7 @@ export function ExerciseForm({
           </p>
         ) : null}
         {exercise ? <input type="hidden" name="id" value={exercise.id} /> : null}
+        {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
         <input type="hidden" name="regionRefId" value={regionRefId ?? ""} />
         <input type="hidden" name="mediaUrl" value={mediaUrl} />
         <input type="hidden" name="mediaType" value={mediaType} />
@@ -195,6 +199,7 @@ export function ExerciseForm({
       {exercise ? (
         <form action={archiveAction} className="border-t border-border/60 pt-4">
           <input type="hidden" name="id" value={exercise.id} />
+          {viewHint ? <input type="hidden" name="view" value={viewHint} /> : null}
           <Button type="submit" variant="destructive">
             Архивировать
           </Button>

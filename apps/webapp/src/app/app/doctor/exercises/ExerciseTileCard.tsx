@@ -1,23 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { Card, CardContent } from "@/components/ui/card";
+import type { Exercise } from "@/modules/lfk-exercises/types";
+import { cn } from "@/lib/utils";
 import { VideoThumbnailPreview } from "@/shared/ui/media/VideoThumbnailPreview";
 
 type Props = {
   exercise: Exercise;
-  loadLabels: Record<ExerciseLoadType, string>;
+  /** When set, the whole card acts as a selector (split / mobile sheet layout). */
+  onSelect?: (id: string) => void;
+  isActive?: boolean;
 };
 
-export function ExerciseTileCard({ exercise, loadLabels }: Props) {
+export function ExerciseTileCard({ exercise, onSelect, isActive }: Props) {
   const firstMedia = exercise.media[0];
-  return (
-    <Card size="sm" className="h-full">
-      <CardContent className="flex h-full flex-col gap-3 p-3">
+  const inner = (
+    <Card
+      size="sm"
+      className={cn(
+        "h-full w-full max-w-[180px] transition-shadow",
+        isActive && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+      )}
+    >
+      <CardContent className="flex h-full flex-col gap-2 p-2">
         {firstMedia ? (
-          <div className="aspect-square w-full overflow-hidden rounded-md border border-border/60 bg-muted/30">
+          <div className="mx-auto h-[135px] w-full max-w-[180px] overflow-hidden rounded-md border border-border/60 bg-muted/30">
             {firstMedia.mediaType === "video" ? (
               <VideoThumbnailPreview src={firstMedia.mediaUrl} className="h-full w-full object-cover" />
             ) : (
@@ -26,23 +34,29 @@ export function ExerciseTileCard({ exercise, loadLabels }: Props) {
             )}
           </div>
         ) : null}
-        <CardHeader className="p-0">
-          <CardTitle className="text-sm leading-snug">
-            <Link
-              href={`/app/doctor/exercises/${exercise.id}`}
-              className="text-primary underline-offset-4 hover:underline"
-            >
-              {exercise.title}
-            </Link>
-          </CardTitle>
-        </CardHeader>
-        <div className="mt-auto flex flex-wrap gap-1 text-xs">
-          {exercise.loadType ? <Badge variant="secondary">{loadLabels[exercise.loadType]}</Badge> : null}
-          {exercise.difficulty1_10 != null ? (
-            <Badge variant="outline">Сложность {exercise.difficulty1_10}/10</Badge>
-          ) : null}
-        </div>
+        <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">{exercise.title}</p>
       </CardContent>
     </Card>
+  );
+
+  if (onSelect) {
+    return (
+      <button
+        type="button"
+        className="flex w-full cursor-pointer justify-center rounded-xl border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        onClick={() => onSelect(exercise.id)}
+      >
+        {inner}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={`/app/doctor/exercises/${exercise.id}`}
+      className="flex justify-center rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      {inner}
+    </Link>
   );
 }
