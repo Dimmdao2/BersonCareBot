@@ -24,10 +24,10 @@
 ## Файлы
 
 - Хук и фильтр: `apps/webapp/src/shared/ui/media/useMediaLibraryPickerItems.ts`
-- Диалоги: `MediaLibraryPickerDialog.tsx`, `MediaLibraryInsertDialog.tsx`
+- Диалоги: `MediaLibraryPickerDialog.tsx` (внутр. `MediaLibraryPickerOpenPanel`), `MediaLibraryInsertDialog.tsx` (внутр. `MediaLibraryInsertOpenBody`)
 - Журнал: `docs/REPORTS/AGENT_LOG_2026-04-16-local-media-picker-search.md`
 
 ## Проверка и сопутствующие правки
 
-- Реализация пикера: коммит **`2b383f1`**.
+- Реализация пикера: коммит **`2b383f1`**; изоляция ререндеров при вводе в поиск: **`3b104e6`**.
 - Повторный прогон **`pnpm run ci`**: зелёный; для прохождения **`pnpm run audit`** (registry bulk) подняты корневые overrides: **`dompurify >=3.4.0`** (GHSA-39q2-94rc-95cp, транзитивно через `isomorphic-dompurify`) и **`hono >=4.12.14`** (GHSA-458j-xx4x-4375). Детали — в `pnpm.overrides` корневого `package.json` и в [`AGENT_LOG_2026-04-16-local-media-picker-search.md`](./AGENT_LOG_2026-04-16-local-media-picker-search.md).

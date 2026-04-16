@@ -6,6 +6,8 @@
 
 **Коммит реализации:** `2b383f1` (`feat(webapp): local search in media library picker`).
 
+**Follow-up (рендер / UX):** `3b104e6` (`perf(webapp): isolate media library picker search in modal subtree`) — `query`, загрузка списка и локальный фильтр вынесены во внутренние компоненты (`MediaLibraryPickerOpenPanel`, `MediaLibraryInsertOpenBody`), чтобы ввод в поиске не ререндерил превью и кнопки снаружи модалки; сброс состояния панели при открытии/закрытии — через `key` по `open` (без `useEffect`+`setQuery`, требование eslint).
+
 ---
 
 ## Повторная проверка (follow-up)
@@ -20,7 +22,7 @@
 ## Текущая реализация (факты в коде)
 
 - **Хук:** [`apps/webapp/src/shared/ui/media/useMediaLibraryPickerItems.ts`](../../apps/webapp/src/shared/ui/media/useMediaLibraryPickerItems.ts) — `buildAdminMediaListUrl` (без `q` для пикера), `useMediaLibraryPickerItems`, `narrowMediaLibraryPickerItemsByKind`, `filterMediaLibraryPickerItemsByQuery`.
-- **Диалоги:** [`MediaLibraryPickerDialog.tsx`](../../apps/webapp/src/app/app/doctor/content/MediaLibraryPickerDialog.tsx), [`MediaLibraryInsertDialog.tsx`](../../apps/webapp/src/shared/ui/markdown/MediaLibraryInsertDialog.tsx) — `query` только локально; список в UI = `filter` поверх загруженных `items`.
+- **Диалоги:** [`MediaLibraryPickerDialog.tsx`](../../apps/webapp/src/app/app/doctor/content/MediaLibraryPickerDialog.tsx), [`MediaLibraryInsertDialog.tsx`](../../apps/webapp/src/shared/ui/markdown/MediaLibraryInsertDialog.tsx) — `query` и хук списка во **внутренних** панелях модалки; список в UI = `useMemo` + `filter` поверх загруженных `items`; оболочка (превью выбранного URL, кнопки) не получает `setQuery` при каждом символе.
 - **Гонки:** `requestId` + `AbortController` при смене `listUrl` (например `kind` / `folderId`); в `finally` сброс `inFlight` только если `requestId === latestRequestRef.current`.
 - **Превью выбранного:** image/gif/video, legacy-предупреждение — `MediaLibraryPickerDialog`.
 
