@@ -24,13 +24,13 @@
 | `MASTER_PLAN.md` | Цели, порядок фаз, checkpoints, критерии входа/выхода, синхронизация архитектурных документов. |
 | `DISCOVERY_REPORT.md` | Факты по репо: пути, конфиги, счётчики, hotspots, расхождения с исходным планом. |
 | `EXECUTION_RULES.md` | Жёсткие правила для будущего исполнителя (coverage, метрики, запреты). |
-| `AGENT_PROMPTS_COPYPASTE.md` | Готовые к вставке в чат промпты (exec / аудит / fix), без нумерации этапов в тексте блоков. |
+| `PROMPTS_EXEC_AUDIT_FIX.md` | Промпты для агента: EXEC / AUDIT / FIX, pre-deploy, final (как в других инициативах). |
 | `test-optimization/` | План, инвентарь, риски, baseline только для **тестового** трека. |
 | `api-di-boundary-normalization/` | То же для трека **DI / import-boundary** API. |
 
 ## Рекомендуемый порядок чтения / исполнения
 
-1. `DISCOVERY_REPORT.md` → `MASTER_PLAN.md` → `EXECUTION_RULES.md` → при пошаговой работе с агентом: `AGENT_PROMPTS_COPYPASTE.md`.
+1. `DISCOVERY_REPORT.md` → `MASTER_PLAN.md` → `EXECUTION_RULES.md` → при пошаговой работе с агентом: `PROMPTS_EXEC_AUDIT_FIX.md`.
 2. Трек A: `test-optimization/BASELINE.md` → `PLAN.md` → `INVENTORY.md` → `CHECKLIST.md` (при работе вести `LOG.md`).
 3. Checkpoint между A и B (см. `MASTER_PLAN.md`); полный CI перед **пушем**, не после каждого локального шага.
 4. Трек B: `api-di-boundary-normalization/BASELINE.md` → `PLAN.md` → …

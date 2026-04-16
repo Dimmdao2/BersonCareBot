@@ -65,7 +65,7 @@
 
 ## Копипастные промпты для агента
 
-Готовые блоки «exec / аудит / fix» без нумерации этапов в тексте промпта — в [`AGENT_PROMPTS_COPYPASTE.md`](./AGENT_PROMPTS_COPYPASTE.md).
+Формат EXEC / AUDIT / FIX, pre-deploy и final — в [`PROMPTS_EXEC_AUDIT_FIX.md`](./PROMPTS_EXEC_AUDIT_FIX.md).
 
 ## Результаты до начала будущих кодовых изменений (уже есть)
 
