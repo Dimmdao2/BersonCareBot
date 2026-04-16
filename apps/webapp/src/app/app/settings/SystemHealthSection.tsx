@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,11 @@ type ProjectionStatus = "ok" | "degraded" | "unreachable" | "error";
 
 type ProjectionSnapshot = {
   deadCount?: number;
+  pendingCount?: number;
+  processingCount?: number;
+  cancelledCount?: number;
+  oldestPendingAt?: string | null;
+  retryDistribution?: Record<number, number>;
   retriesOverThreshold?: number;
   lastSuccessAt?: string | null;
 } & Record<string, unknown>;
@@ -32,11 +38,21 @@ type SystemHealthPayload = {
     stalePendingCount: number;
     byMimeAndStatus: MediaPreviewCounters;
   };
+  meta?: {
+    probes?: {
+      webappDb?: { status: string; durationMs: number; errorCode?: string };
+      integratorApi?: { status: string; durationMs: number; errorCode?: string };
+      projection?: { status: string; durationMs: number; errorCode?: string };
+      mediaPreview?: { status: string; durationMs: number; errorCode?: string };
+    };
+  };
   fetchedAt: string;
 };
 
 function statusBadgeVariant(status: string): "secondary" | "outline" | "destructive" {
-  if (status === "ok" || status === "up" || status === "running" || status === "active") return "secondary";
+  if (status === "ok" || status === "up" || status === "running" || status === "active" || status === "idle") {
+    return "secondary";
+  }
   if (status === "degraded" || status === "no_signal" || status === "no_source" || status === "no_activity") {
     return "outline";
   }
@@ -45,6 +61,7 @@ function statusBadgeVariant(status: string): "secondary" | "outline" | "destruct
 
 function statusDotClass(status: string): string {
   if (status === "ok" || status === "up" || status === "running" || status === "active") return "bg-emerald-500";
+  if (status === "idle") return "bg-sky-500";
   if (status === "degraded" || status === "no_signal" || status === "no_source" || status === "no_activity") {
     return "bg-amber-500";
   }
@@ -54,6 +71,7 @@ function statusDotClass(status: string): string {
 }
 
 function statusLabel(status: string): string {
+  if (status === "idle") return "idle";
   if (status === "configured") return "сконфигурированы";
   if (status === "not_configured") return "не настроены";
   return status;
@@ -66,11 +84,11 @@ function formatDateTime(value: string | null | undefined): string {
   return d.toLocaleString();
 }
 
-function computeWorkerStatus(
+export function computeWorkerStatus(
   payload: SystemHealthPayload | null,
 ): {
   api: "active" | "down" | "unknown";
-  worker: "active" | "no_activity" | "no_signal";
+  worker: "active" | "idle" | "no_activity" | "no_signal";
   webapp: "running";
 } {
   if (!payload) {
@@ -79,6 +97,14 @@ function computeWorkerStatus(
 
   const api = payload.integratorApi.status === "ok" ? "active" : "down";
   const lastSuccessAt = payload.projection.snapshot?.lastSuccessAt;
+  const pendingCount = payload.projection.snapshot?.pendingCount ?? 0;
+  const processingCount = payload.projection.snapshot?.processingCount ?? 0;
+  const queueEmpty = pendingCount === 0 && processingCount === 0;
+
+  if (queueEmpty) {
+    return { api, worker: "idle", webapp: "running" };
+  }
+
   if (!lastSuccessAt) {
     return { api, worker: "no_signal", webapp: "running" };
   }
@@ -94,8 +120,9 @@ function computeWorkerStatus(
   };
 }
 
-function workerLabel(status: "active" | "no_activity" | "no_signal" | "down" | "unknown" | "running"): string {
+function workerLabel(status: "active" | "idle" | "no_activity" | "no_signal" | "down" | "unknown" | "running"): string {
   if (status === "active") return "активен";
+  if (status === "idle") return "idle";
   if (status === "no_activity") return "нет активности";
   if (status === "no_signal") return "нет сигнала";
   if (status === "down") return "недоступен";
@@ -125,13 +152,33 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-type WorkerItemProps = {
+type HealthAccordionItemProps = {
   name: string;
   status: string;
-  description: string;
+  children: ReactNode;
 };
 
-function WorkerAccordionItem({ name, status, description }: WorkerItemProps) {
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right">{value}</span>
+    </div>
+  );
+}
+
+function ProbeInfo({ probe }: { probe?: { status: string; durationMs: number; errorCode?: string } }) {
+  if (!probe) return <p className="text-muted-foreground">Тех. контекст: нет данных</p>;
+  return (
+    <div className="space-y-1">
+      <DetailRow label="Probe status" value={probe.status} />
+      <DetailRow label="Duration" value={`${probe.durationMs} ms`} />
+      <DetailRow label="Error code" value={probe.errorCode ?? "—"} />
+    </div>
+  );
+}
+
+function HealthAccordionItem({ name, status, children }: HealthAccordionItemProps) {
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-md border border-border/60">
@@ -152,9 +199,7 @@ function WorkerAccordionItem({ name, status, description }: WorkerItemProps) {
       </button>
       {open ? (
         <div className="space-y-2 border-t border-border/50 px-3 pb-3 pt-3 text-xs text-muted-foreground">
-          <p>{description}</p>
-          <p>Ошибки: будет добавлено позже.</p>
-          <p>Расписание: будет добавлено позже.</p>
+          {children}
         </div>
       ) : null}
     </div>
@@ -196,6 +241,15 @@ export function SystemHealthSection() {
   }, [load]);
 
   const workers = computeWorkerStatus(data);
+  const projection = data?.projection.snapshot;
+  const queuePending = projection?.pendingCount ?? 0;
+  const queueProcessing = projection?.processingCount ?? 0;
+  const queueDead = projection?.deadCount ?? 0;
+  const queueCancelled = projection?.cancelledCount ?? 0;
+  const queueRetries = projection?.retriesOverThreshold ?? 0;
+  const lastSuccess = projection?.lastSuccessAt ?? null;
+  const oldestPending = projection?.oldestPendingAt ?? null;
+  const queueEmpty = queuePending === 0 && queueProcessing === 0;
 
   return (
     <div className="space-y-4">
@@ -223,109 +277,133 @@ export function SystemHealthSection() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Сервисы и БД</CardTitle>
-          <CardDescription>Доступность webapp БД, integrator API и проекции очереди.</CardDescription>
+          <CardTitle className="text-base">Сервисы и системные карточки</CardTitle>
+          <CardDescription>Каждая карточка раскрывается отдельно и показывает доступную диагностику.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>bersoncarebot-webapp-prod DB</span>
-            <StatusPill status={data?.webappDb ?? "down"} />
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>bersoncarebot-api-prod /health</span>
-            <div className="flex items-center gap-2">
-              <StatusPill status={data?.integratorApi.status ?? "error"} />
-              {data?.integratorApi.db ? (
-                <Badge variant={statusBadgeVariant(data.integratorApi.db)} className="inline-flex items-center gap-1.5">
-                  <span className={cn("inline-block h-2 w-2 rounded-full", statusDotClass(data.integratorApi.db))} />
-                  db: {data.integratorApi.db}
-                </Badge>
-              ) : null}
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>projection_outbox</span>
-            <StatusPill status={data?.projection.status ?? "error"} />
-          </div>
-        </CardContent>
-      </Card>
+          <HealthAccordionItem name="bersoncarebot-webapp-prod DB" status={data?.webappDb ?? "down"}>
+            <DetailRow label="Состояние" value={data?.webappDb === "up" ? "База webapp доступна" : "База webapp недоступна"} />
+            <DetailRow label="Диагностика" value={data?.webappDb === "up" ? "Проверка DB OK" : "Проверка DB неуспешна"} />
+            <ProbeInfo probe={data?.meta?.probes?.webappDb} />
+          </HealthAccordionItem>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Превью медиа (MOV/HEIC)</CardTitle>
-          <CardDescription>Агрегация по `media_files.preview_status` для quicktime/heic/heif.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>Общий статус preview-pipeline</span>
-            <StatusPill status={data?.mediaPreview.status ?? "error"} />
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>Зависшие pending &gt; 30 минут</span>
-            <Badge variant={(data?.mediaPreview.stalePendingCount ?? 0) > 0 ? "destructive" : "secondary"}>
-              {data?.mediaPreview.stalePendingCount ?? 0}
-            </Badge>
-          </div>
-          {(Object.keys(PREVIEW_MIME_LABEL) as PreviewMime[]).map((mime) => {
-            const counters = data?.mediaPreview.byMimeAndStatus?.[mime];
-            return (
-              <div key={mime} className="space-y-2 rounded-md border border-border/60 p-3">
-                <p className="font-medium">{PREVIEW_MIME_LABEL[mime]}</p>
-                <div className="flex flex-wrap gap-2">
-                  {(Object.keys(PREVIEW_STATUS_LABEL) as PreviewStatus[]).map((status) => (
-                    <Badge
-                      key={`${mime}-${status}`}
-                      variant={status === "failed" && (counters?.[status] ?? 0) > 0 ? "destructive" : "outline"}
-                    >
-                      {PREVIEW_STATUS_LABEL[status]}: {counters?.[status] ?? 0}
-                    </Badge>
-                  ))}
+          <HealthAccordionItem name="bersoncarebot-api-prod /health" status={data?.integratorApi.status ?? "error"}>
+            <DetailRow
+              label="Состояние"
+              value={data?.integratorApi.status === "ok" ? "Integrator API доступен" : "Integrator API недоступен"}
+            />
+            <DetailRow label="DB integrator" value={data?.integratorApi.db ?? "нет данных"} />
+            <DetailRow
+              label="Диагностика"
+              value={data?.integratorApi.status === "ok" ? "Ответ /health получен" : "Проба /health завершилась ошибкой"}
+            />
+            <ProbeInfo probe={data?.meta?.probes?.integratorApi} />
+          </HealthAccordionItem>
+
+          <HealthAccordionItem name="projection_outbox" status={data?.projection.status ?? "error"}>
+            <DetailRow
+              label="Состояние"
+              value={data?.projection.status === "ok" ? "Очередь projection_outbox в норме" : "Есть признаки деградации"}
+            />
+            <DetailRow label="Dead / Pending / Processing" value={`${queueDead} / ${queuePending} / ${queueProcessing}`} />
+            <DetailRow label="Cancelled / Retries>threshold" value={`${queueCancelled} / ${queueRetries}`} />
+            <DetailRow label="Последняя активность" value={formatDateTime(lastSuccess)} />
+            <DetailRow label="Oldest pending" value={formatDateTime(oldestPending)} />
+            <DetailRow
+              label="Почему такой статус"
+              value={
+                data?.projection.status === "ok"
+                  ? `deadCount=${queueDead}, retriesOverThreshold=${queueRetries}`
+                  : `deadCount=${queueDead}, retriesOverThreshold=${queueRetries}`
+              }
+            />
+            <ProbeInfo probe={data?.meta?.probes?.projection} />
+          </HealthAccordionItem>
+
+          <HealthAccordionItem name="bersoncarebot-worker-prod" status={workers.worker}>
+            <DetailRow
+              label="Состояние"
+              value={workerLabel(workers.worker)}
+            />
+            <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
+            <DetailRow label="Текущая очередь (pending/processing)" value={`${queuePending}/${queueProcessing}`} />
+            <DetailRow
+              label="Почему такой статус"
+              value={
+                workers.worker === "idle"
+                  ? "queue empty -> idle"
+                  : workers.worker === "active"
+                    ? "lastSuccessAt <= 40m"
+                    : workers.worker === "no_activity"
+                      ? "queue has items but no fresh success"
+                      : "нет валидного сигнала lastSuccessAt"
+              }
+            />
+            <DetailRow label="Порог активности" value="40 минут" />
+          </HealthAccordionItem>
+
+          <HealthAccordionItem name="bersoncarebot-webapp-prod" status={workers.webapp}>
+            <DetailRow label="Состояние" value="runtime status: running (вариант 1)" />
+            <DetailRow label="Источник сигнала" value="Статический runtime-маркер в UI" />
+          </HealthAccordionItem>
+
+          <HealthAccordionItem name="media cron workers" status={data?.mediaCronWorkers.status ?? "not_configured"}>
+            <DetailRow
+              label="Состояние"
+              value={data?.mediaCronWorkers.status === "configured" ? "Конфигурация cron присутствует" : "Конфигурация cron отсутствует"}
+            />
+            <DetailRow label="Источник сигнала" value="Проверка env INTERNAL_JOB_SECRET + S3 media config" />
+            <DetailRow label="Ограничение" value="Нет прямой telemetry о фактическом runtime cron-процессов" />
+          </HealthAccordionItem>
+
+          <HealthAccordionItem name="preview-pipeline (MOV/HEIC/HEIF)" status={data?.mediaPreview.status ?? "error"}>
+            <DetailRow
+              label="Состояние"
+              value={data?.mediaPreview.status === "ok" ? "Очередь preview в норме" : "Есть pending/skipped/failed или stale pending"}
+            />
+            <DetailRow label="Stale pending > 30m" value={data?.mediaPreview.stalePendingCount ?? 0} />
+            {(Object.keys(PREVIEW_MIME_LABEL) as PreviewMime[]).map((mime) => {
+              const counters = data?.mediaPreview.byMimeAndStatus?.[mime];
+              return (
+                <div key={mime} className="rounded border border-border/50 p-2">
+                  <p className="mb-1 font-medium text-foreground">{PREVIEW_MIME_LABEL[mime]}</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {(Object.keys(PREVIEW_STATUS_LABEL) as PreviewStatus[]).map((status) => (
+                      <DetailRow key={`${mime}-${status}`} label={PREVIEW_STATUS_LABEL[status]} value={counters?.[status] ?? 0} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+            <ProbeInfo probe={data?.meta?.probes?.mediaPreview} />
+          </HealthAccordionItem>
+
+          <HealthAccordionItem name="backup journal" status="no_source">
+            <DetailRow label="Источник" value="не подключен" />
+            <DetailRow label="Статус" value="нет данных о бэкапах" />
+            <DetailRow label="Ограничение" value="В варианте 1 источник telemetry для backup journal отсутствует" />
+          </HealthAccordionItem>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Воркеры (косвенно)</CardTitle>
-          <CardDescription>
-            Статусы вычисляются по интеграционным health-сигналам: API по `/health`, worker по
-            `projection.lastSuccessAt`.
-          </CardDescription>
+          <CardTitle className="text-base">Краткая сводка</CardTitle>
+          <CardDescription>Сигналы состояния воркеров на основе health и projection snapshot.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <WorkerAccordionItem
-            name="bersoncarebot-api-prod"
-            status={workers.api}
-            description="Integrator API process. Косвенный статус берется из ответа /health."
-          />
-          <WorkerAccordionItem
-            name="bersoncarebot-worker-prod"
-            status={workers.worker}
-            description="Фоновый worker обработки очередей. Косвенный статус строится по projection.lastSuccessAt."
-          />
-          <WorkerAccordionItem
-            name="bersoncarebot-webapp-prod"
-            status={workers.webapp}
-            description="Next.js webapp process. Вариант 1 показывает статический runtime-статус running."
-          />
-          <WorkerAccordionItem
-            name="media cron workers"
-            status={data?.mediaCronWorkers.status ?? "not_configured"}
-            description="Cron-задачи purge / multipart cleanup / preview-process. Статус показывает, настроена ли конфигурация для запуска."
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Журнал бэкапов</CardTitle>
-          <CardDescription>Источник статуса бэкапов в webapp пока не подключен.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Badge variant="outline">источник не подключен</Badge>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
+            <span>bersoncarebot-api-prod</span>
+            <StatusPill status={workers.api} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
+            <span>bersoncarebot-worker-prod</span>
+            <StatusPill status={workers.worker} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
+            <span>bersoncarebot-webapp-prod</span>
+            <StatusPill status={workers.webapp} />
+          </div>
         </CardContent>
       </Card>
     </div>

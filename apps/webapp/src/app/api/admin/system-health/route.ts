@@ -14,6 +14,11 @@ type ProjectionStatus = "ok" | "degraded" | "unreachable" | "error";
 
 type ProjectionSnapshot = {
   deadCount?: number;
+  pendingCount?: number;
+  processingCount?: number;
+  cancelledCount?: number;
+  oldestPendingAt?: string | null;
+  retryDistribution?: Record<number, number>;
   retriesOverThreshold?: number;
   lastSuccessAt?: string | null;
 } & Record<string, unknown>;
@@ -36,6 +41,14 @@ type SystemHealthResponse = {
     status: MediaPreviewStatus;
     stalePendingCount: number;
     byMimeAndStatus: MediaPreviewCounters;
+  };
+  meta: {
+    probes: {
+      webappDb: { status: string; durationMs: number; errorCode?: string };
+      integratorApi: { status: string; durationMs: number; errorCode?: string };
+      projection: { status: string; durationMs: number; errorCode?: string };
+      mediaPreview: { status: string; durationMs: number; errorCode?: string };
+    };
   };
   fetchedAt: string;
 };
@@ -310,6 +323,30 @@ export async function GET() {
           stalePendingCount: 0,
           byMimeAndStatus: initMediaPreviewCounters(),
         },
+    meta: {
+      probes: {
+        webappDb: {
+          status: webappDbResult.ok ? webappDbResult.value : webappDbResult.status,
+          durationMs: webappDbResult.durationMs,
+          ...(webappDbResult.ok ? {} : { errorCode: webappDbResult.errorCode }),
+        },
+        integratorApi: {
+          status: integratorApiResult.ok ? "ok" : integratorApiResult.status,
+          durationMs: integratorApiResult.durationMs,
+          ...(integratorApiResult.ok ? {} : { errorCode: integratorApiResult.errorCode }),
+        },
+        projection: {
+          status: projectionResult.ok ? projectionResult.value.status : projectionResult.status,
+          durationMs: projectionResult.durationMs,
+          ...(projectionResult.ok ? {} : { errorCode: projectionResult.errorCode }),
+        },
+        mediaPreview: {
+          status: mediaPreviewResult.ok ? mediaPreviewResult.value.status : mediaPreviewResult.status,
+          durationMs: mediaPreviewResult.durationMs,
+          ...(mediaPreviewResult.ok ? {} : { errorCode: mediaPreviewResult.errorCode }),
+        },
+      },
+    },
     fetchedAt: nowIso(),
   };
 

@@ -7,6 +7,8 @@ const {
   loggerInfoMock,
   loggerWarnMock,
   envMock,
+  isS3MediaEnabledMock,
+  poolQueryMock,
 } = vi.hoisted(() => ({
   requireAdminModeSessionMock: vi.fn(),
   checkDbHealthMock: vi.fn(),
@@ -15,7 +17,10 @@ const {
   loggerWarnMock: vi.fn(),
   envMock: {
     INTEGRATOR_API_URL: "http://integrator.test",
+    INTERNAL_JOB_SECRET: "secret",
   },
+  isS3MediaEnabledMock: vi.fn(),
+  poolQueryMock: vi.fn(),
 }));
 
 vi.mock("@/modules/auth/requireAdminMode", () => ({
@@ -43,6 +48,13 @@ vi.mock("@/infra/logging/logger", () => ({
 
 vi.mock("@/config/env", () => ({
   env: envMock,
+  isS3MediaEnabled: isS3MediaEnabledMock,
+}));
+
+vi.mock("@/infra/db/client", () => ({
+  getPool: vi.fn(() => ({
+    query: poolQueryMock,
+  })),
 }));
 
 import { GET } from "./route";
@@ -57,6 +69,12 @@ describe("GET /api/admin/system-health", () => {
     loggerInfoMock.mockReset();
     loggerWarnMock.mockReset();
     envMock.INTEGRATOR_API_URL = "http://integrator.test";
+    envMock.INTERNAL_JOB_SECRET = "secret";
+    isS3MediaEnabledMock.mockReturnValue(true);
+    poolQueryMock.mockReset();
+    poolQueryMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ stale_pending_count: "0" }] });
     globalThis.fetch = originalFetch;
   });
 
@@ -100,12 +118,15 @@ describe("GET /api/admin/system-health", () => {
       webappDb: string;
       integratorApi: { status: string; db?: string };
       projection: { status: string; snapshot?: { deadCount?: number } };
+      meta?: { probes?: { projection?: { status: string; durationMs: number } } };
       fetchedAt: string;
     };
     expect(body.webappDb).toBe("up");
     expect(body.integratorApi).toEqual({ status: "ok", db: "up" });
     expect(body.projection.status).toBe("degraded");
     expect(body.projection.snapshot?.deadCount).toBe(1);
+    expect(body.meta?.probes?.projection?.status).toBe("degraded");
+    expect(typeof body.meta?.probes?.projection?.durationMs).toBe("number");
     expect(typeof body.fetchedAt).toBe("string");
     expect(loggerInfoMock).toHaveBeenCalled();
   });

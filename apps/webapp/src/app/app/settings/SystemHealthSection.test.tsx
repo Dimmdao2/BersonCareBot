@@ -1,0 +1,59 @@
+import { describe, expect, it } from "vitest";
+import { computeWorkerStatus } from "./SystemHealthSection";
+
+describe("computeWorkerStatus", () => {
+  it("returns idle when projection queue is empty", () => {
+    const result = computeWorkerStatus({
+      webappDb: "up",
+      integratorApi: { status: "ok", db: "up" },
+      projection: {
+        status: "ok",
+        snapshot: {
+          pendingCount: 0,
+          processingCount: 0,
+          lastSuccessAt: "2026-04-16T10:00:00.000Z",
+        },
+      },
+      mediaCronWorkers: { status: "configured" },
+      mediaPreview: {
+        status: "ok",
+        stalePendingCount: 0,
+        byMimeAndStatus: {
+          "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        },
+      },
+      fetchedAt: "2026-04-16T10:00:00.000Z",
+    });
+    expect(result.worker).toBe("idle");
+  });
+
+  it("returns no_activity when queue has items and last success is stale", () => {
+    const oldIso = "2020-01-01T00:00:00.000Z";
+    const result = computeWorkerStatus({
+      webappDb: "up",
+      integratorApi: { status: "ok", db: "up" },
+      projection: {
+        status: "ok",
+        snapshot: {
+          pendingCount: 1,
+          processingCount: 0,
+          lastSuccessAt: oldIso,
+        },
+      },
+      mediaCronWorkers: { status: "configured" },
+      mediaPreview: {
+        status: "ok",
+        stalePendingCount: 0,
+        byMimeAndStatus: {
+          "video/quicktime": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          "image/heic": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+          "image/heif": { pending: 0, ready: 0, failed: 0, skipped: 0 },
+        },
+      },
+      fetchedAt: "2026-04-16T10:00:00.000Z",
+    });
+    expect(result.worker).toBe("no_activity");
+  });
+});
