@@ -37,6 +37,14 @@ function getMobileViewportSnapshot(): boolean {
   return window.matchMedia("(max-width: 767px), (pointer: coarse)").matches;
 }
 
+const API_MEDIA_ID_RE = /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i;
+
+/** Small grid preview for library URLs (avoids loading original / decoding video in the picker). */
+function apiMediaPreviewSmUrl(mediaAppUrl: string): string | null {
+  const m = mediaAppUrl.trim().match(API_MEDIA_ID_RE);
+  return m ? `/api/media/${m[1]}/preview/sm` : null;
+}
+
 function inferPreviewFromUrl(url: string): "image" | "gif" | "video" | null {
   const u = url.trim().toLowerCase();
   if (!u) return null;
@@ -179,6 +187,8 @@ export function MediaLibraryPickerDialog({
       })
     : null;
 
+  const libraryPreviewSm = apiMediaPreviewSmUrl(value);
+
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -210,7 +220,12 @@ export function MediaLibraryPickerDialog({
               className="max-w-md overflow-hidden rounded-md border border-border/60 bg-muted/30"
               data-testid="selected-media-preview"
             >
-              <VideoThumbnailPreview src={value} className="h-40 w-full object-contain" />
+              {libraryPreviewSm ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={libraryPreviewSm} alt="" className="h-40 w-full object-contain bg-muted/30" />
+              ) : (
+                <VideoThumbnailPreview src={value} className="h-40 w-full object-contain" />
+              )}
             </div>
           ) : previewMode === "image" || previewMode === "gif" ? (
             <div
@@ -218,7 +233,11 @@ export function MediaLibraryPickerDialog({
               data-testid="selected-media-preview"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={value} alt="" className="h-40 w-full object-contain" />
+              <img
+                src={libraryPreviewSm ?? value}
+                alt=""
+                className="h-40 w-full object-contain bg-muted/30"
+              />
             </div>
           ) : null}
           <p className="text-muted-foreground">

@@ -100,7 +100,17 @@ export const mockMediaStoragePort: MediaStoragePort = {
 
     const offset = Math.max(0, params.offset ?? 0);
     const limit = Math.max(1, Math.min(200, params.limit ?? 50));
-    return filtered.slice(offset, offset + limit);
+    return filtered.slice(offset, offset + limit).map((r) => {
+      const base = `${MEDIA_PATH_PREFIX}/${r.id}`;
+      const visual = r.kind === "image" || r.kind === "video";
+      return {
+        ...r,
+        url: base,
+        previewStatus: visual ? ("ready" as const) : ("skipped" as const),
+        previewSmUrl: visual ? base : null,
+        previewMdUrl: r.kind === "image" ? base : null,
+      };
+    });
   },
 
   async updateDisplayName(mediaId, displayName) {

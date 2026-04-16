@@ -1,5 +1,7 @@
 export type MediaKind = "image" | "audio" | "video" | "file";
 
+export type MediaPreviewStatus = "pending" | "ready" | "failed" | "skipped";
+
 export type MediaRecord = {
   id: string;
   kind: MediaKind;
@@ -18,6 +20,12 @@ export type MediaRecord = {
   folderId?: string | null;
   /** Resolved public URL (S3 public URL or /api/media/:id). Populated by list(). */
   url?: string;
+  /** Grid thumbnail — GET /api/media/:id/preview/sm (after worker). */
+  previewSmUrl?: string | null;
+  /** Larger preview for viewer — GET /api/media/:id/preview/md (images only when worker produced md). */
+  previewMdUrl?: string | null;
+  /** Background preview generation state. */
+  previewStatus?: MediaPreviewStatus;
 };
 
 export type MediaFolderRecord = {

@@ -50,7 +50,15 @@
   },
   "packageManager": "pnpm@10.33.0",
   "pnpm": {
-    "onlyBuiltDependencies": ["argon2"],
+    "onlyBuiltDependencies": [
+      "argon2",
+      "sharp",
+      "@ffmpeg-installer/ffmpeg",
+      "@ffmpeg-installer/linux-x64",
+      "@ffmpeg-installer/linux-arm64",
+      "@ffmpeg-installer/darwin-x64",
+      "@ffmpeg-installer/darwin-arm64"
+    ],
     "overrides": {
       "fastify": ">=5.8.5",
       "jsdom": "^26.0.0",

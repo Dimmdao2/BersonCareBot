@@ -8,6 +8,16 @@ const withAnalyzer = withBundleAnalyzer({
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
+  /** Native / dynamic-require deps: do not bundle for Turbopack (media preview worker). */
+  serverExternalPackages: [
+    "sharp",
+    "fluent-ffmpeg",
+    "@ffmpeg-installer/ffmpeg",
+    "@ffmpeg-installer/linux-x64",
+    "@ffmpeg-installer/linux-arm64",
+    "@ffmpeg-installer/darwin-x64",
+    "@ffmpeg-installer/darwin-arm64",
+  ],
   transpilePackages: [
     "react-phone-number-input",
     "@toast-ui/editor",

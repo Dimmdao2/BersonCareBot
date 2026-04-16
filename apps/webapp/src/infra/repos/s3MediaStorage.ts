@@ -13,7 +13,7 @@ import {
 import { s3DeleteObject, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/infra/s3/client";
 import type { MediaStoragePort } from "@/modules/media/ports";
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
-import type { MediaListParams, MediaRecord, MediaUsageRef } from "@/modules/media/types";
+import type { MediaListParams, MediaPreviewStatus, MediaRecord, MediaUsageRef } from "@/modules/media/types";
 
 function mediaAppUrl(mediaId: string): string {
   return `/api/media/${mediaId}`;
@@ -88,13 +88,17 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         uploaded_by: string | null;
         uploaded_by_name: string | null;
         created_at: Date;
+        preview_status: string | null;
+        preview_sm_key: string | null;
+        preview_md_key: string | null;
       }>(
         `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
               NULLIF(TRIM(CONCAT_WS(' ', pu.first_name, pu.last_name)), ''),
               NULLIF(TRIM(pu.display_name), '')
             ) AS uploaded_by_name,
-            m.created_at
+            m.created_at,
+            m.preview_status, m.preview_sm_key, m.preview_md_key
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
@@ -102,6 +106,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       );
       const row = res.rows[0];
       if (!row) return null;
+      const previewStatus = (row.preview_status ?? "pending") as MediaPreviewStatus;
       return {
         id: row.id,
         kind: kindFromMime(row.mime_type),
@@ -112,6 +117,9 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         userId: row.uploaded_by,
         uploadedByName: row.uploaded_by_name,
         createdAt: row.created_at.toISOString(),
+        previewStatus,
+        previewSmUrl: row.preview_sm_key?.trim() ? `/api/media/${row.id}/preview/sm` : null,
+        previewMdUrl: row.preview_md_key?.trim() ? `/api/media/${row.id}/preview/md` : null,
       };
     },
 
@@ -203,13 +211,17 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         created_at: Date;
         s3_key: string;
         folder_id: string | null;
+        preview_status: string | null;
+        preview_sm_key: string | null;
+        preview_md_key: string | null;
       }>(
         `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
               NULLIF(TRIM(CONCAT_WS(' ', pu.first_name, pu.last_name)), ''),
               NULLIF(TRIM(pu.display_name), '')
             ) AS uploaded_by_name,
-            m.created_at, m.s3_key, m.folder_id
+            m.created_at, m.s3_key, m.folder_id,
+            m.preview_status, m.preview_sm_key, m.preview_md_key
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          ${whereSql} AND m.s3_key IS NOT NULL
@@ -218,19 +230,25 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         values,
       );
 
-      return res.rows.map((row) => ({
-        id: row.id,
-        kind: kindFromMime(row.mime_type),
-        mimeType: row.mime_type,
-        filename: row.original_name,
-        displayName: row.display_name,
-        size: Number(row.size_bytes),
-        userId: row.uploaded_by,
-        uploadedByName: row.uploaded_by_name,
-        createdAt: row.created_at.toISOString(),
-        folderId: row.folder_id,
-        url: mediaAppUrl(row.id),
-      }));
+      return res.rows.map((row) => {
+        const previewStatus = (row.preview_status ?? "pending") as MediaPreviewStatus;
+        return {
+          id: row.id,
+          kind: kindFromMime(row.mime_type),
+          mimeType: row.mime_type,
+          filename: row.original_name,
+          displayName: row.display_name,
+          size: Number(row.size_bytes),
+          userId: row.uploaded_by,
+          uploadedByName: row.uploaded_by_name,
+          createdAt: row.created_at.toISOString(),
+          folderId: row.folder_id,
+          url: mediaAppUrl(row.id),
+          previewStatus,
+          previewSmUrl: row.preview_sm_key?.trim() ? `/api/media/${row.id}/preview/sm` : null,
+          previewMdUrl: row.preview_md_key?.trim() ? `/api/media/${row.id}/preview/md` : null,
+        };
+      });
     },
 
     async updateDisplayName(mediaId: string, displayName: string | null) {
@@ -475,6 +493,28 @@ export async function getMediaS3KeyForRedirect(id: string): Promise<string | nul
   return res.rows[0]?.s3_key ?? null;
 }
 
+/** Presigned-GET target for generated preview JPEG (sm/md). */
+export async function getMediaPreviewS3KeyForRedirect(
+  id: string,
+  size: "sm" | "md",
+): Promise<string | null> {
+  const pool = getPool();
+  const res = await pool.query<{
+    preview_sm_key: string | null;
+    preview_md_key: string | null;
+    preview_status: string | null;
+  }>(
+    `SELECT preview_sm_key, preview_md_key, preview_status
+     FROM media_files
+     WHERE id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL}`,
+    [id],
+  );
+  const row = res.rows[0];
+  if (!row || row.preview_status !== "ready") return null;
+  const key = size === "sm" ? row.preview_sm_key : row.preview_md_key;
+  return key?.trim() ? key : null;
+}
+
 export type PurgePendingMediaDeleteBatchResult = {
   /** Rows fully removed (S3 delete + DB delete, or orphan cleanup). */
   removed: number;
@@ -498,8 +538,16 @@ export async function purgePendingMediaDeleteBatch(
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const { rows } = await client.query<{ id: string; s3_key: string; status: string | null; delete_attempts: number | null }>(
-        `SELECT id, s3_key, status, COALESCE(delete_attempts, 0) AS delete_attempts FROM media_files
+      const { rows } = await client.query<{
+        id: string;
+        s3_key: string;
+        preview_sm_key: string | null;
+        preview_md_key: string | null;
+        status: string | null;
+        delete_attempts: number | null;
+      }>(
+        `SELECT id, s3_key, preview_sm_key, preview_md_key, status, COALESCE(delete_attempts, 0) AS delete_attempts
+         FROM media_files
          WHERE ${MEDIA_S3_PURGE_STATUS_SQL} AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0
          AND (next_attempt_at IS NULL OR next_attempt_at <= now())
          ORDER BY id ASC
@@ -517,8 +565,13 @@ export async function purgePendingMediaDeleteBatch(
         continue;
       }
 
+      const keysToDelete = [row.preview_sm_key, row.preview_md_key, row.s3_key].filter(
+        (k): k is string => Boolean(k && k.trim()),
+      );
       try {
-        await s3DeleteObject(row.s3_key);
+        for (const key of keysToDelete) {
+          await s3DeleteObject(key);
+        }
       } catch (e) {
         const prevAttempts = row.delete_attempts ?? 0;
         const exp = Math.min(prevAttempts + 1, 20);

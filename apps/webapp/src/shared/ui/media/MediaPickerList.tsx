@@ -1,8 +1,9 @@
 "use client";
 
 import { memo } from "react";
-import { File, Image as ImageIcon, Music, Video } from "lucide-react";
+import { File, Image as ImageIcon, ImageOff, Music, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { MediaPreviewStatus } from "@/modules/media/types";
 
 export type MediaListItem = {
   id: string;
@@ -14,6 +15,9 @@ export type MediaListItem = {
   size: number;
   createdAt: string;
   url: string;
+  previewSmUrl?: string | null;
+  previewMdUrl?: string | null;
+  previewStatus?: MediaPreviewStatus;
 };
 
 type Props = {
@@ -28,6 +32,10 @@ type ItemProps = {
   onSelect: (item: MediaListItem) => void;
 };
 
+function ThumbPlaceholder() {
+  return <div className="h-24 w-full animate-pulse bg-muted/40" aria-hidden />;
+}
+
 const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect }: ItemProps) {
   const title = item.displayName?.trim() || item.filename;
   const date = (() => {
@@ -38,17 +46,50 @@ const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect }
     }
   })();
 
+  const previewStatus = item.previewStatus ?? "pending";
+  const visual = item.kind === "image" || item.kind === "video";
+  const thumbReady = visual && previewStatus === "ready" && Boolean(item.previewSmUrl?.trim());
+  const thumbPending =
+    visual && (previewStatus === "pending" || (previewStatus === "ready" && !item.previewSmUrl?.trim()));
+  const thumbFailed = visual && previewStatus === "failed";
+  const thumbSkipped = visual && previewStatus === "skipped";
+  const thumbNoPreview = thumbFailed || thumbSkipped;
+
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <div className="min-h-20 overflow-hidden rounded border border-border/60 bg-muted/30">
         {item.kind === "image" ? (
-          <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
-            <ImageIcon className="h-8 w-8 text-muted-foreground" />
-          </div>
+          thumbReady ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.previewSmUrl!} alt="" className="h-24 w-full object-contain bg-muted/30" />
+          ) : thumbPending ? (
+            <ThumbPlaceholder />
+          ) : thumbNoPreview ? (
+            <div className="flex h-24 w-full flex-col items-center justify-center gap-1 text-muted-foreground">
+              <ImageOff className="h-7 w-7 opacity-60" aria-hidden />
+              <span className="text-[10px]">{thumbSkipped ? "Без превью" : "Нет превью"}</span>
+            </div>
+          ) : (
+            <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
+              <ImageIcon className="h-8 w-8 text-muted-foreground" />
+            </div>
+          )
         ) : item.kind === "video" ? (
-          <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
-            <Video className="h-8 w-8 text-muted-foreground" />
-          </div>
+          thumbReady ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.previewSmUrl!} alt="" className="h-24 w-full object-contain bg-muted/30" />
+          ) : thumbPending ? (
+            <ThumbPlaceholder />
+          ) : thumbNoPreview ? (
+            <div className="flex h-24 w-full flex-col items-center justify-center gap-1 text-muted-foreground">
+              <ImageOff className="h-7 w-7 opacity-60" aria-hidden />
+              <span className="text-[10px]">{thumbSkipped ? "Без превью" : "Нет превью"}</span>
+            </div>
+          ) : (
+            <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
+              <Video className="h-8 w-8 text-muted-foreground" />
+            </div>
+          )
         ) : item.kind === "audio" ? (
           <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
             <Music className="h-8 w-8 text-muted-foreground" />

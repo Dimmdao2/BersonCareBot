@@ -51,6 +51,11 @@ export function s3ObjectKey(mediaId: string, filename: string): string {
   return `${S3_KEY_PREFIX}/${mediaId}/${safe}`;
 }
 
+/** Stable preview object keys (JPEG); content-addressed by media id + size tier. */
+export function s3PreviewKey(mediaId: string, size: "sm" | "md"): string {
+  return `previews/${size}/${mediaId}.jpg`;
+}
+
 /**
  * Direct public object URL (path-style MinIO). Use only for legacy content matching in findUsage
  * or optional future CDN assets when S3_PUBLIC_BUCKET is set.
@@ -196,6 +201,25 @@ export async function s3PutObjectBody(key: string, body: Buffer, mimeType: strin
       ContentType: mimeType,
     }),
   );
+}
+
+/** Full object bytes from private bucket (e.g. preview worker reading originals). */
+export async function s3GetObjectBody(key: string): Promise<Buffer | null> {
+  const client = getS3Client();
+  try {
+    const out = await client.send(
+      new GetObjectCommand({
+        Bucket: privateBucket(),
+        Key: key,
+      }),
+    );
+    const body = out.Body;
+    if (!body) return null;
+    const bytes = await body.transformToByteArray();
+    return Buffer.from(bytes);
+  } catch {
+    return null;
+  }
 }
 
 export async function s3DeleteObject(key: string): Promise<void> {

@@ -18,6 +18,7 @@
 - `ARCHITECTURE/ADMIN_NAME_MATCH_HINTS_PLAN_AND_EXECUTION_LOG.md` — план и факт выполнения этой доработки (журнал, post-audit hardening); см. также `REPORTS/USER_MERGE_EXECUTION_LOG.md`.
 - `REPORTS/CMS_DOCTOR_HUB_EXECUTION_LOG.md` — журнал выполнения по CMS-хабу врача (UI, runtime-логи).
 - `REPORTS/MEDIA_LIBRARY_PICKER_LOCAL_SEARCH_ARCHITECTURE_2026-04-16.md` — пикер медиабиблиотеки: локальный поиск vs серверный `q`; риски `limit=200`.
+- **Превью медиатеки (S3, воркер, UI):** `MEDIA_PREVIEW_PIPELINE.md` · журнал фикса после аудита: `REPORTS/MEDIA_PREVIEW_PIPELINE_FIX_2026-04-16.md`.
 - `REPORTS/USER_MERGE_EXECUTION_LOG.md` — журнал выполнения инициативы Platform User Merge & Dedup.
 
 ## Инициативы (активные / недавние)

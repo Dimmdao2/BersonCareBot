@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { canRenderInlineImage } from "./mediaPreview";
+import type { MediaPreviewStatus } from "@/modules/media/types";
 
 type MediaItem = {
   id: string;
@@ -14,6 +15,8 @@ type MediaItem = {
   size: number;
   createdAt: string;
   url: string;
+  previewMdUrl?: string | null;
+  previewStatus?: MediaPreviewStatus;
 };
 
 type Props = {
@@ -26,6 +29,12 @@ type Props = {
 
 export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Props) {
   const title = item ? item.displayName?.trim() || item.filename : "Просмотр файла";
+  const imageSrc =
+    item?.kind === "image" &&
+    item.previewStatus === "ready" &&
+    item.previewMdUrl?.trim()
+      ? item.previewMdUrl
+      : item?.url;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[95vw] max-w-5xl overflow-auto">
@@ -34,7 +43,7 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
           <div className="flex flex-col gap-3">
             {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.url} alt="" className="max-h-[70vh] w-full rounded-md object-contain" />
+              <img src={imageSrc} alt="" className="max-h-[70vh] w-full rounded-md object-contain" />
             ) : item.kind === "video" ? (
               <div className="flex w-full min-w-0 justify-center rounded-md bg-muted/40">
                 <NoContextMenuVideo

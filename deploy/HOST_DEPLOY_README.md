@@ -251,6 +251,8 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Multipart upload (очистка незавершённых сессий):** отдельный воркер — `POST /api/internal/media-multipart/cleanup` с тем же Bearer. Назначение: истёкшие строки `media_upload_sessions` → `AbortMultipartUpload` в S3 и удаление orphan `pending` в `media_files`. Рекомендуется cron на loopback (например раз в 5–15 минут или чаще), тот же `INTERNAL_JOB_SECRET` и тот же nginx `allow 127.0.0.1` для `/api/internal/`. На стороне MinIO дополнительно задайте lifecycle rule **`AbortIncompleteMultipartUpload`** (например 1–2 суток) для private-бакета как вторую линию защиты от «зависших» multipart.
 
+**Превью медиатеки (фон):** после применения миграции `075_media_preview_status.sql` воркер — `POST /api/internal/media-preview/process` с тем же `Authorization: Bearer <INTERNAL_JOB_SECRET>`. Генерирует JPEG-превью в private-бакете (`previews/sm/…`, `previews/md/…` для изображений) и обновляет `media_files.preview_*`. Отдача в браузер: `GET /api/media/:id/preview/sm|md` (сессия врача) → редирект на presigned GET с `Cache-Control: private, max-age=3500`. Рекомендуется отдельный cron на loopback с небольшим `limit` (например 10/мин), чтобы не перегружать CPU (`ffmpeg` / `sharp`).
+
 **Рекомендация nginx:** ограничить префикс `/api/internal/` только loopback, чтобы endpoint не был доступен из интернета по Bearer (дополнительно к длинному секрету):
 
 ```nginx
@@ -286,6 +288,12 @@ location /api/internal/ {
 
 ```cron
 */10 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-multipart/cleanup?limit=25" >/dev/null'
+```
+
+Пример cron для генерации превью медиатеки:
+
+```cron
+* * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-preview/process?limit=10" >/dev/null'
 ```
 
 Примечание по service control: на некоторых дистрибутивах `cron.service` не поддерживает `reload` (`Job type reload is not applicable`), используйте `systemctl restart cron`.
@@ -366,7 +374,7 @@ curl -sI "$BASE$CHUNK" | tr -d '\r' | grep -i cache
 - `ADMIN_TELEGRAM_ID=364943522`
 - `TELEGRAM_BOT_TOKEN=...`
 
-**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge` и `POST /api/internal/media-multipart/cleanup`; опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
+**S3 / MinIO и фоновые джобы (webapp):** имена ключей (значения не в документ): `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, **`S3_PRIVATE_BUCKET`** (обязателен для CMS-медиа в private-режиме), опционально `S3_PUBLIC_BUCKET`, `S3_REGION`, `S3_FORCE_PATH_STYLE`; **`INTERNAL_JOB_SECRET`** — Bearer для `POST /api/internal/media-pending-delete/purge`, `POST /api/internal/media-multipart/cleanup` и `POST /api/internal/media-preview/process`; опционально **`LOG_LEVEL`** — уровень логов pino в webapp (`info`, `warn`, `error`; по умолчанию в приложении `info`). Подробности и CORS: раздел **Nginx → Webapp** выше («CMS медиа и S3», «Очередь удаления медиа»); канон env: `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
 
 **Auth (webapp):** Yandex OAuth и Telegram Login Widget **не** требуют новых ключей в `webapp.prod` — клиент OAuth и имя бота для виджета задаются в **`system_settings`** (admin scope) в БД webapp; см. `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`. Секреты в env-файлы деплоя не добавлять.
 

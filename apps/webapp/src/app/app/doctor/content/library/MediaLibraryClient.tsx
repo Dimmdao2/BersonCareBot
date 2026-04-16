@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MoreHorizontal } from "lucide-react";
+import { ImageIcon, ImageOff, MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +29,7 @@ import { MediaCard } from "./MediaCard";
 import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { MediaLightbox } from "./MediaLightbox";
 import { canRenderInlineImage } from "./mediaPreview";
-import { VideoThumbnailPreview } from "@/shared/ui/media/VideoThumbnailPreview";
+import type { MediaPreviewStatus } from "@/modules/media/types";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
 type SortBy = "date" | "size" | "type";
@@ -47,6 +47,9 @@ type MediaItem = {
   createdAt: string;
   url: string;
   folderId?: string | null;
+  previewSmUrl?: string | null;
+  previewMdUrl?: string | null;
+  previewStatus?: MediaPreviewStatus;
 };
 
 type FolderRow = { id: string; parentId: string | null; name: string; createdAt: string };
@@ -93,6 +96,41 @@ function formatDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function TableMediaThumb({ item, onOpen }: { item: MediaItem; onOpen: () => void }) {
+  const previewStatus = item.previewStatus ?? "pending";
+  const thumbReady =
+    (item.kind === "image" || item.kind === "video") &&
+    previewStatus === "ready" &&
+    Boolean(item.previewSmUrl?.trim());
+  const thumbPending =
+    (item.kind === "image" || item.kind === "video") &&
+    (previewStatus === "pending" || (previewStatus === "ready" && !item.previewSmUrl?.trim()));
+  const thumbFailed = (item.kind === "image" || item.kind === "video") && previewStatus === "failed";
+  const thumbSkipped = (item.kind === "image" || item.kind === "video") && previewStatus === "skipped";
+  const thumbNoPreview = thumbFailed || thumbSkipped;
+
+  return (
+    <button type="button" onClick={onOpen} className="rounded border border-border">
+      {thumbReady ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={item.previewSmUrl!} alt="" className="max-h-16 max-w-28 rounded object-contain bg-muted/30" />
+      ) : thumbPending ? (
+        <div className="h-16 w-28 animate-pulse rounded bg-muted/50" aria-hidden />
+      ) : thumbNoPreview ? (
+        <div className="flex h-16 w-28 flex-col items-center justify-center gap-0.5 bg-muted/20 text-[10px] text-muted-foreground">
+          <ImageOff className="h-5 w-5 opacity-60" aria-hidden />
+        </div>
+      ) : item.kind === "image" ? (
+        <div className="flex h-16 w-28 items-center justify-center rounded bg-muted/30" aria-hidden>
+          <ImageIcon className="h-6 w-6 text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="flex h-16 w-28 items-center justify-center bg-muted/30 text-xs text-muted-foreground">Видео</div>
+      )}
+    </button>
+  );
 }
 
 type DeleteDialogState =
@@ -1427,17 +1465,9 @@ export function MediaLibraryClient() {
                     </td>
                     <td className="px-3 py-2">
                       {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (
-                        <button type="button" onClick={() => openLightboxByItemId(item.id)} className="rounded border border-border">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={item.url} alt="" className="max-h-16 max-w-28 rounded object-contain bg-muted/30" />
-                        </button>
+                        <TableMediaThumb item={item} onOpen={() => openLightboxByItemId(item.id)} />
                       ) : item.kind === "video" ? (
-                        <button type="button" onClick={() => openLightboxByItemId(item.id)} className="rounded border border-border">
-                          <VideoThumbnailPreview
-                            src={item.url}
-                            className="max-h-16 max-w-28 rounded object-contain bg-muted/30"
-                          />
-                        </button>
+                        <TableMediaThumb item={item} onOpen={() => openLightboxByItemId(item.id)} />
                       ) : item.kind === "audio" ? (
                         <button type="button" onClick={() => openLightboxByItemId(item.id)} className="text-primary underline">
                           Прослушать
