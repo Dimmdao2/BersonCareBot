@@ -181,6 +181,7 @@
 - `S3_*` — см. блок «S3 / MinIO» выше (`S3_PRIVATE_BUCKET` и др.; приватный бакет для CMS-медиа).
 - `INTERNAL_JOB_SECRET` — опционально; если задан, позволяет cron дергать purge очереди удаления медиа (см. отчёт S3 private media).
 - `LOG_LEVEL` — опционально (pino в webapp; по умолчанию в коде `info`).
+- `FFMPEG_PATH=/usr/bin/ffmpeg` — путь к системному ffmpeg (обязателен на prod для preview-воркера медиатеки; без этого используется бинарь из `@ffmpeg-installer`, который на хосте может завершаться `SIGSEGV`).
 
 Для обычного runtime webapp **не нужен** отдельный URL «второй» БД в `webapp.prod` — он совпадает с integrator (`DATABASE_UNIFIED_POSTGRES.md`).
 

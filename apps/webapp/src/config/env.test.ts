@@ -54,6 +54,7 @@ describe("checkInsecureSecretsForStartup", () => {
     MAX_LOGIN_BOT_NICKNAME: "",
     INTERNAL_JOB_SECRET: "",
     LOG_LEVEL: "info",
+    FFMPEG_PATH: "",
   };
 
   it("throws when SESSION_COOKIE_SECRET is blacklisted and isTest is false", () => {

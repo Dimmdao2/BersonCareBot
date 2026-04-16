@@ -5,15 +5,18 @@ import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffmpeg from "fluent-ffmpeg";
 import type { FfmpegCommand } from "fluent-ffmpeg";
 import sharp from "sharp";
+import { env } from "@/config/env";
 import { getPool } from "@/infra/db/client";
 import { logger } from "@/infra/logging/logger";
 import { MEDIA_READABLE_STATUS_SQL } from "@/infra/repos/s3MediaStorage";
 import { presignGetUrl, s3GetObjectBody, s3PreviewKey, s3PutObjectBody } from "@/infra/s3/client";
 
+const resolvedFfmpegPath = env.FFMPEG_PATH || ffmpegInstaller.path;
 try {
-  ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+  ffmpeg.setFfmpegPath(resolvedFfmpegPath);
+  logger.info({ path: resolvedFfmpegPath }, "[mediaPreviewWorker] ffmpeg path set");
 } catch (e) {
-  logger.warn({ err: e }, "[mediaPreviewWorker] ffmpeg path not set from installer");
+  logger.warn({ err: e, path: resolvedFfmpegPath }, "[mediaPreviewWorker] ffmpeg path not set");
 }
 
 const MAX_PREVIEW_ATTEMPTS = 5;
@@ -22,6 +25,12 @@ const MAX_IMAGE_PREVIEW_BYTES = 50 * 1024 * 1024;
 /** Avoid unbounded ffmpeg work on huge sources (presigned HTTP read). */
 const MAX_VIDEO_PREVIEW_BYTES = 200 * 1024 * 1024;
 const FFMPEG_EXTRACT_TIMEOUT_MS = 120_000;
+const PERMANENT_ERROR_PATTERNS = [
+  "compression format has not been built in",
+  "Input buffer contains unsupported image format",
+  "Invalid data found when processing input",
+  "was killed with signal SIGSEGV",
+] as const;
 
 export type ProcessMediaPreviewBatchResult = {
   processed: number;
@@ -31,6 +40,11 @@ export type ProcessMediaPreviewBatchResult = {
 function backoffMinutesAfterFailure(attemptsAfterIncrement: number): number {
   const exp = Math.min(attemptsAfterIncrement, 20);
   return Math.min(1440, Math.pow(2, exp));
+}
+
+function isPermanentPreviewError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  return PERMANENT_ERROR_PATTERNS.some((p) => msg.includes(p));
 }
 
 async function generateImagePreviews(original: Buffer): Promise<{ sm: Buffer; md: Buffer }> {
@@ -160,7 +174,16 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
       const mdKey = s3PreviewKey(row.id, "md");
 
       try {
-        if (mime.startsWith("image/") && sizeBytes > MAX_IMAGE_PREVIEW_BYTES) {
+        if (mime === "image/heic" || mime === "image/heif") {
+          await client.query(
+            `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
+            [row.id],
+          );
+          logger.info(
+            { mediaId: row.id, mime },
+            "[processMediaPreviewBatch] unsupported_preview_codec_heif, skipped",
+          );
+        } else if (mime.startsWith("image/") && sizeBytes > MAX_IMAGE_PREVIEW_BYTES) {
           await client.query(
             `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
             [row.id],
@@ -216,6 +239,16 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
           );
         }
       } catch (e) {
+        if (isPermanentPreviewError(e)) {
+          await client.query(
+            `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
+            [row.id],
+          );
+          logger.warn({ err: e, mediaId: row.id }, "[processMediaPreviewBatch] permanent error, skipped");
+          await client.query("COMMIT");
+          errors += 1;
+          continue;
+        }
         const prev = row.preview_attempts ?? 0;
         const nextAttempts = prev + 1;
         if (nextAttempts >= MAX_PREVIEW_ATTEMPTS) {

@@ -144,6 +144,11 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.trim() ? v.trim() : "info")),
+  /** Optional path to system ffmpeg binary (overrides @ffmpeg-installer path). */
+  FFMPEG_PATH: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
 });
 
 const parsed = envSchema.parse({
@@ -181,6 +186,7 @@ const parsed = envSchema.parse({
   MAX_LOGIN_BOT_NICKNAME: process.env.MAX_LOGIN_BOT_NICKNAME,
   INTERNAL_JOB_SECRET: process.env.INTERNAL_JOB_SECRET,
   LOG_LEVEL: process.env.LOG_LEVEL,
+  FFMPEG_PATH: process.env.FFMPEG_PATH,
 });
 
 export type EnvParsed = z.infer<typeof envSchema>;
