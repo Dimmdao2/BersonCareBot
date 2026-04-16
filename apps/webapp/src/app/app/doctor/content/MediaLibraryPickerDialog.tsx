@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -77,6 +77,42 @@ function resolveSelectedPreview(args: {
   return null;
 }
 
+type MediaLibraryPickerOpenPanelProps = {
+  open: boolean;
+  listUrl: string;
+  kind: MediaLibraryPickerKind;
+  onPick: (item: MediaListItem) => void;
+};
+
+/**
+ * Состояние поиска и загрузка списка живут здесь, чтобы ввод в поле поиска
+ * не ререндерил превью и кнопки снаружи модалки.
+ */
+function MediaLibraryPickerOpenPanel({ open, listUrl, kind, onPick }: MediaLibraryPickerOpenPanelProps) {
+  const [query, setQuery] = useState("");
+
+  const { items, loading, error } = useMediaLibraryPickerItems({ open, listUrl });
+
+  const displayedItems = useMemo(() => {
+    const kindFiltered = narrowMediaLibraryPickerItemsByKind(items, kind);
+    return filterMediaLibraryPickerItemsByQuery(kindFiltered, query);
+  }, [items, kind, query]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm">
+        <span className="text-xs text-muted-foreground">Поиск по имени</span>
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Введите часть имени файла"
+        />
+      </label>
+      <MediaPickerList items={displayedItems} loading={loading} error={error} onSelect={onPick} />
+    </div>
+  );
+}
+
 type Props = {
   kind: MediaLibraryPickerKind;
   value: string;
@@ -101,7 +137,6 @@ export function MediaLibraryPickerDialog({
   selectedPreviewKind,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const [lastPick, setLastPick] = useState<LastPick | null>(null);
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
 
@@ -112,23 +147,24 @@ export function MediaLibraryPickerDialog({
     [apiKind, folderId],
   );
 
-  const { items, loading, error } = useMediaLibraryPickerItems({ open, listUrl });
-
-  const displayedItems = useMemo(() => {
-    const kindFiltered = narrowMediaLibraryPickerItemsByKind(items, kind);
-    return filterMediaLibraryPickerItemsByQuery(kindFiltered, query);
-  }, [items, kind, query]);
-
   const effectiveLastPick = useMemo(() => {
     const t = value.trim();
     if (!t || !lastPick) return null;
     return lastPick.url === t ? lastPick : null;
   }, [value, lastPick]);
 
-  function handleOpenChange(next: boolean) {
+  const handleOpenChange = useCallback((next: boolean) => {
     setOpen(next);
-    if (!next) setQuery("");
-  }
+  }, []);
+
+  const handlePickFromLibrary = useCallback(
+    (item: MediaListItem) => {
+      setLastPick({ url: item.url, rowKind: item.kind, mimeType: item.mimeType });
+      onChange(item.url, { kind: item.kind, mimeType: item.mimeType, filename: item.filename });
+      setOpen(false);
+    },
+    [onChange],
+  );
 
   const isApiMedia =
     value.startsWith("/api/media/") || /^https?:\/\//i.test(value.trim());
@@ -143,29 +179,6 @@ export function MediaLibraryPickerDialog({
       })
     : null;
 
-  const pickerBody = (
-    <div className="flex flex-col gap-3">
-      <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm">
-        <span className="text-xs text-muted-foreground">Поиск по имени</span>
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Введите часть имени файла"
-        />
-      </label>
-      <MediaPickerList
-        items={displayedItems}
-        loading={loading}
-        error={error}
-        onSelect={(item) => {
-          setLastPick({ url: item.url, rowKind: item.kind, mimeType: item.mimeType });
-          onChange(item.url, { kind: item.kind, mimeType: item.mimeType, filename: item.filename });
-          handleOpenChange(false);
-        }}
-      />
-    </div>
-  );
-
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -173,7 +186,6 @@ export function MediaLibraryPickerDialog({
           type="button"
           variant="outline"
           onClick={() => {
-            setQuery("");
             setOpen(true);
           }}
         >
@@ -229,7 +241,15 @@ export function MediaLibraryPickerDialog({
             <SheetHeader>
               <SheetTitle>{pickerTitle}</SheetTitle>
             </SheetHeader>
-            <div className="mt-3">{pickerBody}</div>
+            <div className="mt-3">
+              <MediaLibraryPickerOpenPanel
+                key={open ? "media-picker-open" : "media-picker-closed"}
+                open={open}
+                listUrl={listUrl}
+                kind={kind}
+                onPick={handlePickFromLibrary}
+              />
+            </div>
           </SheetContent>
         </Sheet>
       ) : (
@@ -238,7 +258,13 @@ export function MediaLibraryPickerDialog({
             <DialogHeader>
               <DialogTitle>{pickerTitle}</DialogTitle>
             </DialogHeader>
-            {pickerBody}
+            <MediaLibraryPickerOpenPanel
+              key={open ? "media-picker-open" : "media-picker-closed"}
+              open={open}
+              listUrl={listUrl}
+              kind={kind}
+              onPick={handlePickFromLibrary}
+            />
           </DialogContent>
         </Dialog>
       )}
