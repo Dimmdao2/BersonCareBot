@@ -4,6 +4,15 @@
 
 **Архитектурная миграция (2026-04-16):** отказ от server-side `q` в цикле ввода пикера в пользу **initial fetch + локальная фильтрация**. Подробнее: [`MEDIA_LIBRARY_PICKER_LOCAL_SEARCH_ARCHITECTURE_2026-04-16.md`](./MEDIA_LIBRARY_PICKER_LOCAL_SEARCH_ARCHITECTURE_2026-04-16.md).
 
+**Коммит реализации:** `2b383f1` (`feat(webapp): local search in media library picker`).
+
+---
+
+## Повторная проверка (follow-up)
+
+- **`pnpm run ci`** (локально): успешно после правки supply chain.
+- **`pnpm.overrides.dompurify`:** с `>=3.3.2` на **`>=3.4.0`**, чтобы закрыть moderate [GHSA-39q2-94rc-95cp](https://github.com/advisories/GHSA-39q2-94rc-95cp) (уязвимые версии `<=3.3.3`); `registry-prod-audit.mjs` снова зелёный. Изменения в корневом `package.json` + `pnpm-lock.yaml` и в этом логе уходят одним коммитом на `main` сразу после `2b383f1`.
+
 ---
 
 ## Текущая реализация (факты в коде)

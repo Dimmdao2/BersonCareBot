@@ -26,3 +26,8 @@
 - Хук и фильтр: `apps/webapp/src/shared/ui/media/useMediaLibraryPickerItems.ts`
 - Диалоги: `MediaLibraryPickerDialog.tsx`, `MediaLibraryInsertDialog.tsx`
 - Журнал: `docs/REPORTS/AGENT_LOG_2026-04-16-local-media-picker-search.md`
+
+## Проверка и сопутствующие правки
+
+- Реализация пикера: коммит **`2b383f1`**.
+- Повторный прогон **`pnpm run ci`**: зелёный; для прохождения **`pnpm run audit`** (registry bulk) обновлён корневой override **`dompurify`** до **`>=3.4.0`** (закрытие GHSA-39q2-94rc-95cp для транзитивной цепочки через `isomorphic-dompurify`). Правка в `package.json` / lockfile — в том же коммите, что обновление отчётов (сразу после `2b383f1` на `main`).

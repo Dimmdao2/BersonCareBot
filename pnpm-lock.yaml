@@ -8,7 +8,7 @@ overrides:
   fastify: '>=5.8.5'
   jsdom: ^26.0.0
   flatted: '>=3.4.2'
-  dompurify: '>=3.3.2'
+  dompurify: '>=3.4.0'
   micromatch>picomatch: 2.3.2
   '@dotenvx/dotenvx>picomatch': 4.0.4
   fdir>picomatch: 4.0.4
@@ -2738,8 +2738,8 @@ packages:
   dom-accessibility-api@0.6.3:
     resolution: {integrity: sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w==}
 
-  dompurify@3.3.3:
-    resolution: {integrity: sha512-Oj6pzI2+RqBfFG+qOaOLbFXLQ90ARpcGG6UePL82bJLtdsa6CYJD7nmiU8MW9nQNOtCHV3lZ/Bzq1X0QYbBZCA==}
+  dompurify@3.4.0:
+    resolution: {integrity: sha512-nolgK9JcaUXMSmW+j1yaSvaEaoXYHwWyGJlkoCTghc97KgGDDSnpoU/PlEnw63Ah+TGKFOyY+X5LnxaWbCSfXg==}
 
   dotenv@17.4.1:
     resolution: {integrity: sha512-k8DaKGP6r1G30Lx8V4+pCsLzKr8vLmV2paqEj1Y55GdAgJuIqpRp5FfajGF8KtwMxCz9qJc6wUIJnm053d/WCw==}
@@ -7258,7 +7258,7 @@ snapshots:
 
   '@toast-ui/editor@3.2.2':
     dependencies:
-      dompurify: 3.3.3
+      dompurify: 3.4.0
       prosemirror-commands: 1.7.1
       prosemirror-history: 1.5.0
       prosemirror-inputrules: 1.5.1
@@ -8164,7 +8164,7 @@ snapshots:
 
   dom-accessibility-api@0.6.3: {}
 
-  dompurify@3.3.3:
+  dompurify@3.4.0:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -9339,7 +9339,7 @@ snapshots:
 
   isomorphic-dompurify@3.7.1:
     dependencies:
-      dompurify: 3.3.3
+      dompurify: 3.4.0
       jsdom: 26.1.0
     transitivePeerDependencies:
       - bufferutil
