@@ -2,6 +2,8 @@
 
 Дата: 2026-04-16
 
+> **Актуально сейчас:** превью упражнений (в т.ч. видео) в сетках и списках — через **`MediaThumb`** и пайплайн `/api/media/.../preview/...` (см. [`ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md`](../ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md)). Ниже — историческое описание внедрения desktop-режимов; упоминания `VideoThumbnailPreview` относятся к промежуточному состоянию и **заменены** в коде.
+
 ## Контекст
 
 Доработан экран врача `/app/doctor/exercises` для desktop-сценария с двумя режимами просмотра:

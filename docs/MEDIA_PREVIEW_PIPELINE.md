@@ -64,7 +64,9 @@
 
 - Канонический фронтенд: см. [`docs/ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md`](./ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md).
 - Сетка/таблица/пикеры: [`MediaThumb`](../apps/webapp/src/shared/ui/media/MediaThumb.tsx) на **`MediaPreviewUiModel`** ([`mediaPreviewUiModel.ts`](../apps/webapp/src/shared/ui/media/mediaPreviewUiModel.ts)); фаза внутри через [`getMediaThumbPhase`](../apps/webapp/src/shared/ui/media/mediaThumbState.ts); URL превью только через [`mediaPreviewUrls.ts`](../apps/webapp/src/shared/lib/mediaPreviewUrls.ts). Инварианты: `pnpm --dir apps/webapp run lint` включает [`scripts/check-media-preview-invariants.sh`](../apps/webapp/scripts/check-media-preview-invariants.sh).
-- Лайтбокс для **изображений:** [`MediaLightbox`](../apps/webapp/src/app/app/doctor/content/library/MediaLightbox.tsx) — при `previewStatus === 'ready'` и наличии `previewMdUrl` грузится md; иначе оригинал `url`.
+- Метаданные одной строки для гидратации picker / формы: **`GET /api/admin/media/{id}`** (роль врача), тот же shape полей, что у элементов list; клиент: [`fetchAdminMediaListItem.ts`](../apps/webapp/src/shared/ui/media/fetchAdminMediaListItem.ts).
+- Лайтбокс для **изображений:** [`MediaLightbox`](../apps/webapp/src/app/app/doctor/content/library/MediaLightbox.tsx) — только **`previewMdUrl`** или **`previewSmUrl`** при `previewStatus === 'ready'`; без превью — плейсхолдер, **не** загрузка оригинала по `url`. Видео/аудио — воспроизведение с `item.url`.
+- Обложки материалов (пациент / предпросмотр врача) с library URL: [`ContentHeroImage`](../apps/webapp/src/shared/ui/media/ContentHeroImage.tsx) + при необходимости `imageLibraryMedia` из каталога ([`content-catalog/service.ts`](../apps/webapp/src/modules/content-catalog/service.ts)).
 
 ## Логирование (сводно)
 

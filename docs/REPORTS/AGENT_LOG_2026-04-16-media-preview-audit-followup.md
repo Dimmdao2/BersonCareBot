@@ -2,9 +2,9 @@
 
 ## Контекст
 
-После внедрения пайплайна превью (P0–P7) выполнен аудит клиентского слоя и смежных частей; внесены **точечные** исправления без смены архитектуры API.
+После внедрения пайплайна превью (P0–P7) выполнен аудит клиентского слоя и смежных частей; внесены **точечные** исправления без смены архитектуры API. Позже (тот же релизный цикл) архитектура фронта унифицирована: см. раздел **«Дополнение: единый слой превью»** ниже.
 
-## Сделано
+## Сделано (2026-04-16)
 
 1. **Парсинг UUID из `/api/media/{uuid}`** — дублирующий regex в `actionsShared.ts` удалён; единый источник: [`mediaPreviewUrls.ts`](../../apps/webapp/src/shared/lib/mediaPreviewUrls.ts) (`API_MEDIA_ID_RE`, `parseMediaFileIdFromAppUrl`).
 
@@ -12,7 +12,7 @@
 
 3. **Канонический DTO на фронте** — тип [`MediaPreviewUiModel`](../../apps/webapp/src/shared/ui/media/mediaPreviewUiModel.ts) и мапперы (`libraryMediaRowToPreviewUi`, `exerciseMediaToPreviewUi`, `lfkCoverToPreviewUi`, `mediaLibraryPickerSelectionToPreviewUi`); [`MediaThumb`](../../apps/webapp/src/shared/ui/media/MediaThumb.tsx) принимает только `media: MediaPreviewUiModel`.
 
-4. **Инварианты (CI)** — скрипт [`apps/webapp/scripts/check-media-preview-invariants.sh`](../../apps/webapp/scripts/check-media-preview-invariants.sh): запрет `<img src={item.url}>` в list/grid/picker (исключая lightbox) и запрет литералов `/api/media/.../preview/sm|md` вне `mediaPreviewUrls.ts`. Включён в `pnpm --dir apps/webapp run lint`.
+4. **Инварианты (CI)** — скрипт [`apps/webapp/scripts/check-media-preview-invariants.sh`](../../apps/webapp/scripts/check-media-preview-invariants.sh) включён в `pnpm --dir apps/webapp run lint` (см. актуальный список правил в `MEDIA_PREVIEW_FRONTEND.md`).
 
 5. **SQL (переходный JOIN)** — в [`pgLfkExercises.ts`](../../apps/webapp/src/infra/repos/pgLfkExercises.ts) и [`pgLfkDiary.ts`](../../apps/webapp/src/infra/repos/pgLfkDiary.ts) добавлены комментарии `TEMP: parsing media_id из media_url…` у `LEFT JOIN media_files`.
 
@@ -20,15 +20,25 @@
 
 7. **Воркер** — в выборку добавлены `source_width`/`source_height`; при обоих `NULL` до обработки — `debug`-лог backfill; для HEIC размеры источника дополняются метаданными `sharp` по декодированному JPEG до sm/md.
 
-8. **Прочее** — стабилизированы зависимости `IntersectionObserver` (load more) в [`MediaLibraryClient`](../../apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx); [`VideoThumbnailPreview`](../../apps/webapp/src/shared/ui/media/VideoThumbnailPreview.tsx) помечен `@deprecated` (в grid не используется).
+8. **Прочее** — стабилизированы зависимости `IntersectionObserver` (load more) в [`MediaLibraryClient`](../../apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx).
 
-## Тесты и проверки (на момент правок)
+## Дополнение: единый слой превью (после аудита)
 
-- `pnpm --dir apps/webapp exec vitest --run src/app/app/doctor/content/MediaLibraryPickerDialog.test.tsx`
-- `pnpm --dir apps/webapp run lint` (eslint + invariant script)
-- `pnpm --dir apps/webapp exec tsc --noEmit`
+- **`GET /api/admin/media/{id}`** — JSON одной строки (как в list) для гидратации picker и форм; клиент: [`fetchAdminMediaListItem.ts`](../../apps/webapp/src/shared/ui/media/fetchAdminMediaListItem.ts).
+- **Picker** — убран клиентский «угадывающий» preview URL из строки; метаданные только из pick или из `GET /api/admin/media/{id}`.
+- **`mediaLibraryPickerSelectionToPreviewUi`** — без fallback `mediaPreviewSmUrl`/`mediaPreviewMdUrl` от одного URL.
+- **`MediaLightbox`** (изображения) — только `previewMdUrl` / `previewSmUrl`, без fallback на оригинал.
+- **`ContentHeroImage`** — обложки с library URL через `MediaThumb`; каталог: поле `imageLibraryMedia` + `loadMediaById` в [`buildAppDeps`](../../apps/webapp/src/app-layer/di/buildAppDeps.ts).
+- **`VideoThumbnailPreview`** — **удалён**; сетки используют `MediaThumb`.
+- **`mediaUrlPolicy.ts`** — без реэкспорта `API_MEDIA_ID_RE` (идентификатор и regex только в `mediaPreviewUrls.ts`).
+- **Тесты:** мок логгера в `mediaPreviewWorker.test.ts` включает `logger.debug`; сценарий Max deep link в `MiniAppShareContactGate.test.tsx` учитывает `isMessengerMiniAppHost()` (cookie `bersoncare_platform=bot` при пустом MAX `initData` и сценарии `?t=` → exchange).
+
+## Тесты и проверки
+
+- Полный барьер: **`pnpm run ci`** в корне монорепозитория.
+- Узко: `pnpm --dir apps/webapp run lint` (eslint + invariant script), `pnpm --dir apps/webapp test`.
 
 ## Связанные документы
 
-- [`docs/ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md`](../ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md) — обновлено под `MediaPreviewUiModel` и guard.
-- [`docs/MEDIA_PREVIEW_PIPELINE.md`](../MEDIA_PREVIEW_PIPELINE.md) — обновлены разделы про отдачу превью и логи воркера.
+- [`docs/ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md`](../ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md) — каноническое описание UI и инвариантов.
+- [`docs/MEDIA_PREVIEW_PIPELINE.md`](../MEDIA_PREVIEW_PIPELINE.md) — воркер, отдача превью, миграции.

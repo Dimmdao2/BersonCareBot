@@ -14,7 +14,7 @@
 - Типы: `url` (внешний или прямой URL), `youtube`, **`api`** (внутренний медиа-id или путь `/api/media/{uuid}`).
 - Резолвер каталога: `apps/webapp/src/modules/content-catalog/service.ts` — для DB-страниц собирает `ContentVideoSource` (`url` | `api`).
 - Пациентский просмотр: `apps/webapp/src/app/app/patient/content/[slug]/page.tsx` — для `api` нормализует URL до `/api/media/{id}`; рендер: `<video><source src=…>` или YouTube iframe.
-- Редактор/превью врача: `ContentPreview.tsx`, библиотека: `MediaLibraryClient.tsx`, `MediaLightbox.tsx`, `VideoThumbnailPreview.tsx` — тот же паттерн `<video>` + URL.
+- Редактор/превью врача: `ContentPreview.tsx` (обложка через `ContentHeroImage` / превью-пайплайн для `/api/media/…`), библиотека: `MediaLibraryClient.tsx`, `MediaLightbox.tsx`; миниатюры — `MediaThumb` (JPEG превью), полноэкранное видео — `<video>` + URL оригинала.
 
 ### 1.2 Хранение файлов и доступ
 
