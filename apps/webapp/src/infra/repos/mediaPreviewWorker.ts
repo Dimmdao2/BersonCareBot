@@ -1,6 +1,10 @@
+import { createWriteStream } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffmpeg from "fluent-ffmpeg";
 import type { FfmpegCommand } from "fluent-ffmpeg";
@@ -10,6 +14,7 @@ import { getPool } from "@/infra/db/client";
 import { logger } from "@/infra/logging/logger";
 import { MEDIA_READABLE_STATUS_SQL } from "@/infra/repos/s3MediaStorage";
 import { presignGetUrl, s3GetObjectBody, s3PreviewKey, s3PutObjectBody } from "@/infra/s3/client";
+import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
 
 const resolvedFfmpegPath = env.FFMPEG_PATH || ffmpegInstaller.path;
 try {
@@ -22,8 +27,8 @@ try {
 const MAX_PREVIEW_ATTEMPTS = 5;
 /** Avoid loading multi‑hundred‑MB originals into Node for sharp (heap OOM). */
 const MAX_IMAGE_PREVIEW_BYTES = 50 * 1024 * 1024;
-/** Avoid unbounded ffmpeg work on huge sources (presigned HTTP read). */
-const MAX_VIDEO_PREVIEW_BYTES = 200 * 1024 * 1024;
+/** Keep preview source ceiling aligned with media upload ceiling. */
+const MAX_PREVIEW_SOURCE_BYTES = MAX_MEDIA_BYTES;
 const FFMPEG_EXTRACT_TIMEOUT_MS = 120_000;
 const PERMANENT_ERROR_PATTERNS = [
   "compression format has not been built in",
@@ -130,6 +135,105 @@ async function videoPosterSmBuffer(s3Key: string): Promise<Buffer> {
   return sharp(raw).rotate().resize(160, 160, { fit: "inside" }).jpeg({ quality: 82 }).toBuffer();
 }
 
+function resolveMagickCommand(): { command: string; usePathLookup: boolean }[] {
+  const custom = env.MAGICK_PATH?.trim();
+  if (custom) {
+    return [{ command: custom, usePathLookup: false }];
+  }
+  return [
+    { command: "magick", usePathLookup: true },
+    { command: "convert", usePathLookup: true },
+  ];
+}
+
+async function downloadFileToPath(url: string, outPath: string): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok || !response.body) {
+    throw new Error(`download_failed_status_${response.status}`);
+  }
+  await pipeline(Readable.fromWeb(response.body as never), createWriteStream(outPath));
+}
+
+function runMagickConvert(inputPath: string, outPath: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const candidates = resolveMagickCommand();
+    let idx = 0;
+
+    const runNext = () => {
+      if (idx >= candidates.length) {
+        reject(new Error("magick_not_found_or_failed"));
+        return;
+      }
+      const candidate = candidates[idx++]!;
+      const args = [inputPath + "[0]", "-auto-orient", "-quality", "85", outPath];
+      const child = spawn(candidate.command, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        shell: !candidate.usePathLookup && candidate.command.includes(" "),
+      });
+      let stderr = "";
+      child.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+      });
+      const killTimer = setTimeout(() => {
+        child.kill("SIGKILL");
+      }, FFMPEG_EXTRACT_TIMEOUT_MS);
+      child.on("error", (err) => {
+        clearTimeout(killTimer);
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code === "ENOENT" && idx < candidates.length) {
+          runNext();
+          return;
+        }
+        reject(err);
+      });
+      child.on("close", (code) => {
+        clearTimeout(killTimer);
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        if (idx < candidates.length) {
+          runNext();
+          return;
+        }
+        reject(new Error(`magick_failed_code_${code}: ${stderr}`));
+      });
+    };
+
+    runNext();
+  });
+}
+
+async function heicPosterSmBuffer(s3Key: string): Promise<Buffer> {
+  const ffmpegErr = await (async () => {
+    try {
+      return { buffer: await videoPosterSmBuffer(s3Key), err: null as Error | null };
+    } catch (e) {
+      return { buffer: null as Buffer | null, err: e as Error };
+    }
+  })();
+  if (ffmpegErr.buffer) {
+    return ffmpegErr.buffer;
+  }
+
+  logger.warn({ err: ffmpegErr.err }, "[mediaPreviewWorker] heic ffmpeg decode failed, retry via magick");
+  let dir: string | null = null;
+  try {
+    dir = await mkdtemp(join(tmpdir(), "media-prev-heic-"));
+    const inputPath = join(dir, "input.heic");
+    const outputPath = join(dir, "out.jpg");
+    const url = await presignGetUrl(s3Key);
+    await downloadFileToPath(url, inputPath);
+    await runMagickConvert(inputPath, outputPath);
+    const raw = await readFile(outputPath);
+    return sharp(raw).rotate().resize(160, 160, { fit: "inside" }).jpeg({ quality: 82 }).toBuffer();
+  } finally {
+    if (dir) {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+}
+
 /**
  * Background worker: generate preview JPEGs in MinIO and set preview_status=ready.
  * Pattern: same cron + INTERNAL_JOB_SECRET as media-pending-delete purge.
@@ -175,17 +279,17 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
 
       try {
         if (mime === "image/heic" || mime === "image/heif") {
-          if (sizeBytes > MAX_VIDEO_PREVIEW_BYTES) {
+          if (sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
             await client.query(
               `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
               [row.id],
             );
             logger.info(
-              { mediaId: row.id, sizeBytes, max: MAX_VIDEO_PREVIEW_BYTES },
+              { mediaId: row.id, sizeBytes, max: MAX_PREVIEW_SOURCE_BYTES },
               "[processMediaPreviewBatch] heic/heif too large for ffmpeg preview, skipped",
             );
           } else {
-            const posterSm = await videoPosterSmBuffer(row.s3_key);
+            const posterSm = await heicPosterSmBuffer(row.s3_key);
             await s3PutObjectBody(smKey, posterSm, "image/jpeg");
             await client.query(
               `UPDATE media_files SET
@@ -207,13 +311,13 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
             { mediaId: row.id, sizeBytes, max: MAX_IMAGE_PREVIEW_BYTES },
             "[processMediaPreviewBatch] image too large for in-process preview, skipped",
           );
-        } else if (mime.startsWith("video/") && sizeBytes > MAX_VIDEO_PREVIEW_BYTES) {
+        } else if (mime.startsWith("video/") && sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
           await client.query(
             `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
             [row.id],
           );
           logger.info(
-            { mediaId: row.id, sizeBytes, max: MAX_VIDEO_PREVIEW_BYTES },
+            { mediaId: row.id, sizeBytes, max: MAX_PREVIEW_SOURCE_BYTES },
             "[processMediaPreviewBatch] video too large for ffmpeg preview, skipped",
           );
         } else if (mime.startsWith("image/")) {

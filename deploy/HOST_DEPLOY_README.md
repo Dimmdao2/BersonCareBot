@@ -253,7 +253,7 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Превью медиатеки (фон):** после применения миграции `075_media_preview_status.sql` воркер — `POST /api/internal/media-preview/process` с тем же `Authorization: Bearer <INTERNAL_JOB_SECRET>`. Генерирует JPEG-превью в private-бакете (`previews/sm/…`, `previews/md/…` для изображений) и обновляет `media_files.preview_*`. Отдача в браузер: `GET /api/media/:id/preview/sm|md` (сессия врача) → редирект на presigned GET с `Cache-Control: private, max-age=3500`. Рекомендуется отдельный cron на loopback с небольшим `limit` (например 10/мин), чтобы не перегружать CPU (`ffmpeg` / `sharp`).
 
-**Known limitations:** HEIC/HEIF (`image/heic`, `image/heif`) превью не генерируются: такие строки автоматически получают `preview_status='skipped'` (runtime `sharp` без `libheif`). На проде обязателен системный ffmpeg: `apt install ffmpeg` + `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/webapp.prod`; иначе `@ffmpeg-installer` может давать `SIGSEGV` на видео.
+**Known limitations / runtime requirements:** HEIC/HEIF (`image/heic`, `image/heif`) теперь обрабатываются через `ffmpeg`, а при ошибке декодирования есть fallback через `ImageMagick` (`magick`/`convert`). На проде обязателен системный ffmpeg: `apt install ffmpeg` + `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/webapp.prod`; иначе `@ffmpeg-installer` может давать `SIGSEGV` на видео. Для fallback HEIC установите `imagemagick` и при необходимости задайте `MAGICK_PATH=/usr/bin/magick` (или `/usr/bin/convert`).
 
 **Рекомендация nginx:** ограничить префикс `/api/internal/` только loopback, чтобы endpoint не был доступен из интернета по Bearer (дополнительно к длинному секрету):
 

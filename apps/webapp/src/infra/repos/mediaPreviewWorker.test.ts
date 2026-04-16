@@ -1,6 +1,6 @@
 /** @vitest-environment node */
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 
 const ffmpegSetFfmpegPathMock = vi.fn();
@@ -13,8 +13,12 @@ const presignGetUrlMock = vi.fn();
 const mkdtempMock = vi.fn();
 const readFileMock = vi.fn();
 const rmMock = vi.fn();
+const spawnMock = vi.fn();
+const pipelineMock = vi.fn();
+const createWriteStreamMock = vi.fn();
 const mockEnv = {
   FFMPEG_PATH: "",
+  MAGICK_PATH: "",
 };
 
 vi.mock("@ffmpeg-installer/ffmpeg", () => ({
@@ -62,6 +66,18 @@ vi.mock("node:fs/promises", () => ({
   mkdtemp: (...args: unknown[]) => mkdtempMock(...args),
   readFile: (...args: unknown[]) => readFileMock(...args),
   rm: (...args: unknown[]) => rmMock(...args),
+}));
+
+vi.mock("node:child_process", () => ({
+  spawn: (...args: unknown[]) => spawnMock(...args),
+}));
+
+vi.mock("node:stream/promises", () => ({
+  pipeline: (...args: unknown[]) => pipelineMock(...args),
+}));
+
+vi.mock("node:fs", () => ({
+  createWriteStream: (...args: unknown[]) => createWriteStreamMock(...args),
 }));
 
 vi.mock("@/config/env", () => ({
@@ -155,6 +171,7 @@ describe("processMediaPreviewBatch", () => {
   beforeEach(() => {
     vi.resetModules();
     mockEnv.FFMPEG_PATH = "";
+    mockEnv.MAGICK_PATH = "";
     ffmpegRunModeMock.mockReset();
     ffmpegRunModeMock.mockReturnValue("end");
     ffmpegErrorFactoryMock.mockReset();
@@ -170,6 +187,34 @@ describe("processMediaPreviewBatch", () => {
     readFileMock.mockResolvedValue(Buffer.from("poster"));
     rmMock.mockReset();
     rmMock.mockResolvedValue(undefined);
+    pipelineMock.mockReset();
+    pipelineMock.mockResolvedValue(undefined);
+    createWriteStreamMock.mockReset();
+    createWriteStreamMock.mockReturnValue({} as never);
+    spawnMock.mockReset();
+    spawnMock.mockImplementation(() => {
+      const handlers = new Map<string, (...args: unknown[]) => void>();
+      const proc = {
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+          handlers.set(event, cb);
+          return proc;
+        }),
+        kill: vi.fn(),
+      };
+      queueMicrotask(() => {
+        handlers.get("close")?.(0);
+      });
+      return proc;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: new ReadableStream(),
+      } satisfies Partial<Response>),
+    );
 
     const sharpMock = vi.mocked(sharp);
     sharpMock.mockReset();
@@ -202,7 +247,7 @@ describe("processMediaPreviewBatch", () => {
   });
 
   it("skips image/heif when file size is too large for ffmpeg preview", async () => {
-    setupSingleRowScenario({ ...row, mime_type: "image/heif", size_bytes: String(220 * 1024 * 1024) });
+    setupSingleRowScenario({ ...row, mime_type: "image/heif", size_bytes: String(4 * 1024 * 1024 * 1024) });
     const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
     const result = await processMediaPreviewBatch(2);
 
@@ -213,10 +258,39 @@ describe("processMediaPreviewBatch", () => {
     ).toBe(true);
   });
 
-  it("marks permanent ffmpeg errors for image/heic as skipped without retry backoff", async () => {
+  it("falls back to ImageMagick for image/heic when ffmpeg decoding fails", async () => {
     setupSingleRowScenario({ ...row, mime_type: "image/heic" });
     ffmpegRunModeMock.mockReturnValue("error");
     ffmpegErrorFactoryMock.mockReturnValue(new Error("Invalid data found when processing input"));
+    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+    const result = await processMediaPreviewBatch(2);
+
+    expect(result).toEqual({ processed: 1, errors: 0 });
+    expect(spawnMock).toHaveBeenCalled();
+    expect(
+      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'ready'")),
+    ).toBe(true);
+  });
+
+  it("marks image/heic as skipped when ffmpeg fails and magick also fails permanently", async () => {
+    setupSingleRowScenario({ ...row, mime_type: "image/heic" });
+    ffmpegRunModeMock.mockReturnValue("error");
+    ffmpegErrorFactoryMock.mockReturnValue(new Error("Invalid data found when processing input"));
+    spawnMock.mockImplementation(() => {
+      const handlers = new Map<string, (...args: unknown[]) => void>();
+      const proc = {
+        stderr: { on: vi.fn((_: string, cb: (chunk: unknown) => void) => cb("Invalid data found when processing input")) },
+        on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+          handlers.set(event, cb);
+          return proc;
+        }),
+        kill: vi.fn(),
+      };
+      queueMicrotask(() => {
+        handlers.get("close")?.(1);
+      });
+      return proc;
+    });
     const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
     const result = await processMediaPreviewBatch(2);
 
@@ -260,5 +334,9 @@ describe("processMediaPreviewBatch", () => {
     expect(
       queryMock.mock.calls.some((call) => String(call[0]).includes("preview_attempts = $2")),
     ).toBe(true);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 });

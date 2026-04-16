@@ -29,8 +29,8 @@
 ### Лимиты и устойчивость (post-audit)
 
 - **Изображения:** если `size_bytes` > **50 MiB**, воркер выставляет `preview_status = 'skipped'` (не грузит весь файл в Node — защита от OOM). Константа: `MAX_IMAGE_PREVIEW_BYTES` в `mediaPreviewWorker.ts`.
-- **Видео:** если `size_bytes` > **200 MiB**, превью пропускается (`skipped`) — ограничение нагрузки `ffmpeg` по presigned URL.
-- **HEIC/HEIF:** генерируется `sm`-превью через `ffmpeg` (как у видео), `preview_md_key = NULL`; при отсутствии поддержки кодека в runtime запись уходит в `skipped` как permanent error.
+- **Видео:** лимит источника для превью выровнен с лимитом загрузки CMS (**3 GiB**). Если размер выше — `preview_status = 'skipped'`.
+- **HEIC/HEIF:** сначала пытаемся получить `sm`-превью через `ffmpeg`; если декодер не справился, запускается fallback через `ImageMagick` (`magick`/`convert`) с конвертацией в JPEG, затем resize через `sharp`.
 - **ffmpeg:** таймаут извлечения кадра **120 с** (`SIGKILL` на команде); очистка временного каталога в `tmpdir` при любом исходе (в т.ч. ошибка `readFile` после успешного кодирования).
 - **Permanent errors:** сообщения вида `SIGSEGV`, `compression format has not been built in`, `Input buffer contains unsupported image format`, `Invalid data found when processing input` считаются неретрабельными и переводят запись в `skipped`.
 - **SQL «readable» статуса:** воркер импортирует `MEDIA_READABLE_STATUS_SQL` из [`s3MediaStorage.ts`](../apps/webapp/src/infra/repos/s3MediaStorage.ts), без дублирования литерала.
@@ -40,7 +40,7 @@
 | Формат | Статус | Причина |
 |--------|--------|---------|
 | `image/jpeg`, `image/png`, `image/webp`, `image/gif` | `ready` | `sharp` поддерживает |
-| `image/heic`, `image/heif` | `ready` при системном `ffmpeg` (sm only) | декодирование через `ffmpeg`/`libheif`; при unsupported codec будет `skipped` |
+| `image/heic`, `image/heif` | `ready` при наличии `ffmpeg` или `ImageMagick` (sm only) | ffmpeg first, fallback через `magick`/`convert`; при обеих ошибках будет `skipped` |
 | `video/mp4`, `video/webm` | `ready` | системный `ffmpeg` |
 | `video/quicktime` (`.mov`) | `ready` при системном `ffmpeg` | `@ffmpeg-installer` может давать `SIGSEGV` на хосте |
 
@@ -69,15 +69,15 @@
 
 ## Зависимости
 
-В `apps/webapp`: `sharp`, `fluent-ffmpeg`, `@ffmpeg-installer/ffmpeg`. В корневом `package.json` перечислены в `pnpm.onlyBuiltDependencies`, чтобы postinstall установил нативные бинарники.
+В `apps/webapp`: `sharp`, `fluent-ffmpeg`, `@ffmpeg-installer/ffmpeg`. Для HEIC fallback в production нужен установленный `ImageMagick` (`magick` или `convert` в `PATH`, либо `MAGICK_PATH` в env).
 
-Для production runtime воркер сначала читает `FFMPEG_PATH` из env (рекомендуемо `/usr/bin/ffmpeg`) и только затем fallback на бинарь из `@ffmpeg-installer`.
+Для production runtime воркер сначала читает `FFMPEG_PATH` из env (рекомендуемо `/usr/bin/ffmpeg`) и только затем fallback на бинарь из `@ffmpeg-installer`. Для HEIC fallback можно задать `MAGICK_PATH` (например `/usr/bin/magick`).
 
 **Next.js production build:** пакеты с динамическим `require` у `@ffmpeg-installer/*` не бандлятся Turbopack — в [`apps/webapp/next.config.ts`](../apps/webapp/next.config.ts) задано `serverExternalPackages` для `sharp`, `fluent-ffmpeg` и `@ffmpeg-installer/*`.
 
 ## Миграция
 
-Применить [`075_media_preview_status.sql`](../apps/webapp/migrations/075_media_preview_status.sql) и [`076_requeue_skipped_mov_heic.sql`](../apps/webapp/migrations/076_requeue_skipped_mov_heic.sql) через процесс миграций webapp (`pnpm --dir apps/webapp migrate` в dev или принятую в проце процедуру на хосте).
+Применить [`075_media_preview_status.sql`](../apps/webapp/migrations/075_media_preview_status.sql), [`076_requeue_skipped_mov_heic.sql`](../apps/webapp/migrations/076_requeue_skipped_mov_heic.sql) и [`077_requeue_previews_skipped_by_200mb_cap.sql`](../apps/webapp/migrations/077_requeue_previews_skipped_by_200mb_cap.sql) через процесс миграций webapp (`pnpm --dir apps/webapp migrate` в dev или принятую в проце процедуру на хосте).
 
 ## Troubleshooting: ffmpeg SIGSEGV
 

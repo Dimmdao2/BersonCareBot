@@ -55,6 +55,7 @@ describe("checkInsecureSecretsForStartup", () => {
     INTERNAL_JOB_SECRET: "",
     LOG_LEVEL: "info",
     FFMPEG_PATH: "",
+    MAGICK_PATH: "",
   };
 
   it("throws when SESSION_COOKIE_SECRET is blacklisted and isTest is false", () => {

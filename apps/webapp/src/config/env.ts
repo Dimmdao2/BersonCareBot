@@ -149,6 +149,11 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ?? "").trim()),
+  /** Optional path to ImageMagick binary (`magick`/`convert`) for HEIC fallback. */
+  MAGICK_PATH: z
+    .string()
+    .optional()
+    .transform((v) => (v ?? "").trim()),
 });
 
 const parsed = envSchema.parse({
@@ -187,6 +192,7 @@ const parsed = envSchema.parse({
   INTERNAL_JOB_SECRET: process.env.INTERNAL_JOB_SECRET,
   LOG_LEVEL: process.env.LOG_LEVEL,
   FFMPEG_PATH: process.env.FFMPEG_PATH,
+  MAGICK_PATH: process.env.MAGICK_PATH,
 });
 
 export type EnvParsed = z.infer<typeof envSchema>;
