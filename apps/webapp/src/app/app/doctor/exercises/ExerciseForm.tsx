@@ -83,6 +83,26 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
           />
         </div>
 
+        <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+          <p className="text-sm font-medium">Медиа (опционально)</p>
+          <MediaLibraryPickerDialog
+            kind="image_or_video"
+            value={mediaUrl}
+            selectedPreviewKind={mediaType || undefined}
+            pickerTitle="Изображение, GIF или видео"
+            onChange={(url, meta) => {
+              setMediaUrl(url);
+              if (url && meta) setMediaType(exerciseMediaTypeFromPick(meta));
+              else setMediaType("");
+            }}
+          />
+          {showLegacyMediaWarning ? (
+            <p className="text-xs text-amber-800">
+              Сохранён внешний URL: для новых медиа выберите файл из библиотеки (/api/media/…).
+            </p>
+          ) : null}
+        </div>
+
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium">Область тела</span>
           <ReferenceSelect
@@ -151,26 +171,6 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
         <div className="flex flex-col gap-2">
           <Label htmlFor="ex-tags">Теги (через запятую)</Label>
           <Input id="ex-tags" name="tags" defaultValue={tagsStr} placeholder="колено, дома" />
-        </div>
-
-        <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
-          <p className="text-sm font-medium">Медиа (опционально)</p>
-          <MediaLibraryPickerDialog
-            kind="image_or_video"
-            value={mediaUrl}
-            selectedPreviewKind={mediaType || undefined}
-            pickerTitle="Изображение, GIF или видео"
-            onChange={(url, meta) => {
-              setMediaUrl(url);
-              if (url && meta) setMediaType(exerciseMediaTypeFromPick(meta));
-              else setMediaType("");
-            }}
-          />
-          {showLegacyMediaWarning ? (
-            <p className="text-xs text-amber-800">
-              Сохранён внешний URL: для новых медиа выберите файл из библиотеки (/api/media/…).
-            </p>
-          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">

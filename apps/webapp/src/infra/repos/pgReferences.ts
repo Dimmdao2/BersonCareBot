@@ -42,6 +42,16 @@ function rowItem(row: {
 }
 
 export const pgReferencesPort: ReferencesPort = {
+  async listCategories() {
+    const pool = getPool();
+    const res = await pool.query(
+      `SELECT id, code, title, is_user_extensible, tenant_id
+       FROM reference_categories
+       ORDER BY title ASC`
+    );
+    return res.rows.map(rowCat);
+  },
+
   async findCategoryByCode(categoryCode) {
     const pool = getPool();
     const res = await pool.query(
@@ -65,6 +75,19 @@ export const pgReferencesPort: ReferencesPort = {
     return res.rows.map(rowItem);
   },
 
+  async listItemsForManagementByCategoryCode(categoryCode) {
+    const pool = getPool();
+    const res = await pool.query(
+      `SELECT i.id, i.category_id, i.code, i.title, i.sort_order, i.is_active, i.meta_json
+       FROM reference_items i
+       JOIN reference_categories c ON c.id = i.category_id
+       WHERE c.code = $1
+       ORDER BY i.sort_order ASC, i.title ASC`,
+      [categoryCode]
+    );
+    return res.rows.map(rowItem);
+  },
+
   async insertItem(params) {
     const pool = getPool();
     const cat = await pgReferencesPort.findCategoryByCode(params.categoryCode);
@@ -82,6 +105,54 @@ export const pgReferencesPort: ReferencesPort = {
       [cat.id, params.code, params.title, JSON.stringify(meta)]
     );
     return rowItem(result.rows[0]);
+  },
+
+  async insertItemStaff(params) {
+    const pool = getPool();
+    const cat = await pgReferencesPort.findCategoryByCode(params.categoryCode);
+    if (!cat) {
+      throw new Error("category_not_found");
+    }
+    const meta = params.metaJson ?? {};
+    const result = await pool.query(
+      `INSERT INTO reference_items (category_id, code, title, sort_order, is_active, meta_json)
+       VALUES ($1, $2, $3, $4, true, $5::jsonb)
+       RETURNING id, category_id, code, title, sort_order, is_active, meta_json`,
+      [cat.id, params.code, params.title, params.sortOrder ?? 999, JSON.stringify(meta)]
+    );
+    return rowItem(result.rows[0]);
+  },
+
+  async updateItem(itemId, input) {
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+    if (input.title !== undefined) {
+      updates.push(`title = $${idx++}`);
+      values.push(input.title);
+    }
+    if (input.sortOrder !== undefined) {
+      updates.push(`sort_order = $${idx++}`);
+      values.push(input.sortOrder);
+    }
+    if (input.isActive !== undefined) {
+      updates.push(`is_active = $${idx++}`);
+      values.push(input.isActive);
+    }
+    if (updates.length === 0) {
+      throw new Error("empty_update");
+    }
+    values.push(itemId);
+    const pool = getPool();
+    const res = await pool.query(
+      `UPDATE reference_items
+       SET ${updates.join(", ")}
+       WHERE id = $${idx}
+       RETURNING id, category_id, code, title, sort_order, is_active, meta_json`,
+      values
+    );
+    if (!res.rows[0]) throw new Error("item_not_found");
+    return rowItem(res.rows[0]);
   },
 
   async archiveItem(itemId) {
