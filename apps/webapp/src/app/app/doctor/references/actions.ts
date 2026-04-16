@@ -49,11 +49,13 @@ export async function saveReferenceCatalog(input: {
     sortOrder: item.sortOrder,
     isActive: item.isActive,
   }));
-  const additions = input.additions.map((item) => ({
-    code: item.code.trim(),
-    title: item.title.trim(),
-    sortOrder: item.sortOrder,
-  }));
+  const additions = input.additions
+    .map((item) => ({
+      code: item.code.trim(),
+      title: item.title.trim(),
+      sortOrder: item.sortOrder,
+    }))
+    .filter((item) => item.code !== "" || item.title !== "");
   if (updates.some((item) => !item.id || !item.title)) throw new Error("invalid_update_payload");
   if (additions.some((item) => !/^[a-z][a-z0-9_]*$/.test(item.code) || !item.title)) {
     throw new Error("invalid_add_payload");

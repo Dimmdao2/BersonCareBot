@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/select";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
-import { API_MEDIA_URL_RE } from "@/shared/lib/mediaUrlPolicy";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { archiveDoctorExercise, saveDoctorExercise } from "./actions";
 import type { SaveDoctorExerciseState } from "./actionsShared";
@@ -58,8 +57,6 @@ export function ExerciseForm({
 
   const tagsStr = exercise?.tags?.join(", ") ?? "";
 
-  const showLegacyMediaWarning = Boolean(mediaUrl.trim() && !API_MEDIA_URL_RE.test(mediaUrl.trim()));
-
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <form action={formAction} className="flex flex-col gap-4">
@@ -85,19 +82,8 @@ export function ExerciseForm({
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ex-desc">Описание</Label>
-          <Textarea
-            id="ex-desc"
-            name="description"
-            className="min-h-[100px]"
-            defaultValue={exercise?.description ?? ""}
-            placeholder="Краткая техника выполнения"
-          />
-        </div>
-
         <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
-          <p className="text-sm font-medium">Медиа (опционально)</p>
+          <p className="text-sm font-medium">Медиа</p>
           <MediaLibraryPickerDialog
             kind="image_or_video"
             value={mediaUrl}
@@ -109,11 +95,22 @@ export function ExerciseForm({
               else setMediaType("");
             }}
           />
-          {showLegacyMediaWarning ? (
-            <p className="text-xs text-amber-800">
-              Сохранён внешний URL: для новых медиа выберите файл из библиотеки (/api/media/…).
-            </p>
-          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="ex-desc">Описание</Label>
+          <Textarea
+            id="ex-desc"
+            name="description"
+            className="min-h-[100px]"
+            defaultValue={exercise?.description ?? ""}
+            placeholder="Краткая техника выполнения"
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="ex-tags">Теги (через запятую)</Label>
+          <Input id="ex-tags" name="tags" defaultValue={tagsStr} placeholder="колено, дома" />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -179,11 +176,6 @@ export function ExerciseForm({
             className="min-h-[72px]"
             defaultValue={exercise?.contraindications ?? ""}
           />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ex-tags">Теги (через запятую)</Label>
-          <Input id="ex-tags" name="tags" defaultValue={tagsStr} placeholder="колено, дома" />
         </div>
 
         <div className="flex flex-wrap gap-2">

@@ -1,9 +1,10 @@
 "use client";
 
 import { memo } from "react";
-import { File, Image as ImageIcon, ImageOff, Music, Video } from "lucide-react";
+import { Check, File, Image as ImageIcon, ImageOff, Music, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { MediaPreviewStatus } from "@/modules/media/types";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
 
 export type MediaListItem = {
   id: string;
@@ -25,18 +26,29 @@ type Props = {
   loading: boolean;
   error: string | null;
   onSelect: (item: MediaListItem) => void;
+  /** When set, cards may show LFK exercise attachment indicator + tooltip. */
+  exerciseUsageByMediaId?: Record<string, MediaExerciseUsageEntry[]>;
 };
 
 type ItemProps = {
   item: MediaListItem;
   onSelect: (item: MediaListItem) => void;
+  exerciseUsage?: MediaExerciseUsageEntry[];
 };
 
 function ThumbPlaceholder() {
   return <div className="h-24 w-full animate-pulse bg-muted/40" aria-hidden />;
 }
 
-const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect }: ItemProps) {
+function exerciseUsageTooltipLines(usage: MediaExerciseUsageEntry[]): string {
+  const max = 25;
+  const slice = usage.slice(0, max);
+  const lines = slice.map((u) => u.title.trim()).filter(Boolean);
+  if (usage.length > max) lines.push(`… и ещё ${usage.length - max}`);
+  return lines.join("\n");
+}
+
+const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect, exerciseUsage }: ItemProps) {
   const title = item.displayName?.trim() || item.filename;
   const showOriginalFilename = Boolean(item.displayName?.trim()) && item.displayName!.trim() !== item.filename;
   const date = (() => {
@@ -56,9 +68,26 @@ const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect }
   const thumbSkipped = visual && previewStatus === "skipped";
   const thumbNoPreview = thumbFailed || thumbSkipped;
 
+  const hasExerciseUsage = Boolean(exerciseUsage?.length);
+  const usageTooltip = hasExerciseUsage ? exerciseUsageTooltipLines(exerciseUsage!) : "";
+
   return (
-    <div className="flex flex-col gap-2 rounded-md border border-border p-3">
-      <div className="min-h-20 overflow-hidden rounded border border-border/60 bg-muted/30">
+    <div className="relative flex flex-col gap-2 rounded-md border border-border p-3">
+      {hasExerciseUsage ? (
+        <Tooltip>
+          <TooltipTrigger
+            type="button"
+            className="absolute top-2 right-2 z-10 flex size-5 cursor-default items-center justify-center rounded-full border border-green-600/30 bg-background shadow-sm"
+            aria-label={`Уже в упражнениях: ${usageTooltip.replaceAll("\n", ", ")}`}
+          >
+            <Check className="size-3 text-green-600" aria-hidden strokeWidth={3} />
+          </TooltipTrigger>
+          <TooltipContent side="left" align="end" className="max-w-xs whitespace-pre-line text-left">
+            {usageTooltip}
+          </TooltipContent>
+        </Tooltip>
+      ) : null}
+      <div className="relative min-h-20 overflow-hidden rounded border border-border/60 bg-muted/30">
         {item.kind === "image" ? (
           thumbReady ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -119,7 +148,13 @@ const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect }
   );
 });
 
-export const MediaPickerList = memo(function MediaPickerList({ items, loading, error, onSelect }: Props) {
+export const MediaPickerList = memo(function MediaPickerList({
+  items,
+  loading,
+  error,
+  onSelect,
+  exerciseUsageByMediaId,
+}: Props) {
   if (error) {
     return <p className="text-sm text-destructive">{error}</p>;
   }
@@ -133,7 +168,12 @@ export const MediaPickerList = memo(function MediaPickerList({ items, loading, e
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {items.map((item) => (
-        <MediaPickerListItem key={item.id} item={item} onSelect={onSelect} />
+        <MediaPickerListItem
+          key={item.id}
+          item={item}
+          onSelect={onSelect}
+          exerciseUsage={exerciseUsageByMediaId?.[item.id.toLowerCase()]}
+        />
       ))}
     </div>
   );

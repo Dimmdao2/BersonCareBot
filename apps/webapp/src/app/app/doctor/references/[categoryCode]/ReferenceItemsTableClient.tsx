@@ -35,7 +35,65 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { saveReferenceCatalog, softDeleteReferenceItem } from "../actions";
+
+type ReferenceErrorDialog = {
+  title: string;
+  summary: string;
+  detail: string;
+};
+
+function formatUnknownActionError(err: unknown): string {
+  if (err instanceof Error) {
+    const digest = (err as Error & { digest?: string }).digest;
+    const lines = [err.message];
+    if (digest) lines.push(`Код для поддержки: ${digest}`);
+    return lines.join("\n");
+  }
+  return String(err);
+}
+
+/** Русская расшифровка + технические данные для ошибок server action сохранения каталога. */
+function describeSaveReferenceCatalogError(err: unknown): { summary: string; detail: string } {
+  const technical = formatUnknownActionError(err);
+  const detail = ["Технические данные (код и сообщение сервера):", technical].join("\n");
+
+  if (!(err instanceof Error)) {
+    return {
+      summary: "Не удалось сохранить справочник. Ниже — сырые данные об ошибке.",
+      detail,
+    };
+  }
+
+  const byMessage: Record<string, string> = {
+    duplicate_code:
+      "В этом справочнике уже есть строка с таким кодом, либо среди новых строк вы указали один и тот же код дважды.",
+    invalid_update_payload:
+      "Для одной из уже существующих строк не хватает данных: нужны и идентификатор, и название. Обновите страницу и проверьте таблицу.",
+    invalid_add_payload:
+      "Для новой строки указаны некорректные код или название: код — в формате lower_snake_case, название не может быть пустым.",
+    category_required: "Не указан код категории справочника (внутренняя ошибка запроса).",
+    category_not_found: "Категория справочника не найдена в базе данных.",
+    category_not_extensible: "В эту категорию нельзя добавлять новые значения из интерфейса.",
+    item_not_found:
+      "Одна из строк не найдена в базе или уже удалена. Обновите страницу и попробуйте сохранить снова.",
+    empty_update: "Внутренняя ошибка при обновлении записи (нет полей для изменения).",
+  };
+
+  const summary =
+    byMessage[err.message] ??
+    "Не удалось сохранить справочник. Ниже указан системный код или сообщение — передайте его в поддержку при обращении.";
+
+  return { summary, detail };
+}
 
 type Row = {
   id: string;
@@ -169,7 +227,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
   );
   const [rows, setRows] = useState<Row[]>(normalizedInitialRows);
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [errorDialog, setErrorDialog] = useState<ReferenceErrorDialog | null>(null);
   const [searchRaw, setSearchRaw] = useState("");
   const deferredSearch = useDeferredValue(searchRaw);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -229,7 +287,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
       return;
     }
     startTransition(async () => {
-      setError(null);
+      setErrorDialog(null);
       try {
         const fd = new FormData();
         fd.set("categoryCode", categoryCode);
@@ -237,8 +295,12 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
         await softDeleteReferenceItem(fd);
         setRows((prev) => prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })));
         router.refresh();
-      } catch {
-        setError("Не удалось удалить строку");
+      } catch (err) {
+        setErrorDialog({
+          title: "Ошибка удаления",
+          summary: "Не удалось удалить строку из справочника.",
+          detail: formatUnknownActionError(err),
+        });
       }
     });
   };
@@ -258,13 +320,33 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
   };
 
   const onSave = () => {
-    setError(null);
-    if (rows.some((row) => !row.title.trim())) {
-      setError("Название не может быть пустым");
+    setErrorDialog(null);
+    if (rows.some((row) => !row.isNew && !row.title.trim())) {
+      setErrorDialog({
+        title: "Ошибка сохранения",
+        summary: "У существующей строки не может быть пустого названия.",
+        detail:
+          "Источник: проверка на клиенте.\nПравило: для уже сохранённых позиций название обязательно (пробелы по краям не считаются).",
+      });
       return;
     }
-    if (rows.some((row) => row.isNew && !/^[a-z][a-z0-9_]*$/.test(row.code.trim()))) {
-      setError("Код новой строки должен быть в lower_snake_case");
+    const newRowsToPersist = rows.filter((row) => row.isNew && (row.code.trim() !== "" || row.title.trim() !== ""));
+    if (newRowsToPersist.some((row) => !/^[a-z][a-z0-9_]*$/.test(row.code.trim()))) {
+      setErrorDialog({
+        title: "Ошибка сохранения",
+        summary: "Код новой строки должен быть в формате lower_snake_case.",
+        detail:
+          "Источник: проверка на клиенте.\nПравило: код начинается с латинской буквы в нижнем регистре, далее только a–z, цифры и подчёркивание (пример: body_region).\nПолностью пустые новые строки (без кода и без названия) при сохранении не отправляются.",
+      });
+      return;
+    }
+    if (newRowsToPersist.some((row) => !row.title.trim())) {
+      setErrorDialog({
+        title: "Ошибка сохранения",
+        summary: "Для новой строки с указанным кодом нужно заполнить название.",
+        detail:
+          "Источник: проверка на клиенте.\nПравило: если для новой строки задан код, название не может быть пустым.\nПолностью пустые новые строки при сохранении не отправляются.",
+      });
       return;
     }
     startTransition(async () => {
@@ -272,28 +354,64 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
         const updates = rows
           .filter((row) => !row.isNew)
           .map((row) => ({ id: row.id, title: row.title.trim(), sortOrder: row.sortOrder, isActive: row.isActive }));
-        const additions = rows
-          .filter((row) => row.isNew)
-          .map((row) => ({ code: row.code.trim(), title: row.title.trim(), sortOrder: row.sortOrder }));
+        const additions = newRowsToPersist.map((row) => ({
+          code: row.code.trim(),
+          title: row.title.trim(),
+          sortOrder: row.sortOrder,
+        }));
         const normalizedCodes = additions.map((row) => row.code.toLowerCase());
         if (new Set(normalizedCodes).size !== normalizedCodes.length) {
-          setError("Коды новых строк должны быть уникальными");
+          setErrorDialog({
+            title: "Ошибка сохранения",
+            summary: "Коды новых строк должны быть уникальными внутри сохраняемого набора.",
+            detail:
+              "Источник: проверка на клиенте.\nУ двух или более новых строк совпадает код (без учёта регистра). Исправьте дубликаты и сохраните снова.",
+          });
           return;
         }
         await saveReferenceCatalog({ categoryCode, updates, additions });
         router.refresh();
       } catch (err) {
-        if (err instanceof Error && err.message === "duplicate_code") {
-          setError("Код уже существует в этом справочнике");
-          return;
-        }
-        setError("Не удалось сохранить справочник");
+        const { summary, detail } = describeSaveReferenceCatalogError(err);
+        setErrorDialog({
+          title: "Ошибка сохранения",
+          summary,
+          detail,
+        });
       }
     });
   };
 
   return (
     <div className="flex flex-col gap-3">
+      <Dialog
+        open={errorDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setErrorDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          {errorDialog ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>{errorDialog.title}</DialogTitle>
+                <DialogDescription>{errorDialog.summary}</DialogDescription>
+              </DialogHeader>
+              {errorDialog.detail ? (
+                <pre className="max-h-48 overflow-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-xs whitespace-pre-wrap break-words text-foreground">
+                  {errorDialog.detail}
+                </pre>
+              ) : null}
+              <DialogFooter className="sm:justify-end">
+                <Button type="button" onClick={() => setErrorDialog(null)}>
+                  ОК
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] z-20 -mx-4 flex flex-col gap-3 border-b border-border bg-card px-4 pb-3 pt-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="min-w-0 truncate text-lg font-semibold">{categoryTitle}</h1>
@@ -327,8 +445,6 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
           </Button>
         </div>
       </div>
-
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Нет строк в справочнике.</p>

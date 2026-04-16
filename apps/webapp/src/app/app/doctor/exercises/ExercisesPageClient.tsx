@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { LayoutGrid, List } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
@@ -25,6 +26,16 @@ type Props = {
   };
 };
 
+const STICKY_UNDER_DOCTOR_HEADER_CLASS =
+  "top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)]";
+
+function tileGridColsClass(count: number): string {
+  if (count <= 0) return "grid-cols-1";
+  if (count === 1) return "grid-cols-1";
+  if (count === 2 || count === 4) return "grid-cols-2";
+  return "grid-cols-3";
+}
+
 function mediaNode(exercise: Exercise) {
   const media = exercise.media[0];
   if (!media) return <div className="h-9 w-9 shrink-0 rounded bg-muted" />;
@@ -37,6 +48,40 @@ function mediaNode(exercise: Exercise) {
   }
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={media.mediaUrl} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />;
+}
+
+type SelectionToolbarProps = {
+  exerciseCount: number;
+  createButtonId: string;
+  onCreate: () => void;
+  viewMode: ExercisesViewMode;
+  onToggleView: () => void;
+};
+
+function SelectionToolbar({ exerciseCount, createButtonId, onCreate, viewMode, onToggleView }: SelectionToolbarProps) {
+  return (
+    <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 pb-2">
+      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+        {exerciseCount === 0 ? "Нет упражнений" : `Упражнений: ${exerciseCount}`}
+      </p>
+      <div className="flex shrink-0 items-center gap-2">
+        <button type="button" id={createButtonId} className={buttonVariants({ size: "sm" })} onClick={onCreate}>
+          Создать упражнение
+        </button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="shrink-0"
+          aria-label={viewMode === "tiles" ? "Показать список" : "Показать плитки"}
+          title={viewMode === "tiles" ? "Список" : "Плитки"}
+          onClick={onToggleView}
+        >
+          {viewMode === "tiles" ? <List className="size-4" aria-hidden /> : <LayoutGrid className="size-4" aria-hidden />}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export function ExercisesPageClient({ exercises, selectedExercise, viewMode, filters }: Props) {
@@ -56,95 +101,94 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
   };
 
   const formKey = selectedExercise?.id ?? "create";
+  const n = exercises.length;
+  const tileCols = tileGridColsClass(n);
+
+  const toggleViewMode = () => {
+    const next: ExercisesViewMode = viewMode === "tiles" ? "list" : "tiles";
+    setQuery({ view: next, selected: null });
+  };
+
+  const renderExerciseList = (opts: { activeId: string | null; onRowSelect: (id: string) => void }) =>
+    exercises.length === 0 ? (
+      <p className="px-2 pb-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
+    ) : (
+      <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto">
+        {exercises.map((ex) => {
+          const active = opts.activeId === ex.id;
+          return (
+            <li key={ex.id}>
+              <button
+                type="button"
+                onClick={() => opts.onRowSelect(ex.id)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted",
+                  active && "bg-primary text-primary-foreground hover:bg-primary/90",
+                )}
+              >
+                {mediaNode(ex)}
+                <span className="line-clamp-2">{ex.title}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    );
+
+  const renderExerciseTiles = (opts: { onTileSelect: (id: string) => void }) =>
+    exercises.length === 0 ? (
+      <p className="px-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
+    ) : (
+      <ul className={cn("grid max-h-[70vh] gap-2 overflow-auto p-1", tileCols)}>
+        {exercises.map((ex) => (
+          <li key={ex.id} className="w-full min-w-0">
+            <ExerciseTileCard
+              exercise={ex}
+              onSelect={(id) => opts.onTileSelect(id)}
+              isActive={selectedExercise?.id === ex.id}
+            />
+          </li>
+        ))}
+      </ul>
+    );
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="hidden flex-nowrap items-center gap-3 overflow-x-auto rounded-xl border border-border bg-card p-3 lg:flex">
-        <ExercisesFiltersForm
-          q={filters.q}
-          regionRefId={filters.regionRefId}
-          loadType={filters.loadType}
-          view={viewMode}
-        />
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setQuery({ view: "tiles", selected: null })}
-            className={cn(
-              buttonVariants({ variant: viewMode === "tiles" ? "default" : "outline" }),
-              "h-9 px-3 text-sm",
-            )}
-          >
-            Плитки
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuery({ view: "list", selected: null })}
-            className={cn(
-              buttonVariants({ variant: viewMode === "list" ? "default" : "outline" }),
-              "h-9 px-3 text-sm",
-            )}
-          >
-            Список
-          </button>
-          <button
-            type="button"
-            id="doctor-exercises-create-link-desktop"
-            className={buttonVariants()}
-            onClick={() => setQuery({ selected: null })}
-          >
-            Создать упражнение
-          </button>
+      <div
+        className={cn(
+          "sticky z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur-md supports-backdrop-filter:bg-background/90 md:-mx-6 md:px-6",
+          STICKY_UNDER_DOCTOR_HEADER_CLASS,
+        )}
+      >
+        <div className="rounded-xl border border-border bg-card p-3">
+          <ExercisesFiltersForm
+            q={filters.q}
+            regionRefId={filters.regionRefId}
+            loadType={filters.loadType}
+            view={viewMode}
+          />
         </div>
       </div>
 
       <div className="hidden lg:block">
         <div className="grid gap-4 lg:grid-cols-2">
           <aside className="rounded-xl border border-border bg-card p-2">
-            <p className="px-2 pb-2 text-xs text-muted-foreground">
-              {exercises.length === 0 ? "Нет упражнений" : `Упражнений: ${exercises.length}`}
-            </p>
+            <SelectionToolbar
+              exerciseCount={exercises.length}
+              createButtonId="doctor-exercises-create-link-desktop"
+              onCreate={() => setQuery({ selected: null })}
+              viewMode={viewMode}
+              onToggleView={toggleViewMode}
+            />
 
-            {viewMode === "list" ? (
-              exercises.length === 0 ? (
-                <p className="px-2 pb-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
-              ) : (
-                <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto">
-                  {exercises.map((ex) => {
-                    const active = selectedExercise?.id === ex.id;
-                    return (
-                      <li key={ex.id}>
-                        <button
-                          type="button"
-                          onClick={() => setQuery({ selected: ex.id })}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted",
-                            active && "bg-primary text-primary-foreground hover:bg-primary/90",
-                          )}
-                        >
-                          {mediaNode(ex)}
-                          <span className="line-clamp-2">{ex.title}</span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )
-            ) : exercises.length === 0 ? (
-              <p className="px-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
-            ) : (
-              <ul className="grid max-h-[70vh] grid-cols-[repeat(auto-fill,minmax(180px,1fr))] justify-items-center gap-3 overflow-auto p-1">
-                {exercises.map((ex) => (
-                  <li key={ex.id} className="w-full max-w-[180px] justify-self-center">
-                    <ExerciseTileCard
-                      exercise={ex}
-                      onSelect={(id) => setQuery({ view: "tiles", selected: id })}
-                      isActive={selectedExercise?.id === ex.id}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
+            {viewMode === "list"
+              ? renderExerciseList({
+                  activeId: selectedExercise?.id ?? null,
+                  onRowSelect: (id) => setQuery({ selected: id }),
+                })
+              : renderExerciseTiles({
+                  onTileSelect: (id) => setQuery({ view: "tiles", selected: id }),
+                })}
           </aside>
 
           <Card key={formKey} className="min-w-0">
@@ -169,34 +213,45 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
             mobileSheet != null ? "-translate-x-full" : "translate-x-0",
           )}
         >
-          <div className="mb-3 flex justify-end">
-            <button
-              type="button"
-              id="doctor-exercises-create-link"
-              className={buttonVariants()}
-              onClick={() => setMobileSheet({ exercise: null })}
-            >
-              Создать упражнение
-            </button>
-          </div>
-          {exercises.length === 0 ? (
-            <p className="text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
-          ) : (
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-2">
-              {exercises.map((ex) => (
-                <li key={ex.id} className="flex justify-center">
-                  <ExerciseTileCard
-                    exercise={ex}
-                    onSelect={(id) => {
-                      const found = exercises.find((e) => e.id === id);
-                      if (found) setMobileSheet({ exercise: found });
-                    }}
-                    isActive={mobileSheet?.exercise?.id === ex.id}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
+          <aside className="rounded-xl border border-border bg-card p-2">
+            <SelectionToolbar
+              exerciseCount={exercises.length}
+              createButtonId="doctor-exercises-create-link"
+              onCreate={() => setMobileSheet({ exercise: null })}
+              viewMode={viewMode}
+              onToggleView={toggleViewMode}
+            />
+            {viewMode === "list" ? (
+              renderExerciseList({
+                activeId: mobileSheet?.exercise?.id ?? null,
+                onRowSelect: (id) => {
+                  const found = exercises.find((e) => e.id === id);
+                  if (found) setMobileSheet({ exercise: found });
+                },
+              })
+            ) : (
+              <ul className={cn("grid gap-2 p-1", tileCols)}>
+                {exercises.length === 0 ? (
+                  <li className="col-span-full px-2 text-sm text-muted-foreground">
+                    Нет упражнений по заданным фильтрам.
+                  </li>
+                ) : (
+                  exercises.map((ex) => (
+                    <li key={ex.id} className="w-full min-w-0">
+                      <ExerciseTileCard
+                        exercise={ex}
+                        onSelect={(id) => {
+                          const found = exercises.find((e) => e.id === id);
+                          if (found) setMobileSheet({ exercise: found });
+                        }}
+                        isActive={mobileSheet?.exercise?.id === ex.id}
+                      />
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+          </aside>
         </div>
 
         <div

@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import type { MediaExerciseUsageEntry } from "@/modules/media/types";
 import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
 import type {
   CreateExerciseInput,
@@ -26,6 +27,48 @@ function mapMediaRow(row: {
     sortOrder: row.sort_order,
     createdAt: row.created_at.toISOString(),
   };
+}
+
+const MEDIA_ID_UUID_RE =
+  /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:\/|\?|#|$)/i;
+
+/**
+ * For each `media_files.id`, lists non-archived exercises that reference `/api/media/{id}` in `lfk_exercise_media`.
+ * Titles capped per media for UI tooltips (see MAX per key in implementation).
+ */
+export async function pgListExerciseUsageForMediaIds(
+  mediaIds: readonly string[],
+): Promise<Record<string, MediaExerciseUsageEntry[]>> {
+  const out: Record<string, MediaExerciseUsageEntry[]> = {};
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const unique = [...new Set(mediaIds.map((id) => id.trim()).filter((id) => UUID_RE.test(id)))];
+  if (unique.length === 0) return out;
+
+  const urls = unique.map((id) => `/api/media/${id}`);
+  const pool = getPool();
+  const res = await pool.query<{ media_url: string; exercise_id: string; title: string }>(
+    `SELECT DISTINCT ON (m.media_url, e.id)
+        m.media_url,
+        e.id::text AS exercise_id,
+        e.title
+     FROM lfk_exercise_media m
+     INNER JOIN lfk_exercises e ON e.id = m.exercise_id AND e.is_archived = false
+     WHERE m.media_url = ANY($1::text[])
+     ORDER BY m.media_url, e.id, e.title ASC`,
+    [urls],
+  );
+
+  const MAX_PER_MEDIA = 40;
+  for (const row of res.rows) {
+    const m = row.media_url.trim().match(MEDIA_ID_UUID_RE);
+    const mediaId = m ? m[1].toLowerCase() : null;
+    if (!mediaId) continue;
+    if (!out[mediaId]) out[mediaId] = [];
+    if (out[mediaId].length >= MAX_PER_MEDIA) continue;
+    out[mediaId].push({ exerciseId: row.exercise_id, title: row.title });
+  }
+  return out;
 }
 
 function mapExerciseRow(

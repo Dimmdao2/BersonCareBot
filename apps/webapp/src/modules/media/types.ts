@@ -59,3 +59,9 @@ export type MediaUsageRef = {
   pageSlug: string;
   field: "image_url" | "video_url" | "body_md" | "body_html";
 };
+
+/** LFK exercise referencing this library media (`/api/media/:id`). */
+export type MediaExerciseUsageEntry = {
+  exerciseId: string;
+  title: string;
+};

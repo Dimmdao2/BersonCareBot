@@ -19,13 +19,13 @@ export function ExerciseTileCard({ exercise, onSelect, isActive }: Props) {
     <Card
       size="sm"
       className={cn(
-        "h-full w-full max-w-[180px] transition-shadow",
+        "h-full w-full min-w-0 transition-shadow",
         isActive && "ring-2 ring-primary ring-offset-2 ring-offset-background",
       )}
     >
-      <CardContent className="flex h-full flex-col gap-2 p-2">
+      <CardContent className="flex h-full flex-col gap-1 p-1">
         {firstMedia ? (
-          <div className="mx-auto h-[135px] w-full max-w-[180px] overflow-hidden rounded-md border border-border/60 bg-muted/30">
+          <div className="h-[135px] w-full overflow-hidden rounded-md border border-border/60 bg-muted/30">
             {firstMedia.mediaType === "video" ? (
               <VideoThumbnailPreview src={firstMedia.mediaUrl} className="h-full w-full object-cover" />
             ) : (
@@ -34,7 +34,7 @@ export function ExerciseTileCard({ exercise, onSelect, isActive }: Props) {
             )}
           </div>
         ) : null}
-        <p className="line-clamp-2 text-center text-xs leading-snug text-foreground">{exercise.title}</p>
+        <p className="line-clamp-2 px-1 text-center text-xs leading-snug text-foreground">{exercise.title}</p>
       </CardContent>
     </Card>
   );

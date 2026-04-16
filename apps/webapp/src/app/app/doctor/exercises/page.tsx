@@ -2,7 +2,6 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 import { ExercisesPageClient, type ExercisesViewMode } from "./ExercisesPageClient";
 
 type PageProps = {
@@ -42,10 +41,6 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
   return (
     <AppShell title="Упражнения ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-end gap-3 lg:hidden">
-          <ExercisesFiltersForm q={q} regionRefId={regionRefId} loadType={loadType} />
-        </div>
-
         <ExercisesPageClient
           exercises={list}
           selectedExercise={selectedExercise}
