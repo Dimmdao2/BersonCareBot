@@ -21,10 +21,10 @@ export function ExerciseTileCard({ exercise, onSelect, isActive }: Props) {
       size="sm"
       className={cn(
         "h-full w-full min-w-0 transition-shadow",
-        isActive && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+        isActive && "ring-1 ring-primary/50 ring-offset-1 ring-offset-background",
       )}
     >
-      <CardContent className="flex h-full flex-col gap-1 p-1">
+      <CardContent className="flex h-full flex-col gap-1 p-0.5">
         {firstMedia ? (
           <div className="h-[135px] w-full overflow-hidden rounded-md border border-border/60 bg-muted/30">
             <MediaThumb
@@ -35,7 +35,7 @@ export function ExerciseTileCard({ exercise, onSelect, isActive }: Props) {
             />
           </div>
         ) : null}
-        <p className="line-clamp-2 px-1 text-center text-xs leading-snug text-foreground">{exercise.title}</p>
+        <p className="line-clamp-2 px-0.5 text-center text-xs leading-snug text-foreground">{exercise.title}</p>
       </CardContent>
     </Card>
   );

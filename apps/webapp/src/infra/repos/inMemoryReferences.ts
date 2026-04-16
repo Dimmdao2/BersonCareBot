@@ -65,13 +65,19 @@ const items: ReferenceItem[] = [
   },
 ];
 
+function throwDuplicateCode(conflictingCodes: string[]): never {
+  const err = new Error("duplicate_code") as Error & { conflictingCodes: string[] };
+  err.conflictingCodes = conflictingCodes;
+  throw err;
+}
+
 function ensureUniqueCode(categoryId: string, code: string): void {
   if (
     items.some(
       (i) => i.categoryId === categoryId && i.code === code && i.deletedAt == null
     )
   ) {
-    throw new Error("duplicate_code");
+    throwDuplicateCode([code]);
   }
 }
 
@@ -149,17 +155,39 @@ export const inMemoryReferencesPort: ReferencesPort = {
   async saveCatalog(categoryCode, input) {
     const cat = await this.findCategoryByCode(categoryCode);
     if (!cat) throw new Error("category_not_found");
-    const normalizedCodes = input.additions.map((addition) => addition.code.trim().toLowerCase());
-    if (new Set(normalizedCodes).size !== normalizedCodes.length) {
-      throw new Error("duplicate_code");
+    const updateNormCodes = input.updates.map((u) => u.code.trim().toLowerCase());
+    const additionNormCodes = input.additions.map((a) => a.code.trim().toLowerCase());
+    const allNormCodes = [...updateNormCodes, ...additionNormCodes];
+    const batchCounts = new Map<string, number>();
+    for (const c of allNormCodes) {
+      batchCounts.set(c, (batchCounts.get(c) ?? 0) + 1);
+    }
+    const duplicateInBatch = [...batchCounts.entries()].filter(([, n]) => n > 1).map(([c]) => c);
+    if (duplicateInBatch.length > 0) {
+      throwDuplicateCode(duplicateInBatch);
+    }
+
+    const idsNeedingTemp: string[] = [];
+    for (const update of input.updates) {
+      const item = items.find((i) => i.id === update.id && i.categoryId === cat.id && i.deletedAt == null);
+      if (!item) throw new Error("item_not_found");
+      const newCode = update.code.trim().toLowerCase();
+      if (item.code.trim().toLowerCase() !== newCode) {
+        idsNeedingTemp.push(item.id);
+      }
+    }
+    for (const id of idsNeedingTemp) {
+      const item = items.find((i) => i.id === id);
+      if (item) item.code = `__tmpref${id.replace(/-/g, "")}`;
     }
 
     for (const update of input.updates) {
       const item = items.find((i) => i.id === update.id && i.categoryId === cat.id && i.deletedAt == null);
-      if (!item) continue;
+      if (!item) throw new Error("item_not_found");
       item.title = update.title;
       item.sortOrder = update.sortOrder;
       item.isActive = update.isActive;
+      item.code = update.code.trim().toLowerCase();
     }
 
     for (const addition of input.additions) {

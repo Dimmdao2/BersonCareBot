@@ -17,6 +17,7 @@ import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { LfkTemplatePreviewPanel } from "./LfkTemplatePreviewPanel";
 
 export type LfkTemplateTitleSort = "default" | "asc" | "desc";
@@ -64,7 +65,13 @@ function TemplateListToolbar({
           <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
           <Select value={titleSort} onValueChange={(v) => onTitleSortChange(v as LfkTemplateTitleSort)}>
             <SelectTrigger size="sm" className="h-8 w-full text-left">
-              <SelectValue placeholder="Сортировка" />
+              <SelectValue>
+                {titleSort === "asc"
+                  ? "Название А→Я"
+                  : titleSort === "desc"
+                    ? "Название Я→А"
+                    : "Сортировка"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">По дате изменения</SelectItem>
@@ -126,7 +133,7 @@ export function LfkTemplatesPageClient({ templates }: Props) {
     displayList.length === 0 ? (
       <p className="px-2 pb-2 text-sm text-muted-foreground">Нет шаблонов по заданным условиям.</p>
     ) : (
-      <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto">
+      <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto lg:max-h-none lg:overflow-visible">
         {displayList.map((t) => {
           const active = activeId === t.id;
           const { published, label } = statusEyeMeta(t.status);
@@ -139,8 +146,9 @@ export function LfkTemplatesPageClient({ templates }: Props) {
                   type="button"
                   onClick={() => onPick(t)}
                   className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-muted/80",
-                    active && "bg-primary text-primary-foreground hover:bg-primary/90",
+                    "flex min-w-0 flex-1 items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted/80",
+                    active &&
+                      "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
                   )}
                 >
                   <div className="flex min-h-[30px] flex-wrap content-end items-end gap-1">
@@ -148,7 +156,7 @@ export function LfkTemplatesPageClient({ templates }: Props) {
                       <span
                         className={cn(
                           "self-center text-[11px] leading-none",
-                          active ? "text-primary-foreground/80" : "text-muted-foreground",
+                          active ? "text-primary/75" : "text-muted-foreground",
                         )}
                       >
                         Нет превью
@@ -174,7 +182,7 @@ export function LfkTemplatesPageClient({ templates }: Props) {
                     <div
                       className={cn(
                         "text-xs tabular-nums",
-                        active ? "text-primary-foreground/85" : "text-muted-foreground",
+                        active ? "text-primary/70" : "text-muted-foreground",
                       )}
                     >
                       Упражнений: {n}
@@ -205,20 +213,24 @@ export function LfkTemplatesPageClient({ templates }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <div className="hidden lg:block">
-        <div className="grid items-start gap-4 lg:grid-cols-2">
-          <aside className="rounded-xl border border-border bg-card p-2">
-            <TemplateListToolbar
-              templateCount={displayList.length}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              titleSort={titleSort}
-              onTitleSortChange={setTitleSort}
-            />
-            {renderRows((t) => setSelectedId(t.id), selected?.id ?? null)}
+        <div className={cn("grid items-stretch gap-4 lg:grid-cols-2", DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS)}>
+          <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
+            <div className="shrink-0 p-2 pb-0">
+              <TemplateListToolbar
+                templateCount={displayList.length}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                titleSort={titleSort}
+                onTitleSortChange={setTitleSort}
+              />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-2">
+              {renderRows((t) => setSelectedId(t.id), selected?.id ?? null)}
+            </div>
           </aside>
 
-          <Card className="min-w-0">
-            <CardContent className="p-4">
+          <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+            <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
               {selected ? (
                 <LfkTemplatePreviewPanel template={selected} />
               ) : (

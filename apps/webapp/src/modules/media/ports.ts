@@ -13,6 +13,8 @@ export type UploadMediaParams = {
   mimeType: string;
   /** Optional owner for access control. */
   userId?: string | null;
+  /** Library folder (`null` = root). Omit for legacy behavior (root). */
+  folderId?: string | null;
 };
 
 export type UploadMediaResult = {

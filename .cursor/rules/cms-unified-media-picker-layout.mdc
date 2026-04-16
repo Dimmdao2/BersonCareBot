@@ -1,0 +1,18 @@
+---
+description: CMS медиа-пикер — единый shell/panel для модалок выбора файлов
+alwaysApply: false
+---
+
+# CMS: единый layout медиа-пикера
+
+При добавлении или изменении **модалок выбора файла из медиабиблиотеки** в doctor CMS:
+
+- Используйте **`MediaPickerShell`** + **`MediaPickerPanel`** из [`apps/webapp/src/shared/ui/media/MediaPickerShell.tsx`](apps/webapp/src/shared/ui/media/MediaPickerShell.tsx) и [`apps/webapp/src/shared/ui/media/MediaPickerPanel.tsx`](apps/webapp/src/shared/ui/media/MediaPickerPanel.tsx).
+- Не дублируйте отдельные обёртки `Dialog`/`Sheet` с другой шириной и своим блоком «поиск + список», если сценарий — тот же паттерн (библиотека + опционально загрузка с устройства).
+- Поведенческие отличия (фильтр по `kind`, папки и «только новые» для упражнений, показ сортировки) задаются **пропсами** `MediaPickerPanel`, а не копипастой разметки.
+- Вкладка загрузки с устройства: после `POST /api/media/upload` результат сверяется с `kind` (`isPickedRowAllowedForKind`); при несовпадении показывайте пользователю понятный текст (как в текущей реализации), не вызывайте `onPick`. Ошибки API мапятся на русский текст (`mapUploadErrorByCode`).
+- Для Markdown не дублируйте логику «картинка vs ссылка»: используйте [`markdownSnippetForMediaUrl`](apps/webapp/src/shared/ui/markdown/markdownMediaSnippet.ts) и передавайте в колбэк `kind`/`mimeType` из выбранной строки библиотеки.
+
+Исключения (свой layout без этих компонентов) допустимы только при **явной продуктовой причине**; в PR кратко опишите, почему общий контейнер не подошёл.
+
+Связанные входные точки: `MediaLibraryPickerDialog`, `MediaLibraryInsertDialog`.

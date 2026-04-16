@@ -43,6 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import {
   saveReferenceCatalog,
   softDeleteReferenceItem,
@@ -145,6 +146,22 @@ function filterRows(rows: Row[], statusFilter: StatusFilter, qTrimmed: string): 
   return rows.filter((r) => matchesStatusFilter(r, statusFilter) && matchesSearch(r, qTrimmed));
 }
 
+/** Строки с неуникальным кодом в текущем наборе (или совпадение с кодами с сервера). */
+function rowIdsWithCodeConflicts(rows: Row[], serverConflictingCodes?: string[]): string[] {
+  const norm = (s: string) => s.trim().toLowerCase();
+  if (serverConflictingCodes?.length) {
+    const set = new Set(serverConflictingCodes.map((c) => norm(c)));
+    return rows.filter((r) => r.code.trim() !== "" && set.has(norm(r.code))).map((r) => r.id);
+  }
+  const withCode = rows.filter((r) => r.code.trim() !== "");
+  const codeCounts = new Map<string, number>();
+  for (const r of withCode) {
+    const c = norm(r.code);
+    codeCounts.set(c, (codeCounts.get(c) ?? 0) + 1);
+  }
+  return withCode.filter((r) => (codeCounts.get(norm(r.code)) ?? 0) > 1).map((r) => r.id);
+}
+
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
   return (
     <button
@@ -169,12 +186,18 @@ function SortableRow({
   onChange,
   onToggleActive,
   onSoftDelete,
+  onToggleEditCode,
+  showCodeInput,
+  codeHasConflict,
 }: {
   row: Row;
   index: number;
   onChange: (rowId: string, patch: Partial<Row>) => void;
   onToggleActive: (rowId: string) => void;
   onSoftDelete: (rowId: string) => void;
+  onToggleEditCode: (rowId: string) => void;
+  showCodeInput: boolean;
+  codeHasConflict: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.id });
   const style = {
@@ -191,11 +214,15 @@ function SortableRow({
       </td>
       <td className="px-2 py-2">
         <div className="flex min-w-0 flex-col gap-1">
-          {row.isNew ? (
+          {showCodeInput ? (
             <Input
               value={row.code}
               placeholder="код_snake_case"
-              className="h-8 font-mono text-xs"
+              aria-invalid={codeHasConflict || undefined}
+              className={cn(
+                "h-8 font-mono text-xs",
+                codeHasConflict && "border-destructive ring-1 ring-destructive/80 focus-visible:ring-destructive"
+              )}
               onChange={(e) => onChange(row.id, { code: e.target.value })}
             />
           ) : null}
@@ -228,6 +255,11 @@ function SortableRow({
             <EllipsisVertical className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {!row.isNew ? (
+              <DropdownMenuItem onClick={() => onToggleEditCode(row.id)}>
+                {showCodeInput ? "Скрыть поле кода" : "Править код"}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem onClick={() => onSoftDelete(row.id)}>Удалить</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -251,6 +283,8 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
   const [rows, setRows] = useState<Row[]>(normalizedInitialRows);
   const [isPending, startTransition] = useTransition();
   const [errorDialog, setErrorDialog] = useState<ReferenceErrorDialog | null>(null);
+  const [codeConflictRowIds, setCodeConflictRowIds] = useState<string[]>([]);
+  const [editingCodeRowIds, setEditingCodeRowIds] = useState<string[]>([]);
   const [searchRaw, setSearchRaw] = useState("");
   const deferredSearch = useDeferredValue(searchRaw);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -265,8 +299,15 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
   const isDirty = JSON.stringify(rows) !== initialState;
 
   useEffect(() => {
-    setRows(normalizedInitialRows);
+    queueMicrotask(() => {
+      setRows(normalizedInitialRows);
+      setEditingCodeRowIds([]);
+    });
   }, [normalizedInitialRows]);
+
+  const onToggleEditCode = (rowId: string) => {
+    setEditingCodeRowIds((prev) => (prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]));
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -295,6 +336,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
   };
 
   const onChange = (rowId: string, patch: Partial<Row>) => {
+    if ("code" in patch) setCodeConflictRowIds([]);
     setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
   };
 
@@ -306,6 +348,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
     const row = rows.find((r) => r.id === rowId);
     if (!row) return;
     if (row.isNew) {
+      setEditingCodeRowIds((prev) => prev.filter((id) => id !== rowId));
       setRows((prev) => prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })));
       return;
     }
@@ -320,6 +363,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
           setErrorDialog(dialogForDeleteFailure(delResult));
           return;
         }
+        setEditingCodeRowIds((prev) => prev.filter((id) => id !== rowId));
         setRows((prev) => prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })));
         router.refresh();
       } catch {
@@ -348,6 +392,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
   const onSave = () => {
     setErrorDialog(null);
     if (rows.some((row) => !row.isNew && !row.title.trim())) {
+      setCodeConflictRowIds([]);
       setErrorDialog({
         title: "Ошибка сохранения",
         summary: "У существующей строки не может быть пустого названия.",
@@ -356,8 +401,19 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
       });
       return;
     }
+    if (rows.some((row) => !row.isNew && !/^[a-z][a-z0-9_]*$/.test(row.code.trim()))) {
+      setCodeConflictRowIds([]);
+      setErrorDialog({
+        title: "Ошибка сохранения",
+        summary: "Код существующей строки должен быть в формате lower_snake_case.",
+        detail:
+          "Источник: проверка на клиенте.\nПравило: код начинается с латинской буквы в нижнем регистре, далее только a–z, цифры и подчёркивание (пример: body_region).",
+      });
+      return;
+    }
     const newRowsToPersist = rows.filter((row) => row.isNew && (row.code.trim() !== "" || row.title.trim() !== ""));
     if (newRowsToPersist.some((row) => !/^[a-z][a-z0-9_]*$/.test(row.code.trim()))) {
+      setCodeConflictRowIds([]);
       setErrorDialog({
         title: "Ошибка сохранения",
         summary: "Код новой строки должен быть в формате lower_snake_case.",
@@ -367,6 +423,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
       return;
     }
     if (newRowsToPersist.some((row) => !row.title.trim())) {
+      setCodeConflictRowIds([]);
       setErrorDialog({
         title: "Ошибка сохранения",
         summary: "Для новой строки с указанным кодом нужно заполнить название.",
@@ -379,29 +436,46 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
       try {
         const updates = rows
           .filter((row) => !row.isNew)
-          .map((row) => ({ id: row.id, title: row.title.trim(), sortOrder: row.sortOrder, isActive: row.isActive }));
+          .map((row) => ({
+            id: row.id,
+            code: row.code.trim(),
+            title: row.title.trim(),
+            sortOrder: row.sortOrder,
+            isActive: row.isActive,
+          }));
         const additions = newRowsToPersist.map((row) => ({
           code: row.code.trim(),
           title: row.title.trim(),
           sortOrder: row.sortOrder,
         }));
-        const normalizedCodes = additions.map((row) => row.code.toLowerCase());
-        if (new Set(normalizedCodes).size !== normalizedCodes.length) {
+        const updateCodesNorm = updates.map((row) => row.code.toLowerCase());
+        const additionCodesNorm = additions.map((row) => row.code.toLowerCase());
+        const combinedNorm = [...updateCodesNorm, ...additionCodesNorm];
+        if (new Set(combinedNorm).size !== combinedNorm.length) {
+          setCodeConflictRowIds(rowIdsWithCodeConflicts(rows));
           setErrorDialog({
             title: "Ошибка сохранения",
-            summary: "Коды новых строк должны быть уникальными внутри сохраняемого набора.",
+            summary: "Коды строк должны быть уникальными внутри справочника (без учёта регистра).",
             detail:
-              "Источник: проверка на клиенте.\nУ двух или более новых строк совпадает код (без учёта регистра). Исправьте дубликаты и сохраните снова.",
+              "Источник: проверка на клиенте.\nДва или более пункта (новых или уже существующих) имеют один и тот же код. Исправьте и сохраните снова.",
           });
           return;
         }
         const saveResult = await saveReferenceCatalog({ categoryCode, updates, additions });
         if (!saveResult.ok) {
+          if (saveResult.code === "duplicate_code") {
+            setCodeConflictRowIds(rowIdsWithCodeConflicts(rows, saveResult.conflictingCodes));
+          } else {
+            setCodeConflictRowIds([]);
+          }
           setErrorDialog(dialogForSaveFailure(saveResult));
           return;
         }
+        setCodeConflictRowIds([]);
+        setEditingCodeRowIds([]);
         router.refresh();
       } catch {
+        setCodeConflictRowIds([]);
         setErrorDialog({
           title: "Ошибка сохранения",
           summary: "Ошибка соединения с сервером. Проверьте подключение и попробуйте снова.",
@@ -501,6 +575,9 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
                       onChange={onChange}
                       onToggleActive={onToggleActive}
                       onSoftDelete={onSoftDeleteRow}
+                      onToggleEditCode={onToggleEditCode}
+                      showCodeInput={row.isNew || editingCodeRowIds.includes(row.id)}
+                      codeHasConflict={codeConflictRowIds.includes(row.id)}
                     />
                   ))}
                 </tbody>

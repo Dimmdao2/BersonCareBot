@@ -167,33 +167,56 @@ export const pgReferencesPort: ReferencesPort = {
     const pool = getPool();
     const cat = await pgReferencesPort.findCategoryByCode(categoryCode);
     if (!cat) throw new Error("category_not_found");
-    const normalizedCodes = input.additions.map((addition) => addition.code.trim().toLowerCase());
-    const uniqueCodes = new Set(normalizedCodes);
-    if (uniqueCodes.size !== normalizedCodes.length) {
-      throw new Error("duplicate_code");
+    const updateNormCodes = input.updates.map((u) => u.code.trim().toLowerCase());
+    const additionNormCodes = input.additions.map((a) => a.code.trim().toLowerCase());
+    const allNormCodes = [...updateNormCodes, ...additionNormCodes];
+    const batchCounts = new Map<string, number>();
+    for (const c of allNormCodes) {
+      batchCounts.set(c, (batchCounts.get(c) ?? 0) + 1);
+    }
+    const duplicateInBatch = [...batchCounts.entries()].filter(([, n]) => n > 1).map(([c]) => c);
+    if (duplicateInBatch.length > 0) {
+      const err = new Error("duplicate_code") as Error & { conflictingCodes: string[] };
+      err.conflictingCodes = duplicateInBatch;
+      throw err;
     }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      if (normalizedCodes.length > 0) {
-        const existing = await client.query<{ code: string }>(
-          `SELECT code
-           FROM reference_items
-           WHERE category_id = $1
-             AND deleted_at IS NULL
-             AND code = ANY($2::text[])`,
-          [cat.id, normalizedCodes]
-        );
-        if ((existing.rowCount ?? 0) > 0) {
-          throw new Error("duplicate_code");
+      const currentRes = await client.query<{ id: string; code: string }>(
+        `SELECT id, code FROM reference_items WHERE category_id = $1 AND deleted_at IS NULL`,
+        [cat.id]
+      );
+      const idToNewCode = new Map(input.updates.map((u) => [u.id, u.code.trim().toLowerCase()]));
+      const idsNeedingTemp: string[] = [];
+      for (const row of currentRes.rows) {
+        const next = idToNewCode.get(String(row.id));
+        if (next === undefined) continue;
+        if (row.code.trim().toLowerCase() !== next) {
+          idsNeedingTemp.push(String(row.id));
         }
+      }
+      if (idsNeedingTemp.length > 0) {
+        await client.query(
+          `UPDATE reference_items AS ri
+           SET code = '__tmpref' || replace(ri.id::text, '-', '')
+           WHERE ri.category_id = $1 AND ri.deleted_at IS NULL AND ri.id = ANY($2::uuid[])`,
+          [cat.id, idsNeedingTemp]
+        );
       }
       for (const update of input.updates) {
         const res = await client.query(
           `UPDATE reference_items
-           SET title = $1, sort_order = $2, is_active = $3
-           WHERE id = $4 AND category_id = $5 AND deleted_at IS NULL`,
-          [update.title, update.sortOrder, update.isActive, update.id, cat.id]
+           SET title = $1, sort_order = $2, is_active = $3, code = $4
+           WHERE id = $5::uuid AND category_id = $6 AND deleted_at IS NULL`,
+          [
+            update.title,
+            update.sortOrder,
+            update.isActive,
+            update.code.trim().toLowerCase(),
+            update.id,
+            cat.id,
+          ]
         );
         if ((res.rowCount ?? 0) !== 1) {
           throw new Error("item_not_found");

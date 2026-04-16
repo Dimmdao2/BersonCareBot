@@ -21,8 +21,9 @@ export function ReferencesSidebar({ categories }: { categories: ReferenceCategor
               <Link
                 href={href}
                 className={cn(
-                  "flex items-center justify-between rounded-md px-2 py-2 text-sm hover:bg-muted",
-                  active && "bg-primary text-primary-foreground hover:bg-primary/90"
+                  "flex items-center justify-between rounded-md border border-transparent px-2 py-2 text-sm hover:bg-muted",
+                  active &&
+                    "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
                 )}
               >
                 <span className="truncate">{cat.title}</span>

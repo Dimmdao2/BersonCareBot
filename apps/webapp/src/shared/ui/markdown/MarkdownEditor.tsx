@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { insertLinePrefix, insertSnippet, wrapSelection } from "./markdownInsert";
 import { MediaLibraryInsertDialog } from "./MediaLibraryInsertDialog";
+import type { MediaLibraryInsertPickMeta } from "./MediaLibraryInsertDialog";
+import { markdownSnippetForMediaUrl } from "./markdownMediaSnippet";
 import { MarkdownPreview } from "./MarkdownPreview";
 
 const MAX_BODY_MD = 50_000;
@@ -51,7 +53,7 @@ export function MarkdownEditor({
         До {maxLength.toLocaleString("ru-RU")} символов. Поддерживается Markdown (заголовки, списки, ссылки,
         таблицы).
       </p>
-      <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Форматирование Markdown и вставка из библиотеки">
+      <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Форматирование Markdown и вставка из медиабиблиотеки или с устройства">
         <Button
           type="button"
           variant="outline"
@@ -91,13 +93,8 @@ export function MarkdownEditor({
           Список
         </Button>
         <MediaLibraryInsertDialog
-          onInsert={(url, filename) => {
-            const safeName = filename.replace(/[[\]]/g, "");
-            const imageExt = /\.(jpe?g|png|gif|webp)$/i.test(filename);
-            const snippet = imageExt
-              ? `![${safeName}](${url})`
-              : `[${safeName}](${url})`;
-            apply((t, s, e) => insertSnippet(t, s, e, `${snippet}\n`));
+          onInsert={(url, filename, meta?: MediaLibraryInsertPickMeta) => {
+            apply((t, s, e) => insertSnippet(t, s, e, markdownSnippetForMediaUrl(url, filename, meta)));
           }}
         />
       </div>

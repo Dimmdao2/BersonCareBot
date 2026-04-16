@@ -174,4 +174,3 @@ describe("putPartWithProgress", () => {
     globalThis.XMLHttpRequest = original;
   });
 });
-

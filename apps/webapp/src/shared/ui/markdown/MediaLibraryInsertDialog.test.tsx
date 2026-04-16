@@ -35,7 +35,7 @@ describe("MediaLibraryInsertDialog", () => {
 
     render(<MediaLibraryInsertDialog onInsert={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: /Вставить из библиотеки/i }));
+    await user.click(screen.getByRole("button", { name: /Библиотека или загрузка/i }));
 
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(1));
     const fetchCalls = fetchMock.mock.calls as unknown[][];
@@ -86,7 +86,7 @@ describe("MediaLibraryInsertDialog", () => {
 
     render(<MediaLibraryInsertDialog onInsert={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: /Вставить из библиотеки/i }));
+    await user.click(screen.getByRole("button", { name: /Библиотека или загрузка/i }));
 
     await waitFor(() => expect(screen.getByText("notes.txt")).toBeInTheDocument());
 
@@ -99,5 +99,23 @@ describe("MediaLibraryInsertDialog", () => {
       expect(screen.getByText("photo.png")).toBeInTheDocument();
     });
     expect(fetchMock.mock.calls.length).toBe(1);
+  });
+
+  it("shows library and upload tabs when opened", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, items: [] as unknown[] }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<MediaLibraryInsertDialog onInsert={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Библиотека или загрузка/i }));
+
+    expect(screen.getByRole("tab", { name: /Из библиотеки/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Загрузить с устройства/i })).toBeInTheDocument();
   });
 });

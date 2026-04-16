@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { getPool } from "@/infra/db/client";
 import { logger } from "@/infra/logging/logger";
 import { ALLOWED_MEDIA_MIME, MAX_PROXY_UPLOAD_BYTES } from "@/modules/media/uploadAllowedMime";
 import { getCurrentSession } from "@/modules/auth/service";
@@ -150,6 +151,29 @@ type UploadCandidateMeta = {
   mime: string;
 };
 
+const MEDIA_FOLDER_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveUploadFolderIdFromForm(form: FormData): Promise<
+  | { ok: true; folderId: string | null | undefined }
+  | { ok: false; status: number; payload: Record<string, unknown> }
+> {
+  const raw = form.get("folderId");
+  if (raw === null || raw === undefined) return { ok: true, folderId: undefined };
+  if (typeof raw !== "string") return { ok: true, folderId: undefined };
+  const t = raw.trim();
+  if (t === "" || t === "root") return { ok: true, folderId: null };
+  if (!MEDIA_FOLDER_ID_RE.test(t)) {
+    return { ok: false, status: 400, payload: { error: "invalid_folder_id" } };
+  }
+  const pool = getPool();
+  const r = await pool.query<{ id: string }>(`SELECT id FROM media_folders WHERE id = $1::uuid LIMIT 1`, [t]);
+  if (r.rowCount === 0) {
+    return { ok: false, status: 400, payload: { error: "folder_not_found" } };
+  }
+  return { ok: true, folderId: t };
+}
+
 function collectFilesFromForm(form: FormData): File[] {
   const fromSingle = form.get("file");
   const fromFiles = form.getAll("files");
@@ -217,6 +241,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "missing_file" }, { status: 400 });
   }
 
+  const folderRes = await resolveUploadFolderIdFromForm(form);
+  if (!folderRes.ok) {
+    return NextResponse.json(folderRes.payload, { status: folderRes.status });
+  }
+
   const candidates: UploadCandidate[] = [];
   for (let i = 0; i < files.length; i += 1) {
     const file = files[i]!;
@@ -257,6 +286,7 @@ export async function POST(request: Request) {
         filename: candidate.filename,
         mimeType: candidate.mime,
         userId: session.user.userId,
+        ...(folderRes.folderId !== undefined ? { folderId: folderRes.folderId } : {}),
       });
       uploaded.push({
         mediaId: result.record.id,

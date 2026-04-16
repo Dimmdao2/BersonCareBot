@@ -178,4 +178,27 @@ describe("MediaLibraryPickerDialog", () => {
     });
     expect(fetchMock.mock.calls.length).toBe(1);
   });
+
+  it("exercise mode shows folder filter and new-only toggle", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
+      const body = JSON.stringify({ ok: true, items: [] as unknown[] });
+      if (url.includes("/api/admin/media/folders")) {
+        return Promise.resolve(new Response(body, { status: 200, headers: { "Content-Type": "application/json" } }));
+      }
+      return Promise.resolve(new Response(body, { status: 200, headers: { "Content-Type": "application/json" } }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<MediaLibraryPickerDialog kind="image_or_video" value="" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Выбрать из библиотеки/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Папка").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText("только новые")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Загрузить с устройства/i })).toBeInTheDocument();
+  });
 });

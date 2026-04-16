@@ -19,3 +19,15 @@ export const DOCTOR_HEADER_INNER_CLASS =
 
 /** Контейнер страницы врача (как `AppShell` doctor). */
 export const DOCTOR_PAGE_CONTAINER_CLASS = "mx-auto w-full max-w-7xl px-4 pb-8 md:px-6";
+
+/**
+ * Desktop master/detail: ограничение высоты под шапкой + safe-area (без липкого блока над сеткой).
+ */
+export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS =
+  "lg:min-h-0 lg:max-h-[calc(100dvh-8.5rem-env(safe-area-inset-top,0px))] lg:overflow-hidden";
+
+/**
+ * То же, с большим запасом под липкий блок фильтров над двухколоночной сеткой (упражнения).
+ */
+export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_WITH_FILTERS_CLASS =
+  "lg:min-h-0 lg:max-h-[calc(100dvh-13.5rem-env(safe-area-inset-top,0px))] lg:overflow-hidden";

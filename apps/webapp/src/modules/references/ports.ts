@@ -25,7 +25,7 @@ export type ReferencesPort = {
   saveCatalog(
     categoryCode: string,
     input: {
-      updates: Array<{ id: string; title: string; sortOrder: number; isActive: boolean }>;
+      updates: Array<{ id: string; code: string; title: string; sortOrder: number; isActive: boolean }>;
       additions: Array<{ code: string; title: string; sortOrder: number }>;
     }
   ): Promise<void>;

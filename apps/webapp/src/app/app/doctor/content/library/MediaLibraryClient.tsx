@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { FILE_INPUT_ACCEPT } from "@/modules/media/uploadAllowedMime";
 import { libraryMultipartAbort, libraryMultipartUpload } from "./libraryMultipartUpload";
-import { UploadRequestError, uploadWithProgress } from "./uploadWithProgress";
+import { UploadRequestError, uploadWithProgress } from "@/shared/ui/media/uploadWithProgress";
 import { MediaCard } from "./MediaCard";
 import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { MediaLightbox } from "./MediaLightbox";

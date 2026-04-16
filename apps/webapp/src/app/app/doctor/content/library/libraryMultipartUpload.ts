@@ -1,4 +1,4 @@
-import { putPartWithProgress, UploadRequestError } from "./uploadWithProgress";
+import { putPartWithProgress, UploadRequestError } from "@/shared/ui/media/uploadWithProgress";
 
 export async function libraryMultipartAbort(sessionId: string): Promise<void> {
   await fetch("/api/media/multipart/abort", {

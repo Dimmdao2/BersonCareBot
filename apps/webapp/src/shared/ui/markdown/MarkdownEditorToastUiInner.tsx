@@ -4,6 +4,8 @@ import "@toast-ui/editor/dist/toastui-editor.css";
 import { Editor } from "@toast-ui/react-editor";
 import { useCallback, useRef, useState } from "react";
 import { MediaLibraryInsertDialog } from "./MediaLibraryInsertDialog";
+import type { MediaLibraryInsertPickMeta } from "./MediaLibraryInsertDialog";
+import { markdownSnippetForMediaUrl } from "./markdownMediaSnippet";
 
 const MAX_BODY_MD = 50_000;
 
@@ -43,13 +45,10 @@ export default function MarkdownEditorToastUiInner({
   }, [syncFromEditor]);
 
   const insertFromMedia = useCallback(
-    (url: string, filename: string) => {
+    (url: string, filename: string, meta?: MediaLibraryInsertPickMeta) => {
       const inst = editorRef.current?.getInstance();
       if (!inst) return;
-      const safeName = filename.replace(/[[\]]/g, "");
-      const imageExt = /\.(jpe?g|png|gif|webp)$/i.test(filename);
-      const snippet = imageExt ? `![${safeName}](${url})` : `[${safeName}](${url})`;
-      inst.insertText(`${snippet}\n`);
+      inst.insertText(markdownSnippetForMediaUrl(url, filename, meta));
       syncFromEditor();
     },
     [syncFromEditor],
@@ -63,7 +62,7 @@ export default function MarkdownEditorToastUiInner({
         До {maxLength.toLocaleString("ru-RU")} символов. Редактор Toast UI (Markdown + предпросмотр). Таблицы и
         GitHub Flavored Markdown поддерживаются панелью инструментов.
       </p>
-      <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Вставки из библиотеки файлов">
+      <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Вставка из медиабиблиотеки или с устройства">
         <MediaLibraryInsertDialog onInsert={insertFromMedia} />
       </div>
       <div className="toastui-editor-host overflow-hidden rounded-xl border border-border [&_.toastui-editor-defaultUI]:rounded-b-xl [&_.toastui-editor-defaultUI-toolbar]:rounded-t-xl">

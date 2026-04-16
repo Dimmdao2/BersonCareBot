@@ -24,6 +24,7 @@ function revalidateReferencePaths(categoryCode: string): void {
 
 type CatalogRowInput = {
   id: string;
+  code: string;
   title: string;
   sortOrder: number;
   isActive: boolean;
@@ -52,7 +53,7 @@ function isPgUniqueViolation(err: unknown): boolean {
 
 export type SaveReferenceCatalogResult =
   | { ok: true }
-  | { ok: false; code: string; invalidValue?: string };
+  | { ok: false; code: string; invalidValue?: string; conflictingCodes?: string[] };
 
 export async function saveReferenceCatalog(input: {
   categoryCode: string;
@@ -65,6 +66,7 @@ export async function saveReferenceCatalog(input: {
   const deps = buildAppDeps();
   const updates = input.updates.map((item) => ({
     id: item.id.trim(),
+    code: item.code.trim(),
     title: item.title.trim(),
     sortOrder: item.sortOrder,
     isActive: item.isActive,
@@ -76,9 +78,16 @@ export async function saveReferenceCatalog(input: {
       sortOrder: item.sortOrder,
     }))
     .filter((item) => item.code !== "" || item.title !== "");
-  const badUpdate = updates.find((item) => !item.id || !item.title);
+  const badUpdate = updates.find(
+    (item) => !item.id || !item.title || !/^[a-z][a-z0-9_]*$/.test(item.code)
+  );
   if (badUpdate) {
-    const invalidValue = !badUpdate.title.trim() ? badUpdate.id : badUpdate.title;
+    const invalidValue =
+      !badUpdate.title.trim()
+        ? badUpdate.id
+        : !/^[a-z][a-z0-9_]*$/.test(badUpdate.code)
+          ? badUpdate.code
+          : badUpdate.title;
     return { ok: false, code: "invalid_update_payload", invalidValue };
   }
   const badAddition = additions.find((item) => !/^[a-z][a-z0-9_]*$/.test(item.code) || !item.title);
@@ -95,7 +104,12 @@ export async function saveReferenceCatalog(input: {
     await deps.references.saveCatalog(categoryCode, { updates, additions });
   } catch (err) {
     if (err instanceof Error && SAVE_CATALOG_KNOWN_CODES.has(err.message)) {
-      return { ok: false, code: err.message };
+      const conflictingCodes = (err as Error & { conflictingCodes?: string[] }).conflictingCodes;
+      return {
+        ok: false,
+        code: err.message,
+        ...(Array.isArray(conflictingCodes) && conflictingCodes.length > 0 ? { conflictingCodes } : {}),
+      };
     }
     if (isPgUniqueViolation(err)) {
       return { ok: false, code: "duplicate_code" };

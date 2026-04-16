@@ -154,4 +154,3 @@ export function putPartWithProgress({ url, body, onProgress, signal }: PutPartAr
     xhr.send(body);
   });
 }
-

@@ -58,10 +58,11 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       const buf = Buffer.from(body);
       await s3PutObjectBody(key, buf, params.mimeType);
 
+      const folderId = params.folderId ?? null;
       await pool.query(
         `INSERT INTO media_files (id, original_name, stored_path, s3_key, mime_type, size_bytes, status, uploaded_by, folder_id)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, 'ready', $7::uuid, NULL)`,
-        [id, params.filename, key, key, params.mimeType, body.byteLength, params.userId ?? null],
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, 'ready', $7::uuid, $8::uuid)`,
+        [id, params.filename, key, key, params.mimeType, body.byteLength, params.userId ?? null, folderId],
       );
 
       const now = new Date().toISOString();
@@ -73,6 +74,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         displayName: null,
         size: body.byteLength,
         userId: params.userId ?? null,
+        folderId,
         createdAt: now,
       };
       return { record, url: mediaAppUrl(id) };

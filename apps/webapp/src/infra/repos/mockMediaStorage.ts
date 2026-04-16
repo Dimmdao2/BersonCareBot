@@ -39,7 +39,7 @@ export const mockMediaStoragePort: MediaStoragePort = {
       displayName: null,
       size: body.byteLength,
       userId: params.userId ?? null,
-      folderId: null,
+      folderId: params.folderId ?? null,
       createdAt: now,
     };
     store.set(id, { record, body });
