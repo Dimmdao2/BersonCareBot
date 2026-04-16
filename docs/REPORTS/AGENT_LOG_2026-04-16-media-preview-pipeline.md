@@ -21,3 +21,7 @@
 ## Проверки (локально)
 
 - `pnpm --dir apps/webapp typecheck` — OK на момент коммита.
+
+## Продолжение
+
+Последующие точечные правки по аудиту фронта/DTO/маршрута/воркера: [`AGENT_LOG_2026-04-16-media-preview-audit-followup.md`](./AGENT_LOG_2026-04-16-media-preview-audit-followup.md).

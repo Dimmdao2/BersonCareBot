@@ -407,10 +407,11 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         setInitDataStatus("unknown");
       } else {
         const looksLikeMaxOnly = isLikelyMaxMiniAppSurface(true, maxBridgeReady);
+        const messengerEntry = messengerEntryFromUrlOrCookie();
 
         if (!webApp) {
           stableWebAppEmptyTicks = 0;
-          if (!messengerEntryFromUrlOrCookie()) {
+          if (!messengerEntry) {
             setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
             if (!messengerRetryNoPhoneRef.current) {
               setMessengerRetryNoPhone(false);
@@ -418,10 +419,10 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           } else {
             setInitDataStatus("unknown");
           }
-        } else if (looksLikeMaxOnly) {
+        } else if (looksLikeMaxOnly && messengerEntry) {
           stableWebAppEmptyTicks = 0;
           setInitDataStatus("unknown");
-        } else if (messengerEntryFromUrlOrCookie()) {
+        } else if (messengerEntry) {
           // `ctx=bot` / `ctx=max` или cookie `bot`: не переводим в `no` раньше POLL_CAP
           // (иначе опрос останавливается ~1s и таймаут/stale-cookie не срабатывают).
           stableWebAppEmptyTicks = 0;

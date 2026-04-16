@@ -20,12 +20,15 @@ export type MediaRecord = {
   folderId?: string | null;
   /** Resolved public URL (S3 public URL or /api/media/:id). Populated by list(). */
   url?: string;
-  /** Grid thumbnail — GET /api/media/:id/preview/sm (after worker). */
+  /** Grid thumbnail from canonical shared preview URL helpers (sm size). */
   previewSmUrl?: string | null;
-  /** Larger preview for viewer — GET /api/media/:id/preview/md (images only when worker produced md). */
+  /** Larger preview for viewer from canonical shared preview URL helpers (md size). */
   previewMdUrl?: string | null;
   /** Background preview generation state. */
   previewStatus?: MediaPreviewStatus;
+  /** Original pixel dimensions (from worker / ffprobe); null for legacy rows until backfill. */
+  sourceWidth?: number | null;
+  sourceHeight?: number | null;
 };
 
 export type MediaFolderRecord = {

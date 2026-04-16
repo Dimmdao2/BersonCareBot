@@ -13,7 +13,6 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { MediaPickerList, type MediaListItem } from "@/shared/ui/media/MediaPickerList";
-import { VideoThumbnailPreview } from "@/shared/ui/media/VideoThumbnailPreview";
 import {
   buildAdminMediaListUrl,
   filterMediaLibraryPickerItemsByQuery,
@@ -22,6 +21,10 @@ import {
 } from "@/shared/ui/media/useMediaLibraryPickerItems";
 import type { MediaExerciseUsageEntry, MediaFolderRecord } from "@/modules/media/types";
 import { cn } from "@/lib/utils";
+import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { fetchAdminMediaListItem } from "@/shared/ui/media/fetchAdminMediaListItem";
+import { mediaLibraryPickerSelectionToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 
 export type MediaLibraryPickerKind = "image" | "video" | "image_or_video";
 
@@ -30,7 +33,14 @@ export type MediaLibraryPickMeta = Pick<MediaListItem, "kind" | "mimeType" | "fi
 /** When `kind` is `image_or_video`, hints preview for bare `/api/media/:id` URLs after reload. */
 export type MediaLibrarySelectedPreviewKind = "image" | "video" | "gif";
 
-type LastPick = { url: string; rowKind: MediaListItem["kind"]; mimeType: string };
+type LastPick = {
+  url: string;
+  rowKind: MediaListItem["kind"];
+  mimeType: string;
+  previewSmUrl?: string | null;
+  previewMdUrl?: string | null;
+  previewStatus?: MediaListItem["previewStatus"];
+};
 
 function subscribeMobileViewport(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -44,14 +54,6 @@ function subscribeMobileViewport(onStoreChange: () => void) {
 function getMobileViewportSnapshot(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(max-width: 767px), (pointer: coarse)").matches;
-}
-
-const API_MEDIA_ID_RE = /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/?$/i;
-
-/** Small grid preview for library URLs (avoids loading original / decoding video in the picker). */
-function apiMediaPreviewSmUrl(mediaAppUrl: string): string | null {
-  const m = mediaAppUrl.trim().match(API_MEDIA_ID_RE);
-  return m ? `/api/media/${m[1]}/preview/sm` : null;
 }
 
 function inferPreviewFromUrl(url: string): "image" | "gif" | "video" | null {
@@ -386,6 +388,8 @@ export function MediaLibraryPickerDialog({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [lastPick, setLastPick] = useState<LastPick | null>(null);
+  const [hydratedPick, setHydratedPick] = useState<LastPick | null>(null);
+  const hydrateRequestRef = useRef(0);
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
 
   const exercisePicker = kind === "image_or_video";
@@ -406,8 +410,46 @@ export function MediaLibraryPickerDialog({
 
   const effectiveLastPick = useMemo(() => {
     const t = value.trim();
-    if (!t || !lastPick) return null;
-    return lastPick.url === t ? lastPick : null;
+    if (!t) return null;
+    if (lastPick && lastPick.url === t) return lastPick;
+    if (hydratedPick && hydratedPick.url === t) return hydratedPick;
+    return null;
+  }, [value, lastPick, hydratedPick]);
+
+  useEffect(() => {
+    const t = value.trim();
+    const mediaId = parseMediaFileIdFromAppUrl(t);
+    if (!mediaId) {
+      queueMicrotask(() => setHydratedPick(null));
+      return;
+    }
+    if (lastPick?.url === t) {
+      queueMicrotask(() => setHydratedPick(null));
+      return;
+    }
+
+    const requestId = ++hydrateRequestRef.current;
+    const ac = new AbortController();
+    queueMicrotask(() => setHydratedPick(null));
+
+    void fetchAdminMediaListItem(mediaId, { signal: ac.signal })
+      .then((item) => {
+        if (ac.signal.aborted || requestId !== hydrateRequestRef.current) return;
+        if (!item) return;
+        const url = item.url.trim();
+        if (url !== t) return;
+        setHydratedPick({
+          url,
+          rowKind: item.kind,
+          mimeType: item.mimeType,
+          previewSmUrl: item.previewSmUrl,
+          previewMdUrl: item.previewMdUrl,
+          previewStatus: item.previewStatus,
+        });
+      })
+      .catch(() => {});
+
+    return () => ac.abort();
   }, [value, lastPick]);
 
   const handleOpenChange = useCallback((next: boolean) => {
@@ -416,7 +458,14 @@ export function MediaLibraryPickerDialog({
 
   const handlePickFromLibrary = useCallback(
     (item: MediaListItem) => {
-      setLastPick({ url: item.url, rowKind: item.kind, mimeType: item.mimeType });
+      setLastPick({
+        url: item.url,
+        rowKind: item.kind,
+        mimeType: item.mimeType,
+        previewSmUrl: item.previewSmUrl,
+        previewMdUrl: item.previewMdUrl,
+        previewStatus: item.previewStatus,
+      });
       onChange(item.url, {
         kind: item.kind,
         mimeType: item.mimeType,
@@ -441,35 +490,30 @@ export function MediaLibraryPickerDialog({
       })
     : null;
 
-  const libraryPreviewSm = apiMediaPreviewSmUrl(value);
+  const thumbKind: "image" | "video" =
+    previewMode === "video" ? "video" : previewMode === "image" || previewMode === "gif" ? "image" : "image";
+  const selectedPreviewMedia = mediaLibraryPickerSelectionToPreviewUi({
+    value,
+    thumbKind,
+    lastPick: effectiveLastPick,
+  });
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-border p-3">
       <div className="space-y-2 text-sm">
         {value ? (
           <>
-            {previewMode === "video" ? (
+            {previewMode === "video" || previewMode === "image" || previewMode === "gif" ? (
               <div
                 className="max-w-md overflow-hidden rounded-md border border-border/60 bg-muted/30"
                 data-testid="selected-media-preview"
               >
-                {libraryPreviewSm ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={libraryPreviewSm} alt="" className="h-40 w-full object-contain bg-muted/30" />
-                ) : (
-                  <VideoThumbnailPreview src={value} className="h-40 w-full object-contain" />
-                )}
-              </div>
-            ) : previewMode === "image" || previewMode === "gif" ? (
-              <div
-                className="max-w-md overflow-hidden rounded-md border border-border/60 bg-muted/30"
-                data-testid="selected-media-preview"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={libraryPreviewSm ?? value}
-                  alt=""
-                  className="h-40 w-full object-contain bg-muted/30"
+                <MediaThumb
+                  media={selectedPreviewMedia}
+                  className="h-40 w-full"
+                  imgClassName="h-40 w-full object-contain bg-muted/30"
+                  labels={{ skipped: "Превью не создаётся", failed: "Превью недоступно" }}
+                  sizes="160px"
                 />
               </div>
             ) : null}

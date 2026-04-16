@@ -1,14 +1,29 @@
 import { getBaseCatalog } from "./catalog";
 import type { ContentStubItem } from "./types";
 import type { ContentPagesPort } from "@/infra/repos/pgContentPages";
+import type { MediaRecord } from "@/modules/media/types";
+import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 
 export type ContentCatalogResolver = {
   getBySlug(slug: string): Promise<ContentStubItem | null>;
 };
 
+async function attachImageLibraryMedia(
+  item: ContentStubItem,
+  loadMediaById?: (id: string) => Promise<MediaRecord | null>,
+): Promise<ContentStubItem> {
+  if (!loadMediaById || !item.imageUrl?.trim()) return item;
+  const id = parseMediaFileIdFromAppUrl(item.imageUrl);
+  if (!id) return item;
+  const row = await loadMediaById(id);
+  if (!row) return item;
+  return { ...item, imageLibraryMedia: row };
+}
+
 export function createContentCatalogResolver(options: {
   testVideoUrl?: string;
   contentPages?: ContentPagesPort;
+  loadMediaById?: (id: string) => Promise<MediaRecord | null>;
 }): ContentCatalogResolver {
   const base = getBaseCatalog();
   const testVideoUrl = options.testVideoUrl && options.testVideoUrl.length > 0 ? options.testVideoUrl : undefined;
@@ -43,7 +58,7 @@ export function createContentCatalogResolver(options: {
             if (slug === "test-video" && testVideoUrl) {
               item.videoSource = { type: "url", url: testVideoUrl };
             }
-            return item;
+            return attachImageLibraryMedia(item, options.loadMediaById);
           }
         } catch (err) {
           console.error("content DB fallback:", err);
@@ -57,7 +72,7 @@ export function createContentCatalogResolver(options: {
       if (slug === "test-video" && testVideoUrl) {
         item.videoSource = { type: "url", url: testVideoUrl };
       }
-      return item;
+      return attachImageLibraryMedia(item, options.loadMediaById);
     },
   };
 }

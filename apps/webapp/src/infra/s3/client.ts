@@ -100,6 +100,9 @@ export type S3HeadObjectDetails = {
   contentType: string | undefined;
   /** Lowercase keys as returned by HeadObject Metadata. */
   metadata: Record<string, string>;
+  /** S3 object ETag when present (used for preview cache validators). */
+  eTag?: string;
+  lastModified?: Date;
 };
 
 export async function s3HeadObjectDetails(key: string): Promise<S3HeadObjectDetails | null> {
@@ -120,6 +123,8 @@ export async function s3HeadObjectDetails(key: string): Promise<S3HeadObjectDeta
       contentLength: Number(out.ContentLength ?? 0),
       contentType: out.ContentType,
       metadata: normalized,
+      eTag: out.ETag ?? undefined,
+      lastModified: out.LastModified ?? undefined,
     };
   } catch {
     return null;

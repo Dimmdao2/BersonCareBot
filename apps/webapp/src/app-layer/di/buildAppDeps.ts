@@ -319,9 +319,11 @@ const getPastAppointments: (userId: string) => Promise<PastAppointmentSummary[]>
 const symptomDiaryService = createSymptomDiaryService(symptomDiaryPort);
 const lfkDiaryService = createLfkDiaryService(lfkDiaryPort);
 const channelPreferencesService = createChannelPreferencesService(channelPreferencesPort);
+const mediaService = createMediaService(mediaStoragePort);
 const contentCatalog = createContentCatalogResolver({
   testVideoUrl: env.MEDIA_TEST_VIDEO_URL?.length ? env.MEDIA_TEST_VIDEO_URL : undefined,
   contentPages: contentPagesPort,
+  loadMediaById: (id) => mediaService.getById(id),
 });
 
 const smsPort =
@@ -539,7 +541,7 @@ function _buildAppDeps() {
     health: {
       checkDbHealth,
     },
-    media: createMediaService(mediaStoragePort),
+    media: mediaService,
     channelPreferences: channelPreferencesService,
     contentCatalog,
     deliveryTargetsApi: {

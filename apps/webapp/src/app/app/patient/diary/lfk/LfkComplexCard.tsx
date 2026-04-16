@@ -6,33 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { LfkComplex } from "@/modules/diaries/types";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { lfkCoverToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 
 export type LfkComplexCardProps = {
-  complex: Pick<LfkComplex, "id" | "title" | "origin">;
+  complex: Pick<
+    LfkComplex,
+    | "id"
+    | "title"
+    | "origin"
+    | "coverImageUrl"
+    | "coverPreviewSmUrl"
+    | "coverPreviewMdUrl"
+    | "coverPreviewStatus"
+    | "coverKind"
+  >;
   description?: string | null;
-  coverImageUrl?: string | null;
   hasReminder: boolean;
   onBellClick: () => void;
   /** S4.T09: явная ссылка на редактирование расписания (то же действие, что и колокольчик). */
   onEditScheduleClick?: () => void;
 };
 
-function CoverPlaceholder({ label }: { label: string }) {
-  const letter = label.trim().slice(0, 1).toUpperCase() || "Л";
-  return (
-    <div
-      className="flex size-full items-center justify-center bg-gradient-to-br from-primary/25 via-primary/10 to-muted text-2xl font-semibold text-primary"
-      aria-hidden
-    >
-      {letter}
-    </div>
-  );
-}
-
 export function LfkComplexCard({
   complex,
   description,
-  coverImageUrl,
   hasReminder,
   onBellClick,
   onEditScheduleClick,
@@ -42,19 +40,18 @@ export function LfkComplexCard({
     description?.trim() ||
     "Упражнения из вашего комплекса. Отмечайте занятия в блоке выше.";
 
+  const coverThumbMedia = lfkCoverToPreviewUi(complex);
+
   return (
     <Card className="overflow-hidden rounded-xl border border-border/80 bg-card py-0 shadow-sm">
       <div className="flex items-stretch gap-3 p-2 sm:gap-3 sm:p-3">
-        <div
-          className="relative size-[4.5rem] shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted sm:size-[5.25rem]"
-          aria-hidden={!coverImageUrl}
-        >
-          {coverImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- optional remote / API URLs without image optimizer config
-            <img src={coverImageUrl} alt="" className="size-full object-cover" />
-          ) : (
-            <CoverPlaceholder label={title} />
-          )}
+        <div className="relative size-[4.5rem] shrink-0 overflow-hidden rounded-lg border border-border/60 bg-muted sm:size-[5.25rem]">
+          <MediaThumb
+            media={coverThumbMedia}
+            className="size-full"
+            imgClassName="size-full object-cover"
+            sizes="72px"
+          />
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
           <div className="flex items-start gap-2">

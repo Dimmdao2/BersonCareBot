@@ -51,7 +51,6 @@ export function LfkDiarySectionClient({
                 <LfkComplexCard
                   complex={c}
                   description={c.diagnosisText}
-                  coverImageUrl={c.coverImageUrl ?? null}
                   hasReminder={Boolean(reminder)}
                   onBellClick={() => openForComplex(c)}
                   onEditScheduleClick={reminder ? () => openForComplex(c) : undefined}

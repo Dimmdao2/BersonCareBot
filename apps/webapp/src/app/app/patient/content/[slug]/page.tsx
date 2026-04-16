@@ -12,6 +12,7 @@ import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access"
 import { PageSection } from "@/components/common/layout/PageSection";
 import { AppShell } from "@/shared/ui/AppShell";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
 import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -68,10 +69,9 @@ export default async function ContentSlugPage({ params }: Props) {
   return (
     <AppShell title={item.title} user={session?.user ?? null} backHref={backHref} backLabel="Назад" variant="patient">
       <article id={`patient-content-article-${slug}`} className="flex flex-col gap-4">
-        {item.imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- CMS-provided images have unknown dimensions; next/image requires explicit width/height
-          <img src={item.imageUrl} alt="" className="max-w-full h-auto" />
-        )}
+        {item.imageUrl ? (
+          <ContentHeroImage imageUrl={item.imageUrl} imageLibraryMedia={item.imageLibraryMedia} />
+        ) : null}
         <MarkdownContent
           text={item.bodyText}
           bodyFormat={item.bodyFormat ?? "markdown"}

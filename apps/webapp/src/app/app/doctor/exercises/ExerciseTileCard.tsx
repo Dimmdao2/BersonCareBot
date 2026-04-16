@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Exercise } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
-import { VideoThumbnailPreview } from "@/shared/ui/media/VideoThumbnailPreview";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 
 type Props = {
   exercise: Exercise;
@@ -26,12 +27,12 @@ export function ExerciseTileCard({ exercise, onSelect, isActive }: Props) {
       <CardContent className="flex h-full flex-col gap-1 p-1">
         {firstMedia ? (
           <div className="h-[135px] w-full overflow-hidden rounded-md border border-border/60 bg-muted/30">
-            {firstMedia.mediaType === "video" ? (
-              <VideoThumbnailPreview src={firstMedia.mediaUrl} className="h-full w-full object-cover" />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={firstMedia.mediaUrl} alt="" className="h-full w-full object-cover" />
-            )}
+            <MediaThumb
+              media={exerciseMediaToPreviewUi(firstMedia)}
+              className="h-full w-full"
+              imgClassName="h-full w-full object-cover"
+              sizes="160px"
+            />
           </div>
         ) : null}
         <p className="line-clamp-2 px-1 text-center text-xs leading-snug text-foreground">{exercise.title}</p>

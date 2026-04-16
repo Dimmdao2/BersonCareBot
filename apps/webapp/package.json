@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 5200",
-    "lint": "eslint .",
+    "lint": "eslint . && bash scripts/check-media-preview-invariants.sh",
+    "check:media-preview-invariants": "bash scripts/check-media-preview-invariants.sh",
     "build": "NODE_ENV=production next build && bash ../../deploy/host/sync-webapp-standalone-assets.sh",
     "analyze": "ANALYZE=true next build --webpack",
     "start": "next start -H 127.0.0.1 -p 6200",

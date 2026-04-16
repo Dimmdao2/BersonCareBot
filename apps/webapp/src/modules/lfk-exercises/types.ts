@@ -1,3 +1,5 @@
+import type { MediaPreviewStatus } from "@/modules/media/types";
+
 export type ExerciseLoadType = "strength" | "stretch" | "balance" | "cardio" | "other";
 
 export type ExerciseMediaType = "image" | "video" | "gif";
@@ -9,6 +11,10 @@ export type ExerciseMedia = {
   mediaType: ExerciseMediaType;
   sortOrder: number;
   createdAt: string;
+  /** Library grid preview (joined from `media_files` when `mediaUrl` is `/api/media/{uuid}`). */
+  previewSmUrl?: string | null;
+  previewMdUrl?: string | null;
+  previewStatus?: MediaPreviewStatus;
 };
 
 export type Exercise = {

@@ -5,6 +5,7 @@ import { pgListExerciseUsageForMediaIds } from "@/infra/repos/pgLfkExercises";
 import { logger } from "@/infra/logging/logger";
 import type { MediaExerciseUsageEntry } from "@/modules/media/types";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 import { z } from "zod";
 
@@ -47,15 +48,6 @@ function validateExerciseMedia(mediaUrl: string | null, mediaType: "image" | "vi
     return "Медиа должно быть из библиотеки файлов (/api/media/…) или допустимый legacy URL (https://…).";
   }
   return null;
-}
-
-const API_MEDIA_ID_RE =
-  /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
-
-/** Lowercase media_files id from `/api/media/{uuid}` or null. */
-export function parseApiMediaIdFromExerciseUrl(mediaUrl: string): string | null {
-  const m = mediaUrl.trim().match(API_MEDIA_ID_RE);
-  return m ? m[1].toLowerCase() : null;
 }
 
 export const bulkCreateExerciseMediaItemSchema = z.object({
@@ -114,7 +106,7 @@ export async function bulkCreateExercisesFromMediaCore(
   );
 
   const deps = buildAppDeps();
-  const mediaIds = deduped.map((i) => parseApiMediaIdFromExerciseUrl(i.mediaUrl)).filter((id): id is string => Boolean(id));
+  const mediaIds = deduped.map((i) => parseMediaFileIdFromAppUrl(i.mediaUrl)).filter((id): id is string => Boolean(id));
 
   let usageByMediaId: Record<string, MediaExerciseUsageEntry[]> = {};
   const linkedUrlsInMemory = new Set<string>();
@@ -146,7 +138,7 @@ export async function bulkCreateExercisesFromMediaCore(
       failed += 1;
       continue;
     }
-    const mediaId = parseApiMediaIdFromExerciseUrl(row.mediaUrl);
+    const mediaId = parseMediaFileIdFromAppUrl(row.mediaUrl);
     if (!mediaId) {
       failed += 1;
       continue;

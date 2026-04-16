@@ -22,6 +22,35 @@ const patchBodySchema = z
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await getCurrentSession();
+  if (!session) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  if (!canAccessDoctor(session.user.role)) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  if (!UUID_RE.test(id)) {
+    return NextResponse.json({ ok: false, error: "invalid_id" }, { status: 400 });
+  }
+
+  const deps = buildAppDeps();
+  const row = await deps.media.getById(id);
+  if (!row) {
+    return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+
+  const item = {
+    ...row,
+    url: row.url ?? `/api/media/${row.id}`,
+  };
+
+  return NextResponse.json({ ok: true, item });
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

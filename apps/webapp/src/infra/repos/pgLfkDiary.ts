@@ -3,8 +3,10 @@
  * Tables: lfk_complexes, lfk_sessions (see webapp/migrations/005_lfk_complexes_and_sessions.sql).
  */
 import { getPool } from "@/infra/db/client";
+import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { LfkDiaryPort } from "@/modules/diaries/ports";
 import type { LfkComplex, LfkSession } from "@/modules/diaries/types";
+import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 
 function rowToComplex(row: {
   id: string;
@@ -12,6 +14,11 @@ function rowToComplex(row: {
   platform_user_id?: string | null;
   title: string;
   cover_image_url?: string | null;
+  cover_media_type?: string | null;
+  cover_media_id?: string | null;
+  preview_sm_key?: string | null;
+  preview_md_key?: string | null;
+  preview_status?: string | null;
   origin: string;
   is_active: boolean;
   created_at: Date;
@@ -26,11 +33,25 @@ function rowToComplex(row: {
     row.platform_user_id != null && String(row.platform_user_id).trim() !== ""
       ? String(row.platform_user_id)
       : row.user_id;
+  const mid = row.cover_media_id ? String(row.cover_media_id) : null;
+  const coverPreviewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
+  const coverPreviewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, "md") : null;
+  const coverPreviewStatus = (row.preview_status ?? undefined) as MediaPreviewStatus | undefined;
+  const coverKind =
+    mid && row.cover_media_type === "video"
+      ? ("video" as const)
+      : mid
+        ? ("image" as const)
+        : undefined;
   return {
     id: String(row.id),
     userId: uid,
     title: row.title,
     coverImageUrl: row.cover_image_url ?? null,
+    coverPreviewSmUrl,
+    coverPreviewMdUrl,
+    coverPreviewStatus,
+    coverKind,
     origin: row.origin as "manual" | "assigned_by_specialist",
     isActive: row.is_active,
     createdAt: row.created_at.toISOString(),
@@ -76,6 +97,11 @@ function rowToSession(row: {
 const COMPLEX_SELECT = `c.id, c.user_id, c.title,
   c.platform_user_id,
   cover.cover_image_url,
+  cover.cover_media_type,
+  cover.cover_media_id,
+  cover.preview_sm_key,
+  cover.preview_md_key,
+  cover.preview_status,
   c.origin, c.is_active, c.created_at, c.updated_at,
   c.symptom_tracking_id, c.region_ref_id, c.side, c.diagnosis_text, c.diagnosis_ref_id`;
 const COMPLEX_RETURNING = `id, user_id, title,
@@ -123,9 +149,18 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       `SELECT ${COMPLEX_SELECT}
        FROM lfk_complexes c
        LEFT JOIN LATERAL (
-         SELECT em.media_url AS cover_image_url
+         -- cover_image_url: не использовать как preview в UI — только как source для playback; миниатюра — coverPreviewSmUrl.
+         SELECT em.media_url AS cover_image_url,
+                em.media_type AS cover_media_type,
+                mf.id AS cover_media_id,
+                mf.preview_sm_key, mf.preview_md_key, mf.preview_status
          FROM lfk_complex_exercises ce
          INNER JOIN lfk_exercise_media em ON em.exercise_id = ce.exercise_id
+         -- TEMP: parsing media_id из media_url, будет заменено на нормальный FK media_id
+         LEFT JOIN media_files mf ON mf.id = NULLIF(
+           substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
+           ''
+         )::uuid
          WHERE ce.complex_id = c.id
          ORDER BY ce.sort_order ASC, em.sort_order ASC, em.created_at ASC
          LIMIT 1
@@ -192,9 +227,18 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       `SELECT ${COMPLEX_SELECT}
        FROM lfk_complexes c
        LEFT JOIN LATERAL (
-         SELECT em.media_url AS cover_image_url
+         -- cover_image_url: не использовать как preview в UI — только как source для playback; миниатюра — coverPreviewSmUrl.
+         SELECT em.media_url AS cover_image_url,
+                em.media_type AS cover_media_type,
+                mf.id AS cover_media_id,
+                mf.preview_sm_key, mf.preview_md_key, mf.preview_status
          FROM lfk_complex_exercises ce
          INNER JOIN lfk_exercise_media em ON em.exercise_id = ce.exercise_id
+         -- TEMP: parsing media_id из media_url, будет заменено на нормальный FK media_id
+         LEFT JOIN media_files mf ON mf.id = NULLIF(
+           substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
+           ''
+         )::uuid
          WHERE ce.complex_id = c.id
          ORDER BY ce.sort_order ASC, em.sort_order ASC, em.created_at ASC
          LIMIT 1

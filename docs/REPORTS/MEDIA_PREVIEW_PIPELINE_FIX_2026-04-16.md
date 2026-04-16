@@ -14,6 +14,8 @@
 
 **Не менялось (намеренно):** модель доступа к `/api/media/:id` и `/preview/*` — любая валидная сессия; задокументировано в [`MEDIA_PREVIEW_PIPELINE.md`](../MEDIA_PREVIEW_PIPELINE.md).
 
+**Продолжение (тот же день, клиентский аудит):** см. [`AGENT_LOG_2026-04-16-media-preview-audit-followup.md`](./AGENT_LOG_2026-04-16-media-preview-audit-followup.md) — `MediaPreviewUiModel`, инварианты lint, правки picker и proxy-route.
+
 ## Затронутые файлы
 
 - [`apps/webapp/src/infra/repos/mediaPreviewWorker.ts`](../../apps/webapp/src/infra/repos/mediaPreviewWorker.ts)

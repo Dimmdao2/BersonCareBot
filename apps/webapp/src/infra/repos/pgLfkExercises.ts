@@ -1,5 +1,6 @@
 import { getPool } from "@/infra/db/client";
-import type { MediaExerciseUsageEntry } from "@/modules/media/types";
+import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
+import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
 import type {
   CreateExerciseInput,
@@ -18,7 +19,15 @@ function mapMediaRow(row: {
   media_type: string;
   sort_order: number;
   created_at: Date;
+  media_file_id: string | null;
+  preview_sm_key: string | null;
+  preview_md_key: string | null;
+  preview_status: string | null;
 }): ExerciseMedia {
+  const mid = row.media_file_id ? String(row.media_file_id) : null;
+  const previewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
+  const previewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, "md") : null;
+  const previewStatus = (row.preview_status ?? "pending") as MediaPreviewStatus;
   return {
     id: String(row.id),
     exerciseId: String(row.exercise_id),
@@ -26,6 +35,9 @@ function mapMediaRow(row: {
     mediaType: row.media_type as ExerciseMediaType,
     sortOrder: row.sort_order,
     createdAt: row.created_at.toISOString(),
+    previewSmUrl,
+    previewMdUrl,
+    previewStatus,
   };
 }
 
@@ -107,9 +119,18 @@ function mapExerciseRow(
 
 async function loadAllMediaForExercise(pool: ReturnType<typeof getPool>, exerciseId: string): Promise<ExerciseMedia[]> {
   const r = await pool.query(
-    `SELECT id, exercise_id, media_url, media_type, sort_order, created_at
-     FROM lfk_exercise_media WHERE exercise_id = $1 ORDER BY sort_order ASC, created_at ASC`,
-    [exerciseId]
+    `SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
+            mf.id AS media_file_id,
+            mf.preview_sm_key, mf.preview_md_key, mf.preview_status
+     FROM lfk_exercise_media em
+     -- TEMP: parsing media_id из media_url, будет заменено на нормальный FK media_id
+     LEFT JOIN media_files mf ON mf.id = NULLIF(
+       substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
+       ''
+     )::uuid
+     WHERE em.exercise_id = $1
+     ORDER BY em.sort_order ASC, em.created_at ASC`,
+    [exerciseId],
   );
   return r.rows.map(mapMediaRow);
 }
@@ -153,13 +174,25 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const sql = `
         SELECT e.id, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
-               pm.id AS pm_id, pm.media_url AS pm_url, pm.media_type AS pm_type, pm.sort_order AS pm_order, pm.created_at AS pm_created
+               pm.id AS pm_id, pm.media_url AS pm_url, pm.media_type AS pm_type, pm.sort_order AS pm_order,
+               pm.created_at AS pm_created,
+               pm.media_file_id AS pm_media_file_id,
+               pm.preview_sm_key AS pm_preview_sm_key,
+               pm.preview_md_key AS pm_preview_md_key,
+               pm.preview_status AS pm_preview_status
         FROM lfk_exercises e
         LEFT JOIN LATERAL (
-          SELECT id, media_url, media_type, sort_order, created_at
-          FROM lfk_exercise_media
-          WHERE exercise_id = e.id
-          ORDER BY sort_order ASC, created_at ASC
+          SELECT em.id, em.media_url, em.media_type, em.sort_order, em.created_at,
+                 mf.id AS media_file_id,
+                 mf.preview_sm_key, mf.preview_md_key, mf.preview_status
+          FROM lfk_exercise_media em
+          -- TEMP: parsing media_id из media_url, будет заменено на нормальный FK media_id
+          LEFT JOIN media_files mf ON mf.id = NULLIF(
+            substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
+            ''
+          )::uuid
+          WHERE em.exercise_id = e.id
+          ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) pm ON true
         WHERE ${conds.join(" AND ")}
@@ -177,7 +210,11 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
               media_type: row.pm_type as string,
               sort_order: row.pm_order as number,
               created_at: row.pm_created as Date,
-            })
+              media_file_id: (row.pm_media_file_id as string | null) ?? null,
+              preview_sm_key: (row.pm_preview_sm_key as string | null) ?? null,
+              preview_md_key: (row.pm_preview_md_key as string | null) ?? null,
+              preview_status: (row.pm_preview_status as string | null) ?? null,
+            }),
           );
         }
         return mapExerciseRow(

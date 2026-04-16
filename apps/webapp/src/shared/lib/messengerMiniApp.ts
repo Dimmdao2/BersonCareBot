@@ -51,8 +51,12 @@ export function isMessengerMiniAppHost(): boolean {
   if (tgWebApp && readPlatformCookieBot()) {
     return true;
   }
-  const webApp = (window as Window & { WebApp?: { ready?: () => void } }).WebApp;
-  return Boolean(webApp && typeof webApp.ready === "function");
+  const webApp = (window as Window & { WebApp?: { initData?: string; ready?: () => void } }).WebApp;
+  if (!webApp || typeof webApp.ready !== "function") return false;
+  const maxInitData = typeof webApp.initData === "string" ? webApp.initData.trim() : "";
+  // В обычном браузере bridge-скрипт MAX тоже создает `window.WebApp`.
+  // Mini App контекст считаем только когда есть реальные данные входа или bot-cookie.
+  return maxInitData.length > 0 || readPlatformCookieBot();
 }
 
 /**

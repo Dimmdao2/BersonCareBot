@@ -1,19 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, findUsageMock, deleteHardMock, updateDisplayNameMock, buildAppDepsMock } = vi.hoisted(() => {
+const {
+  getSessionMock,
+  findUsageMock,
+  deleteHardMock,
+  updateDisplayNameMock,
+  getByIdMock,
+  buildAppDepsMock,
+} = vi.hoisted(() => {
   const findUsageMockInner = vi.fn().mockResolvedValue([]);
   const deleteHardMockInner = vi.fn().mockResolvedValue(true);
   const updateDisplayNameMockInner = vi.fn().mockResolvedValue(true);
+  const getByIdMockInner = vi.fn();
   return {
     getSessionMock: vi.fn(),
     findUsageMock: findUsageMockInner,
     deleteHardMock: deleteHardMockInner,
     updateDisplayNameMock: updateDisplayNameMockInner,
+    getByIdMock: getByIdMockInner,
     buildAppDepsMock: vi.fn(() => ({
       media: {
         findUsage: findUsageMockInner,
         deleteHard: deleteHardMockInner,
         updateDisplayName: updateDisplayNameMockInner,
+        getById: getByIdMockInner,
       },
     })),
   };
@@ -27,9 +37,64 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
 
-import { DELETE, PATCH } from "./route";
+import { DELETE, GET, PATCH } from "./route";
 
 const mediaId = "11111111-1111-4111-8111-111111111111";
+
+describe("GET /api/admin/media/[id]", () => {
+  beforeEach(() => {
+    getSessionMock.mockReset();
+    getByIdMock.mockReset();
+  });
+
+  it("returns 401 without session", async () => {
+    getSessionMock.mockResolvedValue(null);
+    const res = await GET(new Request(`http://localhost/api/admin/media/${mediaId}`), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for client role", async () => {
+    getSessionMock.mockResolvedValue({ user: { role: "client" } });
+    const res = await GET(new Request(`http://localhost/api/admin/media/${mediaId}`), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when media is missing", async () => {
+    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    getByIdMock.mockResolvedValue(null);
+    const res = await GET(new Request(`http://localhost/api/admin/media/${mediaId}`), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns row json for doctor", async () => {
+    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    getByIdMock.mockResolvedValue({
+      id: mediaId,
+      kind: "image",
+      mimeType: "image/png",
+      filename: "a.png",
+      size: 12,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      previewStatus: "ready",
+      previewSmUrl: `/api/media/${mediaId}/preview/sm`,
+      previewMdUrl: `/api/media/${mediaId}/preview/md`,
+    });
+    const res = await GET(new Request(`http://localhost/api/admin/media/${mediaId}`), {
+      params: Promise.resolve({ id: mediaId }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; item: { url: string; id: string } };
+    expect(body.ok).toBe(true);
+    expect(body.item.id).toBe(mediaId);
+    expect(body.item.url).toBe(`/api/media/${mediaId}`);
+  });
+});
 
 describe("DELETE /api/admin/media/[id]", () => {
   beforeEach(() => {
@@ -37,6 +102,7 @@ describe("DELETE /api/admin/media/[id]", () => {
     findUsageMock.mockReset();
     deleteHardMock.mockReset();
     updateDisplayNameMock.mockReset();
+    getByIdMock.mockReset();
   });
 
   it("returns 401 without session", async () => {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Check, ImageOff, Video } from "lucide-react";
+import { Check } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +17,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { MediaExerciseUsageEntry, MediaFolderRecord } from "@/modules/media/types";
 import { cn } from "@/lib/utils";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import {
   buildAdminMediaListUrl,
   filterMediaLibraryPickerItemsByQuery,
@@ -63,12 +65,7 @@ function MediaCard({
   const hasExerciseUsage = Boolean(exerciseUsage?.length);
   const usageTooltip = hasExerciseUsage ? exerciseUsageTooltipLines(exerciseUsage!) : "";
 
-  const previewStatus = item.previewStatus ?? "pending";
-  const thumbReady = previewStatus === "ready" && Boolean(item.previewSmUrl?.trim());
-  const thumbPending = previewStatus === "pending" || (previewStatus === "ready" && !item.previewSmUrl?.trim());
-  const thumbFailed = previewStatus === "failed";
-  const thumbSkipped = previewStatus === "skipped";
-  const thumbNoPreview = thumbFailed || thumbSkipped;
+  const thumbMedia = libraryMediaRowToPreviewUi(item);
 
   return (
     <div className="relative flex flex-col gap-2 rounded-md border border-border p-3">
@@ -87,21 +84,12 @@ function MediaCard({
         </Tooltip>
       ) : null}
       <div className="relative min-h-20 overflow-hidden rounded border border-border/60 bg-muted/30">
-        {thumbReady ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.previewSmUrl!} alt="" className="h-24 w-full object-contain bg-muted/30" />
-        ) : thumbPending ? (
-          <div className="h-24 w-full animate-pulse bg-muted/40" aria-hidden />
-        ) : thumbNoPreview ? (
-          <div className="flex h-24 w-full flex-col items-center justify-center gap-1 text-muted-foreground">
-            <ImageOff className="h-7 w-7 opacity-60" aria-hidden />
-            <span className="text-[10px]">{thumbSkipped ? "Без превью" : "Нет превью"}</span>
-          </div>
-        ) : (
-          <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
-            <Video className="h-8 w-8 text-muted-foreground" />
-          </div>
-        )}
+        <MediaThumb
+          media={thumbMedia}
+          className="h-24 w-full"
+          imgClassName="h-24 w-full object-contain bg-muted/30"
+          labels={{ skipped: "Без превью", failed: "Нет превью" }}
+        />
       </div>
       <p className="min-h-10 break-words line-clamp-2 text-sm font-medium" title={title}>
         {title}

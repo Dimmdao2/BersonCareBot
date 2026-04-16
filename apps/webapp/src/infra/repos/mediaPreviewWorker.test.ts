@@ -109,6 +109,7 @@ vi.mock("@/infra/logging/logger", () => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
+    debug: vi.fn(),
   },
 }));
 
@@ -235,9 +236,14 @@ describe("processMediaPreviewBatch", () => {
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 1, errors: 0 });
-    expect(presignGetUrlMock).toHaveBeenCalledTimes(1);
+    expect(presignGetUrlMock.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(s3PutObjectBodyMock).toHaveBeenCalledWith(
       "previews/sm/11111111-1111-4111-8111-111111111111.jpg",
+      expect.any(Buffer),
+      "image/jpeg",
+    );
+    expect(s3PutObjectBodyMock).toHaveBeenCalledWith(
+      "previews/md/11111111-1111-4111-8111-111111111111.jpg",
       expect.any(Buffer),
       "image/jpeg",
     );

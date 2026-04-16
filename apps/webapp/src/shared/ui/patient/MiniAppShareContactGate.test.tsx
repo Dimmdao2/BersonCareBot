@@ -189,6 +189,9 @@ describe("MiniAppShareContactGate", () => {
   it("calls auth exchange when /api/me is 401 and URL has token (Max-style deep link)", async () => {
     delete (window as unknown as { Telegram?: unknown }).Telegram;
     (window as unknown as { WebApp?: { ready: () => void } }).WebApp = { ready: () => {} };
+    const origCookie = document.cookie;
+    /** `isMessengerMiniAppHost()` requires bot cookie when MAX `initData` is empty — then recovery uses `?t=` exchange. */
+    document.cookie = "bersoncare_platform=bot; path=/";
     const origSearch = window.location.search;
     Object.defineProperty(window, "location", {
       configurable: true,
@@ -209,24 +212,27 @@ describe("MiniAppShareContactGate", () => {
       return new Response("", { status: 404 });
     }) as typeof fetch;
 
-    render(
-      <MiniAppShareContactGate>
-        <div data-testid="inner">Inside</div>
-      </MiniAppShareContactGate>,
-    );
-
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/auth/exchange"),
-        expect.objectContaining({ method: "POST" }),
+    try {
+      render(
+        <MiniAppShareContactGate>
+          <div data-testid="inner">Inside</div>
+        </MiniAppShareContactGate>,
       );
-    });
 
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...window.location, search: origSearch },
-    });
-    delete (window as unknown as { WebApp?: unknown }).WebApp;
+      await waitFor(() => {
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/auth/exchange"),
+          expect.objectContaining({ method: "POST" }),
+        );
+      });
+    } finally {
+      document.cookie = origCookie;
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: { ...window.location, search: origSearch },
+      });
+      delete (window as unknown as { WebApp?: unknown }).WebApp;
+    }
   });
 
   it("clicking Provide contact POSTs request-contact then closes WebApp", async () => {

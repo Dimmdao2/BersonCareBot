@@ -1,3 +1,5 @@
+import type { MediaPreviewStatus } from "@/modules/media/types";
+
 export type SymptomSide = "left" | "right" | "both";
 
 export type SymptomTracking = {
@@ -37,6 +39,11 @@ export type LfkComplex = {
   title: string;
   /** Optional preview image for list cards (first media from complex exercises). */
   coverImageUrl?: string | null;
+  /** Library preview sm URL when cover is `/api/media/{uuid}` with previews (preferred over `coverImageUrl` in lists). */
+  coverPreviewSmUrl?: string | null;
+  coverPreviewMdUrl?: string | null;
+  coverPreviewStatus?: MediaPreviewStatus;
+  coverKind?: "image" | "video";
   origin: "manual" | "assigned_by_specialist";
   isActive: boolean;
   createdAt: string;

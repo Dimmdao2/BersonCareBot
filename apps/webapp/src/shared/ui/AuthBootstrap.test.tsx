@@ -99,6 +99,24 @@ describe("AuthBootstrap", () => {
     expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
   });
 
+  it("в обычном браузере с загруженным MAX bridge не зависает в miniapp-ожидании", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
+    window.history.pushState({}, "", "/");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    (window as Window & { WebApp?: { ready?: () => void; initData?: string } }).WebApp = {
+      ready: () => undefined,
+      initData: "",
+    };
+
+    render(<AuthBootstrap />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+
+    expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
+  });
+
   it("при ctx=bot не показывает телефонный флоу после таймаута initData и даёт Повторить", async () => {
     render(<AuthBootstrap />);
 

@@ -1,10 +1,12 @@
 "use client";
 
 import { memo } from "react";
-import { Check, File, Image as ImageIcon, ImageOff, Music, Video } from "lucide-react";
+import { Check, File, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 
 export type MediaListItem = {
   id: string;
@@ -36,10 +38,6 @@ type ItemProps = {
   exerciseUsage?: MediaExerciseUsageEntry[];
 };
 
-function ThumbPlaceholder() {
-  return <div className="h-24 w-full animate-pulse bg-muted/40" aria-hidden />;
-}
-
 function exerciseUsageTooltipLines(usage: MediaExerciseUsageEntry[]): string {
   const max = 25;
   const slice = usage.slice(0, max);
@@ -58,15 +56,6 @@ const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect, 
       return item.createdAt;
     }
   })();
-
-  const previewStatus = item.previewStatus ?? "pending";
-  const visual = item.kind === "image" || item.kind === "video";
-  const thumbReady = visual && previewStatus === "ready" && Boolean(item.previewSmUrl?.trim());
-  const thumbPending =
-    visual && (previewStatus === "pending" || (previewStatus === "ready" && !item.previewSmUrl?.trim()));
-  const thumbFailed = visual && previewStatus === "failed";
-  const thumbSkipped = visual && previewStatus === "skipped";
-  const thumbNoPreview = thumbFailed || thumbSkipped;
 
   const hasExerciseUsage = Boolean(exerciseUsage?.length);
   const usageTooltip = hasExerciseUsage ? exerciseUsageTooltipLines(exerciseUsage!) : "";
@@ -88,38 +77,13 @@ const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect, 
         </Tooltip>
       ) : null}
       <div className="relative min-h-20 overflow-hidden rounded border border-border/60 bg-muted/30">
-        {item.kind === "image" ? (
-          thumbReady ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.previewSmUrl!} alt="" className="h-24 w-full object-contain bg-muted/30" />
-          ) : thumbPending ? (
-            <ThumbPlaceholder />
-          ) : thumbNoPreview ? (
-            <div className="flex h-24 w-full flex-col items-center justify-center gap-1 text-muted-foreground">
-              <ImageOff className="h-7 w-7 opacity-60" aria-hidden />
-              <span className="text-[10px]">{thumbSkipped ? "Без превью" : "Нет превью"}</span>
-            </div>
-          ) : (
-            <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
-              <ImageIcon className="h-8 w-8 text-muted-foreground" />
-            </div>
-          )
-        ) : item.kind === "video" ? (
-          thumbReady ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.previewSmUrl!} alt="" className="h-24 w-full object-contain bg-muted/30" />
-          ) : thumbPending ? (
-            <ThumbPlaceholder />
-          ) : thumbNoPreview ? (
-            <div className="flex h-24 w-full flex-col items-center justify-center gap-1 text-muted-foreground">
-              <ImageOff className="h-7 w-7 opacity-60" aria-hidden />
-              <span className="text-[10px]">{thumbSkipped ? "Без превью" : "Нет превью"}</span>
-            </div>
-          ) : (
-            <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
-              <Video className="h-8 w-8 text-muted-foreground" />
-            </div>
-          )
+        {item.kind === "image" || item.kind === "video" ? (
+          <MediaThumb
+            media={libraryMediaRowToPreviewUi(item)}
+            className="h-24 w-full"
+            imgClassName="h-24 w-full object-contain bg-muted/30"
+            labels={{ skipped: "Без превью", failed: "Нет превью" }}
+          />
         ) : item.kind === "audio" ? (
           <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
             <Music className="h-8 w-8 text-muted-foreground" />

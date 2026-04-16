@@ -8,7 +8,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
-import { VideoThumbnailPreview } from "@/shared/ui/media/VideoThumbnailPreview";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 import { ExerciseForm } from "./ExerciseForm";
 import { archiveExerciseInline, saveExerciseInline } from "./actionsInline";
@@ -40,15 +41,16 @@ function tileGridColsClass(count: number): string {
 function mediaNode(exercise: Exercise) {
   const media = exercise.media[0];
   if (!media) return <div className="h-9 w-9 shrink-0 rounded bg-muted" />;
-  if (media.mediaType === "video") {
-    return (
-      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30">
-        <VideoThumbnailPreview src={media.mediaUrl} className="h-full w-full object-cover" />
-      </div>
-    );
-  }
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={media.mediaUrl} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />;
+  return (
+    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30">
+      <MediaThumb
+        media={exerciseMediaToPreviewUi(media)}
+        className="size-full"
+        imgClassName="size-full object-cover"
+        sizes="36px"
+      />
+    </div>
+  );
 }
 
 type SelectionToolbarProps = {

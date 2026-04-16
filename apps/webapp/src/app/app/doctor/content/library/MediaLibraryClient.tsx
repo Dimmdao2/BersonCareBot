@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ImageIcon, ImageOff, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +30,8 @@ import { MediaCardActionsMenu } from "./MediaCardActionsMenu";
 import { MediaLightbox } from "./MediaLightbox";
 import { canRenderInlineImage } from "./mediaPreview";
 import type { MediaPreviewStatus } from "@/modules/media/types";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
 type SortBy = "date" | "size" | "type";
@@ -50,6 +52,8 @@ type MediaItem = {
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus;
+  sourceWidth?: number | null;
+  sourceHeight?: number | null;
 };
 
 type FolderRow = { id: string; parentId: string | null; name: string; createdAt: string };
@@ -99,36 +103,23 @@ function formatDate(iso: string): string {
 }
 
 function TableMediaThumb({ item, onOpen }: { item: MediaItem; onOpen: () => void }) {
-  const previewStatus = item.previewStatus ?? "pending";
-  const thumbReady =
-    (item.kind === "image" || item.kind === "video") &&
-    previewStatus === "ready" &&
-    Boolean(item.previewSmUrl?.trim());
-  const thumbPending =
-    (item.kind === "image" || item.kind === "video") &&
-    (previewStatus === "pending" || (previewStatus === "ready" && !item.previewSmUrl?.trim()));
-  const thumbFailed = (item.kind === "image" || item.kind === "video") && previewStatus === "failed";
-  const thumbSkipped = (item.kind === "image" || item.kind === "video") && previewStatus === "skipped";
-  const thumbNoPreview = thumbFailed || thumbSkipped;
+  const thumbMedia = libraryMediaRowToPreviewUi(item);
+  if (item.kind !== "image" && item.kind !== "video") {
+    return (
+      <button type="button" onClick={onOpen} className="rounded border border-border">
+        <div className="flex h-16 w-28 items-center justify-center bg-muted/30 text-xs text-muted-foreground">—</div>
+      </button>
+    );
+  }
 
   return (
     <button type="button" onClick={onOpen} className="rounded border border-border">
-      {thumbReady ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={item.previewSmUrl!} alt="" className="max-h-16 max-w-28 rounded object-contain bg-muted/30" />
-      ) : thumbPending ? (
-        <div className="h-16 w-28 animate-pulse rounded bg-muted/50" aria-hidden />
-      ) : thumbNoPreview ? (
-        <div className="flex h-16 w-28 flex-col items-center justify-center gap-0.5 bg-muted/20 text-[10px] text-muted-foreground">
-          <ImageOff className="h-5 w-5 opacity-60" aria-hidden />
-        </div>
-      ) : item.kind === "image" ? (
-        <div className="flex h-16 w-28 items-center justify-center rounded bg-muted/30" aria-hidden>
-          <ImageIcon className="h-6 w-6 text-muted-foreground" />
-        </div>
-      ) : (
-        <div className="flex h-16 w-28 items-center justify-center bg-muted/30 text-xs text-muted-foreground">Видео</div>
-      )}
+      <MediaThumb
+        media={thumbMedia}
+        className="flex h-16 w-28 items-center justify-center rounded"
+        imgClassName="max-h-16 max-w-28 rounded object-contain bg-muted/30"
+        labels={{ skipped: "—", failed: "—" }}
+      />
     </button>
   );
 }
@@ -187,8 +178,6 @@ export function MediaLibraryClient() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [s3DeleteQueueErrors, setS3DeleteQueueErrors] = useState<number | null>(null);
-  const [resolutionById, setResolutionById] = useState<Record<string, string>>({});
-  const resolutionInFlightRef = useRef<Set<string>>(new Set());
   const desktopUploadInputRef = useRef<HTMLInputElement | null>(null);
   const mobileFilesInputRef = useRef<HTMLInputElement | null>(null);
   const mobileCaptureInputRef = useRef<HTMLInputElement | null>(null);
@@ -204,6 +193,7 @@ export function MediaLibraryClient() {
   const [foldersFlatForCrud, setFoldersFlatForCrud] = useState<FolderRow[]>([]);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const multipartSessionRef = useRef<string | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const currentFolderId = crumbs[crumbs.length - 1]?.id ?? null;
 
@@ -311,59 +301,6 @@ export function MediaLibraryClient() {
     return () => mq.removeEventListener("change", applyViewport);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    for (const item of items) {
-      if (item.kind !== "image" && item.kind !== "video") continue;
-      if (resolutionById[item.id]) continue;
-      if (resolutionInFlightRef.current.has(item.id)) continue;
-      resolutionInFlightRef.current.add(item.id);
-
-      if (item.kind === "image") {
-        const img = new Image();
-        img.onload = () => {
-          resolutionInFlightRef.current.delete(item.id);
-          if (cancelled) return;
-          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-            setResolutionById((prev) => ({ ...prev, [item.id]: `${img.naturalWidth}x${img.naturalHeight}` }));
-            return;
-          }
-          setResolutionById((prev) => ({ ...prev, [item.id]: "—" }));
-        };
-        img.onerror = () => {
-          resolutionInFlightRef.current.delete(item.id);
-          if (cancelled) return;
-          setResolutionById((prev) => ({ ...prev, [item.id]: "—" }));
-        };
-        img.src = item.url;
-      } else {
-        const video = document.createElement("video");
-        video.preload = "metadata";
-        video.onloadedmetadata = () => {
-          resolutionInFlightRef.current.delete(item.id);
-          if (cancelled) return;
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            setResolutionById((prev) => ({ ...prev, [item.id]: `${video.videoWidth}x${video.videoHeight}` }));
-          } else {
-            setResolutionById((prev) => ({ ...prev, [item.id]: "—" }));
-          }
-          video.remove();
-        };
-        video.onerror = () => {
-          resolutionInFlightRef.current.delete(item.id);
-          if (!cancelled) {
-            setResolutionById((prev) => ({ ...prev, [item.id]: "—" }));
-          }
-          video.remove();
-        };
-        video.src = item.url;
-      }
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [items, resolutionById]);
-
   function onChangeViewMode(nextMode: ViewMode) {
     setViewMode(nextMode);
     window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, nextMode);
@@ -400,6 +337,23 @@ export function MediaLibraryClient() {
       setLoadingMore(false);
     }
   }
+
+  const onLoadMoreRef = useRef(onLoadMore);
+  onLoadMoreRef.current = onLoadMore;
+
+  useEffect(() => {
+    if (!hasMore || loadingMore) return;
+    const el = loadMoreSentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) void onLoadMoreRef.current();
+      },
+      { root: null, rootMargin: "400px", threshold: 0.01 },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMore, loadingMore, reloadKey, searchParams]);
 
   async function onCopyUrl(item: MediaItem) {
     try {
@@ -789,7 +743,10 @@ export function MediaLibraryClient() {
 
   function resolutionText(item: MediaItem): string {
     if (item.kind !== "image" && item.kind !== "video") return "—";
-    return resolutionById[item.id] ?? "определяется...";
+    const w = item.sourceWidth;
+    const h = item.sourceHeight;
+    if (typeof w === "number" && typeof h === "number" && w > 0 && h > 0) return `${w}x${h}`;
+    return "—";
   }
 
   async function executeDelete(force: boolean) {
@@ -1526,10 +1483,10 @@ export function MediaLibraryClient() {
       />
 
       {!loading && items.length > 0 ? (
-        <div className="flex justify-center">
-          <Button type="button" variant="outline" onClick={() => void onLoadMore()} disabled={!hasMore || loadingMore}>
-            {!hasMore ? "Больше файлов нет" : loadingMore ? "Загрузка..." : "Загрузить ещё"}
-          </Button>
+        <div className="flex flex-col items-center gap-2 py-3">
+          {loadingMore ? <p className="text-xs text-muted-foreground">Загрузка…</p> : null}
+          {!hasMore ? <p className="text-xs text-muted-foreground">Больше файлов нет</p> : null}
+          {hasMore ? <div ref={loadMoreSentinelRef} className="h-1 w-full shrink-0" aria-hidden /> : null}
         </div>
       ) : null}
     </div>

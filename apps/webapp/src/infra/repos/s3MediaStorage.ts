@@ -14,6 +14,7 @@ import { s3DeleteObject, s3ObjectKey, s3PublicUrl, s3PutObjectBody } from "@/inf
 import type { MediaStoragePort } from "@/modules/media/ports";
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
 import type { MediaListParams, MediaPreviewStatus, MediaRecord, MediaUsageRef } from "@/modules/media/types";
+import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 
 function mediaAppUrl(mediaId: string): string {
   return `/api/media/${mediaId}`;
@@ -91,6 +92,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         preview_status: string | null;
         preview_sm_key: string | null;
         preview_md_key: string | null;
+        source_width: number | null;
+        source_height: number | null;
       }>(
         `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
@@ -98,7 +101,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
               NULLIF(TRIM(pu.display_name), '')
             ) AS uploaded_by_name,
             m.created_at,
-            m.preview_status, m.preview_sm_key, m.preview_md_key
+            m.preview_status, m.preview_sm_key, m.preview_md_key,
+            m.source_width, m.source_height
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          WHERE m.id = $1::uuid AND ${MEDIA_READABLE_STATUS_SQL_M}`,
@@ -113,13 +117,15 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         mimeType: row.mime_type,
         filename: row.original_name,
         displayName: row.display_name,
-        size: parseInt(row.size_bytes, 10),
+        size: parseInt(String(row.size_bytes), 10),
         userId: row.uploaded_by,
         uploadedByName: row.uploaded_by_name,
         createdAt: row.created_at.toISOString(),
         previewStatus,
-        previewSmUrl: row.preview_sm_key?.trim() ? `/api/media/${row.id}/preview/sm` : null,
-        previewMdUrl: row.preview_md_key?.trim() ? `/api/media/${row.id}/preview/md` : null,
+        previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(row.id, "sm") : null,
+        previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, "md") : null,
+        sourceWidth: row.source_width ?? null,
+        sourceHeight: row.source_height ?? null,
       };
     },
 
@@ -214,6 +220,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         preview_status: string | null;
         preview_sm_key: string | null;
         preview_md_key: string | null;
+        source_width: number | null;
+        source_height: number | null;
       }>(
         `SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
             COALESCE(
@@ -221,7 +229,8 @@ export function createS3MediaStoragePort(): MediaStoragePort {
               NULLIF(TRIM(pu.display_name), '')
             ) AS uploaded_by_name,
             m.created_at, m.s3_key, m.folder_id,
-            m.preview_status, m.preview_sm_key, m.preview_md_key
+            m.preview_status, m.preview_sm_key, m.preview_md_key,
+            m.source_width, m.source_height
          FROM media_files m
          LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
          ${whereSql} AND m.s3_key IS NOT NULL
@@ -245,8 +254,10 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           folderId: row.folder_id,
           url: mediaAppUrl(row.id),
           previewStatus,
-          previewSmUrl: row.preview_sm_key?.trim() ? `/api/media/${row.id}/preview/sm` : null,
-          previewMdUrl: row.preview_md_key?.trim() ? `/api/media/${row.id}/preview/md` : null,
+          previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(row.id, "sm") : null,
+          previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, "md") : null,
+          sourceWidth: row.source_width ?? null,
+          sourceHeight: row.source_height ?? null,
         };
       });
     },

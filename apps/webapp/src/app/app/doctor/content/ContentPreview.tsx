@@ -1,6 +1,7 @@
 "use client";
 
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
+import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
 import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 
 type Props = {
@@ -45,8 +46,12 @@ export function ContentPreview({ title, summary, bodyMd, imageUrl, videoUrl }: P
         <h4 className="m-0 text-lg font-semibold">{title.trim() || "Заголовок страницы"}</h4>
         {summary.trim() ? <p className="m-0 text-sm text-muted-foreground">{summary.trim()}</p> : null}
         {imageUrl.trim() ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl.trim()} alt="" className="max-h-80 max-w-full rounded object-contain" />
+          <ContentHeroImage
+            imageUrl={imageUrl.trim()}
+            hydrateFromAdminApi
+            className="max-h-80 max-w-full rounded object-contain"
+            imgClassName="max-h-80 max-w-full rounded object-contain"
+          />
         ) : null}
         <MarkdownContent text={bodyMd} bodyFormat="markdown" />
         {videoUrl.trim() ? (

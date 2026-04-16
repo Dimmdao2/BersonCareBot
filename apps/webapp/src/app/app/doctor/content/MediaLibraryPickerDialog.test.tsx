@@ -15,6 +15,16 @@ beforeEach(() => {
       removeEventListener: vi.fn(),
     })),
   );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 404,
+        json: async () => ({ ok: false }),
+      }),
+    ),
+  );
 });
 
 afterEach(() => {
@@ -23,18 +33,20 @@ afterEach(() => {
 });
 
 describe("MediaLibraryPickerDialog", () => {
-  it("renders image preview for /api/media URL when kind is image", () => {
-    render(<MediaLibraryPickerDialog kind="image" value="/api/media/abc" onChange={vi.fn()} />);
+  const sampleMediaId = "11111111-1111-4111-8111-111111111111";
+
+  it("renders placeholder (no ready thumb) for /api/media URL when kind is image without library pick meta", () => {
+    render(<MediaLibraryPickerDialog kind="image" value={`/api/media/${sampleMediaId}`} onChange={vi.fn()} />);
     const preview = screen.getByTestId("selected-media-preview");
-    const img = preview.querySelector("img");
-    expect(img).not.toBeNull();
-    expect(img).toHaveAttribute("src", "/api/media/abc");
+    expect(preview.querySelector("img")).toBeNull();
+    expect(preview.querySelector(".animate-pulse")).not.toBeNull();
   });
 
-  it("renders video preview when kind is video", () => {
-    render(<MediaLibraryPickerDialog kind="video" value="/api/media/vid" onChange={vi.fn()} />);
+  it("renders placeholder for video when no API preview status from pick", () => {
+    render(<MediaLibraryPickerDialog kind="video" value={`/api/media/${sampleMediaId}`} onChange={vi.fn()} />);
     const preview = screen.getByTestId("selected-media-preview");
-    expect(preview.querySelector("video")).not.toBeNull();
+    expect(preview.querySelector("img")).toBeNull();
+    expect(preview.querySelector(".animate-pulse")).not.toBeNull();
   });
 
   it("does not render media preview for legacy non-API path but shows warning", () => {

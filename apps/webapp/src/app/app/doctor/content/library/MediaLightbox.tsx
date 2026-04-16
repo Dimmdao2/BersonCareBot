@@ -1,8 +1,10 @@
 "use client";
 
+import { ImageOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { canRenderInlineImage } from "./mediaPreview";
 import type { MediaPreviewStatus } from "@/modules/media/types";
 
@@ -15,6 +17,7 @@ type MediaItem = {
   size: number;
   createdAt: string;
   url: string;
+  previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus;
 };
@@ -29,12 +32,12 @@ type Props = {
 
 export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Props) {
   const title = item ? item.displayName?.trim() || item.filename : "Просмотр файла";
-  const imageSrc =
+  const imagePreviewSrc =
     item?.kind === "image" &&
     item.previewStatus === "ready" &&
-    item.previewMdUrl?.trim()
-      ? item.previewMdUrl
-      : item?.url;
+    canRenderInlineImage(item.mimeType)
+      ? (item.previewMdUrl?.trim() || item.previewSmUrl?.trim() || null)
+      : null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[95vw] max-w-5xl overflow-auto">
@@ -42,8 +45,28 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
         {!item ? null : (
           <div className="flex flex-col gap-3">
             {item.kind === "image" && canRenderInlineImage(item.mimeType) ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageSrc} alt="" className="max-h-[70vh] w-full rounded-md object-contain" />
+              imagePreviewSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imagePreviewSrc} alt="" className="max-h-[70vh] w-full rounded-md object-contain" />
+              ) : item.previewStatus === "failed" || item.previewStatus === "skipped" ? (
+                <div
+                  className={cn(
+                    "flex min-h-[40vh] flex-col items-center justify-center gap-2 rounded-md bg-muted/20 p-6 text-sm text-muted-foreground",
+                  )}
+                >
+                  <ImageOff className="h-12 w-12 opacity-60" aria-hidden />
+                  <span>
+                    {item.previewStatus === "skipped"
+                      ? "Превью для этого файла не создаётся"
+                      : "Превью изображения недоступно"}
+                  </span>
+                </div>
+              ) : (
+                <div
+                  className="h-[50vh] max-h-[70vh] w-full animate-pulse rounded-md bg-muted/50"
+                  aria-hidden
+                />
+              )
             ) : item.kind === "video" ? (
               <div className="flex w-full min-w-0 justify-center rounded-md bg-muted/40">
                 <NoContextMenuVideo

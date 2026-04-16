@@ -1,3 +1,5 @@
+import type { MediaRecord } from "@/modules/media/types";
+
 export type ContentVideoSource =
   | { type: "url"; url: string }
   | { type: "api"; mediaId: string };
@@ -17,6 +19,10 @@ export type ContentStubItem = {
   bodyFormat?: ContentBodyFormat;
   /** Optional image URL (relative or absolute). */
   imageUrl?: string;
+  /**
+   * When `imageUrl` is `/api/media/{uuid}`, populated from `media_files` for preview pipeline (`MediaThumb`).
+   */
+  imageLibraryMedia?: MediaRecord | null;
   /** Optional video for media block. */
   videoSource?: ContentVideoSource;
 };

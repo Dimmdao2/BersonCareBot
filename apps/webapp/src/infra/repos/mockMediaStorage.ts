@@ -109,6 +109,8 @@ export const mockMediaStoragePort: MediaStoragePort = {
         previewStatus: visual ? ("ready" as const) : ("skipped" as const),
         previewSmUrl: visual ? base : null,
         previewMdUrl: r.kind === "image" ? base : null,
+        sourceWidth: null,
+        sourceHeight: null,
       };
     });
   },
