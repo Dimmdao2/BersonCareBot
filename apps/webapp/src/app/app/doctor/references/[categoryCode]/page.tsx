@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { Badge } from "@/components/ui/badge";
 import { ReferenceCacheBuster } from "./ReferenceCacheBuster";
 import { ReferenceItemsTableClient } from "./ReferenceItemsTableClient";
 
@@ -20,42 +18,16 @@ export default async function DoctorReferenceCategoryPage({ params, searchParams
 
   const allItems = await deps.references.listItemsForManagementByCategoryCode(category.code);
   const items = mode === "archived" ? allItems.filter((item) => !item.isActive) : allItems.filter((item) => item.isActive);
-  const categoryHref = `/app/doctor/references/${encodeURIComponent(category.code)}`;
 
   return (
     <>
       <ReferenceCacheBuster categoryCode={category.code} />
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-semibold">{category.title}</h1>
-          <p className="text-sm text-muted-foreground">Код: {category.code}</p>
-          <Badge variant={category.isUserExtensible ? "secondary" : "outline"}>
-            {category.isUserExtensible ? "Расширяемый" : "Системный"}
-          </Badge>
-          <Badge variant="secondary">{mode === "archived" ? "Показаны: только архивные" : "Показаны: без архивных"}</Badge>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={categoryHref}
-            className={`rounded-md px-3 py-1.5 text-sm ${
-              mode === "active" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-            }`}
-          >
-            Без архивных
-          </Link>
-          <Link
-            href={`${categoryHref}?mode=archived`}
-            className={`rounded-md px-3 py-1.5 text-sm ${
-              mode === "archived" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-            }`}
-          >
-            Показать архив
-          </Link>
-        </div>
-
+      <section className="flex flex-col gap-3">
         <ReferenceItemsTableClient
+          categoryTitle={category.title}
           categoryCode={category.code}
+          categoryIsUserExtensible={category.isUserExtensible}
+          mode={mode}
           initialItems={items.map((item) => ({
             id: item.id,
             code: item.code,

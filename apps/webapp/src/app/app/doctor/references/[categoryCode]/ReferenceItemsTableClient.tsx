@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -20,7 +21,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { EllipsisVertical } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -108,11 +110,20 @@ function SortableRow({
 }
 
 type Props = {
+  categoryTitle: string;
   categoryCode: string;
+  categoryIsUserExtensible: boolean;
+  mode: "active" | "archived";
   initialItems: Array<{ id: string; code: string; title: string; sortOrder: number; isActive: boolean }>;
 };
 
-export function ReferenceItemsTableClient({ categoryCode, initialItems }: Props) {
+export function ReferenceItemsTableClient({
+  categoryTitle,
+  categoryCode,
+  categoryIsUserExtensible,
+  mode,
+  initialItems,
+}: Props) {
   const router = useRouter();
   const normalizedInitialRows = useMemo(
     () => [...initialItems].sort((a, b) => a.sortOrder - b.sortOrder).map((item, idx) => ({ ...item, sortOrder: idx + 1 })),
@@ -121,6 +132,10 @@ export function ReferenceItemsTableClient({ categoryCode, initialItems }: Props)
   const [rows, setRows] = useState<Row[]>(normalizedInitialRows);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const toggleModeHref =
+    mode === "archived"
+      ? `/app/doctor/references/${encodeURIComponent(categoryCode)}`
+      : `/app/doctor/references/${encodeURIComponent(categoryCode)}?mode=archived`;
   const initialState = useMemo(() => JSON.stringify(normalizedInitialRows), [normalizedInitialRows]);
   const isDirty = JSON.stringify(rows) !== initialState;
 
@@ -184,9 +199,18 @@ export function ReferenceItemsTableClient({ categoryCode, initialItems }: Props)
         const additions = rows
           .filter((row) => row.isNew)
           .map((row) => ({ code: row.code.trim(), title: row.title.trim(), sortOrder: row.sortOrder }));
+        const normalizedCodes = additions.map((row) => row.code.toLowerCase());
+        if (new Set(normalizedCodes).size !== normalizedCodes.length) {
+          setError("Коды новых строк должны быть уникальными");
+          return;
+        }
         await saveReferenceCatalog({ categoryCode, updates, additions });
         router.refresh();
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.message === "duplicate_code") {
+          setError("Код уже существует в этом справочнике");
+          return;
+        }
         setError("Не удалось сохранить справочник");
       }
     });
@@ -194,13 +218,36 @@ export function ReferenceItemsTableClient({ categoryCode, initialItems }: Props)
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <Button type="button" variant="secondary" onClick={onAdd}>
-          Добавить строку
-        </Button>
-        <Button type="button" onClick={onSave} disabled={isPending || !isDirty}>
-          Сохранить справочник
-        </Button>
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] z-20 -mx-4 flex flex-col gap-3 border-b border-border bg-card px-4 pb-3 pt-1">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold">{categoryTitle}</h1>
+            <p className="text-sm text-muted-foreground">Код: {categoryCode}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={categoryIsUserExtensible ? "secondary" : "outline"}>
+              {categoryIsUserExtensible ? "Расширяемый" : "Системный"}
+            </Badge>
+            <Badge variant="secondary">{mode === "archived" ? "Архив" : "Активный"}</Badge>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="secondary" onClick={onAdd}>
+              Добавить строку
+            </Button>
+            <Button type="button" onClick={onSave} disabled={isPending || !isDirty}>
+              Сохранить справочник
+            </Button>
+          </div>
+          <Link
+            href={toggleModeHref}
+            className={buttonVariants({ variant: mode === "archived" ? "default" : "outline" })}
+          >
+            {mode === "archived" ? "Активный" : "Архив"}
+          </Link>
+        </div>
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}

@@ -11,15 +11,17 @@ type Props = {
   q: string;
   regionRefId?: string;
   loadType?: ExerciseLoadType;
+  view?: "tiles" | "list";
 };
 
-export function ExercisesFiltersForm({ q, regionRefId, loadType }: Props) {
+export function ExercisesFiltersForm({ q, regionRefId, loadType, view }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
   const [selectedRegionLabel, setSelectedRegionLabel] = useState("");
 
   return (
     <form ref={formRef} method="get" className="flex flex-wrap items-end gap-2">
+      {view ? <input type="hidden" name="view" value={view} /> : null}
       <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground" htmlFor="ex-q">
           Поиск по названию

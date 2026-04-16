@@ -141,6 +141,10 @@ export const inMemoryReferencesPort: ReferencesPort = {
   async saveCatalog(categoryCode, input) {
     const cat = await this.findCategoryByCode(categoryCode);
     if (!cat) throw new Error("category_not_found");
+    const normalizedCodes = input.additions.map((addition) => addition.code.trim().toLowerCase());
+    if (new Set(normalizedCodes).size !== normalizedCodes.length) {
+      throw new Error("duplicate_code");
+    }
 
     for (const update of input.updates) {
       const item = items.find((i) => i.id === update.id && i.categoryId === cat.id);
@@ -151,11 +155,12 @@ export const inMemoryReferencesPort: ReferencesPort = {
     }
 
     for (const addition of input.additions) {
-      ensureUniqueCode(cat.id, addition.code);
+      const normalizedCode = addition.code.trim().toLowerCase();
+      ensureUniqueCode(cat.id, normalizedCode);
       items.push({
-        id: `ri-${addition.code}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        id: `ri-${normalizedCode}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         categoryId: cat.id,
-        code: addition.code,
+        code: normalizedCode,
         title: addition.title,
         sortOrder: addition.sortOrder,
         isActive: true,

@@ -10,9 +10,9 @@ export function ReferencesSidebar({ categories }: { categories: ReferenceCategor
   const pathname = usePathname();
 
   return (
-    <aside className="rounded-xl border border-border bg-card p-3">
+    <aside className="rounded-xl border border-border bg-card p-3 lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] lg:max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-1.25rem)] lg:overflow-hidden">
       <p className="mb-3 text-sm text-muted-foreground">Список справочников</p>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-1 lg:max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-5.5rem)] lg:overflow-y-auto pr-1">
         {categories.map((cat) => {
           const href = `/app/doctor/references/${encodeURIComponent(cat.code)}`;
           const active = pathname === href;

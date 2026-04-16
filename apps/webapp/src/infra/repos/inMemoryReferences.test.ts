@@ -64,4 +64,30 @@ describe.sequential("inMemoryReferencesPort", () => {
     expect(updated.title).toBe("Тестовый регион 2");
     expect(updated.isActive).toBe(false);
   });
+
+  it("saveCatalog rejects duplicate codes in additions and existing items", async () => {
+    await expect(
+      inMemoryReferencesPort.saveCatalog("body_region", {
+        updates: [],
+        additions: [
+          { code: "dup_probe", title: "A", sortOrder: 100 },
+          { code: "dup_probe", title: "B", sortOrder: 101 },
+        ],
+      })
+    ).rejects.toThrow("duplicate_code");
+
+    await inMemoryReferencesPort.insertItemStaff({
+      categoryCode: "body_region",
+      code: "dup_existing_probe",
+      title: "Уже существует",
+      sortOrder: 99,
+    });
+
+    await expect(
+      inMemoryReferencesPort.saveCatalog("body_region", {
+        updates: [],
+        additions: [{ code: "dup_existing_probe", title: "Дубль", sortOrder: 102 }],
+      })
+    ).rejects.toThrow("duplicate_code");
+  });
 });

@@ -3,11 +3,10 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
+import { ExercisesPageClient, type ExercisesViewMode } from "./ExercisesPageClient";
 
 const LOAD_LABEL: Record<ExerciseLoadType, string> = {
   strength: "Силовая",
@@ -18,7 +17,7 @@ const LOAD_LABEL: Record<ExerciseLoadType, string> = {
 };
 
 type PageProps = {
-  searchParams?: Promise<{ q?: string; region?: string; load?: string }>;
+  searchParams?: Promise<{ q?: string; region?: string; load?: string; view?: string; selected?: string }>;
 };
 
 export default async function DoctorExercisesPage({ searchParams }: PageProps) {
@@ -34,6 +33,8 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
     sp.load === "other"
       ? sp.load
       : undefined;
+  const viewMode: ExercisesViewMode = sp.view === "list" ? "list" : "tiles";
+  const selectedExerciseId = typeof sp.selected === "string" && sp.selected.trim() ? sp.selected.trim() : null;
 
   const deps = buildAppDeps();
   const list = await deps.lfkExercises.listExercises({
@@ -42,11 +43,18 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
     loadType: loadType ?? null,
     includeArchived: false,
   });
+  const selectedExercise =
+    viewMode === "list" && selectedExerciseId
+      ? await deps.lfkExercises
+          .getExercise(selectedExerciseId)
+          .then((ex) => (ex && !ex.isArchived ? ex : null))
+          .catch(() => null)
+      : null;
 
   return (
     <AppShell title="Упражнения ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-wrap items-end gap-3 lg:hidden">
           <ExercisesFiltersForm q={q} regionRefId={regionRefId} loadType={loadType} />
           <Link
             href="/app/doctor/exercises/new"
@@ -57,46 +65,17 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
           </Link>
         </div>
 
-        {list.length === 0 ? (
-          <p className="text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {list.map((ex) => (
-              <li key={ex.id}>
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle className="text-base leading-snug">
-                      <Link
-                        href={`/app/doctor/exercises/${ex.id}`}
-                        className="text-primary underline-offset-4 hover:underline"
-                      >
-                        {ex.title}
-                      </Link>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-2 text-sm">
-                    <div className="flex flex-wrap gap-1">
-                      {ex.loadType ? (
-                        <Badge variant="secondary">{LOAD_LABEL[ex.loadType]}</Badge>
-                      ) : null}
-                      {ex.difficulty1_10 != null ? (
-                        <Badge variant="outline">Сложность {ex.difficulty1_10}/10</Badge>
-                      ) : null}
-                    </div>
-                    {ex.media[0]?.mediaUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={ex.media[0].mediaUrl}
-                        alt=""
-                        className="max-h-32 w-full rounded-md object-cover"
-                      />
-                    ) : null}
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ExercisesPageClient
+          exercises={list}
+          selectedExercise={selectedExercise}
+          viewMode={viewMode}
+          filters={{
+            q,
+            regionRefId,
+            loadType,
+          }}
+          loadLabels={LOAD_LABEL}
+        />
       </div>
     </AppShell>
   );

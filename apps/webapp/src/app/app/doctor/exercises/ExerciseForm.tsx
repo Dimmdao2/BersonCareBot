@@ -18,7 +18,8 @@ import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { API_MEDIA_URL_RE } from "@/shared/lib/mediaUrlPolicy";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
-import { archiveDoctorExercise, saveDoctorExercise, type SaveDoctorExerciseState } from "./actions";
+import { archiveDoctorExercise, saveDoctorExercise } from "./actions";
+import type { SaveDoctorExerciseState } from "./actionsShared";
 import { exerciseMediaTypeFromPick } from "./exerciseMediaFromLibrary";
 
 const LOAD_OPTIONS: { value: ExerciseLoadType; label: string }[] = [
@@ -31,10 +32,18 @@ const LOAD_OPTIONS: { value: ExerciseLoadType; label: string }[] = [
 
 type ExerciseFormProps = {
   exercise?: Exercise | null;
+  saveAction?: (_prev: SaveDoctorExerciseState | null, formData: FormData) => Promise<SaveDoctorExerciseState>;
+  archiveAction?: (formData: FormData) => Promise<void>;
+  backHref?: string;
 };
 
-export function ExerciseForm({ exercise }: ExerciseFormProps) {
-  const [saveState, formAction, savePending] = useActionState(saveDoctorExercise, null as SaveDoctorExerciseState | null);
+export function ExerciseForm({
+  exercise,
+  saveAction = saveDoctorExercise,
+  archiveAction = archiveDoctorExercise,
+  backHref = "/app/doctor/exercises",
+}: ExerciseFormProps) {
+  const [saveState, formAction, savePending] = useActionState(saveAction, null as SaveDoctorExerciseState | null);
   const [regionRefId, setRegionRefId] = useState<string | null>(exercise?.regionRefId ?? null);
   const [regionLabel, setRegionLabel] = useState("");
   const [loadType, setLoadType] = useState<ExerciseLoadType | "">(exercise?.loadType ?? "");
@@ -177,14 +186,14 @@ export function ExerciseForm({ exercise }: ExerciseFormProps) {
           <Button type="submit" disabled={savePending}>
             {savePending ? "Сохранение…" : exercise ? "Сохранить" : "Создать упражнение"}
           </Button>
-          <Link href="/app/doctor/exercises" className={cn(buttonVariants({ variant: "outline" }))}>
+          <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
             К списку
           </Link>
         </div>
       </form>
 
       {exercise ? (
-        <form action={archiveDoctorExercise} className="border-t border-border/60 pt-4">
+        <form action={archiveAction} className="border-t border-border/60 pt-4">
           <input type="hidden" name="id" value={exercise.id} />
           <Button type="submit" variant="destructive">
             Архивировать

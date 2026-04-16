@@ -159,9 +159,26 @@ export const pgReferencesPort: ReferencesPort = {
     const pool = getPool();
     const cat = await pgReferencesPort.findCategoryByCode(categoryCode);
     if (!cat) throw new Error("category_not_found");
+    const normalizedCodes = input.additions.map((addition) => addition.code.trim().toLowerCase());
+    const uniqueCodes = new Set(normalizedCodes);
+    if (uniqueCodes.size !== normalizedCodes.length) {
+      throw new Error("duplicate_code");
+    }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      if (normalizedCodes.length > 0) {
+        const existing = await client.query<{ code: string }>(
+          `SELECT code
+           FROM reference_items
+           WHERE category_id = $1
+             AND code = ANY($2::text[])`,
+          [cat.id, normalizedCodes]
+        );
+        if ((existing.rowCount ?? 0) > 0) {
+          throw new Error("duplicate_code");
+        }
+      }
       for (const update of input.updates) {
         const res = await client.query(
           `UPDATE reference_items
@@ -169,7 +186,7 @@ export const pgReferencesPort: ReferencesPort = {
            WHERE id = $4 AND category_id = $5`,
           [update.title, update.sortOrder, update.isActive, update.id, cat.id]
         );
-        if (res.rowCount !== 1) {
+        if ((res.rowCount ?? 0) !== 1) {
           throw new Error("item_not_found");
         }
       }
@@ -177,7 +194,7 @@ export const pgReferencesPort: ReferencesPort = {
         await client.query(
           `INSERT INTO reference_items (category_id, code, title, sort_order, is_active, meta_json)
            VALUES ($1, $2, $3, $4, true, '{}'::jsonb)`,
-          [cat.id, addition.code, addition.title, addition.sortOrder]
+          [cat.id, addition.code.trim().toLowerCase(), addition.title, addition.sortOrder]
         );
       }
       await client.query("COMMIT");

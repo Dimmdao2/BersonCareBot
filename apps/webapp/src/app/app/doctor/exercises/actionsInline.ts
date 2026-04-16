@@ -9,8 +9,7 @@ import {
   type SaveDoctorExerciseState,
 } from "./actionsShared";
 
-/** Создание или обновление упражнения из формы врача. */
-export async function saveDoctorExercise(
+export async function saveExerciseInline(
   _prev: SaveDoctorExerciseState | null,
   formData: FormData,
 ): Promise<SaveDoctorExerciseState> {
@@ -21,12 +20,12 @@ export async function saveDoctorExercise(
   if (result.wasUpdate) {
     revalidatePath(`${EXERCISES_PATH}/${result.exerciseId}`);
   }
-  redirect(`${EXERCISES_PATH}/${result.exerciseId}`);
+  redirect(`${EXERCISES_PATH}?view=list&selected=${encodeURIComponent(result.exerciseId)}`);
 }
 
-export async function archiveDoctorExercise(formData: FormData) {
+export async function archiveExerciseInline(formData: FormData) {
   const result = await archiveDoctorExerciseCore(formData);
-  if (!result.archivedId) redirect(EXERCISES_PATH);
+  if (!result.archivedId) redirect(`${EXERCISES_PATH}?view=list`);
   revalidatePath(EXERCISES_PATH);
-  redirect(EXERCISES_PATH);
+  redirect(`${EXERCISES_PATH}?view=list`);
 }
