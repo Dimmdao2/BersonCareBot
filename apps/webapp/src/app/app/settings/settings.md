@@ -3,7 +3,7 @@
 Маршрут приложения **`/app/settings`** (`apps/webapp/src/app/app/settings/page.tsx`).
 
 - **Пациент** (`role === client`) перенаправляется на `/app/patient/profile`.
-- **Врач / админ** видят страницу настроек кабинета с той же шапкой и шириной колонки, что и в `/app/doctor`: `DoctorHeader`, `DOCTOR_WORKSPACE_TOP_PADDING_CLASS` и `DOCTOR_PAGE_CONTAINER_CLASS` из `shared/ui/doctorWorkspaceLayout.ts` (без отдельного `AppShell`, но визуально совпадает с `AppShell variant="doctor"`). У **администратора** — переключатель admin mode и дополнительные вкладки (режим, параметры приложения, авторизация, доступ и роли, интеграции, каталог записи, **лог операций** — чтение `admin_audit_log` через `GET /api/admin/audit-log`).
+- **Врач / админ** видят страницу настроек кабинета с той же шапкой и шириной колонки, что и в `/app/doctor`: `DoctorHeader`, `DOCTOR_WORKSPACE_TOP_PADDING_CLASS` и `DOCTOR_PAGE_CONTAINER_CLASS` из `shared/ui/doctorWorkspaceLayout.ts` (без отдельного `AppShell`, но визуально совпадает с `AppShell variant="doctor"`). У **администратора** — переключатель admin mode и дополнительные вкладки (режим, **здоровье системы**, параметры приложения, авторизация, доступ и роли, интеграции, каталог записи, **лог операций**). Секция здоровья берёт косвенные сигналы из `GET /api/admin/system-health` (webapp DB, integrator `/health`, projection health), без прямого systemd/process API.
 
 Секреты и операционные значения для интеграций по правилам репозитория хранятся в `system_settings` (scope admin), а не в новых env-переменных для интеграций.
 

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 const ADMIN_SECTIONS = [
   { value: "diagnostics", label: "Админ: режим" },
+  { value: "system-health", label: "Здоровье системы" },
   { value: "app-params", label: "Параметры приложения" },
   { value: "auth", label: "Авторизация" },
   { value: "access", label: "Доступ и роли" },
@@ -16,6 +17,7 @@ const ADMIN_SECTIONS = [
 
 export type AdminSettingsTabsClientProps = {
   diagnostics: ReactNode;
+  systemHealth: ReactNode;
   appParams: ReactNode;
   auth: ReactNode;
   access: ReactNode;
@@ -26,6 +28,7 @@ export type AdminSettingsTabsClientProps = {
 
 export function AdminSettingsTabsClient({
   diagnostics,
+  systemHealth,
   appParams,
   auth,
   access,
@@ -37,6 +40,23 @@ export function AdminSettingsTabsClient({
 
   return (
     <div className="flex flex-col gap-4">
+      <label className="sm:hidden">
+        <span className="mb-1.5 block text-xs text-muted-foreground">Раздел админки</span>
+        <select
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className={cn(
+            "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm",
+            "ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+          )}
+        >
+          {ADMIN_SECTIONS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <Tabs
         value={value}
         onValueChange={setValue}
@@ -46,6 +66,7 @@ export function AdminSettingsTabsClient({
         <TabsList
           variant="default"
           className={cn(
+            "hidden sm:flex",
             "flex h-auto w-full shrink-0 flex-col items-stretch justify-start gap-1 rounded-lg border border-border/50 bg-muted/40 p-1.5",
             "sm:sticky sm:top-20 sm:w-52 sm:self-start lg:w-56",
           )}
@@ -64,6 +85,9 @@ export function AdminSettingsTabsClient({
         <div className="min-w-0 flex-1 space-y-0">
           <TabsContent value="diagnostics" className="mt-0">
             {diagnostics}
+          </TabsContent>
+          <TabsContent value="system-health" className="mt-0">
+            {systemHealth}
           </TabsContent>
           <TabsContent value="app-params" className="mt-0">
             {appParams}

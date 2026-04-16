@@ -18,6 +18,7 @@ import { BookingCatalogHelp } from "./BookingCatalogHelp";
 import { RubitimeSection } from "./RubitimeSection";
 import { GoogleCalendarSection } from "./GoogleCalendarSection";
 import { AdminAuditLogSection } from "./AdminAuditLogSection";
+import { SystemHealthSection } from "./SystemHealthSection";
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (valueJson !== null && typeof valueJson === "object" && "value" in (valueJson as Record<string, unknown>)) {
@@ -215,6 +216,7 @@ export default async function SettingsPage() {
                 integratorLinkedPhoneSource={adminSettings.integratorLinkedPhoneSource}
               />
             }
+            systemHealth={<SystemHealthSection />}
             appParams={appParametersConfig ? <AppParametersSection {...appParametersConfig} /> : null}
             auth={authProvidersConfig ? <AuthProvidersSection {...authProvidersConfig} /> : null}
             access={accessListsConfig ? <AccessListsSection {...accessListsConfig} /> : null}
