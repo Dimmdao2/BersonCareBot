@@ -52,6 +52,7 @@ export function filterMediaLibraryPickerItemsByQuery(items: MediaListItem[], que
 
 /**
  * Загрузка списка при открытой модалке; повторный fetch при смене `listUrl` (например `kind` / `folderId`).
+ * При `open: false` сбрасывает список/ошибку и инвалидирует in-flight ответы (безопасно при переиспользовании хука).
  * Защита от stale response: монотонный requestId + AbortController.
  */
 export function useMediaLibraryPickerItems(options: { open: boolean; listUrl: string }): {
@@ -68,7 +69,15 @@ export function useMediaLibraryPickerItems(options: { open: boolean; listUrl: st
   const loading = open && inFlight;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      latestRequestRef.current += 1;
+      queueMicrotask(() => {
+        setItems([]);
+        setError(null);
+        setInFlight(false);
+      });
+      return;
+    }
 
     const requestId = ++latestRequestRef.current;
     const ac = new AbortController();
