@@ -114,7 +114,7 @@ export function ExerciseForm({
         </div>
 
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium">Область тела</span>
+          <span className="text-sm font-medium">Регион</span>
           <ReferenceSelect
             categoryCode="body_region"
             value={regionRefId}
@@ -122,7 +122,7 @@ export function ExerciseForm({
               setRegionRefId(refId);
               setRegionLabel(label);
             }}
-            placeholder="Выберите область"
+            placeholder="Выберите регион"
           />
           {regionLabel ? (
             <p className="text-xs text-muted-foreground">Выбрано: {regionLabel}</p>

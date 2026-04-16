@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 
 type Props = {
   q: string;
@@ -14,10 +15,26 @@ type Props = {
   view?: "tiles" | "list";
 };
 
+/** Совпадает с `ExerciseLoadType` и парсингом query в `page.tsx`. */
+const EXERCISE_LOAD_FILTER_ITEMS: ReferenceItemDto[] = [
+  { id: "ex-filter-load-strength", code: "strength", title: "Силовая", sortOrder: 1 },
+  { id: "ex-filter-load-stretch", code: "stretch", title: "Растяжка", sortOrder: 2 },
+  { id: "ex-filter-load-balance", code: "balance", title: "Баланс", sortOrder: 3 },
+  { id: "ex-filter-load-cardio", code: "cardio", title: "Кардио", sortOrder: 4 },
+  { id: "ex-filter-load-other", code: "other", title: "Другое", sortOrder: 5 },
+];
+
+function loadTypeTitle(code: ExerciseLoadType | undefined): string {
+  if (!code) return "";
+  return EXERCISE_LOAD_FILTER_ITEMS.find((i) => i.code === code)?.title ?? "";
+}
+
 export function ExercisesFiltersForm({ q, regionRefId, loadType, view }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
   const [selectedRegionLabel, setSelectedRegionLabel] = useState("");
+  const [selectedLoadCode, setSelectedLoadCode] = useState<string | null>(loadType ?? null);
+  const [selectedLoadLabel, setSelectedLoadLabel] = useState(() => loadTypeTitle(loadType));
 
   return (
     <form ref={formRef} method="get" className="flex flex-wrap items-end gap-2">
@@ -30,7 +47,7 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view }: Props) 
       </div>
       <div className="flex flex-col gap-1 min-w-[16rem]">
         <label className="text-xs text-muted-foreground" htmlFor="ex-region">
-          Область тела
+          Регион
         </label>
         <ReferenceSelect
           id="ex-region"
@@ -41,26 +58,27 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view }: Props) 
             setSelectedRegionRefId(refId);
             setSelectedRegionLabel(label);
           }}
-          placeholder="Выберите область"
+          placeholder="Выберите регион"
         />
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 min-w-[16rem]">
         <label className="text-xs text-muted-foreground" htmlFor="ex-load">
           Тип нагрузки
         </label>
-        <select
+        <ReferenceSelect
           id="ex-load"
           name="load"
-          className="h-9 w-auto min-w-[10rem] rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          defaultValue={loadType ?? ""}
-        >
-          <option value="">Все</option>
-          <option value="strength">Силовая</option>
-          <option value="stretch">Растяжка</option>
-          <option value="balance">Баланс</option>
-          <option value="cardio">Кардио</option>
-          <option value="other">Другое</option>
-        </select>
+          prefetchedItems={EXERCISE_LOAD_FILTER_ITEMS}
+          valueMatch="code"
+          submitField="code"
+          value={selectedLoadCode}
+          onChange={(code, label) => {
+            setSelectedLoadCode(code);
+            setSelectedLoadLabel(code ? label : "");
+          }}
+          placeholder="Все типы"
+          clearOptionLabel="Все типы"
+        />
       </div>
       <Button type="submit" variant="secondary">
         Применить
@@ -77,11 +95,33 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view }: Props) 
             formRef.current?.requestSubmit();
           }}
         >
-          Сбросить область
+          Сбросить регион
         </Button>
       ) : null}
-      {selectedRegionLabel ? (
-        <p className="w-full text-xs text-muted-foreground">Выбрано: {selectedRegionLabel}</p>
+      {selectedLoadCode ? (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            flushSync(() => {
+              setSelectedLoadCode(null);
+              setSelectedLoadLabel("");
+            });
+            formRef.current?.requestSubmit();
+          }}
+        >
+          Сбросить тип нагрузки
+        </Button>
+      ) : null}
+      {selectedRegionLabel || selectedLoadLabel ? (
+        <p className="w-full text-xs text-muted-foreground">
+          {[
+            selectedRegionLabel ? `Регион: ${selectedRegionLabel}` : null,
+            selectedLoadLabel ? `Тип нагрузки: ${selectedLoadLabel}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
       ) : null}
     </form>
   );

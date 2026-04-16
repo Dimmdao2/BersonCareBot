@@ -196,37 +196,57 @@ function MediaLibraryPickerOpenPanel({
     queueMicrotask(() => {
       setUsageReady(false);
     });
-    fetch("/api/admin/media/exercise-usage", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-      signal: ac.signal,
-    })
-      .then(async (res) => {
-        const data = (await res.json()) as {
-          ok?: boolean;
-          usage?: Record<string, MediaExerciseUsageEntry[]>;
-          error?: string;
-        };
-        if (!res.ok || !data.ok) throw new Error(data.error ?? "usage_failed");
-        return data.usage ?? {};
+
+    /** Не конкурировать с отрисовкой списка и fetch медиа: usage — вторичный, после кадра / idle. */
+    const runUsageFetch = () => {
+      if (ac.signal.aborted || requestId !== usageRequestRef.current) return;
+      fetch("/api/admin/media/exercise-usage", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+        signal: ac.signal,
       })
-      .then((raw) => {
-        if (ac.signal.aborted || requestId !== usageRequestRef.current) return;
-        const normalized: Record<string, MediaExerciseUsageEntry[]> = {};
-        for (const [k, v] of Object.entries(raw)) {
-          normalized[k.toLowerCase()] = Array.isArray(v) ? v : [];
-        }
-        setExerciseUsageByMediaId(normalized);
-        setUsageReady(true);
-      })
-      .catch(() => {
-        if (ac.signal.aborted || requestId !== usageRequestRef.current) return;
-        setExerciseUsageByMediaId({});
-        setUsageReady(true);
-      });
-    return () => ac.abort();
+        .then(async (res) => {
+          const data = (await res.json()) as {
+            ok?: boolean;
+            usage?: Record<string, MediaExerciseUsageEntry[]>;
+            error?: string;
+          };
+          if (!res.ok || !data.ok) throw new Error(data.error ?? "usage_failed");
+          return data.usage ?? {};
+        })
+        .then((raw) => {
+          if (ac.signal.aborted || requestId !== usageRequestRef.current) return;
+          const normalized: Record<string, MediaExerciseUsageEntry[]> = {};
+          for (const [k, v] of Object.entries(raw)) {
+            normalized[k.toLowerCase()] = Array.isArray(v) ? v : [];
+          }
+          setExerciseUsageByMediaId(normalized);
+          setUsageReady(true);
+        })
+        .catch(() => {
+          if (ac.signal.aborted || requestId !== usageRequestRef.current) return;
+          setExerciseUsageByMediaId({});
+          setUsageReady(true);
+        });
+    };
+
+    let idleCallbackId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      idleCallbackId = window.requestIdleCallback(runUsageFetch, { timeout: 400 });
+    } else {
+      timeoutId = setTimeout(runUsageFetch, 0);
+    }
+
+    return () => {
+      ac.abort();
+      if (idleCallbackId !== undefined && typeof window !== "undefined" && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleCallbackId);
+      }
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    };
   }, [open, exercisePicker, items]);
 
   const sortedFolders = useMemo(() => {
@@ -240,6 +260,15 @@ function MediaLibraryPickerOpenPanel({
 
   const folderSelectValue =
     pickerFolderId === undefined ? "__all__" : pickerFolderId === null ? "__root__" : pickerFolderId;
+
+  /** Base UI Select показывает сырое `value` в триггере — задаём человекочитаемую подпись явно. */
+  const folderSelectDisplayLabel = useMemo(() => {
+    if (pickerFolderId === undefined) return "Все папки";
+    if (pickerFolderId === null) return "Корень";
+    const f = folders.find((x) => x.id === pickerFolderId);
+    if (f) return folderPathLabel(f, folders);
+    return foldersLoaded ? pickerFolderId : "Загрузка…";
+  }, [pickerFolderId, folders, foldersLoaded]);
 
   const kindFiltered = useMemo(() => narrowMediaLibraryPickerItemsByKind(items, kind), [items, kind]);
   const queryFiltered = useMemo(
@@ -277,10 +306,9 @@ function MediaLibraryPickerOpenPanel({
                 else if (v === "__root__") onPickerFolderIdChange(null);
                 else onPickerFolderIdChange(v);
               }}
-              disabled={!foldersLoaded}
             >
               <SelectTrigger size="sm" className="h-8 w-full max-w-full min-w-0 text-left">
-                <SelectValue placeholder={foldersLoaded ? "Папка" : "Загрузка…"} />
+                <SelectValue placeholder="Папка">{folderSelectDisplayLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">Все папки</SelectItem>
