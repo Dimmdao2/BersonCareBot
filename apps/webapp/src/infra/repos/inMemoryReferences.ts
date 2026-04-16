@@ -138,6 +138,32 @@ export const inMemoryReferencesPort: ReferencesPort = {
     return item;
   },
 
+  async saveCatalog(categoryCode, input) {
+    const cat = await this.findCategoryByCode(categoryCode);
+    if (!cat) throw new Error("category_not_found");
+
+    for (const update of input.updates) {
+      const item = items.find((i) => i.id === update.id && i.categoryId === cat.id);
+      if (!item) continue;
+      item.title = update.title;
+      item.sortOrder = update.sortOrder;
+      item.isActive = update.isActive;
+    }
+
+    for (const addition of input.additions) {
+      ensureUniqueCode(cat.id, addition.code);
+      items.push({
+        id: `ri-${addition.code}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        categoryId: cat.id,
+        code: addition.code,
+        title: addition.title,
+        sortOrder: addition.sortOrder,
+        isActive: true,
+        metaJson: {},
+      });
+    }
+  },
+
   async archiveItem(itemId) {
     const i = items.find((x) => x.id === itemId);
     if (i) i.isActive = false;

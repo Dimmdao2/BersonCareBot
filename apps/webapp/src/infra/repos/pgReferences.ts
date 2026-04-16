@@ -155,6 +155,40 @@ export const pgReferencesPort: ReferencesPort = {
     return rowItem(res.rows[0]);
   },
 
+  async saveCatalog(categoryCode, input) {
+    const pool = getPool();
+    const cat = await pgReferencesPort.findCategoryByCode(categoryCode);
+    if (!cat) throw new Error("category_not_found");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      for (const update of input.updates) {
+        const res = await client.query(
+          `UPDATE reference_items
+           SET title = $1, sort_order = $2, is_active = $3
+           WHERE id = $4 AND category_id = $5`,
+          [update.title, update.sortOrder, update.isActive, update.id, cat.id]
+        );
+        if (res.rowCount !== 1) {
+          throw new Error("item_not_found");
+        }
+      }
+      for (const addition of input.additions) {
+        await client.query(
+          `INSERT INTO reference_items (category_id, code, title, sort_order, is_active, meta_json)
+           VALUES ($1, $2, $3, $4, true, '{}'::jsonb)`,
+          [cat.id, addition.code, addition.title, addition.sortOrder]
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
   async archiveItem(itemId) {
     const pool = getPool();
     await pool.query(`UPDATE reference_items SET is_active = false WHERE id = $1`, [itemId]);

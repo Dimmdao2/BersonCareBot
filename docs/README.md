@@ -17,6 +17,7 @@
 - `ARCHITECTURE/PLATFORM_USER_MERGE.md` — canonical user, logical merge (`merged_into_id`), миграции 061-064 и правила read/write; admin UI (аккордеон, ленивые запросы merge/audit); `POST .../integrator-merge` при фантомном integrator id у дубликата — сброс ссылки и audit `orphan_duplicate_integrator_id_cleared`.
 - `ARCHITECTURE/ADMIN_NAME_MATCH_HINTS_PLAN_AND_EXECUTION_LOG.md` — план и факт выполнения этой доработки (журнал, post-audit hardening); см. также `REPORTS/USER_MERGE_EXECUTION_LOG.md`.
 - `REPORTS/CMS_DOCTOR_HUB_EXECUTION_LOG.md` — журнал выполнения по CMS-хабу врача (UI, runtime-логи).
+- `REPORTS/AGENT_LOG_2026-04-16-doctor-references-and-exercise-form.md` — журнал по экрану врача «Справочники»: master-detail компоновка, drag-and-drop порядка, пакетное сохранение справочника, архивирование через меню строки.
 - `REPORTS/MEDIA_LIBRARY_PICKER_LOCAL_SEARCH_ARCHITECTURE_2026-04-16.md` — пикер медиабиблиотеки: локальный поиск vs серверный `q`; риски `limit=200`.
 - **Превью медиатеки (S3, воркер, UI):** `MEDIA_PREVIEW_PIPELINE.md` · журнал фикса после аудита: `REPORTS/MEDIA_PREVIEW_PIPELINE_FIX_2026-04-16.md`.
 - `REPORTS/USER_MERGE_EXECUTION_LOG.md` — журнал выполнения инициативы Platform User Merge & Dedup.

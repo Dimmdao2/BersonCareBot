@@ -22,6 +22,13 @@ export type ReferencesPort = {
     itemId: string,
     input: { title?: string; sortOrder?: number; isActive?: boolean }
   ): Promise<ReferenceItem>;
+  saveCatalog(
+    categoryCode: string,
+    input: {
+      updates: Array<{ id: string; title: string; sortOrder: number; isActive: boolean }>;
+      additions: Array<{ code: string; title: string; sortOrder: number }>;
+    }
+  ): Promise<void>;
   archiveItem(itemId: string): Promise<void>;
   findItemById(itemId: string): Promise<ReferenceItem | null>;
 };
