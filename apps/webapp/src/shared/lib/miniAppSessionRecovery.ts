@@ -1,6 +1,10 @@
 import { startTransition } from "react";
 
-import { getMaxWebAppInitDataForAuth } from "@/shared/lib/messengerMiniApp";
+import {
+  clearMessengerBindingCandidate,
+  readMessengerBindingCandidate,
+} from "@/shared/lib/messengerBindingCandidate";
+import { getMaxWebAppInitDataForAuth, readTelegramInitDataForAuth } from "@/shared/lib/messengerMiniApp";
 
 /**
  * Восстановление cookie-сессии webapp внутри мессенджерного Mini App, когда `/api/me` даёт 401:
@@ -15,7 +19,7 @@ export async function ensureMessengerMiniAppWebappSession(router: { refresh: () 
   if (me.ok) return;
   if (me.status !== 401) return;
 
-  const initData = window.Telegram?.WebApp?.initData?.trim() ?? "";
+  const initData = readTelegramInitDataForAuth();
   if (initData.length > 0) {
     const res = await fetch("/api/auth/telegram-init", {
       method: "POST",
@@ -41,6 +45,50 @@ export async function ensureMessengerMiniAppWebappSession(router: { refresh: () 
       startTransition(() => router.refresh());
     }
     return;
+  }
+
+  const bindingCand = readMessengerBindingCandidate();
+  if (bindingCand?.channel === "telegram" && bindingCand.initData.length > 0) {
+    let sessionRecovered = false;
+    try {
+      const res = await fetch("/api/auth/telegram-init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ initData: bindingCand.initData }),
+      });
+      if (res.ok) {
+        clearMessengerBindingCandidate();
+        startTransition(() => router.refresh());
+        sessionRecovered = true;
+      } else {
+        clearMessengerBindingCandidate();
+      }
+    } catch {
+      /* сеть: кандидат остаётся; ниже — fallback `exchange` по ?t= при наличии токена */
+    }
+    if (sessionRecovered) return;
+  }
+  if (bindingCand?.channel === "max" && bindingCand.initData.length > 0) {
+    let sessionRecovered = false;
+    try {
+      const res = await fetch("/api/auth/max-init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ initData: bindingCand.initData }),
+      });
+      if (res.ok) {
+        clearMessengerBindingCandidate();
+        startTransition(() => router.refresh());
+        sessionRecovered = true;
+      } else {
+        clearMessengerBindingCandidate();
+      }
+    } catch {
+      /* сеть: кандидат остаётся; ниже — exchange */
+    }
+    if (sessionRecovered) return;
   }
 
   const params = new URLSearchParams(window.location.search);

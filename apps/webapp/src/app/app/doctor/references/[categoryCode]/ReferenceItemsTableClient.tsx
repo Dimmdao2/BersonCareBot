@@ -43,56 +43,79 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { saveReferenceCatalog, softDeleteReferenceItem } from "../actions";
+import {
+  saveReferenceCatalog,
+  softDeleteReferenceItem,
+  type SaveReferenceCatalogResult,
+  type SoftDeleteReferenceItemResult,
+} from "../actions";
 
 type ReferenceErrorDialog = {
   title: string;
   summary: string;
-  detail: string;
+  /** Дополнительный текст (например подсказка); без «сырого» ответа Next.js в production. */
+  detail?: string;
 };
 
-function formatUnknownActionError(err: unknown): string {
-  if (err instanceof Error) {
-    const digest = (err as Error & { digest?: string }).digest;
-    const lines = [err.message];
-    if (digest) lines.push(`Код для поддержки: ${digest}`);
-    return lines.join("\n");
+function dialogForSaveFailure(result: Extract<SaveReferenceCatalogResult, { ok: false }>): ReferenceErrorDialog {
+  switch (result.code) {
+    case "duplicate_code":
+      return {
+        title: "Ошибка сохранения",
+        summary:
+          "Код уже существует: в справочнике уже есть строка с таким кодом, либо среди новых строк указан один код дважды.",
+      };
+    case "invalid_add_payload":
+    case "invalid_update_payload":
+      return {
+        title: "Ошибка сохранения",
+        summary: result.invalidValue
+          ? `Недопустимое значение: ${result.invalidValue}`
+          : "Недопустимое значение.",
+      };
+    case "category_not_found":
+    case "item_not_found":
+      return {
+        title: "Ошибка сохранения",
+        summary: "Данные устарели или строка не найдена. Обновите страницу и попробуйте сохранить снова.",
+      };
+    case "category_not_extensible":
+      return {
+        title: "Ошибка сохранения",
+        summary: "В этот справочник нельзя добавлять новые значения из интерфейса.",
+      };
+    case "category_required":
+    case "empty_update":
+      return {
+        title: "Ошибка сохранения",
+        summary: "Не удалось выполнить запрос. Обновите страницу и попробуйте снова.",
+      };
+    case "save_failed":
+    default:
+      return {
+        title: "Ошибка сохранения",
+        summary: "Ошибка соединения с сервером или временный сбой. Попробуйте ещё раз.",
+      };
   }
-  return String(err);
 }
 
-/** Русская расшифровка + технические данные для ошибок server action сохранения каталога. */
-function describeSaveReferenceCatalogError(err: unknown): { summary: string; detail: string } {
-  const technical = formatUnknownActionError(err);
-  const detail = ["Технические данные (код и сообщение сервера):", technical].join("\n");
-
-  if (!(err instanceof Error)) {
-    return {
-      summary: "Не удалось сохранить справочник. Ниже — сырые данные об ошибке.",
-      detail,
-    };
+function dialogForDeleteFailure(
+  result: Extract<SoftDeleteReferenceItemResult, { ok: false }>,
+): ReferenceErrorDialog {
+  switch (result.code) {
+    case "item_required":
+    case "category_required":
+      return {
+        title: "Ошибка удаления",
+        summary: "Не удалось выполнить запрос. Обновите страницу и попробуйте снова.",
+      };
+    case "delete_failed":
+    default:
+      return {
+        title: "Ошибка удаления",
+        summary: "Ошибка соединения с сервером или временный сбой. Попробуйте ещё раз.",
+      };
   }
-
-  const byMessage: Record<string, string> = {
-    duplicate_code:
-      "В этом справочнике уже есть строка с таким кодом, либо среди новых строк вы указали один и тот же код дважды.",
-    invalid_update_payload:
-      "Для одной из уже существующих строк не хватает данных: нужны и идентификатор, и название. Обновите страницу и проверьте таблицу.",
-    invalid_add_payload:
-      "Для новой строки указаны некорректные код или название: код — в формате lower_snake_case, название не может быть пустым.",
-    category_required: "Не указан код категории справочника (внутренняя ошибка запроса).",
-    category_not_found: "Категория справочника не найдена в базе данных.",
-    category_not_extensible: "В эту категорию нельзя добавлять новые значения из интерфейса.",
-    item_not_found:
-      "Одна из строк не найдена в базе или уже удалена. Обновите страницу и попробуйте сохранить снова.",
-    empty_update: "Внутренняя ошибка при обновлении записи (нет полей для изменения).",
-  };
-
-  const summary =
-    byMessage[err.message] ??
-    "Не удалось сохранить справочник. Ниже указан системный код или сообщение — передайте его в поддержку при обращении.";
-
-  return { summary, detail };
 }
 
 type Row = {
@@ -292,14 +315,17 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
         const fd = new FormData();
         fd.set("categoryCode", categoryCode);
         fd.set("itemId", rowId);
-        await softDeleteReferenceItem(fd);
+        const delResult = await softDeleteReferenceItem(fd);
+        if (!delResult.ok) {
+          setErrorDialog(dialogForDeleteFailure(delResult));
+          return;
+        }
         setRows((prev) => prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })));
         router.refresh();
-      } catch (err) {
+      } catch {
         setErrorDialog({
           title: "Ошибка удаления",
-          summary: "Не удалось удалить строку из справочника.",
-          detail: formatUnknownActionError(err),
+          summary: "Ошибка соединения с сервером. Проверьте подключение и попробуйте снова.",
         });
       }
     });
@@ -369,14 +395,16 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
           });
           return;
         }
-        await saveReferenceCatalog({ categoryCode, updates, additions });
+        const saveResult = await saveReferenceCatalog({ categoryCode, updates, additions });
+        if (!saveResult.ok) {
+          setErrorDialog(dialogForSaveFailure(saveResult));
+          return;
+        }
         router.refresh();
-      } catch (err) {
-        const { summary, detail } = describeSaveReferenceCatalogError(err);
+      } catch {
         setErrorDialog({
           title: "Ошибка сохранения",
-          summary,
-          detail,
+          summary: "Ошибка соединения с сервером. Проверьте подключение и попробуйте снова.",
         });
       }
     });

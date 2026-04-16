@@ -1,4 +1,4 @@
-import type { Exercise } from "@/modules/lfk-exercises/types";
+import type { Exercise, ExerciseMedia } from "@/modules/lfk-exercises/types";
 
 export type TemplateStatus = "draft" | "published" | "archived";
 
@@ -14,6 +14,8 @@ export type TemplateExercise = {
   side: "left" | "right" | "both" | null;
   maxPain0_10: number | null;
   comment: string | null;
+  /** Первое медиа упражнения (list/get при join на lfk_exercise_media). */
+  firstMedia?: ExerciseMedia | null;
 };
 
 export type Template = {
@@ -27,11 +29,18 @@ export type Template = {
   exercises: TemplateExercise[];
   /** Для списка шаблонов без загрузки строк упражнений. */
   exerciseCount?: number;
+  /** Первое медиа каждого из первых упражнений шаблона (для превью в списке). */
+  exerciseThumbnails?: ExerciseMedia[];
 };
 
 export type TemplateFilter = {
   status?: TemplateStatus | null;
   search?: string | null;
+  /**
+   * Полные строки упражнений и первое медиа каждой строки (доп. JOIN-запрос).
+   * По умолчанию false — только счётчик и до 6 превью-миниатюр для списка.
+   */
+  includeExerciseDetails?: boolean;
 };
 
 export type CreateTemplateInput = {

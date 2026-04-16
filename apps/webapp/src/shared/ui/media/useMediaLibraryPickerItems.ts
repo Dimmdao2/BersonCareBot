@@ -1,19 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
 
 /** Max items per picker list request (API cap). */
 export const MEDIA_LIBRARY_PICKER_LIST_LIMIT = 200;
 
+export type AdminMediaListUrlSortBy = "date" | "size" | "type" | "name";
+
 export function buildAdminMediaListUrl(args: {
   apiKind: string;
   folderId?: string | null;
+  sortBy?: AdminMediaListUrlSortBy;
+  sortDir?: "asc" | "desc";
 }): string {
   const p = new URLSearchParams();
   p.set("kind", args.apiKind);
-  p.set("sortBy", "date");
-  p.set("sortDir", "desc");
+  p.set("sortBy", args.sortBy ?? "date");
+  p.set("sortDir", args.sortDir ?? "desc");
   p.set("limit", String(MEDIA_LIBRARY_PICKER_LIST_LIMIT));
   if (args.folderId !== undefined) {
     if (args.folderId === null) p.set("folderId", "root");
@@ -37,19 +42,15 @@ export function narrowMediaLibraryPickerItemsByKind(
   return items;
 }
 
-function normalizeSearch(s: string): string {
-  return s.normalize("NFC").toLocaleLowerCase("ru-RU");
-}
-
 /**
  * Local picker search over preloaded rows (`displayName` + `filename`).
  */
 export function filterMediaLibraryPickerItemsByQuery(items: MediaListItem[], query: string): MediaListItem[] {
-  const needle = normalizeSearch(query.trim());
+  const needle = normalizeRuSearchString(query.trim());
   if (!needle) return items;
   return items.filter((item) => {
-    const filename = normalizeSearch(item.filename);
-    const displayName = item.displayName ? normalizeSearch(item.displayName) : "";
+    const filename = normalizeRuSearchString(item.filename);
+    const displayName = item.displayName ? normalizeRuSearchString(item.displayName) : "";
     return filename.includes(needle) || displayName.includes(needle);
   });
 }

@@ -34,7 +34,7 @@ import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 
 type MediaKindFilter = "all" | "image" | "video" | "audio" | "file";
-type SortBy = "date" | "size" | "type";
+type SortBy = "date" | "size" | "type" | "name";
 type SortDir = "asc" | "desc";
 
 type MediaItem = {
@@ -1211,7 +1211,7 @@ export function MediaLibraryClient() {
         </div>
 
         <label className="flex min-w-[9rem] flex-col gap-1 text-sm">
-          <span className="text-xs text-muted-foreground">Тип</span>
+          <span className="text-xs text-muted-foreground">Категория</span>
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as MediaKindFilter)}
@@ -1233,8 +1233,9 @@ export function MediaLibraryClient() {
             className="h-10 rounded-md border border-input bg-background px-2"
           >
             <option value="date">Дате загрузки</option>
+            <option value="name">Названию</option>
             <option value="size">Размеру</option>
-            <option value="type">Типу</option>
+            <option value="type">MIME-типу</option>
           </select>
         </label>
 

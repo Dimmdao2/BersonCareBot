@@ -35,10 +35,13 @@ function initialModeFromHint(hint: PlatformEntry): PlatformMode {
   return hint === "bot" ? "bot" : "mobile";
 }
 
+const PLATFORM_REFRESH_DEBOUNCE_MS = 3000;
+
 export function PlatformProvider({ serverHint, children }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<PlatformMode>(() => initialModeFromHint(serverHint));
   const syncedEntryRef = useRef<PlatformEntry | null>(null);
+  const lastRefreshAtRef = useRef(0);
 
   useLayoutEffect(() => {
     let cancelled = false;
@@ -53,7 +56,11 @@ export function PlatformProvider({ serverHint, children }: Props) {
         document.cookie = serializePlatformCookie(desiredEntry, { secure: isSecureClient() });
         if (syncedEntryRef.current !== desiredEntry) {
           syncedEntryRef.current = desiredEntry;
-          router.refresh();
+          const now = Date.now();
+          if (now - lastRefreshAtRef.current >= PLATFORM_REFRESH_DEBOUNCE_MS) {
+            lastRefreshAtRef.current = now;
+            router.refresh();
+          }
         }
       }
       if (inMini || serverHint === "bot") {

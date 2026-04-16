@@ -21,6 +21,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import toast from "react-hot-toast";
 import type { Template } from "@/modules/lfk-templates/types";
+import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,8 +39,13 @@ import {
   publishLfkTemplateAction,
 } from "./actions";
 import { editorLinesToTemplateExerciseInputs } from "./templateExercisePayload";
+import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
+import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 
-type ExerciseOption = { id: string; title: string };
+type ExerciseOption = { id: string; title: string; firstMedia: ExerciseMedia | null };
 
 type EditorLine = {
   sortId: string;
@@ -91,10 +97,12 @@ function linesToPayload(lines: EditorLine[]) {
 
 function SortableRow({
   line,
+  firstMedia,
   onChange,
   onRemove,
 }: {
   line: EditorLine;
+  firstMedia: ExerciseMedia | null;
   onChange: (sortId: string, patch: Partial<EditorLine>) => void;
   onRemove: (sortId: string) => void;
 }) {
@@ -111,74 +119,90 @@ function SortableRow({
     <li
       ref={setNodeRef}
       style={style}
-      className="flex flex-col gap-2 rounded-lg border border-border/70 bg-card p-3 sm:flex-row sm:flex-wrap sm:items-end"
+      className="flex w-full items-stretch gap-2 rounded-lg border border-border/70 bg-card p-3 md:items-end"
     >
       <Button
         type="button"
         variant="outline"
         size="icon"
-        className="shrink-0 cursor-grab text-muted-foreground"
+        className="max-md:mt-0.5 shrink-0 cursor-grab self-start text-muted-foreground md:self-end"
         aria-label="Перетащить"
         {...attributes}
         {...listeners}
       >
         <GripVertical className="size-4" />
       </Button>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium leading-tight">{line.title}</p>
-        <p className="text-xs text-muted-foreground">{line.exerciseId}</p>
+      <div className="flex w-9 shrink-0 flex-col self-stretch md:self-end">
+        {firstMedia ? (
+          <div className="relative min-h-9 flex-1 overflow-hidden rounded border border-border/40 bg-muted/30 md:h-9 md:flex-none">
+            <MediaThumb
+              media={exerciseMediaToPreviewUi(firstMedia)}
+              className="absolute inset-0 size-full md:relative md:inset-auto"
+              imgClassName="size-full object-cover"
+              sizes="36px"
+            />
+          </div>
+        ) : (
+          <div className="min-h-9 flex-1 rounded bg-muted md:h-9 md:flex-none" aria-hidden />
+        )}
       </div>
-      <div className="flex flex-wrap gap-2">
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Повторы</Label>
-          <Input
-            className="h-8 w-16"
-            inputMode="numeric"
-            value={line.reps}
-            onChange={(ev) => onChange(line.sortId, { reps: ev.target.value })}
-          />
+      <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:flex-wrap md:items-end">
+        <p className="text-sm font-medium leading-tight md:max-w-[min(100%,24rem)] md:shrink-0">
+          {line.title}
+        </p>
+        <div className="flex min-w-0 w-full flex-1 flex-wrap items-end gap-2 md:w-auto">
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Повторы</Label>
+            <Input
+              className="h-8 w-16"
+              inputMode="numeric"
+              value={line.reps}
+              onChange={(ev) => onChange(line.sortId, { reps: ev.target.value })}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Подходы</Label>
+            <Input
+              className="h-8 w-16"
+              inputMode="numeric"
+              value={line.sets}
+              onChange={(ev) => onChange(line.sortId, { sets: ev.target.value })}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Сторона</Label>
+            <select
+              className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={line.side}
+              onChange={(ev) => onChange(line.sortId, { side: ev.target.value })}
+            >
+              <option value="">—</option>
+              <option value="left">Левая</option>
+              <option value="right">Правая</option>
+              <option value="both">Обе</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Боль max</Label>
+            <Input
+              className="h-8 w-16"
+              inputMode="numeric"
+              value={line.maxPain}
+              onChange={(ev) => onChange(line.sortId, { maxPain: ev.target.value })}
+            />
+          </div>
+          <div className="flex min-w-[min(100%,10rem)] flex-1 basis-[10rem] flex-col gap-1">
+            <Label className="text-xs">Комментарий</Label>
+            <Input
+              className="min-w-0"
+              value={line.comment}
+              onChange={(ev) => onChange(line.sortId, { comment: ev.target.value })}
+            />
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(line.sortId)}>
+            Удалить
+          </Button>
         </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Подходы</Label>
-          <Input
-            className="h-8 w-16"
-            inputMode="numeric"
-            value={line.sets}
-            onChange={(ev) => onChange(line.sortId, { sets: ev.target.value })}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Сторона</Label>
-          <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            value={line.side}
-            onChange={(ev) => onChange(line.sortId, { side: ev.target.value })}
-          >
-            <option value="">—</option>
-            <option value="left">Левая</option>
-            <option value="right">Правая</option>
-            <option value="both">Обе</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Боль max</Label>
-          <Input
-            className="h-8 w-16"
-            inputMode="numeric"
-            value={line.maxPain}
-            onChange={(ev) => onChange(line.sortId, { maxPain: ev.target.value })}
-          />
-        </div>
-        <div className="flex min-w-[140px] flex-1 flex-col gap-1">
-          <Label className="text-xs">Комментарий</Label>
-          <Input
-            value={line.comment}
-            onChange={(ev) => onChange(line.sortId, { comment: ev.target.value })}
-          />
-        </div>
-        <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(line.sortId)}>
-          Удалить
-        </Button>
       </div>
     </li>
   );
@@ -203,6 +227,14 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
   );
 
   const sortIds = useMemo(() => lines.map((l) => l.sortId), [lines]);
+
+  const catalogById = useMemo(() => {
+    const m = new Map<string, ExerciseMedia | null>();
+    for (const e of exerciseCatalog) {
+      m.set(e.id, e.firstMedia);
+    }
+    return m;
+  }, [exerciseCatalog]);
 
   const onDragEnd = useCallback((ev: DragEndEvent) => {
     const { active, over } = ev;
@@ -260,9 +292,11 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
   }, [description, lines, template.id, template.title, title]);
 
   const filteredPick = useMemo(() => {
-    const q = pickQuery.trim().toLowerCase();
+    const needle = normalizeRuSearchString(pickQuery.trim());
     const used = new Set(lines.map((l) => l.exerciseId));
-    return exerciseCatalog.filter((e) => !used.has(e.id) && (!q || e.title.toLowerCase().includes(q)));
+    return exerciseCatalog.filter(
+      (e) => !used.has(e.id) && (!needle || normalizeRuSearchString(e.title).includes(needle)),
+    );
   }, [exerciseCatalog, lines, pickQuery]);
 
   const addExercise = useCallback((opt: ExerciseOption) => {
@@ -286,7 +320,7 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
   const archived = template.status === "archived";
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <div className="flex w-full min-w-0 flex-col gap-6">
       <div className="flex flex-col gap-2">
         <Label htmlFor="tpl-title">Название</Label>
         <Input
@@ -318,10 +352,13 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
             <DialogHeader>
               <DialogTitle>Выбор из справочника</DialogTitle>
             </DialogHeader>
-            <Input
-              placeholder="Поиск по названию"
+            <PickerSearchField
+              id="tpl-exercise-pick-search"
+              label="Поиск по названию"
+              placeholder="Название упражнения"
               value={pickQuery}
-              onChange={(e) => setPickQuery(e.target.value)}
+              onValueChange={setPickQuery}
+              className="min-w-0"
             />
             <ul className="max-h-64 overflow-auto">
               {filteredPick.length === 0 ? (
@@ -332,10 +369,11 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
                     <Button
                       type="button"
                       variant="ghost"
-                      className="h-auto w-full justify-start rounded-md px-2 py-2 text-left text-sm font-normal"
+                      className="h-auto w-full justify-start gap-2 rounded-md px-2 py-2 text-left text-sm font-normal"
                       onClick={() => addExercise(e)}
                     >
-                      {e.title}
+                      <ExerciseListCatalogThumb media={e.firstMedia} />
+                      <span className="line-clamp-2 min-w-0">{e.title}</span>
                     </Button>
                   </li>
                 ))
@@ -349,7 +387,13 @@ export function TemplateEditor({ template, exerciseCatalog }: TemplateEditorProp
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-3">
             {lines.map((line) => (
-              <SortableRow key={line.sortId} line={line} onChange={updateLine} onRemove={removeLine} />
+              <SortableRow
+                key={line.sortId}
+                line={line}
+                firstMedia={catalogById.get(line.exerciseId) ?? null}
+                onChange={updateLine}
+                onRemove={removeLine}
+              />
             ))}
           </ul>
         </SortableContext>

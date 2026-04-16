@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -21,6 +20,7 @@ import {
 } from "@/shared/ui/media/useMediaLibraryPickerItems";
 import type { MediaExerciseUsageEntry, MediaFolderRecord } from "@/modules/media/types";
 import { cn } from "@/lib/utils";
+import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { fetchAdminMediaListItem } from "@/shared/ui/media/fetchAdminMediaListItem";
@@ -111,7 +111,8 @@ function folderPathLabel(folder: MediaFolderRecord, all: MediaFolderRecord[]): s
 
 type MediaLibraryPickerOpenPanelProps = {
   open: boolean;
-  listUrl: string;
+  apiKind: string;
+  folderId?: string | null | undefined;
   kind: MediaLibraryPickerKind;
   onPick: (item: MediaListItem) => void;
   exercisePicker: boolean;
@@ -119,13 +120,24 @@ type MediaLibraryPickerOpenPanelProps = {
   onPickerFolderIdChange: (next: string | null | undefined) => void;
 };
 
+type MediaPickerListSortPreset = "date:desc" | "date:asc" | "name:asc" | "name:desc";
+
+function parseMediaPickerListSortPreset(preset: MediaPickerListSortPreset): {
+  sortBy: "date" | "name";
+  sortDir: "asc" | "desc";
+} {
+  const [a, b] = preset.split(":") as ["date" | "name", "asc" | "desc"];
+  return { sortBy: a, sortDir: b };
+}
+
 /**
  * Состояние поиска и загрузка списка живут здесь, чтобы ввод в поле поиска
  * не ререндерил превью и кнопки снаружи модалки.
  */
 function MediaLibraryPickerOpenPanel({
   open,
-  listUrl,
+  apiKind,
+  folderId,
   kind,
   onPick,
   exercisePicker,
@@ -133,6 +145,7 @@ function MediaLibraryPickerOpenPanel({
   onPickerFolderIdChange,
 }: MediaLibraryPickerOpenPanelProps) {
   const [query, setQuery] = useState("");
+  const [listSortPreset, setListSortPreset] = useState<MediaPickerListSortPreset>("date:desc");
   const [folders, setFolders] = useState<MediaFolderRecord[]>([]);
   const [foldersLoaded, setFoldersLoaded] = useState(false);
   const [newOnly, setNewOnly] = useState(false);
@@ -140,6 +153,21 @@ function MediaLibraryPickerOpenPanel({
     Record<string, MediaExerciseUsageEntry[]>
   >({});
   const [usageReady, setUsageReady] = useState(false);
+
+  const { sortBy: listSortBy, sortDir: listSortDir } = useMemo(
+    () => parseMediaPickerListSortPreset(listSortPreset),
+    [listSortPreset],
+  );
+  const listUrl = useMemo(
+    () =>
+      buildAdminMediaListUrl({
+        apiKind,
+        folderId,
+        sortBy: listSortBy,
+        sortDir: listSortDir,
+      }),
+    [apiKind, folderId, listSortBy, listSortDir],
+  );
 
   const { items, loading, error } = useMediaLibraryPickerItems({ open, listUrl });
 
@@ -288,14 +316,30 @@ function MediaLibraryPickerOpenPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm">
-        <span className="text-xs text-muted-foreground">Поиск по имени</span>
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Введите часть имени файла"
-        />
-      </label>
+      <PickerSearchField
+        label="Поиск по имени"
+        placeholder="Введите часть имени файла"
+        value={query}
+        onValueChange={setQuery}
+      />
+
+      <div className="flex min-w-[12rem] max-w-md flex-col gap-1">
+        <span className="text-xs text-muted-foreground">Порядок списка</span>
+        <Select
+          value={listSortPreset}
+          onValueChange={(v) => setListSortPreset(v as MediaPickerListSortPreset)}
+        >
+          <SelectTrigger size="sm" className="h-8 w-full text-left">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date:desc">Сначала новые</SelectItem>
+            <SelectItem value="date:asc">Сначала старые</SelectItem>
+            <SelectItem value="name:asc">Название А→Я</SelectItem>
+            <SelectItem value="name:desc">Название Я→А</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {exercisePicker ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
@@ -402,11 +446,6 @@ export function MediaLibraryPickerDialog({
   const apiKind = kind === "image_or_video" ? "all" : kind;
 
   const effectiveFolderId = exercisePicker ? pickerFolderId : folderId;
-
-  const listUrl = useMemo(
-    () => buildAdminMediaListUrl({ apiKind, folderId: effectiveFolderId }),
-    [apiKind, effectiveFolderId],
-  );
 
   const effectiveLastPick = useMemo(() => {
     const t = value.trim();
@@ -560,7 +599,8 @@ export function MediaLibraryPickerDialog({
               <MediaLibraryPickerOpenPanel
                 key={open ? "media-picker-open" : "media-picker-closed"}
                 open={open}
-                listUrl={listUrl}
+                apiKind={apiKind}
+                folderId={effectiveFolderId}
                 kind={kind}
                 onPick={handlePickFromLibrary}
                 exercisePicker={exercisePicker}
@@ -579,7 +619,8 @@ export function MediaLibraryPickerDialog({
             <MediaLibraryPickerOpenPanel
               key={open ? "media-picker-open" : "media-picker-closed"}
               open={open}
-              listUrl={listUrl}
+              apiKind={apiKind}
+              folderId={effectiveFolderId}
               kind={kind}
               onPick={handlePickFromLibrary}
               exercisePicker={exercisePicker}

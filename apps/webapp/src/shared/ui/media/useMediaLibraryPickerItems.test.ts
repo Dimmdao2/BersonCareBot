@@ -24,6 +24,8 @@ describe("buildAdminMediaListUrl", () => {
     const u = buildAdminMediaListUrl({ apiKind: "image" });
     expect(u).toContain("/api/admin/media?");
     expect(u).toMatch(/kind=image/);
+    expect(u).toMatch(/sortBy=date/);
+    expect(u).toMatch(/sortDir=desc/);
     expect(u).toMatch(/limit=200/);
     expect(u).not.toMatch(/[?&]q=/);
   });

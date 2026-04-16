@@ -108,4 +108,18 @@ describe("GET /api/admin/media", () => {
     const res = await GET(new Request("http://localhost/api/admin/media?sortBy=unknown"));
     expect(res.status).toBe(400);
   });
+
+  it("maps sortBy=name to list()", async () => {
+    getSessionMock.mockResolvedValue({ user: { role: "doctor" } });
+    listMock.mockResolvedValue([]);
+    const res = await GET(new Request("http://localhost/api/admin/media?sortBy=name&sortDir=asc&limit=5"));
+    expect(res.status).toBe(200);
+    expect(listMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sortBy: "name",
+        sortDir: "asc",
+        limit: 5,
+      }),
+    );
+  });
 });

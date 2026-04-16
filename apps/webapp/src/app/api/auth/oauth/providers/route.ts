@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import {
   getYandexOauthClientId,
   getYandexOauthClientSecret,
@@ -16,7 +17,10 @@ import {
 /**
  * GET /api/auth/oauth/providers — какие провайдеры настроены (без секретов).
  */
-export async function GET() {
+const ROUTE = "auth/oauth/providers";
+
+export async function GET(request: Request) {
+  const startedAt = Date.now();
   const [yId, ySec, yRedir, gId, gSec, gLogin, aId, aRedir, aTeam, aKid, aPem] = await Promise.all([
     getYandexOauthClientId(),
     getYandexOauthClientSecret(),
@@ -44,5 +48,12 @@ export async function GET() {
 
   const res = NextResponse.json({ ok: true, yandex, google, apple });
   res.headers.set("Cache-Control", "private, no-store");
+  logAuthRouteTiming({
+    route: ROUTE,
+    request,
+    startedAt,
+    status: 200,
+    outcome: "ok",
+  });
   return res;
 }

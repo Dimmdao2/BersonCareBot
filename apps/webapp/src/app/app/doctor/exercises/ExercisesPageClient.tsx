@@ -1,15 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, List } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
-import { MediaThumb } from "@/shared/ui/media/MediaThumb";
-import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 import { ExerciseForm } from "./ExerciseForm";
 import { archiveExerciseInline, saveExerciseInline } from "./actionsInline";
@@ -17,16 +23,26 @@ import { ExerciseTileCard } from "./ExerciseTileCard";
 
 export type ExercisesViewMode = "tiles" | "list";
 
+export type ExerciseTitleSort = "asc" | "desc";
+
 type Props = {
   exercises: Exercise[];
   selectedExercise: Exercise | null;
   viewMode: ExercisesViewMode;
+  titleSort: ExerciseTitleSort | null;
   filters: {
     q: string;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
   };
 };
+
+function exercisesIndexHref(view: ExercisesViewMode, titleSort: ExerciseTitleSort | null): string {
+  const p = new URLSearchParams();
+  p.set("view", view);
+  if (titleSort) p.set("titleSort", titleSort);
+  return `/app/doctor/exercises?${p.toString()}`;
+}
 
 const STICKY_UNDER_DOCTOR_HEADER_CLASS =
   "top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)]";
@@ -39,18 +55,7 @@ function tileGridColsClass(count: number): string {
 }
 
 function mediaNode(exercise: Exercise) {
-  const media = exercise.media[0];
-  if (!media) return <div className="h-9 w-9 shrink-0 rounded bg-muted" />;
-  return (
-    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30">
-      <MediaThumb
-        media={exerciseMediaToPreviewUi(media)}
-        className="size-full"
-        imgClassName="size-full object-cover"
-        sizes="36px"
-      />
-    </div>
-  );
+  return <ExerciseListCatalogThumb media={exercise.media[0]} />;
 }
 
 type SelectionToolbarProps = {
@@ -59,35 +64,66 @@ type SelectionToolbarProps = {
   onCreate: () => void;
   viewMode: ExercisesViewMode;
   onToggleView: () => void;
+  titleSort: ExerciseTitleSort | null;
+  onTitleSortChange: (next: ExerciseTitleSort | null) => void;
 };
 
-function SelectionToolbar({ exerciseCount, createButtonId, onCreate, viewMode, onToggleView }: SelectionToolbarProps) {
+function SelectionToolbar({
+  exerciseCount,
+  createButtonId,
+  onCreate,
+  viewMode,
+  onToggleView,
+  titleSort,
+  onTitleSortChange,
+}: SelectionToolbarProps) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 pb-2">
+    <div className="flex flex-col gap-2 border-b border-border/60 px-2 pb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
         {exerciseCount === 0 ? "Нет упражнений" : `Упражнений: ${exerciseCount}`}
       </p>
-      <div className="flex shrink-0 items-center gap-2">
-        <button type="button" id={createButtonId} className={buttonVariants({ size: "sm" })} onClick={onCreate}>
-          Создать упражнение
-        </button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="shrink-0"
-          aria-label={viewMode === "tiles" ? "Показать список" : "Показать плитки"}
-          title={viewMode === "tiles" ? "Список" : "Плитки"}
-          onClick={onToggleView}
-        >
-          {viewMode === "tiles" ? <List className="size-4" aria-hidden /> : <LayoutGrid className="size-4" aria-hidden />}
-        </Button>
+      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+        <div className="flex min-w-[11rem] max-w-full flex-1 flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
+          <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
+          <Select
+            value={titleSort ?? "default"}
+            onValueChange={(v) => {
+              if (v === "default") onTitleSortChange(null);
+              else onTitleSortChange(v as ExerciseTitleSort);
+            }}
+          >
+            <SelectTrigger size="sm" className="h-8 w-full text-left">
+              <SelectValue placeholder="Сортировка" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">По дате изменения</SelectItem>
+              <SelectItem value="asc">Название А→Я</SelectItem>
+              <SelectItem value="desc">Название Я→А</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          <button type="button" id={createButtonId} className={buttonVariants({ size: "sm" })} onClick={onCreate}>
+            Создать упражнение
+          </button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            aria-label={viewMode === "tiles" ? "Показать список" : "Показать плитки"}
+            title={viewMode === "tiles" ? "Список" : "Плитки"}
+            onClick={onToggleView}
+          >
+            {viewMode === "tiles" ? <List className="size-4" aria-hidden /> : <LayoutGrid className="size-4" aria-hidden />}
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
 
-export function ExercisesPageClient({ exercises, selectedExercise, viewMode, filters }: Props) {
+export function ExercisesPageClient({ exercises, selectedExercise, viewMode, titleSort, filters }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -104,20 +140,33 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
   };
 
   const formKey = selectedExercise?.id ?? "create";
-  const n = exercises.length;
+
+  const displayExercises = useMemo(() => {
+    if (!titleSort) return exercises;
+    return [...exercises].sort((a, b) => {
+      const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
+      return titleSort === "asc" ? cmp : -cmp;
+    });
+  }, [exercises, titleSort]);
+
+  const n = displayExercises.length;
   const tileCols = tileGridColsClass(n);
+  const listBackHref = exercisesIndexHref(viewMode, titleSort);
 
   const toggleViewMode = () => {
     const next: ExercisesViewMode = viewMode === "tiles" ? "list" : "tiles";
     setQuery({ view: next, selected: null });
   };
 
-  const renderExerciseList = (opts: { activeId: string | null; onRowSelect: (id: string) => void }) =>
-    exercises.length === 0 ? (
+  const renderExerciseList = (
+    list: Exercise[],
+    opts: { activeId: string | null; onRowSelect: (id: string) => void },
+  ) =>
+    list.length === 0 ? (
       <p className="px-2 pb-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
     ) : (
       <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto">
-        {exercises.map((ex) => {
+        {list.map((ex) => {
           const active = opts.activeId === ex.id;
           return (
             <li key={ex.id}>
@@ -138,12 +187,12 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
       </ul>
     );
 
-  const renderExerciseTiles = (opts: { onTileSelect: (id: string) => void }) =>
-    exercises.length === 0 ? (
+  const renderExerciseTiles = (list: Exercise[], opts: { onTileSelect: (id: string) => void }) =>
+    list.length === 0 ? (
       <p className="px-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
     ) : (
       <ul className={cn("grid max-h-[70vh] gap-2 overflow-auto p-1", tileCols)}>
-        {exercises.map((ex) => (
+        {list.map((ex) => (
           <li key={ex.id} className="w-full min-w-0">
             <ExerciseTileCard
               exercise={ex}
@@ -171,6 +220,7 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
                 regionRefId={filters.regionRefId}
                 loadType={filters.loadType}
                 view={viewMode}
+                titleSort={titleSort}
               />
             </div>
             <Link
@@ -184,22 +234,24 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
       </div>
 
       <div className="hidden lg:block">
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid items-start gap-4 lg:grid-cols-2">
           <aside className="rounded-xl border border-border bg-card p-2">
             <SelectionToolbar
-              exerciseCount={exercises.length}
+              exerciseCount={displayExercises.length}
               createButtonId="doctor-exercises-create-link-desktop"
               onCreate={() => setQuery({ selected: null })}
               viewMode={viewMode}
               onToggleView={toggleViewMode}
+              titleSort={titleSort}
+              onTitleSortChange={(next) => setQuery({ titleSort: next })}
             />
 
             {viewMode === "list"
-              ? renderExerciseList({
+              ? renderExerciseList(displayExercises, {
                   activeId: selectedExercise?.id ?? null,
                   onRowSelect: (id) => setQuery({ selected: id }),
                 })
-              : renderExerciseTiles({
+              : renderExerciseTiles(displayExercises, {
                   onTileSelect: (id) => setQuery({ view: "tiles", selected: id }),
                 })}
           </aside>
@@ -211,7 +263,7 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
                 exercise={selectedExercise}
                 saveAction={saveExerciseInline}
                 archiveAction={archiveExerciseInline}
-                backHref={`/app/doctor/exercises?view=${viewMode}`}
+                backHref={listBackHref}
                 viewHint={viewMode}
               />
             </CardContent>
@@ -228,33 +280,35 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
         >
           <aside className="rounded-xl border border-border bg-card p-2">
             <SelectionToolbar
-              exerciseCount={exercises.length}
+              exerciseCount={displayExercises.length}
               createButtonId="doctor-exercises-create-link"
               onCreate={() => setMobileSheet({ exercise: null })}
               viewMode={viewMode}
               onToggleView={toggleViewMode}
+              titleSort={titleSort}
+              onTitleSortChange={(next) => setQuery({ titleSort: next })}
             />
             {viewMode === "list" ? (
-              renderExerciseList({
+              renderExerciseList(displayExercises, {
                 activeId: mobileSheet?.exercise?.id ?? null,
                 onRowSelect: (id) => {
-                  const found = exercises.find((e) => e.id === id);
+                  const found = displayExercises.find((e) => e.id === id);
                   if (found) setMobileSheet({ exercise: found });
                 },
               })
             ) : (
               <ul className={cn("grid gap-2 p-1", tileCols)}>
-                {exercises.length === 0 ? (
+                {displayExercises.length === 0 ? (
                   <li className="col-span-full px-2 text-sm text-muted-foreground">
                     Нет упражнений по заданным фильтрам.
                   </li>
                 ) : (
-                  exercises.map((ex) => (
+                  displayExercises.map((ex) => (
                     <li key={ex.id} className="w-full min-w-0">
                       <ExerciseTileCard
                         exercise={ex}
                         onSelect={(id) => {
-                          const found = exercises.find((e) => e.id === id);
+                          const found = displayExercises.find((e) => e.id === id);
                           if (found) setMobileSheet({ exercise: found });
                         }}
                         isActive={mobileSheet?.exercise?.id === ex.id}
@@ -285,7 +339,7 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
                     exercise={mobileSheet.exercise}
                     saveAction={saveExerciseInline}
                     archiveAction={archiveExerciseInline}
-                    backHref="/app/doctor/exercises"
+                    backHref={listBackHref}
                     viewHint={viewMode}
                   />
                 </CardContent>

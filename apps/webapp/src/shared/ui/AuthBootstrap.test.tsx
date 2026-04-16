@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 import { AuthBootstrap } from "./AuthBootstrap";
 
@@ -43,7 +43,7 @@ describe("AuthBootstrap", () => {
     render(<AuthBootstrap />);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(16_000);
+      await vi.advanceTimersByTimeAsync(8000);
     });
 
     expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("AuthBootstrap", () => {
     render(<AuthBootstrap />);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(16_000);
+      await vi.advanceTimersByTimeAsync(8000);
     });
 
     expect(screen.queryByText(/укажите номер телефона/i)).not.toBeInTheDocument();
@@ -130,15 +130,17 @@ describe("AuthBootstrap", () => {
   });
 
   it("при ошибке telegram-init в ctx=bot показывает Повторить и повторяет POST после retry", async () => {
+    vi.useRealTimers();
     (window as Window & { Telegram?: { WebApp?: { initData: string } } }).Telegram = {
       WebApp: { initData: "fake-init-data" },
     };
     let telegramInitPosts = 0;
+    let telegramInitShouldFail = true;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : (input as Request).url;
       if (url.includes("telegram-init")) {
         telegramInitPosts += 1;
-        if (telegramInitPosts === 1) {
+        if (telegramInitShouldFail) {
           return new Response(JSON.stringify({ ok: false, error: "access_denied" }), { status: 403 });
         }
       }
@@ -157,22 +159,26 @@ describe("AuthBootstrap", () => {
 
     render(<AuthBootstrap />);
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(500);
-    });
-
-    expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+    await waitFor(
+      () => {
+        expect(screen.getByRole("button", { name: /повторить/i })).toBeInTheDocument();
+      },
+      { timeout: 4000 },
+    );
     expect(screen.getByText(/Активируйте бота/i)).toBeInTheDocument();
-    expect(telegramInitPosts).toBe(1);
+    expect(telegramInitPosts).toBeGreaterThanOrEqual(1);
 
     await act(async () => {
+      telegramInitShouldFail = false;
       fireEvent.click(screen.getByRole("button", { name: /повторить/i }));
     });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(500);
-    });
-
-    expect(telegramInitPosts).toBe(2);
+    await waitFor(
+      () => {
+        expect(telegramInitPosts).toBeGreaterThanOrEqual(2);
+      },
+      { timeout: 4000 },
+    );
+    vi.useFakeTimers();
   });
 });

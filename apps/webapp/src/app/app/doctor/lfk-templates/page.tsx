@@ -4,19 +4,12 @@ import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button-variants";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TemplateStatus } from "@/modules/lfk-templates/types";
+import { LfkTemplatesPageClient } from "./LfkTemplatesPageClient";
 
 type PageProps = {
   searchParams?: Promise<{ status?: string }>;
-};
-
-const STATUS_LABEL: Record<TemplateStatus, string> = {
-  draft: "Черновик",
-  published: "Опубликован",
-  archived: "Архив",
 };
 
 export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps) {
@@ -27,7 +20,10 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
     statusRaw === "draft" || statusRaw === "published" || statusRaw === "archived" ? statusRaw : undefined;
 
   const deps = buildAppDeps();
-  const list = await deps.lfkTemplates.listTemplates({ status: status ?? null });
+  const list = await deps.lfkTemplates.listTemplates({
+    status: status ?? null,
+    includeExerciseDetails: true,
+  });
 
   return (
     <AppShell title="Шаблоны ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
@@ -61,28 +57,7 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
         {list.length === 0 ? (
           <p className="text-muted-foreground">Шаблонов пока нет.</p>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {list.map((t) => (
-              <li key={t.id}>
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      <Link
-                        href={`/app/doctor/lfk-templates/${t.id}`}
-                        className="text-primary underline-offset-4 hover:underline"
-                      >
-                        {t.title}
-                      </Link>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                    <Badge variant="secondary">{STATUS_LABEL[t.status]}</Badge>
-                    <span>Упражнений: {t.exerciseCount ?? t.exercises.length}</span>
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
+          <LfkTemplatesPageClient templates={list} />
         )}
       </div>
     </AppShell>

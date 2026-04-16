@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
 
 function parseSortOrder(raw: FormDataEntryValue | null): number {
   if (typeof raw !== "string") return 999;
@@ -34,14 +35,33 @@ type CatalogAddInput = {
   sortOrder: number;
 };
 
+const SAVE_CATALOG_KNOWN_CODES = new Set([
+  "duplicate_code",
+  "invalid_update_payload",
+  "invalid_add_payload",
+  "category_required",
+  "category_not_found",
+  "category_not_extensible",
+  "item_not_found",
+  "empty_update",
+]);
+
+function isPgUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: string }).code === "23505";
+}
+
+export type SaveReferenceCatalogResult =
+  | { ok: true }
+  | { ok: false; code: string; invalidValue?: string };
+
 export async function saveReferenceCatalog(input: {
   categoryCode: string;
   updates: CatalogRowInput[];
   additions: CatalogAddInput[];
-}): Promise<void> {
+}): Promise<SaveReferenceCatalogResult> {
   await requireDoctorAccess();
   const categoryCode = input.categoryCode.trim();
-  if (!categoryCode) throw new Error("category_required");
+  if (!categoryCode) return { ok: false, code: "category_required" };
   const deps = buildAppDeps();
   const updates = input.updates.map((item) => ({
     id: item.id.trim(),
@@ -56,12 +76,35 @@ export async function saveReferenceCatalog(input: {
       sortOrder: item.sortOrder,
     }))
     .filter((item) => item.code !== "" || item.title !== "");
-  if (updates.some((item) => !item.id || !item.title)) throw new Error("invalid_update_payload");
-  if (additions.some((item) => !/^[a-z][a-z0-9_]*$/.test(item.code) || !item.title)) {
-    throw new Error("invalid_add_payload");
+  const badUpdate = updates.find((item) => !item.id || !item.title);
+  if (badUpdate) {
+    const invalidValue = !badUpdate.title.trim() ? badUpdate.id : badUpdate.title;
+    return { ok: false, code: "invalid_update_payload", invalidValue };
   }
-  await deps.references.saveCatalog(categoryCode, { updates, additions });
+  const badAddition = additions.find((item) => !/^[a-z][a-z0-9_]*$/.test(item.code) || !item.title);
+  if (badAddition) {
+    const invalidValue =
+      !/^[a-z][a-z0-9_]*$/.test(badAddition.code) && badAddition.code !== ""
+        ? badAddition.code
+        : !badAddition.title.trim() && badAddition.code !== ""
+          ? badAddition.code
+          : badAddition.title || badAddition.code;
+    return { ok: false, code: "invalid_add_payload", invalidValue };
+  }
+  try {
+    await deps.references.saveCatalog(categoryCode, { updates, additions });
+  } catch (err) {
+    if (err instanceof Error && SAVE_CATALOG_KNOWN_CODES.has(err.message)) {
+      return { ok: false, code: err.message };
+    }
+    if (isPgUniqueViolation(err)) {
+      return { ok: false, code: "duplicate_code" };
+    }
+    logServerRuntimeError("saveReferenceCatalog", err, { categoryCode });
+    return { ok: false, code: "save_failed" };
+  }
   revalidateReferencePaths(categoryCode);
+  return { ok: true };
 }
 
 export async function addReferenceItem(formData: FormData): Promise<void> {
@@ -112,13 +155,29 @@ export async function toggleReferenceItem(formData: FormData): Promise<void> {
   revalidateReferencePaths(categoryCode);
 }
 
+export type SoftDeleteReferenceItemResult = { ok: true } | { ok: false; code: string };
+
 /** Soft-delete reference item (deleted_at); distinct from archive (is_active). */
-export async function softDeleteReferenceItem(formData: FormData): Promise<void> {
+export async function softDeleteReferenceItem(formData: FormData): Promise<SoftDeleteReferenceItemResult> {
   await requireDoctorAccess();
-  const categoryCode = parseCategoryCode(formData);
+  let categoryCode: string;
+  try {
+    categoryCode = parseCategoryCode(formData);
+  } catch (err) {
+    if (err instanceof Error && err.message === "category_required") {
+      return { ok: false, code: "category_required" };
+    }
+    throw err;
+  }
   const itemId = (formData.get("itemId") as string | null)?.trim() ?? "";
-  if (!itemId) throw new Error("item_required");
+  if (!itemId) return { ok: false, code: "item_required" };
   const deps = buildAppDeps();
-  await deps.references.softDeleteItem(itemId);
+  try {
+    await deps.references.softDeleteItem(itemId);
+  } catch (err) {
+    logServerRuntimeError("softDeleteReferenceItem", err, { categoryCode, itemId });
+    return { ok: false, code: "delete_failed" };
+  }
   revalidateReferencePaths(categoryCode);
+  return { ok: true };
 }

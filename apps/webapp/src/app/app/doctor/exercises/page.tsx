@@ -5,7 +5,14 @@ import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { ExercisesPageClient, type ExercisesViewMode } from "./ExercisesPageClient";
 
 type PageProps = {
-  searchParams?: Promise<{ q?: string; region?: string; load?: string; view?: string; selected?: string }>;
+  searchParams?: Promise<{
+    q?: string;
+    region?: string;
+    load?: string;
+    view?: string;
+    selected?: string;
+    titleSort?: string;
+  }>;
 };
 
 export default async function DoctorExercisesPage({ searchParams }: PageProps) {
@@ -23,6 +30,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
       : undefined;
   const viewMode: ExercisesViewMode = sp.view === "list" ? "list" : "tiles";
   const selectedExerciseId = typeof sp.selected === "string" && sp.selected.trim() ? sp.selected.trim() : null;
+  const titleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
   const deps = buildAppDeps();
   const list = await deps.lfkExercises.listExercises({
@@ -45,6 +53,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
           exercises={list}
           selectedExercise={selectedExercise}
           viewMode={viewMode}
+          titleSort={titleSort}
           filters={{
             q,
             regionRefId,

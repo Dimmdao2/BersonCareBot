@@ -16,7 +16,11 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
   }
 
   const exercises = await deps.lfkExercises.listExercises({ includeArchived: false });
-  const exerciseCatalog = exercises.map((e) => ({ id: e.id, title: e.title }));
+  const exerciseCatalog = exercises.map((e) => ({
+    id: e.id,
+    title: e.title,
+    firstMedia: e.media[0] ?? null,
+  }));
 
   return (
     <AppShell

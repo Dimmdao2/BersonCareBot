@@ -13,6 +13,7 @@ type Props = {
   regionRefId?: string;
   loadType?: ExerciseLoadType;
   view?: "tiles" | "list";
+  titleSort?: "asc" | "desc" | null;
 };
 
 /** Совпадает с `ExerciseLoadType` и парсингом query в `page.tsx`. */
@@ -29,7 +30,7 @@ function loadTypeTitle(code: ExerciseLoadType | undefined): string {
   return EXERCISE_LOAD_FILTER_ITEMS.find((i) => i.code === code)?.title ?? "";
 }
 
-export function ExercisesFiltersForm({ q, regionRefId, loadType, view }: Props) {
+export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
   const [selectedRegionLabel, setSelectedRegionLabel] = useState("");
@@ -39,6 +40,7 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view }: Props) 
   return (
     <form ref={formRef} method="get" className="flex flex-wrap items-end gap-2">
       {view ? <input type="hidden" name="view" value={view} /> : null}
+      {titleSort ? <input type="hidden" name="titleSort" value={titleSort} /> : null}
       <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground" htmlFor="ex-q">
           Поиск по названию

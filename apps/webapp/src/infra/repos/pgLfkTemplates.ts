@@ -1,4 +1,6 @@
 import { getPool } from "@/infra/db/client";
+import type { ExerciseMedia, ExerciseMediaType } from "@/modules/lfk-exercises/types";
+import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { LfkTemplatesPort } from "@/modules/lfk-templates/ports";
 import type {
   CreateTemplateInput,
@@ -9,6 +11,7 @@ import type {
   TemplateStatus,
   UpdateTemplateInput,
 } from "@/modules/lfk-templates/types";
+import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
 
 function mapTemplateRow(
   row: {
@@ -33,6 +36,60 @@ function mapTemplateRow(
     updatedAt: row.updated_at.toISOString(),
     exercises,
     exerciseCount,
+  };
+}
+
+type TemplateListThumbRow = {
+  template_id: string;
+  id: string;
+  exercise_id: string;
+  media_url: string;
+  media_type: string;
+  sort_order: number;
+  created_at: Date;
+  media_file_id: string | null;
+  preview_sm_key: string | null;
+  preview_md_key: string | null;
+  preview_status: string | null;
+};
+
+type TemplateListExerciseJoinRow = {
+  template_id: string;
+  id: string;
+  exercise_id: string;
+  sort_order: number;
+  reps: number | null;
+  sets: number | null;
+  side: string | null;
+  max_pain_0_10: number | null;
+  comment: string | null;
+  exercise_title: string | null;
+  em_id: string | null;
+  em_media_url: string | null;
+  em_media_type: string | null;
+  em_sort_order: number | null;
+  em_created_at: Date | null;
+  media_file_id: string | null;
+  preview_sm_key: string | null;
+  preview_md_key: string | null;
+  preview_status: string | null;
+};
+
+function mapListThumbMediaRow(row: Omit<TemplateListThumbRow, "template_id">): ExerciseMedia {
+  const mid = row.media_file_id ? String(row.media_file_id) : null;
+  const previewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, "sm") : null;
+  const previewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, "md") : null;
+  const previewStatus = (row.preview_status ?? "pending") as MediaPreviewStatus;
+  return {
+    id: String(row.id),
+    exerciseId: String(row.exercise_id),
+    mediaUrl: row.media_url,
+    mediaType: row.media_type as ExerciseMediaType,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at.toISOString(),
+    previewSmUrl,
+    previewMdUrl,
+    previewStatus,
   };
 }
 
@@ -64,6 +121,22 @@ function mapTeRow(
   };
 }
 
+function firstMediaFromListJoinRow(row: TemplateListExerciseJoinRow): ExerciseMedia | null {
+  if (!row.em_id || !row.em_media_url || !row.em_created_at) return null;
+  return mapListThumbMediaRow({
+    id: row.em_id,
+    exercise_id: row.exercise_id,
+    media_url: row.em_media_url,
+    media_type: row.em_media_type as ExerciseMedia["mediaType"],
+    sort_order: row.em_sort_order ?? 0,
+    created_at: row.em_created_at,
+    media_file_id: row.media_file_id,
+    preview_sm_key: row.preview_sm_key,
+    preview_md_key: row.preview_md_key,
+    preview_status: row.preview_status,
+  });
+}
+
 export function createPgLfkTemplatesPort(): LfkTemplatesPort {
   return {
     async list(filter: TemplateFilter): Promise<Template[]> {
@@ -91,7 +164,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         WHERE ${conds.join(" AND ")}
         ORDER BY t.updated_at DESC`;
       const r = await pool.query(sql, params);
-      return r.rows.map((row: Record<string, unknown>) =>
+      const templates = r.rows.map((row: Record<string, unknown>) =>
         mapTemplateRow(
           {
             id: row.id as string,
@@ -106,6 +179,123 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           row.exercise_count as number
         )
       );
+      const ids = templates.map((t) => t.id);
+      if (ids.length === 0) return templates;
+
+      const includeDetails = filter.includeExerciseDetails === true;
+
+      if (!includeDetails) {
+        const thumbSql = `
+        WITH te_ranked AS (
+          SELECT te.template_id,
+                 te.exercise_id,
+                 te.sort_order,
+                 ROW_NUMBER() OVER (PARTITION BY te.template_id ORDER BY te.sort_order ASC, te.id ASC) AS rn
+          FROM lfk_complex_template_exercises te
+          WHERE te.template_id = ANY($1::uuid[])
+        )
+        SELECT tr.template_id,
+               em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
+               mf.id AS media_file_id,
+               mf.preview_sm_key, mf.preview_md_key, mf.preview_status
+        FROM te_ranked tr
+        INNER JOIN LATERAL (
+          SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
+          FROM lfk_exercise_media em
+          WHERE em.exercise_id = tr.exercise_id
+          ORDER BY em.sort_order ASC, em.created_at ASC
+          LIMIT 1
+        ) em ON true
+        LEFT JOIN media_files mf ON mf.id = NULLIF(
+          substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
+          ''
+        )::uuid
+        WHERE tr.rn <= 6
+        ORDER BY tr.template_id, tr.sort_order`;
+        const tr = await pool.query(thumbSql, [ids]);
+        const byTemplate = new Map<string, ExerciseMedia[]>();
+        for (const row of tr.rows as TemplateListThumbRow[]) {
+          const tid = String(row.template_id);
+          const media = mapListThumbMediaRow({
+            id: row.id,
+            exercise_id: row.exercise_id,
+            media_url: row.media_url,
+            media_type: row.media_type,
+            sort_order: row.sort_order,
+            created_at: row.created_at,
+            media_file_id: row.media_file_id,
+            preview_sm_key: row.preview_sm_key,
+            preview_md_key: row.preview_md_key,
+            preview_status: row.preview_status,
+          });
+          const arr = byTemplate.get(tid);
+          if (arr) arr.push(media);
+          else byTemplate.set(tid, [media]);
+        }
+        return templates.map((t) => ({
+          ...t,
+          exerciseThumbnails: byTemplate.get(t.id) ?? [],
+        }));
+      }
+
+      const exercisesSql = `
+        SELECT te.template_id,
+               te.id,
+               te.exercise_id,
+               te.sort_order,
+               te.reps,
+               te.sets,
+               te.side,
+               te.max_pain_0_10,
+               te.comment,
+               e.title AS exercise_title,
+               em.id AS em_id,
+               em.media_url AS em_media_url,
+               em.media_type AS em_media_type,
+               em.sort_order AS em_sort_order,
+               em.created_at AS em_created_at,
+               mf.id AS media_file_id,
+               mf.preview_sm_key,
+               mf.preview_md_key,
+               mf.preview_status
+        FROM lfk_complex_template_exercises te
+        JOIN lfk_exercises e ON e.id = te.exercise_id
+        LEFT JOIN LATERAL (
+          SELECT em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
+          FROM lfk_exercise_media em
+          WHERE em.exercise_id = te.exercise_id
+          ORDER BY em.sort_order ASC, em.created_at ASC
+          LIMIT 1
+        ) em ON true
+        LEFT JOIN media_files mf ON mf.id = NULLIF(
+          substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
+          ''
+        )::uuid
+        WHERE te.template_id = ANY($1::uuid[])
+        ORDER BY te.template_id, te.sort_order ASC, te.id ASC`;
+      const er = await pool.query(exercisesSql, [ids]);
+      const byTemplate = new Map<string, TemplateExercise[]>();
+      for (const row of er.rows as TemplateListExerciseJoinRow[]) {
+        const tid = String(row.template_id);
+        const base = mapTeRow(row);
+        const fm = firstMediaFromListJoinRow(row);
+        const ex: TemplateExercise = fm ? { ...base, firstMedia: fm } : base;
+        const arr = byTemplate.get(tid);
+        if (arr) arr.push(ex);
+        else byTemplate.set(tid, [ex]);
+      }
+      return templates.map((t) => {
+        const exercises = byTemplate.get(t.id) ?? [];
+        const exerciseThumbnails = exercises
+          .slice(0, 6)
+          .map((e) => e.firstMedia)
+          .filter((m): m is ExerciseMedia => m != null);
+        return {
+          ...t,
+          exercises,
+          exerciseThumbnails,
+        };
+      });
     },
 
     async getById(id: string): Promise<Template | null> {

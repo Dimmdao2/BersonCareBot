@@ -25,13 +25,26 @@ function matchesFilter(t: Template, f: TemplateFilter): boolean {
 
 export const inMemoryLfkTemplatesPort: LfkTemplatesPort = {
   async list(filter: TemplateFilter): Promise<Template[]> {
+    const withDetails = filter.includeExerciseDetails === true;
     return [...templates.values()]
       .filter((t) => matchesFilter(t, filter))
-      .map((t) => ({
-        ...t,
-        exercises: [],
-        exerciseCount: t.exercises.length,
-      }))
+      .map((t) => {
+        const exercisesSorted = [...t.exercises].sort((a, b) => a.sortOrder - b.sortOrder);
+        if (!withDetails) {
+          return {
+            ...t,
+            exercises: [],
+            exerciseCount: exercisesSorted.length,
+            exerciseThumbnails: [],
+          };
+        }
+        return {
+          ...t,
+          exercises: exercisesSorted,
+          exerciseCount: exercisesSorted.length,
+          exerciseThumbnails: [],
+        };
+      })
       .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   },
 

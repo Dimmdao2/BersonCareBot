@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { startTransition, useCallback, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { usePatientPhonePromptChrome } from "@/shared/ui/patient/PatientPhonePromptChromeContext";
 import { ensureMessengerMiniAppWebappSession } from "@/shared/lib/miniAppSessionRecovery";
 import {
@@ -9,6 +9,8 @@ import {
   resolveBotHrefAfterMessengerSessionLoss,
   resolveMessengerContactGateBotHref,
 } from "@/shared/lib/patientMessengerContactGate";
+import { emitAuthFlowEvent } from "@/modules/auth/authFlowObservability";
+import { readMessengerBindingCandidate } from "@/shared/lib/messengerBindingCandidate";
 import { closeMessengerMiniApp, inferMessengerChannelForRequestContact, isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
 import { postPatientMessengerRequestContact } from "@/shared/lib/patientMessengerContactClient";
 import toast from "react-hot-toast";
@@ -35,6 +37,7 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
   const [useMessengerPanel, setUseMessengerPanel] = useState<boolean | null>(null);
   const [botHref, setBotHref] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<"blocked" | "timed_out" | "session_lost" | "me_unavailable">("blocked");
+  const postAuthBindingEmittedRef = useRef(false);
 
   const runRecoveryAndDecide = useCallback(async () => {
     try {
@@ -104,6 +107,21 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
     phoneChrome.setSuppressPatientHeader(onPhoneFlow);
     return () => phoneChrome.setSuppressPatientHeader(false);
   }, [phoneChrome, tg, mx, useMessengerPanel]);
+
+  useEffect(() => {
+    if (!isMessengerMiniAppHost() || useMessengerPanel !== true || postAuthBindingEmittedRef.current) {
+      return;
+    }
+    postAuthBindingEmittedRef.current = true;
+    const channel = inferMessengerChannelForRequestContact();
+    emitAuthFlowEvent("post_auth_binding_required", {
+      reason: "oauth_in_miniapp_no_bot_phone",
+      panelMode,
+      hasBindings: Boolean(tg || mx),
+      channel: channel ?? "unknown",
+      hasDeferredMessengerInitCandidate: Boolean(readMessengerBindingCandidate()),
+    });
+  }, [useMessengerPanel, panelMode, tg, mx]);
 
   const onRetryMini = useCallback(() => {
     void runRecoveryAndDecide();

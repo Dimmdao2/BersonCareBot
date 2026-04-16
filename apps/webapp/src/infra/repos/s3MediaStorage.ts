@@ -195,6 +195,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         createdAt: "m.created_at",
         size: "m.size_bytes",
         kind: "m.mime_type",
+        name: "LOWER(COALESCE(NULLIF(TRIM(m.display_name), ''), m.original_name))",
       };
       const sortBy = params.sortBy ? sortCol[params.sortBy] : "m.created_at";
       const sortDir = params.sortDir === "asc" ? "ASC" : "DESC";

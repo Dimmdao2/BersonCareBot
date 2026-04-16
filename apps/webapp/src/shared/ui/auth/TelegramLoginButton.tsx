@@ -18,13 +18,15 @@ type TelegramLoginButtonProps = {
   nextParam: string | null;
   disabled?: boolean;
   className?: string;
+  /** Вызывается при успешном старте входа через виджет (до редиректа). */
+  onAuthEngaged?: () => void;
 };
 
 /**
  * Загрузка `telegram-widget.js`, кнопка «Войти через Telegram» (primary).
  * Callback: POST `/api/auth/telegram-login`, затем редирект.
  */
-export function TelegramLoginButton({ botUsername, nextParam, disabled, className }: TelegramLoginButtonProps) {
+export function TelegramLoginButton({ botUsername, nextParam, disabled, className, onAuthEngaged }: TelegramLoginButtonProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +38,7 @@ export function TelegramLoginButton({ botUsername, nextParam, disabled, classNam
     if (!container) return;
 
     const handler = async (user: Record<string, unknown>) => {
+      onAuthEngaged?.();
       setBusy(true);
       setError(null);
       try {
@@ -87,7 +90,7 @@ export function TelegramLoginButton({ botUsername, nextParam, disabled, classNam
       script.remove();
       container.innerHTML = "";
     };
-  }, [botUsername, disabled, nextParam, router]);
+  }, [botUsername, disabled, nextParam, router, onAuthEngaged]);
 
   if (!botUsername.trim()) {
     return null;

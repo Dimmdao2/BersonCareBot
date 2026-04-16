@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuthVerboseServerLog";
+import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { logger } from "@/infra/logging/logger";
 import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
@@ -16,6 +17,7 @@ const ROUTE = "auth/telegram-init";
  * Validates initData signature, checks ALLOWED_TELEGRAM_IDS / ADMIN_TELEGRAM_ID, creates session.
  */
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
   if (!parsed.success) {
@@ -29,7 +31,16 @@ export async function POST(request: Request) {
       },
       "Telegram Mini App: запрос без валидного initData в JSON",
     );
-    return NextResponse.json({ ok: false, error: "initData is required" }, { status: 400 });
+    const res = NextResponse.json({ ok: false, error: "initData is required" }, { status: 400 });
+    logAuthRouteTiming({
+      route: ROUTE,
+      request,
+      startedAt,
+      status: 400,
+      outcome: "invalid_body",
+      errorType: "validation",
+    });
+    return res;
   }
   const { initData } = parsed.data;
 
@@ -63,7 +74,16 @@ export async function POST(request: Request) {
       },
       "Telegram Mini App: initData отклонён",
     );
-    return NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+    const res = NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+    logAuthRouteTiming({
+      route: ROUTE,
+      request,
+      startedAt,
+      status: 403,
+      outcome: "access_denied",
+      errorType: "denied",
+    });
+    return res;
   }
 
   const u = result.session.user;
@@ -94,6 +114,13 @@ export async function POST(request: Request) {
     sameSite: isProd ? "none" : "lax",
     secure: isProd,
     httpOnly: false,
+  });
+  logAuthRouteTiming({
+    route: ROUTE,
+    request,
+    startedAt,
+    status: 200,
+    outcome: "session_ok",
   });
   return response;
 }

@@ -24,7 +24,18 @@ import {
   filterMediaLibraryPickerItemsByQuery,
   narrowMediaLibraryPickerItemsByKind,
   useMediaLibraryPickerItems,
+  type AdminMediaListUrlSortBy,
 } from "@/shared/ui/media/useMediaLibraryPickerItems";
+
+type AutoCreateListSortPreset = "date:desc" | "date:asc" | "name:asc" | "name:desc";
+
+function parseAutoCreateListSortPreset(preset: AutoCreateListSortPreset): {
+  sortBy: AdminMediaListUrlSortBy;
+  sortDir: "asc" | "desc";
+} {
+  const [a, b] = preset.split(":") as ["date" | "name", "asc" | "desc"];
+  return { sortBy: a, sortDir: b };
+}
 import { bulkCreateExercisesFromMedia } from "./actions";
 import { EXERCISES_PATH } from "./exercisesPaths";
 import { exerciseMediaTypeFromPick, exerciseTitleFromLibraryItem } from "./exerciseMediaFromLibrary";
@@ -131,10 +142,22 @@ export function AutoCreateExercisesClient() {
   >({});
   const [usageReady, setUsageReady] = useState(false);
   const [selectedById, setSelectedById] = useState<Map<string, MediaListItem>>(new Map());
+  const [listSortPreset, setListSortPreset] = useState<AutoCreateListSortPreset>("date:desc");
+
+  const { sortBy: listSortBy, sortDir: listSortDir } = useMemo(
+    () => parseAutoCreateListSortPreset(listSortPreset),
+    [listSortPreset],
+  );
 
   const listUrl = useMemo(
-    () => buildAdminMediaListUrl({ apiKind: "video", folderId: pickerFolderId }),
-    [pickerFolderId],
+    () =>
+      buildAdminMediaListUrl({
+        apiKind: "video",
+        folderId: pickerFolderId,
+        sortBy: listSortBy,
+        sortDir: listSortDir,
+      }),
+    [pickerFolderId, listSortBy, listSortDir],
   );
 
   const { items, loading, error } = useMediaLibraryPickerItems({ open: true, listUrl });
@@ -377,6 +400,20 @@ export function AutoCreateExercisesClient() {
                         {folderPathLabel(f, folders)}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Порядок списка</span>
+                <Select value={listSortPreset} onValueChange={(v) => setListSortPreset(v as AutoCreateListSortPreset)}>
+                  <SelectTrigger size="sm" className="h-8 w-full text-left">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date:desc">Сначала новые</SelectItem>
+                    <SelectItem value="date:asc">Сначала старые</SelectItem>
+                    <SelectItem value="name:asc">Название А→Я</SelectItem>
+                    <SelectItem value="name:desc">Название Я→А</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

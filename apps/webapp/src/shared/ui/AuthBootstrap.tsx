@@ -15,22 +15,30 @@ import {
   shouldSuppressQueryJwtForMessengerMiniApp,
   type AuthEntryFlow,
 } from "@/modules/auth/authEntryFlow";
+import { emitAuthFlowEvent } from "@/modules/auth/authFlowObservability";
 import {
+  BROWSER_SOFT_TIMEOUT_MS,
   MAX_INIT_DATA_TIMEOUT_USER_MESSAGE,
   MESSENGER_INIT_POLL_CAP_MS,
   MESSENGER_MINIAPP_INIT_TIMEOUT_USER_MESSAGE,
+  MESSENGER_SOFT_TIMEOUT_MS,
   MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE,
+  isAuthBootstrapEarlyUiV2Enabled,
   isLikelyMaxMiniAppSurface,
+  isSuspectedMessengerContext,
   shouldDeferPhoneLoginWhileMaxBridgeMayLoad,
+  shouldExposeInteractiveLogin,
 } from "@/modules/auth/messengerAuthStrategy";
 import { getPostAuthRedirectTarget } from "@/modules/auth/redirectPolicy";
 import { Button } from "@/components/ui/button";
-import { AuthFlowV2, type AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
+import { AuthFlowV2, type AuthFlowStep, type PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
 import { MaxBridgeScript } from "@/shared/ui/MaxBridgeScript";
+import { persistMessengerBindingCandidate } from "@/shared/lib/messengerBindingCandidate";
 import {
   getMaxWebAppInitDataForAuth,
   isTelegramWebAppExternalBrowserSurface,
   readPlatformCookieBot,
+  readTelegramInitDataForAuth,
 } from "@/shared/lib/messengerMiniApp";
 import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
@@ -80,11 +88,17 @@ function parseMessengerInitErrorBody(text: string): { error?: string } | null {
 }
 
 /** Подсказки «открыть бота» при access_denied в miniapp (публичные конфиги). */
-async function loadMiniappAuthHelpLinks(): Promise<{ telegramHref: string | null; maxHref: string | null }> {
+async function loadMiniappAuthHelpLinks(
+  signal?: AbortSignal,
+  correlationId?: string | null,
+): Promise<{ telegramHref: string | null; maxHref: string | null }> {
+  const id = correlationId?.trim();
+  const headers = id ? { "x-bc-auth-correlation-id": id } : undefined;
+  const reqInit = signal || headers ? { ...(signal ? { signal } : {}), ...(headers ? { headers } : {}) } : undefined;
   try {
     const [tgRes, altRes] = await Promise.all([
-      fetch("/api/auth/telegram-login/config"),
-      fetch("/api/auth/login/alternatives-config"),
+      fetch("/api/auth/telegram-login/config", reqInit),
+      fetch("/api/auth/login/alternatives-config", reqInit),
     ]);
     const tgJson = (await tgRes.json().catch(() => ({}))) as { ok?: boolean; botUsername?: string | null };
     const altJson = (await altRes.json().catch(() => ({}))) as {
@@ -111,6 +125,13 @@ function clearStaleBotPlatformCookie(): void {
   document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
 }
 
+function classifyUaClassForAuthObservability(): "mobile" | "desktop" | "unknown" {
+  if (typeof navigator === "undefined") return "unknown";
+  const ua = navigator.userAgent || "";
+  if (/Mobi|Android/i.test(ua)) return "mobile";
+  return ua.length > 0 ? "desktop" : "unknown";
+}
+
 /** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — AuthFlowV2. */
 export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBootstrapProps) {
   const router = useRouter();
@@ -131,6 +152,21 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     messengerEntryFromClient ||
     ctxParam === BOT_ENTRY_CTX_QUERY ||
     ctxParam === MAX_ENTRY_CTX_QUERY;
+
+  const earlyUi = isAuthBootstrapEarlyUiV2Enabled();
+  const [browserSoftOk, setBrowserSoftOk] = useState(false);
+  const [messengerSoftOk, setMessengerSoftOk] = useState(false);
+  const [prefetchedAuth, setPrefetchedAuth] = useState<PrefetchedPublicAuthConfig | null>(null);
+
+  const authEpochRef = useRef(0);
+  const primaryAbortRef = useRef<AbortController | null>(null);
+  const interactiveEngagedRef = useRef(false);
+  const contextDetectedEmittedRef = useRef(false);
+  const initDataDetectedEmittedRef = useRef(false);
+  /** Одна запись late initData (persist + `late_initData_received`) на стабильную строку за эпоху bootstrap — без спама каждые 100ms. */
+  const lateBindingDedupeKeyRef = useRef<string | null>(null);
+  const prevShowPhoneFlowRef = useRef(false);
+  const mountStartedAtRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
 
   useLayoutEffect(() => {
     const fromNext = readMessengerCtxParam(searchParams);
@@ -165,12 +201,97 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   const maxInitSentRef = useRef(false);
   const tokenExchangeSentRef = useRef(false);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    emitAuthFlowEvent("auth_bootstrap_started", {
+      correlationId,
+      path: window.location.pathname,
+      queryCtx: ctxParam ?? null,
+      hasToken: Boolean(token),
+      platformCookie: readPlatformCookieBot() ? "bot" : "none",
+      earlyUi,
+      uaClass: classifyUaClassForAuthObservability(),
+    });
+  }, [correlationId, ctxParam, token, earlyUi]);
+
+  useEffect(() => {
+    if (!earlyUi) return;
+    if (!isMessengerMiniAppEntry) {
+      const t = window.setTimeout(() => setBrowserSoftOk(true), BROWSER_SOFT_TIMEOUT_MS);
+      return () => window.clearTimeout(t);
+    }
+    return;
+  }, [earlyUi, isMessengerMiniAppEntry]);
+
+  useEffect(() => {
+    if (!earlyUi || !isMessengerMiniAppEntry) return;
+    const t = window.setTimeout(() => setMessengerSoftOk(true), MESSENGER_SOFT_TIMEOUT_MS);
+    return () => window.clearTimeout(t);
+  }, [earlyUi, isMessengerMiniAppEntry, retryKey]);
+
+  const exposeInteractive = shouldExposeInteractiveLogin({
+    earlyUiEnabled: earlyUi,
+    isMessengerMiniAppEntry,
+    messengerSoftOk,
+    browserSoftOk,
+    initDataStatus,
+    state,
+  });
+
+  const showPhoneFlow =
+    !messengerRetryNoPhone &&
+    !token &&
+    state !== "loading" &&
+    exposeInteractive;
+
+  useEffect(() => {
+    if (!showPhoneFlow) {
+      prevShowPhoneFlowRef.current = false;
+      return;
+    }
+    if (prevShowPhoneFlowRef.current) return;
+    prevShowPhoneFlowRef.current = true;
+    const elapsedMs =
+      typeof performance !== "undefined" ? performance.now() - mountStartedAtRef.current : undefined;
+    let reason: string = "manual";
+    if (state === "error") reason = "error";
+    else if (initDataStatus === "no") reason = "initData_no";
+    else if (earlyUi && isMessengerMiniAppEntry && messengerSoftOk) reason = "messenger_soft_timeout";
+    else if (earlyUi && !isMessengerMiniAppEntry && browserSoftOk) reason = "browser_soft_timeout";
+    emitAuthFlowEvent("fallback_to_interactive", {
+      correlationId,
+      reason,
+      elapsedMs: elapsedMs != null ? Math.round(elapsedMs) : undefined,
+    });
+  }, [showPhoneFlow, state, initDataStatus, earlyUi, isMessengerMiniAppEntry, messengerSoftOk, browserSoftOk, correlationId]);
+
+  const handleInteractiveEngaged = () => {
+    if (interactiveEngagedRef.current) return;
+    interactiveEngagedRef.current = true;
+    emitAuthFlowEvent("auth_attempt_started", {
+      correlationId,
+      attemptType: "interactive",
+      epoch: authEpochRef.current,
+    });
+  };
+
   /**
    * Единый клиентский bootstrap: опрос initData (Telegram → MAX), затем отложенный обмен JWT;
    * при `ctx=bot` / `ctx=max` JWT из query не используется (см. `shouldSuppressQueryJwtForMessengerMiniApp`).
    */
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    authEpochRef.current += 1;
+    const epoch = authEpochRef.current;
+    interactiveEngagedRef.current = false;
+    contextDetectedEmittedRef.current = false;
+    initDataDetectedEmittedRef.current = false;
+    lateBindingDedupeKeyRef.current = null;
+    mountStartedAtRef.current = typeof performance !== "undefined" ? performance.now() : Date.now();
+    telegramInitSentRef.current = false;
+    maxInitSentRef.current = false;
+    tokenExchangeSentRef.current = false;
 
     const flowHint = classifyAuthEntryFlowFromSearchParams(searchParams);
 
@@ -185,6 +306,47 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     const STABLE_EMPTY_TICKS = 10;
 
     let cancelled = false;
+    const prefetchAc = new AbortController();
+    const prefetchHeaders: Record<string, string> = { "x-bc-auth-correlation-id": correlationId };
+    /** Следующий macrotask: не смешивать сразу с первым `tick()` (fake timers в тестах, Strict Mode). */
+    const prefetchKick = window.setTimeout(() => {
+      if (cancelled || epoch !== authEpochRef.current) return;
+      void Promise.all([
+        fetch("/api/auth/oauth/providers", { signal: prefetchAc.signal, headers: prefetchHeaders })
+          .then((r) => r.json().catch(() => ({})))
+          .catch(() => ({})),
+        fetch("/api/auth/telegram-login/config", { signal: prefetchAc.signal, headers: prefetchHeaders })
+          .then((r) => r.json().catch(() => ({})))
+          .catch(() => ({})),
+        fetch("/api/auth/login/alternatives-config", { signal: prefetchAc.signal, headers: prefetchHeaders })
+          .then((r) => r.json().catch(() => ({})))
+          .catch(() => ({})),
+      ]).then(([oauthData, tgData, altData]) => {
+        if (cancelled || epoch !== authEpochRef.current) return;
+        const oauth = oauthData as { ok?: boolean; yandex?: boolean; google?: boolean; apple?: boolean };
+        const oauthProviders = {
+          yandex: oauth?.ok === true && Boolean(oauth.yandex),
+          google: oauth?.ok === true && Boolean(oauth.google),
+          apple: oauth?.ok === true && Boolean(oauth.apple),
+        };
+        const tgJson = tgData as { ok?: boolean; botUsername?: string | null };
+        const u =
+          tgJson?.ok === true && typeof tgJson.botUsername === "string" ? String(tgJson.botUsername).trim() : "";
+        const telegramBotUsername = u.length > 0 ? u : null;
+        const alt = altData as { ok?: boolean; maxBotOpenUrl?: unknown };
+        const maxBotOpenUrl =
+          alt?.ok === true && typeof alt.maxBotOpenUrl === "string" && alt.maxBotOpenUrl.trim().length > 0
+            ? alt.maxBotOpenUrl.trim()
+            : null;
+        setPrefetchedAuth({
+          oauthProviders,
+          telegramBotUsername,
+          maxBotOpenUrl,
+          fetchedAt: Date.now(),
+        });
+      });
+    }, 0);
+
     let intervalId: ReturnType<typeof setInterval> | undefined;
     let stableWebAppEmptyTicks = 0;
     const t0 = Date.now();
@@ -226,9 +388,23 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       if (sentRef.current) return;
       sentRef.current = true;
       stopPolling();
-      queueMicrotask(() => setState("loading"));
+      primaryAbortRef.current?.abort();
+      const ac = new AbortController();
+      primaryAbortRef.current = ac;
+      const epochAtSend = authEpochRef.current;
+      queueMicrotask(() => {
+        if (!cancelled) setState("loading");
+      });
 
       const entry = endpoint === "/api/auth/max-init" ? "max_initData" : "telegram_initData";
+      const attemptType = endpoint === "/api/auth/max-init" ? "max_init" : "telegram_init";
+      emitAuthFlowEvent("auth_attempt_started", {
+        correlationId,
+        attemptType,
+        epoch: epochAtSend,
+        elapsedMs: Date.now() - t0,
+      });
+
       if (endpoint === "/api/auth/max-init") {
         logAuthBootstrap("client max-init", {
           flow: flowHint,
@@ -245,14 +421,32 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         });
       }
 
+      const startedAt = Date.now();
       void fetch(endpoint, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ initData }),
+        signal: ac.signal,
       })
         .then(async (response) => {
+          if (cancelled || epochAtSend !== authEpochRef.current) {
+            sentRef.current = false;
+            return;
+          }
           const text = await response.text();
+          if (cancelled || epochAtSend !== authEpochRef.current) {
+            sentRef.current = false;
+            return;
+          }
           if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
+          emitAuthFlowEvent("auth_attempt_finished", {
+            correlationId,
+            attemptType,
+            epoch: epochAtSend,
+            ok: response.ok,
+            httpStatus: response.status,
+            elapsedMs: Date.now() - startedAt,
+          });
           if (!response.ok) {
             setState("error");
             const errBody = parseMessengerInitErrorBody(text);
@@ -265,7 +459,8 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
               setMiniappHelpLinks({ telegram: null, max: null });
             } else if (accessDenied) {
               setError(MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE);
-              void loadMiniappAuthHelpLinks().then((links) => {
+              void loadMiniappAuthHelpLinks(ac.signal, correlationId).then((links) => {
+                if (epochAtSend !== authEpochRef.current) return;
                 setMiniappHelpLinks({ telegram: links.telegramHref, max: links.maxHref });
               });
             } else {
@@ -291,10 +486,27 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           router.replace(target);
         })
         .catch((e) => {
+          if (cancelled || epochAtSend !== authEpochRef.current) {
+            sentRef.current = false;
+            return;
+          }
+          if (e instanceof DOMException && e.name === "AbortError") {
+            sentRef.current = false;
+            return;
+          }
           setState("error");
           setError("Не удалось войти");
           setMiniappHelpLinks({ telegram: null, max: null });
           if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
+          emitAuthFlowEvent("auth_attempt_finished", {
+            correlationId,
+            attemptType,
+            epoch: epochAtSend,
+            ok: false,
+            httpStatus: undefined,
+            errorCode: "network",
+            elapsedMs: Date.now() - startedAt,
+          });
           logAuthBootstrap("messenger-init network error", {
             flow: flowHint,
             correlationId,
@@ -303,30 +515,96 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         });
     };
 
-    const runTelegramInit = (initData: string) =>
+    const runTelegramInit = (initData: string) => {
+      if (interactiveEngagedRef.current) {
+        const dedupeKey = `telegram:${initData}`;
+        if (lateBindingDedupeKeyRef.current === dedupeKey) return;
+        lateBindingDedupeKeyRef.current = dedupeKey;
+        persistMessengerBindingCandidate({ channel: "telegram", initData, correlationId });
+        emitAuthFlowEvent("late_initData_received", {
+          correlationId,
+          channel: "telegram",
+          epoch: authEpochRef.current,
+          interactiveActive: true,
+          actionTaken: "store_binding_candidate_skip_auto_auth",
+          initDataLength: initData.length,
+          isLate: true,
+        });
+        return;
+      }
       postMessengerInit("/api/auth/telegram-init", initData, telegramInitSentRef);
-    const runMaxInit = (initData: string) => postMessengerInit("/api/auth/max-init", initData, maxInitSentRef);
+    };
+
+    const runMaxInit = (initData: string) => {
+      if (interactiveEngagedRef.current) {
+        const dedupeKey = `max:${initData}`;
+        if (lateBindingDedupeKeyRef.current === dedupeKey) return;
+        lateBindingDedupeKeyRef.current = dedupeKey;
+        persistMessengerBindingCandidate({ channel: "max", initData, correlationId });
+        emitAuthFlowEvent("late_initData_received", {
+          correlationId,
+          channel: "max",
+          epoch: authEpochRef.current,
+          interactiveActive: true,
+          actionTaken: "store_binding_candidate_skip_auto_auth",
+          initDataLength: initData.length,
+          isLate: true,
+        });
+        return;
+      }
+      postMessengerInit("/api/auth/max-init", initData, maxInitSentRef);
+    };
 
     const postTokenExchange = (t: string) => {
       if (tokenExchangeSentRef.current) return;
       tokenExchangeSentRef.current = true;
       stopPolling();
-      queueMicrotask(() => setState("loading"));
+      primaryAbortRef.current?.abort();
+      const ac = new AbortController();
+      primaryAbortRef.current = ac;
+      const epochAtSend = authEpochRef.current;
+      queueMicrotask(() => {
+        if (!cancelled) setState("loading");
+      });
       logAuthBootstrap("client auth/exchange (query jwt)", {
         flow: flowHint,
         correlationId,
         tokenLen: t.length,
         entry: "integrator_jwt",
       });
+      emitAuthFlowEvent("auth_attempt_started", {
+        correlationId,
+        attemptType: "exchange",
+        epoch: epochAtSend,
+        elapsedMs: Date.now() - t0,
+      });
 
+      const startedAt = Date.now();
       void fetch("/api/auth/exchange", {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ token: t }),
+        signal: ac.signal,
       })
         .then(async (response) => {
+          if (cancelled || epochAtSend !== authEpochRef.current) {
+            tokenExchangeSentRef.current = false;
+            return;
+          }
           const text = await response.text();
+          if (cancelled || epochAtSend !== authEpochRef.current) {
+            tokenExchangeSentRef.current = false;
+            return;
+          }
           if (debug) setDebugInfo({ status: response.status, message: text.slice(0, 300) });
+          emitAuthFlowEvent("auth_attempt_finished", {
+            correlationId,
+            attemptType: "exchange",
+            epoch: epochAtSend,
+            ok: response.ok,
+            httpStatus: response.status,
+            elapsedMs: Date.now() - startedAt,
+          });
           if (!response.ok) {
             setState("error");
             setError(response.status >= 500 ? "Сервис временно недоступен. Попробуйте позже." : "Не удалось войти");
@@ -343,9 +621,26 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           router.replace(target);
         })
         .catch((e) => {
+          if (cancelled || epochAtSend !== authEpochRef.current) {
+            tokenExchangeSentRef.current = false;
+            return;
+          }
+          if (e instanceof DOMException && e.name === "AbortError") {
+            tokenExchangeSentRef.current = false;
+            return;
+          }
           setState("error");
           setError("Не удалось войти");
           if (debug) setDebugInfo({ message: e instanceof Error ? e.message : String(e) });
+          emitAuthFlowEvent("auth_attempt_finished", {
+            correlationId,
+            attemptType: "exchange",
+            epoch: epochAtSend,
+            ok: false,
+            httpStatus: undefined,
+            errorCode: "network",
+            elapsedMs: Date.now() - startedAt,
+          });
         });
     };
 
@@ -353,23 +648,65 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
       if (cancelled) return;
       const elapsed = Date.now() - t0;
       const webApp = window.Telegram?.WebApp;
-      const rawTg = webApp?.initData?.trim() ?? "";
+      const rawTg = readTelegramInitDataForAuth();
+      const rawMax = getMaxWebAppInitDataForAuth();
+
+      const maxBridgeReady =
+        typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
+
+      if (!contextDetectedEmittedRef.current) {
+        contextDetectedEmittedRef.current = true;
+        const suspected = isSuspectedMessengerContext({
+          messengerFromUrlOrCookie: messengerEntryFromUrlOrCookie(),
+          maxBridgeReady,
+          telegramWebAppPresent: typeof window.Telegram?.WebApp !== "undefined",
+        });
+        const ctxFromUrl = readMessengerCtxParam(searchParams);
+        let source: "ctx" | "cookie" | "bridge" | "tg_init" | "max_init" = "bridge";
+        if (rawTg) source = "tg_init";
+        else if (rawMax) source = "max_init";
+        else if (ctxFromUrl === BOT_ENTRY_CTX_QUERY || ctxFromUrl === MAX_ENTRY_CTX_QUERY) source = "ctx";
+        else if (readPlatformCookieBot()) source = "cookie";
+        emitAuthFlowEvent("context_detected", {
+          correlationId,
+          suspected,
+          confirmed: Boolean(rawTg || rawMax),
+          source,
+          elapsedMs: elapsed,
+        });
+      }
 
       if (rawTg) {
+        if (!initDataDetectedEmittedRef.current) {
+          initDataDetectedEmittedRef.current = true;
+          emitAuthFlowEvent("initData_detected", {
+            correlationId,
+            channel: "telegram",
+            initDataLength: rawTg.length,
+            elapsedMs: elapsed,
+            isLate: interactiveEngagedRef.current,
+          });
+        }
         setInitDataStatus("yes");
         runTelegramInit(rawTg);
         return;
       }
 
-      const rawMax = getMaxWebAppInitDataForAuth();
       if (rawMax) {
+        if (!initDataDetectedEmittedRef.current) {
+          initDataDetectedEmittedRef.current = true;
+          emitAuthFlowEvent("initData_detected", {
+            correlationId,
+            channel: "max",
+            initDataLength: rawMax.length,
+            elapsedMs: elapsed,
+            isLate: interactiveEngagedRef.current,
+          });
+        }
         setInitDataStatus("yes");
         runMaxInit(rawMax);
         return;
       }
-
-      const maxBridgeReady =
-        typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
 
       const ctxEarly = readMessengerCtxParam(searchParams);
       const cookieOnlyMessenger =
@@ -386,7 +723,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         !maxSurfaceEarly &&
         !maxBridgeReady &&
         !rawTg &&
-        !rawMax &&
+        !rawMax.trim() &&
         staleBotStandaloneBrowser;
 
       if (staleBotCookieToWebAuth) {
@@ -451,7 +788,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         stopPolling();
         const maxR =
           typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
-        const tgInit = window.Telegram?.WebApp?.initData?.trim() ?? "";
+        const tgInit = readTelegramInitDataForAuth();
         const stillNoInit = !tgInit && !getMaxWebAppInitDataForAuth().trim();
         const maxSurface = isLikelyMaxMiniAppSurface(true, maxR);
         const messengerEntry = messengerEntryFromUrlOrCookie();
@@ -462,6 +799,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           !maxInitSentRef.current
         ) {
           queueMicrotask(() => {
+            if (epoch !== authEpochRef.current) return;
             const ctxFromUrl = readMessengerCtxParam(searchParams);
             const cookieOnlyMessengerEntry =
               readPlatformCookieBot() &&
@@ -493,7 +831,10 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
             }
           });
         } else {
-          queueMicrotask(() => setInitDataStatus((s) => (s === "unknown" ? "no" : s)));
+          queueMicrotask(() => {
+            if (epoch !== authEpochRef.current) return;
+            setInitDataStatus((s) => (s === "unknown" ? "no" : s));
+          });
         }
       }
     };
@@ -503,11 +844,15 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
     return () => {
       cancelled = true;
+      window.clearTimeout(prefetchKick);
+      prefetchAc.abort();
       stopPolling();
+      primaryAbortRef.current?.abort();
     };
   }, [router, searchParams, token, debug, nextParam, correlationId, retryKey]);
 
   const handleMessengerAuthRetry = () => {
+    primaryAbortRef.current?.abort();
     telegramInitSentRef.current = false;
     maxInitSentRef.current = false;
     tokenExchangeSentRef.current = false;
@@ -516,15 +861,10 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     setMiniappHelpLinks({ telegram: null, max: null });
     setInitDataStatus("unknown");
     setDebugInfo(null);
+    setBrowserSoftOk(false);
+    setMessengerSoftOk(false);
     setRetryKey((k) => k + 1);
   };
-
-  const showPhoneFlow =
-    !isMessengerMiniAppEntry &&
-    !messengerRetryNoPhone &&
-    !token &&
-    state !== "loading" &&
-    (state === "error" || initDataStatus === "no");
 
   /** Bridge MAX только без query JWT — см. `MaxBridgeScript`. */
   const loadMaxBridge = token == null;
@@ -533,7 +873,14 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     return (
       <>
         <MaxBridgeScript active={loadMaxBridge} />
-        <AuthFlowV2 nextParam={nextParam} supportContactHref={supportContactHref} onStepChange={onAuthStepChange} />
+        <AuthFlowV2
+          nextParam={nextParam}
+          supportContactHref={supportContactHref}
+          onStepChange={onAuthStepChange}
+          prefetchedAuthConfig={prefetchedAuth}
+          onInteractiveLoginEngaged={handleInteractiveEngaged}
+          observabilityCorrelationId={correlationId}
+        />
       </>
     );
   }

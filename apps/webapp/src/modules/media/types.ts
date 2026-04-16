@@ -38,7 +38,7 @@ export type MediaFolderRecord = {
   createdAt: string;
 };
 
-export type MediaListSortBy = "createdAt" | "size" | "kind";
+export type MediaListSortBy = "createdAt" | "size" | "kind" | "name";
 export type MediaSortDirection = "asc" | "desc";
 
 export type MediaListParams = {

@@ -6,8 +6,23 @@
 /** Время ожидания появления `window.WebApp` после инжекта MAX Bridge (скрипт async). */
 export const MAX_BRIDGE_LOAD_GRACE_MS = 4000;
 
-/** Совпадает с циклом опроса initData в AuthBootstrap. */
-export const MESSENGER_INIT_POLL_CAP_MS = 15000;
+/** Жёсткий cap опроса initData в AuthBootstrap (messenger path). Раньше 15000 — см. legacy alias ниже. */
+export const MESSENGER_HARD_POLL_CAP_MS = 7000;
+
+/**
+ * @deprecated Имя сохранено для совместимости импортов; значение = {@link MESSENGER_HARD_POLL_CAP_MS}.
+ * Исторически было 15000.
+ */
+export const MESSENGER_INIT_POLL_CAP_MS = MESSENGER_HARD_POLL_CAP_MS;
+
+/** Ранний показ интерактивного login в обычном браузере (не блокировать AuthFlowV2). */
+export const BROWSER_SOFT_TIMEOUT_MS = 1000;
+
+/** Ранний показ интерактивного login при suspected messenger (initData ещё нет). */
+export const MESSENGER_SOFT_TIMEOUT_MS = 2000;
+
+/** Алиас политики: совпадает с {@link MESSENGER_HARD_POLL_CAP_MS} для опроса. */
+export const MESSENGER_HARD_TIMEOUT_MS = MESSENGER_HARD_POLL_CAP_MS;
 
 export const MAX_INIT_DATA_TIMEOUT_USER_MESSAGE =
   "Не удалось войти через MAX: приложение не передало данные для входа. Закройте мини-приложение и откройте его снова из чата с ботом.";
@@ -50,4 +65,62 @@ export function shouldDeferPhoneLoginWhileMaxBridgeMayLoad(input: {
  */
 export function isLikelyMaxMiniAppSurface(telegramInitDataEmpty: boolean, maxBridgeReady: boolean): boolean {
   return maxBridgeReady && telegramInitDataEmpty;
+}
+
+/** Есть признаки мессенджерного контекста без подтверждённого initData (URL/cookie/bridge). */
+export function isSuspectedMessengerContext(input: {
+  messengerFromUrlOrCookie: boolean;
+  maxBridgeReady: boolean;
+  telegramWebAppPresent: boolean;
+}): boolean {
+  if (!input.messengerFromUrlOrCookie) return false;
+  return input.telegramWebAppPresent || input.maxBridgeReady;
+}
+
+/** Подтверждённый mini app: непустой TG или MAX initData. */
+export function isConfirmedMessengerByInitData(input: {
+  telegramInitData: string;
+  maxInitData: string;
+}): boolean {
+  return Boolean(input.telegramInitData.trim()) || Boolean(input.maxInitData.trim());
+}
+
+/** Feature flag: ранний интерактивный login + prefetch (`AuthBootstrap` / `AuthFlowV2`). */
+export function isAuthBootstrapEarlyUiV2Enabled(): boolean {
+  const v = process.env.NEXT_PUBLIC_AUTH_BOOTSTRAP_EARLY_UI_V2?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
+/**
+ * Показать интерактивный login (не блокировать до initData / poll cap).
+ * В контексте messenger mini app (`ctx`/cookie) **не** показываем телефонный флоу при `state === "error"`
+ * (таймаут initData / отказ init) — только `Повторить` / подсказки; исключение: {@link isAuthBootstrapEarlyUiV2Enabled}
+ * + messenger soft-timeout при ещё `unknown` initData.
+ */
+export function shouldExposeInteractiveLogin(input: {
+  earlyUiEnabled: boolean;
+  isMessengerMiniAppEntry: boolean;
+  messengerSoftOk: boolean;
+  browserSoftOk: boolean;
+  initDataStatus: "unknown" | "yes" | "no";
+  state: "idle" | "loading" | "error";
+}): boolean {
+  if (input.initDataStatus === "no") return true;
+
+  if (input.isMessengerMiniAppEntry) {
+    if (input.state === "error") return false;
+    if (
+      input.earlyUiEnabled &&
+      input.state === "idle" &&
+      input.initDataStatus === "unknown" &&
+      input.messengerSoftOk
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  if (input.state === "error") return true;
+  if (!input.earlyUiEnabled || input.initDataStatus !== "unknown") return false;
+  return input.browserSoftOk;
 }

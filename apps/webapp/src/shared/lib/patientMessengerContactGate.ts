@@ -4,7 +4,7 @@
  */
 
 import { CHANNEL_LIST } from "@/modules/channel-preferences/constants";
-import { isMessengerMiniAppHost } from "@/shared/lib/messengerMiniApp";
+import { isMessengerMiniAppHost, readTelegramInitDataForAuth } from "@/shared/lib/messengerMiniApp";
 
 export type PatientMessengerContactGateDetail = {
   kind: "no_gate" | "need_contact" | "unauthenticated" | "me_unavailable";
@@ -81,7 +81,7 @@ export async function resolveMessengerContactGateBotHref(
  */
 export async function resolveBotHrefAfterMessengerSessionLoss(): Promise<string | null> {
   if (typeof window === "undefined") return null;
-  const initData = window.Telegram?.WebApp?.initData?.trim() ?? "";
+  const initData = readTelegramInitDataForAuth();
   if (initData.length > 0) {
     return resolveMessengerContactGateBotHref(true, false);
   }

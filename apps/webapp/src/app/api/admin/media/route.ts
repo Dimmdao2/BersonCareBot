@@ -9,7 +9,7 @@ const UUID_RE =
 
 const querySchema = z.object({
   kind: z.enum(["all", "image", "video", "audio", "file"]).optional(),
-  sortBy: z.enum(["date", "size", "type"]).optional(),
+  sortBy: z.enum(["date", "size", "type", "name"]).optional(),
   sortDir: z.enum(["asc", "desc"]).optional(),
   q: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
@@ -56,6 +56,7 @@ export async function GET(request: Request) {
     date: "createdAt",
     size: "size",
     type: "kind",
+    name: "name",
   } as const;
 
   const deps = buildAppDeps();

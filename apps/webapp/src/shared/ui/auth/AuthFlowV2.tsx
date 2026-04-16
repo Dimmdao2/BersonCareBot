@@ -6,7 +6,7 @@
  * OTP в вебе — только Telegram / Max (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -109,10 +109,12 @@ function MaxLoginCta({
   maxAltLoading,
   maxOpenUrl,
   variant,
+  onActivate,
 }: {
   maxAltLoading: boolean;
   maxOpenUrl: string | null;
   variant: "primary" | "outline";
+  onActivate?: () => void;
 }) {
   const cls = variant === "primary" ? AUTH_LOGIN_PRIMARY_BUTTON_CLASS : AUTH_LOGIN_OUTLINE_BUTTON_CLASS;
   if (maxAltLoading) {
@@ -135,27 +137,55 @@ function MaxLoginCta({
       target="_blank"
       rel="noopener noreferrer"
       className={cn(buttonVariants({ variant: variant === "primary" ? "default" : "outline" }), cls)}
+      onClick={() => onActivate?.()}
     >
       {variant === "primary" ? "Войти через Max" : "Max"}
     </a>
   );
 }
 
+type OauthProviderFlags = { yandex: boolean; google: boolean; apple: boolean };
+
+export type PrefetchedPublicAuthConfig = {
+  oauthProviders: OauthProviderFlags;
+  telegramBotUsername: string | null;
+  maxBotOpenUrl: string | null;
+  fetchedAt: number;
+};
+
 type AuthFlowV2Props = {
   nextParam: string | null;
   supportContactHref?: string;
   onStepChange?: (step: AuthFlowStep) => void;
+  /** Сид из `AuthBootstrap` prefetch (публичные конфиги входа). */
+  prefetchedAuthConfig?: PrefetchedPublicAuthConfig | null;
+  /** Пользователь начал интерактивный вход (OAuth / телефон / код) — не перехватывать UI поздним initData. */
+  onInteractiveLoginEngaged?: () => void;
+  /** Сквозной id для заголовка `x-bc-auth-correlation-id` на публичных GET auth-конфигах (без секретов). */
+  observabilityCorrelationId?: string | null;
 };
-
-type OauthProviderFlags = { yandex: boolean; google: boolean; apple: boolean };
 
 type MaxBotOpenUrlState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "ready"; url: string | null };
 
-export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: AuthFlowV2Props) {
+export function AuthFlowV2({
+  nextParam,
+  supportContactHref,
+  onStepChange,
+  prefetchedAuthConfig,
+  onInteractiveLoginEngaged,
+  observabilityCorrelationId,
+}: AuthFlowV2Props) {
   const router = useRouter();
+  const engageInteractive = () => {
+    onInteractiveLoginEngaged?.();
+  };
+  const publicAuthFetchHeaders = useMemo((): HeadersInit | undefined => {
+    const id = observabilityCorrelationId?.trim();
+    return id ? { "x-bc-auth-correlation-id": id } : undefined;
+  }, [observabilityCorrelationId]);
   const [step, setStep] = useState<AuthFlowStep>("entry_loading");
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
   /** После ответа /api/auth/telegram-login/config (или сразу в Mini App). До этого показываем слот кнопки Telegram. */
@@ -194,11 +224,28 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
       };
     }
 
+    const ac = new AbortController();
     const emptyOauth: OauthProviderFlags = { yandex: false, google: false, apple: false };
     let oauthResolved = false;
     let tgResolved = false;
     let oauthOp = emptyOauth;
     let tgUsername: string | null = null;
+
+    const prefetchFresh =
+      prefetchedAuthConfig &&
+      Date.now() - prefetchedAuthConfig.fetchedAt < 120_000;
+
+    if (prefetchFresh) {
+      oauthOp = prefetchedAuthConfig.oauthProviders;
+      tgUsername = prefetchedAuthConfig.telegramBotUsername;
+      oauthResolved = true;
+      tgResolved = true;
+      setOauthProviders(oauthOp);
+      setTelegramBotUsername(tgUsername);
+      setTelegramLoginConfigLoaded(true);
+      const oauthOn = oauthOp.yandex || oauthOp.google || oauthOp.apple;
+      setStep(oauthOn ? "oauth_first" : tgUsername && tgUsername.length > 0 ? "landing" : "phone");
+    }
 
     const finishNonOauthStep = () => {
       if (cancelled || !oauthResolved || !tgResolved) return;
@@ -207,7 +254,10 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
       setStep(tgUsername && tgUsername.length > 0 ? "landing" : "phone");
     };
 
-    void fetch("/api/auth/oauth/providers")
+    void fetch("/api/auth/oauth/providers", {
+      signal: ac.signal,
+      ...(publicAuthFetchHeaders ? { headers: publicAuthFetchHeaders } : {}),
+    })
       .then((r) => r.json().catch(() => ({})))
       .then((oauthData) => {
         if (cancelled) return;
@@ -228,14 +278,17 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
         finishNonOauthStep();
       })
       .catch(() => {
-        if (cancelled) return;
+        if (cancelled || ac.signal.aborted) return;
         oauthOp = emptyOauth;
         setOauthProviders(emptyOauth);
         oauthResolved = true;
         finishNonOauthStep();
       });
 
-    void fetch("/api/auth/telegram-login/config")
+    void fetch("/api/auth/telegram-login/config", {
+      signal: ac.signal,
+      ...(publicAuthFetchHeaders ? { headers: publicAuthFetchHeaders } : {}),
+    })
       .then((r) => r.json().catch(() => ({})))
       .then((tgData) => {
         if (cancelled) return;
@@ -249,7 +302,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
         finishNonOauthStep();
       })
       .catch(() => {
-        if (cancelled) return;
+        if (cancelled || ac.signal.aborted) return;
         tgUsername = null;
         setTelegramBotUsername(null);
         setTelegramLoginConfigLoaded(true);
@@ -259,14 +312,30 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
 
     return () => {
       cancelled = true;
+      ac.abort();
     };
-  }, []);
+  }, [prefetchedAuthConfig, publicAuthFetchHeaders]);
 
   useEffect(() => {
     if (isMessengerMiniAppHost()) return;
+    const ac = new AbortController();
     let cancelled = false;
-    setMaxBotOpenUrl((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
-    void fetch("/api/auth/login/alternatives-config")
+
+    const prefetchFresh =
+      prefetchedAuthConfig &&
+      Date.now() - prefetchedAuthConfig.fetchedAt < 120_000 &&
+      prefetchedAuthConfig.maxBotOpenUrl;
+
+    if (prefetchFresh) {
+      setMaxBotOpenUrl({ status: "ready", url: prefetchedAuthConfig.maxBotOpenUrl });
+    } else {
+      setMaxBotOpenUrl((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
+    }
+
+    void fetch("/api/auth/login/alternatives-config", {
+      signal: ac.signal,
+      ...(publicAuthFetchHeaders ? { headers: publicAuthFetchHeaders } : {}),
+    })
       .then((r) => r.json().catch(() => ({})))
       .then((d) => {
         if (cancelled) return;
@@ -289,20 +358,22 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
         if (tg.length > 0) setTelegramBotUsername(tg);
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !ac.signal.aborted) {
           setMaxBotOpenUrl({ status: "ready", url: null });
         }
       });
     return () => {
       cancelled = true;
+      ac.abort();
     };
-  }, []);
+  }, [prefetchedAuthConfig, publicAuthFetchHeaders]);
 
   useEffect(() => {
     onStepChange?.(step);
   }, [step, onStepChange]);
 
   const startOauth = async (provider: "yandex" | "google" | "apple") => {
+    engageInteractive();
     setLoading(true);
     try {
       const res = await fetch("/api/auth/oauth/start", {
@@ -394,6 +465,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
       toast.error(SMS_DISABLED_WEB_MESSAGE);
       return { kind: "error", message: SMS_DISABLED_WEB_MESSAGE };
     }
+    engageInteractive();
     setLoading(true);
     try {
       const chatId = getWebChatId();
@@ -432,6 +504,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
   };
 
   const runCheckPhone = async (normalized: string) => {
+    engageInteractive();
     setLoading(true);
     try {
       const res = await fetch("/api/auth/check-phone", {
@@ -527,7 +600,12 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
         {showTelegramAuthSlot ? (
           <div className="flex w-full flex-col items-center gap-4">
             {telegramWidgetReady && telegramBotUsername ? (
-              <TelegramLoginButton botUsername={telegramBotUsername} nextParam={nextParam} disabled={loading} />
+              <TelegramLoginButton
+                botUsername={telegramBotUsername}
+                nextParam={nextParam}
+                disabled={loading}
+                onAuthEngaged={engageInteractive}
+              />
             ) : (
               <Button
                 type="button"
@@ -541,13 +619,21 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             )}
           </div>
         ) : null}
-        <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="primary" />
+        <MaxLoginCta
+          maxAltLoading={maxAltLoading}
+          maxOpenUrl={maxOpenUrl}
+          variant="primary"
+          onActivate={engageInteractive}
+        />
         <Button
           type="button"
           variant="link"
           className="h-auto min-h-0 text-sm text-muted-foreground"
           disabled={loading}
-          onClick={() => setStep("phone")}
+          onClick={() => {
+            engageInteractive();
+            setStep("phone");
+          }}
         >
           Войти по номеру телефона
         </Button>
@@ -597,14 +683,27 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             ) : null}
           </div>
         ) : null}
-        <TelegramLoginButton botUsername={telegramBotUsername} nextParam={nextParam} disabled={loading} />
-        <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="primary" />
+        <TelegramLoginButton
+          botUsername={telegramBotUsername}
+          nextParam={nextParam}
+          disabled={loading}
+          onAuthEngaged={engageInteractive}
+        />
+        <MaxLoginCta
+          maxAltLoading={maxAltLoading}
+          maxOpenUrl={maxOpenUrl}
+          variant="primary"
+          onActivate={engageInteractive}
+        />
         <Button
           type="button"
           variant="link"
           className="h-auto min-h-0 text-sm text-muted-foreground"
           disabled={loading}
-          onClick={() => setStep("phone")}
+          onClick={() => {
+            engageInteractive();
+            setStep("phone");
+          }}
         >
           Войти по номеру телефона
         </Button>
@@ -665,7 +764,12 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                     Apple
                   </Button>
                 ) : null}
-                <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="outline" />
+                <MaxLoginCta
+                  maxAltLoading={maxAltLoading}
+                  maxOpenUrl={maxOpenUrl}
+                  variant="outline"
+                  onActivate={engageInteractive}
+                />
               </div>
             </div>
           </>
@@ -677,7 +781,12 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             variant="link"
             className="h-auto min-h-0 px-0 py-0 text-sm font-normal text-muted-foreground disabled:opacity-60"
             disabled={loading || !telegramWidgetReady}
-            onClick={() => telegramWidgetReady && setStep("landing")}
+            onClick={() => {
+              if (telegramWidgetReady) {
+                engageInteractive();
+                setStep("landing");
+              }
+            }}
           >
             {telegramLoginConfigLoaded ? "Войти через Telegram" : "Войти через Telegram…"}
           </Button>
@@ -739,7 +848,12 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                   Apple
                 </Button>
               ) : null}
-              <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="outline" />
+              <MaxLoginCta
+                  maxAltLoading={maxAltLoading}
+                  maxOpenUrl={maxOpenUrl}
+                  variant="outline"
+                  onActivate={engageInteractive}
+                />
             </div>
           </div>
         ) : null}
@@ -749,6 +863,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             target="_blank"
             rel="noopener noreferrer"
             className={cn(buttonVariants({ variant: "default" }), AUTH_LOGIN_PRIMARY_BUTTON_CLASS)}
+            onClick={() => engageInteractive()}
           >
             Войти через Max
           </a>
@@ -759,7 +874,12 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             variant="default"
             className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
             disabled={loading || !telegramWidgetReady}
-            onClick={() => telegramWidgetReady && setStep("landing")}
+            onClick={() => {
+              if (telegramWidgetReady) {
+                engageInteractive();
+                setStep("landing");
+              }
+            }}
           >
             {telegramLoginConfigLoaded ? "Войти через Telegram" : "Войти через Telegram…"}
           </Button>
@@ -832,7 +952,12 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
                   Apple
                 </Button>
               ) : null}
-              <MaxLoginCta maxAltLoading={maxAltLoading} maxOpenUrl={maxOpenUrl} variant="outline" />
+              <MaxLoginCta
+                  maxAltLoading={maxAltLoading}
+                  maxOpenUrl={maxOpenUrl}
+                  variant="outline"
+                  onActivate={engageInteractive}
+                />
             </div>
           </div>
         ) : null}
@@ -842,6 +967,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             target="_blank"
             rel="noopener noreferrer"
             className={cn(buttonVariants({ variant: "default" }), AUTH_LOGIN_PRIMARY_BUTTON_CLASS)}
+            onClick={() => engageInteractive()}
           >
             Войти через Max
           </a>
@@ -852,7 +978,12 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
             variant="default"
             className={AUTH_LOGIN_PRIMARY_BUTTON_CLASS}
             disabled={loading || !telegramWidgetReady}
-            onClick={() => telegramWidgetReady && setStep("landing")}
+            onClick={() => {
+              if (telegramWidgetReady) {
+                engageInteractive();
+                setStep("landing");
+              }
+            }}
           >
             {telegramLoginConfigLoaded ? "Войти через Telegram" : "Войти через Telegram…"}
           </Button>
@@ -919,6 +1050,7 @@ export function AuthFlowV2({ nextParam, supportContactHref, onStepChange }: Auth
           description={otpDescription(otpChannel, methods.emailAddress)}
           alternatives={alternatives}
           onConfirm={async (code) => {
+            engageInteractive();
             const chatId = getWebChatId();
             const res = await fetch("/api/auth/phone/confirm", {
               method: "POST",

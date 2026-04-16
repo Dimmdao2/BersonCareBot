@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuthVerboseServerLog";
+import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
 import { logger } from "@/infra/logging/logger";
 import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
@@ -46,6 +47,7 @@ function requestDiagnostics(request: Request): {
  * Подпись: https://dev.max.ru/docs/webapps/validation ; ключ: `max_bot_api_key` в admin settings.
  */
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   const diag = requestDiagnostics(request);
   const raw = (await request.json().catch(() => null)) as unknown;
   const parsed = bodySchema.safeParse(raw);
@@ -62,7 +64,16 @@ export async function POST(request: Request) {
       },
       "MAX Mini App: запрос без валидного initData в JSON",
     );
-    return NextResponse.json({ ok: false, error: "initData is required" }, { status: 400 });
+    const res = NextResponse.json({ ok: false, error: "initData is required" }, { status: 400 });
+    logAuthRouteTiming({
+      route: ROUTE,
+      request,
+      startedAt,
+      status: 400,
+      outcome: "invalid_body",
+      errorType: "validation",
+    });
+    return res;
   }
   const { initData } = parsed.data;
   const fields = maxInitDataLogFields(initData);
@@ -105,7 +116,16 @@ export async function POST(request: Request) {
       },
       "MAX Mini App: initData не прошёл проверку или доступ запрещён",
     );
-    return NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+    const res = NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+    logAuthRouteTiming({
+      route: ROUTE,
+      request,
+      startedAt,
+      status: 403,
+      outcome: "access_denied",
+      errorType: "denied",
+    });
+    return res;
   }
 
   if (!result || !("session" in result)) {
@@ -113,7 +133,16 @@ export async function POST(request: Request) {
       { route: ROUTE, outcome: "unexpected_denied", validationOk: false, ...diag, ...fields },
       "MAX Mini App: неожиданный отказ без session",
     );
-    return NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+    const res = NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+    logAuthRouteTiming({
+      route: ROUTE,
+      request,
+      startedAt,
+      status: 403,
+      outcome: "unexpected_denied",
+      errorType: "denied",
+    });
+    return res;
   }
   const exchange = result;
   const u = exchange.session.user;
@@ -146,6 +175,13 @@ export async function POST(request: Request) {
     sameSite: isProd ? "none" : "lax",
     secure: isProd,
     httpOnly: false,
+  });
+  logAuthRouteTiming({
+    route: ROUTE,
+    request,
+    startedAt,
+    status: 200,
+    outcome: "session_ok",
   });
   return response;
 }

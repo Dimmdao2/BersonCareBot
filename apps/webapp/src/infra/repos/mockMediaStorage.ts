@@ -92,9 +92,11 @@ export const mockMediaStoragePort: MediaStoragePort = {
 
     const sortBy = params.sortBy ?? "createdAt";
     const sortDir = params.sortDir === "asc" ? 1 : -1;
+    const displayLabel = (item: (typeof filtered)[number]) => item.displayName?.trim() || item.filename;
     filtered.sort((a, b) => {
       if (sortBy === "size") return (a.size - b.size) * sortDir;
       if (sortBy === "kind") return a.kind.localeCompare(b.kind) * sortDir;
+      if (sortBy === "name") return displayLabel(a).localeCompare(displayLabel(b), "ru") * sortDir;
       return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * sortDir;
     });
 
