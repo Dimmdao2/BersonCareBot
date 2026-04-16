@@ -4,7 +4,6 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MediaLibraryPickerDialog } from "./MediaLibraryPickerDialog";
-import { MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS } from "@/shared/ui/media/mediaLibrarySearchDebounceMs";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -44,7 +43,7 @@ describe("MediaLibraryPickerDialog", () => {
     expect(screen.getByText(/Legacy URL/i)).toBeInTheDocument();
   });
 
-  it("debounces search: one fetch after typing stops, not per keystroke", async () => {
+  it("loads list on open without q; typing search does not trigger extra fetch", async () => {
     const fetchMock = vi.fn(() =>
       Promise.resolve({
         ok: true,
@@ -52,7 +51,6 @@ describe("MediaLibraryPickerDialog", () => {
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup();
 
     render(<MediaLibraryPickerDialog kind="image" value="" onChange={vi.fn()} />);
@@ -60,23 +58,112 @@ describe("MediaLibraryPickerDialog", () => {
     await user.click(screen.getByRole("button", { name: /Выбрать из библиотеки/i }));
 
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(1));
-    const calls = fetchMock.mock.calls as unknown[][];
-    const afterOpenCount = calls.length;
-    const firstUrl = String(calls[0]?.[0] ?? "");
+    const fetchCalls = fetchMock.mock.calls as unknown[][];
+    const firstUrl = String(fetchCalls[0]?.[0] ?? "");
     expect(firstUrl).toContain("/api/admin/media");
-    expect(firstUrl).not.toMatch(/[&?]q=/);
+    expect(new URL(firstUrl, "http://localhost").searchParams.get("q")).toBeNull();
+    expect(firstUrl).toMatch(/limit=200/);
+
+    const afterOpenCount = fetchMock.mock.calls.length;
 
     const search = screen.getByPlaceholderText("Введите часть имени файла");
     fireEvent.change(search, { target: { value: "abc" } });
 
-    expect(calls.length).toBe(afterOpenCount);
+    await Promise.resolve();
+    await Promise.resolve();
 
-    await vi.advanceTimersByTimeAsync(MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS + 50);
+    expect(fetchMock.mock.calls.length).toBe(afterOpenCount);
+  });
 
-    await waitFor(() => expect(calls.length).toBeGreaterThan(afterOpenCount));
-    const lastCall = calls[calls.length - 1]?.[0];
-    expect(String(lastCall)).toContain("q=abc");
+  it("filters by filename locally without new fetch", async () => {
+    const alpha = {
+      id: "1",
+      kind: "image" as const,
+      filename: "alpha.png",
+      mimeType: "image/png",
+      size: 1,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      url: "/api/media/1",
+    };
+    const beta = {
+      id: "2",
+      kind: "image" as const,
+      filename: "beta.png",
+      mimeType: "image/png",
+      size: 1,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      url: "/api/media/2",
+    };
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, items: [alpha, beta] }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
 
-    vi.useRealTimers();
+    render(<MediaLibraryPickerDialog kind="image" value="" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Выбрать из библиотеки/i }));
+
+    await waitFor(() => expect(screen.getByText("alpha.png")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText("Введите часть имени файла"), {
+      target: { value: "bet" },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("alpha.png")).toBeNull();
+      expect(screen.getByText("beta.png")).toBeInTheDocument();
+    });
+    expect(fetchMock.mock.calls.length).toBe(1);
+  });
+
+  it("filters by displayName locally without new fetch", async () => {
+    const demo = {
+      id: "1",
+      kind: "video" as const,
+      filename: "blob-id.mp4",
+      displayName: "Демо для пациента",
+      mimeType: "video/mp4",
+      size: 1,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      url: "/api/media/1",
+    };
+    const warmup = {
+      id: "2",
+      kind: "video" as const,
+      filename: "clip.mp4",
+      displayName: "Разминка",
+      mimeType: "video/mp4",
+      size: 1,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      url: "/api/media/2",
+    };
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, items: [demo, warmup] }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<MediaLibraryPickerDialog kind="video" value="" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Выбрать из библиотеки/i }));
+
+    await waitFor(() => expect(screen.getByText("Разминка")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText("Введите часть имени файла"), {
+      target: { value: "пациент" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Демо для пациента")).toBeInTheDocument();
+      expect(screen.queryByText("Разминка")).toBeNull();
+    });
+    expect(fetchMock.mock.calls.length).toBe(1);
   });
 });

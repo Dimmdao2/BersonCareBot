@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { MediaPickerList, type MediaListItem } from "@/shared/ui/media/MediaPickerList";
-import { MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS } from "@/shared/ui/media/mediaLibrarySearchDebounceMs";
+import {
+  buildAdminMediaListUrl,
+  filterMediaLibraryPickerItemsByQuery,
+  useMediaLibraryPickerItems,
+} from "@/shared/ui/media/useMediaLibraryPickerItems";
 
 function subscribeMobileViewport(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -35,65 +39,22 @@ type Props = {
 export function MediaLibraryInsertDialog({ onInsert }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [items, setItems] = useState<MediaListItem[]>([]);
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
-  const openWasFalseRef = useRef(true);
 
-  const url = useMemo(() => {
-    const p = new URLSearchParams();
-    p.set("kind", "all");
-    p.set("sortBy", "date");
-    p.set("sortDir", "desc");
-    if (debouncedQuery.trim()) p.set("q", debouncedQuery.trim());
-    p.set("limit", "80");
-    return `/api/admin/media?${p.toString()}`;
-  }, [debouncedQuery]);
+  const listUrl = useMemo(() => buildAdminMediaListUrl({ apiKind: "all" }), []);
 
-  useEffect(() => {
-    if (!open) {
-      openWasFalseRef.current = true;
-      return;
-    }
-    if (openWasFalseRef.current) {
-      openWasFalseRef.current = false;
-      queueMicrotask(() => setDebouncedQuery(query.trim()));
-      return;
-    }
-    const t = window.setTimeout(() => setDebouncedQuery(query.trim()), MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(t);
-  }, [open, query]);
+  const { items, loading, error } = useMediaLibraryPickerItems({ open, listUrl });
 
-  useEffect(() => {
-    if (!open) return;
-    const ac = new AbortController();
-    queueMicrotask(() => {
-      setLoading(true);
-      setError(null);
-    });
-    fetch(url, { credentials: "same-origin", signal: ac.signal })
-      .then(async (res) => {
-        const data = (await res.json()) as { ok?: boolean; items?: MediaListItem[]; error?: string };
-        if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
-        if (!ac.signal.aborted) setItems(data.items ?? []);
-      })
-      .catch((e: unknown) => {
-        if (ac.signal.aborted) return;
-        const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
-        if (name === "AbortError") return;
-        setError("Не удалось загрузить библиотеку");
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setLoading(false);
-      });
-    return () => ac.abort();
-  }, [open, url]);
+  const displayedItems = useMemo(() => filterMediaLibraryPickerItemsByQuery(items, query), [items, query]);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) setQuery("");
+  }
 
   function handlePicked(item: MediaListItem) {
     onInsert(item.url, item.filename);
-    setOpen(false);
+    handleOpenChange(false);
   }
 
   const body = (
@@ -111,14 +72,11 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
           <span className="text-xs text-muted-foreground">Поиск по имени</span>
           <Input
             value={query}
-            onChange={(e) => {
-              setError(null);
-              setQuery(e.target.value);
-            }}
+            onChange={(e) => setQuery(e.target.value)}
             placeholder="Введите часть имени файла"
           />
         </label>
-        <MediaPickerList items={items} loading={loading} error={error} onSelect={handlePicked} />
+        <MediaPickerList items={displayedItems} loading={loading} error={error} onSelect={handlePicked} />
       </div>
     </div>
   );
@@ -131,16 +89,13 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
         size="sm"
         onClick={() => {
           setQuery("");
-          setDebouncedQuery("");
-          setError(null);
-          setLoading(true);
           setOpen(true);
         }}
       >
         Вставить из библиотеки
       </Button>
       {isMobileViewport ? (
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={open} onOpenChange={handleOpenChange}>
           <SheetContent side="bottom" className="max-h-[90vh] overflow-auto">
             <SheetHeader>
               <SheetTitle>Библиотека файлов</SheetTitle>
@@ -149,7 +104,7 @@ export function MediaLibraryInsertDialog({ onInsert }: Props) {
           </SheetContent>
         </Sheet>
       ) : (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogContent className="max-h-[85vh] overflow-auto sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Библиотека файлов</DialogTitle>

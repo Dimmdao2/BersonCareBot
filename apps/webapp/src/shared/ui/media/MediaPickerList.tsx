@@ -7,6 +7,8 @@ export type MediaListItem = {
   id: string;
   kind: "image" | "video" | "audio" | "file";
   filename: string;
+  /** Как в экране библиотеки: подпись в CMS; если пусто — показываем filename. */
+  displayName?: string | null;
   mimeType: string;
   size: number;
   createdAt: string;
@@ -26,6 +28,10 @@ function shortDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function pickerTitle(item: MediaListItem): string {
+  return item.displayName?.trim() || item.filename;
 }
 
 export function MediaPickerList({ items, loading, error, onSelect }: Props) {
@@ -55,9 +61,14 @@ export function MediaPickerList({ items, loading, error, onSelect }: Props) {
               <div className="flex h-24 items-center justify-center px-2 text-xs text-muted-foreground">Файл</div>
             )}
           </div>
-          <p className="truncate text-sm font-medium" title={item.filename}>
-            {item.filename}
+          <p className="truncate text-sm font-medium" title={pickerTitle(item)}>
+            {pickerTitle(item)}
           </p>
+          {item.displayName?.trim() ? (
+            <p className="truncate text-xs text-muted-foreground" title={item.filename}>
+              Исходное имя: {item.filename}
+            </p>
+          ) : null}
           <p className="text-xs text-muted-foreground">
             {item.kind} • {shortDate(item.createdAt)}
           </p>

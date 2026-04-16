@@ -372,7 +372,7 @@
 2. `apps/webapp/src/app/app/doctor/content/ContentForm.tsx` — адаптировать использование picker при необходимости новых props.
 
 **Файлы для создания:**
-1. `apps/webapp/src/app/app/doctor/content/MediaPickerList.tsx` — список и действия выбора внутри модалки (переиспользуемый контент).
+1. `apps/webapp/src/shared/ui/media/MediaPickerList.tsx` — список и действия выбора внутри модалки (переиспользуемый контент; исторически мог быть указан путь под `content/`).
 
 **Файлы для удаления:**
 - Нет.
@@ -381,7 +381,7 @@
 - Реализовать:
   - desktop: `Dialog`,
   - mobile: `Sheet` или полноэкранный `Dialog`.
-- Сохранить поиск и фильтрацию по имени.
+- Поиск по имени в открытой модалке: **один** запрос к `GET /api/admin/media` **без** `q` при открытии (лимит 200); дальнейший ввод фильтрует список **локально на клиенте** (`filterMediaLibraryPickerItemsByQuery` по `filename` / `displayName`) без сервера в цикле ввода. Серверный `q` остаётся уместным на **экране библиотеки** (`MediaLibraryClient`), не в picker typing.
 - Убрать `min-w-[36rem]`-таблицу как единственный UI; на мобильном — карточки/компактный список.
 - После выбора файла:
   - записать URL в скрытое поле,
@@ -389,6 +389,10 @@
   - показать текущее выбранное значение.
 
 **Тесты:**
+- [x] Автотесты (Vitest/RTL): `MediaLibraryPickerDialog.test.tsx` — один fetch при открытии, ввод не дергает API, локальная фильтрация, превью image/video/legacy URL.
+- [x] Автотесты: `MediaLibraryInsertDialog.test.tsx` — тот же паттерн (без `q` в цикле ввода).
+- [x] Автотесты: `useMediaLibraryPickerItems.test.ts` — сборка URL без `q`, `filterMediaLibraryPickerItemsByQuery`, `narrowMediaLibraryPickerItemsByKind`.
+- [x] Автотесты: `useMediaLibraryPickerItems.hook.test.tsx` — гонка «устаревший ответ» при смене `listUrl`, закрытие до ответа.
 - [ ] Manual mobile: picker открывается полноэкранно и удобен для выбора.
 - [ ] Manual desktop: picker открывается как modal dialog с фокус-ловушкой.
 - [ ] Regression: `onChange` для image/video обновляет скрытые поля формы.

@@ -52,6 +52,8 @@
   "pnpm": {
     "onlyBuiltDependencies": ["argon2"],
     "overrides": {
+      "fastify": ">=5.8.5",
+      "jsdom": "^26.0.0",
       "flatted": ">=3.4.2",
       "dompurify": ">=3.3.2",
       "micromatch>picomatch": "2.3.2",

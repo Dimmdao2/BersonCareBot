@@ -4,7 +4,6 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MediaLibraryInsertDialog } from "./MediaLibraryInsertDialog";
-import { MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS } from "@/shared/ui/media/mediaLibrarySearchDebounceMs";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -24,7 +23,7 @@ afterEach(() => {
 });
 
 describe("MediaLibraryInsertDialog", () => {
-  it("debounces library search while dialog is open", async () => {
+  it("loads list on open without q; typing search does not trigger extra fetch", async () => {
     const fetchMock = vi.fn(() =>
       Promise.resolve({
         ok: true,
@@ -32,28 +31,73 @@ describe("MediaLibraryInsertDialog", () => {
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup();
 
     render(<MediaLibraryInsertDialog onInsert={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /Вставить из библиотеки/i }));
 
-    const calls = fetchMock.mock.calls as unknown[][];
-    await waitFor(() => expect(calls.length).toBeGreaterThanOrEqual(1));
-    const afterOpenCount = calls.length;
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(1));
+    const fetchCalls = fetchMock.mock.calls as unknown[][];
+    const firstUrl = String(fetchCalls[0]?.[0] ?? "");
+    expect(firstUrl).toContain("/api/admin/media");
+    expect(new URL(firstUrl, "http://localhost").searchParams.get("q")).toBeNull();
+    expect(firstUrl).toMatch(/limit=200/);
 
-    const search = screen.getByPlaceholderText("Введите часть имени файла");
-    fireEvent.change(search, { target: { value: "xy" } });
+    const afterOpenCount = fetchMock.mock.calls.length;
 
-    expect(calls.length).toBe(afterOpenCount);
+    fireEvent.change(screen.getByPlaceholderText("Введите часть имени файла"), {
+      target: { value: "xy" },
+    });
 
-    await vi.advanceTimersByTimeAsync(MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS + 50);
+    await Promise.resolve();
+    await Promise.resolve();
 
-    await waitFor(() => expect(calls.length).toBeGreaterThan(afterOpenCount));
-    const lastCall = calls[calls.length - 1]?.[0];
-    expect(String(lastCall)).toContain("q=xy");
+    expect(fetchMock.mock.calls.length).toBe(afterOpenCount);
+  });
 
-    vi.useRealTimers();
+  it("filters by filename locally without new fetch", async () => {
+    const notes = {
+      id: "1",
+      kind: "file" as const,
+      filename: "notes.txt",
+      mimeType: "text/plain",
+      size: 1,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      url: "/api/media/1",
+    };
+    const photo = {
+      id: "2",
+      kind: "image" as const,
+      filename: "photo.png",
+      mimeType: "image/png",
+      size: 1,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      url: "/api/media/2",
+    };
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, items: [notes, photo] }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<MediaLibraryInsertDialog onInsert={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /Вставить из библиотеки/i }));
+
+    await waitFor(() => expect(screen.getByText("notes.txt")).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText("Введите часть имени файла"), {
+      target: { value: "photo" },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("notes.txt")).toBeNull();
+      expect(screen.getByText("photo.png")).toBeInTheDocument();
+    });
+    expect(fetchMock.mock.calls.length).toBe(1);
   });
 });

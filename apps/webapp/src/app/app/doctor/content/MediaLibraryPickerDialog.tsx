@@ -1,13 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { MediaPickerList, type MediaListItem } from "@/shared/ui/media/MediaPickerList";
 import { VideoThumbnailPreview } from "@/shared/ui/media/VideoThumbnailPreview";
-import { MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS } from "@/shared/ui/media/mediaLibrarySearchDebounceMs";
+import {
+  buildAdminMediaListUrl,
+  filterMediaLibraryPickerItemsByQuery,
+  narrowMediaLibraryPickerItemsByKind,
+  useMediaLibraryPickerItems,
+} from "@/shared/ui/media/useMediaLibraryPickerItems";
 
 export type MediaLibraryPickerKind = "image" | "video" | "image_or_video";
 
@@ -97,49 +102,22 @@ export function MediaLibraryPickerDialog({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [items, setItems] = useState<MediaListItem[]>([]);
   const [lastPick, setLastPick] = useState<LastPick | null>(null);
   const isMobileViewport = useSyncExternalStore(subscribeMobileViewport, getMobileViewportSnapshot, () => false);
-  const openWasFalseRef = useRef(true);
 
   const apiKind = kind === "image_or_video" ? "all" : kind;
 
-  const fetchUrl = useMemo(() => {
-    const p = new URLSearchParams();
-    p.set("kind", apiKind);
-    p.set("sortBy", "date");
-    p.set("sortDir", "desc");
-    if (debouncedQuery.trim()) p.set("q", debouncedQuery.trim());
-    p.set("limit", "80");
-    if (folderId !== undefined) {
-      if (folderId === null) p.set("folderId", "root");
-      else p.set("folderId", folderId);
-    }
-    return `/api/admin/media?${p.toString()}`;
-  }, [apiKind, debouncedQuery, folderId]);
+  const listUrl = useMemo(
+    () => buildAdminMediaListUrl({ apiKind, folderId }),
+    [apiKind, folderId],
+  );
 
-  const displayItems = useMemo(() => {
-    if (kind !== "image_or_video") return items;
-    return items.filter((i) => i.kind === "image" || i.kind === "video");
-  }, [items, kind]);
+  const { items, loading, error } = useMediaLibraryPickerItems({ open, listUrl });
 
-  // Debounce search: immediate sync when dialog opens; then delay while typing.
-  useEffect(() => {
-    if (!open) {
-      openWasFalseRef.current = true;
-      return;
-    }
-    if (openWasFalseRef.current) {
-      openWasFalseRef.current = false;
-      queueMicrotask(() => setDebouncedQuery(query.trim()));
-      return;
-    }
-    const t = window.setTimeout(() => setDebouncedQuery(query.trim()), MEDIA_LIBRARY_SEARCH_DEBOUNCE_MS);
-    return () => window.clearTimeout(t);
-  }, [open, query]);
+  const displayedItems = useMemo(() => {
+    const kindFiltered = narrowMediaLibraryPickerItemsByKind(items, kind);
+    return filterMediaLibraryPickerItemsByQuery(kindFiltered, query);
+  }, [items, kind, query]);
 
   const effectiveLastPick = useMemo(() => {
     const t = value.trim();
@@ -147,30 +125,10 @@ export function MediaLibraryPickerDialog({
     return lastPick.url === t ? lastPick : null;
   }, [value, lastPick]);
 
-  useEffect(() => {
-    if (!open) return;
-    const ac = new AbortController();
-    queueMicrotask(() => {
-      setLoading(true);
-      setError(null);
-    });
-    fetch(fetchUrl, { credentials: "same-origin", signal: ac.signal })
-      .then(async (res) => {
-        const data = (await res.json()) as { ok?: boolean; items?: MediaListItem[]; error?: string };
-        if (!res.ok || !data.ok) throw new Error(data.error ?? "load_failed");
-        if (!ac.signal.aborted) setItems(data.items ?? []);
-      })
-      .catch((e: unknown) => {
-        if (ac.signal.aborted) return;
-        const name = e && typeof e === "object" && "name" in e ? String((e as { name?: string }).name) : "";
-        if (name === "AbortError") return;
-        setError("Не удалось загрузить библиотеку");
-      })
-      .finally(() => {
-        if (!ac.signal.aborted) setLoading(false);
-      });
-    return () => ac.abort();
-  }, [open, fetchUrl]);
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) setQuery("");
+  }
 
   const isApiMedia =
     value.startsWith("/api/media/") || /^https?:\/\//i.test(value.trim());
@@ -191,21 +149,18 @@ export function MediaLibraryPickerDialog({
         <span className="text-xs text-muted-foreground">Поиск по имени</span>
         <Input
           value={query}
-          onChange={(e) => {
-            setError(null);
-            setQuery(e.target.value);
-          }}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Введите часть имени файла"
         />
       </label>
       <MediaPickerList
-        items={displayItems}
+        items={displayedItems}
         loading={loading}
         error={error}
         onSelect={(item) => {
           setLastPick({ url: item.url, rowKind: item.kind, mimeType: item.mimeType });
           onChange(item.url, { kind: item.kind, mimeType: item.mimeType, filename: item.filename });
-          setOpen(false);
+          handleOpenChange(false);
         }}
       />
     </div>
@@ -218,9 +173,7 @@ export function MediaLibraryPickerDialog({
           type="button"
           variant="outline"
           onClick={() => {
-            setDebouncedQuery(query.trim());
-            setError(null);
-            setLoading(true);
+            setQuery("");
             setOpen(true);
           }}
         >
@@ -271,7 +224,7 @@ export function MediaLibraryPickerDialog({
       )}
 
       {isMobileViewport ? (
-        <Sheet open={open} onOpenChange={setOpen}>
+        <Sheet open={open} onOpenChange={handleOpenChange}>
           <SheetContent side="bottom" className="max-h-[90vh] overflow-auto">
             <SheetHeader>
               <SheetTitle>{pickerTitle}</SheetTitle>
@@ -280,7 +233,7 @@ export function MediaLibraryPickerDialog({
           </SheetContent>
         </Sheet>
       ) : (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogContent className="max-h-[85vh] overflow-auto">
             <DialogHeader>
               <DialogTitle>{pickerTitle}</DialogTitle>
