@@ -62,6 +62,7 @@ describe("POST /api/doctor/references/[categoryCode]", () => {
       categoryId: "c1",
       sortOrder: 999,
       isActive: true,
+      deletedAt: null,
       metaJson: {},
     });
     const res = await POST(

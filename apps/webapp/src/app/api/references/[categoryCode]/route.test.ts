@@ -31,7 +31,7 @@ describe("GET /api/references/[categoryCode]", () => {
       tenantId: null,
     });
     listMock.mockResolvedValue([
-      { id: "1", code: "a", title: "A", sortOrder: 1, categoryId: "c", isActive: true, metaJson: {} },
+      { id: "1", code: "a", title: "A", sortOrder: 1, categoryId: "c", isActive: true, deletedAt: null, metaJson: {} },
     ]);
     const res = await GET(new Request("http://localhost/api/references/symptom_type"), {
       params: Promise.resolve({ categoryCode: "symptom_type" }),

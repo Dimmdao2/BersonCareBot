@@ -28,8 +28,10 @@ function rowItem(row: {
   title: string;
   sort_order: number;
   is_active: boolean;
+  deleted_at: Date | string | null;
   meta_json: Record<string, unknown>;
 }): ReferenceItem {
+  const deletedAt = row.deleted_at;
   return {
     id: String(row.id),
     categoryId: String(row.category_id),
@@ -37,6 +39,12 @@ function rowItem(row: {
     title: row.title,
     sortOrder: row.sort_order,
     isActive: row.is_active,
+    deletedAt:
+      deletedAt == null
+        ? null
+        : typeof deletedAt === "string"
+          ? deletedAt
+          : deletedAt.toISOString(),
     metaJson: row.meta_json ?? {},
   };
 }
@@ -65,10 +73,10 @@ export const pgReferencesPort: ReferencesPort = {
   async listActiveItemsByCategoryCode(categoryCode) {
     const pool = getPool();
     const res = await pool.query(
-      `SELECT i.id, i.category_id, i.code, i.title, i.sort_order, i.is_active, i.meta_json
+      `SELECT i.id, i.category_id, i.code, i.title, i.sort_order, i.is_active, i.deleted_at, i.meta_json
        FROM reference_items i
        JOIN reference_categories c ON c.id = i.category_id
-       WHERE c.code = $1 AND i.is_active = true
+       WHERE c.code = $1 AND i.is_active = true AND i.deleted_at IS NULL
        ORDER BY i.sort_order ASC, i.title ASC`,
       [categoryCode]
     );
@@ -78,10 +86,10 @@ export const pgReferencesPort: ReferencesPort = {
   async listItemsForManagementByCategoryCode(categoryCode) {
     const pool = getPool();
     const res = await pool.query(
-      `SELECT i.id, i.category_id, i.code, i.title, i.sort_order, i.is_active, i.meta_json
+      `SELECT i.id, i.category_id, i.code, i.title, i.sort_order, i.is_active, i.deleted_at, i.meta_json
        FROM reference_items i
        JOIN reference_categories c ON c.id = i.category_id
-       WHERE c.code = $1
+       WHERE c.code = $1 AND i.deleted_at IS NULL
        ORDER BY i.sort_order ASC, i.title ASC`,
       [categoryCode]
     );
@@ -101,7 +109,7 @@ export const pgReferencesPort: ReferencesPort = {
     const result = await pool.query(
       `INSERT INTO reference_items (category_id, code, title, sort_order, is_active, meta_json)
        VALUES ($1, $2, $3, 999, true, $4::jsonb)
-       RETURNING id, category_id, code, title, sort_order, is_active, meta_json`,
+       RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
       [cat.id, params.code, params.title, JSON.stringify(meta)]
     );
     return rowItem(result.rows[0]);
@@ -117,7 +125,7 @@ export const pgReferencesPort: ReferencesPort = {
     const result = await pool.query(
       `INSERT INTO reference_items (category_id, code, title, sort_order, is_active, meta_json)
        VALUES ($1, $2, $3, $4, true, $5::jsonb)
-       RETURNING id, category_id, code, title, sort_order, is_active, meta_json`,
+       RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
       [cat.id, params.code, params.title, params.sortOrder ?? 999, JSON.stringify(meta)]
     );
     return rowItem(result.rows[0]);
@@ -147,8 +155,8 @@ export const pgReferencesPort: ReferencesPort = {
     const res = await pool.query(
       `UPDATE reference_items
        SET ${updates.join(", ")}
-       WHERE id = $${idx}
-       RETURNING id, category_id, code, title, sort_order, is_active, meta_json`,
+       WHERE id = $${idx} AND deleted_at IS NULL
+       RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
       values
     );
     if (!res.rows[0]) throw new Error("item_not_found");
@@ -172,6 +180,7 @@ export const pgReferencesPort: ReferencesPort = {
           `SELECT code
            FROM reference_items
            WHERE category_id = $1
+             AND deleted_at IS NULL
              AND code = ANY($2::text[])`,
           [cat.id, normalizedCodes]
         );
@@ -183,7 +192,7 @@ export const pgReferencesPort: ReferencesPort = {
         const res = await client.query(
           `UPDATE reference_items
            SET title = $1, sort_order = $2, is_active = $3
-           WHERE id = $4 AND category_id = $5`,
+           WHERE id = $4 AND category_id = $5 AND deleted_at IS NULL`,
           [update.title, update.sortOrder, update.isActive, update.id, cat.id]
         );
         if ((res.rowCount ?? 0) !== 1) {
@@ -208,13 +217,18 @@ export const pgReferencesPort: ReferencesPort = {
 
   async archiveItem(itemId) {
     const pool = getPool();
-    await pool.query(`UPDATE reference_items SET is_active = false WHERE id = $1`, [itemId]);
+    await pool.query(`UPDATE reference_items SET is_active = false WHERE id = $1 AND deleted_at IS NULL`, [itemId]);
+  },
+
+  async softDeleteItem(itemId) {
+    const pool = getPool();
+    await pool.query(`UPDATE reference_items SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [itemId]);
   },
 
   async findItemById(itemId) {
     const pool = getPool();
     const res = await pool.query(
-      `SELECT id, category_id, code, title, sort_order, is_active, meta_json
+      `SELECT id, category_id, code, title, sort_order, is_active, deleted_at, meta_json
        FROM reference_items WHERE id = $1`,
       [itemId]
     );

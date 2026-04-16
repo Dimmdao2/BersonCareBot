@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import Link from "next/link";
+import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -20,9 +19,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { EllipsisVertical } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { EllipsisVertical, Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -30,7 +28,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { saveReferenceCatalog } from "../actions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { saveReferenceCatalog, softDeleteReferenceItem } from "../actions";
 
 type Row = {
   id: string;
@@ -40,6 +45,24 @@ type Row = {
   isActive: boolean;
   isNew?: boolean;
 };
+
+type StatusFilter = "all" | "active" | "archived";
+
+function matchesStatusFilter(row: Row, statusFilter: StatusFilter): boolean {
+  if (statusFilter === "all") return true;
+  if (statusFilter === "active") return row.isActive;
+  return !row.isActive;
+}
+
+function matchesSearch(row: Row, qTrimmed: string): boolean {
+  if (qTrimmed.length < 3) return true;
+  const ql = qTrimmed.toLowerCase();
+  return row.title.toLowerCase().includes(ql) || row.code.toLowerCase().includes(ql);
+}
+
+function filterRows(rows: Row[], statusFilter: StatusFilter, qTrimmed: string): Row[] {
+  return rows.filter((r) => matchesStatusFilter(r, statusFilter) && matchesSearch(r, qTrimmed));
+}
 
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
   return (
@@ -63,12 +86,14 @@ function SortableRow({
   row,
   index,
   onChange,
-  onToggleArchive,
+  onToggleActive,
+  onSoftDelete,
 }: {
   row: Row;
   index: number;
   onChange: (rowId: string, patch: Partial<Row>) => void;
-  onToggleArchive: (rowId: string) => void;
+  onToggleActive: (rowId: string) => void;
+  onSoftDelete: (rowId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: row.id });
   const style = {
@@ -84,12 +109,35 @@ function SortableRow({
         <DragHandle listeners={listeners as never} attributes={attributes as never} />
       </td>
       <td className="px-2 py-2">
-        <Input value={row.code} readOnly={!row.isNew} onChange={(e) => onChange(row.id, { code: e.target.value })} />
+        <div className="flex min-w-0 flex-col gap-1">
+          {row.isNew ? (
+            <Input
+              value={row.code}
+              placeholder="код_snake_case"
+              className="h-8 font-mono text-xs"
+              onChange={(e) => onChange(row.id, { code: e.target.value })}
+            />
+          ) : null}
+          <Input value={row.title} onChange={(e) => onChange(row.id, { title: e.target.value })} />
+        </div>
       </td>
-      <td className="px-2 py-2">
-        <Input value={row.title} onChange={(e) => onChange(row.id, { title: e.target.value })} />
+      <td className="px-2 py-2 text-center">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-9 shrink-0 rounded-full border border-border/80"
+          title={row.isActive ? "Активна" : "В архиве"}
+          aria-label={row.isActive ? "Активна" : "В архиве"}
+          onClick={() => onToggleActive(row.id)}
+        >
+          {row.isActive ? (
+            <Eye className="size-4 text-green-600 dark:text-green-500" aria-hidden />
+          ) : (
+            <EyeOff className="size-4 text-muted-foreground" aria-hidden />
+          )}
+        </Button>
       </td>
-      <td className="px-2 py-2 text-center text-xs text-muted-foreground">{row.isActive ? "Активна" : "Архив"}</td>
       <td className="px-2 py-2 text-right">
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -99,9 +147,7 @@ function SortableRow({
             <EllipsisVertical className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onToggleArchive(row.id)}>
-              {row.isActive ? "Архивировать" : "Восстановить"}
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onSoftDelete(row.id)}>Удалить</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </td>
@@ -112,18 +158,10 @@ function SortableRow({
 type Props = {
   categoryTitle: string;
   categoryCode: string;
-  categoryIsUserExtensible: boolean;
-  mode: "active" | "archived";
   initialItems: Array<{ id: string; code: string; title: string; sortOrder: number; isActive: boolean }>;
 };
 
-export function ReferenceItemsTableClient({
-  categoryTitle,
-  categoryCode,
-  categoryIsUserExtensible,
-  mode,
-  initialItems,
-}: Props) {
+export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initialItems }: Props) {
   const router = useRouter();
   const normalizedInitialRows = useMemo(
     () => [...initialItems].sort((a, b) => a.sortOrder - b.sortOrder).map((item, idx) => ({ ...item, sortOrder: idx + 1 })),
@@ -132,10 +170,16 @@ export function ReferenceItemsTableClient({
   const [rows, setRows] = useState<Row[]>(normalizedInitialRows);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const toggleModeHref =
-    mode === "archived"
-      ? `/app/doctor/references/${encodeURIComponent(categoryCode)}`
-      : `/app/doctor/references/${encodeURIComponent(categoryCode)}?mode=archived`;
+  const [searchRaw, setSearchRaw] = useState("");
+  const deferredSearch = useDeferredValue(searchRaw);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const qTrimmed = deferredSearch.trim();
+  const filteredRows = useMemo(
+    () => filterRows(rows, statusFilter, qTrimmed),
+    [rows, statusFilter, qTrimmed]
+  );
+
   const initialState = useMemo(() => JSON.stringify(normalizedInitialRows), [normalizedInitialRows]);
   const isDirty = JSON.stringify(rows) !== initialState;
 
@@ -152,10 +196,20 @@ export function ReferenceItemsTableClient({
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     setRows((prev) => {
-      const oldIndex = prev.findIndex((row) => row.id === active.id);
-      const newIndex = prev.findIndex((row) => row.id === over.id);
+      const vis = filterRows(prev, statusFilter, qTrimmed);
+      const oldIndex = vis.findIndex((r) => r.id === active.id);
+      const newIndex = vis.findIndex((r) => r.id === over.id);
       if (oldIndex < 0 || newIndex < 0) return prev;
-      return arrayMove(prev, oldIndex, newIndex).map((row, idx) => ({ ...row, sortOrder: idx + 1 }));
+      const movedVis = arrayMove(vis, oldIndex, newIndex);
+      const indices: number[] = [];
+      prev.forEach((r, i) => {
+        if (vis.some((v) => v.id === r.id)) indices.push(i);
+      });
+      const next = [...prev];
+      movedVis.forEach((r, j) => {
+        next[indices[j]] = { ...r };
+      });
+      return next.map((r, idx) => ({ ...r, sortOrder: idx + 1 }));
     });
   };
 
@@ -163,8 +217,30 @@ export function ReferenceItemsTableClient({
     setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
   };
 
-  const onToggleArchive = (rowId: string) => {
+  const onToggleActive = (rowId: string) => {
     setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, isActive: !row.isActive } : row)));
+  };
+
+  const onSoftDeleteRow = (rowId: string) => {
+    const row = rows.find((r) => r.id === rowId);
+    if (!row) return;
+    if (row.isNew) {
+      setRows((prev) => prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })));
+      return;
+    }
+    startTransition(async () => {
+      setError(null);
+      try {
+        const fd = new FormData();
+        fd.set("categoryCode", categoryCode);
+        fd.set("itemId", rowId);
+        await softDeleteReferenceItem(fd);
+        setRows((prev) => prev.filter((r) => r.id !== rowId).map((r, idx) => ({ ...r, sortOrder: idx + 1 })));
+        router.refresh();
+      } catch {
+        setError("Не удалось удалить строку");
+      }
+    });
   };
 
   const onAdd = () => {
@@ -219,62 +295,76 @@ export function ReferenceItemsTableClient({
   return (
     <div className="flex flex-col gap-3">
       <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] z-20 -mx-4 flex flex-col gap-3 border-b border-border bg-card px-4 pb-3 pt-1">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold">{categoryTitle}</h1>
-            <p className="text-sm text-muted-foreground">Код: {categoryCode}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant={categoryIsUserExtensible ? "secondary" : "outline"}>
-              {categoryIsUserExtensible ? "Расширяемый" : "Системный"}
-            </Badge>
-            <Badge variant="secondary">{mode === "archived" ? "Архив" : "Активный"}</Badge>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="min-w-0 truncate text-lg font-semibold">{categoryTitle}</h1>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Input
+              value={searchRaw}
+              onChange={(e) => setSearchRaw(e.target.value)}
+              placeholder="Поиск от 3 букв (название или код)"
+              className="h-9 w-56 sm:w-64"
+              aria-label="Поиск по названию или коду"
+            />
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <SelectTrigger className="h-9 w-[11rem]" aria-label="Фильтр по статусу">
+                <SelectValue placeholder="Статус" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все</SelectItem>
+                <SelectItem value="active">Активные</SelectItem>
+                <SelectItem value="archived">Архивные</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="secondary" onClick={onAdd}>
-              Добавить строку
-            </Button>
-            <Button type="button" onClick={onSave} disabled={isPending || !isDirty}>
-              Сохранить справочник
-            </Button>
-          </div>
-          <Link
-            href={toggleModeHref}
-            className={buttonVariants({ variant: mode === "archived" ? "default" : "outline" })}
-          >
-            {mode === "archived" ? "Активный" : "Архив"}
-          </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="secondary" onClick={onAdd}>
+            Добавить строку
+          </Button>
+          <Button type="button" onClick={onSave} disabled={isPending || !isDirty}>
+            Сохранить справочник
+          </Button>
         </div>
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={rows.map((row) => row.id)} strategy={verticalListSortingStrategy}>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="w-14 px-2 py-2">#</th>
-                  <th className="w-14 px-2 py-2" />
-                  <th className="px-2 py-2">Код</th>
-                  <th className="px-2 py-2">Название</th>
-                  <th className="w-28 px-2 py-2 text-center">Статус</th>
-                  <th className="w-16 px-2 py-2 text-right">...</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, idx) => (
-                  <SortableRow key={row.id} row={row} index={idx} onChange={onChange} onToggleArchive={onToggleArchive} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SortableContext>
-      </DndContext>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Нет строк в справочнике.</p>
+      ) : filteredRows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Нет строк по текущему фильтру.</p>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={filteredRows.map((row) => row.id)} strategy={verticalListSortingStrategy}>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="w-14 px-2 py-2">#</th>
+                    <th className="w-14 px-2 py-2" />
+                    <th className="px-2 py-2">Название</th>
+                    <th className="w-28 px-2 py-2 text-center">Статус</th>
+                    <th className="w-16 px-2 py-2 text-right">...</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, idx) => (
+                    <SortableRow
+                      key={row.id}
+                      row={row}
+                      index={idx}
+                      onChange={onChange}
+                      onToggleActive={onToggleActive}
+                      onSoftDelete={onSoftDeleteRow}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
     </div>
   );
 }

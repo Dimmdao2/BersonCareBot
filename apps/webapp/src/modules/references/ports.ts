@@ -30,5 +30,7 @@ export type ReferencesPort = {
     }
   ): Promise<void>;
   archiveItem(itemId: string): Promise<void>;
+  /** Sets deleted_at (soft delete); distinct from archive (is_active). */
+  softDeleteItem(itemId: string): Promise<void>;
   findItemById(itemId: string): Promise<ReferenceItem | null>;
 };

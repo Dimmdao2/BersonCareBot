@@ -48,6 +48,7 @@ describe("PATCH /api/admin/references/[itemId]/archive", () => {
       title: "T",
       sortOrder: 1,
       isActive: true,
+      deletedAt: null,
       metaJson: {},
     });
     const res = await PATCH(new Request("http://localhost/api/admin/references/it1/archive"), {

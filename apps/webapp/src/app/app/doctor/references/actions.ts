@@ -109,3 +109,14 @@ export async function toggleReferenceItem(formData: FormData): Promise<void> {
   await deps.references.updateItem(itemId, { isActive: nextActive });
   revalidateReferencePaths(categoryCode);
 }
+
+/** Soft-delete reference item (deleted_at); distinct from archive (is_active). */
+export async function softDeleteReferenceItem(formData: FormData): Promise<void> {
+  await requireDoctorAccess();
+  const categoryCode = parseCategoryCode(formData);
+  const itemId = (formData.get("itemId") as string | null)?.trim() ?? "";
+  if (!itemId) throw new Error("item_required");
+  const deps = buildAppDeps();
+  await deps.references.softDeleteItem(itemId);
+  revalidateReferencePaths(categoryCode);
+}

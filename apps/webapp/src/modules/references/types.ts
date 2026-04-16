@@ -13,5 +13,7 @@ export type ReferenceItem = {
   title: string;
   sortOrder: number;
   isActive: boolean;
+  /** ISO timestamp when soft-deleted; null if present in management lists */
+  deletedAt: string | null;
   metaJson: Record<string, unknown>;
 };

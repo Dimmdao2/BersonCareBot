@@ -50,6 +50,7 @@ const items: ReferenceItem[] = [
     title: "Боль",
     sortOrder: 1,
     isActive: true,
+    deletedAt: null,
     metaJson: {},
   },
   {
@@ -59,12 +60,17 @@ const items: ReferenceItem[] = [
     title: "Шея",
     sortOrder: 1,
     isActive: true,
+    deletedAt: null,
     metaJson: {},
   },
 ];
 
 function ensureUniqueCode(categoryId: string, code: string): void {
-  if (items.some((i) => i.categoryId === categoryId && i.code === code)) {
+  if (
+    items.some(
+      (i) => i.categoryId === categoryId && i.code === code && i.deletedAt == null
+    )
+  ) {
     throw new Error("duplicate_code");
   }
 }
@@ -82,7 +88,7 @@ export const inMemoryReferencesPort: ReferencesPort = {
     const cat = await this.findCategoryByCode(categoryCode);
     if (!cat) return [];
     return items
-      .filter((i) => i.categoryId === cat.id && i.isActive)
+      .filter((i) => i.categoryId === cat.id && i.isActive && i.deletedAt == null)
       .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
   },
 
@@ -90,7 +96,7 @@ export const inMemoryReferencesPort: ReferencesPort = {
     const cat = await this.findCategoryByCode(categoryCode);
     if (!cat) return [];
     return items
-      .filter((i) => i.categoryId === cat.id)
+      .filter((i) => i.categoryId === cat.id && i.deletedAt == null)
       .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
   },
 
@@ -106,6 +112,7 @@ export const inMemoryReferencesPort: ReferencesPort = {
       title: params.title,
       sortOrder: 999,
       isActive: true,
+      deletedAt: null,
       metaJson: params.metaJson ?? {},
     };
     items.push(item);
@@ -123,6 +130,7 @@ export const inMemoryReferencesPort: ReferencesPort = {
       title: params.title,
       sortOrder: params.sortOrder ?? 999,
       isActive: true,
+      deletedAt: null,
       metaJson: params.metaJson ?? {},
     };
     items.push(item);
@@ -130,7 +138,7 @@ export const inMemoryReferencesPort: ReferencesPort = {
   },
 
   async updateItem(itemId, input) {
-    const item = items.find((i) => i.id === itemId);
+    const item = items.find((i) => i.id === itemId && i.deletedAt == null);
     if (!item) throw new Error("item_not_found");
     if (input.title !== undefined) item.title = input.title;
     if (input.sortOrder !== undefined) item.sortOrder = input.sortOrder;
@@ -147,7 +155,7 @@ export const inMemoryReferencesPort: ReferencesPort = {
     }
 
     for (const update of input.updates) {
-      const item = items.find((i) => i.id === update.id && i.categoryId === cat.id);
+      const item = items.find((i) => i.id === update.id && i.categoryId === cat.id && i.deletedAt == null);
       if (!item) continue;
       item.title = update.title;
       item.sortOrder = update.sortOrder;
@@ -164,14 +172,20 @@ export const inMemoryReferencesPort: ReferencesPort = {
         title: addition.title,
         sortOrder: addition.sortOrder,
         isActive: true,
+        deletedAt: null,
         metaJson: {},
       });
     }
   },
 
   async archiveItem(itemId) {
-    const i = items.find((x) => x.id === itemId);
+    const i = items.find((x) => x.id === itemId && x.deletedAt == null);
     if (i) i.isActive = false;
+  },
+
+  async softDeleteItem(itemId) {
+    const i = items.find((x) => x.id === itemId && x.deletedAt == null);
+    if (i) i.deletedAt = new Date().toISOString();
   },
 
   async findItemById(itemId) {

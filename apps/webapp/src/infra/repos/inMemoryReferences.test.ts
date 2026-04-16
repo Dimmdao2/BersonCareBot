@@ -90,4 +90,23 @@ describe.sequential("inMemoryReferencesPort", () => {
       })
     ).rejects.toThrow("duplicate_code");
   });
+
+  it("softDeleteItem removes row from management and active lists", async () => {
+    const added = await inMemoryReferencesPort.insertItemStaff({
+      categoryCode: "symptom_type",
+      code: "soft_del_probe",
+      title: "На удаление",
+      sortOrder: 200,
+    });
+    expect((await inMemoryReferencesPort.listItemsForManagementByCategoryCode("symptom_type")).some((i) => i.id === added.id)).toBe(
+      true
+    );
+    await inMemoryReferencesPort.softDeleteItem(added.id);
+    const management = await inMemoryReferencesPort.listItemsForManagementByCategoryCode("symptom_type");
+    expect(management.some((i) => i.id === added.id)).toBe(false);
+    const active = await inMemoryReferencesPort.listActiveItemsByCategoryCode("symptom_type");
+    expect(active.some((i) => i.id === added.id)).toBe(false);
+    const byId = await inMemoryReferencesPort.findItemById(added.id);
+    expect(byId?.deletedAt).toBeTruthy();
+  });
 });
