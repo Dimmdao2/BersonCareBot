@@ -281,108 +281,113 @@ export function SystemHealthSection() {
           <CardDescription>Каждая карточка раскрывается отдельно и показывает доступную диагностику.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <HealthAccordionItem name="bersoncarebot-webapp-prod DB" status={data?.webappDb ?? "down"}>
-            <DetailRow label="Состояние" value={data?.webappDb === "up" ? "База webapp доступна" : "База webapp недоступна"} />
-            <DetailRow label="Диагностика" value={data?.webappDb === "up" ? "Проверка DB OK" : "Проверка DB неуспешна"} />
-            <ProbeInfo probe={data?.meta?.probes?.webappDb} />
-          </HealthAccordionItem>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Платформа и API</p>
+            <HealthAccordionItem name="База webapp (bersoncarebot-webapp-prod DB)" status={data?.webappDb ?? "down"}>
+              <DetailRow label="Состояние" value={data?.webappDb === "up" ? "База webapp доступна" : "База webapp недоступна"} />
+              <DetailRow label="Диагностика" value={data?.webappDb === "up" ? "Проверка DB OK" : "Проверка DB неуспешна"} />
+              <ProbeInfo probe={data?.meta?.probes?.webappDb} />
+            </HealthAccordionItem>
 
-          <HealthAccordionItem name="bersoncarebot-api-prod /health" status={data?.integratorApi.status ?? "error"}>
-            <DetailRow
-              label="Состояние"
-              value={data?.integratorApi.status === "ok" ? "Integrator API доступен" : "Integrator API недоступен"}
-            />
-            <DetailRow label="DB integrator" value={data?.integratorApi.db ?? "нет данных"} />
-            <DetailRow
-              label="Диагностика"
-              value={data?.integratorApi.status === "ok" ? "Ответ /health получен" : "Проба /health завершилась ошибкой"}
-            />
-            <ProbeInfo probe={data?.meta?.probes?.integratorApi} />
-          </HealthAccordionItem>
+            <HealthAccordionItem name="API integrator (/health) (bersoncarebot-api-prod)" status={data?.integratorApi.status ?? "error"}>
+              <DetailRow
+                label="Состояние"
+                value={data?.integratorApi.status === "ok" ? "Integrator API доступен" : "Integrator API недоступен"}
+              />
+              <DetailRow label="DB integrator" value={data?.integratorApi.db ?? "нет данных"} />
+              <DetailRow
+                label="Диагностика"
+                value={data?.integratorApi.status === "ok" ? "Ответ /health получен" : "Проба /health завершилась ошибкой"}
+              />
+              <ProbeInfo probe={data?.meta?.probes?.integratorApi} />
+            </HealthAccordionItem>
+          </div>
 
-          <HealthAccordionItem name="projection_outbox" status={data?.projection.status ?? "error"}>
-            <DetailRow
-              label="Состояние"
-              value={data?.projection.status === "ok" ? "Очередь projection_outbox в норме" : "Есть признаки деградации"}
-            />
-            <DetailRow label="Dead / Pending / Processing" value={`${queueDead} / ${queuePending} / ${queueProcessing}`} />
-            <DetailRow label="Cancelled / Retries>threshold" value={`${queueCancelled} / ${queueRetries}`} />
-            <DetailRow label="Последняя активность" value={formatDateTime(lastSuccess)} />
-            <DetailRow label="Oldest pending" value={formatDateTime(oldestPending)} />
-            <DetailRow
-              label="Почему такой статус"
-              value={
-                data?.projection.status === "ok"
-                  ? `deadCount=${queueDead}, retriesOverThreshold=${queueRetries}`
-                  : `deadCount=${queueDead}, retriesOverThreshold=${queueRetries}`
-              }
-            />
-            <ProbeInfo probe={data?.meta?.probes?.projection} />
-          </HealthAccordionItem>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Очереди и воркеры</p>
+            <HealthAccordionItem name="Проекция outbox (projection_outbox)" status={data?.projection.status ?? "error"}>
+              <DetailRow
+                label="Состояние"
+                value={data?.projection.status === "ok" ? "Очередь projection_outbox в норме" : "Есть признаки деградации"}
+              />
+              <DetailRow label="Dead / Pending / Processing" value={`${queueDead} / ${queuePending} / ${queueProcessing}`} />
+              <DetailRow label="Cancelled / Retries>threshold" value={`${queueCancelled} / ${queueRetries}`} />
+              <DetailRow label="Последняя активность" value={formatDateTime(lastSuccess)} />
+              <DetailRow label="Oldest pending" value={formatDateTime(oldestPending)} />
+              <DetailRow
+                label="Почему такой статус"
+                value={`deadCount=${queueDead}, retriesOverThreshold=${queueRetries}`}
+              />
+              <ProbeInfo probe={data?.meta?.probes?.projection} />
+            </HealthAccordionItem>
 
-          <HealthAccordionItem name="bersoncarebot-worker-prod" status={workers.worker}>
-            <DetailRow
-              label="Состояние"
-              value={workerLabel(workers.worker)}
-            />
-            <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
-            <DetailRow label="Текущая очередь (pending/processing)" value={`${queuePending}/${queueProcessing}`} />
-            <DetailRow
-              label="Почему такой статус"
-              value={
-                workers.worker === "idle"
-                  ? "queue empty -> idle"
-                  : workers.worker === "active"
-                    ? "lastSuccessAt <= 40m"
-                    : workers.worker === "no_activity"
-                      ? "queue has items but no fresh success"
-                      : "нет валидного сигнала lastSuccessAt"
-              }
-            />
-            <DetailRow label="Порог активности" value="40 минут" />
-          </HealthAccordionItem>
+            <HealthAccordionItem name="Worker runtime (bersoncarebot-worker-prod)" status={workers.worker}>
+              <DetailRow label="Состояние" value={workerLabel(workers.worker)} />
+              <DetailRow label="Последняя успешная обработка" value={formatDateTime(lastSuccess)} />
+              <DetailRow label="Текущая очередь (pending/processing)" value={`${queuePending}/${queueProcessing}`} />
+              <DetailRow
+                label="Почему такой статус"
+                value={
+                  workers.worker === "idle"
+                    ? "queue empty -> idle"
+                    : workers.worker === "active"
+                      ? "lastSuccessAt <= 40m"
+                      : workers.worker === "no_activity"
+                        ? "queue has items but no fresh success"
+                        : "нет валидного сигнала lastSuccessAt"
+                }
+              />
+              <DetailRow label="Порог активности" value="40 минут" />
+            </HealthAccordionItem>
 
-          <HealthAccordionItem name="bersoncarebot-webapp-prod" status={workers.webapp}>
-            <DetailRow label="Состояние" value="runtime status: running (вариант 1)" />
-            <DetailRow label="Источник сигнала" value="Статический runtime-маркер в UI" />
-          </HealthAccordionItem>
+            <HealthAccordionItem name="Webapp runtime (bersoncarebot-webapp-prod)" status={workers.webapp}>
+              <DetailRow label="Состояние" value="runtime status: running (вариант 1)" />
+              <DetailRow label="Источник сигнала" value="Статический runtime-маркер в UI" />
+            </HealthAccordionItem>
+          </div>
 
-          <HealthAccordionItem name="media cron workers" status={data?.mediaCronWorkers.status ?? "not_configured"}>
-            <DetailRow
-              label="Состояние"
-              value={data?.mediaCronWorkers.status === "configured" ? "Конфигурация cron присутствует" : "Конфигурация cron отсутствует"}
-            />
-            <DetailRow label="Источник сигнала" value="Проверка env INTERNAL_JOB_SECRET + S3 media config" />
-            <DetailRow label="Ограничение" value="Нет прямой telemetry о фактическом runtime cron-процессов" />
-          </HealthAccordionItem>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Медиа и фоновые задачи</p>
+            <HealthAccordionItem name="Cron задачи медиа (media cron workers)" status={data?.mediaCronWorkers.status ?? "not_configured"}>
+              <DetailRow
+                label="Состояние"
+                value={data?.mediaCronWorkers.status === "configured" ? "Конфигурация cron присутствует" : "Конфигурация cron отсутствует"}
+              />
+              <DetailRow label="Источник сигнала" value="Проверка env INTERNAL_JOB_SECRET + S3 media config" />
+              <DetailRow label="Ограничение" value="Нет прямой telemetry о фактическом runtime cron-процессов" />
+            </HealthAccordionItem>
 
-          <HealthAccordionItem name="preview-pipeline (MOV/HEIC/HEIF)" status={data?.mediaPreview.status ?? "error"}>
-            <DetailRow
-              label="Состояние"
-              value={data?.mediaPreview.status === "ok" ? "Очередь preview в норме" : "Есть pending/skipped/failed или stale pending"}
-            />
-            <DetailRow label="Stale pending > 30m" value={data?.mediaPreview.stalePendingCount ?? 0} />
-            {(Object.keys(PREVIEW_MIME_LABEL) as PreviewMime[]).map((mime) => {
-              const counters = data?.mediaPreview.byMimeAndStatus?.[mime];
-              return (
-                <div key={mime} className="rounded border border-border/50 p-2">
-                  <p className="mb-1 font-medium text-foreground">{PREVIEW_MIME_LABEL[mime]}</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {(Object.keys(PREVIEW_STATUS_LABEL) as PreviewStatus[]).map((status) => (
-                      <DetailRow key={`${mime}-${status}`} label={PREVIEW_STATUS_LABEL[status]} value={counters?.[status] ?? 0} />
-                    ))}
+            <HealthAccordionItem name="Превью медиа (preview-pipeline MOV/HEIC/HEIF)" status={data?.mediaPreview.status ?? "error"}>
+              <DetailRow
+                label="Состояние"
+                value={data?.mediaPreview.status === "ok" ? "Очередь preview в норме" : "Есть pending/skipped/failed или stale pending"}
+              />
+              <DetailRow label="Stale pending > 30m" value={data?.mediaPreview.stalePendingCount ?? 0} />
+              {(Object.keys(PREVIEW_MIME_LABEL) as PreviewMime[]).map((mime) => {
+                const counters = data?.mediaPreview.byMimeAndStatus?.[mime];
+                return (
+                  <div key={mime} className="rounded border border-border/50 p-2">
+                    <p className="mb-1 font-medium text-foreground">{PREVIEW_MIME_LABEL[mime]}</p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {(Object.keys(PREVIEW_STATUS_LABEL) as PreviewStatus[]).map((status) => (
+                        <DetailRow key={`${mime}-${status}`} label={PREVIEW_STATUS_LABEL[status]} value={counters?.[status] ?? 0} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-            <ProbeInfo probe={data?.meta?.probes?.mediaPreview} />
-          </HealthAccordionItem>
+                );
+              })}
+              <ProbeInfo probe={data?.meta?.probes?.mediaPreview} />
+            </HealthAccordionItem>
+          </div>
 
-          <HealthAccordionItem name="backup journal" status="no_source">
-            <DetailRow label="Источник" value="не подключен" />
-            <DetailRow label="Статус" value="нет данных о бэкапах" />
-            <DetailRow label="Ограничение" value="В варианте 1 источник telemetry для backup journal отсутствует" />
-          </HealthAccordionItem>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Инфраструктурные источники</p>
+            <HealthAccordionItem name="Журнал бэкапов (backup journal)" status="no_source">
+              <DetailRow label="Источник" value="не подключен" />
+              <DetailRow label="Статус" value="нет данных о бэкапах" />
+              <DetailRow label="Ограничение" value="В варианте 1 источник telemetry для backup journal отсутствует" />
+            </HealthAccordionItem>
+          </div>
         </CardContent>
       </Card>
 
@@ -393,15 +398,15 @@ export function SystemHealthSection() {
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>bersoncarebot-api-prod</span>
+            <span>API integrator (bersoncarebot-api-prod)</span>
             <StatusPill status={workers.api} />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>bersoncarebot-worker-prod</span>
+            <span>Worker runtime (bersoncarebot-worker-prod)</span>
             <StatusPill status={workers.worker} />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 p-3">
-            <span>bersoncarebot-webapp-prod</span>
+            <span>Webapp runtime (bersoncarebot-webapp-prod)</span>
             <StatusPill status={workers.webapp} />
           </div>
         </CardContent>
