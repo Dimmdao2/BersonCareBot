@@ -175,14 +175,29 @@ export async function processMediaPreviewBatch(limit: number = 10): Promise<Proc
 
       try {
         if (mime === "image/heic" || mime === "image/heif") {
-          await client.query(
-            `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
-            [row.id],
-          );
-          logger.info(
-            { mediaId: row.id, mime },
-            "[processMediaPreviewBatch] unsupported_preview_codec_heif, skipped",
-          );
+          if (sizeBytes > MAX_VIDEO_PREVIEW_BYTES) {
+            await client.query(
+              `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,
+              [row.id],
+            );
+            logger.info(
+              { mediaId: row.id, sizeBytes, max: MAX_VIDEO_PREVIEW_BYTES },
+              "[processMediaPreviewBatch] heic/heif too large for ffmpeg preview, skipped",
+            );
+          } else {
+            const posterSm = await videoPosterSmBuffer(row.s3_key);
+            await s3PutObjectBody(smKey, posterSm, "image/jpeg");
+            await client.query(
+              `UPDATE media_files SET
+               preview_status = 'ready',
+               preview_sm_key = $2,
+               preview_md_key = NULL,
+               preview_attempts = 0,
+               preview_next_attempt_at = NULL
+             WHERE id = $1::uuid`,
+              [row.id, smKey],
+            );
+          }
         } else if (mime.startsWith("image/") && sizeBytes > MAX_IMAGE_PREVIEW_BYTES) {
           await client.query(
             `UPDATE media_files SET preview_status = 'skipped', preview_next_attempt_at = NULL WHERE id = $1::uuid`,

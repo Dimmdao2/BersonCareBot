@@ -30,7 +30,7 @@
 
 - **Изображения:** если `size_bytes` > **50 MiB**, воркер выставляет `preview_status = 'skipped'` (не грузит весь файл в Node — защита от OOM). Константа: `MAX_IMAGE_PREVIEW_BYTES` в `mediaPreviewWorker.ts`.
 - **Видео:** если `size_bytes` > **200 MiB**, превью пропускается (`skipped`) — ограничение нагрузки `ffmpeg` по presigned URL.
-- **HEIC/HEIF:** `image/heic` и `image/heif` помечаются как `skipped` без retry (runtime `sharp` без `libheif` на текущем хосте).
+- **HEIC/HEIF:** генерируется `sm`-превью через `ffmpeg` (как у видео), `preview_md_key = NULL`; при отсутствии поддержки кодека в runtime запись уходит в `skipped` как permanent error.
 - **ffmpeg:** таймаут извлечения кадра **120 с** (`SIGKILL` на команде); очистка временного каталога в `tmpdir` при любом исходе (в т.ч. ошибка `readFile` после успешного кодирования).
 - **Permanent errors:** сообщения вида `SIGSEGV`, `compression format has not been built in`, `Input buffer contains unsupported image format`, `Invalid data found when processing input` считаются неретрабельными и переводят запись в `skipped`.
 - **SQL «readable» статуса:** воркер импортирует `MEDIA_READABLE_STATUS_SQL` из [`s3MediaStorage.ts`](../apps/webapp/src/infra/repos/s3MediaStorage.ts), без дублирования литерала.
@@ -40,7 +40,7 @@
 | Формат | Статус | Причина |
 |--------|--------|---------|
 | `image/jpeg`, `image/png`, `image/webp`, `image/gif` | `ready` | `sharp` поддерживает |
-| `image/heic`, `image/heif` | `skipped` | `libheif` не встроен в runtime |
+| `image/heic`, `image/heif` | `ready` при системном `ffmpeg` (sm only) | декодирование через `ffmpeg`/`libheif`; при unsupported codec будет `skipped` |
 | `video/mp4`, `video/webm` | `ready` | системный `ffmpeg` |
 | `video/quicktime` (`.mov`) | `ready` при системном `ffmpeg` | `@ffmpeg-installer` может давать `SIGSEGV` на хосте |
 
@@ -77,10 +77,11 @@
 
 ## Миграция
 
-Применить [`075_media_preview_status.sql`](../apps/webapp/migrations/075_media_preview_status.sql) через процесс миграций webapp (`pnpm --dir apps/webapp migrate` в dev или принятую в проце процедуру на хосте).
+Применить [`075_media_preview_status.sql`](../apps/webapp/migrations/075_media_preview_status.sql) и [`076_requeue_skipped_mov_heic.sql`](../apps/webapp/migrations/076_requeue_skipped_mov_heic.sql) через процесс миграций webapp (`pnpm --dir apps/webapp migrate` в dev или принятую в проце процедуру на хосте).
 
 ## Troubleshooting: ffmpeg SIGSEGV
 
 - Симптом: в логах webapp есть `ffmpeg was killed with signal SIGSEGV`.
 - Причина: бинарь `@ffmpeg-installer` несовместим с glibc хоста.
 - Исправление: установить системный ffmpeg (`apt install ffmpeg`), задать `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/webapp.prod`, затем перезапустить `bersoncarebot-webapp-prod.service`.
+- После фикса рантайма применить миграцию [`076_requeue_skipped_mov_heic.sql`](../apps/webapp/migrations/076_requeue_skipped_mov_heic.sql), чтобы повторно поставить старые `skipped` MOV/HEIC в очередь воркера.

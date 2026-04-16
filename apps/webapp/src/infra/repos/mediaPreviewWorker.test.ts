@@ -1,12 +1,18 @@
 /** @vitest-environment node */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import sharp from "sharp";
 
 const ffmpegSetFfmpegPathMock = vi.fn();
+const ffmpegRunModeMock = vi.fn((): "end" | "error" => "end");
+const ffmpegErrorFactoryMock = vi.fn((): Error => new Error("ffmpeg_error"));
 const queryMock = vi.fn();
 const s3GetObjectBodyMock = vi.fn();
 const s3PutObjectBodyMock = vi.fn();
 const presignGetUrlMock = vi.fn();
+const mkdtempMock = vi.fn();
+const readFileMock = vi.fn();
+const rmMock = vi.fn();
 const mockEnv = {
   FFMPEG_PATH: "",
 };
@@ -16,7 +22,31 @@ vi.mock("@ffmpeg-installer/ffmpeg", () => ({
 }));
 
 vi.mock("fluent-ffmpeg", () => {
-  const ffmpegFn = vi.fn();
+  const ffmpegFn = vi.fn(() => {
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    const cmd = {
+      seekInput: vi.fn().mockReturnThis(),
+      outputOptions: vi.fn().mockReturnThis(),
+      output: vi.fn().mockReturnThis(),
+      on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        handlers.set(event, handler);
+        return cmd;
+      }),
+      run: vi.fn(() => {
+        const mode = ffmpegRunModeMock();
+        const cb = handlers.get(mode === "end" ? "end" : "error");
+        if (cb) {
+          if (mode === "end") {
+            cb();
+          } else {
+            cb(ffmpegErrorFactoryMock());
+          }
+        }
+      }),
+      kill: vi.fn(),
+    };
+    return cmd;
+  });
   return {
     default: Object.assign(ffmpegFn, {
       setFfmpegPath: ffmpegSetFfmpegPathMock,
@@ -26,6 +56,12 @@ vi.mock("fluent-ffmpeg", () => {
 
 vi.mock("sharp", () => ({
   default: vi.fn(),
+}));
+
+vi.mock("node:fs/promises", () => ({
+  mkdtemp: (...args: unknown[]) => mkdtempMock(...args),
+  readFile: (...args: unknown[]) => readFileMock(...args),
+  rm: (...args: unknown[]) => rmMock(...args),
 }));
 
 vi.mock("@/config/env", () => ({
@@ -119,34 +155,78 @@ describe("processMediaPreviewBatch", () => {
   beforeEach(() => {
     vi.resetModules();
     mockEnv.FFMPEG_PATH = "";
+    ffmpegRunModeMock.mockReset();
+    ffmpegRunModeMock.mockReturnValue("end");
+    ffmpegErrorFactoryMock.mockReset();
+    ffmpegErrorFactoryMock.mockReturnValue(new Error("ffmpeg_error"));
     queryMock.mockReset();
     s3GetObjectBodyMock.mockReset();
     s3PutObjectBodyMock.mockReset();
     presignGetUrlMock.mockReset();
+    presignGetUrlMock.mockResolvedValue("https://example.test/media.mp4");
+    mkdtempMock.mockReset();
+    mkdtempMock.mockResolvedValue("/tmp/media-prev-v-test");
+    readFileMock.mockReset();
+    readFileMock.mockResolvedValue(Buffer.from("poster"));
+    rmMock.mockReset();
+    rmMock.mockResolvedValue(undefined);
+
+    const sharpMock = vi.mocked(sharp);
+    sharpMock.mockReset();
+    sharpMock.mockImplementation(() => {
+      const chain = {
+        rotate: vi.fn().mockReturnThis(),
+        resize: vi.fn().mockReturnThis(),
+        jpeg: vi.fn().mockReturnThis(),
+        toBuffer: vi.fn().mockResolvedValue(Buffer.from("preview")),
+      };
+      return chain as never;
+    });
   });
 
-  it("skips image/heic without reading object from S3", async () => {
+  it("generates sm preview for image/heic via ffmpeg path", async () => {
     setupSingleRowScenario({ ...row, mime_type: "image/heic" });
     const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
     const result = await processMediaPreviewBatch(2);
 
     expect(result).toEqual({ processed: 1, errors: 0 });
-    expect(s3GetObjectBodyMock).not.toHaveBeenCalled();
+    expect(presignGetUrlMock).toHaveBeenCalledTimes(1);
+    expect(s3PutObjectBodyMock).toHaveBeenCalledWith(
+      "previews/sm/11111111-1111-4111-8111-111111111111.jpg",
+      expect.any(Buffer),
+      "image/jpeg",
+    );
+    expect(
+      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'ready'")),
+    ).toBe(true);
+  });
+
+  it("skips image/heif when file size is too large for ffmpeg preview", async () => {
+    setupSingleRowScenario({ ...row, mime_type: "image/heif", size_bytes: String(220 * 1024 * 1024) });
+    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+    const result = await processMediaPreviewBatch(2);
+
+    expect(result).toEqual({ processed: 1, errors: 0 });
+    expect(presignGetUrlMock).not.toHaveBeenCalled();
     expect(
       queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'skipped'")),
     ).toBe(true);
   });
 
-  it("skips image/heif without reading object from S3", async () => {
-    setupSingleRowScenario({ ...row, mime_type: "image/heif" });
+  it("marks permanent ffmpeg errors for image/heic as skipped without retry backoff", async () => {
+    setupSingleRowScenario({ ...row, mime_type: "image/heic" });
+    ffmpegRunModeMock.mockReturnValue("error");
+    ffmpegErrorFactoryMock.mockReturnValue(new Error("Invalid data found when processing input"));
     const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
     const result = await processMediaPreviewBatch(2);
 
-    expect(result).toEqual({ processed: 1, errors: 0 });
-    expect(s3GetObjectBodyMock).not.toHaveBeenCalled();
+    expect(result).toEqual({ processed: 0, errors: 1 });
     expect(
       queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'skipped'")),
     ).toBe(true);
+    expect(
+      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_next_attempt_at = now()")),
+    ).toBe(false);
   });
 
   it("marks permanent SIGSEGV errors as skipped without retry backoff", async () => {

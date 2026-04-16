@@ -38,6 +38,7 @@ function ThumbPlaceholder() {
 
 const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect }: ItemProps) {
   const title = item.displayName?.trim() || item.filename;
+  const showOriginalFilename = Boolean(item.displayName?.trim()) && item.displayName!.trim() !== item.filename;
   const date = (() => {
     try {
       return new Date(item.createdAt).toLocaleString("ru-RU");
@@ -100,11 +101,11 @@ const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect }
           </div>
         )}
       </div>
-      <p className="truncate text-sm font-medium" title={title}>
+      <p className="min-h-10 break-words line-clamp-2 text-sm font-medium" title={title}>
         {title}
       </p>
-      {item.displayName?.trim() ? (
-        <p className="truncate text-xs text-muted-foreground" title={item.filename}>
+      {showOriginalFilename ? (
+        <p className="line-clamp-1 break-all text-xs text-muted-foreground" title={item.filename}>
           Исходное имя: {item.filename}
         </p>
       ) : null}
