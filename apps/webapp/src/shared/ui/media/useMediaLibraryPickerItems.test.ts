@@ -59,6 +59,14 @@ describe("filterMediaLibraryPickerItemsByQuery", () => {
     ];
     expect(filterMediaLibraryPickerItemsByQuery(items, "пациент").map((i) => i.id)).toEqual(["1"]);
   });
+
+  it("matches й represented as NFD (и + combining breve) in query against NFC filename", () => {
+    const nfc = "\u0439";
+    const nfd = "\u0438\u0306";
+    const item = baseItem({ filename: `упражнение_${nfc}.mp4` });
+    expect(filterMediaLibraryPickerItemsByQuery([item], nfd)).toHaveLength(1);
+    expect(filterMediaLibraryPickerItemsByQuery([item], nfc)).toHaveLength(1);
+  });
 });
 
 describe("narrowMediaLibraryPickerItemsByKind", () => {

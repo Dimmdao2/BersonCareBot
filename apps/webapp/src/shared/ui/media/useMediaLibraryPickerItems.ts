@@ -37,15 +37,19 @@ export function narrowMediaLibraryPickerItemsByKind(
   return items;
 }
 
+function normalizeSearch(s: string): string {
+  return s.normalize("NFC").toLocaleLowerCase("ru-RU");
+}
+
 /**
  * Local picker search over preloaded rows (`displayName` + `filename`).
  */
 export function filterMediaLibraryPickerItemsByQuery(items: MediaListItem[], query: string): MediaListItem[] {
-  const needle = query.trim().toLocaleLowerCase("ru-RU");
+  const needle = normalizeSearch(query.trim());
   if (!needle) return items;
   return items.filter((item) => {
-    const filename = item.filename.toLocaleLowerCase("ru-RU");
-    const displayName = item.displayName?.toLocaleLowerCase("ru-RU") ?? "";
+    const filename = normalizeSearch(item.filename);
+    const displayName = item.displayName ? normalizeSearch(item.displayName) : "";
     return filename.includes(needle) || displayName.includes(needle);
   });
 }
