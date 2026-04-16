@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { env } from "@/config/env";
+import { env, isS3MediaEnabled } from "@/config/env";
 import { logger } from "@/infra/logging/logger";
+import { getPool } from "@/infra/db/client";
 import { proxyIntegratorProjectionHealth } from "@/infra/health/proxyIntegratorProjectionHealth";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
@@ -17,10 +18,25 @@ type ProjectionSnapshot = {
   lastSuccessAt?: string | null;
 } & Record<string, unknown>;
 
+type PreviewStatus = "pending" | "ready" | "failed" | "skipped";
+type PreviewMime = "video/quicktime" | "image/heic" | "image/heif";
+type MediaPreviewStatus = "ok" | "degraded" | "error";
+type MediaPreviewCounters = Record<PreviewMime, Record<PreviewStatus, number>>;
+
+const PREVIEW_STATUSES: PreviewStatus[] = ["pending", "ready", "failed", "skipped"];
+const PREVIEW_MIMES: PreviewMime[] = ["video/quicktime", "image/heic", "image/heif"];
+const STALE_PENDING_MINUTES = 30;
+
 type SystemHealthResponse = {
   webappDb: DbStatus;
   integratorApi: { status: IntegratorApiStatus; db?: DbStatus };
   projection: { status: ProjectionStatus; snapshot?: ProjectionSnapshot };
+  mediaCronWorkers: { status: "configured" | "not_configured" };
+  mediaPreview: {
+    status: MediaPreviewStatus;
+    stalePendingCount: number;
+    byMimeAndStatus: MediaPreviewCounters;
+  };
   fetchedAt: string;
 };
 
@@ -147,8 +163,81 @@ async function probeProjection(): Promise<ProbeResult<{ status: ProjectionStatus
   }
 }
 
+function initMediaPreviewCounters(): MediaPreviewCounters {
+  const byMime = {} as MediaPreviewCounters;
+  for (const mime of PREVIEW_MIMES) {
+    byMime[mime] = {
+      pending: 0,
+      ready: 0,
+      failed: 0,
+      skipped: 0,
+    };
+  }
+  return byMime;
+}
+
+function computeMediaPreviewStatus(counters: MediaPreviewCounters, stalePendingCount: number): MediaPreviewStatus {
+  const failedCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].failed, 0);
+  const pendingCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].pending, 0);
+  const skippedCount = PREVIEW_MIMES.reduce((acc, mime) => acc + counters[mime].skipped, 0);
+  if (failedCount > 0) return "error";
+  if (pendingCount > 0 || skippedCount > 0 || stalePendingCount > 0) return "degraded";
+  return "ok";
+}
+
+async function probeMediaPreview(): Promise<
+  ProbeResult<{ status: MediaPreviewStatus; stalePendingCount: number; byMimeAndStatus: MediaPreviewCounters }>
+> {
+  const startedAt = Date.now();
+  try {
+    const pool = getPool();
+    const [grouped, stale] = await Promise.all([
+      pool.query<{ mime_type: string; preview_status: string; cnt: string }>(
+        `SELECT mime_type, preview_status, count(*)::text AS cnt
+         FROM media_files
+         WHERE mime_type = ANY($1::text[])
+         GROUP BY mime_type, preview_status`,
+        [PREVIEW_MIMES],
+      ),
+      pool.query<{ stale_pending_count: string }>(
+        `SELECT count(*)::text AS stale_pending_count
+         FROM media_files
+         WHERE mime_type = ANY($1::text[])
+           AND preview_status = 'pending'
+           AND created_at < now() - ($2::numeric * interval '1 minute')`,
+        [PREVIEW_MIMES, STALE_PENDING_MINUTES],
+      ),
+    ]);
+
+    const counters = initMediaPreviewCounters();
+    for (const row of grouped.rows) {
+      const mime = PREVIEW_MIMES.find((m) => m === row.mime_type);
+      const status = PREVIEW_STATUSES.find((s) => s === row.preview_status);
+      if (!mime || !status) continue;
+      counters[mime][status] = Number.parseInt(row.cnt, 10) || 0;
+    }
+    const stalePendingCount = Number.parseInt(stale.rows[0]?.stale_pending_count ?? "0", 10) || 0;
+    return {
+      ok: true,
+      value: {
+        status: computeMediaPreviewStatus(counters, stalePendingCount),
+        stalePendingCount,
+        byMimeAndStatus: counters,
+      },
+      durationMs: elapsedMs(startedAt),
+    };
+  } catch {
+    return {
+      ok: false,
+      status: "error",
+      errorCode: "media_preview_probe_failed",
+      durationMs: elapsedMs(startedAt),
+    };
+  }
+}
+
 function logProbe(
-  probe: "webapp_db" | "integrator_api" | "projection",
+  probe: "webapp_db" | "integrator_api" | "projection" | "media_preview",
   result: ProbeResult<unknown>,
   statusOverride?: string,
 ) {
@@ -170,10 +259,11 @@ export async function GET() {
   const gate = await requireAdminModeSession();
   if (!gate.ok) return gate.response;
 
-  const [webappDb, integratorApi, projection] = await Promise.allSettled([
+  const [webappDb, integratorApi, projection, mediaPreview] = await Promise.allSettled([
     probeWebappDb(),
     probeIntegratorApi(),
     probeProjection(),
+    probeMediaPreview(),
   ]);
 
   const webappDbResult: ProbeResult<DbStatus> =
@@ -190,6 +280,14 @@ export async function GET() {
     projection.status === "fulfilled"
       ? projection.value
       : { ok: false, status: "error", errorCode: "projection_probe_rejected", durationMs: 0 };
+  const mediaPreviewResult: ProbeResult<{
+    status: MediaPreviewStatus;
+    stalePendingCount: number;
+    byMimeAndStatus: MediaPreviewCounters;
+  }> =
+    mediaPreview.status === "fulfilled"
+      ? mediaPreview.value
+      : { ok: false, status: "error", errorCode: "media_preview_probe_rejected", durationMs: 0 };
 
   const response: SystemHealthResponse = {
     webappDb: webappDbResult.ok ? webappDbResult.value : "down",
@@ -202,12 +300,23 @@ export async function GET() {
           ...(projectionResult.value.snapshot ? { snapshot: projectionResult.value.snapshot } : {}),
         }
       : { status: projectionResult.status },
+    mediaCronWorkers: {
+      status: env.INTERNAL_JOB_SECRET && isS3MediaEnabled(env) ? "configured" : "not_configured",
+    },
+    mediaPreview: mediaPreviewResult.ok
+      ? mediaPreviewResult.value
+      : {
+          status: "error",
+          stalePendingCount: 0,
+          byMimeAndStatus: initMediaPreviewCounters(),
+        },
     fetchedAt: nowIso(),
   };
 
   logProbe("webapp_db", webappDbResult, response.webappDb);
   logProbe("integrator_api", integratorApiResult, response.integratorApi.status);
   logProbe("projection", projectionResult, response.projection.status);
+  logProbe("media_preview", mediaPreviewResult, response.mediaPreview.status);
 
   return NextResponse.json(response);
 }

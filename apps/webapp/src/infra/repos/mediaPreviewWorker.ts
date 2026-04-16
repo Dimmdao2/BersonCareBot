@@ -147,7 +147,19 @@ function resolveMagickCommand(): { command: string; usePathLookup: boolean }[] {
 }
 
 async function downloadFileToPath(url: string, outPath: string): Promise<void> {
-  const response = await fetch(url);
+  const controller = new AbortController();
+  const abortTimer = setTimeout(() => controller.abort(), FFMPEG_EXTRACT_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(url, { signal: controller.signal });
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error("download_timeout");
+    }
+    throw e;
+  } finally {
+    clearTimeout(abortTimer);
+  }
   if (!response.ok || !response.body) {
     throw new Error(`download_failed_status_${response.status}`);
   }

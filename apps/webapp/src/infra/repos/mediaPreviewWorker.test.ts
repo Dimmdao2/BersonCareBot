@@ -303,6 +303,25 @@ describe("processMediaPreviewBatch", () => {
     ).toBe(false);
   });
 
+  it("schedules retry when heic fallback download times out", async () => {
+    setupSingleRowScenario({ ...row, mime_type: "image/heic" });
+    ffmpegRunModeMock.mockReturnValue("error");
+    ffmpegErrorFactoryMock.mockReturnValue(new Error("Invalid data found when processing input"));
+    const abortErr = new Error("request aborted");
+    abortErr.name = "AbortError";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abortErr));
+    const { processMediaPreviewBatch } = await import("./mediaPreviewWorker");
+    const result = await processMediaPreviewBatch(2);
+
+    expect(result).toEqual({ processed: 0, errors: 1 });
+    expect(
+      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_next_attempt_at = now()")),
+    ).toBe(true);
+    expect(
+      queryMock.mock.calls.some((call) => String(call[0]).includes("preview_status = 'skipped'")),
+    ).toBe(false);
+  });
+
   it("marks permanent SIGSEGV errors as skipped without retry backoff", async () => {
     setupSingleRowScenario(row);
     s3GetObjectBodyMock.mockRejectedValueOnce(new Error("ffmpeg was killed with signal SIGSEGV"));
