@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 
 export type MediaLibraryPickerKind = "image" | "video" | "image_or_video";
 
-export type MediaLibraryPickMeta = Pick<MediaListItem, "kind" | "mimeType" | "filename">;
+export type MediaLibraryPickMeta = Pick<MediaListItem, "kind" | "mimeType" | "filename" | "displayName">;
 
 /** When `kind` is `image_or_video`, hints preview for bare `/api/media/:id` URLs after reload. */
 export type MediaLibrarySelectedPreviewKind = "image" | "video" | "gif";
@@ -417,7 +417,12 @@ export function MediaLibraryPickerDialog({
   const handlePickFromLibrary = useCallback(
     (item: MediaListItem) => {
       setLastPick({ url: item.url, rowKind: item.kind, mimeType: item.mimeType });
-      onChange(item.url, { kind: item.kind, mimeType: item.mimeType, filename: item.filename });
+      onChange(item.url, {
+        kind: item.kind,
+        mimeType: item.mimeType,
+        filename: item.filename,
+        displayName: item.displayName,
+      });
       setOpen(false);
     },
     [onChange],

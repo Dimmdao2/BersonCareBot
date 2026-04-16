@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { archiveDoctorExercise, saveDoctorExercise } from "./actions";
 import type { SaveDoctorExerciseState } from "./actionsShared";
-import { exerciseMediaTypeFromPick } from "./exerciseMediaFromLibrary";
+import { exerciseMediaTypeFromPick, exerciseTitleFromPickMeta } from "./exerciseMediaFromLibrary";
 
 const LOAD_OPTIONS: { value: ExerciseLoadType; label: string }[] = [
   { value: "strength", label: "Силовая" },
@@ -50,6 +50,7 @@ export function ExerciseForm({
   const [regionLabel, setRegionLabel] = useState("");
   const [loadType, setLoadType] = useState<ExerciseLoadType | "">(exercise?.loadType ?? "");
   const [difficulty, setDifficulty] = useState<number>(exercise?.difficulty1_10 ?? 5);
+  const [title, setTitle] = useState(exercise?.title ?? "");
 
   const initialMedia = exercise?.media[0];
   const [mediaUrl, setMediaUrl] = useState(initialMedia?.mediaUrl ?? "");
@@ -77,7 +78,8 @@ export function ExerciseForm({
             id="ex-title"
             name="title"
             required
-            defaultValue={exercise?.title ?? ""}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             placeholder="Например, разгибание колена сидя"
           />
         </div>
@@ -91,8 +93,12 @@ export function ExerciseForm({
             pickerTitle="Изображение, GIF или видео"
             onChange={(url, meta) => {
               setMediaUrl(url);
-              if (url && meta) setMediaType(exerciseMediaTypeFromPick(meta));
-              else setMediaType("");
+              if (url && meta) {
+                setMediaType(exerciseMediaTypeFromPick(meta));
+                setTitle((prev) => (prev.trim() === "" ? exerciseTitleFromPickMeta(meta) : prev));
+              } else {
+                setMediaType("");
+              }
             }}
           />
         </div>

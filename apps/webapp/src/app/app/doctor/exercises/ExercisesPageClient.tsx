@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, List } from "lucide-react";
@@ -161,12 +162,22 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, fil
         )}
       >
         <div className="rounded-xl border border-border bg-card p-3">
-          <ExercisesFiltersForm
-            q={filters.q}
-            regionRefId={filters.regionRefId}
-            loadType={filters.loadType}
-            view={viewMode}
-          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0 flex-1">
+              <ExercisesFiltersForm
+                q={filters.q}
+                regionRefId={filters.regionRefId}
+                loadType={filters.loadType}
+                view={viewMode}
+              />
+            </div>
+            <Link
+              href="/app/doctor/exercises/auto-create"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0 self-end sm:self-start")}
+            >
+              Автосоздание
+            </Link>
+          </div>
         </div>
       </div>
 

@@ -8,3 +8,23 @@ export function exerciseMediaTypeFromPick(meta: MediaLibraryPickMeta): ExerciseM
   if (mime === "image/gif" || /\.gif$/i.test(meta.filename)) return "gif";
   return "image";
 }
+
+/** Last path segment extension removed for display as exercise title fallback. */
+export function stripFilenameExtension(filename: string): string {
+  const f = filename.trim();
+  if (!f) return "";
+  const i = f.lastIndexOf(".");
+  if (i <= 0 || i === f.length - 1) return f;
+  return f.slice(0, i);
+}
+
+/** Title from CMS display name or original filename without extension. */
+export function exerciseTitleFromLibraryItem(item: { displayName?: string | null; filename: string }): string {
+  const d = item.displayName?.trim();
+  if (d) return d;
+  return stripFilenameExtension(item.filename);
+}
+
+export function exerciseTitleFromPickMeta(meta: MediaLibraryPickMeta): string {
+  return exerciseTitleFromLibraryItem(meta);
+}

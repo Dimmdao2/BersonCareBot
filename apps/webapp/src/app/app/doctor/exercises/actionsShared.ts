@@ -1,11 +1,18 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { webappReposAreInMemory } from "@/config/env";
+import { pgListExerciseUsageForMediaIds } from "@/infra/repos/pgLfkExercises";
+import { logger } from "@/infra/logging/logger";
+import type { MediaExerciseUsageEntry } from "@/modules/media/types";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
+import { z } from "zod";
+
+import { EXERCISES_PATH } from "./exercisesPaths";
 
 export type SaveDoctorExerciseState = { ok: boolean; error?: string };
 
-export const EXERCISES_PATH = "/app/doctor/exercises";
+export { EXERCISES_PATH };
 
 type SaveExerciseResult =
   | { ok: true; exerciseId: string; wasUpdate: boolean }
@@ -40,6 +47,161 @@ function validateExerciseMedia(mediaUrl: string | null, mediaType: "image" | "vi
     return "Медиа должно быть из библиотеки файлов (/api/media/…) или допустимый legacy URL (https://…).";
   }
   return null;
+}
+
+const API_MEDIA_ID_RE =
+  /^\/api\/media\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+
+/** Lowercase media_files id from `/api/media/{uuid}` or null. */
+export function parseApiMediaIdFromExerciseUrl(mediaUrl: string): string | null {
+  const m = mediaUrl.trim().match(API_MEDIA_ID_RE);
+  return m ? m[1].toLowerCase() : null;
+}
+
+export const bulkCreateExerciseMediaItemSchema = z.object({
+  title: z.string().min(1).max(500),
+  mediaUrl: z.string().min(1).max(500),
+  mediaType: z.enum(["image", "video", "gif"]),
+});
+
+export const bulkCreateExercisesFromMediaInputSchema = z
+  .array(bulkCreateExerciseMediaItemSchema)
+  .min(1)
+  .max(100);
+
+export type BulkCreateExercisesFromMediaItem = z.infer<typeof bulkCreateExerciseMediaItemSchema>;
+
+export type BulkCreateExercisesFromMediaResult =
+  | {
+      ok: true;
+      created: number;
+      skippedLinked: number;
+      failed: number;
+      createdIds: string[];
+    }
+  | { ok: false; error: string };
+
+/**
+ * Creates one exercise per library media row. Skips items already linked to a non-archived exercise (re-checked on server).
+ */
+export async function bulkCreateExercisesFromMediaCore(
+  items: BulkCreateExercisesFromMediaItem[],
+): Promise<BulkCreateExercisesFromMediaResult> {
+  const session = await requireDoctorAccess();
+  const userId = session.user.userId;
+
+  const deduped: BulkCreateExercisesFromMediaItem[] = [];
+  const seenUrl = new Set<string>();
+  for (const raw of items) {
+    const key = raw.mediaUrl.trim().toLowerCase();
+    if (seenUrl.has(key)) continue;
+    seenUrl.add(key);
+    deduped.push({
+      title: raw.title.trim(),
+      mediaUrl: raw.mediaUrl.trim(),
+      mediaType: raw.mediaType,
+    });
+  }
+
+  logger.info(
+    {
+      event: "lfk_exercises_bulk_auto_create_start",
+      userId,
+      requestedCount: items.length,
+      dedupedCount: deduped.length,
+    },
+    "lfk_exercises_bulk_auto_create_start",
+  );
+
+  const deps = buildAppDeps();
+  const mediaIds = deduped.map((i) => parseApiMediaIdFromExerciseUrl(i.mediaUrl)).filter((id): id is string => Boolean(id));
+
+  let usageByMediaId: Record<string, MediaExerciseUsageEntry[]> = {};
+  const linkedUrlsInMemory = new Set<string>();
+
+  if (webappReposAreInMemory()) {
+    const all = await deps.lfkExercises.listExercises({ includeArchived: false });
+    for (const ex of all) {
+      for (const m of ex.media) {
+        linkedUrlsInMemory.add(m.mediaUrl.trim().toLowerCase());
+      }
+    }
+  } else if (mediaIds.length > 0) {
+    usageByMediaId = await pgListExerciseUsageForMediaIds(mediaIds);
+  }
+
+  let created = 0;
+  let skippedLinked = 0;
+  let failed = 0;
+  const createdIds: string[] = [];
+
+  for (const row of deduped) {
+    const title = row.title.trim();
+    if (!title) {
+      failed += 1;
+      continue;
+    }
+    const mediaErr = validateExerciseMedia(row.mediaUrl, row.mediaType);
+    if (mediaErr) {
+      failed += 1;
+      continue;
+    }
+    const mediaId = parseApiMediaIdFromExerciseUrl(row.mediaUrl);
+    if (!mediaId) {
+      failed += 1;
+      continue;
+    }
+
+    if (webappReposAreInMemory()) {
+      if (linkedUrlsInMemory.has(row.mediaUrl.trim().toLowerCase())) {
+        skippedLinked += 1;
+        continue;
+      }
+    } else {
+      const usage = usageByMediaId[mediaId] ?? [];
+      if (usage.length > 0) {
+        skippedLinked += 1;
+        continue;
+      }
+    }
+
+    try {
+      const ex = await deps.lfkExercises.createExercise(
+        {
+          title,
+          media: [{ mediaUrl: row.mediaUrl, mediaType: row.mediaType, sortOrder: 0 }],
+        },
+        userId,
+      );
+      created += 1;
+      createdIds.push(ex.id);
+      if (webappReposAreInMemory()) {
+        linkedUrlsInMemory.add(row.mediaUrl.trim().toLowerCase());
+      } else {
+        usageByMediaId[mediaId] = [{ exerciseId: ex.id, title }];
+      }
+    } catch (e) {
+      logger.warn(
+        { event: "lfk_exercises_bulk_auto_create_item_failed", userId, mediaId, err: e },
+        "lfk_exercises_bulk_auto_create_item_failed",
+      );
+      failed += 1;
+    }
+  }
+
+  logger.info(
+    {
+      event: "lfk_exercises_bulk_auto_create_finish",
+      userId,
+      created,
+      skippedLinked,
+      failed,
+      createdIds,
+    },
+    "lfk_exercises_bulk_auto_create_finish",
+  );
+
+  return { ok: true, created, skippedLinked, failed, createdIds };
 }
 
 export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveExerciseResult> {
