@@ -30,4 +30,4 @@
 ## Проверка и сопутствующие правки
 
 - Реализация пикера: коммит **`2b383f1`**.
-- Повторный прогон **`pnpm run ci`**: зелёный; для прохождения **`pnpm run audit`** (registry bulk) обновлён корневой override **`dompurify`** до **`>=3.4.0`** (закрытие GHSA-39q2-94rc-95cp для транзитивной цепочки через `isomorphic-dompurify`). Правка в `package.json` / lockfile — в том же коммите, что обновление отчётов (сразу после `2b383f1` на `main`).
+- Повторный прогон **`pnpm run ci`**: зелёный; для прохождения **`pnpm run audit`** (registry bulk) подняты корневые overrides: **`dompurify >=3.4.0`** (GHSA-39q2-94rc-95cp, транзитивно через `isomorphic-dompurify`) и **`hono >=4.12.14`** (GHSA-458j-xx4x-4375). Детали — в `pnpm.overrides` корневого `package.json` и в [`AGENT_LOG_2026-04-16-local-media-picker-search.md`](./AGENT_LOG_2026-04-16-local-media-picker-search.md).

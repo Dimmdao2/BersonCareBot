@@ -11,7 +11,9 @@
 ## Повторная проверка (follow-up)
 
 - **`pnpm run ci`** (локально): успешно после правки supply chain.
-- **`pnpm.overrides.dompurify`:** с `>=3.3.2` на **`>=3.4.0`**, чтобы закрыть moderate [GHSA-39q2-94rc-95cp](https://github.com/advisories/GHSA-39q2-94rc-95cp) (уязвимые версии `<=3.3.3`); `registry-prod-audit.mjs` снова зелёный. Изменения в корневом `package.json` + `pnpm-lock.yaml` и в этом логе уходят одним коммитом на `main` сразу после `2b383f1`.
+- **`pnpm.overrides.dompurify`:** с `>=3.3.2` на **`>=3.4.0`**, чтобы закрыть moderate [GHSA-39q2-94rc-95cp](https://github.com/advisories/GHSA-39q2-94rc-95cp) (уязвимые версии `<=3.3.3`).
+- **`pnpm.overrides.hono`:** с `>=4.12.12` на **`>=4.12.14`**, чтобы закрыть moderate [GHSA-458j-xx4x-4375](https://github.com/advisories/GHSA-458j-xx4x-4375) (иначе `pnpm run ci` снова падает на шаге `registry-prod-audit` при актуализации advisory).
+- После этих правок **`pnpm run ci`** (включая audit) снова зелёный; изменения в корневом `package.json` и `pnpm-lock.yaml` — в коммитах на `main` сразу после `2b383f1` (см. `git log`).
 
 ---
 
@@ -60,3 +62,4 @@
 
 - **jsdom:** `pnpm.overrides.jsdom: ^26.0.0` (избежать `ERR_REQUIRE_ESM` из цепочки `isomorphic-dompurify`).
 - **audit:** `pnpm.overrides.fastify: >=5.8.5` (GHSA-247c-9743-5963).
+- **audit (follow-up):** `dompurify >=3.4.0`, `hono >=4.12.14` — см. раздел «Повторная проверка» выше.
