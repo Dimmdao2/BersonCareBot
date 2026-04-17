@@ -5,15 +5,18 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 
+/** Первый пункт списка «Все регионы» / «Все типы» — как в ReferenceSelect + clearOptionLabel. */
 vi.mock("@/shared/ui/ReferenceSelect", () => ({
   ReferenceSelect: ({
     name,
     value,
     onChange,
+    clearOptionLabel,
   }: {
     name?: string;
     value: string | null;
     onChange: (refId: string | null, label: string) => void;
+    clearOptionLabel?: string;
   }) => (
     <div>
       {name ? (
@@ -21,6 +24,9 @@ vi.mock("@/shared/ui/ReferenceSelect", () => ({
       ) : null}
       <button type="button" onClick={() => onChange("reg-1", "Плечо")}>
         mock-pick-{name ?? "ref"}
+      </button>
+      <button type="button" onClick={() => onChange(null, "")}>
+        {clearOptionLabel ?? "все"}
       </button>
     </div>
   ),
@@ -45,19 +51,27 @@ describe("ExercisesFiltersForm", () => {
     expect(hidden?.value).toBe("550e8400-e29b-41d4-a716-446655440099");
   });
 
-  it("reset region clears hidden input and submits the form", async () => {
+  it("«Все регионы» сбрасывает скрытое поле региона", async () => {
     const user = userEvent.setup();
-    const requestSubmitSpy = vi.spyOn(HTMLFormElement.prototype, "requestSubmit").mockImplementation(() => {});
-
     const regionId = "550e8400-e29b-41d4-a716-446655440001";
     render(<ExercisesFiltersForm q="squat" regionRefId={regionId} loadType="strength" />);
 
     expect(screen.getByTestId("ref-hidden-region")).toHaveValue(regionId);
 
-    await user.click(screen.getByRole("button", { name: /сбросить регион/i }));
+    await user.click(screen.getByRole("button", { name: /^Все регионы$/ }));
 
     expect(screen.getByTestId("ref-hidden-region")).toHaveValue("");
-    expect(requestSubmitSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("«Все типы» сбрасывает скрытое поле типа нагрузки", async () => {
+    const user = userEvent.setup();
+    render(<ExercisesFiltersForm q="" loadType="strength" />);
+
+    expect(screen.getByTestId("ref-hidden-load")).toHaveValue("strength");
+
+    await user.click(screen.getByRole("button", { name: /^Все типы$/ }));
+
+    expect(screen.getByTestId("ref-hidden-load")).toHaveValue("");
   });
 
   it("syncs search input when q prop changes (e.g. back/forward navigation)", async () => {

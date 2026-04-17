@@ -28,6 +28,9 @@
 - Типы: инферить из schema (`typeof table.$inferSelect`, `typeof table.$inferInsert`). Минимум ручных type-дублей.
 - Миграции: `drizzle-kit generate` → `drizzle-kit migrate`. Не ручной SQL. Исключение: seed data.
 - Relations: описывать в schema (Drizzle `relations()`).
+- **`drizzle-kit introspect`:** используй `pnpm --dir apps/webapp run db:introspect` — после introspect автоматически запускается скрипт исправления известного бага генератора (пустые string defaults). При необходимости только правка: `pnpm --dir apps/webapp run db:introspect:fix`.
+- **Проверка снимка схемы `public` vs файлы:** при наличии `DATABASE_URL` — `pnpm --dir apps/webapp run db:verify-public-table-count` и при необходимости `pnpm --dir apps/webapp exec drizzle-kit check`.
+- **Smoke Drizzle read** в полном виде не входит в обычный `pnpm test` webapp (БД обнулена в Vitest без `USE_REAL_DATABASE=1`). Для проверки с реальной БД: `USE_REAL_DATABASE=1 pnpm --dir apps/webapp exec vitest run src/app-layer/db/drizzle.smoke.test.ts` или `pnpm --dir apps/webapp run test:with-db` по необходимости — без обязательного включения в CI без отдельного решения.
 
 ## Правила модульной архитектуры
 

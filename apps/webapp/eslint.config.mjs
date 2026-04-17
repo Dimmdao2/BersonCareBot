@@ -36,6 +36,25 @@ export default [
     },
   },
 
+  // ─── API routes: same infra boundaries as modules (MASTER_PLAN phase 0) ───
+  {
+    files: ["src/app/api/**/route.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          {
+            group: ["@/infra/db/*", "@/infra/db/client"],
+            message: "Route handlers must not import infra/db directly. Use @/app-layer/db/client, buildAppDeps(), or another app-layer facade.",
+          },
+          {
+            group: ["@/infra/repos/*"],
+            message: "Route handlers must not import infra/repos directly. Use services via buildAppDeps() or app-layer facades.",
+          },
+        ],
+      }],
+    },
+  },
+
   // ─── Allowlisted legacy files in modules/* (tracked in LEGACY_CLEANUP_BACKLOG.md) ───
   {
     files: [

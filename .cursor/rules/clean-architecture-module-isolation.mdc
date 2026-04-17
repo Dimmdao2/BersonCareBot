@@ -9,17 +9,32 @@ alwaysApply: true
 
 Every module in `apps/webapp/src/modules/` must follow strict layered isolation:
 
-### 1. Modules MUST NOT import infra directly
+### 1. Modules MUST NOT import infra directly (DB + repos)
+
+**Architecture rule:** `modules/*` must not reach `@/infra/db/*` or `@/infra/repos/*` — use `modules/*/ports.ts`, infra implementations, and DI (`buildAppDeps`).
+
+**ESLint (phase 0, webapp):** `no-restricted-imports` enforces **only** those two families for `src/modules/**` and `src/app/api/**/route.ts`. It does **not** flag other `@/infra/*` imports (for example `@/infra/s3/client`, `@/infra/logging/*`) — those are still discouraged where a port exists; a stricter or wider rule would be a **separate** change and backlog sync.
 
 ```
-FORBIDDEN in modules/**/*.ts (non-test):
-  import { getPool } from "@/infra/db/client"
-  import { pgSomethingPort } from "@/infra/repos/pgSomething"
-  import { someFunction } from "@/infra/repos/pgSomething"
+FORBIDDEN in modules/**/*.ts (non-test) — and what ESLint currently errors on:
+  import { getPool } from "@/infra/db/client"     // error
+  import { x } from "@/infra/repos/pgSomething" // error
+
+Not auto-failed by phase-0 ESLint (still use ports / follow project rules):
   import { createS3Client } from "@/infra/s3/client"
 ```
 
-ESLint rule `no-restricted-imports` enforces this. Legacy violations are allowlisted in `apps/webapp/eslint.config.mjs` — **do NOT add new files to the allowlist**.
+Legacy violations of the **ESLint patterns** are allowlisted in `apps/webapp/eslint.config.mjs` — **do NOT add new files to the allowlist**.
+
+### 1a. Product absolutes (TREATMENT_PROGRAM_INITIATIVE)
+
+From `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md` — same as “Абсолютные запреты” items 4–6:
+
+- **Do not change existing LFK tables** (`lfk_exercises`, `lfk_exercise_media`, `lfk_complex_templates`, `lfk_complex_template_exercises`, `lfk_complexes`, `lfk_complex_exercises`, `lfk_sessions`, `patient_lfk_assignments`). New work references them; it does not alter their schema.
+- **Do not build a separate “course engine”** with its own stage/progress logic. A **course** is a link to a `treatment_program_template` (and instance creation reuses the same assignment path as the program feature).
+- **No database FK on `item_ref_id`** — polymorphic reference; validate only in the service layer.
+
+**Phased delivery, CI, and other hard rules** (e.g. do not change GitHub workflow without a decision) live in `EXECUTION_RULES.md` and in other `.cursor/rules/*` — this file is the **architecture** layer, not a full duplicate of that document. Always read `EXECUTION_RULES.md` for the initiative.
 
 ### 2. Correct dependency direction
 

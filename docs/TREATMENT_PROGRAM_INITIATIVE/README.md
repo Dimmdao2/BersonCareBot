@@ -10,7 +10,7 @@
 | `SYSTEM_LOGIC_SCHEMA.md` | **Эталон логики системы** — таблицы, потоки данных, статусы, типы. Отклонение = REWORK |
 | `EXECUTION_RULES.md` | Жёсткие правила для агентов и разработчиков |
 | `PROMPTS_EXEC_AUDIT_FIX.md` | Copy-paste промпты для агентов: EXEC / AUDIT / FIX по каждой фазе |
-| `LEGACY_CLEANUP_BACKLOG.md` | Allowlist всех текущих нарушений module isolation (28 files modules + 48 routes) |
+| `LEGACY_CLEANUP_BACKLOG.md` | Allowlist текущих нарушений boundaries DB/repos в `modules/*` (29 файлов); секция B — исторический снимок по маршрутам (48 — не текущее число API routes) |
 | `LOG.md` | Журнал выполнения (создаётся при начале работы) |
 
 ## Фазы

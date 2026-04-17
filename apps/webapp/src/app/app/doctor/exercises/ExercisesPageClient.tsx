@@ -269,7 +269,7 @@ function ExercisesContent({
         estimatedRowHeight={220}
         overscan={2}
         keyExtractor={(ex) => ex.id}
-        containerClassName="h-full min-h-0"
+        containerClassName="h-full max-h-[70vh] lg:max-h-none"
         renderItem={(ex) => (
           <div className="w-full min-w-0">
             <ExerciseTileCard
@@ -300,7 +300,7 @@ function ExercisesContent({
     <CatalogSplitLayout
       left={
         <aside
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+3.25rem)] lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:self-start"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+3.25rem)] lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)]"
         >
           <div className="shrink-0 px-2 pb-1.5 pt-2">
             <SelectionToolbar

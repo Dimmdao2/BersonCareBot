@@ -10,9 +10,9 @@
 
 ---
 
-## A. modules/* → getPool() / @/infra/db/client (28 файлов production)
+## A. modules/* — прямой доступ к `@/infra/db/*`, `@/infra/repos/*` (29 production-файлов)
 
-Эти файлы вызывают `getPool()` напрямую вместо получения DB-порта через DI.
+Охват таблицы: вызовы `getPool()` / импорт `@/infra/db/client`, а также **любые** импорты из `@/infra/repos/*` (реализации и **type-only** импорты типов строк из repos). Цель чистки — убрать прямую связь модуля с DB/repos в пользу портов и DI.
 
 | # | Файл | Модуль | Что делает напрямую | Статус |
 |---|------|--------|---------------------|--------|
@@ -44,6 +44,7 @@
 | 26 | `modules/messaging/serializeSupportMessage.ts` | messaging | SupportConversationMessageRow from infra | allowlisted |
 | 27 | `modules/menu/service.ts` | menu | ContentSectionRow type from infra | allowlisted |
 | 28 | `modules/emergency/service.ts` | emergency | ContentPagesPort type from infra | allowlisted |
+| 29 | `modules/lessons/service.ts` | lessons | ContentPagesPort type from infra | allowlisted |
 
 ### Группировка по модулю
 
@@ -72,11 +73,17 @@
 
 ---
 
-## B. route.ts → @/infra/* (48 маршрутов)
+## B. route.ts → @/infra/* (исторический снимок — 48 маршрутов)
+
+**Число 48** — счётчик маршрутов с нарушением boundary **до** нормализации (track B), а не текущее количество файлов `**/route.ts` в приложении.
 
 Полный перечень (архив): `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/api-di-boundary-normalization/ALLOWLIST_REMAINING_INFRA_ROUTE_IMPORTS.md`
 
-Статус: **tracked-in-track-b**. 10 approved-exception (logging), 38 planned-cluster (H/O/R/I/M/D).
+Статус: **tracked-in-track-b**. На текущем коде прямых `@/infra/*` в `**/route.ts` нет (`rg` → пусто); отдельный ESLint allowlist для routes **не нужен**.
+
+**Формальный список из 48 путей** в репозитории **не восстанавливаем:** соответствующие маршруты **уже приведены к boundary** (track B). Опциональный аудит-план «извлечь 48 имён из git» **устарел** и **закрыт без действий** (см. `AUDIT_PHASE_0.md` — MANDATORY FIX #4 и FIX verification).
+
+**Регрессия:** в `apps/webapp/eslint.config.mjs` для `src/app/api/**/route.ts` включён тот же `no-restricted-imports`, что и для `modules/**` — запрет `@/infra/db/*` и `@/infra/repos/*` (новый импорт → lint error).
 
 ---
 
@@ -84,7 +91,7 @@
 
 | Механизм | Что защищает | Файл |
 |----------|-------------|------|
-| ESLint `no-restricted-imports` | Новый код в `modules/**` | `apps/webapp/eslint.config.mjs` |
+| ESLint `no-restricted-imports` | Новый код в `modules/**` и `app/api/**/route.ts` | `apps/webapp/eslint.config.mjs` |
 | Cursor rule | Агенты при генерации кода | `.cursor/rules/clean-architecture-module-isolation.mdc` |
 | Code review | Ручная проверка при PR | — |
 

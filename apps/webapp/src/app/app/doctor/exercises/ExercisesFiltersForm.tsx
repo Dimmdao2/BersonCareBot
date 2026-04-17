@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
@@ -33,7 +32,6 @@ function loadTypeTitle(code: ExerciseLoadType | undefined): string {
 }
 
 export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort, selectedId }: Props) {
-  const formRef = useRef<HTMLFormElement>(null);
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
   const [selectedRegionLabel, setSelectedRegionLabel] = useState("");
   const [selectedLoadCode, setSelectedLoadCode] = useState<string | null>(loadType ?? null);
@@ -55,7 +53,7 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
   }, [q]);
 
   return (
-    <form ref={formRef} method="get" className="flex flex-wrap items-center gap-2">
+    <form method="get" className="flex flex-wrap items-center gap-2">
       {view ? <input type="hidden" name="view" value={view} /> : null}
       {titleSort ? <input type="hidden" name="titleSort" value={titleSort} /> : null}
       {selectedId ? <input type="hidden" name="selected" value={selectedId} /> : null}
@@ -111,21 +109,6 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
       <Button type="submit" variant="secondary">
         Применить
       </Button>
-      {selectedLoadCode ? (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            flushSync(() => {
-              setSelectedLoadCode(null);
-              setSelectedLoadLabel("");
-            });
-            formRef.current?.requestSubmit();
-          }}
-        >
-          Сбросить тип нагрузки
-        </Button>
-      ) : null}
       {selectedRegionLabel || selectedLoadLabel ? (
         <p className="w-full text-xs text-muted-foreground">
           {[

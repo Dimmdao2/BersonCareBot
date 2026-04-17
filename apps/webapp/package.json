@@ -33,7 +33,10 @@
     "backfill-rubitime-compat-snapshots": "tsx scripts/backfill-rubitime-compat-snapshots.ts",
     "backfill-rubitime-history-to-patient-bookings": "tsx scripts/backfill-rubitime-history-to-patient-bookings.ts",
     "realign-webapp-integrator-user": "tsx scripts/realign-webapp-integrator-user-projection.ts",
-    "integrator-push-outbox-tick": "tsx scripts/integrator-push-outbox-tick.ts"
+    "integrator-push-outbox-tick": "tsx scripts/integrator-push-outbox-tick.ts",
+    "db:introspect": "drizzle-kit introspect && node scripts/fix-drizzle-introspect-defaults.mjs",
+    "db:introspect:fix": "node scripts/fix-drizzle-introspect-defaults.mjs",
+    "db:verify-public-table-count": "node scripts/verify-drizzle-public-table-count.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1026.0",
@@ -51,6 +54,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.1",
+    "drizzle-orm": "^0.44.7",
     "fluent-ffmpeg": "^2.1.3",
     "isomorphic-dompurify": "^3.7.1",
     "jose": "^5.10.0",
@@ -86,6 +90,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.15.0",
     "eslint-config-next": "^16.2.2",
     "jsdom": "^26.0.0",

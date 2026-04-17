@@ -47,7 +47,7 @@
 Сделай:
 1) Убедись что ESLint rule `no-restricted-imports` для `@/infra/db/client` и `@/infra/repos/*` уже добавлен в конфиг webapp.
 2) Убедись что cursor rule `clean-architecture-module-isolation.mdc` существует.
-3) Убедись что LEGACY_CLEANUP_BACKLOG.md содержит полный allowlist.
+3) Убедись что LEGACY_CLEANUP_BACKLOG.md содержит полный allowlist (29 файлов modules; секция B про исторические маршруты — см. текст бэклога).
 4) Проверки: step — lint pass на текущем коде.
 
 Обнови LOG.md.
@@ -61,10 +61,30 @@
 Проверь:
 1) ESLint rule корректен — lint проходит на текущем коде, но ловит новый `@/infra` в modules/*.
 2) Cursor rule содержит все ключевые запреты из EXECUTION_RULES.md.
-3) LEGACY_CLEANUP_BACKLOG.md полон — все 23 файла modules/* и 48 route.ts.
+3) LEGACY_CLEANUP_BACKLOG.md полон — **29** legacy-файлов modules под ESLint allowlist (не «23»); «48» в секции B — **исторический** счётчик маршрутов до нормализации, не текущее число `route.ts`. Восстанавливать из git список из 48 путей **не требуется** (маршруты уже исправлены, план устарел).
 
 Сохрани: docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_0.md
 Добавь MANDATORY FIX INSTRUCTIONS.
+```
+
+## ФАЗА 0 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 0.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_0.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS (обязательно).
+2) Для minor: исправь или явно зафиксируй обоснованный defer в AUDIT_PHASE_0.md.
+3) Перепроверь: lint действительно ловит новый `@/infra/*` в `modules/*`.
+4) Если правился allowlist/backlog — синхронизируй LEGACY_CLEANUP_BACKLOG.md.
+5) Выполни проверки уровня step/phase по EXECUTION_RULES.md.
+
+Обнови LOG.md: что исправлено, какие проверки пройдены, gate verdict.
 ```
 
 ---
@@ -86,6 +106,8 @@
 5) Smoke-тест: выполни один простой read-запрос через Drizzle (не ломая старый код).
 6) Проверки: step — typecheck + lint; phase — pnpm test:webapp.
 
+Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-process пустых string default). Smoke с реальной БД: см. `EXECUTION_RULES.md` (Drizzle).
+
 Обнови LOG.md.
 ```
 
@@ -105,6 +127,26 @@
 
 Сохрани: docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_1.md
 Добавь MANDATORY FIX INSTRUCTIONS.
+```
+
+## ФАЗА 1 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 1.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_1.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
+2) Для minor: исправь или оставь обоснованный defer в AUDIT_PHASE_1.md.
+3) Проверь, что drizzle.config.ts и schema актуальны и не расходятся с БД.
+4) Подтверди рабочий Drizzle smoke-read на актуальном коде.
+5) Выполни step/phase проверки (typecheck, lint, test:webapp).
+
+Обнови LOG.md: список фиксов, результаты проверок, gate verdict.
 ```
 
 ---
@@ -151,6 +193,26 @@
 Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
+## ФАЗА 2 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 2.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_2.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
+2) Для minor: исправь или явно задокументируй defer в AUDIT_PHASE_2.md.
+3) Подтверди module isolation (`modules/tests`, `modules/recommendations` без `@/infra/*`).
+4) Подтверди тонкость route handlers и работоспособность CRUD + UI.
+5) Выполни step/phase проверки и pre-deploy аудит перед пушем.
+
+Обнови LOG.md: какие пункты аудита закрыты, какие тесты/проверки пройдены.
+```
+
 ---
 
 ## ФАЗА 3 — EXEC (шаблон программы)
@@ -191,6 +253,26 @@
 
 Сохрани: docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_3.md
 Добавь MANDATORY FIX INSTRUCTIONS.
+```
+
+## ФАЗА 3 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 3.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_3.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
+2) Для minor: исправь или внеси обоснованный defer в AUDIT_PHASE_3.md.
+3) Перепроверь соответствие item_type и валидации item_ref_id требованиям схемы.
+4) Подтверди повторное использование элементов между этапами без регрессий.
+5) Выполни step/phase проверки, затем pre-deploy аудит перед пушем.
+
+Обнови LOG.md: фиксы, регрессионные проверки, gate verdict.
 ```
 
 ---
@@ -234,6 +316,26 @@
 Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
+## ФАЗА 4 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 4.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_4.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
+2) Для minor: исправь или внеси прозрачный defer в AUDIT_PHASE_4.md.
+3) Перепроверь deep copy (snapshot/comment/local_comment/settings) и независимость экземпляра.
+4) Подтверди приоритет local_comment и корректные статусы этапов.
+5) Выполни step/phase проверки, затем pre-deploy аудит перед пушем.
+
+Обнови LOG.md: закрытые пункты аудита, проверки, gate verdict.
+```
+
 ---
 
 ## ФАЗА 5 — EXEC (комментарии)
@@ -253,6 +355,26 @@
 6) Тесты.
 
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md § 7.
+```
+
+## ФАЗА 5 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 5.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_5.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 7)
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
+2) Для minor: исправь или внеси обоснованный defer в AUDIT_PHASE_5.md.
+3) Перепроверь comments schema, индекс `(target_type, target_id)` и CRUD по target.
+4) Подтверди переиспользуемость `<CommentBlock />` без дублирования логики.
+5) Выполни step/phase проверки и pre-deploy аудит перед пушем.
+
+Обнови LOG.md: что исправлено и чем подтверждено (тесты/проверки).
 ```
 
 ---
@@ -278,6 +400,26 @@
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md § 3.
 ```
 
+## ФАЗА 6 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 6.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_6.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 3)
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
+2) Для minor: исправь или задокументируй defer в AUDIT_PHASE_6.md.
+3) Перепроверь переходы статусов этапов и автопереход completed → available.
+4) Подтверди корректность skip/override (reason обязателен) и запись test_results.
+5) Выполни step/phase проверки и pre-deploy аудит перед пушем.
+
+Обнови LOG.md: фиксы, результаты тестов на статусы/результаты, gate verdict.
+```
+
 ---
 
 ## ФАЗА 7 — EXEC (история)
@@ -296,6 +438,26 @@
 5) Тесты на запись событий.
 
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md § 8.
+```
+
+## ФАЗА 7 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 7.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_7.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 8)
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
+2) Для minor: исправь или внеси обоснованный defer в AUDIT_PHASE_7.md.
+3) Перепроверь, что treatment_program_events пишется для каждой мутации.
+4) Подтверди обязательность reason для stage_skipped и item_removed.
+5) Выполни step/phase проверки и pre-deploy аудит перед пушем.
+
+Обнови LOG.md: закрытые замечания, результаты тестов на event recording.
 ```
 
 ---
@@ -320,6 +482,26 @@
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md § 9, 10.
 ```
 
+## ФАЗА 8 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 8.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_8.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 9, 10)
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
+2) Для minor: исправь или внеси defer с обоснованием в AUDIT_PHASE_8.md.
+3) Перепроверь связь course → treatment_program_template и назначение через сервис фазы 4.
+4) Подтверди, что курс не дублирует логику прохождения и не хранит этапы.
+5) Выполни step/phase проверки и pre-deploy аудит перед пушем.
+
+Обнови LOG.md: какие фиксы выполнены и какими тестами подтверждены.
+```
+
 ---
 
 ## ФАЗА 9 — EXEC (гибкие правки + интегратор)
@@ -338,6 +520,27 @@
 5) Тесты на мутации + event recording.
 
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md.
+```
+
+## ФАЗА 9 — FIX (после AUDIT)
+
+```text
+Выполни FIX по результатам аудита фазы 9.
+
+Вход:
+- docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_9.md
+- docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md (§ 8, 11)
+- docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md
+
+Сделай:
+1) Закрой все critical и major из MANDATORY FIX INSTRUCTIONS.
+2) Для minor: исправь или зафиксируй обоснованный defer в AUDIT_PHASE_9.md.
+3) Перепроверь мутации после старта прохождения: без потери завершённых результатов.
+4) Подтверди запись событий в treatment_program_events для каждой мутации.
+5) Подтверди корректность интеграторной проекции (`/api/integrator/diary/lfk-complexes`).
+6) Выполни step/phase проверки и pre-deploy аудит перед пушем.
+
+Обнови LOG.md: закрытие замечаний, результаты интеграционных и регрессионных проверок.
 ```
 
 ---
