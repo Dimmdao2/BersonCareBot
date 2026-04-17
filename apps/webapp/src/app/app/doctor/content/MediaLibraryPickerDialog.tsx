@@ -1,14 +1,30 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { MediaPickerPanel } from "@/shared/ui/media/MediaPickerPanel";
-import { MediaPickerShell } from "@/shared/ui/media/MediaPickerShell";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
 import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { fetchAdminMediaListItem } from "@/shared/ui/media/fetchAdminMediaListItem";
 import { mediaLibraryPickerSelectionToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+
+const MediaPickerShell = dynamic(
+  () => import("@/shared/ui/media/MediaPickerShell").then((mod) => mod.MediaPickerShell),
+  { ssr: false },
+);
+
+const MediaPickerPanel = dynamic(
+  () => import("@/shared/ui/media/MediaPickerPanel").then((mod) => mod.MediaPickerPanel),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="p-4 text-sm text-muted-foreground">
+        Загрузка библиотеки…
+      </div>
+    ),
+  },
+);
 
 export type MediaLibraryPickerKind = "image" | "video" | "image_or_video";
 

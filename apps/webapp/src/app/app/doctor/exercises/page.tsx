@@ -1,7 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { ExercisesPageClient, type ExercisesViewMode } from "./ExercisesPageClient";
 
 type PageProps = {
@@ -16,7 +15,7 @@ type PageProps = {
 };
 
 export default async function DoctorExercisesPage({ searchParams }: PageProps) {
-  const sessionPromise = requireDoctorAccess();
+  const session = await requireDoctorAccess();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
@@ -45,18 +44,12 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         .then((ex) => (ex && !ex.isArchived ? ex : null))
         .catch(() => null)
     : Promise.resolve(null);
-  const [session, list, selectedExercise] = await Promise.all([
-    sessionPromise,
-    listPromise,
-    selectedExercisePromise,
-  ]);
-
   return (
     <AppShell title="Упражнения ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
       <div className="flex flex-col gap-4">
         <ExercisesPageClient
-          exercises={list}
-          selectedExercise={selectedExercise}
+          listPromise={listPromise}
+          selectedExercisePromise={selectedExercisePromise}
           initialViewMode={viewMode}
           initialTitleSort={titleSort}
           filters={{

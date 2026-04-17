@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { Suspense, use, useEffect, useMemo, useState, useTransition } from "react";
 import { LayoutGrid, List } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/select";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
+import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
-import { useViewportMinWidthLg } from "@/shared/ui/useViewportMinWidth";
+import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 import { archiveExerciseInline, saveExerciseInline } from "./actionsInline";
 import { ExerciseTileCard } from "./ExerciseTileCard";
@@ -41,14 +42,9 @@ const LIST_ROW_VISIBILITY_STYLE = {
   containIntrinsicSize: "52px",
 } as const;
 
-const TILE_VISIBILITY_STYLE = {
-  contentVisibility: "auto",
-  containIntrinsicSize: "180px 220px",
-} as const;
-
 type Props = {
-  exercises: Exercise[];
-  selectedExercise: Exercise | null;
+  listPromise: Promise<Exercise[]>;
+  selectedExercisePromise: Promise<Exercise | null>;
   initialViewMode: ExercisesViewMode;
   initialTitleSort: ExerciseTitleSort | null;
   filters: {
@@ -69,22 +65,20 @@ const STICKY_UNDER_DOCTOR_HEADER_CLASS =
   "top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)]";
 
 /** Desktop tiles: up to 4 per row; for 5–7 items use 3 per row; 8+ cap at 4 columns. */
-function desktopExerciseTileGridColsClass(count: number): string {
-  if (count <= 0) return "grid-cols-1";
-  if (count === 1) return "grid-cols-1";
-  if (count === 2) return "grid-cols-2";
-  if (count === 3) return "grid-cols-3";
-  if (count === 4) return "grid-cols-4";
-  if (count <= 7) return "grid-cols-3";
-  return "grid-cols-4";
+function desktopExerciseTileColumns(count: number): number {
+  if (count <= 1) return 1;
+  if (count === 2) return 2;
+  if (count === 3) return 3;
+  if (count === 4) return 4;
+  if (count <= 7) return 3;
+  return 4;
 }
 
 /** Mobile tiles (unchanged compact heuristic). */
-function mobileExerciseTileGridColsClass(count: number): string {
-  if (count <= 0) return "grid-cols-1";
-  if (count === 1) return "grid-cols-1";
-  if (count === 2 || count === 4) return "grid-cols-2";
-  return "grid-cols-3";
+function mobileExerciseTileColumns(count: number): number {
+  if (count <= 1) return 1;
+  if (count === 2 || count === 4) return 2;
+  return 3;
 }
 
 function mediaNode(exercise: Exercise) {
@@ -165,41 +159,48 @@ function SelectionToolbar({
   );
 }
 
-export function ExercisesPageClient({
-  exercises,
-  selectedExercise,
-  initialViewMode,
-  initialTitleSort,
-  filters,
-}: Props) {
-  const isLgViewport = useViewportMinWidthLg();
+type ExercisesContentProps = {
+  listPromise: Promise<Exercise[]>;
+  selectedExercisePromise: Promise<Exercise | null>;
+  viewMode: ExercisesViewMode;
+  toolbarViewMode: ExercisesViewMode;
+  titleSort: ExerciseTitleSort | null;
+  desktopSelectedId: string | null;
+  mobileSheet: { exercise: Exercise | null } | null;
+  isListPending: boolean;
+  setDesktopSelectedId: (id: string | null) => void;
+  setMobileSheet: (sheet: { exercise: Exercise | null } | null) => void;
+  toggleViewMode: () => void;
+  changeTitleSort: (next: ExerciseTitleSort | null) => void;
+};
 
-  const [viewMode, setViewMode] = useState<ExercisesViewMode>(initialViewMode);
-  const [toolbarViewMode, setToolbarViewMode] = useState<ExercisesViewMode>(initialViewMode);
-  const [titleSort, setTitleSort] = useState<ExerciseTitleSort | null>(initialTitleSort);
-  const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(() => selectedExercise?.id ?? null);
-  const [mobileSheet, setMobileSheet] = useState<{ exercise: Exercise | null } | null>(null);
-  const [isListPending, startListTransition] = useTransition();
-
-  useEffect(() => {
-    setViewMode(initialViewMode);
-    setToolbarViewMode(initialViewMode);
-  }, [initialViewMode]);
-
-  useEffect(() => {
-    setTitleSort(initialTitleSort);
-  }, [initialTitleSort]);
+function ExercisesContent({
+  listPromise,
+  selectedExercisePromise,
+  viewMode,
+  toolbarViewMode,
+  titleSort,
+  desktopSelectedId,
+  mobileSheet,
+  isListPending,
+  setDesktopSelectedId,
+  setMobileSheet,
+  toggleViewMode,
+  changeTitleSort,
+}: ExercisesContentProps) {
+  const exercises = use(listPromise);
+  const selectedExercise = use(selectedExercisePromise);
 
   useEffect(() => {
     if (selectedExercise?.id) setDesktopSelectedId(selectedExercise.id);
-  }, [selectedExercise?.id]);
+  }, [selectedExercise?.id, setDesktopSelectedId]);
 
   useEffect(() => {
     if (!desktopSelectedId) return;
     const inList = exercises.some((e) => e.id === desktopSelectedId);
     const fromServer = selectedExercise?.id === desktopSelectedId;
     if (!inList && !fromServer) setDesktopSelectedId(null);
-  }, [exercises, desktopSelectedId, selectedExercise?.id]);
+  }, [desktopSelectedId, exercises, selectedExercise?.id, setDesktopSelectedId]);
 
   const exerciseForDesktop = useMemo(() => {
     if (!desktopSelectedId) return null;
@@ -207,7 +208,7 @@ export function ExercisesPageClient({
     if (fromList) return fromList;
     if (selectedExercise?.id === desktopSelectedId) return selectedExercise;
     return null;
-  }, [exercises, desktopSelectedId, selectedExercise]);
+  }, [desktopSelectedId, exercises, selectedExercise]);
 
   const displayExercises = useMemo(() => {
     if (!titleSort) return exercises;
@@ -218,23 +219,9 @@ export function ExercisesPageClient({
   }, [exercises, titleSort]);
 
   const n = displayExercises.length;
-  const tileColsDesktop = desktopExerciseTileGridColsClass(n);
-  const tileColsMobile = mobileExerciseTileGridColsClass(n);
+  const tileColsDesktop = desktopExerciseTileColumns(n);
+  const tileColsMobile = mobileExerciseTileColumns(n);
   const listBackHref = exercisesIndexHref(viewMode, titleSort);
-
-  const toggleViewMode = () => {
-    const next = toolbarViewMode === "tiles" ? "list" : "tiles";
-    setToolbarViewMode(next);
-    startListTransition(() => {
-      setViewMode(next);
-    });
-  };
-
-  const changeTitleSort = (next: ExerciseTitleSort | null) => {
-    startListTransition(() => {
-      setTitleSort(next);
-    });
-  };
 
   const renderExerciseList = (
     list: Exercise[],
@@ -243,7 +230,7 @@ export function ExercisesPageClient({
     list.length === 0 ? (
       <p className="px-2 pb-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
     ) : (
-      <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto lg:max-h-none lg:overflow-visible">
+      <ul className="flex h-full max-h-[70vh] flex-col gap-1 overflow-auto lg:max-h-none">
         {list.map((ex) => {
           const active = opts.activeId === ex.id;
           return (
@@ -270,23 +257,186 @@ export function ExercisesPageClient({
 
   const renderExerciseTiles = (
     list: Exercise[],
-    opts: { activeId: string | null; onTileSelect: (id: string) => void; gridColsClass: string },
+    opts: { activeId: string | null; onTileSelect: (id: string) => void; columns: number },
   ) =>
     list.length === 0 ? (
       <p className="px-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
     ) : (
-      <ul className={cn("grid gap-3 p-0.5", opts.gridColsClass)}>
-        {list.map((ex) => (
-          <li key={ex.id} className="w-full min-w-0" style={TILE_VISIBILITY_STYLE}>
+      <VirtualizedItemGrid
+        items={list}
+        columns={opts.columns}
+        estimatedRowHeight={220}
+        overscan={2}
+        keyExtractor={(ex) => ex.id}
+        containerClassName="h-full max-h-[70vh] lg:max-h-none"
+        renderItem={(ex) => (
+          <div className="w-full min-w-0">
             <ExerciseTileCard
               exercise={ex}
               onSelect={(id) => opts.onTileSelect(id)}
               isActive={opts.activeId === ex.id}
             />
-          </li>
-        ))}
-      </ul>
+          </div>
+        )}
+      />
     );
+
+  const rightPanel = (
+    <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm lg:border lg:shadow-sm">
+      <CardContent className="p-2 sm:p-4">
+        <ExerciseForm
+          exercise={mobileSheet?.exercise ?? exerciseForDesktop}
+          saveAction={saveExerciseInline}
+          archiveAction={archiveExerciseInline}
+          backHref={listBackHref}
+          viewHint={viewMode}
+        />
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <CatalogSplitLayout
+      left={
+        <aside
+          className={cn(
+            "flex flex-col overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:h-[calc(100dvh-4rem-env(safe-area-inset-top,0px))]",
+            STICKY_UNDER_DOCTOR_HEADER_CLASS,
+          )}
+        >
+          <div className="shrink-0 p-2 pb-0">
+            <SelectionToolbar
+              exerciseCount={displayExercises.length}
+              createButtonId="doctor-exercises-create-link-desktop"
+              onCreate={() => {
+                setDesktopSelectedId(null);
+                setMobileSheet({ exercise: null });
+              }}
+              viewMode={toolbarViewMode}
+              onToggleView={toggleViewMode}
+              titleSort={titleSort}
+              onTitleSortChange={changeTitleSort}
+              listBusy={isListPending}
+            />
+          </div>
+          <div className={cn("min-h-0 flex-1 overflow-hidden p-2 pt-2 transition-opacity", isListPending && "opacity-80")} aria-busy={isListPending}>
+            {viewMode === "list"
+              ? renderExerciseList(displayExercises, {
+                  activeId: desktopSelectedId,
+                  onRowSelect: (id) => {
+                    const found = displayExercises.find((e) => e.id === id) ?? null;
+                    setDesktopSelectedId(id);
+                    setMobileSheet(found ? { exercise: found } : null);
+                  },
+                })
+              : renderExerciseTiles(displayExercises, {
+                  activeId: desktopSelectedId,
+                  onTileSelect: (id) => {
+                    const found = displayExercises.find((e) => e.id === id) ?? null;
+                    setDesktopSelectedId(id);
+                    setMobileSheet(found ? { exercise: found } : null);
+                  },
+                  columns: tileColsDesktop,
+                })}
+          </div>
+        </aside>
+      }
+      right={rightPanel}
+      mobileView={mobileSheet != null ? "detail" : "list"}
+      mobileBackSlot={
+        mobileSheet != null ? (
+          <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+            ← Назад
+          </Button>
+        ) : null
+      }
+    />
+  );
+}
+
+function CatalogSplitLayoutSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="hidden gap-4 lg:grid lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-3">
+          <div className="mb-3 flex items-center justify-between gap-2 border-b border-border/60 pb-3">
+            <div className="h-4 w-32 animate-pulse rounded bg-muted/50" />
+            <div className="flex gap-2">
+              <div className="h-8 w-36 animate-pulse rounded-md bg-muted/50" />
+              <div className="h-8 w-8 animate-pulse rounded-md bg-muted/50" />
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 9 }).map((_, idx) => (
+              <div key={idx} className="rounded-xl border border-border/60 p-2">
+                <div className="h-32 animate-pulse rounded-md bg-muted/50" />
+                <div className="mx-auto mt-3 h-4 w-4/5 animate-pulse rounded bg-muted/50" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="space-y-3">
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <div key={idx} className="space-y-2">
+                <div className="h-4 w-28 animate-pulse rounded bg-muted/50" />
+                <div className="h-10 animate-pulse rounded-md bg-muted/50" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-3 lg:hidden">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="rounded-xl border border-border/60 p-2">
+              <div className="h-24 animate-pulse rounded-md bg-muted/50" />
+              <div className="mx-auto mt-2 h-4 w-4/5 animate-pulse rounded bg-muted/50" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ExercisesPageClient({
+  listPromise,
+  selectedExercisePromise,
+  initialViewMode,
+  initialTitleSort,
+  filters,
+}: Props) {
+  const [viewMode, setViewMode] = useState<ExercisesViewMode>(initialViewMode);
+  const [toolbarViewMode, setToolbarViewMode] = useState<ExercisesViewMode>(initialViewMode);
+  const [titleSort, setTitleSort] = useState<ExerciseTitleSort | null>(initialTitleSort);
+  const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(null);
+  const [mobileSheet, setMobileSheet] = useState<{ exercise: Exercise | null } | null>(null);
+  const [isListPending, startListTransition] = useTransition();
+
+  useEffect(() => {
+    setViewMode(initialViewMode);
+    setToolbarViewMode(initialViewMode);
+  }, [initialViewMode]);
+
+  useEffect(() => {
+    setTitleSort(initialTitleSort);
+  }, [initialTitleSort]);
+
+  const toggleViewMode = () => {
+    const next = toolbarViewMode === "tiles" ? "list" : "tiles";
+    setToolbarViewMode(next);
+    startListTransition(() => {
+      setViewMode(next);
+    });
+  };
+
+  const changeTitleSort = (next: ExerciseTitleSort | null) => {
+    startListTransition(() => {
+      setTitleSort(next);
+    });
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -318,135 +468,22 @@ export function ExercisesPageClient({
         </div>
       </div>
 
-      {isLgViewport ? (
-        <div className="grid items-start gap-4 lg:grid-cols-2">
-          <aside
-            className={cn(
-              "flex flex-col overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:h-[calc(100dvh-4rem-env(safe-area-inset-top,0px))]",
-              STICKY_UNDER_DOCTOR_HEADER_CLASS,
-            )}
-          >
-            <div className="shrink-0 p-2 pb-0">
-              <SelectionToolbar
-                exerciseCount={displayExercises.length}
-                createButtonId="doctor-exercises-create-link-desktop"
-                onCreate={() => setDesktopSelectedId(null)}
-                viewMode={toolbarViewMode}
-                onToggleView={toggleViewMode}
-                titleSort={titleSort}
-                onTitleSortChange={changeTitleSort}
-                listBusy={isListPending}
-              />
-            </div>
-            <div className={cn("min-h-0 flex-1 overflow-y-auto p-2 pt-2 transition-opacity", isListPending && "opacity-80")} aria-busy={isListPending}>
-              {viewMode === "list"
-                ? renderExerciseList(displayExercises, {
-                    activeId: desktopSelectedId,
-                    onRowSelect: (id) => setDesktopSelectedId(id),
-                  })
-                : renderExerciseTiles(displayExercises, {
-                    activeId: desktopSelectedId,
-                    onTileSelect: (id) => setDesktopSelectedId(id),
-                    gridColsClass: tileColsDesktop,
-                  })}
-            </div>
-          </aside>
-
-          <Card className="min-w-0">
-            <CardContent className="p-4">
-              <ExerciseForm
-                exercise={exerciseForDesktop}
-                saveAction={saveExerciseInline}
-                archiveAction={archiveExerciseInline}
-                backHref={listBackHref}
-                viewHint={viewMode}
-              />
-            </CardContent>
-          </Card>
-        </div>
-      ) : null}
-
-      {!isLgViewport ? (
-        <div className="relative min-h-[40vh] overflow-hidden">
-          <div
-            className={cn(
-              "transition-transform duration-300 ease-out",
-              mobileSheet != null ? "-translate-x-full" : "translate-x-0",
-            )}
-          >
-            <aside className="rounded-xl border border-border bg-card p-2">
-              <SelectionToolbar
-                exerciseCount={displayExercises.length}
-                createButtonId="doctor-exercises-create-link"
-                onCreate={() => setMobileSheet({ exercise: null })}
-                viewMode={toolbarViewMode}
-                onToggleView={toggleViewMode}
-                titleSort={titleSort}
-                onTitleSortChange={changeTitleSort}
-                listBusy={isListPending}
-              />
-              <div className={cn("transition-opacity", isListPending && "opacity-80")} aria-busy={isListPending}>
-                {viewMode === "list" ? (
-                  renderExerciseList(displayExercises, {
-                    activeId: mobileSheet?.exercise?.id ?? null,
-                    onRowSelect: (id) => {
-                      const found = displayExercises.find((e) => e.id === id);
-                      if (found) setMobileSheet({ exercise: found });
-                    },
-                  })
-                ) : (
-                  <ul className={cn("grid gap-3 p-0.5", tileColsMobile)}>
-                    {displayExercises.length === 0 ? (
-                      <li className="col-span-full px-2 text-sm text-muted-foreground">
-                        Нет упражнений по заданным фильтрам.
-                      </li>
-                    ) : (
-                      displayExercises.map((ex) => (
-                        <li key={ex.id} className="w-full min-w-0" style={TILE_VISIBILITY_STYLE}>
-                          <ExerciseTileCard
-                            exercise={ex}
-                            onSelect={(id) => {
-                              const found = displayExercises.find((e) => e.id === id);
-                              if (found) setMobileSheet({ exercise: found });
-                            }}
-                            isActive={mobileSheet?.exercise?.id === ex.id}
-                          />
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                )}
-              </div>
-            </aside>
-          </div>
-
-          <div
-            className={cn(
-              "absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out",
-              mobileSheet != null ? "translate-x-0" : "translate-x-full",
-            )}
-          >
-            {mobileSheet != null ? (
-              <>
-                <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
-                  ← Назад
-                </Button>
-                <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm">
-                  <CardContent className="p-2 sm:p-4">
-                    <ExerciseForm
-                      exercise={mobileSheet.exercise}
-                      saveAction={saveExerciseInline}
-                      archiveAction={archiveExerciseInline}
-                      backHref={listBackHref}
-                      viewHint={viewMode}
-                    />
-                  </CardContent>
-                </Card>
-              </>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
+        <ExercisesContent
+          listPromise={listPromise}
+          selectedExercisePromise={selectedExercisePromise}
+          viewMode={viewMode}
+          toolbarViewMode={toolbarViewMode}
+          titleSort={titleSort}
+          desktopSelectedId={desktopSelectedId}
+          mobileSheet={mobileSheet}
+          isListPending={isListPending}
+          setDesktopSelectedId={setDesktopSelectedId}
+          setMobileSheet={setMobileSheet}
+          toggleViewMode={toggleViewMode}
+          changeTitleSort={changeTitleSort}
+        />
+      </Suspense>
     </div>
   );
 }

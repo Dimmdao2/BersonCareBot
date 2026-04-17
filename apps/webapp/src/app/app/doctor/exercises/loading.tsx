@@ -16,7 +16,7 @@ export default function DoctorExercisesLoading() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="hidden gap-4 lg:grid lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-3">
           <div className="mb-3 flex items-center justify-between gap-2 border-b border-border/60 pb-3">
             <div className="h-4 w-32 animate-pulse rounded bg-muted/50" />
@@ -44,6 +44,17 @@ export default function DoctorExercisesLoading() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-3 lg:hidden">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={idx} className="rounded-xl border border-border/60 p-2">
+              <div className="h-24 animate-pulse rounded-md bg-muted/50" />
+              <div className="mx-auto mt-2 h-4 w-4/5 animate-pulse rounded bg-muted/50" />
+            </div>
+          ))}
         </div>
       </div>
     </div>

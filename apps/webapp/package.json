@@ -43,6 +43,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@tanstack/react-virtual": "^3.13.23",
     "@toast-ui/editor": "^3.2.2",
     "@toast-ui/react-editor": "^3.2.3",
     "argon2": "^0.44.0",
