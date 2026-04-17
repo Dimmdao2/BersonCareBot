@@ -32,8 +32,8 @@
 
 ## Phase 5 (implementation)
 
-- `useViewportMinWidthLg`: `ExerciseForm` на desktop монтируется только при `min-width: 1024px`.
-- **Follow-up (audit):** desktop и mobile ветки split/sheet больше не держатся в DOM одновременно через `hidden`/`lg:hidden`: монтируется только ветка, соответствующая текущей ширине viewport (`ExercisesPageClient`), чтобы не дублировать список/тулбар.
+- `useViewportMinWidthLg`: на ранних этапах `ExerciseForm` на desktop монтировалась только при `min-width: 1024px` (история в логе 2026-04-16).
+- **Итог по split-каталогу:** список + деталь оформлены через `CatalogSplitLayout` — **CSS-first** (`hidden lg:grid` для desktop, `lg:hidden` для mobile), без условного рендера «только desktop или только mobile» в `ExercisesPageClient`. Подробности контракта — [EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md](../ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md).
 
 ## Phase 5b — Filters prop sync (audit)
 
@@ -66,7 +66,7 @@
 | Критерий | Как проверить | Ожидаемый результат |
 |----------|----------------|---------------------|
 | Нет server round-trip на layout-only | DevTools → **Network**: фильтр `Doc` или по типу fetch; кликать **Список/Плитки** и сортировку по названию | Нет нового полного document navigation и нет повторного запроса HTML/RSC именно из-за этих действий (URL может не меняться — ок). |
-| Один активный layout-subtree | React DevTools → **Components**: при ширине ≥1024px видна только desktop-сетка; при ширине меньше 1024px — только mobile-ветка | Не монтируются одновременно оба тяжёлых списка (раньше оба были в дереве, скрыты CSS). |
+| Один визуально активный layout | React DevTools / вёрстка: при ≥1024px видна desktop-сетка (`lg:grid`); при меньшей ширине — mobile-контейнер (`lg:hidden`) | Нет скачка ширины колонки из-за JS-ветвления по viewport; оба breakpoint-контейнера могут оставаться в DOM с `display: none` на неактивной ветке — это ожидаемо для `CatalogSplitLayout`. |
 | Клиентский toggle | Profiler **Record** → один клик по переключателю вида | Один commit клиента без ухода в loading новой страницы. |
 
 Дополнительно зафиксировано по коду: в `ExercisesPageClient` нет `useRouter` / `router.replace` — переключение `viewMode` и `titleSort` ограничено `setState`.
@@ -97,7 +97,7 @@
 - `ExerciseForm` больше не lazy-load-ит `MediaLibraryPickerDialog`.
 - `MediaLibraryPickerDialog` lazy-load-ит только тяжёлые `MediaPickerShell` и `MediaPickerPanel` с `ssr: false`.
 - Обновлён `loading.tsx` под desktop/mobile skeleton в новой схеме layout.
-- `VirtualizedItemGrid` доведён до использования `useVirtualizer({ lanes: columns })`.
+- `VirtualizedItemGrid`: виртуализация **по строкам** (`rowCount = ceil(items.length / columns)`), строка — абсолютный контейнер с grid на `columns` колонок (`useVirtualizer` без `lanes`).
 
 ### Логи проверок
 
@@ -111,9 +111,20 @@
 - Проверка выполнена локально по файлам:
   - `src/shared/ui/CatalogSplitLayout.tsx`
   - `src/shared/ui/VirtualizedItemGrid.tsx`
+- Добавлен автоматический smoke-check только для этих двух файлов: `apps/webapp/scripts/check-catalog-shared-primitives.sh`, npm script `pnpm check:catalog-shared-primitives` (в `apps/webapp/package.json`). Глобальный `grep` по всему `shared/` на `exercises/` остаётся шумным из-за legacy-модулей — приёмка по каталоговым примитивам завязана на этот скрипт.
+
+## Audit remediation (после независимого аудита плана)
+
+- `VirtualizedItemGrid`: приведён к row-based контракту исходного perf-плана (см. выше).
+- `CatalogSplitLayout`: mobile-слой — два **абсолютных** слоя (`absolute inset-0`) с прежней анимацией `translate-x`.
+- Документация синхронизирована с кодом: этот файл и [EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md](../ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md).
+
+### Логи проверок (remediation + push)
+
+- Корень репозитория: `pnpm install --frozen-lockfile` и `pnpm run ci` — перед push (как в `.cursor/rules/pre-push-ci.mdc`).
+- `apps/webapp`: `pnpm check:catalog-shared-primitives` — passed.
 
 ### Git
 
-- Финальный commit: `2acb381`
-- Ветка: `main`
-- Push: `origin/main`
+- Базовый perf-коммит каталога: `2acb381` (история).
+- Доработка аудита, smoke-check и документация: коммит в `main` с subject `fix(webapp): align catalog primitives with audit plan and document` (ветка `main`, push на `origin`).

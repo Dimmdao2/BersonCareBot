@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 5200",
     "lint": "eslint . && bash scripts/check-media-preview-invariants.sh",
+    "check:catalog-shared-primitives": "bash scripts/check-catalog-shared-primitives.sh",
     "check:media-preview-invariants": "bash scripts/check-media-preview-invariants.sh",
     "build": "NODE_ENV=production next build && bash ../../deploy/host/sync-webapp-standalone-assets.sh",
     "analyze": "ANALYZE=true next build --webpack",

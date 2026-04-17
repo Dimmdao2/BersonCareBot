@@ -24,6 +24,9 @@
 - `right: ReactNode`
 - `mobileView`
 - `mobileBackSlot?`
+- `className?` — опционально на внешний обёртку
+
+Мобильный слой: оба контента (`left` и `right`) в контейнере `relative overflow-hidden lg:hidden` рендерятся как **два абсолютных слоя** (`absolute inset-0`) с `translate-x` и `transition-transform duration-300 ease-out`, чтобы совпадать с контрактом каталога без JS-ветвления по viewport.
 
 ### 2) `VirtualizedItemGrid<T>`
 
@@ -32,7 +35,7 @@
 Назначение:
 
 - generic виртуализация карточек в сетке;
-- поддержка `lanes` через `@tanstack/react-virtual`;
+- виртуализация **по строкам**: `rowCount = ceil(items.length / columns)`, каждая виртуальная строка — абсолютный контейнер на всю ширину с CSS grid на `columns` колонок (`@tanstack/react-virtual`, без `lanes`);
 - отсутствие привязки к домену exercises.
 
 Ключевой контракт:
@@ -43,6 +46,7 @@
 - `overscan?: number`
 - `renderItem(item, index)`
 - `keyExtractor(item)`
+- `containerClassName?`, `gridClassName?` — скролл и отступы задаёт вызывающий
 
 ## Как применено в Exercises
 
@@ -70,7 +74,10 @@
 
 ## Валидация
 
-- `pnpm tsc --noEmit`
+В каталоге `apps/webapp`:
+
+- `pnpm typecheck` (или `pnpm exec tsc --noEmit` при необходимости)
 - `pnpm lint`
-- профильный набор тестов страницы
+- `pnpm check:catalog-shared-primitives` — smoke-проверка, что новые примитивы не тянут домен exercises и сохраняют generic-контракт
+- профильный набор тестов страницы (например `ExerciseForm`, media picker)
 

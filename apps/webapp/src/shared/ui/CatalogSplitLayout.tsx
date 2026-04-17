@@ -20,12 +20,12 @@ export function CatalogSplitLayout({
 }: CatalogSplitLayoutProps) {
   return (
     <div className={cn("flex flex-col gap-4", className)}>
-      <div className="hidden items-start gap-4 lg:grid lg:grid-cols-2">{left}{right}</div>
+      <div className="hidden gap-4 lg:grid lg:grid-cols-2 lg:items-start">{left}{right}</div>
 
       <div className="relative min-h-[40vh] overflow-hidden lg:hidden">
         <div
           className={cn(
-            "transition-transform duration-300 ease-out",
+            "absolute inset-0 transition-transform duration-300 ease-out",
             mobileView === "list" ? "translate-x-0" : "-translate-x-full",
           )}
         >

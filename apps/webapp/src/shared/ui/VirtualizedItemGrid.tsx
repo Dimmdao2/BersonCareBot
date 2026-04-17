@@ -28,11 +28,11 @@ export function VirtualizedItemGrid<T>({
 }: VirtualizedItemGridProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
   const safeColumns = Math.max(1, columns);
+  const rowCount = Math.ceil(items.length / safeColumns);
 
   // eslint-disable-next-line react-hooks/incompatible-library -- tanstack virtualizer is an intended integration here
   const rowVirtualizer = useVirtualizer({
-    count: items.length,
-    lanes: safeColumns,
+    count: rowCount,
     getScrollElement: () => parentRef.current,
     estimateSize: () => estimatedRowHeight,
     overscan: overscan ?? 2,
@@ -48,21 +48,24 @@ export function VirtualizedItemGrid<T>({
     <div ref={parentRef} className={cn("relative overflow-y-auto", containerClassName)}>
       <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
         {virtualRows.map((virtualRow) => {
-          const item = items[virtualRow.index];
-          if (!item) return null;
-          const lane = virtualRow.lane ?? (virtualRow.index % safeColumns);
-          const widthPct = 100 / safeColumns;
           return (
             <div
               key={virtualRow.key}
-              className={cn("absolute p-0.5", gridClassName)}
+              className={cn(
+                "absolute grid w-full gap-3 p-0.5",
+                gridClassName,
+              )}
               style={{
                 top: virtualRow.start,
-                left: `${lane * widthPct}%`,
-                width: `${widthPct}%`,
+                gridTemplateColumns: `repeat(${safeColumns}, minmax(0, 1fr))`,
               }}
             >
-              <div key={keyExtractor(item)}>{renderItem(item, virtualRow.index)}</div>
+              {Array.from({ length: safeColumns }).map((_, col) => {
+                const index = virtualRow.index * safeColumns + col;
+                const item = items[index];
+                if (!item) return <div key={`spacer-${virtualRow.index}-${col}`} aria-hidden />;
+                return <div key={keyExtractor(item)}>{renderItem(item, index)}</div>;
+              })}
             </div>
           );
         })}
