@@ -21,6 +21,8 @@
 - `REPORTS/AGENT_LOG_2026-04-16-references-soft-delete-and-client-filter.md` — справочники врача: `deleted_at` (soft delete), клиентский поиск/фильтр статуса, иконка глаза для актив/архив.
 - `REPORTS/AGENT_LOG_2026-04-16-exercises-desktop-view-modes.md` — экран врача «Упражнения»: desktop режимы `tiles/list`, split layout list-detail, фикс превью видео и post-audit hardening (единый actions core + закрытие чеклистов).
 - `REPORTS/AGENT_LOG_2026-04-16-exercises-media-autofill-and-auto-create.md` — упражнения: автоподстановка названия из медиа в форме; страница «Автосоздание» из непривязанных видео; bulk server action и логи.
+- `REPORTS/AGENT_LOG_2026-04-17-exercises-ui-performance-refactor.md` — финальный журнал оптимизации экрана «Упражнения»: streaming shell, Suspense, SSR-stable split layout, virtualized tiles и deferred media picker.
+- `ARCHITECTURE/EXERCISES_CATALOG_PERFORMANCE_PRIMITIVES.md` — переиспользуемые примитивы производительности для catalog/detail страниц (`CatalogSplitLayout`, `VirtualizedItemGrid`) и гайд по повторному применению.
 - `REPORTS/MEDIA_LIBRARY_PICKER_LOCAL_SEARCH_ARCHITECTURE_2026-04-16.md` — пикер медиабиблиотеки: локальный поиск vs серверный `q`; риски `limit=200`.
 - **Превью медиатеки (S3, воркер, UI):** `MEDIA_PREVIEW_PIPELINE.md` · архитектура фронта (grid/list/picker): `ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md` · журнал фикса пайплайна после аудита: `REPORTS/MEDIA_PREVIEW_PIPELINE_FIX_2026-04-16.md` · журнал точечных правок (DTO, picker, guard, route, worker, SQL-комментарии): `REPORTS/AGENT_LOG_2026-04-16-media-preview-audit-followup.md`.
 - `REPORTS/USER_MERGE_EXECUTION_LOG.md` — журнал выполнения инициативы Platform User Merge & Dedup.

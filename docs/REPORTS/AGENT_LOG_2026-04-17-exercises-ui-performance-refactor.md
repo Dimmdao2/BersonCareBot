@@ -79,3 +79,41 @@
 - [x] Desktop: смена упражнения обновляет поля формы (тест `ExerciseForm.test.tsx`).
 - [x] Фильтры: hidden `view`, `titleSort`, `selected` при передаче `selectedId`.
 - [x] Save/archive redirect с корректным `view` в query (скрытое поле `viewHint` по-прежнему из локального `viewMode`).
+
+## Final closure (2026-04-17)
+
+### Реализовано в финальном проходе
+
+- Добавлен `@tanstack/react-virtual` в webapp.
+- Введены переиспользуемые shared-примитивы:
+  - `src/shared/ui/CatalogSplitLayout.tsx`
+  - `src/shared/ui/VirtualizedItemGrid.tsx`
+- `DoctorExercisesPage` переведён на promise-пропсы для клиентского Suspense-контента.
+- `ExercisesPageClient`:
+  - использует `Suspense` + `use(...)` для `listPromise` и `selectedExercisePromise`;
+  - рендерит фильтровую панель вне Suspense;
+  - использует `CatalogSplitLayout`;
+  - использует `VirtualizedItemGrid` в `tiles` режиме.
+- `ExerciseForm` больше не lazy-load-ит `MediaLibraryPickerDialog`.
+- `MediaLibraryPickerDialog` lazy-load-ит только тяжёлые `MediaPickerShell` и `MediaPickerPanel` с `ssr: false`.
+- Обновлён `loading.tsx` под desktop/mobile skeleton в новой схеме layout.
+- `VirtualizedItemGrid` доведён до использования `useVirtualizer({ lanes: columns })`.
+
+### Логи проверок
+
+- `pnpm tsc --noEmit` — passed.
+- `pnpm lint` — passed.
+- `pnpm test ExerciseForm.test.tsx exerciseMediaFromLibrary.test.ts` — passed.
+
+### Переиспользуемость
+
+- Новые shared-примитивы не используют доменные типы/компоненты exercises.
+- Проверка выполнена локально по файлам:
+  - `src/shared/ui/CatalogSplitLayout.tsx`
+  - `src/shared/ui/VirtualizedItemGrid.tsx`
+
+### Git
+
+- Финальный commit: `2acb381`
+- Ветка: `main`
+- Push: `origin/main`
