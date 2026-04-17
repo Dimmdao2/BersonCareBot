@@ -231,7 +231,7 @@ function ExercisesContent({
     list.length === 0 ? (
       <p className="px-2 pb-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
     ) : (
-      <ul className="flex h-full max-h-[70vh] flex-col gap-1 overflow-auto lg:max-h-none">
+      <ul className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
         {list.map((ex) => {
           const active = opts.activeId === ex.id;
           return (
@@ -269,7 +269,7 @@ function ExercisesContent({
         estimatedRowHeight={220}
         overscan={2}
         keyExtractor={(ex) => ex.id}
-        containerClassName="h-full max-h-[70vh] lg:max-h-none"
+        containerClassName="h-full min-h-0"
         renderItem={(ex) => (
           <div className="w-full min-w-0">
             <ExerciseTileCard
@@ -300,7 +300,7 @@ function ExercisesContent({
     <CatalogSplitLayout
       left={
         <aside
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card lg:h-full"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+3.25rem)] lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:self-start"
         >
           <div className="shrink-0 px-2 pb-1.5 pt-2">
             <SelectionToolbar

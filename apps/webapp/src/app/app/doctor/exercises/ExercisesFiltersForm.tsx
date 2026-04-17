@@ -86,6 +86,7 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
             setSelectedRegionLabel(label);
           }}
           placeholder="Выберите регион"
+          clearOptionLabel="Все регионы"
         />
       </div>
       <div className="min-w-[16rem]">
@@ -110,21 +111,6 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
       <Button type="submit" variant="secondary">
         Применить
       </Button>
-      {selectedRegionRefId ? (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            flushSync(() => {
-              setSelectedRegionRefId(null);
-              setSelectedRegionLabel("");
-            });
-            formRef.current?.requestSubmit();
-          }}
-        >
-          Сбросить регион
-        </Button>
-      ) : null}
       {selectedLoadCode ? (
         <Button
           type="button"
