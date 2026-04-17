@@ -47,7 +47,19 @@ function exercisesIndexHref(view: ExercisesViewMode, titleSort: ExerciseTitleSor
 const STICKY_UNDER_DOCTOR_HEADER_CLASS =
   "top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)]";
 
-function tileGridColsClass(count: number): string {
+/** Desktop tiles: up to 4 per row; for 5–7 items use 3 per row; 8+ cap at 4 columns. */
+function desktopExerciseTileGridColsClass(count: number): string {
+  if (count <= 0) return "grid-cols-1";
+  if (count === 1) return "grid-cols-1";
+  if (count === 2) return "grid-cols-2";
+  if (count === 3) return "grid-cols-3";
+  if (count === 4) return "grid-cols-4";
+  if (count <= 7) return "grid-cols-3";
+  return "grid-cols-4";
+}
+
+/** Mobile tiles (unchanged compact heuristic). */
+function mobileExerciseTileGridColsClass(count: number): string {
   if (count <= 0) return "grid-cols-1";
   if (count === 1) return "grid-cols-1";
   if (count === 2 || count === 4) return "grid-cols-2";
@@ -179,7 +191,8 @@ export function ExercisesPageClient({
   }, [exercises, titleSort]);
 
   const n = displayExercises.length;
-  const tileCols = tileGridColsClass(n);
+  const tileColsDesktop = desktopExerciseTileGridColsClass(n);
+  const tileColsMobile = mobileExerciseTileGridColsClass(n);
   const listBackHref = exercisesIndexHref(viewMode, titleSort);
 
   const toggleViewMode = () => {
@@ -216,11 +229,14 @@ export function ExercisesPageClient({
       </ul>
     );
 
-  const renderExerciseTiles = (list: Exercise[], opts: { activeId: string | null; onTileSelect: (id: string) => void }) =>
+  const renderExerciseTiles = (
+    list: Exercise[],
+    opts: { activeId: string | null; onTileSelect: (id: string) => void; gridColsClass: string },
+  ) =>
     list.length === 0 ? (
       <p className="px-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
     ) : (
-      <ul className={cn("grid gap-3 p-0.5", tileCols)}>
+      <ul className={cn("grid gap-3 p-0.5", opts.gridColsClass)}>
         {list.map((ex) => (
           <li key={ex.id} className="w-full min-w-0">
             <ExerciseTileCard
@@ -291,6 +307,7 @@ export function ExercisesPageClient({
                 : renderExerciseTiles(displayExercises, {
                     activeId: desktopSelectedId,
                     onTileSelect: (id) => setDesktopSelectedId(id),
+                    gridColsClass: tileColsDesktop,
                   })}
             </div>
           </aside>
@@ -336,7 +353,7 @@ export function ExercisesPageClient({
                   },
                 })
               ) : (
-                <ul className={cn("grid gap-3 p-0.5", tileCols)}>
+                <ul className={cn("grid gap-3 p-0.5", tileColsMobile)}>
                   {displayExercises.length === 0 ? (
                     <li className="col-span-full px-2 text-sm text-muted-foreground">
                       Нет упражнений по заданным фильтрам.
