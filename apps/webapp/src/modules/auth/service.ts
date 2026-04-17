@@ -408,14 +408,16 @@ export async function exchangeIntegratorToken(
     console.info("[auth/exchange] client_session_transport=legacy_non_uuid_onboarding_only");
   }
 
-  const envRole = await resolveRoleAsync({
-    phone: user.phone ?? parsed.phone,
-    telegramId: user.bindings?.telegramId ?? parsed.bindings?.telegramId,
-    maxId: user.bindings?.maxId ?? parsed.bindings?.maxId,
-  });
-  if (user.role !== envRole) {
-    if (updateRoleFn) await updateRoleFn(user.userId, envRole);
-    user = { ...user, role: envRole };
+  if (!devParsed) {
+    const envRole = await resolveRoleAsync({
+      phone: user.phone ?? parsed.phone,
+      telegramId: user.bindings?.telegramId ?? parsed.bindings?.telegramId,
+      maxId: user.bindings?.maxId ?? parsed.bindings?.maxId,
+    });
+    if (user.role !== envRole) {
+      if (updateRoleFn) await updateRoleFn(user.userId, envRole);
+      user = { ...user, role: envRole };
+    }
   }
 
   const session = buildSession(user);
