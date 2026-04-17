@@ -52,8 +52,8 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         <ExercisesPageClient
           exercises={list}
           selectedExercise={selectedExercise}
-          viewMode={viewMode}
-          titleSort={titleSort}
+          initialViewMode={viewMode}
+          initialTitleSort={titleSort}
           filters={{
             q,
             regionRefId,

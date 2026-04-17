@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { LayoutGrid, List } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,10 +15,10 @@ import {
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
+import { useViewportMinWidthLg } from "@/shared/ui/useViewportMinWidth";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
 import { ExerciseForm } from "./ExerciseForm";
 import { archiveExerciseInline, saveExerciseInline } from "./actionsInline";
-import { DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_WITH_FILTERS_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { ExerciseTileCard } from "./ExerciseTileCard";
 
 export type ExercisesViewMode = "tiles" | "list";
@@ -29,8 +28,8 @@ export type ExerciseTitleSort = "asc" | "desc";
 type Props = {
   exercises: Exercise[];
   selectedExercise: Exercise | null;
-  viewMode: ExercisesViewMode;
-  titleSort: ExerciseTitleSort | null;
+  initialViewMode: ExercisesViewMode;
+  initialTitleSort: ExerciseTitleSort | null;
   filters: {
     q: string;
     regionRefId?: string;
@@ -130,23 +129,46 @@ function SelectionToolbar({
   );
 }
 
-export function ExercisesPageClient({ exercises, selectedExercise, viewMode, titleSort, filters }: Props) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+export function ExercisesPageClient({
+  exercises,
+  selectedExercise,
+  initialViewMode,
+  initialTitleSort,
+  filters,
+}: Props) {
+  const isLgViewport = useViewportMinWidthLg();
+
+  const [viewMode, setViewMode] = useState<ExercisesViewMode>(initialViewMode);
+  const [titleSort, setTitleSort] = useState<ExerciseTitleSort | null>(initialTitleSort);
+  const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(() => selectedExercise?.id ?? null);
   const [mobileSheet, setMobileSheet] = useState<{ exercise: Exercise | null } | null>(null);
 
-  const setQuery = (patch: Record<string, string | null>) => {
-    const next = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(patch)) {
-      if (value == null || value === "") next.delete(key);
-      else next.set(key, value);
-    }
-    const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
-  };
+  useEffect(() => {
+    setViewMode(initialViewMode);
+  }, [initialViewMode]);
 
-  const formKey = selectedExercise?.id ?? "create";
+  useEffect(() => {
+    setTitleSort(initialTitleSort);
+  }, [initialTitleSort]);
+
+  useEffect(() => {
+    if (selectedExercise?.id) setDesktopSelectedId(selectedExercise.id);
+  }, [selectedExercise?.id]);
+
+  useEffect(() => {
+    if (!desktopSelectedId) return;
+    const inList = exercises.some((e) => e.id === desktopSelectedId);
+    const fromServer = selectedExercise?.id === desktopSelectedId;
+    if (!inList && !fromServer) setDesktopSelectedId(null);
+  }, [exercises, desktopSelectedId, selectedExercise?.id]);
+
+  const exerciseForDesktop = useMemo(() => {
+    if (!desktopSelectedId) return null;
+    const fromList = exercises.find((e) => e.id === desktopSelectedId);
+    if (fromList) return fromList;
+    if (selectedExercise?.id === desktopSelectedId) return selectedExercise;
+    return null;
+  }, [exercises, desktopSelectedId, selectedExercise]);
 
   const displayExercises = useMemo(() => {
     if (!titleSort) return exercises;
@@ -161,8 +183,7 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, tit
   const listBackHref = exercisesIndexHref(viewMode, titleSort);
 
   const toggleViewMode = () => {
-    const next: ExercisesViewMode = viewMode === "tiles" ? "list" : "tiles";
-    setQuery({ view: next, selected: null });
+    setViewMode((v) => (v === "tiles" ? "list" : "tiles"));
   };
 
   const renderExerciseList = (
@@ -195,7 +216,7 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, tit
       </ul>
     );
 
-  const renderExerciseTiles = (list: Exercise[], opts: { onTileSelect: (id: string) => void }) =>
+  const renderExerciseTiles = (list: Exercise[], opts: { activeId: string | null; onTileSelect: (id: string) => void }) =>
     list.length === 0 ? (
       <p className="px-2 text-sm text-muted-foreground">Нет упражнений по заданным фильтрам.</p>
     ) : (
@@ -205,7 +226,7 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, tit
             <ExerciseTileCard
               exercise={ex}
               onSelect={(id) => opts.onTileSelect(id)}
-              isActive={selectedExercise?.id === ex.id}
+              isActive={opts.activeId === ex.id}
             />
           </li>
         ))}
@@ -229,6 +250,7 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, tit
                 loadType={filters.loadType}
                 view={viewMode}
                 titleSort={titleSort}
+                selectedId={desktopSelectedId}
               />
             </div>
             <Link
@@ -241,42 +263,42 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, tit
         </div>
       </div>
 
-      <div className="hidden lg:block">
-        <div
-          className={cn(
-            "grid items-stretch gap-4 lg:grid-cols-2",
-            DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_WITH_FILTERS_CLASS,
-          )}
-        >
-          <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      {isLgViewport ? (
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <aside
+            className={cn(
+              "flex flex-col overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:h-[calc(100dvh-4rem-env(safe-area-inset-top,0px))]",
+              STICKY_UNDER_DOCTOR_HEADER_CLASS,
+            )}
+          >
             <div className="shrink-0 p-2 pb-0">
               <SelectionToolbar
                 exerciseCount={displayExercises.length}
                 createButtonId="doctor-exercises-create-link-desktop"
-                onCreate={() => setQuery({ selected: null })}
+                onCreate={() => setDesktopSelectedId(null)}
                 viewMode={viewMode}
                 onToggleView={toggleViewMode}
                 titleSort={titleSort}
-                onTitleSortChange={(next) => setQuery({ titleSort: next })}
+                onTitleSortChange={setTitleSort}
               />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-2">
               {viewMode === "list"
                 ? renderExerciseList(displayExercises, {
-                    activeId: selectedExercise?.id ?? null,
-                    onRowSelect: (id) => setQuery({ selected: id }),
+                    activeId: desktopSelectedId,
+                    onRowSelect: (id) => setDesktopSelectedId(id),
                   })
                 : renderExerciseTiles(displayExercises, {
-                    onTileSelect: (id) => setQuery({ view: "tiles", selected: id }),
+                    activeId: desktopSelectedId,
+                    onTileSelect: (id) => setDesktopSelectedId(id),
                   })}
             </div>
           </aside>
 
-          <Card key={formKey} className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-            <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+          <Card className="min-w-0">
+            <CardContent className="p-4">
               <ExerciseForm
-                key={formKey}
-                exercise={selectedExercise}
+                exercise={exerciseForDesktop}
                 saveAction={saveExerciseInline}
                 archiveAction={archiveExerciseInline}
                 backHref={listBackHref}
@@ -285,85 +307,86 @@ export function ExercisesPageClient({ exercises, selectedExercise, viewMode, tit
             </CardContent>
           </Card>
         </div>
-      </div>
+      ) : null}
 
-      <div className="relative min-h-[40vh] overflow-hidden lg:hidden">
-        <div
-          className={cn(
-            "transition-transform duration-300 ease-out",
-            mobileSheet != null ? "-translate-x-full" : "translate-x-0",
-          )}
-        >
-          <aside className="rounded-xl border border-border bg-card p-2">
-            <SelectionToolbar
-              exerciseCount={displayExercises.length}
-              createButtonId="doctor-exercises-create-link"
-              onCreate={() => setMobileSheet({ exercise: null })}
-              viewMode={viewMode}
-              onToggleView={toggleViewMode}
-              titleSort={titleSort}
-              onTitleSortChange={(next) => setQuery({ titleSort: next })}
-            />
-            {viewMode === "list" ? (
-              renderExerciseList(displayExercises, {
-                activeId: mobileSheet?.exercise?.id ?? null,
-                onRowSelect: (id) => {
-                  const found = displayExercises.find((e) => e.id === id);
-                  if (found) setMobileSheet({ exercise: found });
-                },
-              })
-            ) : (
-              <ul className={cn("grid gap-3 p-0.5", tileCols)}>
-                {displayExercises.length === 0 ? (
-                  <li className="col-span-full px-2 text-sm text-muted-foreground">
-                    Нет упражнений по заданным фильтрам.
-                  </li>
-                ) : (
-                  displayExercises.map((ex) => (
-                    <li key={ex.id} className="w-full min-w-0">
-                      <ExerciseTileCard
-                        exercise={ex}
-                        onSelect={(id) => {
-                          const found = displayExercises.find((e) => e.id === id);
-                          if (found) setMobileSheet({ exercise: found });
-                        }}
-                        isActive={mobileSheet?.exercise?.id === ex.id}
-                      />
-                    </li>
-                  ))
-                )}
-              </ul>
+      {!isLgViewport ? (
+        <div className="relative min-h-[40vh] overflow-hidden">
+          <div
+            className={cn(
+              "transition-transform duration-300 ease-out",
+              mobileSheet != null ? "-translate-x-full" : "translate-x-0",
             )}
-          </aside>
-        </div>
+          >
+            <aside className="rounded-xl border border-border bg-card p-2">
+              <SelectionToolbar
+                exerciseCount={displayExercises.length}
+                createButtonId="doctor-exercises-create-link"
+                onCreate={() => setMobileSheet({ exercise: null })}
+                viewMode={viewMode}
+                onToggleView={toggleViewMode}
+                titleSort={titleSort}
+                onTitleSortChange={setTitleSort}
+              />
+              {viewMode === "list" ? (
+                renderExerciseList(displayExercises, {
+                  activeId: mobileSheet?.exercise?.id ?? null,
+                  onRowSelect: (id) => {
+                    const found = displayExercises.find((e) => e.id === id);
+                    if (found) setMobileSheet({ exercise: found });
+                  },
+                })
+              ) : (
+                <ul className={cn("grid gap-3 p-0.5", tileCols)}>
+                  {displayExercises.length === 0 ? (
+                    <li className="col-span-full px-2 text-sm text-muted-foreground">
+                      Нет упражнений по заданным фильтрам.
+                    </li>
+                  ) : (
+                    displayExercises.map((ex) => (
+                      <li key={ex.id} className="w-full min-w-0">
+                        <ExerciseTileCard
+                          exercise={ex}
+                          onSelect={(id) => {
+                            const found = displayExercises.find((e) => e.id === id);
+                            if (found) setMobileSheet({ exercise: found });
+                          }}
+                          isActive={mobileSheet?.exercise?.id === ex.id}
+                        />
+                      </li>
+                    ))
+                  )}
+                </ul>
+              )}
+            </aside>
+          </div>
 
-        <div
-          className={cn(
-            "absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out",
-            mobileSheet != null ? "translate-x-0" : "translate-x-full",
-          )}
-        >
-          {mobileSheet != null ? (
-            <>
-              <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
-                ← Назад
-              </Button>
-              <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm">
-                <CardContent className="p-2 sm:p-4">
-                  <ExerciseForm
-                    key={mobileSheet.exercise?.id ?? "create"}
-                    exercise={mobileSheet.exercise}
-                    saveAction={saveExerciseInline}
-                    archiveAction={archiveExerciseInline}
-                    backHref={listBackHref}
-                    viewHint={viewMode}
-                  />
-                </CardContent>
-              </Card>
-            </>
-          ) : null}
+          <div
+            className={cn(
+              "absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out",
+              mobileSheet != null ? "translate-x-0" : "translate-x-full",
+            )}
+          >
+            {mobileSheet != null ? (
+              <>
+                <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+                  ← Назад
+                </Button>
+                <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm">
+                  <CardContent className="p-2 sm:p-4">
+                    <ExerciseForm
+                      exercise={mobileSheet.exercise}
+                      saveAction={saveExerciseInline}
+                      archiveAction={archiveExerciseInline}
+                      backHref={listBackHref}
+                      viewHint={viewMode}
+                    />
+                  </CardContent>
+                </Card>
+              </>
+            ) : null}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

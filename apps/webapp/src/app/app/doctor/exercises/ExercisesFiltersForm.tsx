@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,8 @@ type Props = {
   loadType?: ExerciseLoadType;
   view?: "tiles" | "list";
   titleSort?: "asc" | "desc" | null;
+  /** Сохранить выбранное упражнение в URL при применении фильтров (GET). */
+  selectedId?: string | null;
 };
 
 /** Совпадает с `ExerciseLoadType` и парсингом query в `page.tsx`. */
@@ -30,22 +32,45 @@ function loadTypeTitle(code: ExerciseLoadType | undefined): string {
   return EXERCISE_LOAD_FILTER_ITEMS.find((i) => i.code === code)?.title ?? "";
 }
 
-export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort }: Props) {
+export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort, selectedId }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
   const [selectedRegionLabel, setSelectedRegionLabel] = useState("");
   const [selectedLoadCode, setSelectedLoadCode] = useState<string | null>(loadType ?? null);
   const [selectedLoadLabel, setSelectedLoadLabel] = useState(() => loadTypeTitle(loadType));
+  const [qInput, setQInput] = useState(q);
+
+  useEffect(() => {
+    setSelectedRegionRefId(regionRefId ?? null);
+    setSelectedRegionLabel("");
+  }, [regionRefId]);
+
+  useEffect(() => {
+    setSelectedLoadCode(loadType ?? null);
+    setSelectedLoadLabel(loadTypeTitle(loadType));
+  }, [loadType]);
+
+  useEffect(() => {
+    setQInput(q);
+  }, [q]);
 
   return (
     <form ref={formRef} method="get" className="flex flex-wrap items-end gap-2">
       {view ? <input type="hidden" name="view" value={view} /> : null}
       {titleSort ? <input type="hidden" name="titleSort" value={titleSort} /> : null}
+      {selectedId ? <input type="hidden" name="selected" value={selectedId} /> : null}
       <div className="flex flex-col gap-1">
         <label className="text-xs text-muted-foreground" htmlFor="ex-q">
           Поиск по названию
         </label>
-        <Input id="ex-q" name="q" defaultValue={q} placeholder="Название" className="w-56" />
+        <Input
+          id="ex-q"
+          name="q"
+          value={qInput}
+          onChange={(e) => setQInput(e.target.value)}
+          placeholder="Название"
+          className="w-56"
+        />
       </div>
       <div className="flex flex-col gap-1 min-w-[16rem]">
         <label className="text-xs text-muted-foreground" htmlFor="ex-region">

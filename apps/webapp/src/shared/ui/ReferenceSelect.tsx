@@ -58,6 +58,13 @@ export function ReferenceSelect({
   );
 
   useEffect(() => {
+    queueMicrotask(() => {
+      setQuery("");
+      setOpen(false);
+    });
+  }, [value]);
+
+  useEffect(() => {
     if (prefetchedItems || !categoryCode) return;
     let cancelled = false;
     queueMicrotask(() => {

@@ -113,6 +113,18 @@ export function MediaLibraryPickerDialog({
     return null;
   }, [value, lastPick, hydratedPick]);
 
+  /** Сброс lastPick при внешнем изменении value (например reset формы упражнения). */
+  useEffect(() => {
+    const t = value.trim();
+    queueMicrotask(() => {
+      setLastPick((prev) => {
+        if (!prev) return null;
+        if (prev.url === t) return prev;
+        return null;
+      });
+    });
+  }, [value]);
+
   useEffect(() => {
     const t = value.trim();
     const mediaId = parseMediaFileIdFromAppUrl(t);

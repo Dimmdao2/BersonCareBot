@@ -96,3 +96,12 @@
 
 - Закрыто замечание о дублировании серверной логики: общий save/archive pipeline вынесен в `actionsShared.ts`, а `actions.ts` и `actionsInline.ts` используют единый источник правил.
 - В плане выполнения `exercises_desktop_view_modes_176dc06f.plan.md` отмечены все инженерные, QA и технические чеклисты (`[x]`) для явной трассировки выполнения.
+
+## Обновление 2026-04-17 (perf / state)
+
+- Режим `view` и сортировка по названию перенесены в **локальный client state** в `ExercisesPageClient` (инициализация из URL); переключение **не** вызывает `router.replace` и не перезапускает серверную страницу только из-за layout.
+- Выбор упражнения на desktop — **локальный** `desktopSelectedId`; при применении фильтров в GET-форму добавлен optional hidden `selected` для сохранения выбора.
+- `ExerciseForm`: единый controlled state и явный reset по смене упражнения; убран remount через `key` на split-pane.
+- Правая панель на desktop: `ExerciseForm` монтируется только при `min-width: 1024px` (`useViewportMinWidthLg`), чтобы не держать тяжёлую форму на мобильном viewport внутри скрытой ветки.
+- **Доп. аудит:** desktop split и mobile sheet монтируются по очереди по viewport (не оба поддерева сразу через CSS); фильтры синхронизируют локальный state с пропсами после навигации.
+- Журнал рефакторинга: [AGENT_LOG_2026-04-17-exercises-ui-performance-refactor.md](./AGENT_LOG_2026-04-17-exercises-ui-performance-refactor.md).
