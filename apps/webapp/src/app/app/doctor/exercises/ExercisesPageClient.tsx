@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
+import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
@@ -218,9 +219,11 @@ function ExercisesContent({
     });
   }, [exercises, titleSort]);
 
+  const isDesktopViewport = useViewportMinWidth(1024);
   const n = displayExercises.length;
   const tileColsDesktop = desktopExerciseTileColumns(n);
   const tileColsMobile = mobileExerciseTileColumns(n);
+  const activeTileColumns = isDesktopViewport ? tileColsDesktop : tileColsMobile;
   const listBackHref = exercisesIndexHref(viewMode, titleSort);
 
   const renderExerciseList = (
@@ -336,7 +339,7 @@ function ExercisesContent({
                     setDesktopSelectedId(id);
                     setMobileSheet(found ? { exercise: found } : null);
                   },
-                  columns: tileColsDesktop,
+                  columns: activeTileColumns,
                 })}
           </div>
         </aside>
