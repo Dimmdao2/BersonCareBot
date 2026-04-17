@@ -16,7 +16,7 @@ type PageProps = {
 };
 
 export default async function DoctorExercisesPage({ searchParams }: PageProps) {
-  const session = await requireDoctorAccess();
+  const sessionPromise = requireDoctorAccess();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
@@ -33,18 +33,23 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
   const titleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
   const deps = buildAppDeps();
-  const list = await deps.lfkExercises.listExercises({
+  const listPromise = deps.lfkExercises.listExercises({
     search: q || null,
     regionRefId: regionRefId ?? null,
     loadType: loadType ?? null,
     includeArchived: false,
   });
-  const selectedExercise = selectedExerciseId
-    ? await deps.lfkExercises
+  const selectedExercisePromise = selectedExerciseId
+    ? deps.lfkExercises
         .getExercise(selectedExerciseId)
         .then((ex) => (ex && !ex.isArchived ? ex : null))
         .catch(() => null)
-    : null;
+    : Promise.resolve(null);
+  const [session, list, selectedExercise] = await Promise.all([
+    sessionPromise,
+    listPromise,
+    selectedExercisePromise,
+  ]);
 
   return (
     <AppShell title="Упражнения ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">

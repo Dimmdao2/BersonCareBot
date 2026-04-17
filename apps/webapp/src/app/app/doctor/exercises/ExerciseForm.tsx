@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useState } from "react";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
@@ -16,7 +17,6 @@ import {
 } from "@/components/ui/select";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
-import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { archiveDoctorExercise, saveDoctorExercise } from "./actions";
 import type { SaveDoctorExerciseState } from "./actionsShared";
 import { exerciseMediaTypeFromPick, exerciseTitleFromPickMeta } from "./exerciseMediaFromLibrary";
@@ -28,6 +28,17 @@ const LOAD_OPTIONS: { value: ExerciseLoadType; label: string }[] = [
   { value: "cardio", label: "Кардио" },
   { value: "other", label: "Другое" },
 ];
+
+const MediaLibraryPickerDialog = dynamic(
+  () => import("@/app/app/doctor/content/MediaLibraryPickerDialog").then((mod) => mod.MediaLibraryPickerDialog),
+  {
+    loading: () => (
+      <div className="rounded-md border border-border/60 bg-muted/20 p-3 text-sm text-muted-foreground">
+        Загрузка библиотеки…
+      </div>
+    ),
+  },
+);
 
 export type ExerciseFormValues = {
   title: string;
