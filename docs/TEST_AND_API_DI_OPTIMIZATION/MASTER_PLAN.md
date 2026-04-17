@@ -62,6 +62,7 @@
 
 - Один логический шаг: например «удалён e2e X, замена route.test Y» **или** «cluster integrator GET: вынесен verify в сервис».
 - После каждого шага: проверки по **test-execution-policy** (step по умолчанию; phase — когда закрыт кусок работы в приложении); **не** полный монорепо CI. Перед **пушем** в remote — **`pnpm install --frozen-lockfile && pnpm run ci`** (`.cursor/rules/pre-push-ci.mdc`).
+- **Repo-scope (не путать с микрошагом):** затронуты shared-пакеты, lockfile, корневые конфиги тулчейна или несколько приложений — полный `pnpm run ci` уместен по `.cursor/rules/test-execution-policy.md` даже без немедленного пуша; это **не** отменяет запрет гонять полный CI после каждой точечной правки только в `apps/*`.
 
 ## Копипастные промпты для агента
 

@@ -60,20 +60,22 @@ pnpm webapp:typecheck
 - Merge/purge: `doctor/clients/merge`, `integrator-merge`, `permanent-delete`, merge-preview/candidates.
 - Любой тест, единственный в файле на регрессию из **docs/** или production incident log.
 
-## Кандидаты на review / merge / remove (**likely**, не утверждено)
+## Кандидаты на review / merge / remove
 
-Проверить построчно против соответствующих `route.test.ts`:
+**Источник правды по overlap:** [`INVENTORY.md`](./INVENTORY.md) — таблица всех **18** `e2e/*.test.ts` (классификация, роль после сверки, overlap с colocated `route.test.ts`, **2026-04-17**; −1 файл после reduction со mapping в `LOG.md`).
 
-| Файл | Почему кандидат |
-|------|-----------------|
-| `apps/webapp/e2e/api-routes-inprocess.test.ts` | Может дублировать множество colocated route tests |
-| `apps/webapp/e2e/api-health.test.ts` | Тонкий smoke рядом с `health/route` tests — **needs verification** |
-| `apps/webapp/e2e/api-auth-exchange.test.ts` | Пересечение с `auth/exchange/route.test.ts` — **needs verification** |
-| `apps/webapp/e2e/messaging-inprocess.test.ts` | Workflow vs `doctor/messages/*` route tests |
-| `apps/webapp/e2e/cms-media-inprocess.test.ts` | Workflow vs media/admin media route tests |
-| `apps/webapp/e2e/api-integrator-subscriptions-inprocess.test.ts` | Сравнить с `integrator/subscriptions/*/route.test.ts` |
+Ниже — краткий срез для пилота; детали и остальные файлы — только в INVENTORY.
 
-**Не трогать до аудита:** `live-dev.test.ts` (внешняя среда), крупные `doctor-*-inprocess`, `stage13-legacy-cleanup.test.ts` без понимания legacy контракта.
+| Файл | Overlap с `route.test.ts` (по INVENTORY) | Заметка для будущего review |
+|------|------------------------------------------|------------------------------|
+| `apps/webapp/e2e/api-routes-inprocess.test.ts` | **Нет** | Только `GET /api/health`; отдельного `health/route.test.ts` нет |
+| `apps/webapp/e2e/api-health.test.ts` | **Нет** | Server E2E при `WEBAPP_E2E_BASE_URL`; иначе skip; дублирует JSON in-process health, не route suite |
+| `apps/webapp/e2e/api-auth-exchange.test.ts` | **Частичное** | Якорь контрактов — `auth/exchange/route.test.ts` |
+| `apps/webapp/e2e/messaging-inprocess.test.ts` | **Нет** | Wiring / импорты, не HTTP-assertions route tests |
+| `apps/webapp/e2e/cms-media-inprocess.test.ts` | **Нет** | Smoke экспортов / страницы |
+| `apps/webapp/e2e/cms-content.test.ts` | **Частичное** | Уникальна цепочка saveContentPage / full chain |
+
+**Осторожно (колонка «Первая волна» в INVENTORY):** `live-dev.test.ts`, `stage13-legacy-cleanup.test.ts` — **Нельзя** удалять/резать без понимания среды и legacy; крупные `doctor-*-inprocess` — не первая волна слепых удалений.
 
 ## Порядок работ по пакетам
 

@@ -117,6 +117,39 @@ describe("AuthBootstrap", () => {
     expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
   });
 
+  it("в обычном браузере с ?t=dev:admin без Telegram.WebApp обменивает токен после TOKEN_FALLBACK_MS", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=dev:admin"));
+    window.history.pushState({}, "", "/?t=dev:admin");
+    document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
+    delete (window as unknown as { Telegram?: unknown }).Telegram;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : (input as Request).url;
+      if (url.includes("/api/auth/exchange")) {
+        expect(init?.method).toBe("POST");
+        expect(JSON.parse(String(init?.body))).toEqual({ token: "dev:admin" });
+        return new Response(
+          JSON.stringify({ ok: true, role: "admin", redirectTo: "/app/doctor" }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthBootstrap />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1200);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/exchange",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(mockReplace).toHaveBeenCalled();
+  });
+
   it("при ctx=bot не показывает телефонный флоу после таймаута initData и даёт Повторить", async () => {
     render(<AuthBootstrap />);
 

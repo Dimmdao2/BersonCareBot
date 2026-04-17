@@ -2,6 +2,12 @@
 
 Жёсткие ограничения для агентов и разработчиков, продолжающих инициативу после discovery.
 
+## Источник правил по прогонам и пушу
+
+- **Между коммитами и при аудите:** `.cursor/rules/test-execution-policy.md` (step / phase / ограниченный full CI, reuse, порядок аудита).
+- **Перед пушем в remote:** `.cursor/rules/pre-push-ci.mdc` (`pnpm install --frozen-lockfile && pnpm run ci`).
+- Правки **этих** файлов в `.cursor/rules/` в рамках инициативы **не делать** без отдельного решения команды; расхождения устранять правками **только** в `docs/TEST_AND_API_DI_OPTIMIZATION/` (см. `AUDIT_INIT.md`, раздел MANDATORY FIX INSTRUCTIONS — closure).
+
 ## Запреты
 
 1. **Не удалять тесты** без documented mapping: `old path` → `replacement path(s)` + краткое обоснование (почему coverage сохраняется).
@@ -9,7 +15,7 @@
 3. **Не смешивать эффекты метрик:** улучшение `pnpm test:webapp` после трека A не может быть засчитано как результат трека B и наоборот. Фиксировать отдельные замеры в соответствующих `LOG.md`.
 4. **Не переносить business logic в `route.ts`** — только parse/validate/auth/HTTP mapping и вызов сервисов/портов.
 5. **Не делать ad-hoc wiring в `route.ts`**, если сборка зависимостей должна жить в app-layer / `buildAppDeps` / выделенной фабрике (см. исключения ниже).
-6. **Не менять семантику CI и не трогать GitHub deploy flow:** не редактировать `.github/workflows/ci.yml`, job **Deploy** и связанные шаги без отдельного решения команды — пайплайн считается корректным. Любое исключение — только с явной записью в `LOG.md` и вне scope обычного PR по этой инициативе. Локально: между коммитами руководствоваться `.cursor/rules/test-execution-policy.md`; полный `pnpm run ci` — сценарий **пуша** (`.cursor/rules/pre-push-ci.mdc`).
+6. **Не менять семантику CI и не трогать GitHub deploy flow:** не редактировать `.github/workflows/ci.yml`, job **Deploy** и связанные шаги без отдельного решения команды — пайплайн считается корректным. Любое исключение — только с явной записью в `LOG.md` и вне scope обычного PR по этой инициативе. Локально: между коммитами руководствоваться `.cursor/rules/test-execution-policy.md`; полный `pnpm run ci` — сценарий **пуша** (`.cursor/rules/pre-push-ci.mdc`). **Запрещено** устранять расхождения док ↔ rules правками workflow, deploy job или ослаблением pre-push «ради зелёного CI в тексте» — только корректировка инициативной документации и фактический прогон по policy.
 
 ## DI и «чистые» хелперы
 

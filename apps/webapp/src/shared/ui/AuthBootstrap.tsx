@@ -779,7 +779,18 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         !maxInitSentRef.current &&
         !tokenExchangeSentRef.current
       ) {
-        if (elapsed >= TOKEN_FALLBACK_MS && stableWebAppEmptyTicks >= STABLE_EMPTY_TICKS) {
+        const messengerEntry = messengerEntryFromUrlOrCookie();
+        /**
+         * Query JWT / dev bypass (`?t=...`) в обычном браузере: `stableWebAppEmptyTicks` растёт только
+         * когда есть `window.Telegram.WebApp`. Без Telegram объекта счётчик каждый тик сбрасывается в 0,
+         * и обмен никогда не происходит (headless, CI, обычный Chrome).
+         * В чистом browser-flow (нет ctx бота / MAX и нет cookie miniapp) ждём только TOKEN_FALLBACK_MS.
+         */
+        const jwtExchangeReady =
+          elapsed >= TOKEN_FALLBACK_MS &&
+          (stableWebAppEmptyTicks >= STABLE_EMPTY_TICKS ||
+            (flowHint === "browser" && !messengerEntry));
+        if (jwtExchangeReady) {
           postTokenExchange(token);
         }
       }
