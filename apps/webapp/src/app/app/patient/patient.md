@@ -14,4 +14,4 @@
 
 Все страницы используют общую оболочку `AppShell` и при необходимости данные из `buildAppDeps()` (меню, дневники, каталог контента и т.д.).
 
-**Доступ к персональным данным из БД на RSC** (главная — блоки с профилем/каналами/рассылками; кабинет; дневник и журналы; уведомления): перед запросами по `userId` вызывается **`patientRscPersonalDataGate`** в `app-layer/guards/requireRole.ts` (тот же `patientClientBusinessGate`, что у `/api/patient/*`). Подробнее — `docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md` §7 и `guards.md`.
+**Доступ к персональным данным из БД на RSC** (главная — блоки с профилем/каналами/рассылками; кабинет; дневник и журналы; уведомления): перед запросами по `userId` вызывается **`patientRscPersonalDataGate`** в `app-layer/guards/requireRole.ts` (тот же `patientClientBusinessGate`, что у `/api/patient/*`). Подробнее — `docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §7 и `guards.md`.

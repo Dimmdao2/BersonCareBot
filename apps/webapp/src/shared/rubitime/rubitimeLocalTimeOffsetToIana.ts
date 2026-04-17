@@ -1,6 +1,6 @@
 /**
  * Rubitime UI «Местное время» offset (hours vs Moscow) → IANA zone.
- * @see docs/TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md
+ * @see docs/archive/2026-04-initiatives/TIMEZONE_UTC_NORMALIZATION/MASTER_PLAN.md
  *
  * When this is stored on `branches.meta_json`, use key {@link RUBITIME_LOCAL_TIME_OFFSET_META_KEY}.
  */

@@ -54,7 +54,7 @@ See `ARCHITECTURE.md`, `INTEGRATOR_CONTRACT.md`, and `MVP_PLAN.md` for the canon
 
 - **Чек-лист и порядок действий:** [`scripts/PLATFORM_IDENTITY_OPS.md`](scripts/PLATFORM_IDENTITY_OPS.md)
 - **Оглавление скриптов:** [`scripts/README.md`](scripts/README.md)
-- **Карта trusted paths в коде и ссылка на ops:** [`docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`](../../docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md) §8
+- **Карта trusted paths в коде и ссылка на ops:** [`docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](../../docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) §8
 
 ## Описание модулей
 

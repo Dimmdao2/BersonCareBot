@@ -9,7 +9,7 @@
 Любой SQL или скрипт, меняющий `platform_users` и телефон, может рассинхронизировать продуктовую модель **guest / onboarding / patient**, если не учесть колонку **`patient_phone_trust_at`**.
 
 - **[PLATFORM_IDENTITY_OPS.md](PLATFORM_IDENTITY_OPS.md)** — обязательный чек-лист: когда выставлять доверие, предпочтение продуктовых путей merge/purge, что делать с backfill-скриптами.
-- Карта trusted writers в коде и контекст: [`docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`](../../../docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md) §8.
+- Карта trusted writers в коде и контекст: [`docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](../../../docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) §8.
 - Управление пользователем по номеру (очистка, перенос, integrator): **[user-phone-admin.ts](user-phone-admin.ts)** (в шапке — команды и переменные окружения).
 
 ## Прочие файлы

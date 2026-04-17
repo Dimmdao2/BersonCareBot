@@ -20,7 +20,7 @@
 | API | `GET .../name-match-hints`, `GET .../merge-user-search`; guard, zod, `logger.info` / `logger.error` |
 | UI отчёт | `/app/doctor/clients/name-match-hints`, `NameMatchHintsClient`, ссылка из `DoctorClientsPanel` (admin + admin mode) |
 | UI merge | `AdminMergeAccountsPanel` — поиск, канон, чекбокс align; `resolveMergePreviewAlignment` в `adminMergeAccountsLogic.ts` + тесты |
-| Доки | `PLATFORM_USER_MERGE.md`, `USER_MERGE_EXECUTION_LOG.md`, `docs/README.md`, `SCENARIOS_AND_CODE_MAP.md`, `PLATFORM_USER_MERGE_V2/README.md` |
+| Доки | `ARCHITECTURE/PLATFORM_USER_MERGE.md`, `archive/2026-04-docs-cleanup/reports/USER_MERGE_EXECUTION_LOG.md`, `docs/README.md`, `ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`, `archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/README.md` |
 
 **Структурированные логи (фактические имена сообщений):**
 

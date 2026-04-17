@@ -2,7 +2,7 @@
 /**
  * Rekeys webapp projection rows: integrator_user_id loser → winner (Stage 4).
  *
- * Strategy matches docs/PLATFORM_USER_MERGE_V2/sql/realign_webapp_integrator_user_id.sql:
+ * Strategy matches docs/archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/realign_webapp_integrator_user_id.sql:
  * dedup DELETE on user_subscriptions_webapp + mailing_logs_webapp, then UPDATE all targets.
  *
  * Usage (webapp DATABASE_URL):

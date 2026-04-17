@@ -1,7 +1,7 @@
 /**
  * Stage 4 webapp: realign projection rows from loser integrator_user_id → winner.
  * Used by `scripts/realign-webapp-integrator-user-projection.ts` and documented in
- * `docs/PLATFORM_USER_MERGE_V2/sql/realign_webapp_integrator_user_id.sql`.
+ * `docs/archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/realign_webapp_integrator_user_id.sql`.
  *
  * Gate UNION (`diagnostics_webapp_integrator_user_id.sql` + dry-run job) строится из
  * `WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS` — единственный источник списка таблиц и WHERE.
@@ -91,7 +91,7 @@ export function fullDiagnosticsWebappIntegratorUserIdSqlFileContent(): string {
 export function diagnosticsWebappIntegratorUserIdSqlFilePath(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const repoRoot = join(here, "../../../../../");
-  return join(repoRoot, "docs/PLATFORM_USER_MERGE_V2/sql/diagnostics_webapp_integrator_user_id.sql");
+  return join(repoRoot, "docs/archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/diagnostics_webapp_integrator_user_id.sql");
 }
 
 /** Read current diagnostics file (throws if missing). */

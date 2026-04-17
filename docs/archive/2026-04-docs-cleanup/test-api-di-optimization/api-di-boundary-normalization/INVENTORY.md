@@ -1,5 +1,7 @@
 # INVENTORY — API DI / import-boundary track
 
+> **Архивный снимок (2026-04-16):** таблица описывает состояние **до** волны нормализации boundary (см. `LOG.md`). После 2026-04-17 прямых `@/infra/*` в `apps/webapp/src/app/api/**/route.ts` нет; см. также `ALLOWLIST_REMAINING_INFRA_ROUTE_IMPORTS.md`.
+
 Ниже **все 58** `route.ts`, где встречается `@/infra/` (**confirmed** 2026-04-16). Детали импортов — по файлу; краткий ярлык в колонке «Infra».
 
 **Условные обозначения:** `sig+` = `verifyIntegratorSignature` (POST), `sigGet` = `verifyIntegratorGetSignature`, `pool` = `getPool`, `idem` = idempotency helpers, `S3` = s3 client/repos, `audit` = adminAuditLog / merge audit.

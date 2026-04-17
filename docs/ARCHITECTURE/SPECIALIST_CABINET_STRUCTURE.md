@@ -228,7 +228,7 @@ Master-detail: слева список, справа карточка выбра
 
 - **Карточка** — `ClientProfileCard`: блоки как **аккордеон** (одна открытая секция; по умолчанию «Контакты»). На `/app/doctor/clients` и на `/app/doctor/clients/[userId]` один и тот же паттерн.
 - **Admin + admin mode:** секции «Объединение учётных записей» и «История операций» не дергают тяжёлые API, пока секция закрыта (ленивая загрузка).
-- **Редактирование профиля клиента админом** (ФИО, email, телефон): `PATCH /api/admin/users/:userId/profile` и панель `AdminClientProfileEditPanel`; доверие телефона — trusted source `admin_manual_profile_patch` (см. `PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md` §8).
+- **Редактирование профиля клиента админом** (ФИО, email, телефон): `PATCH /api/admin/users/:userId/profile` и панель `AdminClientProfileEditPanel`; доверие телефона — trusted source `admin_manual_profile_patch` (см. `ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §8).
 
 ---
 

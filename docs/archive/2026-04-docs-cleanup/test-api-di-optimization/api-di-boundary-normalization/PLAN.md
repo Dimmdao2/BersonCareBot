@@ -58,14 +58,11 @@
 
 ## Enforcement после чистки
 
-Варианты (**needs verification** что уже есть в ESLint):
+1. Регулярная ручная / pre-push проверка: **`rg '@/infra/' apps/webapp/src --glob '**/route.ts'`** → должно быть пусто (включая роуты вне `app/api`, напр. `app/health/projection`).
+2. Опционально: `eslint-plugin-import` `no-restricted-paths` для `**/route.ts` под webapp (отдельная настройка).
+3. Vitest «architecture test» по AST — только если нужно усилить (1).
 
-1. `eslint-plugin-import` `no-restricted-paths` для `src/app/api/**/route.ts`.
-2. CI шаг: `rg '@/infra/' apps/webapp/src/app/api --glob '**/route.ts'` с allowlist файлом исключений.
-3. Vitest «architecture test» сканирующий AST — только если (1)-(2) недостаточно.
-
-Текущий формальный allowlist (post-Cluster G snapshot):  
-`ALLOWLIST_REMAINING_INFRA_ROUTE_IMPORTS.md`.
+Политика и история снимков: **`ALLOWLIST_REMAINING_INFRA_ROUTE_IMPORTS.md`** (ранее — post-Cluster G allowlist; после полной волны boundary документ описывает правило «ноль `@/infra` в route handlers»).
 
 ## Архитектурные документы — обновить после трека
 

@@ -2,7 +2,7 @@
 /**
  * Seed script: Booking catalog — Точка Здоровья
  *
- * Source mapping: docs/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/SEED_MAPPING_TOCHKA_ZDOROVYA.md
+ * Source mapping: docs/archive/2026-04-initiatives/BRANCH_UX_CMS_BOOKING/BOOKING_REWORK_CITY_SERVICE/SEED_MAPPING_TOCHKA_ZDOROVYA.md
  *
  * Usage:
  *   DATABASE_URL=... pnpm seed-booking-catalog

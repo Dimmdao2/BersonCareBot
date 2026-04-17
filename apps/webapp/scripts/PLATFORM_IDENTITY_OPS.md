@@ -1,6 +1,6 @@
 # Операции с идентичностью и телефоном (обход UI)
 
-Нормативная модель tier и доверия к номеру: [`docs/PLATFORM_IDENTITY_ACCESS/SPECIFICATION.md`](../../docs/PLATFORM_IDENTITY_ACCESS/SPECIFICATION.md), таблица trusted-путей в коде — [`docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`](../../docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md) §8.
+Нормативная модель tier и доверия к номеру: [`docs/ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md`](../../docs/ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md), таблица trusted-путей в коде — [`docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](../../docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) §8.
 
 Эта инструкция — для **ручных** действий: SQL, скрипты в этой папке, восстановление целостности. Обычные сценарии в приложении (OTP, OAuth, кабинет врача, интегратор) уже проходят через продуктовый код и **не требуют** этого чек-листа.
 

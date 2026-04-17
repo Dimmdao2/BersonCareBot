@@ -217,7 +217,7 @@
 Сервис `apps/webapp` хранит идентичность и **доверие к телефону** для tier **patient** в PostgreSQL (`platform_users.phone_normalized` и `patient_phone_trust_at`). Произвольные правки в обход приложения не проходят через закрытый перечень trusted writers в коде.
 
 - **Правила для агентов и операторов:** [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md) (порядок действий, когда выставлять доверие, предпочтение готовых инструментов вроде `user-phone-admin.ts` и продуктового merge).
-- **Продуктовая карта и enum trusted paths:** [`docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md`](docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md) §8.
+- **Продуктовая карта и enum trusted paths:** [`docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md`](docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md) §8.
 - **Оглавление папки скриптов:** [`apps/webapp/scripts/README.md`](apps/webapp/scripts/README.md).
 
 ## Deploy model

@@ -1,5 +1,26 @@
 # LOG — API DI / import-boundary track
 
+## 2026-04-17 — Доп. проверка: health вне `app/api`
+
+**Пропуск:** `apps/webapp/src/app/health/projection/route.ts` и `apps/webapp/src/app/app/health/projection/route.ts` остались с `@/infra/...` (вне scope первого grep только по `app/api`). Исправлено: тот же фасад `@/app-layer/health/proxyIntegratorProjectionHealth`, что и в `app/api/health/projection`. Проверка: `rg '@/infra/' apps/webapp/src --glob '**/route.ts'` → пусто.
+
+---
+
+## 2026-04-17 — Wave: все `route.ts` без прямого `@/infra/*`
+
+**Цель:** закрыть оставшиеся «38 planned-cluster» маршрутов по смыслу трека B — убрать прямой импорт `@/infra/*` из всех `apps/webapp/src/app/api/**/route.ts`, сохранив поведение (parity не менялся: те же вызовы, но через `@/app-layer/**` фасады или `buildAppDeps()`).
+
+**Сделано:**
+
+- Добавлены тонкие модули-посредники под `@/app-layer/` (`logging/*`, `db/client`, `health/proxyIntegratorProjectionHealth`, `integrator/verifyIntegratorSignature`, `integrations/*`, `admin/auditLog`, `merge/*`, `idempotency/*`, `media/*`, `locks/*`, `lfk/*`, `platform-user/*` и др.) — re-export на существующий `@/infra/*` / модули.
+- OAuth callbacks `google` / `apple` используют `buildAppDeps().oauthBindings` вместо прямого выбора `pg` / `inMemory` портов.
+- Colocated `route.test.ts` переведены на моки `@/app-layer/...` там, где менялся импорт у SUT; где модуль под капотом всё ещё тянет `@/infra/db/client` из `@/modules/*`, оставлен мок `@/infra/db/client` (напр. `doctor/clients/[userId]/archive/route.test.ts`). Для `apple/route.test.ts` восстановлен `webappReposAreInMemory` в mock `@/config/env`, т.к. статический импорт `buildAppDeps` инициализирует ветку репозиториев при загрузке модуля.
+- Документ allowlist заменён на описание **текущей политики** (ноль `@/infra` в `route.ts`), обновлены `api.md`, `di.md`.
+
+**Проверки:** `pnpm exec tsc --noEmit` в `apps/webapp`; `pnpm exec vitest --run` в `apps/webapp` — зелёный (354 files passed, 1798 tests). **Полный gate:** `pnpm install --frozen-lockfile && pnpm run ci` из корня репозитория → **PASS** (exit 0).
+
+---
+
 ## 2026-04-17 — final closure (AUDIT_FINAL critical/major)
 
 **Цель:** закрыть `MF-FINAL-1` (Critical), `MF-FINAL-2` (Major), `MF-FINAL-3` (Major) из `AUDIT_FINAL.md`.
