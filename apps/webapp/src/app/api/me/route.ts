@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env } from "@/config/env";
-import { getPool } from "@/infra/db/client";
+import { getPool } from "@/app-layer/db/client";
 import type { PlatformAccessContext } from "@/modules/platform-access";
 import { resolvePlatformAccessContext } from "@/modules/platform-access";
 

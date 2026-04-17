@@ -7,11 +7,15 @@ export const DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS = "w-56";
 
 /** `position: sticky` под фиксированной шапкой (совпадает с низом `DOCTOR_WORKSPACE_TOP_PADDING_CLASS`). */
 export const DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS =
-  "md:top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)]";
+  "md:top-[calc(3.5rem+env(safe-area-inset-top,0px))]";
 
-/** Основной контент под фиксированной шапкой (safe-area + зазор под h-14). */
+/** Основной контент под фиксированной шапкой (safe-area + h-14, без лишнего зазора). */
 export const DOCTOR_WORKSPACE_TOP_PADDING_CLASS =
-  "pt-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)]";
+  "pt-[calc(3.5rem+env(safe-area-inset-top,0px))]";
+
+/** Липкая подшапка страницы (фильтры и т.п.) сразу под `DoctorHeader`. */
+export const DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS =
+  "top-[calc(3.5rem+env(safe-area-inset-top,0px))]";
 
 /** Внутренний ряд шапки: во всю ширину viewport (поля по краям), меню слева — только под шапкой. */
 export const DOCTOR_HEADER_INNER_CLASS =

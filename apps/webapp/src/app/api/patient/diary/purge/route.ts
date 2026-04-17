@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { logger } from "@/infra/logging/logger";
+import { logger } from "@/app-layer/logging/logger";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { routePaths } from "@/app-layer/routes/paths";

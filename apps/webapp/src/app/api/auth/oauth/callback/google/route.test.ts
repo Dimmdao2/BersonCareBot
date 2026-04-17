@@ -5,7 +5,6 @@ vi.mock("@/config/env", () => ({
     APP_BASE_URL: "http://localhost",
     SESSION_COOKIE_SECRET: "test-session-secret-16chars",
   },
-  webappReposAreInMemory: () => true,
 }));
 
 import { createSignedOAuthState } from "@/modules/auth/oauthSignedState";
@@ -29,12 +28,10 @@ vi.mock("@/modules/auth/oauthWebSession", () => ({
   oauthWebLoginErrorRedirect: (r: string) => `/app?oauth=error&reason=${encodeURIComponent(r)}`,
 }));
 
-vi.mock("@/infra/repos/pgOAuthBindings", () => ({
-  pgOAuthBindingsPort: {},
-}));
-
-vi.mock("@/infra/repos/inMemoryOAuthBindings", () => ({
-  inMemoryOAuthBindingsPort: {},
+vi.mock("@/app-layer/di/buildAppDeps", () => ({
+  buildAppDeps: () => ({
+    oauthBindings: {},
+  }),
 }));
 
 vi.mock("@/modules/system-settings/integrationRuntime", () => ({

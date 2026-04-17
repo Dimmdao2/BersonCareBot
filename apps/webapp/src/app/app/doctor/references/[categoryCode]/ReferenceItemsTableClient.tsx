@@ -44,6 +44,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import {
   saveReferenceCatalog,
   softDeleteReferenceItem,
@@ -514,7 +515,12 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
         </DialogContent>
       </Dialog>
 
-      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] z-20 -mx-4 flex flex-col gap-3 border-b border-border bg-card px-4 pb-3 pt-1">
+      <div
+        className={cn(
+          "sticky z-20 -mx-4 flex flex-col gap-3 border-b border-border bg-card px-4 pb-3 pt-1",
+          DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+        )}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="min-w-0 truncate text-lg font-semibold">{categoryTitle}</h1>
           <div className="flex shrink-0 flex-wrap items-center gap-2">

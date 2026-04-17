@@ -10,11 +10,11 @@ vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: requireAdminModeSessionMock,
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: vi.fn(() => ({})),
 }));
 
-vi.mock("@/infra/adminAuditLog", () => ({
+vi.mock("@/app-layer/admin/auditLog", () => ({
   listAdminAuditLog: listAdminAuditLogMock,
   countOpenAutoMergeConflicts: countOpenAutoMergeConflictsMock,
 }));

@@ -4,9 +4,9 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getPool } from "@/infra/db/client";
-import { runManualPlatformUserMerge } from "@/infra/manualPlatformUserMerge";
-import { verifyManualMergeIntegratorIntegratorGate } from "@/infra/manualMergeIntegratorGate";
+import { getPool } from "@/app-layer/db/client";
+import { runManualPlatformUserMerge } from "@/app-layer/merge/manualPlatformUserMerge";
+import { verifyManualMergeIntegratorIntegratorGate } from "@/app-layer/merge/manualMergeIntegratorGate";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const winner = z.enum(["target", "duplicate"]);

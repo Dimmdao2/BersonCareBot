@@ -19,12 +19,12 @@ vi.mock("@/config/env", () => ({
   isS3MediaEnabled: () => true,
 }));
 
-vi.mock("@/infra/repos/s3MediaStorage", () => ({
+vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaRowForConfirm: (...args: unknown[]) => getMediaRowMock(...args),
   confirmMediaFileReady: (...args: unknown[]) => confirmReadyMock(...args),
 }));
 
-vi.mock("@/infra/s3/client", () => ({
+vi.mock("@/app-layer/media/s3Client", () => ({
   s3HeadObject: (...args: unknown[]) => headMock(...args),
 }));
 

@@ -24,7 +24,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-vi.mock("@/infra/repos/mediaFoldersRepo", () => ({
+vi.mock("@/app-layer/media/mediaFoldersRepo", () => ({
   pgFolderExists: (...a: unknown[]) => pgExistsMock(...a),
 }));
 

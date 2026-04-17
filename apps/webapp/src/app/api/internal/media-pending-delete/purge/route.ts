@@ -1,8 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { env } from "@/config/env";
-import { logger } from "@/infra/logging/logger";
-import { purgePendingMediaDeleteBatch } from "@/infra/repos/s3MediaStorage";
+import { logger } from "@/app-layer/logging/logger";
+import { purgePendingMediaDeleteBatch } from "@/app-layer/media/s3MediaStorage";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
   const a = Buffer.from(token, "utf8");

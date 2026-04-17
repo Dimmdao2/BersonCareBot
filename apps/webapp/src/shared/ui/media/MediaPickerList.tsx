@@ -1,12 +1,13 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Check, File, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { libraryMediaRowToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { MediaPickerQuickPreviewDialog } from "@/shared/ui/media/MediaPickerQuickPreviewDialog";
 
 export type MediaListItem = {
   id: string;
@@ -30,12 +31,16 @@ type Props = {
   onSelect: (item: MediaListItem) => void;
   /** When set, cards may show LFK exercise attachment indicator + tooltip. */
   exerciseUsageByMediaId?: Record<string, MediaExerciseUsageEntry[]>;
+  /** Exercise-form picker: click thumbnail opens quick preview; «Выбрать» stays the explicit select action. */
+  enableQuickPreview?: boolean;
 };
 
 type ItemProps = {
   item: MediaListItem;
   onSelect: (item: MediaListItem) => void;
   exerciseUsage?: MediaExerciseUsageEntry[];
+  enableQuickPreview?: boolean;
+  onQuickPreview: (item: MediaListItem) => void;
 };
 
 function exerciseUsageTooltipLines(usage: MediaExerciseUsageEntry[]): string {
@@ -46,7 +51,13 @@ function exerciseUsageTooltipLines(usage: MediaExerciseUsageEntry[]): string {
   return lines.join("\n");
 }
 
-const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect, exerciseUsage }: ItemProps) {
+const MediaPickerListItem = memo(function MediaPickerListItem({
+  item,
+  onSelect,
+  exerciseUsage,
+  enableQuickPreview,
+  onQuickPreview,
+}: ItemProps) {
   const title = item.displayName?.trim() || item.filename;
   const showOriginalFilename = Boolean(item.displayName?.trim()) && item.displayName!.trim() !== item.filename;
   const date = (() => {
@@ -78,12 +89,28 @@ const MediaPickerListItem = memo(function MediaPickerListItem({ item, onSelect, 
       ) : null}
       <div className="relative min-h-20 overflow-hidden rounded border border-border/60 bg-muted/30">
         {item.kind === "image" || item.kind === "video" ? (
-          <MediaThumb
-            media={libraryMediaRowToPreviewUi(item)}
-            className="h-24 w-full"
-            imgClassName="h-24 w-full object-contain bg-muted/30"
-            labels={{ skipped: "Без превью", failed: "Нет превью" }}
-          />
+          enableQuickPreview ? (
+            <button
+              type="button"
+              className="block h-24 w-full cursor-zoom-in p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Предпросмотр: ${title}`}
+              onClick={() => onQuickPreview(item)}
+            >
+              <MediaThumb
+                media={libraryMediaRowToPreviewUi(item)}
+                className="h-24 w-full"
+                imgClassName="h-24 w-full object-contain bg-muted/30"
+                labels={{ skipped: "Без превью", failed: "Нет превью" }}
+              />
+            </button>
+          ) : (
+            <MediaThumb
+              media={libraryMediaRowToPreviewUi(item)}
+              className="h-24 w-full"
+              imgClassName="h-24 w-full object-contain bg-muted/30"
+              labels={{ skipped: "Без превью", failed: "Нет превью" }}
+            />
+          )
         ) : item.kind === "audio" ? (
           <div className="flex h-24 items-center justify-center bg-muted/30" aria-hidden>
             <Music className="h-8 w-8 text-muted-foreground" />
@@ -118,7 +145,10 @@ export const MediaPickerList = memo(function MediaPickerList({
   error,
   onSelect,
   exerciseUsageByMediaId,
+  enableQuickPreview = false,
 }: Props) {
+  const [quickPreviewItem, setQuickPreviewItem] = useState<MediaListItem | null>(null);
+
   if (error) {
     return <p className="text-sm text-destructive">{error}</p>;
   }
@@ -130,15 +160,26 @@ export const MediaPickerList = memo(function MediaPickerList({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((item) => (
-        <MediaPickerListItem
-          key={item.id}
-          item={item}
-          onSelect={onSelect}
-          exerciseUsage={exerciseUsageByMediaId?.[item.id.toLowerCase()]}
-        />
-      ))}
-    </div>
+    <>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((item) => (
+          <MediaPickerListItem
+            key={item.id}
+            item={item}
+            onSelect={onSelect}
+            exerciseUsage={exerciseUsageByMediaId?.[item.id.toLowerCase()]}
+            enableQuickPreview={enableQuickPreview}
+            onQuickPreview={setQuickPreviewItem}
+          />
+        ))}
+      </div>
+      <MediaPickerQuickPreviewDialog
+        item={quickPreviewItem}
+        open={quickPreviewItem !== null}
+        onOpenChange={(o) => {
+          if (!o) setQuickPreviewItem(null);
+        }}
+      />
+    </>
   );
 });

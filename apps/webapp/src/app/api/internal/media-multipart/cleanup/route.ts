@@ -1,15 +1,15 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { env } from "@/config/env";
-import { getPool } from "@/infra/db/client";
-import { logger } from "@/infra/logging/logger";
-import { withMultipartSessionLock } from "@/infra/multipartSessionLock";
+import { getPool } from "@/app-layer/db/client";
+import { logger } from "@/app-layer/logging/logger";
+import { withMultipartSessionLock } from "@/app-layer/locks/multipartSessionLock";
 import {
   listExpiredActiveUploadSessions,
   markUploadSessionExpired,
   markUploadSessionExpiredTx,
-} from "@/infra/repos/mediaUploadSessionsRepo";
-import { s3AbortMultipartUpload } from "@/infra/s3/client";
+} from "@/app-layer/media/mediaUploadSessionsRepo";
+import { s3AbortMultipartUpload } from "@/app-layer/media/s3Client";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
   const a = Buffer.from(token, "utf8");

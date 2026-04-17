@@ -5,9 +5,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/infra/db/client";
-import { writeAuditLog } from "@/infra/adminAuditLog";
-import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { getPool } from "@/app-layer/db/client";
+import { writeAuditLog } from "@/app-layer/admin/auditLog";
+import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { normalizeRuPhoneE164 } from "@/shared/phone/normalizeRuPhoneE164";
 

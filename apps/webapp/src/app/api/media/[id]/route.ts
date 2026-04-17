@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { env, isS3MediaEnabled } from "@/config/env";
-import { logger } from "@/infra/logging/logger";
-import { getStoredMediaBody } from "@/infra/repos/mockMediaStorage";
-import { getMediaS3KeyForRedirect } from "@/infra/repos/s3MediaStorage";
-import { presignGetUrl } from "@/infra/s3/client";
+import { logger } from "@/app-layer/logging/logger";
+import { getStoredMediaBody } from "@/app-layer/media/mockMediaStorage";
+import { getMediaS3KeyForRedirect } from "@/app-layer/media/s3MediaStorage";
+import { presignGetUrl } from "@/app-layer/media/s3Client";
 import { getCurrentSession } from "@/modules/auth/service";
 
 const UUID_RE =

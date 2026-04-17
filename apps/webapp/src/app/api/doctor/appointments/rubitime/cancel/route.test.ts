@@ -7,7 +7,7 @@ vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: (...args: unknown[]) => getCurrentSessionMock(...args),
 }));
 
-vi.mock("@/infra/integrations/integratorSignedPost", () => ({
+vi.mock("@/app-layer/integrations/integratorSignedPost", () => ({
   postIntegratorSignedJson: (...args: unknown[]) => postIntegratorSignedJsonMock(...args),
 }));
 

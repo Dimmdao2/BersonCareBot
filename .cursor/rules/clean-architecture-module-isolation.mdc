@@ -1,0 +1,95 @@
+---
+description: Modules must be isolated with clean boundaries — no direct infra access, no business logic in routes.
+alwaysApply: true
+---
+
+# Clean Architecture: Module Isolation
+
+## Absolute rules for ALL agents
+
+Every module in `apps/webapp/src/modules/` must follow strict layered isolation:
+
+### 1. Modules MUST NOT import infra directly
+
+```
+FORBIDDEN in modules/**/*.ts (non-test):
+  import { getPool } from "@/infra/db/client"
+  import { pgSomethingPort } from "@/infra/repos/pgSomething"
+  import { someFunction } from "@/infra/repos/pgSomething"
+  import { createS3Client } from "@/infra/s3/client"
+```
+
+ESLint rule `no-restricted-imports` enforces this. Legacy violations are allowlisted in `apps/webapp/eslint.config.mjs` — **do NOT add new files to the allowlist**.
+
+### 2. Correct dependency direction
+
+```
+route.ts / page.tsx / server action
+  → app-layer/di/buildAppDeps.ts (composition root)
+    → modules/*/service.ts (business logic)
+      → modules/*/ports.ts (port interface — defined HERE, not in infra)
+        → infra/repos/pg*.ts (implementation of port)
+```
+
+### 3. Port types belong in modules, not infra
+
+```
+CORRECT:
+  modules/treatment-program/ports.ts — defines TreatmentProgramPort interface
+  infra/repos/pgTreatmentProgram.ts — implements TreatmentProgramPort
+
+WRONG:
+  infra/repos/pgTreatmentProgram.ts — defines AND implements the port
+  modules/treatment-program/service.ts — imports type from infra/repos/
+```
+
+### 4. Route handlers are thin
+
+Route handlers (`app/api/**/route.ts`) do ONLY:
+- Parse request (headers, body, params)
+- Validate input (Zod schema)
+- Authenticate/authorize (session, guards)
+- Call service via buildAppDeps()
+- Return HTTP response
+
+Route handlers MUST NOT contain business logic, database queries, or direct infra calls.
+
+### 5. New entities use Drizzle ORM
+
+All new database tables and queries must use Drizzle ORM:
+- Schema in `apps/webapp/db/schema/*.ts`
+- Migrations via `drizzle-kit generate` + `drizzle-kit migrate`
+- Types inferred from schema (`typeof table.$inferSelect`)
+- No raw SQL (`pool.query(...)`) for new features
+
+### 6. Service receives dependencies via injection
+
+```typescript
+// CORRECT — service receives port via factory
+export function createTreatmentProgramService(port: TreatmentProgramPort) {
+  return {
+    async assignToPatient(params) { /* uses port */ },
+  };
+}
+
+// WRONG — service grabs pool directly
+export function assignToPatient(params) {
+  const pool = getPool(); // FORBIDDEN
+  await pool.query("INSERT INTO ..."); // FORBIDDEN
+}
+```
+
+### 7. buildAppDeps() is called ONLY from
+
+- `page.tsx` (React Server Components)
+- `route.ts` (API route handlers)
+- Server actions (`actions.ts`)
+- Top-level `app-layer/` orchestration
+
+**NEVER** from `modules/*`. If a module needs deps, they must be injected.
+
+## Enforcement
+
+- ESLint `no-restricted-imports` in `apps/webapp/eslint.config.mjs`
+- Legacy violations tracked in `docs/TREATMENT_PROGRAM_INITIATIVE/LEGACY_CLEANUP_BACKLOG.md`
+- Adding new files to the ESLint allowlist requires explicit justification in PR description

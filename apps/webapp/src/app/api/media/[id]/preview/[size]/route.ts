@@ -1,20 +1,21 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { logger } from "@/infra/logging/logger";
-import { getMediaPreviewS3KeyForRedirect } from "@/infra/repos/s3MediaStorage";
-import { presignGetUrl, s3GetObjectBody, s3HeadObjectDetails } from "@/infra/s3/client";
+import { logger } from "@/app-layer/logging/logger";
+import { getMediaPreviewS3KeyForRedirect } from "@/app-layer/media/s3MediaStorage";
+import { presignGetUrl, s3GetObjectBody, s3HeadObjectDetails } from "@/app-layer/media/s3Client";
 import { getCurrentSession } from "@/modules/auth/service";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const CACHE_CONTROL = "private, max-age=86400, stale-while-revalidate=604800";
+const FALLBACK_REDIRECT_EXPIRES_SEC = 86400;
 
 async function redirectPresignedPreview(s3Key: string): Promise<Response> {
   try {
-    const signed = await presignGetUrl(s3Key);
+    const signed = await presignGetUrl(s3Key, FALLBACK_REDIRECT_EXPIRES_SEC);
     const res = NextResponse.redirect(signed, 307);
-    res.headers.set("Cache-Control", `private, max-age=3500`);
+    res.headers.set("Cache-Control", CACHE_CONTROL);
     return res;
   } catch (e) {
     logger.error({ err: e }, "[preview GET] presign failed");

@@ -2,13 +2,13 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
-import { getPool } from "@/infra/db/client";
-import { logger } from "@/infra/logging/logger";
-import { pgFolderExists } from "@/infra/repos/mediaFoldersRepo";
-import { insertUploadSessionTx } from "@/infra/repos/mediaUploadSessionsRepo";
-import { insertPendingMediaFileTx } from "@/infra/repos/s3MediaStorage";
-import { s3AbortMultipartUpload, s3CreateMultipartUpload, s3ObjectKey } from "@/infra/s3/client";
-import { withUserLifecycleLock } from "@/infra/userLifecycleLock";
+import { getPool } from "@/app-layer/db/client";
+import { logger } from "@/app-layer/logging/logger";
+import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
+import { insertUploadSessionTx } from "@/app-layer/media/mediaUploadSessionsRepo";
+import { insertPendingMediaFileTx } from "@/app-layer/media/s3MediaStorage";
+import { s3AbortMultipartUpload, s3CreateMultipartUpload, s3ObjectKey } from "@/app-layer/media/s3Client";
+import { withUserLifecycleLock } from "@/app-layer/locks/userLifecycleLock";
 import {
   chooseMultipartPartSize,
   MULTIPART_SESSION_TTL_MS,

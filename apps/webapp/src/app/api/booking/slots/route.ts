@@ -3,7 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { logger } from "@/infra/logging/logger";
+import { logger } from "@/app-layer/logging/logger";
 
 const onlineQuery = z.object({
   type: z.literal("online"),

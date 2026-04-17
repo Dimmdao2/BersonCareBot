@@ -4,9 +4,9 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getPool } from "@/infra/db/client";
-import { logger } from "@/infra/logging/logger";
-import { searchMergeUsersForManualMerge } from "@/infra/platformUserMergePreview";
+import { getPool } from "@/app-layer/db/client";
+import { logger } from "@/app-layer/logging/logger";
+import { searchMergeUsersForManualMerge } from "@/app-layer/merge/platformUserMergePreview";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const querySchema = z.object({

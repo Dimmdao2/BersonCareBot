@@ -1,22 +1,28 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+
 export default function DoctorExercisesLoading() {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur-md supports-backdrop-filter:bg-background/90 md:-mx-6 md:px-6">
-        <div className="rounded-xl border border-border bg-card p-3">
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <div className="h-10 animate-pulse rounded-md bg-muted/50" />
-              <div className="h-10 animate-pulse rounded-md bg-muted/50" />
-              <div className="h-10 animate-pulse rounded-md bg-muted/50" />
-            </div>
-            <div className="h-9 w-32 animate-pulse self-end rounded-md bg-muted/50" />
+    <div className="flex flex-col gap-3">
+      <div
+        className={cn(
+          "sticky z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-1.5 backdrop-blur-md supports-backdrop-filter:bg-background/90 md:-mx-6 md:px-6",
+          DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+        )}
+      >
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="h-10 animate-pulse rounded-md bg-muted/50" />
+            <div className="h-10 animate-pulse rounded-md bg-muted/50" />
+            <div className="h-10 animate-pulse rounded-md bg-muted/50" />
           </div>
+          <div className="h-9 w-32 animate-pulse self-center rounded-md bg-muted/50" />
         </div>
       </div>
 
-      <div className="hidden gap-4 lg:grid lg:grid-cols-2">
+      <div className="hidden gap-3 lg:grid lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-3">
           <div className="mb-3 flex items-center justify-between gap-2 border-b border-border/60 pb-3">
             <div className="h-4 w-32 animate-pulse rounded bg-muted/50" />

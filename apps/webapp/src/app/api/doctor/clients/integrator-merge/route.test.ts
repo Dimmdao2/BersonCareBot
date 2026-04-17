@@ -10,10 +10,10 @@ const poolConnectMock = vi.fn();
 const writeAuditLogMock = vi.fn();
 const loggerErrorMock = vi.fn();
 
-vi.mock("@/infra/adminAuditLog", () => ({
+vi.mock("@/app-layer/admin/auditLog", () => ({
   writeAuditLog: (...a: unknown[]) => writeAuditLogMock(...a),
 }));
-vi.mock("@/infra/logging/logger", () => ({
+vi.mock("@/app-layer/logging/logger", () => ({
   logger: {
     error: (...a: unknown[]) => loggerErrorMock(...a),
     warn: vi.fn(),
@@ -21,7 +21,7 @@ vi.mock("@/infra/logging/logger", () => ({
     debug: vi.fn(),
   },
 }));
-vi.mock("@/infra/mergeAuditLabels", () => ({
+vi.mock("@/app-layer/merge/mergeAuditLabels", () => ({
   fetchMergePartyDisplayLabels: vi.fn().mockResolvedValue({
     targetDisplayName: "Target FIO",
     duplicateDisplayName: "Dup FIO",
@@ -34,11 +34,11 @@ vi.mock("@/modules/auth/requireAdminMode", () => ({
 vi.mock("@/modules/system-settings/configAdapter", () => ({
   getConfigBool: (...a: unknown[]) => getConfigBoolMock(...a),
 }));
-vi.mock("@/infra/integrations/integratorUserMergeM2mClient", () => ({
+vi.mock("@/app-layer/integrations/integratorUserMergeM2mClient", () => ({
   callIntegratorUserMerge: (...a: unknown[]) => callMergeMock(...a),
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({
     connect: (...a: unknown[]) => poolConnectMock(...a),
   }),

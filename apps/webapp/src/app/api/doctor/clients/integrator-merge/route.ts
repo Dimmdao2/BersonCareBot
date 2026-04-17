@@ -6,11 +6,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { Pool } from "pg";
-import { callIntegratorUserMerge } from "@/infra/integrations/integratorUserMergeM2mClient";
-import { writeAuditLog } from "@/infra/adminAuditLog";
-import { getPool } from "@/infra/db/client";
-import { logger } from "@/infra/logging/logger";
-import { fetchMergePartyDisplayLabels } from "@/infra/mergeAuditLabels";
+import { callIntegratorUserMerge } from "@/app-layer/integrations/integratorUserMergeM2mClient";
+import { writeAuditLog } from "@/app-layer/admin/auditLog";
+import { getPool } from "@/app-layer/db/client";
+import { logger } from "@/app-layer/logging/logger";
+import { fetchMergePartyDisplayLabels } from "@/app-layer/merge/mergeAuditLabels";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 import { getConfigBool } from "@/modules/system-settings/configAdapter";
 

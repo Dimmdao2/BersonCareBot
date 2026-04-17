@@ -3,7 +3,7 @@ import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
 const exchangeTelegramInitDataMock = vi.fn();
 
-vi.mock("@/infra/logging/logger", () => ({
+vi.mock("@/app-layer/logging/logger", () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
-import { logger } from "@/infra/logging/logger";
+import { logger } from "@/app-layer/logging/logger";
 import { POST } from "./route";
 
 describe("POST /api/auth/telegram-init", () => {

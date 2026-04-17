@@ -14,11 +14,11 @@ vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: mocks.getCurrentSession,
 }));
 
-vi.mock("@/infra/repos/s3MediaStorage", () => ({
+vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaPreviewS3KeyForRedirect: mocks.getMediaPreviewS3KeyForRedirect,
 }));
 
-vi.mock("@/infra/s3/client", () => ({
+vi.mock("@/app-layer/media/s3Client", () => ({
   s3HeadObjectDetails: mocks.s3HeadObjectDetails,
   s3GetObjectBody: mocks.s3GetObjectBody,
   presignGetUrl: mocks.presignGetUrl,
@@ -68,5 +68,7 @@ describe("GET /api/media/[id]/preview/[size]", () => {
     });
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://signed.example/preview.jpg");
+    expect(res.headers.get("cache-control")).toBe("private, max-age=86400, stale-while-revalidate=604800");
+    expect(mocks.presignGetUrl).toHaveBeenCalledWith("previews/sm/x.jpg", 86400);
   });
 });

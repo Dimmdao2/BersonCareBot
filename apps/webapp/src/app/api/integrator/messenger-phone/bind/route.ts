@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getPool } from "@/infra/db/client";
-import { computeMessengerPhoneBindRequestHash } from "@/infra/idempotency/messengerPhoneBindRequestHash";
-import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency";
-import { logger } from "@/infra/logging/logger";
-import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
+import { getPool } from "@/app-layer/db/client";
+import { computeMessengerPhoneBindRequestHash } from "@/app-layer/idempotency/messengerPhoneBindRequestHash";
+import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
+import { logger } from "@/app-layer/logging/logger";
+import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { executeMessengerPhoneHttpBind } from "@/modules/integrator/messengerPhoneHttpBindExecute";
 
 const bodySchema = z.object({

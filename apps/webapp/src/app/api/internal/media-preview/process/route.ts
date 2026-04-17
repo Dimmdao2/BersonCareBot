@@ -1,8 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { env } from "@/config/env";
-import { logger } from "@/infra/logging/logger";
-import { processMediaPreviewBatch } from "@/infra/repos/mediaPreviewWorker";
+import { logger } from "@/app-layer/logging/logger";
+import { processMediaPreviewBatch } from "@/app-layer/media/mediaPreviewWorker";
 
 function bearerMatchesSecret(token: string, secret: string): boolean {
   const a = Buffer.from(token, "utf8");

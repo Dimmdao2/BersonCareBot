@@ -4,8 +4,8 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getPool } from "@/infra/db/client";
-import { searchMergeCandidates } from "@/infra/platformUserMergePreview";
+import { getPool } from "@/app-layer/db/client";
+import { searchMergeCandidates } from "@/app-layer/merge/platformUserMergePreview";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 export async function GET(request: Request, context: { params: Promise<{ userId: string }> }) {

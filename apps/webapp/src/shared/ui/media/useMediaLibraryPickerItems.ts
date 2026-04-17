@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
+import {
+  getMediaLibraryPickerListCached,
+  invalidateMediaLibraryPickerListCache,
+  setMediaLibraryPickerListCached,
+} from "@/shared/ui/media/mediaLibraryPickerListCache";
 
 /** Max items per picker list request (API cap). */
 export const MEDIA_LIBRARY_PICKER_LIST_LIMIT = 200;
@@ -56,32 +61,53 @@ export function filterMediaLibraryPickerItemsByQuery(items: MediaListItem[], que
 }
 
 /**
- * Загрузка списка при открытой модалке; повторный fetch при смене `listUrl` (например `kind` / `folderId`).
- * При `open: false` сбрасывает список/ошибку и инвалидирует in-flight ответы (безопасно при переиспользовании хука).
+ * Загрузка списка при открытой модалке.
+ * При `open: false` не сбрасывает последний успешный список (удобно при повторном открытии).
+ * Кэш по полному `listUrl`: при повторном открытии с тем же URL список берётся из памяти без повторного fetch,
+ * пока запись не инвалидирована (`invalidateMediaLibraryPickerListCache`) или не изменился `reloadKey`.
+ * Превью JPEG по URL остаются в браузерном HTTP-кэше благодаря `Cache-Control` на `/api/media/.../preview/*`.
  * Защита от stale response: монотонный requestId + AbortController.
  */
-export function useMediaLibraryPickerItems(options: { open: boolean; listUrl: string }): {
+export function useMediaLibraryPickerItems(options: {
+  open: boolean;
+  listUrl: string;
+  /** Increment (e.g. after upload) to bypass cache for the current `listUrl`. */
+  reloadKey?: number;
+}): {
   items: MediaListItem[];
   loading: boolean;
   error: string | null;
 } {
-  const { open, listUrl } = options;
+  const { open, listUrl, reloadKey = 0 } = options;
   const [items, setItems] = useState<MediaListItem[]>([]);
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const latestRequestRef = useRef(0);
+  const prevReloadKeyRef = useRef(reloadKey);
 
   const loading = open && inFlight;
 
   useEffect(() => {
     if (!open) {
       latestRequestRef.current += 1;
-      queueMicrotask(() => {
-        setItems([]);
-        setError(null);
-        setInFlight(false);
-      });
       return;
+    }
+
+    const reloadBumped = prevReloadKeyRef.current !== reloadKey;
+    prevReloadKeyRef.current = reloadKey;
+
+    if (!reloadBumped) {
+      const cached = getMediaLibraryPickerListCached(listUrl);
+      if (cached !== undefined) {
+        queueMicrotask(() => {
+          setItems(cached);
+          setError(null);
+          setInFlight(false);
+        });
+        return;
+      }
+    } else {
+      invalidateMediaLibraryPickerListCache(listUrl);
     }
 
     const requestId = ++latestRequestRef.current;
@@ -100,6 +126,7 @@ export function useMediaLibraryPickerItems(options: { open: boolean; listUrl: st
       })
       .then((next) => {
         if (ac.signal.aborted || requestId !== latestRequestRef.current) return;
+        setMediaLibraryPickerListCached(listUrl, next);
         setItems(next);
       })
       .catch((e: unknown) => {
@@ -117,7 +144,9 @@ export function useMediaLibraryPickerItems(options: { open: boolean; listUrl: st
     return () => {
       ac.abort();
     };
-  }, [open, listUrl]);
+  }, [open, listUrl, reloadKey]);
 
   return { items, loading, error };
 }
+
+export { invalidateMediaLibraryPickerListCache } from "@/shared/ui/media/mediaLibraryPickerListCache";

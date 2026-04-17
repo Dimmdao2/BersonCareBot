@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { logger } from "@/infra/logging/logger";
-import { listMediaDeleteErrors } from "@/infra/repos/s3MediaStorage";
+import { logger } from "@/app-layer/logging/logger";
+import { listMediaDeleteErrors } from "@/app-layer/media/s3MediaStorage";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 

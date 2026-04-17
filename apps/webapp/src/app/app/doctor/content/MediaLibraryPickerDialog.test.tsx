@@ -3,9 +3,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { invalidateMediaLibraryPickerListCache } from "@/shared/ui/media/useMediaLibraryPickerItems";
 import { MediaLibraryPickerDialog } from "./MediaLibraryPickerDialog";
 
 beforeEach(() => {
+  invalidateMediaLibraryPickerListCache();
   vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({

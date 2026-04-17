@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { webappReposAreInMemory } from "@/config/env";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { parseVerifiedSignedOAuthState } from "@/modules/auth/oauthSignedState";
 import {
   getAppleOauthClientId,
@@ -16,8 +16,6 @@ import {
   verifyAppleIdToken,
 } from "@/modules/auth/appleOAuthHelpers";
 import { resolveUserIdForWebOAuthLogin } from "@/modules/auth/oauthWebLoginResolve";
-import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
-import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
 import {
   completeOAuthWebLoginRedirectUrls,
   oauthWebLoginErrorRedirect,
@@ -116,9 +114,7 @@ export async function POST(request: Request) {
   const displayName = userFromForm;
   const emailVerified = Boolean(email);
 
-  const oauthPort = webappReposAreInMemory() ? inMemoryOAuthBindingsPort : pgOAuthBindingsPort;
-
-  const resolved = await resolveUserIdForWebOAuthLogin(oauthPort, {
+  const resolved = await resolveUserIdForWebOAuthLogin(buildAppDeps().oauthBindings, {
     provider: "apple",
     providerUserId: claims.sub,
     email,

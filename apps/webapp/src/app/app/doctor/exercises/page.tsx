@@ -46,19 +46,17 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
     : Promise.resolve(null);
   return (
     <AppShell title="Упражнения ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
-      <div className="flex flex-col gap-4">
-        <ExercisesPageClient
-          listPromise={listPromise}
-          selectedExercisePromise={selectedExercisePromise}
-          initialViewMode={viewMode}
-          initialTitleSort={titleSort}
-          filters={{
-            q,
-            regionRefId,
-            loadType,
-          }}
-        />
-      </div>
+      <ExercisesPageClient
+        listPromise={listPromise}
+        selectedExercisePromise={selectedExercisePromise}
+        initialViewMode={viewMode}
+        initialTitleSort={titleSort}
+        filters={{
+          q,
+          regionRefId,
+          loadType,
+        }}
+      />
     </AppShell>
   );
 }

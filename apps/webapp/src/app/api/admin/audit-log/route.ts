@@ -4,8 +4,8 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getPool } from "@/infra/db/client";
-import { countOpenAutoMergeConflicts, listAdminAuditLog } from "@/infra/adminAuditLog";
+import { getPool } from "@/app-layer/db/client";
+import { countOpenAutoMergeConflicts, listAdminAuditLog } from "@/app-layer/admin/auditLog";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const querySchema = z.object({

@@ -16,6 +16,7 @@ import {
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
+import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
@@ -61,9 +62,6 @@ function exercisesIndexHref(view: ExercisesViewMode, titleSort: ExerciseTitleSor
   if (titleSort) p.set("titleSort", titleSort);
   return `/app/doctor/exercises?${p.toString()}`;
 }
-
-const STICKY_UNDER_DOCTOR_HEADER_CLASS =
-  "top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)]";
 
 /** Desktop tiles: up to 4 per row; for 5–7 items use 3 per row; 8+ cap at 4 columns. */
 function desktopExerciseTileColumns(count: number): number {
@@ -286,7 +284,7 @@ function ExercisesContent({
 
   const rightPanel = (
     <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm lg:border lg:shadow-sm">
-      <CardContent className="p-2 sm:p-4">
+      <CardContent className="p-2">
         <ExerciseForm
           exercise={mobileSheet?.exercise ?? exerciseForDesktop}
           saveAction={saveExerciseInline}
@@ -302,12 +300,9 @@ function ExercisesContent({
     <CatalogSplitLayout
       left={
         <aside
-          className={cn(
-            "flex flex-col overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:h-[calc(100dvh-4rem-env(safe-area-inset-top,0px))]",
-            STICKY_UNDER_DOCTOR_HEADER_CLASS,
-          )}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card lg:h-full"
         >
-          <div className="shrink-0 p-2 pb-0">
+          <div className="shrink-0 px-2 pb-1.5 pt-2">
             <SelectionToolbar
               exerciseCount={displayExercises.length}
               createButtonId="doctor-exercises-create-link-desktop"
@@ -322,7 +317,7 @@ function ExercisesContent({
               listBusy={isListPending}
             />
           </div>
-          <div className={cn("min-h-0 flex-1 overflow-hidden p-2 pt-2 transition-opacity", isListPending && "opacity-80")} aria-busy={isListPending}>
+          <div className={cn("min-h-0 flex-1 overflow-hidden px-2 pb-2 pt-1.5 transition-opacity", isListPending && "opacity-80")} aria-busy={isListPending}>
             {viewMode === "list"
               ? renderExerciseList(displayExercises, {
                   activeId: desktopSelectedId,
@@ -359,8 +354,8 @@ function ExercisesContent({
 
 function CatalogSplitLayoutSkeleton() {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="hidden gap-4 lg:grid lg:grid-cols-2">
+    <div className="flex flex-col gap-3">
+      <div className="hidden gap-3 lg:grid lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-3">
           <div className="mb-3 flex items-center justify-between gap-2 border-b border-border/60 pb-3">
             <div className="h-4 w-32 animate-pulse rounded bg-muted/50" />
@@ -442,32 +437,30 @@ export function ExercisesPageClient({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div
         className={cn(
-          "sticky z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-2 backdrop-blur-md supports-backdrop-filter:bg-background/90 md:-mx-6 md:px-6",
-          STICKY_UNDER_DOCTOR_HEADER_CLASS,
+          "sticky z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-1.5 backdrop-blur-md supports-backdrop-filter:bg-background/90 md:-mx-6 md:px-6",
+          DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
         )}
       >
-        <div className="rounded-xl border border-border bg-card p-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="min-w-0 flex-1">
-              <ExercisesFiltersForm
-                q={filters.q}
-                regionRefId={filters.regionRefId}
-                loadType={filters.loadType}
-                view={viewMode}
-                titleSort={titleSort}
-                selectedId={desktopSelectedId}
-              />
-            </div>
-            <Link
-              href="/app/doctor/exercises/auto-create"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0 self-end sm:self-start")}
-            >
-              Автосоздание
-            </Link>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="min-w-0 flex-1">
+            <ExercisesFiltersForm
+              q={filters.q}
+              regionRefId={filters.regionRefId}
+              loadType={filters.loadType}
+              view={viewMode}
+              titleSort={titleSort}
+              selectedId={desktopSelectedId}
+            />
           </div>
+          <Link
+            href="/app/doctor/exercises/auto-create"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
+          >
+            Автосоздание
+          </Link>
         </div>
       </div>
 

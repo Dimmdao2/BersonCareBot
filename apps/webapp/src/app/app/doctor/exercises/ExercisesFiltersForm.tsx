@@ -55,12 +55,12 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
   }, [q]);
 
   return (
-    <form ref={formRef} method="get" className="flex flex-wrap items-end gap-2">
+    <form ref={formRef} method="get" className="flex flex-wrap items-center gap-2">
       {view ? <input type="hidden" name="view" value={view} /> : null}
       {titleSort ? <input type="hidden" name="titleSort" value={titleSort} /> : null}
       {selectedId ? <input type="hidden" name="selected" value={selectedId} /> : null}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-muted-foreground" htmlFor="ex-q">
+      <div>
+        <label className="sr-only" htmlFor="ex-q">
           Поиск по названию
         </label>
         <Input
@@ -72,8 +72,8 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
           className="w-56"
         />
       </div>
-      <div className="flex flex-col gap-1 min-w-[16rem]">
-        <label className="text-xs text-muted-foreground" htmlFor="ex-region">
+      <div className="min-w-[16rem]">
+        <label className="sr-only" htmlFor="ex-region">
           Регион
         </label>
         <ReferenceSelect
@@ -88,8 +88,8 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
           placeholder="Выберите регион"
         />
       </div>
-      <div className="flex flex-col gap-1 min-w-[16rem]">
-        <label className="text-xs text-muted-foreground" htmlFor="ex-load">
+      <div className="min-w-[16rem]">
+        <label className="sr-only" htmlFor="ex-load">
           Тип нагрузки
         </label>
         <ReferenceSelect

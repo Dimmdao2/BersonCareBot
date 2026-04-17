@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const verifyPostMock = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
+vi.mock("@/app-layer/integrator/verifyIntegratorSignature", () => ({
   verifyIntegratorSignature: verifyPostMock,
 }));
 
@@ -15,7 +15,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 const mockQuery = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({ query: mockQuery }),
 }));
 

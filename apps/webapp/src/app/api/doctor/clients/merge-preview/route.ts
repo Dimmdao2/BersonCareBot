@@ -3,9 +3,9 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getPool } from "@/infra/db/client";
-import { resolveMergePreviewIntegratorUserPresence } from "@/infra/mergePreviewIntegratorUserPresence";
-import { buildMergePreview } from "@/infra/platformUserMergePreview";
+import { getPool } from "@/app-layer/db/client";
+import { resolveMergePreviewIntegratorUserPresence } from "@/app-layer/merge/mergePreviewIntegratorUserPresence";
+import { buildMergePreview } from "@/app-layer/merge/platformUserMergePreview";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const uuid = z.string().uuid();

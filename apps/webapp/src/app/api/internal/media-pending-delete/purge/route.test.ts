@@ -10,7 +10,7 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-vi.mock("@/infra/repos/s3MediaStorage", () => ({
+vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   purgePendingMediaDeleteBatch: (...args: unknown[]) => purgeMock(...args),
 }));
 

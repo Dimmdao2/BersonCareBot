@@ -10,13 +10,13 @@ const { getSessionMock, buildMergePreviewMock, resolvePresenceMock } = vi.hoiste
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: getSessionMock,
 }));
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({ query: vi.fn() }),
 }));
-vi.mock("@/infra/platformUserMergePreview", () => ({
+vi.mock("@/app-layer/merge/platformUserMergePreview", () => ({
   buildMergePreview: (...args: unknown[]) => buildMergePreviewMock(...args),
 }));
-vi.mock("@/infra/mergePreviewIntegratorUserPresence", () => ({
+vi.mock("@/app-layer/merge/mergePreviewIntegratorUserPresence", () => ({
   resolveMergePreviewIntegratorUserPresence: (...args: unknown[]) => resolvePresenceMock(...args),
 }));
 

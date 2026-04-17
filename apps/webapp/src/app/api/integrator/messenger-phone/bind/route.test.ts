@@ -13,7 +13,7 @@ const { verifySignatureMock, executeMessengerPhoneHttpBindMock, getPoolMock } = 
   })),
 }));
 
-vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
+vi.mock("@/app-layer/integrator/verifyIntegratorSignature", () => ({
   verifyIntegratorSignature: verifySignatureMock,
 }));
 
@@ -21,8 +21,8 @@ vi.mock("@/modules/integrator/messengerPhoneHttpBindExecute", () => ({
   executeMessengerPhoneHttpBind: (...args: unknown[]) => executeMessengerPhoneHttpBindMock(...args),
 }));
 
-vi.mock("@/infra/db/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/infra/db/client")>();
+vi.mock("@/app-layer/db/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/app-layer/db/client")>();
   return {
     ...actual,
     getPool: () => getPoolMock(),

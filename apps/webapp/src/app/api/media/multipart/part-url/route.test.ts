@@ -18,12 +18,12 @@ vi.mock("@/config/env", () => ({
   isS3MediaEnabled: () => true,
 }));
 
-vi.mock("@/infra/repos/mediaUploadSessionsRepo", () => ({
+vi.mock("@/app-layer/media/mediaUploadSessionsRepo", () => ({
   bumpSessionToUploading: (...args: unknown[]) => bumpMock(...args),
   gateUploadSessionForPartUrl: (...args: unknown[]) => getRowMock(...args),
 }));
 
-vi.mock("@/infra/s3/client", () => ({
+vi.mock("@/app-layer/media/s3Client", () => ({
   presignUploadPartUrl: (...args: unknown[]) => presignMock(...args),
 }));
 

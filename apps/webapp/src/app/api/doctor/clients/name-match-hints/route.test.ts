@@ -8,10 +8,10 @@ const { getSessionMock, buildReportMock } = vi.hoisted(() => ({
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: getSessionMock,
 }));
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({}),
 }));
-vi.mock("@/infra/platformUserNameMatchHints", () => ({
+vi.mock("@/app-layer/merge/platformUserNameMatchHints", () => ({
   buildNameMatchHintsReport: (...args: unknown[]) => buildReportMock(...args),
 }));
 

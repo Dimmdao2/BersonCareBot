@@ -8,10 +8,10 @@ const { getSessionMock, searchMock } = vi.hoisted(() => ({
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: getSessionMock,
 }));
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({}),
 }));
-vi.mock("@/infra/platformUserMergePreview", () => ({
+vi.mock("@/app-layer/merge/platformUserMergePreview", () => ({
   searchMergeUsersForManualMerge: (...args: unknown[]) => searchMock(...args),
 }));
 

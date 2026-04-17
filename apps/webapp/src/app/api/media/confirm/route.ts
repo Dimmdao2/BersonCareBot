@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
-import { confirmMediaFileReady, getMediaRowForConfirm } from "@/infra/repos/s3MediaStorage";
-import { s3HeadObject } from "@/infra/s3/client";
+import { confirmMediaFileReady, getMediaRowForConfirm } from "@/app-layer/media/s3MediaStorage";
+import { s3HeadObject } from "@/app-layer/media/s3Client";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 

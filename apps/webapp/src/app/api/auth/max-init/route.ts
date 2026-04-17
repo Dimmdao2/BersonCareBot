@@ -3,7 +3,7 @@ import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { isMiniappAuthVerboseServerLogEnabled } from "@/modules/auth/miniappAuthVerboseServerLog";
 import { logAuthRouteTiming } from "@/modules/auth/authRouteObservability";
-import { logger } from "@/infra/logging/logger";
+import { logger } from "@/app-layer/logging/logger";
 import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
 
 const bodySchema = z.object({

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { pgFolderExists } from "@/infra/repos/mediaFoldersRepo";
+import { pgFolderExists } from "@/app-layer/media/mediaFoldersRepo";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 

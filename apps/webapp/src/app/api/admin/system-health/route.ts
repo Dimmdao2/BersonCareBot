@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { env, isS3MediaEnabled } from "@/config/env";
-import { logger } from "@/infra/logging/logger";
-import { getPool } from "@/infra/db/client";
-import { proxyIntegratorProjectionHealth } from "@/infra/health/proxyIntegratorProjectionHealth";
+import { logger } from "@/app-layer/logging/logger";
+import { getPool } from "@/app-layer/db/client";
+import { proxyIntegratorProjectionHealth } from "@/app-layer/health/proxyIntegratorProjectionHealth";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const INTEGRATOR_TIMEOUT_MS = 8_000;

@@ -12,15 +12,15 @@ vi.mock("@/config/env", () => ({
   isS3MediaEnabled: () => true,
 }));
 
-vi.mock("@/infra/repos/s3MediaStorage", () => ({
+vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   getMediaS3KeyForRedirect: (...args: unknown[]) => getS3KeyMock(...args),
 }));
 
-vi.mock("@/infra/repos/mockMediaStorage", () => ({
+vi.mock("@/app-layer/media/mockMediaStorage", () => ({
   getStoredMediaBody: (...args: unknown[]) => getStoredMock(...args),
 }));
 
-vi.mock("@/infra/s3/client", () => ({
+vi.mock("@/app-layer/media/s3Client", () => ({
   presignGetUrl: (...args: unknown[]) => presignGetUrlMock(...args),
 }));
 

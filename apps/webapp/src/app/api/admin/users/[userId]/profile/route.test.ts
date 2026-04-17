@@ -12,10 +12,10 @@ const { getSessionMock, resolveCanonicalMock } = vi.hoisted(() => ({
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: getSessionMock,
 }));
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({ query: poolQueryMock }),
 }));
-vi.mock("@/infra/repos/pgCanonicalPlatformUser", () => ({
+vi.mock("@/app-layer/platform-user/canonicalPlatformUser", () => ({
   resolveCanonicalUserId: (...args: unknown[]) => resolveCanonicalMock(...args),
 }));
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -25,7 +25,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     },
   }),
 }));
-vi.mock("@/infra/adminAuditLog", () => ({
+vi.mock("@/app-layer/admin/auditLog", () => ({
   writeAuditLog: (...args: unknown[]) => writeAuditLogMock(...args),
 }));
 

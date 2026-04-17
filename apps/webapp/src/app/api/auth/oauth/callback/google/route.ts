@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { webappReposAreInMemory } from "@/config/env";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { verifySignedOAuthState } from "@/modules/auth/oauthSignedState";
 import {
   getGoogleClientId,
@@ -9,8 +9,6 @@ import {
 } from "@/modules/system-settings/integrationRuntime";
 import { exchangeGoogleCode, fetchGoogleUserProfile } from "@/modules/google-calendar/googleOAuthHelpers";
 import { resolveUserIdForWebOAuthLogin } from "@/modules/auth/oauthWebLoginResolve";
-import { pgOAuthBindingsPort } from "@/infra/repos/pgOAuthBindings";
-import { inMemoryOAuthBindingsPort } from "@/infra/repos/inMemoryOAuthBindings";
 import {
   completeOAuthWebLoginRedirectUrls,
   oauthWebLoginErrorRedirect,
@@ -58,9 +56,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect("userinfo_failed"), appBase));
   }
 
-  const oauthPort = webappReposAreInMemory() ? inMemoryOAuthBindingsPort : pgOAuthBindingsPort;
-
-  const resolved = await resolveUserIdForWebOAuthLogin(oauthPort, {
+  const resolved = await resolveUserIdForWebOAuthLogin(buildAppDeps().oauthBindings, {
     provider: "google",
     providerUserId: profile.sub,
     email: profile.email,

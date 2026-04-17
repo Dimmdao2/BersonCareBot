@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { upsertOpenConflictLog, writeAuditLog } from "@/infra/adminAuditLog";
-import { getPool } from "@/infra/db/client";
-import { computeIntegratorEventsRequestHash } from "@/infra/idempotency/integratorEventSemanticHash";
+import { upsertOpenConflictLog, writeAuditLog } from "@/app-layer/admin/auditLog";
+import { getPool } from "@/app-layer/db/client";
+import { computeIntegratorEventsRequestHash } from "@/app-layer/idempotency/integratorEventSemanticHash";
 import { handleIntegratorEvent } from "@/modules/integrator/events";
-import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
-import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency";
-import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
+import { resolveCanonicalUserId } from "@/app-layer/platform-user/canonicalPlatformUser";
+import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
+import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 
 function eventBodyFromParsed(parsed: Record<string, unknown>): {
   eventType: string;

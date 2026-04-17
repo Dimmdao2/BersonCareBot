@@ -21,13 +21,13 @@ export function CatalogSplitLayout({
   return (
     <div
       className={cn(
-        "relative min-h-[calc(100dvh-8rem)] overflow-hidden lg:grid lg:min-h-0 lg:grid-cols-2 lg:items-start lg:gap-4 lg:overflow-visible",
+        "relative min-h-[calc(100dvh-8rem)] overflow-hidden lg:grid lg:min-h-0 lg:grid-cols-2 lg:items-stretch lg:gap-3 lg:overflow-visible",
         className,
       )}
     >
       <div
         className={cn(
-          "absolute inset-0 overflow-y-auto transition-transform duration-300 ease-out lg:static lg:overflow-visible lg:translate-x-0",
+          "absolute inset-0 overflow-y-auto transition-transform duration-300 ease-out lg:static lg:flex lg:min-h-0 lg:flex-col lg:overflow-visible lg:translate-x-0",
           mobileView === "list" ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -36,7 +36,7 @@ export function CatalogSplitLayout({
 
       <div
         className={cn(
-          "absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out lg:static lg:z-auto lg:overflow-visible lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0 lg:translate-x-0",
+          "absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out lg:static lg:z-auto lg:flex lg:min-h-0 lg:flex-col lg:overflow-visible lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0 lg:translate-x-0",
           mobileView === "detail" ? "translate-x-0" : "translate-x-full",
         )}
       >

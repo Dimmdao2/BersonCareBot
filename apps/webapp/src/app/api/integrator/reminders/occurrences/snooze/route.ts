@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
+import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/infra/db/client";
-import { findCanonicalUserIdByIntegratorId } from "@/infra/repos/pgCanonicalPlatformUser";
+import { getPool } from "@/app-layer/db/client";
+import { findCanonicalUserIdByIntegratorId } from "@/app-layer/platform-user/canonicalPlatformUser";
 
 const MINUTES = new Set([30, 60, 120]);
 

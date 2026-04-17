@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { webappReposAreInMemory } from "@/config/env";
-import { pgListExerciseUsageForMediaIds } from "@/infra/repos/pgLfkExercises";
+import { pgListExerciseUsageForMediaIds } from "@/app-layer/lfk/pgLfkExercisesQueries";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 

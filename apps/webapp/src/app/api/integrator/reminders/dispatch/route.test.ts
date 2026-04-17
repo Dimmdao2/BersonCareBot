@@ -6,7 +6,7 @@ const { verifySignatureMock, handleReminderDispatchMock } = vi.hoisted(() => ({
   handleReminderDispatchMock: vi.fn(),
 }));
 
-vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
+vi.mock("@/app-layer/integrator/verifyIntegratorSignature", () => ({
   verifyIntegratorSignature: verifySignatureMock,
 }));
 

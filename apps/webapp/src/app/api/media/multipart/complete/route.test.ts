@@ -28,17 +28,17 @@ vi.mock("@/config/env", () => ({
   isS3MediaEnabled: () => true,
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({}),
 }));
 
-vi.mock("@/infra/multipartSessionLock", () => ({
+vi.mock("@/app-layer/locks/multipartSessionLock", () => ({
   withMultipartSessionLock: vi.fn(async (_p: unknown, _sid: string, fn: (c: unknown) => Promise<unknown>) =>
     fn({}),
   ),
 }));
 
-vi.mock("@/infra/repos/mediaUploadSessionsRepo", () => ({
+vi.mock("@/app-layer/media/mediaUploadSessionsRepo", () => ({
   claimUploadSessionForCompletingTx: (...a: unknown[]) => claimTxMock(...a),
   getCompletingSessionTx: (...a: unknown[]) => getCompletingTxMock(...a),
   classifyMultipartCompleteRejection: (...a: unknown[]) => classifyRejectMock(...a),
@@ -46,11 +46,11 @@ vi.mock("@/infra/repos/mediaUploadSessionsRepo", () => ({
   tryFinalizeMultipartIdempotentTx: (...a: unknown[]) => tryFinalizeTxMock(...a),
 }));
 
-vi.mock("@/infra/repos/s3MediaStorage", () => ({
+vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   deletePendingMediaFileById: (...a: unknown[]) => deletePendingMock(...a),
 }));
 
-vi.mock("@/infra/s3/client", () => ({
+vi.mock("@/app-layer/media/s3Client", () => ({
   s3CompleteMultipartUpload: (...a: unknown[]) => completeS3Mock(...a),
   s3AbortMultipartUpload: (...a: unknown[]) => abortS3Mock(...a),
   s3DeleteObject: (...a: unknown[]) => deleteObjMock(...a),

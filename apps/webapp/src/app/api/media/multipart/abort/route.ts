@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
-import { logger } from "@/infra/logging/logger";
-import { getPool } from "@/infra/db/client";
-import { withMultipartSessionLock } from "@/infra/multipartSessionLock";
-import { abortMultipartPendingTx } from "@/infra/repos/mediaUploadSessionsRepo";
-import { s3AbortMultipartUpload } from "@/infra/s3/client";
+import { logger } from "@/app-layer/logging/logger";
+import { getPool } from "@/app-layer/db/client";
+import { withMultipartSessionLock } from "@/app-layer/locks/multipartSessionLock";
+import { abortMultipartPendingTx } from "@/app-layer/media/mediaUploadSessionsRepo";
+import { s3AbortMultipartUpload } from "@/app-layer/media/s3Client";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 

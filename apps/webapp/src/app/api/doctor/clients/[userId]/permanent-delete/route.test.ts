@@ -20,12 +20,12 @@ const { getSessionMock, buildAppDepsMock, getClientIdentityMock } = vi.hoisted((
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: buildAppDepsMock,
 }));
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({
     query: poolQueryMock,
   }),
 }));
-vi.mock("@/infra/strictPlatformUserPurge", () => ({
+vi.mock("@/app-layer/merge/strictPlatformUserPurge", () => ({
   runStrictPurgePlatformUser: (...args: unknown[]) => purgeMock(...args),
 }));
 vi.mock("@/modules/auth/requireAdminMode", () => ({

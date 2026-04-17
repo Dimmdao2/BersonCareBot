@@ -9,7 +9,7 @@ vi.mock("@/modules/auth/service", () => ({
   getCurrentSession: () => getSessionMock(),
 }));
 
-vi.mock("@/infra/repos/s3MediaStorage", () => ({
+vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   listMediaDeleteErrors: (...args: unknown[]) => listMock(...args),
 }));
 

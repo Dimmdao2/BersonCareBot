@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
+import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 import { completeChannelLinkFromIntegrator } from "@/modules/auth/channelLink";
 
 const bodySchema = z.object({

@@ -19,7 +19,7 @@ vi.mock("@/config/env", () => ({
   isS3MediaEnabled: () => true,
 }));
 
-vi.mock("@/infra/userLifecycleLock", () => ({
+vi.mock("@/app-layer/locks/userLifecycleLock", () => ({
   withUserLifecycleLock: async (
     _pool: unknown,
     _userId: string,
@@ -30,19 +30,19 @@ vi.mock("@/infra/userLifecycleLock", () => ({
   },
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({ query: vi.fn().mockResolvedValue({ rowCount: 0 }) }),
 }));
 
-vi.mock("@/infra/repos/s3MediaStorage", () => ({
+vi.mock("@/app-layer/media/s3MediaStorage", () => ({
   insertPendingMediaFileTx: (...args: unknown[]) => insertPendingMock(...args),
 }));
 
-vi.mock("@/infra/repos/mediaUploadSessionsRepo", () => ({
+vi.mock("@/app-layer/media/mediaUploadSessionsRepo", () => ({
   insertUploadSessionTx: (...args: unknown[]) => insertSessionMock(...args),
 }));
 
-vi.mock("@/infra/s3/client", () => ({
+vi.mock("@/app-layer/media/s3Client", () => ({
   s3ObjectKey: (mediaId: string, filename: string) => `media/${mediaId}/${filename}`,
   s3CreateMultipartUpload: (...args: unknown[]) => createMultipartMock(...args),
   s3AbortMultipartUpload: vi.fn().mockResolvedValue(undefined),

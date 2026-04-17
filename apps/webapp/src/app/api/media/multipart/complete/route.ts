@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
-import { getPool } from "@/infra/db/client";
-import { logger } from "@/infra/logging/logger";
-import { withMultipartSessionLock } from "@/infra/multipartSessionLock";
+import { getPool } from "@/app-layer/db/client";
+import { logger } from "@/app-layer/logging/logger";
+import { withMultipartSessionLock } from "@/app-layer/locks/multipartSessionLock";
 import {
   claimUploadSessionForCompletingTx,
   classifyMultipartCompleteRejection,
   getCompletingSessionTx,
   markCompletingSessionFailedTx,
   tryFinalizeMultipartIdempotentTx,
-} from "@/infra/repos/mediaUploadSessionsRepo";
-import { deletePendingMediaFileById } from "@/infra/repos/s3MediaStorage";
+} from "@/app-layer/media/mediaUploadSessionsRepo";
+import { deletePendingMediaFileById } from "@/app-layer/media/s3MediaStorage";
 import {
   s3AbortMultipartUpload,
   s3CompleteMultipartUpload,
   s3DeleteObject,
   s3HeadObjectDetails,
-} from "@/infra/s3/client";
+} from "@/app-layer/media/s3Client";
 import { multipartMaxPartNumber } from "@/modules/media/multipartConstants";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";

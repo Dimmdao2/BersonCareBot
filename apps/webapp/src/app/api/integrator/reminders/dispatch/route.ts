@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { handleReminderDispatch } from "@/modules/integrator/reminderDispatch";
 import { validateReminderDispatchPayload } from "@/modules/reminders/service";
-import { getCachedResponse, isKeyValid, setCachedResponse } from "@/infra/idempotency";
-import { verifyIntegratorSignature } from "@/infra/webhooks/verifyIntegratorSignature";
+import { getCachedResponse, isKeyValid, setCachedResponse } from "@/app-layer/idempotency/idempotencyStore";
+import { verifyIntegratorSignature } from "@/app-layer/integrator/verifyIntegratorSignature";
 
 export async function POST(request: Request) {
   const timestamp = request.headers.get("x-bersoncare-timestamp");

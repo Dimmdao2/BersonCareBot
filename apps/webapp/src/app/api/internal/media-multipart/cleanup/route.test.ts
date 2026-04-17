@@ -14,17 +14,17 @@ vi.mock("@/config/env", () => ({
   env: envHolder,
 }));
 
-vi.mock("@/infra/repos/mediaUploadSessionsRepo", () => ({
+vi.mock("@/app-layer/media/mediaUploadSessionsRepo", () => ({
   listExpiredActiveUploadSessions: (...args: unknown[]) => listExpiredMock(...args),
   markUploadSessionExpired: (...args: unknown[]) => markExpiredMock(...args),
   markUploadSessionExpiredTx: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/infra/s3/client", () => ({
+vi.mock("@/app-layer/media/s3Client", () => ({
   s3AbortMultipartUpload: (...args: unknown[]) => abortMock(...args),
 }));
 
-vi.mock("@/infra/multipartSessionLock", () => ({
+vi.mock("@/app-layer/locks/multipartSessionLock", () => ({
   withMultipartSessionLock: async (
     _pool: unknown,
     _sessionId: string,
@@ -47,7 +47,7 @@ vi.mock("@/infra/multipartSessionLock", () => ({
   },
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({}),
 }));
 

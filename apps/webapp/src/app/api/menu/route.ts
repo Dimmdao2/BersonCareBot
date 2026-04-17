@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
+import { logServerRuntimeError } from "@/app-layer/logging/serverRuntimeLog";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 
 export async function GET() {

@@ -5,7 +5,7 @@
 
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { logger } from "@/infra/logging/logger";
+import { logger } from "@/app-layer/logging/logger";
 import { env } from "@/config/env";
 import { getCurrentSession } from "@/modules/auth/service";
 import { getTelegramBotToken } from "@/modules/system-settings/integrationRuntime";

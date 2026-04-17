@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { env, isS3MediaEnabled } from "@/config/env";
-import { bumpSessionToUploading, gateUploadSessionForPartUrl } from "@/infra/repos/mediaUploadSessionsRepo";
-import { presignUploadPartUrl } from "@/infra/s3/client";
+import { bumpSessionToUploading, gateUploadSessionForPartUrl } from "@/app-layer/media/mediaUploadSessionsRepo";
+import { presignUploadPartUrl } from "@/app-layer/media/s3Client";
 import { getCurrentSession } from "@/modules/auth/service";
 import { multipartMaxPartNumber } from "@/modules/media/multipartConstants";
 import { canAccessDoctor } from "@/modules/roles/service";

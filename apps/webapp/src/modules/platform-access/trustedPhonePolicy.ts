@@ -6,7 +6,7 @@
  * - обновить `patient_phone_trust_at` согласно одному из зарегистрированных путей ниже, либо
  * - не рассчитывать на tier patient для этого пользователя до отдельного решения.
  *
- * Список в `docs/PLATFORM_IDENTITY_ACCESS/SCENARIOS_AND_CODE_MAP.md` §8 синхронизируется с этим enum.
+ * Список в `docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §8 синхронизируется с этим enum.
  *
  * **Read-side:** решение «телефон на каноне засчитан для patient» (`SPECIFICATION.md` §5) —
  * только через `isTrustedPatientPhoneActivation`; не дублировать условие в других модулях.

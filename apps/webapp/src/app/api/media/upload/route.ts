@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/infra/db/client";
-import { logger } from "@/infra/logging/logger";
+import { getPool } from "@/app-layer/db/client";
+import { logger } from "@/app-layer/logging/logger";
 import { ALLOWED_MEDIA_MIME, MAX_PROXY_UPLOAD_BYTES } from "@/modules/media/uploadAllowedMime";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";

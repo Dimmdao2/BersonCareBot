@@ -14,6 +14,7 @@ import { MediaPickerList, type MediaListItem } from "@/shared/ui/media/MediaPick
 import {
   buildAdminMediaListUrl,
   filterMediaLibraryPickerItemsByQuery,
+  invalidateMediaLibraryPickerListCache,
   narrowMediaLibraryPickerItemsByKind,
   useMediaLibraryPickerItems,
   type MediaLibraryPickerKindFilter,
@@ -177,6 +178,7 @@ export function MediaPickerPanel({
     Record<string, MediaExerciseUsageEntry[]>
   >({});
   const [usageReady, setUsageReady] = useState(false);
+  const [libraryReloadKey, setLibraryReloadKey] = useState(0);
 
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -200,7 +202,11 @@ export function MediaPickerPanel({
     [apiKind, folderId, listSortBy, listSortDir, showSort],
   );
 
-  const { items, loading, error } = useMediaLibraryPickerItems({ open, listUrl });
+  const { items, loading, error } = useMediaLibraryPickerItems({
+    open,
+    listUrl,
+    reloadKey: libraryReloadKey,
+  });
 
   const usageRequestRef = useRef(0);
 
@@ -401,6 +407,8 @@ export function MediaPickerPanel({
           setUploadError(uploadKindRejectedRuMessage(kind));
           return;
         }
+        invalidateMediaLibraryPickerListCache(listUrl);
+        setLibraryReloadKey((k) => k + 1);
         onPick(row);
       } catch (e) {
         if (e instanceof UploadRequestError) {
@@ -419,7 +427,7 @@ export function MediaPickerPanel({
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [onPick, uploadTargetFolderId, kind],
+    [onPick, uploadTargetFolderId, kind, listUrl],
   );
 
   const onFileInputChange = useCallback(
@@ -530,6 +538,7 @@ export function MediaPickerPanel({
           error={error}
           onSelect={onPick}
           exerciseUsageByMediaId={exercisePicker ? exerciseUsageByMediaId : undefined}
+          enableQuickPreview={exercisePicker}
         />
       </TabsContent>
 

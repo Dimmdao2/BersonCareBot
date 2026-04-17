@@ -35,11 +35,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   })),
 }));
 
-vi.mock("@/infra/health/proxyIntegratorProjectionHealth", () => ({
+vi.mock("@/app-layer/health/proxyIntegratorProjectionHealth", () => ({
   proxyIntegratorProjectionHealth: proxyIntegratorProjectionHealthMock,
 }));
 
-vi.mock("@/infra/logging/logger", () => ({
+vi.mock("@/app-layer/logging/logger", () => ({
   logger: {
     info: loggerInfoMock,
     warn: loggerWarnMock,
@@ -51,7 +51,7 @@ vi.mock("@/config/env", () => ({
   isS3MediaEnabled: isS3MediaEnabledMock,
 }));
 
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: vi.fn(() => ({
     query: poolQueryMock,
   })),

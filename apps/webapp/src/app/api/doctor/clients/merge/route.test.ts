@@ -8,13 +8,13 @@ const gateMock = vi.fn();
 vi.mock("@/modules/auth/requireAdminMode", () => ({
   requireAdminModeSession: (...a: unknown[]) => getSessionMock(...a),
 }));
-vi.mock("@/infra/manualMergeIntegratorGate", () => ({
+vi.mock("@/app-layer/merge/manualMergeIntegratorGate", () => ({
   verifyManualMergeIntegratorIntegratorGate: (...a: unknown[]) => gateMock(...a),
 }));
-vi.mock("@/infra/manualPlatformUserMerge", () => ({
+vi.mock("@/app-layer/merge/manualPlatformUserMerge", () => ({
   runManualPlatformUserMerge: (...a: unknown[]) => runManualMock(...a),
 }));
-vi.mock("@/infra/db/client", () => ({
+vi.mock("@/app-layer/db/client", () => ({
   getPool: () => ({ query: vi.fn() }),
 }));
 

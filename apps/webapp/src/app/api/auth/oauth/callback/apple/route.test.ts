@@ -14,6 +14,7 @@ vi.mock("@/config/env", () => ({
     APP_BASE_URL: "http://localhost",
     SESSION_COOKIE_SECRET: "test-session-secret-16chars",
   },
+  /** Required because `route.ts` pulls in `buildAppDeps` at module scope. */
   webappReposAreInMemory: () => true,
 }));
 

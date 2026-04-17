@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { logger } from "@/infra/logging/logger";
+import { logger } from "@/app-layer/logging/logger";
 
 export async function GET() {
   const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patientBooking });

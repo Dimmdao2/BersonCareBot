@@ -2,7 +2,10 @@
 
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
-import { useMediaLibraryPickerItems } from "@/shared/ui/media/useMediaLibraryPickerItems";
+import {
+  invalidateMediaLibraryPickerListCache,
+  useMediaLibraryPickerItems,
+} from "@/shared/ui/media/useMediaLibraryPickerItems";
 
 const sampleItem = {
   id: "x",
@@ -16,6 +19,7 @@ const sampleItem = {
 
 describe("useMediaLibraryPickerItems", () => {
   afterEach(() => {
+    invalidateMediaLibraryPickerListCache();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -101,5 +105,56 @@ describe("useMediaLibraryPickerItems", () => {
     });
 
     expect(result.current.items).toEqual([]);
+  });
+
+  it("uses in-memory cache on reopen with same listUrl (single fetch)", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, items: [sampleItem] }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ open }: { open: boolean }) =>
+        useMediaLibraryPickerItems({ open, listUrl: "/api/admin/media?cache=test" }),
+      { initialProps: { open: true } },
+    );
+
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    rerender({ open: false });
+    rerender({ open: true });
+
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("refetches when reloadKey increments", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, items: [sampleItem] }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = renderHook(
+      ({ reloadKey }: { reloadKey: number }) =>
+        useMediaLibraryPickerItems({
+          open: true,
+          listUrl: "/api/admin/media?reload=key",
+          reloadKey,
+        }),
+      { initialProps: { reloadKey: 0 } },
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    rerender({ reloadKey: 1 });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
   });
 });

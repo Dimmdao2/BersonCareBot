@@ -3,7 +3,7 @@
  */
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { postIntegratorSignedJson } from "@/infra/integrations/integratorSignedPost";
+import { postIntegratorSignedJson } from "@/app-layer/integrations/integratorSignedPost";
 import { getCurrentSession } from "@/modules/auth/service";
 import { canAccessDoctor } from "@/modules/roles/service";
 

@@ -5,8 +5,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getPool } from "@/infra/db/client";
-import { runStrictPurgePlatformUser } from "@/infra/strictPlatformUserPurge";
+import { getPool } from "@/app-layer/db/client";
+import { runStrictPurgePlatformUser } from "@/app-layer/merge/strictPlatformUserPurge";
 import { requireAdminModeSession } from "@/modules/auth/requireAdminMode";
 
 const bodySchema = z.object({
