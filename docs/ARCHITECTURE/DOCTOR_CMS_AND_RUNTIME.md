@@ -36,7 +36,7 @@
 
 ## Журнал работ и отчёты
 
-- Хронология реализации (сайдбар, `?section=`, логирование, мягкая деградация): [`../REPORTS/CMS_DOCTOR_HUB_EXECUTION_LOG.md`](../REPORTS/CMS_DOCTOR_HUB_EXECUTION_LOG.md).
+- Хронология реализации (сайдбар, `?section=`, логирование, мягкая деградация) — архив: [`../archive/2026-04-docs-cleanup/reports/CMS_DOCTOR_HUB_EXECUTION_LOG.md`](../archive/2026-04-docs-cleanup/reports/CMS_DOCTOR_HUB_EXECUTION_LOG.md).
 
 ## Связанные документы
 

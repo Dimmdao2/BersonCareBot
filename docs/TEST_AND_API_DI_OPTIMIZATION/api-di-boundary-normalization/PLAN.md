@@ -64,6 +64,9 @@
 2. CI шаг: `rg '@/infra/' apps/webapp/src/app/api --glob '**/route.ts'` с allowlist файлом исключений.
 3. Vitest «architecture test» сканирующий AST — только если (1)-(2) недостаточно.
 
+Текущий формальный allowlist (post-Cluster G snapshot):  
+`ALLOWLIST_REMAINING_INFRA_ROUTE_IMPORTS.md`.
+
 ## Архитектурные документы — обновить после трека
 
 | Документ | Действие |

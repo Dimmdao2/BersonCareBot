@@ -1,6 +1,6 @@
 # Фаза 1 — атомарные задачи (1.1–1.13)
 
-Источник: `docs/BRANCH_UX_CMS_BOOKING/PLAN.md` (раздел «Фаза 1»), `docs/BRANCH_UX_CMS_BOOKING/DECOMPOSITION_MODEL.md`, `docs/REPORTS/UX_ANALYSIS_2026-03-31.md` (раздел 3).
+Источник: `docs/BRANCH_UX_CMS_BOOKING/PLAN.md` (раздел «Фаза 1»), `docs/BRANCH_UX_CMS_BOOKING/DECOMPOSITION_MODEL.md`, `docs/archive/2026-04-docs-cleanup/reports/UX_ANALYSIS_2026-03-31.md` (раздел 3).
 
 Ниже декомпозиция Фазы 1 по 3 блокам: 1.A (загрузка), 1.B (просмотр), 1.C (Picker/CMS).  
 Спецификации привязаны к текущему состоянию кода:

@@ -1,6 +1,6 @@
 # Фаза 0 — атомарные задачи (0.1–0.8)
 
-Источник: `docs/BRANCH_UX_CMS_BOOKING/PLAN.md` (раздел «Фаза 0»), `docs/BRANCH_UX_CMS_BOOKING/DECOMPOSITION_MODEL.md`, `docs/REPORTS/UX_ANALYSIS_2026-03-31.md`.
+Источник: `docs/BRANCH_UX_CMS_BOOKING/PLAN.md` (раздел «Фаза 0»), `docs/BRANCH_UX_CMS_BOOKING/DECOMPOSITION_MODEL.md`, `docs/archive/2026-04-docs-cleanup/reports/UX_ANALYSIS_2026-03-31.md`.
 
 Ниже зафиксирована декомпозиция по шаблону с привязкой к текущему коду и точным диапазонам строк (актуально на момент подготовки документа).
 

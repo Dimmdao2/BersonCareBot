@@ -88,4 +88,4 @@
 ## Связанные документы
 
 - Пайплайн превью и воркер: [`MEDIA_PREVIEW_PIPELINE.md`](../MEDIA_PREVIEW_PIPELINE.md)
-- Лог правок: [`REPORTS/AGENT_LOG_2026-04-16-media-preview-audit-followup.md`](../REPORTS/AGENT_LOG_2026-04-16-media-preview-audit-followup.md)
+- Лог правок (архив): [`../archive/2026-04-docs-cleanup/reports/AGENT_LOG_2026-04-16-media-preview-audit-followup.md`](../archive/2026-04-docs-cleanup/reports/AGENT_LOG_2026-04-16-media-preview-audit-followup.md)

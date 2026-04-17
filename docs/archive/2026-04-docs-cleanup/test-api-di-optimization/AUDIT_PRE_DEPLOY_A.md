@@ -16,7 +16,7 @@
 | `docs/TEST_AND_API_DI_OPTIMIZATION/**` (в т.ч. `test-optimization/*`, `EXECUTION_RULES`, `MASTER_PLAN`, `README`) | Доки инициативы |
 | `apps/webapp/src/shared/ui/AuthBootstrap.tsx` | Прод-код webapp (**вне** формулировки «только тесты» трека A) |
 | `apps/webapp/src/shared/ui/AuthBootstrap.test.tsx` | Тест webapp (**вне** инициативной папки docs) |
-| `docs/TEST_AND_API_DI_OPTIMIZATION/AUDIT_INIT.md`, `AUDIT_TRACK_A.md` | Новые/обновлённые отчёты |
+| `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_INIT.md`, `AUDIT_TRACK_A.md` | Новые/обновлённые отчёты |
 
 ### Трек B (`apps/webapp/src/app/api/**/route.ts`, DI-boundary)
 

@@ -29,7 +29,7 @@
 
 ## Правила трека A перед удалением или отключением тестов (closure AUDIT_TRACK_A)
 
-Закрепляет **Major** / **Critical** из `AUDIT_TRACK_A.md` → MANDATORY FIX (процесс, не предполагают нарушения на текущем шаге):
+Закрепляет **Major** / **Critical** из `AUDIT_TRACK_A.md` (закрытый отчёт: `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_TRACK_A.md`) → MANDATORY FIX (процесс, не предполагают нарушения на текущем шаге):
 
 1. **Удаление или постоянное отключение** любого e2e / `route.test.ts`: обязательны mapping `old path → replacement path(s)` и краткое обоснование в **`test-optimization/LOG.md`** (см. `../EXECUTION_RULES.md`). Без mapping — результат трека A **REWORK_REQUIRED**.
 2. **Снятие покрытия** с семейств из `PLAN.md` § «Обязательные контракты» и со списка «Критичные тесты» ниже **без замены** и без явного решения команды — **запрещено**; при ошибке в документах или suite — править доки/откатить тесты.

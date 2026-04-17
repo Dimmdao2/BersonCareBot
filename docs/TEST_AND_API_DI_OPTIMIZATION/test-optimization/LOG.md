@@ -1,5 +1,22 @@
 # LOG — test optimization track
 
+## 2026-04-17 — final closure sync (AUDIT_FINAL critical/major, docs layer)
+
+**Контекст:** финализация инициативы по `AUDIT_FINAL.md` потребовала cross-track doc closure без изменения тестового кода трека A.
+
+**Сделано:**
+
+- В `AUDIT_FINAL.md` закрыты `MF-FINAL-2` и `MF-FINAL-3` (единая матрица статусов документов из `MASTER_PLAN.md` и единый блок CI evidence).
+- В `api-di-boundary-normalization/` добавлен allowlist-артефакт для остаточных `@/infra` в `route.ts` (закрытие `MF-FINAL-1`, см. B-track LOG).
+- Обновлён исторический индекс `docs/archive/2026-04-docs-cleanup/reports/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md` (ссылка на `AUDIT_FINAL.md` и финальный статус closure); позже индекс и пакет аудитов перенесены в архив при уборке `docs/`.
+
+**Проверки этого шага:**
+
+- Изменения только в документации.
+- `pnpm run ci` на этом подшаге **не** запускался (финальный gate выполняется отдельной командой в конце задачи).
+
+---
+
 ## 2026-04-17 — трек A: closure AUDIT_PRE_DEPLOY (critical/major)
 
 **Сделано:** обновлён `AUDIT_PRE_DEPLOY_A.md` — таблица **MANDATORY FIX closure** (TA-PD-0…3 **CLOSED**): уточнён TA-PD-1 (только A+B / `route.ts`; AuthBootstrap не трек B); добавлен § «Локальный pre-flight» (`rm -rf apps/webapp/.next`); блок ремедиации TA-PD-*r; **readiness к push** и напоминание повторить `pnpm install --frozen-lockfile && pnpm run ci` при новых изменениях после последнего зелёного gate.

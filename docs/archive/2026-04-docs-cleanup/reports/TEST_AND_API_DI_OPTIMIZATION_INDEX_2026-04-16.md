@@ -6,7 +6,7 @@
 
 - **Папка инициативы:** [`docs/TEST_AND_API_DI_OPTIMIZATION/`](../TEST_AND_API_DI_OPTIMIZATION/README.md)
 - **Master plan:** [`docs/TEST_AND_API_DI_OPTIMIZATION/MASTER_PLAN.md`](../TEST_AND_API_DI_OPTIMIZATION/MASTER_PLAN.md)
-- **Discovery (факты по репо):** [`docs/TEST_AND_API_DI_OPTIMIZATION/DISCOVERY_REPORT.md`](../TEST_AND_API_DI_OPTIMIZATION/DISCOVERY_REPORT.md)
+- **Discovery (факты по репо):** [`docs/archive/2026-04-docs-cleanup/test-api-di-optimization/DISCOVERY_REPORT.md`](../test-api-di-optimization/DISCOVERY_REPORT.md)
 
 ## Два трека (раздельное исполнение)
 
@@ -18,6 +18,11 @@
 ## Промпты для агента (копипаста)
 
 - [`docs/TEST_AND_API_DI_OPTIMIZATION/PROMPTS_EXEC_AUDIT_FIX.md`](../TEST_AND_API_DI_OPTIMIZATION/PROMPTS_EXEC_AUDIT_FIX.md)
+
+## Final closure
+
+- **Финальный сквозной аудит:** [`docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_FINAL.md`](../test-api-di-optimization/AUDIT_FINAL.md)
+- **Статус closure:** `PASS` (critical/major closure completed; allowlist formalized, docs sync/defer matrix fixed, unified CI evidence fixed)
 
 ## Baseline (кратко, детали в треке)
 

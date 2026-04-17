@@ -38,7 +38,7 @@
 Изучи документы:
 - docs/BRANCH_UX_CMS_BOOKING/PLAN.md — раздел «Фаза 0»
 - docs/BRANCH_UX_CMS_BOOKING/DECOMPOSITION_MODEL.md — шаблон атомарной задачи
-- docs/REPORTS/UX_ANALYSIS_2026-03-31.md — контекст проблем
+- docs/archive/2026-04-docs-cleanup/reports/UX_ANALYSIS_2026-03-31.md — контекст проблем
 
 Затем изучи код файлов, которые нужно менять:
 - apps/webapp/src/app-layer/routes/navigation.ts
@@ -133,7 +133,7 @@
 Изучи документы:
 - docs/BRANCH_UX_CMS_BOOKING/PLAN.md — раздел «Фаза 1»
 - docs/BRANCH_UX_CMS_BOOKING/DECOMPOSITION_MODEL.md — шаблон атомарной задачи
-- docs/REPORTS/UX_ANALYSIS_2026-03-31.md — раздел 3 (Медиабиблиотека)
+- docs/archive/2026-04-docs-cleanup/reports/UX_ANALYSIS_2026-03-31.md — раздел 3 (Медиабиблиотека)
 
 Изучи текущий код:
 - apps/webapp/src/app/app/doctor/content/library/MediaLibraryClient.tsx

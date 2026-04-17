@@ -1,6 +1,6 @@
 # TEST_AND_API_DI_OPTIMIZATION
 
-Документированная инициатива на базе **фактического** состояния репозитория (discovery 2026-04-16). **Изменений в runtime-коде, тестах и CI на этом этапе нет** — только документация и замеры baseline.
+Инициатива по **оптимизации тестов** (трек A) и **нормализации import-boundary в API** (трек B). Discovery и закрытый пакет аудита 2026-04 перенесены в **`docs/archive/2026-04-docs-cleanup/test-api-di-optimization/`**.
 
 ## Зачем два трека
 
@@ -15,23 +15,21 @@
 |--------------------|--------------------|
 | Корень `Docs/` | Используется **`docs/`** (lowercase). Инициатива: `docs/TEST_AND_API_DI_OPTIMIZATION/`. |
 
-Сводный индекс для навигации: [`docs/REPORTS/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md`](../REPORTS/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md).
+Исторический индекс навигации (2026-04): [`docs/archive/2026-04-docs-cleanup/reports/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md`](../archive/2026-04-docs-cleanup/reports/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md).
 
 ## Состав папки
 
 | Файл / папка | Назначение |
 |--------------|------------|
 | `MASTER_PLAN.md` | Цели, порядок фаз, checkpoints, критерии входа/выхода, синхронизация архитектурных документов. |
-| `DISCOVERY_REPORT.md` | Факты по репо: пути, конфиги, счётчики, hotspots, расхождения с исходным планом. |
-| `EXECUTION_RULES.md` | Жёсткие правила для будущего исполнителя (coverage, метрики, запреты). |
-| `AUDIT_INIT.md` | Аудит подготовительного прохода; **closure** пунктов MANDATORY FIX INSTRUCTIONS (critical/major). |
-| `PROMPTS_EXEC_AUDIT_FIX.md` | Промпты для агента: EXEC / AUDIT / FIX, pre-deploy, final (как в других инициативах). |
-| `test-optimization/` | План, инвентарь, риски, baseline только для **тестового** трека. |
-| `api-di-boundary-normalization/` | То же для трека **DI / import-boundary** API. |
+| `EXECUTION_RULES.md` | Жёсткие правила для исполнителя (coverage, метрики, запреты). |
+| `PROMPTS_EXEC_AUDIT_FIX.md` | Промпты для агента: EXEC / AUDIT / FIX (пути к архивным AUDIT_* см. внутри файла). |
+| `test-optimization/` | План, инвентарь, риски, baseline, LOG — **трек A**. |
+| `api-di-boundary-normalization/` | То же для **трека B** (DI / import-boundary API). |
 
 ## Рекомендуемый порядок чтения / исполнения
 
-1. `DISCOVERY_REPORT.md` → `MASTER_PLAN.md` → `EXECUTION_RULES.md` → `AUDIT_INIT.md` (статус closure) → при пошаговой работе с агентом: `PROMPTS_EXEC_AUDIT_FIX.md`.
+1. При необходимости контекста по снимку репо на 2026-04: `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/DISCOVERY_REPORT.md`. Далее `MASTER_PLAN.md` → `EXECUTION_RULES.md` → при работе с агентом: `PROMPTS_EXEC_AUDIT_FIX.md`.
 2. Трек A: `test-optimization/BASELINE.md` → `PLAN.md` → `INVENTORY.md` → `CHECKLIST.md` (при работе вести `LOG.md`).
 3. Checkpoint между A и B (см. `MASTER_PLAN.md`); полный CI перед **пушем**, не после каждого локального шага.
 4. Трек B: `api-di-boundary-normalization/BASELINE.md` → `PLAN.md` → …
@@ -44,7 +42,7 @@
 ## Связанные разделы существующей документации
 
 - **`docs/README.md`** — оглавление инициатив и ссылок на архитектуру.
-- **`docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md`** — composition roots, риски обхода DI (часть формулировок требует сверки с текущим кодом — см. `DISCOVERY_REPORT.md`).
+- **`docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md`** — composition roots, риски обхода DI (сверка со снимком: `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/DISCOVERY_REPORT.md`).
 - **`docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md`** — guardrails integrator/Telegram (не про webapp route imports; контекст безопасности).
 - **`apps/webapp/src/app/api/api.md`**, **`apps/webapp/src/app-layer/di/di.md`** — локальные описания API и DI (целью трека B будет синхронизация с кодом после рефакторинга).
 - **`docs/VIDEO_HLS_DELIVERY/04-test-strategy.md`** — пример отдельной test strategy по фиче (не дублируем содержимое).

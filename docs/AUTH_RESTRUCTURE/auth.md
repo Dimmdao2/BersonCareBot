@@ -1,6 +1,6 @@
 # Публичный вход (web), PIN и архитектура auth
 
-Каноническое описание модуля авторизации в коде: **`apps/webapp/src/modules/auth/auth.md`** (Telegram Login, OTP, OAuth в веб-UI, роли, API). Краткий отчёт по актуальному экрану входа: `docs/REPORTS/LOGIN_WEBAPP_UX_SYNC_2026-04-13.md`.
+Каноническое описание модуля авторизации в коде: **`apps/webapp/src/modules/auth/auth.md`** (Telegram Login, OTP, OAuth в веб-UI, роли, API). Снимок экрана входа (2026-04): `docs/archive/2026-04-docs-cleanup/reports/LOGIN_WEBAPP_UX_SYNC_2026-04-13.md`.
 
 ## Текущий контракт (Stage 5+)
 
@@ -23,4 +23,4 @@
 
 **Зачем позже:** вынести слои «детект контекста / режим UI / первичная auth-попытка» в **явные состояния и переходы**, уменьшить скрытые гонки, упростить сопровождение и безопаснее наращивать сценарии (MAX/TG/token/OAuth). Цель будущего этапа — не смена продуктовых правил, а **упорядочивание кода** (явные состояния, явные переходы, единый источник правды по epoch/cancellation). Этот рефакторинг **не входит** в текущий объём работ; статус по исполнению жёсткого плана см. `/.cursor/plans/auth_flow_strict_hardening_8718651e.plan.md` (§13 аудит и обновления после 2026-04-17).
 
-**Правки после внутреннего аудита (2026-04-17):** в `ensureMessengerMiniAppWebappSession` после неуспешного HTTP по binding-candidate выполнение **не обрывается** — сохраняется fallback на `exchange` по `?t=`; late initData в bootstrap **дедуплируется** по строке initData на эпоху; `loadMiniappAuthHelpLinks` передаёт `x-bc-auth-correlation-id`. Подробнее: `docs/REPORTS/AGENT_LOG_2026-04-17-auth-bootstrap-audit-fixes.md`, `apps/webapp/src/modules/auth/auth.md`.
+**Правки после внутреннего аудита (2026-04-17):** в `ensureMessengerMiniAppWebappSession` после неуспешного HTTP по binding-candidate выполнение **не обрывается** — сохраняется fallback на `exchange` по `?t=`; late initData в bootstrap **дедуплируется** по строке initData на эпоху; `loadMiniappAuthHelpLinks` передаёт `x-bc-auth-correlation-id`. Подробнее: `docs/archive/2026-04-docs-cleanup/reports/AGENT_LOG_2026-04-17-auth-bootstrap-audit-fixes.md`, `apps/webapp/src/modules/auth/auth.md`.

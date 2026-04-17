@@ -4,10 +4,10 @@
 
 - Master plan: `docs/TEST_AND_API_DI_OPTIMIZATION/MASTER_PLAN.md`
 - Правила исполнения: `docs/TEST_AND_API_DI_OPTIMIZATION/EXECUTION_RULES.md`
-- Discovery: `docs/TEST_AND_API_DI_OPTIMIZATION/DISCOVERY_REPORT.md`
+- Discovery (снимок 2026-04, read-only): `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/DISCOVERY_REPORT.md`
 - Трек A (тесты): `docs/TEST_AND_API_DI_OPTIMIZATION/test-optimization/` — `PLAN.md`, `INVENTORY.md`, `BASELINE.md`, `CHECKLIST.md`, `LOG.md`, `RISKS.md`
 - Трек B (DI / import-boundary): `docs/TEST_AND_API_DI_OPTIMIZATION/api-di-boundary-normalization/` — те же имена файлов
-- Индекс: `docs/REPORTS/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md`
+- Индекс: `docs/archive/2026-04-docs-cleanup/reports/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md`
 
 Общие правила для всех запусков:
 
@@ -25,16 +25,16 @@
    - критерий done.
 9. Любой FIX после AUDIT обязан закрыть все **`critical`** и **`major`** из `MANDATORY FIX INSTRUCTIONS` соответствующего отчёта.
 
-Файлы отчётов аудита (создавай в каталоге инициативы):
+Закрытый цикл 2026-04 (read-only): отчёты аудита перенесены в архив. Новый цикл — по правилам `EXECUTION_RULES.md`, новые файлы именовать с датой/версией **в этом каталоге инициативы**, не перезаписывать архив.
 
-| Назначение | Файл |
+| Назначение | Архивный файл (цикл 2026-04) |
 |------------|------|
-| Готовность доков/правил перед работой по коду | `docs/TEST_AND_API_DI_OPTIMIZATION/AUDIT_INIT.md` |
-| Закрытие трека A (тесты), перед первым пушем | `docs/TEST_AND_API_DI_OPTIMIZATION/AUDIT_TRACK_A.md` |
-| **Pre-deploy** перед пушем после трека A (merge → обычный deploy) | `docs/TEST_AND_API_DI_OPTIMIZATION/AUDIT_PRE_DEPLOY_A.md` |
-| Закрытие логического кластера трека B | `docs/TEST_AND_API_DI_OPTIMIZATION/AUDIT_TRACK_B_CLUSTER.md` (перезаписывай или веди версии в git — по договорённости команды) |
-| **Pre-deploy** перед пушем после трека B / всей инициативы | `docs/TEST_AND_API_DI_OPTIMIZATION/AUDIT_PRE_DEPLOY_B.md` |
-| Сквозной итог перед merge в main / закрытием ветки | `docs/TEST_AND_API_DI_OPTIMIZATION/AUDIT_FINAL.md` |
+| Готовность доков/правил перед работой по коду | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_INIT.md` |
+| Закрытие трека A (тесты), перед первым пушем | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_TRACK_A.md` |
+| **Pre-deploy** перед пушем после трека A (merge → обычный deploy) | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_PRE_DEPLOY_A.md` |
+| Закрытие логического кластера трека B | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_TRACK_B_CLUSTER.md` |
+| **Pre-deploy** перед пушем после трека B / всей инициативы | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_PRE_DEPLOY_B.md` |
+| Сквозной итог перед merge в main / закрытием ветки | `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/AUDIT_FINAL.md` |
 
 ---
 
@@ -387,7 +387,7 @@ docs/TEST_AND_API_DI_OPTIMIZATION/AUDIT_FINAL.md
 Исправь все critical и major из:
 docs/TEST_AND_API_DI_OPTIMIZATION/AUDIT_FINAL.md
 
-Обнови оба LOG.md треков и при необходимости docs/REPORTS/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md.
+Обнови оба LOG.md треков; при необходимости обнови статус инициативы в `docs/README.md` (не правь файлы в `docs/archive/` без явной необходимости).
 Прогони pnpm install --frozen-lockfile && pnpm run ci.
 Итог: changed files, gate verdict, готовность к merge.
 ```

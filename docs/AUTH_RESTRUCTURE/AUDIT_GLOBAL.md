@@ -43,7 +43,7 @@
 1. **Stage gates:** закрыты по `AUDIT_STAGE_1.md` ... `AUDIT_STAGE_8.md` с verdict `PASS`; открытых `REWORK_REQUIRED` по stage-аудитам нет.
 2. **Product constraints:**
    - **PIN hidden in public flow** — соблюдено (`AuthFlowV2` без шагов `pin/set_pin`).
-   - **OAuth в публичном UI** — на момент GLOBAL FIX кнопок OAuth в `AuthFlowV2` не было; **по состоянию на 2026-04-13** в UI входа показываются Яндекс, Google, Telegram, Max и при необходимости только-Apple (см. `apps/webapp/src/modules/auth/auth.md`, `docs/REPORTS/LOGIN_WEBAPP_UX_SYNC_2026-04-13.md`).
+   - **OAuth в публичном UI** — на момент GLOBAL FIX кнопок OAuth в `AuthFlowV2` не было; **по состоянию на 2026-04-13** в UI входа показываются Яндекс, Google, Telegram, Max и при необходимости только-Apple (см. `apps/webapp/src/modules/auth/auth.md`, `docs/archive/2026-04-docs-cleanup/reports/LOGIN_WEBAPP_UX_SYNC_2026-04-13.md`).
    - **Email profile-only (не публичный first-screen method)** — соблюдено (`isOtpChannelAvailablePublic` запрещает email в публичном входе).
 3. **Документация vs код:** синхронизированы в канонических источниках (`apps/webapp/src/modules/auth/auth.md`, `docs/AUTH_RESTRUCTURE/auth.md`, обновленный `MASTER_PLAN.md`).
 4. **CI evidence:** зафиксирована в `AGENT_EXECUTION_LOG.md` (GLOBAL FIX: `pnpm run ci` exit 0).

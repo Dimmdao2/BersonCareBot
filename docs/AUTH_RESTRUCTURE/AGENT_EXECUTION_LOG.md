@@ -317,7 +317,7 @@ Changed files:
 - docs/AUTH_RESTRUCTURE/STAGE_6_BOT_REQUEST_CONTACT_AND_ONBOARDING.md
 - docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
 - docs/REPORTS/DOCTOR_CLIENT_ARCHIVE_AND_PURGE.md
-- docs/REPORTS/DOCTOR_CLIENT_ARCHIVE_AND_PURGE_LOG.md
+- docs/archive/2026-04-docs-cleanup/reports/DOCTOR_CLIENT_ARCHIVE_AND_PURGE_LOG.md
 Checks:
 - tests: `pnpm --dir apps/integrator test -- "src/infra/db/writePort.userUpsert.test.ts" "src/infra/db/repos/projectionKeys.test.ts"`; `pnpm --dir apps/webapp exec vitest run src/modules/integrator/events.test.ts`
 - typecheck: `pnpm --dir apps/integrator typecheck`; `pnpm --dir apps/webapp typecheck`
@@ -807,7 +807,7 @@ Tasks done:
 Changed files:
 - docs/ARCHITECTURE/MAX_SETUP.md, CONTENT_AND_SCRIPTS_FLOW.md
 - docs/AUTH_RESTRUCTURE/INTEGRATOR_TELEGRAM_START_SCRIPTS.md
-- docs/REPORTS/TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md
+- docs/archive/2026-04-docs-cleanup/reports/TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md
 - apps/integrator/src/integrations/max/mapIn.test.ts
 - docs/AUTH_RESTRUCTURE/AGENT_EXECUTION_LOG.md
 Checks:

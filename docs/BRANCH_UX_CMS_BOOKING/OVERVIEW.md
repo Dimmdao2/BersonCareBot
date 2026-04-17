@@ -19,7 +19,7 @@
 
 | Документ | Путь | Назначение |
 |---|---|---|
-| UX-анализ и план | `docs/REPORTS/UX_ANALYSIS_2026-03-31.md` | Полный аудит текущего UI/UX, ошибки, лишние экраны, план по фазам |
+| UX-анализ и план | `docs/archive/2026-04-docs-cleanup/reports/UX_ANALYSIS_2026-03-31.md` | Полный аудит текущего UI/UX, ошибки, лишние экраны, план по фазам |
 | Архитектура | `docs/ARCHITECTURE/SERVER CONVENTIONS.md` | Серверные конвенции, порты, env |
 | Специалист-кабинет | `docs/ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md` | Продуктовая структура кабинета врача |
 | CMS отчёт | `docs/CONTENT_CMS_REPORT.md` | Текущее состояние CMS |

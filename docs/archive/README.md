@@ -15,3 +15,7 @@
 | `REFACTOR_STEPS_DONE.md` | Отметки выполненных шагов рефакторинга (STEP 0–14). |
 
 Для актуальной архитектуры и правил слоёв см. корневой `ARCHITECTURE.md` и `docs/DB_STRUCTURE_AND_RECOMMENDATIONS.md`.
+
+## 2026-04 — уборка отчётов и аудитов
+
+Разовые журналы агентов, UX-снимки и закрытый пакет аудита **TEST_AND_API_DI_OPTIMIZATION** (discovery + `AUDIT_*`): см. [`2026-04-docs-cleanup/README.md`](2026-04-docs-cleanup/README.md).

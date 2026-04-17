@@ -25,7 +25,7 @@
 
 - Хук и фильтр: `apps/webapp/src/shared/ui/media/useMediaLibraryPickerItems.ts`
 - Диалоги: `MediaLibraryPickerDialog.tsx` (внутр. `MediaLibraryPickerOpenPanel`), `MediaLibraryInsertDialog.tsx` (внутр. `MediaLibraryInsertOpenBody`)
-- Журнал: `docs/REPORTS/AGENT_LOG_2026-04-16-local-media-picker-search.md`
+- Журнал: `docs/archive/2026-04-docs-cleanup/reports/AGENT_LOG_2026-04-16-local-media-picker-search.md`
 
 ## Проверка и сопутствующие правки
 

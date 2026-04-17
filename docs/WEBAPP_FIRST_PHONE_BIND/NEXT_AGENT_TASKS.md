@@ -16,7 +16,7 @@
 
 ## 8. Паритет сценариев Max vs Telegram (phone link / онбординг)
 
-**Сейчас:** в `apps/integrator/src/content/max/user/scripts.json` меньше вхождений `user.phone.link`, чем в `telegram/user/scripts.json`; продуктовая сводка: `docs/REPORTS/TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md`.
+**Сейчас:** в `apps/integrator/src/content/max/user/scripts.json` меньше вхождений `user.phone.link`, чем в `telegram/user/scripts.json`; продуктовая сводка: `docs/archive/2026-04-docs-cleanup/reports/TELEGRAM_VS_MAX_SCENARIOS_2026-04-13.md`.
 
 **Задача:**
 

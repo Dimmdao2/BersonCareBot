@@ -1,6 +1,6 @@
 # Admin: подсказки по ФИО и ручной merge — план и журнал выполнения
 
-Документ относится к **Platform User Merge (v1, webapp)**: справочный отчёт по совпадениям ФИО, произвольный поиск второй записи и расширение панели ручного merge. Нормативное описание поведения API и UI: [`PLATFORM_USER_MERGE.md`](PLATFORM_USER_MERGE.md) (§ Manual merge — preview, Admin UI). Пошаговый журнал релиза: [`../REPORTS/USER_MERGE_EXECUTION_LOG.md`](../REPORTS/USER_MERGE_EXECUTION_LOG.md) § 2026-04-11.
+Документ относится к **Platform User Merge (v1, webapp)**: справочный отчёт по совпадениям ФИО, произвольный поиск второй записи и расширение панели ручного merge. Нормативное описание поведения API и UI: [`PLATFORM_USER_MERGE.md`](PLATFORM_USER_MERGE.md) (§ Manual merge — preview, Admin UI). Пошаговый журнал релиза (архив): [`../archive/2026-04-docs-cleanup/reports/USER_MERGE_EXECUTION_LOG.md`](../archive/2026-04-docs-cleanup/reports/USER_MERGE_EXECUTION_LOG.md) § 2026-04-11.
 
 Исходный детальный план (цели, архитектура, DoD, чеклист доков) при необходимости см. в локальном артефакте Cursor: `~/.cursor/plans/admin_name-merge_hints_f8a2d2c1.plan.md` — ниже зафиксированы **факт выполнения** и **доработки после аудита**, перенесённые в репозиторий.
 

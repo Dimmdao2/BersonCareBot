@@ -1,6 +1,6 @@
 # Master plan — TEST_AND_API_DI_OPTIMIZATION
 
-**Статус:** документация инициативы (код не менялся). **Дата привязки:** 2026-04-16.
+**Статус:** активная инициатива (треки A/B). Discovery и аудиты закрытого цикла 2026-04 лежат в **`docs/archive/2026-04-docs-cleanup/test-api-di-optimization/`**. **Дата привязки:** 2026-04-16.
 
 ## Общая цель
 
@@ -68,10 +68,10 @@
 
 Формат EXEC / AUDIT / FIX, pre-deploy и final — в [`PROMPTS_EXEC_AUDIT_FIX.md`](./PROMPTS_EXEC_AUDIT_FIX.md).
 
-## Результаты до начала будущих кодовых изменений (уже есть)
+## Зафиксировано в репозитории
 
-- Папка инициативы с планами и **измеренным** baseline для `pnpm test` и `pnpm test:webapp` на одной машине (см. `test-optimization/BASELINE.md`).
-- Инвентарь нарушений import-policy: **58** файлов `route.ts` с импортом `@/infra/*` (см. `api-di-boundary-normalization/BASELINE.md`).
+- Планы и **измеренный** baseline: `test-optimization/BASELINE.md`.
+- Инвентарь нарушений import-policy (baseline): см. `api-di-boundary-normalization/BASELINE.md` и allowlist при необходимости в `api-di-boundary-normalization/`.
 
 ## Документы для пересмотра по завершении всей инициативы
 
@@ -80,8 +80,6 @@
 | `apps/webapp/src/app/api/api.md` | Описание «тонких» роутов должно совпасть с фактическими импортами и точками композиции. **2026-04-17 (трек B, кластер G):** обновлён § integrator — signed GET + `assertIntegratorGetRequest`. |
 | `apps/webapp/src/app-layer/di/di.md` | Зафиксировать, что именно собирает `buildAppDeps` и какие сценарии идут мимо него (если останутся исключения). **2026-04-17:** добавлена ссылка на guard integrator GET в `app-layer/integrator/`. |
 | `apps/webapp/src/app-layer/app-layer.md` | Если есть — выровнять с composition-root правилами. |
-| `docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md` | Убрать/пометить устаревшие примеры (см. `DISCOVERY_REPORT.md` — часть уже не актуальна). |
+| `docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md` | Убрать/пометить устаревшие примеры (сверка со снимком: `docs/archive/2026-04-docs-cleanup/test-api-di-optimization/DISCOVERY_REPORT.md`). |
 | `docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md` | Только если появятся новые **runtime** guardrails, затрагивающие integrator/webapp контракт (точечно, не переписывая документ целиком). |
-| `docs/REPORTS/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md` | Обновить статус/ссылки на финальный отчёт с метриками after. |
-
-**Не трогать без необходимости:** `docs/README.md` — только добавить одну строку в оглавление при принятии инициативы в работу (по желанию команды).
+| *(необязательно)* Исторический индекс 2026-04 | `docs/archive/2026-04-docs-cleanup/reports/TEST_AND_API_DI_OPTIMIZATION_INDEX_2026-04-16.md` — дубль навигации; актуально: `README.md` этой инициативы. |

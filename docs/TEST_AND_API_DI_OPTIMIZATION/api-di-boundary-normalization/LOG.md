@@ -1,5 +1,33 @@
 # LOG — API DI / import-boundary track
 
+## 2026-04-17 — final closure (AUDIT_FINAL critical/major)
+
+**Цель:** закрыть `MF-FINAL-1` (Critical), `MF-FINAL-2` (Major), `MF-FINAL-3` (Major) из `AUDIT_FINAL.md`.
+
+**Сделано:**
+
+- Добавлен формальный allowlist-артефакт: `ALLOWLIST_REMAINING_INFRA_ROUTE_IMPORTS.md` (snapshot после Cluster G).
+- В allowlist классифицированы все текущие `@/infra`-маршруты `app/api/**/route.ts`:  
+  `approved-exception=10`, `planned-cluster=38`, `violation=0`.
+- Зафиксированы owner/ETA для deferred-маршрутов (`H/L/O/R/I/M/D` кластеры).
+- В `AUDIT_FINAL.md` добавлены:
+  - полная matrix `docs sync/defer` по списку из `MASTER_PLAN.md`,
+  - единый блок `Final CI evidence`,
+  - таблица closure `MF-FINAL-*`.
+
+**Docs sync/defer rationale (вне code change этого шага):**
+
+- `apps/webapp/src/app-layer/app-layer.md` → `deferred` (текущее описание корректно; новых composition-root правил в closure step нет).
+- `docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md` → `deferred` (отдельная архитектурная задача, вне текущего closure PR).
+- `docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md` → `N/A` (новых runtime guardrails в Cluster G не вводилось).
+
+**Проверки этого шага:**
+
+- `rg '@/infra/' apps/webapp/src/app/api --glob '**/route.ts' --files-with-matches` (snapshot для allowlist).
+- `pnpm run ci` на этом подшаге **не** запускался (будет выполнен отдельным gate-командой в финале задачи).
+
+---
+
 ## 2026-04-17 — Pre-deploy FIX (`AUDIT_PRE_DEPLOY_B.md`): docs + полный CI
 
 **Цель:** закрыть PD-B-5 (drift `api.md` / `di.md`) и зафиксировать повторный полный CI перед пушем после трека B.
