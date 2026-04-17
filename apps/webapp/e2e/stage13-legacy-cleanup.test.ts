@@ -2,11 +2,11 @@
  * E2E (in-process) Stage 13: product read via webapp, no legacy path.
  * With mocks, no live DB required. Live e2e (backfill → reconcile → gate) run with STAGE13_E2E=1.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const verifyGetMock = vi.hoisted(() => vi.fn().mockReturnValue(true));
-vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
-  verifyIntegratorGetSignature: verifyGetMock,
+const assertMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
+  assertIntegratorGetRequest: assertMock,
 }));
 
 const mockListTopics = vi.hoisted(() =>
@@ -28,15 +28,21 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   }),
 }));
 
+import {
+  integratorGetSignedHeadersOk,
+  wireDefaultAssertIntegratorGetForRouteTests,
+} from "@/app/api/integrator/testUtils/wireAssertIntegratorGetForRouteTests";
+
 describe("Stage 13 legacy cleanup (in-process)", () => {
+  beforeEach(() => {
+    wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+  });
+
   it("subscriptions product read goes through webapp path (topics)", async () => {
     const { GET } = await import("@/app/api/integrator/subscriptions/topics/route");
     const res = await GET(
       new Request("http://localhost/api/integrator/subscriptions/topics", {
-        headers: {
-          "x-bersoncare-timestamp": "1700000000",
-          "x-bersoncare-signature": "sig",
-        },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(200);
@@ -52,15 +58,9 @@ describe("Stage 13 legacy cleanup (in-process)", () => {
   it("subscriptions product read goes through webapp path (for-user)", async () => {
     const { GET } = await import("@/app/api/integrator/subscriptions/for-user/route");
     const res = await GET(
-      new Request(
-        "http://localhost/api/integrator/subscriptions/for-user?integratorUserId=42",
-        {
-          headers: {
-            "x-bersoncare-timestamp": "1700000000",
-            "x-bersoncare-signature": "sig",
-          },
-        }
-      )
+      new Request("http://localhost/api/integrator/subscriptions/for-user?integratorUserId=42", {
+        headers: integratorGetSignedHeadersOk,
+      })
     );
     expect(res.status).toBe(200);
     const data = (await res.json()) as {

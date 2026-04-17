@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const verifyGetMock = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
-  verifyIntegratorGetSignature: verifyGetMock,
+const assertMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
+  assertIntegratorGetRequest: assertMock,
 }));
 
 const mockListRules = vi.hoisted(() => vi.fn().mockResolvedValue([]));
@@ -21,8 +21,16 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { GET } from "./route";
+import {
+  integratorGetSignedHeadersOk,
+  wireDefaultAssertIntegratorGetForRouteTests,
+} from "../../testUtils/wireAssertIntegratorGetForRouteTests";
 
 describe("GET /api/integrator/reminders/rules", () => {
+  beforeEach(() => {
+    wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+  });
+
   it("returns 400 when missing webhook headers", async () => {
     const res = await GET(new Request("http://localhost/api/integrator/reminders/rules"));
     expect(res.status).toBe(400);
@@ -31,7 +39,6 @@ describe("GET /api/integrator/reminders/rules", () => {
   });
 
   it("returns 401 when signature invalid", async () => {
-    verifyGetMock.mockReturnValue(false);
     const res = await GET(
       new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42", {
         headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
@@ -41,10 +48,9 @@ describe("GET /api/integrator/reminders/rules", () => {
   });
 
   it("returns 400 when integratorUserId missing", async () => {
-    verifyGetMock.mockReturnValue(true);
     const res = await GET(
       new Request("http://localhost/api/integrator/reminders/rules", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(400);
@@ -53,7 +59,6 @@ describe("GET /api/integrator/reminders/rules", () => {
   });
 
   it("returns 200 with rules on happy path", async () => {
-    verifyGetMock.mockReturnValue(true);
     mockListRules.mockResolvedValue([
       {
         id: "rule-1",
@@ -77,7 +82,7 @@ describe("GET /api/integrator/reminders/rules", () => {
     ]);
     const res = await GET(
       new Request("http://localhost/api/integrator/reminders/rules?integratorUserId=42", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(200);

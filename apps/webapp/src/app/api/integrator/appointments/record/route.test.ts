@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const verifyGetMock = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
-  verifyIntegratorGetSignature: verifyGetMock,
+const assertMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
+  assertIntegratorGetRequest: assertMock,
 }));
 
 const mockGetRecord = vi.hoisted(() => vi.fn().mockResolvedValue(null));
@@ -21,8 +21,16 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { GET } from "./route";
+import {
+  integratorGetSignedHeadersOk,
+  wireDefaultAssertIntegratorGetForRouteTests,
+} from "../../testUtils/wireAssertIntegratorGetForRouteTests";
 
 describe("GET /api/integrator/appointments/record", () => {
+  beforeEach(() => {
+    wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+  });
+
   it("returns 400 when missing webhook headers", async () => {
     const res = await GET(new Request("http://localhost/api/integrator/appointments/record"));
     expect(res.status).toBe(400);
@@ -31,7 +39,6 @@ describe("GET /api/integrator/appointments/record", () => {
   });
 
   it("returns 401 when signature invalid", async () => {
-    verifyGetMock.mockReturnValue(false);
     const res = await GET(
       new Request("http://localhost/api/integrator/appointments/record?integratorRecordId=rec-1", {
         headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
@@ -41,10 +48,9 @@ describe("GET /api/integrator/appointments/record", () => {
   });
 
   it("returns 400 when integratorRecordId missing", async () => {
-    verifyGetMock.mockReturnValue(true);
     const res = await GET(
       new Request("http://localhost/api/integrator/appointments/record", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(400);
@@ -53,11 +59,10 @@ describe("GET /api/integrator/appointments/record", () => {
   });
 
   it("returns 200 with record null when not found", async () => {
-    verifyGetMock.mockReturnValue(true);
     mockGetRecord.mockResolvedValue(null);
     const res = await GET(
       new Request("http://localhost/api/integrator/appointments/record?integratorRecordId=rec-1", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(200);
@@ -67,11 +72,10 @@ describe("GET /api/integrator/appointments/record", () => {
 
   it("returns 503 when appointment projection not available", async () => {
     appointmentProjectionAvailable.current = false;
-    verifyGetMock.mockReturnValue(true);
     try {
       const res = await GET(
         new Request("http://localhost/api/integrator/appointments/record?integratorRecordId=rec-1", {
-          headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+          headers: integratorGetSignedHeadersOk,
         })
       );
       expect(res.status).toBe(503);
@@ -83,7 +87,6 @@ describe("GET /api/integrator/appointments/record", () => {
   });
 
   it("returns 200 with record on happy path", async () => {
-    verifyGetMock.mockReturnValue(true);
     mockGetRecord.mockResolvedValue({
       id: "uuid-1",
       integratorRecordId: "rec-1",
@@ -97,7 +100,7 @@ describe("GET /api/integrator/appointments/record", () => {
     });
     const res = await GET(
       new Request("http://localhost/api/integrator/appointments/record?integratorRecordId=rec-1", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(200);

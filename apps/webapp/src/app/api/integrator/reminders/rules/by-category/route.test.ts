@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const verifyGetMock = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
-  verifyIntegratorGetSignature: verifyGetMock,
+const assertMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
+  assertIntegratorGetRequest: assertMock,
 }));
 
 const mockGetRule = vi.hoisted(() => vi.fn().mockResolvedValue(null));
@@ -21,35 +21,43 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { GET } from "./route";
+import {
+  integratorGetSignedHeadersOk,
+  wireDefaultAssertIntegratorGetForRouteTests,
+} from "../../../testUtils/wireAssertIntegratorGetForRouteTests";
 
 describe("GET /api/integrator/reminders/rules/by-category", () => {
+  beforeEach(() => {
+    wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+  });
+
   it("returns 400 when missing headers", async () => {
     const res = await GET(new Request("http://localhost/api/integrator/reminders/rules/by-category"));
     expect(res.status).toBe(400);
   });
 
   it("returns 401 when signature invalid", async () => {
-    verifyGetMock.mockReturnValue(false);
     const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42&category=exercise", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
-      })
+      new Request(
+        "http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42&category=exercise",
+        {
+          headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
+        }
+      )
     );
     expect(res.status).toBe(401);
   });
 
   it("returns 400 when integratorUserId or category missing", async () => {
-    verifyGetMock.mockReturnValue(true);
     const res = await GET(
       new Request("http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(400);
   });
 
   it("returns 200 with rule or null", async () => {
-    verifyGetMock.mockReturnValue(true);
     mockGetRule.mockResolvedValue({
       id: "rule-1",
       userId: "42",
@@ -69,9 +77,10 @@ describe("GET /api/integrator/reminders/rules/by-category", () => {
       deepLink: "http://127.0.0.1:5200/app/patient/reminders?from=reminder",
     });
     const res = await GET(
-      new Request("http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42&category=exercise", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
-      })
+      new Request(
+        "http://localhost/api/integrator/reminders/rules/by-category?integratorUserId=42&category=exercise",
+        { headers: integratorGetSignedHeadersOk }
+      )
     );
     expect(res.status).toBe(200);
     const json = await res.json();

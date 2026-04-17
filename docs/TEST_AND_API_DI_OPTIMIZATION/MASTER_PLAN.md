@@ -77,8 +77,8 @@
 
 | Документ | Почему |
 |----------|--------|
-| `apps/webapp/src/app/api/api.md` | Описание «тонких» роутов должно совпасть с фактическими импортами и точками композиции. |
-| `apps/webapp/src/app-layer/di/di.md` | Зафиксировать, что именно собирает `buildAppDeps` и какие сценарии идут мимо него (если останутся исключения). |
+| `apps/webapp/src/app/api/api.md` | Описание «тонких» роутов должно совпасть с фактическими импортами и точками композиции. **2026-04-17 (трек B, кластер G):** обновлён § integrator — signed GET + `assertIntegratorGetRequest`. |
+| `apps/webapp/src/app-layer/di/di.md` | Зафиксировать, что именно собирает `buildAppDeps` и какие сценарии идут мимо него (если останутся исключения). **2026-04-17:** добавлена ссылка на guard integrator GET в `app-layer/integrator/`. |
 | `apps/webapp/src/app-layer/app-layer.md` | Если есть — выровнять с composition-root правилами. |
 | `docs/ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md` | Убрать/пометить устаревшие примеры (см. `DISCOVERY_REPORT.md` — часть уже не актуальна). |
 | `docs/ARCHITECTURE/ARCHITECTURE_GUARDRAILS.md` | Только если появятся новые **runtime** guardrails, затрагивающие integrator/webapp контракт (точечно, не переписывая документ целиком). |

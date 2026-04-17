@@ -1,13 +1,21 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const verifyGetMock = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
-  verifyIntegratorGetSignature: verifyGetMock,
+const assertMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
+  assertIntegratorGetRequest: assertMock,
 }));
 
 import { GET } from "./route";
+import {
+  integratorGetSignedHeadersOk,
+  wireDefaultAssertIntegratorGetForRouteTests,
+} from "../testUtils/wireAssertIntegratorGetForRouteTests";
 
 describe("GET /api/integrator/delivery-targets", () => {
+  beforeEach(() => {
+    wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+  });
+
   it("returns 400 when missing webhook headers", async () => {
     const res = await GET(new Request("http://localhost/api/integrator/delivery-targets"));
     expect(res.status).toBe(400);
@@ -16,10 +24,9 @@ describe("GET /api/integrator/delivery-targets", () => {
   });
 
   it("returns 400 when no phone, telegramId, or maxId", async () => {
-    verifyGetMock.mockReturnValue(true);
     const res = await GET(
       new Request("http://localhost/api/integrator/delivery-targets", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(400);
@@ -28,21 +35,19 @@ describe("GET /api/integrator/delivery-targets", () => {
   });
 
   it("returns 401 when signature invalid", async () => {
-    verifyGetMock.mockReturnValue(false);
     const res = await GET(
       new Request("http://localhost/api/integrator/delivery-targets?telegramId=tg1", {
         headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
       })
     );
     expect(res.status).toBe(401);
-    expect(verifyGetMock).toHaveBeenCalled();
+    expect(assertMock).toHaveBeenCalled();
   });
 
   it("returns 200 with channelBindings when signature valid and params present", async () => {
-    verifyGetMock.mockReturnValue(true);
     const res = await GET(
       new Request("http://localhost/api/integrator/delivery-targets?telegramId=tg1", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(200);

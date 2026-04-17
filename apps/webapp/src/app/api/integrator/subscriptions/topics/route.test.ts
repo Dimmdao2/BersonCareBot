@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const verifyGetMock = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/webhooks/verifyIntegratorSignature", () => ({
-  verifyIntegratorGetSignature: verifyGetMock,
+const assertMock = vi.hoisted(() => vi.fn());
+vi.mock("@/app-layer/integrator/assertIntegratorGetRequest", () => ({
+  assertIntegratorGetRequest: assertMock,
 }));
 
 const mockListTopics = vi.hoisted(() => vi.fn().mockResolvedValue([]));
@@ -20,8 +20,16 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
 }));
 
 import { GET } from "./route";
+import {
+  integratorGetSignedHeadersOk,
+  wireDefaultAssertIntegratorGetForRouteTests,
+} from "../../testUtils/wireAssertIntegratorGetForRouteTests";
 
 describe("GET /api/integrator/subscriptions/topics", () => {
+  beforeEach(() => {
+    wireDefaultAssertIntegratorGetForRouteTests(assertMock);
+  });
+
   it("returns 400 when missing webhook headers", async () => {
     const res = await GET(new Request("http://localhost/api/integrator/subscriptions/topics"));
     expect(res.status).toBe(400);
@@ -30,7 +38,6 @@ describe("GET /api/integrator/subscriptions/topics", () => {
   });
 
   it("returns 401 when signature invalid", async () => {
-    verifyGetMock.mockReturnValue(false);
     const res = await GET(
       new Request("http://localhost/api/integrator/subscriptions/topics", {
         headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "bad" },
@@ -43,11 +50,10 @@ describe("GET /api/integrator/subscriptions/topics", () => {
 
   it("returns 503 when subscription projection not available", async () => {
     subscriptionMailingProjectionAvailable.current = false;
-    verifyGetMock.mockReturnValue(true);
     try {
       const res = await GET(
         new Request("http://localhost/api/integrator/subscriptions/topics", {
-          headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+          headers: integratorGetSignedHeadersOk,
         })
       );
       expect(res.status).toBe(503);
@@ -59,7 +65,6 @@ describe("GET /api/integrator/subscriptions/topics", () => {
   });
 
   it("returns 200 with topics on success", async () => {
-    verifyGetMock.mockReturnValue(true);
     mockListTopics.mockResolvedValue([
       {
         integratorTopicId: "1",
@@ -71,7 +76,7 @@ describe("GET /api/integrator/subscriptions/topics", () => {
     ]);
     const res = await GET(
       new Request("http://localhost/api/integrator/subscriptions/topics", {
-        headers: { "x-bersoncare-timestamp": "1700000000", "x-bersoncare-signature": "sig" },
+        headers: integratorGetSignedHeadersOk,
       })
     );
     expect(res.status).toBe(200);

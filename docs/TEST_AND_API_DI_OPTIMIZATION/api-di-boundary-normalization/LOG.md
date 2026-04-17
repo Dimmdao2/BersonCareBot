@@ -1,5 +1,73 @@
 # LOG — API DI / import-boundary track
 
+## 2026-04-17 — Pre-deploy FIX (`AUDIT_PRE_DEPLOY_B.md`): docs + полный CI
+
+**Цель:** закрыть PD-B-5 (drift `api.md` / `di.md`) и зафиксировать повторный полный CI перед пушем после трека B.
+
+**Сделано:** в `apps/webapp/src/app/api/api.md` § integrator добавлено описание подписанных integrator GET и `assertIntegratorGetRequest`; в `apps/webapp/src/app-layer/di/di.md` — явное разделение guard от `buildAppDeps()`. Обновлён `AUDIT_PRE_DEPLOY_B.md` (FIX closure).
+
+**Команда (корень репозитория):** `pnpm install --frozen-lockfile && pnpm run ci`.
+
+**Итог:** **PASS** (exit code 0) — `lint`, `typecheck`, `pnpm test` (integrator: 109 test files passed, 2 skipped), `pnpm test:webapp` (354 passed, 4 skipped), `build` + `build:webapp`, `registry-prod-audit`; wall time ~141s.
+
+---
+
+## 2026-04-17 — Phase: полный Vitest `apps/webapp` (трек B)
+
+**Дата:** 2026-04-17.
+
+**Команда (из корня репозитория):** `pnpm test:webapp` → `pnpm --dir apps/webapp test` → `vitest --run` в каталоге `apps/webapp`.
+
+**Итог:** **PASS** — 354 test files passed (4 skipped), 1798 tests passed (7 skipped), длительность ~30s.
+
+**Примечание:** phase-level по `.cursor/rules/test-execution-policy.md` после существенного куска трека B; `pnpm run ci` **не** запускался.
+
+---
+
+## 2026-04-17 — Cluster G (integrator GET / sigGet only)
+
+**Cluster id:** `G` (per `PLAN.md`).
+
+**Goal:** Убрать прямой `@/infra/webhooks/verifyIntegratorSignature` из integrator **GET** `route.ts`; единая точка `assertIntegratorGetRequest` в `@/app-layer/integrator/assertIntegratorGetRequest` (внутри по-прежнему `verifyIntegratorGetSignature` — допустимое исключение по политике, не в теле route).
+
+**Затронутые HTTP handlers (parity не менялся):**
+
+| Path prefix | Notes |
+|-------------|--------|
+| `GET /api/integrator/subscriptions/{topics,for-user}` | |
+| `GET /api/integrator/appointments/{record,active-by-user}` | |
+| `GET /api/integrator/reminders/{history,rules,rules/by-category}` | |
+| `GET /api/integrator/communication/{conversations,conversations/[id],questions,questions/by-conversation/...}` | |
+| `GET /api/integrator/delivery-targets` | |
+| `GET /api/integrator/diary/{symptom-trackings,lfk-complexes}` | |
+
+**Parity — общий префикс для всех перечисленных GET:**
+
+- **Статусы:** `400` — нет `x-bersoncare-timestamp` и/или `x-bersoncare-signature`; `401` — подпись не проходит `verifyIntegratorGetSignature`; далее без изменений специфичные `400`/`404`/`503`/`200` каждого handler.
+- **JSON (ошибки guard):** `{ "ok": false, "error": "missing webhook headers" }` и `{ "ok": false, "error": "invalid signature" }` — те же строки и ключи.
+- **Подпись:** canonical string неизменна: ``GET ${pathname}${search}`` (как в `verifyIntegratorGetSignature`); неверный timestamp/signature → `401` + `invalid signature`.
+- **Идемпотентность:** только read-side; повтор того же подписанного GET остаётся без побочных эффектов на уровне контракта (как до рефактора).
+
+**Остаточные `@/infra/*` в `integrator/**/route.ts`:** POST/side-effect маршруты (cluster I и др.) — вне G.
+
+**Remediation (FIX после `AUDIT_TRACK_B_CLUSTER.md`, тот же кластер G):**
+
+- Добавлены colocated `route.test.ts` для **всех** integrator GET под `communication/**` (раньше не было — расхождение с checkpoint в `PLAN.md`: «все `route.test.ts` integrator GET зелёные» подразумевает наличие якорей на каждый handler в кластере).
+- Colocated тесты кластера G и `e2e/stage13-legacy-cleanup.test.ts` переведены на мок **`@/app-layer/integrator/assertIntegratorGetRequest`** через общий util `apps/webapp/src/app/api/integrator/testUtils/wireAssertIntegratorGetForRouteTests.ts` (значение заголовка подписи `"bad"` → `401` с тем же JSON, что и production guard). Крипто-поведение по-прежнему покрывается `assertIntegratorGetRequest.test.ts` и `verifyIntegratorSignature.test.ts`.
+
+**Parity — communication GET (дополнение к общему guard выше):**
+
+| Route file | Доп. ошибки / success |
+|------------|------------------------|
+| `communication/conversations/route.ts` | `503` `support communication not available`; `200` `{ ok, conversations }` |
+| `communication/conversations/[id]/route.ts` | `400` `conversation id required`; `503`; `404` `{ ok:false, error:"not_found" }`; `200` `{ ok, conversation }` |
+| `communication/questions/route.ts` | `503`; `200` `{ ok, questions }` |
+| `communication/questions/by-conversation/[conversationId]/route.ts` | `400` `conversation id required`; `503`; `200` `{ ok, question }` (`null` если нет) |
+
+**Gate (обновлено):** PASS — `pnpm run typecheck`, `pnpm run lint`, `pnpm exec vitest --run` (полный suite `apps/webapp`, phase-level по `.cursor/rules/test-execution-policy.md` после изменений в нескольких деревьях тестов): **354** test files passed (4 skipped), **1798** tests passed (7 skipped).
+
+---
+
 ## 2026-04-16 — discovery
 
 **Кластеры** (по путям, без глубокого чтения тел handlers):
