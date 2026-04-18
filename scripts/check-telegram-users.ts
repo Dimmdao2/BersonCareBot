@@ -29,7 +29,9 @@ async function main() {
               AND c.value_normalized IS NOT NULL AND TRIM(c.value_normalized) != ''
           )
       `),
-      db.query<{ version: string }>("SELECT version FROM schema_migrations WHERE version LIKE 'telegram:%' ORDER BY version"),
+      db.query<{ version: string }>(
+        "SELECT version FROM integrator.schema_migrations WHERE version LIKE 'telegram:%' ORDER BY version",
+      ),
     ]);
 
     console.log('telegram_users rows:        ', tg.rows[0]?.count ?? '?');

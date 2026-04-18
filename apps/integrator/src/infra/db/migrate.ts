@@ -8,6 +8,9 @@ import { getAppRoot } from '../../config/appRoot.js';
 import { env } from '../../config/env.js'; // Переменные окружения
 import { logger, getMigrationLogger } from '../observability/logger.js'; // Логирование
 
+/** Учёт SQL-миграций integrator; всегда с квалификатором схемы — не совпадает с `public.schema_migrations` webapp (`filename`). */
+const INTEGRATOR_MIGRATIONS_TABLE = 'integrator.schema_migrations';
+
 // Описывает одну миграцию: область (scope), имя файла, путь и версию
 type MigrationFile = {
   scope: string;
@@ -16,19 +19,22 @@ type MigrationFile = {
   version: string;
 };
 
-// Создаёт таблицу schema_migrations, если её нет (для учёта применённых миграций)
+// Создаёт схему integrator и таблицу учёта миграций, если их нет
 async function ensureMigrationsTable(db: Pool): Promise<void> {
+  await db.query('CREATE SCHEMA IF NOT EXISTS integrator');
   await db.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
+    CREATE TABLE IF NOT EXISTS ${INTEGRATOR_MIGRATIONS_TABLE} (
       version text PRIMARY KEY,
       applied_at timestamptz DEFAULT now()
     )
   `);
 }
 
-// Получает список уже применённых миграций из schema_migrations
+// Получает список уже применённых миграций из integrator.schema_migrations
 async function getAppliedVersions(db: Pool): Promise<Set<string>> {
-  const res = await db.query<{ version: string }>('SELECT version FROM schema_migrations');
+  const res = await db.query<{ version: string }>(
+    `SELECT version FROM ${INTEGRATOR_MIGRATIONS_TABLE}`,
+  );
   return new Set(
     res.rows
       .map((row) => row.version)
@@ -131,7 +137,7 @@ async function applyMigration(db: Pool, migration: MigrationFile, sql: string): 
   await db.query('BEGIN');
   try {
     await db.query(sql); // Выполняем SQL миграции
-    await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [migration.version]); // Отмечаем как применённую
+    await db.query(`INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(version) VALUES($1)`, [migration.version]); // Отмечаем как применённую
     await db.query('COMMIT');
     migrationLogger.info(
       {
@@ -166,7 +172,7 @@ async function applyMigration(db: Pool, migration: MigrationFile, sql: string): 
       safeMessages.some((m) => msg.includes(m));
     if (isSafe) {
       await db.query('ROLLBACK');
-      await db.query('INSERT INTO schema_migrations(version) VALUES($1)', [migration.version]);
+      await db.query(`INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(version) VALUES($1)`, [migration.version]);
       migrationLogger.warn(
         {
           err: error,
