@@ -10,6 +10,8 @@ import { logger, getMigrationLogger } from '../observability/logger.js'; // Ло
 
 /** Учёт SQL-миграций integrator; всегда с квалификатором схемы — не совпадает с `public.schema_migrations` webapp (`filename`). */
 const INTEGRATOR_MIGRATIONS_TABLE = 'integrator.schema_migrations';
+const INTEGRATOR_MIGRATIONS_TABLE_SCHEMA = 'integrator';
+const INTEGRATOR_MIGRATIONS_TABLE_NAME = 'schema_migrations';
 
 // Описывает одну миграцию: область (scope), имя файла, путь и версию
 type MigrationFile = {
@@ -17,6 +19,11 @@ type MigrationFile = {
   fileName: string;
   filePath: string;
   version: string;
+};
+
+type MigrationLedgerShape = {
+  readColumn: 'version' | 'filename';
+  writeColumn: 'version' | 'filename';
 };
 
 // Создаёт схему integrator и таблицу учёта миграций, если их нет
@@ -30,16 +37,71 @@ async function ensureMigrationsTable(db: Pool): Promise<void> {
   `);
 }
 
+async function resolveMigrationLedgerShape(db: Pool): Promise<MigrationLedgerShape> {
+  const res = await db.query<{ column_name: string }>(
+    `
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = $1
+        AND table_name = $2
+    `,
+    [INTEGRATOR_MIGRATIONS_TABLE_SCHEMA, INTEGRATOR_MIGRATIONS_TABLE_NAME],
+  );
+
+  const columns = new Set(res.rows.map((row) => row.column_name));
+
+  if (columns.has('version')) {
+    return { readColumn: 'version', writeColumn: 'version' };
+  }
+
+  if (columns.has('filename')) {
+    return { readColumn: 'filename', writeColumn: 'filename' };
+  }
+
+  throw new Error(
+    `Unsupported migration ledger shape in ${INTEGRATOR_MIGRATIONS_TABLE}: expected "version" or "filename" column`,
+  );
+}
+
+function normalizeAppliedVersion(rawValue: string, migrations: MigrationFile[]): string[] {
+  if (rawValue.includes(':')) return [rawValue];
+
+  const matching = migrations.filter((migration) => migration.fileName === rawValue);
+  if (matching.length === 1) {
+    const onlyMatch = matching[0];
+    if (onlyMatch) return [onlyMatch.version];
+  }
+
+  // Фоллбек для старого формата ledgеr: считаем core:<filename>, если в текущем наборе есть такая миграция.
+  const legacyCoreVersion = `core:${rawValue}`;
+  if (migrations.some((migration) => migration.version === legacyCoreVersion)) {
+    return [legacyCoreVersion];
+  }
+
+  return [rawValue];
+}
+
 // Получает список уже применённых миграций из integrator.schema_migrations
-async function getAppliedVersions(db: Pool): Promise<Set<string>> {
-  const res = await db.query<{ version: string }>(
-    `SELECT version FROM ${INTEGRATOR_MIGRATIONS_TABLE}`,
+async function getAppliedVersions(
+  db: Pool,
+  ledgerShape: MigrationLedgerShape,
+  migrations: MigrationFile[],
+): Promise<Set<string>> {
+  const res = await db.query<{ value: string }>(
+    `SELECT ${ledgerShape.readColumn} AS value FROM ${INTEGRATOR_MIGRATIONS_TABLE}`,
   );
-  return new Set(
-    res.rows
-      .map((row) => row.version)
-      .filter((version): version is string => typeof version === 'string' && version.length > 0),
-  );
+
+  const applied = new Set<string>();
+
+  for (const row of res.rows) {
+    const value = row.value;
+    if (typeof value !== 'string' || value.length === 0) continue;
+    for (const normalized of normalizeAppliedVersion(value, migrations)) {
+      applied.add(normalized);
+    }
+  }
+
+  return applied;
 }
 
 // Проверяет, является ли файл миграцией (sql и не example)
@@ -130,14 +192,20 @@ async function discoverMigrations(): Promise<MigrationFile[]> {
 // eslint-disable-next-line no-secrets/no-secrets
 // 'telegram:20260306_0004_add_notification_settings.sql' — версия миграции, не секрет
 
-async function applyMigration(db: Pool, migration: MigrationFile, sql: string): Promise<void> {
+async function applyMigration(
+  db: Pool,
+  migration: MigrationFile,
+  sql: string,
+  ledgerShape: MigrationLedgerShape,
+): Promise<void> {
   const migrationLogger = getMigrationLogger(migration.version);
+  const ledgerValue = ledgerShape.writeColumn === 'version' ? migration.version : migration.fileName;
 
   // Полностью идемпотентная логика для любых миграций
   await db.query('BEGIN');
   try {
     await db.query(sql); // Выполняем SQL миграции
-    await db.query(`INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(version) VALUES($1)`, [migration.version]); // Отмечаем как применённую
+    await db.query(`INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(${ledgerShape.writeColumn}) VALUES($1)`, [ledgerValue]); // Отмечаем как применённую
     await db.query('COMMIT');
     migrationLogger.info(
       {
@@ -172,7 +240,7 @@ async function applyMigration(db: Pool, migration: MigrationFile, sql: string): 
       safeMessages.some((m) => msg.includes(m));
     if (isSafe) {
       await db.query('ROLLBACK');
-      await db.query(`INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(version) VALUES($1)`, [migration.version]);
+      await db.query(`INSERT INTO ${INTEGRATOR_MIGRATIONS_TABLE}(${ledgerShape.writeColumn}) VALUES($1)`, [ledgerValue]);
       migrationLogger.warn(
         {
           err: error,
@@ -210,11 +278,14 @@ export async function runMigrations(): Promise<void> {
   try {
     await ensureMigrationsTable(db); // Создаём таблицу учёта миграций
 
-    const applied = await getAppliedVersions(db); // Получаем уже применённые
     const migrations = await discoverMigrations(); // Находим все доступные
+    const ledgerShape = await resolveMigrationLedgerShape(db);
+    const applied = await getAppliedVersions(db, ledgerShape, migrations); // Получаем уже применённые
 
     logger.info(
       {
+        migrationLedgerReadColumn: ledgerShape.readColumn,
+        migrationLedgerWriteColumn: ledgerShape.writeColumn,
         migrationsDiscovered: migrations.map((migration) => migration.version),
         appliedVersions: [...applied].sort(),
       },
@@ -243,7 +314,7 @@ export async function runMigrations(): Promise<void> {
       );
 
       const sql = await readFile(migration.filePath, 'utf8'); // Читаем SQL
-      await applyMigration(db, migration, sql); // Применяем миграцию
+      await applyMigration(db, migration, sql, ledgerShape); // Применяем миграцию
     }
   } finally {
     await db.end(); // Закрываем соединение
