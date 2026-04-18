@@ -10,8 +10,6 @@ import { logger, getMigrationLogger } from '../observability/logger.js'; // Ло
 
 /** Учёт SQL-миграций integrator; всегда с квалификатором схемы — не совпадает с `public.schema_migrations` webapp (`filename`). */
 const INTEGRATOR_MIGRATIONS_TABLE = 'integrator.schema_migrations';
-const INTEGRATOR_MIGRATIONS_TABLE_SCHEMA = 'integrator';
-const INTEGRATOR_MIGRATIONS_TABLE_NAME = 'schema_migrations';
 
 // Описывает одну миграцию: область (scope), имя файла, путь и версию
 type MigrationFile = {
@@ -38,29 +36,30 @@ async function ensureMigrationsTable(db: Pool): Promise<void> {
 }
 
 async function resolveMigrationLedgerShape(db: Pool): Promise<MigrationLedgerShape> {
-  const res = await db.query<{ column_name: string }>(
-    `
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = $1
-        AND table_name = $2
-    `,
-    [INTEGRATOR_MIGRATIONS_TABLE_SCHEMA, INTEGRATOR_MIGRATIONS_TABLE_NAME],
-  );
-
-  const columns = new Set(res.rows.map((row) => row.column_name));
-
-  if (columns.has('version')) {
+  // Prefer probing real column resolution (same as migrations use at runtime).
+  // information_schema can be misleading for some roles/views; SELECT ... LIMIT 0 fails fast on missing columns.
+  try {
+    await db.query(`SELECT version FROM ${INTEGRATOR_MIGRATIONS_TABLE} LIMIT 0`);
     return { readColumn: 'version', writeColumn: 'version' };
-  }
+  } catch (firstErr: unknown) {
+    const code = (firstErr as { code?: string }).code;
+    const msg = String((firstErr as { message?: string }).message ?? '');
+    const missingColumn =
+      code === '42703' ||
+      /\bcolumn\b.*\bversion\b.*does not exist/i.test(msg) ||
+      /\bdoes not exist\b.*\bversion\b/i.test(msg);
 
-  if (columns.has('filename')) {
-    return { readColumn: 'filename', writeColumn: 'filename' };
-  }
+    if (!missingColumn) throw firstErr;
 
-  throw new Error(
-    `Unsupported migration ledger shape in ${INTEGRATOR_MIGRATIONS_TABLE}: expected "version" or "filename" column`,
-  );
+    try {
+      await db.query(`SELECT filename FROM ${INTEGRATOR_MIGRATIONS_TABLE} LIMIT 0`);
+      return { readColumn: 'filename', writeColumn: 'filename' };
+    } catch {
+      throw new Error(
+        `${INTEGRATOR_MIGRATIONS_TABLE} must have column "version" (current integrator ledger) or legacy "filename". First error: ${msg}`,
+      );
+    }
+  }
 }
 
 function normalizeAppliedVersion(rawValue: string, migrations: MigrationFile[]): string[] {
