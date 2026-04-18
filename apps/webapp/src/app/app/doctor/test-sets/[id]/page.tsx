@@ -6,7 +6,7 @@ import { TestSetForm } from "../TestSetForm";
 import { TestSetItemsForm } from "../TestSetItemsForm";
 import { TEST_SETS_PATH } from "../paths";
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
 type PageProps = { params: Promise<{ id: string }> };

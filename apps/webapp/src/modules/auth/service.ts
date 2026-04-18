@@ -139,7 +139,7 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
 
   const presets: Record<string, IntegratorTokenPayload> = {
     "dev:client": {
-      sub: "dev-client",
+      sub: "00000000-0000-0000-0000-000000000001",
       role: "client",
       displayName: "Demo Client",
       phone: "+79990000001",
@@ -148,7 +148,7 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
       exp: Math.floor(Date.now() / 1000) + 3600,
     },
     "dev:doctor": {
-      sub: "dev-doctor",
+      sub: "00000000-0000-0000-0000-000000000002",
       role: "doctor",
       displayName: "Demo Doctor",
       phone: "+79990000002",
@@ -157,7 +157,7 @@ function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
       exp: Math.floor(Date.now() / 1000) + 3600,
     },
     "dev:admin": {
-      sub: "dev-admin",
+      sub: "00000000-0000-0000-0000-000000000003",
       role: "admin",
       displayName: "Demo Admin",
       phone: "+79990000003",
