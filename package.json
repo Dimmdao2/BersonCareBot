@@ -64,6 +64,7 @@
       "jsdom": "^26.0.0",
       "flatted": ">=3.4.2",
       "dompurify": ">=3.4.0",
+      "@esbuild-kit/core-utils>esbuild": "0.27.4",
       "micromatch>picomatch": "2.3.2",
       "@dotenvx/dotenvx>picomatch": "4.0.4",
       "fdir>picomatch": "4.0.4",

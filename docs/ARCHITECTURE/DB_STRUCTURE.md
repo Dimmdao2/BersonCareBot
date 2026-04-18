@@ -17,7 +17,7 @@
 Документ покрывает:
 
 1. схему **`integrator`** (код и миграции в `apps/integrator`);
-2. схему **`public`** (webapp-канон; миграции в `apps/webapp/migrations`).
+2. схему **`public`** (webapp-канон; legacy SQL-миграции в `apps/webapp/migrations`, новые таблицы инициативы программ лечения — в `apps/webapp/db/drizzle-migrations` и `apps/webapp/db/schema`).
 
 ---
 
@@ -171,6 +171,104 @@
 
 Связи: `media_files.folder_id` → `media_folders.id` (ON DELETE RESTRICT). Канонический URL в приложении: `/api/media/{uuid}`.
 
+### 2.9 TREATMENT_PROGRAM_INITIATIVE / программы лечения
+
+Новые таблицы инициативы заведены через **Drizzle ORM** (`apps/webapp/db/schema/*.ts`, миграции `apps/webapp/db/drizzle-migrations/0001` ... `0007`), а не через legacy SQL-папку `apps/webapp/migrations/`.
+
+#### Библиотека блоков (фаза 2)
+
+- `tests`
+- `test_sets`
+- `test_set_items`
+- `recommendations`
+
+Связи:
+
+- `tests.created_by` → `platform_users.id` (SET NULL)
+- `test_sets.created_by` → `platform_users.id` (SET NULL)
+- `test_set_items.test_set_id` → `test_sets.id` (CASCADE)
+- `test_set_items.test_id` → `tests.id` (RESTRICT)
+- `recommendations.created_by` → `platform_users.id` (SET NULL)
+
+#### Шаблоны программ (фаза 3)
+
+- `treatment_program_templates`
+- `treatment_program_template_stages`
+- `treatment_program_template_stage_items`
+
+Связи и инварианты:
+
+- `treatment_program_templates.created_by` → `platform_users.id` (SET NULL)
+- `treatment_program_template_stages.template_id` → `treatment_program_templates.id` (CASCADE)
+- `treatment_program_template_stage_items.stage_id` → `treatment_program_template_stages.id` (CASCADE)
+- `treatment_program_template_stage_items.item_ref_id` — **без FK**, полиморфная ссылка; валидируется сервисным слоем
+
+#### Экземпляры программ / назначение (фаза 4)
+
+- `treatment_program_instances`
+- `treatment_program_instance_stages`
+- `treatment_program_instance_stage_items`
+
+Связи и инварианты:
+
+- `treatment_program_instances.template_id` → `treatment_program_templates.id` (SET NULL)
+- `treatment_program_instances.patient_user_id` → `platform_users.id` (CASCADE)
+- `treatment_program_instances.assigned_by` → `platform_users.id` (SET NULL)
+- `treatment_program_instance_stages.instance_id` → `treatment_program_instances.id` (CASCADE)
+- `treatment_program_instance_stages.source_stage_id` → `treatment_program_template_stages.id` (SET NULL)
+- `treatment_program_instance_stage_items.stage_id` → `treatment_program_instance_stages.id` (CASCADE)
+- `treatment_program_instance_stage_items.item_ref_id` — **без FK**
+- `treatment_program_instance_stage_items.snapshot` — снимок блока на момент назначения
+
+#### Комментарии (фаза 5)
+
+- `comments`
+
+Связи и инварианты:
+
+- `comments.author_id` → `platform_users.id` (RESTRICT)
+- `(target_type, target_id)` — полиморфная ссылка **без FK**
+- индекс `idx_comments_target_type_target_id`
+
+#### Прохождение и тесты (фаза 6)
+
+- `test_attempts`
+- `test_results`
+
+Связи:
+
+- `test_attempts.instance_stage_item_id` → `treatment_program_instance_stage_items.id` (CASCADE)
+- `test_attempts.patient_user_id` → `platform_users.id` (CASCADE)
+- `test_results.attempt_id` → `test_attempts.id` (CASCADE)
+- `test_results.test_id` → `tests.id` (RESTRICT)
+- `test_results.decided_by` → `platform_users.id` (SET NULL)
+
+Дополнения к уже существующим таблицам инициативы:
+
+- `treatment_program_instance_stages.skip_reason`
+- `treatment_program_instance_stage_items.completed_at`
+
+#### История изменений (фаза 7)
+
+- `treatment_program_events`
+
+Связи и инварианты:
+
+- `treatment_program_events.instance_id` → `treatment_program_instances.id` (CASCADE)
+- `treatment_program_events.actor_id` → `platform_users.id` (SET NULL)
+- `target_type` = `stage | stage_item | program`
+- `reason` обязателен на уровне сервиса для `stage_skipped` и `item_removed`
+
+#### Курсы (фаза 8)
+
+- `courses`
+
+Связи и инварианты:
+
+- `courses.program_template_id` → `treatment_program_templates.id` (RESTRICT)
+- `courses.intro_lesson_page_id` → `content_pages.id` (SET NULL)
+- курс хранит метаданные и ссылку на шаблон программы; собственных таблиц прохождения не создаёт
+
 ---
 
 ## 3. Наблюдаемые особенности схемы
@@ -188,6 +286,7 @@
 - Дневники: symptom, LFK и связанные таблицы.
 - Auth / audit / runtime в `public` (в т.ч. idempotency для webapp).
 - Таблицы 2.4–2.7 — проекция данных из integrator; первичный перенос через backfill. **Актуально (2026-04):** одна БД, схемы `integrator` + `public`; целевой путь — **прямой SQL** из integrator в `public`, HTTP projection и worker — **legacy / fallback** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DATABASE_UNIFIED_POSTGRES.md), [Stage 13 ownership map](./STAGE13_OWNERSHIP_MAP.md)).
+- Таблицы 2.9 — новый контур **TREATMENT_PROGRAM_INITIATIVE**; для него source of truth по логике — `docs/TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md`, по структуре БД — Drizzle schema + `db/drizzle-migrations`.
 
 ### 3.3 Общие имена таблиц
 
@@ -205,7 +304,7 @@
 - [Дамп схемы integrator](./DB_DUMPS/integrator_bersoncarebot_dev_schema.sql) (исторически снят с отдельной dev-базы)
 - [Дамп схемы public](./DB_DUMPS/webapp_bcb_webapp_dev_schema.sql) (webapp; unified — обе схемы в одной БД)
 
-Актуальный список таблиц в коде: миграции `apps/integrator` (integrator), `apps/webapp/migrations/` (webapp). Дампы в DB_DUMPS могут отставать от последних миграций; для полной схемы после миграций смотреть `\dt` в psql или вывод миграций.
+Актуальный список таблиц в коде: миграции `apps/integrator` (integrator), `apps/webapp/migrations/` (legacy webapp SQL) и `apps/webapp/db/drizzle-migrations/` + `apps/webapp/db/schema/` (новые таблицы инициативы и последующих Drizzle-изменений). Дампы в DB_DUMPS могут отставать от последних миграций; для полной схемы после миграций смотреть `\dt` в psql или вывод миграций.
 
 ## 5. Перенос данных (backfill / reconcile)
 
@@ -222,3 +321,4 @@
 - [Telegram DB schema](../../apps/integrator/src/integrations/telegram/db/schema.md)
 - [Stage 13 ownership map](./STAGE13_OWNERSHIP_MAP.md)
 - [Data migration checklist](../../deploy/DATA_MIGRATION_CHECKLIST.md)
+- [Treatment program system logic](../TREATMENT_PROGRAM_INITIATIVE/SYSTEM_LOGIC_SCHEMA.md)

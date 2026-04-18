@@ -156,6 +156,7 @@
 **Сверка SYSTEM_LOGIC_SCHEMA.md §1–4 и §10:** типы элементов совпадают с CHECK в БД; для `lesson` эталон документа упоминает секцию `course_lessons`, в коде каталога уроков используется **`content_pages.section = 'lessons'`** — валидация и UI подобраны под фактическую схему приложения; несоответствие имени секции зафиксировано в комментарии в `types.ts`.
 
 **Gate:** перед применением на окружениях выполнить миграцию Drizzle `0002_*` на БД webapp.
+**Gate verdict (Фаза 3):** PASS по коду, API/UI и тестам; операционный шаг — применение миграции `0002_*` на окружениях.
 
 **Следующий шаг:** Фаза 4 (экземпляр программы / snapshot) по MASTER_PLAN.
 
@@ -217,6 +218,7 @@
 **Сверка SYSTEM_LOGIC_SCHEMA.md §5–6 и §11:** копирование и статусы первого этапа; комментарии и snapshot; полиморфные ссылки без FK; LFK/CMS сущности не менялись — только чтение для snapshot.
 
 **Gate:** на окружениях применить миграцию Drizzle `0003_*`.
+**Gate verdict (Фаза 4):** PASS по deep copy, snapshot/override и тестам; операционный шаг — применение миграции `0003_*` на окружениях.
 
 **Следующий шаг:** Фаза 6/7 по MASTER_PLAN (фаза 5 — запись ниже).
 
@@ -237,6 +239,7 @@
 **UI:** `components/comments/CommentBlock.tsx` (`targetType`, `targetId`); встроен в страницу экземпляра программы (`program_instance` + id экземпляра).
 
 **Gate:** на окружениях применить миграцию Drizzle `0004_*`.
+**Gate verdict (Фаза 5):** PASS по схеме `comments`, API/UI и тестам; операционный шаг — применение миграции `0004_*` на окружениях.
 
 **Следующий шаг:** Фаза 6/7 по MASTER_PLAN (`treatment_program_events`, прочее).
 
@@ -420,6 +423,7 @@
 **Тесты:** `modules/treatment-program/progress-service.test.ts` (переходы §3, результаты, skip/reason, override); существующие `instance-service` / `service` — без регрессий.
 
 **Gate:** на окружениях применить миграцию Drizzle `0005_*`.
+**Gate verdict (Фаза 6):** PASS по прохождению, `test_attempts` / `test_results` и тестам; операционный шаг — применение миграции `0005_*` на окружениях.
 
 **Проверка:** `scripts/verify-drizzle-public-table-count.mjs` — в список файлов схемы добавлен `treatmentProgramTestAttempts.ts` (синхронизация с `drizzle.config.ts`); после `db:migrate:drizzle` на БД с актуальными миграциями — **OK: 110** public tables (до фазы 7).
 
@@ -448,6 +452,7 @@
 **Тесты:** `treatment-program-events.test.ts`; доп. проверки в `progress-service.test.ts` (`test_completed` / `stage_completed`, `stage_skipped` + reason).
 
 **Gate:** на окружениях применить миграцию **`0006_*`**; после примения verify table count ожидается **111** public tables (если ранее было 110).
+**Gate verdict (Фаза 7):** PASS по `treatment_program_events`, истории изменений и тестам; операционный шаг — применение миграции `0006_*` на окружениях.
 
 **Проверки (локально):** `pnpm --dir apps/webapp run typecheck` — **PASS**; `pnpm exec vitest run src/modules/treatment-program` — **PASS** (см. также блок AUDIT_PHASE_7 FIX ниже по актуальному числу тестов).
 
@@ -474,6 +479,7 @@
 **Тесты:** `src/modules/courses/service.test.ts`.
 
 **Gate:** применить миграцию **`0007_*`**; после применения ожидается **112** public tables (было **111** после фазы 7).
+**Gate verdict (Фаза 8):** PASS по модели курсов (`course -> template`) и тестам; операционный шаг — применение миграции `0007_*` на окружениях.
 
 **Проверки (локально):** `pnpm --dir apps/webapp run typecheck` — **PASS**; `pnpm exec vitest run src/modules/courses/service.test.ts` — **PASS**.
 
@@ -496,6 +502,7 @@
 **Тесты:** расширен `treatment-program-events.test.ts` (reorder + события, блокировки remove/replace/remove-stage, проекция ЛФК).
 
 **Проверки (локально):** `pnpm --dir apps/webapp run typecheck`; `pnpm exec vitest run src/modules/treatment-program/treatment-program-events.test.ts`.
+**Gate verdict (Фаза 9):** PASS по гибким правкам экземпляра, событиям и integrator-проекции §11; операционных миграций сверх `0007_*` не добавлялось.
 
 ---
 
@@ -835,3 +842,28 @@
 **Документ:** `AUDIT_PHASE_8.md` — разделы «AUDIT_PHASE_8 FIX — перепроверка…», «AUDIT_PHASE_8 FIX — верификация», обновлённая таблица MANDATORY.
 
 **Gate verdict (AUDIT_PHASE_8 FIX):** **PASS** по § 9–10 и точечным тестам; полный `pnpm run ci` не гонялся.
+
+---
+
+## 2026-04-18 — FINAL AUDIT FIX closure
+
+**Вход:** `AUDIT_FINAL.md`.
+
+**Сделано:**
+
+- `docs/ARCHITECTURE/DB_STRUCTURE.md` обновлён: добавлен раздел `2.9 TREATMENT_PROGRAM_INITIATIVE / программы лечения` со всеми таблицами инициативы, связями и пометкой про Drizzle.
+- `LOG.md` нормализован по формальному phase-gate формату: для фаз **3–9** добавлены явные строки `Gate verdict (Фаза N): PASS`.
+- Зависимость `drizzle-orm` обновлена с `^0.44.7` до `^0.45.2` (закрыт advisory `GHSA-gpj5-g38j-94v9`).
+- В `pnpm.overrides` добавлен override `@esbuild-kit/core-utils>esbuild = 0.27.4` для устранения транзитивного `esbuild@0.18.20` из цепочки `drizzle-kit`.
+
+**Проверки:**
+
+- `pnpm run audit` — **PASS** (`registry-prod-audit: no known vulnerabilities`)
+- `pnpm run ci` — **PASS**: `lint` → `typecheck` → `test` (integrator **749** passed) → `test:webapp` (**1889** passed, **8** skipped) → `build` → `build:webapp` → `audit`
+
+**Документы:**
+
+- `AUDIT_FINAL.md` обновлён с итоговым вердиктом **PASS**
+- `DB_STRUCTURE.md` и `LOG.md` синхронизированы с финальным состоянием инициативы
+
+**Gate verdict (FINAL AUDIT FIX):** **PASS** — все пункты финального аудита закрыты: phase-gates формализованы в `LOG.md`, `DB_STRUCTURE.md` обновлён, `pnpm run ci` green.
