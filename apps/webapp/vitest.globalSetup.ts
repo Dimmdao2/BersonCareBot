@@ -22,7 +22,12 @@ export default async function globalSetup() {
   const failOnMigrationError =
     process.env.CI === "true" || process.env.VITEST_REQUIRE_DB_MIGRATIONS === "true";
   try {
-    execSync("node scripts/run-migrations.mjs", {
+    execSync("pnpm run migrate:legacy", {
+      encoding: "utf-8",
+      cwd: __dirname,
+      env: { ...process.env, DATABASE_URL: dbUrl },
+    });
+    execSync("pnpm run migrate", {
       encoding: "utf-8",
       cwd: __dirname,
       env: { ...process.env, DATABASE_URL: dbUrl },

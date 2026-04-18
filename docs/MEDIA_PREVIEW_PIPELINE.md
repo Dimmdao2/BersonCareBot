@@ -89,7 +89,7 @@
 
 ## Миграция
 
-Применить [`075_media_preview_status.sql`](../apps/webapp/migrations/075_media_preview_status.sql), [`076_requeue_skipped_mov_heic.sql`](../apps/webapp/migrations/076_requeue_skipped_mov_heic.sql), [`077_requeue_previews_skipped_by_200mb_cap.sql`](../apps/webapp/migrations/077_requeue_previews_skipped_by_200mb_cap.sql), [`079_media_files_source_dimensions.sql`](../apps/webapp/migrations/079_media_files_source_dimensions.sql), при необходимости backfill [`080_requeue_source_dimensions.sql`](../apps/webapp/migrations/080_requeue_source_dimensions.sql) и requeue видео без md [`081_requeue_video_for_md_preview.sql`](../apps/webapp/migrations/081_requeue_video_for_md_preview.sql) через процесс миграций webapp (`pnpm --dir apps/webapp migrate` в dev или принятую в проекте процедуру на хосте).
+Применить [`075_media_preview_status.sql`](../apps/webapp/migrations/075_media_preview_status.sql), [`076_requeue_skipped_mov_heic.sql`](../apps/webapp/migrations/076_requeue_skipped_mov_heic.sql), [`077_requeue_previews_skipped_by_200mb_cap.sql`](../apps/webapp/migrations/077_requeue_previews_skipped_by_200mb_cap.sql), [`079_media_files_source_dimensions.sql`](../apps/webapp/migrations/079_media_files_source_dimensions.sql), при необходимости backfill [`080_requeue_source_dimensions.sql`](../apps/webapp/migrations/080_requeue_source_dimensions.sql) и requeue видео без md [`081_requeue_video_for_md_preview.sql`](../apps/webapp/migrations/081_requeue_video_for_md_preview.sql) через **legacy** раннер webapp: `pnpm --dir apps/webapp run migrate:legacy` (файлы лежат в `apps/webapp/migrations/`, не в Drizzle-журнале).
 
 ## Troubleshooting: ffmpeg SIGSEGV
 

@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
- * Runs SQL migrations from webapp/migrations in order.
- * Usage: node scripts/run-migrations.mjs
+ * LEGACY: runs SQL files from `apps/webapp/migrations/*.sql` in order.
+ *
+ * Canonical webapp migrations are Drizzle (`pnpm run migrate`). This runner remains for:
+ * - `pnpm run migrate:legacy` on DBs that still need legacy-only SQL, or
+ * - bootstrap ordering (legacy first, then Drizzle) on a completely empty database.
+ *
+ * Usage: `pnpm run migrate:legacy` or `node scripts/run-migrations.mjs`
  * Requires DATABASE_URL (e.g. from .env or environment).
  */
 import { readdir, readFile } from "fs/promises";

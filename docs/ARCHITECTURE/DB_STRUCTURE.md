@@ -118,7 +118,7 @@
 - `broadcast_audit`
 - `admin_audit_log` — персистентный журнал операций админки (опасные действия, смена настроек, конфликты auto-merge и т.д.); UI «Лог операций» в `/app/settings`, API `GET /api/admin/audit-log`. Миграция `066_admin_audit_log.sql`. Подробности и политика записи: `docs/REPORTS/STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md`, план strict purge §0.
 - `idempotency_keys`
-- `webapp_schema_migrations` — учёт SQL-миграций webapp (`apps/webapp/migrations/*.sql`); отдельное имя от `integrator.schema_migrations` (`version`) и от исторической `public.schema_migrations (filename)`, см. `apps/webapp/scripts/run-migrations.mjs`
+- `webapp_schema_migrations` — учёт **legacy** SQL-миграций webapp (`apps/webapp/migrations/*.sql`), ведётся только при прогоне `pnpm --dir apps/webapp run migrate:legacy`; отдельное имя от `integrator.schema_migrations` (`version`) и от исторической `public.schema_migrations (filename)`, см. `apps/webapp/scripts/run-migrations.mjs`. Канонический прогон схемы webapp — Drizzle (`pnpm --dir apps/webapp run migrate`).
 
 ### 2.4 Support / communication (проекция из integrator)
 

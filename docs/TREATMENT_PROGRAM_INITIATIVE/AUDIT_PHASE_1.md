@@ -71,7 +71,7 @@
 - **`pnpm --dir apps/webapp run db:migrate:drizzle`** — обёртка над `drizzle-kit migrate`.
 - Если SQL из `0001`–`0004` уже применён вручную, а `drizzle.__drizzle_migrations` пуста — **`pnpm --dir apps/webapp run db:seed-drizzle-meta`** вставляет метаданные (hash + `created_at` из `meta/_journal.json`) **без** повторного выполнения SQL; затем `db:migrate:drizzle` идемпотентен.
 
-**Порядок на пустой БД нетипичен для этого репозитория:** сначала legacy `pnpm run migrate` (SQL в `apps/webapp/migrations/`), затем Drizzle `0000`…`0004`.
+**Порядок на пустой БД:** сначала legacy `pnpm --dir apps/webapp run migrate:legacy` (SQL в `apps/webapp/migrations/`), затем Drizzle **`pnpm --dir apps/webapp run migrate`** (`0000`… и далее по журналу).
 
 ---
 
@@ -141,7 +141,7 @@ app/api/**/route.ts  →  modules/<domain>/ (service, ports, types)
    **Закрыто (2026-04-18):** в `SYSTEM_LOGIC_SCHEMA.md` § 12 диаграмма и пояснение приведены к канону `infra/repos` + порты; убрана двусмысленность «inline в service» без отмены `EXECUTION_RULES`.
 
 3. **Операционный контур:**  
-   При MISMATCH: `pnpm --dir apps/webapp run db:migrate:drizzle` (после legacy migrate на новой БД). Если SQL уже вручную — `db:seed-drizzle-meta`, затем `db:migrate:drizzle`. В CI без `DATABASE_URL` verify — **SKIP** (exit 0).
+   При MISMATCH: при необходимости `migrate:legacy` на новой БД — затем **`pnpm --dir apps/webapp run migrate`** или `db:migrate:drizzle`. Если SQL уже вручную — `db:seed-drizzle-meta`, затем снова `migrate` / `db:migrate:drizzle`. В CI без `DATABASE_URL` verify — **SKIP** (exit 0).
 
 4. **`drizzle-kit migrate` падает на 0000 (major):**  
    **Закрыто (AUDIT_PHASE_1 FIX):** см. §3 — новый `0000`, скрипты `db:migrate:drizzle`, `db:seed-drizzle-meta`.
@@ -168,8 +168,8 @@ USE_REAL_DATABASE=1 pnpm --dir apps/webapp exec vitest run src/app-layer/db/driz
 # Сверка числа таблиц (нужен DATABASE_URL)
 pnpm --dir apps/webapp run db:verify-public-table-count
 
-# Миграции Drizzle (после legacy migrate на свежей БД)
-pnpm --dir apps/webapp run db:migrate:drizzle
+# Миграции Drizzle (после migrate:legacy на свежей БД, если нужен legacy SQL)
+pnpm --dir apps/webapp run migrate
 
 # Только метаданные журнала (если SQL уже применён вручную)
 pnpm --dir apps/webapp run db:seed-drizzle-meta

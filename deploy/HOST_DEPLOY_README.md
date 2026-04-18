@@ -453,7 +453,7 @@ bash deploy/host/deploy-webapp-prod.sh
 - `pnpm install --frozen-lockfile`
 - `pnpm --dir apps/webapp build`
 - перед миграциями: вызов backup (`BACKUP_SCRIPT` pre-migrations). Требуется наличие скрипта и sudo-прав (см. Sudoers). Скрипт backup должен быть тем же, что в full prod deploy (`/opt/backups/scripts/postgres-backup.sh`), или эквивалентным; контракт аргумента и каталога см. в разделе «Backup contract (pre-migrations)» ниже.
-- `pnpm --dir apps/webapp run migrate`
+- `pnpm --dir apps/webapp run migrate` (канонически: Drizzle-миграции из `apps/webapp/db/drizzle-migrations`; legacy SQL из `apps/webapp/migrations` при необходимости — отдельно `pnpm --dir apps/webapp run migrate:legacy`)
 - restart webapp
 - health check `http://127.0.0.1:6200/api/health`
 
