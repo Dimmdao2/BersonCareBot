@@ -26,7 +26,7 @@
 - Schema files живут в `apps/webapp/db/schema/` (или согласованный путь после установки).
 - Каждая доменная область — отдельный schema file (`treatmentProgram.ts`, `tests.ts`, `comments.ts`, `courses.ts`).
 - Типы: инферить из schema (`typeof table.$inferSelect`, `typeof table.$inferInsert`). Минимум ручных type-дублей.
-- Миграции: `drizzle-kit generate` → `drizzle-kit migrate`. Не ручной SQL. Исключение: seed data.
+- Миграции: `drizzle-kit generate` → применение на БД: `pnpm --dir apps/webapp run db:migrate:drizzle` (обёртка над `drizzle-kit migrate`). Не ручной SQL. Исключение: seed data. Если SQL из журнала уже накатан вручную, а `drizzle.__drizzle_migrations` пуст — `pnpm --dir apps/webapp run db:seed-drizzle-meta` (только метаданные, без повторного DDL).
 - Relations: описывать в schema (Drizzle `relations()`).
 - **`drizzle-kit introspect`:** используй `pnpm --dir apps/webapp run db:introspect` — после introspect автоматически запускается скрипт исправления известного бага генератора (пустые string defaults). При необходимости только правка: `pnpm --dir apps/webapp run db:introspect:fix`.
 - **Проверка снимка схемы `public` vs файлы:** при наличии `DATABASE_URL` — `pnpm --dir apps/webapp run db:verify-public-table-count` и при необходимости `pnpm --dir apps/webapp exec drizzle-kit check`.

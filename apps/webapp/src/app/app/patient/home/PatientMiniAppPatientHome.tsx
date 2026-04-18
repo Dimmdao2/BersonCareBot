@@ -49,6 +49,18 @@ export async function PatientMiniAppPatientHome({ platformUserId }: Props) {
             <span className="text-base font-semibold">Уроки и тренировки</span>
             <p className="mt-2 text-sm text-muted-foreground">Материалы по разделам</p>
           </Link>
+          <Link
+            href={routePaths.patientTreatmentPrograms}
+            className={cardClass}
+            id="patient-miniapp-link-treatment-programs"
+          >
+            <span className="text-base font-semibold">Программы лечения</span>
+            <p className="mt-2 text-sm text-muted-foreground">План и тесты</p>
+          </Link>
+          <Link href={routePaths.patientCourses} className={cardClass} id="patient-miniapp-link-courses">
+            <span className="text-base font-semibold">Курсы</span>
+            <p className="mt-2 text-sm text-muted-foreground">Каталог программ</p>
+          </Link>
         </div>
       </section>
     </div>

@@ -1,5 +1,24 @@
 import { relations } from "drizzle-orm/relations";
-import { platformUsers, supportConversations, messageLog, userChannelBindings, supportQuestions, supportQuestionMessages, supportConversationMessages, supportDeliveryEvents, symptomEntries, symptomTrackings, contentAccessGrantsWebapp, branches, appointmentRecords, emailChallenges, userPins, channelLinkSecrets, userChannelPreferences, userOauthBindings, lfkComplexes, lfkSessions, loginTokens, referenceCategories, referenceItems, doctorNotes, lfkExercises, lfkComplexTemplateExercises, lfkComplexTemplates, lfkExerciseMedia, patientLfkAssignments, lfkComplexExercises, mediaFolders, mediaFiles, bookingCities, bookingBranches, bookingSpecialists, bookingBranchServices, bookingServices, onlineIntakeRequests, patientBookings, onlineIntakeAnswers, onlineIntakeAttachments, onlineIntakeStatusHistory, reminderRules, reminderOccurrenceHistory, reminderJournal, adminAuditLog, mediaUploadSessions, users, identities, contacts, messageDrafts, conversations, conversationMessages, userQuestions, questionMessages, userReminderRules, userReminderOccurrences, userReminderDeliveryLogs, contentAccessGrants, mailingTopics, mailings, telegramState, rubitimeBranches, rubitimeBookingProfiles, rubitimeCooperators, rubitimeServices, emailSendCooldowns, userNotificationTopics, newsItems, newsItemViews, userSubscriptions, systemSettings, mailingLogs } from "./schema";
+import { clinicalTests, testSets, testSetItems } from "./clinicalTests";
+import { recommendations } from "./recommendations";
+import {
+	treatmentProgramTemplates,
+	treatmentProgramTemplateStages,
+	treatmentProgramTemplateStageItems,
+} from "./treatmentProgramTemplates";
+import {
+	treatmentProgramInstances,
+	treatmentProgramInstanceStages,
+	treatmentProgramInstanceStageItems,
+} from "./treatmentProgramInstances";
+import { treatmentProgramEvents } from "./treatmentProgramEvents";
+import {
+	treatmentProgramTestAttempts,
+	treatmentProgramTestResults,
+} from "./treatmentProgramTestAttempts";
+import { entityComments } from "./entityComments";
+import { courses } from "./courses";
+import { platformUsers, supportConversations, messageLog, userChannelBindings, supportQuestions, supportQuestionMessages, supportConversationMessages, supportDeliveryEvents, symptomEntries, symptomTrackings, contentAccessGrantsWebapp, branches, appointmentRecords, emailChallenges, userPins, channelLinkSecrets, userChannelPreferences, userOauthBindings, lfkComplexes, lfkSessions, loginTokens, referenceCategories, referenceItems, doctorNotes, lfkExercises, lfkComplexTemplateExercises, lfkComplexTemplates, lfkExerciseMedia, patientLfkAssignments, lfkComplexExercises, mediaFolders, mediaFiles, bookingCities, bookingBranches, bookingSpecialists, bookingBranchServices, bookingServices, onlineIntakeRequests, patientBookings, onlineIntakeAnswers, onlineIntakeAttachments, onlineIntakeStatusHistory, reminderRules, reminderOccurrenceHistory, reminderJournal, adminAuditLog, mediaUploadSessions, users, identities, contacts, contentPages, messageDrafts, conversations, conversationMessages, userQuestions, questionMessages, userReminderRules, userReminderOccurrences, userReminderDeliveryLogs, contentAccessGrants, mailingTopics, mailings, telegramState, rubitimeBranches, rubitimeBookingProfiles, rubitimeCooperators, rubitimeServices, emailSendCooldowns, userNotificationTopics, newsItems, newsItemViews, userSubscriptions, systemSettings, mailingLogs } from "./schema";
 
 export const supportConversationsRelations = relations(supportConversations, ({one, many}) => ({
 	platformUser: one(platformUsers, {
@@ -67,6 +86,17 @@ export const platformUsersRelations = relations(platformUsers, ({one, many}) => 
 	userNotificationTopics: many(userNotificationTopics),
 	newsItemViews: many(newsItemViews),
 	systemSettings: many(systemSettings),
+	clinicalTests: many(clinicalTests),
+	testSets: many(testSets),
+	recommendations: many(recommendations),
+	treatmentProgramTemplates: many(treatmentProgramTemplates),
+	treatmentProgramInstancesAsPatient: many(treatmentProgramInstances, {
+		relationName: "treatment_program_instances_patient",
+	}),
+	treatmentProgramInstancesAssignedByDoctor: many(treatmentProgramInstances, {
+		relationName: "treatment_program_instances_assigned_by",
+	}),
+	entityComments: many(entityComments),
 }));
 
 export const messageLogRelations = relations(messageLog, ({one}) => ({
@@ -739,5 +769,174 @@ export const mailingLogsRelations = relations(mailingLogs, ({one}) => ({
 	user: one(users, {
 		fields: [mailingLogs.userId],
 		references: [users.id]
+	}),
+}));
+
+export const clinicalTestsRelations = relations(clinicalTests, ({ one, many }) => ({
+	platformUser: one(platformUsers, {
+		fields: [clinicalTests.createdBy],
+		references: [platformUsers.id],
+	}),
+	testSetItems: many(testSetItems),
+}));
+
+export const testSetsRelations = relations(testSets, ({ one, many }) => ({
+	platformUser: one(platformUsers, {
+		fields: [testSets.createdBy],
+		references: [platformUsers.id],
+	}),
+	items: many(testSetItems),
+}));
+
+export const testSetItemsRelations = relations(testSetItems, ({ one }) => ({
+	testSet: one(testSets, {
+		fields: [testSetItems.testSetId],
+		references: [testSets.id],
+	}),
+	clinicalTest: one(clinicalTests, {
+		fields: [testSetItems.testId],
+		references: [clinicalTests.id],
+	}),
+}));
+
+export const recommendationsRelations = relations(recommendations, ({ one }) => ({
+	platformUser: one(platformUsers, {
+		fields: [recommendations.createdBy],
+		references: [platformUsers.id],
+	}),
+}));
+
+export const treatmentProgramTemplatesRelations = relations(treatmentProgramTemplates, ({ one, many }) => ({
+	platformUser: one(platformUsers, {
+		fields: [treatmentProgramTemplates.createdBy],
+		references: [platformUsers.id],
+	}),
+	stages: many(treatmentProgramTemplateStages),
+	courses: many(courses),
+}));
+
+export const coursesRelations = relations(courses, ({ one }) => ({
+	programTemplate: one(treatmentProgramTemplates, {
+		fields: [courses.programTemplateId],
+		references: [treatmentProgramTemplates.id],
+	}),
+	introLesson: one(contentPages, {
+		fields: [courses.introLessonPageId],
+		references: [contentPages.id],
+	}),
+}));
+
+export const treatmentProgramTemplateStagesRelations = relations(
+	treatmentProgramTemplateStages,
+	({ one, many }) => ({
+		template: one(treatmentProgramTemplates, {
+			fields: [treatmentProgramTemplateStages.templateId],
+			references: [treatmentProgramTemplates.id],
+		}),
+		items: many(treatmentProgramTemplateStageItems),
+	}),
+);
+
+export const treatmentProgramTemplateStageItemsRelations = relations(
+	treatmentProgramTemplateStageItems,
+	({ one }) => ({
+		stage: one(treatmentProgramTemplateStages, {
+			fields: [treatmentProgramTemplateStageItems.stageId],
+			references: [treatmentProgramTemplateStages.id],
+		}),
+	}),
+);
+
+export const treatmentProgramInstancesRelations = relations(treatmentProgramInstances, ({ one, many }) => ({
+	template: one(treatmentProgramTemplates, {
+		fields: [treatmentProgramInstances.templateId],
+		references: [treatmentProgramTemplates.id],
+	}),
+	patientUser: one(platformUsers, {
+		fields: [treatmentProgramInstances.patientUserId],
+		references: [platformUsers.id],
+		relationName: "treatment_program_instances_patient",
+	}),
+	assignedByUser: one(platformUsers, {
+		fields: [treatmentProgramInstances.assignedBy],
+		references: [platformUsers.id],
+		relationName: "treatment_program_instances_assigned_by",
+	}),
+	stages: many(treatmentProgramInstanceStages),
+	programEvents: many(treatmentProgramEvents),
+}));
+
+export const treatmentProgramEventsRelations = relations(treatmentProgramEvents, ({ one }) => ({
+	instance: one(treatmentProgramInstances, {
+		fields: [treatmentProgramEvents.instanceId],
+		references: [treatmentProgramInstances.id],
+	}),
+	actor: one(platformUsers, {
+		fields: [treatmentProgramEvents.actorId],
+		references: [platformUsers.id],
+	}),
+}));
+
+export const treatmentProgramInstanceStagesRelations = relations(
+	treatmentProgramInstanceStages,
+	({ one, many }) => ({
+		instance: one(treatmentProgramInstances, {
+			fields: [treatmentProgramInstanceStages.instanceId],
+			references: [treatmentProgramInstances.id],
+		}),
+		sourceStage: one(treatmentProgramTemplateStages, {
+			fields: [treatmentProgramInstanceStages.sourceStageId],
+			references: [treatmentProgramTemplateStages.id],
+		}),
+		items: many(treatmentProgramInstanceStageItems),
+	}),
+);
+
+export const treatmentProgramInstanceStageItemsRelations = relations(
+	treatmentProgramInstanceStageItems,
+	({ one, many }) => ({
+		stage: one(treatmentProgramInstanceStages, {
+			fields: [treatmentProgramInstanceStageItems.stageId],
+			references: [treatmentProgramInstanceStages.id],
+		}),
+		testAttempts: many(treatmentProgramTestAttempts),
+	}),
+);
+
+export const treatmentProgramTestAttemptsRelations = relations(
+	treatmentProgramTestAttempts,
+	({ one, many }) => ({
+		stageItem: one(treatmentProgramInstanceStageItems, {
+			fields: [treatmentProgramTestAttempts.instanceStageItemId],
+			references: [treatmentProgramInstanceStageItems.id],
+		}),
+		patient: one(platformUsers, {
+			fields: [treatmentProgramTestAttempts.patientUserId],
+			references: [platformUsers.id],
+		}),
+		results: many(treatmentProgramTestResults),
+	}),
+);
+
+export const treatmentProgramTestResultsRelations = relations(treatmentProgramTestResults, ({ one }) => ({
+	attempt: one(treatmentProgramTestAttempts, {
+		fields: [treatmentProgramTestResults.attemptId],
+		references: [treatmentProgramTestAttempts.id],
+	}),
+	test: one(clinicalTests, {
+		fields: [treatmentProgramTestResults.testId],
+		references: [clinicalTests.id],
+	}),
+	decidedByUser: one(platformUsers, {
+		fields: [treatmentProgramTestResults.decidedBy],
+		references: [platformUsers.id],
+		relationName: "test_results_decided_by_user",
+	}),
+}));
+
+export const entityCommentsRelations = relations(entityComments, ({ one }) => ({
+	author: one(platformUsers, {
+		fields: [entityComments.authorId],
+		references: [platformUsers.id],
 	}),
 }));

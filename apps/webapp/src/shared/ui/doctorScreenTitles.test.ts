@@ -11,6 +11,13 @@ describe("getDoctorScreenTitle", () => {
   it("returns client for detail", () => {
     expect(getDoctorScreenTitle("/app/doctor/clients/u1")).toBe("Клиент");
   });
+  it("returns treatment program title for patient program detail", () => {
+    expect(
+      getDoctorScreenTitle(
+        "/app/doctor/clients/11111111-1111-4111-8111-111111111111/treatment-programs/22222222-2222-4222-8222-222222222222",
+      ),
+    ).toBe("Программа пациента");
+  });
   it("returns new content page title", () => {
     expect(getDoctorScreenTitle("/app/doctor/content/new")).toBe("Новая страница");
   });
@@ -30,6 +37,20 @@ describe("getDoctorScreenTitle", () => {
     expect(getDoctorScreenTitle("/app/doctor/exercises")).toBe("Упражнения ЛФК");
     expect(getDoctorScreenTitle("/app/doctor/exercises/new")).toBe("Новое упражнение");
     expect(getDoctorScreenTitle("/app/doctor/exercises/abc")).toBe("Редактирование упражнения");
+  });
+  it("returns treatment block library titles", () => {
+    expect(getDoctorScreenTitle("/app/doctor/clinical-tests")).toBe("Клинические тесты");
+    expect(getDoctorScreenTitle("/app/doctor/clinical-tests/new")).toBe("Новый тест");
+    expect(getDoctorScreenTitle("/app/doctor/clinical-tests/abc")).toBe("Редактирование теста");
+    expect(getDoctorScreenTitle("/app/doctor/test-sets")).toBe("Наборы тестов");
+    expect(getDoctorScreenTitle("/app/doctor/test-sets/new")).toBe("Новый набор тестов");
+    expect(getDoctorScreenTitle("/app/doctor/test-sets/abc")).toBe("Набор тестов");
+    expect(getDoctorScreenTitle("/app/doctor/recommendations")).toBe("Рекомендации");
+    expect(getDoctorScreenTitle("/app/doctor/recommendations/new")).toBe("Новая рекомендация");
+    expect(getDoctorScreenTitle("/app/doctor/recommendations/abc")).toBe("Редактирование рекомендации");
+    expect(getDoctorScreenTitle("/app/doctor/treatment-program-templates")).toBe("Шаблоны программ");
+    expect(getDoctorScreenTitle("/app/doctor/treatment-program-templates/new")).toBe("Новый шаблон программы");
+    expect(getDoctorScreenTitle("/app/doctor/treatment-program-templates/abc")).toBe("Конструктор программы");
   });
   it("returns lfk template titles", () => {
     expect(getDoctorScreenTitle("/app/doctor/lfk-templates")).toBe("Шаблоны ЛФК");

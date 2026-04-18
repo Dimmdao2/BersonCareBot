@@ -15,6 +15,7 @@ import type { MessageLogEntry } from "@/modules/doctor-messaging/ports";
 import type { PrepareDraftResult } from "@/modules/doctor-messaging/service";
 import { phoneToTelHref } from "@/shared/lib/phoneLinks";
 import { AssignLfkTemplatePanel } from "./AssignLfkTemplatePanel";
+import { PatientTreatmentProgramsPanel } from "./PatientTreatmentProgramsPanel";
 import { AdminDangerActions } from "./AdminDangerActions";
 import { AdminClientAuditHistorySection } from "./AdminClientAuditHistorySection";
 import { AdminClientProfileEditPanel } from "./AdminClientProfileEditPanel";
@@ -30,11 +31,15 @@ type ClientProfileCardProps = {
   messageHistory: MessageLogEntry[];
   userId: string;
   listBasePath?: string;
+  /** Query `scope` карточки клиента (для ссылок на экземпляр программы). */
+  profileListScope?: string;
   isAdmin?: boolean;
   canPermanentDelete?: boolean;
   canEditClientProfile?: boolean;
   publishedLfkTemplates?: { id: string; title: string }[];
   assignLfkEnabled?: boolean;
+  publishedTreatmentProgramTemplates?: { id: string; title: string }[];
+  assignTreatmentProgramEnabled?: boolean;
 };
 
 function AccItem({
@@ -85,11 +90,14 @@ function ClientProfileCardInner({
   messageHistory,
   userId,
   listBasePath = "/app/doctor/clients",
+  profileListScope,
   isAdmin = false,
   canPermanentDelete = false,
   canEditClientProfile = false,
   publishedLfkTemplates = [],
   assignLfkEnabled = false,
+  publishedTreatmentProgramTemplates = [],
+  assignTreatmentProgramEnabled = false,
 }: ClientProfileCardProps) {
   const [openSection, setOpenSection] = useState<string | null>("contacts");
   const [contactsEditing, setContactsEditing] = useState(false);
@@ -303,6 +311,15 @@ function ClientProfileCardInner({
               disabled={!assignLfkEnabled}
             />
           </div>
+        </AccItem>
+
+        <AccItem id="treatment-programs" title="Программа лечения" openSection={openSection} onToggle={toggle}>
+          <PatientTreatmentProgramsPanel
+            patientUserId={userId}
+            templates={publishedTreatmentProgramTemplates}
+            disabled={!assignTreatmentProgramEnabled}
+            profileListScope={profileListScope}
+          />
         </AccItem>
 
         <AccItem id="notes" title="Заметки врача" openSection={openSection} onToggle={toggle}>

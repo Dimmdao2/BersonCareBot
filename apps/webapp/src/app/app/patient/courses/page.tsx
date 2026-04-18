@@ -1,0 +1,38 @@
+/**
+ * Каталог курсов (§9): метаданные и цена; запись создаёт экземпляр программы как при назначении врача.
+ */
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
+import { patientClientBusinessGate } from "@/modules/platform-access/patientClientBusinessGate";
+import { AppShell } from "@/shared/ui/AppShell";
+import { PatientCoursesCatalogClient } from "./PatientCoursesCatalogClient";
+
+export default async function PatientCoursesPage() {
+  const session = await getOptionalPatientSession();
+  const deps = buildAppDeps();
+  const items = await deps.courses.listPublishedCatalog();
+
+  let enrollReady = false;
+  let loggedIn = false;
+  if (session) {
+    loggedIn = true;
+    const g = await patientClientBusinessGate(session);
+    enrollReady = g === "allow";
+  }
+
+  return (
+    <AppShell
+      title="Курсы"
+      user={session?.user ?? null}
+      backHref={routePaths.patient}
+      backLabel="Меню"
+      variant="patient"
+    >
+      <p className="mb-4 text-sm text-muted-foreground">
+        После записи вы получите программу лечения с этапами и материалами — как при назначении врача.
+      </p>
+      <PatientCoursesCatalogClient items={items} enrollReady={enrollReady} loggedIn={loggedIn} />
+    </AppShell>
+  );
+}

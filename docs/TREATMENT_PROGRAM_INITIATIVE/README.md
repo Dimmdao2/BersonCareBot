@@ -11,6 +11,7 @@
 | `EXECUTION_RULES.md` | Жёсткие правила для агентов и разработчиков |
 | `PROMPTS_EXEC_AUDIT_FIX.md` | Copy-paste промпты для агентов: EXEC / AUDIT / FIX по каждой фазе |
 | `LEGACY_CLEANUP_BACKLOG.md` | Allowlist текущих нарушений boundaries DB/repos в `modules/*` (29 файлов); секция B — исторический снимок по маршрутам (48 — не текущее число API routes) |
+| `AUDIT_PHASE_0.md` | Аудит фазы 0 (enforcement); MANDATORY FIX и статус закрытия |
 | `LOG.md` | Журнал выполнения (создаётся при начале работы) |
 
 ## Фазы

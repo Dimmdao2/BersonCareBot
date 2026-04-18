@@ -36,7 +36,9 @@
     "integrator-push-outbox-tick": "tsx scripts/integrator-push-outbox-tick.ts",
     "db:introspect": "drizzle-kit introspect && node scripts/fix-drizzle-introspect-defaults.mjs",
     "db:introspect:fix": "node scripts/fix-drizzle-introspect-defaults.mjs",
-    "db:verify-public-table-count": "node scripts/verify-drizzle-public-table-count.mjs"
+    "db:verify-public-table-count": "node scripts/verify-drizzle-public-table-count.mjs",
+    "db:migrate:drizzle": "drizzle-kit migrate",
+    "db:seed-drizzle-meta": "node scripts/seed-drizzle-migrations-meta.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1026.0",

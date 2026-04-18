@@ -117,6 +117,35 @@ import { createSystemSettingsService } from "@/modules/system-settings/service";
 import { createLfkExercisesService } from "@/modules/lfk-exercises/service";
 import { pgLfkExercisesPort } from "@/infra/repos/pgLfkExercises";
 import { inMemoryLfkExercisesPort } from "@/infra/repos/inMemoryLfkExercises";
+import { createClinicalTestsService, createTestSetsService } from "@/modules/tests/service";
+import { createRecommendationsService } from "@/modules/recommendations/service";
+import { createCommentsService } from "@/modules/comments/service";
+import { createTreatmentProgramService } from "@/modules/treatment-program/service";
+import { createTreatmentProgramInstanceService } from "@/modules/treatment-program/instance-service";
+import { createTreatmentProgramProgressService } from "@/modules/treatment-program/progress-service";
+import { createCoursesService } from "@/modules/courses/service";
+import { pgClinicalTestsPort } from "@/infra/repos/pgClinicalTests";
+import { pgTestSetsPort } from "@/infra/repos/pgTestSets";
+import { inMemoryClinicalTestsPort } from "@/infra/repos/inMemoryClinicalTests";
+import { inMemoryTestSetsPort } from "@/infra/repos/inMemoryTestSets";
+import { pgRecommendationsPort } from "@/infra/repos/pgRecommendations";
+import { inMemoryRecommendationsPort } from "@/infra/repos/inMemoryRecommendations";
+import { createPgCommentsPort } from "@/infra/repos/pgComments";
+import { createInMemoryCommentsPort } from "@/infra/repos/inMemoryComments";
+import { createPgTreatmentProgramPort } from "@/infra/repos/pgTreatmentProgram";
+import { createInMemoryTreatmentProgramPort } from "@/infra/repos/inMemoryTreatmentProgram";
+import { createPgTreatmentProgramItemRefValidationPort } from "@/infra/repos/pgTreatmentProgramItemRefValidation";
+import { createInMemoryTreatmentProgramItemRefValidationPort } from "@/infra/repos/inMemoryTreatmentProgramItemRefValidation";
+import { createPgTreatmentProgramInstancePort } from "@/infra/repos/pgTreatmentProgramInstance";
+import {
+  createInMemoryTreatmentProgramPersistence,
+} from "@/infra/repos/inMemoryTreatmentProgramInstance";
+import { createPgTreatmentProgramTestAttemptsPort } from "@/infra/repos/pgTreatmentProgramTestAttempts";
+import { createPgTreatmentProgramEventsPort } from "@/infra/repos/pgTreatmentProgramEvents";
+import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatmentProgramItemSnapshot";
+import { createInMemoryTreatmentProgramItemSnapshotPort } from "@/infra/repos/inMemoryTreatmentProgramItemSnapshot";
+import { createPgCoursesPort } from "@/infra/repos/pgCourses";
+import { createInMemoryCoursesPort } from "@/infra/repos/inMemoryCourses";
 import { createLfkTemplatesService } from "@/modules/lfk-templates/service";
 import { pgLfkTemplatesPort } from "@/infra/repos/pgLfkTemplates";
 import { inMemoryLfkTemplatesPort } from "@/infra/repos/inMemoryLfkTemplates";
@@ -200,6 +229,59 @@ const systemSettingsService = createSystemSettingsService(systemSettingsPort);
 
 const lfkExercisesPort = !inMemoryRepos ? pgLfkExercisesPort : inMemoryLfkExercisesPort;
 const lfkExercisesService = createLfkExercisesService(lfkExercisesPort);
+
+const clinicalTestsPort = !inMemoryRepos ? pgClinicalTestsPort : inMemoryClinicalTestsPort;
+const testSetsPort = !inMemoryRepos ? pgTestSetsPort : inMemoryTestSetsPort;
+const recommendationsPort = !inMemoryRepos ? pgRecommendationsPort : inMemoryRecommendationsPort;
+const commentsPort = !inMemoryRepos ? createPgCommentsPort() : createInMemoryCommentsPort();
+
+const clinicalTestsService = createClinicalTestsService(clinicalTestsPort);
+const testSetsService = createTestSetsService(testSetsPort, clinicalTestsPort);
+const recommendationsService = createRecommendationsService(recommendationsPort);
+const commentsService = createCommentsService(commentsPort);
+
+const treatmentProgramPort = !inMemoryRepos
+  ? createPgTreatmentProgramPort()
+  : createInMemoryTreatmentProgramPort();
+const treatmentProgramItemRefValidationPort = !inMemoryRepos
+  ? createPgTreatmentProgramItemRefValidationPort()
+  : createInMemoryTreatmentProgramItemRefValidationPort();
+const treatmentProgramService = createTreatmentProgramService(
+  treatmentProgramPort,
+  treatmentProgramItemRefValidationPort,
+);
+const treatmentProgramInMemoryPersistence = inMemoryRepos ? createInMemoryTreatmentProgramPersistence() : null;
+const treatmentProgramInstancePort = treatmentProgramInMemoryPersistence
+  ? treatmentProgramInMemoryPersistence.instancePort
+  : createPgTreatmentProgramInstancePort();
+const treatmentProgramTestAttemptsPort = treatmentProgramInMemoryPersistence
+  ? treatmentProgramInMemoryPersistence.testAttemptsPort
+  : createPgTreatmentProgramTestAttemptsPort();
+const treatmentProgramEventsPort = treatmentProgramInMemoryPersistence
+  ? treatmentProgramInMemoryPersistence.eventsPort
+  : createPgTreatmentProgramEventsPort();
+const treatmentProgramItemSnapshotPort = !inMemoryRepos
+  ? createPgTreatmentProgramItemSnapshotPort()
+  : createInMemoryTreatmentProgramItemSnapshotPort();
+const treatmentProgramInstanceService = createTreatmentProgramInstanceService({
+  instances: treatmentProgramInstancePort,
+  templates: treatmentProgramService,
+  snapshots: treatmentProgramItemSnapshotPort,
+  itemRefs: treatmentProgramItemRefValidationPort,
+  events: treatmentProgramEventsPort,
+  testAttempts: treatmentProgramTestAttemptsPort,
+});
+const coursesPort = !inMemoryRepos ? createPgCoursesPort() : createInMemoryCoursesPort();
+const coursesService = createCoursesService({
+  courses: coursesPort,
+  introPages: contentPagesPort,
+  assignTemplateToPatient: (input) => treatmentProgramInstanceService.assignTemplateToPatient(input),
+});
+const treatmentProgramProgressService = createTreatmentProgramProgressService({
+  instances: treatmentProgramInstancePort,
+  tests: treatmentProgramTestAttemptsPort,
+  events: treatmentProgramEventsPort,
+});
 
 const lfkTemplatesPort = !inMemoryRepos ? pgLfkTemplatesPort : inMemoryLfkTemplatesPort;
 const lfkTemplatesService = createLfkTemplatesService(lfkTemplatesPort);
@@ -586,6 +668,14 @@ function _buildAppDeps() {
     loginTokens: loginTokensPort,
     systemSettings: systemSettingsService,
     lfkExercises: lfkExercisesService,
+    clinicalTests: clinicalTestsService,
+    testSets: testSetsService,
+    recommendations: recommendationsService,
+    comments: commentsService,
+    treatmentProgram: treatmentProgramService,
+    treatmentProgramInstance: treatmentProgramInstanceService,
+    courses: coursesService,
+    treatmentProgramProgress: treatmentProgramProgressService,
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,
     bookingCatalog: bookingCatalogService,

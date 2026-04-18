@@ -19,6 +19,14 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/content/sections/new": "Новый раздел",
     "/app/doctor/exercises": "Упражнения ЛФК",
     "/app/doctor/exercises/new": "Новое упражнение",
+    "/app/doctor/clinical-tests": "Клинические тесты",
+    "/app/doctor/clinical-tests/new": "Новый тест",
+    "/app/doctor/test-sets": "Наборы тестов",
+    "/app/doctor/test-sets/new": "Новый набор тестов",
+    "/app/doctor/recommendations": "Рекомендации",
+    "/app/doctor/recommendations/new": "Новая рекомендация",
+    "/app/doctor/treatment-program-templates": "Шаблоны программ",
+    "/app/doctor/treatment-program-templates/new": "Новый шаблон программы",
     "/app/doctor/lfk-templates": "Шаблоны ЛФК",
     "/app/doctor/lfk-templates/new": "Новый шаблон ЛФК",
     "/app/doctor/references": "Справочники",
@@ -27,8 +35,19 @@ export function getDoctorScreenTitle(pathname: string): string {
 
   if (p === "/app/doctor/subscribers") return "Клиенты";
   if (p.startsWith("/app/doctor/subscribers/")) return "Клиент";
+  if (/\/treatment-programs\//.test(p) && p.startsWith("/app/doctor/clients/")) return "Программа пациента";
   if (p.startsWith("/app/doctor/clients/") && p !== "/app/doctor/clients") return "Клиент";
   if (p.startsWith("/app/doctor/exercises/") && p !== "/app/doctor/exercises/new") return "Редактирование упражнения";
+  if (p.startsWith("/app/doctor/clinical-tests/") && p !== "/app/doctor/clinical-tests/new")
+    return "Редактирование теста";
+  if (p.startsWith("/app/doctor/test-sets/") && p !== "/app/doctor/test-sets/new") return "Набор тестов";
+  if (p.startsWith("/app/doctor/recommendations/") && p !== "/app/doctor/recommendations/new")
+    return "Редактирование рекомендации";
+  if (
+    p.startsWith("/app/doctor/treatment-program-templates/") &&
+    p !== "/app/doctor/treatment-program-templates/new"
+  )
+    return "Конструктор программы";
   if (p.startsWith("/app/doctor/lfk-templates/") && p !== "/app/doctor/lfk-templates/new")
     return "Конструктор шаблона ЛФК";
   if (p.startsWith("/app/doctor/references/")) return "Редактирование справочника";

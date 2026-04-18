@@ -19,7 +19,17 @@ if (!databaseUrl) {
 
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./db/schema",
+  schema: [
+    "./db/schema/schema.ts",
+    "./db/schema/clinicalTests.ts",
+    "./db/schema/recommendations.ts",
+    "./db/schema/treatmentProgramTemplates.ts",
+    "./db/schema/treatmentProgramInstances.ts",
+    "./db/schema/treatmentProgramTestAttempts.ts",
+    "./db/schema/treatmentProgramEvents.ts",
+    "./db/schema/entityComments.ts",
+    "./db/schema/courses.ts",
+  ],
   out: "./db/drizzle-migrations",
   dbCredentials: {
     url: databaseUrl,

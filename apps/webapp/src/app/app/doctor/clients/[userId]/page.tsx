@@ -26,12 +26,14 @@ export default async function DoctorClientProfilePage({
         ? "/app/doctor/clients?scope=archived"
         : "/app/doctor/clients?scope=appointments";
   const deps = buildAppDeps();
-  const [profile, messageDraft, messageHistory, publishedLfkTemplates] = await Promise.all([
-    deps.doctorClients.getClientProfile(userId),
-    deps.doctorMessaging.prepareMessageDraft({ userId }),
-    deps.doctorMessaging.listMessageHistory({ userId, pageSize: 10 }),
-    deps.lfkTemplates.listTemplates({ status: "published" }),
-  ]);
+  const [profile, messageDraft, messageHistory, publishedLfkTemplates, publishedTreatmentTemplates] =
+    await Promise.all([
+      deps.doctorClients.getClientProfile(userId),
+      deps.doctorMessaging.prepareMessageDraft({ userId }),
+      deps.doctorMessaging.listMessageHistory({ userId, pageSize: 10 }),
+      deps.lfkTemplates.listTemplates({ status: "published" }),
+      deps.treatmentProgram.listTemplates({ includeArchived: false, status: "published" }),
+    ]);
 
   if (!profile) notFound();
 
@@ -49,11 +51,17 @@ export default async function DoctorClientProfilePage({
         messageHistory={messageHistory.items}
         userId={userId}
         listBasePath={listBasePath}
+        profileListScope={scopeParam}
         isAdmin={session.user.role === "admin"}
         canPermanentDelete={session.user.role === "admin" && Boolean(session.adminMode)}
         canEditClientProfile={session.user.role === "admin" && Boolean(session.adminMode)}
         publishedLfkTemplates={publishedLfkTemplates.map((t) => ({ id: t.id, title: t.title }))}
         assignLfkEnabled={Boolean(env.DATABASE_URL)}
+        publishedTreatmentProgramTemplates={publishedTreatmentTemplates.map((t) => ({
+          id: t.id,
+          title: t.title,
+        }))}
+        assignTreatmentProgramEnabled={Boolean(env.DATABASE_URL)}
       />
     </AppShell>
   );

@@ -40,6 +40,18 @@ export function PatientHomeBrowserHero() {
         <h2 className="text-base font-semibold">Помощник</h2>
         <p className="mt-2 text-sm text-muted-foreground">Напоминания и уведомления</p>
       </Link>
+      <Link
+        href={routePaths.patientTreatmentPrograms}
+        id="patient-home-browser-link-treatment-programs"
+        className={cardClass}
+      >
+        <h2 className="text-base font-semibold">Программы лечения</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Этапы, тесты и задания</p>
+      </Link>
+      <Link href={routePaths.patientCourses} id="patient-home-browser-link-courses" className={cardClass}>
+        <h2 className="text-base font-semibold">Курсы</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Каталог и запись на программу</p>
+      </Link>
     </section>
   );
 }

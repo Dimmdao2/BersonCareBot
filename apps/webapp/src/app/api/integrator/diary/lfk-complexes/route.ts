@@ -14,5 +14,13 @@ export async function GET(request: Request) {
 
   const deps = buildAppDeps();
   const complexes = await deps.diaries.listLfkComplexes(userId.trim(), true);
-  return NextResponse.json({ ok: true, complexes });
+  const includeTreatmentPrograms = url.searchParams.get("includeTreatmentPrograms") === "true";
+  const treatmentProgramLfkBlocks = includeTreatmentPrograms
+    ? await deps.treatmentProgramInstance.listTreatmentProgramLfkBlocksForIntegratorPatient(userId.trim())
+    : undefined;
+  return NextResponse.json({
+    ok: true,
+    complexes,
+    ...(treatmentProgramLfkBlocks !== undefined ? { treatmentProgramLfkBlocks } : {}),
+  });
 }

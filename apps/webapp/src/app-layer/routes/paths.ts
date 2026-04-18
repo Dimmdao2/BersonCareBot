@@ -52,6 +52,12 @@ export const routePaths = {
     `/app/patient/reminders/journal/${encodeURIComponent(ruleIntegratorId)}`,
   /** Online intake — LFK (online-only flow). */
   intakeLfk: "/app/patient/intake/lfk",
+  /** Каталог курсов (продажа → тот же экземпляр программы, что и назначение врача). */
+  patientCourses: "/app/patient/courses",
+  /** Программы лечения (назначенные экземпляры). */
+  patientTreatmentPrograms: "/app/patient/treatment-programs",
+  patientTreatmentProgram: (instanceId: string) =>
+    `/app/patient/treatment-programs/${encodeURIComponent(instanceId)}`,
   /** Online intake — Nutrition questionnaire. */
   intakeNutrition: "/app/patient/intake/nutrition",
   /** Doctor online-intake inbox. */

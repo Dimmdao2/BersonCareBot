@@ -357,6 +357,24 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md § 7.
 ```
 
+## ФАЗА 5 — AUDIT
+
+```text
+Проведи аудит фазы 5.
+
+Проверь:
+1) Таблица comments создана через Drizzle schema с нужными полями (author_id, target_type, target_id, comment_type, body, timestamps).
+2) Индекс `(target_type, target_id)` существует и используется для выборок по target.
+3) Модуль `modules/comments/` изолирован (без `@/infra/*` импорта).
+4) CRUD по target работает корректно (создание, чтение, обновление, удаление).
+5) `<CommentBlock />` действительно переиспользуемый и не дублирует логику в разных экранах.
+
+Сверь с SYSTEM_LOGIC_SCHEMA.md § 7.
+
+Сохрани: docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_5.md
+Добавь MANDATORY FIX INSTRUCTIONS.
+```
+
 ## ФАЗА 5 — FIX (после AUDIT)
 
 ```text
@@ -400,6 +418,25 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md § 3.
 ```
 
+## ФАЗА 6 — AUDIT
+
+```text
+Проведи аудит фазы 6.
+
+Проверь:
+1) Таблицы test_attempts и test_results созданы через Drizzle schema.
+2) Статусы этапов соответствуют схеме переходов: locked → available → in_progress → completed/skipped.
+3) Автопереход completed текущего этапа в available следующего работает без регрессий.
+4) Ручной override врача работает, а для skip reason обязателен.
+5) test_results сохраняет raw_value, normalized_decision и decided_by корректно.
+6) Patient/Doctor UI отражают статусную модель и результаты тестов без расхождений.
+
+Сверь с SYSTEM_LOGIC_SCHEMA.md § 3.
+
+Сохрани: docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_6.md
+Добавь MANDATORY FIX INSTRUCTIONS.
+```
+
 ## ФАЗА 6 — FIX (после AUDIT)
 
 ```text
@@ -438,6 +475,24 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 5) Тесты на запись событий.
 
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md § 8.
+```
+
+## ФАЗА 7 — AUDIT
+
+```text
+Проведи аудит фазы 7.
+
+Проверь:
+1) Таблица treatment_program_events создана через Drizzle schema и покрывает нужные поля события.
+2) Событие пишется при каждой мутации программы (add/remove/replace/skip/complete/comment_changed).
+3) Для stage_skipped и item_removed reason обязателен и реально валидируется.
+4) Таймлайн врача корректно отображает историю в хронологическом порядке.
+5) Тесты подтверждают event recording и обязательность reason-правил.
+
+Сверь с SYSTEM_LOGIC_SCHEMA.md § 8.
+
+Сохрани: docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_7.md
+Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
 ## ФАЗА 7 — FIX (после AUDIT)
@@ -482,6 +537,24 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md § 9, 10.
 ```
 
+## ФАЗА 8 — AUDIT
+
+```text
+Проведи аудит фазы 8.
+
+Проверь:
+1) Таблица courses создана через Drizzle schema, связь `course -> treatment_program_templates.id` корректна.
+2) При «покупке» курса используется сервис назначения из фазы 4 (создаётся treatment_program_instance, без дублирования логики).
+3) Курс не хранит собственные этапы и не вводит отдельную state-machine прохождения.
+4) Уроки реализованы в непубличной секции content_pages/course_lessons с requires_auth=true.
+5) Patient UI показывает каталог курсов, а тесты покрывают основной сценарий назначения.
+
+Сверь с SYSTEM_LOGIC_SCHEMA.md § 9, 10.
+
+Сохрани: docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_8.md
+Добавь MANDATORY FIX INSTRUCTIONS.
+```
+
 ## ФАЗА 8 — FIX (после AUDIT)
 
 ```text
@@ -520,6 +593,24 @@ Introspect: `pnpm --dir apps/webapp run db:introspect` (включает post-pr
 5) Тесты на мутации + event recording.
 
 Обнови LOG.md. Сверь с SYSTEM_LOGIC_SCHEMA.md.
+```
+
+## ФАЗА 9 — AUDIT
+
+```text
+Проведи аудит фазы 9.
+
+Проверь:
+1) Мутации после начала прохождения (replace/add/remove/reorder) реализованы и не ломают завершённые результаты.
+2) Любая мутация пишет событие в treatment_program_events (без пропусков).
+3) Инварианты snapshot/history соблюдены после серии правок.
+4) Интеграторная проекция (`/api/integrator/diary/lfk-complexes`) возвращает согласованные данные.
+5) Тесты покрывают мутации, event recording и интеграторный сценарий.
+
+Сверь с SYSTEM_LOGIC_SCHEMA.md § 8, 11.
+
+Сохрани: docs/TREATMENT_PROGRAM_INITIATIVE/AUDIT_PHASE_9.md
+Добавь MANDATORY FIX INSTRUCTIONS.
 ```
 
 ## ФАЗА 9 — FIX (после AUDIT)

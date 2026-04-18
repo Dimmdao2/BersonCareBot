@@ -34,7 +34,14 @@ From `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md` — same as “Аб�
 - **Do not build a separate “course engine”** with its own stage/progress logic. A **course** is a link to a `treatment_program_template` (and instance creation reuses the same assignment path as the program feature).
 - **No database FK on `item_ref_id`** — polymorphic reference; validate only in the service layer.
 
-**Phased delivery, CI, and other hard rules** (e.g. do not change GitHub workflow without a decision) live in `EXECUTION_RULES.md` and in other `.cursor/rules/*` — this file is the **architecture** layer, not a full duplicate of that document. Always read `EXECUTION_RULES.md` for the initiative.
+### 1b. Process absolutes (TREATMENT_PROGRAM_INITIATIVE)
+
+From `docs/TREATMENT_PROGRAM_INITIATIVE/EXECUTION_RULES.md` — same as “Абсолютные запреты” items 7–8:
+
+- **Do not mix initiative phases.** One phase per logical batch of work; do not start phase N+1 before phase N passes its gate. Step vs phase validation: `.cursor/rules/test-execution-policy.md`.
+- **Do not change the GitHub CI workflow** without an explicit team decision. Pre-push expectation: `.cursor/rules/pre-push-ci.mdc` (`pnpm install --frozen-lockfile && pnpm run ci`).
+
+Integration keys (DB not env), onboarding, and the full Drizzle checklist remain in `EXECUTION_RULES.md` and other `.cursor/rules/*`. Always read `EXECUTION_RULES.md` when working on this initiative.
 
 ### 2. Correct dependency direction
 

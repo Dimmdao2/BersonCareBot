@@ -1,0 +1,12 @@
+import { NextResponse } from "next/server";
+import { requirePatientApiBusinessAccess } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
+import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+
+export async function GET() {
+  const gate = await requirePatientApiBusinessAccess({ returnPath: routePaths.patient });
+  if (!gate.ok) return gate.response;
+  const deps = buildAppDeps();
+  const list = await deps.treatmentProgramInstance.listForPatient(gate.session.user.userId);
+  return NextResponse.json({ ok: true, items: list });
+}

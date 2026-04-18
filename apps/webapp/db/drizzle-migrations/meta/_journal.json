@@ -8,6 +8,55 @@
       "when": 1776461044181,
       "tag": "0000_wandering_famine",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776462827208,
+      "tag": "0001_charming_champions",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776463964340,
+      "tag": "0002_sweet_ikaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776465044827,
+      "tag": "0003_treatment_program_instances",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776465707489,
+      "tag": "0004_entity_comments",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776466804469,
+      "tag": "0005_treatment_program_phase6",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776469000000,
+      "tag": "0006_treatment_program_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776470000000,
+      "tag": "0007_courses",
+      "breakpoints": true
     }
   ]
 }

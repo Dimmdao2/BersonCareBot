@@ -125,7 +125,7 @@ locked ──► available ──► in_progress ──► completed
 | `lfk_complex` | `lfk_complex_templates.id` | title, description, список упражнений с reps/sets/side/comment |
 | `test_set` | `test_sets.id` | title, description, список тестов с scoring_config |
 | `recommendation` | `recommendations.id` | title, body_md, media URLs |
-| `lesson` | `content_pages.id` (section=course_lessons) | title, summary, body preview |
+| `lesson` | `content_pages.id` — секция **`lessons`** в каталоге CMS webapp; при совместимости допускается **`course_lessons`** | title, summary, body preview |
 
 **Повторение элементов:** один и тот же `item_ref_id` может встречаться в разных этапах без ограничений. Внутри одного этапа — допускается (разные `sort_order`).
 
@@ -220,7 +220,7 @@ treatment_program_events
 - `stage_removed` — удалён этап
 - `stage_skipped` — этап пропущен (обязательный reason)
 - `stage_completed` — этап завершён
-- `status_changed` — изменён статус программы
+- `status_changed` — изменён статус сущности: в первую очередь **программы** (`target_type: program`, смена `active` / `completed`); также используется для **этапа** и **элемента** экземпляра (`target_type` + поле `payload.scope` — см. реализацию фазы 7), чтобы не плодить отдельные типы для каждого перехода `locked` / `available` / `in_progress` и для отметки выполнения элемента; после старта программы — переупорядочивание: `payload.scope` = `stages_reordered` \| `stage_items_reordered` (фаза 9).
 - `test_completed` — завершён тест (ссылка на test_result в payload)
 
 Запись — **только через сервисный слой**. Не триггеры. Не middleware.
@@ -250,7 +250,7 @@ course
 
 ## 10. Уроки (lessons)
 
-Уроки = `content_pages` в непубличной секции (`slug = 'course_lessons'`, `is_visible = false`, `requires_auth = true`).
+Уроки = строки `content_pages` с **`section = 'lessons'`** (основной каталог в webapp); исторический алиас секции **`course_lessons`** поддерживается при валидации ссылок шаблона. Типично `requires_auth = true` для контента курса.
 
 - `stage_item` с `item_type = 'lesson'` ссылается на `content_pages.id`
 - Между курсами/программами уроки переиспользуются (одна и та же страница)
@@ -276,6 +276,8 @@ content_pages (lessons)               ──► stage_item (item_type='lesson')
 
 `patient_lfk_assignments` + `lfk_complexes` + `lfk_complex_exercises` — legacy. Тестовые данные можно удалить. Таблицы оставить; в будущем мигрировать или deprecated.
 
+**Интегратор:** для отображения назначенных комплексов из **экземпляра программы** (не только legacy дневника) — проекция элементов `item_type = lfk_complex` активных `treatment_program_instance` (например расширение `GET /api/integrator/diary/lfk-complexes` с опциональным флагом запроса); заголовок и состав — из **`snapshot`** элемента экземпляра.
+
 ---
 
 ## 12. Архитектурные слои (для каждой новой сущности)
@@ -290,9 +292,10 @@ modules/treatment-program/   ← бизнес-логика, orchestration
   ↓
 db/schema/                   ← Drizzle schema (source of truth для таблиц)
   ↓
-infra/repos/ (или inline в service через Drizzle)
-                             ← data access (Drizzle queries)
+infra/repos/pg*.ts           ← data access: реализация портов (Drizzle-запросы здесь)
 ```
+
+**Пояснение:** основной путь для нового кода — сервис в `modules/*` вызывает порт; порт реализован в `infra/repos/*` и использует Drizzle + схему из `db/schema/`. Не помещать запросы к БД и бизнес-логику в `route.ts`. Формулировка «inline Drizzle» в старых обсуждениях **не** освобождает от `EXECUTION_RULES`: из `modules/*` по-прежнему недопустимы прямой `getPool` / импорт `@/infra/repos/*` (кроме явного legacy и переноса типов в `ports.ts`).
 
 **Запреты:**
 - `modules/*` не импортирует `@/infra/db/client`
