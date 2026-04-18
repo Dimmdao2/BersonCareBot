@@ -24,6 +24,28 @@ type MigrationLedgerShape = {
   writeColumn: 'version' | 'filename';
 };
 
+function isUndefinedColumnError(err: unknown): boolean {
+  const e = err as { code?: string; message?: string };
+  if (e?.code === '42703') return true;
+  const m = String(e?.message ?? '').toLowerCase();
+  return (
+    m.includes('does not exist') ||
+    m.includes('не существует') // PostgreSQL localized messages on some installs
+  );
+}
+
+function isMissingVersionColumnProbeError(err: unknown): boolean {
+  if (!isUndefinedColumnError(err)) return false;
+  const m = String((err as { message?: string }).message ?? '').toLowerCase();
+  return m.includes('version');
+}
+
+function isMissingFilenameColumnProbeError(err: unknown): boolean {
+  if (!isUndefinedColumnError(err)) return false;
+  const m = String((err as { message?: string }).message ?? '').toLowerCase();
+  return m.includes('filename');
+}
+
 // Создаёт схему integrator и таблицу учёта миграций, если их нет
 async function ensureMigrationsTable(db: Pool): Promise<void> {
   await db.query('CREATE SCHEMA IF NOT EXISTS integrator');
@@ -42,19 +64,13 @@ async function resolveMigrationLedgerShape(db: Pool): Promise<MigrationLedgerSha
     await db.query(`SELECT version FROM ${INTEGRATOR_MIGRATIONS_TABLE} LIMIT 0`);
     return { readColumn: 'version', writeColumn: 'version' };
   } catch (firstErr: unknown) {
-    const code = (firstErr as { code?: string }).code;
-    const msg = String((firstErr as { message?: string }).message ?? '');
-    const missingColumn =
-      code === '42703' ||
-      /\bcolumn\b.*\bversion\b.*does not exist/i.test(msg) ||
-      /\bdoes not exist\b.*\bversion\b/i.test(msg);
-
-    if (!missingColumn) throw firstErr;
+    if (!isMissingVersionColumnProbeError(firstErr)) throw firstErr;
 
     try {
       await db.query(`SELECT filename FROM ${INTEGRATOR_MIGRATIONS_TABLE} LIMIT 0`);
       return { readColumn: 'filename', writeColumn: 'filename' };
     } catch {
+      const msg = String((firstErr as { message?: string }).message ?? '');
       throw new Error(
         `${INTEGRATOR_MIGRATIONS_TABLE} must have column "version" (current integrator ledger) or legacy "filename". First error: ${msg}`,
       );
@@ -86,21 +102,37 @@ async function getAppliedVersions(
   ledgerShape: MigrationLedgerShape,
   migrations: MigrationFile[],
 ): Promise<Set<string>> {
-  const res = await db.query<{ value: string }>(
-    `SELECT ${ledgerShape.readColumn} AS value FROM ${INTEGRATOR_MIGRATIONS_TABLE}`,
-  );
-
-  const applied = new Set<string>();
-
-  for (const row of res.rows) {
-    const value = row.value;
-    if (typeof value !== 'string' || value.length === 0) continue;
-    for (const normalized of normalizeAppliedVersion(value, migrations)) {
-      applied.add(normalized);
+  const readIntoSet = async (shape: MigrationLedgerShape): Promise<Set<string>> => {
+    const res = await db.query<{ value: string }>(
+      `SELECT ${shape.readColumn} AS value FROM ${INTEGRATOR_MIGRATIONS_TABLE}`,
+    );
+    const applied = new Set<string>();
+    for (const row of res.rows) {
+      const value = row.value;
+      if (typeof value !== 'string' || value.length === 0) continue;
+      for (const normalized of normalizeAppliedVersion(value, migrations)) {
+        applied.add(normalized);
+      }
     }
-  }
+    return applied;
+  };
 
-  return applied;
+  try {
+    return await readIntoSet(ledgerShape);
+  } catch (err: unknown) {
+    if (
+      ledgerShape.readColumn === 'version' &&
+      isMissingVersionColumnProbeError(err) &&
+      !isMissingFilenameColumnProbeError(err)
+    ) {
+      logger.warn(
+        { err },
+        'integrator migration ledger: expected version column but query failed; retrying with filename column',
+      );
+      return await readIntoSet({ readColumn: 'filename', writeColumn: 'filename' });
+    }
+    throw err;
+  }
 }
 
 // Проверяет, является ли файл миграцией (sql и не example)
