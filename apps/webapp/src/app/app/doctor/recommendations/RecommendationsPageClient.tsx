@@ -6,7 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { Recommendation } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import { DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import {
+  DOCTOR_CATALOG_STICKY_BAR_CLASS,
+  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
+import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
+import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import {
   Select,
@@ -26,64 +32,8 @@ type Props = {
   initialSelectedId: string | null;
 };
 
-function RecommendationListToolbar({
-  itemCount,
-  searchQuery,
-  onSearchChange,
-  titleSort,
-  onTitleSortChange,
-  onCreate,
-}: {
-  itemCount: number;
-  searchQuery: string;
-  onSearchChange: (q: string) => void;
-  titleSort: RecommendationTitleSort;
-  onTitleSortChange: (next: RecommendationTitleSort) => void;
-  onCreate: () => void;
-}) {
-  const searchFieldId = useId();
-  return (
-    <div className="flex flex-col gap-2 border-b border-border/60 px-2 pb-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        {itemCount === 0 ? "Нет записей" : `Записей: ${itemCount}`}
-      </p>
-      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
-        <PickerSearchField
-          id={searchFieldId}
-          label="Поиск по названию"
-          placeholder="Название"
-          value={searchQuery}
-          onValueChange={onSearchChange}
-          className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-        />
-        <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-          <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-          <Select value={titleSort} onValueChange={(v) => onTitleSortChange(v as RecommendationTitleSort)}>
-            <SelectTrigger size="sm" className="h-8 w-full text-left">
-              <SelectValue>
-                {titleSort === "asc"
-                  ? "Название А→Я"
-                  : titleSort === "desc"
-                    ? "Название Я→А"
-                    : "Сортировка"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">По дате изменения</SelectItem>
-              <SelectItem value="asc">Название А→Я</SelectItem>
-              <SelectItem value="desc">Название Я→А</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button type="button" size="sm" className="shrink-0" onClick={onCreate}>
-          Создать рекомендацию
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export function RecommendationsPageClient({ initialItems, initialSelectedId }: Props) {
+  const searchFieldId = useId();
   const [searchQuery, setSearchQuery] = useState("");
   const [titleSort, setTitleSort] = useState<RecommendationTitleSort>("default");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -141,19 +91,6 @@ export function RecommendationsPageClient({ initialItems, initialSelectedId }: P
   const selected =
     creating ? null : (displayList.find((r) => r.id === selectedId) ?? (displayList.length > 0 ? displayList[0]! : null));
 
-  const toolbarProps = {
-    itemCount: displayList.length,
-    searchQuery,
-    onSearchChange: setSearchQuery,
-    titleSort,
-    onTitleSortChange: setTitleSort,
-    onCreate: () => {
-      setCreating(true);
-      setSelectedId(null);
-      setMobileSheet(null);
-    },
-  };
-
   const renderRows = (onPick: (r: Recommendation) => void, activeId: string | null) =>
     displayList.length === 0 ? (
       <p className="px-2 pb-2 text-sm text-muted-foreground">Нет записей по заданным условиям.</p>
@@ -210,83 +147,87 @@ export function RecommendationsPageClient({ initialItems, initialSelectedId }: P
 
   const mobileDetailOpen = creating || mobileSheet != null;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="hidden lg:block">
-        <div className={cn("grid items-stretch gap-4 lg:grid-cols-2", DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS)}>
-          <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
-            <div className="shrink-0 p-2 pb-0">
-              <RecommendationListToolbar {...toolbarProps} />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-2">
-              {renderRows((r) => setSelectedId(r.id), creating ? null : selected?.id ?? null)}
-            </div>
-          </aside>
-          {desktopRight}
+  const toolbar = (
+    <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
+        <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
+          {displayList.length === 0 ? "Нет записей" : `Записей: ${displayList.length}`}
+        </p>
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
+          <PickerSearchField
+            id={searchFieldId}
+            label="Поиск по названию"
+            placeholder="Название"
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
+          />
+          <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
+            <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
+            <Select value={titleSort} onValueChange={(v) => setTitleSort(v as RecommendationTitleSort)}>
+              <SelectTrigger size="sm" className="h-8 w-full text-left">
+                <SelectValue>
+                  {titleSort === "asc"
+                    ? "Название А→Я"
+                    : titleSort === "desc"
+                      ? "Название Я→А"
+                      : "Сортировка"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">По дате изменения</SelectItem>
+                <SelectItem value="asc">Название А→Я</SelectItem>
+                <SelectItem value="desc">Название Я→А</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="shrink-0"
+            onClick={() => {
+              setCreating(true);
+              setSelectedId(null);
+              setMobileSheet(null);
+            }}
+          >
+            Создать рекомендацию
+          </Button>
         </div>
       </div>
+    </div>
+  );
 
-      <div className="relative min-h-[40vh] overflow-hidden lg:hidden">
-        <div
-          className={cn(
-            "transition-transform duration-300 ease-out",
-            mobileDetailOpen ? "-translate-x-full" : "translate-x-0",
-          )}
-        >
-          <aside className="rounded-xl border border-border bg-card p-2">
-            <RecommendationListToolbar {...toolbarProps} />
+  return (
+    <DoctorCatalogPageLayout toolbar={toolbar}>
+      <CatalogSplitLayout
+        left={
+          <CatalogLeftPane>
             {renderRows((r) => {
               setCreating(false);
               setSelectedId(r.id);
               setMobileSheet(r);
-            }, mobileSheet?.id ?? null)}
-          </aside>
-        </div>
-
-        <div
-          className={cn(
-            "absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out",
-            mobileDetailOpen ? "translate-x-0" : "translate-x-full",
-          )}
-        >
-          {mobileDetailOpen ? (
-            <>
-              <Button
-                variant="ghost"
-                type="button"
-                className="mb-2 h-9 px-2"
-                onClick={() => {
-                  setMobileSheet(null);
-                  setCreating(false);
-                }}
-              >
-                ← Назад
-              </Button>
-              <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm">
-                <CardContent className="p-2 sm:p-4">
-                  {creating ? (
-                    <RecommendationForm
-                      recommendation={null}
-                      saveAction={saveRecommendationInline}
-                      archiveAction={archiveRecommendationInline}
-                      backHref={RECOMMENDATIONS_PATH}
-                    />
-                  ) : mobileSheet ? (
-                    <RecommendationForm
-                      recommendation={mobileSheet}
-                      saveAction={saveRecommendationInline}
-                      archiveAction={archiveRecommendationInline}
-                      backHref={RECOMMENDATIONS_PATH}
-                    />
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Нет данных.</p>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          ) : null}
-        </div>
-      </div>
-    </div>
+            }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
+          </CatalogLeftPane>
+        }
+        right={desktopRight}
+        mobileView={mobileDetailOpen ? "detail" : "list"}
+        mobileBackSlot={
+          mobileDetailOpen ? (
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => {
+                setMobileSheet(null);
+                setCreating(false);
+              }}
+            >
+              ← Назад
+            </Button>
+          ) : null
+        }
+      />
+    </DoctorCatalogPageLayout>
   );
 }

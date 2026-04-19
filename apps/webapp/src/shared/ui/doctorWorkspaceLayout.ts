@@ -32,10 +32,16 @@ export const DOCTOR_CATALOG_STICKY_BAR_CLASS =
   "sticky z-20 -mx-3 -mt-3 border-b border-border/60 bg-background/95 px-3 py-1.5 backdrop-blur-md supports-backdrop-filter:bg-background/90";
 
 /**
- * Левая колонка master-detail под липкой шапкой страницы и липким блоком фильтров (~3.25rem).
+ * Левая колонка master-detail под липкой шапкой страницы и одним липким блоком фильтров (~3.25rem).
  */
 export const DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_CLASS =
   "lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+3.25rem)] lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)]";
+
+/**
+ * То же при двух строках липкой полосы (фильтры + второй ряд управления списком), ~6.5rem под блок под шапкой.
+ */
+export const DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_DOUBLE_ROW_CLASS =
+  "lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+6.5rem)] lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-6.5rem-1rem)]";
 
 /**
  * Desktop master/detail: ограничение высоты под шапкой + safe-area (без липкого блока над сеткой).

@@ -6,7 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import { DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import {
+  DOCTOR_CATALOG_STICKY_BAR_CLASS,
+  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
+import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
+import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import {
   Select,
@@ -28,59 +34,8 @@ type Props = {
 
 type TitleSort = "default" | "asc" | "desc";
 
-function TemplateListToolbar({
-  templateCount,
-  searchQuery,
-  onSearchChange,
-  titleSort,
-  onTitleSortChange,
-}: {
-  templateCount: number;
-  searchQuery: string;
-  onSearchChange: (q: string) => void;
-  titleSort: TitleSort;
-  onTitleSortChange: (next: TitleSort) => void;
-}) {
-  const searchFieldId = useId();
-  return (
-    <div className="flex flex-col gap-2 border-b border-border/60 px-2 pb-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        {templateCount === 0 ? "Нет шаблонов" : `Шаблонов: ${templateCount}`}
-      </p>
-      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
-        <PickerSearchField
-          id={searchFieldId}
-          label="Поиск по названию"
-          placeholder="Название шаблона"
-          value={searchQuery}
-          onValueChange={onSearchChange}
-          className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-        />
-        <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-          <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-          <Select value={titleSort} onValueChange={(v) => onTitleSortChange(v as TitleSort)}>
-            <SelectTrigger size="sm" className="h-8 w-full text-left">
-              <SelectValue>
-                {titleSort === "asc"
-                  ? "Название А→Я"
-                  : titleSort === "desc"
-                    ? "Название Я→А"
-                    : "Сортировка"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">По дате изменения</SelectItem>
-              <SelectItem value="asc">Название А→Я</SelectItem>
-              <SelectItem value="desc">Название Я→А</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function TreatmentProgramTemplatesPageClient({ templates, library, initialSelectedId }: Props) {
+  const searchFieldId = useId();
   const [searchQuery, setSearchQuery] = useState("");
   const [titleSort, setTitleSort] = useState<TitleSort>("default");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -184,14 +139,6 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
     };
   }, [selected?.id]);
 
-  const toolbarProps = {
-    templateCount: displayList.length,
-    searchQuery,
-    onSearchChange: setSearchQuery,
-    titleSort,
-    onTitleSortChange: setTitleSort,
-  };
-
   const renderRows = (onPick: (t: TreatmentProgramTemplate) => void, activeId: string | null) =>
     displayList.length === 0 ? (
       <p className="px-2 pb-2 text-sm text-muted-foreground">Нет шаблонов по заданным условиям.</p>
@@ -245,56 +192,66 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
 
   const mobileDetailOpen = mobileSheet != null;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="hidden lg:block">
-        <div className={cn("grid items-stretch gap-4 lg:grid-cols-2", DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS)}>
-          <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
-            <div className="shrink-0 p-2 pb-0">
-              <TemplateListToolbar {...toolbarProps} />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-2">
-              {renderRows((t) => setSelectedId(t.id), selected?.id ?? null)}
-            </div>
-          </aside>
-          {desktopRight}
-        </div>
-      </div>
-
-      <div className="relative min-h-[40vh] overflow-hidden lg:hidden">
-        <div
-          className={cn(
-            "transition-transform duration-300 ease-out",
-            mobileDetailOpen ? "-translate-x-full" : "translate-x-0",
-          )}
-        >
-          <aside className="rounded-xl border border-border bg-card p-2">
-            <TemplateListToolbar {...toolbarProps} />
-            {renderRows((t) => {
-              setSelectedId(t.id);
-              setMobileSheet(t);
-            }, mobileSheet?.id ?? null)}
-          </aside>
-        </div>
-
-        <div
-          className={cn(
-            "absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out",
-            mobileDetailOpen ? "translate-x-0" : "translate-x-full",
-          )}
-        >
-          {mobileDetailOpen ? (
-            <>
-              <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
-                ← Назад
-              </Button>
-              <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm">
-                <CardContent className="p-2 sm:p-4">{rightInner}</CardContent>
-              </Card>
-            </>
-          ) : null}
+  const toolbar = (
+    <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
+        <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
+          {displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`}
+        </p>
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
+          <PickerSearchField
+            id={searchFieldId}
+            label="Поиск по названию"
+            placeholder="Название шаблона"
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
+          />
+          <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
+            <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
+            <Select value={titleSort} onValueChange={(v) => setTitleSort(v as TitleSort)}>
+              <SelectTrigger size="sm" className="h-8 w-full text-left">
+                <SelectValue>
+                  {titleSort === "asc"
+                    ? "Название А→Я"
+                    : titleSort === "desc"
+                      ? "Название Я→А"
+                      : "Сортировка"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">По дате изменения</SelectItem>
+                <SelectItem value="asc">Название А→Я</SelectItem>
+                <SelectItem value="desc">Название Я→А</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <DoctorCatalogPageLayout toolbar={toolbar}>
+      <CatalogSplitLayout
+        left={
+          <CatalogLeftPane>
+            {renderRows((t) => {
+              setSelectedId(t.id);
+              setMobileSheet(t);
+            }, selected?.id ?? mobileSheet?.id ?? null)}
+          </CatalogLeftPane>
+        }
+        right={desktopRight}
+        mobileView={mobileDetailOpen ? "detail" : "list"}
+        mobileBackSlot={
+          mobileDetailOpen ? (
+            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+              ← Назад
+            </Button>
+          ) : null
+        }
+      />
+    </DoctorCatalogPageLayout>
   );
 }

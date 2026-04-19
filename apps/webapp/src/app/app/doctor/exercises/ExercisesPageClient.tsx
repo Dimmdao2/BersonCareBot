@@ -98,6 +98,8 @@ type SelectionToolbarProps = {
   titleSort: ExerciseTitleSort | null;
   onTitleSortChange: (next: ExerciseTitleSort | null) => void;
   listBusy?: boolean;
+  /** В липкой полосе страницы — без нижней границы у списка, с разделителем сверху. */
+  variant?: "pane" | "sticky";
 };
 
 function SelectionToolbar({
@@ -109,9 +111,17 @@ function SelectionToolbar({
   titleSort,
   onTitleSortChange,
   listBusy = false,
+  variant = "pane",
 }: SelectionToolbarProps) {
   return (
-    <div className="flex flex-col gap-2 border-b border-border/60 px-2 pb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+    <div
+      className={cn(
+        "flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
+        variant === "sticky"
+          ? "border-t border-border/60 pt-3"
+          : "border-b border-border/60 px-2 pb-2",
+      )}
+    >
       <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
         {exerciseCount === 0 ? "Нет упражнений" : `Упражнений: ${exerciseCount}`}
       </p>
@@ -176,6 +186,7 @@ type ExercisesContentProps = {
   setMobileSheet: (sheet: { exercise: Exercise | null } | null) => void;
   toggleViewMode: () => void;
   changeTitleSort: (next: ExerciseTitleSort | null) => void;
+  filters: Props["filters"];
 };
 
 function ExercisesContent({
@@ -191,6 +202,7 @@ function ExercisesContent({
   setMobileSheet,
   toggleViewMode,
   changeTitleSort,
+  filters,
 }: ExercisesContentProps) {
   const exercises = use(listPromise);
   const selectedExercise = use(selectedExercisePromise);
@@ -302,11 +314,30 @@ function ExercisesContent({
   );
 
   return (
-    <CatalogSplitLayout
-      left={
-        <CatalogLeftPane
-          headerSlot={
+    <DoctorCatalogPageLayout
+      toolbar={
+        <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <div className="min-w-0 flex-1">
+                <ExercisesFiltersForm
+                  q={filters.q}
+                  regionRefId={filters.regionRefId}
+                  loadType={filters.loadType}
+                  view={viewMode}
+                  titleSort={titleSort}
+                  selectedId={desktopSelectedId}
+                />
+              </div>
+              <Link
+                href="/app/doctor/exercises/auto-create"
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
+              >
+                Автосоздание
+              </Link>
+            </div>
             <SelectionToolbar
+              variant="sticky"
               exerciseCount={displayExercises.length}
               createButtonId="doctor-exercises-create-link-desktop"
               onCreate={() => {
@@ -319,8 +350,13 @@ function ExercisesContent({
               onTitleSortChange={changeTitleSort}
               listBusy={isListPending}
             />
-          }
-        >
+          </div>
+        </div>
+      }
+    >
+      <CatalogSplitLayout
+        left={
+          <CatalogLeftPane stickyToolbarRows={2}>
           <div
             className={cn(
               "min-h-0 flex-1 overflow-hidden transition-opacity",
@@ -347,18 +383,19 @@ function ExercisesContent({
                   columns: activeTileColumns,
                 })}
           </div>
-        </CatalogLeftPane>
-      }
-      right={rightPanel}
-      mobileView={mobileSheet != null ? "detail" : "list"}
-      mobileBackSlot={
-        mobileSheet != null ? (
-          <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
-            ← Назад
-          </Button>
-        ) : null
-      }
-    />
+          </CatalogLeftPane>
+        }
+        right={rightPanel}
+        mobileView={mobileSheet != null ? "detail" : "list"}
+        mobileBackSlot={
+          mobileSheet != null ? (
+            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+              ← Назад
+            </Button>
+          ) : null
+        }
+      />
+    </DoctorCatalogPageLayout>
   );
 }
 
@@ -447,46 +484,22 @@ export function ExercisesPageClient({
   };
 
   return (
-    <DoctorCatalogPageLayout
-      toolbar={
-        <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <div className="min-w-0 flex-1">
-              <ExercisesFiltersForm
-                q={filters.q}
-                regionRefId={filters.regionRefId}
-                loadType={filters.loadType}
-                view={viewMode}
-                titleSort={titleSort}
-                selectedId={desktopSelectedId}
-              />
-            </div>
-            <Link
-              href="/app/doctor/exercises/auto-create"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
-            >
-              Автосоздание
-            </Link>
-          </div>
-        </div>
-      }
-    >
-      <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
-        <ExercisesContent
-          listPromise={listPromise}
-          selectedExercisePromise={selectedExercisePromise}
-          viewMode={viewMode}
-          toolbarViewMode={toolbarViewMode}
-          titleSort={titleSort}
-          desktopSelectedId={desktopSelectedId}
-          mobileSheet={mobileSheet}
-          isListPending={isListPending}
-          setDesktopSelectedId={setDesktopSelectedId}
-          setMobileSheet={setMobileSheet}
-          toggleViewMode={toggleViewMode}
-          changeTitleSort={changeTitleSort}
-        />
-      </Suspense>
-    </DoctorCatalogPageLayout>
+    <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
+      <ExercisesContent
+        listPromise={listPromise}
+        selectedExercisePromise={selectedExercisePromise}
+        viewMode={viewMode}
+        toolbarViewMode={toolbarViewMode}
+        titleSort={titleSort}
+        desktopSelectedId={desktopSelectedId}
+        mobileSheet={mobileSheet}
+        isListPending={isListPending}
+        setDesktopSelectedId={setDesktopSelectedId}
+        setMobileSheet={setMobileSheet}
+        toggleViewMode={toggleViewMode}
+        changeTitleSort={changeTitleSort}
+        filters={filters}
+      />
+    </Suspense>
   );
 }

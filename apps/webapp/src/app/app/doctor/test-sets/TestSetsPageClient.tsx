@@ -6,7 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { TestSet } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import { DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import {
+  DOCTOR_CATALOG_STICKY_BAR_CLASS,
+  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
+import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
+import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import {
   archiveDoctorTestSetInline,
   saveDoctorTestSetInline,
@@ -31,64 +37,8 @@ type Props = {
   initialSelectedId: string | null;
 };
 
-function TestSetListToolbar({
-  setCount,
-  searchQuery,
-  onSearchChange,
-  titleSort,
-  onTitleSortChange,
-  onCreate,
-}: {
-  setCount: number;
-  searchQuery: string;
-  onSearchChange: (q: string) => void;
-  titleSort: TestSetTitleSort;
-  onTitleSortChange: (next: TestSetTitleSort) => void;
-  onCreate: () => void;
-}) {
-  const searchFieldId = useId();
-  return (
-    <div className="flex flex-col gap-2 border-b border-border/60 px-2 pb-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        {setCount === 0 ? "Нет наборов" : `Наборов: ${setCount}`}
-      </p>
-      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
-        <PickerSearchField
-          id={searchFieldId}
-          label="Поиск по названию"
-          placeholder="Название набора"
-          value={searchQuery}
-          onValueChange={onSearchChange}
-          className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-        />
-        <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-          <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-          <Select value={titleSort} onValueChange={(v) => onTitleSortChange(v as TestSetTitleSort)}>
-            <SelectTrigger size="sm" className="h-8 w-full text-left">
-              <SelectValue>
-                {titleSort === "asc"
-                  ? "Название А→Я"
-                  : titleSort === "desc"
-                    ? "Название Я→А"
-                    : "Сортировка"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">По дате изменения</SelectItem>
-              <SelectItem value="asc">Название А→Я</SelectItem>
-              <SelectItem value="desc">Название Я→А</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button type="button" size="sm" className="shrink-0" onClick={onCreate}>
-          Создать набор
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export function TestSetsPageClient({ initialSets, initialSelectedId }: Props) {
+  const searchFieldId = useId();
   const [searchQuery, setSearchQuery] = useState("");
   const [titleSort, setTitleSort] = useState<TestSetTitleSort>("default");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -145,19 +95,6 @@ export function TestSetsPageClient({ initialSets, initialSelectedId }: Props) {
 
   const selected =
     creating ? null : (displayList.find((s) => s.id === selectedId) ?? (displayList.length > 0 ? displayList[0]! : null));
-
-  const toolbarProps = {
-    setCount: displayList.length,
-    searchQuery,
-    onSearchChange: setSearchQuery,
-    titleSort,
-    onTitleSortChange: setTitleSort,
-    onCreate: () => {
-      setCreating(true);
-      setSelectedId(null);
-      setMobileSheet(null);
-    },
-  };
 
   const renderRows = (onPick: (s: TestSet) => void, activeId: string | null) =>
     displayList.length === 0 ? (
@@ -229,89 +166,87 @@ export function TestSetsPageClient({ initialSets, initialSelectedId }: Props) {
 
   const mobileDetailOpen = creating || mobileSheet != null;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="hidden lg:block">
-        <div className={cn("grid items-stretch gap-4 lg:grid-cols-2", DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS)}>
-          <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
-            <div className="shrink-0 p-2 pb-0">
-              <TestSetListToolbar {...toolbarProps} />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-2">
-              {renderRows((s) => setSelectedId(s.id), creating ? null : selected?.id ?? null)}
-            </div>
-          </aside>
-          {desktopRight}
+  const toolbar = (
+    <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
+        <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
+          {displayList.length === 0 ? "Нет наборов" : `Наборов: ${displayList.length}`}
+        </p>
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
+          <PickerSearchField
+            id={searchFieldId}
+            label="Поиск по названию"
+            placeholder="Название набора"
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
+          />
+          <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
+            <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
+            <Select value={titleSort} onValueChange={(v) => setTitleSort(v as TestSetTitleSort)}>
+              <SelectTrigger size="sm" className="h-8 w-full text-left">
+                <SelectValue>
+                  {titleSort === "asc"
+                    ? "Название А→Я"
+                    : titleSort === "desc"
+                      ? "Название Я→А"
+                      : "Сортировка"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">По дате изменения</SelectItem>
+                <SelectItem value="asc">Название А→Я</SelectItem>
+                <SelectItem value="desc">Название Я→А</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="shrink-0"
+            onClick={() => {
+              setCreating(true);
+              setSelectedId(null);
+              setMobileSheet(null);
+            }}
+          >
+            Создать набор
+          </Button>
         </div>
       </div>
+    </div>
+  );
 
-      <div className="relative min-h-[40vh] overflow-hidden lg:hidden">
-        <div
-          className={cn(
-            "transition-transform duration-300 ease-out",
-            mobileDetailOpen ? "-translate-x-full" : "translate-x-0",
-          )}
-        >
-          <aside className="rounded-xl border border-border bg-card p-2">
-            <TestSetListToolbar {...toolbarProps} />
+  return (
+    <DoctorCatalogPageLayout toolbar={toolbar}>
+      <CatalogSplitLayout
+        left={
+          <CatalogLeftPane>
             {renderRows((s) => {
               setCreating(false);
               setSelectedId(s.id);
               setMobileSheet(s);
-            }, mobileSheet?.id ?? null)}
-          </aside>
-        </div>
-
-        <div
-          className={cn(
-            "absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out",
-            mobileDetailOpen ? "translate-x-0" : "translate-x-full",
-          )}
-        >
-          {mobileDetailOpen ? (
-            <>
-              <Button
-                variant="ghost"
-                type="button"
-                className="mb-2 h-9 px-2"
-                onClick={() => {
-                  setMobileSheet(null);
-                  setCreating(false);
-                }}
-              >
-                ← Назад
-              </Button>
-              <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm">
-                <CardContent className="p-2 sm:p-4">
-                  {creating ? (
-                    <TestSetForm
-                      testSet={null}
-                      saveAction={saveDoctorTestSetInline}
-                      archiveAction={archiveDoctorTestSetInline}
-                      backHref={TEST_SETS_PATH}
-                    />
-                  ) : mobileSheet ? (
-                    <>
-                      <TestSetForm
-                        testSet={mobileSheet}
-                        saveAction={saveDoctorTestSetInline}
-                        archiveAction={archiveDoctorTestSetInline}
-                        backHref={TEST_SETS_PATH}
-                      />
-                      <section className="mt-6 flex flex-col gap-2 border-t border-border/60 pt-4">
-                        <h2 className="text-lg font-medium">Состав набора</h2>
-                        <TestSetItemsForm testSet={mobileSheet} saveItemsAction={saveDoctorTestSetItemsInline} />
-                      </section>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Нет данных.</p>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          ) : null}
-        </div>
-      </div>
-    </div>
+            }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
+          </CatalogLeftPane>
+        }
+        right={desktopRight}
+        mobileView={mobileDetailOpen ? "detail" : "list"}
+        mobileBackSlot={
+          mobileDetailOpen ? (
+            <Button
+              variant="ghost"
+              type="button"
+              className="mb-2 h-9 px-2"
+              onClick={() => {
+                setMobileSheet(null);
+                setCreating(false);
+              }}
+            >
+              ← Назад
+            </Button>
+          ) : null
+        }
+      />
+    </DoctorCatalogPageLayout>
   );
 }

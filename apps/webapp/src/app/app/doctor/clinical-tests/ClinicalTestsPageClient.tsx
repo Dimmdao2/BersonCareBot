@@ -120,78 +120,6 @@ function mediaThumbRow(test: ClinicalTest) {
   );
 }
 
-function TestsSelectionToolbar({
-  testCount,
-  createButtonId,
-  onCreate,
-  viewMode,
-  onToggleView,
-  titleSort,
-  onTitleSortChange,
-  listBusy,
-}: {
-  testCount: number;
-  createButtonId: string;
-  onCreate: () => void;
-  viewMode: ClinicalTestsViewMode;
-  onToggleView: () => void;
-  titleSort: ClinicalTestTitleSort | null;
-  onTitleSortChange: (next: ClinicalTestTitleSort | null) => void;
-  listBusy?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-2 border-b border-border/60 px-2 pb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        {testCount === 0 ? "Нет тестов" : `Тестов: ${testCount}`}
-      </p>
-      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-        <div className="flex min-w-[11rem] max-w-full flex-1 flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-          <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-          <Select
-            value={titleSort ?? "default"}
-            onValueChange={(v) => {
-              if (v === "default") onTitleSortChange(null);
-              else onTitleSortChange(v as ClinicalTestTitleSort);
-            }}
-          >
-            <SelectTrigger size="sm" className="h-8 w-full text-left">
-              <SelectValue>
-                {titleSort === "asc"
-                  ? "Название А→Я"
-                  : titleSort === "desc"
-                    ? "Название Я→А"
-                    : "Сортировка"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">По дате изменения</SelectItem>
-              <SelectItem value="asc">Название А→Я</SelectItem>
-              <SelectItem value="desc">Название Я→А</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex shrink-0 items-center justify-end gap-2">
-          <button type="button" id={createButtonId} className={buttonVariants({ size: "sm" })} onClick={onCreate}>
-            Создать тест
-          </button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className={cn("shrink-0 transition-opacity", listBusy && "opacity-70")}
-            aria-label={viewMode === "tiles" ? "Показать список" : "Показать плитки"}
-            title={viewMode === "tiles" ? "Список" : "Плитки"}
-            onClick={onToggleView}
-            aria-busy={listBusy}
-          >
-            {viewMode === "tiles" ? <List className="size-4" aria-hidden /> : <LayoutGrid className="size-4" aria-hidden />}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function ClinicalTestsPageClient({
   initialItems,
   initialSelectedId,
@@ -356,38 +284,83 @@ export function ClinicalTestsPageClient({
     <DoctorCatalogPageLayout
       toolbar={
         <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
+          <div className="flex flex-col gap-3">
             <PickerSearchField
               id={searchFieldId}
               label="Поиск по названию"
               placeholder="Название теста"
               value={searchQuery}
               onValueChange={setSearchQuery}
-              className="min-w-0 sm:max-w-md sm:flex-1"
+              className="min-w-0 sm:max-w-xl"
             />
+            <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+              <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                {displayTests.length === 0 ? "Нет тестов" : `Тестов: ${displayTests.length}`}
+              </p>
+              <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+                <div className="flex min-w-[11rem] max-w-full flex-1 flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
+                  <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
+                  <Select
+                    value={titleSort ?? "default"}
+                    onValueChange={(v) => {
+                      if (v === "default") changeTitleSort(null);
+                      else changeTitleSort(v as ClinicalTestTitleSort);
+                    }}
+                  >
+                    <SelectTrigger size="sm" className="h-8 w-full text-left">
+                      <SelectValue>
+                        {titleSort === "asc"
+                          ? "Название А→Я"
+                          : titleSort === "desc"
+                            ? "Название Я→А"
+                            : "Сортировка"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">По дате изменения</SelectItem>
+                      <SelectItem value="asc">Название А→Я</SelectItem>
+                      <SelectItem value="desc">Название Я→А</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex shrink-0 items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    id="doctor-clinical-tests-create"
+                    className={buttonVariants({ size: "sm" })}
+                    onClick={() => {
+                      setDesktopSelectedId(null);
+                      setMobileSheet({ test: null });
+                    }}
+                  >
+                    Создать тест
+                  </button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={cn("shrink-0 transition-opacity", isListPending && "opacity-70")}
+                    aria-label={toolbarViewMode === "tiles" ? "Показать список" : "Показать плитки"}
+                    title={toolbarViewMode === "tiles" ? "Список" : "Плитки"}
+                    onClick={toggleViewMode}
+                    aria-busy={isListPending}
+                  >
+                    {toolbarViewMode === "tiles" ? (
+                      <List className="size-4" aria-hidden />
+                    ) : (
+                      <LayoutGrid className="size-4" aria-hidden />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       }
     >
       <CatalogSplitLayout
         left={
-          <CatalogLeftPane
-            headerSlot={
-              <TestsSelectionToolbar
-                testCount={displayTests.length}
-                createButtonId="doctor-clinical-tests-create"
-                onCreate={() => {
-                  setDesktopSelectedId(null);
-                  setMobileSheet({ test: null });
-                }}
-                viewMode={toolbarViewMode}
-                onToggleView={toggleViewMode}
-                titleSort={titleSort}
-                onTitleSortChange={changeTitleSort}
-                listBusy={isListPending}
-              />
-            }
-          >
+          <CatalogLeftPane stickyToolbarRows={2}>
             <div
               className={cn(
                 "flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity",

@@ -15,10 +15,16 @@ import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
 import type { Template, TemplateStatus } from "@/modules/lfk-templates/types";
 import { cn } from "@/lib/utils";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
+import {
+  DOCTOR_CATALOG_STICKY_BAR_CLASS,
+  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
+import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
+import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
-import { DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { TemplateEditor } from "./TemplateEditor";
 
 export type LfkTemplateTitleSort = "default" | "asc" | "desc";
@@ -35,59 +41,8 @@ function statusEyeMeta(status: TemplateStatus) {
   return { published, label };
 }
 
-function TemplateListToolbar({
-  templateCount,
-  searchQuery,
-  onSearchChange,
-  titleSort,
-  onTitleSortChange,
-}: {
-  templateCount: number;
-  searchQuery: string;
-  onSearchChange: (q: string) => void;
-  titleSort: LfkTemplateTitleSort;
-  onTitleSortChange: (next: LfkTemplateTitleSort) => void;
-}) {
-  const searchFieldId = useId();
-  return (
-    <div className="flex flex-col gap-2 border-b border-border/60 px-2 pb-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        {templateCount === 0 ? "Нет шаблонов" : `Шаблонов: ${templateCount}`}
-      </p>
-      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
-        <PickerSearchField
-          id={searchFieldId}
-          label="Поиск по названию"
-          placeholder="Название шаблона"
-          value={searchQuery}
-          onValueChange={onSearchChange}
-          className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-        />
-        <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-          <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-          <Select value={titleSort} onValueChange={(v) => onTitleSortChange(v as LfkTemplateTitleSort)}>
-            <SelectTrigger size="sm" className="h-8 w-full text-left">
-              <SelectValue>
-                {titleSort === "asc"
-                  ? "Название А→Я"
-                  : titleSort === "desc"
-                    ? "Название Я→А"
-                    : "Сортировка"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">По дате изменения</SelectItem>
-              <SelectItem value="asc">Название А→Я</SelectItem>
-              <SelectItem value="desc">Название Я→А</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function LfkTemplatesPageClient({ templates, exerciseCatalog }: Props) {
+  const searchFieldId = useId();
   const [searchQuery, setSearchQuery] = useState("");
   const [titleSort, setTitleSort] = useState<LfkTemplateTitleSort>("default");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -109,7 +64,6 @@ export function LfkTemplatesPageClient({ templates, exerciseCatalog }: Props) {
   }, [templates, searchQuery, titleSort]);
 
   useEffect(() => {
-    // Отложить setState из эффекта (eslint react-hooks/set-state-in-effect).
     queueMicrotask(() => {
       if (displayList.length === 0) {
         setSelectedId(null);
@@ -212,79 +166,80 @@ export function LfkTemplatesPageClient({ templates, exerciseCatalog }: Props) {
       </ul>
     );
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="hidden lg:block">
-        <div className={cn("grid items-stretch gap-4 lg:grid-cols-2", DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS)}>
-          <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
-            <div className="shrink-0 p-2 pb-0">
-              <TemplateListToolbar
-                templateCount={displayList.length}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                titleSort={titleSort}
-                onTitleSortChange={setTitleSort}
-              />
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2 pt-2">
-              {renderRows((t) => setSelectedId(t.id), selected?.id ?? null)}
-            </div>
-          </aside>
+  const desktopRight = (
+    <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+      <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+        {selected ? (
+          <TemplateEditor template={selected} exerciseCatalog={exerciseCatalog} />
+        ) : (
+          <p className="text-sm text-muted-foreground">Выберите шаблон в списке.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
 
-          <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-            <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-              {selected ? (
-                <TemplateEditor template={selected} exerciseCatalog={exerciseCatalog} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Выберите шаблон в списке.</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+  const mobileDetailOpen = mobileSheet != null;
 
-      <div className="relative min-h-[40vh] overflow-hidden lg:hidden">
-        <div
-          className={cn(
-            "transition-transform duration-300 ease-out",
-            mobileSheet != null ? "-translate-x-full" : "translate-x-0",
-          )}
-        >
-          <aside className="rounded-xl border border-border bg-card p-2">
-            <TemplateListToolbar
-              templateCount={displayList.length}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              titleSort={titleSort}
-              onTitleSortChange={setTitleSort}
-            />
-            {renderRows((t) => {
-              setSelectedId(t.id);
-              setMobileSheet(t);
-            }, mobileSheet?.id ?? null)}
-          </aside>
-        </div>
-
-        <div
-          className={cn(
-            "absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out",
-            mobileSheet != null ? "translate-x-0" : "translate-x-full",
-          )}
-        >
-          {mobileSheet != null ? (
-            <>
-              <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
-                ← Назад
-              </Button>
-              <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm">
-                <CardContent className="p-2 sm:p-4">
-                  <TemplateEditor template={mobileSheet} exerciseCatalog={exerciseCatalog} />
-                </CardContent>
-              </Card>
-            </>
-          ) : null}
+  const toolbar = (
+    <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
+        <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
+          {displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`}
+        </p>
+        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
+          <PickerSearchField
+            id={searchFieldId}
+            label="Поиск по названию"
+            placeholder="Название шаблона"
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
+          />
+          <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
+            <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
+            <Select value={titleSort} onValueChange={(v) => setTitleSort(v as LfkTemplateTitleSort)}>
+              <SelectTrigger size="sm" className="h-8 w-full text-left">
+                <SelectValue>
+                  {titleSort === "asc"
+                    ? "Название А→Я"
+                    : titleSort === "desc"
+                      ? "Название Я→А"
+                      : "Сортировка"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">По дате изменения</SelectItem>
+                <SelectItem value="asc">Название А→Я</SelectItem>
+                <SelectItem value="desc">Название Я→А</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <DoctorCatalogPageLayout toolbar={toolbar}>
+      <CatalogSplitLayout
+        left={
+          <CatalogLeftPane>
+            {renderRows((t) => {
+              setSelectedId(t.id);
+              setMobileSheet(t);
+            }, selected?.id ?? mobileSheet?.id ?? null)}
+          </CatalogLeftPane>
+        }
+        right={desktopRight}
+        mobileView={mobileDetailOpen ? "detail" : "list"}
+        mobileBackSlot={
+          mobileDetailOpen ? (
+            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
+              ← Назад
+            </Button>
+          ) : null
+        }
+      />
+    </DoctorCatalogPageLayout>
   );
 }
