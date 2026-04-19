@@ -44,7 +44,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import {
+  DOCTOR_CATALOG_STICKY_BAR_CLASS,
+  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
 import {
   saveReferenceCatalog,
   softDeleteReferenceItem,
@@ -517,7 +520,8 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
 
       <div
         className={cn(
-          "sticky z-20 -mx-4 flex flex-col gap-3 border-b border-border bg-card px-4 pb-3 pt-1",
+          DOCTOR_CATALOG_STICKY_BAR_CLASS,
+          "flex flex-col gap-3 bg-card pb-3 pt-1 supports-backdrop-filter:bg-card/90",
           DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
         )}
       >

@@ -1,5 +1,6 @@
 import type { MediaPreviewStatus } from "@/modules/media/types";
 import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
+import type { ClinicalTestMediaItem } from "@/modules/tests/types";
 import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 
 /**
@@ -47,6 +48,21 @@ export function exerciseMediaToPreviewUi(m: ExerciseMedia): MediaPreviewUiModel 
     previewStatus: m.previewStatus ?? null,
     previewSmUrl: m.previewSmUrl ?? null,
     previewMdUrl: m.previewMdUrl ?? null,
+    sourceWidth: null,
+    sourceHeight: null,
+  };
+}
+
+/** Превью медиа клинического теста (в JSON нет id слота — ключом служит URL). */
+export function clinicalTestMediaItemToPreviewUi(m: ClinicalTestMediaItem): MediaPreviewUiModel {
+  const kind: MediaPreviewUiModel["kind"] = m.mediaType === "video" ? "video" : "image";
+  return {
+    id: m.mediaUrl,
+    kind,
+    url: m.mediaUrl,
+    previewStatus: null,
+    previewSmUrl: null,
+    previewMdUrl: null,
     sourceWidth: null,
     sourceHeight: null,
   };

@@ -16,8 +16,13 @@ import {
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
-import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
+import {
+  DOCTOR_CATALOG_STICKY_BAR_CLASS,
+  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
+import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
+import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
 import { ExercisesFiltersForm } from "./ExercisesFiltersForm";
@@ -299,10 +304,8 @@ function ExercisesContent({
   return (
     <CatalogSplitLayout
       left={
-        <aside
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top,0px)+3.25rem)] lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)]"
-        >
-          <div className="shrink-0 px-2 pb-1.5 pt-2">
+        <CatalogLeftPane
+          headerSlot={
             <SelectionToolbar
               exerciseCount={displayExercises.length}
               createButtonId="doctor-exercises-create-link-desktop"
@@ -316,8 +319,15 @@ function ExercisesContent({
               onTitleSortChange={changeTitleSort}
               listBusy={isListPending}
             />
-          </div>
-          <div className={cn("min-h-0 flex-1 overflow-hidden px-2 pb-2 pt-1.5 transition-opacity", isListPending && "opacity-80")} aria-busy={isListPending}>
+          }
+        >
+          <div
+            className={cn(
+              "min-h-0 flex-1 overflow-hidden transition-opacity",
+              isListPending && "opacity-80",
+            )}
+            aria-busy={isListPending}
+          >
             {viewMode === "list"
               ? renderExerciseList(displayExercises, {
                   activeId: desktopSelectedId,
@@ -337,7 +347,7 @@ function ExercisesContent({
                   columns: activeTileColumns,
                 })}
           </div>
-        </aside>
+        </CatalogLeftPane>
       }
       right={rightPanel}
       mobileView={mobileSheet != null ? "detail" : "list"}
@@ -437,33 +447,30 @@ export function ExercisesPageClient({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div
-        className={cn(
-          "sticky z-20 -mx-4 border-b border-border/60 bg-background/95 px-4 py-1.5 backdrop-blur-md supports-backdrop-filter:bg-background/90 md:-mx-6 md:px-6",
-          DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-        )}
-      >
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <div className="min-w-0 flex-1">
-            <ExercisesFiltersForm
-              q={filters.q}
-              regionRefId={filters.regionRefId}
-              loadType={filters.loadType}
-              view={viewMode}
-              titleSort={titleSort}
-              selectedId={desktopSelectedId}
-            />
+    <DoctorCatalogPageLayout
+      toolbar={
+        <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="min-w-0 flex-1">
+              <ExercisesFiltersForm
+                q={filters.q}
+                regionRefId={filters.regionRefId}
+                loadType={filters.loadType}
+                view={viewMode}
+                titleSort={titleSort}
+                selectedId={desktopSelectedId}
+              />
+            </div>
+            <Link
+              href="/app/doctor/exercises/auto-create"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
+            >
+              Автосоздание
+            </Link>
           </div>
-          <Link
-            href="/app/doctor/exercises/auto-create"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
-          >
-            Автосоздание
-          </Link>
         </div>
-      </div>
-
+      }
+    >
       <Suspense fallback={<CatalogSplitLayoutSkeleton />}>
         <ExercisesContent
           listPromise={listPromise}
@@ -480,6 +487,6 @@ export function ExercisesPageClient({
           changeTitleSort={changeTitleSort}
         />
       </Suspense>
-    </div>
+    </DoctorCatalogPageLayout>
   );
 }

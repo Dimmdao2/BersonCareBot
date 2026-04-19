@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
 import type { Template, TemplateStatus } from "@/modules/lfk-templates/types";
 import { cn } from "@/lib/utils";
 import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
@@ -18,12 +19,13 @@ import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
-import { LfkTemplatePreviewPanel } from "./LfkTemplatePreviewPanel";
+import { TemplateEditor } from "./TemplateEditor";
 
 export type LfkTemplateTitleSort = "default" | "asc" | "desc";
 
 type Props = {
   templates: Template[];
+  exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
 };
 
 function statusEyeMeta(status: TemplateStatus) {
@@ -85,7 +87,7 @@ function TemplateListToolbar({
   );
 }
 
-export function LfkTemplatesPageClient({ templates }: Props) {
+export function LfkTemplatesPageClient({ templates, exerciseCatalog }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [titleSort, setTitleSort] = useState<LfkTemplateTitleSort>("default");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -232,7 +234,7 @@ export function LfkTemplatesPageClient({ templates }: Props) {
           <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
             <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
               {selected ? (
-                <LfkTemplatePreviewPanel template={selected} />
+                <TemplateEditor template={selected} exerciseCatalog={exerciseCatalog} />
               ) : (
                 <p className="text-sm text-muted-foreground">Выберите шаблон в списке.</p>
               )}
@@ -276,7 +278,7 @@ export function LfkTemplatesPageClient({ templates }: Props) {
               </Button>
               <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm">
                 <CardContent className="p-2 sm:p-4">
-                  <LfkTemplatePreviewPanel template={mobileSheet} />
+                  <TemplateEditor template={mobileSheet} exerciseCatalog={exerciseCatalog} />
                 </CardContent>
               </Card>
             </>

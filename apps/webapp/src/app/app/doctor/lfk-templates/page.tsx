@@ -20,10 +20,19 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
     statusRaw === "draft" || statusRaw === "published" || statusRaw === "archived" ? statusRaw : undefined;
 
   const deps = buildAppDeps();
-  const list = await deps.lfkTemplates.listTemplates({
-    status: status ?? null,
-    includeExerciseDetails: true,
-  });
+  const [list, exercises] = await Promise.all([
+    deps.lfkTemplates.listTemplates({
+      status: status ?? null,
+      includeExerciseDetails: true,
+    }),
+    deps.lfkExercises.listExercises({ includeArchived: false }),
+  ]);
+
+  const exerciseCatalog = exercises.map((e) => ({
+    id: e.id,
+    title: e.title,
+    firstMedia: e.media[0] ?? null,
+  }));
 
   return (
     <AppShell title="Шаблоны ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
@@ -57,7 +66,7 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
         {list.length === 0 ? (
           <p className="text-muted-foreground">Шаблонов пока нет.</p>
         ) : (
-          <LfkTemplatesPageClient templates={list} />
+          <LfkTemplatesPageClient templates={list} exerciseCatalog={exerciseCatalog} />
         )}
       </div>
     </AppShell>

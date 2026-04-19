@@ -191,7 +191,7 @@ export default async function SettingsPage() {
     : null;
 
   return (
-    <div className={cn(DOCTOR_PAGE_CONTAINER_CLASS, "pt-6")}>
+    <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
       <h1 className="mb-6 text-xl font-semibold">Настройки</h1>
       <SettingsForm
         patientLabel={String(patientLabel)}

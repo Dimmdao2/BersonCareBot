@@ -17,9 +17,10 @@ function linesFromSet(testSet: TestSet): string {
 
 type Props = {
   testSet: TestSet;
+  saveItemsAction?: (_prev: SaveTestSetState | null, formData: FormData) => Promise<SaveTestSetState>;
 };
 
-export function TestSetItemsForm({ testSet }: Props) {
+export function TestSetItemsForm({ testSet, saveItemsAction = saveDoctorTestSetItems }: Props) {
   const itemsKey = testSet.items
     .map((i) => `${i.testId}:${i.sortOrder}`)
     .sort()
@@ -27,12 +28,15 @@ export function TestSetItemsForm({ testSet }: Props) {
 
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const wrapped = useCallback(async (prev: SaveTestSetState | null, formData: FormData) => {
-    setLocalError(null);
-    const r = await saveDoctorTestSetItems(prev, formData);
-    if (!r.ok && r.error) setLocalError(r.error);
-    return r;
-  }, []);
+  const wrapped = useCallback(
+    async (prev: SaveTestSetState | null, formData: FormData) => {
+      setLocalError(null);
+      const r = await saveItemsAction(prev, formData);
+      if (!r.ok && r.error) setLocalError(r.error);
+      return r;
+    },
+    [saveItemsAction],
+  );
 
   const [last, formAction, pending] = useActionState(wrapped, null as SaveTestSetState | null);
 

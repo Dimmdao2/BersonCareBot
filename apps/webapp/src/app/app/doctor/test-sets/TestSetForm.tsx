@@ -15,9 +15,16 @@ import { TEST_SETS_PATH } from "./paths";
 type Props = {
   testSet?: TestSet | null;
   backHref?: string;
+  saveAction?: (_prev: SaveTestSetState | null, formData: FormData) => Promise<SaveTestSetState>;
+  archiveAction?: (formData: FormData) => Promise<void>;
 };
 
-export function TestSetForm({ testSet, backHref = TEST_SETS_PATH }: Props) {
+export function TestSetForm({
+  testSet,
+  backHref = TEST_SETS_PATH,
+  saveAction = saveDoctorTestSet,
+  archiveAction = archiveDoctorTestSet,
+}: Props) {
   const recordKey = testSet?.id ?? "create";
   const [title, setTitle] = useState(testSet?.title ?? "");
   const [description, setDescription] = useState(testSet?.description ?? "");
@@ -30,12 +37,15 @@ export function TestSetForm({ testSet, backHref = TEST_SETS_PATH }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordKey]);
 
-  const wrappedSave = useCallback(async (prev: SaveTestSetState | null, formData: FormData) => {
-    setLocalError(null);
-    const r = await saveDoctorTestSet(prev, formData);
-    if (!r.ok && r.error) setLocalError(r.error);
-    return r;
-  }, []);
+  const wrappedSave = useCallback(
+    async (prev: SaveTestSetState | null, formData: FormData) => {
+      setLocalError(null);
+      const r = await saveAction(prev, formData);
+      if (!r.ok && r.error) setLocalError(r.error);
+      return r;
+    },
+    [saveAction],
+  );
 
   const [, formAction, pending] = useActionState(wrappedSave, null as SaveTestSetState | null);
 
@@ -79,7 +89,7 @@ export function TestSetForm({ testSet, backHref = TEST_SETS_PATH }: Props) {
       </form>
 
       {testSet ? (
-        <form action={archiveDoctorTestSet} className="border-t border-border/60 pt-4">
+        <form action={archiveAction} className="border-t border-border/60 pt-4">
           <input type="hidden" name="id" value={testSet.id} />
           <Button type="submit" variant="destructive">
             Архивировать набор

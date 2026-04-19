@@ -52,9 +52,22 @@ export function clinicalTestToFormValues(test: ClinicalTest | null | undefined):
 type ClinicalTestFormProps = {
   test?: ClinicalTest | null;
   backHref?: string;
+  /** Режим каталога master-detail — передаётся в форму как `view` для редиректа после сохранения. */
+  workspaceView?: "tiles" | "list";
+  saveAction?: (
+    _prev: SaveClinicalTestState | null,
+    formData: FormData,
+  ) => Promise<SaveClinicalTestState>;
+  archiveAction?: (formData: FormData) => Promise<void>;
 };
 
-export function ClinicalTestForm({ test, backHref = CLINICAL_TESTS_PATH }: ClinicalTestFormProps) {
+export function ClinicalTestForm({
+  test,
+  backHref = CLINICAL_TESTS_PATH,
+  workspaceView,
+  saveAction = saveClinicalTest,
+  archiveAction = archiveClinicalTest,
+}: ClinicalTestFormProps) {
   const recordKey = test?.id ?? "create";
   const [values, setValues] = useState<ClinicalTestFormValues>(() => clinicalTestToFormValues(test));
   const [localError, setLocalError] = useState<string | null>(null);
@@ -68,11 +81,11 @@ export function ClinicalTestForm({ test, backHref = CLINICAL_TESTS_PATH }: Clini
   const wrappedSave = useCallback(
     async (prev: SaveClinicalTestState | null, formData: FormData) => {
       setLocalError(null);
-      const r = await saveClinicalTest(prev, formData);
+      const r = await saveAction(prev, formData);
       if (!r.ok && r.error) setLocalError(r.error);
       return r;
     },
-    [],
+    [saveAction],
   );
 
   const [, formAction, savePending] = useActionState(wrappedSave, null as SaveClinicalTestState | null);
@@ -86,6 +99,7 @@ export function ClinicalTestForm({ test, backHref = CLINICAL_TESTS_PATH }: Clini
           </p>
         ) : null}
         {test ? <input type="hidden" name="id" value={test.id} /> : null}
+        {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
@@ -176,8 +190,9 @@ export function ClinicalTestForm({ test, backHref = CLINICAL_TESTS_PATH }: Clini
       </form>
 
       {test ? (
-        <form action={archiveClinicalTest} className="border-t border-border/60 pt-4">
+        <form action={archiveAction} className="border-t border-border/60 pt-4">
           <input type="hidden" name="id" value={test.id} />
+          {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
           <Button type="submit" variant="destructive">
             Архивировать
           </Button>

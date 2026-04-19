@@ -39,11 +39,18 @@ function toValues(r: Recommendation | null | undefined): FormValues {
 type Props = {
   recommendation?: Recommendation | null;
   backHref?: string;
+  saveAction?: (
+    _prev: SaveRecommendationState | null,
+    formData: FormData,
+  ) => Promise<SaveRecommendationState>;
+  archiveAction?: (formData: FormData) => Promise<void>;
 };
 
 export function RecommendationForm({
   recommendation,
   backHref = RECOMMENDATIONS_PATH,
+  saveAction = saveRecommendation,
+  archiveAction = archiveRecommendation,
 }: Props) {
   const recordKey = recommendation?.id ?? "create";
   const [values, setValues] = useState<FormValues>(() => toValues(recommendation));
@@ -55,12 +62,15 @@ export function RecommendationForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordKey]);
 
-  const wrappedSave = useCallback(async (prev: SaveRecommendationState | null, formData: FormData) => {
-    setLocalError(null);
-    const r = await saveRecommendation(prev, formData);
-    if (!r.ok && r.error) setLocalError(r.error);
-    return r;
-  }, []);
+  const wrappedSave = useCallback(
+    async (prev: SaveRecommendationState | null, formData: FormData) => {
+      setLocalError(null);
+      const r = await saveAction(prev, formData);
+      if (!r.ok && r.error) setLocalError(r.error);
+      return r;
+    },
+    [saveAction],
+  );
 
   const [, formAction, pending] = useActionState(wrappedSave, null as SaveRecommendationState | null);
 
@@ -141,7 +151,7 @@ export function RecommendationForm({
       </form>
 
       {recommendation ? (
-        <form action={archiveRecommendation} className="border-t border-border/60 pt-4">
+        <form action={archiveAction} className="border-t border-border/60 pt-4">
           <input type="hidden" name="id" value={recommendation.id} />
           <Button type="submit" variant="destructive">
             Архивировать
