@@ -1,5 +1,5 @@
+import { MergeConflictError } from "@bersoncare/platform-merge";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MergeConflictError } from "@/infra/repos/platformUserMergeErrors";
 
 const queryMock = vi.fn();
 const clientQueryMock = vi.fn();
@@ -18,7 +18,12 @@ vi.mock("@/infra/db/client", () => ({
 }));
 
 vi.mock("@/infra/repos/pgPlatformUserMerge", () => ({
-  mergePlatformUsersInTransaction: (...args: unknown[]) => mergePlatformUsersInTransactionMock(...args),
+  mergePlatformUsersInTransaction: (...args: unknown[]) =>
+    mergePlatformUsersInTransactionMock(...args),
+}));
+
+vi.mock("@/infra/adminAuditLog", () => ({
+  upsertOpenConflictLog: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/infra/logging/logger", () => ({
@@ -107,9 +112,29 @@ describe("completeChannelLinkFromIntegrator", () => {
     setChannelLinkBindingConflictReporter(vi.fn());
     mergePlatformUsersInTransactionMock.mockResolvedValue({ targetId: "u2", duplicateId: "u1" });
     clientQueryMock
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "u2",
+            phone_normalized: "+79990001133",
+            integrator_user_id: null,
+            created_at: new Date("2020-01-01"),
+          },
+        ],
+      }) // loadPickMergeCandidate(boundUserId): phone wins target
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "u1",
+            phone_normalized: null,
+            integrator_user_id: null,
+            created_at: new Date("2021-06-01"),
+          },
+        ],
+      }) // loadPickMergeCandidate(token user)
+      .mockResolvedValueOnce({ rows: [] }) // UPDATE channel_link_secrets
+      .mockResolvedValueOnce({ rows: [] }); // COMMIT
 
     queryMock
       .mockResolvedValueOnce({
@@ -169,7 +194,29 @@ describe("completeChannelLinkFromIntegrator", () => {
     mergePlatformUsersInTransactionMock.mockRejectedValue(
       new MergeConflictError("merge: blocked", ["u2", "u1"])
     );
-    clientQueryMock.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
+    clientQueryMock
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "u2",
+            phone_normalized: "+79990001133",
+            integrator_user_id: null,
+            created_at: new Date("2020-01-01"),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "u1",
+            phone_normalized: null,
+            integrator_user_id: null,
+            created_at: new Date("2021-06-01"),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] }); // ROLLBACK
 
     queryMock
       .mockResolvedValueOnce({
@@ -204,7 +251,11 @@ describe("completeChannelLinkFromIntegrator", () => {
       externalId: "tg_1",
     });
 
-    expect(res).toMatchObject({ ok: false, code: "conflict" });
+    expect(res).toMatchObject({
+      ok: false,
+      code: "conflict",
+      mergeReason: "phone_owned_by_other_user",
+    });
     expect(clientQueryMock).toHaveBeenCalledWith("ROLLBACK");
     expect(clientQueryMock).not.toHaveBeenCalledWith("COMMIT");
   });
@@ -213,9 +264,29 @@ describe("completeChannelLinkFromIntegrator", () => {
     setChannelLinkBindingConflictReporter(vi.fn());
     mergePlatformUsersInTransactionMock.mockResolvedValueOnce({ targetId: "u1", duplicateId: "u2" });
     clientQueryMock
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "u1",
+            phone_normalized: null,
+            integrator_user_id: null,
+            created_at: new Date("2020-01-01"),
+          },
+        ],
+      }) // token user: older created_at → merge target
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "u2",
+            phone_normalized: null,
+            integrator_user_id: null,
+            created_at: new Date("2021-06-01"),
+          },
+        ],
+      }) // binding owner without phone
+      .mockResolvedValueOnce({ rows: [] }) // UPDATE channel_link_secrets
+      .mockResolvedValueOnce({ rows: [] }); // COMMIT
 
     queryMock
       .mockResolvedValueOnce({

@@ -108,7 +108,14 @@ export type PhoneLinkFailureReason =
   | 'integrator_id_mismatch'
   /** Нет строки identities для пары (resource, externalId) — не ретраить как «транзиент БД». */
   | 'no_integrator_identity'
-  | 'db_transient_failure';
+  | 'db_transient_failure'
+  | 'channel_already_bound_to_other_user'
+  | 'merge_blocked_booking_overlap'
+  | 'merge_blocked_distinct_real_users'
+  | 'merge_blocked_lfk_conflict'
+  | 'merge_blocked_ambiguous_candidates'
+  | 'legacy_contacts_conflict'
+  | 'merge_blocked_integrator_conflict';
 
 /** Метаданные отдельных мутаций `writeDb` (остальные кейсы возвращают `undefined`). */
 export type DbWriteDbResult = {

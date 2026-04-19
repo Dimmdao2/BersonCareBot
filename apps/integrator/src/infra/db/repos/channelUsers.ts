@@ -652,6 +652,14 @@ export async function setUserPhone(
 
   const userId = await resolveCanonicalIntegratorUserId(db, rawUserId);
 
+  await db.query(
+    `DELETE FROM contacts
+     WHERE type = 'phone'
+       AND value_normalized = $2
+       AND user_id <> $1::bigint`,
+    [userId, phoneNormalized],
+  );
+
   const query = `
     INSERT INTO contacts (user_id, type, value_normalized, label, is_primary, created_at, updated_at)
     VALUES ($1::bigint, 'phone', $2, $3, NULL, now(), now())

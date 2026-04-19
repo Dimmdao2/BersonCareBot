@@ -7,7 +7,7 @@
     "dev": "bash ../../scripts/ensure-booking-sync-built.sh && tsx watch src/main.ts",
     "worker:dev": "bash ../../scripts/ensure-booking-sync-built.sh && tsx watch src/infra/runtime/worker/main.ts",
     "clean": "rm -rf dist",
-    "build": "pnpm --dir ../../packages/booking-rubitime-sync run build && pnpm run clean && tsc -p tsconfig.build.json",
+    "build": "pnpm --dir ../../packages/booking-rubitime-sync run build && pnpm --dir ../../packages/platform-merge run build && pnpm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "worker:start": "node dist/infra/runtime/worker/main.js",
     "test": "bash ../../scripts/ensure-booking-sync-built.sh && vitest --run",
@@ -33,6 +33,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@bersoncare/platform-merge": "workspace:*",
     "@bersoncare/booking-rubitime-sync": "workspace:*",
     "@maxhub/max-bot-api": "^0.2.2",
     "dotenv": "^17.4.1",

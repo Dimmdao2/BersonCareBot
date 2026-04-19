@@ -103,6 +103,7 @@ describe('channelUsers repo (identity/contact/state split)', () => {
         rows: [{ merged_into_user_id: null }],
         rowCount: 1,
       } as DbQueryResult<{ merged_into_user_id: string | null }>)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
 
     await expect(setUserPhone(db, '123', '+79990001122')).resolves.toBe('applied');
@@ -111,7 +112,10 @@ describe('channelUsers repo (identity/contact/state split)', () => {
     expect(String(idSql)).toContain('FROM identities i');
     expect(idParams).toEqual(['123', 'telegram']);
 
-    const [insSql, insParams] = query.mock.calls[2] ?? [];
+    const [delSql] = query.mock.calls[2] ?? [];
+    expect(String(delSql)).toContain('DELETE FROM contacts');
+
+    const [insSql, insParams] = query.mock.calls[3] ?? [];
     const sqlText = String(insSql);
     expect(sqlText).toContain('INSERT INTO contacts');
     expect(sqlText).toContain('VALUES ($1::bigint');
@@ -131,11 +135,12 @@ describe('channelUsers repo (identity/contact/state split)', () => {
         rows: [{ merged_into_user_id: null }],
         rowCount: 1,
       } as DbQueryResult<{ merged_into_user_id: string | null }>)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult)
       .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult);
 
     await expect(setUserPhone(db, '456', '+79990001122')).resolves.toBe('noop_conflict');
 
-    const [insSql] = query.mock.calls[2] ?? [];
+    const [insSql] = query.mock.calls[3] ?? [];
     const sqlText = String(insSql);
     expect(sqlText).toContain('ON CONFLICT (type, value_normalized)');
     expect(sqlText).toContain('WHERE contacts.user_id = $1::bigint');
@@ -156,11 +161,12 @@ describe('channelUsers repo (identity/contact/state split)', () => {
         rows: [{ merged_into_user_id: null }],
         rowCount: 1,
       } as DbQueryResult<{ merged_into_user_id: string | null }>)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 } as DbQueryResult)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 } as DbQueryResult);
 
     await expect(setUserPhone(db, '999', '+79990001122')).resolves.toBe('applied');
 
-    const [, insParams] = query.mock.calls[3] ?? [];
+    const [, insParams] = query.mock.calls[4] ?? [];
     expect(insParams?.[0]).toBe('100');
   });
 

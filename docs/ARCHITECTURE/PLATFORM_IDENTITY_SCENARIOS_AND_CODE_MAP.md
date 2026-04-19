@@ -65,6 +65,7 @@
 | Старт OTP, `ChannelContext` (web / telegram + chatId) | `apps/webapp/src/app/api/auth/phone/start/route.ts`, `apps/webapp/src/modules/auth/phoneAuth.ts` (`startPhoneAuth`) |
 | Подтверждение кода | `apps/webapp/src/app/api/auth/phone/confirm/route.ts` → `confirmPhoneAuth` → `pgUserByPhonePort.createOrBind` |
 | Merge при конфликте binding и пользователя по телефону | `createOrBind` в `pgUserByPhone.ts` → `mergePlatformUsersInTransaction(..., "phone_bind")` |
+| Привязка телефона из integrator / signed HTTP bind | `@bersoncare/platform-merge` **`applyMessengerPhonePublicBind`** → тот же полный merge зависимостей, затем `integrator.contacts` (`channelUsers.setUserPhone`, очистка чужих `contacts` по тому же нормализованному номеру перед INSERT) |
 
 **Сценарий «второй мессенджер, тот же номер»:** вставка binding для канона, найденного по телефону, конфликтует с binding другого `user_id` → ветка merge `phone_bind` в `createOrBind`.
 

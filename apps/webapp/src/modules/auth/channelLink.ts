@@ -1,12 +1,13 @@
 import { createHash, randomBytes } from "node:crypto";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
+import { classifyMergeFailure, pickMergeTargetId, type PickMergeTargetCandidate } from "@bersoncare/platform-merge";
 import { getPool } from "@/infra/db/client";
+import { upsertOpenConflictLog } from "@/infra/adminAuditLog";
 import { env } from "@/config/env";
 import { integratorWebhookSecret } from "@/config/env";
 import { logger } from "@/infra/logging/logger";
 import { resolveCanonicalUserId } from "@/infra/repos/pgCanonicalPlatformUser";
 import { mergePlatformUsersInTransaction } from "@/infra/repos/pgPlatformUserMerge";
-import { MergeConflictError } from "@/infra/repos/platformUserMergeErrors";
 import { normalizeMaxBotNicknameInput } from "@/modules/system-settings/maxLoginBotNickname";
 
 const SECRET_TTL_MIN = 10;
@@ -96,7 +97,32 @@ export async function platformUserNeedsPhoneBinding(pool: Pool, userId: string):
 
 export type ChannelLinkCompleteResult =
   | { ok: true; userId: string; needsPhone: boolean; phoneNormalized?: string }
-  | { ok: false; code: string; needsPhone?: boolean };
+  | { ok: false; code: string; needsPhone?: boolean; mergeReason?: string };
+
+async function loadPickMergeCandidate(client: PoolClient, id: string): Promise<PickMergeTargetCandidate | null> {
+  const r = await client.query<{
+    id: string;
+    phone_normalized: string | null;
+    integrator_user_id: string | null;
+    created_at: Date | string;
+  }>(
+    `SELECT id::text,
+            phone_normalized,
+            integrator_user_id::text AS integrator_user_id,
+            created_at
+     FROM platform_users
+     WHERE id = $1::uuid AND merged_into_id IS NULL`,
+    [id],
+  );
+  const row = r.rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    phone_normalized: row.phone_normalized,
+    integrator_user_id: row.integrator_user_id,
+    created_at: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
+  };
+}
 
 export type ChannelLinkStartResult =
   | { ok: true; url: string; expiresAtIso: string; manualCommand?: string }
@@ -225,31 +251,68 @@ export async function completeChannelLinkFromIntegrator(params: {
        */
       const existingPhone = await platformPhoneBindingInfo(pool, boundUserId);
       if (existingPhone.needsPhone) {
+        const pairA = r.user_id;
+        const pairB = boundUserId;
+        let mergeTargetForCanon = pairA;
+        let mergeDupForLog = pairB;
         const client = await pool.connect();
         try {
           await client.query("BEGIN");
           try {
-            await mergePlatformUsersInTransaction(client, r.user_id, boundUserId, "phone_bind");
+            const puA = await loadPickMergeCandidate(client, pairA);
+            const puB = await loadPickMergeCandidate(client, pairB);
+            if (!puA || !puB) {
+              await client.query("ROLLBACK");
+              void upsertOpenConflictLog(pool, {
+                actorId: null,
+                candidateIds: [pairA, pairB],
+                details: {
+                  source: "channel_link",
+                  subReason: "existing_owner_no_phone",
+                  channelCode: params.channelCode,
+                  externalId: params.externalId,
+                  classifiedReason: "merge_blocked_ambiguous_candidates",
+                },
+                status: "error",
+              }).catch(() => {});
+              return { ok: false, code: "conflict", mergeReason: "merge_blocked_ambiguous_candidates" };
+            }
+            const picked = pickMergeTargetId(puA, puB);
+            mergeTargetForCanon = picked.target;
+            mergeDupForLog = picked.duplicate;
+            await mergePlatformUsersInTransaction(client, picked.target, picked.duplicate, "phone_bind");
+            await client.query(
+              "UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL",
+              [r.id],
+            );
+            await client.query("COMMIT");
           } catch (err) {
             await client.query("ROLLBACK");
-            const mergeMessage = err instanceof MergeConflictError ? err.message : String(err);
+            const classified = classifyMergeFailure(err, [pairA, pairB]);
             logger.warn({
               scope: "channel_link",
               event: "channel_link_auto_merge_skipped",
-              reason: "merge_failed",
-              mergeMessage,
+              reason: classified.code,
+              mergeMessage: err instanceof Error ? err.message : String(err),
+              candidateIds: classified.candidateIds,
               subReason: "existing_owner_no_phone",
-              targetId: r.user_id,
-              duplicateId: boundUserId,
               channelCode: params.channelCode,
             });
-            return { ok: false, code: "conflict" };
+            void upsertOpenConflictLog(pool, {
+              actorId: null,
+              candidateIds: classified.candidateIds.length > 0 ? classified.candidateIds : [pairA, pairB],
+              details: {
+                source: "channel_link",
+                subReason: "existing_owner_no_phone",
+                channelCode: params.channelCode,
+                externalId: params.externalId,
+                classifiedReason: classified.code,
+                mergeMessage: err instanceof Error ? err.message : String(err),
+              },
+              status: "error",
+            }).catch(() => {});
+            return { ok: false, code: "conflict", mergeReason: classified.code };
           }
-          await client.query(
-            "UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL",
-            [r.id],
-          );
-          await client.query("COMMIT");
         } catch (err) {
           try {
             await client.query("ROLLBACK");
@@ -260,8 +323,8 @@ export async function completeChannelLinkFromIntegrator(params: {
             err,
             scope: "channel_link",
             event: "channel_link_auto_merge_tx_error",
-            targetId: r.user_id,
-            duplicateId: boundUserId,
+            targetId: pairA,
+            duplicateId: pairB,
             subReason: "existing_owner_no_phone",
           });
           return { ok: false, code: "conflict" };
@@ -273,15 +336,15 @@ export async function completeChannelLinkFromIntegrator(params: {
           scope: "channel_link",
           event: "channel_link_auto_merge_applied",
           reason: "existing_owner_no_phone",
-          targetId: r.user_id,
-          duplicateId: boundUserId,
+          targetId: mergeTargetForCanon,
+          duplicateId: mergeDupForLog,
           channelCode: params.channelCode,
         });
-        const canonicalAfterMerge = await resolveCanonicalUserId(pool, r.user_id);
+        const canonicalAfterMerge = await resolveCanonicalUserId(pool, mergeTargetForCanon);
         if (canonicalAfterMerge == null) {
           return { ok: false, code: "user_not_found" };
         }
-        const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, r.user_id);
+        const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, mergeTargetForCanon);
         return {
           ok: true,
           userId: canonicalAfterMerge,
@@ -303,30 +366,67 @@ export async function completeChannelLinkFromIntegrator(params: {
         return { ok: false, code: "conflict" };
       }
 
+      const pairA = boundUserId;
+      const pairB = r.user_id;
+      let mergeTargetForCanon = pairA;
+      let mergeDupForLog = pairB;
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
         try {
-          await mergePlatformUsersInTransaction(client, boundUserId, r.user_id, "phone_bind");
+          const puA = await loadPickMergeCandidate(client, pairA);
+          const puB = await loadPickMergeCandidate(client, pairB);
+          if (!puA || !puB) {
+            await client.query("ROLLBACK");
+            void upsertOpenConflictLog(pool, {
+              actorId: null,
+              candidateIds: [pairA, pairB],
+              details: {
+                source: "channel_link",
+                subReason: "oauth_stub_auto_merge",
+                channelCode: params.channelCode,
+                externalId: params.externalId,
+                classifiedReason: "merge_blocked_ambiguous_candidates",
+              },
+              status: "error",
+            }).catch(() => {});
+            return { ok: false, code: "conflict", mergeReason: "merge_blocked_ambiguous_candidates" };
+          }
+          const picked = pickMergeTargetId(puA, puB);
+          mergeTargetForCanon = picked.target;
+          mergeDupForLog = picked.duplicate;
+          await mergePlatformUsersInTransaction(client, picked.target, picked.duplicate, "phone_bind");
+          await client.query(
+            "UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL",
+            [r.id],
+          );
+          await client.query("COMMIT");
         } catch (err) {
           await client.query("ROLLBACK");
-          const mergeMessage = err instanceof MergeConflictError ? err.message : String(err);
+          const classified = classifyMergeFailure(err, [pairA, pairB]);
           logger.warn({
             scope: "channel_link",
             event: "channel_link_auto_merge_skipped",
-            reason: "merge_failed",
-            mergeMessage,
-            targetId: boundUserId,
-            duplicateId: r.user_id,
+            reason: classified.code,
+            mergeMessage: err instanceof Error ? err.message : String(err),
+            candidateIds: classified.candidateIds,
             channelCode: params.channelCode,
           });
-          return { ok: false, code: "conflict" };
+          void upsertOpenConflictLog(pool, {
+            actorId: null,
+            candidateIds: classified.candidateIds.length > 0 ? classified.candidateIds : [pairA, pairB],
+            details: {
+              source: "channel_link",
+              subReason: "oauth_stub_auto_merge",
+              channelCode: params.channelCode,
+              externalId: params.externalId,
+              classifiedReason: classified.code,
+              mergeMessage: err instanceof Error ? err.message : String(err),
+            },
+            status: "error",
+          }).catch(() => {});
+          return { ok: false, code: "conflict", mergeReason: classified.code };
         }
-        await client.query(
-          "UPDATE channel_link_secrets SET used_at = now() WHERE id = $1::uuid AND used_at IS NULL",
-          [r.id]
-        );
-        await client.query("COMMIT");
       } catch (err) {
         try {
           await client.query("ROLLBACK");
@@ -337,8 +437,8 @@ export async function completeChannelLinkFromIntegrator(params: {
           err,
           scope: "channel_link",
           event: "channel_link_auto_merge_tx_error",
-          targetId: boundUserId,
-          duplicateId: r.user_id,
+          targetId: pairA,
+          duplicateId: pairB,
         });
         return { ok: false, code: "conflict" };
       } finally {
@@ -348,15 +448,15 @@ export async function completeChannelLinkFromIntegrator(params: {
       logger.info({
         scope: "channel_link",
         event: "channel_link_auto_merge_applied",
-        targetId: boundUserId,
-        duplicateId: r.user_id,
+        targetId: mergeTargetForCanon,
+        duplicateId: mergeDupForLog,
         channelCode: params.channelCode,
       });
-      const canonicalAfterMerge = await resolveCanonicalUserId(pool, boundUserId);
+      const canonicalAfterMerge = await resolveCanonicalUserId(pool, mergeTargetForCanon);
       if (canonicalAfterMerge == null) {
         return { ok: false, code: "user_not_found" };
       }
-      const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, boundUserId);
+      const { needsPhone, phoneNormalized } = await platformPhoneBindingInfo(pool, mergeTargetForCanon);
       return {
         ok: true,
         userId: canonicalAfterMerge,

@@ -14,6 +14,7 @@ import {
   applyMessengerPhonePublicBind,
   MessengerPhoneLinkError,
 } from './repos/messengerPhonePublicBind.js';
+import { recordMessengerPhoneBindBlocked } from './repos/messengerPhoneBindAudit.js';
 import {
   cancelDraftByIdentity,
   ensureIdentityForMessenger,
@@ -442,7 +443,7 @@ export function createDbWritePort(input: {
                 throw new MessengerPhoneLinkError('db_transient_failure');
               }
               if (outcome === 'noop_conflict') {
-                throw new MessengerPhoneLinkError('phone_owned_by_other_user');
+                throw new MessengerPhoneLinkError('legacy_contacts_conflict');
               }
               applied = true;
             });
@@ -488,6 +489,21 @@ export function createDbWritePort(input: {
                 },
                 'bind_tx_fail',
               );
+              if (err.code !== 'db_transient_failure') {
+                void recordMessengerPhoneBindBlocked({
+                  db,
+                  reason: err.code,
+                  candidateIds: err.candidateIds,
+                  details: {
+                    channelCode: resource,
+                    externalId: channelUserId,
+                    phoneSuffix,
+                    ...(asNonEmptyString(mutation.params.correlationId)
+                      ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
+                      : {}),
+                  },
+                }).catch(() => {});
+              }
               if (err.code === 'db_transient_failure') {
                 return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true, phoneLinkReason: err.code };
               }

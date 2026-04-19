@@ -2,6 +2,7 @@ packages:
   - apps/webapp
   - apps/integrator
   - packages/booking-rubitime-sync
+  - packages/platform-merge
 
 onlyBuiltDependencies:
   - esbuild

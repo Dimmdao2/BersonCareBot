@@ -10,27 +10,18 @@
  * Implemented here (not imported from `apps/integrator`) so Next.js production build does not bundle integrator sources with `.js` import paths.
  */
 import type { Pool, PoolClient } from "pg";
+import {
+  applyMessengerPhonePublicBind,
+  MessengerPhoneLinkError,
+  type MessengerPhoneLinkFailureCode,
+} from "@bersoncare/platform-merge";
+import { computeConflictKeyFromCandidateIds, writeAuditLog } from "@/infra/adminAuditLog";
 import { logger } from "@/infra/logging/logger";
 
 /** Minimal DB surface for this TX (matches integrator `DbPort.query`). */
 type TxQuery = {
   query<T = unknown>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount?: number }>;
 };
-
-type MessengerPhoneLinkFailureCode = "no_channel_binding" | "phone_owned_by_other_user" | "integrator_id_mismatch";
-
-class MessengerPhoneLinkError extends Error {
-  readonly code: MessengerPhoneLinkFailureCode | "db_transient_failure";
-
-  constructor(code: MessengerPhoneLinkFailureCode | "db_transient_failure", options?: { cause?: unknown }) {
-    super(code);
-    this.name = "MessengerPhoneLinkError";
-    this.code = code;
-    if (options?.cause !== undefined) {
-      (this as Error & { cause?: unknown }).cause = options.cause;
-    }
-  }
-}
 
 const MAX_MERGE_CHAIN_DEPTH = 32;
 const BIGINT_STRING = /^\d+$/;
@@ -97,93 +88,6 @@ async function ensureIdentityForMessenger(db: TxQuery, input: { resource: string
   await db.query(sql, [input.resource, input.externalId.trim()]);
 }
 
-async function applyMessengerPhonePublicBind(
-  db: TxQuery,
-  input: {
-    channelCode: string;
-    externalId: string;
-    phoneNormalized: string;
-    canonicalIntegratorUserId: string;
-  },
-): Promise<{ platformUserId: string }> {
-  const { channelCode, externalId, phoneNormalized, canonicalIntegratorUserId } = input;
-
-  const bindRes = await db.query<{
-    platform_user_id: string;
-    existing_int_uid: string | null;
-  }>(
-    `SELECT pu.id::text AS platform_user_id,
-            pu.integrator_user_id::text AS existing_int_uid
-     FROM public.user_channel_bindings ucb
-     INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
-     WHERE ucb.channel_code = $1 AND ucb.external_id = $2
-       AND pu.merged_into_id IS NULL
-     LIMIT 1`,
-    [channelCode, externalId],
-  );
-  const row = bindRes.rows[0];
-  if (!row) {
-    throw new MessengerPhoneLinkError("no_channel_binding");
-  }
-
-  const platformUserId = row.platform_user_id;
-
-  if (
-    row.existing_int_uid !== null &&
-    row.existing_int_uid !== undefined &&
-    row.existing_int_uid.trim() !== "" &&
-    row.existing_int_uid !== canonicalIntegratorUserId
-  ) {
-    throw new MessengerPhoneLinkError("integrator_id_mismatch");
-  }
-
-  const otherPhone = await db.query<{ id: string }>(
-    `SELECT id::text FROM public.platform_users
-     WHERE phone_normalized = $1 AND merged_into_id IS NULL AND id <> $2::uuid
-     LIMIT 1`,
-    [phoneNormalized, platformUserId],
-  );
-  if (otherPhone.rows[0]) {
-    throw new MessengerPhoneLinkError("phone_owned_by_other_user");
-  }
-
-  const otherInt = await db.query<{ id: string }>(
-    `SELECT id::text FROM public.platform_users
-     WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL AND id <> $2::uuid
-     LIMIT 1`,
-    [canonicalIntegratorUserId, platformUserId],
-  );
-  if (otherInt.rows[0]) {
-    throw new MessengerPhoneLinkError("integrator_id_mismatch");
-  }
-
-  try {
-    const upd = await db.query(
-      `UPDATE public.platform_users SET
-         phone_normalized = $2,
-         patient_phone_trust_at = now(),
-         integrator_user_id = COALESCE(integrator_user_id, $3::bigint),
-         updated_at = now()
-       WHERE id = $1::uuid
-         AND merged_into_id IS NULL`,
-      [platformUserId, phoneNormalized, canonicalIntegratorUserId],
-    );
-    if ((upd.rowCount ?? 0) < 1) {
-      throw new MessengerPhoneLinkError("db_transient_failure");
-    }
-  } catch (err) {
-    if (err instanceof MessengerPhoneLinkError) throw err;
-    const pg = err as { code?: string };
-    if (pg.code === "23505") {
-      throw new MessengerPhoneLinkError("phone_owned_by_other_user");
-    }
-    logger.error({ err }, "[messengerPhone] public platform_users UPDATE failed");
-    throw new MessengerPhoneLinkError("db_transient_failure", { cause: err });
-  }
-
-  return { platformUserId };
-}
-
 type SetUserPhoneOutcome = "applied" | "noop_conflict" | "failed";
 
 async function setUserPhone(
@@ -204,6 +108,14 @@ async function setUserPhone(
   if (!rawUserId) return "failed";
 
   const userId = await resolveCanonicalIntegratorUserId(db, rawUserId);
+
+  await db.query(
+    `DELETE FROM contacts
+     WHERE type = 'phone'
+       AND value_normalized = $2
+       AND user_id <> $1::bigint`,
+    [userId, phoneNormalized],
+  );
 
   const query = `
     INSERT INTO contacts (user_id, type, value_normalized, label, is_primary, created_at, updated_at)
@@ -250,10 +162,7 @@ function createTxQuery(client: PoolClient): TxQuery {
 
 export type MessengerPhoneHttpBindFailureReason =
   | "no_integrator_identity"
-  | "no_channel_binding"
-  | "phone_owned_by_other_user"
-  | "integrator_id_mismatch"
-  | "db_transient_failure";
+  | MessengerPhoneLinkFailureCode;
 
 export type MessengerPhoneHttpBindResult =
   | { ok: true; platformUserId: string }
@@ -331,7 +240,7 @@ export async function executeMessengerPhoneHttpBind(
           throw new MessengerPhoneLinkError("db_transient_failure");
         }
         if (outcome === "noop_conflict") {
-          throw new MessengerPhoneLinkError("phone_owned_by_other_user");
+          throw new MessengerPhoneLinkError("legacy_contacts_conflict");
         }
         applied = true;
       }
@@ -349,6 +258,32 @@ export async function executeMessengerPhoneHttpBind(
           },
           "bind_tx_fail",
         );
+        if (err.code !== "db_transient_failure") {
+          let conflictKey: string | null = null;
+          if (err.candidateIds.length > 0) {
+            try {
+              conflictKey = computeConflictKeyFromCandidateIds(err.candidateIds);
+            } catch {
+              conflictKey = null;
+            }
+          }
+          void writeAuditLog(pool, {
+            actorId: null,
+            action: "messenger_phone_bind_blocked",
+            targetId: err.candidateIds[0] ?? null,
+            ...(conflictKey ? { conflictKey } : {}),
+            details: {
+              reason: err.code,
+              source: "http_bind",
+              channelCode: resource,
+              externalId: channelUserId,
+              phoneSuffix,
+              candidateIds: err.candidateIds,
+              ...(input.correlationId?.trim() ? { correlationId: input.correlationId.trim() } : {}),
+            },
+            status: "error",
+          });
+        }
         if (err.code === "db_transient_failure") {
           return { ok: false, reason: "db_transient_failure", phoneLinkIndeterminate: true };
         }

@@ -51,7 +51,16 @@ export async function POST(request: Request) {
       });
     }
     if (result.code === "conflict") {
-      return NextResponse.json({ ok: false, error: "conflict" }, { status: 409 });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "conflict",
+          ...(typeof result.mergeReason === "string" && result.mergeReason.length > 0
+            ? { mergeReason: result.mergeReason }
+            : {}),
+        },
+        { status: 409 },
+      );
     }
     return NextResponse.json({ ok: false, error: result.code }, { status: 400 });
   }

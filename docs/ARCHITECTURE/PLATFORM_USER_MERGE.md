@@ -26,6 +26,14 @@
 - ввести logical merge через alias (`merged_into_id`) без physical delete duplicate rows;
 - выровнять read-side на canonical пользователя.
 
+## `@bersoncare/platform-merge` и привязка телефона из мессенджера
+
+- Пакет [`packages/platform-merge/`](../../packages/platform-merge/) содержит **`mergePlatformUsersInTransaction`**, **`pickMergeTargetId`**, **`classifyMergeFailure`** и **`applyMessengerPhonePublicBind`**: один и тот же merge-движок и тот же hot-path для integrator `user.phone.link`, webapp [`messengerPhoneHttpBindExecute.ts`](../../apps/webapp/src/modules/integrator/messengerPhoneHttpBindExecute.ts) и реэкспорт webapp [`pgPlatformUserMerge.ts`](../../apps/webapp/src/infra/repos/pgPlatformUserMerge.ts). После `pnpm install` или pull держите **`packages/platform-merge/dist`** актуальным (скрипт [`scripts/ensure-booking-sync-built.sh`](../../scripts/ensure-booking-sync-built.sh) пересобирает пакет при отсутствии или устаревшем экспорте).
+- **Channel-link (integrator):** `POST /api/integrator/channel-link/complete` при **`409`** и телом `error: "conflict"` может добавлять **`mergeReason`** — стабильный код из `classifyMergeFailure` (например `phone_owned_by_other_user`, `merge_blocked_ambiguous_candidates`), если автомерж при уже занятом `external_id` не выполнен.
+- Авто-merge перед UPDATE телефона подтягивает дубликаты по **тому же номеру** и по **`integrator_user_id`**, разруливает mismatch канонического integrator-id через merge кандидатов; при логическом «hard blocker» возвращаются коды вида `merge_blocked_*`, `channel_already_bound_to_other_user`, запись в `admin_audit_log` (`messenger_phone_bind_blocked`) и **первый** deduped Telegram ping админу (integrator).
+- Guard **shared phone / meaningful data** в merge **не** считает `message_log` (см. `assertSharedPhoneGuard`), чтобы не блокировать слияние только из‑за журнала сообщений.
+- Авто-merge имён (ветка без `manual`): **`display_name`** отдаёт предпочтение стороне с телефоном или более старой строке при одном номере на обеих; **`first_name`/`last_name`** при ровно одной стороне с телефоном — с приоритетом полностью распарсенной пары имён на одной из сторон (см. `@bersoncare/platform-merge` SQL и [`autoMergeScalarEffective.ts`](../../apps/webapp/src/infra/repos/autoMergeScalarEffective.ts)).
+
 ## Каноническая модель пользователя
 
 - Canonical user: строка `platform_users` с `merged_into_id IS NULL`.
@@ -134,7 +142,7 @@ Helper: `apps/webapp/src/infra/repos/pgCanonicalPlatformUser.ts`.
 | `integrator_merge_status_unavailable` | **v2:** не удалось получить integrator M2M `canonical-pair` status (нет `INTEGRATOR_API_URL`/webhook secret, timeout или иная временная недоступность). |
 | `active_bookings_time_overlap` | Тот же SQL, что `assertPatientBookingsSafeToMerge` в `pgPlatformUserMerge.ts` (пересечение слотов у «активных» статусов и согласованный cooperator snapshot). |
 | `active_lfk_template_conflict` | Два активных `patient_lfk_assignments` на одну `template_id` — как `assertPatientLfkAssignmentsSafe`. |
-| `shared_phone_both_have_meaningful_data` | Одинаковый non-null телефон и «meaningful data» на обоих — как `assertSharedPhoneGuard` (сумма счётчиков по тем же таблицам, что в merge). |
+| `shared_phone_both_have_meaningful_data` | Одинаковый non-null телефон и «meaningful data» на обоих — как `assertSharedPhoneGuard` (**без** `message_log`; сумма счётчиков по остальным таблицам из merge guard). |
 
 `mergeAllowed === false` при любом hard blocker; конфликтные поля всё равно возвращаются для compare UI.
 

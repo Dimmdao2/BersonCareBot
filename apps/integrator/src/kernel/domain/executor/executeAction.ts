@@ -62,8 +62,11 @@ import { ADMIN } from './templateKeys.js';
 import { dispatchRequestContactToUser } from '../../../integrations/bersoncare/dispatchRequestContact.js';
 import { logger } from '../../../infra/observability/logger.js';
 import {
+  phoneLinkChannelBoundElsewhereUserMessage,
   phoneLinkConflictUserMessage,
   phoneLinkIntegratorMismatchUserMessage,
+  phoneLinkLegacyContactsConflictUserMessage,
+  phoneLinkMergeBlockedUserMessage,
   phoneLinkNoBindingUserMessage,
   phoneLinkNoIntegratorIdentityUserMessage,
   phoneLinkSaveFailedUserMessage,
@@ -718,6 +721,18 @@ export async function executeAction(
           text = phoneLinkConflictUserMessage(source);
         } else if (reason === 'integrator_id_mismatch') {
           text = phoneLinkIntegratorMismatchUserMessage(source);
+        } else if (
+          reason === 'merge_blocked_booking_overlap' ||
+          reason === 'merge_blocked_distinct_real_users' ||
+          reason === 'merge_blocked_lfk_conflict' ||
+          reason === 'merge_blocked_ambiguous_candidates' ||
+          reason === 'merge_blocked_integrator_conflict'
+        ) {
+          text = phoneLinkMergeBlockedUserMessage(source);
+        } else if (reason === 'channel_already_bound_to_other_user') {
+          text = phoneLinkChannelBoundElsewhereUserMessage(source);
+        } else if (reason === 'legacy_contacts_conflict') {
+          text = phoneLinkLegacyContactsConflictUserMessage();
         } else if (reason === 'db_transient_failure' || indeterminate) {
           text = phoneLinkSaveFailedUserMessage();
         } else {

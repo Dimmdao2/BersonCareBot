@@ -54,6 +54,9 @@ importers:
       '@bersoncare/booking-rubitime-sync':
         specifier: workspace:*
         version: link:../../packages/booking-rubitime-sync
+      '@bersoncare/platform-merge':
+        specifier: workspace:*
+        version: link:../../packages/platform-merge
       '@maxhub/max-bot-api':
         specifier: ^0.2.2
         version: 0.2.2
@@ -142,6 +145,9 @@ importers:
       '@bersoncare/booking-rubitime-sync':
         specifier: workspace:*
         version: link:../../packages/booking-rubitime-sync
+      '@bersoncare/platform-merge':
+        specifier: workspace:*
+        version: link:../../packages/platform-merge
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -317,6 +323,19 @@ importers:
       '@types/node':
         specifier: ^22.19.3
         version: 22.19.17
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/platform-merge:
+    dependencies:
+      pg:
+        specifier: ^8.20.0
+        version: 8.20.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.20.0
+        version: 8.20.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
