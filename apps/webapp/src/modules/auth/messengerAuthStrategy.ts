@@ -9,6 +9,9 @@ export const MAX_BRIDGE_LOAD_GRACE_MS = 4000;
 /** Жёсткий cap опроса initData в AuthBootstrap (messenger path). Раньше 15000 — см. legacy alias ниже. */
 export const MESSENGER_HARD_POLL_CAP_MS = 7000;
 
+/** После grace MAX bridge для чистого Telegram Mini App — быстрее показать интерактивный вход, если initData так и не пришёл. */
+export const MESSENGER_INIT_POLL_SHORT_MS = 550;
+
 /**
  * @deprecated Имя сохранено для совместимости импортов; значение = {@link MESSENGER_HARD_POLL_CAP_MS}.
  * Исторически было 15000.
@@ -38,6 +41,10 @@ export const STALE_BOT_PLATFORM_COOKIE_STANDALONE_MESSAGE =
 /** Отказ miniapp init (например whitelist / не нажат Start): явная подсказка пользователю. */
 export const MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE =
   "Активируйте бота: откройте чат с ботом и нажмите Start, затем снова откройте приложение из бота. Если уже нажимали Start — нажмите «Повторить».";
+
+/** Серверный ключ MAX не задан или вход через MAX недоступен — не показываем телефонный OTP и не переключаем на Telegram. */
+export const MAX_SERVICE_UNAVAILABLE_MESSAGE =
+  "Вход через MAX временно недоступен из‑за настройки сервера. Откройте приложение через бота в MAX или попробуйте позже.";
 
 /**
  * Пока нет query JWT, Telegram initData пустой, а MAX bridge ещё не загрузился —

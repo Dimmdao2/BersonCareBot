@@ -1,9 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { usePatientPhonePromptChrome } from "@/shared/ui/patient/PatientPhonePromptChromeContext";
-import { ensureMessengerMiniAppWebappSession } from "@/shared/lib/miniAppSessionRecovery";
 import {
   getPatientMessengerContactGateDetail,
   resolveBotHrefAfterMessengerSessionLoss,
@@ -29,7 +27,6 @@ type Props = {
  * Без привязки к мессенджеру — {@link PatientBrowserMessengerBindPanel}. SMS не используется.
  */
 export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, hint }: Props) {
-  const router = useRouter();
   const phoneChrome = usePatientPhonePromptChrome();
   const tg = telegramId?.trim() ?? "";
   const mx = maxId?.trim() ?? "";
@@ -41,7 +38,6 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
 
   const runRecoveryAndDecide = useCallback(async () => {
     try {
-      await ensureMessengerMiniAppWebappSession(router);
       const detail = await getPatientMessengerContactGateDetail();
       if (detail.kind === "unauthenticated") {
         const href = await resolveBotHrefAfterMessengerSessionLoss();
@@ -71,7 +67,6 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
         return;
       }
       startTransition(() => setUseMessengerPanel(null));
-      router.refresh();
     } catch {
       const href = await resolveMessengerContactGateBotHref(Boolean(tg), Boolean(mx));
       startTransition(() => {
@@ -80,7 +75,7 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
         setUseMessengerPanel(true);
       });
     }
-  }, [router, tg, mx]);
+  }, [tg, mx]);
 
   useEffect(() => {
     if (!tg && !mx) {
@@ -90,14 +85,6 @@ export function PatientBindPhoneClient({ telegramId, maxId, supportContactHref, 
     startTransition(() => setUseMessengerPanel(null));
     void runRecoveryAndDecide();
   }, [tg, mx, runRecoveryAndDecide]);
-
-  useEffect(() => {
-    if (!tg && !mx || isMessengerMiniAppHost()) return;
-    const id = window.setInterval(() => {
-      router.refresh();
-    }, 4000);
-    return () => window.clearInterval(id);
-  }, [tg, mx, router]);
 
   useEffect(() => {
     if (!phoneChrome || !isMessengerMiniAppHost()) {

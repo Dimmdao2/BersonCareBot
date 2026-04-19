@@ -105,24 +105,34 @@ export async function POST(request: Request) {
   );
   const result = await deps.auth.exchangeMaxInitData(initData);
   if (result && "denied" in result && result.denied) {
+    const reason = result.reason;
+    const configMissing = reason === "max_bot_api_key_missing";
     logger.warn(
       {
         route: ROUTE,
-        outcome: "access_denied",
-        denyReason: result.reason,
+        outcome: configMissing ? "max_unavailable" : "access_denied",
+        denyReason: reason,
         validationOk: false,
+        miniappAuthOutcome: configMissing ? "max_unavailable" : undefined,
         ...diag,
         ...fields,
       },
-      "MAX Mini App: initData не прошёл проверку или доступ запрещён",
+      configMissing
+        ? "MAX Mini App: сервер не настроен (отсутствует max_bot_api_key в system_settings)"
+        : "MAX Mini App: initData не прошёл проверку или доступ запрещён",
     );
-    const res = NextResponse.json({ ok: false, error: "access_denied" }, { status: 403 });
+    const res = NextResponse.json(
+      configMissing
+        ? { ok: false, error: "max_unavailable", denyReason: reason }
+        : { ok: false, error: "access_denied", denyReason: reason },
+      { status: 403 },
+    );
     logAuthRouteTiming({
       route: ROUTE,
       request,
       startedAt,
       status: 403,
-      outcome: "access_denied",
+      outcome: configMissing ? "max_unavailable" : "access_denied",
       errorType: "denied",
     });
     return res;

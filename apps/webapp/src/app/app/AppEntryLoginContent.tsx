@@ -11,7 +11,9 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 import { AuthBootstrap } from "@/shared/ui/AuthBootstrap";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
-import type { AuthFlowStep } from "@/shared/ui/auth/AuthFlowV2";
+import type { MessengerSurfaceHint } from "@/shared/lib/platform";
+import type { AuthFlowStep, PrefetchedPublicAuthConfig } from "@/shared/ui/auth/AuthFlowV2";
+import type { UnauthenticatedAppEntryClassification } from "@/modules/auth/appEntryClassification";
 
 /** Видна до первого события шага, на OAuth-first, landing Telegram и шаге телефона. */
 export function shouldShowRegistrationPlaque(authStep: AuthFlowStep | null): boolean {
@@ -27,9 +29,24 @@ export function shouldShowRegistrationPlaque(authStep: AuthFlowStep | null): boo
 type AppEntryLoginContentProps = {
   allowDevBypass: boolean;
   supportContactHref: string;
+  /** Серверный снимок публичных конфигов входа — без дублирующих fetch на клиенте. */
+  prefetchedPublicAuth?: PrefetchedPublicAuthConfig | null;
+  /** Cookie платформы `bot` после `?ctx=bot|max`: подавляет `auth/exchange` по `?t=` в пользу initData. */
+  serverPlatformMessengerCookie?: boolean;
+  /** Канал из middleware (`ctx=bot` → telegram, `ctx=max` → max); условная загрузка MAX bridge. */
+  serverMessengerSurface?: MessengerSurfaceHint | null;
+  /** Server-first классификация входа на `/app` (без сессии). */
+  entryClassification: UnauthenticatedAppEntryClassification;
 };
 
-export function AppEntryLoginContent({ allowDevBypass, supportContactHref }: AppEntryLoginContentProps) {
+export function AppEntryLoginContent({
+  allowDevBypass,
+  supportContactHref,
+  prefetchedPublicAuth,
+  serverPlatformMessengerCookie,
+  serverMessengerSurface,
+  entryClassification,
+}: AppEntryLoginContentProps) {
   const [authStep, setAuthStep] = useState<AuthFlowStep | null>(null);
   const onAuthStepChange = useCallback((step: AuthFlowStep) => {
     setAuthStep(step);
@@ -83,7 +100,14 @@ export function AppEntryLoginContent({ allowDevBypass, supportContactHref }: App
         ) : null}
       </div>
       <Suspense fallback={<p className="text-muted-foreground">Загрузка...</p>}>
-        <AuthBootstrap supportContactHref={supportContactHref} onAuthStepChange={onAuthStepChange} />
+        <AuthBootstrap
+          supportContactHref={supportContactHref}
+          onAuthStepChange={onAuthStepChange}
+          initialPublicAuthConfig={prefetchedPublicAuth ?? null}
+          serverPlatformMessengerCookie={Boolean(serverPlatformMessengerCookie)}
+          serverMessengerSurface={serverMessengerSurface ?? null}
+          entryClassification={entryClassification}
+        />
       </Suspense>
       <LegalFooterLinks className="mt-8" supportHref={supportContactHref} />
     </>

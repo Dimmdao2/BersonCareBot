@@ -96,3 +96,37 @@
 | 5 | Явные тесты ссылок MAX webhook | `max/webhook.links.test.ts` + экспорт **`buildMaxLinks`**; Telegram — расширен `webhook.links.test.ts`. |
 | 6 | Единый маркер, 400 `telegram-init` | `miniappAuthOutcome` на success/denied/**invalid_body**; строка в **`SERVER CONVENTIONS.md`**. |
 | 7–8 | Доки / smoke | Обновлены лог и `SERVER CONVENTIONS`; ручной smoke по плану — оператор. |
+
+---
+
+## Remediation update (2026-04-19)
+
+### Что закрыто в коде дополнительно
+
+- **Server-first orchestration:** добавлен `modules/auth/appEntryClassification.ts`; `AppEntryPage` передаёт ветку входа в `AuthBootstrap` как `entryClassification`; legacy `authEntryFlow.ts` и тест удалены.
+- **Одна ветка в `AuthBootstrap`:** bootstrap больше не делает URL-only классификацию и не держит двойной источник истины (`ctx` vs cookie).
+- **No pre-success refresh:** удалён `router.refresh()` из ветки stale bot-cookie в `AuthBootstrap` (переключение на `browser_interactive` без server refresh).
+- **Prefetch dedup:** убраны client prefetch `Promise.all` из `AuthBootstrap`; `AuthFlowV2` использует только `prefetchedAuthConfig` из RSC (без client fetch публичных auth-config).
+- **TG first-open:** `PatientBindPhoneClient` больше не вызывает `ensureMessengerMiniAppWebappSession`; в `MiniAppShareContactGate` recovery оставлен только на старт/retry, без дублирования на каждом poll.
+
+### Тесты после remediation
+
+- Прогнаны целевые тесты:
+  - `src/shared/ui/AuthBootstrap.test.tsx`
+  - `src/shared/ui/auth/AuthFlowV2.test.tsx`
+  - `src/app/app/patient/bind-phone/PatientBindPhoneClient.test.tsx`
+  - `src/shared/ui/patient/MiniAppShareContactGate.test.tsx`
+  - `src/app/api/auth/max-init/route.test.ts`
+- Результат: зелёный локально.
+
+### Статус чек-листа после remediation
+
+| Шаг плана | Статус | Комментарий |
+|-----------|--------|-------------|
+| MAX bugfix | ✅ code complete | `max_unavailable`/UX/route покрыты кодом и тестами; фактический `max_bot_api_key` в production DB — ops-проверка. |
+| TG first-open stabilization | ✅ code complete | Убраны лишние recovery-вызовы в bind-phone; polling race стабилизирован. |
+| Server-first entry classification | ✅ complete | Ветка входа вычисляется на сервере и прокидывается в bootstrap. |
+| Lazy SDK + prefetch dedup | ✅ complete | SDK lazy, prefetch только в RSC, client-дубли удалены. |
+| PlatformProvider quiet | ✅ complete | `router.refresh()` отсутствует; `useEffect`-модель стабильна. |
+| Error isolation | ✅ complete | Сегментные `error.tsx` + `SegmentRouteError` (reset/hard reload). |
+| Scenario verification | ⚠️ partial (ops) | Автотесты/код закрыты; матрица 10 сценариев на dev/prod и измерения TTI/time-to-session требуют ручного прогонa на окружениях. |

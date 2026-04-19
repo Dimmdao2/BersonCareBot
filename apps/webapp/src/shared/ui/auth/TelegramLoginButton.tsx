@@ -23,17 +23,45 @@ type TelegramLoginButtonProps = {
 };
 
 /**
- * Загрузка `telegram-widget.js`, кнопка «Войти через Telegram» (primary).
+ * Загрузка `telegram-widget.js` по viewport (IntersectionObserver) или фокусу — не блокирует первый paint.
  * Callback: POST `/api/auth/telegram-login`, затем редирект.
  */
-export function TelegramLoginButton({ botUsername, nextParam, disabled, className, onAuthEngaged }: TelegramLoginButtonProps) {
+export function TelegramLoginButton({
+  botUsername,
+  nextParam,
+  disabled,
+  className,
+  onAuthEngaged,
+}: TelegramLoginButtonProps) {
   const router = useRouter();
+  const outerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [widgetRequested, setWidgetRequested] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!botUsername.trim() || disabled) return;
+    if (!botUsername.trim() || disabled || widgetRequested) return;
+    const el = outerRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setWidgetRequested(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setWidgetRequested(true);
+        }
+      },
+      { rootMargin: "120px", threshold: 0.01 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [botUsername, disabled, widgetRequested]);
+
+  useEffect(() => {
+    if (!widgetRequested || !botUsername.trim() || disabled) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -90,7 +118,7 @@ export function TelegramLoginButton({ botUsername, nextParam, disabled, classNam
       script.remove();
       container.innerHTML = "";
     };
-  }, [botUsername, disabled, nextParam, router, onAuthEngaged]);
+  }, [widgetRequested, botUsername, disabled, nextParam, router, onAuthEngaged]);
 
   if (!botUsername.trim()) {
     return null;
@@ -99,14 +127,24 @@ export function TelegramLoginButton({ botUsername, nextParam, disabled, classNam
   return (
     <div className={cn("mx-auto flex w-[242px] max-w-full flex-col items-center gap-2", className)}>
       <div
-        ref={containerRef}
+        ref={outerRef}
+        tabIndex={0}
         className={cn(
+          "rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
           LOGIN_CTA_WIDTH_CLASS,
-          "max-w-full [&_.tgme_widget_login_button]:!w-full [&_iframe]:!h-10 [&_iframe]:!min-h-[40px] [&_iframe]:!w-[242px] [&_iframe]:!max-w-none",
-          busy || disabled ? "pointer-events-none opacity-60" : "",
+          "max-w-full",
         )}
-        aria-busy={busy || disabled}
-      />
+        onFocus={() => setWidgetRequested(true)}
+      >
+        <div
+          ref={containerRef}
+          className={cn(
+            "max-w-full [&_.tgme_widget_login_button]:!w-full [&_iframe]:!h-10 [&_iframe]:!min-h-[40px] [&_iframe]:!w-[242px] [&_iframe]:!max-w-none",
+            busy || disabled ? "pointer-events-none opacity-60" : "",
+          )}
+          aria-busy={busy || disabled}
+        />
+      </div>
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       {busy ? <p className="text-muted-foreground text-sm">Вход…</p> : null}
     </div>

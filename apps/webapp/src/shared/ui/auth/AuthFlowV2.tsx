@@ -6,7 +6,7 @@
  * OTP в вебе — только Telegram / Max (SMS отключён). PIN в этом flow намеренно отключён (Stage 5).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -161,8 +161,6 @@ type AuthFlowV2Props = {
   prefetchedAuthConfig?: PrefetchedPublicAuthConfig | null;
   /** Пользователь начал интерактивный вход (OAuth / телефон / код) — не перехватывать UI поздним initData. */
   onInteractiveLoginEngaged?: () => void;
-  /** Сквозной id для заголовка `x-bc-auth-correlation-id` на публичных GET auth-конфигах (без секретов). */
-  observabilityCorrelationId?: string | null;
 };
 
 type MaxBotOpenUrlState =
@@ -176,16 +174,11 @@ export function AuthFlowV2({
   onStepChange,
   prefetchedAuthConfig,
   onInteractiveLoginEngaged,
-  observabilityCorrelationId,
 }: AuthFlowV2Props) {
   const router = useRouter();
   const engageInteractive = () => {
     onInteractiveLoginEngaged?.();
   };
-  const publicAuthFetchHeaders = useMemo((): HeadersInit | undefined => {
-    const id = observabilityCorrelationId?.trim();
-    return id ? { "x-bc-auth-correlation-id": id } : undefined;
-  }, [observabilityCorrelationId]);
   const [step, setStep] = useState<AuthFlowStep>("entry_loading");
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
   /** После ответа /api/auth/telegram-login/config (или сразу в Mini App). До этого показываем слот кнопки Telegram. */
@@ -213,160 +206,26 @@ export function AuthFlowV2({
   }, [smsStartCooldownSec]);
 
   useEffect(() => {
-    let cancelled = false;
     if (isMessengerMiniAppHost()) {
       setTelegramBotUsername(null);
       setTelegramLoginConfigLoaded(true);
       setOauthProviders({ yandex: false, google: false, apple: false });
+      setMaxBotOpenUrl({ status: "ready", url: null });
       setStep("phone");
-      return () => {
-        cancelled = true;
-      };
+      return;
     }
 
-    const ac = new AbortController();
-    const emptyOauth: OauthProviderFlags = { yandex: false, google: false, apple: false };
-    let oauthResolved = false;
-    let tgResolved = false;
-    let oauthOp = emptyOauth;
-    let tgUsername: string | null = null;
+    const oauth = prefetchedAuthConfig?.oauthProviders ?? { yandex: false, google: false, apple: false };
+    const tg = (prefetchedAuthConfig?.telegramBotUsername ?? "").trim();
+    const maxU = (prefetchedAuthConfig?.maxBotOpenUrl ?? "").trim();
+    setOauthProviders(oauth);
+    setTelegramBotUsername(tg.length > 0 ? tg : null);
+    setTelegramLoginConfigLoaded(true);
+    setMaxBotOpenUrl({ status: "ready", url: maxU.length > 0 ? maxU : null });
 
-    const prefetchFresh =
-      prefetchedAuthConfig &&
-      Date.now() - prefetchedAuthConfig.fetchedAt < 120_000;
-
-    if (prefetchFresh) {
-      oauthOp = prefetchedAuthConfig.oauthProviders;
-      tgUsername = prefetchedAuthConfig.telegramBotUsername;
-      oauthResolved = true;
-      tgResolved = true;
-      setOauthProviders(oauthOp);
-      setTelegramBotUsername(tgUsername);
-      setTelegramLoginConfigLoaded(true);
-      const oauthOn = oauthOp.yandex || oauthOp.google || oauthOp.apple;
-      setStep(oauthOn ? "oauth_first" : tgUsername && tgUsername.length > 0 ? "landing" : "phone");
-    }
-
-    const finishNonOauthStep = () => {
-      if (cancelled || !oauthResolved || !tgResolved) return;
-      const oauthOn = oauthOp.yandex || oauthOp.google || oauthOp.apple;
-      if (oauthOn) return;
-      setStep(tgUsername && tgUsername.length > 0 ? "landing" : "phone");
-    };
-
-    void fetch("/api/auth/oauth/providers", {
-      signal: ac.signal,
-      ...(publicAuthFetchHeaders ? { headers: publicAuthFetchHeaders } : {}),
-    })
-      .then((r) => r.json().catch(() => ({})))
-      .then((oauthData) => {
-        if (cancelled) return;
-        const d = oauthData as { ok?: boolean; yandex?: boolean; google?: boolean; apple?: boolean };
-        oauthOp =
-          d?.ok === true
-            ? {
-                yandex: Boolean(d.yandex),
-                google: Boolean(d.google),
-                apple: Boolean(d.apple),
-              }
-            : emptyOauth;
-        setOauthProviders(oauthOp);
-        oauthResolved = true;
-        if (oauthOp.yandex || oauthOp.google || oauthOp.apple) {
-          setStep("oauth_first");
-        }
-        finishNonOauthStep();
-      })
-      .catch(() => {
-        if (cancelled || ac.signal.aborted) return;
-        oauthOp = emptyOauth;
-        setOauthProviders(emptyOauth);
-        oauthResolved = true;
-        finishNonOauthStep();
-      });
-
-    void fetch("/api/auth/telegram-login/config", {
-      signal: ac.signal,
-      ...(publicAuthFetchHeaders ? { headers: publicAuthFetchHeaders } : {}),
-    })
-      .then((r) => r.json().catch(() => ({})))
-      .then((tgData) => {
-        if (cancelled) return;
-        const u = typeof (tgData as { botUsername?: string | null }).botUsername === "string"
-          ? String((tgData as { botUsername?: string | null }).botUsername).trim()
-          : "";
-        tgUsername = u.length > 0 ? u : null;
-        setTelegramBotUsername(tgUsername);
-        setTelegramLoginConfigLoaded(true);
-        tgResolved = true;
-        finishNonOauthStep();
-      })
-      .catch(() => {
-        if (cancelled || ac.signal.aborted) return;
-        tgUsername = null;
-        setTelegramBotUsername(null);
-        setTelegramLoginConfigLoaded(true);
-        tgResolved = true;
-        finishNonOauthStep();
-      });
-
-    return () => {
-      cancelled = true;
-      ac.abort();
-    };
-  }, [prefetchedAuthConfig, publicAuthFetchHeaders]);
-
-  useEffect(() => {
-    if (isMessengerMiniAppHost()) return;
-    const ac = new AbortController();
-    let cancelled = false;
-
-    const prefetchFresh =
-      prefetchedAuthConfig &&
-      Date.now() - prefetchedAuthConfig.fetchedAt < 120_000 &&
-      prefetchedAuthConfig.maxBotOpenUrl;
-
-    if (prefetchFresh) {
-      setMaxBotOpenUrl({ status: "ready", url: prefetchedAuthConfig.maxBotOpenUrl });
-    } else {
-      setMaxBotOpenUrl((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
-    }
-
-    void fetch("/api/auth/login/alternatives-config", {
-      signal: ac.signal,
-      ...(publicAuthFetchHeaders ? { headers: publicAuthFetchHeaders } : {}),
-    })
-      .then((r) => r.json().catch(() => ({})))
-      .then((d) => {
-        if (cancelled) return;
-        const data = d as {
-          ok?: boolean;
-          maxBotOpenUrl?: unknown;
-          telegramBotUsername?: unknown;
-        };
-        if (data?.ok !== true) {
-          setMaxBotOpenUrl({ status: "ready", url: null });
-          return;
-        }
-        const maxU =
-          typeof data.maxBotOpenUrl === "string" && data.maxBotOpenUrl.trim().length > 0
-            ? data.maxBotOpenUrl.trim()
-            : null;
-        setMaxBotOpenUrl({ status: "ready", url: maxU });
-        const tg =
-          typeof data.telegramBotUsername === "string" ? data.telegramBotUsername.trim().replace(/^@/, "") : "";
-        if (tg.length > 0) setTelegramBotUsername(tg);
-      })
-      .catch(() => {
-        if (!cancelled && !ac.signal.aborted) {
-          setMaxBotOpenUrl({ status: "ready", url: null });
-        }
-      });
-    return () => {
-      cancelled = true;
-      ac.abort();
-    };
-  }, [prefetchedAuthConfig, publicAuthFetchHeaders]);
+    const oauthOn = oauth.yandex || oauth.google || oauth.apple;
+    setStep(oauthOn ? "oauth_first" : tg.length > 0 ? "landing" : "phone");
+  }, [prefetchedAuthConfig]);
 
   useEffect(() => {
     onStepChange?.(step);

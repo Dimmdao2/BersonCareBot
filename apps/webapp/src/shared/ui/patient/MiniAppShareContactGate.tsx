@@ -122,7 +122,6 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
 
     const pollOnce = async (): Promise<void> => {
       pollCountRef.current += 1;
-      await ensureMessengerMiniAppWebappSession(router);
       if (cancelled) return;
       const detail = await getPatientMessengerContactGateDetail();
       if (cancelled) return;
@@ -238,7 +237,6 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
         pollCountRef.current = 0;
         const pollOnceRetry = async (): Promise<void> => {
           pollCountRef.current += 1;
-          await ensureMessengerMiniAppWebappSession(router);
           const d = await getPatientMessengerContactGateDetail();
           if (d.kind === "no_gate") {
             releaseGate();
@@ -288,7 +286,6 @@ export function MiniAppShareContactGate({ children }: { children: React.ReactNod
       pollCountRef.current = 0;
       const pollOnce = async (): Promise<void> => {
         pollCountRef.current += 1;
-        await ensureMessengerMiniAppWebappSession(router);
         const d = await getPatientMessengerContactGateDetail();
         if (d.kind === "no_gate") {
           releaseGate();

@@ -40,7 +40,7 @@ describe("AuthBootstrap", () => {
     // Отключено: по политике miniapp-аудита на `/app` не включаем телефонный AuthFlowV2 из этого сценария.
     mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
     window.history.pushState({}, "", "/");
-    render(<AuthBootstrap />);
+    render(<AuthBootstrap entryClassification="browser_interactive" />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(8000);
@@ -57,14 +57,14 @@ describe("AuthBootstrap", () => {
       WebApp: { platform: "web", initData: "" },
     };
 
-    render(<AuthBootstrap />);
+    render(<AuthBootstrap entryClassification="browser_interactive" />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);
     });
 
     expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
-    expect(mockRefresh).toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
   });
 
@@ -74,14 +74,14 @@ describe("AuthBootstrap", () => {
     window.history.pushState({}, "", "/");
     delete (window as unknown as { Telegram?: unknown }).Telegram;
 
-    render(<AuthBootstrap />);
+    render(<AuthBootstrap entryClassification="browser_interactive" />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);
     });
 
     expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
-    expect(mockRefresh).toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
     expect(document.cookie).not.toMatch(new RegExp(`${PLATFORM_COOKIE_NAME}=bot`));
   });
 
@@ -90,7 +90,7 @@ describe("AuthBootstrap", () => {
     window.history.pushState({}, "", "/");
     document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
 
-    render(<AuthBootstrap />);
+    render(<AuthBootstrap entryClassification="browser_interactive" />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500);
@@ -108,7 +108,7 @@ describe("AuthBootstrap", () => {
       initData: "",
     };
 
-    render(<AuthBootstrap />);
+    render(<AuthBootstrap entryClassification="browser_interactive" />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1200);
@@ -137,7 +137,7 @@ describe("AuthBootstrap", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<AuthBootstrap />);
+    render(<AuthBootstrap entryClassification="token_exchange" />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1200);
@@ -151,7 +151,7 @@ describe("AuthBootstrap", () => {
   });
 
   it("при ctx=bot не показывает телефонный флоу после таймаута initData и даёт Повторить", async () => {
-    render(<AuthBootstrap />);
+    render(<AuthBootstrap entryClassification="telegram_miniapp" />);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(8000);
@@ -190,7 +190,7 @@ describe("AuthBootstrap", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<AuthBootstrap />);
+    render(<AuthBootstrap entryClassification="telegram_miniapp" />);
 
     await waitFor(
       () => {

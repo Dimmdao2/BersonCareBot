@@ -12,7 +12,10 @@ import { getMaxWebAppInitDataForAuth, readTelegramInitDataForAuth } from "@/shar
  * - MAX: `POST /api/auth/max-init` с `window.WebApp.initData`;
  * - ссылка с `?t=` / `?token=` (частый вход из Max/TG бота): `POST /api/auth/exchange`.
  */
-export async function ensureMessengerMiniAppWebappSession(router: { refresh: () => void }): Promise<void> {
+
+let ensureSessionInFlight: Promise<void> | null = null;
+
+async function ensureMessengerMiniAppWebappSessionImpl(router: { refresh: () => void }): Promise<void> {
   if (typeof window === "undefined") return;
 
   const me = await fetch("/api/me", { credentials: "include" });
@@ -108,4 +111,17 @@ export async function ensureMessengerMiniAppWebappSession(router: { refresh: () 
   if (res.ok) {
     startTransition(() => router.refresh());
   }
+}
+
+/** Single-flight: параллельные вызовы из гейта и bind-phone не дублируют auth-init. */
+export async function ensureMessengerMiniAppWebappSession(router: { refresh: () => void }): Promise<void> {
+  if (ensureSessionInFlight) return ensureSessionInFlight;
+  ensureSessionInFlight = (async () => {
+    try {
+      await ensureMessengerMiniAppWebappSessionImpl(router);
+    } finally {
+      ensureSessionInFlight = null;
+    }
+  })();
+  return ensureSessionInFlight;
 }

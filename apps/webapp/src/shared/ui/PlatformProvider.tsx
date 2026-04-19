@@ -5,14 +5,7 @@
  * serverHint приходит из cookie на сервере; в Mini App без cookie — fallback и запись cookie.
  */
 
-import {
-  createContext,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { useRouter } from "next/navigation";
+import { createContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { PlatformEntry, PlatformMode } from "@/shared/lib/platform";
 import {
   DESKTOP_BREAKPOINT,
@@ -35,15 +28,11 @@ function initialModeFromHint(hint: PlatformEntry): PlatformMode {
   return hint === "bot" ? "bot" : "mobile";
 }
 
-const PLATFORM_REFRESH_DEBOUNCE_MS = 3000;
-
 export function PlatformProvider({ serverHint, children }: Props) {
-  const router = useRouter();
   const [mode, setMode] = useState<PlatformMode>(() => initialModeFromHint(serverHint));
   const syncedEntryRef = useRef<PlatformEntry | null>(null);
-  const lastRefreshAtRef = useRef(0);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     let cancelled = false;
     const mq = window.matchMedia(`(min-width: ${DESKTOP_BREAKPOINT}px)`);
 
@@ -52,16 +41,9 @@ export function PlatformProvider({ serverHint, children }: Props) {
       const inMini = isMessengerMiniAppHost();
       /** Не понижать cookie/mode с `bot`, пока клиент не увидел WebView (иначе гонка после middleware). */
       const desiredEntry: PlatformEntry = inMini || serverHint === "bot" ? "bot" : "standalone";
-      if (serverHint !== desiredEntry) {
+      if (desiredEntry !== syncedEntryRef.current) {
+        syncedEntryRef.current = desiredEntry;
         document.cookie = serializePlatformCookie(desiredEntry, { secure: isSecureClient() });
-        if (syncedEntryRef.current !== desiredEntry) {
-          syncedEntryRef.current = desiredEntry;
-          const now = Date.now();
-          if (now - lastRefreshAtRef.current >= PLATFORM_REFRESH_DEBOUNCE_MS) {
-            lastRefreshAtRef.current = now;
-            router.refresh();
-          }
-        }
       }
       if (inMini || serverHint === "bot") {
         setMode("bot");
@@ -70,7 +52,6 @@ export function PlatformProvider({ serverHint, children }: Props) {
       setMode(mq.matches ? "desktop" : "mobile");
     };
 
-    // Отложить setState из эффекта (eslint react-hooks/set-state-in-effect).
     queueMicrotask(syncFromEnvironment);
 
     const onViewportChange = () => {
@@ -82,7 +63,7 @@ export function PlatformProvider({ serverHint, children }: Props) {
       cancelled = true;
       mq.removeEventListener("change", onViewportChange);
     };
-  }, [router, serverHint]);
+  }, [serverHint]);
 
   return (
     <PlatformContext.Provider value={mode}>{children}</PlatformContext.Provider>

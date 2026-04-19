@@ -2,26 +2,22 @@
 
 /**
  * Блок входа: обмен токена из ссылки на сессию, вход через initData Mini App (Telegram или MAX) или по номеру (AuthFlowV2).
- * Стратегия опроса и ожидания MAX bridge: `messengerAuthStrategy.ts`. URL-only классификация: `authEntryFlow.ts`.
+ * Стратегия опроса и ожидания MAX bridge: `messengerAuthStrategy.ts`. Ветка входа задаётся сервером (`entryClassification`).
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  BOT_ENTRY_CTX_QUERY,
-  MAX_ENTRY_CTX_QUERY,
-  classifyAuthEntryFlowFromSearchParams,
-  readMessengerCtxParam,
-  shouldSuppressQueryJwtForMessengerMiniApp,
-  type AuthEntryFlow,
-} from "@/modules/auth/authEntryFlow";
 import { emitAuthFlowEvent } from "@/modules/auth/authFlowObservability";
+import type { UnauthenticatedAppEntryClassification } from "@/modules/auth/appEntryClassification";
 import {
   BROWSER_SOFT_TIMEOUT_MS,
+  MAX_BRIDGE_LOAD_GRACE_MS,
   MAX_INIT_DATA_TIMEOUT_USER_MESSAGE,
-  MESSENGER_INIT_POLL_CAP_MS,
+  MESSENGER_HARD_POLL_CAP_MS,
+  MESSENGER_INIT_POLL_SHORT_MS,
   MESSENGER_MINIAPP_INIT_TIMEOUT_USER_MESSAGE,
   MESSENGER_SOFT_TIMEOUT_MS,
+  MAX_SERVICE_UNAVAILABLE_MESSAGE,
   MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE,
   isAuthBootstrapEarlyUiV2Enabled,
   isLikelyMaxMiniAppSurface,
@@ -40,7 +36,8 @@ import {
   readPlatformCookieBot,
   readTelegramInitDataForAuth,
 } from "@/shared/lib/messengerMiniApp";
-import { PLATFORM_COOKIE_NAME } from "@/shared/lib/platform";
+import type { MessengerSurfaceHint } from "@/shared/lib/platform";
+import { PLATFORM_COOKIE_NAME, readMessengerSurfaceCookie } from "@/shared/lib/platform";
 
 type BootstrapState = "idle" | "loading" | "error";
 
@@ -56,13 +53,21 @@ type AuthBootstrapProps = {
   supportContactHref?: string;
   /** Только для потока по телефону: текущий шаг AuthFlowV2 (плашка на `/app`). */
   onAuthStepChange?: (step: AuthFlowStep) => void;
+  /** Снимок с RSC `/app` — убирает дублирующие GET публичных auth-config. */
+  initialPublicAuthConfig?: PrefetchedPublicAuthConfig | null;
+  /** Cookie `bersoncare_platform=bot` с сервера (после `?ctx=bot|max`). */
+  serverPlatformMessengerCookie?: boolean;
+  /** Канал mini app: `telegram` не грузит MAX bridge; `max` — только он. */
+  serverMessengerSurface?: MessengerSurfaceHint | null;
+  /** Server-first классификация входа для неавторизованного пользователя на `/app`. */
+  entryClassification: UnauthenticatedAppEntryClassification;
 };
 
 const TOKEN_FALLBACK_MS = 1100;
 
 function logAuthBootstrap(
   message: string,
-  fields: { flow: AuthEntryFlow; correlationId: string; [k: string]: string | number | boolean | undefined },
+  fields: { flow: "browser" | "telegram" | "max"; correlationId: string; [k: string]: string | number | boolean | undefined },
 ): void {
   if (process.env.NODE_ENV === "test") return;
   const { flow, correlationId, ...rest } = fields;
@@ -78,45 +83,12 @@ function parseJsonSafe(text: string): { redirectTo?: string; role?: "client" | "
   }
 }
 
-function parseMessengerInitErrorBody(text: string): { error?: string } | null {
+function parseMessengerInitErrorBody(text: string): { error?: string; denyReason?: string } | null {
   if (!text.trim()) return null;
   try {
-    return JSON.parse(text) as { error?: string };
+    return JSON.parse(text) as { error?: string; denyReason?: string };
   } catch {
     return null;
-  }
-}
-
-/** Подсказки «открыть бота» при access_denied в miniapp (публичные конфиги). */
-async function loadMiniappAuthHelpLinks(
-  signal?: AbortSignal,
-  correlationId?: string | null,
-): Promise<{ telegramHref: string | null; maxHref: string | null }> {
-  const id = correlationId?.trim();
-  const headers = id ? { "x-bc-auth-correlation-id": id } : undefined;
-  const reqInit = signal || headers ? { ...(signal ? { signal } : {}), ...(headers ? { headers } : {}) } : undefined;
-  try {
-    const [tgRes, altRes] = await Promise.all([
-      fetch("/api/auth/telegram-login/config", reqInit),
-      fetch("/api/auth/login/alternatives-config", reqInit),
-    ]);
-    const tgJson = (await tgRes.json().catch(() => ({}))) as { ok?: boolean; botUsername?: string | null };
-    const altJson = (await altRes.json().catch(() => ({}))) as {
-      ok?: boolean;
-      maxBotOpenUrl?: unknown;
-    };
-    const tgU =
-      tgJson?.ok === true && typeof tgJson.botUsername === "string"
-        ? tgJson.botUsername.trim().replace(/^@/, "")
-        : "";
-    const telegramHref = tgU.length > 0 ? `https://t.me/${tgU}` : null;
-    const maxU =
-      altJson?.ok === true && typeof altJson.maxBotOpenUrl === "string" && altJson.maxBotOpenUrl.trim().length > 0
-        ? altJson.maxBotOpenUrl.trim()
-        : null;
-    return { telegramHref, maxHref: maxU };
-  } catch {
-    return { telegramHref: null, maxHref: null };
   }
 }
 
@@ -132,31 +104,76 @@ function classifyUaClassForAuthObservability(): "mobile" | "desktop" | "unknown"
   return ua.length > 0 ? "desktop" : "unknown";
 }
 
+function miniappHelpLinksFromPrefetched(p: PrefetchedPublicAuthConfig | null): {
+  telegramHref: string | null;
+  maxHref: string | null;
+} {
+  if (!p) return { telegramHref: null, maxHref: null };
+  const u = (p.telegramBotUsername ?? "").trim().replace(/^@/, "");
+  const telegramHref = u.length > 0 ? `https://t.me/${u}` : null;
+  const maxRaw = (p.maxBotOpenUrl ?? "").trim();
+  const maxHref = maxRaw.length > 0 ? maxRaw : null;
+  return { telegramHref, maxHref };
+}
+
 /** Запускает проверку токена или initData и при успехе перенаправляет в приложение (или по ?next=); иначе — AuthFlowV2. */
-export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBootstrapProps) {
+export function AuthBootstrap({
+  supportContactHref,
+  onAuthStepChange,
+  initialPublicAuthConfig = null,
+  serverPlatformMessengerCookie = false,
+  serverMessengerSurface = null,
+  entryClassification,
+}: AuthBootstrapProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const suppressQueryJwt = shouldSuppressQueryJwtForMessengerMiniApp(searchParams);
   const rawToken = searchParams.get("t") ?? searchParams.get("token");
-  const token = suppressQueryJwt ? null : rawToken;
+  const token = entryClassification === "token_exchange" ? rawToken : null;
   const nextParam = searchParams.get("next");
   const debug = searchParams.get("debug") === "1";
-  const ctxParam = readMessengerCtxParam(searchParams);
-  const [messengerEntryFromClient, setMessengerEntryFromClient] = useState(false);
-  /** После сброса устаревшего bot-cookie: показываем miniapp-стиль error+retry без телефонного `AuthFlowV2`. */
-  const [messengerRetryNoPhone, setMessengerRetryNoPhone] = useState(false);
-  const messengerRetryNoPhoneRef = useRef(messengerRetryNoPhone);
-  messengerRetryNoPhoneRef.current = messengerRetryNoPhone;
+  const [effectiveEntryClassification, setEffectiveEntryClassification] =
+    useState<UnauthenticatedAppEntryClassification>(entryClassification);
+  /** После сброса устаревшего bot-cookie: показываем обычный browser-interactive поток без server refresh. */
+  /** MAX init вернул `max_unavailable` — не показываем телефонный OTP и Telegram fallback. */
+  const [maxMiniappServerUnavailable, setMaxMiniappServerUnavailable] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const isMessengerMiniAppEntry =
-    messengerEntryFromClient ||
-    ctxParam === BOT_ENTRY_CTX_QUERY ||
-    ctxParam === MAX_ENTRY_CTX_QUERY;
+    effectiveEntryClassification === "telegram_miniapp" || effectiveEntryClassification === "max_miniapp";
 
   const earlyUi = isAuthBootstrapEarlyUiV2Enabled();
   const [browserSoftOk, setBrowserSoftOk] = useState(false);
   const [messengerSoftOk, setMessengerSoftOk] = useState(false);
-  const [prefetchedAuth, setPrefetchedAuth] = useState<PrefetchedPublicAuthConfig | null>(null);
+  const prefetchedAuth = initialPublicAuthConfig ?? null;
+  const prefetchedAuthRef = useRef(prefetchedAuth);
+  prefetchedAuthRef.current = prefetchedAuth;
+
+  const [maxBridgeActive, setMaxBridgeActive] = useState(() => serverMessengerSurface === "max");
+
+  useEffect(() => {
+    const surface = serverMessengerSurface ?? readMessengerSurfaceCookie();
+    const messengerCookie = serverPlatformMessengerCookie || readPlatformCookieBot();
+
+    if (surface === "max") {
+      setMaxBridgeActive(true);
+      return;
+    }
+    if (surface === "telegram") {
+      setMaxBridgeActive(false);
+      return;
+    }
+    if (!messengerCookie) {
+      setMaxBridgeActive(false);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      if (typeof window.Telegram?.WebApp !== "undefined") {
+        setMaxBridgeActive(false);
+      } else {
+        setMaxBridgeActive(true);
+      }
+    }, MAX_BRIDGE_LOAD_GRACE_MS);
+    return () => window.clearTimeout(id);
+  }, [serverMessengerSurface, serverPlatformMessengerCookie]);
 
   const authEpochRef = useRef(0);
   const primaryAbortRef = useRef<AbortController | null>(null);
@@ -168,16 +185,9 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   const prevShowPhoneFlowRef = useRef(false);
   const mountStartedAtRef = useRef(typeof performance !== "undefined" ? performance.now() : Date.now());
 
-  useLayoutEffect(() => {
-    const fromNext = readMessengerCtxParam(searchParams);
-    if (fromNext === BOT_ENTRY_CTX_QUERY || fromNext === MAX_ENTRY_CTX_QUERY) {
-      setMessengerEntryFromClient(true);
-      setMessengerRetryNoPhone(false);
-      return;
-    }
-    if (typeof document === "undefined") return;
-    setMessengerEntryFromClient(readPlatformCookieBot());
-  }, [searchParams]);
+  useEffect(() => {
+    setEffectiveEntryClassification(entryClassification);
+  }, [entryClassification, retryKey]);
 
   const correlationId = useMemo(() => {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -206,13 +216,18 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     emitAuthFlowEvent("auth_bootstrap_started", {
       correlationId,
       path: window.location.pathname,
-      queryCtx: ctxParam ?? null,
+      queryCtx:
+        effectiveEntryClassification === "telegram_miniapp"
+          ? "bot"
+          : effectiveEntryClassification === "max_miniapp"
+            ? "max"
+            : null,
       hasToken: Boolean(token),
       platformCookie: readPlatformCookieBot() ? "bot" : "none",
       earlyUi,
       uaClass: classifyUaClassForAuthObservability(),
     });
-  }, [correlationId, ctxParam, token, earlyUi]);
+  }, [correlationId, effectiveEntryClassification, token, earlyUi]);
 
   useEffect(() => {
     if (!earlyUi) return;
@@ -239,7 +254,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
   });
 
   const showPhoneFlow =
-    !messengerRetryNoPhone &&
+    !maxMiniappServerUnavailable &&
     !token &&
     state !== "loading" &&
     exposeInteractive;
@@ -277,7 +292,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
   /**
    * Единый клиентский bootstrap: опрос initData (Telegram → MAX), затем отложенный обмен JWT;
-   * при `ctx=bot` / `ctx=max` JWT из query не используется (см. `shouldSuppressQueryJwtForMessengerMiniApp`).
+   * конкретная ветка задаётся сервером через `entryClassification`.
    */
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -285,6 +300,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     authEpochRef.current += 1;
     const epoch = authEpochRef.current;
     interactiveEngagedRef.current = false;
+    setMaxMiniappServerUnavailable(false);
     contextDetectedEmittedRef.current = false;
     initDataDetectedEmittedRef.current = false;
     lateBindingDedupeKeyRef.current = null;
@@ -293,60 +309,25 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     maxInitSentRef.current = false;
     tokenExchangeSentRef.current = false;
 
-    const flowHint = classifyAuthEntryFlowFromSearchParams(searchParams);
+    const flowHint: "browser" | "telegram" | "max" =
+      effectiveEntryClassification === "max_miniapp"
+        ? "max"
+        : effectiveEntryClassification === "telegram_miniapp"
+          ? "telegram"
+          : "browser";
 
     const messengerEntryFromUrlOrCookie = (): boolean => {
-      const fromNext = readMessengerCtxParam(searchParams);
-      if (fromNext === BOT_ENTRY_CTX_QUERY || fromNext === MAX_ENTRY_CTX_QUERY) return true;
-      return readPlatformCookieBot();
+      return (
+        effectiveEntryClassification === "telegram_miniapp" ||
+        effectiveEntryClassification === "max_miniapp" ||
+        readPlatformCookieBot()
+      );
     };
 
-    const POLL_MS_MAX = MESSENGER_INIT_POLL_CAP_MS;
     const TICK_MS = 100;
     const STABLE_EMPTY_TICKS = 10;
 
     let cancelled = false;
-    const prefetchAc = new AbortController();
-    const prefetchHeaders: Record<string, string> = { "x-bc-auth-correlation-id": correlationId };
-    /** Следующий macrotask: не смешивать сразу с первым `tick()` (fake timers в тестах, Strict Mode). */
-    const prefetchKick = window.setTimeout(() => {
-      if (cancelled || epoch !== authEpochRef.current) return;
-      void Promise.all([
-        fetch("/api/auth/oauth/providers", { signal: prefetchAc.signal, headers: prefetchHeaders })
-          .then((r) => r.json().catch(() => ({})))
-          .catch(() => ({})),
-        fetch("/api/auth/telegram-login/config", { signal: prefetchAc.signal, headers: prefetchHeaders })
-          .then((r) => r.json().catch(() => ({})))
-          .catch(() => ({})),
-        fetch("/api/auth/login/alternatives-config", { signal: prefetchAc.signal, headers: prefetchHeaders })
-          .then((r) => r.json().catch(() => ({})))
-          .catch(() => ({})),
-      ]).then(([oauthData, tgData, altData]) => {
-        if (cancelled || epoch !== authEpochRef.current) return;
-        const oauth = oauthData as { ok?: boolean; yandex?: boolean; google?: boolean; apple?: boolean };
-        const oauthProviders = {
-          yandex: oauth?.ok === true && Boolean(oauth.yandex),
-          google: oauth?.ok === true && Boolean(oauth.google),
-          apple: oauth?.ok === true && Boolean(oauth.apple),
-        };
-        const tgJson = tgData as { ok?: boolean; botUsername?: string | null };
-        const u =
-          tgJson?.ok === true && typeof tgJson.botUsername === "string" ? String(tgJson.botUsername).trim() : "";
-        const telegramBotUsername = u.length > 0 ? u : null;
-        const alt = altData as { ok?: boolean; maxBotOpenUrl?: unknown };
-        const maxBotOpenUrl =
-          alt?.ok === true && typeof alt.maxBotOpenUrl === "string" && alt.maxBotOpenUrl.trim().length > 0
-            ? alt.maxBotOpenUrl.trim()
-            : null;
-        setPrefetchedAuth({
-          oauthProviders,
-          telegramBotUsername,
-          maxBotOpenUrl,
-          fetchedAt: Date.now(),
-        });
-      });
-    }, 0);
-
     let intervalId: ReturnType<typeof setInterval> | undefined;
     let stableWebAppEmptyTicks = 0;
     const t0 = Date.now();
@@ -366,8 +347,6 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     const applyStaleBotCookieResolvedToWeb = () => {
       stopPolling();
       clearStaleBotPlatformCookie();
-      setMessengerEntryFromClient(false);
-      setMessengerRetryNoPhone(false);
       setMiniappHelpLinks({ telegram: null, max: null });
       setState("idle");
       setError(null);
@@ -377,7 +356,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         correlationId,
         entry: "stale_bot_cookie_web_auth",
       });
-      queueMicrotask(() => router.refresh());
+      setEffectiveEntryClassification("browser_interactive");
     };
 
     const postMessengerInit = (
@@ -450,8 +429,17 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           if (!response.ok) {
             setState("error");
             const errBody = parseMessengerInitErrorBody(text);
+            const maxUnavailable =
+              endpoint === "/api/auth/max-init" &&
+              response.status === 403 &&
+              errBody?.error === "max_unavailable";
             const accessDenied = response.status === 403 && errBody?.error === "access_denied";
-            if (response.status >= 500) {
+            if (maxUnavailable) {
+              setMaxMiniappServerUnavailable(true);
+              setError(MAX_SERVICE_UNAVAILABLE_MESSAGE);
+              const prefLinks = miniappHelpLinksFromPrefetched(prefetchedAuthRef.current);
+              setMiniappHelpLinks({ telegram: null, max: prefLinks.maxHref });
+            } else if (response.status >= 500) {
               setError("Сервис временно недоступен. Попробуйте позже.");
               setMiniappHelpLinks({ telegram: null, max: null });
             } else if (endpoint === "/api/auth/max-init" && response.status === 400) {
@@ -459,10 +447,8 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
               setMiniappHelpLinks({ telegram: null, max: null });
             } else if (accessDenied) {
               setError(MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE);
-              void loadMiniappAuthHelpLinks(ac.signal, correlationId).then((links) => {
-                if (epochAtSend !== authEpochRef.current) return;
-                setMiniappHelpLinks({ telegram: links.telegramHref, max: links.maxHref });
-              });
+              const prefLinks = miniappHelpLinksFromPrefetched(prefetchedAuthRef.current);
+              setMiniappHelpLinks({ telegram: prefLinks.telegramHref, max: prefLinks.maxHref });
             } else {
               setError("Не удалось войти");
               setMiniappHelpLinks({ telegram: null, max: null });
@@ -661,11 +647,10 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           maxBridgeReady,
           telegramWebAppPresent: typeof window.Telegram?.WebApp !== "undefined",
         });
-        const ctxFromUrl = readMessengerCtxParam(searchParams);
         let source: "ctx" | "cookie" | "bridge" | "tg_init" | "max_init" = "bridge";
         if (rawTg) source = "tg_init";
         else if (rawMax) source = "max_init";
-        else if (ctxFromUrl === BOT_ENTRY_CTX_QUERY || ctxFromUrl === MAX_ENTRY_CTX_QUERY) source = "ctx";
+        else if (isMessengerMiniAppEntry) source = "ctx";
         else if (readPlatformCookieBot()) source = "cookie";
         emitAuthFlowEvent("context_detected", {
           correlationId,
@@ -708,11 +693,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         return;
       }
 
-      const ctxEarly = readMessengerCtxParam(searchParams);
-      const cookieOnlyMessenger =
-        readPlatformCookieBot() &&
-        ctxEarly !== BOT_ENTRY_CTX_QUERY &&
-        ctxEarly !== MAX_ENTRY_CTX_QUERY;
+      const cookieOnlyMessenger = readPlatformCookieBot() && !isMessengerMiniAppEntry;
       const maxSurfaceEarly = isLikelyMaxMiniAppSurface(true, maxBridgeReady);
       /** Как при `POLL_MS_MAX`: внешний браузер с TG-скриптом (`platform=web`) или полное отсутствие `Telegram.WebApp` — не ждать poll до конца. */
       const staleBotStandaloneBrowser =
@@ -750,9 +731,6 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           stableWebAppEmptyTicks = 0;
           if (!messengerEntry) {
             setInitDataStatus((prev) => (prev === "unknown" ? "no" : prev));
-            if (!messengerRetryNoPhoneRef.current) {
-              setMessengerRetryNoPhone(false);
-            }
           } else {
             setInitDataStatus("unknown");
           }
@@ -795,7 +773,29 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         }
       }
 
-      if (elapsed >= POLL_MS_MAX) {
+      const deferPhoneForDeadline = shouldDeferPhoneLoginWhileMaxBridgeMayLoad({
+        token,
+        elapsedMs: elapsed,
+        telegramInitDataEmpty: true,
+        maxInitDataEmpty: true,
+        maxBridgeReady,
+        messengerMiniAppContext: messengerEntryFromUrlOrCookie(),
+      });
+      const maxSurfForDeadline = isLikelyMaxMiniAppSurface(true, maxBridgeReady);
+      const messengerEntryForDeadline = messengerEntryFromUrlOrCookie();
+      let pollDeadlineMs = MESSENGER_HARD_POLL_CAP_MS;
+      if (
+        deferPhoneForDeadline ||
+        flowHint === "max" ||
+        maxSurfForDeadline ||
+        (maxBridgeReady && messengerEntryForDeadline)
+      ) {
+        pollDeadlineMs = MESSENGER_HARD_POLL_CAP_MS;
+      } else if (messengerEntryForDeadline && webApp) {
+        pollDeadlineMs = MAX_BRIDGE_LOAD_GRACE_MS + MESSENGER_INIT_POLL_SHORT_MS;
+      }
+
+      if (elapsed >= pollDeadlineMs) {
         stopPolling();
         const maxR =
           typeof (window as Window & { WebApp?: { ready?: () => void } }).WebApp?.ready === "function";
@@ -811,11 +811,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
         ) {
           queueMicrotask(() => {
             if (epoch !== authEpochRef.current) return;
-            const ctxFromUrl = readMessengerCtxParam(searchParams);
-            const cookieOnlyMessengerEntry =
-              readPlatformCookieBot() &&
-              ctxFromUrl !== BOT_ENTRY_CTX_QUERY &&
-              ctxFromUrl !== MAX_ENTRY_CTX_QUERY;
+            const cookieOnlyMessengerEntry = readPlatformCookieBot() && !isMessengerMiniAppEntry;
             const staleBotCookieInExternalBrowser =
               messengerEntry &&
               cookieOnlyMessengerEntry &&
@@ -838,7 +834,6 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
               });
             } else {
               setInitDataStatus((s) => (s === "unknown" ? "no" : s));
-              setMessengerRetryNoPhone(false);
             }
           });
         } else {
@@ -855,18 +850,26 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
 
     return () => {
       cancelled = true;
-      window.clearTimeout(prefetchKick);
-      prefetchAc.abort();
       stopPolling();
       primaryAbortRef.current?.abort();
     };
-  }, [router, searchParams, token, debug, nextParam, correlationId, retryKey]);
+  }, [
+    router,
+    token,
+    debug,
+    nextParam,
+    correlationId,
+    retryKey,
+    effectiveEntryClassification,
+    isMessengerMiniAppEntry,
+  ]);
 
   const handleMessengerAuthRetry = () => {
     primaryAbortRef.current?.abort();
     telegramInitSentRef.current = false;
     maxInitSentRef.current = false;
     tokenExchangeSentRef.current = false;
+    setMaxMiniappServerUnavailable(false);
     setState("idle");
     setError(null);
     setMiniappHelpLinks({ telegram: null, max: null });
@@ -877,8 +880,8 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     setRetryKey((k) => k + 1);
   };
 
-  /** Bridge MAX только без query JWT — см. `MaxBridgeScript`. */
-  const loadMaxBridge = token == null;
+  /** MAX bridge: cookie `ctx=max`, либо отложенно если нет Telegram WebApp (legacy без surface-cookie). */
+  const loadMaxBridge = token == null && maxBridgeActive;
 
   if (showPhoneFlow) {
     return (
@@ -890,7 +893,6 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           onStepChange={onAuthStepChange}
           prefetchedAuthConfig={prefetchedAuth}
           onInteractiveLoginEngaged={handleInteractiveEngaged}
-          observabilityCorrelationId={correlationId}
         />
       </>
     );
@@ -912,10 +914,10 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
           Нет токена в URL. Ожидается ?t=..., Telegram initData или MAX WebApp.initData.
           <br />
           {initLabel}
-          {suppressQueryJwt ? (
+          {isMessengerMiniAppEntry ? (
             <>
               <br />
-              ctx=bot / ctx=max — query JWT отключён; вход только через initData (мини-приложение).
+              Вход классифицирован как miniapp — query JWT отключён; вход только через initData.
             </>
           ) : null}
         </p>
@@ -928,8 +930,7 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
     !token &&
     state !== "loading" &&
     state !== "error" &&
-    initDataStatus !== "unknown" &&
-    !messengerRetryNoPhone
+    initDataStatus !== "unknown"
   )
     return null;
 
@@ -963,7 +964,10 @@ export function AuthBootstrap({ supportContactHref, onAuthStepChange }: AuthBoot
             ) : null}
           </div>
         ) : null}
-        {isMessengerMiniAppEntry || messengerRetryNoPhone || error === MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE ? (
+        {isMessengerMiniAppEntry ||
+        maxMiniappServerUnavailable ||
+        error === MINIAPP_ACTIVATE_BOT_AND_AUTH_MESSAGE ||
+        error === MAX_SERVICE_UNAVAILABLE_MESSAGE ? (
           <div className="mt-4">
             <Button type="button" variant="secondary" onClick={handleMessengerAuthRetry}>
               Повторить

@@ -74,7 +74,17 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(<AuthFlowV2 nextParam={null} />);
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
@@ -104,7 +114,17 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(<AuthFlowV2 nextParam={null} />);
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
@@ -142,7 +162,17 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(<AuthFlowV2 nextParam={null} />);
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: true, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: "https://max.ru/test_bot_nick",
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
     await user.type(screen.getByLabelText("Номер телефона"), "9991234567");
     await user.click(screen.getByRole("button", { name: "Продолжить" }));
 
@@ -170,7 +200,17 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(<AuthFlowV2 nextParam={null} />);
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
     await waitFor(() => expect(document.getElementById("auth-flow-v2-landing")).toBeTruthy());
     expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Войти по номеру телефона" })).toBeInTheDocument();
@@ -192,7 +232,17 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(<AuthFlowV2 nextParam={null} />);
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
     await waitFor(() => expect(document.getElementById("auth-flow-v2-landing")).toBeTruthy());
     expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();
@@ -223,7 +273,17 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(<AuthFlowV2 nextParam={null} />);
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: true, google: false, apple: false },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: "https://max.ru/test_bot_nick",
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
     expect(screen.queryByRole("button", { name: "Другие способы входа" })).not.toBeInTheDocument();
     const maxLink = await screen.findByRole("link", { name: "Войти через Max" });
@@ -250,7 +310,17 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(<AuthFlowV2 nextParam={null} />);
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: true, google: false, apple: true },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
     expect(screen.getByRole("button", { name: "Войти через Яндекс" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Apple" })).not.toBeInTheDocument();
@@ -275,7 +345,17 @@ describe("AuthFlowV2", () => {
       }),
     );
 
-    render(<AuthFlowV2 nextParam={null} />);
+    render(
+      <AuthFlowV2
+        nextParam={null}
+        prefetchedAuthConfig={{
+          oauthProviders: { yandex: false, google: false, apple: true },
+          telegramBotUsername: "test_bot",
+          maxBotOpenUrl: null,
+          fetchedAt: Date.now(),
+        }}
+      />,
+    );
     await waitFor(() => expect(document.getElementById("auth-flow-v2-oauth-first")).toBeTruthy());
     expect(screen.getByRole("button", { name: "Войти через Apple" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Войти через Яндекс" })).not.toBeInTheDocument();

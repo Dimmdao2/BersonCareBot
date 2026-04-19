@@ -20,6 +20,7 @@
 - [`ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md`](ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md) — вебхук, `rubitime_events`, статусы 0–7, throttle 5500ms.
 - [`MEDIA_PREVIEW_PIPELINE.md`](MEDIA_PREVIEW_PIPELINE.md) · [`ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md`](ARCHITECTURE/MEDIA_PREVIEW_FRONTEND.md) — превью медиатеки S3, воркер, UI-инварианты.
 - [`ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md`](ARCHITECTURE/LOW_LEVEL_ARCHITECTURE_AUDIT_AND_REORG.md) — composition roots, DI, **API route import-policy** (актуальное состояние allowlist).
+- [`ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md`](ARCHITECTURE/MINIAPP_AUTH_FIX_EXECUTION_LOG.md) · [`ARCHITECTURE/MINIAPP_AUTH_AUDIT_2026-04-19.md`](ARCHITECTURE/MINIAPP_AUTH_AUDIT_2026-04-19.md) — журнал исполнения и итоговый аудит server-first входа.
 - **Скрипты webapp / ops:** [`apps/webapp/scripts/README.md`](../apps/webapp/scripts/README.md) · [`apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md`](../apps/webapp/scripts/PLATFORM_IDENTITY_OPS.md).
 
 ## Активные инициативы

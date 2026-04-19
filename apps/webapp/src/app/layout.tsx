@@ -37,11 +37,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body>
         <TooltipProvider>
           <ClientToaster />
-          {/* Telegram Mini App SDK: afterInteractive — не блокировать документ (Safari / частный режим
-              могут долго ждать telegram.org; до гидратации AuthBootstrap не показывает веб-вход). */}
+          {/* Telegram Mini App SDK: lazyOnload — первый usable UI не ждёт telegram.org (вне Mini App скрипт догружается после загрузки страницы). */}
           <Script
             src="https://telegram.org/js/telegram-web-app.js"
-            strategy="afterInteractive"
+            strategy="lazyOnload"
           />
           <PlatformProvider serverHint={platformEntry}>{children}</PlatformProvider>
         </TooltipProvider>

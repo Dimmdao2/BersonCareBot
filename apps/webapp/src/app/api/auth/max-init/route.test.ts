@@ -63,6 +63,24 @@ describe("POST /api/auth/max-init", () => {
       }),
     );
     expect(res.status).toBe(403);
+    const json = (await res.json()) as { error?: string; denyReason?: string };
+    expect(json.error).toBe("access_denied");
+    expect(json.denyReason).toBe("signature_mismatch");
+  });
+
+  it("returns max_unavailable when bot API key is missing in settings", async () => {
+    exchangeMaxInitDataMock.mockResolvedValueOnce({ denied: true, reason: "max_bot_api_key_missing" });
+    const res = await POST(
+      new Request("http://localhost/api/auth/max-init", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ initData: "any" }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    const json = (await res.json()) as { error?: string; denyReason?: string };
+    expect(json.error).toBe("max_unavailable");
+    expect(json.denyReason).toBe("max_bot_api_key_missing");
   });
 
   it("returns 200 and sets platform cookie", async () => {
