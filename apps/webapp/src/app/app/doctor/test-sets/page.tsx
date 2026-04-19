@@ -18,13 +18,7 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
 
   return (
     <AppShell title="Наборы тестов" user={session.user} variant="doctor" backHref="/app/doctor">
-      <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          Набор ссылается на клинические тесты (таблицы <code className="text-xs">test_sets</code>,{" "}
-          <code className="text-xs">test_set_items</code>).
-        </p>
-        <TestSetsPageClient initialSets={items} initialSelectedId={initialSelectedId} />
-      </div>
+      <TestSetsPageClient initialSets={items} initialSelectedId={initialSelectedId} />
     </AppShell>
   );
 }

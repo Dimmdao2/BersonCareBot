@@ -1,16 +1,12 @@
-import Link from "next/link";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
-import { buttonVariants } from "@/components/ui/button-variants";
-import { cn } from "@/lib/utils";
 import {
   LESSON_CONTENT_SECTION,
   LESSON_CONTENT_SECTION_LEGACY,
 } from "@/modules/treatment-program/types";
 import type { TreatmentProgramLibraryPickers } from "./[id]/TreatmentProgramConstructorClient";
 import { TreatmentProgramTemplatesPageClient } from "./TreatmentProgramTemplatesPageClient";
-import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "./paths";
 
 type PageProps = {
   searchParams?: Promise<{ selected?: string }>;
@@ -51,22 +47,11 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
 
   return (
     <AppShell title="Шаблоны программ" user={session.user} variant="doctor" backHref="/app/doctor">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">
-            Конструктор этапов шаблона лечебной программы (таблицы{" "}
-            <code className="text-xs">treatment_program_templates</code> и связанные).
-          </p>
-          <Link href={`${TREATMENT_PROGRAM_TEMPLATES_PATH}/new`} className={cn(buttonVariants())}>
-            Новый шаблон
-          </Link>
-        </div>
-        <TreatmentProgramTemplatesPageClient
-          templates={items}
-          library={library}
-          initialSelectedId={initialSelectedId}
-        />
-      </div>
+      <TreatmentProgramTemplatesPageClient
+        templates={items}
+        library={library}
+        initialSelectedId={initialSelectedId}
+      />
     </AppShell>
   );
 }

@@ -1,26 +1,19 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Recommendation } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
+import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStickyToolbar";
+import { DoctorCatalogTitleSortSelect } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
+import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { RecommendationForm } from "./RecommendationForm";
 import { archiveRecommendationInline, saveRecommendationInline } from "./actionsInline";
 import { RECOMMENDATIONS_PATH } from "./paths";
@@ -53,43 +46,17 @@ export function RecommendationsPageClient({ initialItems, initialSelectedId }: P
     });
   }, [initialSelectedId, initialItems]);
 
-  const displayList = useMemo(() => {
-    let out = initialItems;
-    const needle = normalizeRuSearchString(searchQuery.trim());
-    if (needle) {
-      out = out.filter((r) => normalizeRuSearchString(r.title).includes(needle));
-    }
-    if (titleSort === "asc" || titleSort === "desc") {
-      out = [...out].sort((a, b) => {
-        const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
-        return titleSort === "asc" ? cmp : -cmp;
-      });
-    }
-    return out;
-  }, [initialItems, searchQuery, titleSort]);
+  const displayList = useDoctorCatalogDisplayList(initialItems, searchQuery, titleSort);
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      if (creating) return;
-      if (displayList.length === 0) {
-        setSelectedId(null);
-        setMobileSheet(null);
-        return;
-      }
-      setSelectedId((cur) => {
-        if (cur != null && displayList.some((r) => r.id === cur)) return cur;
-        return displayList[0]!.id;
-      });
-      setMobileSheet((prev) => {
-        if (prev == null) return prev;
-        const next = displayList.find((r) => r.id === prev.id);
-        return next ?? null;
-      });
-    });
-  }, [creating, displayList]);
+  useDoctorCatalogMasterSelectionSync({
+    displayList,
+    setSelectedId,
+    setMobileItem: setMobileSheet,
+    suspend: creating,
+    fallbackToFirst: false,
+  });
 
-  const selected =
-    creating ? null : (displayList.find((r) => r.id === selectedId) ?? (displayList.length > 0 ? displayList[0]! : null));
+  const selected = creating ? null : (displayList.find((r) => r.id === selectedId) ?? null);
 
   const renderRows = (onPick: (r: Recommendation) => void, activeId: string | null) =>
     displayList.length === 0 ? (
@@ -136,7 +103,12 @@ export function RecommendationsPageClient({ initialItems, initialSelectedId }: P
         backHref={RECOMMENDATIONS_PATH}
       />
     ) : (
-      <p className="text-sm text-muted-foreground">Выберите запись слева или создайте новую.</p>
+      <RecommendationForm
+        recommendation={null}
+        saveAction={saveRecommendationInline}
+        archiveAction={archiveRecommendationInline}
+        backHref={RECOMMENDATIONS_PATH}
+      />
     );
 
   const desktopRight = (
@@ -148,54 +120,45 @@ export function RecommendationsPageClient({ initialItems, initialSelectedId }: P
   const mobileDetailOpen = creating || mobileSheet != null;
 
   const toolbar = (
-    <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
-        <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
-          {displayList.length === 0 ? "Нет записей" : `Записей: ${displayList.length}`}
-        </p>
-        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
-          <PickerSearchField
-            id={searchFieldId}
-            label="Поиск по названию"
-            placeholder="Название"
-            value={searchQuery}
-            onValueChange={setSearchQuery}
-            className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-          />
-          <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-            <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-            <Select value={titleSort} onValueChange={(v) => setTitleSort(v as RecommendationTitleSort)}>
-              <SelectTrigger size="sm" className="h-8 w-full text-left">
-                <SelectValue>
-                  {titleSort === "asc"
-                    ? "Название А→Я"
-                    : titleSort === "desc"
-                      ? "Название Я→А"
-                      : "Сортировка"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">По дате изменения</SelectItem>
-                <SelectItem value="asc">Название А→Я</SelectItem>
-                <SelectItem value="desc">Название Я→А</SelectItem>
-              </SelectContent>
-            </Select>
+    <DoctorCatalogStickyToolbar>
+      <DoctorCatalogToolbarMainRow
+        start={
+          <>
+            <PickerSearchField
+              id={searchFieldId}
+              label="Поиск по названию"
+              placeholder="Название"
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
+            />
+            <DoctorCatalogTitleSortSelect
+              value={titleSort}
+              onValueChange={(v) => setTitleSort(v as RecommendationTitleSort)}
+            />
+          </>
+        }
+        end={
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
+              {displayList.length === 0 ? "Нет записей" : `Записей: ${displayList.length}`}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              className="shrink-0"
+              onClick={() => {
+                setCreating(true);
+                setSelectedId(null);
+                setMobileSheet(null);
+              }}
+            >
+              Создать рекомендацию
+            </Button>
           </div>
-          <Button
-            type="button"
-            size="sm"
-            className="shrink-0"
-            onClick={() => {
-              setCreating(true);
-              setSelectedId(null);
-              setMobileSheet(null);
-            }}
-          >
-            Создать рекомендацию
-          </Button>
-        </div>
-      </div>
-    </div>
+        }
+      />
+    </DoctorCatalogStickyToolbar>
   );
 
   return (

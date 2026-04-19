@@ -4,25 +4,17 @@ import { useCallback, useEffect, useId, useMemo, useState, useTransition } from 
 import { LayoutGrid, List } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { ClinicalTest } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
-import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStickyToolbar";
+import { DoctorCatalogTitleSortSelect, type TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
+import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
@@ -164,20 +156,9 @@ export function ClinicalTestsPageClient({
     });
   };
 
-  const displayTests = useMemo(() => {
-    let out = initialItems;
-    const needle = normalizeRuSearchString(searchQuery.trim());
-    if (needle) {
-      out = out.filter((t) => normalizeRuSearchString(t.title).includes(needle));
-    }
-    if (titleSort === "asc" || titleSort === "desc") {
-      out = [...out].sort((a, b) => {
-        const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
-        return titleSort === "asc" ? cmp : -cmp;
-      });
-    }
-    return out;
-  }, [initialItems, searchQuery, titleSort]);
+  const titleSortForList: TitleSortValue =
+    titleSort === "asc" || titleSort === "desc" ? titleSort : "default";
+  const displayTests = useDoctorCatalogDisplayList(initialItems, searchQuery, titleSortForList);
 
   useEffect(() => {
     if (!desktopSelectedId) return;
@@ -283,46 +264,32 @@ export function ClinicalTestsPageClient({
   return (
     <DoctorCatalogPageLayout
       toolbar={
-        <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-          <div className="flex flex-col gap-3">
-            <PickerSearchField
-              id={searchFieldId}
-              label="Поиск по названию"
-              placeholder="Название теста"
-              value={searchQuery}
-              onValueChange={setSearchQuery}
-              className="min-w-0 sm:max-w-xl"
-            />
-            <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-              <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                {displayTests.length === 0 ? "Нет тестов" : `Тестов: ${displayTests.length}`}
-              </p>
-              <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-                <div className="flex min-w-[11rem] max-w-full flex-1 flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-                  <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-                  <Select
-                    value={titleSort ?? "default"}
-                    onValueChange={(v) => {
-                      if (v === "default") changeTitleSort(null);
-                      else changeTitleSort(v as ClinicalTestTitleSort);
-                    }}
-                  >
-                    <SelectTrigger size="sm" className="h-8 w-full text-left">
-                      <SelectValue>
-                        {titleSort === "asc"
-                          ? "Название А→Я"
-                          : titleSort === "desc"
-                            ? "Название Я→А"
-                            : "Сортировка"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="default">По дате изменения</SelectItem>
-                      <SelectItem value="asc">Название А→Я</SelectItem>
-                      <SelectItem value="desc">Название Я→А</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+        <DoctorCatalogStickyToolbar>
+          <DoctorCatalogToolbarMainRow
+            start={
+              <>
+                <PickerSearchField
+                  id={searchFieldId}
+                  label="Поиск по названию"
+                  placeholder="Название теста"
+                  value={searchQuery}
+                  onValueChange={setSearchQuery}
+                  className="min-w-0 sm:max-w-[min(24rem,100%)] sm:flex-initial"
+                />
+                <DoctorCatalogTitleSortSelect
+                  value={titleSortForList}
+                  onValueChange={(v) => {
+                    if (v === "default") changeTitleSort(null);
+                    else changeTitleSort(v as ClinicalTestTitleSort);
+                  }}
+                />
+              </>
+            }
+            end={
+              <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
+                  {displayTests.length === 0 ? "Нет тестов" : `Тестов: ${displayTests.length}`}
+                </p>
                 <div className="flex shrink-0 items-center justify-end gap-2">
                   <button
                     type="button"
@@ -353,14 +320,14 @@ export function ClinicalTestsPageClient({
                   </Button>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
+            }
+          />
+        </DoctorCatalogStickyToolbar>
       }
     >
       <CatalogSplitLayout
         left={
-          <CatalogLeftPane stickyToolbarRows={2}>
+          <CatalogLeftPane stickyToolbarRows={1}>
             <div
               className={cn(
                 "flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity",

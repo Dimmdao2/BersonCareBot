@@ -23,16 +23,11 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
 
   return (
     <AppShell title="Клинические тесты" user={session.user} variant="doctor" backHref="/app/doctor">
-      <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          Библиотека тестов для программ лечения (таблица <code className="text-xs">tests</code>).
-        </p>
-        <ClinicalTestsPageClient
-          initialItems={items}
-          initialSelectedId={initialSelectedId}
-          initialViewMode={initialViewMode}
-        />
-      </div>
+      <ClinicalTestsPageClient
+        initialItems={items}
+        initialSelectedId={initialSelectedId}
+        initialViewMode={initialViewMode}
+      />
     </AppShell>
   );
 }

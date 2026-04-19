@@ -18,12 +18,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
 
   return (
     <AppShell title="Рекомендации" user={session.user} variant="doctor" backHref="/app/doctor">
-      <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          Текстовые рекомендации для этапов программы (таблица <code className="text-xs">recommendations</code>).
-        </p>
-        <RecommendationsPageClient initialItems={items} initialSelectedId={initialSelectedId} />
-      </div>
+      <RecommendationsPageClient initialItems={items} initialSelectedId={initialSelectedId} />
     </AppShell>
   );
 }

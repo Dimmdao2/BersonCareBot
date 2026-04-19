@@ -1,30 +1,26 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useEffect, useId, useRef, useState } from "react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
+import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStickyToolbar";
+import { DoctorCatalogTitleSortSelect, type TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
+import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   TreatmentProgramConstructorClient,
   type TreatmentProgramLibraryPickers,
-} from "@/app/app/doctor/treatment-program-templates/[id]/TreatmentProgramConstructorClient";
+} from "./[id]/TreatmentProgramConstructorClient";
+import { NewTemplateForm } from "./new/NewTemplateForm";
+import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "./paths";
 
 type Props = {
   templates: TreatmentProgramTemplate[];
@@ -32,17 +28,16 @@ type Props = {
   initialSelectedId: string | null;
 };
 
-type TitleSort = "default" | "asc" | "desc";
-
 export function TreatmentProgramTemplatesPageClient({ templates, library, initialSelectedId }: Props) {
   const searchFieldId = useId();
   const [searchQuery, setSearchQuery] = useState("");
-  const [titleSort, setTitleSort] = useState<TitleSort>("default");
+  const [titleSort, setTitleSort] = useState<TitleSortValue>("default");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileSheet, setMobileSheet] = useState<TreatmentProgramTemplate | null>(null);
   const [detail, setDetail] = useState<TreatmentProgramTemplateDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const detailFetchGenRef = useRef(0);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -56,42 +51,16 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
     });
   }, [initialSelectedId, templates]);
 
-  const displayList = useMemo(() => {
-    let out = templates;
-    const needle = normalizeRuSearchString(searchQuery.trim());
-    if (needle) {
-      out = out.filter((t) => normalizeRuSearchString(t.title).includes(needle));
-    }
-    if (titleSort === "asc" || titleSort === "desc") {
-      out = [...out].sort((a, b) => {
-        const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
-        return titleSort === "asc" ? cmp : -cmp;
-      });
-    }
-    return out;
-  }, [templates, searchQuery, titleSort]);
+  const displayList = useDoctorCatalogDisplayList(templates, searchQuery, titleSort);
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      if (displayList.length === 0) {
-        setSelectedId(null);
-        setMobileSheet(null);
-        return;
-      }
-      setSelectedId((cur) => {
-        if (cur != null && displayList.some((t) => t.id === cur)) return cur;
-        return displayList[0]!.id;
-      });
-      setMobileSheet((prev) => {
-        if (prev == null) return prev;
-        const next = displayList.find((t) => t.id === prev.id);
-        return next ?? null;
-      });
-    });
-  }, [displayList]);
+  useDoctorCatalogMasterSelectionSync({
+    displayList,
+    setSelectedId,
+    setMobileItem: setMobileSheet,
+    fallbackToFirst: false,
+  });
 
-  const selected =
-    displayList.find((t) => t.id === selectedId) ?? (displayList.length > 0 ? displayList[0]! : null);
+  const selected = displayList.find((t) => t.id === selectedId) ?? null;
 
   useEffect(() => {
     const id = selected?.id;
@@ -103,20 +72,22 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
       });
       return;
     }
+    const gen = ++detailFetchGenRef.current;
+    const ac = new AbortController();
     let cancelled = false;
     queueMicrotask(() => {
-      if (cancelled) return;
+      if (cancelled || gen !== detailFetchGenRef.current) return;
       setDetailLoading(true);
       setDetailError(null);
     });
-    void fetch(`/api/doctor/treatment-program-templates/${id}`)
+    void fetch(`/api/doctor/treatment-program-templates/${id}`, { signal: ac.signal })
       .then(async (res) => {
         const json = (await res.json()) as {
           ok?: boolean;
           item?: TreatmentProgramTemplateDetail;
           error?: string;
         };
-        if (cancelled) return;
+        if (cancelled || gen !== detailFetchGenRef.current) return;
         if (json.ok && json.item) {
           setDetail(json.item);
         } else {
@@ -124,18 +95,21 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
           setDetailError(json.error ?? "Не удалось загрузить шаблон");
         }
       })
-      .catch(() => {
-        if (!cancelled) {
-          setDetail(null);
-          setDetailError("Ошибка загрузки");
-        }
+      .catch((err: unknown) => {
+        if (cancelled || gen !== detailFetchGenRef.current) return;
+        const aborted = err instanceof DOMException && err.name === "AbortError";
+        if (aborted) return;
+        setDetail(null);
+        setDetailError("Ошибка загрузки");
       })
       .finally(() => {
-        if (!cancelled) setDetailLoading(false);
+        if (cancelled || gen !== detailFetchGenRef.current) return;
+        setDetailLoading(false);
       });
 
     return () => {
       cancelled = true;
+      ac.abort();
     };
   }, [selected?.id]);
 
@@ -181,7 +155,11 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
     ) : detail && selected ? (
       <TreatmentProgramConstructorClient templateId={selected.id} initialDetail={detail} library={library} />
     ) : (
-      <p className="text-sm text-muted-foreground">Выберите шаблон слева.</p>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm font-medium text-foreground">Новый шаблон программы</p>
+        <p className="text-sm text-muted-foreground">Задайте название и откройте конструктор этапов.</p>
+        <NewTemplateForm showCancelLink={false} titleInputId="tpl-title-catalog-inline" />
+      </div>
     );
 
   const desktopRight = (
@@ -193,42 +171,33 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
   const mobileDetailOpen = mobileSheet != null;
 
   const toolbar = (
-    <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
-        <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
-          {displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`}
-        </p>
-        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
-          <PickerSearchField
-            id={searchFieldId}
-            label="Поиск по названию"
-            placeholder="Название шаблона"
-            value={searchQuery}
-            onValueChange={setSearchQuery}
-            className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-          />
-          <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-            <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-            <Select value={titleSort} onValueChange={(v) => setTitleSort(v as TitleSort)}>
-              <SelectTrigger size="sm" className="h-8 w-full text-left">
-                <SelectValue>
-                  {titleSort === "asc"
-                    ? "Название А→Я"
-                    : titleSort === "desc"
-                      ? "Название Я→А"
-                      : "Сортировка"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">По дате изменения</SelectItem>
-                <SelectItem value="asc">Название А→Я</SelectItem>
-                <SelectItem value="desc">Название Я→А</SelectItem>
-              </SelectContent>
-            </Select>
+    <DoctorCatalogStickyToolbar>
+      <DoctorCatalogToolbarMainRow
+        start={
+          <>
+            <PickerSearchField
+              id={searchFieldId}
+              label="Поиск по названию"
+              placeholder="Название шаблона"
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
+            />
+            <DoctorCatalogTitleSortSelect value={titleSort} onValueChange={setTitleSort} />
+          </>
+        }
+        end={
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
+              {displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`}
+            </p>
+            <Link href={`${TREATMENT_PROGRAM_TEMPLATES_PATH}/new`} className={cn(buttonVariants({ size: "sm" }), "shrink-0 text-center")}>
+              Новый шаблон
+            </Link>
           </div>
-        </div>
-      </div>
-    </div>
+        }
+      />
+    </DoctorCatalogStickyToolbar>
   );
 
   return (

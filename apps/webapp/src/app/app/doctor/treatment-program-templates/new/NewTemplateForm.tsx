@@ -6,12 +6,36 @@ import { useState, type FormEvent } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { TREATMENT_PROGRAM_TEMPLATES_PATH } from "../paths";
 
-export function NewTemplateForm() {
+export type NewTemplateFormProps = {
+  /** Показать ссылку «Отмена» на список шаблонов (страница `/new`). */
+  showCancelLink?: boolean;
+  className?: string;
+  /** id поля названия — чтобы не конфликтовать при нескольких формах в дереве. */
+  titleInputId?: string;
+  /** Поле статуса при создании (`POST` передаёт `status`). По умолчанию: встроенная форма в каталоге (`showCancelLink === false`). */
+  showStatusField?: boolean;
+};
+
+export function NewTemplateForm({
+  showCancelLink = true,
+  className,
+  titleInputId = "tpl-title",
+  showStatusField: showStatusFieldProp,
+}: NewTemplateFormProps) {
   const router = useRouter();
+  const showStatusField = showStatusFieldProp ?? !showCancelLink;
   const [title, setTitle] = useState("");
+  const [status, setStatus] = useState<"draft" | "published" | "archived">("draft");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -28,7 +52,7 @@ export function NewTemplateForm() {
       const res = await fetch("/api/doctor/treatment-program-templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: t }),
+        body: JSON.stringify({ title: t, ...(showStatusField ? { status } : {}) }),
       });
       const json = (await res.json()) as { ok?: boolean; item?: { id: string }; error?: string };
       if (!res.ok || !json.ok || !json.item) {
@@ -43,30 +67,47 @@ export function NewTemplateForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex max-w-xl flex-col gap-4">
+    <form onSubmit={onSubmit} className={cn("flex max-w-xl flex-col gap-4", className)}>
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       ) : null}
       <div className="flex flex-col gap-2">
-        <Label htmlFor="tpl-title">Название шаблона</Label>
+        <Label htmlFor={titleInputId}>Название шаблона</Label>
         <Input
-          id="tpl-title"
+          id={titleInputId}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={2000}
           required
-          autoFocus
+          autoFocus={showCancelLink}
         />
       </div>
-      <div className="flex gap-2">
+      {showStatusField ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={`${titleInputId}-status`}>Статус</Label>
+          <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
+            <SelectTrigger id={`${titleInputId}-status`} size="sm" className="h-8 w-full max-w-md text-left">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="draft">Черновик</SelectItem>
+              <SelectItem value="published">Опубликован</SelectItem>
+              <SelectItem value="archived">Архив</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={pending}>
           {pending ? "Создание…" : "Создать"}
         </Button>
-        <Link href={TREATMENT_PROGRAM_TEMPLATES_PATH} className={cn(buttonVariants({ variant: "outline" }))}>
-          Отмена
-        </Link>
+        {showCancelLink ? (
+          <Link href={TREATMENT_PROGRAM_TEMPLATES_PATH} className={cn(buttonVariants({ variant: "outline" }))}>
+            Отмена
+          </Link>
+        ) : null}
       </div>
     </form>
   );

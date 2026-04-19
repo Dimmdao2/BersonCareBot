@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -14,24 +18,25 @@ import {
 import type { ExerciseMedia } from "@/modules/lfk-exercises/types";
 import type { Template, TemplateStatus } from "@/modules/lfk-templates/types";
 import { cn } from "@/lib/utils";
-import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
-import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
+import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
+import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStickyToolbar";
+import { DoctorCatalogTitleSortSelect, type TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
+import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { createLfkTemplateDraft } from "./actions";
 import { TemplateEditor } from "./TemplateEditor";
-
-export type LfkTemplateTitleSort = "default" | "asc" | "desc";
 
 type Props = {
   templates: Template[];
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
+  /** Соответствует `?status=` в URL; пусто — «все». */
+  initialStatusFilter: "" | TemplateStatus;
 };
 
 function statusEyeMeta(status: TemplateStatus) {
@@ -41,49 +46,38 @@ function statusEyeMeta(status: TemplateStatus) {
   return { published, label };
 }
 
-export function LfkTemplatesPageClient({ templates, exerciseCatalog }: Props) {
+export function LfkTemplatesPageClient({ templates, exerciseCatalog, initialStatusFilter }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const searchFieldId = useId();
   const [searchQuery, setSearchQuery] = useState("");
-  const [titleSort, setTitleSort] = useState<LfkTemplateTitleSort>("default");
+  const [titleSort, setTitleSort] = useState<TitleSortValue>("default");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileSheet, setMobileSheet] = useState<Template | null>(null);
 
-  const displayList = useMemo(() => {
-    let out = templates;
-    const needle = normalizeRuSearchString(searchQuery.trim());
-    if (needle) {
-      out = out.filter((t) => normalizeRuSearchString(t.title).includes(needle));
-    }
-    if (titleSort === "asc" || titleSort === "desc") {
-      out = [...out].sort((a, b) => {
-        const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
-        return titleSort === "asc" ? cmp : -cmp;
-      });
-    }
-    return out;
-  }, [templates, searchQuery, titleSort]);
+  const statusSelectValue = initialStatusFilter === "" ? "all" : initialStatusFilter;
 
-  useEffect(() => {
-    queueMicrotask(() => {
-      if (displayList.length === 0) {
-        setSelectedId(null);
-        setMobileSheet(null);
-        return;
-      }
-      setSelectedId((cur) => {
-        if (cur != null && displayList.some((t) => t.id === cur)) return cur;
-        return displayList[0]!.id;
-      });
-      setMobileSheet((prev) => {
-        if (prev == null) return prev;
-        const next = displayList.find((t) => t.id === prev.id);
-        return next ?? null;
-      });
-    });
-  }, [displayList]);
+  function applyStatusFilter(next: string | null) {
+    const p = new URLSearchParams(searchParams.toString());
+    if (next == null || next === "" || next === "all") {
+      p.delete("status");
+    } else {
+      p.set("status", next);
+    }
+    const qs = p.toString();
+    router.replace(qs ? `/app/doctor/lfk-templates?${qs}` : "/app/doctor/lfk-templates");
+  }
 
-  const selected =
-    displayList.find((t) => t.id === selectedId) ?? (displayList.length > 0 ? displayList[0]! : null);
+  const displayList = useDoctorCatalogDisplayList(templates, searchQuery, titleSort);
+
+  useDoctorCatalogMasterSelectionSync({
+    displayList,
+    setSelectedId,
+    setMobileItem: setMobileSheet,
+    fallbackToFirst: false,
+  });
+
+  const selected = displayList.find((t) => t.id === selectedId) ?? null;
 
   const renderRows = (onPick: (t: Template) => void, activeId: string | null) =>
     displayList.length === 0 ? (
@@ -172,7 +166,19 @@ export function LfkTemplatesPageClient({ templates, exerciseCatalog }: Props) {
         {selected ? (
           <TemplateEditor template={selected} exerciseCatalog={exerciseCatalog} />
         ) : (
-          <p className="text-sm text-muted-foreground">Выберите шаблон в списке.</p>
+          <section className="flex max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <p className="text-sm text-muted-foreground">
+              Задайте название черновика. После создания вы попадёте в конструктор, где можно добавить упражнения и
+              опубликовать шаблон.
+            </p>
+            <form action={createLfkTemplateDraft} className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="lfk-tpl-new-title-inline">Название</Label>
+                <Input id="lfk-tpl-new-title-inline" name="title" placeholder="Новый шаблон" />
+              </div>
+              <Button type="submit">Создать и открыть</Button>
+            </form>
+          </section>
         )}
       </CardContent>
     </Card>
@@ -181,42 +187,51 @@ export function LfkTemplatesPageClient({ templates, exerciseCatalog }: Props) {
   const mobileDetailOpen = mobileSheet != null;
 
   const toolbar = (
-    <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-3">
-        <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
-          {displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`}
-        </p>
-        <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:max-w-full sm:flex-row sm:items-end sm:justify-end">
-          <PickerSearchField
-            id={searchFieldId}
-            label="Поиск по названию"
-            placeholder="Название шаблона"
-            value={searchQuery}
-            onValueChange={setSearchQuery}
-            className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-          />
-          <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-            <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-            <Select value={titleSort} onValueChange={(v) => setTitleSort(v as LfkTemplateTitleSort)}>
-              <SelectTrigger size="sm" className="h-8 w-full text-left">
-                <SelectValue>
-                  {titleSort === "asc"
-                    ? "Название А→Я"
-                    : titleSort === "desc"
-                      ? "Название Я→А"
-                      : "Сортировка"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">По дате изменения</SelectItem>
-                <SelectItem value="asc">Название А→Я</SelectItem>
-                <SelectItem value="desc">Название Я→А</SelectItem>
-              </SelectContent>
-            </Select>
+    <DoctorCatalogStickyToolbar>
+      <DoctorCatalogToolbarMainRow
+        start={
+          <>
+            <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem]">
+              <span className="text-[11px] text-muted-foreground sm:sr-only">Статус</span>
+              <Select value={statusSelectValue} onValueChange={applyStatusFilter}>
+                <SelectTrigger size="sm" className="h-8 w-full text-left">
+                  <SelectValue placeholder="Статус" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все</SelectItem>
+                  <SelectItem value="draft">Черновики</SelectItem>
+                  <SelectItem value="published">Опубликованные</SelectItem>
+                  <SelectItem value="archived">Архив</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <PickerSearchField
+              id={searchFieldId}
+              label="Поиск по названию"
+              placeholder="Название шаблона"
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
+            />
+            <DoctorCatalogTitleSortSelect value={titleSort} onValueChange={setTitleSort} />
+          </>
+        }
+        end={
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
+              {displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`}
+            </p>
+            <Link
+              href="/app/doctor/lfk-templates/new"
+              className={cn(buttonVariants({ size: "sm" }), "shrink-0 text-center")}
+              id="doctor-lfk-templates-new-link"
+            >
+              Новый шаблон
+            </Link>
           </div>
-        </div>
-      </div>
-    </div>
+        }
+      />
+    </DoctorCatalogStickyToolbar>
   );
 
   return (

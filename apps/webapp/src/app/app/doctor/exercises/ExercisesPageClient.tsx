@@ -6,13 +6,7 @@ import { Suspense, use, useEffect, useMemo, useState, useTransition } from "reac
 import { LayoutGrid, List } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { DoctorCatalogTitleSortSelect } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
@@ -126,31 +120,14 @@ function SelectionToolbar({
         {exerciseCount === 0 ? "Нет упражнений" : `Упражнений: ${exerciseCount}`}
       </p>
       <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-        <div className="flex min-w-[11rem] max-w-full flex-1 flex-col gap-1 sm:max-w-[14rem] sm:flex-initial">
-          <span className="text-[11px] text-muted-foreground sm:sr-only">Сортировка</span>
-          <Select
-            value={titleSort ?? "default"}
-            onValueChange={(v) => {
-              if (v === "default") onTitleSortChange(null);
-              else onTitleSortChange(v as ExerciseTitleSort);
-            }}
-          >
-            <SelectTrigger size="sm" className="h-8 w-full text-left">
-              <SelectValue>
-                {titleSort === "asc"
-                  ? "Название А→Я"
-                  : titleSort === "desc"
-                    ? "Название Я→А"
-                    : "Сортировка"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">По дате изменения</SelectItem>
-              <SelectItem value="asc">Название А→Я</SelectItem>
-              <SelectItem value="desc">Название Я→А</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <DoctorCatalogTitleSortSelect
+          value={titleSort ?? "default"}
+          onValueChange={(v) => {
+            if (v === "default") onTitleSortChange(null);
+            else onTitleSortChange(v as ExerciseTitleSort);
+          }}
+          className="flex-1 sm:flex-initial"
+        />
         <div className="flex shrink-0 items-center justify-end gap-2">
           <button type="button" id={createButtonId} className={buttonVariants({ size: "sm" })} onClick={onCreate}>
             Создать упражнение
