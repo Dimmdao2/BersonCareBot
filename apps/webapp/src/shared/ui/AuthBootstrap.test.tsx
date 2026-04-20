@@ -117,9 +117,9 @@ describe("AuthBootstrap", () => {
     expect(screen.getByText(/укажите номер телефона/i)).toBeInTheDocument();
   });
 
-  it("в обычном браузере с ?t=dev:admin без Telegram.WebApp обменивает токен после TOKEN_FALLBACK_MS", async () => {
-    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=dev:admin"));
-    window.history.pushState({}, "", "/?t=dev:admin");
+  it("в обычном браузере с ?t=dev:admin&switch=1 без Telegram.WebApp обменивает токен после TOKEN_FALLBACK_MS", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("t=dev:admin&switch=1"));
+    window.history.pushState({}, "", "/?t=dev:admin&switch=1");
     document.cookie = `${PLATFORM_COOKIE_NAME}=; path=/; max-age=0`;
     delete (window as unknown as { Telegram?: unknown }).Telegram;
 

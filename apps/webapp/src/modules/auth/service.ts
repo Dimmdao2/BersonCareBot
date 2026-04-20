@@ -483,7 +483,9 @@ export async function exchangeIntegratorToken(
     }
   }
 
-  const session = buildSession(user);
+  const session: AppSession = devParsed
+    ? { ...buildSession(user), authSource: "dev_bypass" }
+    : buildSession(user);
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, encodeSession(session), {
     httpOnly: true,
@@ -799,9 +801,18 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   // Normalize doctor session shape without writing cookie here — cookies().set()
   // is only allowed in Server Actions / Route Handlers, not in Server Component render.
   let session: AppSession = { ...decoded, user: resolvedUser };
+  const isDevBypassSession =
+    session.authSource === "dev_bypass" &&
+    env.NODE_ENV !== "production" &&
+    env.ALLOW_DEV_AUTH_BYPASS === true;
+  if (isDevBypassSession) {
+    // Keep explicit dev bypass role from the login token even if DB row has client role.
+    session = { ...session, user: { ...session.user, role: decoded.user.role } };
+  }
   if (session.user.role === "doctor") {
     session = {
       ...buildSession(session.user),
+      ...(isDevBypassSession ? { authSource: "dev_bypass" as const } : {}),
       postLoginHints: session.postLoginHints,
       adminMode: session.adminMode,
       reauth: session.reauth,
@@ -812,6 +823,8 @@ export async function getCurrentSession(): Promise<AppSession | null> {
   const telegramId = session.user.bindings?.telegramId?.trim();
   const maxId = session.user.bindings?.maxId?.trim();
   if (!phone && !telegramId && !maxId) return session;
+
+  if (isDevBypassSession) return session;
 
   const envRole = await resolveRoleAsync({ phone, telegramId, maxId });
   if (session.user.role === envRole) return session;

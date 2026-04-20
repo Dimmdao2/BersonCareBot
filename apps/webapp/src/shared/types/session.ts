@@ -22,6 +22,8 @@ export type AppSession = {
   user: SessionUser;
   issuedAt: number;
   expiresAt: number;
+  /** Internal source hint for non-production dev bypass auth flow. */
+  authSource?: "dev_bypass";
   adminMode?: boolean;
   /** Подсказки UI сразу после входа (не для авторизации). */
   postLoginHints?: {

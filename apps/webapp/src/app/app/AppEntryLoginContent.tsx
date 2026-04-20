@@ -76,21 +76,21 @@ export function AppEntryLoginContent({
             <div id="app-entry-dev-bypass-actions" className="flex flex-wrap gap-3">
               <Link
                 id="app-entry-dev-login-patient"
-                href="/app?t=dev:client"
+                href="/app?t=dev:client&switch=1"
                 className={cn(buttonVariants({ size: "sm" }))}
               >
                 Как пациент
               </Link>
               <Link
                 id="app-entry-dev-login-doctor"
-                href="/app?t=dev:admin"
+                href="/app?t=dev:admin&switch=1"
                 className={cn(buttonVariants({ size: "sm" }))}
               >
                 Как врач / админ
               </Link>
               <Link
                 id="app-entry-dev-login-doctor-role"
-                href="/app?t=dev:doctor"
+                href="/app?t=dev:doctor&switch=1"
                 className={cn(buttonVariants({ size: "sm" }))}
               >
                 Как специалист
