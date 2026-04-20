@@ -69,7 +69,22 @@ export function BuildVersionWatcher() {
         }
         const payload = (await response.json()) as VersionResponse;
         const serverBuildId = (payload.buildId || "").trim();
-        if (serverBuildId && serverBuildId !== initialBuildIdRef.current) {
+        if (!serverBuildId) {
+          consecutiveErrorsRef.current = 0;
+          backoffMsRef.current = WATCHER_BASE_INTERVAL_MS;
+          restartLoop();
+          return;
+        }
+        // Dev/local: layout meta may be empty if BUILD_ID was not set at build time.
+        // First successful response establishes baseline — otherwise "" !== server id loops reload forever.
+        if (!initialBuildIdRef.current) {
+          initialBuildIdRef.current = serverBuildId;
+          consecutiveErrorsRef.current = 0;
+          backoffMsRef.current = WATCHER_BASE_INTERVAL_MS;
+          restartLoop();
+          return;
+        }
+        if (serverBuildId !== initialBuildIdRef.current) {
           await safeReload("version-mismatch", serverBuildId);
           return;
         }

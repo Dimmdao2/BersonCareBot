@@ -19,6 +19,7 @@ export function PatientQuickAddFAB({ visible }: Props) {
   const [ctx, setCtx] = useState<Context | null>(null);
 
   const onDiary = pathname?.startsWith(routePaths.diary) ?? false;
+  const onBindPhone = pathname?.startsWith(routePaths.bindPhone) ?? false;
 
   const load = useCallback(async () => {
     try {
@@ -43,14 +44,14 @@ export function PatientQuickAddFAB({ visible }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!visible || onDiary) return;
+    if (!visible || onDiary || onBindPhone) return;
     const t = requestAnimationFrame(() => {
       void load();
     });
     return () => cancelAnimationFrame(t);
-  }, [visible, onDiary, load]);
+  }, [visible, onDiary, onBindPhone, load]);
 
-  if (!visible || onDiary) return null;
+  if (!visible || onDiary || onBindPhone) return null;
   if (!ctx) return null;
   if (ctx.trackings.length === 0 && ctx.complexes.length === 0) return null;
 
