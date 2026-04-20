@@ -114,8 +114,8 @@ export function ClinicalTestForm({
           />
         </div>
 
-        <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
-          <p className="text-sm font-medium">Медиа</p>
+        <div className="flex flex-col gap-3">
+          <span className="text-sm font-medium">Медиа</span>
           <MediaLibraryPickerDialog
             kind="image_or_video"
             value={values.mediaUrl}

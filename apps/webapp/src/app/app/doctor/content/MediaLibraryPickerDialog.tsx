@@ -1,8 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { ChevronDown } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import type { MediaListItem } from "@/shared/ui/media/MediaPickerList";
 import { parseMediaFileIdFromAppUrl } from "@/shared/lib/mediaPreviewUrls";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
@@ -223,56 +231,75 @@ export function MediaLibraryPickerDialog({
     lastPick: effectiveLastPick,
   });
 
-  return (
-    <div className="flex flex-col gap-3 rounded-md border border-border p-3">
-      <div className="space-y-2 text-sm">
-        {value ? (
-          <>
-            {previewMode === "video" || previewMode === "image" || previewMode === "gif" ? (
-              <div
-                className="max-w-md overflow-hidden rounded-md border border-border/60 bg-muted/30"
-                data-testid="selected-media-preview"
-              >
-                <MediaThumb
-                  media={selectedPreviewMedia}
-                  className="h-40 w-full"
-                  imgClassName="h-40 w-full object-contain bg-muted/30"
-                  labels={{ skipped: "Превью не создаётся", failed: "Превью недоступно" }}
-                  sizes="160px"
-                />
-              </div>
-            ) : null}
-            {!isApiMedia ? (
-              <p className="text-xs text-amber-700">
-                Legacy URL: для нового значения используйте выбор из библиотеки.
-              </p>
-            ) : null}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">Файл не выбран</p>
-        )}
-      </div>
+  const openLibrary = useCallback(() => setOpen(true), []);
+  const clearMedia = useCallback(() => {
+    setLastPick(null);
+    onChange("");
+  }, [onChange]);
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setOpen(true);
-          }}
-        >
-          {selectButtonLabel}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            setLastPick(null);
-            onChange("");
-          }}
-        >
-          Очистить
-        </Button>
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+        <div className="w-full min-w-0 sm:w-[70%] sm:max-w-[70%]">
+          <div className="space-y-2 text-sm">
+            {value ? (
+              <>
+                {previewMode === "video" || previewMode === "image" || previewMode === "gif" ? (
+                  <div
+                    className="overflow-hidden rounded-md border border-border/60 bg-muted/30"
+                    data-testid="selected-media-preview"
+                  >
+                    <MediaThumb
+                      media={selectedPreviewMedia}
+                      className="h-40 w-full"
+                      imgClassName="h-40 w-full object-contain bg-muted/30"
+                      labels={{ skipped: "Превью не создаётся", failed: "Превью недоступно" }}
+                      sizes="160px"
+                    />
+                  </div>
+                ) : null}
+                {!isApiMedia ? (
+                  <p className="text-xs text-amber-700">
+                    Legacy URL: для нового значения используйте выбор из библиотеки.
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Файл не выбран</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center justify-start gap-2 sm:ml-auto sm:flex-1 sm:justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              type="button"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "box-border h-[32px] gap-1 px-3",
+              )}
+            >
+              Изменить
+              <ChevronDown className="size-4 shrink-0 opacity-95" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuItem
+                onClick={() => {
+                  openLibrary();
+                }}
+              >
+                {selectButtonLabel}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  clearMedia();
+                }}
+              >
+                Очистить
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <MediaPickerShell open={open} onOpenChange={handleOpenChange} title={pickerTitle}>

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 export type CatalogRightPaneProps = {
   children: ReactNode;
   className?: string;
-  /** Дополнительные классы для области прокрутки (по умолчанию паддинги 24px по горизонтали, py-4). */
+  /** Дополнительные классы для области прокрутки (по умолчанию px-6, py-6). */
   contentClassName?: string;
 };
 
@@ -25,7 +25,7 @@ export function CatalogRightPane({ children, className, contentClassName }: Cata
     >
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4",
+          "flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-6",
           contentClassName,
         )}
       >

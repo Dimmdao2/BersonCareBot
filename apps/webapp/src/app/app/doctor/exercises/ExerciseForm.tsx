@@ -130,7 +130,7 @@ export function ExerciseForm({
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
-      <form action={formAction} className="flex flex-col gap-4">
+      <form action={formAction} className="flex flex-col gap-6">
         {displayError ? (
           <p role="alert" className="text-sm text-destructive">
             {displayError}
@@ -142,7 +142,7 @@ export function ExerciseForm({
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <Label htmlFor="ex-title">Название</Label>
           <Input
             id="ex-title"
@@ -154,8 +154,8 @@ export function ExerciseForm({
           />
         </div>
 
-        <div className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
-          <p className="text-sm font-medium">Медиа</p>
+        <div className="flex flex-col gap-3">
+          <span className="text-sm font-medium">Медиа</span>
           <MediaLibraryPickerDialog
             kind="image_or_video"
             value={values.mediaUrl}
@@ -175,19 +175,25 @@ export function ExerciseForm({
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ex-desc">Описание</Label>
-          <Textarea
-            id="ex-desc"
-            name="description"
-            className="min-h-[100px]"
-            value={values.description}
-            onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
-            placeholder="Краткая техника выполнения"
-          />
+        <div className="flex flex-col gap-3">
+          <Label htmlFor="ex-difficulty">Сложность (1–10)</Label>
+          <div className="flex flex-wrap items-center gap-3 py-1">
+            <input
+              id="ex-difficulty"
+              name="difficulty1_10"
+              type="range"
+              min={1}
+              max={10}
+              value={values.difficulty}
+              onChange={(e) => setValues((v) => ({ ...v, difficulty: Number(e.target.value) }))}
+              className="doctor-exercise-difficulty-range touch-manipulation w-full max-w-xs"
+              style={difficultyRangeStyle}
+            />
+            <span className="text-sm tabular-nums text-muted-foreground">{values.difficulty}</span>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <Label htmlFor="ex-tags">Теги (через запятую)</Label>
           <Input
             id="ex-tags"
@@ -198,7 +204,7 @@ export function ExerciseForm({
           />
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <span className="text-sm font-medium">Регион</span>
           <ReferenceSelect
             categoryCode="body_region"
@@ -214,7 +220,7 @@ export function ExerciseForm({
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <Label>Тип нагрузки</Label>
           <input type="hidden" name="loadType" value={values.loadType} />
           <Select
@@ -236,25 +242,19 @@ export function ExerciseForm({
           </Select>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="ex-difficulty">Сложность (1–10)</Label>
-          <div className="flex flex-wrap items-center gap-3 py-1">
-            <input
-              id="ex-difficulty"
-              name="difficulty1_10"
-              type="range"
-              min={1}
-              max={10}
-              value={values.difficulty}
-              onChange={(e) => setValues((v) => ({ ...v, difficulty: Number(e.target.value) }))}
-              className="doctor-exercise-difficulty-range touch-manipulation w-full max-w-xs"
-              style={difficultyRangeStyle}
-            />
-            <span className="text-sm tabular-nums text-muted-foreground">{values.difficulty}</span>
-          </div>
+        <div className="flex flex-col gap-3">
+          <Label htmlFor="ex-desc">Описание</Label>
+          <Textarea
+            id="ex-desc"
+            name="description"
+            className="min-h-[100px]"
+            value={values.description}
+            onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+            placeholder="Краткая техника выполнения"
+          />
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <Label htmlFor="ex-contra">Противопоказания</Label>
           <Textarea
             id="ex-contra"

@@ -69,7 +69,8 @@ describe("MediaLibraryPickerDialog", () => {
 
     render(<MediaLibraryPickerDialog kind="image" value="" onChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: /Выбрать из библиотеки/i }));
+    await user.click(screen.getByRole("button", { name: /Изменить/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /Выбрать из библиотеки/i }));
 
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(1));
     const fetchCalls = fetchMock.mock.calls as unknown[][];
@@ -119,7 +120,8 @@ describe("MediaLibraryPickerDialog", () => {
 
     render(<MediaLibraryPickerDialog kind="image" value="" onChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: /Выбрать из библиотеки/i }));
+    await user.click(screen.getByRole("button", { name: /Изменить/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /Выбрать из библиотеки/i }));
 
     await waitFor(() => expect(screen.getByText("alpha.png")).toBeInTheDocument());
 
@@ -166,7 +168,8 @@ describe("MediaLibraryPickerDialog", () => {
 
     render(<MediaLibraryPickerDialog kind="video" value="" onChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: /Выбрать из библиотеки/i }));
+    await user.click(screen.getByRole("button", { name: /Изменить/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /Выбрать из библиотеки/i }));
 
     await waitFor(() => expect(screen.getByText("Разминка")).toBeInTheDocument());
 
@@ -195,7 +198,8 @@ describe("MediaLibraryPickerDialog", () => {
 
     render(<MediaLibraryPickerDialog kind="image_or_video" value="" onChange={vi.fn()} />);
 
-    await user.click(screen.getByRole("button", { name: /Выбрать из библиотеки/i }));
+    await user.click(screen.getByRole("button", { name: /Изменить/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /Выбрать из библиотеки/i }));
 
     await waitFor(() => {
       expect(screen.getAllByText("Папка").length).toBeGreaterThan(0);
