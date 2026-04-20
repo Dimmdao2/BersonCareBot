@@ -64,6 +64,7 @@ describe("exchangeIntegratorToken — роли по telegramId (I.4)", () => {
     expect(result).not.toBeNull();
     expect(result!.session.user.role).toBe("admin");
     expect(result!.redirectTo).toBe(getRedirectPathForRole("admin"));
+    expect(result!.setMessengerPlatformCookie).toBe(true);
     expect(cookieSet).toHaveBeenCalled();
   });
 
@@ -78,6 +79,7 @@ describe("exchangeIntegratorToken — роли по telegramId (I.4)", () => {
     expect(result).not.toBeNull();
     expect(result!.session.user.role).toBe("doctor");
     expect(result!.redirectTo).toBe(getRedirectPathForRole("doctor"));
+    expect(result!.setMessengerPlatformCookie).toBe(true);
     expect(cookieSet).toHaveBeenCalled();
   });
 
@@ -92,6 +94,15 @@ describe("exchangeIntegratorToken — роли по telegramId (I.4)", () => {
     expect(result).not.toBeNull();
     expect(result!.session.user.role).toBe("client");
     expect(result!.redirectTo).toBe(getRedirectPathForRole("client"));
+    expect(result!.setMessengerPlatformCookie).toBe(true);
+    expect(cookieSet).toHaveBeenCalled();
+  });
+
+  it("dev bypass не помечает сессию как messenger platform cookie (синтетический telegramId)", async () => {
+    cookieSet.mockClear();
+    const result = await exchangeIntegratorToken("dev:admin");
+    expect(result).not.toBeNull();
+    expect(result!.setMessengerPlatformCookie).toBe(false);
     expect(cookieSet).toHaveBeenCalled();
   });
 });

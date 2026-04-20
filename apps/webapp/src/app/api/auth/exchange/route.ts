@@ -60,7 +60,8 @@ export async function POST(request: Request) {
     role: result.session.user.role,
     redirectTo: result.redirectTo,
   });
-  if (source === "telegram" || source === "max") {
+  /** См. `ExchangeResult.setMessengerPlatformCookie` — не ставить bot-cookie для dev bypass с фиктивными bindings. */
+  if (result.setMessengerPlatformCookie === true) {
     const isProd = process.env.NODE_ENV === "production";
     response.cookies.set({
       name: PLATFORM_COOKIE_NAME,

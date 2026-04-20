@@ -46,6 +46,11 @@ type IntegratorTokenPayload = {
 export type ExchangeResult = {
   session: AppSession;
   redirectTo: string;
+  /**
+   * Только для `exchangeIntegratorToken`: ставить `bersoncare_platform=bot` на ответе `/api/auth/exchange`.
+   * Для dev bypass (`dev:*`) — всегда false (синтетические bindings не должны включать miniapp-ветку в браузере).
+   */
+  setMessengerPlatformCookie?: boolean;
 };
 
 function sign(value: string, secret: string): string {
@@ -343,6 +348,48 @@ async function optionalResolutionHintsFromVerifiedWebappEntryToken(
   return messengerResolutionHintsFromToken(parsed);
 }
 
+/**
+ * Dev bypass + БД: `findOrCreate` создаёт строку без телефона → для client tier onboarding / bind-phone;
+ * для admin/doctor в кабинете тоже ожидается номер из пресета в `platform_users`.
+ * Только non-production dev bypass.
+ */
+async function applyDevBypassPlatformUserPhoneInDb(
+  user: SessionUser,
+  parsed: IntegratorTokenPayload,
+): Promise<SessionUser> {
+  const raw = parsed.phone?.trim();
+  if (!raw) return user;
+  const phone = normalizePhone(raw);
+  if (!isValidPhoneE164(phone)) return user;
+  if (!isPlatformUserUuid(user.userId)) return user;
+
+  const { getPool } = await import("@/infra/db/client");
+  const pool = getPool();
+
+  if (user.role === "client") {
+    await pool.query(
+      `UPDATE platform_users
+       SET phone_normalized = $1,
+           patient_phone_trust_at = COALESCE(patient_phone_trust_at, now()),
+           updated_at = now()
+       WHERE id = $2::uuid`,
+      [phone, user.userId],
+    );
+  } else {
+    await pool.query(
+      `UPDATE platform_users
+       SET phone_normalized = $1,
+           updated_at = now()
+       WHERE id = $2::uuid`,
+      [phone, user.userId],
+    );
+  }
+
+  const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
+  const fresh = await pgUserByPhonePort.findByUserId(user.userId);
+  return fresh ?? { ...user, phone };
+}
+
 export async function exchangeIntegratorToken(
   token: string,
   identityResolutionPort?: IdentityResolutionPort | null,
@@ -365,10 +412,10 @@ export async function exchangeIntegratorToken(
   }
 
   let user: SessionUser;
-  if (identityResolutionPort && !devParsed) {
+  if (identityResolutionPort) {
     const binding = effectiveMessengerBinding(parsed);
     if (binding) {
-      const resolutionHints = messengerResolutionHintsFromToken(parsed);
+      const resolutionHints = !devParsed ? messengerResolutionHintsFromToken(parsed) : undefined;
       user = await identityResolutionPort.findOrCreateByChannelBinding({
         channelCode: binding.channelCode,
         externalId: binding.externalId,
@@ -376,7 +423,7 @@ export async function exchangeIntegratorToken(
         role: parsed.role,
         ...(resolutionHints ? { resolutionHints } : {}),
       });
-    } else {
+    } else if (!devParsed) {
       const subTrim = parsed.sub.trim();
       // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.
       if (env.DATABASE_URL?.trim() && isPlatformUserUuid(subTrim)) {
@@ -392,9 +439,15 @@ export async function exchangeIntegratorToken(
       } else {
         user = tokenToUser(parsed);
       }
+    } else {
+      user = tokenToUser(parsed);
     }
   } else {
     user = tokenToUser(parsed);
+  }
+
+  if (devParsed && env.DATABASE_URL?.trim()) {
+    user = await applyDevBypassPlatformUserPhoneInDb(user, parsed);
   }
 
   if (
@@ -430,9 +483,14 @@ export async function exchangeIntegratorToken(
     maxAge: cookieMaxAgeSeconds(session),
   });
 
+  const setMessengerPlatformCookie =
+    !devParsed &&
+    (Boolean(user.bindings?.maxId) || Boolean(user.bindings?.telegramId));
+
   return {
     session,
     redirectTo: getRedirectPathForRole(user.role),
+    setMessengerPlatformCookie,
   };
 }
 

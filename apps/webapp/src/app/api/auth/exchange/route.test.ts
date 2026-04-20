@@ -50,6 +50,7 @@ describe("POST /api/auth/exchange", () => {
         expiresAt: 2,
       },
       redirectTo: "/app/doctor",
+      setMessengerPlatformCookie: false,
     });
     const res = await POST(
       new Request("http://localhost/api/auth/exchange", {
@@ -80,6 +81,7 @@ describe("POST /api/auth/exchange", () => {
         expiresAt: 2,
       },
       redirectTo: "/app/patient",
+      setMessengerPlatformCookie: true,
     });
     const res = await POST(
       new Request("http://localhost/api/auth/exchange", {
@@ -91,5 +93,32 @@ describe("POST /api/auth/exchange", () => {
     expect(res.status).toBe(200);
     const setCookie = res.headers.get("set-cookie") ?? "";
     expect(setCookie).toContain(`${PLATFORM_COOKIE_NAME}=bot`);
+  });
+
+  it("does not set bot platform cookie when setMessengerPlatformCookie is false (e.g. dev bypass)", async () => {
+    exchangeIntegratorTokenMock.mockResolvedValueOnce({
+      session: {
+        user: {
+          userId: "u3",
+          role: "admin",
+          displayName: "Demo",
+          bindings: { telegramId: "333333333" },
+        },
+        issuedAt: 1,
+        expiresAt: 2,
+      },
+      redirectTo: "/app/doctor",
+      setMessengerPlatformCookie: false,
+    });
+    const res = await POST(
+      new Request("http://localhost/api/auth/exchange", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: "dev:admin" }),
+      })
+    );
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).not.toContain(`${PLATFORM_COOKIE_NAME}=bot`);
   });
 });

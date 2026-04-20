@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm --dir apps/integrator dev",
+    "dev": "pnpm --parallel --filter @bersoncare/integrator --filter @bersoncare/webapp run dev",
+    "dev:integrator": "pnpm --dir apps/integrator dev",
     "worker:dev": "pnpm --dir apps/integrator worker:dev",
     "webapp:dev": "pnpm --dir apps/webapp dev",
     "build": "pnpm --dir packages/booking-rubitime-sync run build && pnpm --dir apps/integrator build",

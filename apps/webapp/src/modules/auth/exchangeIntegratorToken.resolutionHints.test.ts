@@ -152,4 +152,29 @@ describe("exchangeIntegratorToken — resolutionHints (Phase B)", () => {
     });
     expect(params?.resolutionHints).toBeUndefined();
   });
+
+  it("dev bypass with identityResolutionPort resolves canonical user by messenger binding", async () => {
+    cookieSet.mockClear();
+    const findOrCreateByChannelBinding = vi.fn(async (): Promise<SessionUser> => ({
+      userId: "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      role: "client",
+      displayName: "Demo Client",
+      phone: "+79990000001",
+      bindings: { telegramId: "111111111" },
+    }));
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => null),
+      findOrCreateByChannelBinding,
+    };
+
+    const result = await exchangeIntegratorToken("dev:client", identityResolutionPort);
+    expect(result).not.toBeNull();
+    expect(result!.session.user.userId).toBe("aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee");
+    const params = firstFindOrCreateCall(findOrCreateByChannelBinding);
+    expect(params).toMatchObject({
+      channelCode: "telegram",
+      externalId: "111111111",
+    });
+    expect(params?.resolutionHints).toBeUndefined();
+  });
 });
