@@ -107,4 +107,31 @@ describe("exchangeIntegratorToken — dev bypass + DB phone", () => {
     expect(findByUserIdMock).toHaveBeenCalledWith("bbbbbbbb-bbbb-4ccc-dddd-eeeeeeeeeeee");
     expect(result!.session.user.phone).toBe("+79990000003");
   });
+
+  it("forces preset role for dev:admin even when identity row is client", async () => {
+    findByUserIdMock.mockResolvedValue({
+      userId: "cccccccc-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      role: "client",
+      displayName: "Demo Admin",
+      phone: "+79990000003",
+      bindings: { telegramId: "333333333" },
+    } satisfies SessionUser);
+
+    const findOrCreateByChannelBinding = vi.fn(async (): Promise<SessionUser> => ({
+      userId: "cccccccc-bbbb-4ccc-dddd-eeeeeeeeeeee",
+      role: "client",
+      displayName: "Demo Admin",
+      phone: undefined,
+      bindings: { telegramId: "333333333" },
+    }));
+    const identityResolutionPort: IdentityResolutionPort = {
+      findByChannelBinding: vi.fn(async () => null),
+      findOrCreateByChannelBinding,
+    };
+
+    const result = await exchangeIntegratorToken("dev:admin", identityResolutionPort);
+    expect(result).not.toBeNull();
+    expect(result!.session.user.role).toBe("admin");
+    expect(result!.redirectTo).toBe("/app/doctor");
+  });
 });

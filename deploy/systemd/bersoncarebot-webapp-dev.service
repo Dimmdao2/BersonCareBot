@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 WorkingDirectory=/home/dev/dev-projects/BersonCareBot
 EnvironmentFile=/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev
-ExecStart=/usr/bin/pnpm --dir /home/dev/dev-projects/BersonCareBot/apps/webapp start -- --hostname 127.0.0.1 --port 5200
+ExecStart=/usr/bin/pnpm --dir /home/dev/dev-projects/BersonCareBot/apps/webapp exec next start -H 127.0.0.1 -p 5200
 Restart=always
 
 [Install]

@@ -387,7 +387,8 @@ async function applyDevBypassPlatformUserPhoneInDb(
 
   const { pgUserByPhonePort } = await import("@/infra/repos/pgUserByPhone");
   const fresh = await pgUserByPhonePort.findByUserId(user.userId);
-  return fresh ?? { ...user, phone };
+  // Keep explicit dev bypass role from token preset even if DB row still has stale role.
+  return fresh ? { ...fresh, role: user.role } : { ...user, phone };
 }
 
 export async function exchangeIntegratorToken(
@@ -444,6 +445,15 @@ export async function exchangeIntegratorToken(
     }
   } else {
     user = tokenToUser(parsed);
+  }
+
+  if (devParsed && user.role !== parsed.role) {
+    // Dev bypass tokens must keep explicit preset role (dev:admin/dev:doctor/dev:client),
+    // even when identity resolution returns an existing row with stale role from DB.
+    if (updateRoleFn && isPlatformUserUuid(user.userId)) {
+      await updateRoleFn(user.userId, parsed.role);
+    }
+    user = { ...user, role: parsed.role };
   }
 
   if (devParsed && env.DATABASE_URL?.trim()) {
