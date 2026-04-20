@@ -102,13 +102,13 @@ function CreateExerciseMenu({ triggerId, onNewExercise }: CreateExerciseMenuProp
       <DropdownMenuTrigger
         id={triggerId}
         className={cn(
-          buttonVariants({ variant: "outline", size: "sm" }),
-          "h-[34px] min-h-[34px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5 data-popup-open:bg-accent",
+          buttonVariants({ variant: "default", size: "sm" }),
+          "box-border h-[32px] min-h-[32px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5 data-popup-open:bg-primary/90 dark:data-popup-open:bg-primary/85",
         )}
         type="button"
       >
         Создать
-        <ChevronDown className="size-4 opacity-70" aria-hidden />
+        <ChevronDown className="size-4 shrink-0 opacity-95" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
         <DropdownMenuItem
@@ -159,7 +159,7 @@ function ExerciseCatalogListHeader({
           type="button"
           variant="outline"
           size="icon"
-          className={cn("shrink-0 transition-opacity", listBusy && "opacity-70")}
+          className={cn("box-border size-[32px] shrink-0 transition-opacity", listBusy && "opacity-70")}
           aria-label={viewMode === "tiles" ? "Показать список" : "Показать плитки"}
           title={viewMode === "tiles" ? "Список" : "Плитки"}
           onClick={onToggleView}

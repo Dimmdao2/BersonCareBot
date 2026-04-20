@@ -505,7 +505,7 @@ export function MediaPickerPanel({
             </div>
             <div className="flex flex-col gap-1 sm:items-end">
               <span className="text-xs text-muted-foreground">Фильтр</span>
-              <div className="flex h-8 items-center gap-1 rounded-md border border-border bg-muted/20 px-1.5 text-[11px]">
+              <div className="flex h-[32px] shrink-0 items-center gap-1 rounded-md border border-border bg-muted/20 px-1.5 text-[11px] leading-tight">
                 <button
                   type="button"
                   className={cn(

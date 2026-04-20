@@ -106,7 +106,7 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
           clearOptionLabel="Все типы"
         />
       </div>
-      <Button type="submit" variant="secondary">
+      <Button type="submit" variant="secondary" className="box-border h-[32px] shrink-0 px-3 py-0 text-sm leading-none">
         Применить
       </Button>
       {selectedRegionLabel || selectedLoadLabel ? (

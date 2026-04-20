@@ -251,6 +251,58 @@
   background: linear-gradient(to right, #22c55e, #eab308 50%, #ef4444);
 }
 
+/* Форма упражнения (врач): сложность 1–10 — компактный thumb, явная полоска трека */
+.doctor-exercise-difficulty-range {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  /* Полная отрисовка заливки — inline `background` из ExerciseForm (валидный двухстопный градиент + ширина). */
+  background: color-mix(in srgb, var(--muted) 88%, var(--border));
+}
+.doctor-exercise-difficulty-range:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.doctor-exercise-difficulty-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 88%, var(--background));
+  border: 2px solid var(--primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  margin-top: -7px;
+}
+.doctor-exercise-difficulty-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: transparent;
+}
+.doctor-exercise-difficulty-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 88%, var(--background));
+  border: 2px solid var(--primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.doctor-exercise-difficulty-range::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--muted) 88%, var(--border));
+}
+.doctor-exercise-difficulty-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--ex-diff-fill, hsl(215 42% 78% / 0.55));
+}
+
 @layer utilities {
   .safe-padding-patient {
     padding-left: max(1.25rem, env(safe-area-inset-left, 0px));

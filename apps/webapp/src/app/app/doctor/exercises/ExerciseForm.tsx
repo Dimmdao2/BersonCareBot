@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useCallback, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,29 @@ const LOAD_OPTIONS: { value: ExerciseLoadType; label: string }[] = [
   { value: "cardio", label: "Кардио" },
   { value: "other", label: "Другое" },
 ];
+
+/** Заливка дорожки слайдера: от почти прозрачного светло-синего к почти чёрному тёмно-синему (1→10). */
+function exerciseDifficultyTrackFill(level: number): string {
+  const t = Math.max(0, Math.min(1, (level - 1) / 9));
+  const h = 215;
+  const s = 42 + t * 25;
+  const l = 94 - t * 81;
+  const alpha = 0.18 + t * 0.82;
+  return `hsl(${h} ${Math.round(s)}% ${Math.round(l)}% / ${alpha.toFixed(3)})`;
+}
+
+/** Стили дорожки: градиент с inline-цветом (браузеры часто отбрасывают при invalid syntax в CSS-файле). */
+function exerciseDifficultyRangeSliderStyle(difficulty: number): CSSProperties {
+  const level = Number.isFinite(difficulty) ? Math.max(1, Math.min(10, Math.round(difficulty))) : 5;
+  const p = ((level - 1) / 9) * 100;
+  const fill = exerciseDifficultyTrackFill(level);
+  const unfilled = "color-mix(in srgb, var(--muted) 88%, var(--border))";
+  return {
+    "--ex-diff-fill": fill,
+    "--ex-diff-progress": `${p}%`,
+    background: `linear-gradient(to right, ${fill} 0%, ${fill} 100%) 0 0 / ${p}% 100% no-repeat, ${unfilled}`,
+  } as CSSProperties;
+}
 
 export type ExerciseFormValues = {
   title: string;
@@ -98,6 +122,11 @@ export function ExerciseForm({
   const [, formAction, savePending] = useActionState(wrappedSaveAction, null as SaveDoctorExerciseState | null);
 
   const displayError = localError;
+
+  const difficultyRangeStyle = useMemo(
+    () => exerciseDifficultyRangeSliderStyle(values.difficulty),
+    [values.difficulty],
+  );
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
@@ -209,7 +238,7 @@ export function ExerciseForm({
 
         <div className="flex flex-col gap-2">
           <Label htmlFor="ex-difficulty">Сложность (1–10)</Label>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 py-1">
             <input
               id="ex-difficulty"
               name="difficulty1_10"
@@ -218,7 +247,8 @@ export function ExerciseForm({
               max={10}
               value={values.difficulty}
               onChange={(e) => setValues((v) => ({ ...v, difficulty: Number(e.target.value) }))}
-              className="w-full max-w-xs accent-primary"
+              className="doctor-exercise-difficulty-range touch-manipulation w-full max-w-xs"
+              style={difficultyRangeStyle}
             />
             <span className="text-sm tabular-nums text-muted-foreground">{values.difficulty}</span>
           </div>
