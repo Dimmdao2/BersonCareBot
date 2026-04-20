@@ -1,11 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Suspense, use, useEffect, useMemo, useState, useTransition } from "react";
-import { LayoutGrid, List } from "lucide-react";
+import { ChevronDown, LayoutGrid, List } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DoctorCatalogTitleSortSelect } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
@@ -15,6 +20,7 @@ import {
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
 } from "@/shared/ui/doctorWorkspaceLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { ExerciseListCatalogThumb } from "@/shared/ui/media/ExerciseListCatalogThumb";
@@ -83,68 +89,84 @@ function mediaNode(exercise: Exercise) {
   return <ExerciseListCatalogThumb media={exercise.media[0]} />;
 }
 
-type SelectionToolbarProps = {
+type CreateExerciseMenuProps = {
+  triggerId?: string;
+  onNewExercise: () => void;
+};
+
+function CreateExerciseMenu({ triggerId, onNewExercise }: CreateExerciseMenuProps) {
+  const router = useRouter();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        id={triggerId}
+        className={cn(
+          buttonVariants({ variant: "outline", size: "sm" }),
+          "h-[34px] min-h-[34px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5 data-popup-open:bg-accent",
+        )}
+        type="button"
+      >
+        Создать
+        <ChevronDown className="size-4 opacity-70" aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuItem
+          onClick={() => {
+            onNewExercise();
+          }}
+        >
+          Новое упражнение
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => router.push("/app/doctor/exercises/auto-create")}>Автосоздание</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+type ExerciseCatalogListHeaderProps = {
   exerciseCount: number;
-  createButtonId: string;
-  onCreate: () => void;
   viewMode: ExercisesViewMode;
   onToggleView: () => void;
   titleSort: ExerciseTitleSort | null;
   onTitleSortChange: (next: ExerciseTitleSort | null) => void;
   listBusy?: boolean;
-  /** В липкой полосе страницы — без нижней границы у списка, с разделителем сверху. */
-  variant?: "pane" | "sticky";
 };
 
-function SelectionToolbar({
+function ExerciseCatalogListHeader({
   exerciseCount,
-  createButtonId,
-  onCreate,
   viewMode,
   onToggleView,
   titleSort,
   onTitleSortChange,
   listBusy = false,
-  variant = "pane",
-}: SelectionToolbarProps) {
+}: ExerciseCatalogListHeaderProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
-        variant === "sticky"
-          ? "border-t border-border/60 pt-3"
-          : "border-b border-border/60 px-2 pb-2",
-      )}
-    >
-      <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-        {exerciseCount === 0 ? "Нет упражнений" : `Упражнений: ${exerciseCount}`}
-      </p>
-      <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-        <DoctorCatalogTitleSortSelect
-          value={titleSort ?? "default"}
-          onValueChange={(v) => {
-            if (v === "default") onTitleSortChange(null);
-            else onTitleSortChange(v as ExerciseTitleSort);
-          }}
-          className="flex-1 sm:flex-initial"
-        />
-        <div className="flex shrink-0 items-center justify-end gap-2">
-          <button type="button" id={createButtonId} className={buttonVariants({ size: "sm" })} onClick={onCreate}>
-            Создать упражнение
-          </button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className={cn("shrink-0 transition-opacity", listBusy && "opacity-70")}
-            aria-label={viewMode === "tiles" ? "Показать список" : "Показать плитки"}
-            title={viewMode === "tiles" ? "Список" : "Плитки"}
-            onClick={onToggleView}
-            aria-busy={listBusy}
-          >
-            {viewMode === "tiles" ? <List className="size-4" aria-hidden /> : <LayoutGrid className="size-4" aria-hidden />}
-          </Button>
-        </div>
+    <div className="flex flex-col gap-2 border-b border-border/60 pb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
+      <DoctorCatalogTitleSortSelect
+        value={titleSort ?? "default"}
+        onValueChange={(v) => {
+          if (v === "default") onTitleSortChange(null);
+          else onTitleSortChange(v as ExerciseTitleSort);
+        }}
+        className="min-w-0 flex-1 sm:max-w-[min(100%,20rem)]"
+      />
+      <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+        <p className="min-w-0 truncate text-xs text-muted-foreground">
+          {exerciseCount === 0 ? "Нет упражнений" : `Упражнений: ${exerciseCount}`}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className={cn("shrink-0 transition-opacity", listBusy && "opacity-70")}
+          aria-label={viewMode === "tiles" ? "Показать список" : "Показать плитки"}
+          title={viewMode === "tiles" ? "Список" : "Плитки"}
+          onClick={onToggleView}
+          aria-busy={listBusy}
+        >
+          {viewMode === "tiles" ? <List className="size-4" aria-hidden /> : <LayoutGrid className="size-4" aria-hidden />}
+        </Button>
       </div>
     </div>
   );
@@ -277,55 +299,38 @@ function ExercisesContent({
     );
 
   const rightPanel = (
-    <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm lg:border lg:shadow-sm">
-      <CardContent className="p-2">
-        <ExerciseForm
-          exercise={mobileSheet?.exercise ?? exerciseForDesktop}
-          saveAction={saveExerciseInline}
-          archiveAction={archiveExerciseInline}
-          backHref={listBackHref}
-          viewHint={viewMode}
-        />
-      </CardContent>
-    </Card>
+    <CatalogRightPane>
+      <ExerciseForm
+        exercise={mobileSheet?.exercise ?? exerciseForDesktop}
+        saveAction={saveExerciseInline}
+        archiveAction={archiveExerciseInline}
+        backHref={listBackHref}
+        viewHint={viewMode}
+      />
+    </CatalogRightPane>
   );
 
   return (
     <DoctorCatalogPageLayout
       toolbar={
         <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-              <div className="min-w-0 flex-1">
-                <ExercisesFiltersForm
-                  q={filters.q}
-                  regionRefId={filters.regionRefId}
-                  loadType={filters.loadType}
-                  view={viewMode}
-                  titleSort={titleSort}
-                  selectedId={desktopSelectedId}
-                />
-              </div>
-              <Link
-                href="/app/doctor/exercises/auto-create"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")}
-              >
-                Автосоздание
-              </Link>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="min-w-0 flex-1">
+              <ExercisesFiltersForm
+                q={filters.q}
+                regionRefId={filters.regionRefId}
+                loadType={filters.loadType}
+                view={viewMode}
+                titleSort={titleSort}
+                selectedId={desktopSelectedId}
+              />
             </div>
-            <SelectionToolbar
-              variant="sticky"
-              exerciseCount={displayExercises.length}
-              createButtonId="doctor-exercises-create-link-desktop"
-              onCreate={() => {
+            <CreateExerciseMenu
+              triggerId="doctor-exercises-create-link-desktop"
+              onNewExercise={() => {
                 setDesktopSelectedId(null);
                 setMobileSheet({ exercise: null });
               }}
-              viewMode={toolbarViewMode}
-              onToggleView={toggleViewMode}
-              titleSort={titleSort}
-              onTitleSortChange={changeTitleSort}
-              listBusy={isListPending}
             />
           </div>
         </div>
@@ -333,7 +338,19 @@ function ExercisesContent({
     >
       <CatalogSplitLayout
         left={
-          <CatalogLeftPane stickyToolbarRows={2}>
+          <CatalogLeftPane
+            stickyToolbarRows={1}
+            headerSlot={
+              <ExerciseCatalogListHeader
+                exerciseCount={displayExercises.length}
+                viewMode={toolbarViewMode}
+                onToggleView={toggleViewMode}
+                titleSort={titleSort}
+                onTitleSortChange={changeTitleSort}
+                listBusy={isListPending}
+              />
+            }
+          >
           <div
             className={cn(
               "min-h-0 flex-1 overflow-hidden transition-opacity",
@@ -397,7 +414,7 @@ function CatalogSplitLayoutSkeleton() {
             ))}
           </div>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl bg-card px-6 py-4">
           <div className="space-y-3">
             {Array.from({ length: 6 }).map((_, idx) => (
               <div key={idx} className="space-y-2">

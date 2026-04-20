@@ -389,7 +389,7 @@ export function AutoCreateExercisesClient() {
                   }}
                   disabled={!foldersLoaded}
                 >
-                  <SelectTrigger size="sm" className="h-8 w-full max-w-full min-w-0 text-left">
+                  <SelectTrigger size="sm" className="w-full max-w-full min-w-0 text-left">
                     <SelectValue placeholder="Папка">{folderSelectDisplayLabel}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -406,7 +406,7 @@ export function AutoCreateExercisesClient() {
               <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
                 <span className="text-xs text-muted-foreground">Порядок списка</span>
                 <Select value={listSortPreset} onValueChange={(v) => setListSortPreset(v as AutoCreateListSortPreset)}>
-                  <SelectTrigger size="sm" className="h-8 w-full text-left">
+                  <SelectTrigger size="sm" className="w-full text-left">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

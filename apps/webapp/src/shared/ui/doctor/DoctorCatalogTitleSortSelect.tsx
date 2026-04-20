@@ -32,7 +32,7 @@ export function DoctorCatalogTitleSortSelect({
     <div className={cn("flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem]", className)}>
       <span className="text-[11px] text-muted-foreground sm:sr-only">{label}</span>
       <Select value={value} onValueChange={(v) => onValueChange(v as TitleSortValue)}>
-        <SelectTrigger size="sm" className={cn("h-8 w-full text-left", triggerClassName)}>
+        <SelectTrigger size="sm" className={cn("w-full text-left", triggerClassName)}>
           <SelectValue>
             {value === "asc" ? "Название А→Я" : value === "desc" ? "Название Я→А" : "Сортировка"}
           </SelectValue>

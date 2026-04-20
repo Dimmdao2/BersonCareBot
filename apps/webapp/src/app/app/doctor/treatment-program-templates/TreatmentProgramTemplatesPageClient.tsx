@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
@@ -12,6 +11,7 @@ import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStic
 import { DoctorCatalogTitleSortSelect, type TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
@@ -162,11 +162,7 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
       </div>
     );
 
-  const desktopRight = (
-    <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-      <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">{rightInner}</CardContent>
-    </Card>
-  );
+  const desktopRight = <CatalogRightPane>{rightInner}</CatalogRightPane>;
 
   const mobileDetailOpen = mobileSheet != null;
 

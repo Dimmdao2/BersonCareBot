@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import type { TestSet } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
@@ -11,6 +10,7 @@ import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStic
 import { DoctorCatalogTitleSortSelect } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import {
@@ -130,11 +130,7 @@ export function TestSetsPageClient({ initialSets, initialSelectedId }: Props) {
       />
     );
 
-  const desktopRight = (
-    <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-      <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">{rightInner}</CardContent>
-    </Card>
-  );
+  const desktopRight = <CatalogRightPane>{rightInner}</CatalogRightPane>;
 
   const mobileDetailOpen = creating || mobileSheet != null;
 

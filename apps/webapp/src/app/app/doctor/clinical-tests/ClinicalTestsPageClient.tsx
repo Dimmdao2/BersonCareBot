@@ -16,6 +16,7 @@ import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStic
 import { DoctorCatalogTitleSortSelect, type TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { ClinicalTestForm } from "./ClinicalTestForm";
@@ -248,17 +249,15 @@ export function ClinicalTestsPageClient({
   );
 
   const rightPanel = (
-    <Card className="min-w-0 border-0 shadow-none sm:border sm:shadow-sm lg:border lg:shadow-sm">
-      <CardContent className="p-2">
-        <ClinicalTestForm
-          test={formTest ?? undefined}
-          saveAction={saveClinicalTestInline}
-          archiveAction={archiveClinicalTestInline}
-          backHref={CLINICAL_TESTS_PATH}
-          workspaceView={viewMode}
-        />
-      </CardContent>
-    </Card>
+    <CatalogRightPane>
+      <ClinicalTestForm
+        test={formTest ?? undefined}
+        saveAction={saveClinicalTestInline}
+        archiveAction={archiveClinicalTestInline}
+        backHref={CLINICAL_TESTS_PATH}
+        workspaceView={viewMode}
+      />
+    </CatalogRightPane>
   );
 
   return (

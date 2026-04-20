@@ -67,10 +67,10 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
           value={qInput}
           onChange={(e) => setQInput(e.target.value)}
           placeholder="Название"
-          className="w-56"
+          className="w-40"
         />
       </div>
-      <div className="min-w-[16rem]">
+      <div className="w-40 shrink-0">
         <label className="sr-only" htmlFor="ex-region">
           Регион
         </label>
@@ -87,7 +87,7 @@ export function ExercisesFiltersForm({ q, regionRefId, loadType, view, titleSort
           clearOptionLabel="Все регионы"
         />
       </div>
-      <div className="min-w-[16rem]">
+      <div className="w-40 shrink-0">
         <label className="sr-only" htmlFor="ex-load">
           Тип нагрузки
         </label>

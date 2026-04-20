@@ -536,7 +536,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
               aria-label="Поиск по названию или коду"
             />
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-              <SelectTrigger className="h-9 w-[11rem]" aria-label="Фильтр по статусу">
+              <SelectTrigger className="w-[11rem]" aria-label="Фильтр по статусу">
                 <SelectValue placeholder="Статус" />
               </SelectTrigger>
               <SelectContent>

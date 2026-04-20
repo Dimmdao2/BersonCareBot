@@ -464,7 +464,7 @@ export function MediaPickerPanel({
               value={listSortPreset}
               onValueChange={(v) => setListSortPreset(v as MediaPickerListSortPreset)}
             >
-              <SelectTrigger size="sm" className="h-8 w-full text-left">
+              <SelectTrigger size="sm" className="w-full text-left">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -489,7 +489,7 @@ export function MediaPickerPanel({
                   else onPickerFolderIdChange(v);
                 }}
               >
-                <SelectTrigger size="sm" className="h-8 w-full max-w-full min-w-0 text-left">
+                <SelectTrigger size="sm" className="w-full max-w-full min-w-0 text-left">
                   <SelectValue placeholder="Папка">{folderSelectDisplayLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>

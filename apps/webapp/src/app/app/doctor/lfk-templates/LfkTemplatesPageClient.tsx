@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,6 +23,7 @@ import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStic
 import { DoctorCatalogTitleSortSelect, type TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
+import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { PickerSearchField } from "@/shared/ui/PickerSearchField";
@@ -161,27 +161,25 @@ export function LfkTemplatesPageClient({ templates, exerciseCatalog, initialStat
     );
 
   const desktopRight = (
-    <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-      <CardContent className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
-        {selected ? (
-          <TemplateEditor template={selected} exerciseCatalog={exerciseCatalog} />
-        ) : (
-          <section className="flex max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
-            <p className="text-sm text-muted-foreground">
-              Задайте название черновика. После создания вы попадёте в конструктор, где можно добавить упражнения и
-              опубликовать шаблон.
-            </p>
-            <form action={createLfkTemplateDraft} className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="lfk-tpl-new-title-inline">Название</Label>
-                <Input id="lfk-tpl-new-title-inline" name="title" placeholder="Новый шаблон" />
-              </div>
-              <Button type="submit">Создать и открыть</Button>
-            </form>
-          </section>
-        )}
-      </CardContent>
-    </Card>
+    <CatalogRightPane>
+      {selected ? (
+        <TemplateEditor template={selected} exerciseCatalog={exerciseCatalog} />
+      ) : (
+        <section className="flex max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-sm text-muted-foreground">
+            Задайте название черновика. После создания вы попадёте в конструктор, где можно добавить упражнения и
+            опубликовать шаблон.
+          </p>
+          <form action={createLfkTemplateDraft} className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="lfk-tpl-new-title-inline">Название</Label>
+              <Input id="lfk-tpl-new-title-inline" name="title" placeholder="Новый шаблон" />
+            </div>
+            <Button type="submit">Создать и открыть</Button>
+          </form>
+        </section>
+      )}
+    </CatalogRightPane>
   );
 
   const mobileDetailOpen = mobileSheet != null;
@@ -194,7 +192,7 @@ export function LfkTemplatesPageClient({ templates, exerciseCatalog, initialStat
             <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem]">
               <span className="text-[11px] text-muted-foreground sm:sr-only">Статус</span>
               <Select value={statusSelectValue} onValueChange={applyStatusFilter}>
-                <SelectTrigger size="sm" className="h-8 w-full text-left">
+                <SelectTrigger size="sm" className="w-full text-left">
                   <SelectValue placeholder="Статус" />
                 </SelectTrigger>
                 <SelectContent>

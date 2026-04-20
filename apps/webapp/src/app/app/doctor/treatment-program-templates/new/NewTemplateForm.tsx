@@ -88,7 +88,7 @@ export function NewTemplateForm({
         <div className="flex flex-col gap-2">
           <Label htmlFor={`${titleInputId}-status`}>Статус</Label>
           <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
-            <SelectTrigger id={`${titleInputId}-status`} size="sm" className="h-8 w-full max-w-md text-left">
+            <SelectTrigger id={`${titleInputId}-status`} size="sm" className="w-full max-w-md text-left">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
