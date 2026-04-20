@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { isStaleServerActionError } from "@/shared/lib/isStaleServerActionError";
+import { safeReload } from "@/shared/lib/safeReload";
 
 function hardReload(): void {
   if (typeof window === "undefined") return;
@@ -23,6 +25,12 @@ export function SegmentRouteError({
   useEffect(() => {
     console.error(error);
   }, [error]);
+  const isStaleAction = isStaleServerActionError(error);
+
+  useEffect(() => {
+    if (!isStaleAction) return;
+    void safeReload("stale-server-action");
+  }, [isStaleAction]);
 
   const message = error.message || "Не удалось загрузить раздел.";
 
@@ -40,7 +48,17 @@ export function SegmentRouteError({
         <Button type="button" variant="secondary" onClick={() => reset()}>
           Попробовать снова
         </Button>
-        <Button type="button" variant="outline" onClick={() => hardReload()}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            if (isStaleAction) {
+              void safeReload("stale-server-action");
+              return;
+            }
+            hardReload();
+          }}
+        >
           Обновить страницу
         </Button>
       </div>

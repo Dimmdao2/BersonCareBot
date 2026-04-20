@@ -6,6 +6,9 @@
  * no providers/context from root layout, so prerender of /_global-error does not hit null React context.
  */
 import type { ReactNode } from "react";
+import { useEffect, useRef } from "react";
+import { isStaleServerActionError } from "@/shared/lib/isStaleServerActionError";
+import { safeReload } from "@/shared/lib/safeReload";
 
 function messageLooksLikeChunkFailure(message: string): boolean {
   const m = message.toLowerCase();
@@ -47,8 +50,16 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }): ReactNode {
+  const staleAutoReloadTriggeredRef = useRef(false);
   const message = error.message || "Не удалось загрузить страницу.";
   const isChunkError = isChunkLoadFailure(error);
+  const isStaleAction = isStaleServerActionError(error);
+
+  useEffect(() => {
+    if (!isStaleAction || staleAutoReloadTriggeredRef.current) return;
+    staleAutoReloadTriggeredRef.current = true;
+    void safeReload("stale-server-action");
+  }, [isStaleAction]);
 
   return (
     <html lang="ru">
@@ -65,11 +76,15 @@ export default function GlobalError({
               hardReloadApp();
               return;
             }
+            if (isStaleAction) {
+              void safeReload("stale-server-action");
+              return;
+            }
             reset();
           }}
           style={{ marginTop: "1rem", padding: "0.5rem 1rem" }}
         >
-          {isChunkError ? "Обновить приложение" : "Попробовать снова"}
+          {isChunkError || isStaleAction ? "Обновить приложение" : "Попробовать снова"}
         </button>
       </body>
     </html>

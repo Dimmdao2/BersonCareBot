@@ -1,4 +1,5 @@
 import { putPartWithProgress, UploadRequestError } from "@/shared/ui/media/uploadWithProgress";
+import { beginBusy, endBusy } from "@/shared/lib/busyRegistry";
 
 export async function libraryMultipartAbort(sessionId: string): Promise<void> {
   await fetch("/api/media/multipart/abort", {
@@ -55,6 +56,8 @@ export async function libraryMultipartUpload(params: {
   signal: AbortSignal;
   onSessionReady?: (sessionId: string) => void;
 }): Promise<{ url: string; mediaId: string }> {
+  const busyId = `media-upload:${params.file.name || "upload"}:${params.file.size}:${Date.now()}`;
+  beginBusy(busyId);
   const mime = (params.file.type || "application/octet-stream").toLowerCase();
   const totalBytes = params.file.size;
 
@@ -186,5 +189,7 @@ export async function libraryMultipartUpload(params: {
       await libraryMultipartAbort(sessionNeedsAbort);
     }
     throw e;
+  } finally {
+    endBusy(busyId);
   }
 }

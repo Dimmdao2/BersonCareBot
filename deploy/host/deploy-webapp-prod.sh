@@ -59,6 +59,8 @@ require_sudo_rule "webapp restart" /bin/systemctl restart "${WEBAPP_SERVICE}"
 require_sudo_rule "webapp status check" /bin/systemctl is-active --quiet "${WEBAPP_SERVICE}"
 
 export CI=true
+export BUILD_ID="${BUILD_ID:-$(git rev-parse --short HEAD)-$(date +%s)}"
+export NEXT_PUBLIC_BUILD_ID="${NEXT_PUBLIC_BUILD_ID:-${BUILD_ID}}"
 pnpm install --frozen-lockfile
 
 if [ -d apps/webapp/.next ]; then
@@ -66,6 +68,11 @@ if [ -d apps/webapp/.next ]; then
 fi
 pnpm --dir apps/webapp build
 bash deploy/host/sync-webapp-standalone-assets.sh
+RUNTIME_BUILD_ID_FILE=apps/webapp/.next/standalone/apps/webapp/.runtime-build-id
+cat > "${RUNTIME_BUILD_ID_FILE}" <<EOF
+BUILD_ID=${BUILD_ID}
+NEXT_PUBLIC_BUILD_ID=${NEXT_PUBLIC_BUILD_ID}
+EOF
 STANDALONE_CHUNKS=apps/webapp/.next/standalone/apps/webapp/.next/static/chunks
 sample_chunk="$(find "${STANDALONE_CHUNKS}" -maxdepth 1 -type f -name "*.js" | sort | sed -n '1p' | xargs -r basename)"
 [ -n "${sample_chunk}" ] || fail "Standalone has no JS under ${STANDALONE_CHUNKS} after sync."
