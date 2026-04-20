@@ -9,7 +9,7 @@
     "worker:dev": "pnpm --dir apps/integrator worker:dev",
     "webapp:dev": "pnpm --dir apps/webapp dev",
     "build": "pnpm --dir packages/booking-rubitime-sync run build && pnpm --dir apps/integrator build",
-    "build:webapp": "pnpm --dir packages/booking-rubitime-sync run build && pnpm --dir apps/webapp build",
+    "build:webapp": "bash scripts/ensure-booking-sync-built.sh && pnpm --dir apps/webapp build",
     "build:admin": "cd admin && pnpm install && pnpm run build",
     "start": "pnpm --dir apps/integrator start",
     "webapp:start": "pnpm --dir apps/webapp start",
