@@ -16,6 +16,11 @@ import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import {
+  doctorCatalogViewStorageKey,
+  readDoctorCatalogViewPreference,
+  writeDoctorCatalogViewPreference,
+} from "@/shared/lib/doctorCatalogViewPreference";
+import {
   DoctorCatalogFiltersToolbar,
   DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
@@ -53,6 +58,8 @@ type Props = {
   listPromise: Promise<Exercise[]>;
   selectedExercisePromise: Promise<Exercise | null>;
   initialViewMode: ExercisesViewMode;
+  /** Если false — режим подставляется из localStorage (последний выбор на этой странице). */
+  viewLockedByUrl: boolean;
   initialTitleSort: ExerciseTitleSort | null;
   filters: {
     q: string;
@@ -390,6 +397,7 @@ export function ExercisesPageClient({
   listPromise,
   selectedExercisePromise,
   initialViewMode,
+  viewLockedByUrl,
   initialTitleSort,
   filters,
 }: Props) {
@@ -401,9 +409,17 @@ export function ExercisesPageClient({
   const [isListPending, startListTransition] = useTransition();
 
   useEffect(() => {
-    setViewMode(initialViewMode);
-    setToolbarViewMode(initialViewMode);
-  }, [initialViewMode]);
+    if (viewLockedByUrl) {
+      setViewMode(initialViewMode);
+      setToolbarViewMode(initialViewMode);
+      return;
+    }
+    const saved = readDoctorCatalogViewPreference(doctorCatalogViewStorageKey.exercises);
+    if (saved) {
+      setViewMode(saved);
+      setToolbarViewMode(saved);
+    }
+  }, [viewLockedByUrl, initialViewMode]);
 
   useEffect(() => {
     setTitleSort(initialTitleSort);
@@ -412,6 +428,7 @@ export function ExercisesPageClient({
   const toggleViewMode = () => {
     const next = toolbarViewMode === "tiles" ? "list" : "tiles";
     setToolbarViewMode(next);
+    writeDoctorCatalogViewPreference(doctorCatalogViewStorageKey.exercises, next);
     startListTransition(() => {
       setViewMode(next);
     });

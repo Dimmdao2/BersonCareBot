@@ -6,6 +6,11 @@ import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ClinicalTest } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
+import {
+  doctorCatalogViewStorageKey,
+  readDoctorCatalogViewPreference,
+  writeDoctorCatalogViewPreference,
+} from "@/shared/lib/doctorCatalogViewPreference";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
@@ -36,6 +41,7 @@ type Props = {
   initialItems: ClinicalTest[];
   initialSelectedId: string | null;
   initialViewMode: ClinicalTestsViewMode;
+  viewLockedByUrl: boolean;
   initialTitleSort: ClinicalTestTitleSort | null;
   filters: {
     q: string;
@@ -354,6 +360,7 @@ export function ClinicalTestsPageClient({
   initialItems,
   initialSelectedId,
   initialViewMode,
+  viewLockedByUrl,
   initialTitleSort,
   filters,
 }: Props) {
@@ -365,9 +372,17 @@ export function ClinicalTestsPageClient({
   const [isListPending, startListTransition] = useTransition();
 
   useEffect(() => {
-    setViewMode(initialViewMode);
-    setToolbarViewMode(initialViewMode);
-  }, [initialViewMode]);
+    if (viewLockedByUrl) {
+      setViewMode(initialViewMode);
+      setToolbarViewMode(initialViewMode);
+      return;
+    }
+    const saved = readDoctorCatalogViewPreference(doctorCatalogViewStorageKey.clinicalTests);
+    if (saved) {
+      setViewMode(saved);
+      setToolbarViewMode(saved);
+    }
+  }, [viewLockedByUrl, initialViewMode]);
 
   useEffect(() => {
     setTitleSort(initialTitleSort);
@@ -376,6 +391,7 @@ export function ClinicalTestsPageClient({
   const toggleViewMode = () => {
     const next = toolbarViewMode === "tiles" ? "list" : "tiles";
     setToolbarViewMode(next);
+    writeDoctorCatalogViewPreference(doctorCatalogViewStorageKey.clinicalTests, next);
     startListTransition(() => {
       setViewMode(next);
     });

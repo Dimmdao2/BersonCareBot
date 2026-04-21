@@ -10,6 +10,11 @@ import {
 import type { Recommendation, RecommendationMediaItem } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
+import {
+  doctorCatalogViewStorageKey,
+  readDoctorCatalogViewPreference,
+  writeDoctorCatalogViewPreference,
+} from "@/shared/lib/doctorCatalogViewPreference";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { recommendationMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
@@ -41,6 +46,7 @@ type Props = {
   initialItems: Recommendation[];
   initialSelectedId: string | null;
   initialViewMode: RecommendationsViewMode;
+  viewLockedByUrl: boolean;
   initialTitleSort: RecommendationTitleSort | null;
   filters: {
     q: string;
@@ -423,6 +429,7 @@ export function RecommendationsPageClient({
   initialItems,
   initialSelectedId,
   initialViewMode,
+  viewLockedByUrl,
   initialTitleSort,
   filters,
 }: Props) {
@@ -434,9 +441,17 @@ export function RecommendationsPageClient({
   const [isListPending, startListTransition] = useTransition();
 
   useEffect(() => {
-    setViewMode(initialViewMode);
-    setToolbarViewMode(initialViewMode);
-  }, [initialViewMode]);
+    if (viewLockedByUrl) {
+      setViewMode(initialViewMode);
+      setToolbarViewMode(initialViewMode);
+      return;
+    }
+    const saved = readDoctorCatalogViewPreference(doctorCatalogViewStorageKey.recommendations);
+    if (saved) {
+      setViewMode(saved);
+      setToolbarViewMode(saved);
+    }
+  }, [viewLockedByUrl, initialViewMode]);
 
   useEffect(() => {
     setTitleSort(initialTitleSort);
@@ -445,6 +460,7 @@ export function RecommendationsPageClient({
   const toggleViewMode = () => {
     const next = toolbarViewMode === "tiles" ? "list" : "tiles";
     setToolbarViewMode(next);
+    writeDoctorCatalogViewPreference(doctorCatalogViewStorageKey.recommendations, next);
     startListTransition(() => {
       setViewMode(next);
     });

@@ -2,11 +2,8 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
-import {
-  ClinicalTestsPageClient,
-  type ClinicalTestsViewMode,
-  type ClinicalTestTitleSort,
-} from "./ClinicalTestsPageClient";
+import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
+import { ClinicalTestsPageClient, type ClinicalTestTitleSort } from "./ClinicalTestsPageClient";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -46,7 +43,9 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId =
     rawSelected && items.some((t) => t.id === rawSelected) ? rawSelected : null;
-  const initialViewMode: ClinicalTestsViewMode = sp.view === "list" ? "list" : "tiles";
+  const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
+    typeof sp.view === "string" ? sp.view : undefined,
+  );
 
   return (
     <AppShell title="Клинические тесты" user={session.user} variant="doctor" backHref="/app/doctor">
@@ -54,6 +53,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
         initialItems={items}
         initialSelectedId={initialSelectedId}
         initialViewMode={initialViewMode}
+        viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
         filters={{ q, regionRefId, loadType }}
       />

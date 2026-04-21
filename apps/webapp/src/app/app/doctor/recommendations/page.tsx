@@ -2,11 +2,8 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import { AppShell } from "@/shared/ui/AppShell";
-import {
-  RecommendationsPageClient,
-  type RecommendationsViewMode,
-  type RecommendationTitleSort,
-} from "./RecommendationsPageClient";
+import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
+import { RecommendationsPageClient, type RecommendationTitleSort } from "./RecommendationsPageClient";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -39,7 +36,9 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId =
     rawSelected && items.some((r) => r.id === rawSelected) ? rawSelected : null;
-  const initialViewMode: RecommendationsViewMode = sp.view === "list" ? "list" : "tiles";
+  const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
+    typeof sp.view === "string" ? sp.view : undefined,
+  );
 
   return (
     <AppShell title="Рекомендации" user={session.user} variant="doctor" backHref="/app/doctor">
@@ -47,6 +46,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
         initialItems={items}
         initialSelectedId={initialSelectedId}
         initialViewMode={initialViewMode}
+        viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
         filters={{ q, regionRefId, domain }}
       />

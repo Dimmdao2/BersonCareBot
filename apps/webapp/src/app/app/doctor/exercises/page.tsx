@@ -1,7 +1,8 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { AppShell } from "@/shared/ui/AppShell";
-import { ExercisesPageClient, type ExercisesViewMode } from "./ExercisesPageClient";
+import { doctorCatalogViewFromSearchParams } from "@/shared/lib/doctorCatalogViewPreference";
+import { ExercisesPageClient } from "./ExercisesPageClient";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -27,7 +28,9 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
     sp.load === "other"
       ? sp.load
       : undefined;
-  const viewMode: ExercisesViewMode = sp.view === "list" ? "list" : "tiles";
+  const { initialViewMode, viewLockedByUrl } = doctorCatalogViewFromSearchParams(
+    typeof sp.view === "string" ? sp.view : undefined,
+  );
   const selectedExerciseId = typeof sp.selected === "string" && sp.selected.trim() ? sp.selected.trim() : null;
   const titleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
@@ -49,7 +52,8 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
       <ExercisesPageClient
         listPromise={listPromise}
         selectedExercisePromise={selectedExercisePromise}
-        initialViewMode={viewMode}
+        initialViewMode={initialViewMode}
+        viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
         filters={{ q, regionRefId, loadType }}
       />
