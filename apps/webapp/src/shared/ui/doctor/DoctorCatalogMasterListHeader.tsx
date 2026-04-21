@@ -47,7 +47,7 @@ export function DoctorCatalogMasterListHeader({
           onClick={onToggleView}
           aria-busy={listBusy}
         >
-          {viewMode === "tiles" ? <List className="size-4" aria-hidden /> : <LayoutGrid className="size-4" aria-hidden />}
+          {viewMode === "tiles" ? <LayoutGrid className="size-4" aria-hidden /> : <List className="size-4" aria-hidden />}
         </Button>
       </div>
     </div>
