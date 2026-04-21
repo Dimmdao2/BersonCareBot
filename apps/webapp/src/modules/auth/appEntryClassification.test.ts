@@ -49,7 +49,7 @@ describe("appEntryClassification", () => {
   it("classifies browser_interactive when dev token is present without allow flag", () => {
     expect(
       classifyUnauthenticatedAppEntry({
-        platformEntry: "web",
+        platformEntry: "standalone",
         messengerSurface: null,
         token: "dev:admin",
         allowStandaloneTokenExchange: false,
@@ -60,7 +60,7 @@ describe("appEntryClassification", () => {
   it("classifies token_exchange when standalone token exchange is allowed", () => {
     expect(
       classifyUnauthenticatedAppEntry({
-        platformEntry: "web",
+        platformEntry: "standalone",
         messengerSurface: null,
         token: "dev:admin",
         allowStandaloneTokenExchange: true,
