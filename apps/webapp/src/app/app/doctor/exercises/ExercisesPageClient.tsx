@@ -255,6 +255,7 @@ function ExercisesContent({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <div className="min-w-0 flex-1">
               <ExercisesFiltersForm
+                idPrefix="ex"
                 q={filters.q}
                 regionRefId={filters.regionRefId}
                 loadType={filters.loadType}

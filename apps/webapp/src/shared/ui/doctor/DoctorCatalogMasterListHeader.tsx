@@ -34,7 +34,6 @@ export function DoctorCatalogMasterListHeader({
           if (v === "default") onTitleSortChange(null);
           else onTitleSortChange(v as CatalogMasterTitleSort);
         }}
-        className="min-w-0 flex-1 sm:max-w-[min(100%,20rem)]"
       />
       <div className="flex shrink-0 items-center gap-2 sm:justify-end">
         <p className="min-w-0 truncate text-xs text-muted-foreground">{summaryLine}</p>

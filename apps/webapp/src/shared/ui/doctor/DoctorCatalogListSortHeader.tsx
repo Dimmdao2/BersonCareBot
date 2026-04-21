@@ -23,8 +23,6 @@ export function DoctorCatalogListSortHeader({
           if (v === "default") onTitleSortChange(null);
           else onTitleSortChange(v as CatalogMasterTitleSort);
         }}
-        className="w-[160px] max-w-[160px] shrink-0 min-w-0"
-        triggerClassName="w-full"
       />
       <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground sm:text-end">{summaryLine}</p>
     </div>

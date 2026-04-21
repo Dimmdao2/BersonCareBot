@@ -6,7 +6,9 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { Recommendation, RecommendationArchiveScope } from "@/modules/recommendations/types";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import type { DoctorCatalogListStatus } from "@/shared/lib/doctorCatalogListStatus";
+import type { Recommendation } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { archiveRecommendation, saveRecommendation } from "./actions";
@@ -41,11 +43,13 @@ type Props = {
   backHref?: string;
   /** Режим каталога master-detail — передаётся как `view` для редиректа после сохранения. */
   workspaceView?: "tiles" | "list";
-  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `scope`). */
+  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `status`, `region`, `load`). */
   workspaceListPreserve?: {
     q?: string;
     titleSort?: "asc" | "desc" | null;
-    scope?: RecommendationArchiveScope;
+    catalogListStatus?: DoctorCatalogListStatus;
+    regionRefId?: string;
+    loadType?: ExerciseLoadType;
   };
   saveAction?: (
     _prev: SaveRecommendationState | null,
@@ -100,8 +104,19 @@ export function RecommendationForm({
         {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
           <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
         ) : null}
-        {workspaceListPreserve?.scope != null && workspaceListPreserve.scope !== "active" ? (
-          <input type="hidden" name="listScope" value={workspaceListPreserve.scope} />
+        {workspaceListPreserve?.catalogListStatus != null &&
+        workspaceListPreserve.catalogListStatus !== "published" ? (
+          <input type="hidden" name="listStatus" value={workspaceListPreserve.catalogListStatus} />
+        ) : null}
+        {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+          <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+        ) : null}
+        {workspaceListPreserve?.loadType === "strength" ||
+        workspaceListPreserve?.loadType === "stretch" ||
+        workspaceListPreserve?.loadType === "balance" ||
+        workspaceListPreserve?.loadType === "cardio" ||
+        workspaceListPreserve?.loadType === "other" ? (
+          <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
         ) : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
@@ -180,8 +195,19 @@ export function RecommendationForm({
           {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
             <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
           ) : null}
-          {workspaceListPreserve?.scope != null && workspaceListPreserve.scope !== "active" ? (
-            <input type="hidden" name="listScope" value={workspaceListPreserve.scope} />
+          {workspaceListPreserve?.catalogListStatus != null &&
+          workspaceListPreserve.catalogListStatus !== "published" ? (
+            <input type="hidden" name="listStatus" value={workspaceListPreserve.catalogListStatus} />
+          ) : null}
+          {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+            <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+          ) : null}
+          {workspaceListPreserve?.loadType === "strength" ||
+          workspaceListPreserve?.loadType === "stretch" ||
+          workspaceListPreserve?.loadType === "balance" ||
+          workspaceListPreserve?.loadType === "cardio" ||
+          workspaceListPreserve?.loadType === "other" ? (
+            <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
           ) : null}
           <Button type="submit" variant="destructive">
             Архивировать

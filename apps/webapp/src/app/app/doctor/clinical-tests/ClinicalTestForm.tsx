@@ -6,6 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ClinicalTest } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
@@ -54,8 +55,13 @@ type ClinicalTestFormProps = {
   backHref?: string;
   /** Режим каталога master-detail — передаётся в форму как `view` для редиректа после сохранения. */
   workspaceView?: "tiles" | "list";
-  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`). */
-  workspaceListPreserve?: { q?: string; titleSort?: "asc" | "desc" | null };
+  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `region`, `load`). */
+  workspaceListPreserve?: {
+    q?: string;
+    titleSort?: "asc" | "desc" | null;
+    regionRefId?: string;
+    loadType?: ExerciseLoadType;
+  };
   saveAction?: (
     _prev: SaveClinicalTestState | null,
     formData: FormData,
@@ -108,6 +114,16 @@ export function ClinicalTestForm({
         ) : null}
         {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
           <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+        ) : null}
+        {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+          <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+        ) : null}
+        {workspaceListPreserve?.loadType === "strength" ||
+        workspaceListPreserve?.loadType === "stretch" ||
+        workspaceListPreserve?.loadType === "balance" ||
+        workspaceListPreserve?.loadType === "cardio" ||
+        workspaceListPreserve?.loadType === "other" ? (
+          <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
         ) : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
@@ -207,6 +223,16 @@ export function ClinicalTestForm({
           ) : null}
           {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
             <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+          ) : null}
+          {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
+            <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
+          ) : null}
+          {workspaceListPreserve?.loadType === "strength" ||
+          workspaceListPreserve?.loadType === "stretch" ||
+          workspaceListPreserve?.loadType === "balance" ||
+          workspaceListPreserve?.loadType === "cardio" ||
+          workspaceListPreserve?.loadType === "other" ? (
+            <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
           ) : null}
           <Button type="submit" variant="destructive">
             Архивировать

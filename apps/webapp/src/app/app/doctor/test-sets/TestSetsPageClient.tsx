@@ -1,28 +1,28 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Button, buttonVariants } from "@/components/ui/button";
-import type { TestSet, TestSetArchiveScope } from "@/modules/tests/types";
+import { Button } from "@/components/ui/button";
+import {
+  DOCTOR_CATALOG_TEMPLATE_STATUS_FILTER_OPTIONS,
+  type DoctorCatalogListStatus,
+} from "@/shared/lib/doctorCatalogListStatus";
+import type { TestSet } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
-import {
-  DoctorCatalogTitleSortSelect,
-  type TitleSortValue,
-} from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
+import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
+import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import {
+  doctorCatalogToolbarPrimaryActionClassName,
+  DoctorCatalogFiltersToolbar,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
+import { DoctorCatalogToolbarChoiceInput } from "@/shared/ui/doctor/DoctorCatalogToolbarChoiceInput";
 import {
   archiveDoctorTestSetInline,
   saveDoctorTestSetInline,
@@ -31,33 +31,23 @@ import {
 import { TestSetForm } from "./TestSetForm";
 import { TestSetItemsForm } from "./TestSetItemsForm";
 import { TEST_SETS_PATH } from "./paths";
-import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
-
-const SCOPE_FILTER_LABELS: Record<string, string> = {
-  active: "Активные",
-  all: "Все",
-  archived: "Архив",
-};
-
 type Props = {
   initialSets: TestSet[];
   initialSelectedId: string | null;
-  initialArchiveScope: TestSetArchiveScope;
+  initialCatalogStatus: DoctorCatalogListStatus;
 };
 
 export function TestSetsPageClient({
   initialSets,
   initialSelectedId,
-  initialArchiveScope,
+  initialCatalogStatus,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchFieldId = useId();
   const [searchQuery, setSearchQuery] = useState("");
-  const [titleSort, setTitleSort] = useState<TitleSortValue>("default");
+  const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(null);
+  const [isListPending, startListTransition] = useTransition();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [mobileSheet, setMobileSheet] = useState<TestSet | null>(null);
@@ -73,20 +63,28 @@ export function TestSetsPageClient({
     });
   }, [initialSelectedId, initialSets]);
 
-  const scopeSelectValue = initialArchiveScope;
-
-  function applyArchiveScope(next: string | null) {
+  function applyCatalogStatus(next: DoctorCatalogListStatus) {
     const p = new URLSearchParams(searchParams.toString());
-    if (next == null || next === "" || next === "active") {
-      p.delete("scope");
-    } else {
-      p.set("scope", next);
-    }
+    p.delete("scope");
+    p.set("status", next);
     const qs = p.toString();
     router.replace(qs ? `/app/doctor/test-sets?${qs}` : "/app/doctor/test-sets");
   }
 
-  const displayList = useDoctorCatalogDisplayList(initialSets, searchQuery, titleSort);
+  const displayList = useDoctorCatalogDisplayList(
+    initialSets,
+    searchQuery,
+    titleSort === null ? "default" : titleSort,
+  );
+
+  const titleSortForHeader: CatalogMasterTitleSort | null =
+    titleSort === "asc" || titleSort === "desc" ? titleSort : null;
+
+  const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
+    startListTransition(() => {
+      setTitleSort(next);
+    });
+  };
 
   useDoctorCatalogMasterSelectionSync({
     displayList,
@@ -100,9 +98,9 @@ export function TestSetsPageClient({
 
   const renderRows = (onPick: (s: TestSet) => void, activeId: string | null) =>
     displayList.length === 0 ? (
-      <p className="px-2 pb-2 text-sm text-muted-foreground">Нет наборов по заданным условиям.</p>
+      <p className="text-sm text-muted-foreground">Нет наборов по заданным условиям.</p>
     ) : (
-      <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto lg:max-h-none lg:overflow-visible">
+      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {displayList.map((s) => {
           const active = activeId === s.id;
           return (
@@ -173,28 +171,17 @@ export function TestSetsPageClient({
   const mobileDetailOpen = creating || mobileSheet != null;
 
   const toolbar = (
-    <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+    <DoctorCatalogFiltersToolbar
+      filters={
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem]">
-            <span className="text-[11px] text-muted-foreground sm:sr-only">Наборы</span>
-            <Select value={scopeSelectValue} onValueChange={applyArchiveScope}>
-              <SelectTrigger size="sm" className="w-full max-w-full text-left">
-                <SelectValue placeholder="Активные">
-                  {(val: unknown) => {
-                    const key = val == null || val === "" ? "active" : String(val);
-                    return SCOPE_FILTER_LABELS[key] ?? SCOPE_FILTER_LABELS.active;
-                  }}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Активные</SelectItem>
-                <SelectItem value="all">Все</SelectItem>
-                <SelectItem value="archived">Архив</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex min-w-0 flex-col gap-1 sm:max-w-[14rem]">
+          <DoctorCatalogToolbarChoiceInput
+            id={`${searchFieldId}-scope`}
+            aria-label="Статус списка"
+            value={initialCatalogStatus}
+            onValueChange={(v) => applyCatalogStatus(v as DoctorCatalogListStatus)}
+            options={DOCTOR_CATALOG_TEMPLATE_STATUS_FILTER_OPTIONS}
+          />
+          <div className="w-[220px] shrink-0">
             <label htmlFor={searchFieldId} className="sr-only">
               Поиск по названию
             </label>
@@ -202,34 +189,27 @@ export function TestSetsPageClient({
               id={searchFieldId}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Название набора"
+              placeholder="Поиск по названию"
               autoComplete="off"
-              className="w-full min-w-0 sm:w-40"
+              className="w-full"
             />
           </div>
-          <DoctorCatalogTitleSortSelect value={titleSort} onValueChange={setTitleSort} />
         </div>
-        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-          <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
-            {displayList.length === 0 ? "Нет наборов" : `Наборов: ${displayList.length}`}
-          </p>
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "default", size: "sm" }),
-              "box-border h-[32px] min-h-[32px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5",
-            )}
-            onClick={() => {
-              setCreating(true);
-              setSelectedId(null);
-              setMobileSheet(null);
-            }}
-          >
-            Создать набор
-          </button>
-        </div>
-      </div>
-    </div>
+      }
+      end={
+        <button
+          type="button"
+          className={doctorCatalogToolbarPrimaryActionClassName}
+          onClick={() => {
+            setCreating(true);
+            setSelectedId(null);
+            setMobileSheet(null);
+          }}
+        >
+          Создать
+        </button>
+      }
+    />
   );
 
   return (
@@ -237,12 +217,33 @@ export function TestSetsPageClient({
       <CatalogSplitLayout
         className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={
-          <CatalogLeftPane stickySplit={false} stickyToolbarRows={1} className="h-full">
-            {renderRows((s) => {
-              setCreating(false);
-              setSelectedId(s.id);
-              setMobileSheet(s);
-            }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
+          <CatalogLeftPane
+            stickySplit={false}
+            stickyToolbarRows={1}
+            className="h-full"
+            headerSlot={
+              <DoctorCatalogListSortHeader
+                summaryLine={
+                  displayList.length === 0 ? "Нет наборов" : `Наборов: ${displayList.length}`
+                }
+                titleSort={titleSortForHeader}
+                onTitleSortChange={changeTitleSort}
+              />
+            }
+          >
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-hidden transition-opacity",
+                isListPending && "opacity-80",
+              )}
+              aria-busy={isListPending}
+            >
+              {renderRows((s) => {
+                setCreating(false);
+                setSelectedId(s.id);
+                setMobileSheet(s);
+              }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
+            </div>
           </CatalogLeftPane>
         }
         right={desktopRight}

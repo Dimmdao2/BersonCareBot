@@ -23,6 +23,10 @@ export type ClinicalTestFilter = {
   includeArchived?: boolean;
   search?: string | null;
   testType?: string | null;
+  /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */
+  regionRefId?: string | null;
+  /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */
+  loadType?: import("@/modules/lfk-exercises/types").ExerciseLoadType | null;
 };
 
 export type CreateClinicalTestInput = {

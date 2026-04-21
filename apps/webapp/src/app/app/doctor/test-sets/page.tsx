@@ -1,11 +1,14 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { TestSetArchiveScope } from "@/modules/tests/types";
+import {
+  parseDoctorCatalogListStatus,
+  testSetArchiveScopeFromCatalogStatus,
+} from "@/shared/lib/doctorCatalogListStatus";
 import { AppShell } from "@/shared/ui/AppShell";
 import { TestSetsPageClient } from "./TestSetsPageClient";
 
 type PageProps = {
-  searchParams?: Promise<{ selected?: string; scope?: string }>;
+  searchParams?: Promise<{ selected?: string; scope?: string; status?: string }>;
 };
 
 export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
@@ -13,9 +16,14 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
   const deps = buildAppDeps();
 
   const sp = (await searchParams) ?? {};
-  const scopeRaw = typeof sp.scope === "string" ? sp.scope.trim() : "";
-  const archiveScope: TestSetArchiveScope =
-    scopeRaw === "all" || scopeRaw === "archived" ? scopeRaw : "active";
+  const catalogListStatus = parseDoctorCatalogListStatus(
+    {
+      status: typeof sp.status === "string" ? sp.status : undefined,
+      scope: typeof sp.scope === "string" ? sp.scope : undefined,
+    },
+    "published",
+  );
+  const archiveScope = testSetArchiveScopeFromCatalogStatus(catalogListStatus);
 
   const items = await deps.testSets.listTestSets({ archiveScope });
 
@@ -27,7 +35,7 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
       <TestSetsPageClient
         initialSets={items}
         initialSelectedId={initialSelectedId}
-        initialArchiveScope={archiveScope}
+        initialCatalogStatus={catalogListStatus}
       />
     </AppShell>
   );

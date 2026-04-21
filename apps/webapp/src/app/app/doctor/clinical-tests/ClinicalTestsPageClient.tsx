@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ClinicalTest } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
@@ -19,7 +20,7 @@ import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import { ClinicalTestForm } from "./ClinicalTestForm";
 import { archiveClinicalTestInline, saveClinicalTestInline } from "./actionsInline";
-import { ClinicalTestsFiltersForm } from "./ClinicalTestsFiltersForm";
+import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { Card, CardContent } from "@/components/ui/card";
 
 export type ClinicalTestsViewMode = "tiles" | "list";
@@ -37,6 +38,8 @@ type Props = {
   initialTitleSort: ClinicalTestTitleSort | null;
   filters: {
     q: string;
+    regionRefId?: string;
+    loadType?: ExerciseLoadType;
   };
 };
 
@@ -145,10 +148,11 @@ function ClinicalTestsContent({
   useEffect(() => {
     if (!initialSelectedId) return;
     const found = initialItems.find((t) => t.id === initialSelectedId);
-    if (found) {
+    if (!found) return;
+    queueMicrotask(() => {
       setDesktopSelectedId(found.id);
       setMobileSheet({ test: found });
-    }
+    });
   }, [initialSelectedId, initialItems, setDesktopSelectedId, setMobileSheet]);
 
   const displayTests = useMemo(() => {
@@ -250,7 +254,12 @@ function ClinicalTestsContent({
         saveAction={saveClinicalTestInline}
         archiveAction={archiveClinicalTestInline}
         workspaceView={viewMode}
-        workspaceListPreserve={{ q: filters.q, titleSort }}
+        workspaceListPreserve={{
+          q: filters.q,
+          titleSort,
+          regionRefId: filters.regionRefId,
+          loadType: filters.loadType,
+        }}
       />
     </CatalogRightPane>
   );
@@ -261,8 +270,11 @@ function ClinicalTestsContent({
         <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <div className="min-w-0 flex-1">
-              <ClinicalTestsFiltersForm
+              <DoctorCatalogFiltersForm
+                idPrefix="ct"
                 q={filters.q}
+                regionRefId={filters.regionRefId}
+                loadType={filters.loadType}
                 view={viewMode}
                 titleSort={titleSort}
                 selectedId={desktopSelectedId}

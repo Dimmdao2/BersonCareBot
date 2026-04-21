@@ -2,21 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
-import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStickyToolbar";
 import type { TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
-import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
+import {
+  doctorCatalogToolbarPrimaryActionClassName,
+  DoctorCatalogFiltersToolbar,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
-import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import {
   TreatmentProgramConstructorClient,
   type TreatmentProgramLibraryPickers,
@@ -172,25 +174,28 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
   const mobileDetailOpen = mobileSheet != null;
 
   const toolbar = (
-    <DoctorCatalogStickyToolbar>
-      <DoctorCatalogToolbarMainRow
-        start={
-          <PickerSearchField
+    <DoctorCatalogFiltersToolbar
+      filters={
+        <div className="w-[220px] shrink-0">
+          <label htmlFor={searchFieldId} className="sr-only">
+            Поиск по названию
+          </label>
+          <Input
             id={searchFieldId}
-            label="Поиск по названию"
-            placeholder="Название шаблона"
             value={searchQuery}
-            onValueChange={setSearchQuery}
-            className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Поиск по названию"
+            autoComplete="off"
+            className="w-full"
           />
-        }
-        end={
-          <Link href={`${TREATMENT_PROGRAM_TEMPLATES_PATH}/new`} className={cn(buttonVariants({ size: "sm" }), "shrink-0 text-center")}>
-            Новый шаблон
-          </Link>
-        }
-      />
-    </DoctorCatalogStickyToolbar>
+        </div>
+      }
+      end={
+        <Link href={`${TREATMENT_PROGRAM_TEMPLATES_PATH}/new`} className={doctorCatalogToolbarPrimaryActionClassName}>
+          Создать
+        </Link>
+      }
+    />
   );
 
   return (

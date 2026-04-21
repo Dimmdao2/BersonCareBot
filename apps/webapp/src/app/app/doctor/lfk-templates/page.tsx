@@ -1,12 +1,19 @@
 import { Suspense } from "react";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import type { TemplateStatus } from "@/modules/lfk-templates/types";
 import { LfkTemplatesPageClient } from "./LfkTemplatesPageClient";
 
 type PageProps = {
-  searchParams?: Promise<{ status?: string }>;
+  searchParams?: Promise<{
+    status?: string;
+    q?: string;
+    region?: string;
+    load?: string;
+    titleSort?: string;
+  }>;
 };
 
 export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps) {
@@ -16,10 +23,24 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const status: TemplateStatus | undefined =
     statusRaw === "draft" || statusRaw === "published" || statusRaw === "archived" ? statusRaw : undefined;
 
+  const q = typeof sp.q === "string" ? sp.q : "";
+  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const loadType =
+    sp.load === "strength" ||
+    sp.load === "stretch" ||
+    sp.load === "balance" ||
+    sp.load === "cardio" ||
+    sp.load === "other"
+      ? (sp.load as ExerciseLoadType)
+      : undefined;
+
+  const initialTitleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
+
   const deps = buildAppDeps();
   const [list, exercises] = await Promise.all([
     deps.lfkTemplates.listTemplates({
       status: status ?? null,
+      search: q || null,
       includeExerciseDetails: true,
     }),
     deps.lfkExercises.listExercises({ includeArchived: false }),
@@ -39,7 +60,13 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
         <LfkTemplatesPageClient
           templates={list}
           exerciseCatalog={exerciseCatalog}
-          initialStatusFilter={initialStatusFilter}
+          filters={{
+            q,
+            statusFilter: initialStatusFilter,
+            regionRefId,
+            loadType,
+          }}
+          initialTitleSort={initialTitleSort}
         />
       </Suspense>
     </AppShell>

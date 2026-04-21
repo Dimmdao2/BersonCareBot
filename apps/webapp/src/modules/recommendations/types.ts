@@ -24,6 +24,10 @@ export type RecommendationFilter = {
   includeArchived?: boolean;
   archiveScope?: RecommendationArchiveScope;
   search?: string | null;
+  /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */
+  regionRefId?: string | null;
+  /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */
+  loadType?: import("@/modules/lfk-exercises/types").ExerciseLoadType | null;
 };
 
 export type CreateRecommendationInput = {

@@ -8,7 +8,14 @@ import {
 } from "./ClinicalTestsPageClient";
 
 type PageProps = {
-  searchParams?: Promise<{ selected?: string; view?: string; q?: string; titleSort?: string }>;
+  searchParams?: Promise<{
+    selected?: string;
+    view?: string;
+    q?: string;
+    titleSort?: string;
+    region?: string;
+    load?: string;
+  }>;
 };
 
 export default async function DoctorClinicalTestsPage({ searchParams }: PageProps) {
@@ -16,12 +23,23 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const deps = buildAppDeps();
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
+  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const loadType =
+    sp.load === "strength" ||
+    sp.load === "stretch" ||
+    sp.load === "balance" ||
+    sp.load === "cardio" ||
+    sp.load === "other"
+      ? sp.load
+      : undefined;
   const titleSort: ClinicalTestTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
   const items = await deps.clinicalTests.listClinicalTests({
     search: q || null,
     includeArchived: false,
+    regionRefId: regionRefId ?? null,
+    loadType: loadType ?? null,
   });
 
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
@@ -36,7 +54,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
         initialSelectedId={initialSelectedId}
         initialViewMode={initialViewMode}
         initialTitleSort={titleSort}
-        filters={{ q }}
+        filters={{ q, regionRefId, loadType }}
       />
     </AppShell>
   );

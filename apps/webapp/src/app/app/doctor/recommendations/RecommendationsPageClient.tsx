@@ -1,17 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { Recommendation, RecommendationArchiveScope } from "@/modules/recommendations/types";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import type { DoctorCatalogListStatus } from "@/shared/lib/doctorCatalogListStatus";
+import type { Recommendation } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
@@ -26,19 +20,11 @@ import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
+import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { RecommendationForm } from "./RecommendationForm";
-import { RecommendationsFiltersForm } from "./RecommendationsFiltersForm";
 import { archiveRecommendationInline, saveRecommendationInline } from "./actionsInline";
-import { RECOMMENDATIONS_PATH } from "./paths";
-
 export type RecommendationsViewMode = "tiles" | "list";
 export type RecommendationTitleSort = "asc" | "desc";
-
-const SCOPE_FILTER_LABELS: Record<string, string> = {
-  active: "Активные",
-  all: "Все",
-  archived: "Архив",
-};
 
 const LIST_ROW_VISIBILITY_STYLE = {
   contentVisibility: "auto",
@@ -52,7 +38,9 @@ type Props = {
   initialTitleSort: RecommendationTitleSort | null;
   filters: {
     q: string;
-    archiveScope: RecommendationArchiveScope;
+    catalogListStatus: DoctorCatalogListStatus;
+    regionRefId?: string;
+    loadType?: ExerciseLoadType;
   };
 };
 
@@ -147,8 +135,6 @@ function RecommendationsContent({
   toggleViewMode,
   changeTitleSort,
   filters,
-  scopeSelectValue,
-  applyArchiveScope,
 }: {
   initialItems: Recommendation[];
   initialSelectedId: string | null;
@@ -163,16 +149,15 @@ function RecommendationsContent({
   toggleViewMode: () => void;
   changeTitleSort: (next: RecommendationTitleSort | null) => void;
   filters: Props["filters"];
-  scopeSelectValue: RecommendationArchiveScope;
-  applyArchiveScope: (next: string | null) => void;
 }) {
   useEffect(() => {
     if (!initialSelectedId) return;
     const found = initialItems.find((r) => r.id === initialSelectedId);
-    if (found) {
+    if (!found) return;
+    queueMicrotask(() => {
       setDesktopSelectedId(found.id);
       setMobileSheet({ recommendation: found });
-    }
+    });
   }, [initialSelectedId, initialItems, setDesktopSelectedId, setMobileSheet]);
 
   const displayRecommendations = useMemo(() => {
@@ -286,7 +271,9 @@ function RecommendationsContent({
         workspaceListPreserve={{
           q: filters.q,
           titleSort,
-          scope: filters.archiveScope,
+          catalogListStatus: filters.catalogListStatus,
+          regionRefId: filters.regionRefId,
+          loadType: filters.loadType,
         }}
       />
     </CatalogRightPane>
@@ -297,31 +284,17 @@ function RecommendationsContent({
       toolbar={
         <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem]">
-                <span className="text-[11px] text-muted-foreground sm:sr-only">Рекомендации</span>
-                <Select value={scopeSelectValue} onValueChange={applyArchiveScope}>
-                  <SelectTrigger size="sm" className="w-full max-w-full text-left">
-                    <SelectValue placeholder="Активные">
-                      {(val: unknown) => {
-                        const key = val == null || val === "" ? "active" : String(val);
-                        return SCOPE_FILTER_LABELS[key] ?? SCOPE_FILTER_LABELS.active;
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Активные</SelectItem>
-                    <SelectItem value="all">Все</SelectItem>
-                    <SelectItem value="archived">Архив</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <RecommendationsFiltersForm
+            <div className="min-w-0 flex-1">
+              <DoctorCatalogFiltersForm
+                key={`rec-filters-${filters.catalogListStatus}-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
+                idPrefix="rec"
                 q={filters.q}
+                regionRefId={filters.regionRefId}
+                loadType={filters.loadType}
                 view={viewMode}
                 titleSort={titleSort}
                 selectedId={desktopSelectedId}
-                archiveScope={filters.archiveScope}
+                recommendationCatalogStatus={filters.catalogListStatus}
               />
             </div>
             <button
@@ -405,28 +378,12 @@ export function RecommendationsPageClient({
   initialTitleSort,
   filters,
 }: Props) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
   const [viewMode, setViewMode] = useState<RecommendationsViewMode>(initialViewMode);
   const [toolbarViewMode, setToolbarViewMode] = useState<RecommendationsViewMode>(initialViewMode);
   const [titleSort, setTitleSort] = useState<RecommendationTitleSort | null>(initialTitleSort);
   const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(null);
   const [mobileSheet, setMobileSheet] = useState<{ recommendation: Recommendation | null } | null>(null);
   const [isListPending, startListTransition] = useTransition();
-
-  const scopeSelectValue = filters.archiveScope;
-
-  function applyArchiveScope(next: string | null) {
-    const p = new URLSearchParams(searchParams.toString());
-    if (next == null || next === "" || next === "active") {
-      p.delete("scope");
-    } else {
-      p.set("scope", next);
-    }
-    const qs = p.toString();
-    router.replace(qs ? `${RECOMMENDATIONS_PATH}?${qs}` : RECOMMENDATIONS_PATH);
-  }
 
   useEffect(() => {
     setViewMode(initialViewMode);
@@ -466,8 +423,6 @@ export function RecommendationsPageClient({
       toggleViewMode={toggleViewMode}
       changeTitleSort={changeTitleSort}
       filters={filters}
-      scopeSelectValue={scopeSelectValue}
-      applyArchiveScope={applyArchiveScope}
     />
   );
 }

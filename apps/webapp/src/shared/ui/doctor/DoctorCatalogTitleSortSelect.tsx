@@ -29,7 +29,12 @@ export function DoctorCatalogTitleSortSelect({
   triggerClassName,
 }: DoctorCatalogTitleSortSelectProps) {
   return (
-    <div className={cn("flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem]", className)}>
+    <div
+      className={cn(
+        "flex w-[160px] max-w-[160px] shrink-0 min-w-0 flex-col gap-1",
+        className,
+      )}
+    >
       <span className="text-[11px] text-muted-foreground sm:sr-only">{label}</span>
       <Select value={value} onValueChange={(v) => onValueChange(v as TitleSortValue)}>
         <SelectTrigger size="sm" className={cn("w-full text-left", triggerClassName)}>
