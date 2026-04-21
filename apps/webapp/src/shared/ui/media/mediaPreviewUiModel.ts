@@ -69,15 +69,16 @@ export function clinicalTestMediaItemToPreviewUi(m: ClinicalTestMediaItem): Medi
   };
 }
 
-/** Превью медиа рекомендации (GIF отображается как изображение). */
+/** Превью медиа рекомендации (GIF — как изображение). В JSON нет previewSm — для миниатюры подставляем исходный URL изображения. */
 export function recommendationMediaItemToPreviewUi(m: RecommendationMediaItem): MediaPreviewUiModel {
   const kind: MediaPreviewUiModel["kind"] = m.mediaType === "video" ? "video" : "image";
+  const useSourceUrlForThumb = m.mediaType === "image" || m.mediaType === "gif";
   return {
     id: m.mediaUrl,
     kind,
     url: m.mediaUrl,
-    previewStatus: null,
-    previewSmUrl: null,
+    previewStatus: useSourceUrlForThumb ? "ready" : null,
+    previewSmUrl: useSourceUrlForThumb ? m.mediaUrl : null,
     previewMdUrl: null,
     sourceWidth: null,
     sourceHeight: null,

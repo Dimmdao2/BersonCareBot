@@ -5,7 +5,7 @@ import { useActionState, useCallback, useEffect, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { DoctorCatalogListStatus } from "@/shared/lib/doctorCatalogListStatus";
 import type { Recommendation } from "@/modules/recommendations/types";
@@ -154,14 +154,12 @@ export function RecommendationForm({
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="rec-body">Текст (Markdown)</Label>
-          <Textarea
-            id="rec-body"
+          <MarkdownEditorToastUi
+            key={`rec-body-${recordKey}`}
             name="bodyMd"
-            className="min-h-[200px] font-mono text-sm"
-            required
-            value={values.bodyMd}
-            onChange={(e) => setValues((v) => ({ ...v, bodyMd: e.target.value }))}
+            defaultValue={values.bodyMd}
+            label="Текст (Markdown)"
+            onValueChange={(md) => setValues((v) => ({ ...v, bodyMd: md }))}
           />
         </div>
 

@@ -5,7 +5,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { DoctorCatalogListStatus } from "@/shared/lib/doctorCatalogListStatus";
-import type { Recommendation } from "@/modules/recommendations/types";
+import type { Recommendation, RecommendationMediaItem } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
@@ -60,6 +60,42 @@ function firstRecommendationMedia(r: Recommendation) {
   return [...r.media].sort((a, b) => a.sortOrder - b.sortOrder)[0];
 }
 
+/** Список/плитка: в JSON нет previewSm у рекомендаций — для image/gif подставляем исходный URL; для video — элемент video. */
+function RecommendationCatalogMediaThumb({
+  media,
+  className,
+  imgClassName,
+  sizes,
+}: {
+  media: RecommendationMediaItem;
+  className?: string;
+  imgClassName?: string;
+  sizes?: string;
+}) {
+  if (media.mediaType === "video") {
+    return (
+      <div className={cn("relative overflow-hidden bg-muted/30", className)}>
+        <video
+          src={media.mediaUrl}
+          muted
+          playsInline
+          preload="metadata"
+          className={cn("size-full object-cover", imgClassName)}
+          aria-hidden
+        />
+      </div>
+    );
+  }
+  return (
+    <MediaThumb
+      media={recommendationMediaItemToPreviewUi(media)}
+      className={className}
+      imgClassName={imgClassName}
+      sizes={sizes}
+    />
+  );
+}
+
 function RecommendationTileCard({
   recommendation: r,
   onSelect,
@@ -86,8 +122,8 @@ function RecommendationTileCard({
         <CardContent className="flex h-full flex-col gap-1 p-0.5">
           {firstMedia ? (
             <div className="h-[135px] w-full overflow-hidden rounded-md border border-border/60 bg-muted/30">
-              <MediaThumb
-                media={recommendationMediaItemToPreviewUi(firstMedia)}
+              <RecommendationCatalogMediaThumb
+                media={firstMedia}
                 className="h-full w-full"
                 imgClassName="h-full w-full object-cover"
                 sizes="160px"
@@ -110,14 +146,12 @@ function mediaThumbRow(r: Recommendation) {
     return <div className="h-9 w-9 shrink-0 rounded bg-muted" aria-hidden />;
   }
   return (
-    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30">
-      <MediaThumb
-        media={recommendationMediaItemToPreviewUi(m)}
-        className="size-full"
-        imgClassName="size-full object-cover"
-        sizes="36px"
-      />
-    </div>
+    <RecommendationCatalogMediaThumb
+      media={m}
+      className="relative h-9 w-9 shrink-0 rounded border border-border/40 bg-muted/30"
+      imgClassName="size-full object-cover"
+      sizes="36px"
+    />
   );
 }
 
