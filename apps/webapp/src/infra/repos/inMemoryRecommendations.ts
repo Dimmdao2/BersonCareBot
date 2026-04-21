@@ -1,6 +1,7 @@
 import type { RecommendationsPort } from "@/modules/recommendations/ports";
 import type {
   Recommendation,
+  RecommendationArchiveScope,
   RecommendationFilter,
   CreateRecommendationInput,
   UpdateRecommendationInput,
@@ -32,8 +33,16 @@ function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
   return out;
 }
 
+function archiveScopeFromFilter(f: RecommendationFilter): RecommendationArchiveScope {
+  if (f.archiveScope) return f.archiveScope;
+  if (f.includeArchived) return "all";
+  return "active";
+}
+
 function matchesFilter(r: Recommendation, f: RecommendationFilter): boolean {
-  if (!f.includeArchived && r.isArchived) return false;
+  const scope = archiveScopeFromFilter(f);
+  if (scope === "active" && r.isArchived) return false;
+  if (scope === "archived" && !r.isArchived) return false;
   if (f.search?.trim()) {
     const q = f.search.trim().toLowerCase();
     if (

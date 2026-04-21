@@ -1,6 +1,7 @@
 import type { TestSetsPort } from "@/modules/tests/ports";
 import type {
   TestSet,
+  TestSetArchiveScope,
   TestSetFilter,
   CreateTestSetInput,
   UpdateTestSetInput,
@@ -19,8 +20,16 @@ export function resetInMemoryTestSetsStore(): void {
   itemsBySet.clear();
 }
 
+function archiveScopeFromFilter(f: TestSetFilter): TestSetArchiveScope {
+  if (f.archiveScope) return f.archiveScope;
+  if (f.includeArchived) return "all";
+  return "active";
+}
+
 function matchesFilter(meta: Omit<TestSet, "items">, f: TestSetFilter): boolean {
-  if (!f.includeArchived && meta.isArchived) return false;
+  const scope = archiveScopeFromFilter(f);
+  if (scope === "active" && meta.isArchived) return false;
+  if (scope === "archived" && !meta.isArchived) return false;
   if (f.search?.trim()) {
     const q = f.search.trim().toLowerCase();
     if (

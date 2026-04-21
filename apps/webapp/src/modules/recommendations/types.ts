@@ -16,8 +16,13 @@ export type Recommendation = {
   updatedAt: string;
 };
 
+/** Фильтр по архиву в списке (как у наборов тестов). */
+export type RecommendationArchiveScope = "active" | "all" | "archived";
+
 export type RecommendationFilter = {
+  /** @deprecated Используйте {@link archiveScope}. */
   includeArchived?: boolean;
+  archiveScope?: RecommendationArchiveScope;
   search?: string | null;
 };
 

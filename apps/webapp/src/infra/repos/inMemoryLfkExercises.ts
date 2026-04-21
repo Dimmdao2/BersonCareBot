@@ -1,4 +1,5 @@
 import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
+import { normalizeRuSearchString } from "@/shared/lib/ruSearchNormalize";
 import type {
   CreateExerciseInput,
   Exercise,
@@ -25,7 +26,9 @@ function matchesFilter(ex: Exercise, f: ExerciseFilter): boolean {
     if (!f.tags.every((t) => tags.includes(t))) return false;
   }
   if (f.search?.trim()) {
-    if (!ex.title.toLowerCase().includes(f.search.trim().toLowerCase())) return false;
+    const hay = normalizeRuSearchString(ex.title);
+    const needle = normalizeRuSearchString(f.search.trim());
+    if (!hay.includes(needle)) return false;
   }
   return true;
 }

@@ -34,7 +34,7 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const initialStatusFilter: "" | TemplateStatus = status ?? "";
 
   return (
-    <AppShell title="Шаблоны ЛФК" user={session.user} variant="doctor" backHref="/app/doctor">
+    <AppShell title="Комплексы" user={session.user} variant="doctor" backHref="/app/doctor">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Загрузка…</p>}>
         <LfkTemplatesPageClient
           templates={list}

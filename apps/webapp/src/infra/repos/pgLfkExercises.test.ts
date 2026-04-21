@@ -35,6 +35,19 @@ describe("createPgLfkExercisesPort", () => {
     expect(sql).toContain("is_archived = false");
   });
 
+  it("list applies NFC-normalized ILIKE search for titles", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    const port = createPgLfkExercisesPort();
+    await port.list({ search: "Южный", includeArchived: true });
+    const sql = String(queryMock.mock.calls[0]?.[0] ?? "");
+    expect(sql).toContain("normalize(e.title, NFC)");
+    expect(sql).toContain("ILIKE");
+    expect(sql).toContain("ESCAPE '\\'");
+    const params = queryMock.mock.calls[0]?.[1] as unknown[] | undefined;
+    expect(Array.isArray(params)).toBe(true);
+    expect(params?.some((p) => typeof p === "string" && p.includes("южный"))).toBe(true);
+  });
+
   it("archive updates is_archived", async () => {
     queryMock.mockResolvedValueOnce({ rowCount: 1 });
     const port = createPgLfkExercisesPort();

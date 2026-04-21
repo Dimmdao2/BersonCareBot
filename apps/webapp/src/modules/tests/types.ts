@@ -62,8 +62,13 @@ export type TestSetItemWithTest = {
   test: Pick<ClinicalTest, "id" | "title" | "testType" | "isArchived">;
 };
 
+/** Фильтр по архиву в списке наборов: активные (по умолчанию), все, только архив. */
+export type TestSetArchiveScope = "active" | "all" | "archived";
+
 export type TestSetFilter = {
+  /** @deprecated Используйте {@link archiveScope}: `includeArchived: true` эквивалентно `archiveScope: "all"`. */
   includeArchived?: boolean;
+  archiveScope?: TestSetArchiveScope;
   search?: string | null;
 };
 

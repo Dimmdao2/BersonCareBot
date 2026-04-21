@@ -9,6 +9,13 @@ import {
   type SaveClinicalTestState,
 } from "./actionsShared";
 
+function appendClinicalTestsListParams(sp: URLSearchParams, formData: FormData) {
+  const q = formData.get("listQ");
+  if (typeof q === "string" && q.trim()) sp.set("q", q.trim());
+  const ts = formData.get("listTitleSort");
+  if (ts === "asc" || ts === "desc") sp.set("titleSort", ts);
+}
+
 export async function saveClinicalTestInline(
   _prev: SaveClinicalTestState | null,
   formData: FormData,
@@ -19,13 +26,21 @@ export async function saveClinicalTestInline(
   revalidatePath(CLINICAL_TESTS_PATH);
   revalidatePath(`${CLINICAL_TESTS_PATH}/${result.testId}`);
   const view = formData.get("view") === "list" ? "list" : "tiles";
-  redirect(`${CLINICAL_TESTS_PATH}?selected=${encodeURIComponent(result.testId)}&view=${view}`);
+  const sp = new URLSearchParams();
+  sp.set("selected", result.testId);
+  sp.set("view", view);
+  appendClinicalTestsListParams(sp, formData);
+  redirect(`${CLINICAL_TESTS_PATH}?${sp.toString()}`);
 }
 
 export async function archiveClinicalTestInline(formData: FormData) {
   const result = await archiveClinicalTestCore(formData);
   const view = formData.get("view") === "list" ? "list" : "tiles";
-  if (!result.archivedId) redirect(`${CLINICAL_TESTS_PATH}?view=${view}`);
+  const sp = new URLSearchParams();
+  sp.set("view", view);
+  appendClinicalTestsListParams(sp, formData);
+  const qs = sp.toString();
+  if (!result.archivedId) redirect(`${CLINICAL_TESTS_PATH}?${qs}`);
   revalidatePath(CLINICAL_TESTS_PATH);
-  redirect(`${CLINICAL_TESTS_PATH}?view=${view}`);
+  redirect(`${CLINICAL_TESTS_PATH}?${qs}`);
 }

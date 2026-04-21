@@ -19,7 +19,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { DOCTOR_MENU_LINKS } from "@/shared/ui/doctorNavLinks";
+import { DOCTOR_MENU_ENTRIES } from "@/shared/ui/doctorNavLinks";
 import { DOCTOR_HEADER_INNER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { getDoctorScreenTitle } from "@/shared/ui/doctorScreenTitles";
 
@@ -142,17 +142,21 @@ export function DoctorHeader({ userDisplayName, adminMode, hideMenuOnDesktop }: 
             <SheetTitle>Разделы</SheetTitle>
           </SheetHeader>
           <nav className="flex flex-col gap-1 py-2" aria-label="Разделы кабинета">
-            {DOCTOR_MENU_LINKS.map((item) => (
-              <Link
-                key={item.id}
-                id={`doctor-menu-link-${item.id}`}
-                href={item.href}
-                onClick={closeMenu}
-                className={DOCTOR_SHEET_LINK_CLASS}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {DOCTOR_MENU_ENTRIES.map((entry) =>
+              entry.kind === "separator" ? (
+                <Separator key={entry.id} className="my-2" />
+              ) : (
+                <Link
+                  key={entry.id}
+                  id={`doctor-menu-link-${entry.id}`}
+                  href={entry.href}
+                  onClick={closeMenu}
+                  className={DOCTOR_SHEET_LINK_CLASS}
+                >
+                  {entry.label}
+                </Link>
+              ),
+            )}
             <Separator className="my-2" />
             <Link href="/app/settings" onClick={closeMenu} className={DOCTOR_SHEET_LINK_CLASS}>
               Профиль и настройки

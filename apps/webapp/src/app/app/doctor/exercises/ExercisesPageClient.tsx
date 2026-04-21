@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Suspense, use, useEffect, useMemo, useState, useTransition } from "react";
-import { ChevronDown, LayoutGrid, List } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DoctorCatalogTitleSortSelect } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
+import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
@@ -61,27 +61,16 @@ type Props = {
   };
 };
 
-function exercisesIndexHref(view: ExercisesViewMode, titleSort: ExerciseTitleSort | null): string {
-  const p = new URLSearchParams();
-  p.set("view", view);
-  if (titleSort) p.set("titleSort", titleSort);
-  return `/app/doctor/exercises?${p.toString()}`;
-}
-
-/** Desktop tiles: up to 4 per row; for 5–7 items use 3 per row; 8+ cap at 4 columns. */
+/** Desktop tiles: всегда не меньше 3 колонок; при 4 — ряд из 4; при 8+ — до 4 колонок. */
 function desktopExerciseTileColumns(count: number): number {
-  if (count <= 1) return 1;
-  if (count === 2) return 2;
-  if (count === 3) return 3;
+  if (count <= 3) return 3;
   if (count === 4) return 4;
   if (count <= 7) return 3;
   return 4;
 }
 
-/** Mobile tiles (unchanged compact heuristic). */
-function mobileExerciseTileColumns(count: number): number {
-  if (count <= 1) return 1;
-  if (count === 2 || count === 4) return 2;
+/** Mobile tiles: не меньше 3 колонок (узкая ширина — одна сетка на 3 колонки). */
+function mobileExerciseTileColumns(): number {
   return 3;
 }
 
@@ -121,54 +110,6 @@ function CreateExerciseMenu({ triggerId, onNewExercise }: CreateExerciseMenuProp
         <DropdownMenuItem onClick={() => router.push("/app/doctor/exercises/auto-create")}>Автосоздание</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-type ExerciseCatalogListHeaderProps = {
-  exerciseCount: number;
-  viewMode: ExercisesViewMode;
-  onToggleView: () => void;
-  titleSort: ExerciseTitleSort | null;
-  onTitleSortChange: (next: ExerciseTitleSort | null) => void;
-  listBusy?: boolean;
-};
-
-function ExerciseCatalogListHeader({
-  exerciseCount,
-  viewMode,
-  onToggleView,
-  titleSort,
-  onTitleSortChange,
-  listBusy = false,
-}: ExerciseCatalogListHeaderProps) {
-  return (
-    <div className="flex flex-col gap-2 border-b border-border/60 pb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
-      <DoctorCatalogTitleSortSelect
-        value={titleSort ?? "default"}
-        onValueChange={(v) => {
-          if (v === "default") onTitleSortChange(null);
-          else onTitleSortChange(v as ExerciseTitleSort);
-        }}
-        className="min-w-0 flex-1 sm:max-w-[min(100%,20rem)]"
-      />
-      <div className="flex shrink-0 items-center gap-2 sm:justify-end">
-        <p className="min-w-0 truncate text-xs text-muted-foreground">
-          {exerciseCount === 0 ? "Нет упражнений" : `Упражнений: ${exerciseCount}`}
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className={cn("box-border size-[32px] shrink-0 transition-opacity", listBusy && "opacity-70")}
-          aria-label={viewMode === "tiles" ? "Показать список" : "Показать плитки"}
-          title={viewMode === "tiles" ? "Список" : "Плитки"}
-          onClick={onToggleView}
-          aria-busy={listBusy}
-        >
-          {viewMode === "tiles" ? <List className="size-4" aria-hidden /> : <LayoutGrid className="size-4" aria-hidden />}
-        </Button>
-      </div>
-    </div>
   );
 }
 
@@ -236,10 +177,8 @@ function ExercisesContent({
   const isDesktopViewport = useViewportMinWidth(1024);
   const n = displayExercises.length;
   const tileColsDesktop = desktopExerciseTileColumns(n);
-  const tileColsMobile = mobileExerciseTileColumns(n);
+  const tileColsMobile = mobileExerciseTileColumns();
   const activeTileColumns = isDesktopViewport ? tileColsDesktop : tileColsMobile;
-  const listBackHref = exercisesIndexHref(viewMode, titleSort);
-
   const renderExerciseList = (
     list: Exercise[],
     opts: { activeId: string | null; onRowSelect: (id: string) => void },
@@ -299,12 +238,11 @@ function ExercisesContent({
     );
 
   const rightPanel = (
-    <CatalogRightPane>
+    <CatalogRightPane className="h-full">
       <ExerciseForm
         exercise={mobileSheet?.exercise ?? exerciseForDesktop}
         saveAction={saveExerciseInline}
         archiveAction={archiveExerciseInline}
-        backHref={listBackHref}
         viewHint={viewMode}
       />
     </CatalogRightPane>
@@ -337,12 +275,17 @@ function ExercisesContent({
       }
     >
       <CatalogSplitLayout
+        className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={
           <CatalogLeftPane
+            stickySplit={false}
             stickyToolbarRows={1}
+            className="h-full"
             headerSlot={
-              <ExerciseCatalogListHeader
-                exerciseCount={displayExercises.length}
+              <DoctorCatalogMasterListHeader
+                summaryLine={
+                  displayExercises.length === 0 ? "Нет упражнений" : `Упражнений: ${displayExercises.length}`
+                }
                 viewMode={toolbarViewMode}
                 onToggleView={toggleViewMode}
                 titleSort={titleSort}
@@ -351,32 +294,32 @@ function ExercisesContent({
               />
             }
           >
-          <div
-            className={cn(
-              "min-h-0 flex-1 overflow-hidden transition-opacity",
-              isListPending && "opacity-80",
-            )}
-            aria-busy={isListPending}
-          >
-            {viewMode === "list"
-              ? renderExerciseList(displayExercises, {
-                  activeId: desktopSelectedId,
-                  onRowSelect: (id) => {
-                    const found = displayExercises.find((e) => e.id === id) ?? null;
-                    setDesktopSelectedId(id);
-                    setMobileSheet(found ? { exercise: found } : null);
-                  },
-                })
-              : renderExerciseTiles(displayExercises, {
-                  activeId: desktopSelectedId,
-                  onTileSelect: (id) => {
-                    const found = displayExercises.find((e) => e.id === id) ?? null;
-                    setDesktopSelectedId(id);
-                    setMobileSheet(found ? { exercise: found } : null);
-                  },
-                  columns: activeTileColumns,
-                })}
-          </div>
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-hidden transition-opacity",
+                isListPending && "opacity-80",
+              )}
+              aria-busy={isListPending}
+            >
+              {viewMode === "list"
+                ? renderExerciseList(displayExercises, {
+                    activeId: desktopSelectedId,
+                    onRowSelect: (id) => {
+                      const found = displayExercises.find((e) => e.id === id) ?? null;
+                      setDesktopSelectedId(id);
+                      setMobileSheet(found ? { exercise: found } : null);
+                    },
+                  })
+                : renderExerciseTiles(displayExercises, {
+                    activeId: desktopSelectedId,
+                    onTileSelect: (id) => {
+                      const found = displayExercises.find((e) => e.id === id) ?? null;
+                      setDesktopSelectedId(id);
+                      setMobileSheet(found ? { exercise: found } : null);
+                    },
+                    columns: activeTileColumns,
+                  })}
+            </div>
           </CatalogLeftPane>
         }
         right={rightPanel}

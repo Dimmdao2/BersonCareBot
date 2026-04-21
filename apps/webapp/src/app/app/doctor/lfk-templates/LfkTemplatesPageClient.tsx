@@ -5,8 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -19,14 +17,18 @@ import type { Template, TemplateStatus } from "@/modules/lfk-templates/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
-import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStickyToolbar";
-import { DoctorCatalogTitleSortSelect, type TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
-import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
+import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
+import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
+import type { TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
-import { PickerSearchField } from "@/shared/ui/PickerSearchField";
+import { Input } from "@/components/ui/input";
+import {
+  DOCTOR_CATALOG_STICKY_BAR_CLASS,
+  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { createLfkTemplateDraft } from "./actions";
@@ -37,6 +39,13 @@ type Props = {
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
   /** Соответствует `?status=` в URL; пусто — «все». */
   initialStatusFilter: "" | TemplateStatus;
+};
+
+const STATUS_FILTER_LABELS: Record<string, string> = {
+  all: "Все",
+  draft: "Черновики",
+  published: "Опубликованные",
+  archived: "Архив",
 };
 
 function statusEyeMeta(status: TemplateStatus) {
@@ -79,11 +88,14 @@ export function LfkTemplatesPageClient({ templates, exerciseCatalog, initialStat
 
   const selected = displayList.find((t) => t.id === selectedId) ?? null;
 
+  const titleSortForHeader: CatalogMasterTitleSort | null =
+    titleSort === "asc" || titleSort === "desc" ? titleSort : null;
+
   const renderRows = (onPick: (t: Template) => void, activeId: string | null) =>
     displayList.length === 0 ? (
-      <p className="px-2 pb-2 text-sm text-muted-foreground">Нет шаблонов по заданным условиям.</p>
+      <p className="text-sm text-muted-foreground">Нет комплексов по заданным условиям.</p>
     ) : (
-      <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto lg:max-h-none lg:overflow-visible">
+      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {displayList.map((t) => {
           const active = activeId === t.id;
           const { published, label } = statusEyeMeta(t.status);
@@ -161,19 +173,21 @@ export function LfkTemplatesPageClient({ templates, exerciseCatalog, initialStat
     );
 
   const desktopRight = (
-    <CatalogRightPane>
+    <CatalogRightPane className="h-full">
       {selected ? (
-        <TemplateEditor template={selected} exerciseCatalog={exerciseCatalog} />
+        <TemplateEditor key={selected.id} template={selected} exerciseCatalog={exerciseCatalog} />
       ) : (
         <section className="flex max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
           <p className="text-sm text-muted-foreground">
             Задайте название черновика. После создания вы попадёте в конструктор, где можно добавить упражнения и
-            опубликовать шаблон.
+            опубликовать комплекс.
           </p>
           <form action={createLfkTemplateDraft} className="flex flex-col gap-3">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="lfk-tpl-new-title-inline">Название</Label>
-              <Input id="lfk-tpl-new-title-inline" name="title" placeholder="Новый шаблон" />
+              <label htmlFor="lfk-tpl-new-title-inline" className="text-sm font-medium">
+                Название
+              </label>
+              <Input id="lfk-tpl-new-title-inline" name="title" placeholder="Новый комплекс" />
             </div>
             <Button type="submit">Создать и открыть</Button>
           </form>
@@ -185,58 +199,74 @@ export function LfkTemplatesPageClient({ templates, exerciseCatalog, initialStat
   const mobileDetailOpen = mobileSheet != null;
 
   const toolbar = (
-    <DoctorCatalogStickyToolbar>
-      <DoctorCatalogToolbarMainRow
-        start={
-          <>
-            <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem]">
-              <span className="text-[11px] text-muted-foreground sm:sr-only">Статус</span>
-              <Select value={statusSelectValue} onValueChange={applyStatusFilter}>
-                <SelectTrigger size="sm" className="w-full text-left">
-                  <SelectValue placeholder="Статус" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Все</SelectItem>
-                  <SelectItem value="draft">Черновики</SelectItem>
-                  <SelectItem value="published">Опубликованные</SelectItem>
-                  <SelectItem value="archived">Архив</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <PickerSearchField
-              id={searchFieldId}
-              label="Поиск по названию"
-              placeholder="Название шаблона"
-              value={searchQuery}
-              onValueChange={setSearchQuery}
-              className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-            />
-            <DoctorCatalogTitleSortSelect value={titleSort} onValueChange={setTitleSort} />
-          </>
-        }
-        end={
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-            <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
-              {displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`}
-            </p>
-            <Link
-              href="/app/doctor/lfk-templates/new"
-              className={cn(buttonVariants({ size: "sm" }), "shrink-0 text-center")}
-              id="doctor-lfk-templates-new-link"
-            >
-              Новый шаблон
-            </Link>
+    <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem]">
+            <span className="text-[11px] text-muted-foreground sm:sr-only">Статус</span>
+            <Select value={statusSelectValue} onValueChange={applyStatusFilter}>
+              <SelectTrigger size="sm" className="w-full max-w-full text-left">
+                <SelectValue placeholder="Все">
+                  {(val: unknown) => {
+                    const key = val == null || val === "" ? "all" : String(val);
+                    return STATUS_FILTER_LABELS[key] ?? STATUS_FILTER_LABELS.all;
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Все</SelectItem>
+                <SelectItem value="draft">Черновики</SelectItem>
+                <SelectItem value="published">Опубликованные</SelectItem>
+                <SelectItem value="archived">Архив</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        }
-      />
-    </DoctorCatalogStickyToolbar>
+          <div className="flex min-w-0 flex-col gap-1 sm:max-w-[14rem]">
+            <label htmlFor={searchFieldId} className="sr-only">
+              Поиск по названию
+            </label>
+            <Input
+              id={searchFieldId}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Название комплекса"
+              autoComplete="off"
+              className="w-full min-w-0 sm:w-40"
+            />
+          </div>
+        </div>
+        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
+          <Link
+            href="/app/doctor/lfk-templates/new"
+            className={cn(buttonVariants({ size: "sm" }), "shrink-0 text-center")}
+            id="doctor-lfk-templates-new-link"
+          >
+            Новый комплекс
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 
   return (
     <DoctorCatalogPageLayout toolbar={toolbar}>
       <CatalogSplitLayout
+        className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={
-          <CatalogLeftPane>
+          <CatalogLeftPane
+            stickySplit={false}
+            stickyToolbarRows={1}
+            className="h-full"
+            headerSlot={
+              <DoctorCatalogListSortHeader
+                summaryLine={
+                  displayList.length === 0 ? "Нет комплексов" : `Комплексов: ${displayList.length}`
+                }
+                titleSort={titleSortForHeader}
+                onTitleSortChange={(next) => setTitleSort(next === null ? "default" : next)}
+              />
+            }
+          >
             {renderRows((t) => {
               setSelectedId(t.id);
               setMobileSheet(t);

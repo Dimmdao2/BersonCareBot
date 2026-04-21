@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import type { CSSProperties } from "react";
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { archiveDoctorExercise, saveDoctorExercise } from "./actions";
 import type { SaveDoctorExerciseState } from "./actionsShared";
@@ -84,7 +82,6 @@ type ExerciseFormProps = {
   exercise?: Exercise | null;
   saveAction?: (_prev: SaveDoctorExerciseState | null, formData: FormData) => Promise<SaveDoctorExerciseState>;
   archiveAction?: (formData: FormData) => Promise<void>;
-  backHref?: string;
   /** Current exercises list view — passed as hidden field for inline redirects after save/archive. */
   viewHint?: string;
 };
@@ -93,7 +90,6 @@ export function ExerciseForm({
   exercise,
   saveAction = saveDoctorExercise,
   archiveAction = archiveDoctorExercise,
-  backHref = "/app/doctor/exercises",
   viewHint,
 }: ExerciseFormProps) {
   const recordKey = exercise?.id ?? "create";
@@ -269,9 +265,6 @@ export function ExerciseForm({
           <Button type="submit" disabled={savePending}>
             {savePending ? "Сохранение…" : exercise ? "Сохранить" : "Создать упражнение"}
           </Button>
-          <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }))}>
-            К списку
-          </Link>
         </div>
       </form>
 

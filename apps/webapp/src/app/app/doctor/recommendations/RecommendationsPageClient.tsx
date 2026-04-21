@@ -1,192 +1,473 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
-import { Button } from "@/components/ui/button";
-import type { Recommendation } from "@/modules/recommendations/types";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { Recommendation, RecommendationArchiveScope } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
-import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
-import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
-import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStickyToolbar";
-import { DoctorCatalogTitleSortSelect } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
-import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
+import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
+import { recommendationMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
+import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
+import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
+import {
+  DOCTOR_CATALOG_STICKY_BAR_CLASS,
+  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+} from "@/shared/ui/doctorWorkspaceLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
-import { PickerSearchField } from "@/shared/ui/PickerSearchField";
 import { RecommendationForm } from "./RecommendationForm";
+import { RecommendationsFiltersForm } from "./RecommendationsFiltersForm";
 import { archiveRecommendationInline, saveRecommendationInline } from "./actionsInline";
 import { RECOMMENDATIONS_PATH } from "./paths";
 
-export type RecommendationTitleSort = "default" | "asc" | "desc";
+export type RecommendationsViewMode = "tiles" | "list";
+export type RecommendationTitleSort = "asc" | "desc";
+
+const SCOPE_FILTER_LABELS: Record<string, string> = {
+  active: "Активные",
+  all: "Все",
+  archived: "Архив",
+};
+
+const LIST_ROW_VISIBILITY_STYLE = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "52px",
+} as const;
 
 type Props = {
   initialItems: Recommendation[];
   initialSelectedId: string | null;
+  initialViewMode: RecommendationsViewMode;
+  initialTitleSort: RecommendationTitleSort | null;
+  filters: {
+    q: string;
+    archiveScope: RecommendationArchiveScope;
+  };
 };
 
-export function RecommendationsPageClient({ initialItems, initialSelectedId }: Props) {
-  const searchFieldId = useId();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [titleSort, setTitleSort] = useState<RecommendationTitleSort>("default");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [mobileSheet, setMobileSheet] = useState<Recommendation | null>(null);
+function desktopRecommendationsTileColumns(count: number): number {
+  if (count <= 3) return 3;
+  if (count === 4) return 4;
+  if (count <= 7) return 3;
+  return 4;
+}
+
+function mobileRecommendationsTileColumns(): number {
+  return 3;
+}
+
+function firstRecommendationMedia(r: Recommendation) {
+  if (!r.media?.length) return null;
+  return [...r.media].sort((a, b) => a.sortOrder - b.sortOrder)[0];
+}
+
+function RecommendationTileCard({
+  recommendation: r,
+  onSelect,
+  isActive,
+}: {
+  recommendation: Recommendation;
+  onSelect: (id: string) => void;
+  isActive: boolean;
+}) {
+  const firstMedia = firstRecommendationMedia(r);
+  return (
+    <button
+      type="button"
+      className="flex w-full cursor-pointer justify-center rounded-xl border-0 bg-transparent p-0 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      onClick={() => onSelect(r.id)}
+    >
+      <Card
+        size="sm"
+        className={cn(
+          "h-full w-full min-w-0 transition-shadow",
+          isActive && "ring-1 ring-primary/50 ring-offset-1 ring-offset-background",
+        )}
+      >
+        <CardContent className="flex h-full flex-col gap-1 p-0.5">
+          {firstMedia ? (
+            <div className="h-[135px] w-full overflow-hidden rounded-md border border-border/60 bg-muted/30">
+              <MediaThumb
+                media={recommendationMediaItemToPreviewUi(firstMedia)}
+                className="h-full w-full"
+                imgClassName="h-full w-full object-cover"
+                sizes="160px"
+              />
+            </div>
+          ) : null}
+          <p className="line-clamp-2 px-0.5 text-center text-xs leading-snug text-foreground">{r.title}</p>
+          {r.isArchived ? (
+            <p className="line-clamp-1 px-0.5 text-center text-[10px] text-muted-foreground">В архиве</p>
+          ) : null}
+        </CardContent>
+      </Card>
+    </button>
+  );
+}
+
+function mediaThumbRow(r: Recommendation) {
+  const m = firstRecommendationMedia(r);
+  if (!m) {
+    return <div className="h-9 w-9 shrink-0 rounded bg-muted" aria-hidden />;
+  }
+  return (
+    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded border border-border/40 bg-muted/30">
+      <MediaThumb
+        media={recommendationMediaItemToPreviewUi(m)}
+        className="size-full"
+        imgClassName="size-full object-cover"
+        sizes="36px"
+      />
+    </div>
+  );
+}
+
+function RecommendationsContent({
+  initialItems,
+  initialSelectedId,
+  viewMode,
+  toolbarViewMode,
+  titleSort,
+  desktopSelectedId,
+  mobileSheet,
+  isListPending,
+  setDesktopSelectedId,
+  setMobileSheet,
+  toggleViewMode,
+  changeTitleSort,
+  filters,
+  scopeSelectValue,
+  applyArchiveScope,
+}: {
+  initialItems: Recommendation[];
+  initialSelectedId: string | null;
+  viewMode: RecommendationsViewMode;
+  toolbarViewMode: RecommendationsViewMode;
+  titleSort: RecommendationTitleSort | null;
+  desktopSelectedId: string | null;
+  mobileSheet: { recommendation: Recommendation | null } | null;
+  isListPending: boolean;
+  setDesktopSelectedId: (id: string | null) => void;
+  setMobileSheet: (sheet: { recommendation: Recommendation | null } | null) => void;
+  toggleViewMode: () => void;
+  changeTitleSort: (next: RecommendationTitleSort | null) => void;
+  filters: Props["filters"];
+  scopeSelectValue: RecommendationArchiveScope;
+  applyArchiveScope: (next: string | null) => void;
+}) {
+  useEffect(() => {
+    if (!initialSelectedId) return;
+    const found = initialItems.find((r) => r.id === initialSelectedId);
+    if (found) {
+      setDesktopSelectedId(found.id);
+      setMobileSheet({ recommendation: found });
+    }
+  }, [initialSelectedId, initialItems, setDesktopSelectedId, setMobileSheet]);
+
+  const displayRecommendations = useMemo(() => {
+    if (!titleSort) return initialItems;
+    return [...initialItems].sort((a, b) => {
+      const cmp = a.title.localeCompare(b.title, "ru", { sensitivity: "base" });
+      return titleSort === "asc" ? cmp : -cmp;
+    });
+  }, [initialItems, titleSort]);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      if (initialSelectedId) {
-        const found = initialItems.find((r) => r.id === initialSelectedId);
-        if (found) {
-          setSelectedId(found.id);
-          setCreating(false);
-          setMobileSheet(found);
-        }
-      }
-    });
-  }, [initialSelectedId, initialItems]);
+    if (!desktopSelectedId) return;
+    const inList = displayRecommendations.some((r) => r.id === desktopSelectedId);
+    const fromInitial = initialItems.some((r) => r.id === desktopSelectedId);
+    if (!inList && !fromInitial) setDesktopSelectedId(null);
+  }, [desktopSelectedId, displayRecommendations, initialItems, setDesktopSelectedId]);
 
-  const displayList = useDoctorCatalogDisplayList(initialItems, searchQuery, titleSort);
+  const recommendationForDesktop = useMemo(() => {
+    if (!desktopSelectedId) return null;
+    return (
+      displayRecommendations.find((r) => r.id === desktopSelectedId) ??
+      initialItems.find((r) => r.id === desktopSelectedId) ??
+      null
+    );
+  }, [desktopSelectedId, displayRecommendations, initialItems]);
 
-  useDoctorCatalogMasterSelectionSync({
-    displayList,
-    setSelectedId,
-    setMobileItem: setMobileSheet,
-    suspend: creating,
-    fallbackToFirst: false,
-  });
+  const isDesktopViewport = useViewportMinWidth(1024);
+  const n = displayRecommendations.length;
+  const tileColsDesktop = desktopRecommendationsTileColumns(n);
+  const tileColsMobile = mobileRecommendationsTileColumns();
+  const activeTileColumns = isDesktopViewport ? tileColsDesktop : tileColsMobile;
 
-  const selected = creating ? null : (displayList.find((r) => r.id === selectedId) ?? null);
+  const formRecommendation = mobileSheet != null ? mobileSheet.recommendation : recommendationForDesktop;
 
-  const renderRows = (onPick: (r: Recommendation) => void, activeId: string | null) =>
-    displayList.length === 0 ? (
-      <p className="px-2 pb-2 text-sm text-muted-foreground">Нет записей по заданным условиям.</p>
+  const renderRecommendationList = (
+    list: Recommendation[],
+    opts: { activeId: string | null; onRowSelect: (id: string) => void },
+  ) =>
+    list.length === 0 ? (
+      <p className="px-2 pb-2 text-sm text-muted-foreground">Нет рекомендаций по заданным фильтрам.</p>
     ) : (
-      <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto lg:max-h-none lg:overflow-visible">
-        {displayList.map((r) => {
-          const active = activeId === r.id;
+      <ul className="flex h-full min-h-0 flex-col gap-1 overflow-y-auto">
+        {list.map((r) => {
+          const active = opts.activeId === r.id;
           return (
-            <li key={r.id} className="rounded-md border border-border/40 bg-card/30">
-              <button
-                type="button"
-                onClick={() => {
-                  setCreating(false);
-                  onPick(r);
-                }}
-                className={cn(
-                  "flex w-full items-start rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted/80",
-                  active &&
-                    "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
-                )}
-              >
-                <span className="line-clamp-2 font-medium leading-tight">{r.title}</span>
-              </button>
+            <li key={r.id}>
+              <div style={LIST_ROW_VISIBILITY_STYLE}>
+                <button
+                  type="button"
+                  onClick={() => opts.onRowSelect(r.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left text-sm hover:bg-muted",
+                    active &&
+                      "border-primary/25 bg-primary/15 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/25",
+                  )}
+                >
+                  {mediaThumbRow(r)}
+                  <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+                    <span className="line-clamp-2">{r.title}</span>
+                    {r.isArchived ? (
+                      <span className="text-xs text-muted-foreground">В архиве</span>
+                    ) : null}
+                  </span>
+                </button>
+              </div>
             </li>
           );
         })}
       </ul>
     );
 
-  const rightInner =
-    creating ? (
-      <RecommendationForm
-        recommendation={null}
-        saveAction={saveRecommendationInline}
-        archiveAction={archiveRecommendationInline}
-        backHref={RECOMMENDATIONS_PATH}
-      />
-    ) : selected ? (
-      <RecommendationForm
-        recommendation={selected}
-        saveAction={saveRecommendationInline}
-        archiveAction={archiveRecommendationInline}
-        backHref={RECOMMENDATIONS_PATH}
-      />
+  const renderRecommendationTiles = (
+    list: Recommendation[],
+    opts: { activeId: string | null; onTileSelect: (id: string) => void; columns: number },
+  ) =>
+    list.length === 0 ? (
+      <p className="px-2 text-sm text-muted-foreground">Нет рекомендаций по заданным фильтрам.</p>
     ) : (
-      <RecommendationForm
-        recommendation={null}
-        saveAction={saveRecommendationInline}
-        archiveAction={archiveRecommendationInline}
-        backHref={RECOMMENDATIONS_PATH}
+      <VirtualizedItemGrid
+        items={list}
+        columns={opts.columns}
+        estimatedRowHeight={220}
+        overscan={2}
+        keyExtractor={(r) => r.id}
+        containerClassName="h-full max-h-[70vh] lg:max-h-none"
+        renderItem={(r) => (
+          <div className="w-full min-w-0">
+            <RecommendationTileCard
+              recommendation={r}
+              onSelect={(id) => opts.onTileSelect(id)}
+              isActive={opts.activeId === r.id}
+            />
+          </div>
+        )}
       />
     );
 
-  const desktopRight = <CatalogRightPane>{rightInner}</CatalogRightPane>;
+  const pickRow = (id: string) => {
+    const found = displayRecommendations.find((r) => r.id === id) ?? null;
+    setDesktopSelectedId(id);
+    setMobileSheet(found ? { recommendation: found } : null);
+  };
 
-  const mobileDetailOpen = creating || mobileSheet != null;
-
-  const toolbar = (
-    <DoctorCatalogStickyToolbar>
-      <DoctorCatalogToolbarMainRow
-        start={
-          <>
-            <PickerSearchField
-              id={searchFieldId}
-              label="Поиск по названию"
-              placeholder="Название"
-              value={searchQuery}
-              onValueChange={setSearchQuery}
-              className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-            />
-            <DoctorCatalogTitleSortSelect
-              value={titleSort}
-              onValueChange={(v) => setTitleSort(v as RecommendationTitleSort)}
-            />
-          </>
-        }
-        end={
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-            <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
-              {displayList.length === 0 ? "Нет записей" : `Записей: ${displayList.length}`}
-            </p>
-            <Button
-              type="button"
-              size="sm"
-              className="shrink-0"
-              onClick={() => {
-                setCreating(true);
-                setSelectedId(null);
-                setMobileSheet(null);
-              }}
-            >
-              Создать рекомендацию
-            </Button>
-          </div>
-        }
+  const rightPanel = (
+    <CatalogRightPane className="h-full">
+      <RecommendationForm
+        recommendation={formRecommendation ?? undefined}
+        saveAction={saveRecommendationInline}
+        archiveAction={archiveRecommendationInline}
+        workspaceView={viewMode}
+        workspaceListPreserve={{
+          q: filters.q,
+          titleSort,
+          scope: filters.archiveScope,
+        }}
       />
-    </DoctorCatalogStickyToolbar>
+    </CatalogRightPane>
   );
 
   return (
-    <DoctorCatalogPageLayout toolbar={toolbar}>
-      <CatalogSplitLayout
-        left={
-          <CatalogLeftPane>
-            {renderRows((r) => {
-              setCreating(false);
-              setSelectedId(r.id);
-              setMobileSheet(r);
-            }, creating ? null : selected?.id ?? mobileSheet?.id ?? null)}
-          </CatalogLeftPane>
-        }
-        right={desktopRight}
-        mobileView={mobileDetailOpen ? "detail" : "list"}
-        mobileBackSlot={
-          mobileDetailOpen ? (
-            <Button
-              variant="ghost"
+    <DoctorCatalogPageLayout
+      toolbar={
+        <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <div className="flex min-w-[11rem] max-w-full flex-col gap-1 sm:max-w-[14rem]">
+                <span className="text-[11px] text-muted-foreground sm:sr-only">Рекомендации</span>
+                <Select value={scopeSelectValue} onValueChange={applyArchiveScope}>
+                  <SelectTrigger size="sm" className="w-full max-w-full text-left">
+                    <SelectValue placeholder="Активные">
+                      {(val: unknown) => {
+                        const key = val == null || val === "" ? "active" : String(val);
+                        return SCOPE_FILTER_LABELS[key] ?? SCOPE_FILTER_LABELS.active;
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Активные</SelectItem>
+                    <SelectItem value="all">Все</SelectItem>
+                    <SelectItem value="archived">Архив</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <RecommendationsFiltersForm
+                q={filters.q}
+                view={viewMode}
+                titleSort={titleSort}
+                selectedId={desktopSelectedId}
+                archiveScope={filters.archiveScope}
+              />
+            </div>
+            <button
               type="button"
-              className="mb-2 h-9 px-2"
+              id="doctor-recommendations-create"
+              className={cn(
+                buttonVariants({ variant: "default", size: "sm" }),
+                "box-border h-[32px] min-h-[32px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5",
+              )}
               onClick={() => {
-                setMobileSheet(null);
-                setCreating(false);
+                setDesktopSelectedId(null);
+                setMobileSheet({ recommendation: null });
               }}
             >
+              Создать рекомендацию
+            </button>
+          </div>
+        </div>
+      }
+    >
+      <CatalogSplitLayout
+        className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
+        left={
+          <CatalogLeftPane
+            stickySplit={false}
+            stickyToolbarRows={1}
+            className="h-full"
+            headerSlot={
+              <DoctorCatalogMasterListHeader
+                summaryLine={
+                  displayRecommendations.length === 0
+                    ? "Нет рекомендаций"
+                    : `Рекомендаций: ${displayRecommendations.length}`
+                }
+                viewMode={toolbarViewMode}
+                onToggleView={toggleViewMode}
+                titleSort={titleSort}
+                onTitleSortChange={changeTitleSort}
+                listBusy={isListPending}
+              />
+            }
+          >
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-hidden transition-opacity",
+                isListPending && "opacity-80",
+              )}
+              aria-busy={isListPending}
+            >
+              {viewMode === "list"
+                ? renderRecommendationList(displayRecommendations, {
+                    activeId: desktopSelectedId,
+                    onRowSelect: pickRow,
+                  })
+                : renderRecommendationTiles(displayRecommendations, {
+                    activeId: desktopSelectedId,
+                    onTileSelect: pickRow,
+                    columns: activeTileColumns,
+                  })}
+            </div>
+          </CatalogLeftPane>
+        }
+        right={rightPanel}
+        mobileView={mobileSheet != null ? "detail" : "list"}
+        mobileBackSlot={
+          mobileSheet != null ? (
+            <Button variant="ghost" type="button" className="mb-2 h-9 px-2" onClick={() => setMobileSheet(null)}>
               ← Назад
             </Button>
           ) : null
         }
       />
     </DoctorCatalogPageLayout>
+  );
+}
+
+export function RecommendationsPageClient({
+  initialItems,
+  initialSelectedId,
+  initialViewMode,
+  initialTitleSort,
+  filters,
+}: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [viewMode, setViewMode] = useState<RecommendationsViewMode>(initialViewMode);
+  const [toolbarViewMode, setToolbarViewMode] = useState<RecommendationsViewMode>(initialViewMode);
+  const [titleSort, setTitleSort] = useState<RecommendationTitleSort | null>(initialTitleSort);
+  const [desktopSelectedId, setDesktopSelectedId] = useState<string | null>(null);
+  const [mobileSheet, setMobileSheet] = useState<{ recommendation: Recommendation | null } | null>(null);
+  const [isListPending, startListTransition] = useTransition();
+
+  const scopeSelectValue = filters.archiveScope;
+
+  function applyArchiveScope(next: string | null) {
+    const p = new URLSearchParams(searchParams.toString());
+    if (next == null || next === "" || next === "active") {
+      p.delete("scope");
+    } else {
+      p.set("scope", next);
+    }
+    const qs = p.toString();
+    router.replace(qs ? `${RECOMMENDATIONS_PATH}?${qs}` : RECOMMENDATIONS_PATH);
+  }
+
+  useEffect(() => {
+    setViewMode(initialViewMode);
+    setToolbarViewMode(initialViewMode);
+  }, [initialViewMode]);
+
+  useEffect(() => {
+    setTitleSort(initialTitleSort);
+  }, [initialTitleSort]);
+
+  const toggleViewMode = () => {
+    const next = toolbarViewMode === "tiles" ? "list" : "tiles";
+    setToolbarViewMode(next);
+    startListTransition(() => {
+      setViewMode(next);
+    });
+  };
+
+  const changeTitleSort = (next: RecommendationTitleSort | null) => {
+    startListTransition(() => {
+      setTitleSort(next);
+    });
+  };
+
+  return (
+    <RecommendationsContent
+      initialItems={initialItems}
+      initialSelectedId={initialSelectedId}
+      viewMode={viewMode}
+      toolbarViewMode={toolbarViewMode}
+      titleSort={titleSort}
+      desktopSelectedId={desktopSelectedId}
+      mobileSheet={mobileSheet}
+      isListPending={isListPending}
+      setDesktopSelectedId={setDesktopSelectedId}
+      setMobileSheet={setMobileSheet}
+      toggleViewMode={toggleViewMode}
+      changeTitleSort={changeTitleSort}
+      filters={filters}
+      scopeSelectValue={scopeSelectValue}
+      applyArchiveScope={applyArchiveScope}
+    />
   );
 }

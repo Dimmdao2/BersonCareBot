@@ -10,7 +10,7 @@ export default async function DoctorLfkTemplateNewPage() {
 
   return (
     <AppShell
-      title="Новый шаблон ЛФК"
+      title="Новый комплекс"
       user={session.user}
       variant="doctor"
       backHref="/app/doctor/lfk-templates"
@@ -18,12 +18,12 @@ export default async function DoctorLfkTemplateNewPage() {
       <section className="flex max-w-md flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm">
         <p className="text-sm text-muted-foreground">
           Задайте название черновика. После создания вы попадёте в конструктор, где можно добавить упражнения и
-          опубликовать шаблон.
+          опубликовать комплекс.
         </p>
         <form action={createLfkTemplateDraft} className="flex flex-col gap-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor="tpl-new-title">Название</Label>
-            <Input id="tpl-new-title" name="title" placeholder="Новый шаблон" />
+            <Input id="tpl-new-title" name="title" placeholder="Новый комплекс" />
           </div>
           <Button type="submit">Создать и открыть</Button>
         </form>

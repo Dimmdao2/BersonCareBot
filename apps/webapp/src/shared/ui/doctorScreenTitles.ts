@@ -27,8 +27,8 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/recommendations/new": "Новая рекомендация",
     "/app/doctor/treatment-program-templates": "Шаблоны программ",
     "/app/doctor/treatment-program-templates/new": "Новый шаблон программы",
-    "/app/doctor/lfk-templates": "Шаблоны ЛФК",
-    "/app/doctor/lfk-templates/new": "Новый шаблон ЛФК",
+    "/app/doctor/lfk-templates": "Комплексы",
+    "/app/doctor/lfk-templates/new": "Новый комплекс",
     "/app/doctor/references": "Справочники",
   };
   if (exact[p]) return exact[p]!;
@@ -49,7 +49,7 @@ export function getDoctorScreenTitle(pathname: string): string {
   )
     return "Конструктор программы";
   if (p.startsWith("/app/doctor/lfk-templates/") && p !== "/app/doctor/lfk-templates/new")
-    return "Конструктор шаблона ЛФК";
+    return "Конструктор комплекса";
   if (p.startsWith("/app/doctor/references/")) return "Редактирование справочника";
   if (p.startsWith("/app/doctor/content/sections/edit/")) return "Редактировать раздел";
   if (p.startsWith("/app/doctor/content/new")) return "Новая страница";

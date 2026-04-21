@@ -7,8 +7,10 @@ import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
+import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
+import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
 import { DoctorCatalogStickyToolbar } from "@/shared/ui/doctor/DoctorCatalogStickyToolbar";
-import { DoctorCatalogTitleSortSelect, type TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
+import type { TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 import { DoctorCatalogToolbarMainRow } from "@/shared/ui/doctor/DoctorCatalogToolbarLayout";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
@@ -61,6 +63,9 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
   });
 
   const selected = displayList.find((t) => t.id === selectedId) ?? null;
+
+  const titleSortForHeader: CatalogMasterTitleSort | null =
+    titleSort === "asc" || titleSort === "desc" ? titleSort : null;
 
   useEffect(() => {
     const id = selected?.id;
@@ -115,9 +120,9 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
 
   const renderRows = (onPick: (t: TreatmentProgramTemplate) => void, activeId: string | null) =>
     displayList.length === 0 ? (
-      <p className="px-2 pb-2 text-sm text-muted-foreground">Нет шаблонов по заданным условиям.</p>
+      <p className="text-sm text-muted-foreground">Нет шаблонов по заданным условиям.</p>
     ) : (
-      <ul className="flex max-h-[70vh] flex-col gap-1 overflow-auto lg:max-h-none lg:overflow-visible">
+      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
         {displayList.map((t) => {
           const active = activeId === t.id;
           return (
@@ -170,27 +175,19 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
     <DoctorCatalogStickyToolbar>
       <DoctorCatalogToolbarMainRow
         start={
-          <>
-            <PickerSearchField
-              id={searchFieldId}
-              label="Поиск по названию"
-              placeholder="Название шаблона"
-              value={searchQuery}
-              onValueChange={setSearchQuery}
-              className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
-            />
-            <DoctorCatalogTitleSortSelect value={titleSort} onValueChange={setTitleSort} />
-          </>
+          <PickerSearchField
+            id={searchFieldId}
+            label="Поиск по названию"
+            placeholder="Название шаблона"
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+            className="min-w-0 sm:max-w-[14rem] sm:flex-initial"
+          />
         }
         end={
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-            <p className="min-w-0 shrink-0 truncate text-xs text-muted-foreground">
-              {displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`}
-            </p>
-            <Link href={`${TREATMENT_PROGRAM_TEMPLATES_PATH}/new`} className={cn(buttonVariants({ size: "sm" }), "shrink-0 text-center")}>
-              Новый шаблон
-            </Link>
-          </div>
+          <Link href={`${TREATMENT_PROGRAM_TEMPLATES_PATH}/new`} className={cn(buttonVariants({ size: "sm" }), "shrink-0 text-center")}>
+            Новый шаблон
+          </Link>
         }
       />
     </DoctorCatalogStickyToolbar>
@@ -199,8 +196,22 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
   return (
     <DoctorCatalogPageLayout toolbar={toolbar}>
       <CatalogSplitLayout
+        className="lg:h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px)-3.25rem-1rem)] lg:overflow-hidden"
         left={
-          <CatalogLeftPane>
+          <CatalogLeftPane
+            stickySplit={false}
+            stickyToolbarRows={1}
+            className="h-full"
+            headerSlot={
+              <DoctorCatalogListSortHeader
+                summaryLine={
+                  displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`
+                }
+                titleSort={titleSortForHeader}
+                onTitleSortChange={(next) => setTitleSort(next === null ? "default" : next)}
+              />
+            }
+          >
             {renderRows((t) => {
               setSelectedId(t.id);
               setMobileSheet(t);

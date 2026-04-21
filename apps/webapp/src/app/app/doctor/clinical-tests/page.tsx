@@ -4,18 +4,26 @@ import { AppShell } from "@/shared/ui/AppShell";
 import {
   ClinicalTestsPageClient,
   type ClinicalTestsViewMode,
+  type ClinicalTestTitleSort,
 } from "./ClinicalTestsPageClient";
 
 type PageProps = {
-  searchParams?: Promise<{ selected?: string; view?: string }>;
+  searchParams?: Promise<{ selected?: string; view?: string; q?: string; titleSort?: string }>;
 };
 
 export default async function DoctorClinicalTestsPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
-  const items = await deps.clinicalTests.listClinicalTests({ includeArchived: false });
-
   const sp = (await searchParams) ?? {};
+  const q = typeof sp.q === "string" ? sp.q : "";
+  const titleSort: ClinicalTestTitleSort | null =
+    sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
+
+  const items = await deps.clinicalTests.listClinicalTests({
+    search: q || null,
+    includeArchived: false,
+  });
+
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId =
     rawSelected && items.some((t) => t.id === rawSelected) ? rawSelected : null;
@@ -27,6 +35,8 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
         initialItems={items}
         initialSelectedId={initialSelectedId}
         initialViewMode={initialViewMode}
+        initialTitleSort={titleSort}
+        filters={{ q }}
       />
     </AppShell>
   );

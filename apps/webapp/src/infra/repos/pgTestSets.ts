@@ -64,8 +64,12 @@ export function createPgTestSetsPort(): TestSetsPort {
     async list(filter: TestSetFilter): Promise<TestSet[]> {
       const db = getDrizzle();
       const conds = [];
-      if (!filter.includeArchived) {
+      const scope =
+        filter.archiveScope ?? (filter.includeArchived ? "all" : "active");
+      if (scope === "active") {
         conds.push(eq(testSetsTable.isArchived, false));
+      } else if (scope === "archived") {
+        conds.push(eq(testSetsTable.isArchived, true));
       }
       const q = filter.search?.trim();
       if (q) {

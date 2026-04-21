@@ -1,6 +1,7 @@
 import { getPool } from "@/infra/db/client";
 import type { MediaExerciseUsageEntry, MediaPreviewStatus } from "@/modules/media/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
+import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
 import type { LfkExercisesPort } from "@/modules/lfk-exercises/ports";
 import type {
   CreateExerciseInput,
@@ -166,9 +167,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         conds.push(`e.tags && $${i++}::text[]`);
         params.push(filter.tags);
       }
-      if (filter.search?.trim()) {
-        conds.push(`e.title ILIKE $${i++}`);
-        params.push(`%${filter.search.trim()}%`);
+      const searchPattern = filter.search ? pgRuSubstringSearchPattern(filter.search) : null;
+      if (searchPattern) {
+        conds.push(`normalize(e.title, NFC) ILIKE $${i++} ESCAPE '\\'`);
+        params.push(searchPattern);
       }
 
       const sql = `

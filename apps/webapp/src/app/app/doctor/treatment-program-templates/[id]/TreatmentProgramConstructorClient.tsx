@@ -26,7 +26,7 @@ import type {
 
 const ITEM_TYPE_LABEL: Record<TreatmentProgramItemType, string> = {
   exercise: "Упражнение ЛФК",
-  lfk_complex: "Шаблон ЛФК",
+  lfk_complex: "Комплекс ЛФК",
   recommendation: "Рекомендация",
   lesson: "Урок (страница контента)",
   test_set: "Набор тестов",

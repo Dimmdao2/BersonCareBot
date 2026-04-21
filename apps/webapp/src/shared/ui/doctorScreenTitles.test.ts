@@ -53,9 +53,9 @@ describe("getDoctorScreenTitle", () => {
     expect(getDoctorScreenTitle("/app/doctor/treatment-program-templates/abc")).toBe("Конструктор программы");
   });
   it("returns lfk template titles", () => {
-    expect(getDoctorScreenTitle("/app/doctor/lfk-templates")).toBe("Шаблоны ЛФК");
-    expect(getDoctorScreenTitle("/app/doctor/lfk-templates/new")).toBe("Новый шаблон ЛФК");
-    expect(getDoctorScreenTitle("/app/doctor/lfk-templates/abc")).toBe("Конструктор шаблона ЛФК");
+    expect(getDoctorScreenTitle("/app/doctor/lfk-templates")).toBe("Комплексы");
+    expect(getDoctorScreenTitle("/app/doctor/lfk-templates/new")).toBe("Новый комплекс");
+    expect(getDoctorScreenTitle("/app/doctor/lfk-templates/abc")).toBe("Конструктор комплекса");
   });
   it("normalizes trailing slash on overview", () => {
     expect(getDoctorScreenTitle("/app/doctor/")).toBe("Обзор");

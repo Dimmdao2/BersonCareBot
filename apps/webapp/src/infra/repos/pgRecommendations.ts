@@ -48,8 +48,12 @@ export function createPgRecommendationsPort(): RecommendationsPort {
     async list(filter: RecommendationFilter): Promise<Recommendation[]> {
       const db = getDrizzle();
       const conds = [];
-      if (!filter.includeArchived) {
+      const scope =
+        filter.archiveScope ?? (filter.includeArchived ? "all" : "active");
+      if (scope === "active") {
         conds.push(eq(recommendationsTable.isArchived, false));
+      } else if (scope === "archived") {
+        conds.push(eq(recommendationsTable.isArchived, true));
       }
       const q = filter.search?.trim();
       if (q) {

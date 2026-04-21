@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { DOCTOR_MENU_LINKS, isDoctorNavItemActive } from "@/shared/ui/doctorNavLinks";
+import { DOCTOR_MENU_ENTRIES, isDoctorNavItemActive } from "@/shared/ui/doctorNavLinks";
 import {
   DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
   DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
@@ -41,19 +41,23 @@ export function DoctorAdminSidebar({ userDisplayName }: DoctorAdminSidebarProps)
     >
       <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Разделы</p>
       <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Разделы кабинета">
-        {DOCTOR_MENU_LINKS.map((item) => {
-          const active = isDoctorNavItemActive(item.href, pathname);
-          return (
+        {DOCTOR_MENU_ENTRIES.map((entry) =>
+          entry.kind === "separator" ? (
+            <Separator key={entry.id} className="my-2" />
+          ) : (
             <Link
-              key={item.id}
-              id={`doctor-sidebar-link-${item.id}`}
-              href={item.href}
-              className={cn(SIDEBAR_LINK_CLASS, active && "bg-muted font-medium text-foreground")}
+              key={entry.id}
+              id={`doctor-sidebar-link-${entry.id}`}
+              href={entry.href}
+              className={cn(
+                SIDEBAR_LINK_CLASS,
+                isDoctorNavItemActive(entry.href, pathname) && "bg-muted font-medium text-foreground",
+              )}
             >
-              {item.label}
+              {entry.label}
             </Link>
-          );
-        })}
+          ),
+        )}
         <Separator className="my-2" />
         <Link href="/app/settings" className={SIDEBAR_LINK_CLASS}>
           Профиль и настройки

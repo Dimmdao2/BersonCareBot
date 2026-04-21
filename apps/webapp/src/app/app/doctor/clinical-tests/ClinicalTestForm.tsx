@@ -54,6 +54,8 @@ type ClinicalTestFormProps = {
   backHref?: string;
   /** Режим каталога master-detail — передаётся в форму как `view` для редиректа после сохранения. */
   workspaceView?: "tiles" | "list";
+  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`). */
+  workspaceListPreserve?: { q?: string; titleSort?: "asc" | "desc" | null };
   saveAction?: (
     _prev: SaveClinicalTestState | null,
     formData: FormData,
@@ -65,6 +67,7 @@ export function ClinicalTestForm({
   test,
   backHref = CLINICAL_TESTS_PATH,
   workspaceView,
+  workspaceListPreserve,
   saveAction = saveClinicalTest,
   archiveAction = archiveClinicalTest,
 }: ClinicalTestFormProps) {
@@ -100,6 +103,12 @@ export function ClinicalTestForm({
         ) : null}
         {test ? <input type="hidden" name="id" value={test.id} /> : null}
         {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
+        {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+          <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+        ) : null}
+        {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+          <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+        ) : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
@@ -193,6 +202,12 @@ export function ClinicalTestForm({
         <form action={archiveAction} className="border-t border-border/60 pt-4">
           <input type="hidden" name="id" value={test.id} />
           {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
+          {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+            <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+          ) : null}
+          {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+            <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+          ) : null}
           <Button type="submit" variant="destructive">
             Архивировать
           </Button>

@@ -6,7 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { Recommendation } from "@/modules/recommendations/types";
+import type { Recommendation, RecommendationArchiveScope } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { archiveRecommendation, saveRecommendation } from "./actions";
@@ -39,6 +39,14 @@ function toValues(r: Recommendation | null | undefined): FormValues {
 type Props = {
   recommendation?: Recommendation | null;
   backHref?: string;
+  /** Режим каталога master-detail — передаётся как `view` для редиректа после сохранения. */
+  workspaceView?: "tiles" | "list";
+  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `scope`). */
+  workspaceListPreserve?: {
+    q?: string;
+    titleSort?: "asc" | "desc" | null;
+    scope?: RecommendationArchiveScope;
+  };
   saveAction?: (
     _prev: SaveRecommendationState | null,
     formData: FormData,
@@ -49,6 +57,8 @@ type Props = {
 export function RecommendationForm({
   recommendation,
   backHref = RECOMMENDATIONS_PATH,
+  workspaceView,
+  workspaceListPreserve,
   saveAction = saveRecommendation,
   archiveAction = archiveRecommendation,
 }: Props) {
@@ -83,6 +93,16 @@ export function RecommendationForm({
           </p>
         ) : null}
         {recommendation ? <input type="hidden" name="id" value={recommendation.id} /> : null}
+        {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
+        {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+          <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+        ) : null}
+        {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+          <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+        ) : null}
+        {workspaceListPreserve?.scope != null && workspaceListPreserve.scope !== "active" ? (
+          <input type="hidden" name="listScope" value={workspaceListPreserve.scope} />
+        ) : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
 
@@ -153,6 +173,16 @@ export function RecommendationForm({
       {recommendation ? (
         <form action={archiveAction} className="border-t border-border/60 pt-4">
           <input type="hidden" name="id" value={recommendation.id} />
+          {workspaceView ? <input type="hidden" name="view" value={workspaceView} /> : null}
+          {workspaceListPreserve?.q != null && workspaceListPreserve.q !== "" ? (
+            <input type="hidden" name="listQ" value={workspaceListPreserve.q} />
+          ) : null}
+          {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
+            <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
+          ) : null}
+          {workspaceListPreserve?.scope != null && workspaceListPreserve.scope !== "active" ? (
+            <input type="hidden" name="listScope" value={workspaceListPreserve.scope} />
+          ) : null}
           <Button type="submit" variant="destructive">
             Архивировать
           </Button>

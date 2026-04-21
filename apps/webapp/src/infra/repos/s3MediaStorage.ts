@@ -15,6 +15,7 @@ import type { MediaStoragePort } from "@/modules/media/ports";
 import { MAX_MEDIA_BYTES } from "@/modules/media/uploadAllowedMime";
 import type { MediaListParams, MediaPreviewStatus, MediaRecord, MediaUsageRef } from "@/modules/media/types";
 import { mediaPreviewUrlById } from "@/shared/lib/mediaPreviewUrls";
+import { pgRuSubstringSearchPattern } from "@/shared/lib/ruSearchNormalize";
 
 function mediaAppUrl(mediaId: string): string {
   return `/api/media/${mediaId}`;
@@ -163,10 +164,12 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         }
       }
 
-      const q = params.query?.trim();
-      if (q) {
-        where.push(`(m.display_name ILIKE $${n} OR m.original_name ILIKE $${n})`);
-        values.push(`%${q}%`);
+      const pattern = params.query ? pgRuSubstringSearchPattern(params.query) : null;
+      if (pattern) {
+        where.push(
+          `(normalize(m.display_name, NFC) ILIKE $${n} ESCAPE '\\' OR normalize(m.original_name, NFC) ILIKE $${n} ESCAPE '\\')`,
+        );
+        values.push(pattern);
         n += 1;
       }
 

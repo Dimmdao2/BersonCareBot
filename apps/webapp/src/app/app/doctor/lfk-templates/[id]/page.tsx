@@ -24,7 +24,7 @@ export default async function DoctorLfkTemplateEditPage({ params }: PageProps) {
 
   return (
     <AppShell
-      title="Конструктор шаблона ЛФК"
+      title="Конструктор комплекса"
       user={session.user}
       variant="doctor"
       backHref="/app/doctor/lfk-templates"
