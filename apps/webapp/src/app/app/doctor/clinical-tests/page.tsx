@@ -1,5 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import {
   ClinicalTestsPageClient,
@@ -30,7 +31,7 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
     sp.load === "balance" ||
     sp.load === "cardio" ||
     sp.load === "other"
-      ? sp.load
+      ? (sp.load as ExerciseLoadType)
       : undefined;
   const titleSort: ClinicalTestTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,12 +20,8 @@ import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
+  DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { DoctorCatalogToolbarChoiceInput } from "@/shared/ui/doctor/DoctorCatalogToolbarChoiceInput";
-import {
-  DOCTOR_CATALOG_TEMPLATE_STATUS_FILTER_OPTIONS,
-  type DoctorCatalogListStatus,
-} from "@/shared/lib/doctorCatalogListStatus";
 import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import { exerciseMediaToPreviewUi } from "@/shared/ui/media/mediaPreviewUiModel";
 import { createLfkTemplateDraft } from "./actions";
@@ -36,7 +32,6 @@ type Props = {
   exerciseCatalog: Array<{ id: string; title: string; firstMedia: ExerciseMedia | null }>;
   filters: {
     q: string;
-    statusFilter: "" | TemplateStatus;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
   };
@@ -56,10 +51,6 @@ export function LfkTemplatesPageClient({
   filters,
   initialTitleSort,
 }: Props) {
-  const formKey = useId();
-  const [statusField, setStatusField] = useState<DoctorCatalogListStatus>(() =>
-    filters.statusFilter === "" ? "all" : filters.statusFilter,
-  );
   const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(initialTitleSort);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileSheet, setMobileSheet] = useState<Template | null>(null);
@@ -68,10 +59,6 @@ export function LfkTemplatesPageClient({
   useEffect(() => {
     setTitleSort(initialTitleSort);
   }, [initialTitleSort]);
-
-  useEffect(() => {
-    setStatusField(filters.statusFilter === "" ? "all" : filters.statusFilter);
-  }, [filters.statusFilter]);
 
   const displayList = useDoctorCatalogDisplayList(
     templates,
@@ -204,31 +191,19 @@ export function LfkTemplatesPageClient({
 
   const mobileDetailOpen = mobileSheet != null;
 
-  const statusLeading = (
-    <DoctorCatalogToolbarChoiceInput
-      id={`${formKey}-lfk-status`}
-      name="status"
-      aria-label="Статус"
-      value={statusField}
-      onValueChange={(v) => setStatusField(v as DoctorCatalogListStatus)}
-      options={DOCTOR_CATALOG_TEMPLATE_STATUS_FILTER_OPTIONS}
-    />
-  );
-
   const toolbar = (
     <DoctorCatalogFiltersToolbar
       filters={
-        <div className="min-w-0 flex-1">
+        <DoctorCatalogToolbarFiltersSlot>
           <DoctorCatalogFiltersForm
-            key={`lfk-filters-${filters.statusFilter}-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
+            key={`lfk-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
             idPrefix="lfk-tpl"
             q={filters.q}
             regionRefId={filters.regionRefId}
             loadType={filters.loadType}
             titleSort={titleSort}
-            leadingSlot={statusLeading}
           />
-        </div>
+        </DoctorCatalogToolbarFiltersSlot>
       }
       end={
         <Link

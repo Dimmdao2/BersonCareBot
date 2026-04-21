@@ -51,11 +51,7 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         selectedExercisePromise={selectedExercisePromise}
         initialViewMode={viewMode}
         initialTitleSort={titleSort}
-        filters={{
-          q,
-          regionRefId,
-          loadType,
-        }}
+        filters={{ q, regionRefId, loadType }}
       />
     </AppShell>
   );

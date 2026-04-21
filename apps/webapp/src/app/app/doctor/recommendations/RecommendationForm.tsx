@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import type { DoctorCatalogListStatus } from "@/shared/lib/doctorCatalogListStatus";
 import type { Recommendation } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
@@ -43,11 +42,10 @@ type Props = {
   backHref?: string;
   /** Режим каталога master-detail — передаётся как `view` для редиректа после сохранения. */
   workspaceView?: "tiles" | "list";
-  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `status`, `region`, `load`). */
+  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `region`, `load`). */
   workspaceListPreserve?: {
     q?: string;
     titleSort?: "asc" | "desc" | null;
-    catalogListStatus?: DoctorCatalogListStatus;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
   };
@@ -104,10 +102,6 @@ export function RecommendationForm({
         {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
           <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
         ) : null}
-        {workspaceListPreserve?.catalogListStatus != null &&
-        workspaceListPreserve.catalogListStatus !== "published" ? (
-          <input type="hidden" name="listStatus" value={workspaceListPreserve.catalogListStatus} />
-        ) : null}
         {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
           <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
         ) : null}
@@ -158,7 +152,8 @@ export function RecommendationForm({
             key={`rec-body-${recordKey}`}
             name="bodyMd"
             defaultValue={values.bodyMd}
-            label="Текст (Markdown)"
+            label={<span className="text-sm font-medium text-foreground">Описание</span>}
+            helpText={null}
             onValueChange={(md) => setValues((v) => ({ ...v, bodyMd: md }))}
           />
         </div>
@@ -192,10 +187,6 @@ export function RecommendationForm({
           ) : null}
           {workspaceListPreserve?.titleSort === "asc" || workspaceListPreserve?.titleSort === "desc" ? (
             <input type="hidden" name="listTitleSort" value={workspaceListPreserve.titleSort} />
-          ) : null}
-          {workspaceListPreserve?.catalogListStatus != null &&
-          workspaceListPreserve.catalogListStatus !== "published" ? (
-            <input type="hidden" name="listStatus" value={workspaceListPreserve.catalogListStatus} />
           ) : null}
           {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
             <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />

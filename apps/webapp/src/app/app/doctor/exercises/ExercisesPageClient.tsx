@@ -16,9 +16,9 @@ import type { Exercise, ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
 import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+  DoctorCatalogFiltersToolbar,
+  DoctorCatalogToolbarFiltersSlot,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
@@ -251,9 +251,9 @@ function ExercisesContent({
   return (
     <DoctorCatalogPageLayout
       toolbar={
-        <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <div className="min-w-0 flex-1">
+        <DoctorCatalogFiltersToolbar
+          filters={
+            <DoctorCatalogToolbarFiltersSlot>
               <ExercisesFiltersForm
                 idPrefix="ex"
                 q={filters.q}
@@ -263,7 +263,9 @@ function ExercisesContent({
                 titleSort={titleSort}
                 selectedId={desktopSelectedId}
               />
-            </div>
+            </DoctorCatalogToolbarFiltersSlot>
+          }
+          end={
             <CreateExerciseMenu
               triggerId="doctor-exercises-create-link-desktop"
               onNewExercise={() => {
@@ -271,8 +273,8 @@ function ExercisesContent({
                 setMobileSheet({ exercise: null });
               }}
             />
-          </div>
-        </div>
+          }
+        />
       }
     >
       <CatalogSplitLayout

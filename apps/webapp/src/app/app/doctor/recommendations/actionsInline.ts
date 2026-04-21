@@ -14,15 +14,6 @@ function appendRecommendationsListParams(sp: URLSearchParams, formData: FormData
   if (typeof q === "string" && q.trim()) sp.set("q", q.trim());
   const ts = formData.get("listTitleSort");
   if (ts === "asc" || ts === "desc") sp.set("titleSort", ts);
-  const listStatus = formData.get("listStatus");
-  if (
-    listStatus === "all" ||
-    listStatus === "draft" ||
-    listStatus === "published" ||
-    listStatus === "archived"
-  ) {
-    sp.set("status", String(listStatus));
-  }
   const region = formData.get("listRegion");
   if (typeof region === "string" && region.trim()) sp.set("region", region.trim());
   const load = formData.get("listLoad");

@@ -7,11 +7,6 @@ import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ReferenceItemDto } from "@/modules/references/referenceCache";
 import type { ReactNode } from "react";
-import { DoctorCatalogToolbarChoiceInput } from "@/shared/ui/doctor/DoctorCatalogToolbarChoiceInput";
-import {
-  DOCTOR_CATALOG_TEMPLATE_STATUS_FILTER_OPTIONS,
-  type DoctorCatalogListStatus,
-} from "@/shared/lib/doctorCatalogListStatus";
 
 const EXERCISE_LOAD_FILTER_ITEMS: ReferenceItemDto[] = [
   { id: "ex-filter-load-strength", code: "strength", title: "Силовая", sortOrder: 1 },
@@ -33,17 +28,13 @@ export type DoctorCatalogFiltersFormProps = {
   view?: "tiles" | "list";
   titleSort?: "asc" | "desc" | null;
   selectedId?: string | null;
-  /** Префикс для id полей (уникальность при нескольких экземплярах на странице). */
   idPrefix?: string;
-  /** Дополнительные контролы перед полем поиска (GET). */
+  /** Редко: доп. контроль слева (без фильтров по черновикам/архиву в статусе шаблона). */
   leadingSlot?: ReactNode;
-  /** Фильтр списка как у комплексов ЛФК (`name="status"`). */
-  recommendationCatalogStatus?: DoctorCatalogListStatus;
 };
 
 /**
- * Общая GET-форма фильтров каталога доктора — как «Упражнения»: поиск + регион + тип нагрузки + «Применить».
- * Для рекомендаций: четыре значения статуса, как у ЛФК.
+ * Общая GET-форма каталога врача — как «Упражнения»: поиск + регион + тип нагрузки + «Применить».
  */
 export function DoctorCatalogFiltersForm({
   q,
@@ -54,16 +45,12 @@ export function DoctorCatalogFiltersForm({
   selectedId,
   idPrefix = "catalog",
   leadingSlot,
-  recommendationCatalogStatus,
 }: DoctorCatalogFiltersFormProps) {
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
   const [selectedRegionLabel, setSelectedRegionLabel] = useState("");
   const [selectedLoadCode, setSelectedLoadCode] = useState<string | null>(loadType ?? null);
   const [selectedLoadLabel, setSelectedLoadLabel] = useState(() => loadTypeTitle(loadType));
   const [qInput, setQInput] = useState(q);
-  const [catalogStatusField, setCatalogStatusField] = useState<DoctorCatalogListStatus>(
-    () => recommendationCatalogStatus ?? "published",
-  );
 
   useEffect(() => {
     setSelectedRegionRefId(regionRefId ?? null);
@@ -79,31 +66,12 @@ export function DoctorCatalogFiltersForm({
     setQInput(q);
   }, [q]);
 
-  useEffect(() => {
-    if (recommendationCatalogStatus !== undefined) {
-      setCatalogStatusField(recommendationCatalogStatus);
-    }
-  }, [recommendationCatalogStatus]);
-
-  const statusSelect =
-    recommendationCatalogStatus !== undefined ? (
-      <DoctorCatalogToolbarChoiceInput
-        id={`${idPrefix}-status`}
-        name="status"
-        aria-label="Статус списка"
-        value={catalogStatusField}
-        onValueChange={(v) => setCatalogStatusField(v as DoctorCatalogListStatus)}
-        options={DOCTOR_CATALOG_TEMPLATE_STATUS_FILTER_OPTIONS}
-      />
-    ) : null;
-
   return (
     <form method="get" className="flex flex-wrap items-center gap-2">
       {view ? <input type="hidden" name="view" value={view} /> : null}
       {titleSort ? <input type="hidden" name="titleSort" value={titleSort} /> : null}
       {selectedId ? <input type="hidden" name="selected" value={selectedId} /> : null}
       {leadingSlot}
-      {statusSelect}
       <div className="w-[220px] shrink-0">
         <label className="sr-only" htmlFor={`${idPrefix}-q`}>
           Поиск по названию

@@ -1,19 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TreatmentProgramTemplate, TreatmentProgramTemplateDetail } from "@/modules/treatment-program/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
 import { useDoctorCatalogMasterSelectionSync } from "@/shared/hooks/useDoctorCatalogMasterSelectionSync";
 import type { CatalogMasterTitleSort } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
+import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { DoctorCatalogListSortHeader } from "@/shared/ui/doctor/DoctorCatalogListSortHeader";
-import type { TitleSortValue } from "@/shared/ui/doctor/DoctorCatalogTitleSortSelect";
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
+  DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
@@ -30,18 +31,34 @@ type Props = {
   templates: TreatmentProgramTemplate[];
   library: TreatmentProgramLibraryPickers;
   initialSelectedId: string | null;
+  filters: {
+    q: string;
+    regionRefId?: string;
+    loadType?: ExerciseLoadType;
+  };
+  initialTitleSort: "asc" | "desc" | null;
 };
 
-export function TreatmentProgramTemplatesPageClient({ templates, library, initialSelectedId }: Props) {
-  const searchFieldId = useId();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [titleSort, setTitleSort] = useState<TitleSortValue>("default");
+export function TreatmentProgramTemplatesPageClient({
+  templates,
+  library,
+  initialSelectedId,
+  filters,
+  initialTitleSort,
+}: Props) {
+  const formKey = useId();
+  const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(initialTitleSort);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileSheet, setMobileSheet] = useState<TreatmentProgramTemplate | null>(null);
   const [detail, setDetail] = useState<TreatmentProgramTemplateDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const detailFetchGenRef = useRef(0);
+  const [isListPending, startListTransition] = useTransition();
+
+  useEffect(() => {
+    setTitleSort(initialTitleSort);
+  }, [initialTitleSort]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -55,7 +72,11 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
     });
   }, [initialSelectedId, templates]);
 
-  const displayList = useDoctorCatalogDisplayList(templates, searchQuery, titleSort);
+  const displayList = useDoctorCatalogDisplayList(
+    templates,
+    filters.q,
+    titleSort === null ? "default" : titleSort,
+  );
 
   useDoctorCatalogMasterSelectionSync({
     displayList,
@@ -68,6 +89,12 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
 
   const titleSortForHeader: CatalogMasterTitleSort | null =
     titleSort === "asc" || titleSort === "desc" ? titleSort : null;
+
+  const changeTitleSort = (next: CatalogMasterTitleSort | null) => {
+    startListTransition(() => {
+      setTitleSort(next);
+    });
+  };
 
   useEffect(() => {
     const id = selected?.id;
@@ -176,19 +203,17 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
   const toolbar = (
     <DoctorCatalogFiltersToolbar
       filters={
-        <div className="w-[220px] shrink-0">
-          <label htmlFor={searchFieldId} className="sr-only">
-            Поиск по названию
-          </label>
-          <Input
-            id={searchFieldId}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск по названию"
-            autoComplete="off"
-            className="w-full"
+        <DoctorCatalogToolbarFiltersSlot>
+          <DoctorCatalogFiltersForm
+            key={`tpt-filters-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}-${filters.q}`}
+            idPrefix={`${formKey}-tpt`}
+            q={filters.q}
+            regionRefId={filters.regionRefId}
+            loadType={filters.loadType}
+            titleSort={titleSort}
+            selectedId={selectedId}
           />
-        </div>
+        </DoctorCatalogToolbarFiltersSlot>
       }
       end={
         <Link href={`${TREATMENT_PROGRAM_TEMPLATES_PATH}/new`} className={doctorCatalogToolbarPrimaryActionClassName}>
@@ -213,14 +238,22 @@ export function TreatmentProgramTemplatesPageClient({ templates, library, initia
                   displayList.length === 0 ? "Нет шаблонов" : `Шаблонов: ${displayList.length}`
                 }
                 titleSort={titleSortForHeader}
-                onTitleSortChange={(next) => setTitleSort(next === null ? "default" : next)}
+                onTitleSortChange={changeTitleSort}
               />
             }
           >
-            {renderRows((t) => {
-              setSelectedId(t.id);
-              setMobileSheet(t);
-            }, selected?.id ?? mobileSheet?.id ?? null)}
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-hidden transition-opacity",
+                isListPending && "opacity-80",
+              )}
+              aria-busy={isListPending}
+            >
+              {renderRows((t) => {
+                setSelectedId(t.id);
+                setMobileSheet(t);
+              }, selected?.id ?? mobileSheet?.id ?? null)}
+            </div>
           </CatalogLeftPane>
         }
         right={desktopRight}

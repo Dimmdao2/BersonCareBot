@@ -2,6 +2,7 @@
 
 import "@toast-ui/editor/dist/toastui-editor.css";
 import { Editor } from "@toast-ui/react-editor";
+import type { ReactNode } from "react";
 import { useCallback, useRef, useState } from "react";
 import { MediaLibraryInsertDialog } from "./MediaLibraryInsertDialog";
 import type { MediaLibraryInsertPickMeta } from "./MediaLibraryInsertDialog";
@@ -13,16 +14,27 @@ export type MarkdownEditorToastUiInnerProps = {
   name: string;
   defaultValue?: string;
   maxLength?: number;
-  label?: string;
+  /** Подпись над редактором: строка — стиль «caption»; `ReactNode` — без изменений. */
+  label?: ReactNode;
+  /** По умолчанию — краткая справка; `null` — не показывать. */
+  helpText?: ReactNode | null;
   /** For live preview outside the editor (hidden `name` field does not emit `input`). */
   onValueChange?: (markdown: string) => void;
 };
+
+const DEFAULT_HELP_TEXT = (maxLen: number) => (
+  <>
+    До {maxLen.toLocaleString("ru-RU")} символов. Редактор Toast UI (Markdown + предпросмотр). Таблицы и GitHub Flavored
+    Markdown поддерживаются панелью инструментов.
+  </>
+);
 
 export default function MarkdownEditorToastUiInner({
   name,
   defaultValue = "",
   maxLength = MAX_BODY_MD,
   label = "Содержимое (Markdown)",
+  helpText,
   onValueChange,
 }: MarkdownEditorToastUiInnerProps) {
   const editorRef = useRef<Editor>(null);
@@ -54,14 +66,22 @@ export default function MarkdownEditorToastUiInner({
     [syncFromEditor],
   );
 
+  const helpBlock =
+    helpText === null ? null : helpText === undefined ? (
+      <p className="m-0 text-sm text-muted-foreground">{DEFAULT_HELP_TEXT(maxLength)}</p>
+    ) : (
+      <div className="m-0 text-sm text-muted-foreground">{helpText}</div>
+    );
+
   return (
     <div className="flex flex-col gap-3">
       <input type="hidden" name={name} value={markdown} readOnly />
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-      <p className="m-0 text-sm text-muted-foreground">
-        До {maxLength.toLocaleString("ru-RU")} символов. Редактор Toast UI (Markdown + предпросмотр). Таблицы и
-        GitHub Flavored Markdown поддерживаются панелью инструментов.
-      </p>
+      {typeof label === "string" ? (
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      ) : (
+        label
+      )}
+      {helpBlock}
       <div className="flex flex-wrap gap-2" role="toolbar" aria-label="Вставка из медиабиблиотеки или с устройства">
         <MediaLibraryInsertDialog onInsert={insertFromMedia} />
       </div>

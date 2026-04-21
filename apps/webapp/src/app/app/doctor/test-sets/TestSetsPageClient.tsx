@@ -1,12 +1,8 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  DOCTOR_CATALOG_TEMPLATE_STATUS_FILTER_OPTIONS,
-  type DoctorCatalogListStatus,
-} from "@/shared/lib/doctorCatalogListStatus";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { TestSet } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
 import { useDoctorCatalogDisplayList } from "@/shared/hooks/useDoctorCatalogDisplayList";
@@ -17,12 +13,12 @@ import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
-import { Input } from "@/components/ui/input";
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
+  DoctorCatalogToolbarFiltersSlot,
 } from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
-import { DoctorCatalogToolbarChoiceInput } from "@/shared/ui/doctor/DoctorCatalogToolbarChoiceInput";
+import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import {
   archiveDoctorTestSetInline,
   saveDoctorTestSetInline,
@@ -34,18 +30,18 @@ import { TEST_SETS_PATH } from "./paths";
 type Props = {
   initialSets: TestSet[];
   initialSelectedId: string | null;
-  initialCatalogStatus: DoctorCatalogListStatus;
+  filters: {
+    q: string;
+    regionRefId?: string;
+    loadType?: ExerciseLoadType;
+  };
 };
 
 export function TestSetsPageClient({
   initialSets,
   initialSelectedId,
-  initialCatalogStatus,
+  filters,
 }: Props) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const searchFieldId = useId();
-  const [searchQuery, setSearchQuery] = useState("");
   const [titleSort, setTitleSort] = useState<CatalogMasterTitleSort | null>(null);
   const [isListPending, startListTransition] = useTransition();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -63,17 +59,9 @@ export function TestSetsPageClient({
     });
   }, [initialSelectedId, initialSets]);
 
-  function applyCatalogStatus(next: DoctorCatalogListStatus) {
-    const p = new URLSearchParams(searchParams.toString());
-    p.delete("scope");
-    p.set("status", next);
-    const qs = p.toString();
-    router.replace(qs ? `/app/doctor/test-sets?${qs}` : "/app/doctor/test-sets");
-  }
-
   const displayList = useDoctorCatalogDisplayList(
     initialSets,
-    searchQuery,
+    filters.q,
     titleSort === null ? "default" : titleSort,
   );
 
@@ -173,28 +161,15 @@ export function TestSetsPageClient({
   const toolbar = (
     <DoctorCatalogFiltersToolbar
       filters={
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          <DoctorCatalogToolbarChoiceInput
-            id={`${searchFieldId}-scope`}
-            aria-label="Статус списка"
-            value={initialCatalogStatus}
-            onValueChange={(v) => applyCatalogStatus(v as DoctorCatalogListStatus)}
-            options={DOCTOR_CATALOG_TEMPLATE_STATUS_FILTER_OPTIONS}
+        <DoctorCatalogToolbarFiltersSlot>
+          <DoctorCatalogFiltersForm
+            idPrefix="ts"
+            q={filters.q}
+            regionRefId={filters.regionRefId}
+            loadType={filters.loadType}
+            titleSort={titleSort}
           />
-          <div className="w-[220px] shrink-0">
-            <label htmlFor={searchFieldId} className="sr-only">
-              Поиск по названию
-            </label>
-            <Input
-              id={searchFieldId}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск по названию"
-              autoComplete="off"
-              className="w-full"
-            />
-          </div>
-        </div>
+        </DoctorCatalogToolbarFiltersSlot>
       }
       end={
         <button

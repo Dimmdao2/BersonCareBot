@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
-import type { DoctorCatalogListStatus } from "@/shared/lib/doctorCatalogListStatus";
+import { Card, CardContent } from "@/components/ui/card";
 import type { Recommendation, RecommendationMediaItem } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
@@ -13,9 +12,10 @@ import { recommendationMediaItemToPreviewUi } from "@/shared/ui/media/mediaPrevi
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
 import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+  doctorCatalogToolbarPrimaryActionClassName,
+  DoctorCatalogFiltersToolbar,
+  DoctorCatalogToolbarFiltersSlot,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
@@ -38,7 +38,6 @@ type Props = {
   initialTitleSort: RecommendationTitleSort | null;
   filters: {
     q: string;
-    catalogListStatus: DoctorCatalogListStatus;
     regionRefId?: string;
     loadType?: ExerciseLoadType;
   };
@@ -305,7 +304,6 @@ function RecommendationsContent({
         workspaceListPreserve={{
           q: filters.q,
           titleSort,
-          catalogListStatus: filters.catalogListStatus,
           regionRefId: filters.regionRefId,
           loadType: filters.loadType,
         }}
@@ -316,11 +314,11 @@ function RecommendationsContent({
   return (
     <DoctorCatalogPageLayout
       toolbar={
-        <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <div className="min-w-0 flex-1">
+        <DoctorCatalogFiltersToolbar
+          filters={
+            <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
-                key={`rec-filters-${filters.catalogListStatus}-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
+                key={`rec-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
                 idPrefix="rec"
                 q={filters.q}
                 regionRefId={filters.regionRefId}
@@ -328,16 +326,14 @@ function RecommendationsContent({
                 view={viewMode}
                 titleSort={titleSort}
                 selectedId={desktopSelectedId}
-                recommendationCatalogStatus={filters.catalogListStatus}
               />
-            </div>
+            </DoctorCatalogToolbarFiltersSlot>
+          }
+          end={
             <button
               type="button"
               id="doctor-recommendations-create"
-              className={cn(
-                buttonVariants({ variant: "default", size: "sm" }),
-                "box-border h-[32px] min-h-[32px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5",
-              )}
+              className={doctorCatalogToolbarPrimaryActionClassName}
               onClick={() => {
                 setDesktopSelectedId(null);
                 setMobileSheet({ recommendation: null });
@@ -345,8 +341,8 @@ function RecommendationsContent({
             >
               Создать рекомендацию
             </button>
-          </div>
-        </div>
+          }
+        />
       }
     >
       <CatalogSplitLayout

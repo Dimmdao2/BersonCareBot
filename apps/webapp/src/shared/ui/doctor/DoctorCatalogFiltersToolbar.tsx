@@ -17,6 +17,11 @@ export type DoctorCatalogFiltersToolbarProps = {
   className?: string;
 };
 
+/** Единая горизонтальная строка контролов слева в тулбаре (поиск, статус и т.д.). */
+export function DoctorCatalogToolbarFiltersSlot({ children }: { children: ReactNode }) {
+  return <div className="flex w-full min-w-0 flex-wrap items-center gap-2">{children}</div>;
+}
+
 /** Липкий тулбар каталога врача: слева фильтры, справа основное действие («Создать» и т.п.). */
 export function DoctorCatalogFiltersToolbar({ filters, end, className }: DoctorCatalogFiltersToolbarProps) {
   return (
@@ -25,3 +30,6 @@ export function DoctorCatalogFiltersToolbar({ filters, end, className }: DoctorC
     </DoctorCatalogStickyToolbar>
   );
 }
+
+/** Алиас к `DoctorCatalogFiltersToolbar` — один компонент для ЛФК, наборов тестов, шаблонов программ, рекомендаций. */
+export const DoctorCatalogPageToolbar = DoctorCatalogFiltersToolbar;

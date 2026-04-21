@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import type { ClinicalTest } from "@/modules/tests/types";
 import { cn } from "@/lib/utils";
@@ -11,9 +11,10 @@ import { clinicalTestMediaItemToPreviewUi } from "@/shared/ui/media/mediaPreview
 import { VirtualizedItemGrid } from "@/shared/ui/VirtualizedItemGrid";
 import { DoctorCatalogMasterListHeader } from "@/shared/ui/doctor/DoctorCatalogMasterListHeader";
 import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from "@/shared/ui/doctorWorkspaceLayout";
+  doctorCatalogToolbarPrimaryActionClassName,
+  DoctorCatalogFiltersToolbar,
+  DoctorCatalogToolbarFiltersSlot,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersToolbar";
 import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
@@ -267,9 +268,9 @@ function ClinicalTestsContent({
   return (
     <DoctorCatalogPageLayout
       toolbar={
-        <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-            <div className="min-w-0 flex-1">
+        <DoctorCatalogFiltersToolbar
+          filters={
+            <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
                 idPrefix="ct"
                 q={filters.q}
@@ -279,14 +280,13 @@ function ClinicalTestsContent({
                 titleSort={titleSort}
                 selectedId={desktopSelectedId}
               />
-            </div>
+            </DoctorCatalogToolbarFiltersSlot>
+          }
+          end={
             <button
               type="button"
               id="doctor-clinical-tests-create"
-              className={cn(
-                buttonVariants({ variant: "default", size: "sm" }),
-                "box-border h-[32px] min-h-[32px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5",
-              )}
+              className={doctorCatalogToolbarPrimaryActionClassName}
               onClick={() => {
                 setDesktopSelectedId(null);
                 setMobileSheet({ test: null });
@@ -294,8 +294,8 @@ function ClinicalTestsContent({
             >
               Создать тест
             </button>
-          </div>
-        </div>
+          }
+        />
       }
     >
       <CatalogSplitLayout

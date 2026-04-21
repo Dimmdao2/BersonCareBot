@@ -3,12 +3,10 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
-import type { TemplateStatus } from "@/modules/lfk-templates/types";
 import { LfkTemplatesPageClient } from "./LfkTemplatesPageClient";
 
 type PageProps = {
   searchParams?: Promise<{
-    status?: string;
     q?: string;
     region?: string;
     load?: string;
@@ -19,9 +17,6 @@ type PageProps = {
 export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
   const sp = (await searchParams) ?? {};
-  const statusRaw = typeof sp.status === "string" ? sp.status.trim() : "";
-  const status: TemplateStatus | undefined =
-    statusRaw === "draft" || statusRaw === "published" || statusRaw === "archived" ? statusRaw : undefined;
 
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
@@ -39,7 +34,6 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
   const deps = buildAppDeps();
   const [list, exercises] = await Promise.all([
     deps.lfkTemplates.listTemplates({
-      status: status ?? null,
       search: q || null,
       includeExerciseDetails: true,
     }),
@@ -52,8 +46,6 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
     firstMedia: e.media[0] ?? null,
   }));
 
-  const initialStatusFilter: "" | TemplateStatus = status ?? "";
-
   return (
     <AppShell title="Комплексы" user={session.user} variant="doctor" backHref="/app/doctor">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Загрузка…</p>}>
@@ -62,7 +54,6 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
           exerciseCatalog={exerciseCatalog}
           filters={{
             q,
-            statusFilter: initialStatusFilter,
             regionRefId,
             loadType,
           }}

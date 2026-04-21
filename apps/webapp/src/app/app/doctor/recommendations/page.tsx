@@ -1,9 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import {
-  parseDoctorCatalogListStatus,
-  recommendationArchiveScopeFromCatalogStatus,
-} from "@/shared/lib/doctorCatalogListStatus";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import {
   RecommendationsPageClient,
@@ -17,8 +14,6 @@ type PageProps = {
     view?: string;
     q?: string;
     titleSort?: string;
-    status?: string;
-    scope?: string;
     region?: string;
     load?: string;
   }>;
@@ -36,23 +31,14 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
     sp.load === "balance" ||
     sp.load === "cardio" ||
     sp.load === "other"
-      ? sp.load
+      ? (sp.load as ExerciseLoadType)
       : undefined;
   const titleSort: RecommendationTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
-  const catalogListStatus = parseDoctorCatalogListStatus(
-    {
-      status: typeof sp.status === "string" ? sp.status : undefined,
-      scope: typeof sp.scope === "string" ? sp.scope : undefined,
-    },
-    "published",
-  );
-  const archiveScope = recommendationArchiveScopeFromCatalogStatus(catalogListStatus);
-
   const items = await deps.recommendations.listRecommendations({
     search: q || null,
-    archiveScope,
+    archiveScope: "active",
     regionRefId: regionRefId ?? null,
     loadType: loadType ?? null,
   });
@@ -69,7 +55,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
         initialSelectedId={initialSelectedId}
         initialViewMode={initialViewMode}
         initialTitleSort={titleSort}
-        filters={{ q, catalogListStatus, regionRefId, loadType }}
+        filters={{ q, regionRefId, loadType }}
       />
     </AppShell>
   );

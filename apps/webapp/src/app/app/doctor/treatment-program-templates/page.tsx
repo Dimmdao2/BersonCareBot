@@ -1,5 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { AppShell } from "@/shared/ui/AppShell";
 import {
   LESSON_CONTENT_SECTION,
@@ -9,7 +10,13 @@ import type { TreatmentProgramLibraryPickers } from "./[id]/TreatmentProgramCons
 import { TreatmentProgramTemplatesPageClient } from "./TreatmentProgramTemplatesPageClient";
 
 type PageProps = {
-  searchParams?: Promise<{ selected?: string }>;
+  searchParams?: Promise<{
+    selected?: string;
+    q?: string;
+    titleSort?: string;
+    region?: string;
+    load?: string;
+  }>;
 };
 
 export default async function TreatmentProgramTemplatesPage({ searchParams }: PageProps) {
@@ -44,6 +51,17 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const sp = (await searchParams) ?? {};
   const raw = typeof sp.selected === "string" ? sp.selected.trim() : "";
   const initialSelectedId = raw && items.some((t) => t.id === raw) ? raw : null;
+  const q = typeof sp.q === "string" ? sp.q : "";
+  const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
+  const loadType =
+    sp.load === "strength" ||
+    sp.load === "stretch" ||
+    sp.load === "balance" ||
+    sp.load === "cardio" ||
+    sp.load === "other"
+      ? (sp.load as ExerciseLoadType)
+      : undefined;
+  const initialTitleSort = sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
   return (
     <AppShell title="Шаблоны программ" user={session.user} variant="doctor" backHref="/app/doctor">
@@ -51,6 +69,8 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
         templates={items}
         library={library}
         initialSelectedId={initialSelectedId}
+        filters={{ q, regionRefId, loadType }}
+        initialTitleSort={initialTitleSort}
       />
     </AppShell>
   );
