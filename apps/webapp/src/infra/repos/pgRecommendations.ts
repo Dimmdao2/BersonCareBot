@@ -2,6 +2,7 @@ import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { getDrizzle } from "@/app-layer/db/drizzle";
 import { recommendations as recommendationsTable } from "../../../db/schema/recommendations";
 import type { RecommendationsPort } from "@/modules/recommendations/ports";
+import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import type {
   Recommendation,
   RecommendationFilter,
@@ -30,12 +31,15 @@ function normalizeMedia(raw: unknown): RecommendationMediaItem[] {
 }
 
 function mapRow(row: typeof recommendationsTable.$inferSelect): Recommendation {
+  const domainRaw = row.domain?.trim() ?? "";
+  const domain = parseRecommendationDomain(domainRaw) ?? null;
   return {
     id: row.id,
     title: row.title,
     bodyMd: row.bodyMd,
     media: normalizeMedia(row.media),
     tags: row.tags ?? null,
+    domain,
     isArchived: row.isArchived,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
@@ -60,6 +64,10 @@ export function createPgRecommendationsPort(): RecommendationsPort {
         const p = `%${q}%`;
         conds.push(or(ilike(recommendationsTable.title, p), ilike(recommendationsTable.bodyMd, p)));
       }
+      const domainFilter = filter.domain;
+      if (domainFilter) {
+        conds.push(eq(recommendationsTable.domain, domainFilter));
+      }
       const rows = await db
         .select()
         .from(recommendationsTable)
@@ -83,6 +91,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
           bodyMd: input.bodyMd,
           media: normalizeMedia(input.media ?? []),
           tags: input.tags ?? null,
+          domain: input.domain ?? null,
           createdBy,
         })
         .returning();
@@ -97,6 +106,7 @@ export function createPgRecommendationsPort(): RecommendationsPort {
       if (input.title !== undefined) patch.title = input.title;
       if (input.bodyMd !== undefined) patch.bodyMd = input.bodyMd;
       if (input.tags !== undefined) patch.tags = input.tags ?? null;
+      if (input.domain !== undefined) patch.domain = input.domain ?? null;
       if (input.media !== undefined) patch.media = normalizeMedia(input.media ?? []);
 
       const rows = await db

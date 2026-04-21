@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  RECOMMENDATION_DOMAIN_ITEMS,
+  type RecommendationDomain,
+} from "@/modules/recommendations/recommendationDomain";
 import type { Recommendation, RecommendationMediaItem } from "@/modules/recommendations/types";
 import { cn } from "@/lib/utils";
 import { useViewportMinWidth } from "@/shared/hooks/useViewportMinWidth";
@@ -20,7 +23,10 @@ import { CatalogLeftPane } from "@/shared/ui/CatalogLeftPane";
 import { CatalogRightPane } from "@/shared/ui/CatalogRightPane";
 import { CatalogSplitLayout } from "@/shared/ui/CatalogSplitLayout";
 import { DoctorCatalogPageLayout } from "@/shared/ui/DoctorCatalogPageLayout";
-import { DoctorCatalogFiltersForm } from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
+import {
+  DoctorCatalogFiltersForm,
+  type DoctorCatalogTertiaryFilter,
+} from "@/shared/ui/doctor/DoctorCatalogFiltersForm";
 import { RecommendationForm } from "./RecommendationForm";
 import { archiveRecommendationInline, saveRecommendationInline } from "./actionsInline";
 export type RecommendationsViewMode = "tiles" | "list";
@@ -39,7 +45,7 @@ type Props = {
   filters: {
     q: string;
     regionRefId?: string;
-    loadType?: ExerciseLoadType;
+    domain?: RecommendationDomain;
   };
 };
 
@@ -225,6 +231,18 @@ function RecommendationsContent({
 
   const formRecommendation = mobileSheet != null ? mobileSheet.recommendation : recommendationForDesktop;
 
+  const recommendationTertiaryFilter = useMemo((): DoctorCatalogTertiaryFilter => {
+    return {
+      items: RECOMMENDATION_DOMAIN_ITEMS,
+      paramName: "domain",
+      value: filters.domain ?? null,
+      label: "Область",
+      placeholder: "Все области",
+      clearLabel: "Все области",
+      summaryLabel: "Область",
+    };
+  }, [filters.domain]);
+
   const renderRecommendationList = (
     list: Recommendation[],
     opts: { activeId: string | null; onRowSelect: (id: string) => void },
@@ -305,7 +323,7 @@ function RecommendationsContent({
           q: filters.q,
           titleSort,
           regionRefId: filters.regionRefId,
-          loadType: filters.loadType,
+          domain: filters.domain,
         }}
       />
     </CatalogRightPane>
@@ -318,11 +336,11 @@ function RecommendationsContent({
           filters={
             <DoctorCatalogToolbarFiltersSlot>
               <DoctorCatalogFiltersForm
-                key={`rec-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.loadType ?? ""}`}
+                key={`rec-filters-${filters.q}-${filters.regionRefId ?? ""}-${filters.domain ?? ""}`}
                 idPrefix="rec"
                 q={filters.q}
                 regionRefId={filters.regionRefId}
-                loadType={filters.loadType}
+                tertiaryFilter={recommendationTertiaryFilter}
                 view={viewMode}
                 titleSort={titleSort}
                 selectedId={desktopSelectedId}

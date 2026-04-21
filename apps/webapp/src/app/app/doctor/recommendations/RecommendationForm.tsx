@@ -6,8 +6,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { RECOMMENDATION_DOMAIN_ITEMS } from "@/modules/recommendations/recommendationDomain";
+import type { RecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import type { Recommendation } from "@/modules/recommendations/types";
+import { ReferenceSelect } from "@/shared/ui/ReferenceSelect";
 import { cn } from "@/lib/utils";
 import { MediaLibraryPickerDialog } from "@/app/app/doctor/content/MediaLibraryPickerDialog";
 import { archiveRecommendation, saveRecommendation } from "./actions";
@@ -24,6 +26,8 @@ type FormValues = {
   tags: string;
   mediaUrl: string;
   mediaType: "" | "image" | "video" | "gif";
+  /** Код области (`RecommendationDomain`), как в `RECOMMENDATION_DOMAIN_ITEMS.code`. */
+  domainCode: string | null;
 };
 
 function toValues(r: Recommendation | null | undefined): FormValues {
@@ -34,6 +38,7 @@ function toValues(r: Recommendation | null | undefined): FormValues {
     tags: r?.tags?.join(", ") ?? "",
     mediaUrl: m?.mediaUrl ?? "",
     mediaType: (m?.mediaType ?? "") as FormValues["mediaType"],
+    domainCode: r?.domain ?? null,
   };
 }
 
@@ -42,12 +47,12 @@ type Props = {
   backHref?: string;
   /** Режим каталога master-detail — передаётся как `view` для редиректа после сохранения. */
   workspaceView?: "tiles" | "list";
-  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `region`, `load`). */
+  /** Дополнить редирект после save/archive параметрами списка (`q`, `titleSort`, `region`, `domain`). */
   workspaceListPreserve?: {
     q?: string;
     titleSort?: "asc" | "desc" | null;
     regionRefId?: string;
-    loadType?: ExerciseLoadType;
+    domain?: RecommendationDomain;
   };
   saveAction?: (
     _prev: SaveRecommendationState | null,
@@ -105,12 +110,8 @@ export function RecommendationForm({
         {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
           <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
         ) : null}
-        {workspaceListPreserve?.loadType === "strength" ||
-        workspaceListPreserve?.loadType === "stretch" ||
-        workspaceListPreserve?.loadType === "balance" ||
-        workspaceListPreserve?.loadType === "cardio" ||
-        workspaceListPreserve?.loadType === "other" ? (
-          <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+        {workspaceListPreserve?.domain != null ? (
+          <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
         ) : null}
         <input type="hidden" name="mediaUrl" value={values.mediaUrl} />
         <input type="hidden" name="mediaType" value={values.mediaType} />
@@ -123,6 +124,25 @@ export function RecommendationForm({
             required
             value={values.title}
             onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label className="text-sm font-medium text-foreground" htmlFor="rec-domain">
+            Область
+          </Label>
+          <ReferenceSelect
+            id="rec-domain"
+            name="domain"
+            prefetchedItems={RECOMMENDATION_DOMAIN_ITEMS}
+            valueMatch="code"
+            submitField="code"
+            value={values.domainCode}
+            onChange={(code, _label) => {
+              setValues((v) => ({ ...v, domainCode: code }));
+            }}
+            placeholder="Выберите область"
+            clearOptionLabel="Без области"
           />
         </div>
 
@@ -191,12 +211,8 @@ export function RecommendationForm({
           {workspaceListPreserve?.regionRefId != null && workspaceListPreserve.regionRefId !== "" ? (
             <input type="hidden" name="listRegion" value={workspaceListPreserve.regionRefId} />
           ) : null}
-          {workspaceListPreserve?.loadType === "strength" ||
-          workspaceListPreserve?.loadType === "stretch" ||
-          workspaceListPreserve?.loadType === "balance" ||
-          workspaceListPreserve?.loadType === "cardio" ||
-          workspaceListPreserve?.loadType === "other" ? (
-            <input type="hidden" name="listLoad" value={workspaceListPreserve.loadType} />
+          {workspaceListPreserve?.domain != null ? (
+            <input type="hidden" name="listDomain" value={workspaceListPreserve.domain} />
           ) : null}
           <Button type="submit" variant="destructive">
             Архивировать

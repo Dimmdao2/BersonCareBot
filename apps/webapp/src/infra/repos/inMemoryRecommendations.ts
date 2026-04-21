@@ -52,6 +52,9 @@ function matchesFilter(r: Recommendation, f: RecommendationFilter): boolean {
       return false;
     }
   }
+  if (f.domain) {
+    if (r.domain !== f.domain) return false;
+  }
   return true;
 }
 
@@ -75,6 +78,7 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
       bodyMd: input.bodyMd,
       media: normalizeMedia(input.media ?? []),
       tags: input.tags ?? null,
+      domain: input.domain ?? null,
       isArchived: false,
       createdBy,
       createdAt: now,
@@ -93,6 +97,7 @@ export const inMemoryRecommendationsPort: RecommendationsPort = {
       title: input.title ?? cur.title,
       bodyMd: input.bodyMd !== undefined ? input.bodyMd : cur.bodyMd,
       tags: input.tags !== undefined ? input.tags : cur.tags,
+      domain: input.domain !== undefined ? (input.domain ?? null) : cur.domain,
       media: input.media !== undefined ? normalizeMedia(input.media) : cur.media,
       updatedAt: now,
     };

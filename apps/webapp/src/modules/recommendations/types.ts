@@ -1,3 +1,5 @@
+import type { RecommendationDomain } from "./recommendationDomain";
+
 export type RecommendationMediaItem = {
   mediaUrl: string;
   mediaType: "image" | "video" | "gif";
@@ -10,6 +12,8 @@ export type Recommendation = {
   bodyMd: string;
   media: RecommendationMediaItem[];
   tags: string[] | null;
+  /** Область контента (каталог врача). */
+  domain: RecommendationDomain | null;
   isArchived: boolean;
   createdBy: string | null;
   createdAt: string;
@@ -28,6 +32,8 @@ export type RecommendationFilter = {
   regionRefId?: string | null;
   /** Зарезервировано под единый UI с упражнениями; список в БД пока не фильтрует. */
   loadType?: import("@/modules/lfk-exercises/types").ExerciseLoadType | null;
+  /** Фильтр по области рекомендации (`recommendationDomain`). */
+  domain?: RecommendationDomain | null;
 };
 
 export type CreateRecommendationInput = {
@@ -35,6 +41,7 @@ export type CreateRecommendationInput = {
   bodyMd: string;
   media?: RecommendationMediaItem[];
   tags?: string[] | null;
+  domain?: RecommendationDomain | null;
 };
 
 export type UpdateRecommendationInput = {
@@ -42,4 +49,5 @@ export type UpdateRecommendationInput = {
   bodyMd?: string;
   media?: RecommendationMediaItem[] | null;
   tags?: string[] | null;
+  domain?: RecommendationDomain | null;
 };

@@ -13,6 +13,8 @@ export const recommendations = pgTable(
       .default(sql`'[]'::jsonb`)
       .notNull(),
     tags: text("tags").array(),
+    /** Код области: см. `recommendationDomain.ts` (техника упражнений, питание, …). */
+    domain: text("domain"),
     isArchived: boolean("is_archived").default(false).notNull(),
     createdBy: uuid("created_by"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).defaultNow().notNull(),

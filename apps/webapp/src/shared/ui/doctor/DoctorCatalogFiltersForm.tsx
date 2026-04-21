@@ -21,10 +21,24 @@ function loadTypeTitle(code: ExerciseLoadType | undefined): string {
   return EXERCISE_LOAD_FILTER_ITEMS.find((i) => i.code === code)?.title ?? "";
 }
 
+/** Альтернатива колонке «тип нагрузки»: свой справочник и имя GET-параметра (например область рекомендаций — `domain`). */
+export type DoctorCatalogTertiaryFilter = {
+  items: ReferenceItemDto[];
+  paramName: string;
+  value: string | null;
+  label: string;
+  placeholder: string;
+  clearLabel: string;
+  /** Подпись в строке под фильтрами («Регион: … · …»). */
+  summaryLabel: string;
+};
+
 export type DoctorCatalogFiltersFormProps = {
   q: string;
   regionRefId?: string;
   loadType?: ExerciseLoadType;
+  /** Если задано, третья колонка — не тип нагрузки, а этот список (напр. область рекомендации). */
+  tertiaryFilter?: DoctorCatalogTertiaryFilter;
   view?: "tiles" | "list";
   titleSort?: "asc" | "desc" | null;
   selectedId?: string | null;
@@ -33,13 +47,20 @@ export type DoctorCatalogFiltersFormProps = {
   leadingSlot?: ReactNode;
 };
 
+function customTertiaryTitle(items: ReferenceItemDto[], code: string | null): string {
+  if (!code) return "";
+  return items.find((i) => i.code === code)?.title ?? "";
+}
+
 /**
- * Общая GET-форма каталога врача — как «Упражнения»: поиск + регион + тип нагрузки + «Применить».
+ * Общая GET-форма каталога врача: поиск + регион + третья колонка
+ * (по умолчанию тип нагрузки упражнения; иначе {@link DoctorCatalogTertiaryFilter}) + «Применить».
  */
 export function DoctorCatalogFiltersForm({
   q,
   regionRefId,
   loadType,
+  tertiaryFilter,
   view,
   titleSort,
   selectedId,
@@ -48,8 +69,14 @@ export function DoctorCatalogFiltersForm({
 }: DoctorCatalogFiltersFormProps) {
   const [selectedRegionRefId, setSelectedRegionRefId] = useState<string | null>(regionRefId ?? null);
   const [selectedRegionLabel, setSelectedRegionLabel] = useState("");
-  const [selectedLoadCode, setSelectedLoadCode] = useState<string | null>(loadType ?? null);
-  const [selectedLoadLabel, setSelectedLoadLabel] = useState(() => loadTypeTitle(loadType));
+  const [selectedExerciseLoad, setSelectedExerciseLoad] = useState<string | null>(loadType ?? null);
+  const [exerciseLoadLabel, setExerciseLoadLabel] = useState(() => loadTypeTitle(loadType));
+  const [selectedCustomTertiary, setSelectedCustomTertiary] = useState<string | null>(
+    tertiaryFilter?.value ?? null,
+  );
+  const [customTertiaryLabel, setCustomTertiaryLabel] = useState(() =>
+    tertiaryFilter ? customTertiaryTitle(tertiaryFilter.items, tertiaryFilter.value) : "",
+  );
   const [qInput, setQInput] = useState(q);
 
   useEffect(() => {
@@ -58,13 +85,27 @@ export function DoctorCatalogFiltersForm({
   }, [regionRefId]);
 
   useEffect(() => {
-    setSelectedLoadCode(loadType ?? null);
-    setSelectedLoadLabel(loadTypeTitle(loadType));
+    setSelectedExerciseLoad(loadType ?? null);
+    setExerciseLoadLabel(loadTypeTitle(loadType));
   }, [loadType]);
+
+  useEffect(() => {
+    if (!tertiaryFilter) return;
+    setSelectedCustomTertiary(tertiaryFilter.value ?? null);
+    setCustomTertiaryLabel(customTertiaryTitle(tertiaryFilter.items, tertiaryFilter.value));
+  }, [tertiaryFilter]);
 
   useEffect(() => {
     setQInput(q);
   }, [q]);
+
+  const tertiarySummary = tertiaryFilter
+    ? customTertiaryLabel
+      ? `${tertiaryFilter.summaryLabel}: ${customTertiaryLabel}`
+      : ""
+    : exerciseLoadLabel
+      ? `Тип нагрузки: ${exerciseLoadLabel}`
+      : "";
 
   return (
     <form method="get" className="flex flex-wrap items-center gap-2">
@@ -103,33 +144,54 @@ export function DoctorCatalogFiltersForm({
         />
       </div>
       <div className="w-40 shrink-0">
-        <label className="sr-only" htmlFor={`${idPrefix}-load`}>
-          Тип нагрузки
-        </label>
-        <ReferenceSelect
-          id={`${idPrefix}-load`}
-          name="load"
-          prefetchedItems={EXERCISE_LOAD_FILTER_ITEMS}
-          valueMatch="code"
-          submitField="code"
-          value={selectedLoadCode}
-          onChange={(code, label) => {
-            setSelectedLoadCode(code);
-            setSelectedLoadLabel(code ? label : "");
-          }}
-          placeholder="Все типы"
-          clearOptionLabel="Все типы"
-        />
+        {tertiaryFilter ? (
+          <>
+            <label className="sr-only" htmlFor={`${idPrefix}-${tertiaryFilter.paramName}`}>
+              {tertiaryFilter.label}
+            </label>
+            <ReferenceSelect
+              id={`${idPrefix}-${tertiaryFilter.paramName}`}
+              name={tertiaryFilter.paramName}
+              prefetchedItems={tertiaryFilter.items}
+              valueMatch="code"
+              submitField="code"
+              value={selectedCustomTertiary}
+              onChange={(code, label) => {
+                setSelectedCustomTertiary(code);
+                setCustomTertiaryLabel(code ? label : "");
+              }}
+              placeholder={tertiaryFilter.placeholder}
+              clearOptionLabel={tertiaryFilter.clearLabel}
+            />
+          </>
+        ) : (
+          <>
+            <label className="sr-only" htmlFor={`${idPrefix}-load`}>
+              Тип нагрузки
+            </label>
+            <ReferenceSelect
+              id={`${idPrefix}-load`}
+              name="load"
+              prefetchedItems={EXERCISE_LOAD_FILTER_ITEMS}
+              valueMatch="code"
+              submitField="code"
+              value={selectedExerciseLoad}
+              onChange={(code, label) => {
+                setSelectedExerciseLoad(code);
+                setExerciseLoadLabel(code ? label : "");
+              }}
+              placeholder="Все типы"
+              clearOptionLabel="Все типы"
+            />
+          </>
+        )}
       </div>
       <Button type="submit" variant="secondary" className="box-border h-[32px] shrink-0 px-3 py-0 text-sm leading-none">
         Применить
       </Button>
-      {selectedRegionLabel || selectedLoadLabel ? (
+      {selectedRegionLabel || tertiarySummary ? (
         <p className="w-full text-xs text-muted-foreground">
-          {[
-            selectedRegionLabel ? `Регион: ${selectedRegionLabel}` : null,
-            selectedLoadLabel ? `Тип нагрузки: ${selectedLoadLabel}` : null,
-          ]
+          {[selectedRegionLabel ? `Регион: ${selectedRegionLabel}` : null, tertiarySummary || null]
             .filter(Boolean)
             .join(" · ")}
         </p>

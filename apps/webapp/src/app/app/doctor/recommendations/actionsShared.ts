@@ -1,5 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import type { RecommendationMediaItem } from "@/modules/recommendations/types";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
@@ -13,6 +14,11 @@ function parseTags(raw: FormDataEntryValue | null): string[] | null {
     .map((s) => s.trim())
     .filter(Boolean);
   return parts.length ? parts : null;
+}
+
+function parseDomainField(raw: FormDataEntryValue | null) {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  return parseRecommendationDomain(raw.trim()) ?? null;
 }
 
 function validateMedia(mediaUrl: string | null, mediaType: "image" | "video" | "gif" | ""): string | null {
@@ -54,6 +60,7 @@ export async function saveRecommendationCore(formData: FormData): Promise<
   }
 
   const tags = parseTags(formData.get("tags"));
+  const domain = parseDomainField(formData.get("domain"));
   if (!title) return { ok: false, error: "Название обязательно" };
 
   const deps = buildAppDeps();
@@ -66,6 +73,7 @@ export async function saveRecommendationCore(formData: FormData): Promise<
         bodyMd,
         tags,
         media,
+        domain,
       });
       return { ok: true, recommendationId: id, wasUpdate: true };
     }
@@ -75,6 +83,7 @@ export async function saveRecommendationCore(formData: FormData): Promise<
         bodyMd,
         tags,
         media,
+        domain,
       },
       session.user.userId,
     );

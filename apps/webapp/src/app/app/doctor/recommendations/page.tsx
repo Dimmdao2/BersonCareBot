@@ -1,6 +1,6 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import type { ExerciseLoadType } from "@/modules/lfk-exercises/types";
+import { parseRecommendationDomain } from "@/modules/recommendations/recommendationDomain";
 import { AppShell } from "@/shared/ui/AppShell";
 import {
   RecommendationsPageClient,
@@ -15,7 +15,7 @@ type PageProps = {
     q?: string;
     titleSort?: string;
     region?: string;
-    load?: string;
+    domain?: string;
   }>;
 };
 
@@ -25,14 +25,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
   const sp = (await searchParams) ?? {};
   const q = typeof sp.q === "string" ? sp.q : "";
   const regionRefId = typeof sp.region === "string" && sp.region.trim() ? sp.region.trim() : undefined;
-  const loadType =
-    sp.load === "strength" ||
-    sp.load === "stretch" ||
-    sp.load === "balance" ||
-    sp.load === "cardio" ||
-    sp.load === "other"
-      ? (sp.load as ExerciseLoadType)
-      : undefined;
+  const domain = parseRecommendationDomain(typeof sp.domain === "string" ? sp.domain : undefined);
   const titleSort: RecommendationTitleSort | null =
     sp.titleSort === "asc" || sp.titleSort === "desc" ? sp.titleSort : null;
 
@@ -40,7 +33,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
     search: q || null,
     archiveScope: "active",
     regionRefId: regionRefId ?? null,
-    loadType: loadType ?? null,
+    domain: domain ?? null,
   });
 
   const rawSelected = typeof sp.selected === "string" ? sp.selected.trim() : "";
@@ -55,7 +48,7 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
         initialSelectedId={initialSelectedId}
         initialViewMode={initialViewMode}
         initialTitleSort={titleSort}
-        filters={{ q, regionRefId, loadType }}
+        filters={{ q, regionRefId, domain }}
       />
     </AppShell>
   );

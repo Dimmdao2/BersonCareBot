@@ -24,4 +24,14 @@ describe("recommendations service", () => {
     const listed = await svc.listRecommendations({});
     expect(listed.some((r) => r.id === hid.id)).toBe(false);
   });
+
+  it("listRecommendations filters by domain", async () => {
+    await inMemoryRecommendationsPort.create({ title: "N", bodyMd: "x", domain: "nutrition" }, null);
+    await inMemoryRecommendationsPort.create({ title: "M", bodyMd: "y", domain: "motivation" }, null);
+
+    const svc = createRecommendationsService(inMemoryRecommendationsPort);
+    const onlyNutrition = await svc.listRecommendations({ domain: "nutrition" });
+    expect(onlyNutrition).toHaveLength(1);
+    expect(onlyNutrition[0]?.title).toBe("N");
+  });
 });
