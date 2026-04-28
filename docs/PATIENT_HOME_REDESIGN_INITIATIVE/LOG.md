@@ -281,3 +281,9 @@
 - Command: `pnpm --dir apps/webapp exec vitest run src/modules/platform-access/patientRouteApiPolicy.test.ts src/app/app/patient/home/patientHomeGuestNav.test.ts src/app/app/patient/home/PatientHomeToday.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx`
 - Result: `Test Files 4 passed (4)`, `Tests 29 passed (29)`.
 
+## 2026-04-28 — Push patient-home-redesign-initiative (Phase 4.5 + CI)
+
+- План Phase 4.5 отмечен выполненным: в репозитории [`.cursor/plans/phase_4.5_patient_home_a2e6bd38.plan.md`](../../.cursor/plans/phase_4.5_patient_home_a2e6bd38.plan.md) (`phaseStatus: completed`, todos `completed`); тот же frontmatter синхронизирован с файлом плана в каталоге Cursor пользователя (`phase_4.5_patient_home_a2e6bd38.plan.md`).
+- Перед пушем: `pnpm install --frozen-lockfile` и полный `pnpm run ci` — зелёный после добавления root `pnpm.overrides` для `postcss>=8.5.10` и `fast-xml-parser>=5.7.0` (устранение moderate advisories в `registry-prod-audit`).
+- Коммит и `git push origin patient-home-redesign-initiative`.
+
