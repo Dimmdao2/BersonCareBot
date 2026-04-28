@@ -62,6 +62,7 @@ export default async function AppEntryPage({
       patientHideHome
       patientHideRightIcons
       patientBrandTitleBar
+      patientHideBottomNav
     >
       <AppEntryLoginContent
         allowDevBypass={allowDevBypass}

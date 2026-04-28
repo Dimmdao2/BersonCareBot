@@ -2,7 +2,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
 import { PatientHomeMoodCheckin } from "./PatientHomeMoodCheckin";
+
+const defaultMoodOptions = parsePatientHomeMoodIcons(null);
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -21,18 +24,23 @@ describe("PatientHomeMoodCheckin", () => {
   });
 
   it("shows login prompt for anonymous guest", () => {
-    render(<PatientHomeMoodCheckin personalTierOk={false} anonymousGuest initialMood={null} />);
+    render(
+      <PatientHomeMoodCheckin moodOptions={defaultMoodOptions} personalTierOk={false} anonymousGuest initialMood={null} />,
+    );
     expect(screen.getByRole("link", { name: /Войдите/i })).toBeInTheDocument();
   });
 
   it("shows activation hint without patient tier", () => {
-    render(<PatientHomeMoodCheckin personalTierOk={false} anonymousGuest={false} initialMood={null} />);
+    render(
+      <PatientHomeMoodCheckin moodOptions={defaultMoodOptions} personalTierOk={false} anonymousGuest={false} initialMood={null} />,
+    );
     expect(screen.getByText(/будет доступен после активации профиля/i)).toBeInTheDocument();
   });
 
   it("renders five emoji buttons and highlights saved score", () => {
     render(
       <PatientHomeMoodCheckin
+        moodOptions={defaultMoodOptions}
         personalTierOk
         anonymousGuest={false}
         initialMood={{ moodDate: "2026-04-28", score: 4 }}
@@ -51,7 +59,9 @@ describe("PatientHomeMoodCheckin", () => {
       json: async () => ({ ok: true, mood: { moodDate: "2026-04-28", score: 5 } }),
     } as Response);
 
-    render(<PatientHomeMoodCheckin personalTierOk anonymousGuest={false} initialMood={null} />);
+    render(
+      <PatientHomeMoodCheckin moodOptions={defaultMoodOptions} personalTierOk anonymousGuest={false} initialMood={null} />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /Самочувствие 5 из 5/i }));
     expect(screen.getByRole("button", { name: /Самочувствие 5 из 5/i })).toHaveAttribute("aria-pressed", "true");
@@ -79,6 +89,7 @@ describe("PatientHomeMoodCheckin", () => {
 
     render(
       <PatientHomeMoodCheckin
+        moodOptions={defaultMoodOptions}
         personalTierOk
         anonymousGuest={false}
         initialMood={{ moodDate: "2026-04-28", score: 4 }}

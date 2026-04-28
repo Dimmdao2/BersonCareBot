@@ -49,15 +49,15 @@ describe("PatientHeader", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows settings link to /app/settings (browser header aligned with bot)", () => {
+  it("shows profile link to patient profile (browser header)", () => {
     render(<PatientHeader pageTitle="Тест" />);
-    expect(screen.getByRole("link", { name: "Настройки" })).toHaveAttribute("href", "/app/settings");
+    expect(screen.getByRole("link", { name: "Профиль" })).toHaveAttribute("href", "/app/patient/profile");
   });
 
   it("hides home and right icons when requested", () => {
     render(<PatientHeader pageTitle="Тест" hideHome hideRightIcons />);
     expect(screen.queryByRole("link", { name: "Главное меню" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Настройки" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Профиль" })).not.toBeInTheDocument();
   });
 
   it("renders optional titleBadge", () => {

@@ -36,6 +36,8 @@ import { PatientHomeCoursesRow } from "./PatientHomeCoursesRow";
 import { PatientHomeTodayLayout } from "./PatientHomeTodayLayout";
 import { hrefForPatientHomeDrilldown, stripApiMediaForAnonymousGuest } from "./patientHomeGuestNav";
 import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
+import { DateTime } from "luxon";
+import { parsePatientHomeMoodIcons } from "@/modules/patient-home/patientHomeMoodIcons";
 
 type Props = {
   session: AppSession | null;
@@ -79,14 +81,22 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   const deps = buildAppDeps();
   const anonymousGuest = session === null;
 
-  const [homeBlocks, todayCfg] = await Promise.all([
+  let appTz = await getAppDisplayTimeZone();
+  const weekdayMonday0 = DateTime.now().setZone(appTz).weekday - 1;
+
+  const [homeBlocks, todayCfg, moodSetting] = await Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
-    getPatientHomeTodayConfig({
-      patientHomeBlocks: deps.patientHomeBlocks,
-      contentPages: deps.contentPages,
-      systemSettings: deps.systemSettings,
-    }),
+    getPatientHomeTodayConfig(
+      {
+        patientHomeBlocks: deps.patientHomeBlocks,
+        contentPages: deps.contentPages,
+        systemSettings: deps.systemSettings,
+      },
+      weekdayMonday0,
+    ),
+    deps.systemSettings.getSetting("patient_home_mood_icons", "admin"),
   ]);
+  const moodIconOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
 
   const resolverDeps = {
     contentSections: deps.contentSections,
@@ -117,9 +127,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   let planInstance: { id: string; title: string } | null = null;
   let progress: { todayDone: number; streak: number } | null = null;
   let initialMood: PatientMoodToday | null = null;
-  let appTz = "Europe/Moscow";
   if (personalTierOk && session) {
-    appTz = await getAppDisplayTimeZone();
     const [rules, instances, p, mood] = await Promise.all([
       deps.reminders.listRulesByUser(session.user.userId),
       deps.treatmentProgramInstance.listForPatient(session.user.userId),
@@ -177,6 +185,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
       case "mood_checkin":
         return (
           <PatientHomeMoodCheckin
+            moodOptions={moodIconOptions}
             personalTierOk={personalTierOk}
             anonymousGuest={anonymousGuest}
             initialMood={initialMood}

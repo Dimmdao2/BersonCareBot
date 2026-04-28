@@ -43,9 +43,9 @@
 
 Auth-on-drilldown: `patientHomeGuestNav.ts` строит login href с `next`. Для анонима превью `/api/media/*` на главной не используются; политика `GET /api/media/:id` не меняется.
 
-## Morning warmup ping
+## Ежедневное напоминание от бота (Phase 8)
 
-Admin settings:
+Admin settings (глобально для всех подключённых пользователей; не персональное расписание):
 
 - `patient_home_morning_ping_enabled`
 - `patient_home_morning_ping_local_time`

@@ -6,25 +6,24 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientMoodToday } from "@/modules/patient-mood/types";
+import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
 import { patientHomeCardClass } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { cn } from "@/lib/utils";
 
 type Props = {
+  moodOptions: readonly PatientHomeMoodIconOption[];
   personalTierOk: boolean;
   anonymousGuest: boolean;
   initialMood?: PatientMoodToday | null;
 };
 
-const MOOD_OPTIONS = [
-  { score: 1, emoji: "😣", label: "Очень плохо" },
-  { score: 2, emoji: "😕", label: "Скорее плохо" },
-  { score: 3, emoji: "😐", label: "Нейтрально" },
-  { score: 4, emoji: "🙂", label: "Хорошо" },
-  { score: 5, emoji: "😄", label: "Отлично" },
-] as const;
-
-export function PatientHomeMoodCheckin({ personalTierOk, anonymousGuest, initialMood = null }: Props) {
+export function PatientHomeMoodCheckin({
+  moodOptions,
+  personalTierOk,
+  anonymousGuest,
+  initialMood = null,
+}: Props) {
   const router = useRouter();
   const [selectedScore, setSelectedScore] = useState<number | null>(initialMood?.score ?? null);
   const [savedScore, setSavedScore] = useState<number | null>(initialMood?.score ?? null);
@@ -81,7 +80,7 @@ export function PatientHomeMoodCheckin({ personalTierOk, anonymousGuest, initial
           <p className="text-sm text-muted-foreground">Чек-ин самочувствия будет доступен после активации профиля.</p>
         : <div className="space-y-3">
             <div className="flex items-center gap-2" role="group" aria-label="Оценка самочувствия">
-              {MOOD_OPTIONS.map((option) => {
+              {moodOptions.map((option) => {
                 const active = selectedScore === option.score;
                 return (
                   <button
@@ -91,7 +90,7 @@ export function PatientHomeMoodCheckin({ personalTierOk, anonymousGuest, initial
                     aria-pressed={active}
                     disabled={submittingScore !== null}
                     className={cn(
-                      "flex h-11 w-11 items-center justify-center rounded-full border text-xl transition",
+                      "flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border text-xl transition",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                       active ?
                         "border-primary bg-primary text-primary-foreground shadow-sm"
@@ -100,7 +99,10 @@ export function PatientHomeMoodCheckin({ personalTierOk, anonymousGuest, initial
                     )}
                     onClick={() => void saveScore(option.score)}
                   >
-                    <span aria-hidden="true">{option.emoji}</span>
+                    {option.imageUrl ?
+                      // eslint-disable-next-line @next/next/no-img-element -- CMS URL
+                      <img src={option.imageUrl} alt="" className="h-full w-full object-cover" />
+                    : <span aria-hidden="true">{option.emoji}</span>}
                   </button>
                 );
               })}

@@ -132,6 +132,52 @@ describe("getPatientHomeTodayConfig", () => {
     expect(out.dailyWarmupItem?.page?.slug).toBe("ok");
   });
 
+  it("rotates visible warmup items by weekday index", async () => {
+    const getBySlug = vi.fn(async (slug: string) =>
+      slug === "warm-a" || slug === "warm-b" ?
+        { slug, title: slug, summary: "", imageUrl: null }
+      : null,
+    );
+    const deps = {
+      patientHomeBlocks: {
+        listBlocksWithItems: async () => [
+          block("daily_warmup", [
+            {
+              id: "i1",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-a",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 0,
+            },
+            {
+              id: "i2",
+              blockCode: "daily_warmup",
+              targetType: "content_page",
+              targetRef: "warm-b",
+              titleOverride: null,
+              subtitleOverride: null,
+              imageUrlOverride: null,
+              badgeLabel: null,
+              isVisible: true,
+              sortOrder: 1,
+            },
+          ]),
+        ],
+      },
+      contentPages: { getBySlug },
+      systemSettings: { getSetting: async () => null },
+    };
+    const monday = await getPatientHomeTodayConfig(deps, 0);
+    expect(monday.dailyWarmupItem?.page?.slug).toBe("warm-a");
+    const tuesday = await getPatientHomeTodayConfig(deps, 1);
+    expect(tuesday.dailyWarmupItem?.page?.slug).toBe("warm-b");
+  });
+
   it("returns null warmup when daily_warmup block hidden", async () => {
     const deps = {
       patientHomeBlocks: {

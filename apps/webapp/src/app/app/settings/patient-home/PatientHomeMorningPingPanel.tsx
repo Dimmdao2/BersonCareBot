@@ -10,6 +10,7 @@ type Props = {
   initialLocalTime: string;
 };
 
+/** Глобальная настройка: ежедневное исходящее сообщение бота пациентам с каналом (не напоминание админу). */
 export function PatientHomeMorningPingPanel(props: Props) {
   const [enabled, setEnabled] = useState(props.initialEnabled);
   const [localTime, setLocalTime] = useState(props.initialLocalTime);
@@ -43,14 +44,15 @@ export function PatientHomeMorningPingPanel(props: Props) {
   return (
     <section
       className="rounded-2xl border border-border bg-card p-4 shadow-sm"
-      aria-labelledby="patient-home-morning-ping-heading"
+      aria-labelledby="patient-home-daily-bot-reminder-heading"
     >
-      <h2 id="patient-home-morning-ping-heading" className="text-base font-semibold">
-        Утренний пинг в боте
+      <h2 id="patient-home-daily-bot-reminder-heading" className="text-base font-semibold">
+        Ежедневное напоминание от бота
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Ежедневное напоминание о «Разминке дня» в подключённом мессенджере. Время — в таймзоне приложения
-        (как в настройке «app_display_timezone»). Состав разминки задаётся в блоке главной `daily_warmup`.
+        Исходящее сообщение пациентам в подключённом мессенджере о «Разминке дня». Одно время на всех
+        (глобально для продукта). Время считается в таймзоне приложения (как «app_display_timezone»). Состав
+        разминки задаётся в блоке главной `daily_warmup`. Настраивает только администратор — не контент врача.
       </p>
       <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <label className="flex items-center gap-2 text-sm">
@@ -59,7 +61,7 @@ export function PatientHomeMorningPingPanel(props: Props) {
             className="size-4 rounded border"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
-            aria-label="Включить утренний пинг"
+            aria-label="Включить ежедневное напоминание от бота"
           />
           <span>Включить</span>
         </label>
@@ -70,7 +72,7 @@ export function PatientHomeMorningPingPanel(props: Props) {
             value={localTime}
             onChange={(e) => setLocalTime(e.target.value)}
             className="w-36"
-            aria-label="Локальное время пинга"
+            aria-label="Локальное время отправки напоминания"
           />
         </label>
         <Button type="button" onClick={() => void onSave()} disabled={pending}>

@@ -10,7 +10,7 @@ import {
   Home,
   Menu,
   MessageCircle,
-  Settings,
+  User,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -141,16 +141,16 @@ export function PatientHeader({
             <Menu className="size-[22px]" aria-hidden />
           </Button>
         );
-      case "settings":
+      case "profile":
         return (
           <Link
-            key="settings"
-            href="/app/settings"
+            key="profile"
+            href={routePaths.profile}
             prefetch={false}
-            aria-label="Настройки"
+            aria-label="Профиль"
             className={HEADER_ICON_CLASS}
           >
-            <Settings className="size-[22px]" aria-hidden />
+            <User className="size-[22px]" aria-hidden />
           </Link>
         );
     }

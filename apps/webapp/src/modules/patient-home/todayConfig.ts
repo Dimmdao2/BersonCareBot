@@ -54,9 +54,11 @@ function mapPage(row: {
 /**
  * Конфиг «Сегодня» для главной пациента (Phase 2): разминка из блока `daily_warmup` + целевое число практик.
  * Разминка не берётся из system_settings slug — только из `patient_home_block_items`.
+ * @param warmupWeekdayMonday0 день недели в таймзоне приложения: 0 = понедельник, 6 = воскресенье. Ротация выбранного материала по `sortOrder`.
  */
 export async function getPatientHomeTodayConfig(
   deps: PatientHomeTodayConfigDeps,
+  warmupWeekdayMonday0 = 0,
 ): Promise<{ dailyWarmupItem: ResolvedPatientHomeBlockItem | null; practiceTarget: number }> {
   const setting = await deps.systemSettings.getSetting("patient_home_daily_practice_target", "admin");
   const practiceTarget = parsePatientHomeDailyPracticeTarget(setting?.valueJson ?? null);
@@ -71,7 +73,14 @@ export async function getPatientHomeTodayConfig(
     .filter((i) => i.isVisible && i.targetType === "content_page")
     .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 
-  for (const blockItem of items) {
+  const n = items.length;
+  if (n === 0) {
+    return { dailyWarmupItem: null, practiceTarget };
+  }
+
+  const start = ((warmupWeekdayMonday0 % n) + n) % n;
+  for (let step = 0; step < n; step++) {
+    const blockItem = items[(start + step) % n]!;
     const slug = blockItem.targetRef.trim();
     if (!slug) continue;
     const row = await deps.contentPages.getBySlug(slug);

@@ -1,10 +1,9 @@
 /**
  * Общая оболочка страницы приложения: верхняя панель и контент.
- * Используется на всех страницах после входа: пациент, врач, настройки. В шапке — заголовок,
- * опционально кнопка «Назад», имя и роль пользователя, ссылка «Настройки». Контент страницы
- * передаётся в children. Отображается везде внутри /app (кроме корневого layout).
- * Для пациента (variant="patient" / "patient-wide") — {@link PatientGatedHeader}: шапка скрывается в мини-приложении на экране запроса телефона.
- * Для кабинета врача (variant="doctor") — только контейнер контента; шапка `DoctorHeader` в layout `/app/doctor` или на `/app/settings`. Ширина и отступы — `doctorWorkspaceLayout.ts`.
+ * Для пациента (variant="patient" / "patient-wide") — {@link PatientGatedHeader} / {@link PatientHeader}:
+ * заголовок, «Назад», «Домой» на главную, справа иконка профиля;
+ * внизу — {@link PatientBottomNav} (кроме `patientEmbedMain` / `patientHideBottomNav`).
+ * Для кабинета врача (variant="doctor") — контейнер контента; шапка в `app/doctor/layout.tsx`.
  */
 
 import Link from "next/link";
@@ -12,7 +11,7 @@ import type { ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientGatedHeader } from "@/shared/ui/PatientGatedHeader";
-import { PatientQuickAddFAB } from "@/app/app/patient/components/PatientQuickAddFAB";
+import { PatientBottomNav } from "@/shared/ui/PatientBottomNav";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
@@ -33,13 +32,11 @@ type AppShellProps = {
    * - `doctor` — кабинет специалиста (широкий workspace).
    */
   variant?: "default" | "patient" | "patient-wide" | "doctor";
-  /** Доп. плавающий UI для пациента (например QuickAdd на дневнике). */
+  /** Доп. плавающий UI для пациента. */
   patientFloatingSlot?: ReactNode;
-  /** Скрыть круглую кнопку быстрого добавления в дневник (FAB) внизу справа. */
-  hidePatientQuickAddFAB?: boolean;
   /**
    * Режим встраиваемого контента на всю ширину (например iframe записи): без зазора под шапкой,
-   * компактный нижний отступ (без поля под FAB).
+   * компактный нижний отступ; нижняя навигация скрыта.
    */
   patientEmbedMain?: boolean;
   /** См. {@link PatientHeader}: скрыть «домой» на главную пациента. */
@@ -50,6 +47,8 @@ type AppShellProps = {
   patientBrandTitleBar?: boolean;
   /** См. {@link PatientHeader}: компактный бейдж рядом с заголовком (например «По подписке» на странице раздела). */
   patientTitleBadge?: string;
+  /** Скрыть нижнюю навигацию (экраны входа и гостевые страницы без основного меню пациента). */
+  patientHideBottomNav?: boolean;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -62,12 +61,12 @@ export function AppShell({
   titleSmall,
   variant = "default",
   patientFloatingSlot,
-  hidePatientQuickAddFAB = false,
   patientEmbedMain = false,
   patientHideHome = false,
   patientHideRightIcons = false,
   patientBrandTitleBar = false,
   patientTitleBadge,
+  patientHideBottomNav = false,
 }: AppShellProps) {
   if (variant === "patient" || variant === "patient-wide") {
     const patientShellWidthClass = variant === "patient-wide" ? "max-w-[480px] lg:max-w-6xl" : "max-w-[480px]";
@@ -80,6 +79,8 @@ export function AppShell({
           patientShellWidthClass,
           patientEmbedMain
             ? "gap-0 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+            : patientHideBottomNav ?
+              "gap-3 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]"
             : "safe-padding-patient gap-3",
         )}
       >
@@ -103,7 +104,7 @@ export function AppShell({
           {children}
         </main>
         {patientFloatingSlot}
-        {hidePatientQuickAddFAB ? null : <PatientQuickAddFAB visible={user !== null} />}
+        {patientEmbedMain || patientHideBottomNav ? null : <PatientBottomNav />}
       </div>
     );
   }

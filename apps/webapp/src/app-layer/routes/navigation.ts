@@ -1,3 +1,7 @@
+import type { LucideIcon } from "lucide-react";
+import { Activity, BookOpen, CalendarPlus, ClipboardList, Home } from "lucide-react";
+import { routePaths } from "@/app-layer/routes/paths";
+
 /**
  * Декларативные конфиги навигации (PlatformMode) и блоков главной пациента.
  * Набор блоков на сервере задаётся по cookie входа: `PlatformEntry` (бот vs браузер).
@@ -5,7 +9,52 @@
 
 import type { PlatformEntry, PlatformMode } from "@/shared/lib/platform";
 
-export type HeaderIconId = "settings" | "messages" | "reminders" | "menu";
+export type HeaderIconId = "profile" | "messages" | "reminders" | "menu";
+
+export type PatientBottomNavItem = {
+  href: string;
+  label: string;
+  Icon: LucideIcon;
+  isActive: (pathname: string) => boolean;
+};
+
+/** Нижняя навигация пациента (фиксированная панель). Порядок и href — канон. */
+export const PATIENT_BOTTOM_NAV_ITEMS: PatientBottomNavItem[] = [
+  {
+    href: routePaths.patient,
+    label: "Сегодня",
+    Icon: Home,
+    isActive: (pathname) => pathname === routePaths.patient || pathname === `${routePaths.patient}/`,
+  },
+  {
+    href: routePaths.patientBooking,
+    label: "Запись",
+    Icon: CalendarPlus,
+    isActive: (pathname) =>
+      pathname === routePaths.patientBooking || pathname.startsWith(`${routePaths.patientBooking}/`),
+  },
+  {
+    href: routePaths.patientWarmups,
+    label: "Разминки",
+    Icon: Activity,
+    isActive: (pathname) =>
+      pathname === routePaths.patientWarmups || pathname.startsWith(`${routePaths.patientWarmups}/`),
+  },
+  {
+    href: routePaths.patientTreatmentPrograms,
+    label: "План",
+    Icon: ClipboardList,
+    isActive: (pathname) =>
+      pathname === routePaths.patientTreatmentPrograms ||
+      pathname.startsWith(`${routePaths.patientTreatmentPrograms}/`),
+  },
+  {
+    href: routePaths.diary,
+    label: "Дневник",
+    Icon: BookOpen,
+    isActive: (pathname) => pathname.startsWith(routePaths.diary),
+  },
+];
 
 export type PatientNavConfig = {
   headerRightIcons: HeaderIconId[];
@@ -15,18 +64,18 @@ export type PatientNavConfig = {
 
 export const patientNavByPlatform: Record<PlatformMode, PatientNavConfig> = {
   bot: {
-    headerRightIcons: ["settings"],
+    headerRightIcons: ["profile"],
     hasSheetMenu: false,
     showLogout: false,
   },
-  /** Браузер и PWA: та же шапка, что в мини-приложении бота (шестерёнка), без бокового меню. */
+  /** Браузер и PWA: профиль в правом углу шапки. */
   mobile: {
-    headerRightIcons: ["settings"],
+    headerRightIcons: ["profile"],
     hasSheetMenu: false,
     showLogout: false,
   },
   desktop: {
-    headerRightIcons: ["settings"],
+    headerRightIcons: ["profile"],
     hasSheetMenu: false,
     showLogout: false,
   },

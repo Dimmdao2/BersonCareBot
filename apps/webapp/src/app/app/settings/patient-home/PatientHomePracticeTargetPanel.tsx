@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { patchAdminSetting } from "@/app/app/settings/patchAdminSetting";
+import { savePatientHomePracticeTargetAction } from "@/app/app/doctor/patient-home/patientHomeDoctorSettingsActions";
 
 export function PatientHomePracticeTargetPanel(props: { initialTarget: number }) {
   const [value, setValue] = useState(String(props.initialTarget));
@@ -21,8 +21,8 @@ export function PatientHomePracticeTargetPanel(props: { initialTarget: number })
     }
     setPending(true);
     try {
-      const ok = await patchAdminSetting("patient_home_daily_practice_target", n);
-      if (!ok) {
+      const res = await savePatientHomePracticeTargetAction(n);
+      if (!res.ok) {
         setError("Не удалось сохранить.");
         return;
       }

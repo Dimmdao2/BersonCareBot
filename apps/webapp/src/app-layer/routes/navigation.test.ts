@@ -20,13 +20,13 @@ describe("patientNavByPlatform", () => {
     }
   });
 
-  it("bot has only settings icon and no sheet menu", () => {
-    expect(patientNavByPlatform.bot.headerRightIcons).toEqual(["settings"]);
+  it("bot has only profile icon and no sheet menu", () => {
+    expect(patientNavByPlatform.bot.headerRightIcons).toEqual(["profile"]);
     expect(patientNavByPlatform.bot.hasSheetMenu).toBe(false);
     expect(patientNavByPlatform.bot.showLogout).toBe(false);
   });
 
-  it("mobile and desktop match bot header (settings only, no sheet menu)", () => {
+  it("mobile and desktop match bot header (profile only, no sheet menu)", () => {
     expect(patientNavByPlatform.mobile).toEqual(patientNavByPlatform.bot);
     expect(patientNavByPlatform.desktop).toEqual(patientNavByPlatform.bot);
   });

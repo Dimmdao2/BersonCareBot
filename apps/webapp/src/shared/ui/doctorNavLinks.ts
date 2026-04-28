@@ -38,6 +38,7 @@ export const DOCTOR_MENU_ENTRIES: DoctorMenuEntry[] = [
   },
   { kind: "separator", id: "sep-before-references" },
   { kind: "link", id: "references", label: "Справочники", href: "/app/doctor/references" },
+  { kind: "link", id: "patient-home", label: "Главная пациента", href: "/app/doctor/patient-home" },
   { kind: "link", id: "content", label: "CMS", href: "/app/doctor/content" },
   { kind: "link", id: "broadcasts", label: "Рассылки", href: "/app/doctor/broadcasts" },
   { kind: "link", id: "stats", label: "Статистика", href: "/app/doctor/stats" },

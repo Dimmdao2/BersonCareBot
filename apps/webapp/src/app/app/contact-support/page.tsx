@@ -17,6 +17,7 @@ export default function LoginContactSupportPage() {
       patientHideHome
       patientHideRightIcons
       patientBrandTitleBar
+      patientHideBottomNav
     >
       <section
         id="login-contact-support-section"

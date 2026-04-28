@@ -602,8 +602,8 @@
 
 ### Gate
 
-- `pnpm install --frozen-lockfile` — pending at log update time.
-- `pnpm run ci` — pending at log update time.
+- `pnpm install --frozen-lockfile` — **PASS** (см. запись «Phase 9 plan verification» в конце файла — закрывает pending).
+- `pnpm run ci` — **PASS** (там же).
 
 ## 2026-04-29 — GLOBALFIX cleanup (implementation)
 
@@ -639,4 +639,11 @@
 
 - `GLOBAL_AUDIT.md` §3 дополнения, §4 minor notes, §8 global fix result.
 - `patient-home.md` — секция про `patientHomeLegacy`.
+
+## 2026-04-29 — Phase 9 plan verification (structure + full CI)
+
+- Initiative `README.md` §10: дерево `RELEASE_SNAPSHOTS/` дополнено (`README.md`, `before/`, `after/`).
+- Каталоги `RELEASE_SNAPSHOTS/before/`, `RELEASE_SNAPSHOTS/after/` — `.gitkeep` для отслеживания в git (PNG/WebP по мере релизного QA).
+- Slug audit (editorial slugs из `CONTENT_PLAN.md`, единый `rg` по списку slug): `apps/webapp/src`, `apps/integrator/src` — **0 совпадений** в `*.{ts,tsx,js,jsx}`.
+- `pnpm install --frozen-lockfile && pnpm run ci` — **PASS** (lint, typecheck, integrator+webapp tests, builds, `registry-prod-audit`).
 

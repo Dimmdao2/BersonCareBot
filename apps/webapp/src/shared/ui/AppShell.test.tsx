@@ -23,7 +23,7 @@ vi.mock("@/shared/hooks/useReminderUnread", () => ({
 describe("AppShell patient width variants", () => {
   it("keeps patient variant narrow", () => {
     const { container } = render(
-      <AppShell title="Сегодня" user={null} variant="patient" hidePatientQuickAddFAB>
+      <AppShell title="Сегодня" user={null} variant="patient">
         <div>Content</div>
       </AppShell>,
     );
@@ -35,7 +35,7 @@ describe("AppShell patient width variants", () => {
 
   it("widens patient-wide only on lg+", () => {
     const { container } = render(
-      <AppShell title="Сегодня" user={null} variant="patient-wide" hidePatientQuickAddFAB>
+      <AppShell title="Сегодня" user={null} variant="patient-wide">
         <div>Content</div>
       </AppShell>,
     );
@@ -47,7 +47,7 @@ describe("AppShell patient width variants", () => {
 
   it("forwards patientTitleBadge to patient header", () => {
     render(
-      <AppShell title="Раздел" user={null} variant="patient" patientTitleBadge="По подписке" hidePatientQuickAddFAB>
+      <AppShell title="Раздел" user={null} variant="patient" patientTitleBadge="По подписке">
         <div>Body</div>
       </AppShell>,
     );

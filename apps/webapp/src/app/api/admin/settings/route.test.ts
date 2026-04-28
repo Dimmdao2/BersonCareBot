@@ -69,6 +69,10 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_daily_practice_target");
   });
 
+  it("includes patient_home_mood_icons for webapp whitelist", () => {
+    expect(ALLOWED_KEYS).toContain("patient_home_mood_icons");
+  });
+
   it("includes Phase 8 morning ping keys", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_enabled");
     expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_local_time");
@@ -408,6 +412,121 @@ describe("PATCH /api/admin/settings", () => {
         body: JSON.stringify({
           key: "patient_home_morning_ping_local_time",
           value: { value: "25:00" },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for patient_home_mood_icons with five scores sorted on save", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_home_mood_icons",
+      scope: "admin",
+      valueJson: { value: [] },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const body = {
+      key: "patient_home_mood_icons",
+      value: {
+        value: [
+          { score: 5, label: "E", imageUrl: "/api/media/e" },
+          { score: 1, label: "A", imageUrl: null },
+          { score: 3, label: "C", imageUrl: "/api/media/c" },
+          { score: 2, label: "B", imageUrl: null },
+          { score: 4, label: "D", imageUrl: "/api/media/d" },
+        ],
+      },
+    };
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_home_mood_icons",
+      "admin",
+      {
+        value: [
+          { score: 1, label: "A", imageUrl: null },
+          { score: 2, label: "B", imageUrl: null },
+          { score: 3, label: "C", imageUrl: "/api/media/c" },
+          { score: 4, label: "D", imageUrl: "/api/media/d" },
+          { score: 5, label: "E", imageUrl: "/api/media/e" },
+        ],
+      },
+      "a1",
+    );
+  });
+
+  it("returns 400 for patient_home_mood_icons wrong array length", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_mood_icons",
+          value: {
+            value: [
+              { score: 1, label: "A", imageUrl: null },
+              { score: 2, label: "B", imageUrl: null },
+            ],
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for patient_home_mood_icons duplicate score", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_mood_icons",
+          value: {
+            value: [
+              { score: 1, label: "A", imageUrl: null },
+              { score: 1, label: "B", imageUrl: null },
+              { score: 3, label: "C", imageUrl: null },
+              { score: 4, label: "D", imageUrl: null },
+              { score: 5, label: "E", imageUrl: null },
+            ],
+          },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for patient_home_mood_icons invalid imageUrl", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_mood_icons",
+          value: {
+            value: [
+              { score: 1, label: "A", imageUrl: "https://evil.example/a.png" },
+              { score: 2, label: "B", imageUrl: null },
+              { score: 3, label: "C", imageUrl: null },
+              { score: 4, label: "D", imageUrl: null },
+              { score: 5, label: "E", imageUrl: null },
+            ],
+          },
         }),
       }),
     );

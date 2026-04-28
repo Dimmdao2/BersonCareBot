@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { canAccessDoctor } from "@/modules/roles/service";
 import { isPatientHomeBlockCode } from "@/modules/patient-home/blocks";
 import type { PatientHomeBlockItemTargetType } from "@/modules/patient-home/ports";
 
@@ -15,15 +16,16 @@ function fail(error: string): ActionState {
   return { ok: false, error };
 }
 
-async function requireAdmin(): Promise<void> {
+async function requireDoctorForPatientHomeBlocks(): Promise<void> {
   const session = await getCurrentSession();
-  if (!session || session.user.role !== "admin") {
+  if (!session || !canAccessDoctor(session.user.role)) {
     throw new Error("forbidden");
   }
 }
 
 function revalidatePatientHomeSettings(): void {
   revalidatePath("/app/settings/patient-home");
+  revalidatePath("/app/doctor/patient-home");
   revalidatePath("/app/patient");
 }
 
@@ -32,7 +34,7 @@ export async function togglePatientHomeBlockVisibility(
   visible: boolean,
 ): Promise<ActionState> {
   try {
-    await requireAdmin();
+    await requireDoctorForPatientHomeBlocks();
     if (!isPatientHomeBlockCode(code)) return fail("invalid_block_code");
     const deps = buildAppDeps();
     await deps.patientHomeBlocks.setBlockVisibility(code, visible);
@@ -45,7 +47,7 @@ export async function togglePatientHomeBlockVisibility(
 
 export async function reorderPatientHomeBlocks(orderedCodes: string[]): Promise<ActionState> {
   try {
-    await requireAdmin();
+    await requireDoctorForPatientHomeBlocks();
     const deps = buildAppDeps();
     await deps.patientHomeBlocks.reorderBlocks(orderedCodes);
     revalidatePatientHomeSettings();
@@ -61,7 +63,7 @@ export async function addPatientHomeItem(input: {
   targetRef: string;
 }): Promise<ActionState> {
   try {
-    await requireAdmin();
+    await requireDoctorForPatientHomeBlocks();
     if (!isPatientHomeBlockCode(input.blockCode)) return fail("invalid_block_code");
     const targetTypeParsed = targetTypeSchema.safeParse(input.targetType);
     if (!targetTypeParsed.success) return fail("invalid_target_type");
@@ -84,7 +86,7 @@ export async function updatePatientHomeItemVisibility(
   visible: boolean,
 ): Promise<ActionState> {
   try {
-    await requireAdmin();
+    await requireDoctorForPatientHomeBlocks();
     const deps = buildAppDeps();
     await deps.patientHomeBlocks.updateItem(itemId, { isVisible: visible });
     revalidatePatientHomeSettings();
@@ -96,7 +98,7 @@ export async function updatePatientHomeItemVisibility(
 
 export async function deletePatientHomeItem(itemId: string): Promise<ActionState> {
   try {
-    await requireAdmin();
+    await requireDoctorForPatientHomeBlocks();
     const deps = buildAppDeps();
     await deps.patientHomeBlocks.deleteItem(itemId);
     revalidatePatientHomeSettings();
@@ -111,7 +113,7 @@ export async function reorderPatientHomeItems(
   orderedItemIds: string[],
 ): Promise<ActionState> {
   try {
-    await requireAdmin();
+    await requireDoctorForPatientHomeBlocks();
     if (!isPatientHomeBlockCode(blockCode)) return fail("invalid_block_code");
     const deps = buildAppDeps();
     await deps.patientHomeBlocks.reorderItems(blockCode, orderedItemIds);
@@ -127,7 +129,7 @@ export async function listPatientHomeCandidates(blockCode: string): Promise<
   | { ok: false; error: string; items: [] }
 > {
   try {
-    await requireAdmin();
+    await requireDoctorForPatientHomeBlocks();
     if (!isPatientHomeBlockCode(blockCode)) return { ok: false, error: "invalid_block_code", items: [] };
     const deps = buildAppDeps();
     const items = await deps.patientHomeBlocks.listCandidatesForBlock(blockCode);

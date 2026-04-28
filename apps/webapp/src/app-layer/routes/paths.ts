@@ -58,6 +58,8 @@ export const routePaths = {
   patientTreatmentPrograms: "/app/patient/treatment-programs",
   patientTreatmentProgram: (instanceId: string) =>
     `/app/patient/treatment-programs/${encodeURIComponent(instanceId)}`,
+  /** Раздел CMS «Разминки» (материалы разминок; slug задаётся в CMS). */
+  patientWarmups: "/app/patient/sections/warmups",
   /** Online intake — Nutrition questionnaire. */
   intakeNutrition: "/app/patient/intake/nutrition",
   /** Doctor online-intake inbox. */
