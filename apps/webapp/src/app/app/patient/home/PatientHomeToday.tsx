@@ -190,7 +190,12 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         return <PatientHomePlanCard instance={planInstance} />;
       case "subscription_carousel":
         if (subscriptionCards.length === 0) return null;
-        return <PatientHomeSubscriptionCarousel cards={subscriptionCards} />;
+        return (
+          <PatientHomeSubscriptionCarousel
+            cards={subscriptionCards}
+            sectionTitle={subscriptionBlock?.title?.trim() || undefined}
+          />
+        );
       case "courses":
         if (courseCards.length === 0) return null;
         return <PatientHomeCoursesRow cards={courseCards} />;

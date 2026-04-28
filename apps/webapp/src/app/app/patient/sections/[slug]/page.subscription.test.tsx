@@ -14,9 +14,20 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/shared/ui/AppShell", () => ({
-  AppShell: ({ children, title }: { children: React.ReactNode; title: string }) => (
+  AppShell: ({
+    children,
+    title,
+    patientTitleBadge,
+  }: {
+    children: React.ReactNode;
+    title: string;
+    patientTitleBadge?: string;
+  }) => (
     <div>
       <span data-testid="shell-title">{title}</span>
+      {patientTitleBadge ?
+        <span data-testid="patient-header-title-badge">{patientTitleBadge}</span>
+      : null}
       {children}
     </div>
   ),
@@ -34,6 +45,8 @@ vi.mock("@/app-layer/guards/requireRole", () => ({
 const FIXTURE_SLUG = "fixture-subscription-section";
 
 const listBlocksWithItemsMock = vi.hoisted(() => vi.fn());
+const listBySectionMock = vi.hoisted(() => vi.fn());
+const getCourseForDoctorMock = vi.hoisted(() => vi.fn());
 
 function subscriptionCarouselWithFixtureItem() {
   return [
@@ -80,13 +93,16 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       ),
     },
     contentPages: {
-      listBySection: vi.fn(async () => []),
+      listBySection: listBySectionMock,
     },
     patientHomeBlocks: {
       listBlocksWithItems: listBlocksWithItemsMock,
     },
     reminders: {
       listRulesByUser: vi.fn(async () => []),
+    },
+    courses: {
+      getCourseForDoctor: getCourseForDoctorMock,
     },
   }),
 }));
@@ -96,6 +112,9 @@ import PatientSectionPage from "./page";
 describe("PatientSectionPage / subscription (Phase 7)", () => {
   beforeEach(() => {
     listBlocksWithItemsMock.mockResolvedValue(subscriptionCarouselWithFixtureItem());
+    listBySectionMock.mockResolvedValue([]);
+    getCourseForDoctorMock.mockReset();
+    getCourseForDoctorMock.mockResolvedValue(null);
   });
 
   it("shows subscription callout when section is in subscription_carousel items", async () => {
@@ -103,6 +122,7 @@ describe("PatientSectionPage / subscription (Phase 7)", () => {
     render(ui);
     expect(screen.getByTestId("patient-section-subscription-callout")).toBeInTheDocument();
     expect(screen.getByText(/Доступ ко всем материалам этого раздела/i)).toBeInTheDocument();
+    expect(screen.getByTestId("patient-header-title-badge")).toHaveTextContent("По подписке");
   });
 
   it("hides callout when subscription_carousel has no item for this section", async () => {
@@ -119,5 +139,39 @@ describe("PatientSectionPage / subscription (Phase 7)", () => {
     const ui = await PatientSectionPage({ params: Promise.resolve({ slug: FIXTURE_SLUG }) });
     render(ui);
     expect(screen.queryByTestId("patient-section-subscription-callout")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("patient-header-title-badge")).not.toBeInTheDocument();
+  });
+
+  it("shows Открыть курс for linked published course", async () => {
+    const courseId = "aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee";
+    listBySectionMock.mockResolvedValueOnce([
+      {
+        id: "pg-1",
+        section: FIXTURE_SLUG,
+        slug: "fixture-material-slug",
+        title: "Материал",
+        summary: "",
+        bodyMd: "",
+        bodyHtml: "",
+        sortOrder: 0,
+        isPublished: true,
+        requiresAuth: false,
+        videoUrl: null,
+        videoType: null,
+        imageUrl: null,
+        archivedAt: null,
+        deletedAt: null,
+        linkedCourseId: courseId,
+      },
+    ]);
+    getCourseForDoctorMock.mockImplementation(async (id: string) =>
+      id === courseId ? { id: courseId, title: "Курс", description: null, status: "published" } : null,
+    );
+    const ui = await PatientSectionPage({ params: Promise.resolve({ slug: FIXTURE_SLUG }) });
+    render(ui);
+    expect(screen.getByRole("link", { name: "Открыть курс" })).toHaveAttribute(
+      "href",
+      `/app/patient/courses?highlight=${encodeURIComponent(courseId)}`,
+    );
   });
 });

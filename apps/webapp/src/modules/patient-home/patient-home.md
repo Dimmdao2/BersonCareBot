@@ -33,6 +33,7 @@
 - Progress приходит из `modules/patient-practice`.
 - Mood приходит из `modules/patient-mood`.
 - Подписочная карусель и бейджи не закрывают доступ к контенту.
+- Страница материалов раздела [`app/app/patient/sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx): промо из `getSubscriptionCarouselSectionPresentation`, бейдж в шапке (`AppShell.patientTitleBadge` → `PatientHeader.titleBadge`), ссылки «Открыть курс» через `FeatureCard.secondaryHref` при `linked_course_id` и опубликованном курсе.
 
 ## Public home
 

@@ -51,6 +51,8 @@ type PatientHeaderProps = {
   hideRightIcons?: boolean;
   /** Заголовок по центру экрана (экраны входа): «назад»/«домой» слева, иконки справа, без смещения заголовка. */
   brandTitleBar?: boolean;
+  /** Компактный бейдж под/над заголовком (например подписочный текст из CMS item). */
+  titleBadge?: string;
 };
 
 export function PatientHeader({
@@ -61,6 +63,7 @@ export function PatientHeader({
   hideHome = false,
   hideRightIcons = false,
   brandTitleBar = false,
+  titleBadge,
 }: PatientHeaderProps) {
   const router = useRouter();
   const platform = usePlatform();
@@ -184,22 +187,39 @@ export function PatientHeader({
     </div>
   );
 
+  const titleBadgeEl =
+    titleBadge?.trim() ?
+      <span
+        data-testid="patient-header-title-badge"
+        className="max-w-full truncate rounded-full border border-border bg-muted/70 px-2 py-0.5 text-[10px] font-medium text-foreground"
+        title={titleBadge.trim()}
+      >
+        {titleBadge.trim()}
+      </span>
+    : null;
+
   const titleMuted = (
-    <p
-      className="truncate text-[13px] font-medium text-muted-foreground"
-      title={pageTitle}
-    >
-      {pageTitle}
-    </p>
+    <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-center">
+      {titleBadgeEl}
+      <p
+        className="m-0 w-full truncate text-[13px] font-medium text-muted-foreground"
+        title={pageTitle}
+      >
+        {pageTitle}
+      </p>
+    </div>
   );
 
   const titleBrand = (
-    <p
-      className="truncate text-center text-base font-semibold tracking-tight text-foreground"
-      title={pageTitle}
-    >
-      {pageTitle}
-    </p>
+    <div className="flex min-w-0 max-w-[min(100vw-6rem,280px)] flex-col items-center gap-0.5 px-1">
+      {titleBadgeEl}
+      <p
+        className="m-0 w-full truncate text-center text-base font-semibold tracking-tight text-foreground"
+        title={pageTitle}
+      >
+        {pageTitle}
+      </p>
+    </div>
   );
 
   const rightIcons = (
@@ -220,13 +240,13 @@ export function PatientHeader({
             className="grid w-full grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-1 px-0.5"
           >
             <div className="flex min-w-0 items-center justify-start gap-1">{leftNav}</div>
-            <div className="min-w-0 max-w-[min(100vw-6rem,280px)] px-1">{titleBrand}</div>
+            {titleBrand}
             <div className="flex min-w-0 items-center justify-end gap-1">{rightIcons}</div>
           </div>
         ) : (
           <div id="patient-header-row" className="flex items-center gap-1.5">
             {leftNav}
-            <div className="min-w-0 flex-1 text-center">{titleMuted}</div>
+            {titleMuted}
             {rightIcons}
           </div>
         )}

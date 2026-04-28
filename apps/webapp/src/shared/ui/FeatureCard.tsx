@@ -16,6 +16,10 @@ type FeatureCardProps = {
   containerId?: string;
   /** Компактный вид: только заголовок, без описания и статуса. */
   compact?: boolean;
+  /** Вторичная ссылка (например «Открыть курс») без вложенности в основной href. */
+  secondaryHref?: string;
+  /** Подпись вторичной ссылки; по умолчанию «Открыть курс». */
+  secondaryLabel?: string;
 };
 
 const STATUS_LABEL: Record<NonNullable<FeatureCardProps["status"]>, string> = {
@@ -39,6 +43,8 @@ export function FeatureCard({
   status = "available",
   containerId,
   compact,
+  secondaryHref,
+  secondaryLabel = "Открыть курс",
 }: FeatureCardProps) {
   const cardClass = cn(
     "rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow",
@@ -50,14 +56,16 @@ export function FeatureCard({
     compact ? "m-0 text-[0.95rem] font-medium" : "text-base",
   );
 
-  const content = (
+  const titleEl = <h2 className={titleClass}>{title}</h2>;
+
+  const mainBlock = (
     <>
       {!compact && (
         <div className="mb-3">
           <Badge variant={STATUS_BADGE[status]}>{STATUS_LABEL[status]}</Badge>
         </div>
       )}
-      <h2 className={titleClass}>{title}</h2>
+      {titleEl}
       {!compact && description ? <p className="mt-2 text-sm text-muted-foreground">{description}</p> : null}
     </>
   );
@@ -65,8 +73,41 @@ export function FeatureCard({
   if (!href || status === "locked") {
     return (
       <article id={containerId} className={cardClass}>
-        {content}
+        {mainBlock}
       </article>
+    );
+  }
+
+  if (secondaryHref?.trim()) {
+    return (
+      <div
+        id={containerId}
+        className={cn(
+          "rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow",
+          "flex flex-col gap-2",
+          compact && "min-h-[52px] py-3",
+        )}
+      >
+        <Link
+          href={href}
+          className={cn(
+            "block min-w-0 flex-1 hover:border-primary/30 hover:shadow-md active:scale-[0.98] md:hover:-translate-y-px",
+            compact && "text-center",
+          )}
+        >
+          {mainBlock}
+        </Link>
+        <Link
+          href={secondaryHref}
+          prefetch={false}
+          className={cn(
+            "text-sm font-medium text-primary underline-offset-2 hover:underline",
+            compact ? "text-center text-xs" : "text-center sm:text-left",
+          )}
+        >
+          {secondaryLabel}
+        </Link>
+      </div>
     );
   }
 
@@ -79,7 +120,7 @@ export function FeatureCard({
         "block hover:border-primary/30 hover:shadow-md active:scale-[0.98] md:hover:-translate-y-px",
       )}
     >
-      {content}
+      {mainBlock}
     </Link>
   );
 }

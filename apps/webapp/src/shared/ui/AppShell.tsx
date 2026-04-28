@@ -48,6 +48,8 @@ type AppShellProps = {
   patientHideRightIcons?: boolean;
   /** См. {@link PatientHeader}: заголовок по центру (экраны входа). */
   patientBrandTitleBar?: boolean;
+  /** См. {@link PatientHeader}: компактный бейдж рядом с заголовком (например «По подписке» на странице раздела). */
+  patientTitleBadge?: string;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -65,6 +67,7 @@ export function AppShell({
   patientHideHome = false,
   patientHideRightIcons = false,
   patientBrandTitleBar = false,
+  patientTitleBadge,
 }: AppShellProps) {
   if (variant === "patient" || variant === "patient-wide") {
     const patientShellWidthClass = variant === "patient-wide" ? "max-w-[480px] lg:max-w-6xl" : "max-w-[480px]";
@@ -88,6 +91,7 @@ export function AppShell({
           hideHome={patientHideHome}
           hideRightIcons={patientHideRightIcons}
           brandTitleBar={patientBrandTitleBar}
+          titleBadge={patientTitleBadge}
         />
         <main
           id="app-shell-content"

@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { AppShell } from "./AppShell";
 
 vi.mock("next/navigation", () => ({
@@ -43,5 +43,14 @@ describe("AppShell patient width variants", () => {
     const shell = container.querySelector("#app-shell-patient");
     expect(shell).toHaveClass("max-w-[480px]");
     expect(shell).toHaveClass("lg:max-w-6xl");
+  });
+
+  it("forwards patientTitleBadge to patient header", () => {
+    render(
+      <AppShell title="Раздел" user={null} variant="patient" patientTitleBadge="По подписке" hidePatientQuickAddFAB>
+        <div>Body</div>
+      </AppShell>,
+    );
+    expect(screen.getByTestId("patient-header-title-badge")).toHaveTextContent("По подписке");
   });
 });

@@ -2,15 +2,23 @@ import Link from "next/link";
 import type { ResolvedCarouselCard } from "@/modules/patient-home/patientHomeResolvers";
 import { patientHomeCardClass } from "./patientHomeCardStyles";
 
-type Props = { cards: ResolvedCarouselCard[] };
+type Props = {
+  cards: ResolvedCarouselCard[];
+  /** Заголовок секции из `patient_home_blocks.title` для блока `subscription_carousel`; иначе дефолтный текст. */
+  sectionTitle?: string;
+};
 
-export function PatientHomeSubscriptionCarousel({ cards }: Props) {
+const DEFAULT_SECTION_TITLE = "Материалы по подписке";
+
+export function PatientHomeSubscriptionCarousel({ cards, sectionTitle }: Props) {
   if (cards.length === 0) return null;
+
+  const heading = sectionTitle?.trim() || DEFAULT_SECTION_TITLE;
 
   return (
     <section aria-labelledby="patient-home-subscription-heading">
       <h2 id="patient-home-subscription-heading" className="mb-2 text-base font-semibold">
-        Материалы по подписке
+        {heading}
       </h2>
       <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-pl-3 scroll-pr-4 pb-1 pt-0.5 [scrollbar-width:thin]">
         {cards.map((c) => (

@@ -59,4 +59,23 @@ describe("PatientHomeSubscriptionCarousel", () => {
     expect(screen.getByText("Клуб")).toBeInTheDocument();
     expect(screen.getByText("Премиум")).toBeInTheDocument();
   });
+
+  it("uses sectionTitle from block when provided", () => {
+    render(
+      <PatientHomeSubscriptionCarousel
+        sectionTitle="Карусель из админки"
+        cards={[
+          {
+            itemId: "c1",
+            title: "One",
+            subtitle: null,
+            imageUrl: null,
+            badgeLabel: "По подписке",
+            href: "/app/patient/content/one",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Карусель из админки" })).toBeInTheDocument();
+  });
 });

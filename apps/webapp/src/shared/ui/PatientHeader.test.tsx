@@ -59,4 +59,9 @@ describe("PatientHeader", () => {
     expect(screen.queryByRole("link", { name: "Главное меню" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Настройки" })).not.toBeInTheDocument();
   });
+
+  it("renders optional titleBadge", () => {
+    render(<PatientHeader pageTitle="Раздел" titleBadge="Клуб" />);
+    expect(screen.getByTestId("patient-header-title-badge")).toHaveTextContent("Клуб");
+  });
 });

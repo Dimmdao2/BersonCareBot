@@ -462,6 +462,19 @@
 - Command: `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/patientHomeResolvers.test.ts src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/sections/[slug]/page.subscription.test.tsx`
 - Result: `Test Files 3 passed (3)`, `Tests 12 passed (12)`.
 
+## 2026-04-28 — Phase 7 supplemental (plan parity: шапка, курс, заголовок карусели)
+
+- [`AppShell`](../../apps/webapp/src/shared/ui/AppShell.tsx) / [`PatientHeader`](../../apps/webapp/src/shared/ui/PatientHeader.tsx): `patientTitleBadge` / `titleBadge` — бейдж в шапке страницы раздела при membership в `subscription_carousel`.
+- [`FeatureCard`](../../apps/webapp/src/shared/ui/FeatureCard.tsx): опциональные `secondaryHref` / `secondaryLabel` — «Открыть курс» на [`sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx) при `content_pages.linked_course_id` и опубликованном курсе (`getCourseForDoctor`).
+- [`PatientHomeSubscriptionCarousel`](../../apps/webapp/src/app/app/patient/home/PatientHomeSubscriptionCarousel.tsx): prop `sectionTitle` из `patient_home_blocks.title` блока `subscription_carousel` ([`PatientHomeToday`](../../apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx)).
+- Тесты: [`PatientHeader.test.tsx`](../../apps/webapp/src/shared/ui/PatientHeader.test.tsx), [`AppShell.test.tsx`](../../apps/webapp/src/shared/ui/AppShell.test.tsx), [`FeatureCard.test.tsx`](../../apps/webapp/src/shared/ui/FeatureCard.test.tsx), расширен [`page.subscription.test.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.subscription.test.tsx).
+
+### Gate (phase-level webapp)
+
+- Command: `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/patientHomeResolvers.test.ts src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/sections/[slug]/page.subscription.test.tsx src/shared/ui/PatientHeader.test.tsx src/shared/ui/AppShell.test.tsx src/shared/ui/FeatureCard.test.tsx`
+- Result: `Test Files 6 passed (6)`, `Tests 23 passed (23)`.
+- Command: `pnpm --dir apps/webapp exec tsc --noEmit` — pass.
+
 ## 2026-04-28 — Phase 8 execution result
 
 - Phase: `Phase 8 — Бот: утренний пинг разминки и связь с напоминаниями`

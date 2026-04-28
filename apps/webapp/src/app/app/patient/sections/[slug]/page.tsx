@@ -34,6 +34,25 @@ export default async function PatientSectionPage({ params }: Props) {
   ]);
   const subscriptionSectionPresentation = getSubscriptionCarouselSectionPresentation(homeBlocks, slug);
 
+  const linkedCourseIds = [
+    ...new Set(
+      pages
+        .map((p) => p.linkedCourseId)
+        .filter((id): id is string => typeof id === "string" && Boolean(id?.trim())),
+    ),
+  ].map((id) => id.trim());
+
+  const courseHighlightByLinkedId = new Map<string, string>();
+  if (linkedCourseIds.length > 0) {
+    const courseRows = await Promise.all(linkedCourseIds.map((id) => deps.courses.getCourseForDoctor(id)));
+    for (let i = 0; i < linkedCourseIds.length; i += 1) {
+      const row = courseRows[i];
+      const key = linkedCourseIds[i]!;
+      if (row?.status === "published") {
+        courseHighlightByLinkedId.set(key, `/app/patient/courses?highlight=${encodeURIComponent(row.id)}`);
+      }
+    }
+  }
   let warmupsReminderJson: ReturnType<typeof reminderRuleToPatientJson> | null = null;
   let warmupsPersonalBar = false;
   if (slug === "warmups" && session) {
@@ -54,7 +73,14 @@ export default async function PatientSectionPage({ params }: Props) {
   }
 
   return (
-    <AppShell title={section.title} user={session?.user ?? null} backHref="/app/patient" backLabel="Меню" variant="patient">
+    <AppShell
+      title={section.title}
+      user={session?.user ?? null}
+      backHref="/app/patient"
+      backLabel="Меню"
+      variant="patient"
+      patientTitleBadge={subscriptionSectionPresentation?.badgeLabel}
+    >
       {warmupsPersonalBar ? (
         <SectionWarmupsReminderBar sectionTitle={section.title} existingRule={warmupsReminderJson} />
       ) : null}
@@ -67,6 +93,9 @@ export default async function PatientSectionPage({ params }: Props) {
             title={p.title}
             href={`/app/patient/content/${p.slug}`}
             compact
+            secondaryHref={
+              p.linkedCourseId?.trim() ? courseHighlightByLinkedId.get(p.linkedCourseId.trim()) : undefined
+            }
           />
         ))}
       </section>
