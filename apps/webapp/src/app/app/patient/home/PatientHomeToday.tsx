@@ -1,18 +1,22 @@
-import { Fragment } from "react";
+import type { ReactNode } from "react";
 import type { AppSession } from "@/shared/types/session";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { filterAndSortPatientHomeBlocks } from "@/modules/patient-home/patientHomeBlockPolicy";
-import {
-  pickNextReminderRuleForHome,
-} from "@/modules/patient-home/patientHomeReminderPick";
+import { pickNextReminderRuleForHome } from "@/modules/patient-home/patientHomeReminderPick";
+import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
+import type {
+  ResolvedCarouselCard,
+  ResolvedCourseCard,
+  ResolvedSituationChip,
+  ResolvedSosCard,
+} from "@/modules/patient-home/patientHomeResolvers";
 import {
   resolveCourseRowCards,
   resolveSituationChips,
   resolveSosCard,
   resolveSubscriptionCarouselCards,
 } from "@/modules/patient-home/patientHomeResolvers";
-import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
 import { PatientHomeGreeting } from "./PatientHomeGreeting";
 import { PatientHomeDailyWarmupCard } from "./PatientHomeDailyWarmupCard";
 import { PatientHomeBookingCard } from "./PatientHomeBookingCard";
@@ -24,15 +28,50 @@ import { PatientHomeSosCard } from "./PatientHomeSosCard";
 import { PatientHomePlanCard } from "./PatientHomePlanCard";
 import { PatientHomeSubscriptionCarousel } from "./PatientHomeSubscriptionCarousel";
 import { PatientHomeCoursesRow } from "./PatientHomeCoursesRow";
+import { PatientHomeTodayLayout } from "./PatientHomeTodayLayout";
+import { hrefForPatientHomeDrilldown, stripApiMediaForAnonymousGuest } from "./patientHomeGuestNav";
 
 type Props = {
-  session: AppSession;
+  session: AppSession | null;
   personalTierOk: boolean;
   canViewAuthOnlyContent: boolean;
 };
 
+function mapSituationChipsForGuest(chips: ResolvedSituationChip[], anonymousGuest: boolean): ResolvedSituationChip[] {
+  if (!anonymousGuest) return chips;
+  return chips.map((c) => ({
+    ...c,
+    href: hrefForPatientHomeDrilldown(c.href, true),
+    imageUrl: stripApiMediaForAnonymousGuest(c.imageUrl, true),
+  }));
+}
+
+function mapCarouselForGuest(cards: ResolvedCarouselCard[], anonymousGuest: boolean): ResolvedCarouselCard[] {
+  if (!anonymousGuest) return cards;
+  return cards.map((c) => ({
+    ...c,
+    href: hrefForPatientHomeDrilldown(c.href, true),
+    imageUrl: stripApiMediaForAnonymousGuest(c.imageUrl, true),
+  }));
+}
+
+function mapSosForGuest(sos: ResolvedSosCard | null, anonymousGuest: boolean): ResolvedSosCard | null {
+  if (!sos || !anonymousGuest) return sos;
+  return {
+    ...sos,
+    href: hrefForPatientHomeDrilldown(sos.href, true),
+    imageUrl: stripApiMediaForAnonymousGuest(sos.imageUrl, true),
+  };
+}
+
+function mapCourseCardsForGuest(cards: ResolvedCourseCard[], anonymousGuest: boolean): ResolvedCourseCard[] {
+  if (!anonymousGuest) return cards;
+  return cards.map((c) => ({ ...c, href: hrefForPatientHomeDrilldown(c.href, true) }));
+}
+
 export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnlyContent }: Props) {
   const deps = buildAppDeps();
+  const anonymousGuest = session === null;
 
   const [homeBlocks, todayCfg] = await Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
@@ -54,7 +93,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   const sosBlock = homeBlocks.find((b) => b.code === "sos");
   const coursesBlock = homeBlocks.find((b) => b.code === "courses");
 
-  const [situationChips, subscriptionCards, sosCard, courseCards] = await Promise.all([
+  const [situationChipsRaw, subscriptionCardsRaw, sosCardRaw, courseCardsRaw] = await Promise.all([
     situationsBlock ? resolveSituationChips(situationsBlock.items, resolverDeps, canViewAuthOnlyContent) : Promise.resolve([]),
     subscriptionBlock ?
       resolveSubscriptionCarouselCards(subscriptionBlock.items, resolverDeps, canViewAuthOnlyContent)
@@ -63,9 +102,14 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     coursesBlock ? resolveCourseRowCards(coursesBlock.items, resolverDeps) : Promise.resolve([]),
   ]);
 
+  const situationChips = mapSituationChipsForGuest(situationChipsRaw, anonymousGuest);
+  const subscriptionCards = mapCarouselForGuest(subscriptionCardsRaw, anonymousGuest);
+  const sosCard = mapSosForGuest(sosCardRaw, anonymousGuest);
+  const courseCards = mapCourseCardsForGuest(courseCardsRaw, anonymousGuest);
+
   let reminderRule = null;
   let planInstance: { id: string; title: string } | null = null;
-  if (personalTierOk) {
+  if (personalTierOk && session) {
     const [rules, instances] = await Promise.all([
       deps.reminders.listRulesByUser(session.user.userId),
       deps.treatmentProgramInstance.listForPatient(session.user.userId),
@@ -79,48 +123,60 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
 
   const sorted = filterAndSortPatientHomeBlocks(homeBlocks, personalTierOk);
 
-  const personalizedName = personalTierOk ? session.user.displayName?.trim() || null : null;
+  const personalizedName = personalTierOk && session ? session.user.displayName?.trim() || null : null;
 
-  const renderBlock = (code: PatientHomeBlockCode) => {
+  const renderBlock = (code: PatientHomeBlockCode): ReactNode => {
     switch (code) {
       case "daily_warmup":
         return (
-          <PatientHomeDailyWarmupCard warmup={todayCfg.dailyWarmupItem} personalTierOk={personalTierOk} />
+          <PatientHomeDailyWarmupCard
+            warmup={todayCfg.dailyWarmupItem}
+            personalTierOk={personalTierOk}
+            anonymousGuest={anonymousGuest}
+          />
         );
       case "booking":
-        return <PatientHomeBookingCard personalTierOk={personalTierOk} />;
+        return <PatientHomeBookingCard personalTierOk={personalTierOk} anonymousGuest={anonymousGuest} />;
       case "situations":
+        if (situationChips.length === 0) return null;
         return <PatientHomeSituationsRow chips={situationChips} />;
       case "progress":
         return (
           <PatientHomeProgressBlock
             practiceTarget={todayCfg.practiceTarget}
             personalTierOk={personalTierOk}
+            anonymousGuest={anonymousGuest}
           />
         );
       case "next_reminder":
+        if (!reminderRule) return null;
         return <PatientHomeNextReminderCard rule={reminderRule} />;
       case "mood_checkin":
-        return <PatientHomeMoodCheckin personalTierOk={personalTierOk} />;
+        return <PatientHomeMoodCheckin personalTierOk={personalTierOk} anonymousGuest={anonymousGuest} />;
       case "sos":
+        if (!sosCard) return null;
         return <PatientHomeSosCard sos={sosCard} />;
       case "plan":
+        if (!planInstance) return null;
         return <PatientHomePlanCard instance={planInstance} />;
       case "subscription_carousel":
+        if (subscriptionCards.length === 0) return null;
         return <PatientHomeSubscriptionCarousel cards={subscriptionCards} />;
       case "courses":
+        if (courseCards.length === 0) return null;
         return <PatientHomeCoursesRow cards={courseCards} />;
       default:
         return null;
     }
   };
 
+  const layoutBlocks = sorted
+    .map((block) => ({ code: block.code, node: renderBlock(block.code) }))
+    .filter((block): block is { code: PatientHomeBlockCode; node: Exclude<ReactNode, null | undefined | false> } =>
+      block.node !== null && block.node !== undefined && block.node !== false,
+    );
+
   return (
-    <div className="flex flex-col gap-6 pb-6">
-      <PatientHomeGreeting personalizedName={personalizedName} />
-      {sorted.map((b) => (
-        <Fragment key={b.code}>{renderBlock(b.code)}</Fragment>
-      ))}
-    </div>
+    <PatientHomeTodayLayout personalizedName={personalizedName} blocks={layoutBlocks} />
   );
 }

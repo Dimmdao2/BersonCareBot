@@ -3,7 +3,7 @@
  * Используется на всех страницах после входа: пациент, врач, настройки. В шапке — заголовок,
  * опционально кнопка «Назад», имя и роль пользователя, ссылка «Настройки». Контент страницы
  * передаётся в children. Отображается везде внутри /app (кроме корневого layout).
- * Для пациента (variant="patient") — {@link PatientGatedHeader}: шапка скрывается в мини-приложении на экране запроса телефона.
+ * Для пациента (variant="patient" / "patient-wide") — {@link PatientGatedHeader}: шапка скрывается в мини-приложении на экране запроса телефона.
  * Для кабинета врача (variant="doctor") — только контейнер контента; шапка `DoctorHeader` в layout `/app/doctor` или на `/app/settings`. Ширина и отступы — `doctorWorkspaceLayout.ts`.
  */
 
@@ -26,8 +26,8 @@ type AppShellProps = {
   backLabel?: string;
   /** Уменьшенный заголовок, когда есть кнопка «Назад». */
   titleSmall?: boolean;
-  /** Вариант шапки: по умолчанию — заголовок и действия; patient — шапка кабинета пациента; doctor — широкий layout. */
-  variant?: "default" | "patient" | "doctor";
+  /** Вариант шапки: patient-wide расширяет только patient-shell на lg+ (главная пациента). */
+  variant?: "default" | "patient" | "patient-wide" | "doctor";
   /** Доп. плавающий UI для пациента (например QuickAdd на дневнике). */
   patientFloatingSlot?: ReactNode;
   /** Скрыть круглую кнопку быстрого добавления в дневник (FAB) внизу справа. */
@@ -61,12 +61,15 @@ export function AppShell({
   patientHideRightIcons = false,
   patientBrandTitleBar = false,
 }: AppShellProps) {
-  if (variant === "patient") {
+  if (variant === "patient" || variant === "patient-wide") {
+    const patientShellWidthClass = variant === "patient-wide" ? "max-w-[480px] lg:max-w-6xl" : "max-w-[480px]";
+
     return (
       <div
         id="app-shell-patient"
         className={cn(
-          "mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col bg-[var(--patient-surface)] pt-[max(0px,env(safe-area-inset-top,0px))]",
+          "mx-auto flex min-h-[100dvh] w-full flex-col bg-[var(--patient-surface)] pt-[max(0px,env(safe-area-inset-top,0px))]",
+          patientShellWidthClass,
           patientEmbedMain
             ? "gap-0 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
             : "safe-padding-patient gap-3",

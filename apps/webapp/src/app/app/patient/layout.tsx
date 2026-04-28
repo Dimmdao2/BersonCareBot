@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
+  patientLayoutAllowsUnauthenticatedAccess,
   patientPathRequiresBoundPhone,
   patientPathsAllowedDuringPhoneActivation,
   resolvePatientLayoutPathname,
@@ -26,6 +27,9 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   const session = await getCurrentSession();
 
   if (!session) {
+    if (patientLayoutAllowsUnauthenticatedAccess(pathname)) {
+      return <PatientClientLayout>{children}</PatientClientLayout>;
+    }
     const returnTo = (pathname.trim() ? pathname : routePaths.patient) + search;
     redirect(`${routePaths.root}?next=${encodeURIComponent(returnTo)}`);
   }

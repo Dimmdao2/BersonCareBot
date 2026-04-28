@@ -18,4 +18,6 @@
 - `patientHomeResolvers.ts` — разрешение items блоков `situations`, `subscription_carousel`, `sos`, `courses` в DTO для UI (без импорта infra).
 - `patientHomeReminderPick.ts` — упрощённый выбор правила напоминания для карточки «Следующее напоминание» (Phase 3).
 
-Клиентская главная «Сегодня»: `app/app/patient/home/PatientHomeToday.tsx` и дочерние компоненты; порядок секций из `patient_home_blocks.sort_order` и видимости блоков/items.
+Клиентская главная «Сегодня»: `app/app/patient/home/PatientHomeToday.tsx` и дочерние компоненты; mobile/`md` сохраняют линейный порядок секций из `patient_home_blocks.sort_order` и видимости блоков/items. На `lg+` `PatientHomeTodayLayout` раскладывает видимые блоки по зонам: левая колонка (`daily_warmup`, `situations`, `progress`, `plan`, `courses`), правая колонка (`booking`, `next_reminder`, `sos`, `mood_checkin`), `subscription_carousel` — полноширинно под колонками.
+
+**Phase 4.5 (публичная главная):** точный маршрут `/app/patient` без сессии разрешён только в `patient/layout.tsx` через `patientLayoutAllowsUnauthenticatedAccess` из `patientRouteApiPolicy.ts`. `PatientHomeToday` принимает `session: AppSession | null`; персональные запросы (`reminders`, `treatmentProgramInstance`, …) только при `personalTierOk && session`. Auth-on-drilldown: `patientHomeGuestNav.ts` (`appLoginWithNextHref`); для анонима превью `/api/media/*` на главной не используются (fallback в UI), политика `GET /api/media/:id` не меняется.

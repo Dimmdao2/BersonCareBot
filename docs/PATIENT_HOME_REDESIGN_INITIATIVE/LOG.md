@@ -172,3 +172,112 @@
 - Command: `pnpm --dir apps/webapp exec tsc --noEmit`
 - Result: pass
 
+## 2026-04-28 — Phase 4 start
+
+- Phase: `Phase 4 — Главная пациента: планшет и десктоп`
+- Status: `completed`
+
+### Planned scope
+
+- Add a patient-wide shell mode only for `/app/patient`.
+- Keep all other patient routes on the narrow `variant="patient"` shell.
+- Add `lg+` two-column layout in `PatientHomeToday`.
+- Keep mobile and `md` as one narrow column.
+- Render `subscription_carousel` full-width under the two columns on `lg+`.
+- Add available webapp tests/snapshots for layout behavior.
+
+### Explicit constraints acknowledged
+
+- Do not change CMS or database schema/data.
+- Do not change other patient pages.
+- Do not hardcode editorial slugs from `CONTENT_PLAN.md`.
+- Do not change public/anonymous access policy from Phase 4.5.
+
+## 2026-04-28 — Phase 4 execution result
+
+- Phase: `Phase 4 — Главная пациента: планшет и десктоп`
+- Status: `completed`
+
+### Implemented
+
+- Added `AppShell` patient mode `variant="patient-wide"`: narrow `max-w-[480px]` below `lg`, `lg:max-w-6xl` on desktop.
+- Applied `patient-wide` only in [`apps/webapp/src/app/app/patient/page.tsx`](apps/webapp/src/app/app/patient/page.tsx).
+- Added [`PatientHomeTodayLayout.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeTodayLayout.tsx):
+  - mobile and `md` remain a single-column stack in runtime block order;
+  - `lg+` uses a 60/40 grid;
+  - `subscription_carousel` spans both columns below the main blocks;
+  - blocks render once (no duplicated DOM/id pairs between mobile and desktop).
+- Updated `PatientHomeToday` to skip empty resolved blocks before layout placement.
+- Updated [`apps/webapp/src/modules/patient-home/patient-home.md`](apps/webapp/src/modules/patient-home/patient-home.md) with the desktop layout contract.
+- Added layout tests:
+  - [`apps/webapp/src/shared/ui/AppShell.test.tsx`](apps/webapp/src/shared/ui/AppShell.test.tsx)
+  - [`apps/webapp/src/app/app/patient/home/PatientHomeTodayLayout.test.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeTodayLayout.test.tsx)
+
+### Explicit constraints
+
+- Other patient pages remain on `variant="patient"`.
+- CMS and DB were not changed.
+- No editorial slug from `CONTENT_PLAN.md` was hardcoded.
+- Phase 4.5 public/anonymous access policy was not changed.
+
+### Gate (phase-level webapp)
+
+- `pnpm --dir apps/webapp exec vitest run src/shared/ui/AppShell.test.tsx src/app/app/patient/home/PatientHomeTodayLayout.test.tsx src/app/app/patient/home/PatientHomeSituationsRow.test.tsx src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx src/app/app/patient/home/PatientHomeSosCard.test.tsx src/modules/patient-home/patientHomeBlockPolicy.test.ts src/modules/patient-home/patientHomeReminderPick.test.ts src/modules/patient-home/patientHomeResolvers.test.ts src/modules/patient-home/todayConfig.test.ts` — pass (`Test Files 10 passed`, `Tests 30 passed`).
+- `pnpm --dir apps/webapp exec tsc --noEmit` — pass.
+- `pnpm --dir apps/webapp lint` — pass.
+- `pnpm test:webapp` — pass (`Test Files 390 passed | 5 skipped`, `Tests 1971 passed | 8 skipped`).
+- Full CI was not run (no repo-level scope, no push/pre-push request).
+
+## 2026-04-28 — FIX post-audit (Phase 4)
+
+- Mode: `FIX` (mandatory items from `AUDIT_PHASE_4.md` only).
+- `AUDIT_PHASE_4.md` §2 **Mandatory fixes:** `None` — no application, CMS, or DB changes required.
+- Action: confirmed scope; updated this log only.
+- Verification: targeted Phase 4 Vitest bundle from `AUDIT_PHASE_4.md` §4.
+
+### Gate
+
+- Command: `pnpm --dir apps/webapp exec vitest run src/shared/ui/AppShell.test.tsx src/app/app/patient/home/PatientHomeTodayLayout.test.tsx src/app/app/patient/home/PatientHomeSituationsRow.test.tsx src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx src/app/app/patient/home/PatientHomeSosCard.test.tsx src/modules/patient-home/patientHomeBlockPolicy.test.ts src/modules/patient-home/patientHomeReminderPick.test.ts src/modules/patient-home/patientHomeResolvers.test.ts src/modules/patient-home/todayConfig.test.ts`
+- Result: `Test Files 10 passed (10)`, `Tests 30 passed (30)`.
+
+## 2026-04-28 — Phase 4.5 execution result
+
+- Phase: `Phase 4.5 — Публичная главная пациента и auth-on-drilldown`
+- Status: `completed`
+
+### Implemented
+
+- [`patientLayoutAllowsUnauthenticatedAccess`](apps/webapp/src/modules/platform-access/patientRouteApiPolicy.ts): только канонический `/app/patient` (нормализация trailing slash); пустой pathname → `false`.
+- [`apps/webapp/src/app/app/patient/layout.tsx`](apps/webapp/src/app/app/patient/layout.tsx): при `!session` и разрешённой главной — рендер `PatientClientLayout` без редиректа; иначе редирект на `/app?next=...`.
+- [`apps/webapp/src/app/app/patient/page.tsx`](apps/webapp/src/app/app/patient/page.tsx): без сессии — `AppShell` с `user={null}`, `patientHideRightIcons`, `patientHideHome`, non-personal `PatientHomeToday`; без `redirect`.
+- [`PatientHomeToday.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx): `session: AppSession | null`; персональные запросы только при `personalTierOk && session`; drilldown href и strip `/api/media/` для анонима.
+- [`patientHomeGuestNav.ts`](apps/webapp/src/app/app/patient/home/patientHomeGuestNav.ts): `appLoginWithNextHref`, `hrefForPatientHomeDrilldown`, `stripApiMediaForAnonymousGuest`.
+- Карточки: [`PatientHomeDailyWarmupCard`](apps/webapp/src/app/app/patient/home/PatientHomeDailyWarmupCard.tsx), [`PatientHomeBookingCard`](apps/webapp/src/app/app/patient/home/PatientHomeBookingCard.tsx), [`PatientHomeProgressBlock`](apps/webapp/src/app/app/patient/home/PatientHomeProgressBlock.tsx), [`PatientHomeMoodCheckin`](apps/webapp/src/app/app/patient/home/PatientHomeMoodCheckin.tsx) — ветки anonymous vs onboarding.
+- Экспорт policy из [`modules/platform-access/index.ts`](apps/webapp/src/modules/platform-access/index.ts).
+- Тесты: расширен [`patientRouteApiPolicy.test.ts`](apps/webapp/src/modules/platform-access/patientRouteApiPolicy.test.ts); новые [`patientHomeGuestNav.test.ts`](apps/webapp/src/app/app/patient/home/patientHomeGuestNav.test.ts), [`PatientHomeToday.test.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeToday.test.tsx); обновлён [`PatientHomeBookingCard.test.tsx`](apps/webapp/src/app/app/patient/home/PatientHomeBookingCard.test.tsx).
+- [`patient-home.md`](apps/webapp/src/modules/patient-home/patient-home.md) — кратко про Phase 4.5.
+
+### Explicit constraints
+
+- Вложенные `/app/patient/*` без сессии по-прежнему за редиректом; `/api/media/:id`, auth-модель, CMS/БД не менялись.
+- Slug-и из `CONTENT_PLAN.md` не хардкодятся (в тестах — `fixture-*`).
+
+### Gate (phase-level webapp)
+
+- `pnpm --dir apps/webapp exec vitest run src/modules/platform-access/patientRouteApiPolicy.test.ts src/app/app/patient/home/patientHomeGuestNav.test.ts src/app/app/patient/home/PatientHomeToday.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx src/app/app/patient/home/PatientHomeTodayLayout.test.tsx src/app/app/patient/home/PatientHomeSituationsRow.test.tsx src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/home/PatientHomeSosCard.test.tsx src/modules/patient-home/patientHomeBlockPolicy.test.ts src/modules/patient-home/patientHomeReminderPick.test.ts src/modules/patient-home/patientHomeResolvers.test.ts src/modules/patient-home/todayConfig.test.ts` — pass.
+- `pnpm --dir apps/webapp exec tsc --noEmit` — pass.
+- `pnpm --dir apps/webapp lint` — pass.
+- Full `pnpm run ci` не запускался (нет repo-level scope).
+
+## 2026-04-28 — FIX post-audit (Phase 4.5)
+
+- Mode: `FIX` (mandatory items from `AUDIT_PHASE_4_5.md` only).
+- `AUDIT_PHASE_4_5.md` §2 **Mandatory fixes:** `None` — no application changes required.
+- Action: confirmed scope; updated this log only.
+- Verification: targeted Phase 4.5 Vitest bundle per `AUDIT_PHASE_4_5.md` §4.
+
+### Gate
+
+- Command: `pnpm --dir apps/webapp exec vitest run src/modules/platform-access/patientRouteApiPolicy.test.ts src/app/app/patient/home/patientHomeGuestNav.test.ts src/app/app/patient/home/PatientHomeToday.test.tsx src/app/app/patient/home/PatientHomeBookingCard.test.tsx`
+- Result: `Test Files 4 passed (4)`, `Tests 29 passed (29)`.
+

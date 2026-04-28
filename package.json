@@ -61,6 +61,8 @@
       "@ffmpeg-installer/darwin-arm64"
     ],
     "overrides": {
+      "postcss": ">=8.5.10",
+      "fast-xml-parser": ">=5.7.0",
       "fastify": ">=5.8.5",
       "jsdom": "^26.0.0",
       "flatted": ">=3.4.2",
