@@ -79,8 +79,6 @@ export default [
       "src/modules/messaging/doctorSupportMessagingService.ts",
       "src/modules/messaging/patientMessagingService.ts",
       "src/modules/messaging/serializeSupportMessage.ts",
-      "src/modules/patient-home/newsMotivation.ts",
-      "src/modules/patient-home/repository.ts",
       "src/modules/platform-access/patientClientBusinessGate.ts",
       "src/modules/platform-access/resolvePatientCanViewAuthOnlyContent.ts",
       "src/modules/platform-access/resolvePlatformAccessContext.ts",

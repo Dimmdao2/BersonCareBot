@@ -1,5 +1,20 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createInMemoryContentSectionsPort, inMemoryContentSectionsPort } from "./pgContentSections";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+describe("pgContentSections (runtime constraints)", () => {
+  it("uses Drizzle only — no getPool / pool.query / client.query", () => {
+    const src = readFileSync(join(__dirname, "pgContentSections.ts"), "utf8");
+    expect(src).not.toMatch(/\bgetPool\b/);
+    expect(src).not.toMatch(/\bpool\.query\b/);
+    expect(src).not.toMatch(/\bclient\.query\b/);
+    expect(src).toContain("getDrizzle");
+  });
+});
 
 describe("inMemoryContentSectionsPort", () => {
   it("returns empty lists", async () => {

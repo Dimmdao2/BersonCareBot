@@ -10,7 +10,7 @@
 
 ---
 
-## A. modules/* — прямой доступ к `@/infra/db/*`, `@/infra/repos/*` (29 production-файлов)
+## A. modules/* — прямой доступ к `@/infra/db/*`, `@/infra/repos/*` (27 production-файлов; `patient-home` legacy news/mailing/quote вынесены в infra + DI, см. `GLOBALFIX` 2026-04-29)
 
 Охват таблицы: вызовы `getPool()` / импорт `@/infra/db/client`, а также **любые** импорты из `@/infra/repos/*` (реализации и **type-only** импорты типов строк из repos). Цель чистки — убрать прямую связь модуля с DB/repos в пользу портов и DI.
 
@@ -34,17 +34,15 @@
 | 16 | `modules/system-settings/configAdapter.ts` | system-settings | getPool | allowlisted |
 | 17 | `modules/system-settings/syncToIntegrator.ts` | system-settings | getPool | allowlisted |
 | 18 | `modules/reminders/notifyIntegrator.ts` | reminders | getPool | allowlisted |
-| 19 | `modules/patient-home/newsMotivation.ts` | patient-home | getPool ×3 | allowlisted |
-| 20 | `modules/patient-home/repository.ts` | patient-home | getPool | allowlisted |
-| 21 | `modules/doctor-clients/clientArchiveChange.ts` | doctor-clients | getPool + createPgDoctorClientsPort | allowlisted |
-| 22 | `modules/integrator/events.ts` | integrator | 5 port types + mapRubitimeStatus + merge errors from infra | allowlisted |
-| 23 | `modules/content-catalog/service.ts` | content-catalog | ContentPagesPort type from infra | allowlisted |
-| 24 | `modules/messaging/patientMessagingService.ts` | messaging | SupportCommunicationPort type from infra | allowlisted |
-| 25 | `modules/messaging/doctorSupportMessagingService.ts` | messaging | SupportCommunicationPort + row types from infra | allowlisted |
-| 26 | `modules/messaging/serializeSupportMessage.ts` | messaging | SupportConversationMessageRow from infra | allowlisted |
-| 27 | `modules/menu/service.ts` | menu | ContentSectionRow type from infra | allowlisted |
-| 28 | `modules/emergency/service.ts` | emergency | ContentPagesPort type from infra | allowlisted |
-| 29 | `modules/lessons/service.ts` | lessons | ContentPagesPort type from infra | allowlisted |
+| 19 | `modules/doctor-clients/clientArchiveChange.ts` | doctor-clients | getPool + createPgDoctorClientsPort | allowlisted |
+| 20 | `modules/integrator/events.ts` | integrator | 5 port types + mapRubitimeStatus + merge errors from infra | allowlisted |
+| 21 | `modules/content-catalog/service.ts` | content-catalog | ContentPagesPort type from infra | allowlisted |
+| 22 | `modules/messaging/patientMessagingService.ts` | messaging | SupportCommunicationPort type from infra | allowlisted |
+| 23 | `modules/messaging/doctorSupportMessagingService.ts` | messaging | SupportCommunicationPort + row types from infra | allowlisted |
+| 24 | `modules/messaging/serializeSupportMessage.ts` | messaging | SupportConversationMessageRow from infra | allowlisted |
+| 25 | `modules/menu/service.ts` | menu | ContentSectionRow type from infra | allowlisted |
+| 26 | `modules/emergency/service.ts` | emergency | ContentPagesPort type from infra | allowlisted |
+| 27 | `modules/lessons/service.ts` | lessons | ContentPagesPort type from infra | allowlisted |
 
 ### Группировка по модулю
 
@@ -53,7 +51,7 @@
 | auth | 12 | High — rate limits, OAuth, merge, canonical user |
 | platform-access | 3 | Medium — canonical user resolution |
 | system-settings | 2 | Low — configAdapter + sync |
-| patient-home | 2 | Low — news/motivation queries |
+| patient-home | 0 | — legacy `newsMotivation`/`repository` DB access moved to `patientHomeLegacy` port (infra) |
 | messaging | 3 | Low — port type re-export |
 | integrator | 1 | High — event processing hub |
 | doctor-clients | 1 | Medium — archive + port creation |
@@ -65,7 +63,7 @@
 ### Рекомендуемый порядок чистки (когда будет время)
 
 1. **Type-only imports** (menu, emergency, lessons, content-catalog, messaging) — 6 файлов, Low. Перенести типы портов в `modules/*/ports.ts`.
-2. **system-settings, patient-home** — 4 файла, Low-Medium. Создать порты, инжектировать через DI.
+2. **system-settings** — 2 файла, Low-Medium. Создать порты, инжектировать через DI.
 3. **platform-access** — 3 файла, Medium. Вынести resolveCanonicalUserId за port.
 4. **doctor-clients** — 1 файл, Medium. Убрать createPgDoctorClientsPort внутри модуля.
 5. **auth** — 12 файлов, High. Самый крупный блок. Rate limit ports, OAuth ports, canonical user port.

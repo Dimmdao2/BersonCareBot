@@ -21,6 +21,7 @@ describe("buildAppDeps", () => {
     expect(deps).toHaveProperty("channelPreferences");
     expect(deps).toHaveProperty("contentCatalog");
     expect(deps).toHaveProperty("contentSections");
+    expect(deps).toHaveProperty("patientHomeLegacy");
   });
 
   it("contentCatalog.getBySlug resolves known slug", async () => {

@@ -1,6 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { createPatientHomeBlocksService } from "./service";
-import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
+import type {
+  PatientHomeBlock,
+  PatientHomeBlockCode,
+  PatientHomeBlockItemAddInput,
+  PatientHomeBlockItemPatch,
+  PatientHomeBlocksPort,
+} from "./ports";
+
+function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
+  const blocks = new Map<PatientHomeBlockCode, PatientHomeBlock>();
+  return {
+    async listBlocksWithItems() {
+      return [...blocks.values()];
+    },
+    async setBlockVisibility() {},
+    async reorderBlocks() {},
+    async addItem(input: PatientHomeBlockItemAddInput) {
+      return `mem-${input.blockCode}-${input.targetRef}`;
+    },
+    async updateItem(_id: string, _patch: PatientHomeBlockItemPatch) {},
+    async deleteItem() {},
+    async reorderItems() {},
+  };
+}
 
 function makeService() {
   return createPatientHomeBlocksService({

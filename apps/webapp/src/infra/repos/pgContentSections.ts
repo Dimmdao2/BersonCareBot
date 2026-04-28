@@ -1,4 +1,6 @@
-import { getPool } from "@/infra/db/client";
+import { and, asc, eq, sql } from "drizzle-orm";
+import { getDrizzle } from "@/app-layer/db/drizzle";
+import { contentSections } from "../../../db/schema";
 
 export type ContentSectionRow = {
   id: string;
@@ -40,136 +42,114 @@ export type ContentSectionsPort = {
   reorderSlugs: (orderedSlugs: string[]) => Promise<void>;
 };
 
-const SELECT_COLS = `id, slug, title, description, sort_order, is_visible, requires_auth, cover_image_url, icon_image_url`;
+function mapRow(row: typeof contentSections.$inferSelect): ContentSectionRow {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    description: row.description ?? "",
+    sortOrder: row.sortOrder,
+    isVisible: row.isVisible,
+    requiresAuth: Boolean(row.requiresAuth),
+    coverImageUrl: row.coverImageUrl ?? null,
+    iconImageUrl: row.iconImageUrl ?? null,
+  };
+}
 
 export function createPgContentSectionsPort(): ContentSectionsPort {
   return {
     async listVisible(opts?: ListVisibleContentSectionsOpts) {
+      const db = getDrizzle();
       const viewAuthOnlySections = opts?.viewAuthOnlySections !== false;
-      const pool = getPool();
-      const authClause = viewAuthOnlySections ? "" : " AND requires_auth = false";
-      const res = await pool.query(
-        `SELECT ${SELECT_COLS} FROM content_sections
-         WHERE is_visible = true${authClause}
-         ORDER BY sort_order, title`,
-      );
-      return res.rows.map(mapRow);
+      const whereClause = viewAuthOnlySections
+        ? eq(contentSections.isVisible, true)
+        : and(eq(contentSections.isVisible, true), eq(contentSections.requiresAuth, false));
+      const rows = await db
+        .select()
+        .from(contentSections)
+        .where(whereClause)
+        .orderBy(asc(contentSections.sortOrder), asc(contentSections.title));
+      return rows.map(mapRow);
     },
     async listAll() {
-      const pool = getPool();
-      const res = await pool.query(
-        `SELECT ${SELECT_COLS} FROM content_sections ORDER BY sort_order, title`,
-      );
-      return res.rows.map(mapRow);
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(contentSections)
+        .orderBy(asc(contentSections.sortOrder), asc(contentSections.title));
+      return rows.map(mapRow);
     },
     async getBySlug(slug) {
-      const pool = getPool();
-      const res = await pool.query(`SELECT ${SELECT_COLS} FROM content_sections WHERE slug = $1`, [slug]);
-      return res.rows[0] ? mapRow(res.rows[0]) : null;
+      const db = getDrizzle();
+      const rows = await db.select().from(contentSections).where(eq(contentSections.slug, slug)).limit(1);
+      const row = rows[0];
+      return row ? mapRow(row) : null;
     },
     async upsert(section) {
-      const pool = getPool();
-      const res = await pool.query(
-        `INSERT INTO content_sections (slug, title, description, sort_order, is_visible, requires_auth, cover_image_url, icon_image_url)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (slug) DO UPDATE SET
-           title = EXCLUDED.title,
-           description = EXCLUDED.description,
-           sort_order = EXCLUDED.sort_order,
-           is_visible = EXCLUDED.is_visible,
-           requires_auth = EXCLUDED.requires_auth,
-           cover_image_url = EXCLUDED.cover_image_url,
-           icon_image_url = EXCLUDED.icon_image_url,
-           updated_at = now()
-         RETURNING id`,
-        [
-          section.slug,
-          section.title,
-          section.description,
-          section.sortOrder,
-          section.isVisible,
-          section.requiresAuth ?? false,
-          section.coverImageUrl ?? null,
-          section.iconImageUrl ?? null,
-        ],
-      );
-      return res.rows[0].id as string;
+      const db = getDrizzle();
+      const values = {
+        slug: section.slug,
+        title: section.title,
+        description: section.description,
+        sortOrder: section.sortOrder,
+        isVisible: section.isVisible,
+        requiresAuth: section.requiresAuth ?? false,
+        coverImageUrl: section.coverImageUrl ?? null,
+        iconImageUrl: section.iconImageUrl ?? null,
+        updatedAt: sql`now()` as unknown as string,
+      };
+      const rows = await db
+        .insert(contentSections)
+        .values(values)
+        .onConflictDoUpdate({
+          target: contentSections.slug,
+          set: {
+            title: section.title,
+            description: section.description,
+            sortOrder: section.sortOrder,
+            isVisible: section.isVisible,
+            requiresAuth: section.requiresAuth ?? false,
+            coverImageUrl: section.coverImageUrl ?? null,
+            iconImageUrl: section.iconImageUrl ?? null,
+            updatedAt: sql`now()` as unknown as string,
+          },
+        })
+        .returning({ id: contentSections.id });
+      const id = rows[0]?.id;
+      if (!id) throw new Error("content_sections upsert returned no id");
+      return id;
     },
     async update(slug, patch) {
-      const pool = getPool();
-      const sets: string[] = [];
-      const vals: unknown[] = [];
-      let n = 1;
-      if (patch.title !== undefined) {
-        sets.push(`title = $${n++}`);
-        vals.push(patch.title);
-      }
-      if (patch.description !== undefined) {
-        sets.push(`description = $${n++}`);
-        vals.push(patch.description);
-      }
-      if (patch.sortOrder !== undefined) {
-        sets.push(`sort_order = $${n++}`);
-        vals.push(patch.sortOrder);
-      }
-      if (patch.isVisible !== undefined) {
-        sets.push(`is_visible = $${n++}`);
-        vals.push(patch.isVisible);
-      }
-      if (patch.requiresAuth !== undefined) {
-        sets.push(`requires_auth = $${n++}`);
-        vals.push(patch.requiresAuth);
-      }
-      if (patch.coverImageUrl !== undefined) {
-        sets.push(`cover_image_url = $${n++}`);
-        vals.push(patch.coverImageUrl);
-      }
-      if (patch.iconImageUrl !== undefined) {
-        sets.push(`icon_image_url = $${n++}`);
-        vals.push(patch.iconImageUrl);
-      }
-      if (sets.length === 0) return;
-      vals.push(slug);
-      await pool.query(
-        `UPDATE content_sections SET ${sets.join(", ")}, updated_at = now() WHERE slug = $${n}`,
-        vals,
-      );
+      const setPayload: Partial<typeof contentSections.$inferInsert> = {
+        updatedAt: sql`now()` as unknown as string,
+      };
+      if (patch.title !== undefined) setPayload.title = patch.title;
+      if (patch.description !== undefined) setPayload.description = patch.description;
+      if (patch.sortOrder !== undefined) setPayload.sortOrder = patch.sortOrder;
+      if (patch.isVisible !== undefined) setPayload.isVisible = patch.isVisible;
+      if (patch.requiresAuth !== undefined) setPayload.requiresAuth = patch.requiresAuth;
+      if (patch.coverImageUrl !== undefined) setPayload.coverImageUrl = patch.coverImageUrl;
+      if (patch.iconImageUrl !== undefined) setPayload.iconImageUrl = patch.iconImageUrl;
+      if (Object.keys(setPayload).length <= 1) return;
+      const db = getDrizzle();
+      await db.update(contentSections).set(setPayload).where(eq(contentSections.slug, slug));
     },
     async reorderSlugs(orderedSlugs) {
       const slugs = orderedSlugs.map((s) => String(s).trim()).filter(Boolean);
       if (slugs.length === 0) return;
-      const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
+      const db = getDrizzle();
+      await db.transaction(async (tx) => {
         for (let i = 0; i < slugs.length; i += 1) {
-          await client.query(
-            `UPDATE content_sections SET sort_order = $1, updated_at = now() WHERE slug = $2`,
-            [i, slugs[i]],
-          );
+          await tx
+            .update(contentSections)
+            .set({
+              sortOrder: i,
+              updatedAt: sql`now()` as unknown as string,
+            })
+            .where(eq(contentSections.slug, slugs[i]!));
         }
-        await client.query("COMMIT");
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
-  };
-}
-
-function mapRow(row: Record<string, unknown>): ContentSectionRow {
-  return {
-    id: row.id as string,
-    slug: row.slug as string,
-    title: row.title as string,
-    description: (row.description as string) ?? "",
-    sortOrder: row.sort_order as number,
-    isVisible: row.is_visible as boolean,
-    requiresAuth: Boolean(row.requires_auth),
-    coverImageUrl: (row.cover_image_url as string) ?? null,
-    iconImageUrl: (row.icon_image_url as string) ?? null,
   };
 }
 

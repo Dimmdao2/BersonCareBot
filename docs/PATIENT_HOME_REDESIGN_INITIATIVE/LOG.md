@@ -462,3 +462,168 @@
 - Command: `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/patientHomeResolvers.test.ts src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/sections/[slug]/page.subscription.test.tsx`
 - Result: `Test Files 3 passed (3)`, `Tests 12 passed (12)`.
 
+## 2026-04-28 — Phase 8 execution result
+
+- Phase: `Phase 8 — Бот: утренний пинг разминки и связь с напоминаниями`
+- Status: `completed`
+
+### Implemented
+
+- **system_settings / admin API:** `patient_home_morning_ping_enabled`, `patient_home_morning_ping_local_time` в `ALLOWED_KEYS`, `ADMIN_SCOPE_KEYS`, валидация PATCH (`boolean`, `HH:MM`).
+- **Admin UI:** панель на `/app/settings/patient-home` ([`PatientHomeMorningPingPanel.tsx`](../../apps/webapp/src/app/app/settings/patient-home/PatientHomeMorningPingPanel.tsx)).
+- **Integrator:** второй шаг в [`scripts.json`](../../apps/integrator/src/content/scheduler/scripts.json) после `reminders.dispatchDue` — `patient_home.morningWarmupPing`; обработчик [`patientHomeMorningPing.ts`](../../apps/integrator/src/kernel/domain/executor/handlers/patientHomeMorningPing.ts) + репозиторий [`patientHomeMorningPing.ts`](../../apps/integrator/src/infra/db/repos/patientHomeMorningPing.ts) (проверка опубликованной разминки из `daily_warmup` блока, идемпотентность `idempotency_keys`, кнопка `web_app` → `/app/patient?from=morning_ping`).
+- **Next reminder card:** [`nextReminderOccurrence.ts`](../../apps/webapp/src/modules/patient-home/nextReminderOccurrence.ts) — ближайшее срабатывание по `daysMask` / окну / интервалу / `timezone` правила + часовой пояс приложения; [`PatientHomeToday.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx) / [`PatientHomeNextReminderCard.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeNextReminderCard.tsx).
+- **ReminderRule:** поле `timezone` в типах и PG/in-memory репозиториях для согласованности расчёта.
+
+### Extension point (integrator)
+
+- Минимально инвазивно: существующий content scheduler tick → цепочка шагов; morning ping добавлен как **sync**-action после диспетчера напоминаний, без персональных расписаний и без изменения схемы `reminder_rules`.
+
+### Explicit constraints (Phase 8)
+
+- Схема `reminder_rules` не менялась.
+- Нет персональных расписаний утреннего пинга; только глобальные admin keys.
+- Slug-и из `CONTENT_PLAN.md` не хардкодились; проверка разминки через блок `daily_warmup` и опубликованные `content_pages`.
+
+### Gate (phase-level webapp + integrator)
+
+- Command: `pnpm --dir apps/webapp exec vitest run src/app/api/admin/settings/route.test.ts src/modules/patient-home/nextReminderOccurrence.test.ts` — Result: `Test Files 2 passed (2)`, `Tests 27 passed (27)`.
+- Command: `NODE_ENV=test pnpm --dir apps/integrator exec vitest run src/kernel/domain/executor/handlers/patientHomeMorningPing.test.ts` — Result: `Test Files 1 passed (1)`, `Tests 3 passed (3)`.
+- Command: `pnpm --dir apps/webapp exec tsc --noEmit` — Result: pass.
+- Command: `pnpm --dir apps/webapp lint` — Result: pass.
+- Command: `pnpm --dir apps/integrator exec tsc --noEmit` — Result: pass.
+- Full CI was not run (no repo-level scope).
+
+## 2026-04-28 — FIX post-audit (Phase 8)
+
+- Mode: `FIX` (mandatory items from `AUDIT_PHASE_8.md` only).
+- `AUDIT_PHASE_8.md` §2 **Mandatory fixes:** `None` — no application or schema changes required.
+- Action: confirmed scope; no code changes.
+- Constraints re-confirmed: `reminder_rules` schema not modified; no editorial slug hardcode from `CONTENT_PLAN.md`.
+- Verification: targeted Phase 8 Vitest bundle per `AUDIT_PHASE_8.md` §4.
+
+### Gate
+
+- Command: `pnpm --dir apps/webapp exec vitest run src/app/api/admin/settings/route.test.ts src/modules/patient-home/nextReminderOccurrence.test.ts`
+- Result: `Test Files 2 passed (2)`, `Tests 27 passed (27)`.
+- Command: `NODE_ENV=test pnpm --dir apps/integrator exec vitest run src/kernel/domain/executor/handlers/patientHomeMorningPing.test.ts`
+- Result: `Test Files 1 passed (1)`, `Tests 3 passed (3)`.
+
+## 2026-04-28 — Phase 8 follow-up (план / замечания по проверке)
+
+- Зафиксировано дополнение после сверки с планом Phase 8 и последующих правок «по замечаниям».
+
+### Implemented / adjusted
+
+- **Утренний пинг (integrator):** при наличии `queuePort` доставка через очередь `message.deliver` со stagger; окно срабатывания не только точная минута, а **2‑минутное окно** после настроенного `HH:MM`; ключ идемпотентности включает **канал**: `morning_warmup_ping:{localDate}:{userId}:{telegram|max}`.
+- **Тесты webapp:** расширены кейсы в [`nextReminderOccurrence.test.ts`](../../apps/webapp/src/modules/patient-home/nextReminderOccurrence.test.ts) (inside window, следующий день по `daysMask`, граница timezone).
+- **Reminder polish (Phase 8.3):** в `reminders.dispatchDue` прилинкованных правилах `content_page` / `content_section` заголовок сообщения берётся из `public.content_pages.title` / `public.content_sections.title`, если нет `customTitle` ([`reminders.ts`](../../apps/integrator/src/kernel/domain/executor/handlers/reminders.ts)).
+
+### Gate (targeted)
+
+- Webapp: `pnpm --dir apps/webapp exec vitest run src/app/api/admin/settings/route.test.ts src/modules/patient-home/nextReminderOccurrence.test.ts src/app/app/patient/home/PatientHomeNextReminderCard.test.tsx` — Result: `Test Files 3 passed`, `Tests 31 passed`.
+- Integrator: `NODE_ENV=test pnpm --dir apps/integrator exec vitest run src/kernel/domain/executor/handlers/patientHomeMorningPing.test.ts src/kernel/domain/executor/executeAction.test.ts` — Result: `Test Files 2 passed`, `Tests 64 passed`.
+- Integrator: `pnpm --dir apps/integrator run typecheck` — Result: pass.
+- Full CI не запускался (узкий scope Phase 8).
+
+## 2026-04-28 — Phase 9 execution result
+
+- Phase: `Phase 9 — QA, миграции данных, релиз`
+- Status: `completed`
+
+### Acceptance criteria verification
+
+- README §8 phase matrix re-checked against `AUDIT_PHASE_1.md` … `AUDIT_PHASE_8.md`: all phases have PASS / PASS WITH MINOR NOTES, no mandatory fixes remain.
+- Phase 9 required docs/actions completed:
+  - `ROLLBACK_SQL.md` now covers DDL rollback for `0008` … `0011` and documents full rollback order `0011 -> 0010 -> 0009 -> 0008`.
+  - `RELEASE_SNAPSHOTS/README.md` created with screenshot structure, required scenarios, QA verdict format, and privacy note.
+  - `docs/README.md` now links to `PATIENT_HOME_REDESIGN_INITIATIVE`.
+  - Module docs updated for `patient-home`, `patient-practice`, `patient-mood`.
+
+### Slug hardcode audit
+
+- Scope: runtime code in `apps/webapp/src` and `apps/integrator/src`.
+- Pattern: editorial slugs from `CONTENT_PLAN.md` (`office-work`, `office-neck`, `standing-work`, `young-mom`, `breathing-gymnastics`, `breathing-after-covid`, `antistress-sleep`, `deep-relax`, `face-self-massage`, `posture-exercises`, `longevity-gymnastics`, `home-gym`, `back-pain-rehab`, `neck-headache-rehab`, `tight-shoulders`, `breathing-foundation`, `healthy-feet-knees`, `strong-feet`, `diastasis-pelvic-floor`, `healthy-shoulders`, `beautiful-posture`, `eye-relax`, `balance-day`).
+- Result: no matches in runtime code. Fixed block codes like `daily_warmup` / `subscription_carousel` are schema-level patient-home codes, not editorial CONTENT_PLAN slugs.
+
+### Test and gate results
+
+- `pnpm install --frozen-lockfile` — pass.
+- First `pnpm run ci` attempt reached `test:webapp` and failed because `page.warmupsGate.test.tsx` mocked `buildAppDeps()` without `patientHomeBlocks`, while the Phase 7 section page now calls `deps.patientHomeBlocks.listBlocksWithItems()`.
+- Fix applied: updated `page.warmupsGate.test.tsx` mock with `patientHomeBlocks.listBlocksWithItems()`.
+- Targeted verification: `pnpm --dir apps/webapp exec vitest run src/app/app/patient/sections/[slug]/page.warmupsGate.test.tsx` — pass (`Test Files 1 passed`, `Tests 2 passed`).
+- Final `pnpm run ci` — pass:
+  - lint — pass;
+  - typecheck — pass;
+  - integrator tests — pass (`Test Files 110 passed | 2 skipped`, `Tests 756 passed | 6 skipped`);
+  - webapp tests — pass (`Test Files 408 passed | 5 skipped`, `Tests 2034 passed | 8 skipped`);
+  - integrator build — pass;
+  - webapp build — pass;
+  - registry-prod-audit — pass (`no known vulnerabilities`, audit-level >= low).
+
+### Release notes
+
+- `test:with-db` was not run in Phase 9: no explicit dev/test `DATABASE_URL` was provided for a real DB run, and production DB must not be used for Vitest regression.
+- Manual browser screenshots were not captured by the agent; the required `RELEASE_SNAPSHOTS` structure and QA verdict format are prepared for release QA.
+- Deploy was not run.
+- Push was not run.
+
+## 2026-04-29 — FIX post-audit (Phase 9)
+
+- Mode: `FIX` (mandatory items from `AUDIT_PHASE_9.md` only).
+- `AUDIT_PHASE_9.md` §7 **Mandatory fixes:** `None` — no application, schema, release, deploy, or push changes required.
+- Action: confirmed scope; updated this log only.
+- Constraints re-confirmed: no new product features; deploy was not run; push was not run.
+
+### Gate
+
+- No runtime tests were re-run: Phase 9 final `pnpm run ci` is already recorded as pass, and this FIX changed only documentation.
+
+## 2026-04-29 — GLOBALFIX after GLOBAL_AUDIT
+
+- Mode: `GLOBALFIX` (release blockers and mandatory fixes from `GLOBAL_AUDIT.md` only).
+- `GLOBAL_AUDIT.md` §2 **Release blockers:** `None`.
+- `GLOBAL_AUDIT.md` §3 **Mandatory fixes:** `None`.
+- Action: no application, schema, migration, CI workflow, deploy, or push changes were required; updated `GLOBAL_AUDIT.md` with the global fix result.
+- Constraints re-confirmed: no new features, no payments/gating, no CI workflow changes, no runtime hardcode of editorial slug values from `CONTENT_PLAN.md`.
+
+### Gate
+
+- `pnpm install --frozen-lockfile` — pending at log update time.
+- `pnpm run ci` — pending at log update time.
+
+## 2026-04-29 — GLOBALFIX cleanup (implementation)
+
+- Mode: `GLOBALFIX cleanup` по плану `globalfix_cleanup_94da1718` (без правок самого plan-файла).
+- Scope: legacy patient-home DB → port + Drizzle infra + DI; `pgContentSections` → Drizzle; локальные migrations + verify; targeted validation **без** full `pnpm run ci`; документация. **Не делалось:** release snapshots, push, deploy, full CI.
+
+### Implemented
+
+- `modules/patient-home/patientHomeLegacyContentPort.ts` — типы и `PatientHomeLegacyContentPort`.
+- `modules/patient-home/patientHomeQuoteUtils.ts` — `quoteDayKeyUtc`, `quoteIndexForDaySeed` (pure).
+- `modules/patient-home/repository.ts`, `newsMotivation.ts` — только типы / re-export pure utils (без DB).
+- `infra/repos/pgPatientHomeLegacyContent.ts` — Drizzle (`mailing_topics_webapp`, `mailing_logs_webapp`, `news_items`, `news_item_views`, `motivational_quotes` + join `platform_users`).
+- `infra/repos/inMemoryPatientHomeLegacyContent.ts` — Vitest harness.
+- `buildAppDeps().patientHomeLegacy` — wiring в `buildAppDeps.ts`; тест на наличие ключа в `buildAppDeps.test.ts`.
+- `infra/repos/pgContentSections.ts` — полностью на Drizzle; `pgContentSections.test.ts` — smoke «no getPool».
+- `eslint.config.mjs` — убраны allowlist-исключения для `patient-home/newsMotivation.ts` и `repository.ts`.
+- `docs/TREATMENT_PROGRAM_INITIATIVE/LEGACY_CLEANUP_BACKLOG.md` — удалены строки allowlist для patient-home legacy; пересчитана таблица A.
+
+### Local DB (non-production)
+
+- `DATABASE_URL` из `apps/webapp/.env.dev`, host: `127.0.0.1`.
+- `pnpm --dir apps/webapp run migrate` — pass.
+- `pnpm --dir apps/webapp run db:verify-public-table-count` — pass (`116 public tables`).
+- `USE_REAL_DATABASE=1 pnpm --dir apps/webapp run test:with-db` (DB gate для smoke + cleanup-targeted suite) — pass.
+
+### Validation (no full CI)
+
+- `pnpm --dir apps/webapp exec tsc --noEmit` — pass.
+- `pnpm --dir apps/webapp lint` — pass.
+- `pnpm test:webapp` — pass.
+
+### Docs
+
+- `GLOBAL_AUDIT.md` §3 дополнения, §4 minor notes, §8 global fix result.
+- `patient-home.md` — секция про `patientHomeLegacy`.
+

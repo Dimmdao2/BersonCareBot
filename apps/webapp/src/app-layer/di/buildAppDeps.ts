@@ -165,6 +165,8 @@ import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
 import { createBookingCatalogService } from "@/modules/booking-catalog/service";
 import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
+import { createPgPatientHomeLegacyContentPort } from "@/infra/repos/pgPatientHomeLegacyContent";
+import { createInMemoryPatientHomeLegacyContentPort } from "@/infra/repos/inMemoryPatientHomeLegacyContent";
 import { createPgPatientPracticeCompletionsPort } from "@/infra/repos/pgPatientPracticeCompletions";
 import { createInMemoryPatientPracticeCompletionsPort } from "@/infra/repos/inMemoryPatientPracticeCompletions";
 import { createPgPatientDailyMoodPort } from "@/infra/repos/pgPatientDailyMood";
@@ -295,6 +297,9 @@ const patientHomeBlocksService = createPatientHomeBlocksService({
   contentSections: contentSectionsPort,
   courses: coursesService,
 });
+const patientHomeLegacyContentPort = !inMemoryRepos
+  ? createPgPatientHomeLegacyContentPort()
+  : createInMemoryPatientHomeLegacyContentPort();
 const patientPracticeCompletionsPort = !inMemoryRepos
   ? createPgPatientPracticeCompletionsPort()
   : createInMemoryPatientPracticeCompletionsPort();
@@ -705,6 +710,8 @@ function _buildAppDeps() {
     treatmentProgramInstance: treatmentProgramInstanceService,
     courses: coursesService,
     patientHomeBlocks: patientHomeBlocksService,
+    /** Legacy новости / рассылки / цитаты главной пациента (Drizzle или in-memory в Vitest). */
+    patientHomeLegacy: patientHomeLegacyContentPort,
     patientPractice: patientPracticeService,
     patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
