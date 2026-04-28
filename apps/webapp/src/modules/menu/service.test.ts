@@ -23,6 +23,8 @@ describe("menu service", () => {
           sortOrder: 1,
           isVisible: true,
           requiresAuth: false,
+          coverImageUrl: null,
+          iconImageUrl: null,
         },
       ],
     });

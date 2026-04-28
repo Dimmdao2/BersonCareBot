@@ -39,6 +39,8 @@ describe("saveContentSection", () => {
       description: "d",
       sort_order: "1",
       is_visible: "on",
+      cover_image_url: "/api/media/123e4567-e89b-12d3-a456-426614174000",
+      icon_image_url: "",
     });
     const res = await saveContentSection(null, fd);
     expect(res.ok).toBe(true);
@@ -70,6 +72,20 @@ describe("saveContentSection", () => {
     const res = await saveContentSection(null, fd);
     expect(res.ok).toBe(false);
     expect(res.error).toContain("дефис");
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid cover image url", async () => {
+    const fd = formWith({
+      slug: "ok-sec",
+      title: "T",
+      description: "",
+      cover_image_url: "/uploads/legacy.png",
+      icon_image_url: "",
+    });
+    const res = await saveContentSection(null, fd);
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain("Обложка");
     expect(upsertMock).not.toHaveBeenCalled();
   });
 });

@@ -57,6 +57,20 @@
       "when": 1776470000000,
       "tag": "0007_courses",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777386743746,
+      "tag": "0008_material_frightful_four",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777394765741,
+      "tag": "0009_content_pages_linked_course",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
@@ -44,6 +45,16 @@ export async function saveContentPage(
   const videoUrl = videoUrlRaw.length ? videoUrlRaw : null;
   const imageUrl = imageUrlRaw.length ? imageUrlRaw : null;
 
+  const linkedRaw = (formData.get("linked_course_id") as string | null)?.trim() ?? "";
+  let linkedCourseId: string | null = null;
+  if (linkedRaw.length > 0) {
+    const uuidParsed = z.string().uuid().safeParse(linkedRaw);
+    if (!uuidParsed.success) {
+      return { ok: false, error: "Связанный курс: укажите корректный UUID или оставьте пустым." };
+    }
+    linkedCourseId = uuidParsed.data;
+  }
+
   if (!slug || !title) return { ok: false, error: "Заполните заголовок и slug" };
   if (!section) return { ok: false, error: "Выберите раздел" };
   if (imageUrl && !(API_MEDIA_URL_RE.test(imageUrl) || isLegacyAbsoluteUrl(imageUrl))) {
@@ -83,6 +94,13 @@ export async function saveContentPage(
         .filter((p) => p.section === section)
         .reduce((max, pageRow) => Math.max(max, pageRow.sortOrder), -1) + 1;
 
+  if (linkedCourseId) {
+    const course = await deps.courses.getCourseForDoctor(linkedCourseId);
+    if (!course || course.status !== "published") {
+      return { ok: false, error: "Курс не найден или не опубликован." };
+    }
+  }
+
   try {
     await deps.contentPages.upsert({
       section,
@@ -97,6 +115,7 @@ export async function saveContentPage(
       videoUrl,
       videoType,
       imageUrl,
+      linkedCourseId,
     });
   } catch (err) {
     console.error("saveContentPage failed:", err);

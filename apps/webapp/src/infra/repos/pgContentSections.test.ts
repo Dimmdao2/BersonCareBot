@@ -24,10 +24,33 @@ describe("createInMemoryContentSectionsPort", () => {
       sortOrder: 2,
       isVisible: true,
       requiresAuth: false,
+      coverImageUrl: null,
+      iconImageUrl: null,
     });
     const row = await p.getBySlug("warmups");
     expect(row?.title).toBe("Разминки");
+    expect(row?.coverImageUrl).toBeNull();
+    expect(row?.iconImageUrl).toBeNull();
     expect((await p.listVisible()).map((r) => r.slug)).toEqual(["warmups"]);
+  });
+
+  it("stores cover and icon media fields", async () => {
+    const p = createInMemoryContentSectionsPort();
+    await p.upsert({
+      slug: "with-media",
+      title: "With Media",
+      description: "",
+      sortOrder: 0,
+      isVisible: true,
+      requiresAuth: false,
+      coverImageUrl: "/api/media/11111111-1111-1111-1111-111111111111",
+      iconImageUrl: "/api/media/22222222-2222-2222-2222-222222222222",
+    });
+    const row = await p.getBySlug("with-media");
+    expect(row?.coverImageUrl).toContain("/api/media/");
+    expect(row?.iconImageUrl).toContain("/api/media/");
+    const visible = await p.listVisible();
+    expect(visible[0]?.coverImageUrl).toContain("/api/media/");
   });
 
   it("hides non-visible sections from listVisible", async () => {
@@ -39,6 +62,8 @@ describe("createInMemoryContentSectionsPort", () => {
       sortOrder: 0,
       isVisible: false,
       requiresAuth: false,
+      coverImageUrl: null,
+      iconImageUrl: null,
     });
     expect(await p.listVisible()).toEqual([]);
     expect((await p.listAll()).length).toBe(1);
@@ -53,6 +78,8 @@ describe("createInMemoryContentSectionsPort", () => {
       sortOrder: 0,
       isVisible: true,
       requiresAuth: false,
+      coverImageUrl: null,
+      iconImageUrl: null,
     });
     await p.upsert({
       slug: "b",
@@ -61,6 +88,8 @@ describe("createInMemoryContentSectionsPort", () => {
       sortOrder: 1,
       isVisible: true,
       requiresAuth: false,
+      coverImageUrl: null,
+      iconImageUrl: null,
     });
     await p.reorderSlugs(["b", "a"]);
     const all = await p.listAll();

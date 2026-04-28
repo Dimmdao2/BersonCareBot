@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const upsertMock = vi.fn();
 const getBySlugMock = vi.fn();
 const listAllMock = vi.fn();
+const getCourseForDoctorMock = vi.fn();
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
     contentPages: { upsert: upsertMock, listAll: listAllMock },
     contentSections: { getBySlug: getBySlugMock },
+    courses: { getCourseForDoctor: getCourseForDoctorMock },
   }),
 }));
 
@@ -34,6 +36,8 @@ describe("saveContentPage", () => {
     upsertMock.mockClear();
     listAllMock.mockReset();
     listAllMock.mockResolvedValue([]);
+    getCourseForDoctorMock.mockReset();
+    getCourseForDoctorMock.mockResolvedValue(null);
     getBySlugMock.mockReset();
     getBySlugMock.mockResolvedValue({
       id: "s1",
@@ -229,5 +233,94 @@ describe("saveContentPage", () => {
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/список страниц/i);
     expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  const publishedCourseId = "11111111-1111-4111-8111-111111111111";
+
+  it("passes linkedCourseId null when linked_course_id empty", async () => {
+    upsertMock.mockResolvedValue(undefined);
+    const fd = formWith({
+      section: "lessons",
+      slug: "no-course",
+      title: "T",
+      summary: "S",
+      body_md: "# x",
+      linked_course_id: "",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(true);
+    expect(upsertMock).toHaveBeenCalledWith(expect.objectContaining({ linkedCourseId: null }));
+    expect(getCourseForDoctorMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid linked_course_id", async () => {
+    const fd = formWith({
+      section: "lessons",
+      slug: "bad-course",
+      title: "T",
+      summary: "S",
+      body_md: "# x",
+      linked_course_id: "not-a-uuid",
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(false);
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects linked_course_id when course is not published", async () => {
+    getCourseForDoctorMock.mockResolvedValue({
+      id: publishedCourseId,
+      status: "draft",
+      programTemplateId: "22222222-2222-4222-8222-222222222222",
+      title: "Draft",
+      description: null,
+      introLessonPageId: null,
+      accessSettings: {},
+      priceMinor: 0,
+      currency: "RUB",
+      createdAt: "",
+      updatedAt: "",
+    });
+    const fd = formWith({
+      section: "lessons",
+      slug: "x",
+      title: "T",
+      summary: "S",
+      body_md: "# x",
+      linked_course_id: publishedCourseId,
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(false);
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("saves linked_course_id when course is published", async () => {
+    upsertMock.mockResolvedValue(undefined);
+    getCourseForDoctorMock.mockResolvedValue({
+      id: publishedCourseId,
+      status: "published",
+      programTemplateId: "22222222-2222-4222-8222-222222222222",
+      title: "Published",
+      description: null,
+      introLessonPageId: null,
+      accessSettings: {},
+      priceMinor: 0,
+      currency: "RUB",
+      createdAt: "",
+      updatedAt: "",
+    });
+    const fd = formWith({
+      section: "lessons",
+      slug: "with-course",
+      title: "T",
+      summary: "S",
+      body_md: "# x",
+      linked_course_id: publishedCourseId,
+    });
+    const res = await saveContentPage(null, fd);
+    expect(res.ok).toBe(true);
+    expect(upsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ linkedCourseId: publishedCourseId }),
+    );
   });
 });

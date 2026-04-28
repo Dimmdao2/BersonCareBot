@@ -1,125 +1,33 @@
 /**
- * Главное меню пациента («/app/patient»).
- * Layout `/app/patient` требует сессию (`layout.tsx`); без неё — редирект на `/app?next=…`.
- * На этой странице — опциональная сессия (`getOptionalPatientSession`): блоки с персональными данными
- * только при `patientRscPersonalDataGate === allow`. Набор блоков — по PlatformEntry (bot vs standalone).
- * В боте при tier patient — отдельная главная миниаппа (`PatientMiniAppPatientHome`).
+ * Главная пациента «Сегодня» (`/app/patient`): витрина из `patient_home_blocks` / `patient_home_block_items`.
+ * Layout требует сессию; персональные блоки — только при tier patient (`patientRscPersonalDataGate === allow`).
  */
 
-import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
+import { redirect } from "next/navigation";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientHomeBlocksForEntry, type HomeBlockId } from "@/app-layer/routes/navigation";
-import {
-  getHomeNews,
-  getQuoteForDay,
-  incrementNewsViews,
-} from "@/modules/patient-home/newsMotivation";
-import { getPatientHomeBannerTopic, listRecentMailingLogsForPlatformUser } from "@/modules/patient-home/repository";
-import { getPlatformEntry } from "@/shared/lib/platformCookie.server";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
-import { PatientMiniAppPatientHome } from "./home/PatientMiniAppPatientHome";
-import { ConnectMessengersBlock } from "@/shared/ui/ConnectMessengersBlock";
 import { LegalFooterLinks } from "@/shared/ui/LegalFooterLinks";
-import { PatientHomeBrowserHero } from "./home/PatientHomeBrowserHero";
-import { PatientHomeExtraBlocks } from "./home/PatientHomeExtraBlocks";
-import { PatientHomeLessonsSection } from "./home/PatientHomeLessonsSection";
-import { PatientHomeMailingsSection } from "./home/PatientHomeMailingsSection";
-import { PatientHomeMotivationSection } from "./home/PatientHomeMotivationSection";
-import { PatientHomeNewsSection } from "./home/PatientHomeNewsSection";
+import { PatientHomeToday } from "./home/PatientHomeToday";
 
 export default async function PatientHomePage() {
-  const [session, platformEntry] = await Promise.all([
-    getOptionalPatientSession(),
-    getPlatformEntry(),
-  ]);
-
-  const dataGate = await patientRscPersonalDataGate(session, routePaths.patient);
-  const personalDataOk = dataGate === "allow";
-
-  const blocks = new Set<HomeBlockId>(patientHomeBlocksForEntry(platformEntry));
-
-  const deps = buildAppDeps();
-  const canViewAuthSections =
-    session?.user != null ? await resolvePatientCanViewAuthOnlyContent(session) : false;
-  let contentSections: Awaited<ReturnType<typeof deps.contentSections.listVisible>> = [];
-  try {
-    contentSections = await deps.contentSections.listVisible({ viewAuthOnlySections: canViewAuthSections });
-  } catch (err) {
-    logServerRuntimeError("app/patient/home", err);
-  }
-  const emailFields =
-    personalDataOk && session?.user != null
-      ? await deps.userProjection.getProfileEmailFields(session.user.userId)
-      : null;
-
-  const channelCards =
-    personalDataOk && session?.user != null && blocks.has("channels")
-      ? await deps.channelPreferences.getChannelCards(
-          session.user.userId,
-          session.user.bindings,
-          {
-            phone: session.user.phone,
-            emailVerified: Boolean(emailFields?.emailVerifiedAt),
-          }
-        )
-      : [];
-
-  const [homeNews, banner, mailings, motivationQuote] = await Promise.all([
-    blocks.has("news") ? getHomeNews() : Promise.resolve(null),
-    blocks.has("news") ? getPatientHomeBannerTopic() : Promise.resolve(null),
-    personalDataOk && blocks.has("mailings") && session?.user
-      ? listRecentMailingLogsForPlatformUser(session.user.userId)
-      : Promise.resolve([]),
-    blocks.has("motivation")
-      ? getQuoteForDay(session?.user?.userId ?? "guest")
-      : Promise.resolve(null),
-  ]);
-
-  if (personalDataOk && session?.user && homeNews) {
-    void incrementNewsViews(homeNews.id, session.user.userId);
+  const session = await getOptionalPatientSession();
+  if (!session) {
+    redirect(`${routePaths.root}?next=${encodeURIComponent(routePaths.patient)}`);
   }
 
-  const miniAppPatientHome =
-    platformEntry === "bot" &&
-    session?.user != null &&
-    canViewAuthSections;
-
-  if (miniAppPatientHome) {
-    return (
-      <AppShell title="Главное меню" user={session.user} variant="patient">
-        <PatientMiniAppPatientHome platformUserId={session.user.userId} />
-      </AppShell>
-    );
-  }
+  const personalTierOk = (await patientRscPersonalDataGate(session, routePaths.patient)) === "allow";
+  const canViewAuthOnlyContent = await resolvePatientCanViewAuthOnlyContent(session);
 
   return (
-    <AppShell title="Главное меню" user={session?.user ?? null} variant="patient">
-      <div className="flex flex-col gap-8">
-        {blocks.has("cabinet") ? <PatientHomeBrowserHero /> : null}
-        {blocks.has("materials") ? <PatientHomeLessonsSection sections={contentSections} /> : null}
-        <PatientHomeExtraBlocks blocks={blocks} />
-        {blocks.has("news") ? (
-          <PatientHomeNewsSection news={homeNews} banner={banner} />
-        ) : null}
-        {personalDataOk && blocks.has("mailings") && session?.user && mailings.length > 0 ? (
-          <PatientHomeMailingsSection userId={session.user.userId} items={mailings} />
-        ) : null}
-        {blocks.has("motivation") ? (
-          <PatientHomeMotivationSection
-            quote={
-              motivationQuote?.body ??
-              "Двигайтесь в комфортном темпе и прислушивайтесь к ощущениям — это помогает устойчиво закреплять привычки."
-            }
-          />
-        ) : null}
-        {blocks.has("channels") && session?.user != null && channelCards.length > 0 && (
-          <ConnectMessengersBlock channelCards={channelCards} implementedOnly />
-        )}
-        <LegalFooterLinks className="mt-4 pb-2" />
-      </div>
+    <AppShell title="Сегодня" user={session.user} variant="patient">
+      <PatientHomeToday
+        session={session}
+        personalTierOk={personalTierOk}
+        canViewAuthOnlyContent={canViewAuthOnlyContent}
+      />
+      <LegalFooterLinks className="mt-4 pb-2" />
     </AppShell>
   );
 }

@@ -21,8 +21,10 @@ export function PatientCoursesCatalogClient(props: {
   items: CourseCatalogItem[];
   enrollReady: boolean;
   loggedIn: boolean;
+  /** UUID курса из query `?highlight=` (например с промо-страницы материала). */
+  highlightCourseId?: string;
 }) {
-  const { items, enrollReady, loggedIn } = props;
+  const { items, enrollReady, loggedIn, highlightCourseId } = props;
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +68,10 @@ export function PatientCoursesCatalogClient(props: {
         {items.map((c) => (
           <li
             key={c.id}
-            className="rounded-xl border border-border bg-card p-4 shadow-sm"
+            className={cn(
+              "rounded-xl border bg-card p-4 shadow-sm",
+              highlightCourseId === c.id ? "border-primary ring-2 ring-primary/40" : "border-border",
+            )}
           >
             <h2 className="text-base font-semibold">{c.title}</h2>
             {c.description ? (

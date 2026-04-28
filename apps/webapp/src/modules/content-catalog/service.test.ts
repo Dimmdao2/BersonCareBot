@@ -55,6 +55,7 @@ describe("content-catalog resolver", () => {
               imageUrl: null,
               archivedAt: null,
               deletedAt: null,
+              linkedCourseId: null,
             }
           : null,
       getById: async () => null,
@@ -90,6 +91,7 @@ describe("content-catalog resolver", () => {
               imageUrl: null,
               archivedAt: null,
               deletedAt: null,
+              linkedCourseId: null,
             }
           : null,
       getById: async () => null,

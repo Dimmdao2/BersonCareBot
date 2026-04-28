@@ -9,9 +9,13 @@ export default async function DoctorContentNewPage() {
   const session = await requireDoctorAccess();
   const deps = buildAppDeps();
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
+  let publishedCourses: { id: string; title: string }[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
     sections = await deps.contentSections.listAll();
+    publishedCourses = (
+      await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })
+    ).map((c) => ({ id: c.id, title: c.title }));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content/new", err);
   }
@@ -27,7 +31,7 @@ export default async function DoctorContentNewPage() {
             devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
           />
         ) : null}
-        <ContentForm sections={sections} />
+        <ContentForm sections={sections} publishedCourses={publishedCourses} />
       </section>
     </AppShell>
   );

@@ -1,4 +1,6 @@
-import { getPool } from "@/infra/db/client";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { getDrizzle } from "@/app-layer/db/drizzle";
+import { contentPages } from "../../../db/schema/schema";
 
 export type ContentPageRow = {
   id: string;
@@ -19,6 +21,8 @@ export type ContentPageRow = {
   imageUrl: string | null;
   archivedAt: string | null;
   deletedAt: string | null;
+  /** Промо-материал: FK на courses(id), null если не связано. */
+  linkedCourseId: string | null;
 };
 
 export type ListContentPagesBySectionOpts = {
@@ -33,182 +37,290 @@ export type ContentPageLifecyclePatch = {
   requiresAuth?: boolean;
 };
 
+export type ContentPageUpsertInput = Omit<ContentPageRow, "id" | "archivedAt" | "deletedAt" | "linkedCourseId"> & {
+  id?: string;
+  linkedCourseId?: string | null;
+};
+
 export type ContentPagesPort = {
   listBySection: (section: string, opts?: ListContentPagesBySectionOpts) => Promise<ContentPageRow[]>;
   getBySlug: (slug: string) => Promise<ContentPageRow | null>;
   getById: (id: string) => Promise<ContentPageRow | null>;
   listAll: () => Promise<ContentPageRow[]>;
-  upsert: (page: Omit<ContentPageRow, "id" | "archivedAt" | "deletedAt"> & { id?: string }) => Promise<string>;
+  upsert: (page: ContentPageUpsertInput) => Promise<string>;
   updateLifecycle: (id: string, patch: ContentPageLifecyclePatch) => Promise<void>;
   /** Устанавливает sort_order по порядку id (0..n-1) только для строк с данным section. */
   reorderInSection: (section: string, orderedIds: string[]) => Promise<void>;
 };
 
-const SELECT_COLS = `id, section, slug, title, summary, body_md, body_html, sort_order, is_published,
-  requires_auth, video_url, video_type, image_url, archived_at, deleted_at`;
+const patientVisible = and(
+  eq(contentPages.isPublished, true),
+  isNull(contentPages.archivedAt),
+  isNull(contentPages.deletedAt),
+);
 
-const PATIENT_VISIBLE = `is_published = true AND archived_at IS NULL AND deleted_at IS NULL`;
+function mapDrizzleRow(row: typeof contentPages.$inferSelect): ContentPageRow {
+  return {
+    id: row.id,
+    section: row.section,
+    slug: row.slug,
+    title: row.title,
+    summary: row.summary ?? "",
+    bodyMd: row.bodyMd ?? "",
+    bodyHtml: row.bodyHtml ?? "",
+    sortOrder: row.sortOrder,
+    isPublished: row.isPublished,
+    requiresAuth: row.requiresAuth,
+    videoUrl: row.videoUrl ?? null,
+    videoType: row.videoType ?? null,
+    imageUrl: row.imageUrl ?? null,
+    archivedAt: row.archivedAt ?? null,
+    deletedAt: row.deletedAt ?? null,
+    linkedCourseId: row.linkedCourseId ?? null,
+  };
+}
 
 export function createPgContentPagesPort(): ContentPagesPort {
   return {
     async listBySection(section, opts?: ListContentPagesBySectionOpts) {
+      const db = getDrizzle();
       const viewAuthOnlyPages = opts?.viewAuthOnlyPages !== false;
-      const pool = getPool();
-      const authClause = viewAuthOnlyPages ? "" : " AND requires_auth = false";
-      const res = await pool.query(
-        `SELECT ${SELECT_COLS}
-         FROM content_pages WHERE section = $1 AND ${PATIENT_VISIBLE}${authClause} ORDER BY sort_order, title`,
-        [section],
-      );
-      return res.rows.map(mapRow);
+      const conds = [
+        eq(contentPages.section, section),
+        patientVisible,
+        ...(viewAuthOnlyPages ? [] : [eq(contentPages.requiresAuth, false)]),
+      ];
+      const rows = await db
+        .select()
+        .from(contentPages)
+        .where(and(...conds))
+        .orderBy(asc(contentPages.sortOrder), asc(contentPages.title));
+      return rows.map(mapDrizzleRow);
     },
+
     async getBySlug(slug) {
-      const pool = getPool();
-      const res = await pool.query(
-        `SELECT ${SELECT_COLS}
-         FROM content_pages WHERE slug = $1 AND ${PATIENT_VISIBLE}
-         ORDER BY section LIMIT 1`,
-        [slug]
-      );
-      return res.rows[0] ? mapRow(res.rows[0]) : null;
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(contentPages)
+        .where(and(eq(contentPages.slug, slug), patientVisible))
+        .orderBy(asc(contentPages.section))
+        .limit(1);
+      return rows[0] ? mapDrizzleRow(rows[0]) : null;
     },
+
     async getById(id) {
-      const pool = getPool();
-      const res = await pool.query(`SELECT ${SELECT_COLS} FROM content_pages WHERE id = $1`, [id]);
-      return res.rows[0] ? mapRow(res.rows[0]) : null;
+      const db = getDrizzle();
+      const rows = await db.select().from(contentPages).where(eq(contentPages.id, id)).limit(1);
+      return rows[0] ? mapDrizzleRow(rows[0]) : null;
     },
+
     async listAll() {
-      const pool = getPool();
-      const res = await pool.query(
-        `SELECT ${SELECT_COLS} FROM content_pages ORDER BY section, sort_order, title`
-      );
-      return res.rows.map(mapRow);
+      const db = getDrizzle();
+      const rows = await db
+        .select()
+        .from(contentPages)
+        .orderBy(asc(contentPages.section), asc(contentPages.sortOrder), asc(contentPages.title));
+      return rows.map(mapDrizzleRow);
     },
+
     async upsert(page) {
-      const pool = getPool();
-      const res = await pool.query(
-        `INSERT INTO content_pages (section, slug, title, summary, body_md, body_html, sort_order, is_published, requires_auth, video_url, video_type, image_url)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         ON CONFLICT (section, slug) DO UPDATE SET
-           title = EXCLUDED.title, summary = EXCLUDED.summary, body_md = EXCLUDED.body_md, body_html = EXCLUDED.body_html,
-           sort_order = EXCLUDED.sort_order, is_published = EXCLUDED.is_published,
-           requires_auth = EXCLUDED.requires_auth,
-           video_url = EXCLUDED.video_url, video_type = EXCLUDED.video_type,
-           image_url = EXCLUDED.image_url, updated_at = now()
-         RETURNING id`,
-        [
-          page.section,
-          page.slug,
-          page.title,
-          page.summary,
-          page.bodyMd,
-          page.bodyHtml,
-          page.sortOrder,
-          page.isPublished,
-          page.requiresAuth ?? false,
-          page.videoUrl,
-          page.videoType,
-          page.imageUrl,
-        ],
-      );
-      return res.rows[0].id;
+      const db = getDrizzle();
+      const linked =
+        page.linkedCourseId !== undefined && page.linkedCourseId !== null && page.linkedCourseId.trim()
+          ? page.linkedCourseId.trim()
+          : null;
+      const values = {
+        section: page.section,
+        slug: page.slug,
+        title: page.title,
+        summary: page.summary,
+        bodyMd: page.bodyMd,
+        bodyHtml: page.bodyHtml,
+        sortOrder: page.sortOrder,
+        isPublished: page.isPublished,
+        requiresAuth: page.requiresAuth ?? false,
+        videoUrl: page.videoUrl,
+        videoType: page.videoType,
+        imageUrl: page.imageUrl,
+        linkedCourseId: linked,
+        updatedAt: sql`now()` as unknown as string,
+      };
+      const rows = await db
+        .insert(contentPages)
+        .values(values)
+        .onConflictDoUpdate({
+          target: [contentPages.section, contentPages.slug],
+          set: {
+            title: page.title,
+            summary: page.summary,
+            bodyMd: page.bodyMd,
+            bodyHtml: page.bodyHtml,
+            sortOrder: page.sortOrder,
+            isPublished: page.isPublished,
+            requiresAuth: page.requiresAuth ?? false,
+            videoUrl: page.videoUrl,
+            videoType: page.videoType,
+            imageUrl: page.imageUrl,
+            linkedCourseId: linked,
+            updatedAt: sql`now()` as unknown as string,
+          },
+        })
+        .returning({ id: contentPages.id });
+      const id = rows[0]?.id;
+      if (!id) throw new Error("content_pages upsert returned no id");
+      return id;
     },
+
     async updateLifecycle(id, patch) {
-      const pool = getPool();
-      const sets: string[] = [];
-      const vals: unknown[] = [];
-      let n = 1;
-      if (patch.isPublished !== undefined) {
-        sets.push(`is_published = $${n++}`);
-        vals.push(patch.isPublished);
-      }
-      if (patch.archivedAt !== undefined) {
-        sets.push(`archived_at = $${n++}`);
-        vals.push(patch.archivedAt);
-      }
-      if (patch.deletedAt !== undefined) {
-        sets.push(`deleted_at = $${n++}`);
-        vals.push(patch.deletedAt);
-      }
-      if (patch.requiresAuth !== undefined) {
-        sets.push(`requires_auth = $${n++}`);
-        vals.push(patch.requiresAuth);
-      }
-      if (sets.length === 0) return;
-      vals.push(id);
-      await pool.query(
-        `UPDATE content_pages SET ${sets.join(", ")}, updated_at = now() WHERE id = $${n}::uuid`,
-        vals
-      );
+      const db = getDrizzle();
+      const setPayload: Partial<typeof contentPages.$inferInsert> = {
+        updatedAt: sql`now()` as unknown as string,
+      };
+      if (patch.isPublished !== undefined) setPayload.isPublished = patch.isPublished;
+      if (patch.archivedAt !== undefined) setPayload.archivedAt = patch.archivedAt;
+      if (patch.deletedAt !== undefined) setPayload.deletedAt = patch.deletedAt;
+      if (patch.requiresAuth !== undefined) setPayload.requiresAuth = patch.requiresAuth;
+      if (Object.keys(setPayload).length <= 1) return;
+      await db.update(contentPages).set(setPayload).where(eq(contentPages.id, id));
     },
+
     async reorderInSection(section, orderedIds) {
       if (orderedIds.length === 0) return;
-      const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        const check = await client.query<{ id: string }>(
-          `SELECT id::text AS id FROM content_pages WHERE section = $1`,
-          [section],
-        );
-        const inDb = new Set(check.rows.map((r) => r.id));
+      const db = getDrizzle();
+      await db.transaction(async (tx) => {
+        const check = await tx
+          .select({ id: contentPages.id })
+          .from(contentPages)
+          .where(eq(contentPages.section, section));
+        const inDb = new Set(check.map((r) => r.id));
         if (inDb.size !== orderedIds.length) {
           throw new Error("reorder: count mismatch");
         }
-        for (const id of orderedIds) {
-          if (!inDb.has(id)) {
+        for (const rowId of orderedIds) {
+          if (!inDb.has(rowId)) {
             throw new Error("reorder: unknown id");
           }
         }
         for (let i = 0; i < orderedIds.length; i++) {
-          await client.query(
-            `UPDATE content_pages SET sort_order = $1, updated_at = now() WHERE id = $2::uuid AND section = $3`,
-            [i, orderedIds[i], section],
-          );
+          await tx
+            .update(contentPages)
+            .set({
+              sortOrder: i,
+              updatedAt: sql`now()` as unknown as string,
+            })
+            .where(and(eq(contentPages.id, orderedIds[i]!), eq(contentPages.section, section)));
         }
-        await client.query("COMMIT");
-      } catch (e) {
-        try {
-          await client.query("ROLLBACK");
-        } catch {
-          /* ignore */
-        }
-        throw e;
-      } finally {
-        client.release();
-      }
+      });
     },
   };
 }
 
-function mapRow(row: Record<string, unknown>): ContentPageRow {
-  const ar = row.archived_at;
-  const del = row.deleted_at;
-  return {
-    id: row.id as string,
-    section: row.section as string,
-    slug: row.slug as string,
-    title: row.title as string,
-    summary: (row.summary as string) ?? "",
-    bodyMd: (row.body_md as string) ?? "",
-    bodyHtml: (row.body_html as string) ?? "",
-    sortOrder: row.sort_order as number,
-    isPublished: row.is_published as boolean,
-    requiresAuth: Boolean(row.requires_auth),
-    videoUrl: (row.video_url as string) ?? null,
-    videoType: (row.video_type as string) ?? null,
-    imageUrl: (row.image_url as string) ?? null,
-    archivedAt: ar instanceof Date ? ar.toISOString() : ar ? String(ar) : null,
-    deletedAt: del instanceof Date ? del.toISOString() : del ? String(del) : null,
-  };
+/** Сброс in-memory хранилища между тестами (Vitest). */
+export function resetInMemoryContentPagesStoreForTests(): void {
+  inMemoryContentPagesStore.length = 0;
 }
 
+const inMemoryContentPagesStore: ContentPageRow[] = [];
+
 export const inMemoryContentPagesPort: ContentPagesPort = {
-  listBySection: async () => [],
-  getBySlug: async () => null,
-  getById: async () => null,
-  listAll: async () => [],
-  upsert: async () => "",
-  updateLifecycle: async () => {},
-  reorderInSection: async () => {},
+  async listBySection(section, opts) {
+    const viewAuthOnlyPages = opts?.viewAuthOnlyPages !== false;
+    return inMemoryContentPagesStore
+      .filter(
+        (p) =>
+          p.section === section &&
+          p.isPublished &&
+          !p.archivedAt &&
+          !p.deletedAt &&
+          (viewAuthOnlyPages || !p.requiresAuth),
+      )
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"));
+  },
+
+  async getBySlug(slug) {
+    const candidates = inMemoryContentPagesStore.filter(
+      (p) => p.slug === slug && p.isPublished && !p.archivedAt && !p.deletedAt,
+    );
+    candidates.sort((a, b) => a.section.localeCompare(b.section, "ru"));
+    return candidates[0] ?? null;
+  },
+
+  async getById(id) {
+    return inMemoryContentPagesStore.find((p) => p.id === id) ?? null;
+  },
+
+  async listAll() {
+    return [...inMemoryContentPagesStore].sort(
+      (a, b) =>
+        a.section.localeCompare(b.section, "ru") || a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "ru"),
+    );
+  },
+
+  async upsert(page) {
+    const linked = page.linkedCourseId?.trim() ? page.linkedCourseId.trim() : null;
+    const existingIdx = inMemoryContentPagesStore.findIndex((p) => p.section === page.section && p.slug === page.slug);
+    const archivedAt: string | null = null;
+    const deletedAt: string | null = null;
+    if (existingIdx >= 0) {
+      const prev = inMemoryContentPagesStore[existingIdx]!;
+      inMemoryContentPagesStore[existingIdx] = {
+        ...prev,
+        title: page.title,
+        summary: page.summary,
+        bodyMd: page.bodyMd,
+        bodyHtml: page.bodyHtml,
+        sortOrder: page.sortOrder,
+        isPublished: page.isPublished,
+        requiresAuth: page.requiresAuth ?? false,
+        videoUrl: page.videoUrl,
+        videoType: page.videoType,
+        imageUrl: page.imageUrl,
+        linkedCourseId: linked,
+      };
+      return prev.id;
+    }
+    const id = page.id ?? crypto.randomUUID();
+    inMemoryContentPagesStore.push({
+      id,
+      section: page.section,
+      slug: page.slug,
+      title: page.title,
+      summary: page.summary,
+      bodyMd: page.bodyMd,
+      bodyHtml: page.bodyHtml,
+      sortOrder: page.sortOrder,
+      isPublished: page.isPublished,
+      requiresAuth: page.requiresAuth ?? false,
+      videoUrl: page.videoUrl,
+      videoType: page.videoType,
+      imageUrl: page.imageUrl,
+      archivedAt,
+      deletedAt,
+      linkedCourseId: linked,
+    });
+    return id;
+  },
+
+  async updateLifecycle(id, patch) {
+    const p = inMemoryContentPagesStore.find((x) => x.id === id);
+    if (!p) return;
+    if (patch.isPublished !== undefined) p.isPublished = patch.isPublished;
+    if (patch.archivedAt !== undefined) p.archivedAt = patch.archivedAt;
+    if (patch.deletedAt !== undefined) p.deletedAt = patch.deletedAt;
+    if (patch.requiresAuth !== undefined) p.requiresAuth = patch.requiresAuth;
+  },
+
+  async reorderInSection(section, orderedIds) {
+    const inSection = inMemoryContentPagesStore.filter((p) => p.section === section);
+    if (inSection.length !== orderedIds.length) throw new Error("reorder: count mismatch");
+    const set = new Set(inSection.map((p) => p.id));
+    for (const rowId of orderedIds) {
+      if (!set.has(rowId)) throw new Error("reorder: unknown id");
+    }
+    for (let i = 0; i < orderedIds.length; i++) {
+      const p = inMemoryContentPagesStore.find((x) => x.id === orderedIds[i]);
+      if (p) p.sortOrder = i;
+    }
+  },
 };

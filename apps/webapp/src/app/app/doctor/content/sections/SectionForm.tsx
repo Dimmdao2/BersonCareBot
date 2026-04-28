@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
+import { MediaLibraryPickerDialog } from "../MediaLibraryPickerDialog";
 import { saveContentSection, type SaveContentSectionState } from "./actions";
 
 type SectionRow = {
@@ -14,6 +15,8 @@ type SectionRow = {
   sortOrder: number;
   isVisible: boolean;
   requiresAuth: boolean;
+  coverImageUrl: string | null;
+  iconImageUrl: string | null;
 };
 
 export function SectionForm({ section }: { section?: SectionRow }) {
@@ -21,6 +24,8 @@ export function SectionForm({ section }: { section?: SectionRow }) {
   const isEdit = Boolean(section);
   const [titleValue, setTitleValue] = useState(section?.title ?? "");
   const [slugValue, setSlugValue] = useState("");
+  const [coverImageUrlValue, setCoverImageUrlValue] = useState(section?.coverImageUrl ?? "");
+  const [iconImageUrlValue, setIconImageUrlValue] = useState(section?.iconImageUrl ?? "");
   const slugManualRef = useRef(false);
 
   return (
@@ -126,6 +131,18 @@ export function SectionForm({ section }: { section?: SectionRow }) {
           key={`sort-${section?.slug ?? "new"}`}
         />
       </label>
+
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Обложка раздела</span>
+        <input type="hidden" name="cover_image_url" value={coverImageUrlValue} />
+        <MediaLibraryPickerDialog kind="image" value={coverImageUrlValue} onChange={setCoverImageUrlValue} />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Иконка раздела</span>
+        <input type="hidden" name="icon_image_url" value={iconImageUrlValue} />
+        <MediaLibraryPickerDialog kind="image" value={iconImageUrlValue} onChange={setIconImageUrlValue} />
+      </div>
 
       <label className="flex items-center gap-2">
         <input

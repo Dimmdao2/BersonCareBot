@@ -9,6 +9,8 @@ export type ContentSectionRow = {
   isVisible: boolean;
   /** Если true — только tier patient (см. `requires_auth` в БД). */
   requiresAuth: boolean;
+  coverImageUrl: string | null;
+  iconImageUrl: string | null;
 };
 
 export type ListVisibleContentSectionsOpts = {
@@ -28,14 +30,17 @@ export type ContentSectionsPort = {
   update: (
     slug: string,
     patch: Partial<
-      Pick<ContentSectionRow, "title" | "description" | "sortOrder" | "isVisible" | "requiresAuth">
+      Pick<
+        ContentSectionRow,
+        "title" | "description" | "sortOrder" | "isVisible" | "requiresAuth" | "coverImageUrl" | "iconImageUrl"
+      >
     >,
   ) => Promise<void>;
   /** Выставить `sort_order` по порядку slug (0..n-1) в одной транзакции. */
   reorderSlugs: (orderedSlugs: string[]) => Promise<void>;
 };
 
-const SELECT_COLS = `id, slug, title, description, sort_order, is_visible, requires_auth`;
+const SELECT_COLS = `id, slug, title, description, sort_order, is_visible, requires_auth, cover_image_url, icon_image_url`;
 
 export function createPgContentSectionsPort(): ContentSectionsPort {
   return {
@@ -65,14 +70,16 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
     async upsert(section) {
       const pool = getPool();
       const res = await pool.query(
-        `INSERT INTO content_sections (slug, title, description, sort_order, is_visible, requires_auth)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO content_sections (slug, title, description, sort_order, is_visible, requires_auth, cover_image_url, icon_image_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (slug) DO UPDATE SET
            title = EXCLUDED.title,
            description = EXCLUDED.description,
            sort_order = EXCLUDED.sort_order,
            is_visible = EXCLUDED.is_visible,
            requires_auth = EXCLUDED.requires_auth,
+           cover_image_url = EXCLUDED.cover_image_url,
+           icon_image_url = EXCLUDED.icon_image_url,
            updated_at = now()
          RETURNING id`,
         [
@@ -82,6 +89,8 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           section.sortOrder,
           section.isVisible,
           section.requiresAuth ?? false,
+          section.coverImageUrl ?? null,
+          section.iconImageUrl ?? null,
         ],
       );
       return res.rows[0].id as string;
@@ -110,6 +119,14 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       if (patch.requiresAuth !== undefined) {
         sets.push(`requires_auth = $${n++}`);
         vals.push(patch.requiresAuth);
+      }
+      if (patch.coverImageUrl !== undefined) {
+        sets.push(`cover_image_url = $${n++}`);
+        vals.push(patch.coverImageUrl);
+      }
+      if (patch.iconImageUrl !== undefined) {
+        sets.push(`icon_image_url = $${n++}`);
+        vals.push(patch.iconImageUrl);
       }
       if (sets.length === 0) return;
       vals.push(slug);
@@ -151,6 +168,8 @@ function mapRow(row: Record<string, unknown>): ContentSectionRow {
     sortOrder: row.sort_order as number,
     isVisible: row.is_visible as boolean,
     requiresAuth: Boolean(row.requires_auth),
+    coverImageUrl: (row.cover_image_url as string) ?? null,
+    iconImageUrl: (row.icon_image_url as string) ?? null,
   };
 }
 
@@ -190,6 +209,8 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         sortOrder: section.sortOrder,
         isVisible: section.isVisible,
         requiresAuth: section.requiresAuth ?? false,
+        coverImageUrl: section.coverImageUrl ?? null,
+        iconImageUrl: section.iconImageUrl ?? null,
       };
       memory.set(section.slug, row);
       return id;
@@ -204,6 +225,8 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
         ...(patch.isVisible !== undefined ? { isVisible: patch.isVisible } : {}),
         ...(patch.requiresAuth !== undefined ? { requiresAuth: patch.requiresAuth } : {}),
+        ...(patch.coverImageUrl !== undefined ? { coverImageUrl: patch.coverImageUrl } : {}),
+        ...(patch.iconImageUrl !== undefined ? { iconImageUrl: patch.iconImageUrl } : {}),
       });
     },
     async reorderSlugs(orderedSlugs) {

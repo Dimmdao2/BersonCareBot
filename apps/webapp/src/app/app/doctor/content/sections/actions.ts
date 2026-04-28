@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
 export type SaveContentSectionState = { ok: boolean; error?: string };
 
@@ -19,6 +20,10 @@ export async function saveContentSection(
   const sortOrder = parseInt(formData.get("sort_order") as string, 10) || 0;
   const isVisible = formData.get("is_visible") === "on";
   const requiresAuth = formData.get("requires_auth") === "on";
+  const coverImageUrlRaw = (formData.get("cover_image_url") as string)?.trim() || "";
+  const iconImageUrlRaw = (formData.get("icon_image_url") as string)?.trim() || "";
+  const coverImageUrl = coverImageUrlRaw.length > 0 ? coverImageUrlRaw : null;
+  const iconImageUrl = iconImageUrlRaw.length > 0 ? iconImageUrlRaw : null;
 
   if (!slug || !title) {
     return { ok: false, error: "Заполните slug и заголовок" };
@@ -31,6 +36,12 @@ export async function saveContentSection(
   }
   if (title.length > 500) return { ok: false, error: "Заголовок слишком длинный" };
   if (description.length > 2000) return { ok: false, error: "Описание слишком длинное" };
+  if (coverImageUrl && !API_MEDIA_URL_RE.test(coverImageUrl) && !isLegacyAbsoluteUrl(coverImageUrl)) {
+    return { ok: false, error: "Обложка должна быть выбрана из библиотеки файлов" };
+  }
+  if (iconImageUrl && !API_MEDIA_URL_RE.test(iconImageUrl) && !isLegacyAbsoluteUrl(iconImageUrl)) {
+    return { ok: false, error: "Иконка должна быть выбрана из библиотеки файлов" };
+  }
 
   try {
     await deps.contentSections.upsert({
@@ -40,6 +51,8 @@ export async function saveContentSection(
       sortOrder,
       isVisible,
       requiresAuth,
+      coverImageUrl,
+      iconImageUrl,
     });
   } catch (err) {
     console.error("saveContentSection failed:", err);

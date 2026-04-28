@@ -400,6 +400,8 @@ export const contentPages = pgTable("content_pages", {
 	archivedAt: timestamp("archived_at", { withTimezone: true, mode: 'string' }),
 	deletedAt: timestamp("deleted_at", { withTimezone: true, mode: 'string' }),
 	requiresAuth: boolean("requires_auth").default(false).notNull(),
+	/** Промо-материал курса; FK на courses(id) в SQL-миграции (цикл импорта schema ↔ courses). */
+	linkedCourseId: uuid("linked_course_id"),
 }, (table) => [
 	index("idx_content_pages_section").using("btree", table.section.asc().nullsLast().op("text_ops")),
 	index("idx_content_pages_section_sort").using("btree", table.section.asc().nullsLast().op("text_ops"), table.sortOrder.asc().nullsLast().op("text_ops")),
@@ -1005,12 +1007,47 @@ export const contentSections = pgTable("content_sections", {
 	description: text().default('').notNull(),
 	sortOrder: integer("sort_order").default(0).notNull(),
 	isVisible: boolean("is_visible").default(true).notNull(),
+	coverImageUrl: text("cover_image_url"),
+	iconImageUrl: text("icon_image_url"),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	requiresAuth: boolean("requires_auth").default(false).notNull(),
 }, (table) => [
 	index("idx_content_sections_sort").using("btree", table.sortOrder.asc().nullsLast().op("int4_ops"), table.title.asc().nullsLast().op("int4_ops")),
 	unique("content_sections_slug_key").on(table.slug),
+]);
+
+export const patientHomeBlocks = pgTable("patient_home_blocks", {
+	code: text().primaryKey().notNull(),
+	title: text().notNull(),
+	description: text().default('').notNull(),
+	isVisible: boolean("is_visible").default(true).notNull(),
+	sortOrder: integer("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+});
+
+export const patientHomeBlockItems = pgTable("patient_home_block_items", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	blockCode: text("block_code").notNull(),
+	targetType: text("target_type").notNull(),
+	targetRef: text("target_ref").notNull(),
+	titleOverride: text("title_override"),
+	subtitleOverride: text("subtitle_override"),
+	imageUrlOverride: text("image_url_override"),
+	badgeLabel: text("badge_label"),
+	isVisible: boolean("is_visible").default(true).notNull(),
+	sortOrder: integer("sort_order").default(0).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("idx_patient_home_block_items_block_sort").using("btree", table.blockCode.asc().nullsLast().op("text_ops"), table.sortOrder.asc().nullsLast().op("int4_ops")),
+	foreignKey({
+			columns: [table.blockCode],
+			foreignColumns: [patientHomeBlocks.code],
+			name: "patient_home_block_items_block_fkey"
+		}).onDelete("cascade"),
+	check("patient_home_block_items_target_type_check", sql`target_type = ANY (ARRAY['content_page'::text, 'content_section'::text, 'course'::text, 'static_action'::text])`),
 ]);
 
 export const bookingSpecialists = pgTable("booking_specialists", {

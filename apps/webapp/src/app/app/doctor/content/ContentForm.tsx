@@ -27,9 +27,20 @@ type ContentPage = {
   imageUrl?: string | null;
   archivedAt?: string | null;
   deletedAt?: string | null;
+  linkedCourseId?: string | null;
 };
 
-export function ContentForm({ page, sections }: { page?: ContentPage; sections: ContentSectionRow[] }) {
+export type PublishedCourseOption = { id: string; title: string };
+
+export function ContentForm({
+  page,
+  sections,
+  publishedCourses = [],
+}: {
+  page?: ContentPage;
+  sections: ContentSectionRow[];
+  publishedCourses?: PublishedCourseOption[];
+}) {
   const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
   const isNew = !page;
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -212,6 +223,25 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Только для залогиненных (щит)
         </span>
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Связан с курсом (если это промо-материал)
+        </span>
+        <select
+          name="linked_course_id"
+          className="h-11 w-full max-w-md rounded-xl border border-input bg-background px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          defaultValue={page?.linkedCourseId ?? ""}
+          key={`linked-course-${page?.id ?? "new"}`}
+        >
+          <option value="">— не выбрано —</option>
+          {publishedCourses.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}
+            </option>
+          ))}
+        </select>
       </label>
 
       <div className="flex flex-col gap-1">

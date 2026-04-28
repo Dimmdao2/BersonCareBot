@@ -24,6 +24,8 @@ const testSections = [
     sortOrder: 0,
     isVisible: true,
     requiresAuth: false,
+    coverImageUrl: null,
+    iconImageUrl: null,
   },
 ];
 
@@ -56,6 +58,25 @@ describe("ContentForm", () => {
   it("does not include legacy sort_order input", () => {
     render(<ContentForm sections={testSections} />);
     expect(document.querySelector('input[name="sort_order"]')).toBeNull();
+  });
+
+  it("includes linked_course_id in FormData when publishedCourses provided", async () => {
+    const user = userEvent.setup();
+    const courseId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    render(
+      <ContentForm
+        sections={testSections}
+        publishedCourses={[{ id: courseId, title: "Курс А" }]}
+      />,
+    );
+    const sel = document.querySelector("select[name=linked_course_id]") as HTMLSelectElement;
+    expect(sel).not.toBeNull();
+    await user.selectOptions(sel, courseId);
+    const ta = screen.getByRole("textbox", { name: /редактор/i });
+    const form = ta.closest("form");
+    expect(form).not.toBeNull();
+    const fd = new FormData(form!);
+    expect(fd.get("linked_course_id")).toBe(courseId);
   });
 
   it("shows page preview block when toggled", async () => {

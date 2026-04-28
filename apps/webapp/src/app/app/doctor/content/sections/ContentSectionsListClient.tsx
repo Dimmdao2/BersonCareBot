@@ -22,6 +22,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { EllipsisVertical, Eye, EyeOff, Shield, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { MediaThumb } from "@/shared/ui/media/MediaThumb";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,6 +42,8 @@ export type SectionListRow = {
   sortOrder: number;
   isVisible: boolean;
   requiresAuth: boolean;
+  coverImageUrl: string | null;
+  iconImageUrl: string | null;
 };
 
 function DragHandle({ listeners, attributes }: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }) {
@@ -84,6 +87,29 @@ function SortableSectionRow({
     opacity: isDragging ? 0.88 : 1,
   };
 
+  const coverPreview =
+    row.coverImageUrl && row.coverImageUrl.trim().length > 0
+      ? {
+          id: `${row.slug}-cover`,
+          kind: "image" as const,
+          url: row.coverImageUrl,
+          previewStatus: "ready" as const,
+          previewSmUrl: row.coverImageUrl,
+          previewMdUrl: row.coverImageUrl,
+        }
+      : null;
+  const iconPreview =
+    row.iconImageUrl && row.iconImageUrl.trim().length > 0
+      ? {
+          id: `${row.slug}-icon`,
+          kind: "image" as const,
+          url: row.iconImageUrl,
+          previewStatus: "ready" as const,
+          previewSmUrl: row.iconImageUrl,
+          previewMdUrl: row.iconImageUrl,
+        }
+      : null;
+
   return (
     <li
       ref={setNodeRef}
@@ -99,6 +125,26 @@ function SortableSectionRow({
           {row.title}
         </Link>
         <p className="truncate font-mono text-xs text-muted-foreground">{row.slug}</p>
+        {coverPreview || iconPreview ? (
+          <div className="mt-2 flex items-center gap-2">
+            {coverPreview ? (
+              <MediaThumb
+                media={coverPreview}
+                className="h-10 w-14 overflow-hidden rounded border border-border/50 bg-muted/20"
+                imgClassName="h-10 w-14 object-cover"
+                sizes="56px"
+              />
+            ) : null}
+            {iconPreview ? (
+              <MediaThumb
+                media={iconPreview}
+                className="h-10 w-10 overflow-hidden rounded border border-border/50 bg-muted/20"
+                imgClassName="h-10 w-10 object-cover"
+                sizes="40px"
+              />
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <Button

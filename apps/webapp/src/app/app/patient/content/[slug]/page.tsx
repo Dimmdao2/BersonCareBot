@@ -5,9 +5,11 @@
  * 404. Кнопка «Назад» ведёт в главное меню пациента.
  */
 
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { PageSection } from "@/components/common/layout/PageSection";
 import { AppShell } from "@/shared/ui/AppShell";
@@ -65,6 +67,23 @@ export default async function ContentSlugPage({ params }: Props) {
       : undefined;
   const youtubeEmbedSrc = videoPlayableUrl ? toYoutubeEmbedSrc(videoPlayableUrl) : null;
 
+  let courseCta: { courseTitle: string; href: string } | null = null;
+  if (dbRow?.linkedCourseId) {
+    const course = await deps.courses.getCourseForDoctor(dbRow.linkedCourseId);
+    if (course?.status === "published") {
+      let href = `${routePaths.patientCourses}?highlight=${encodeURIComponent(course.id)}`;
+      const userId = session?.user?.userId;
+      if (userId) {
+        const instances = await deps.treatmentProgramInstance.listForPatient(userId);
+        const match = instances.find((i) => i.status === "active" && i.templateId === course.programTemplateId);
+        if (match) {
+          href = routePaths.patientTreatmentProgram(match.id);
+        }
+      }
+      courseCta = { courseTitle: course.title, href };
+    }
+  }
+
   const backHref = "/app/patient";
   return (
     <AppShell title={item.title} user={session?.user ?? null} backHref={backHref} backLabel="Назад" variant="patient">
@@ -100,6 +119,23 @@ export default async function ContentSlugPage({ params }: Props) {
             <p className="text-muted-foreground">Видео будет добавлено в ближайшее время.</p>
           </PageSection>
         )}
+        {courseCta ? (
+          <PageSection
+            as="section"
+            id={`patient-content-course-cta-${slug}`}
+            className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-sm"
+          >
+            <p className="text-sm font-medium">
+              Это часть курса «{courseCta.courseTitle}»
+            </p>
+            <Link
+              href={courseCta.href}
+              className="mt-3 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+            >
+              Открыть курс
+            </Link>
+          </PageSection>
+        ) : null}
       </article>
     </AppShell>
   );

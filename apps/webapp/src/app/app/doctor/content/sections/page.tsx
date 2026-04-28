@@ -31,6 +31,8 @@ export default async function DoctorContentSectionsPage() {
     sortOrder: s.sortOrder,
     isVisible: s.isVisible,
     requiresAuth: s.requiresAuth,
+    coverImageUrl: s.coverImageUrl,
+    iconImageUrl: s.iconImageUrl,
   }));
 
   return (

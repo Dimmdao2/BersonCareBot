@@ -31,6 +31,8 @@ export const ALLOWED_KEYS = [
   "vk_web_login_url",
   /** IANA-таймзона для отображения времени записей и слотов (например Europe/Moscow). */
   "app_display_timezone",
+  /** Цель «коротких практик в день» на главной пациента (1–10), default 3. */
+  "patient_home_daily_practice_target",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",

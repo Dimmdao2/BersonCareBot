@@ -1,0 +1,176 @@
+import {
+  PATIENT_HOME_BLOCK_CODES,
+  allowedTargetTypesForBlock,
+  canManageItemsForBlock,
+  isTargetTypeAllowedForBlock,
+} from "./blocks";
+import type {
+  PatientHomeBlock,
+  PatientHomeBlockCode,
+  PatientHomeBlockItemAddInput,
+  PatientHomeBlockItemPatch,
+  PatientHomeBlockItemTargetType,
+  PatientHomeBlocksPort,
+} from "./ports";
+
+type Candidate = {
+  targetType: PatientHomeBlockItemTargetType;
+  targetRef: string;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+};
+
+type PatientHomeServiceDeps = {
+  port: PatientHomeBlocksPort;
+  contentPages: {
+    listAll(): Promise<Array<{ slug: string; title: string; summary: string; imageUrl: string | null }>>;
+  };
+  contentSections: {
+    listAll(): Promise<Array<{ slug: string; title: string; description: string; iconImageUrl?: string | null; coverImageUrl?: string | null }>>;
+  };
+  courses: {
+    listCoursesForDoctor(filter?: { includeArchived?: boolean }): Promise<Array<{ id: string; title: string; description: string | null }>>;
+  };
+};
+
+function assertKnownBlockCodes(codes: string[]): asserts codes is PatientHomeBlockCode[] {
+  const bad = codes.find((code) => !(PATIENT_HOME_BLOCK_CODES as readonly string[]).includes(code));
+  if (bad) throw new Error(`invalid_block_code:${bad}`);
+}
+
+function parseBlockCode(value: string): PatientHomeBlockCode {
+  assertKnownBlockCodes([value]);
+  return value as PatientHomeBlockCode;
+}
+
+function assertManageableBlock(code: PatientHomeBlockCode): void {
+  if (!canManageItemsForBlock(code)) {
+    throw new Error(`items_not_supported_for_block:${code}`);
+  }
+}
+
+function sanitizeNullable(value?: string | null): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
+  return {
+    async listBlocksWithItems(): Promise<PatientHomeBlock[]> {
+      return deps.port.listBlocksWithItems();
+    },
+
+    async setBlockVisibility(code: string, visible: boolean): Promise<void> {
+      await deps.port.setBlockVisibility(parseBlockCode(code), visible);
+    },
+
+    async reorderBlocks(orderedCodes: string[]): Promise<void> {
+      assertKnownBlockCodes(orderedCodes);
+      const uniq = new Set(orderedCodes);
+      if (uniq.size !== orderedCodes.length) {
+        throw new Error("duplicate_block_codes");
+      }
+      if (orderedCodes.length !== PATIENT_HOME_BLOCK_CODES.length) {
+        throw new Error("invalid_block_count");
+      }
+      for (const code of PATIENT_HOME_BLOCK_CODES) {
+        if (!uniq.has(code)) throw new Error(`missing_block_code:${code}`);
+      }
+      await deps.port.reorderBlocks(orderedCodes);
+    },
+
+    async addItem(input: PatientHomeBlockItemAddInput): Promise<string> {
+      assertManageableBlock(input.blockCode);
+      if (!isTargetTypeAllowedForBlock(input.blockCode, input.targetType)) {
+        throw new Error(`invalid_target_type_for_block:${input.blockCode}:${input.targetType}`);
+      }
+      const targetRef = input.targetRef.trim();
+      if (!targetRef) throw new Error("empty_target_ref");
+      return deps.port.addItem({
+        ...input,
+        targetRef,
+        titleOverride: sanitizeNullable(input.titleOverride),
+        subtitleOverride: sanitizeNullable(input.subtitleOverride),
+        imageUrlOverride: sanitizeNullable(input.imageUrlOverride),
+        badgeLabel: sanitizeNullable(input.badgeLabel),
+      });
+    },
+
+    async updateItem(id: string, patch: PatientHomeBlockItemPatch): Promise<void> {
+      const itemId = id.trim();
+      if (!itemId) throw new Error("empty_item_id");
+      await deps.port.updateItem(itemId, {
+        ...patch,
+        titleOverride: patch.titleOverride === undefined ? undefined : sanitizeNullable(patch.titleOverride),
+        subtitleOverride: patch.subtitleOverride === undefined ? undefined : sanitizeNullable(patch.subtitleOverride),
+        imageUrlOverride: patch.imageUrlOverride === undefined ? undefined : sanitizeNullable(patch.imageUrlOverride),
+        badgeLabel: patch.badgeLabel === undefined ? undefined : sanitizeNullable(patch.badgeLabel),
+      });
+    },
+
+    async deleteItem(id: string): Promise<void> {
+      const itemId = id.trim();
+      if (!itemId) throw new Error("empty_item_id");
+      await deps.port.deleteItem(itemId);
+    },
+
+    async reorderItems(blockCode: string, orderedItemIds: string[]): Promise<void> {
+      const parsedCode = parseBlockCode(blockCode);
+      assertManageableBlock(parsedCode);
+      const uniq = new Set(orderedItemIds);
+      if (uniq.size !== orderedItemIds.length) {
+        throw new Error("duplicate_item_ids");
+      }
+      await deps.port.reorderItems(parsedCode, orderedItemIds);
+    },
+
+    async listCandidatesForBlock(blockCode: string): Promise<Candidate[]> {
+      const parsedCode = parseBlockCode(blockCode);
+      const allowedTypes = allowedTargetTypesForBlock(parsedCode);
+      if (allowedTypes.length === 0) return [];
+
+      const out: Candidate[] = [];
+      if (allowedTypes.includes("content_page")) {
+        const pages = await deps.contentPages.listAll();
+        for (const p of pages) {
+          out.push({
+            targetType: "content_page",
+            targetRef: p.slug,
+            title: p.title,
+            subtitle: p.summary || null,
+            imageUrl: p.imageUrl,
+          });
+        }
+      }
+      if (allowedTypes.includes("content_section")) {
+        const sections = await deps.contentSections.listAll();
+        for (const s of sections) {
+          out.push({
+            targetType: "content_section",
+            targetRef: s.slug,
+            title: s.title,
+            subtitle: s.description || null,
+            imageUrl: s.iconImageUrl ?? s.coverImageUrl ?? null,
+          });
+        }
+      }
+      if (allowedTypes.includes("course")) {
+        const courses = await deps.courses.listCoursesForDoctor({ includeArchived: false });
+        for (const c of courses) {
+          out.push({
+            targetType: "course",
+            targetRef: c.id,
+            title: c.title,
+            subtitle: c.description,
+            imageUrl: null,
+          });
+        }
+      }
+      return out.sort((a, b) => a.title.localeCompare(b.title, "ru"));
+    },
+  };
+}
+
+export type PatientHomeBlocksService = ReturnType<typeof createPatientHomeBlocksService>;

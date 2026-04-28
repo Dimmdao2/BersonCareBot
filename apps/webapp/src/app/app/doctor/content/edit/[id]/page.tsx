@@ -19,9 +19,13 @@ export default async function DoctorContentEditPage({ params }: Props) {
   if (!page) notFound();
 
   let sections: Awaited<ReturnType<typeof deps.contentSections.listAll>> = [];
+  let publishedCourses: { id: string; title: string }[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
     sections = await deps.contentSections.listAll();
+    publishedCourses = (
+      await deps.courses.listCoursesForDoctor({ status: "published", includeArchived: false })
+    ).map((c) => ({ id: c.id, title: c.title }));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/content/edit", err, { pageId: id });
   }
@@ -37,7 +41,7 @@ export default async function DoctorContentEditPage({ params }: Props) {
             devMessage={isDev ? `${loadError.name}: ${loadError.message}` : undefined}
           />
         ) : null}
-        <ContentForm page={page} sections={sections} />
+        <ContentForm page={page} sections={sections} publishedCourses={publishedCourses} />
       </section>
     </AppShell>
   );

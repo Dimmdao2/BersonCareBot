@@ -163,6 +163,9 @@ import { pgPatientBookingsPort } from "@/infra/repos/pgPatientBookings";
 import { inMemoryPatientBookingsPort } from "@/infra/repos/inMemoryPatientBookings";
 import { createPgBookingCatalogPort } from "@/infra/repos/pgBookingCatalog";
 import { createBookingCatalogService } from "@/modules/booking-catalog/service";
+import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
+import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
+import { createPatientHomeBlocksService } from "@/modules/patient-home/service";
 
 const inMemoryRepos = webappReposAreInMemory();
 
@@ -276,6 +279,15 @@ const coursesService = createCoursesService({
   courses: coursesPort,
   introPages: contentPagesPort,
   assignTemplateToPatient: (input) => treatmentProgramInstanceService.assignTemplateToPatient(input),
+});
+const patientHomeBlocksPort = !inMemoryRepos
+  ? createPgPatientHomeBlocksPort()
+  : createInMemoryPatientHomeBlocksPort();
+const patientHomeBlocksService = createPatientHomeBlocksService({
+  port: patientHomeBlocksPort,
+  contentPages: contentPagesPort,
+  contentSections: contentSectionsPort,
+  courses: coursesService,
 });
 const treatmentProgramProgressService = createTreatmentProgramProgressService({
   instances: treatmentProgramInstancePort,
@@ -675,6 +687,7 @@ function _buildAppDeps() {
     treatmentProgram: treatmentProgramService,
     treatmentProgramInstance: treatmentProgramInstanceService,
     courses: coursesService,
+    patientHomeBlocks: patientHomeBlocksService,
     treatmentProgramProgress: treatmentProgramProgressService,
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,

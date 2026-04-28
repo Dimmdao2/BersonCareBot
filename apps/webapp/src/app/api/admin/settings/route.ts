@@ -26,6 +26,7 @@ const ADMIN_SCOPE_KEYS = [
   "max_bot_api_key",
   "vk_web_login_url",
   "app_display_timezone",
+  "patient_home_daily_practice_target",
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",
@@ -136,6 +137,20 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: checked.value };
+  }
+
+  if (parsed.data.key === "patient_home_daily_practice_target") {
+    const inner = normalizedValue.value;
+    const n =
+      typeof inner === "number" && Number.isInteger(inner)
+        ? inner
+        : typeof inner === "string" && /^\d+$/.test(inner.trim())
+          ? Number.parseInt(inner.trim(), 10)
+          : NaN;
+    if (!Number.isFinite(n) || n < 1 || n > 10) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: n };
   }
 
   // Audit log перед обновлением (секреты редактируются без вывода raw значения в logs).

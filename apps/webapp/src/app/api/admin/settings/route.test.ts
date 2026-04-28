@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ALLOWED_KEYS } from "@/modules/system-settings/types";
 
 const { getSessionMock, listSettingsByScopeMock, updateSettingMock, getSettingMock, buildAppDepsMock } =
   vi.hoisted(() => {
@@ -60,6 +61,12 @@ describe("GET /api/admin/settings", () => {
     listSettingsByScopeMock.mockResolvedValue([]);
     const res = await GET();
     expect(res.status).toBe(200);
+  });
+});
+
+describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
+  it("includes patient_home_daily_practice_target for webapp whitelist", () => {
+    expect(ALLOWED_KEYS).toContain("patient_home_daily_practice_target");
   });
 });
 
@@ -291,5 +298,44 @@ describe("PATCH /api/admin/settings", () => {
       { value: "contacts_only" },
       "a1",
     );
+  });
+
+  it("returns 200 for patient_home_daily_practice_target in range", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_home_daily_practice_target",
+      scope: "admin",
+      valueJson: { value: 6 },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "patient_home_daily_practice_target", value: { value: 6 } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_home_daily_practice_target",
+      "admin",
+      { value: 6 },
+      "a1",
+    );
+  });
+
+  it("returns 400 for patient_home_daily_practice_target out of range", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "patient_home_daily_practice_target", value: { value: 11 } }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
   });
 });
