@@ -28,4 +28,35 @@ describe("PatientHomeSubscriptionCarousel", () => {
     expect(screen.getByText("По подписке")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Carousel item/i })).toHaveAttribute("href", "/app/patient/sections/x");
   });
+
+  it("uses horizontal snap scroll and card width band", () => {
+    const { container } = render(
+      <PatientHomeSubscriptionCarousel
+        cards={[
+          {
+            itemId: "c1",
+            title: "A",
+            subtitle: null,
+            imageUrl: null,
+            badgeLabel: "Клуб",
+            href: "/app/patient/content/a",
+          },
+          {
+            itemId: "c2",
+            title: "B",
+            subtitle: null,
+            imageUrl: null,
+            badgeLabel: "Премиум",
+            href: "/app/patient/content/b",
+          },
+        ]}
+      />,
+    );
+    const track = container.querySelector(".snap-x.snap-mandatory");
+    expect(track).toBeTruthy();
+    const card = container.querySelector("a.snap-start");
+    expect(card?.className).toMatch(/min-w-\[280px\]/);
+    expect(screen.getByText("Клуб")).toBeInTheDocument();
+    expect(screen.getByText("Премиум")).toBeInTheDocument();
+  });
 });

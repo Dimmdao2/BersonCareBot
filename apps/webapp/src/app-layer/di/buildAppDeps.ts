@@ -167,8 +167,11 @@ import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks
 import { createInMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
 import { createPgPatientPracticeCompletionsPort } from "@/infra/repos/pgPatientPracticeCompletions";
 import { createInMemoryPatientPracticeCompletionsPort } from "@/infra/repos/inMemoryPatientPracticeCompletions";
+import { createPgPatientDailyMoodPort } from "@/infra/repos/pgPatientDailyMood";
+import { createInMemoryPatientDailyMoodPort } from "@/infra/repos/inMemoryPatientDailyMood";
 import { createPatientHomeBlocksService } from "@/modules/patient-home/service";
 import { createPatientPracticeService } from "@/modules/patient-practice/service";
+import { createPatientMoodService } from "@/modules/patient-mood/service";
 
 const inMemoryRepos = webappReposAreInMemory();
 
@@ -299,6 +302,10 @@ const patientPracticeService = createPatientPracticeService({
   completions: patientPracticeCompletionsPort,
   contentPages: contentPagesPort,
 });
+const patientMoodPort = !inMemoryRepos
+  ? createPgPatientDailyMoodPort()
+  : createInMemoryPatientDailyMoodPort();
+const patientMoodService = createPatientMoodService(patientMoodPort);
 const treatmentProgramProgressService = createTreatmentProgramProgressService({
   instances: treatmentProgramInstancePort,
   tests: treatmentProgramTestAttemptsPort,
@@ -699,6 +706,7 @@ function _buildAppDeps() {
     courses: coursesService,
     patientHomeBlocks: patientHomeBlocksService,
     patientPractice: patientPracticeService,
+    patientMood: patientMoodService,
     treatmentProgramProgress: treatmentProgramProgressService,
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,

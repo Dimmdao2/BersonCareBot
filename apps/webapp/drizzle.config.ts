@@ -30,6 +30,7 @@ export default defineConfig({
     "./db/schema/entityComments.ts",
     "./db/schema/courses.ts",
     "./db/schema/patientPractice.ts",
+    "./db/schema/patientDailyMood.ts",
   ],
   out: "./db/drizzle-migrations",
   dbCredentials: {

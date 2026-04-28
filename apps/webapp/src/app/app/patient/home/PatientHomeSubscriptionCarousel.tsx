@@ -12,12 +12,12 @@ export function PatientHomeSubscriptionCarousel({ cards }: Props) {
       <h2 id="patient-home-subscription-heading" className="mb-2 text-base font-semibold">
         Материалы по подписке
       </h2>
-      <div className="-mx-1 flex gap-3 overflow-x-auto pb-1 pt-0.5 [scrollbar-width:thin]">
+      <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-pl-3 scroll-pr-4 pb-1 pt-0.5 [scrollbar-width:thin]">
         {cards.map((c) => (
           <Link
             key={c.itemId}
             href={c.href}
-            className={`${patientHomeCardClass} w-[min(100%,18rem)] shrink-0 snap-start p-0 transition-colors hover:border-primary/30`}
+            className={`${patientHomeCardClass} min-w-[280px] max-w-[320px] w-[min(100%,20rem)] shrink-0 snap-start p-0 transition-colors hover:border-primary/30`}
           >
             <div className="relative aspect-[3/4] w-full overflow-hidden rounded-t-2xl bg-muted">
               {c.imageUrl ?

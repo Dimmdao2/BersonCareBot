@@ -15,7 +15,7 @@
 
 - `todayConfig.ts` — `getPatientHomeTodayConfig(deps)`: первый видимый item блока `daily_warmup` с типом `content_page` + целевое число практик из `system_settings` `patient_home_daily_practice_target` (1–10, default 3). Разминка **не** читается из отдельного slug в settings.
 - `patientHomeBlockPolicy.ts` — фильтр/сортировка блоков для главной с учётом tier patient (скрытие персональных блоков при `personalTierOk === false`).
-- `patientHomeResolvers.ts` — разрешение items блоков `situations`, `subscription_carousel`, `sos`, `courses` в DTO для UI (без импорта infra).
+- `patientHomeResolvers.ts` — разрешение items блоков `situations`, `subscription_carousel`, `sos`, `courses` в DTO для UI (без импорта infra). Экспорт `DEFAULT_SUBSCRIPTION_BADGE`, `getSubscriptionCarouselSectionPresentation(blocks, sectionSlug)` — промо на странице раздела `/app/patient/sections/[slug]`, если видимый блок `subscription_carousel` содержит видимый item `content_section` с `target_ref` = slug (Phase 7).
 - `patientHomeReminderPick.ts` — упрощённый выбор правила напоминания для карточки «Следующее напоминание» (Phase 3).
 
 Клиентская главная «Сегодня»: `app/app/patient/home/PatientHomeToday.tsx` и дочерние компоненты; mobile/`md` сохраняют линейный порядок секций из `patient_home_blocks.sort_order` и видимости блоков/items. На `lg+` `PatientHomeTodayLayout` раскладывает видимые блоки по зонам: левая колонка (`daily_warmup`, `situations`, `progress`, `plan`, `courses`), правая колонка (`booking`, `next_reminder`, `sos`, `mood_checkin`), `subscription_carousel` — полноширинно под колонками.

@@ -62,7 +62,7 @@ None.
 
 1. **Guard в README §5.3:** указано `requirePatientAccessWithPhone`; в коде API используется [`requirePatientApiBusinessAccess`](../../apps/webapp/src/app/api/patient/practice/completion/route.ts) — единый паттерн patient API после Phase 4.5 (бизнес-доступ пациента). Функционально строже/шире по политике платформы; расхождение только в имени в README.
 
-2. **README §5.5** упоминает отдельный файл `pgPatientPracticeCompletions.test.ts`; в репозитории его **нет**. Покрытие: `service.test.ts`, логика стрика, маршруты completion/progress, RTL для ProgressBlock / DailyWarmupCard / ContentPracticeComplete / PatientHomeToday.
+2. **README §5.5:** добавлен [`pgPatientPracticeCompletions.test.ts`](../../apps/webapp/src/infra/repos/pgPatientPracticeCompletions.test.ts) — smoke на отсутствие raw pool/query в PG-репозитории и базовые сценарии in-memory порта.
 
 3. **Текст кнопки:** в README приведён вариант «Готово»; в UI — «Я выполнил(а) практику» (соответствует EXEC-промпту Phase 5).
 
@@ -74,6 +74,7 @@ None.
 
 - [`apps/webapp/src/modules/patient-practice/service.test.ts`](../../apps/webapp/src/modules/patient-practice/service.test.ts)
 - [`apps/webapp/src/modules/patient-practice/streakLogic.test.ts`](../../apps/webapp/src/modules/patient-practice/streakLogic.test.ts)
+- [`apps/webapp/src/infra/repos/pgPatientPracticeCompletions.test.ts`](../../apps/webapp/src/infra/repos/pgPatientPracticeCompletions.test.ts)
 - [`apps/webapp/src/app/api/patient/practice/completion/route.test.ts`](../../apps/webapp/src/app/api/patient/practice/completion/route.test.ts)
 - [`apps/webapp/src/app/api/patient/practice/progress/route.test.ts`](../../apps/webapp/src/app/api/patient/practice/progress/route.test.ts)
 - [`apps/webapp/src/app/app/patient/home/PatientHomeProgressBlock.test.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeProgressBlock.test.tsx)
@@ -85,12 +86,12 @@ None.
 
 Command:
 
-`pnpm --dir apps/webapp exec vitest run src/modules/patient-practice/service.test.ts src/modules/patient-practice/streakLogic.test.ts src/app/api/patient/practice/completion/route.test.ts src/app/api/patient/practice/progress/route.test.ts src/app/app/patient/home/PatientHomeProgressBlock.test.tsx src/app/app/patient/home/PatientHomeDailyWarmupCard.test.tsx src/app/app/patient/home/PatientHomeToday.test.tsx "src/app/app/patient/content/[slug]/PatientContentPracticeComplete.test.tsx"`
+`pnpm --dir apps/webapp exec vitest run src/modules/patient-practice/service.test.ts src/modules/patient-practice/streakLogic.test.ts src/infra/repos/pgPatientPracticeCompletions.test.ts src/app/api/patient/practice/completion/route.test.ts src/app/api/patient/practice/progress/route.test.ts src/app/app/patient/home/PatientHomeProgressBlock.test.tsx src/app/app/patient/home/PatientHomeDailyWarmupCard.test.tsx src/app/app/patient/home/PatientHomeToday.test.tsx "src/app/app/patient/content/[slug]/PatientContentPracticeComplete.test.tsx"`
 
 Result:
 
-- `Test Files 8 passed (8)`
-- `Tests 21 passed (21)`
+- `Test Files 9 passed (9)`
+- `Tests 24 passed (24)`
 
 ---
 

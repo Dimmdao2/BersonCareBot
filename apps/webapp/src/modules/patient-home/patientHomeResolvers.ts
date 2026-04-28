@@ -1,4 +1,4 @@
-import type { PatientHomeBlockItem } from "./ports";
+import type { PatientHomeBlock, PatientHomeBlockItem } from "./ports";
 
 export type PatientHomeResolverDeps = {
   contentSections: {
@@ -94,7 +94,35 @@ export async function resolveSituationChips(
   return out;
 }
 
-const DEFAULT_SUBSCRIPTION_BADGE = "По подписке";
+/** Дефолтный бейдж для блока `subscription_carousel` и промо на странице раздела. */
+export const DEFAULT_SUBSCRIPTION_BADGE = "По подписке";
+
+/**
+ * Промо «по подписке» для страницы CMS-раздела: раздел добавлен видимым item в видимый блок `subscription_carousel`.
+ * Сравнение по `target_ref` и slug страницы (после trim), без хардкода редакционных slug-ов.
+ */
+export function getSubscriptionCarouselSectionPresentation(
+  blocks: PatientHomeBlock[],
+  sectionSlug: string,
+): { badgeLabel: string } | null {
+  const normalized = sectionSlug.trim();
+  if (!normalized) return null;
+  const carousel = blocks.find((b) => b.code === "subscription_carousel");
+  if (!carousel?.isVisible) return null;
+  const candidates = carousel.items
+    .filter(
+      (i) =>
+        i.isVisible &&
+        i.targetType === "content_section" &&
+        i.targetRef.trim() === normalized,
+    )
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+  const item = candidates[0];
+  if (!item) return null;
+  return {
+    badgeLabel: item.badgeLabel?.trim() || DEFAULT_SUBSCRIPTION_BADGE,
+  };
+}
 
 export async function resolveSubscriptionCarouselCards(
   items: PatientHomeBlockItem[],

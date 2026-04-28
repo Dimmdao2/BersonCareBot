@@ -15,3 +15,9 @@ ALTER TABLE content_pages DROP COLUMN IF EXISTS linked_course_id;
 ```sql
 DROP TABLE IF EXISTS patient_practice_completions CASCADE;
 ```
+
+## 0011_patient_daily_mood
+
+```sql
+DROP TABLE IF EXISTS patient_daily_mood CASCADE;
+```

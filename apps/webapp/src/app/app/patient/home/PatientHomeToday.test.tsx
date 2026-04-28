@@ -15,6 +15,12 @@ const contentSectionsGetBySlug = vi.fn();
 const contentPagesGetBySlug = vi.fn();
 const coursesGetCourseForDoctor = vi.fn();
 const getProgress = vi.fn();
+const getTodayMood = vi.fn();
+const refresh = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh }),
+}));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -26,6 +32,7 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     treatmentProgramInstance: { listForPatient },
     systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
     patientPractice: { getProgress },
+    patientMood: { getToday: getTodayMood },
   }),
 }));
 
@@ -138,6 +145,7 @@ describe("PatientHomeToday", () => {
     listRulesByUser.mockResolvedValue([]);
     listForPatient.mockResolvedValue([]);
     getProgress.mockResolvedValue({ todayDone: 1, todayTarget: 3, streak: 2 });
+    getTodayMood.mockResolvedValue({ moodDate: "2026-04-28", score: 4 });
   });
 
   it("anonymous guest: no personal API, login drilldown on warmup, no progress block", async () => {
@@ -146,6 +154,8 @@ describe("PatientHomeToday", () => {
 
     expect(listRulesByUser).not.toHaveBeenCalled();
     expect(listForPatient).not.toHaveBeenCalled();
+    expect(getProgress).not.toHaveBeenCalled();
+    expect(getTodayMood).not.toHaveBeenCalled();
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.queryByRole("heading", { name: /^Прогресс$/ })).toBeNull();
@@ -167,6 +177,8 @@ describe("PatientHomeToday", () => {
 
     expect(listRulesByUser).not.toHaveBeenCalled();
     expect(listForPatient).not.toHaveBeenCalled();
+    expect(getProgress).not.toHaveBeenCalled();
+    expect(getTodayMood).not.toHaveBeenCalled();
 
     expect(screen.queryByText(/Fixture User/i)).toBeNull();
     expect(screen.getByRole("link", { name: /Активировать профиль/i })).toBeInTheDocument();
@@ -184,8 +196,10 @@ describe("PatientHomeToday", () => {
     expect(listRulesByUser).toHaveBeenCalledWith(fixtureSession.user.userId);
     expect(listForPatient).toHaveBeenCalledWith(fixtureSession.user.userId);
     expect(getProgress).toHaveBeenCalled();
+    expect(getTodayMood).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
 
     expect(screen.getByText(/Здравствуйте, Fixture User/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
   });
 });

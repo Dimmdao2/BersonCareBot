@@ -26,7 +26,12 @@ type AppShellProps = {
   backLabel?: string;
   /** Уменьшенный заголовок, когда есть кнопка «Назад». */
   titleSmall?: boolean;
-  /** Вариант шапки: patient-wide расширяет только patient-shell на lg+ (главная пациента). */
+  /**
+   * Вариант оболочки.
+   * - `patient` — узкая колонка пациента (`max-w-[480px]` на всех ширинах).
+   * - `patient-wide` — то же до брейкпоинта `lg`; с `lg:` расширяется до `max-w-6xl`. Использовать только на главной пациента `/app/patient`.
+   * - `doctor` — кабинет специалиста (широкий workspace).
+   */
   variant?: "default" | "patient" | "patient-wide" | "doctor";
   /** Доп. плавающий UI для пациента (например QuickAdd на дневнике). */
   patientFloatingSlot?: ReactNode;

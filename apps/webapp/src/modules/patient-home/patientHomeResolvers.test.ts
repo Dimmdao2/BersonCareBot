@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { PatientHomeBlockItem } from "./ports";
+import type { PatientHomeBlock, PatientHomeBlockItem } from "./ports";
 import {
+  DEFAULT_SUBSCRIPTION_BADGE,
+  getSubscriptionCarouselSectionPresentation,
   resolveCourseRowCards,
   resolveSituationChips,
   resolveSosCard,
@@ -20,7 +22,83 @@ function item(p: Partial<PatientHomeBlockItem> & Pick<PatientHomeBlockItem, "id"
   };
 }
 
+function homeBlock(p: Partial<PatientHomeBlock> & Pick<PatientHomeBlock, "code" | "items">): PatientHomeBlock {
+  return {
+    title: "",
+    description: "",
+    isVisible: true,
+    sortOrder: 0,
+    ...p,
+  };
+}
+
 describe("patientHomeResolvers", () => {
+  it("getSubscriptionCarouselSectionPresentation returns null when carousel hidden", () => {
+    const blocks = [
+      homeBlock({
+        code: "subscription_carousel",
+        isVisible: false,
+        items: [
+          item({
+            id: "1",
+            blockCode: "subscription_carousel",
+            targetType: "content_section",
+            targetRef: "fixture-alpha",
+            sortOrder: 1,
+          }),
+        ],
+      }),
+    ];
+    expect(getSubscriptionCarouselSectionPresentation(blocks, "fixture-alpha")).toBeNull();
+  });
+
+  it("getSubscriptionCarouselSectionPresentation matches target_ref to section slug", () => {
+    const blocks = [
+      homeBlock({
+        code: "subscription_carousel",
+        items: [
+          item({
+            id: "a",
+            blockCode: "subscription_carousel",
+            targetType: "content_section",
+            targetRef: "  fixture-alpha  ",
+            badgeLabel: "Премиум",
+            sortOrder: 2,
+          }),
+          item({
+            id: "b",
+            blockCode: "subscription_carousel",
+            targetType: "content_section",
+            targetRef: "fixture-alpha",
+            badgeLabel: null,
+            sortOrder: 1,
+          }),
+        ],
+      }),
+    ];
+    const pres = getSubscriptionCarouselSectionPresentation(blocks, "fixture-alpha");
+    expect(pres?.badgeLabel).toBe(DEFAULT_SUBSCRIPTION_BADGE);
+  });
+
+  it("getSubscriptionCarouselSectionPresentation uses custom badgeLabel", () => {
+    const blocks = [
+      homeBlock({
+        code: "subscription_carousel",
+        items: [
+          item({
+            id: "1",
+            blockCode: "subscription_carousel",
+            targetType: "content_section",
+            targetRef: "fixture-beta",
+            badgeLabel: "Клуб",
+            sortOrder: 0,
+          }),
+        ],
+      }),
+    ];
+    expect(getSubscriptionCarouselSectionPresentation(blocks, "fixture-beta")?.badgeLabel).toBe("Клуб");
+  });
+
   it("resolveSituationChips skips auth sections for guest", async () => {
     const deps = {
       contentSections: {

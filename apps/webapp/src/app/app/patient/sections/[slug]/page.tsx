@@ -7,9 +7,11 @@ import { notFound } from "next/navigation";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
+import { PatientSectionSubscriptionCallout } from "../PatientSectionSubscriptionCallout";
 import { SectionWarmupsReminderBar } from "../SectionWarmupsReminderBar";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -26,7 +28,11 @@ export default async function PatientSectionPage({ params }: Props) {
   const canViewAuth = await resolvePatientCanViewAuthOnlyContent(session);
   if (section.requiresAuth && !canViewAuth) notFound();
 
-  const pages = await deps.contentPages.listBySection(slug, { viewAuthOnlyPages: canViewAuth });
+  const [pages, homeBlocks] = await Promise.all([
+    deps.contentPages.listBySection(slug, { viewAuthOnlyPages: canViewAuth }),
+    deps.patientHomeBlocks.listBlocksWithItems(),
+  ]);
+  const subscriptionSectionPresentation = getSubscriptionCarouselSectionPresentation(homeBlocks, slug);
 
   let warmupsReminderJson: ReturnType<typeof reminderRuleToPatientJson> | null = null;
   let warmupsPersonalBar = false;
@@ -52,6 +58,7 @@ export default async function PatientSectionPage({ params }: Props) {
       {warmupsPersonalBar ? (
         <SectionWarmupsReminderBar sectionTitle={section.title} existingRule={warmupsReminderJson} />
       ) : null}
+      {subscriptionSectionPresentation ? <PatientSectionSubscriptionCallout /> : null}
       <section id={`patient-section-${slug}-grid`} className="grid gap-4 md:grid-cols-2">
         {pages.map((p) => (
           <FeatureCard

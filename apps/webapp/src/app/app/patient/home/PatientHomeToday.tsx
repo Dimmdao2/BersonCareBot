@@ -5,6 +5,7 @@ import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { filterAndSortPatientHomeBlocks } from "@/modules/patient-home/patientHomeBlockPolicy";
 import { pickNextReminderRuleForHome } from "@/modules/patient-home/patientHomeReminderPick";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
+import type { PatientMoodToday } from "@/modules/patient-mood/types";
 import type {
   ResolvedCarouselCard,
   ResolvedCourseCard,
@@ -125,10 +126,15 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   const sorted = filterAndSortPatientHomeBlocks(homeBlocks, personalTierOk);
 
   let progress: { todayDone: number; streak: number } | null = null;
+  let initialMood: PatientMoodToday | null = null;
   if (personalTierOk && session) {
     const tz = await getAppDisplayTimeZone();
-    const p = await deps.patientPractice.getProgress(session.user.userId, tz, todayCfg.practiceTarget);
+    const [p, mood] = await Promise.all([
+      deps.patientPractice.getProgress(session.user.userId, tz, todayCfg.practiceTarget),
+      deps.patientMood.getToday(session.user.userId, tz),
+    ]);
     progress = { todayDone: p.todayDone, streak: p.streak };
+    initialMood = mood;
   }
 
   const personalizedName = personalTierOk && session ? session.user.displayName?.trim() || null : null;
@@ -161,7 +167,13 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
         if (!reminderRule) return null;
         return <PatientHomeNextReminderCard rule={reminderRule} />;
       case "mood_checkin":
-        return <PatientHomeMoodCheckin personalTierOk={personalTierOk} anonymousGuest={anonymousGuest} />;
+        return (
+          <PatientHomeMoodCheckin
+            personalTierOk={personalTierOk}
+            anonymousGuest={anonymousGuest}
+            initialMood={initialMood}
+          />
+        );
       case "sos":
         if (!sosCard) return null;
         return <PatientHomeSosCard sos={sosCard} />;

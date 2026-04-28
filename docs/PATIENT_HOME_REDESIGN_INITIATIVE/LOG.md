@@ -287,6 +287,24 @@
 - Перед пушем: `pnpm install --frozen-lockfile` и полный `pnpm run ci` — зелёный после добавления root `pnpm.overrides` для `postcss>=8.5.10` и `fast-xml-parser>=5.7.0` (устранение moderate advisories в `registry-prod-audit`).
 - Коммит и `git push origin patient-home-redesign-initiative`.
 
+## 2026-04-28 — Phase 5 start
+
+- Phase: `Phase 5 — Прогресс выполнения и стрик`
+- Status: `in_progress` (запись соответствует плану: до завершения работ зафиксированы scope и ограничения)
+
+### Planned scope
+
+- Таблица `patient_practice_completions`, Drizzle schema, миграция `0010_*`, CHECK/FK по README, без FK на `users`; [`ROLLBACK_SQL.md`](ROLLBACK_SQL.md).
+- Модуль [`apps/webapp/src/modules/patient-practice/`](../../apps/webapp/src/modules/patient-practice/) с изоляцией слоя (без прямых импортов infra/db/repos из модулей).
+- [`pgPatientPracticeCompletions.ts`](../../apps/webapp/src/infra/repos/pgPatientPracticeCompletions.ts) только Drizzle; in-memory порт для тестов.
+- `buildAppDeps().patientPractice`; `POST` / `GET` patient practice API; UI главной и страницы материала; `?from=daily_warmup` без slug из [`CONTENT_PLAN.md`](CONTENT_PLAN.md).
+- Тесты по README §5.5; не менять дневники симптомов/ЛФК; без gamification.
+
+### Explicit constraints (already acknowledged)
+
+- Дневники симптомов и ЛФК вне scope изменений.
+- Slug-и из CONTENT_PLAN не хардкодить в runtime.
+
 ## 2026-04-28 — Phase 5 execution result
 
 - Phase: `Phase 5 — Прогресс выполнения и стрик`
@@ -301,7 +319,7 @@
 - API: `POST /api/patient/practice/completion`, `GET /api/patient/practice/progress` с `requirePatientApiBusinessAccess`.
 - UI: [`PatientHomeProgressBlock.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeProgressBlock.tsx) — реальные `todayDone`, цель, `streak`; [`PatientHomeToday.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx) — загрузка прогресса при tier patient; [`PatientHomeDailyWarmupCard.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeDailyWarmupCard.tsx) — ссылка с `?from=daily_warmup`; страница материала — [`PatientContentPracticeComplete.tsx`](../../apps/webapp/src/app/app/patient/content/[slug]/PatientContentPracticeComplete.tsx), обновлён [`page.tsx`](../../apps/webapp/src/app/app/patient/content/[slug]/page.tsx).
 - Откат: [`ROLLBACK_SQL.md`](ROLLBACK_SQL.md) раздел `0010`.
-- Тесты: service, streakLogic, API routes, ProgressBlock, DailyWarmupCard, ContentPracticeComplete, обновлён `PatientHomeToday.test.tsx`.
+- Тесты: service, streakLogic, [`pgPatientPracticeCompletions.test.ts`](../../apps/webapp/src/infra/repos/pgPatientPracticeCompletions.test.ts) (smoke Drizzle-only + in-memory harness), API routes, ProgressBlock, DailyWarmupCard, ContentPracticeComplete, обновлён `PatientHomeToday.test.tsx`.
 
 ### Explicit constraints (Phase 5)
 
@@ -316,13 +334,14 @@
 - Command: `pnpm --dir apps/webapp exec vitest run` on Phase 5 paths:
   - `src/modules/patient-practice/service.test.ts`
   - `src/modules/patient-practice/streakLogic.test.ts`
+  - `src/infra/repos/pgPatientPracticeCompletions.test.ts`
   - `src/app/api/patient/practice/completion/route.test.ts`
   - `src/app/api/patient/practice/progress/route.test.ts`
   - `src/app/app/patient/home/PatientHomeProgressBlock.test.tsx`
   - `src/app/app/patient/home/PatientHomeDailyWarmupCard.test.tsx`
   - `src/app/app/patient/home/PatientHomeToday.test.tsx`
   - `src/app/app/patient/content/[slug]/PatientContentPracticeComplete.test.tsx`
-- Result: `Test Files 8 passed (8)`, `Tests 21 passed (21)`.
+- Result: `Test Files 9 passed (9)`, `Tests 24 passed (24)`.
 
 ## 2026-04-28 — FIX post-audit (Phase 5)
 
@@ -333,6 +352,113 @@
 
 ### Gate
 
-- Command: `pnpm --dir apps/webapp exec vitest run` on the eight Phase 5 paths listed in `AUDIT_PHASE_5.md` §4.
-- Result: `Test Files 8 passed (8)`, `Tests 21 passed (21)`.
+- Command: `pnpm --dir apps/webapp exec vitest run` on the Phase 5 bundle (nine paths, см. § Gate у execution result выше).
+- Result: `Test Files 9 passed (9)`, `Tests 24 passed (24)`.
+
+## 2026-04-28 — Phase 6 start
+
+- Phase: `Phase 6 — Чек-ин самочувствия`
+- Status: `in_progress`
+
+### Planned scope
+
+- Add `patient_daily_mood` with primary key `(user_id, mood_date)` and score `1..5`.
+- Use `getAppDisplayTimeZone()` to compute the local `mood_date`.
+- Add isolated module `modules/patient-mood` with ports/service/types/docs.
+- Add Drizzle-only runtime repo `pgPatientDailyMood` and in-memory repo for tests.
+- Wire `buildAppDeps().patientMood`.
+- Add thin `POST /api/patient/mood` and `GET /api/patient/mood/today`.
+- Replace `PatientHomeMoodCheckin` placeholder with 5 emoji buttons and optimistic update.
+- Add Phase 6 tests and phase-level webapp checks.
+
+### Explicit constraints acknowledged
+
+- Do not link mood to symptom diary or LFK diary.
+- Do not add mood comments, tags, or history UI.
+- Do not hardcode slugs from `CONTENT_PLAN.md`.
+- Do not add env vars, `system_settings`, or CI workflow changes.
+- Runtime access for the new table must use Drizzle ORM only.
+
+## 2026-04-28 — Phase 6 execution result
+
+- Phase: `Phase 6 — Чек-ин самочувствия`
+- Status: `completed`
+
+### Implemented
+
+- Таблица `patient_daily_mood`: Drizzle schema [`apps/webapp/db/schema/patientDailyMood.ts`](../../apps/webapp/db/schema/patientDailyMood.ts), миграция [`apps/webapp/db/drizzle-migrations/0011_patient_daily_mood.sql`](../../apps/webapp/db/drizzle-migrations/0011_patient_daily_mood.sql), primary key `(user_id, mood_date)`, CHECK `score 1..5`, без FK на users.
+- `drizzle.config.ts`, `db/schema/index.ts`, Drizzle meta snapshot обновлены; `db:verify-public-table-count` дополнен schema-файлами Phase 5/6.
+- Модуль [`apps/webapp/src/modules/patient-mood/`](../../apps/webapp/src/modules/patient-mood/) (ports, service, types, `moodDate`, `patient-mood.md`).
+- Репозитории: [`pgPatientDailyMood.ts`](../../apps/webapp/src/infra/repos/pgPatientDailyMood.ts) (Drizzle ORM only), [`inMemoryPatientDailyMood.ts`](../../apps/webapp/src/infra/repos/inMemoryPatientDailyMood.ts).
+- DI: [`buildAppDeps.ts`](../../apps/webapp/src/app-layer/di/buildAppDeps.ts) → `patientMood`.
+- API: `POST /api/patient/mood`, `GET /api/patient/mood/today` с `requirePatientApiBusinessAccess`, `getAppDisplayTimeZone()`, thin route handlers.
+- UI: [`PatientHomeMoodCheckin.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeMoodCheckin.tsx) — 5 emoji-кнопок, подсветка сохранённого score, optimistic update, rollback on error; [`PatientHomeToday.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx) передаёт `initialMood`.
+- Откат: [`ROLLBACK_SQL.md`](ROLLBACK_SQL.md) раздел `0011`.
+
+### Explicit constraints (Phase 6)
+
+- Mood не связан с symptom diary, LFK diary или `patient_practice_completions.feeling`.
+- Комментарии, теги настроения и история mood не добавлялись.
+- Slug-и из `CONTENT_PLAN.md` не используются в runtime.
+- Новые env vars, `system_settings`, `ALLOWED_KEYS` и CI workflow не менялись.
+
+### Gate (phase-level webapp)
+
+- Command: `pnpm --dir apps/webapp exec vitest run src/modules/patient-mood/moodDate.test.ts src/modules/patient-mood/service.test.ts src/infra/repos/pgPatientDailyMood.test.ts src/app/api/patient/mood/route.test.ts src/app/api/patient/mood/today/route.test.ts src/app/app/patient/home/PatientHomeMoodCheckin.test.tsx src/app/app/patient/home/PatientHomeToday.test.tsx`
+- Result: `Test Files 7 passed (7)`, `Tests 20 passed (20)`.
+- Command: `pnpm --dir apps/webapp exec tsc --noEmit` — Result: pass.
+- Command: `pnpm --dir apps/webapp lint` — Result: pass.
+- Command: `pnpm --dir apps/webapp run db:verify-public-table-count` — Result: pass (`116 public tables match pgTable exports`).
+- Full CI was not run (no repo-level scope, no push/pre-push request).
+
+## 2026-04-28 — FIX post-audit (Phase 6)
+
+- Mode: `FIX` (mandatory items from `AUDIT_PHASE_6.md` only).
+- `AUDIT_PHASE_6.md` §2 **Mandatory fixes:** `None` — no application or schema changes required.
+- Action: confirmed scope; plan todos for Phase 6 are already `completed`.
+- Constraints re-confirmed: mood is not linked to symptom diary/LFK diary, no mood comments/tags/history, no slug hardcode from `CONTENT_PLAN.md`.
+- Verification: targeted Phase 6 Vitest bundle per `AUDIT_PHASE_6.md` §4.
+
+### Gate
+
+- Command: `pnpm --dir apps/webapp exec vitest run src/modules/patient-mood/moodDate.test.ts src/modules/patient-mood/service.test.ts src/infra/repos/pgPatientDailyMood.test.ts src/app/api/patient/mood/route.test.ts src/app/api/patient/mood/today/route.test.ts src/app/app/patient/home/PatientHomeMoodCheckin.test.tsx src/app/app/patient/home/PatientHomeToday.test.tsx`
+- Result: `Test Files 7 passed (7)`, `Tests 20 passed (20)`.
+
+## 2026-04-28 — Phase 7 execution result
+
+- Phase: `Phase 7 — Подписочная карусель и бейджи`
+- Status: `completed`
+
+### Implemented
+
+- [`PatientHomeSubscriptionCarousel.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeSubscriptionCarousel.tsx): горизонтальный скролл с `snap-x snap-mandatory`, карточки `min-w-[280px] max-w-[320px]`, `scroll-padding` для peek; изображение/заголовок/бейдж по-прежнему из резолвера (`imageUrlOverride` → target image, `titleOverride` → title, `badgeLabel` → default «По подписке»).
+- [`patientHomeResolvers.ts`](../../apps/webapp/src/modules/patient-home/patientHomeResolvers.ts): экспорт `DEFAULT_SUBSCRIPTION_BADGE`, `getSubscriptionCarouselSectionPresentation` — сопоставление slug раздела с `patient_home_block_items` блока `subscription_carousel` без хардкода редакционных slug-ов.
+- [`sections/[slug]/page.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.tsx) + [`PatientSectionSubscriptionCallout.tsx`](../../apps/webapp/src/app/app/patient/sections/PatientSectionSubscriptionCallout.tsx): информационный блок при membership в карусели; контент не закрывается.
+- Тесты: [`patientHomeResolvers.test.ts`](../../apps/webapp/src/modules/patient-home/patientHomeResolvers.test.ts), [`PatientHomeSubscriptionCarousel.test.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx), [`page.subscription.test.tsx`](../../apps/webapp/src/app/app/patient/sections/[slug]/page.subscription.test.tsx).
+
+### Explicit constraints (Phase 7)
+
+- Нет платежей и paywall; нет gating по подписке.
+- Slug-и из `CONTENT_PLAN.md` не используются в runtime; в тестах — только `fixture-*` slug-и.
+
+### Gate (phase-level webapp)
+
+- Command: `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/patientHomeResolvers.test.ts src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/sections/[slug]/page.subscription.test.tsx`
+- Result: `Test Files 3 passed`, `Tests 12 passed`.
+- Command: `pnpm --dir apps/webapp exec tsc --noEmit` — pass.
+- Command: `pnpm --dir apps/webapp lint` — pass.
+- Full CI was not run (no repo-level scope).
+
+## 2026-04-28 — FIX post-audit (Phase 7)
+
+- Mode: `FIX` (mandatory items from `AUDIT_PHASE_7.md` only).
+- `AUDIT_PHASE_7.md` §2 **Mandatory fixes:** `None` — no application or schema changes required.
+- Action: confirmed scope; no code changes.
+- Constraints re-confirmed: no payments, no subscription gating, no editorial slug hardcode from `CONTENT_PLAN.md`.
+- Verification: targeted Phase 7 Vitest bundle per `AUDIT_PHASE_7.md` §4.
+
+### Gate
+
+- Command: `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/patientHomeResolvers.test.ts src/app/app/patient/home/PatientHomeSubscriptionCarousel.test.tsx src/app/app/patient/sections/[slug]/page.subscription.test.tsx`
+- Result: `Test Files 3 passed (3)`, `Tests 12 passed (12)`.
 

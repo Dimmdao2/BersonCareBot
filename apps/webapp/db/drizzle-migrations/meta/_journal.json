@@ -78,6 +78,13 @@
       "when": 1777401325439,
       "tag": "0010_patient_practice_completions",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777403852273,
+      "tag": "0011_patient_daily_mood",
+      "breakpoints": true
     }
   ]
 }
