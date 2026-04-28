@@ -26,7 +26,7 @@ export function PatientHomeDailyWarmupCard({ warmup, personalTierOk, anonymousGu
   }
 
   const heroImageUrl = stripApiMediaForAnonymousGuest(page.imageUrl, anonymousGuest);
-  const warmupHref = `/app/patient/content/${encodeURIComponent(page.slug)}`;
+  const warmupHref = `/app/patient/content/${encodeURIComponent(page.slug)}?from=daily_warmup`;
   const warmupLinkHref = anonymousGuest ? appLoginWithNextHref(warmupHref) : warmupHref;
 
   return (

@@ -287,3 +287,52 @@
 - Перед пушем: `pnpm install --frozen-lockfile` и полный `pnpm run ci` — зелёный после добавления root `pnpm.overrides` для `postcss>=8.5.10` и `fast-xml-parser>=5.7.0` (устранение moderate advisories в `registry-prod-audit`).
 - Коммит и `git push origin patient-home-redesign-initiative`.
 
+## 2026-04-28 — Phase 5 execution result
+
+- Phase: `Phase 5 — Прогресс выполнения и стрик`
+- Status: `completed`
+
+### Implemented
+
+- Таблица `patient_practice_completions`: Drizzle schema [`apps/webapp/db/schema/patientPractice.ts`](../../apps/webapp/db/schema/patientPractice.ts), миграция [`apps/webapp/db/drizzle-migrations/0010_patient_practice_completions.sql`](../../apps/webapp/db/drizzle-migrations/0010_patient_practice_completions.sql), FK на `content_pages(id)` ON DELETE CASCADE, без FK на users; CHECK по `source` и `feeling`.
+- Модуль [`apps/webapp/src/modules/patient-practice/`](../../apps/webapp/src/modules/patient-practice/) (ports, service, types, `streakLogic`, `patient-practice.md`).
+- Репозитории: [`pgPatientPracticeCompletions.ts`](../../apps/webapp/src/infra/repos/pgPatientPracticeCompletions.ts) (только Drizzle), [`inMemoryPatientPracticeCompletions.ts`](../../apps/webapp/src/infra/repos/inMemoryPatientPracticeCompletions.ts).
+- DI: [`buildAppDeps.ts`](../../apps/webapp/src/app-layer/di/buildAppDeps.ts) → `patientPractice`.
+- API: `POST /api/patient/practice/completion`, `GET /api/patient/practice/progress` с `requirePatientApiBusinessAccess`.
+- UI: [`PatientHomeProgressBlock.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeProgressBlock.tsx) — реальные `todayDone`, цель, `streak`; [`PatientHomeToday.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeToday.tsx) — загрузка прогресса при tier patient; [`PatientHomeDailyWarmupCard.tsx`](../../apps/webapp/src/app/app/patient/home/PatientHomeDailyWarmupCard.tsx) — ссылка с `?from=daily_warmup`; страница материала — [`PatientContentPracticeComplete.tsx`](../../apps/webapp/src/app/app/patient/content/[slug]/PatientContentPracticeComplete.tsx), обновлён [`page.tsx`](../../apps/webapp/src/app/app/patient/content/[slug]/page.tsx).
+- Откат: [`ROLLBACK_SQL.md`](ROLLBACK_SQL.md) раздел `0010`.
+- Тесты: service, streakLogic, API routes, ProgressBlock, DailyWarmupCard, ContentPracticeComplete, обновлён `PatientHomeToday.test.tsx`.
+
+### Explicit constraints (Phase 5)
+
+- Дневники симптомов и ЛФК не изменялись.
+- Без gamification badges.
+- Slug-и из `CONTENT_PLAN.md` не используются в runtime; источник `daily_warmup` только через query `from=daily_warmup`.
+
+### Gate (phase-level webapp)
+
+- Command: `pnpm --dir apps/webapp exec tsc --noEmit` — Result: pass (exit 0).
+- Command: `pnpm --dir apps/webapp lint` — Result: pass (exit 0).
+- Command: `pnpm --dir apps/webapp exec vitest run` on Phase 5 paths:
+  - `src/modules/patient-practice/service.test.ts`
+  - `src/modules/patient-practice/streakLogic.test.ts`
+  - `src/app/api/patient/practice/completion/route.test.ts`
+  - `src/app/api/patient/practice/progress/route.test.ts`
+  - `src/app/app/patient/home/PatientHomeProgressBlock.test.tsx`
+  - `src/app/app/patient/home/PatientHomeDailyWarmupCard.test.tsx`
+  - `src/app/app/patient/home/PatientHomeToday.test.tsx`
+  - `src/app/app/patient/content/[slug]/PatientContentPracticeComplete.test.tsx`
+- Result: `Test Files 8 passed (8)`, `Tests 21 passed (21)`.
+
+## 2026-04-28 — FIX post-audit (Phase 5)
+
+- Mode: `FIX` (mandatory items from `AUDIT_PHASE_5.md` only).
+- `AUDIT_PHASE_5.md` §2 **Mandatory fixes:** `None` — no application or schema changes required.
+- Action: confirmed scope; updated this log only (дневники симптомов/ЛФК не затрагивались).
+- Verification (targeted Phase 5 Vitest bundle per `AUDIT_PHASE_5.md` §4).
+
+### Gate
+
+- Command: `pnpm --dir apps/webapp exec vitest run` on the eight Phase 5 paths listed in `AUDIT_PHASE_5.md` §4.
+- Result: `Test Files 8 passed (8)`, `Tests 21 passed (21)`.
+

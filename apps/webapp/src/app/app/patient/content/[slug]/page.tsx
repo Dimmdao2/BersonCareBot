@@ -8,7 +8,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
-import { getOptionalPatientSession } from "@/app-layer/guards/requireRole";
+import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { routePaths } from "@/app-layer/routes/paths";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { PageSection } from "@/components/common/layout/PageSection";
@@ -16,8 +16,12 @@ import { AppShell } from "@/shared/ui/AppShell";
 import { MarkdownContent } from "@/shared/ui/markdown/MarkdownContent";
 import { ContentHeroImage } from "@/shared/ui/media/ContentHeroImage";
 import { NoContextMenuVideo } from "@/shared/ui/media/NoContextMenuVideo";
+import { PatientContentPracticeComplete } from "./PatientContentPracticeComplete";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
 function toYoutubeEmbedSrc(url: string): string | null {
   try {
@@ -45,8 +49,9 @@ function toYoutubeEmbedSrc(url: string): string | null {
 }
 
 /** Загружает материал по slug из каталога и рендерит статью. Доступно без входа. */
-export default async function ContentSlugPage({ params }: Props) {
+export default async function ContentSlugPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const sp = await searchParams;
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
   const dbRow = await deps.contentPages.getBySlug(slug);
@@ -56,6 +61,14 @@ export default async function ContentSlugPage({ params }: Props) {
   }
   const item = await deps.contentCatalog.getBySlug(slug);
   if (!item) notFound();
+  if (!dbRow) notFound();
+
+  const contentPath = `/app/patient/content/${encodeURIComponent(slug)}`;
+  const personalTierOk =
+    session ? (await patientRscPersonalDataGate(session, contentPath)) === "allow" : false;
+  const rawFrom = sp.from;
+  const fromVal = Array.isArray(rawFrom) ? rawFrom[0] : rawFrom;
+  const practiceSource = fromVal === "daily_warmup" ? ("daily_warmup" as const) : ("section_page" as const);
 
   const videoPlayableUrl =
     item.videoSource?.type === "url" && item.videoSource.url.trim()
@@ -119,6 +132,13 @@ export default async function ContentSlugPage({ params }: Props) {
             <p className="text-muted-foreground">Видео будет добавлено в ближайшее время.</p>
           </PageSection>
         )}
+        <PatientContentPracticeComplete
+          contentPageId={dbRow.id}
+          contentPath={contentPath}
+          practiceSource={practiceSource}
+          guest={session === null}
+          needsActivation={session !== null && !personalTierOk}
+        />
         {courseCta ? (
           <PageSection
             as="section"

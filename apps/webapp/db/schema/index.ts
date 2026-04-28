@@ -7,4 +7,5 @@ export * from "./treatmentProgramTestAttempts";
 export * from "./treatmentProgramEvents";
 export * from "./entityComments";
 export * from "./courses";
+export * from "./patientPractice";
 export * from "./relations";

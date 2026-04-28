@@ -30,6 +30,7 @@ import { PatientHomeSubscriptionCarousel } from "./PatientHomeSubscriptionCarous
 import { PatientHomeCoursesRow } from "./PatientHomeCoursesRow";
 import { PatientHomeTodayLayout } from "./PatientHomeTodayLayout";
 import { hrefForPatientHomeDrilldown, stripApiMediaForAnonymousGuest } from "./patientHomeGuestNav";
+import { getAppDisplayTimeZone } from "@/modules/system-settings/appDisplayTimezone";
 
 type Props = {
   session: AppSession | null;
@@ -123,6 +124,13 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
 
   const sorted = filterAndSortPatientHomeBlocks(homeBlocks, personalTierOk);
 
+  let progress: { todayDone: number; streak: number } | null = null;
+  if (personalTierOk && session) {
+    const tz = await getAppDisplayTimeZone();
+    const p = await deps.patientPractice.getProgress(session.user.userId, tz, todayCfg.practiceTarget);
+    progress = { todayDone: p.todayDone, streak: p.streak };
+  }
+
   const personalizedName = personalTierOk && session ? session.user.displayName?.trim() || null : null;
 
   const renderBlock = (code: PatientHomeBlockCode): ReactNode => {
@@ -146,6 +154,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
             practiceTarget={todayCfg.practiceTarget}
             personalTierOk={personalTierOk}
             anonymousGuest={anonymousGuest}
+            progress={progress}
           />
         );
       case "next_reminder":

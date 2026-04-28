@@ -14,6 +14,7 @@ const listBlocksWithItems = vi.fn();
 const contentSectionsGetBySlug = vi.fn();
 const contentPagesGetBySlug = vi.fn();
 const coursesGetCourseForDoctor = vi.fn();
+const getProgress = vi.fn();
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
@@ -24,7 +25,12 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     reminders: { listRulesByUser },
     treatmentProgramInstance: { listForPatient },
     systemSettings: { getSetting: vi.fn().mockResolvedValue(null) },
+    patientPractice: { getProgress },
   }),
+}));
+
+vi.mock("@/modules/system-settings/appDisplayTimezone", () => ({
+  getAppDisplayTimeZone: vi.fn().mockResolvedValue("Europe/Moscow"),
 }));
 
 vi.mock("@/modules/patient-home/todayConfig", () => ({
@@ -131,6 +137,7 @@ describe("PatientHomeToday", () => {
     coursesGetCourseForDoctor.mockResolvedValue(null);
     listRulesByUser.mockResolvedValue([]);
     listForPatient.mockResolvedValue([]);
+    getProgress.mockResolvedValue({ todayDone: 1, todayTarget: 3, streak: 2 });
   });
 
   it("anonymous guest: no personal API, login drilldown on warmup, no progress block", async () => {
@@ -176,6 +183,7 @@ describe("PatientHomeToday", () => {
 
     expect(listRulesByUser).toHaveBeenCalledWith(fixtureSession.user.userId);
     expect(listForPatient).toHaveBeenCalledWith(fixtureSession.user.userId);
+    expect(getProgress).toHaveBeenCalled();
 
     expect(screen.getByText(/Здравствуйте, Fixture User/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();

@@ -9,3 +9,9 @@ ALTER TABLE content_pages DROP CONSTRAINT IF EXISTS content_pages_linked_course_
 DROP INDEX IF EXISTS idx_content_pages_linked_course;
 ALTER TABLE content_pages DROP COLUMN IF EXISTS linked_course_id;
 ```
+
+## 0010_patient_practice_completions
+
+```sql
+DROP TABLE IF EXISTS patient_practice_completions CASCADE;
+```
