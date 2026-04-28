@@ -205,6 +205,47 @@ export async function handleReminders(
     const items = Array.isArray(dueList) ? dueList : [];
     const writes: import('../../../contracts/index.js').DbWriteMutation[] = [];
     const intents: import('../../../contracts/index.js').OutgoingIntent[] = [];
+    const linkedTitleCache = new Map<string, string | null>();
+    const db = process.env.NODE_ENV === 'test' ? null : createDbPort();
+
+    async function resolveLinkedTitle(rule: ReminderRuleRecord | undefined): Promise<string | null> {
+      if (!db || !rule?.linkedObjectType || !rule?.linkedObjectId) return null;
+      if (rule.linkedObjectType !== 'content_page' && rule.linkedObjectType !== 'content_section') return null;
+      const cacheKey = `${rule.linkedObjectType}:${rule.linkedObjectId}`;
+      if (linkedTitleCache.has(cacheKey)) return linkedTitleCache.get(cacheKey) ?? null;
+      try {
+        if (rule.linkedObjectType === 'content_page') {
+          const res = await db.query<{ title: string }>(
+            `SELECT title
+             FROM public.content_pages
+             WHERE slug = $1
+               AND is_published = true
+               AND deleted_at IS NULL
+             LIMIT 1`,
+            [rule.linkedObjectId],
+          );
+          const title = typeof res.rows[0]?.title === 'string' ? res.rows[0]!.title.trim() : '';
+          const val = title.length > 0 ? title : null;
+          linkedTitleCache.set(cacheKey, val);
+          return val;
+        }
+        const res = await db.query<{ title: string }>(
+          `SELECT title
+           FROM public.content_sections
+           WHERE slug = $1
+             AND deleted_at IS NULL
+           LIMIT 1`,
+          [rule.linkedObjectId],
+        );
+        const title = typeof res.rows[0]?.title === 'string' ? res.rows[0]!.title.trim() : '';
+        const val = title.length > 0 ? title : null;
+        linkedTitleCache.set(cacheKey, val);
+        return val;
+      } catch {
+        linkedTitleCache.set(cacheKey, null);
+        return null;
+      }
+    }
 
     const rulesCache = new Map<string, Map<string, ReminderRuleRecord>>();
     async function rulesForUser(userId: string): Promise<Map<string, ReminderRuleRecord>> {
@@ -235,17 +276,22 @@ export async function handleReminders(
       let reminderTitle: string;
       if (rule?.customTitle?.trim()) {
         reminderTitle = rule.customTitle.trim();
-      } else if (deps.templatePort) {
-        reminderTitle = (
-          await deps.templatePort.renderTemplate({
-            source: 'telegram',
-            templateId: categoryTemplateId,
-            vars: {},
-            audience: 'user',
-          })
-        ).text.trim();
       } else {
-        reminderTitle = 'Напоминание';
+        const linkedTitle = await resolveLinkedTitle(rule);
+        if (linkedTitle) {
+          reminderTitle = linkedTitle;
+        } else if (deps.templatePort) {
+          reminderTitle = (
+            await deps.templatePort.renderTemplate({
+              source: 'telegram',
+              templateId: categoryTemplateId,
+              vars: {},
+              audience: 'user',
+            })
+          ).text.trim();
+        } else {
+          reminderTitle = 'Напоминание';
+        }
       }
       const reminderBodyRaw = rule?.customText?.trim() ?? '';
       const reminderBody = reminderBodyRaw ? escapeReminderHtml(reminderBodyRaw) : '';

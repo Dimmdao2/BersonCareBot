@@ -19,6 +19,8 @@ export type ReminderRule = {
   windowEndMinute: number;
   /** Bitmask Mon–Sun as 7-char string, e.g. '1111111' */
   daysMask: string;
+  /** IANA timezone for schedule evaluation (matches integrator reminder_rules.timezone). */
+  timezone: string;
   /** Derived from category policy (USER_TODO_STAGE §4). */
   fallbackEnabled: boolean;
   linkedObjectType: ReminderLinkedObjectType | null;

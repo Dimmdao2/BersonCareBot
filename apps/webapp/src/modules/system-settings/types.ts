@@ -33,6 +33,10 @@ export const ALLOWED_KEYS = [
   "app_display_timezone",
   /** Цель «коротких практик в день» на главной пациента (1–10), default 3. */
   "patient_home_daily_practice_target",
+  /** Утренний пинг «Разминка дня» в боте (глобально). */
+  "patient_home_morning_ping_enabled",
+  /** Локальное время пинга по таймзоне приложения (HH:MM), default 09:00. */
+  "patient_home_morning_ping_local_time",
   /** Yandex OAuth (backend-only; не показывать в публичном login UI). */
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",

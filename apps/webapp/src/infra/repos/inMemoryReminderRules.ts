@@ -55,6 +55,7 @@ export function createInMemoryReminderRulesPort(
         integratorUserId: input.integratorUserId,
         category,
         enabled: input.enabled,
+        timezone: "Europe/Moscow",
         intervalMinutes: input.schedule.intervalMinutes,
         windowStartMinute: input.schedule.windowStartMinute,
         windowEndMinute: input.schedule.windowEndMinute,

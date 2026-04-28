@@ -27,6 +27,8 @@ const ADMIN_SCOPE_KEYS = [
   "vk_web_login_url",
   "app_display_timezone",
   "patient_home_daily_practice_target",
+  "patient_home_morning_ping_enabled",
+  "patient_home_morning_ping_local_time",
   "yandex_oauth_client_id",
   "yandex_oauth_client_secret",
   "yandex_oauth_redirect_uri",
@@ -151,6 +153,33 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
     }
     normalizedValue = { value: n };
+  }
+
+  if (parsed.data.key === "patient_home_morning_ping_enabled") {
+    const inner = normalizedValue.value;
+    const b =
+      typeof inner === "boolean"
+        ? inner
+        : inner === "true" || inner === 1
+          ? true
+          : inner === "false" || inner === 0
+            ? false
+            : null;
+    if (b === null) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    normalizedValue = { value: b };
+  }
+
+  if (parsed.data.key === "patient_home_morning_ping_local_time") {
+    const inner = normalizedValue.value;
+    const s = typeof inner === "string" ? inner.trim() : null;
+    if (s === null || !/^([01]?\d|2[0-3]):([0-5]\d)$/.test(s)) {
+      return NextResponse.json({ ok: false, error: "invalid_value" }, { status: 400 });
+    }
+    const [hs, ms] = s.split(":");
+    const pad = `${hs!.padStart(2, "0")}:${ms}`;
+    normalizedValue = { value: pad };
   }
 
   // Audit log перед обновлением (секреты редактируются без вывода raw значения в logs).

@@ -13,6 +13,7 @@ const makeRule = (overrides: Partial<ReminderRule> = {}): ReminderRule => ({
   integratorUserId: "user-1",
   category: "lfk",
   enabled: true,
+  timezone: "Europe/Moscow",
   intervalMinutes: 60,
   windowStartMinute: 480,
   windowEndMinute: 1200,

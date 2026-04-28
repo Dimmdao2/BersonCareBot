@@ -873,6 +873,8 @@
 
 **Рекомендуемый агент:** Codex 5.3 — интегратор/worker/system_settings; Composer 2 здесь рискован.
 
+**Phase 8 — режим плана:** `EXEC` (фиксация в README § Phase 8).
+
 ## PROMPT 30 — EXEC PHASE 8
 
 ```text

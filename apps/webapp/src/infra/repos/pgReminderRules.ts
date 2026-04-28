@@ -32,6 +32,7 @@ function toRule(row: {
   integrator_user_id: string;
   category: string;
   is_enabled: boolean;
+  timezone: string;
   interval_minutes: number;
   window_start_minute: number;
   window_end_minute: number;
@@ -47,6 +48,7 @@ function toRule(row: {
     integratorUserId: row.integrator_user_id,
     category: row.category as ReminderRule["category"],
     enabled: row.is_enabled,
+    timezone: row.timezone?.trim() || "Europe/Moscow",
     intervalMinutes: row.interval_minutes ?? null,
     windowStartMinute: row.window_start_minute,
     windowEndMinute: row.window_end_minute,
@@ -65,6 +67,7 @@ const SELECT_COLS = `
   rr.integrator_user_id::text,
   rr.category,
   rr.is_enabled,
+  rr.timezone,
   rr.interval_minutes,
   rr.window_start_minute,
   rr.window_end_minute,
@@ -150,6 +153,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           integrator_user_id::text,
           category,
           is_enabled,
+          timezone,
           interval_minutes,
           window_start_minute,
           window_end_minute,

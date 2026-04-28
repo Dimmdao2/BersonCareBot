@@ -27,6 +27,7 @@ import { handleBooking } from './handlers/booking.js';
 import { handleDelivery } from './handlers/delivery.js';
 import { handleNotifications } from './handlers/notifications.js';
 import { handleReminders } from './handlers/reminders.js';
+import { handlePatientHomeMorningPing } from './handlers/patientHomeMorningPing.js';
 import { handleConversationAdminReply, handleConversationUserMessage } from './handlers/supportRelay.js';
 import {
   type ExecutorDeps,
@@ -144,6 +145,9 @@ export async function executeAction(
   if (BOOKING_TYPES.has(action.type)) return handleBooking(action, ctx, fullDeps);
   if (NOTIFICATION_TYPES.has(action.type)) return handleNotifications(action, ctx, fullDeps);
   if (REMINDER_TYPES.has(action.type)) return handleReminders(action, ctx, fullDeps);
+  if (action.type === 'patient_home.morningWarmupPing') {
+    return handlePatientHomeMorningPing(action, ctx, fullDeps);
+  }
   if (DELIVERY_TYPES.has(action.type)) return handleDelivery(action, ctx, fullDeps);
 
   switch (action.type) {

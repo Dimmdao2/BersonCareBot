@@ -5,6 +5,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { AppSession } from "@/shared/types/session";
 
 const listRulesByUserMock = vi.hoisted(() => vi.fn(async () => []));
+const listBlocksWithItemsMock = vi.hoisted(() => vi.fn(async () => []));
 const getOptionalPatientSessionMock = vi.hoisted(() => vi.fn());
 const patientRscPersonalDataGateMock = vi.hoisted(() => vi.fn());
 
@@ -39,6 +40,9 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     contentPages: {
       listBySection: vi.fn(async () => []),
     },
+    patientHomeBlocks: {
+      listBlocksWithItems: listBlocksWithItemsMock,
+    },
     reminders: {
       listRulesByUser: listRulesByUserMock,
     },
@@ -66,6 +70,7 @@ function clientSession(): AppSession {
 describe("PatientSectionPage /warmups — patientRscPersonalDataGate (Phase E D-TST-1)", () => {
   beforeEach(() => {
     listRulesByUserMock.mockClear();
+    listBlocksWithItemsMock.mockClear();
     getOptionalPatientSessionMock.mockReset();
     patientRscPersonalDataGateMock.mockReset();
   });

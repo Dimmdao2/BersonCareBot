@@ -3,11 +3,9 @@ import type { ReminderRule } from "@/modules/reminders/types";
 import { routePaths } from "@/app-layer/routes/paths";
 import { patientHomeCardClass } from "./patientHomeCardStyles";
 
-type Props = { rule: ReminderRule | null };
+type Props = { rule: ReminderRule; scheduleLabel: string };
 
-export function PatientHomeNextReminderCard({ rule }: Props) {
-  if (!rule) return null;
-
+export function PatientHomeNextReminderCard({ rule, scheduleLabel }: Props) {
   return (
     <section aria-labelledby="patient-home-reminder-heading" data-reminder-rule-id={rule.id}>
       <h2 id="patient-home-reminder-heading" className="mb-2 text-base font-semibold">
@@ -15,7 +13,11 @@ export function PatientHomeNextReminderCard({ rule }: Props) {
       </h2>
       <div className={patientHomeCardClass}>
         <p className="text-sm text-muted-foreground">
-          По расписанию: напоминание активно (тип: {rule.linkedObjectType ?? "—"}). Управление — в разделе «Помощник».
+          Ближайшее срабатывание: <span className="text-foreground">{scheduleLabel}</span>
+          {rule.linkedObjectType ? (
+            <span className="text-muted-foreground"> (тип: {rule.linkedObjectType})</span>
+          ) : null}
+          . Управление — в разделе «Помощник».
         </p>
         <Link
           href={routePaths.patientReminders}

@@ -3,7 +3,11 @@ import type { AppSession } from "@/shared/types/session";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getPatientHomeTodayConfig } from "@/modules/patient-home/todayConfig";
 import { filterAndSortPatientHomeBlocks } from "@/modules/patient-home/patientHomeBlockPolicy";
-import { pickNextReminderRuleForHome } from "@/modules/patient-home/patientHomeReminderPick";
+import type { ReminderRule } from "@/modules/reminders/types";
+import {
+  formatNextReminderLabel,
+  pickNextHomeReminder,
+} from "@/modules/patient-home/nextReminderOccurrence";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
 import type { PatientMoodToday } from "@/modules/patient-mood/types";
 import type {
@@ -109,33 +113,32 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
   const sosCard = mapSosForGuest(sosCardRaw, anonymousGuest);
   const courseCards = mapCourseCardsForGuest(courseCardsRaw, anonymousGuest);
 
-  let reminderRule = null;
+  let homeReminder: { rule: ReminderRule; nextAt: Date } | null = null;
   let planInstance: { id: string; title: string } | null = null;
+  let progress: { todayDone: number; streak: number } | null = null;
+  let initialMood: PatientMoodToday | null = null;
+  let appTz = "Europe/Moscow";
   if (personalTierOk && session) {
-    const [rules, instances] = await Promise.all([
+    appTz = await getAppDisplayTimeZone();
+    const [rules, instances, p, mood] = await Promise.all([
       deps.reminders.listRulesByUser(session.user.userId),
       deps.treatmentProgramInstance.listForPatient(session.user.userId),
+      deps.patientPractice.getProgress(session.user.userId, appTz, todayCfg.practiceTarget),
+      deps.patientMood.getToday(session.user.userId, appTz),
     ]);
-    reminderRule = pickNextReminderRuleForHome(rules);
+    homeReminder = pickNextHomeReminder(rules, new Date(), appTz);
     const active = instances
       .filter((i) => i.status === "active")
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     planInstance = active[0] ? { id: active[0].id, title: active[0].title } : null;
+    progress = { todayDone: p.todayDone, streak: p.streak };
+    initialMood = mood;
   }
 
   const sorted = filterAndSortPatientHomeBlocks(homeBlocks, personalTierOk);
 
-  let progress: { todayDone: number; streak: number } | null = null;
-  let initialMood: PatientMoodToday | null = null;
-  if (personalTierOk && session) {
-    const tz = await getAppDisplayTimeZone();
-    const [p, mood] = await Promise.all([
-      deps.patientPractice.getProgress(session.user.userId, tz, todayCfg.practiceTarget),
-      deps.patientMood.getToday(session.user.userId, tz),
-    ]);
-    progress = { todayDone: p.todayDone, streak: p.streak };
-    initialMood = mood;
-  }
+  const nextReminderScheduleLabel =
+    homeReminder ? formatNextReminderLabel(homeReminder.nextAt, appTz) : "";
 
   const personalizedName = personalTierOk && session ? session.user.displayName?.trim() || null : null;
 
@@ -164,8 +167,13 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
           />
         );
       case "next_reminder":
-        if (!reminderRule) return null;
-        return <PatientHomeNextReminderCard rule={reminderRule} />;
+        if (!homeReminder) return null;
+        return (
+          <PatientHomeNextReminderCard
+            rule={homeReminder.rule}
+            scheduleLabel={nextReminderScheduleLabel}
+          />
+        );
       case "mood_checkin":
         return (
           <PatientHomeMoodCheckin

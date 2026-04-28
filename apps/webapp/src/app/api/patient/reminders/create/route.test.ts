@@ -38,6 +38,7 @@ const sampleObjectRule = (): ReminderRule => ({
   integratorUserId: "platform-user-1",
   category: "lfk",
   enabled: true,
+  timezone: "Europe/Moscow",
   intervalMinutes: 60,
   windowStartMinute: 480,
   windowEndMinute: 1200,

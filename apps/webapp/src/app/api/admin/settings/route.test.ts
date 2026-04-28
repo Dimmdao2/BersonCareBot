@@ -68,6 +68,11 @@ describe("ALLOWED_KEYS / ADMIN scope (Phase 2)", () => {
   it("includes patient_home_daily_practice_target for webapp whitelist", () => {
     expect(ALLOWED_KEYS).toContain("patient_home_daily_practice_target");
   });
+
+  it("includes Phase 8 morning ping keys", () => {
+    expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_enabled");
+    expect(ALLOWED_KEYS).toContain("patient_home_morning_ping_local_time");
+  });
 });
 
 describe("PATCH /api/admin/settings", () => {
@@ -333,6 +338,77 @@ describe("PATCH /api/admin/settings", () => {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key: "patient_home_daily_practice_target", value: { value: 11 } }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(updateSettingMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 200 for patient_home_morning_ping_enabled boolean", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_home_morning_ping_enabled",
+      scope: "admin",
+      valueJson: { value: true },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: "patient_home_morning_ping_enabled", value: { value: true } }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_home_morning_ping_enabled",
+      "admin",
+      { value: true },
+      "a1",
+    );
+  });
+
+  it("returns 200 for patient_home_morning_ping_local_time HH:MM", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    getSettingMock.mockResolvedValue(null);
+    updateSettingMock.mockResolvedValue({
+      key: "patient_home_morning_ping_local_time",
+      scope: "admin",
+      valueJson: { value: "09:30" },
+      updatedAt: "",
+      updatedBy: "a1",
+    });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_morning_ping_local_time",
+          value: { value: "9:30" },
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(updateSettingMock).toHaveBeenCalledWith(
+      "patient_home_morning_ping_local_time",
+      "admin",
+      { value: "09:30" },
+      "a1",
+    );
+  });
+
+  it("returns 400 for patient_home_morning_ping_local_time invalid", async () => {
+    getSessionMock.mockResolvedValue({ user: { userId: "a1", role: "admin", bindings: {} } });
+    const res = await PATCH(
+      new Request("http://localhost/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "patient_home_morning_ping_local_time",
+          value: { value: "25:00" },
+        }),
       }),
     );
     expect(res.status).toBe(400);
