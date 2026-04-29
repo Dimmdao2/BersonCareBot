@@ -198,7 +198,7 @@ describe("PatientHomeToday", () => {
     expect(getProgress).toHaveBeenCalled();
     expect(getTodayMood).toHaveBeenCalledWith(fixtureSession.user.userId, "Europe/Moscow");
 
-    expect(screen.getByText(/Здравствуйте, Fixture User/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Fixture User!/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /^Прогресс$/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Самочувствие 4 из 5/i })).toHaveAttribute("aria-pressed", "true");
   });
