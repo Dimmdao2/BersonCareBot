@@ -12,6 +12,7 @@ import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
 import { PatientGatedHeader } from "@/shared/ui/PatientGatedHeader";
 import { PatientBottomNav } from "@/shared/ui/PatientBottomNav";
+import { PatientTopNav } from "@/shared/ui/PatientTopNav";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
@@ -27,8 +28,9 @@ type AppShellProps = {
   titleSmall?: boolean;
   /**
    * Вариант оболочки.
-   * - `patient` — узкая колонка пациента (`max-w-[480px]` на всех ширинах).
-   * - `patient-wide` — то же до брейкпоинта `lg`; с `lg:` расширяется до `max-w-6xl`. Использовать только на главной пациента `/app/patient`.
+   * - `patient` — patient mobile shell (`max-w-[430px]`) с расширением до `~1180px` на `lg+`.
+   *   На `lg+` сверху рендерится {@link PatientTopNav} (primary nav), нижний {@link PatientBottomNav} скрывается через `lg:hidden`.
+   *   `patient-wide` (legacy alias) ведёт себя так же — отдельный широкий вариант больше не нужен по `VISUAL_SYSTEM_SPEC §3` / `§5`.
    * - `doctor` — кабинет специалиста (широкий workspace).
    */
   variant?: "default" | "patient" | "patient-wide" | "doctor";
@@ -69,21 +71,30 @@ export function AppShell({
   patientHideBottomNav = false,
 }: AppShellProps) {
   if (variant === "patient" || variant === "patient-wide") {
-    const patientShellWidthClass = variant === "patient-wide" ? "max-w-[480px] lg:max-w-6xl" : "max-w-[480px]";
-
+    /**
+     * VISUAL_SYSTEM_SPEC §3 / §5: mobile shell `max-w-[430px]`, на `lg+` колонка
+     * расширяется до `~1180px`, top primary nav рендерится только на `lg+`,
+     * bottom primary nav — только `< lg`. Bg — страничный `--patient-page-bg`,
+     * чтобы карточки контрастировали с фоном (карточки используют `--patient-card-bg`).
+     */
+    const showPatientShellNav = !patientEmbedMain && !patientHideBottomNav && !patientBrandTitleBar;
     return (
       <div
         id="app-shell-patient"
         className={cn(
-          "mx-auto flex min-h-[100dvh] w-full flex-col bg-[var(--patient-surface)] pt-[max(0px,env(safe-area-inset-top,0px))]",
-          patientShellWidthClass,
+          "mx-auto flex min-h-[100dvh] w-full flex-col bg-[var(--patient-page-bg)] pt-[max(0px,env(safe-area-inset-top,0px))]",
           patientEmbedMain
-            ? "gap-0 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
-            : patientHideBottomNav ?
-              "gap-3 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]"
-            : "safe-padding-patient gap-3",
+            ? "max-w-[480px] gap-0 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+            : patientHideBottomNav
+              ? "max-w-[430px] gap-3 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] lg:max-w-[min(1180px,calc(100vw-2rem))]"
+              : "max-w-[430px] safe-padding-patient gap-3 lg:max-w-[min(1180px,calc(100vw-2rem))]",
         )}
       >
+        {showPatientShellNav ? (
+          <div className="z-50 hidden shrink-0 lg:block">
+            <PatientTopNav />
+          </div>
+        ) : null}
         <PatientGatedHeader
           pageTitle={title}
           showBack={!!backHref}
@@ -104,7 +115,7 @@ export function AppShell({
           {children}
         </main>
         {patientFloatingSlot}
-        {patientEmbedMain || patientHideBottomNav ? null : <PatientBottomNav />}
+        {showPatientShellNav ? <div className="lg:hidden"><PatientBottomNav /></div> : null}
       </div>
     );
   }

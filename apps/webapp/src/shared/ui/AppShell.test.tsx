@@ -21,7 +21,7 @@ vi.mock("@/shared/hooks/useReminderUnread", () => ({
 }));
 
 describe("AppShell patient width variants", () => {
-  it("keeps patient variant narrow", () => {
+  it("keeps patient variant in mobile shell width and widens on lg+ (VISUAL_SYSTEM_SPEC §3 / §5)", () => {
     const { container } = render(
       <AppShell title="Сегодня" user={null} variant="patient">
         <div>Content</div>
@@ -29,11 +29,11 @@ describe("AppShell patient width variants", () => {
     );
 
     const shell = container.querySelector("#app-shell-patient");
-    expect(shell).toHaveClass("max-w-[480px]");
-    expect(shell).not.toHaveClass("lg:max-w-6xl");
+    expect(shell).toHaveClass("max-w-[430px]");
+    expect(shell).toHaveClass("lg:max-w-[min(1180px,calc(100vw-2rem))]");
   });
 
-  it("widens patient-wide only on lg+", () => {
+  it("treats patient-wide as alias for patient (legacy back-compat)", () => {
     const { container } = render(
       <AppShell title="Сегодня" user={null} variant="patient-wide">
         <div>Content</div>
@@ -41,8 +41,19 @@ describe("AppShell patient width variants", () => {
     );
 
     const shell = container.querySelector("#app-shell-patient");
-    expect(shell).toHaveClass("max-w-[480px]");
-    expect(shell).toHaveClass("lg:max-w-6xl");
+    expect(shell).toHaveClass("max-w-[430px]");
+    expect(shell).toHaveClass("lg:max-w-[min(1180px,calc(100vw-2rem))]");
+  });
+
+  it("uses patient page background token", () => {
+    const { container } = render(
+      <AppShell title="Сегодня" user={null} variant="patient">
+        <div>Content</div>
+      </AppShell>,
+    );
+
+    const shell = container.querySelector("#app-shell-patient");
+    expect(shell).toHaveClass("bg-[var(--patient-page-bg)]");
   });
 
   it("forwards patientTitleBadge to patient header", () => {
