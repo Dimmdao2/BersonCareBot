@@ -43,10 +43,16 @@ function getDesktopBlockClass(code: PatientHomeBlockCode): string {
 
 export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, blocks }: Props) {
   return (
-    <div className="flex flex-col gap-6 pb-6">
+    <div
+      id="patient-home-today-layout"
+      className="flex flex-col gap-5 pb-6 lg:gap-6"
+    >
       <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" data-testid="patient-home-layout-grid">
+      <div
+        className="grid w-full min-w-0 gap-5 lg:grid-cols-[3fr_2fr] lg:items-start lg:gap-6"
+        data-testid="patient-home-layout-grid"
+      >
         {blocks.map((block) => (
           <div key={block.code} className={cn("min-w-0", getDesktopBlockClass(block.code))} data-patient-home-block={block.code}>
             {block.node}

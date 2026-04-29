@@ -33,8 +33,10 @@ describe("PatientHomeTodayLayout", () => {
 
     const layoutGrid = screen.getByTestId("patient-home-layout-grid");
     expect(layoutGrid).toHaveClass("grid");
-    expect(layoutGrid).toHaveClass("gap-6");
-    expect(layoutGrid).toHaveClass("lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]");
+    expect(layoutGrid).toHaveClass("gap-5");
+    expect(layoutGrid).toHaveClass("lg:gap-6");
+    expect(layoutGrid).toHaveClass("lg:grid-cols-[3fr_2fr]");
+    expect(layoutGrid).toHaveClass("lg:items-start");
 
     const warmup = container.querySelector('[data-patient-home-block="daily_warmup"]');
     expect(warmup).toHaveClass("lg:col-start-1");
