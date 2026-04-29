@@ -18,6 +18,8 @@ type SectionRow = {
   sortOrder: number;
   isVisible: boolean;
   requiresAuth: boolean;
+  iconImageUrl?: string | null;
+  coverImageUrl?: string | null;
 };
 
 export function SectionForm({
@@ -144,6 +146,32 @@ export function SectionForm({
           rows={2}
           defaultValue={section?.description ?? ""}
           key={`desc-${section?.slug ?? "new"}`}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          URL иконки (опционально)
+        </span>
+        <Input
+          type="text"
+          name="icon_image_url"
+          defaultValue={section?.iconImageUrl ?? ""}
+          placeholder="/api/media/… или https://…"
+          key={`icon-${section?.slug ?? "new"}`}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          URL обложки (опционально)
+        </span>
+        <Input
+          type="text"
+          name="cover_image_url"
+          defaultValue={section?.coverImageUrl ?? ""}
+          placeholder="/api/media/… или https://…"
+          key={`cover-${section?.slug ?? "new"}`}
         />
       </label>
 

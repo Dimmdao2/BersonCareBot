@@ -47,7 +47,9 @@ import {
   PatientHomeSubscriptionCarousel,
   type PatientHomeSubscriptionItem,
 } from "./home/PatientHomeSubscriptionCarousel";
+import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
 import { PatientHomeCoursesRow, type PatientHomeCourseRowItem } from "./home/PatientHomeCoursesRow";
+import type { ResolvedPatientHomeSos } from "@/modules/patient-home/service";
 
 /** Цель «разминок за день» для полосы прогресса до появления отдельного patient-practice API. */
 const PATIENT_HOME_DAILY_PRACTICE_TARGET = 3;
@@ -165,6 +167,37 @@ export default async function PatientHomePage() {
 
   const showPrimaryToday = blocks.has("cabinet") || blocks.has("materials");
 
+  const phCtx = { canViewAuthOnlyContent: canViewAuthSections };
+
+  let cmsSituationSections: ContentSectionRow[] | undefined;
+  let cmsDailyWarmup:
+    | {
+        title: string;
+        summary: string;
+        href: string;
+        imageUrl?: string | null;
+        durationMinutes?: number | null;
+      }
+    | null
+    | undefined;
+
+  if (showPrimaryToday) {
+    try {
+      const [sitSnap, warmSnap] = await Promise.all([
+        deps.patientHome.getCmsBlockSnapshot("situations"),
+        deps.patientHome.getCmsBlockSnapshot("daily_warmup"),
+      ]);
+      cmsSituationSections = sitSnap.blockVisible
+        ? await deps.patientHome.resolveSituationSections(sitSnap.items, phCtx)
+        : undefined;
+      cmsDailyWarmup = !warmSnap.blockVisible
+        ? undefined
+        : await deps.patientHome.resolveDailyWarmupHero(warmSnap.items, phCtx);
+    } catch (err) {
+      logServerRuntimeError("app/patient/home-primary-cms", err);
+    }
+  }
+
   let patientHomeSecondary: ReactNode = null;
   if (showPrimaryToday) {
     try {
@@ -240,9 +273,19 @@ export default async function PatientHomePage() {
         ? `/app/patient/content/${encodeURIComponent(sosTopic.id)}`
         : routePaths.emergency;
 
+      let sosFromCms: ResolvedPatientHomeSos | null = null;
+      try {
+        const sosSnap = await deps.patientHome.getCmsBlockSnapshot("sos");
+        if (sosSnap.blockVisible) {
+          sosFromCms = await deps.patientHome.resolveSosCard(sosSnap.items, phCtx, emergencyTopics);
+        }
+      } catch {
+        sosFromCms = null;
+      }
+
       const activePlan = programs.find((p) => p.status === "active") ?? null;
 
-      const subscriptionItems: PatientHomeSubscriptionItem[] = [
+      const defaultSubscriptionItems: PatientHomeSubscriptionItem[] = [
         {
           id: "exercise_reminders",
           title: "Напоминания об упражнениях",
@@ -277,7 +320,20 @@ export default async function PatientHomePage() {
         },
       ];
 
-      const courseItems: PatientHomeCourseRowItem[] = courseCatalog.slice(0, 5).map((c) => ({
+      let subscriptionItems = defaultSubscriptionItems;
+      try {
+        const subSnap = await deps.patientHome.getCmsBlockSnapshot("subscription_carousel");
+        if (subSnap.blockVisible) {
+          const cmsSubs = await deps.patientHome.resolveSubscriptionCarousel(subSnap.items, phCtx);
+          if (cmsSubs.length > 0) {
+            subscriptionItems = cmsSubs;
+          }
+        }
+      } catch {
+        /* keep default */
+      }
+
+      let courseItems: PatientHomeCourseRowItem[] = courseCatalog.slice(0, 5).map((c) => ({
         id: c.id,
         title: c.title,
         subtitle: c.description,
@@ -285,6 +341,18 @@ export default async function PatientHomePage() {
           ? `/app/patient/content/${encodeURIComponent(c.introContentSlug)}`
           : routePaths.patientCourses,
       }));
+
+      try {
+        const cSnap = await deps.patientHome.getCmsBlockSnapshot("courses");
+        if (cSnap.blockVisible) {
+          const cmsCourses = await deps.patientHome.resolveCourseRowItems(cSnap.items, phCtx);
+          if (cmsCourses.length > 0) {
+            courseItems = cmsCourses;
+          }
+        }
+      } catch {
+        /* keep catalog slice */
+      }
 
       patientHomeSecondary = (
         <section id="patient-home-secondary" className="flex flex-col gap-4">
@@ -296,7 +364,15 @@ export default async function PatientHomePage() {
           />
           {reminderBlock}
           <PatientHomeMoodCheckin disabled={!personalDataOk || session?.user == null} />
-          {sosTopic ? (
+          {sosFromCms ? (
+            <PatientHomeSosCard
+              title={sosFromCms.title}
+              description={sosFromCms.description}
+              href={sosFromCms.href}
+              buttonLabel="Скорая помощь"
+              imageUrl={sosFromCms.imageUrl}
+            />
+          ) : sosTopic ? (
             <PatientHomeSosCard
               title="Если болит сейчас"
               description={sosTopic.summary}
@@ -340,6 +416,8 @@ export default async function PatientHomePage() {
             contentSections={contentSections}
             showBooking={blocks.has("cabinet")}
             showMaterials={blocks.has("materials")}
+            cmsSituationSections={cmsSituationSections}
+            cmsDailyWarmup={cmsDailyWarmup}
           />
         ) : null}
         {patientHomeSecondary}

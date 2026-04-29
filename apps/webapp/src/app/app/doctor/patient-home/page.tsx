@@ -1,10 +1,10 @@
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
 import { PATIENT_HOME_CMS_BLOCK_CODES, PATIENT_HOME_SYSTEM_BLOCK_CODES } from "@/modules/patient-home/blocks";
-import { getDemoPatientHomeEditorPayload } from "@/modules/patient-home/patientHomeEditorDemo";
 import type { PatientHomeEditorCandidateRow } from "@/modules/patient-home/patientHomeEditorDemo";
 import { PatientHomeBlockSettingsCard } from "@/app/app/settings/patient-home/PatientHomeBlockSettingsCard";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { logServerRuntimeError } from "@/infra/logging/serverRuntimeLog";
+import type { PatientHomeUnresolvedRef } from "@/modules/patient-home/patientHomeUnresolvedRefs";
 
 function mapSectionsToCandidates(rows: { slug: string; title: string }[]): PatientHomeEditorCandidateRow[] {
   return rows.map((s) => ({
@@ -17,7 +17,7 @@ function mapSectionsToCandidates(rows: { slug: string; title: string }[]): Patie
 
 function mergeSubscriptionCarouselCandidates(
   sectionCandidates: PatientHomeEditorCandidateRow[],
-  demoCandidates: PatientHomeEditorCandidateRow[],
+  dbPages: PatientHomeEditorCandidateRow[],
   dbCourses: PatientHomeEditorCandidateRow[],
 ): PatientHomeEditorCandidateRow[] {
   const out: PatientHomeEditorCandidateRow[] = [];
@@ -29,21 +29,38 @@ function mergeSubscriptionCarouselCandidates(
     out.push(c);
   };
   for (const c of sectionCandidates) push(c);
-  for (const c of demoCandidates) {
-    if (c.targetType === "content_section") continue;
-    push(c);
-  }
+  for (const c of dbPages) push(c);
   for (const c of dbCourses) push(c);
   return out;
+}
+
+function buildUnresolvedRefs(
+  items: { resolved: boolean; isVisible: boolean; targetType: string; targetRef: string }[],
+): PatientHomeUnresolvedRef[] {
+  const refs: PatientHomeUnresolvedRef[] = [];
+  for (const i of items) {
+    if (!i.resolved) {
+      refs.push({ kind: "missing_target", targetKey: `${i.targetType}:${i.targetRef}` });
+    }
+  }
+  return refs;
 }
 
 export default async function DoctorPatientHomePage() {
   const deps = buildAppDeps();
   let sectionCandidates: PatientHomeEditorCandidateRow[] = [];
+  let pageCandidates: PatientHomeEditorCandidateRow[] = [];
   let loadError: ReturnType<typeof logServerRuntimeError> | null = null;
   try {
     const sections = await deps.contentSections.listAll();
     sectionCandidates = mapSectionsToCandidates(sections);
+    const pages = await deps.contentPages.listAll();
+    pageCandidates = pages.map((p) => ({
+      id: `pg-${p.id}`,
+      targetType: "content_page" as const,
+      targetRef: p.slug,
+      title: p.title,
+    }));
   } catch (err) {
     loadError = logServerRuntimeError("app/doctor/patient-home", err);
   }
@@ -62,6 +79,13 @@ export default async function DoctorPatientHomePage() {
     /* ignore — in-memory / CI без courses */
   }
 
+  let cmsSnapshots: Awaited<ReturnType<typeof deps.patientHome.listAllCmsBlockSnapshots>> | null = null;
+  try {
+    cmsSnapshots = await deps.patientHome.listAllCmsBlockSnapshots();
+  } catch (err) {
+    loadError = loadError ?? logServerRuntimeError("app/doctor/patient-home/cms", err);
+  }
+
   const isDev = process.env.NODE_ENV === "development";
 
   return (
@@ -69,15 +93,15 @@ export default async function DoctorPatientHomePage() {
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Главная пациента</h1>
         <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-          Настройка контентных блоков и подсказок по тому, что увидит пациент. Кандидаты-разделы для «Ситуаций»
-          загружаются из БД; курсы для блока «Курсы» и карусели — из БД (без архивных по умолчанию). Привязка элементов к
-          блоку в таблице `patient_home_block_items` — в следующих фазах инициативы.
+          Настройка контентных блоков и подсказок по тому, что увидит пациент. Элементы блоков хранятся в{" "}
+          <code className="rounded bg-muted px-1">patient_home_block_items</code> и отображаются на{" "}
+          <code className="rounded bg-muted px-1">/app/patient</code> после публикации целей в CMS.
         </p>
       </header>
 
       {loadError ? (
         <p className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          Не удалось загрузить разделы контента для выбора.
+          Не удалось загрузить данные редактора главной пациента.
           {isDev ? ` (${loadError.name}: ${loadError.message})` : null}
         </p>
       ) : null}
@@ -88,28 +112,28 @@ export default async function DoctorPatientHomePage() {
         </h2>
         <div className="grid gap-4 md:grid-cols-2">
           {PATIENT_HOME_CMS_BLOCK_CODES.map((code) => {
-            const { items, candidates: demoCandidates } = getDemoPatientHomeEditorPayload(code);
+            const snap = cmsSnapshots?.[code];
+            const items = snap?.items ?? [];
             const visible = items.filter((i) => i.isVisible && i.resolved).length;
             let initialCandidates: PatientHomeEditorCandidateRow[];
             if (code === "situations") {
               initialCandidates = sectionCandidates;
             } else if (code === "courses") {
-              initialCandidates = dbCourseCandidates.length > 0 ? dbCourseCandidates : demoCandidates;
+              initialCandidates = dbCourseCandidates.length > 0 ? dbCourseCandidates : [];
             } else if (code === "subscription_carousel") {
-              initialCandidates = mergeSubscriptionCarouselCandidates(
-                sectionCandidates,
-                demoCandidates,
-                dbCourseCandidates,
-              );
+              initialCandidates = mergeSubscriptionCarouselCandidates(sectionCandidates, pageCandidates, dbCourseCandidates);
+            } else if (code === "daily_warmup") {
+              initialCandidates = pageCandidates;
             } else {
-              initialCandidates = demoCandidates;
+              initialCandidates = [...sectionCandidates, ...pageCandidates];
             }
             return (
               <PatientHomeBlockSettingsCard
                 key={code}
                 blockCode={code}
-                isBlockVisible
+                isBlockVisible={snap?.blockVisible ?? true}
                 visibleItemsCount={visible}
+                unresolvedRefs={buildUnresolvedRefs(items)}
                 initialItems={items}
                 initialCandidates={initialCandidates}
               />

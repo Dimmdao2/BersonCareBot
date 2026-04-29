@@ -14,6 +14,22 @@ export type PatientHomeTodayProps = {
   contentSections: ContentSectionRow[];
   showBooking: boolean;
   showMaterials: boolean;
+  /**
+   * CMS `patient_home_*`: если задано — «Ситуации» из блока (порядок из БД).
+   * `undefined` — прежняя логика (второй+ разделы из общего списка).
+   */
+  cmsSituationSections?: ContentSectionRow[];
+  /**
+   * CMS: карточка «Разминка дня» из `daily_warmup` (первая опубликованная страница в блоке).
+   * `undefined` — прежняя логика (первый раздел каталога).
+   */
+  cmsDailyWarmup?: {
+    title: string;
+    summary: string;
+    href: string;
+    imageUrl?: string | null;
+    durationMinutes?: number | null;
+  } | null;
 };
 
 /** Сортировка разделов как для primary-зоны (sort_order, затем title). */
@@ -33,7 +49,7 @@ const GREETING_SUBTITLE = "Готовы к разминке?";
 
 /**
  * Primary-зона «Сегодня»: приветствие (TZ с сервера), hero, запись, быстрые разделы.
- * Данные разделов — существующий CMS-лист `content_sections` (без изменения модели).
+ * Разделы — `content_sections`; при переданных `cms*` — источник главной из `patient_home_*`.
  */
 export async function PatientHomeToday({
   personalTierOk,
@@ -41,6 +57,8 @@ export async function PatientHomeToday({
   contentSections,
   showBooking,
   showMaterials,
+  cmsSituationSections,
+  cmsDailyWarmup,
 }: PatientHomeTodayProps) {
   const sorted = sortPatientContentSectionsForHome(contentSections);
   const appTz = await getAppDisplayTimeZone();
@@ -49,16 +67,40 @@ export async function PatientHomeToday({
   const prefix = greetingPrefixFromHour(hour);
   const displayName = sessionUser?.displayName ?? null;
 
-  const heroSection = showMaterials && sorted.length > 0 ? sorted[0] : null;
-  const situationSections = showMaterials && sorted.length > 1 ? sorted.slice(1) : [];
+  const useCmsSituations = cmsSituationSections !== undefined;
+  const situationSections = useCmsSituations
+    ? cmsSituationSections
+    : showMaterials && sorted.length > 1
+      ? sorted.slice(1)
+      : [];
+
+  const heroSection = !cmsDailyWarmup && showMaterials && sorted.length > 0 ? sorted[0] : null;
 
   const hero =
-    heroSection != null ? (
+    cmsDailyWarmup !== undefined ? (
+      cmsDailyWarmup ? (
+        <PatientHomeDailyWarmupCard
+          title={cmsDailyWarmup.title}
+          summary={cmsDailyWarmup.summary}
+          href={cmsDailyWarmup.href}
+          imageUrl={cmsDailyWarmup.imageUrl ?? null}
+          durationMinutes={cmsDailyWarmup.durationMinutes ?? null}
+        />
+      ) : showMaterials ? (
+        <PatientHomeDailyWarmupCard
+          title="Разминка дня"
+          summary="Скоро здесь появятся персональные материалы. А пока загляните в каталог разделов."
+          href={routePaths.patientSectionsIndex}
+          imageUrl={null}
+          durationMinutes={null}
+        />
+      ) : null
+    ) : heroSection != null ? (
       <PatientHomeDailyWarmupCard
         title={heroSection.title}
         summary={heroSection.description || "Короткая разминка перед нагрузкой — мягкий старт для суставов и дыхания."}
         href={warmupTargetHref(heroSection.slug)}
-        imageUrl={null}
+        imageUrl={heroSection.iconImageUrl ?? heroSection.coverImageUrl ?? null}
         durationMinutes={null}
       />
     ) : showMaterials ? (

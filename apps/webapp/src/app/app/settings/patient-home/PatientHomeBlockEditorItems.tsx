@@ -192,12 +192,11 @@ export function PatientHomeBlockEditorItems({ blockCode, items, onItemsChange }:
   };
 
   const onRepair = (id: string) => {
-    const next = items.map((i) =>
-      i.id === id ? { ...i, resolved: true, title: i.title.replace(/^Неразрешённый/, "Исправлено:") } : i,
-    );
-    onItemsChange(next);
     startTransition(async () => {
-      await repairPatientHomeBlockItemAction(blockCode, id);
+      const r = await repairPatientHomeBlockItemAction(blockCode, id);
+      if (r.ok) {
+        onItemsChange(r.items);
+      }
     });
   };
 

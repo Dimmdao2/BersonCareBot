@@ -57,6 +57,7 @@ describe("content-catalog resolver", () => {
               deletedAt: null,
             }
           : null,
+      getBySlugAllowUnpublished: async () => null,
       getById: async () => null,
       listAll: async () => [],
       upsert: async () => "",
@@ -93,6 +94,7 @@ describe("content-catalog resolver", () => {
               deletedAt: null,
             }
           : null,
+      getBySlugAllowUnpublished: async () => null,
       getById: async () => null,
       listAll: async () => [],
       upsert: async () => "",

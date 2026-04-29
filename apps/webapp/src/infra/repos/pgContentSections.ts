@@ -10,6 +10,8 @@ export type ContentSectionRow = {
   isVisible: boolean;
   /** Если true — только tier patient (см. `requires_auth` в БД). */
   requiresAuth: boolean;
+  iconImageUrl?: string | null;
+  coverImageUrl?: string | null;
 };
 
 export type ListVisibleContentSectionsOpts = {
@@ -33,18 +35,25 @@ export type ContentSectionsPort = {
   update: (
     slug: string,
     patch: Partial<
-      Pick<ContentSectionRow, "title" | "description" | "sortOrder" | "isVisible" | "requiresAuth">
+      Pick<
+        ContentSectionRow,
+        "title" | "description" | "sortOrder" | "isVisible" | "requiresAuth" | "iconImageUrl" | "coverImageUrl"
+      >
     >,
   ) => Promise<void>;
   /** Выставить `sort_order` по порядку slug (0..n-1) в одной транзакции. */
   reorderSlugs: (orderedSlugs: string[]) => Promise<void>;
   /** Атомарное переименование slug: `content_pages.section`, опционально `patient_home_block_items`, `content_sections`, история. */
-  renameSectionSlug: (oldSlug: string, newSlug: string) => Promise<RenameSectionSlugResult>;
+  renameSectionSlug: (
+    oldSlug: string,
+    newSlug: string,
+    opts?: { changedByUserId?: string | null },
+  ) => Promise<RenameSectionSlugResult>;
   /** Один шаг цепочки редиректа: куда вести URL с устаревшим slug. */
   getRedirectNewSlugForOldSlug: (oldSlug: string) => Promise<string | null>;
 };
 
-const SELECT_COLS = `id, slug, title, description, sort_order, is_visible, requires_auth`;
+const SELECT_COLS = `id, slug, title, description, sort_order, is_visible, requires_auth, icon_image_url, cover_image_url`;
 
 export function createPgContentSectionsPort(): ContentSectionsPort {
   return {
@@ -74,14 +83,16 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
     async upsert(section) {
       const pool = getPool();
       const res = await pool.query(
-        `INSERT INTO content_sections (slug, title, description, sort_order, is_visible, requires_auth)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO content_sections (slug, title, description, sort_order, is_visible, requires_auth, icon_image_url, cover_image_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (slug) DO UPDATE SET
            title = EXCLUDED.title,
            description = EXCLUDED.description,
            sort_order = EXCLUDED.sort_order,
            is_visible = EXCLUDED.is_visible,
            requires_auth = EXCLUDED.requires_auth,
+           icon_image_url = COALESCE(EXCLUDED.icon_image_url, content_sections.icon_image_url),
+           cover_image_url = COALESCE(EXCLUDED.cover_image_url, content_sections.cover_image_url),
            updated_at = now()
          RETURNING id`,
         [
@@ -91,6 +102,8 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           section.sortOrder,
           section.isVisible,
           section.requiresAuth ?? false,
+          section.iconImageUrl?.trim() || null,
+          section.coverImageUrl?.trim() || null,
         ],
       );
       return res.rows[0].id as string;
@@ -119,6 +132,14 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       if (patch.requiresAuth !== undefined) {
         sets.push(`requires_auth = $${n++}`);
         vals.push(patch.requiresAuth);
+      }
+      if (patch.iconImageUrl !== undefined) {
+        sets.push(`icon_image_url = $${n++}`);
+        vals.push(patch.iconImageUrl?.trim() || null);
+      }
+      if (patch.coverImageUrl !== undefined) {
+        sets.push(`cover_image_url = $${n++}`);
+        vals.push(patch.coverImageUrl?.trim() || null);
       }
       if (sets.length === 0) return;
       vals.push(slug);
@@ -158,7 +179,7 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
       );
       return res.rows[0]?.new_slug ?? null;
     },
-    async renameSectionSlug(oldSlug, newSlug) {
+    async renameSectionSlug(oldSlug, newSlug, opts) {
       const vOld = validateContentSectionSlug(oldSlug);
       const vNew = validateContentSectionSlug(newSlug);
       if (!vOld.ok) return { ok: false, error: vOld.error };
@@ -207,7 +228,11 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
           return { ok: false, error: "Раздел с исходным slug не найден" };
         }
 
-        await client.query(`INSERT INTO content_section_slug_history (old_slug, new_slug) VALUES ($1, $2)`, [o, n]);
+        const uid = opts?.changedByUserId?.trim() || null;
+        await client.query(
+          `INSERT INTO content_section_slug_history (old_slug, new_slug, changed_by_user_id) VALUES ($1, $2, $3)`,
+          [o, n, uid],
+        );
 
         await client.query("COMMIT");
         return { ok: true, newSlug: n };
@@ -239,6 +264,8 @@ function mapRow(row: Record<string, unknown>): ContentSectionRow {
     sortOrder: row.sort_order as number,
     isVisible: row.is_visible as boolean,
     requiresAuth: Boolean(row.requires_auth),
+    iconImageUrl: (row.icon_image_url as string | null | undefined) ?? null,
+    coverImageUrl: (row.cover_image_url as string | null | undefined) ?? null,
   };
 }
 
@@ -284,6 +311,8 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         sortOrder: section.sortOrder,
         isVisible: section.isVisible,
         requiresAuth: section.requiresAuth ?? false,
+        iconImageUrl: section.iconImageUrl ?? null,
+        coverImageUrl: section.coverImageUrl ?? null,
       };
       memory.set(section.slug, row);
       return id;
@@ -298,6 +327,8 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
         ...(patch.isVisible !== undefined ? { isVisible: patch.isVisible } : {}),
         ...(patch.requiresAuth !== undefined ? { requiresAuth: patch.requiresAuth } : {}),
+        ...(patch.iconImageUrl !== undefined ? { iconImageUrl: patch.iconImageUrl } : {}),
+        ...(patch.coverImageUrl !== undefined ? { coverImageUrl: patch.coverImageUrl } : {}),
       });
     },
     async reorderSlugs(orderedSlugs) {
@@ -311,7 +342,7 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
     async getRedirectNewSlugForOldSlug(oldSlug) {
       return slugRedirects.get(oldSlug.trim()) ?? null;
     },
-    async renameSectionSlug(oldSlug, newSlug) {
+    async renameSectionSlug(oldSlug, newSlug, _opts) {
       const vOld = validateContentSectionSlug(oldSlug);
       const vNew = validateContentSectionSlug(newSlug);
       if (!vOld.ok) return { ok: false, error: vOld.error };

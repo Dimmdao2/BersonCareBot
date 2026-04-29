@@ -1003,6 +1003,9 @@ export const contentSections = pgTable("content_sections", {
 	slug: text().notNull(),
 	title: text().notNull(),
 	description: text().default('').notNull(),
+	/** URL обложки/иконки раздела (CMS; inline-create с главной пациента). */
+	iconImageUrl: text("icon_image_url"),
+	coverImageUrl: text("cover_image_url"),
 	sortOrder: integer("sort_order").default(0).notNull(),
 	isVisible: boolean("is_visible").default(true).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -1014,15 +1017,21 @@ export const contentSections = pgTable("content_sections", {
 ]);
 
 /** История переименований slug раздела контента (редиректы для пациентских URL). Phase 4 CMS workflow. */
-export const contentSectionSlugHistory = pgTable("content_section_slug_history", {
-	id: uuid().defaultRandom().primaryKey().notNull(),
-	oldSlug: text("old_slug").notNull(),
-	newSlug: text("new_slug").notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	unique("content_section_slug_history_old_slug_key").on(table.oldSlug),
-	index("idx_content_section_slug_history_new_slug").using("btree", table.newSlug.asc().nullsLast().op("text_ops")),
-]);
+export const contentSectionSlugHistory = pgTable(
+	"content_section_slug_history",
+	{
+		id: uuid().defaultRandom().primaryKey().notNull(),
+		oldSlug: text("old_slug").notNull(),
+		newSlug: text("new_slug").notNull(),
+		changedByUserId: uuid("changed_by_user_id"),
+		createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	},
+	(table) => [
+		unique("content_section_slug_history_old_slug_key").on(table.oldSlug),
+		index("idx_content_section_slug_history_new_slug").using("btree", table.newSlug.asc().nullsLast().op("text_ops")),
+		check("content_section_slug_history_slug_diff_chk", sql`(old_slug <> new_slug)`),
+	],
+);
 
 export const bookingSpecialists = pgTable("booking_specialists", {
 	id: uuid().defaultRandom().primaryKey().notNull(),

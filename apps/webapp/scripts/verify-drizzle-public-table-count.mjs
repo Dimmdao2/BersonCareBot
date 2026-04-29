@@ -25,6 +25,7 @@ const SCHEMA_FILES = [
   "db/schema/treatmentProgramEvents.ts",
   "db/schema/entityComments.ts",
   "db/schema/courses.ts",
+  "db/schema/patientHome.ts",
 ];
 
 /**
@@ -34,8 +35,6 @@ const SCHEMA_FILES = [
  */
 const EXCLUDED_PUBLIC_BASE_TABLES = new Set([
   "patient_daily_mood",
-  "patient_home_block_items",
-  "patient_home_blocks",
   "patient_practice_completions",
 ]);
 

@@ -36,6 +36,8 @@ export type ContentPageLifecyclePatch = {
 export type ContentPagesPort = {
   listBySection: (section: string, opts?: ListContentPagesBySectionOpts) => Promise<ContentPageRow[]>;
   getBySlug: (slug: string) => Promise<ContentPageRow | null>;
+  /** CMS/редактор: страница по slug без фильтра опубликованности (черновики видны врачу). */
+  getBySlugAllowUnpublished: (slug: string) => Promise<ContentPageRow | null>;
   getById: (id: string) => Promise<ContentPageRow | null>;
   listAll: () => Promise<ContentPageRow[]>;
   upsert: (page: Omit<ContentPageRow, "id" | "archivedAt" | "deletedAt"> & { id?: string }) => Promise<string>;
@@ -71,6 +73,16 @@ export function createPgContentPagesPort(): ContentPagesPort {
          FROM content_pages WHERE slug = $1 AND ${PATIENT_VISIBLE}
          ORDER BY section LIMIT 1`,
         [slug]
+      );
+      return res.rows[0] ? mapRow(res.rows[0]) : null;
+    },
+    async getBySlugAllowUnpublished(slug) {
+      const pool = getPool();
+      const res = await pool.query(
+        `SELECT ${SELECT_COLS}
+         FROM content_pages WHERE slug = $1
+         ORDER BY section LIMIT 1`,
+        [slug],
       );
       return res.rows[0] ? mapRow(res.rows[0]) : null;
     },
@@ -216,6 +228,7 @@ function mapRow(row: Record<string, unknown>): ContentPageRow {
 export const inMemoryContentPagesPort: ContentPagesPort = {
   listBySection: async () => [],
   getBySlug: async () => null,
+  getBySlugAllowUnpublished: async () => null,
   getById: async () => null,
   listAll: async () => [],
   upsert: async () => "",

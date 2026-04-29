@@ -16,14 +16,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/blocks";
-import { patientHomeBlockRequiresItemList } from "@/modules/patient-home/blocks";
+import { isPatientHomeCmsBlockCode, patientHomeBlockRequiresItemList } from "@/modules/patient-home/blocks";
 import { getPatientHomeBlockDisplayTitle } from "@/modules/patient-home/blockEditorMetadata";
 import type { PatientHomeEditorCandidateRow, PatientHomeEditorItemRow } from "@/modules/patient-home/patientHomeEditorDemo";
 import { PatientHomeBlockPreview } from "@/app/app/settings/patient-home/PatientHomeBlockPreview";
 import { PatientHomeBlockRuntimeStatus } from "@/app/app/settings/patient-home/PatientHomeBlockRuntimeStatus";
 import { PatientHomeBlockEditorItems } from "@/app/app/settings/patient-home/PatientHomeBlockEditorItems";
 import { PatientHomeBlockCandidatePicker } from "@/app/app/settings/patient-home/PatientHomeBlockCandidatePicker";
-import { setPatientHomeBlockVisibilityAction } from "@/app/app/settings/patient-home/actions";
+import {
+  addPatientHomeBlockItemAction,
+  setPatientHomeBlockVisibilityAction,
+} from "@/app/app/settings/patient-home/actions";
 
 export type PatientHomeBlockEditorDialogProps = {
   blockCode: PatientHomeBlockCode;
@@ -49,6 +52,7 @@ export function PatientHomeBlockEditorDialog({
   const [items, setItems] = useState<PatientHomeEditorItemRow[]>(initialItems ?? []);
   const [candidates, setCandidates] = useState<PatientHomeEditorCandidateRow[]>(initialCandidates ?? []);
   const [search, setSearch] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const handleOpenChange = (v: boolean) => {
     if (!v && dirty) {
@@ -76,23 +80,32 @@ export function PatientHomeBlockEditorDialog({
   const onVisibilityChange = (v: boolean) => {
     setBlockVisible(v);
     setDirty(true);
+    setActionError(null);
     startTransition(async () => {
-      await setPatientHomeBlockVisibilityAction(blockCode, v);
+      const r = await setPatientHomeBlockVisibilityAction(blockCode, v);
+      if (!r.ok) {
+        setActionError(r.error);
+        setBlockVisible(!v);
+      }
     });
   };
 
   const onPickCandidate = (c: PatientHomeEditorCandidateRow) => {
-    const row: PatientHomeEditorItemRow = {
-      id: `picked-${c.id}-${Math.random().toString(36).slice(2, 8)}`,
-      targetType: c.targetType,
-      targetRef: c.targetRef,
-      title: c.title,
-      isVisible: true,
-      resolved: true,
-    };
-    setItems((prev) => [...prev, row]);
-    setCandidates((prev) => prev.filter((x) => x.id !== c.id));
-    setDirty(true);
+    if (!isPatientHomeCmsBlockCode(blockCode)) return;
+    setActionError(null);
+    startTransition(async () => {
+      const r = await addPatientHomeBlockItemAction(blockCode, {
+        targetType: c.targetType,
+        targetRef: c.targetRef,
+      });
+      if (!r.ok) {
+        setActionError(r.error);
+        return;
+      }
+      setItems((prev) => [...prev, r.item]);
+      setCandidates((prev) => prev.filter((x) => x.id !== c.id));
+      setDirty(true);
+    });
   };
 
   const onItemsChange = (next: PatientHomeEditorItemRow[]) => {
@@ -132,6 +145,12 @@ export function PatientHomeBlockEditorDialog({
 
             <PatientHomeBlockRuntimeStatus blockCode={blockCode} blockVisible={blockVisible} items={items} />
 
+            {actionError ? (
+              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+                {actionError}
+              </p>
+            ) : null}
+
             <section aria-labelledby={`ph-preview-${blockCode}`}>
               <h3 id={`ph-preview-${blockCode}`} className="mb-2 text-sm font-semibold">
                 Что увидит пациент
@@ -152,8 +171,8 @@ export function PatientHomeBlockEditorDialog({
                     Элементы блока
                   </h3>
                   <p className="mb-2 text-xs text-muted-foreground">
-                    Перетаскивание, видимость элемента, удаление из блока и исправление битых целей. Данные пока демо;
-                    сохранение в БД подключится без смены UX.
+                    Перетаскивание, видимость элемента, удаление из блока и обновление резолва целей из CMS. Изменения
+                    сохраняются в базе.
                   </p>
                   <PatientHomeBlockEditorItems blockCode={blockCode} items={items} onItemsChange={onItemsChange} />
                 </section>

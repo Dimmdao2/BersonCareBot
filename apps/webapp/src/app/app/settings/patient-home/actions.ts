@@ -10,50 +10,180 @@ import {
   isPatientHomeCmsBlockCode,
   patientHomeCmsBlockAllowsContentSection,
   type PatientHomeBlockCode,
+  type PatientHomeBlockItemTargetType,
 } from "@/modules/patient-home/blocks";
+import { patientHomeBlockAllowsTargetType } from "@/modules/patient-home/service";
 
 export type PatientHomeEditorActionResult = { ok: true } | { ok: false; error: string };
 
-function bump(): PatientHomeEditorActionResult {
-  /** Ревалидация страницы редактора; запись в БД `patient_home_*` подключится без смены контракта действий. */
+function revalidatePatientHomeSurfaces() {
   revalidatePath(routePaths.doctorPatientHome);
-  return { ok: true };
+  revalidatePath("/app/patient");
+  revalidatePath("/app/patient/sections", "layout");
 }
 
 export async function reorderPatientHomeBlockItemsAction(
-  _blockCode: string,
-  _orderedIds: string[],
+  blockCode: string,
+  orderedIds: string[],
 ): Promise<PatientHomeEditorActionResult> {
-  return bump();
+  await requireDoctorAccess();
+  if (!isPatientHomeCmsBlockCode(blockCode)) {
+    return { ok: false, error: "Неизвестный блок" };
+  }
+  const deps = buildAppDeps();
+  try {
+    await deps.patientHome.reorderCmsBlockItems(blockCode, orderedIds);
+    revalidatePatientHomeSurfaces();
+    return { ok: true };
+  } catch (e) {
+    const msg = typeof e === "object" && e !== null && (e as { message?: string }).message;
+    if (msg === "reorder_items_invalid_id") {
+      return { ok: false, error: "Порядок элементов не совпадает с сервером. Обновите страницу." };
+    }
+    console.error("reorderPatientHomeBlockItemsAction failed:", e);
+    return { ok: false, error: "Не удалось сохранить порядок." };
+  }
 }
 
 export async function togglePatientHomeBlockItemVisibilityAction(
-  _blockCode: string,
-  _itemId: string,
-  _visible: boolean,
+  blockCode: string,
+  itemId: string,
+  visible: boolean,
 ): Promise<PatientHomeEditorActionResult> {
-  return bump();
+  await requireDoctorAccess();
+  if (!isPatientHomeCmsBlockCode(blockCode)) {
+    return { ok: false, error: "Неизвестный блок" };
+  }
+  const deps = buildAppDeps();
+  const ok = await deps.patientHome.assertItemBelongsToBlock(itemId, blockCode);
+  if (!ok) return { ok: false, error: "Элемент не найден в этом блоке." };
+  try {
+    await deps.patientHome.setCmsItemVisible(itemId, visible);
+    revalidatePatientHomeSurfaces();
+    return { ok: true };
+  } catch (e) {
+    console.error("togglePatientHomeBlockItemVisibilityAction failed:", e);
+    return { ok: false, error: "Не удалось изменить видимость." };
+  }
 }
 
 export async function deletePatientHomeBlockItemAction(
-  _blockCode: string,
-  _itemId: string,
+  blockCode: string,
+  itemId: string,
 ): Promise<PatientHomeEditorActionResult> {
-  return bump();
+  await requireDoctorAccess();
+  if (!isPatientHomeCmsBlockCode(blockCode)) {
+    return { ok: false, error: "Неизвестный блок" };
+  }
+  const deps = buildAppDeps();
+  const ok = await deps.patientHome.assertItemBelongsToBlock(itemId, blockCode);
+  if (!ok) return { ok: false, error: "Элемент не найден в этом блоке." };
+  try {
+    await deps.patientHome.deleteCmsItem(itemId);
+    revalidatePatientHomeSurfaces();
+    return { ok: true };
+  } catch (e) {
+    console.error("deletePatientHomeBlockItemAction failed:", e);
+    return { ok: false, error: "Не удалось удалить элемент." };
+  }
 }
 
+export type RepairPatientHomeBlockItemResult =
+  | { ok: true; items: import("@/modules/patient-home/patientHomeEditorDemo").PatientHomeEditorItemRow[] }
+  | { ok: false; error: string };
+
 export async function repairPatientHomeBlockItemAction(
-  _blockCode: string,
+  blockCode: string,
   _itemId: string,
-): Promise<PatientHomeEditorActionResult> {
-  return bump();
+): Promise<RepairPatientHomeBlockItemResult> {
+  await requireDoctorAccess();
+  if (!isPatientHomeCmsBlockCode(blockCode)) {
+    return { ok: false, error: "Неизвестный блок" };
+  }
+  const deps = buildAppDeps();
+  try {
+    const items = await deps.patientHome.listRefreshedEditorItemsForBlock(blockCode);
+    revalidatePatientHomeSurfaces();
+    return { ok: true, items };
+  } catch (e) {
+    console.error("repairPatientHomeBlockItemAction failed:", e);
+    return { ok: false, error: "Не удалось обновить данные блока." };
+  }
 }
 
 export async function setPatientHomeBlockVisibilityAction(
-  _blockCode: string,
-  _visible: boolean,
+  blockCode: string,
+  visible: boolean,
 ): Promise<PatientHomeEditorActionResult> {
-  return bump();
+  await requireDoctorAccess();
+  if (!isPatientHomeCmsBlockCode(blockCode)) {
+    return { ok: true };
+  }
+  const deps = buildAppDeps();
+  try {
+    await deps.patientHome.setCmsBlockVisible(blockCode, visible);
+    revalidatePatientHomeSurfaces();
+    return { ok: true };
+  } catch (e) {
+    console.error("setPatientHomeBlockVisibilityAction failed:", e);
+    return { ok: false, error: "Не удалось изменить видимость блока." };
+  }
+}
+
+const targetTypeSchema = z.enum(["content_section", "content_page", "course"]);
+
+export type AddPatientHomeBlockItemResult =
+  | {
+      ok: true;
+      item: import("@/modules/patient-home/patientHomeEditorDemo").PatientHomeEditorItemRow;
+    }
+  | { ok: false; error: string };
+
+export async function addPatientHomeBlockItemAction(
+  blockCode: string,
+  raw: { targetType: string; targetRef: string },
+): Promise<AddPatientHomeBlockItemResult> {
+  await requireDoctorAccess();
+  if (!isPatientHomeCmsBlockCode(blockCode)) {
+    return { ok: false, error: "Неизвестный блок" };
+  }
+  const parsed = z
+    .object({
+      targetType: targetTypeSchema,
+      targetRef: z.string().trim().min(1),
+    })
+    .safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Некорректные данные" };
+  }
+  const { targetType, targetRef } = parsed.data as {
+    targetType: PatientHomeBlockItemTargetType;
+    targetRef: string;
+  };
+  if (!patientHomeBlockAllowsTargetType(blockCode, targetType)) {
+    return { ok: false, error: "Этот тип цели нельзя добавить в выбранный блок." };
+  }
+  const deps = buildAppDeps();
+  try {
+    const id = await deps.patientHome.addCmsBlockItem(blockCode, targetType, targetRef);
+    const items = await deps.patientHome.listRefreshedEditorItemsForBlock(blockCode);
+    const row = items.find((i) => i.id === id);
+    if (!row) {
+      return { ok: false, error: "Элемент создан, но не удалось прочитать состояние. Обновите страницу." };
+    }
+    revalidatePatientHomeSurfaces();
+    return { ok: true, item: row };
+  } catch (e) {
+    const code = typeof e === "object" && e !== null ? (e as { message?: string }).message : "";
+    if (code === "duplicate_block_item") {
+      return { ok: false, error: "Такой элемент уже есть в блоке." };
+    }
+    if (code === "invalid_target_type_for_block") {
+      return { ok: false, error: "Недопустимый тип цели для блока." };
+    }
+    console.error("addPatientHomeBlockItemAction failed:", e);
+    return { ok: false, error: "Не удалось добавить элемент." };
+  }
 }
 
 const createSectionBodySchema = z.object({
@@ -102,8 +232,7 @@ function validateSlugPattern(slug: string): string | null {
 }
 
 /**
- * Создаёт `content_section` и возвращает строку для редактора блока.
- * Запись в `patient_home_block_items` отложена до миграции таблиц — элемент добавляется в UI из ответа action.
+ * Создаёт `content_section`, добавляет элемент в `patient_home_block_items` и возвращает строку редактора.
  */
 export async function createContentSectionForPatientHomeBlock(
   raw: CreateContentSectionForPatientHomeInput,
@@ -143,14 +272,27 @@ export async function createContentSectionForPatientHomeBlock(
       return { ok: false, error: "Раздел с таким slug уже существует" };
     }
 
-    const id = await deps.contentSections.upsert({
+    await deps.contentSections.upsert({
       slug,
       title,
       description,
       sortOrder,
       isVisible,
       requiresAuth,
+      iconImageUrl: parsed.data.iconImageUrl?.trim() || null,
+      coverImageUrl: parsed.data.coverImageUrl?.trim() || null,
     });
+
+    let itemId: string;
+    try {
+      itemId = await deps.patientHome.addCmsBlockItem(code, "content_section", slug);
+    } catch (e) {
+      const msg = typeof e === "object" && e !== null ? (e as { message?: string }).message : "";
+      if (msg === "duplicate_block_item") {
+        return { ok: false, error: "Раздел уже привязан к этому блоку." };
+      }
+      throw e;
+    }
 
     revalidatePath(routePaths.doctorPatientHome);
     revalidatePath("/app/doctor/content/sections");
@@ -161,7 +303,7 @@ export async function createContentSectionForPatientHomeBlock(
     return {
       ok: true,
       item: {
-        id,
+        id: itemId,
         targetType: "content_section",
         targetRef: slug,
         title,

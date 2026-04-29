@@ -3,13 +3,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const revalidatePath = vi.hoisted(() => vi.fn());
 const getBySlugMock = vi.hoisted(() => vi.fn());
 const upsertMock = vi.hoisted(() => vi.fn());
+const reorderCmsBlockItemsMock = vi.hoisted(() => vi.fn());
+const addCmsBlockItemMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/cache", () => ({
   revalidatePath,
 }));
 
 vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorAccess: vi.fn().mockResolvedValue({ user: { id: "doc-1" } }),
+  requireDoctorAccess: vi.fn().mockResolvedValue({
+    user: {
+      userId: "doc-1",
+      role: "doctor" as const,
+      displayName: "Doc",
+      bindings: {},
+    },
+    issuedAt: 0,
+    expiresAt: 9999999999,
+  }),
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
@@ -17,6 +28,10 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
     contentSections: {
       getBySlug: getBySlugMock,
       upsert: upsertMock,
+    },
+    patientHome: {
+      reorderCmsBlockItems: reorderCmsBlockItemsMock,
+      addCmsBlockItem: addCmsBlockItemMock,
     },
   }),
 }));
@@ -31,20 +46,25 @@ describe("patient-home settings actions", () => {
     revalidatePath.mockClear();
     getBySlugMock.mockReset();
     upsertMock.mockReset();
+    reorderCmsBlockItemsMock.mockReset();
+    addCmsBlockItemMock.mockReset();
   });
 
-  describe("Phase 2 stubs", () => {
+  describe("reorder + persistence", () => {
     it("reorderPatientHomeBlockItemsAction returns ok and revalidates doctor patient-home", async () => {
+      reorderCmsBlockItemsMock.mockResolvedValue(undefined);
       const r = await reorderPatientHomeBlockItemsAction("situations", ["a", "b"]);
       expect(r).toEqual({ ok: true });
+      expect(reorderCmsBlockItemsMock).toHaveBeenCalledWith("situations", ["a", "b"]);
       expect(revalidatePath).toHaveBeenCalled();
     });
   });
 
-  describe("createContentSectionForPatientHomeBlock (Phase 3)", () => {
-    it("creates section and returns item for situations", async () => {
+  describe("createContentSectionForPatientHomeBlock", () => {
+    it("creates section, adds patient_home item and returns editor row", async () => {
       getBySlugMock.mockResolvedValue(null);
-      upsertMock.mockResolvedValue("uuid-new");
+      upsertMock.mockResolvedValue("section-row-id");
+      addCmsBlockItemMock.mockResolvedValue("item-uuid-1");
       const r = await createContentSectionForPatientHomeBlock({
         blockCode: "situations",
         title: "Дом",
@@ -57,7 +77,7 @@ describe("patient-home settings actions", () => {
       expect(r).toEqual({
         ok: true,
         item: {
-          id: "uuid-new",
+          id: "item-uuid-1",
           targetType: "content_section",
           targetRef: "home-test",
           title: "Дом",
@@ -72,8 +92,11 @@ describe("patient-home settings actions", () => {
           sortOrder: 2,
           isVisible: true,
           requiresAuth: false,
+          iconImageUrl: null,
+          coverImageUrl: null,
         }),
       );
+      expect(addCmsBlockItemMock).toHaveBeenCalledWith("situations", "content_section", "home-test");
       expect(revalidatePath.mock.calls.length).toBeGreaterThan(0);
     });
 

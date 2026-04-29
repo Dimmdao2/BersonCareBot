@@ -43,3 +43,20 @@ COMMIT;
 
 - Таблица `patient_home_block_items` в схеме webapp может отсутствовать; шаг с `UPDATE` пропускайте, если таблицы нет.
 - Цепочки редиректов (несколько rename подряд) откатываются **в обратном порядке** по одному шагу.
+
+## 4. Rollback миграции `0009_patient_home_cms_blocks`
+
+Откатывает таблицы главной пациента и (опционально) колонки, добавленные в том же файле миграции. Выполнять только при согласовании с ops и бэкапом.
+
+```sql
+BEGIN;
+DROP TABLE IF EXISTS patient_home_block_items CASCADE;
+DROP TABLE IF EXISTS patient_home_blocks CASCADE;
+ALTER TABLE content_section_slug_history DROP CONSTRAINT IF EXISTS content_section_slug_history_slug_diff_chk;
+ALTER TABLE content_section_slug_history DROP COLUMN IF EXISTS changed_by_user_id;
+ALTER TABLE content_sections DROP COLUMN IF EXISTS icon_image_url;
+ALTER TABLE content_sections DROP COLUMN IF EXISTS cover_image_url;
+COMMIT;
+```
+
+После отката: согласовать запись в `db/drizzle-migrations/meta/_journal.json` и фактическое состояние БД (обычно — новая forward-миграция вместо «вырезания» записи из журнала).

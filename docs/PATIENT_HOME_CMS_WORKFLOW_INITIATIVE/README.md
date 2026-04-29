@@ -41,6 +41,12 @@
 - [`PROMPTS_PLAN_EXEC_AUDIT_FIX.md`](PROMPTS_PLAN_EXEC_AUDIT_FIX.md) - copy-paste промпты для Composer.
 - [`LOG.md`](LOG.md) - журнал исполнения фаз.
 
+Статус release-ready (код, CI, чеклист плана) и синхронизация аудита с кодом:
+
+- [`CMS_RELEASE_READY_PLAN_STATUS.md`](CMS_RELEASE_READY_PLAN_STATUS.md) — чеклист плана: **PASS** по автоматическим пунктам, **OPEN** только ручной QA.
+- [`FINAL_AUDIT.md`](FINAL_AUDIT.md) — единый итоговый аудит без противоречий между разделами.
+- [`DOC_SYNC_AND_PASS_CLOSURE.md`](DOC_SYNC_AND_PASS_CLOSURE.md) — что менялось в документах при закрытии PASS и какие остатки в backlog.
+
 Декомпозиция по этапам (рабочие phase files для Composer):
 
 - [`00_AUDIT_UX_CONTRACT_PLAN.md`](00_AUDIT_UX_CONTRACT_PLAN.md)

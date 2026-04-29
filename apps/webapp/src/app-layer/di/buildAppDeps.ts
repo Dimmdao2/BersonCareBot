@@ -146,6 +146,9 @@ import { createPgTreatmentProgramItemSnapshotPort } from "@/infra/repos/pgTreatm
 import { createInMemoryTreatmentProgramItemSnapshotPort } from "@/infra/repos/inMemoryTreatmentProgramItemSnapshot";
 import { createPgCoursesPort } from "@/infra/repos/pgCourses";
 import { createInMemoryCoursesPort } from "@/infra/repos/inMemoryCourses";
+import { createPgPatientHomeBlocksPort } from "@/infra/repos/pgPatientHomeBlocks";
+import { inMemoryPatientHomeBlocksPort } from "@/infra/repos/inMemoryPatientHomeBlocks";
+import { createPatientHomeService } from "@/modules/patient-home/service";
 import { createLfkTemplatesService } from "@/modules/lfk-templates/service";
 import { pgLfkTemplatesPort } from "@/infra/repos/pgLfkTemplates";
 import { inMemoryLfkTemplatesPort } from "@/infra/repos/inMemoryLfkTemplates";
@@ -276,6 +279,13 @@ const coursesService = createCoursesService({
   courses: coursesPort,
   introPages: contentPagesPort,
   assignTemplateToPatient: (input) => treatmentProgramInstanceService.assignTemplateToPatient(input),
+});
+const patientHomeBlocksPort = !inMemoryRepos ? createPgPatientHomeBlocksPort() : inMemoryPatientHomeBlocksPort;
+const patientHome = createPatientHomeService({
+  blocks: patientHomeBlocksPort,
+  contentSections: contentSectionsPort,
+  contentPages: contentPagesPort,
+  courses: coursesPort,
 });
 const treatmentProgramProgressService = createTreatmentProgramProgressService({
   instances: treatmentProgramInstancePort,
@@ -675,6 +685,7 @@ function _buildAppDeps() {
     treatmentProgram: treatmentProgramService,
     treatmentProgramInstance: treatmentProgramInstanceService,
     courses: coursesService,
+    patientHome,
     treatmentProgramProgress: treatmentProgramProgressService,
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,

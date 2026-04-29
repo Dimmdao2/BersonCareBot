@@ -21,11 +21,11 @@ export type PatientHomeBlockCode = PatientHomeCmsBlockCode | PatientHomeSystemBl
 
 export type PatientHomeBlockItemTargetType = "content_section" | "content_page" | "course";
 
-export function isPatientHomeCmsBlockCode(code: PatientHomeBlockCode): code is PatientHomeCmsBlockCode {
+export function isPatientHomeCmsBlockCode(code: string): code is PatientHomeCmsBlockCode {
   return (PATIENT_HOME_CMS_BLOCK_CODES as readonly string[]).includes(code);
 }
 
-export function patientHomeBlockRequiresItemList(code: PatientHomeBlockCode): code is PatientHomeCmsBlockCode {
+export function patientHomeBlockRequiresItemList(code: string): code is PatientHomeCmsBlockCode {
   return isPatientHomeCmsBlockCode(code);
 }
 

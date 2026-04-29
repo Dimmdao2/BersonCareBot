@@ -36,10 +36,15 @@ export function PatientHomeSituationsRow({ sections }: PatientHomeSituationsRowP
               )}
             >
               <div
-                className="flex size-14 items-center justify-center rounded-2xl bg-muted/80 text-xs font-bold text-[var(--patient-text-secondary)] lg:size-16"
+                className="flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-muted/80 text-xs font-bold text-[var(--patient-text-secondary)] lg:size-16"
                 aria-hidden
               >
-                <span className="leading-none">{initials(s.title)}</span>
+                {s.iconImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={s.iconImageUrl} alt="" className="size-full object-cover" loading="lazy" />
+                ) : (
+                  <span className="leading-none">{initials(s.title)}</span>
+                )}
               </div>
               <p className="mt-2 line-clamp-2 min-h-[2.5rem] text-center text-xs font-medium leading-4 text-[var(--patient-text-primary)] lg:text-sm lg:leading-5">
                 {s.title}

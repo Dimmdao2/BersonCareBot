@@ -447,3 +447,51 @@
 - Next:
   - перед push — `pnpm install --frozen-lockfile && pnpm run ci` + ручной QA по `06_QA_RELEASE_PLAN.md` §Final Manual QA
 
+---
+
+## 2026-04-29 — Release-ready — FIX (patient_home persistence + runtime)
+
+- Branch: `TBD` (локально)
+- Scope:
+  - План «Patient Home CMS Release-Ready»: Drizzle `patient_home_*`, сервис + DI, персистентные actions редактора, runtime `/app/patient` от CMS, icon/cover разделов, slug history `changed_by_user_id` + CHECK, repair = refresh резолва из БД.
+- Changed files (основные):
+  - `apps/webapp/db/schema/patientHome.ts`, `db/drizzle-migrations/0009_patient_home_cms_blocks.sql`, `db/schema/schema.ts`, `db/schema/index.ts`, `drizzle.config.ts`, `scripts/verify-drizzle-public-table-count.mjs`, `db/drizzle-migrations/meta/_journal.json`
+  - `apps/webapp/src/modules/patient-home/ports.ts`, `service.ts`, `service.test.ts`, `blocks.ts`
+  - `apps/webapp/src/infra/repos/pgPatientHomeBlocks.ts`, `inMemoryPatientHomeBlocks.ts`, `pgContentPages.ts`, `pgContentSections.ts`
+  - `apps/webapp/src/app-layer/di/buildAppDeps.ts`, `eslint.config.mjs`
+  - `apps/webapp/src/app/app/settings/patient-home/actions.ts`, `actions.test.ts`, `PatientHomeBlockEditorDialog.tsx`, `PatientHomeBlockEditorItems.tsx`
+  - `apps/webapp/src/app/app/doctor/patient-home/page.tsx`, `doctor/content/sections/*` (rename actor, icon/cover form)
+  - `apps/webapp/src/app/app/patient/page.tsx`, `patient/home/PatientHomeToday.tsx`, `PatientHomeSituationsRow.tsx`
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/FINAL_AUDIT.md`, `LOG.md`, `ROLLBACK_SQL.md`
+- Checks:
+  - `pnpm --dir apps/webapp exec vitest run src/modules/patient-home/service.test.ts src/app/app/settings/patient-home/actions.test.ts` — pass
+  - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
+  - `pnpm --dir apps/webapp lint` — pass
+- Notes:
+  - `pnpm install --frozen-lockfile && pnpm run ci` (root) — pass
+- Result:
+  - pass with notes
+- Next:
+  - ручной smoke `06_QA_RELEASE_PLAN.md` (root CI выполнен в этом gate).
+
+---
+
+## 2026-04-29 — DOC sync / plan PASS closure (FINAL_AUDIT + навигация)
+
+- Branch: `TBD` (локально)
+- Scope:
+  - Устранение противоречий в `FINAL_AUDIT.md` (§2–§8 vs §10): один narrative **PASS по коду/CI**, **OPEN** только ручной QA; §9 как историческое примечание; §11 ссылки на артефакты.
+  - Канонический чеклист плана: `CMS_RELEASE_READY_PLAN_STATUS.md` (строка 8 уточнена: доки синхронизированы).
+  - Навигация в `README.md` инициативы и в `docs/README.md` (индекс) на статус, финальный аудит и журнал доработки доков (`DOC_SYNC_AND_PASS_CLOSURE.md`).
+- Changed files:
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/FINAL_AUDIT.md`
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/README.md`
+  - `docs/README.md`
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/CMS_RELEASE_READY_PLAN_STATUS.md`
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+- Checks:
+  - самопроверка согласованности ссылок и формулировок между `FINAL_AUDIT.md`, `DOC_SYNC_AND_PASS_CLOSURE.md`, `CMS_RELEASE_READY_PLAN_STATUS.md`
+- Result:
+  - pass
+- Next:
+  - ручной smoke `06_QA_RELEASE_PLAN.md` + отметка в этом `LOG.md`

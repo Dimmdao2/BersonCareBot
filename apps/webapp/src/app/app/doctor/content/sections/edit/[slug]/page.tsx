@@ -31,6 +31,8 @@ export default async function DoctorContentSectionEditPage({ params }: Props) {
             sortOrder: row.sortOrder,
             isVisible: row.isVisible,
             requiresAuth: row.requiresAuth,
+            iconImageUrl: row.iconImageUrl ?? null,
+            coverImageUrl: row.coverImageUrl ?? null,
           }}
         />
       </section>
