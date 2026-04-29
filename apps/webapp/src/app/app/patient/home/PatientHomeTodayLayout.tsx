@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { PatientHomeBlockCode } from "@/modules/patient-home/ports";
 import { cn } from "@/lib/utils";
-import { PatientHomeGreeting } from "./PatientHomeGreeting";
+import { PatientHomeGreeting, type PatientGreetingPrefix } from "./PatientHomeGreeting";
 
 export type PatientHomeTodayLayoutBlock = {
   code: PatientHomeBlockCode;
@@ -10,6 +10,7 @@ export type PatientHomeTodayLayoutBlock = {
 
 type Props = {
   personalizedName: string | null;
+  timeOfDayPrefix?: PatientGreetingPrefix;
   blocks: PatientHomeTodayLayoutBlock[];
 };
 
@@ -40,10 +41,10 @@ function getDesktopBlockClass(code: PatientHomeBlockCode): string {
   }
 }
 
-export function PatientHomeTodayLayout({ personalizedName, blocks }: Props) {
+export function PatientHomeTodayLayout({ personalizedName, timeOfDayPrefix, blocks }: Props) {
   return (
     <div className="flex flex-col gap-6 pb-6">
-      <PatientHomeGreeting personalizedName={personalizedName} />
+      <PatientHomeGreeting personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" data-testid="patient-home-layout-grid">
         {blocks.map((block) => (

@@ -22,7 +22,7 @@ import {
   resolveSosCard,
   resolveSubscriptionCarouselCards,
 } from "@/modules/patient-home/patientHomeResolvers";
-import { PatientHomeGreeting } from "./PatientHomeGreeting";
+import { greetingPrefixFromHour } from "./PatientHomeGreeting";
 import { PatientHomeDailyWarmupCard } from "./PatientHomeDailyWarmupCard";
 import { PatientHomeBookingCard } from "./PatientHomeBookingCard";
 import { PatientHomeSituationsRow } from "./PatientHomeSituationsRow";
@@ -149,6 +149,7 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     homeReminder ? formatNextReminderLabel(homeReminder.nextAt, appTz) : "";
 
   const personalizedName = personalTierOk && session ? session.user.displayName?.trim() || null : null;
+  const timeOfDayPrefix = greetingPrefixFromHour(DateTime.now().setZone(appTz).hour);
 
   const renderBlock = (code: PatientHomeBlockCode): ReactNode => {
     switch (code) {
@@ -220,6 +221,6 @@ export async function PatientHomeToday({ session, personalTierOk, canViewAuthOnl
     );
 
   return (
-    <PatientHomeTodayLayout personalizedName={personalizedName} blocks={layoutBlocks} />
+    <PatientHomeTodayLayout personalizedName={personalizedName} timeOfDayPrefix={timeOfDayPrefix} blocks={layoutBlocks} />
   );
 }
