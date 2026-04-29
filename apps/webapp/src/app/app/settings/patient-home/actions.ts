@@ -5,8 +5,10 @@ import { z } from "zod";
 import { getCurrentSession } from "@/modules/auth/service";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { canAccessDoctor } from "@/modules/roles/service";
-import { isPatientHomeBlockCode } from "@/modules/patient-home/blocks";
+import { allowedTargetTypesForBlock, isPatientHomeBlockCode } from "@/modules/patient-home/blocks";
 import type { PatientHomeBlockItemTargetType } from "@/modules/patient-home/ports";
+import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
+import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
 const targetTypeSchema = z.enum(["content_page", "content_section", "course", "static_action"]);
 const uuidSchema = z.string().uuid();
@@ -80,6 +82,8 @@ function revalidatePatientHomeSettings(): void {
   revalidatePath("/app/settings/patient-home");
   revalidatePath("/app/doctor/patient-home");
   revalidatePath("/app/patient");
+  revalidatePath("/app/patient/sections", "layout");
+  revalidatePath("/app/patient/sections");
 }
 
 export async function togglePatientHomeBlockVisibility(
@@ -204,6 +208,91 @@ export async function retargetPatientHomeItem(input: {
     return { ok: true };
   } catch (error) {
     return fail(error instanceof Error ? error.message : "retarget_failed");
+  }
+}
+
+export async function createContentSectionForPatientHomeBlock(input: {
+  blockCode: string;
+  title: string;
+  slug: string;
+  description?: string;
+  sortOrder?: number;
+  isVisible?: boolean;
+  requiresAuth?: boolean;
+  coverImageUrl?: string | null;
+  iconImageUrl?: string | null;
+}): Promise<{ ok: true; itemId: string; sectionSlug: string } | { ok: false; error: string }> {
+  try {
+    await requireDoctorForPatientHomeBlocks();
+    if (!isPatientHomeBlockCode(input.blockCode)) {
+      return { ok: false, error: "invalid_block_code" };
+    }
+    if (!allowedTargetTypesForBlock(input.blockCode).includes("content_section")) {
+      return { ok: false, error: "invalid_target_type_for_block" };
+    }
+
+    const title = input.title.trim();
+    if (!title) {
+      return { ok: false, error: "empty_title" };
+    }
+    if (title.length > 500) {
+      return { ok: false, error: "title_too_long" };
+    }
+
+    const slugParsed = validateContentSectionSlug(input.slug);
+    if (!slugParsed.ok) {
+      return { ok: false, error: slugParsed.error };
+    }
+    const slug = slugParsed.slug;
+
+    const description = (input.description ?? "").trim();
+    if (description.length > 2000) {
+      return { ok: false, error: "description_too_long" };
+    }
+
+    const rawSort = input.sortOrder;
+    const sortOrder =
+      typeof rawSort === "number" && Number.isFinite(rawSort) ? Math.trunc(rawSort) : Number.parseInt(String(rawSort ?? 0), 10) || 0;
+
+    const isVisible = input.isVisible ?? true;
+    const requiresAuth = input.requiresAuth ?? false;
+
+    const coverRaw = input.coverImageUrl?.trim() ?? "";
+    const iconRaw = input.iconImageUrl?.trim() ?? "";
+    const coverImageUrl = coverRaw.length > 0 ? coverRaw : null;
+    const iconImageUrl = iconRaw.length > 0 ? iconRaw : null;
+
+    if (coverImageUrl && !API_MEDIA_URL_RE.test(coverImageUrl) && !isLegacyAbsoluteUrl(coverImageUrl)) {
+      return { ok: false, error: "Обложка должна быть выбрана из библиотеки файлов" };
+    }
+    if (iconImageUrl && !API_MEDIA_URL_RE.test(iconImageUrl) && !isLegacyAbsoluteUrl(iconImageUrl)) {
+      return { ok: false, error: "Иконка должна быть выбрана из библиотеки файлов" };
+    }
+
+    const deps = buildAppDeps();
+    await deps.contentSections.upsert({
+      slug,
+      title,
+      description,
+      sortOrder,
+      isVisible,
+      requiresAuth,
+      coverImageUrl,
+      iconImageUrl,
+    });
+
+    const itemId = await deps.patientHomeBlocks.addItem({
+      blockCode: input.blockCode,
+      targetType: "content_section",
+      targetRef: slug,
+      isVisible: true,
+    });
+
+    revalidatePatientHomeSettings();
+    return { ok: true, itemId, sectionSlug: slug };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "create_section_failed";
+    return { ok: false, error: message };
   }
 }
 

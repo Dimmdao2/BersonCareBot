@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getPatientHomeBlockEditorMetadata } from "@/modules/patient-home/blockEditorMetadata";
 import { canManageItemsForBlock } from "@/modules/patient-home/blocks";
 import type { PatientHomeBlock } from "@/modules/patient-home/ports";
 import type { PatientHomeBlockRuntimeStatus } from "@/modules/patient-home/patientHomeRuntimeStatus";
@@ -24,6 +25,7 @@ import { PatientHomeAddItemDialog } from "./PatientHomeAddItemDialog";
 import { PatientHomeBlockItemsDialog } from "./PatientHomeBlockItemsDialog";
 import { PatientHomeBlockPreview } from "./PatientHomeBlockPreview";
 import { PatientHomeBlockRuntimeStatusBadge } from "./PatientHomeBlockRuntimeStatusBadge";
+import { PatientHomeCreateSectionInlineDialog } from "./PatientHomeCreateSectionInlineDialog";
 import { PatientHomeRepairTargetsDialog } from "./PatientHomeRepairTargetsDialog";
 
 type KnownRefs = {
@@ -45,6 +47,7 @@ export function PatientHomeBlockSettingsCard({
 }) {
   const [isPending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
+  const [createSectionOpen, setCreateSectionOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [repairOpen, setRepairOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,7 @@ export function PatientHomeBlockSettingsCard({
   );
   const repairOnlyHiddenBroken =
     canManageItems && visibleUnresolved.length === 0 && hiddenUnresolved.length > 0;
+  const canInlineCreateSection = getPatientHomeBlockEditorMetadata(block.code).inlineCreate.contentSection;
 
   const handleToggle = () => {
     setError(null);
@@ -93,6 +97,9 @@ export function PatientHomeBlockSettingsCard({
               <DropdownMenuItem onClick={handleToggle} disabled={isPending}>
                 {block.isVisible ? "Скрыть" : "Показать"}
               </DropdownMenuItem>
+              {canManageItems && canInlineCreateSection ? (
+                <DropdownMenuItem onClick={() => setCreateSectionOpen(true)}>Создать раздел и добавить</DropdownMenuItem>
+              ) : null}
               {canManageItems ? (
                 <DropdownMenuItem onClick={() => setAddOpen(true)}>
                   Добавить материал
@@ -130,6 +137,14 @@ export function PatientHomeBlockSettingsCard({
         <PatientHomeAddItemDialog
           open={addOpen}
           onOpenChange={setAddOpen}
+          blockCode={block.code}
+          onSaved={onChanged}
+        />
+      ) : null}
+      {createSectionOpen ? (
+        <PatientHomeCreateSectionInlineDialog
+          open={createSectionOpen}
+          onOpenChange={setCreateSectionOpen}
           blockCode={block.code}
           onSaved={onChanged}
         />
