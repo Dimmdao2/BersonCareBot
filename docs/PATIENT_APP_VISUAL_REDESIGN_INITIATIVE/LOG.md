@@ -189,6 +189,14 @@ Audit выявил 16 узких мест; внесены исправления
   - `pnpm --dir apps/webapp exec eslint src/shared/ui/AppShell.tsx src/shared/ui/PatientBottomNav.tsx` — **без замечаний**.
   - `pnpm --dir apps/webapp typecheck` — **passed**.
 
+## 2026-04-30 — VISUAL_SYSTEM_SPEC apply complete (APPLY_VISUAL_SPEC steps 0–15)
+
+- **Источник плана:** `docs/PATIENT_APP_VISUAL_REDESIGN_INITIATIVE/APPLY_VISUAL_SPEC_TASK_FOR_GPT55.md` (шаги 0–15).
+- **Ветка:** `feat/patient-home-cms-editor-uxlift-2026-04-29`.
+- **Содержание:** foundation (`patientHomeCardStyles`, `AppShell` patient + `PatientTopNav`), все блоки главной по `VISUAL_SYSTEM_SPEC` §10.1–§10.12, layout «Сегодня» по §6.2 (`PatientHomeTodayLayout` + тесты).
+- **Проверка:** `pnpm install --frozen-lockfile && pnpm run ci` — **зелёный** на этом срезе (lint, typecheck, integrator + webapp tests, build integrator + webapp, `registry-prod-audit`).
+- **Ручной visual QA** по `05_TESTS_QA_CLEANUP_PLAN.md` и остаточные риски из `AUDIT_VISUAL_FINAL.md` §4 — вне этого коммита, на владельца продукта/дизайна.
+
 ## Template for future entries
 
 ```md
