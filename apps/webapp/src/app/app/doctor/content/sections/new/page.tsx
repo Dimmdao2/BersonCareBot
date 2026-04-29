@@ -1,8 +1,17 @@
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
+import {
+  parsePatientHomeCmsReturnQuery,
+  type PatientHomeCmsReturnQuery,
+} from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { AppShell } from "@/shared/ui/AppShell";
 import { SectionForm } from "../SectionForm";
 
-type PageProps = { searchParams?: Promise<{ suggestedSlug?: string | string[] }> };
+type PageProps = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
+
+function pick(sp: Record<string, string | string[] | undefined>, key: string): string | undefined {
+  const v = sp[key];
+  return typeof v === "string" ? v : Array.isArray(v) ? v[0] : undefined;
+}
 
 function normalizeSuggestedSlug(raw: string | string[] | undefined): string | undefined {
   const s = (Array.isArray(raw) ? raw[0] : raw)?.trim().toLowerCase() ?? "";
@@ -12,13 +21,29 @@ function normalizeSuggestedSlug(raw: string | string[] | undefined): string | un
 
 export default async function DoctorContentSectionNewPage({ searchParams }: PageProps) {
   const session = await requireDoctorAccess();
-  const sp = searchParams ? await searchParams : undefined;
-  const initialSuggestedSlug = normalizeSuggestedSlug(sp?.suggestedSlug);
+  const sp = searchParams ? await searchParams : {};
+  const patientHomeContext: PatientHomeCmsReturnQuery | null = parsePatientHomeCmsReturnQuery({
+    returnTo: pick(sp, "returnTo"),
+    patientHomeBlock: pick(sp, "patientHomeBlock"),
+    suggestedTitle: pick(sp, "suggestedTitle"),
+    suggestedSlug: pick(sp, "suggestedSlug"),
+  });
+  const initialSuggestedSlug =
+    normalizeSuggestedSlug(patientHomeContext?.suggestedSlug) ?? normalizeSuggestedSlug(sp.suggestedSlug);
 
   return (
-    <AppShell title="Новый раздел" user={session.user} variant="doctor" backHref="/app/doctor/content/sections">
+    <AppShell
+      title="Новый раздел"
+      user={session.user}
+      variant="doctor"
+      backHref={patientHomeContext?.returnTo ?? "/app/doctor/content/sections"}
+    >
       <section className="rounded-2xl border border-border bg-card p-4 shadow-sm flex flex-col gap-4">
-        <SectionForm key={initialSuggestedSlug ?? "__new__"} initialSuggestedSlug={initialSuggestedSlug} />
+        <SectionForm
+          key={initialSuggestedSlug ?? "__new__"}
+          initialSuggestedSlug={initialSuggestedSlug}
+          patientHomeContext={patientHomeContext ?? undefined}
+        />
       </section>
     </AppShell>
   );

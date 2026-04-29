@@ -51,6 +51,7 @@ export type ContentPagesPort = {
   updateLifecycle: (id: string, patch: ContentPageLifecyclePatch) => Promise<void>;
   /** Устанавливает sort_order по порядку id (0..n-1) только для строк с данным section. */
   reorderInSection: (section: string, orderedIds: string[]) => Promise<void>;
+  countPagesWithSectionSlug: (sectionSlug: string) => Promise<number>;
 };
 
 const patientVisible = and(
@@ -213,6 +214,15 @@ export function createPgContentPagesPort(): ContentPagesPort {
         }
       });
     },
+
+    async countPagesWithSectionSlug(sectionSlug) {
+      const db = getDrizzle();
+      const rows = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(contentPages)
+        .where(eq(contentPages.section, sectionSlug));
+      return Number(rows[0]?.count ?? 0);
+    },
   };
 }
 
@@ -322,5 +332,9 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
       const p = inMemoryContentPagesStore.find((x) => x.id === orderedIds[i]);
       if (p) p.sortOrder = i;
     }
+  },
+
+  async countPagesWithSectionSlug(sectionSlug) {
+    return inMemoryContentPagesStore.filter((p) => p.section === sectionSlug).length;
   },
 };

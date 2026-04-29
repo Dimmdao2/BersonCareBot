@@ -3,10 +3,11 @@
  * Раздел и карточки загружаются из БД (content_sections + content_pages).
  */
 
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
 import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
@@ -23,17 +24,28 @@ export default async function PatientSectionPage({ params }: Props) {
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
 
-  const section = await deps.contentSections.getBySlug(slug);
-  if (!section || !section.isVisible) notFound();
+  const result = await resolvePatientContentSectionSlug(
+    {
+      getBySlug: (s) => deps.contentSections.getBySlug(s),
+      getRedirectNewSlugForOldSlug: (s) => deps.contentSections.getRedirectNewSlugForOldSlug(s),
+    },
+    slug,
+  );
+  if (!result) notFound();
+  if (result.canonicalSlug !== slug) {
+    permanentRedirect(`/app/patient/sections/${encodeURIComponent(result.canonicalSlug)}`);
+  }
+  const section = result.section;
+  const canonicalSlug = result.canonicalSlug;
 
   const canViewAuth = await resolvePatientCanViewAuthOnlyContent(session);
   if (section.requiresAuth && !canViewAuth) notFound();
 
   const [pages, homeBlocks] = await Promise.all([
-    deps.contentPages.listBySection(slug, { viewAuthOnlyPages: canViewAuth }),
+    deps.contentPages.listBySection(canonicalSlug, { viewAuthOnlyPages: canViewAuth }),
     deps.patientHomeBlocks.listBlocksWithItems(),
   ]);
-  const subscriptionSectionPresentation = getSubscriptionCarouselSectionPresentation(homeBlocks, slug);
+  const subscriptionSectionPresentation = getSubscriptionCarouselSectionPresentation(homeBlocks, canonicalSlug);
 
   const linkedCourseIds = [
     ...new Set(
@@ -56,10 +68,10 @@ export default async function PatientSectionPage({ params }: Props) {
   }
   let warmupsReminderJson: ReturnType<typeof reminderRuleToPatientJson> | null = null;
   let warmupsPersonalBar = false;
-  if (slug === DEFAULT_WARMUPS_SECTION_SLUG && session) {
+  if (canonicalSlug === DEFAULT_WARMUPS_SECTION_SLUG && session) {
     const dataGate = await patientRscPersonalDataGate(
       session,
-      `/app/patient/sections/${encodeURIComponent(slug)}`,
+      `/app/patient/sections/${encodeURIComponent(canonicalSlug)}`,
     );
     if (dataGate === "allow") {
       warmupsPersonalBar = true;
@@ -90,11 +102,11 @@ export default async function PatientSectionPage({ params }: Props) {
         />
       ) : null}
       {subscriptionSectionPresentation ? <PatientSectionSubscriptionCallout /> : null}
-      <section id={`patient-section-${slug}-grid`} className="grid gap-4 md:grid-cols-2">
+      <section id={`patient-section-${canonicalSlug}-grid`} className="grid gap-4 md:grid-cols-2">
         {pages.map((p) => (
           <FeatureCard
             key={p.id}
-            containerId={`patient-section-${slug}-card-${p.slug}`}
+            containerId={`patient-section-${canonicalSlug}-card-${p.slug}`}
             title={p.title}
             href={`/app/patient/content/${p.slug}`}
             compact

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
+import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { MediaLibraryPickerDialog } from "./MediaLibraryPickerDialog";
 import { ContentPreview } from "./ContentPreview";
@@ -36,10 +37,12 @@ export function ContentForm({
   page,
   sections,
   publishedCourses = [],
+  patientHomeContext,
 }: {
   page?: ContentPage;
   sections: ContentSectionRow[];
   publishedCourses?: PublishedCourseOption[];
+  patientHomeContext?: PatientHomeCmsReturnQuery;
 }) {
   const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
   const isNew = !page;
@@ -86,9 +89,21 @@ export function ContentForm({
         </p>
       ) : null}
       {state?.ok ? (
-        <p role="status" className="text-sm text-green-700">
-          Сохранено
-        </p>
+        patientHomeContext ? (
+          <div role="status" className="rounded-md border border-primary/30 bg-primary/5 p-4 text-sm">
+            <p className="font-medium">Страница сохранена</p>
+            <p className="mt-1 text-muted-foreground">
+              Вернитесь на экран главной пациента и добавьте материал в блок «{patientHomeContext.patientHomeBlock}».
+            </p>
+            <Link href={patientHomeContext.returnTo} className="mt-2 inline-flex text-primary underline">
+              Открыть экран «Главная пациента»
+            </Link>
+          </div>
+        ) : (
+          <p role="status" className="text-sm text-green-700">
+            Сохранено
+          </p>
+        )
       ) : null}
 
       <label className="flex flex-col gap-1">

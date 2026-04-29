@@ -14,7 +14,10 @@ export default async function DoctorContentSectionEditPage({ params }: Props) {
   const { slug: raw } = await params;
   const slug = decodeURIComponent(raw);
 
-  const row = await deps.contentSections.getBySlug(slug);
+  const [row, pagesInSection] = await Promise.all([
+    deps.contentSections.getBySlug(slug),
+    deps.contentPages.countPagesWithSectionSlug(slug),
+  ]);
   if (!row) notFound();
 
   return (
@@ -31,6 +34,7 @@ export default async function DoctorContentSectionEditPage({ params }: Props) {
             coverImageUrl: row.coverImageUrl,
             iconImageUrl: row.iconImageUrl,
           }}
+          pagesInSection={pagesInSection}
         />
       </section>
     </AppShell>

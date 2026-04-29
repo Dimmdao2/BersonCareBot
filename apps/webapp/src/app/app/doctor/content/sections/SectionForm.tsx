@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { MediaLibraryPickerDialog } from "../MediaLibraryPickerDialog";
 import { saveContentSection, type SaveContentSectionState } from "./actions";
+import { SectionSlugRenameDialog } from "./SectionSlugRenameDialog";
 
 type SectionRow = {
   slug: string;
@@ -22,10 +25,14 @@ type SectionRow = {
 export function SectionForm({
   section,
   initialSuggestedSlug,
+  pagesInSection = 0,
+  patientHomeContext,
 }: {
   section?: SectionRow;
   /** Из query `?suggestedSlug=` при создании раздела (латиница, цифры, дефис). */
   initialSuggestedSlug?: string | null;
+  pagesInSection?: number;
+  patientHomeContext?: PatientHomeCmsReturnQuery;
 }) {
   const [state, formAction, pending] = useActionState(saveContentSection, null as SaveContentSectionState | null);
   const isEdit = Boolean(section);
@@ -51,19 +58,32 @@ export function SectionForm({
         </p>
       ) : null}
       {state?.ok ? (
-        <p role="status" className="text-sm text-green-700">
-          Сохранено
-        </p>
+        patientHomeContext ? (
+          <div role="status" className="rounded-md border border-primary/30 bg-primary/5 p-4 text-sm">
+            <p className="font-medium">Раздел сохранён</p>
+            <p className="mt-1 text-muted-foreground">
+              Вернитесь на экран главной пациента и добавьте раздел в блок «{patientHomeContext.patientHomeBlock}».
+            </p>
+            <Link href={patientHomeContext.returnTo} className="mt-2 inline-flex text-primary underline">
+              Открыть экран «Главная пациента»
+            </Link>
+          </div>
+        ) : (
+          <p role="status" className="text-sm text-green-700">
+            Сохранено
+          </p>
+        )
       ) : null}
 
       {isEdit ? (
-        <label className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>
-          <>
+          <div className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="slug" value={section!.slug} />
-            <Input type="text" value={section!.slug} disabled readOnly />
-          </>
-        </label>
+            <Input type="text" value={section!.slug} disabled readOnly className="min-w-[12rem] flex-1" />
+            <SectionSlugRenameDialog oldSlug={section!.slug} pagesAffectedCount={pagesInSection} />
+          </div>
+        </div>
       ) : null}
 
       <label className="flex flex-col gap-1">

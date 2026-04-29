@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
 export type SaveContentSectionState = { ok: boolean; error?: string };
@@ -66,12 +67,6 @@ export async function saveContentSection(
   return { ok: true };
 }
 
-/**
- * Stub-server-action для slug rename. Реализация переносится в follow-up задачу
- * (см. `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/SLUG_RENAME_WIRING_TASK.md`).
- * `SectionSlugRenameDialog` — готовый UI; action и интеграция в `SectionForm` —
- * следующий шаг (GPT 5.5).
- */
 export type RenameContentSectionSlugState =
   | { ok: true; newSlug: string }
   | { ok: false; error: string }
@@ -79,11 +74,34 @@ export type RenameContentSectionSlugState =
 
 export async function renameContentSectionSlug(
   _prev: RenameContentSectionSlugState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<RenameContentSectionSlugState> {
-  return {
-    ok: false,
-    error:
-      "Переименование slug не подключено в этом релизе. Реализация запланирована follow-up задачей (см. SLUG_RENAME_WIRING_TASK.md).",
-  };
+  const session = await requireDoctorAccess();
+  const deps = buildAppDeps();
+
+  if (formData.get("confirm_rename") !== "on") {
+    return { ok: false, error: "Подтвердите переименование slug" };
+  }
+
+  const oldParsed = validateContentSectionSlug((formData.get("old_slug") as string | null) ?? "");
+  if (!oldParsed.ok) return { ok: false, error: oldParsed.error };
+  const newParsed = validateContentSectionSlug((formData.get("new_slug") as string | null) ?? "");
+  if (!newParsed.ok) return { ok: false, error: newParsed.error };
+  if (oldParsed.slug === newParsed.slug) {
+    return { ok: false, error: "Новый slug совпадает с текущим" };
+  }
+
+  const result = await deps.contentSections.renameSectionSlug(oldParsed.slug, newParsed.slug, {
+    changedByUserId: session.user.userId,
+  });
+  if (!result.ok) return result;
+
+  revalidatePath("/app/doctor/content/sections");
+  revalidatePath(`/app/doctor/content/sections/edit/${encodeURIComponent(result.newSlug)}`);
+  revalidatePath("/app/doctor/content");
+  revalidatePath("/app/patient");
+  revalidatePath(`/app/patient/sections/${encodeURIComponent(oldParsed.slug)}`);
+  revalidatePath(`/app/patient/sections/${encodeURIComponent(result.newSlug)}`);
+  revalidatePath("/app/patient/sections", "layout");
+  return { ok: true, newSlug: result.newSlug };
 }

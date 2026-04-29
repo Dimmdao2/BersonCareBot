@@ -1,5 +1,7 @@
 # SLUG_RENAME — wiring task (follow-up для GPT 5.5)
 
+> Status: ✅ DONE — реализовано в ветке `unify/patient-2026-04-29` (см. LOG `## 2026-04-29 — Phase 4 — EXEC` ниже). Stub server action заменён, диалог в `SectionForm` подключён, patient page делает 301 на canonical slug, CMS return-flow доделан. Acceptance criteria 1–5 закрыты, полный `pnpm run ci` зелёный.
+
 ## Контекст
 
 В unified-ветке `unify/patient-2026-04-29` (Вариант A merge `patient-home-redesign-initiative` + `patient-app-visual-redesign-initiative`) **infrastructure** для slug rename перенесена, но UI/server-action **не подключён** в существующие формы. Этот документ — спецификация follow-up задачи для агента GPT 5.5.

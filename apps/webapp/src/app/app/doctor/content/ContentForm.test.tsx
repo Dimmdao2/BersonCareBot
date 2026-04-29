@@ -1,8 +1,14 @@
 /** @vitest-environment jsdom */
 
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const saveContentPageMock = vi.hoisted(() => vi.fn());
+
+vi.mock("./actions", () => ({
+  saveContentPage: saveContentPageMock,
+}));
 
 vi.mock("@/shared/ui/markdown/MarkdownEditorToastUi", async () => {
   const { MarkdownEditor } = await import("@/shared/ui/markdown/MarkdownEditor");
@@ -30,6 +36,10 @@ const testSections = [
 ];
 
 describe("ContentForm", () => {
+  beforeEach(() => {
+    saveContentPageMock.mockReset();
+  });
+
   it("serializes body_md for FormData", async () => {
     const user = userEvent.setup();
     render(<ContentForm sections={testSections} />);
@@ -84,5 +94,27 @@ describe("ContentForm", () => {
     render(<ContentForm sections={testSections} />);
     await user.click(screen.getByRole("button", { name: /показать предпросмотр/i }));
     expect(screen.getByText(/предпросмотр для пациента/i)).toBeInTheDocument();
+  });
+
+  it("shows patient-home return banner after successful save", async () => {
+    const user = userEvent.setup();
+    saveContentPageMock.mockResolvedValueOnce({ ok: true });
+    render(
+      <ContentForm
+        sections={testSections}
+        patientHomeContext={{ returnTo: "/app/doctor/patient-home", patientHomeBlock: "situations" }}
+      />,
+    );
+
+    await user.type(screen.getByRole("textbox", { name: /заголовок/i }), "Материал");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent("Страница сохранена");
+    });
+    expect(screen.getByRole("link", { name: /главная пациента/i })).toHaveAttribute(
+      "href",
+      "/app/doctor/patient-home",
+    );
   });
 });

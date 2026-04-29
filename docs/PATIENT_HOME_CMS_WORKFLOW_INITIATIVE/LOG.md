@@ -495,3 +495,40 @@
   - pass
 - Next:
   - ручной smoke `06_QA_RELEASE_PLAN.md` + отметка в этом `LOG.md`
+
+---
+
+## 2026-04-29 — Phase 4 — EXEC
+
+- Branch: `unify/patient-2026-04-29`
+- Scope:
+  - Закрыты хвосты slug rename wiring + CMS return-flow без новой бизнес-логики.
+- Changed files:
+  - `apps/webapp/src/app/app/doctor/content/ContentForm.test.tsx`
+  - `apps/webapp/src/app/app/doctor/content/ContentForm.tsx`
+  - `apps/webapp/src/app/app/doctor/content/new/page.tsx`
+  - `apps/webapp/src/app/app/doctor/content/sections/SectionForm.test.tsx`
+  - `apps/webapp/src/app/app/doctor/content/sections/SectionForm.tsx`
+  - `apps/webapp/src/app/app/doctor/content/sections/actions.test.ts`
+  - `apps/webapp/src/app/app/doctor/content/sections/actions.ts`
+  - `apps/webapp/src/app/app/doctor/content/sections/edit/[slug]/page.tsx`
+  - `apps/webapp/src/app/app/doctor/content/sections/new/page.tsx`
+  - `apps/webapp/src/app/app/patient/sections/[slug]/page.tsx`
+  - `apps/webapp/src/app/app/patient/sections/[slug]/page.slugRedirect.test.tsx`
+  - `apps/webapp/src/infra/repos/pgContentPages.ts`
+  - `apps/webapp/src/infra/repos/pgContentSections.ts`
+  - `apps/webapp/src/modules/content-catalog/service.test.ts`
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/SLUG_RENAME_WIRING_TASK.md`
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+- Checks:
+  - `pnpm --dir apps/webapp run typecheck` — pass
+  - `pnpm --dir apps/webapp exec vitest --run` (focused) — pass
+  - `pnpm run ci` (полный, корневой) — pass
+- Result:
+  - pass
+- Next:
+  - manual dev QA по smoke-сценариям из этого LOG-блока:
+    - создание раздела;
+    - rename slug + проверка «X страниц будет переадресовано»;
+    - 301 со старого slug на новый;
+    - CMS return-flow (создание через `content/new` и `sections/new` с возвратом на patient-home).
