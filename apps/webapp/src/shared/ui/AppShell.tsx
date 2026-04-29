@@ -9,10 +9,12 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { PATIENT_MOBILE_SHELL_MAX_PX } from "@/app-layer/routes/navigation";
 import { buttonVariants } from "@/components/ui/button-variants";
 import type { SessionUser } from "@/shared/types/session";
+import { PatientBottomNav } from "@/shared/ui/PatientBottomNav";
 import { PatientGatedHeader } from "@/shared/ui/PatientGatedHeader";
-import { PatientQuickAddFAB } from "@/app/app/patient/components/PatientQuickAddFAB";
+import { PatientTopNav } from "@/shared/ui/PatientTopNav";
 import { SectionHeading } from "@/components/common/typography/SectionHeading";
 import { cn } from "@/lib/utils";
 import { DOCTOR_PAGE_CONTAINER_CLASS } from "@/shared/ui/doctorWorkspaceLayout";
@@ -30,11 +32,9 @@ type AppShellProps = {
   variant?: "default" | "patient" | "doctor";
   /** Доп. плавающий UI для пациента (например QuickAdd на дневнике). */
   patientFloatingSlot?: ReactNode;
-  /** Скрыть круглую кнопку быстрого добавления в дневник (FAB) внизу справа. */
-  hidePatientQuickAddFAB?: boolean;
   /**
    * Режим встраиваемого контента на всю ширину (например iframe записи): без зазора под шапкой,
-   * компактный нижний отступ (без поля под FAB).
+   * компактный нижний отступ.
    */
   patientEmbedMain?: boolean;
   /** См. {@link PatientHeader}: скрыть «домой» на главную пациента. */
@@ -43,6 +43,11 @@ type AppShellProps = {
   patientHideRightIcons?: boolean;
   /** См. {@link PatientHeader}: заголовок по центру (экраны входа). */
   patientBrandTitleBar?: boolean;
+  /**
+   * Скрыть нижнюю и верхнюю primary-навигацию пациента (и на desktop top nav тоже).
+   * Не комбинируется с `patientEmbedMain` / `patientBrandTitleBar` для показа nav — там nav уже скрыт.
+   */
+  patientHideBottomNav?: boolean;
 };
 
 /** Рендерит контейнер приложения, шапку с заголовком и действиями и основной контент. */
@@ -55,23 +60,32 @@ export function AppShell({
   titleSmall,
   variant = "default",
   patientFloatingSlot,
-  hidePatientQuickAddFAB = false,
   patientEmbedMain = false,
   patientHideHome = false,
   patientHideRightIcons = false,
   patientBrandTitleBar = false,
+  patientHideBottomNav = false,
 }: AppShellProps) {
   if (variant === "patient") {
+    const showPatientShellNav =
+      !patientEmbedMain && !patientHideBottomNav && !patientBrandTitleBar;
+
     return (
       <div
         id="app-shell-patient"
+        data-patient-shell-max-px={patientEmbedMain ? undefined : PATIENT_MOBILE_SHELL_MAX_PX}
         className={cn(
-          "mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col bg-[var(--patient-surface)] pt-[max(0px,env(safe-area-inset-top,0px))]",
+          "mx-auto flex min-h-[100dvh] w-full flex-col bg-[var(--patient-page-bg)] pt-[max(0px,env(safe-area-inset-top,0px))]",
           patientEmbedMain
-            ? "gap-0 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
-            : "safe-padding-patient gap-3",
+            ? "max-w-[480px] gap-0 pl-[max(1.25rem,env(safe-area-inset-left,0px))] pr-[max(1.25rem,env(safe-area-inset-right,0px))] pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+            : "max-w-[430px] gap-3 safe-padding-patient lg:max-w-[min(1180px,calc(100vw-2rem))]",
         )}
       >
+        {showPatientShellNav ? (
+          <div className="z-50 hidden shrink-0 lg:block">
+            <PatientTopNav />
+          </div>
+        ) : null}
         <PatientGatedHeader
           pageTitle={title}
           showBack={!!backHref}
@@ -80,6 +94,7 @@ export function AppShell({
           hideHome={patientHideHome}
           hideRightIcons={patientHideRightIcons}
           brandTitleBar={patientBrandTitleBar}
+          patientShellNavDocked={showPatientShellNav}
         />
         <main
           id="app-shell-content"
@@ -91,7 +106,7 @@ export function AppShell({
           {children}
         </main>
         {patientFloatingSlot}
-        {hidePatientQuickAddFAB ? null : <PatientQuickAddFAB visible={user !== null} />}
+        {showPatientShellNav ? <PatientBottomNav /> : null}
       </div>
     );
   }
