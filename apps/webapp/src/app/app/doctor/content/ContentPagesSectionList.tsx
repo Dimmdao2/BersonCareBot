@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
 import {
   DndContext,
   KeyboardSensor,
@@ -131,6 +131,8 @@ export function ContentPagesSectionList({
   }, [initialPages]);
 
   const sortIds = useMemo(() => items.map((p) => p.id), [items]);
+  /** Stable per-mount id so @dnd-kit a11y ids match SSR and client (avoids hydration mismatch on DndDescribedBy-*). */
+  const dndContextId = useId();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -181,7 +183,7 @@ export function ContentPagesSectionList({
   return (
     <div className="flex flex-col gap-2">
       {showSectionHeading ? <h3 className="m-0 text-base font-semibold">{sectionTitle}</h3> : null}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext id={dndContextId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={sortIds} strategy={verticalListSortingStrategy}>
           <ul className="flex flex-col gap-2" aria-busy={pending}>
             {items.map((p) => (

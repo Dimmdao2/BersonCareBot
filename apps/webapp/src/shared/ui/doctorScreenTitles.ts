@@ -27,6 +27,7 @@ export function getDoctorScreenTitle(pathname: string): string {
     "/app/doctor/recommendations/new": "Новая рекомендация",
     "/app/doctor/treatment-program-templates": "Шаблоны программ",
     "/app/doctor/treatment-program-templates/new": "Новый шаблон программы",
+    "/app/doctor/courses/new": "Новый курс",
     "/app/doctor/lfk-templates": "Комплексы",
     "/app/doctor/lfk-templates/new": "Новый комплекс",
     "/app/doctor/references": "Справочники",

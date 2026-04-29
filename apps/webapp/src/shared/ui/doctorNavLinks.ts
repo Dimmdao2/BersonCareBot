@@ -36,6 +36,7 @@ export const DOCTOR_MENU_ENTRIES: DoctorMenuEntry[] = [
     label: "Шаблоны программ",
     href: "/app/doctor/treatment-program-templates",
   },
+  { kind: "link", id: "courses-new", label: "Новый курс", href: "/app/doctor/courses/new" },
   { kind: "separator", id: "sep-before-references" },
   { kind: "link", id: "references", label: "Справочники", href: "/app/doctor/references" },
   { kind: "link", id: "patient-home", label: "Главная пациента", href: "/app/doctor/patient-home" },
