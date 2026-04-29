@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  PATIENT_PRIMARY_NAV_ITEMS,
   patientHomeBlocksByPlatform,
   patientHomeBlocksCanonical,
   patientHomeBlocksForEntry,
@@ -31,6 +32,18 @@ describe("patientNavByPlatform", () => {
     expect(patientNavByPlatform.desktop).toEqual(patientNavByPlatform.bot);
   });
 
+});
+
+describe("PATIENT_PRIMARY_NAV_ITEMS", () => {
+  it("lists exactly Сегодня, Запись, Разминки, План, Дневник in order", () => {
+    expect(PATIENT_PRIMARY_NAV_ITEMS.map((i) => i.label)).toEqual([
+      "Сегодня",
+      "Запись",
+      "Разминки",
+      "План",
+      "Дневник",
+    ]);
+  });
 });
 
 describe("patientHomeBlocksByPlatform", () => {

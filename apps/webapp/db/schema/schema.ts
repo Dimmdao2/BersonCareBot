@@ -1017,6 +1017,17 @@ export const contentSections = pgTable("content_sections", {
 	unique("content_sections_slug_key").on(table.slug),
 ]);
 
+export const contentSectionSlugHistory = pgTable("content_section_slug_history", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	oldSlug: text("old_slug").notNull(),
+	newSlug: text("new_slug").notNull(),
+	changedByUserId: uuid("changed_by_user_id"),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	unique("content_section_slug_history_old_slug_key").on(table.oldSlug),
+	index("idx_content_section_slug_history_new_slug").using("btree", table.newSlug.asc().nullsLast().op("text_ops")),
+]);
+
 export const patientHomeBlocks = pgTable("patient_home_blocks", {
 	code: text().primaryKey().notNull(),
 	title: text().notNull(),

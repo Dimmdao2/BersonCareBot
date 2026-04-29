@@ -65,3 +65,25 @@ export async function saveContentSection(
   revalidatePath("/app/patient/sections", "layout");
   return { ok: true };
 }
+
+/**
+ * Stub-server-action для slug rename. Реализация переносится в follow-up задачу
+ * (см. `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/SLUG_RENAME_WIRING_TASK.md`).
+ * `SectionSlugRenameDialog` — готовый UI; action и интеграция в `SectionForm` —
+ * следующий шаг (GPT 5.5).
+ */
+export type RenameContentSectionSlugState =
+  | { ok: true; newSlug: string }
+  | { ok: false; error: string }
+  | null;
+
+export async function renameContentSectionSlug(
+  _prev: RenameContentSectionSlugState,
+  _formData: FormData,
+): Promise<RenameContentSectionSlugState> {
+  return {
+    ok: false,
+    error:
+      "Переименование slug не подключено в этом релизе. Реализация запланирована follow-up задачей (см. SLUG_RENAME_WIRING_TASK.md).",
+  };
+}

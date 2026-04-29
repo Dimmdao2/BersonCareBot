@@ -21,6 +21,13 @@ export const PATIENT_HOME_ITEM_LIST_BLOCKS = [
   "sos",
 ] as const satisfies readonly PatientHomeBlockCode[];
 
+/**
+ * Alias для PATIENT_HOME_ITEM_LIST_BLOCKS под именем, которое используют CMS-workflow ссылки
+ * (Phase 5 PATIENT_HOME_CMS_WORKFLOW_INITIATIVE — return URL builders, candidate picker).
+ */
+export const PATIENT_HOME_CMS_BLOCK_CODES = PATIENT_HOME_ITEM_LIST_BLOCKS;
+export type PatientHomeCmsBlockCode = (typeof PATIENT_HOME_ITEM_LIST_BLOCKS)[number];
+
 const blockTargetTypeMap: Record<PatientHomeBlockCode, readonly PatientHomeBlockItemTargetType[]> = {
   daily_warmup: ["content_page"],
   booking: [],
