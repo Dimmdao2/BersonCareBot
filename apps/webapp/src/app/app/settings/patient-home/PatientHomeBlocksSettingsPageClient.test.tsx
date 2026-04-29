@@ -3,6 +3,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
+import type { PatientHomeBlock } from "@/modules/patient-home/ports";
+import {
+  buildPatientHomeResolverSyncContext,
+  computePatientHomeBlockRuntimeStatus,
+} from "@/modules/patient-home/patientHomeRuntimeStatus";
 import { PatientHomeBlocksSettingsPageClient } from "./PatientHomeBlocksSettingsPageClient";
 
 vi.mock("next/navigation", () => ({
@@ -33,28 +38,43 @@ vi.mock("./actions", () => ({
 }));
 
 describe("PatientHomeBlocksSettingsPageClient", () => {
+  const knownRefs = { contentPages: [] as string[], contentSections: [] as string[], courses: [] as string[] };
+  const resolverSync = buildPatientHomeResolverSyncContext({ sections: [], pages: [], courses: [] });
+
+  function statusesForBlocks(blocks: PatientHomeBlock[]) {
+    return blocks.reduce(
+      (acc, b) => {
+        acc[b.code] = computePatientHomeBlockRuntimeStatus(b, { knownRefs, resolverSync });
+        return acc;
+      },
+      {} as Record<PatientHomeBlock["code"], ReturnType<typeof computePatientHomeBlockRuntimeStatus>>,
+    );
+  }
+
   it("renders blocks and menu actions by block type", async () => {
+    const initialBlocks: PatientHomeBlock[] = [
+      {
+        code: "daily_warmup",
+        title: "Разминка дня",
+        description: "",
+        isVisible: true,
+        sortOrder: 1,
+        items: [],
+      },
+      {
+        code: "booking",
+        title: "Запись на приём",
+        description: "",
+        isVisible: true,
+        sortOrder: 2,
+        items: [],
+      },
+    ];
     render(
       <PatientHomeBlocksSettingsPageClient
-        initialBlocks={[
-          {
-            code: "daily_warmup",
-            title: "Разминка дня",
-            description: "",
-            isVisible: true,
-            sortOrder: 1,
-            items: [],
-          },
-          {
-            code: "booking",
-            title: "Запись на приём",
-            description: "",
-            isVisible: true,
-            sortOrder: 2,
-            items: [],
-          },
-        ]}
-        knownRefs={{ contentPages: [], contentSections: [], courses: [] }}
+        initialBlocks={initialBlocks}
+        knownRefs={knownRefs}
+        blockRuntimeStatuses={statusesForBlocks(initialBlocks)}
       />,
     );
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPatientHomeContentNewUrl,
   buildPatientHomeCourseNewUrl,
+  buildPatientHomeSectionsNewUrl,
   parsePatientHomeCmsReturnQuery,
   PATIENT_HOME_CMS_DEFAULT_RETURN_PATH,
 } from "./patientHomeCmsReturnUrls";
@@ -25,6 +26,51 @@ describe("patientHomeCmsReturnUrls", () => {
     const u = buildPatientHomeCourseNewUrl({ patientHomeBlock: "courses" });
     expect(u).toContain("/app/doctor/courses/new?");
     expect(u).toContain("patientHomeBlock=courses");
+  });
+
+  it("builds sections new URL with return and block", () => {
+    const u = buildPatientHomeSectionsNewUrl({
+      returnTo: PATIENT_HOME_CMS_DEFAULT_RETURN_PATH,
+      patientHomeBlock: "situations",
+    });
+    expect(u).toContain("/app/doctor/content/sections/new?");
+    const parsed = new URL(u, "http://localhost");
+    expect(parsed.searchParams.get("returnTo")).toBe(PATIENT_HOME_CMS_DEFAULT_RETURN_PATH);
+    expect(parsed.searchParams.get("patientHomeBlock")).toBe("situations");
+  });
+
+  it("parsePatientHomeCmsReturnQuery roundtrips content/new helper URL", () => {
+    const built = buildPatientHomeContentNewUrl({
+      returnTo: PATIENT_HOME_CMS_DEFAULT_RETURN_PATH,
+      patientHomeBlock: "sos",
+      suggestedTitle: "T1",
+      suggestedSlug: "s1",
+    });
+    const sp = Object.fromEntries(new URL(built, "http://localhost").searchParams);
+    const q = parsePatientHomeCmsReturnQuery({
+      returnTo: sp.returnTo,
+      patientHomeBlock: sp.patientHomeBlock,
+      suggestedTitle: sp.suggestedTitle,
+      suggestedSlug: sp.suggestedSlug,
+    });
+    expect(q?.returnTo).toBe(PATIENT_HOME_CMS_DEFAULT_RETURN_PATH);
+    expect(q?.patientHomeBlock).toBe("sos");
+    expect(q?.suggestedTitle).toBe("T1");
+    expect(q?.suggestedSlug).toBe("s1");
+  });
+
+  it("parsePatientHomeCmsReturnQuery roundtrips sections/new helper URL", () => {
+    const built = buildPatientHomeSectionsNewUrl({
+      returnTo: PATIENT_HOME_CMS_DEFAULT_RETURN_PATH,
+      patientHomeBlock: "subscription_carousel",
+    });
+    const sp = Object.fromEntries(new URL(built, "http://localhost").searchParams);
+    const q = parsePatientHomeCmsReturnQuery({
+      returnTo: sp.returnTo,
+      patientHomeBlock: sp.patientHomeBlock,
+    });
+    expect(q?.returnTo).toBe(PATIENT_HOME_CMS_DEFAULT_RETURN_PATH);
+    expect(q?.patientHomeBlock).toBe("subscription_carousel");
   });
 
   it("parsePatientHomeCmsReturnQuery rejects open redirect even with valid block", () => {

@@ -532,3 +532,38 @@
     - rename slug + проверка «X страниц будет переадресовано»;
     - 301 со старого slug на новый;
     - CMS return-flow (создание через `content/new` и `sections/new` с возвратом на patient-home).
+
+---
+
+## 2026-04-29 — CMS editor UX lift (GPT55 task) — Phases 1–4 + Phase 5 gate
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`
+- Scope (`CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md`): инкрементальный UX-lift редактора блоков главной пациента на `/app/doctor/patient-home` без unified Configure dialog, без удаления существующих диалогов, без UI overrides для элементов.
+- Реализация Phases 1–3 частично в предыдущих коммитах ветки: **`ecfc316`** (metadata + runtime-status + wiring), **`1be60ed`** (inline dialog + action).
+- **Phase 1 — metadata:** `blockEditorMetadata.ts` (все коды блоков, copy, `inlineCreate`, согласование с `allowedTargetTypesForBlock` / `canManageItemsForBlock`). Тесты: `blockEditorMetadata.test.ts`.
+- **Phase 2 — runtime-status:** `patientHomeRuntimeStatus.ts`, `PatientHomeBlockRuntimeStatusBadge.tsx`, интеграция в `PatientHomeBlockSettingsCard.tsx`, проброс статусов с `doctor/patient-home/page.tsx` через `PatientHomeBlocksSettingsPageClient.tsx`. Тесты: `patientHomeRuntimeStatus.test.ts`, `PatientHomeBlockRuntimeStatusBadge.test.tsx`, обновления `PatientHomeBlockSettingsCard.test.tsx` / `PatientHomeBlocksSettingsPageClient.test.tsx`.
+- **Phase 3 — inline section:** `PatientHomeCreateSectionInlineDialog.tsx`, server action `createContentSectionForPatientHomeBlock` и расширенный `revalidatePatientHomeSettings` в `actions.ts` (коммит `1be60ed` на ветке; Phases 1–2 — `ecfc316`). Тесты: `PatientHomeCreateSectionInlineDialog.test.tsx`, расширения `actions.test.ts`. Сброс формы при открытии: стабильный `key` на `Dialog` вместо синхронного `setState` в `useEffect` (eslint `react-hooks/set-state-in-effect`).
+- **Phase 4 — CMS return shortcuts:** `PatientHomeAddItemDialog.tsx` — при пустых candidates и CMS-блоке ссылки на создание раздела / материала / курса через `buildPatientHomeSectionsNewUrl` / `buildPatientHomeContentNewUrl` / `buildPatientHomeCourseNewUrl` и `PATIENT_HOME_CMS_DEFAULT_RETURN_PATH`; `patientHomeCmsReturnUrls.test.ts` — доп. кейсы. Тесты: `PatientHomeAddItemDialog.test.tsx`. Аналогично `key` на `Dialog` для lint.
+- **Не сделано в рамках этой задачи (явно):** unified Configure dialog (объединение add / edit / repair / preview); удаление существующих `PatientHomeAddItemDialog` / `PatientHomeBlockItemsDialog` / `PatientHomeRepairTargetsDialog`; UI для item presentation overrides (`titleOverride` / `subtitleOverride` / `imageUrlOverride` / `badgeLabel`); правки `courses/new` не требовались (reference).
+- Changed files в **финальном** коммите UX-lift (поверх `ecfc316` + `1be60ed`):
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeAddItemDialog.tsx`
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeCreateSectionInlineDialog.tsx`
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeAddItemDialog.test.tsx` (новый)
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockRuntimeStatusBadge.test.tsx` (новый)
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeCreateSectionInlineDialog.test.tsx` (новый)
+  - `apps/webapp/src/modules/patient-home/blockEditorMetadata.test.ts` (новый)
+  - `apps/webapp/src/modules/patient-home/patientHomeRuntimeStatus.test.ts` (новый)
+  - `apps/webapp/src/modules/patient-home/patientHomeCmsReturnUrls.test.ts`
+  - `apps/webapp/src/app/app/settings/patient-home/actions.test.ts`
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlockSettingsCard.test.tsx`
+  - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient.test.tsx`
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
+- Checks:
+  - Phase 5 targeted (`CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md` §Phase 5): `pnpm --dir apps/webapp exec vitest run` по списку из 13 файлов — **pass** (13 files, 95 tests); в логе vitest — предупреждение globalSetup о неудачном Drizzle migrate (локальная БД), тесты прошли.
+  - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
+  - `pnpm --dir apps/webapp lint` — pass
+  - `pnpm install --frozen-lockfile && pnpm run ci` (корень) — pass
+- Result:
+  - pass
+- Next:
+  - ручной smoke по `CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md` §Manual smoke; push по явной команде.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,20 +44,6 @@ export function PatientHomeCreateSectionInlineDialog({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  useEffect(() => {
-    if (!open) return;
-    setTitle("");
-    setSlug("");
-    slugManualRef.current = false;
-    setDescription("");
-    setSortOrder("0");
-    setIsVisible(true);
-    setRequiresAuth(false);
-    setIconImageUrl("");
-    setCoverImageUrl("");
-    setError(null);
-  }, [open]);
-
   const submit = () => {
     setError(null);
     const so = Number.parseInt(sortOrder, 10);
@@ -83,7 +69,11 @@ export function PatientHomeCreateSectionInlineDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      key={open ? `ph-inline-section-${blockCode}` : "ph-inline-section-closed"}
+    >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Новый раздел в блок «{meta.displayTitle}»</DialogTitle>

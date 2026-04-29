@@ -6,6 +6,7 @@ const addItemMock = vi.fn();
 const reorderItemsMock = vi.fn();
 const updateItemMock = vi.fn();
 const deleteItemMock = vi.fn();
+const upsertSectionMock = vi.fn();
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -26,12 +27,16 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
       deleteItem: deleteItemMock,
       listCandidatesForBlock: vi.fn().mockResolvedValue([]),
     },
+    contentSections: {
+      upsert: upsertSectionMock,
+    },
   }),
 }));
 
 import { getCurrentSession } from "@/modules/auth/service";
 import {
   addPatientHomeItem,
+  createContentSectionForPatientHomeBlock,
   deletePatientHomeItem,
   reorderPatientHomeItems,
   retargetPatientHomeItem,
@@ -54,6 +59,7 @@ describe("patient-home settings actions", () => {
     reorderItemsMock.mockReset();
     updateItemMock.mockReset();
     deleteItemMock.mockReset();
+    upsertSectionMock.mockReset();
     vi.mocked(getCurrentSession).mockResolvedValue(sessionWithRole("admin"));
   });
 
@@ -198,5 +204,105 @@ describe("patient-home settings actions", () => {
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toBe("invalid_target_type");
     expect(updateItemMock).not.toHaveBeenCalled();
+  });
+
+  describe("createContentSectionForPatientHomeBlock", () => {
+    it("forbids client", async () => {
+      vi.mocked(getCurrentSession).mockResolvedValue(sessionWithRole("client"));
+      const res = await createContentSectionForPatientHomeBlock({
+        blockCode: "situations",
+        title: "T",
+        slug: "ok-slug",
+      });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toBe("forbidden");
+      expect(upsertSectionMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects invalid block code", async () => {
+      const res = await createContentSectionForPatientHomeBlock({
+        blockCode: "nope",
+        title: "T",
+        slug: "ok-slug",
+      });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toBe("invalid_block_code");
+      expect(upsertSectionMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects block without content_section targets", async () => {
+      const res = await createContentSectionForPatientHomeBlock({
+        blockCode: "daily_warmup",
+        title: "T",
+        slug: "ok-slug",
+      });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toBe("invalid_target_type_for_block");
+      expect(upsertSectionMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects invalid slug (only dashes)", async () => {
+      const res = await createContentSectionForPatientHomeBlock({
+        blockCode: "situations",
+        title: "T",
+        slug: "---",
+      });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toContain("дефис");
+      expect(upsertSectionMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects invalid cover image URL", async () => {
+      const res = await createContentSectionForPatientHomeBlock({
+        blockCode: "situations",
+        title: "T",
+        slug: "valid-slug",
+        coverImageUrl: "not-a-valid-library-url",
+      });
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toContain("Обложка");
+      expect(upsertSectionMock).not.toHaveBeenCalled();
+    });
+
+    it("upserts section then adds patient home item", async () => {
+      upsertSectionMock.mockResolvedValue(undefined);
+      addItemMock.mockResolvedValue("550e8400-e29b-41d4-a716-446655440099");
+      const res = await createContentSectionForPatientHomeBlock({
+        blockCode: "situations",
+        title: "Раздел",
+        slug: "new-sec",
+        description: "Описание",
+        sortOrder: 2,
+        isVisible: false,
+        requiresAuth: true,
+        iconImageUrl: null,
+        coverImageUrl: null,
+      });
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.itemId).toBe("550e8400-e29b-41d4-a716-446655440099");
+      expect(res.sectionSlug).toBe("new-sec");
+      expect(upsertSectionMock).toHaveBeenCalledTimes(1);
+      expect(addItemMock).toHaveBeenCalledTimes(1);
+      expect(upsertSectionMock.mock.invocationCallOrder[0]!).toBeLessThan(addItemMock.mock.invocationCallOrder[0]!);
+      expect(upsertSectionMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          slug: "new-sec",
+          title: "Раздел",
+          description: "Описание",
+          sortOrder: 2,
+          isVisible: false,
+          requiresAuth: true,
+          coverImageUrl: null,
+          iconImageUrl: null,
+        }),
+      );
+      expect(addItemMock).toHaveBeenCalledWith({
+        blockCode: "situations",
+        targetType: "content_section",
+        targetRef: "new-sec",
+        isVisible: true,
+      });
+    });
   });
 });

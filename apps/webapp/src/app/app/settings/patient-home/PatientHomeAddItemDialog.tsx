@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { canManageItemsForBlock, isPatientHomeBlockCode, type PatientHomeCmsBlockCode } from "@/modules/patient-home/blocks";
+import {
+  assertPatientHomeCmsBlockCode,
+  buildPatientHomeContentNewUrl,
+  buildPatientHomeCourseNewUrl,
+  buildPatientHomeSectionsNewUrl,
+  PATIENT_HOME_CMS_DEFAULT_RETURN_PATH,
+} from "@/modules/patient-home/patientHomeCmsReturnUrls";
 import { addPatientHomeItem, listPatientHomeCandidates } from "./actions";
 
 type Candidate = {
@@ -52,6 +61,12 @@ export function PatientHomeAddItemDialog({
     });
   }, [open, blockCode]);
 
+  const cmsNavBlock: PatientHomeCmsBlockCode | null = useMemo(() => {
+    if (!isPatientHomeBlockCode(blockCode)) return null;
+    if (!canManageItemsForBlock(blockCode)) return null;
+    return assertPatientHomeCmsBlockCode(blockCode) ? blockCode : null;
+  }, [blockCode]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
@@ -75,8 +90,16 @@ export function PatientHomeAddItemDialog({
     });
   };
 
+  const returnTo = PATIENT_HOME_CMS_DEFAULT_RETURN_PATH;
+  const showCmsCreateShortcuts =
+    cmsNavBlock !== null && items.length === 0 && error === null && !isPending;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      key={open ? `patient-home-add-item-${blockCode}` : "patient-home-add-item-closed"}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Добавить материал</DialogTitle>
@@ -88,19 +111,64 @@ export function PatientHomeAddItemDialog({
           onChange={(event) => setQuery(event.target.value)}
         />
         <div className="max-h-80 space-y-2 overflow-y-auto">
-          {filtered.map((item) => (
-            <div key={`${item.targetType}:${item.targetRef}`} className="rounded-lg border border-border p-3">
-              <div className="text-sm font-medium">{item.title}</div>
-              <div className="text-xs text-muted-foreground">{item.targetType}: {item.targetRef}</div>
-              {item.subtitle ? <div className="mt-1 text-xs text-muted-foreground">{item.subtitle}</div> : null}
-              <div className="mt-2">
-                <Button size="sm" onClick={() => handleAdd(item)} disabled={isPending}>
-                  Добавить
-                </Button>
+          {items.length === 0 && error === null && isPending ? (
+            <div className="text-sm text-muted-foreground">Загрузка списка…</div>
+          ) : null}
+          {items.length > 0
+            ? filtered.map((item) => (
+                <div key={`${item.targetType}:${item.targetRef}`} className="rounded-lg border border-border p-3">
+                  <div className="text-sm font-medium">{item.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.targetType}: {item.targetRef}
+                  </div>
+                  {item.subtitle ? <div className="mt-1 text-xs text-muted-foreground">{item.subtitle}</div> : null}
+                  <div className="mt-2">
+                    <Button size="sm" onClick={() => handleAdd(item)} disabled={isPending}>
+                      Добавить
+                    </Button>
+                  </div>
+                </div>
+              ))
+            : null}
+          {items.length === 0 && !isPending && error === null ? (
+            showCmsCreateShortcuts ? (
+              <div
+                className="rounded-lg border border-dashed border-border/80 bg-muted/20 p-3 text-sm"
+                data-testid="patient-home-add-item-cms-shortcuts"
+              >
+                <p className="mb-2 text-muted-foreground">Нет готовых элементов в списке. Создайте новый объект в CMS:</p>
+                <ul className="flex flex-col gap-2">
+                  <li>
+                    <Link
+                      className="text-primary underline underline-offset-2"
+                      href={buildPatientHomeSectionsNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
+                    >
+                      Создать раздел
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      className="text-primary underline underline-offset-2"
+                      href={buildPatientHomeContentNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
+                    >
+                      Создать материал
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      className="text-primary underline underline-offset-2"
+                      href={buildPatientHomeCourseNewUrl({ returnTo, patientHomeBlock: cmsNavBlock! })}
+                    >
+                      Создать курс
+                    </Link>
+                  </li>
+                </ul>
               </div>
-            </div>
-          ))}
-          {filtered.length === 0 ? (
+            ) : (
+              <div className="text-sm text-muted-foreground">Ничего не найдено.</div>
+            )
+          ) : null}
+          {items.length > 0 && filtered.length === 0 ? (
             <div className="text-sm text-muted-foreground">Ничего не найдено.</div>
           ) : null}
         </div>
