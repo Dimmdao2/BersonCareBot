@@ -1,4 +1,5 @@
 import { getPool } from "@/infra/db/client";
+import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
 
 export type ContentSectionRow = {
   id: string;
@@ -20,6 +21,10 @@ export type ListVisibleContentSectionsOpts = {
   viewAuthOnlySections?: boolean;
 };
 
+export type RenameSectionSlugResult =
+  | { ok: true; newSlug: string }
+  | { ok: false; error: string };
+
 export type ContentSectionsPort = {
   listVisible: (opts?: ListVisibleContentSectionsOpts) => Promise<ContentSectionRow[]>;
   listAll: () => Promise<ContentSectionRow[]>;
@@ -33,6 +38,10 @@ export type ContentSectionsPort = {
   ) => Promise<void>;
   /** Выставить `sort_order` по порядку slug (0..n-1) в одной транзакции. */
   reorderSlugs: (orderedSlugs: string[]) => Promise<void>;
+  /** Атомарное переименование slug: `content_pages.section`, опционально `patient_home_block_items`, `content_sections`, история. */
+  renameSectionSlug: (oldSlug: string, newSlug: string) => Promise<RenameSectionSlugResult>;
+  /** Один шаг цепочки редиректа: куда вести URL с устаревшим slug. */
+  getRedirectNewSlugForOldSlug: (oldSlug: string) => Promise<string | null>;
 };
 
 const SELECT_COLS = `id, slug, title, description, sort_order, is_visible, requires_auth`;
@@ -139,6 +148,85 @@ export function createPgContentSectionsPort(): ContentSectionsPort {
         client.release();
       }
     },
+    async getRedirectNewSlugForOldSlug(oldSlug) {
+      const key = oldSlug.trim();
+      if (!key) return null;
+      const pool = getPool();
+      const res = await pool.query<{ new_slug: string }>(
+        `SELECT new_slug FROM content_section_slug_history WHERE old_slug = $1`,
+        [key],
+      );
+      return res.rows[0]?.new_slug ?? null;
+    },
+    async renameSectionSlug(oldSlug, newSlug) {
+      const vOld = validateContentSectionSlug(oldSlug);
+      const vNew = validateContentSectionSlug(newSlug);
+      if (!vOld.ok) return { ok: false, error: vOld.error };
+      if (!vNew.ok) return { ok: false, error: vNew.error };
+      const o = vOld.slug;
+      const n = vNew.slug;
+      if (o === n) return { ok: false, error: "Новый slug совпадает с текущим" };
+
+      const pool = getPool();
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const exists = await client.query(`SELECT 1 FROM content_sections WHERE slug = $1`, [o]);
+        if (exists.rowCount === 0) {
+          await client.query("ROLLBACK");
+          return { ok: false, error: "Раздел с исходным slug не найден" };
+        }
+        const taken = await client.query(`SELECT 1 FROM content_sections WHERE slug = $1`, [n]);
+        if (taken.rowCount !== 0) {
+          await client.query("ROLLBACK");
+          return { ok: false, error: "Раздел с таким slug уже существует" };
+        }
+
+        await client.query(`UPDATE content_pages SET section = $1, updated_at = now() WHERE section = $2`, [n, o]);
+
+        const tab = await client.query<{ e: boolean }>(
+          `SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'patient_home_block_items'
+          ) AS e`,
+        );
+        if (tab.rows[0]?.e) {
+          await client.query(
+            `UPDATE patient_home_block_items SET target_ref = $1
+             WHERE target_type = 'content_section' AND target_ref = $2`,
+            [n, o],
+          );
+        }
+
+        const upd = await client.query(`UPDATE content_sections SET slug = $1, updated_at = now() WHERE slug = $2`, [
+          n,
+          o,
+        ]);
+        if (upd.rowCount === 0) {
+          await client.query("ROLLBACK");
+          return { ok: false, error: "Раздел с исходным slug не найден" };
+        }
+
+        await client.query(`INSERT INTO content_section_slug_history (old_slug, new_slug) VALUES ($1, $2)`, [o, n]);
+
+        await client.query("COMMIT");
+        return { ok: true, newSlug: n };
+      } catch (e) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          /* ignore */
+        }
+        const code = typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
+        if (code === "23505") {
+          return { ok: false, error: "Раздел с таким slug уже существует" };
+        }
+        console.error("renameSectionSlug failed:", e);
+        return { ok: false, error: "Не удалось переименовать slug. Попробуйте ещё раз." };
+      } finally {
+        client.release();
+      }
+    },
   };
 }
 
@@ -162,11 +250,17 @@ export const inMemoryContentSectionsPort: ContentSectionsPort = {
   upsert: async () => "",
   update: async () => {},
   reorderSlugs: async () => {},
+  renameSectionSlug: async () => ({
+    ok: false,
+    error: "Переименование slug недоступно в режиме без БД",
+  }),
+  getRedirectNewSlugForOldSlug: async () => null,
 };
 
 /** Изолированный in-memory порт для unit-тестов. */
 export function createInMemoryContentSectionsPort(): ContentSectionsPort {
   const memory = new Map<string, ContentSectionRow>();
+  const slugRedirects = new Map<string, string>();
   return {
     async listVisible(opts?: ListVisibleContentSectionsOpts) {
       const viewAuthOnlySections = opts?.viewAuthOnlySections !== false;
@@ -213,6 +307,26 @@ export function createInMemoryContentSectionsPort(): ContentSectionsPort {
         const cur = memory.get(slug);
         if (cur) memory.set(slug, { ...cur, sortOrder: i });
       }
+    },
+    async getRedirectNewSlugForOldSlug(oldSlug) {
+      return slugRedirects.get(oldSlug.trim()) ?? null;
+    },
+    async renameSectionSlug(oldSlug, newSlug) {
+      const vOld = validateContentSectionSlug(oldSlug);
+      const vNew = validateContentSectionSlug(newSlug);
+      if (!vOld.ok) return { ok: false, error: vOld.error };
+      if (!vNew.ok) return { ok: false, error: vNew.error };
+      const o = vOld.slug;
+      const n = vNew.slug;
+      if (o === n) return { ok: false, error: "Новый slug совпадает с текущим" };
+      const cur = memory.get(o);
+      if (!cur) return { ok: false, error: "Раздел с исходным slug не найден" };
+      if (memory.has(n)) return { ok: false, error: "Раздел с таким slug уже существует" };
+      memory.delete(o);
+      const next: ContentSectionRow = { ...cur, slug: n };
+      memory.set(n, next);
+      slugRedirects.set(o, n);
+      return { ok: true, newSlug: n };
     },
   };
 }

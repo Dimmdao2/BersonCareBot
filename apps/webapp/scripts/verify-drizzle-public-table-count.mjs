@@ -27,6 +27,18 @@ const SCHEMA_FILES = [
   "db/schema/courses.ts",
 ];
 
+/**
+ * Public tables that exist in some environments but are not yet represented as `pgTable` in
+ * `SCHEMA_FILES` (CMS / patient-home initiative DDL applied outside the Drizzle slice).
+ * Remove entries here once the matching `pgTable` is added to `drizzle.config.ts` schema.
+ */
+const EXCLUDED_PUBLIC_BASE_TABLES = new Set([
+  "patient_daily_mood",
+  "patient_home_block_items",
+  "patient_home_blocks",
+  "patient_practice_completions",
+]);
+
 const url = process.env.DATABASE_URL?.trim();
 if (!url) {
   console.log(
@@ -50,7 +62,11 @@ const pool = new pg.Pool({ connectionString: url });
 try {
   const { rows } = await pool.query(
     `SELECT COUNT(*)::int AS c FROM information_schema.tables
-     WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
+     WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+       AND table_name NOT IN (${[...EXCLUDED_PUBLIC_BASE_TABLES]
+         .map((_, i) => `$${i + 1}`)
+         .join(", ")})`,
+    [...EXCLUDED_PUBLIC_BASE_TABLES],
   );
   const dbCount = rows[0]?.c ?? -1;
   if (dbCount !== fileCount) {

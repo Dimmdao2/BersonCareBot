@@ -1,75 +1,88 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Doctor section slug rename server action.
+ */
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const upsertMock = vi.fn();
+import type { RenameSectionSlugResult } from "@/infra/repos/pgContentSections";
+
+const renameMock = vi.hoisted(() =>
+  vi.fn(async (_old: string, _new: string): Promise<RenameSectionSlugResult> => ({
+    ok: true,
+    newSlug: "new-slug",
+  })),
+);
+const redirectMock = vi.hoisted(() => vi.fn((url: string) => {
+  throw new Error(`REDIRECT:${url}`);
+}));
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-vi.mock("@/app-layer/guards/requireRole", () => ({
-  requireDoctorAccess: vi.fn().mockResolvedValue({ user: { id: "doc-1" } }),
+vi.mock("next/navigation", () => ({
+  redirect: redirectMock,
 }));
 
 vi.mock("@/app-layer/di/buildAppDeps", () => ({
   buildAppDeps: () => ({
-    contentSections: { upsert: upsertMock },
+    contentSections: {
+      renameSectionSlug: renameMock,
+    },
   }),
 }));
 
-import { saveContentSection } from "./actions";
+vi.mock("@/app-layer/guards/requireRole", () => ({
+  requireDoctorAccess: vi.fn(async () => ({
+    user: {
+      userId: "00000000-0000-4000-8000-000000000099",
+      role: "doctor" as const,
+      displayName: "Doc",
+      bindings: {},
+    },
+    issuedAt: 1,
+    expiresAt: 9e9,
+  })),
+}));
 
-function formWith(entries: Record<string, string>) {
-  const fd = new FormData();
-  for (const [k, v] of Object.entries(entries)) {
-    fd.set(k, v);
-  }
-  return fd;
-}
+import { renameContentSectionSlug } from "./actions";
 
-describe("saveContentSection", () => {
+describe("renameContentSectionSlug", () => {
   beforeEach(() => {
-    upsertMock.mockClear();
-  });
-
-  it("saves when title and slug valid", async () => {
-    upsertMock.mockResolvedValue(undefined);
-    const fd = formWith({
-      slug: "new-sec",
-      title: "Новый раздел",
-      description: "d",
-      sort_order: "1",
-      is_visible: "on",
+    renameMock.mockReset();
+    renameMock.mockResolvedValue({ ok: true, newSlug: "new-slug" });
+    redirectMock.mockReset();
+    redirectMock.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
     });
-    const res = await saveContentSection(null, fd);
-    expect(res.ok).toBe(true);
-    expect(upsertMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        slug: "new-sec",
-        title: "Новый раздел",
-        isVisible: true,
-      }),
-    );
   });
 
-  it("rejects missing title", async () => {
-    const fd = formWith({ slug: "x", title: "", description: "" });
-    const res = await saveContentSection(null, fd);
-    expect(res.ok).toBe(false);
-    expect(upsertMock).not.toHaveBeenCalled();
+  it("requires confirm checkbox", async () => {
+    const fd = new FormData();
+    fd.set("old_slug", "old");
+    fd.set("new_slug", "new-slug");
+    const r = await renameContentSectionSlug(null, fd);
+    expect(r.ok).toBe(false);
+    expect(renameMock).not.toHaveBeenCalled();
   });
 
-  it("rejects invalid slug", async () => {
-    const fd = formWith({ slug: "Bad_Slug", title: "T", description: "" });
-    const res = await saveContentSection(null, fd);
-    expect(res.ok).toBe(false);
-    expect(upsertMock).not.toHaveBeenCalled();
+  it("returns error from port without redirect", async () => {
+    renameMock.mockResolvedValueOnce({ ok: false, error: "Раздел с таким slug уже существует" });
+    const fd = new FormData();
+    fd.set("old_slug", "old");
+    fd.set("new_slug", "taken");
+    fd.set("confirm_rename", "on");
+    const r = await renameContentSectionSlug(null, fd);
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain("уже существует");
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
-  it("rejects slug consisting only of hyphens", async () => {
-    const fd = formWith({ slug: "---", title: "T", description: "" });
-    const res = await saveContentSection(null, fd);
-    expect(res.ok).toBe(false);
-    expect(res.error).toContain("дефис");
-    expect(upsertMock).not.toHaveBeenCalled();
+  it("redirects to edit page for new slug on success", async () => {
+    const fd = new FormData();
+    fd.set("old_slug", "old");
+    fd.set("new_slug", "new-slug");
+    fd.set("confirm_rename", "on");
+    await expect(renameContentSectionSlug(null, fd)).rejects.toThrow("REDIRECT:");
+    expect(redirectMock).toHaveBeenCalledWith("/app/doctor/content/sections/edit/new-slug");
   });
 });

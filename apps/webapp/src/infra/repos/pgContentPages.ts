@@ -42,6 +42,8 @@ export type ContentPagesPort = {
   updateLifecycle: (id: string, patch: ContentPageLifecyclePatch) => Promise<void>;
   /** Устанавливает sort_order по порядку id (0..n-1) только для строк с данным section. */
   reorderInSection: (section: string, orderedIds: string[]) => Promise<void>;
+  /** Все строки `content_pages` с данным `section` (включая черновики/архив), для сводки при rename slug. */
+  countPagesWithSectionSlug: (sectionSlug: string) => Promise<number>;
 };
 
 const SELECT_COLS = `id, section, slug, title, summary, body_md, body_html, sort_order, is_published,
@@ -178,6 +180,14 @@ export function createPgContentPagesPort(): ContentPagesPort {
         client.release();
       }
     },
+    async countPagesWithSectionSlug(sectionSlug) {
+      const pool = getPool();
+      const res = await pool.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM content_pages WHERE section = $1`,
+        [sectionSlug.trim()],
+      );
+      return res.rows[0]?.c ?? 0;
+    },
   };
 }
 
@@ -211,4 +221,5 @@ export const inMemoryContentPagesPort: ContentPagesPort = {
   upsert: async () => "",
   updateLifecycle: async () => {},
   reorderInSection: async () => {},
+  countPagesWithSectionSlug: async () => 0,
 };

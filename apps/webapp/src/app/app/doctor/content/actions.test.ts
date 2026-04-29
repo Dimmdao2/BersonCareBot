@@ -109,7 +109,7 @@ describe("saveContentPage", () => {
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
-    expect(res.error).toContain("дефис");
+    if (!res.ok) expect(res.error).toContain("дефис");
     expect(upsertMock).not.toHaveBeenCalled();
   });
 
@@ -227,7 +227,7 @@ describe("saveContentPage", () => {
     });
     const res = await saveContentPage(null, fd);
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/список страниц/i);
+    if (!res.ok) expect(res.error).toMatch(/список страниц/i);
     expect(upsertMock).not.toHaveBeenCalled();
   });
 });

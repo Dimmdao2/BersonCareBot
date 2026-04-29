@@ -5,7 +5,9 @@ import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from "@/shared/lib/mediaUrlPolicy";
 
-export type SaveContentPageState = { ok: boolean; error?: string };
+export type SaveContentPageState =
+  | { ok: true; savedSlug: string; savedSection: string }
+  | { ok: false; error: string };
 
 export async function saveContentPage(
   _prev: SaveContentPageState | null,
@@ -106,5 +108,5 @@ export async function saveContentPage(
   revalidatePath("/app/doctor/content");
   revalidatePath(`/app/patient/content/${slug}`);
   revalidatePath("/app/patient/sections", "layout");
-  return { ok: true };
+  return { ok: true, savedSlug: slug, savedSection: section };
 }

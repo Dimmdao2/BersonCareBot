@@ -51,13 +51,13 @@
 
 ## Phase Checklist
 
-- [ ] Migration created and schema exported.
-- [ ] Transactional rename implemented.
-- [ ] All references updated atomically.
-- [ ] Redirect behavior added and tested.
-- [ ] Section edit UI provides dedicated rename flow.
-- [ ] Rollback SQL documented.
-- [ ] `LOG.md` updated.
+- [x] Migration created and schema exported.
+- [x] Transactional rename implemented.
+- [x] All references updated atomically.
+- [x] Redirect behavior added and tested.
+- [x] Section edit UI provides dedicated rename flow.
+- [x] Rollback SQL documented.
+- [x] `LOG.md` updated.
 
 ## Test Gate (phase-level)
 

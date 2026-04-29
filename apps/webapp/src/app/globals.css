@@ -59,6 +59,36 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/**
+ * Patient visual tokens — PATIENT_APP_VISUAL_REDESIGN Phase 1.
+ * Только под `#app-shell-patient`; legacy `--patient-bg`, `--patient-surface`, `--patient-radius`,
+ * `--patient-radius-lg`, `--patient-touch`, `--patient-gap` в `:root` не трогаем (MASTER_PLAN §6).
+ */
+#app-shell-patient {
+  --patient-page-bg: #f7f8fb;
+  --patient-card-bg: #ffffff;
+  --patient-border: #e5e7eb;
+  --patient-card-radius-mobile: 20px;
+  --patient-card-radius-desktop: 24px;
+  --patient-hero-radius-mobile: 24px;
+  --patient-hero-radius-desktop: 28px;
+  --patient-pill-radius: 9999px;
+  --patient-shadow-card-mobile: 0 4px 14px rgba(15, 23, 42, 0.04);
+  --patient-shadow-card-desktop: 0 8px 24px rgba(15, 23, 42, 0.05);
+  --patient-shadow-nav: 0 -4px 16px rgba(15, 23, 42, 0.04);
+  --patient-color-primary: #4f46e5;
+  --patient-color-primary-soft: #eef2ff;
+  --patient-color-success: #16a34a;
+  --patient-color-success-soft: #ecfdf3;
+  --patient-color-warning: #f59e0b;
+  --patient-color-warning-soft: #fffaeb;
+  --patient-color-danger: #ef4444;
+  --patient-color-danger-soft: #fef2f2;
+  --patient-text-primary: #111827;
+  --patient-text-secondary: #667085;
+  --patient-text-muted: #98a2b3;
+}
+
 /*---break---
  */
 

@@ -4,14 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import toast from "react-hot-toast";
-import {
-  Bell,
-  ChevronLeft,
-  Home,
-  Menu,
-  MessageCircle,
-  Settings,
-} from "lucide-react";
+import { Bell, ChevronLeft, Menu, MessageCircle, UserCircle } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -28,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { usePlatform } from "@/shared/hooks/usePlatform";
 import { useReminderUnreadCount } from "@/shared/hooks/useReminderUnread";
+import { useViewportMinWidthLg } from "@/shared/ui/useViewportMinWidth";
 
 /** Единый стиль пунктов бокового меню (Sheet). */
 const SHEET_NAV_LINK_CLASS = cn(
@@ -45,12 +39,14 @@ type PatientHeaderProps = {
   showBack?: boolean;
   backHref?: string;
   backLabel?: string;
-  /** Не показывать ссылку на главную пациента (экран входа и публичная поддержка). */
+  /** Устарело: отдельная кнопка «Домой» в шапке не показывается (primary nav). */
   hideHome?: boolean;
   /** Скрыть правые иконки (настройки и т.д.), оставить только заголовок и «Назад». */
   hideRightIcons?: boolean;
   /** Заголовок по центру экрана (экраны входа): «назад»/«домой» слева, иконки справа, без смещения заголовка. */
   brandTitleBar?: boolean;
+  /** Desktop top nav закреплён — иконки справа в шапке скрыты (дублируются в {@link PatientTopNav}). */
+  patientShellNavDocked?: boolean;
 };
 
 export function PatientHeader({
@@ -58,16 +54,20 @@ export function PatientHeader({
   showBack,
   backHref,
   backLabel = "Назад",
-  hideHome = false,
+  hideHome: _hideHome = false,
   hideRightIcons = false,
   brandTitleBar = false,
+  patientShellNavDocked = false,
 }: PatientHeaderProps) {
   const router = useRouter();
   const platform = usePlatform();
   const nav = patientNavByPlatform[platform];
+  const isDesktop = useViewportMinWidthLg();
   const [menuOpen, setMenuOpen] = useState(false);
-  const headerRightIds = hideRightIcons ? [] : nav.headerRightIcons;
+  const headerRightIdsRaw = hideRightIcons ? [] : nav.headerRightIcons;
+  const headerRightIds = isDesktop && patientShellNavDocked ? [] : headerRightIdsRaw;
   const reminderUnread = useReminderUnreadCount(headerRightIds.includes("reminders"));
+  const showMobileBack = !isDesktop && showBack;
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -138,16 +138,16 @@ export function PatientHeader({
             <Menu className="size-[22px]" aria-hidden />
           </Button>
         );
-      case "settings":
+      case "profile":
         return (
           <Link
-            key="settings"
-            href="/app/settings"
+            key="profile"
+            href={routePaths.profile}
             prefetch={false}
-            aria-label="Настройки"
+            aria-label="Профиль"
             className={HEADER_ICON_CLASS}
           >
-            <Settings className="size-[22px]" aria-hidden />
+            <UserCircle className="size-[22px]" aria-hidden />
           </Link>
         );
     }
@@ -155,7 +155,7 @@ export function PatientHeader({
 
   const leftNav = (
     <div className="flex shrink-0 items-center gap-1">
-      {showBack ? (
+      {showMobileBack ? (
         <Button
           type="button"
           variant="ghost"
@@ -168,18 +168,6 @@ export function PatientHeader({
         </Button>
       ) : (
         <span className="inline-flex w-10 shrink-0" aria-hidden />
-      )}
-      {hideHome ? (
-        <span className="inline-flex w-10 shrink-0" aria-hidden />
-      ) : (
-        <Link
-          href="/app/patient"
-          prefetch={false}
-          aria-label="Главное меню"
-          className={HEADER_ICON_CLASS}
-        >
-          <Home className="size-[22px]" aria-hidden />
-        </Link>
       )}
     </div>
   );
@@ -212,7 +200,10 @@ export function PatientHeader({
     <>
       <header
         id="patient-header"
-        className="safe-bleed-x sticky top-0 z-40 shrink-0 border-b border-border/60 bg-[var(--patient-surface)] py-2 shadow-sm"
+        className={cn(
+          "safe-bleed-x sticky z-40 shrink-0 border-b border-border/60 bg-[var(--patient-surface)] py-2 shadow-sm",
+          patientShellNavDocked ? "top-0 lg:top-16" : "top-0",
+        )}
       >
         {brandTitleBar ? (
           <div

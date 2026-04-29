@@ -44,12 +44,12 @@
 
 ## Phase Checklist
 
-- [ ] `content_page` create path from block editor implemented.
-- [ ] `course` create path from block editor implemented.
-- [ ] Return context preserved.
-- [ ] Mixed block shows grouped create actions.
-- [ ] Tests for context/return flow updated.
-- [ ] `LOG.md` updated.
+- [x] `content_page` create path from block editor implemented.
+- [x] `course` create path from block editor implemented.
+- [x] Return context preserved.
+- [x] Mixed block shows grouped create actions.
+- [x] Tests for context/return flow updated.
+- [x] `LOG.md` updated.
 
 ## Test Gate (phase-level)
 

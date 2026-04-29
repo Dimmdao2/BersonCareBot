@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  PATIENT_PRIMARY_NAV_ITEMS,
   patientHomeBlocksByPlatform,
   patientHomeBlocksCanonical,
   patientHomeBlocksForEntry,
@@ -20,17 +21,29 @@ describe("patientNavByPlatform", () => {
     }
   });
 
-  it("bot has only settings icon and no sheet menu", () => {
-    expect(patientNavByPlatform.bot.headerRightIcons).toEqual(["settings"]);
+  it("bot has reminders, messages, profile and no settings", () => {
+    expect(patientNavByPlatform.bot.headerRightIcons).toEqual(["reminders", "messages", "profile"]);
+    expect(patientNavByPlatform.bot.headerRightIcons).not.toContain("settings");
     expect(patientNavByPlatform.bot.hasSheetMenu).toBe(false);
     expect(patientNavByPlatform.bot.showLogout).toBe(false);
   });
 
-  it("mobile and desktop match bot header (settings only, no sheet menu)", () => {
+  it("mobile and desktop match bot header (no settings gear)", () => {
     expect(patientNavByPlatform.mobile).toEqual(patientNavByPlatform.bot);
     expect(patientNavByPlatform.desktop).toEqual(patientNavByPlatform.bot);
   });
+});
 
+describe("PATIENT_PRIMARY_NAV_ITEMS", () => {
+  it("lists exactly Сегодня, Запись, Разминки, План, Дневник in order", () => {
+    expect(PATIENT_PRIMARY_NAV_ITEMS.map((i) => i.label)).toEqual([
+      "Сегодня",
+      "Запись",
+      "Разминки",
+      "План",
+      "Дневник",
+    ]);
+  });
 });
 
 describe("patientHomeBlocksByPlatform", () => {

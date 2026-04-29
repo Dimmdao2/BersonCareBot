@@ -1013,6 +1013,17 @@ export const contentSections = pgTable("content_sections", {
 	unique("content_sections_slug_key").on(table.slug),
 ]);
 
+/** История переименований slug раздела контента (редиректы для пациентских URL). Phase 4 CMS workflow. */
+export const contentSectionSlugHistory = pgTable("content_section_slug_history", {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	oldSlug: text("old_slug").notNull(),
+	newSlug: text("new_slug").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	unique("content_section_slug_history_old_slug_key").on(table.oldSlug),
+	index("idx_content_section_slug_history_new_slug").using("btree", table.newSlug.asc().nullsLast().op("text_ops")),
+]);
+
 export const bookingSpecialists = pgTable("booking_specialists", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	branchId: uuid("branch_id").notNull(),

@@ -1,5 +1,6 @@
 /** Пункт или разделитель бокового меню кабинета врача / админ-режима (Sheet и десктоп-сайдбар). */
 
+import { routePaths } from "@/app-layer/routes/paths";
 export type DoctorMenuLinkItem = {
   kind: "link";
   id: string;
@@ -39,6 +40,7 @@ export const DOCTOR_MENU_ENTRIES: DoctorMenuEntry[] = [
   { kind: "separator", id: "sep-before-references" },
   { kind: "link", id: "references", label: "Справочники", href: "/app/doctor/references" },
   { kind: "link", id: "content", label: "CMS", href: "/app/doctor/content" },
+  { kind: "link", id: "patient-home", label: "Главная пациента", href: routePaths.doctorPatientHome },
   { kind: "link", id: "broadcasts", label: "Рассылки", href: "/app/doctor/broadcasts" },
   { kind: "link", id: "stats", label: "Статистика", href: "/app/doctor/stats" },
 ];

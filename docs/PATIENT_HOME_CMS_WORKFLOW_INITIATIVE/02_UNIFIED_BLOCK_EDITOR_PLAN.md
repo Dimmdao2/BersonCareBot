@@ -35,9 +35,12 @@ Modify:
 
 - `PatientHomeBlockSettingsCard.tsx`
 - `PatientHomeBlockItemsDialog.tsx`
-- `PatientHomeAddItemDialog.tsx`
 - `PatientHomeRepairTargetsDialog.tsx`
 - `actions.ts`
+
+Removed / folded (no separate file; add flow lives in unified dialog):
+
+- ~~`PatientHomeAddItemDialog.tsx`~~ — секция «Добавить» и picker кандидатов внутри `PatientHomeBlockEditorDialog.tsx` (Phase 2).
 
 ## Design Constraints
 
@@ -60,12 +63,12 @@ Modify:
 
 ## Phase Checklist
 
-- [ ] One clear user-facing entrypoint `Настроить` exists per block.
-- [ ] All previous block item operations preserved.
-- [ ] Candidate picker supports grouped target types for mixed blocks.
-- [ ] Repair flow still available for unresolved refs.
-- [ ] Tests updated for new interaction model.
-- [ ] `LOG.md` updated.
+- [x] One clear user-facing entrypoint `Настроить` exists per block.
+- [x] All previous block item operations preserved.
+- [x] Candidate picker supports grouped target types for mixed blocks.
+- [x] Repair flow still available for unresolved refs.
+- [x] Tests updated for new interaction model.
+- [x] `LOG.md` updated.
 
 ## Test Gate (phase-level)
 

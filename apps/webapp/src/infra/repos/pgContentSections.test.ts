@@ -67,4 +67,43 @@ describe("createInMemoryContentSectionsPort", () => {
     expect(all.find((r) => r.slug === "b")?.sortOrder).toBe(0);
     expect(all.find((r) => r.slug === "a")?.sortOrder).toBe(1);
   });
+
+  it("renameSectionSlug moves slug and supports redirect lookup", async () => {
+    const p = createInMemoryContentSectionsPort();
+    await p.upsert({
+      slug: "alpha",
+      title: "A",
+      description: "",
+      sortOrder: 0,
+      isVisible: true,
+      requiresAuth: false,
+    });
+    const r = await p.renameSectionSlug("alpha", "beta");
+    expect(r).toEqual({ ok: true, newSlug: "beta" });
+    expect(await p.getBySlug("alpha")).toBeNull();
+    expect((await p.getBySlug("beta"))?.title).toBe("A");
+    expect(await p.getRedirectNewSlugForOldSlug("alpha")).toBe("beta");
+  });
+
+  it("renameSectionSlug rejects collision", async () => {
+    const p = createInMemoryContentSectionsPort();
+    await p.upsert({
+      slug: "a",
+      title: "A",
+      description: "",
+      sortOrder: 0,
+      isVisible: true,
+      requiresAuth: false,
+    });
+    await p.upsert({
+      slug: "b",
+      title: "B",
+      description: "",
+      sortOrder: 1,
+      isVisible: true,
+      requiresAuth: false,
+    });
+    const r = await p.renameSectionSlug("a", "b");
+    expect(r.ok).toBe(false);
+  });
 });

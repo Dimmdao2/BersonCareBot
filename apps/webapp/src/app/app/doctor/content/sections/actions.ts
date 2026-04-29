@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireDoctorAccess } from "@/app-layer/guards/requireRole";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
+import { validateContentSectionSlug } from "@/shared/lib/contentSectionSlug";
 
-export type SaveContentSectionState = { ok: boolean; error?: string };
+export type SaveContentSectionState = { ok: true; savedSlug: string } | { ok: false; error: string };
 
 export async function saveContentSection(
   _prev: SaveContentSectionState | null,
@@ -20,21 +22,21 @@ export async function saveContentSection(
   const isVisible = formData.get("is_visible") === "on";
   const requiresAuth = formData.get("requires_auth") === "on";
 
-  if (!slug || !title) {
+  const slugCheck = validateContentSectionSlug(slug);
+  if (!slugCheck.ok) {
+    return { ok: false, error: slugCheck.error };
+  }
+  if (!title) {
     return { ok: false, error: "Заполните slug и заголовок" };
-  }
-  if (!/^[a-z0-9-]+$/.test(slug)) {
-    return { ok: false, error: "Slug: только латиница, цифры и дефис" };
-  }
-  if (/^-+$/.test(slug)) {
-    return { ok: false, error: "Slug не может состоять только из дефисов" };
   }
   if (title.length > 500) return { ok: false, error: "Заголовок слишком длинный" };
   if (description.length > 2000) return { ok: false, error: "Описание слишком длинное" };
 
+  const savedSlug = slugCheck.slug;
+
   try {
     await deps.contentSections.upsert({
-      slug,
+      slug: savedSlug,
       title,
       description,
       sortOrder,
@@ -50,5 +52,32 @@ export async function saveContentSection(
   revalidatePath("/app/doctor/content");
   revalidatePath("/app/patient");
   revalidatePath("/app/patient/sections", "layout");
-  return { ok: true };
+  return { ok: true, savedSlug };
+}
+
+export type RenameContentSectionSlugState = { ok: boolean; error?: string };
+
+export async function renameContentSectionSlug(
+  _prev: RenameContentSectionSlugState | null,
+  formData: FormData,
+): Promise<RenameContentSectionSlugState> {
+  await requireDoctorAccess();
+  const deps = buildAppDeps();
+
+  const oldSlug = (formData.get("old_slug") as string)?.trim() || "";
+  const newSlugRaw = (formData.get("new_slug") as string)?.trim() || "";
+  if (formData.get("confirm_rename") !== "on") {
+    return { ok: false, error: "Отметьте подтверждение переименования" };
+  }
+
+  const renamed = await deps.contentSections.renameSectionSlug(oldSlug, newSlugRaw);
+  if (!renamed.ok) {
+    return { ok: false, error: renamed.error };
+  }
+
+  revalidatePath("/app/doctor/content/sections");
+  revalidatePath("/app/doctor/content");
+  revalidatePath("/app/patient");
+  revalidatePath("/app/patient/sections", "layout");
+  redirect(`/app/doctor/content/sections/edit/${encodeURIComponent(renamed.newSlug)}`);
 }

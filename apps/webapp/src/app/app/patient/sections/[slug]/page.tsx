@@ -3,10 +3,11 @@
  * Раздел и карточки загружаются из БД (content_sections + content_pages).
  */
 
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderPatientJson";
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
+import { resolvePatientContentSectionSlug } from "@/infra/repos/resolvePatientContentSectionSlug";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
@@ -20,26 +21,30 @@ export default async function PatientSectionPage({ params }: Props) {
   const session = await getOptionalPatientSession();
   const deps = buildAppDeps();
 
-  const section = await deps.contentSections.getBySlug(slug);
-  if (!section || !section.isVisible) notFound();
+  const resolved = await resolvePatientContentSectionSlug(deps.contentSections, slug);
+  if (!resolved) notFound();
+  if (resolved.canonicalSlug !== slug) {
+    permanentRedirect(`/app/patient/sections/${encodeURIComponent(resolved.canonicalSlug)}`);
+  }
+  const section = resolved.section;
 
   const canViewAuth = await resolvePatientCanViewAuthOnlyContent(session);
   if (section.requiresAuth && !canViewAuth) notFound();
 
-  const pages = await deps.contentPages.listBySection(slug, { viewAuthOnlyPages: canViewAuth });
+  const pages = await deps.contentPages.listBySection(section.slug, { viewAuthOnlyPages: canViewAuth });
 
   let warmupsReminderJson: ReturnType<typeof reminderRuleToPatientJson> | null = null;
   let warmupsPersonalBar = false;
-  if (slug === "warmups" && session) {
+  if (section.slug === "warmups" && session) {
     const dataGate = await patientRscPersonalDataGate(
       session,
-      `/app/patient/sections/${encodeURIComponent(slug)}`,
+      `/app/patient/sections/${encodeURIComponent(section.slug)}`,
     );
     if (dataGate === "allow") {
       warmupsPersonalBar = true;
       const rules = await deps.reminders.listRulesByUser(session.user.userId);
       const matches = rules.filter(
-        (r) => r.linkedObjectType === "content_section" && r.linkedObjectId === "warmups",
+        (r) => r.linkedObjectType === "content_section" && r.linkedObjectId === section.slug,
       );
       matches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
       const latest = matches[0];
@@ -52,11 +57,11 @@ export default async function PatientSectionPage({ params }: Props) {
       {warmupsPersonalBar ? (
         <SectionWarmupsReminderBar sectionTitle={section.title} existingRule={warmupsReminderJson} />
       ) : null}
-      <section id={`patient-section-${slug}-grid`} className="grid gap-4 md:grid-cols-2">
+      <section id={`patient-section-${section.slug}-grid`} className="grid gap-4 md:grid-cols-2">
         {pages.map((p) => (
           <FeatureCard
             key={p.id}
-            containerId={`patient-section-${slug}-card-${p.slug}`}
+            containerId={`patient-section-${section.slug}-card-${p.slug}`}
             title={p.title}
             href={`/app/patient/content/${p.slug}`}
             compact

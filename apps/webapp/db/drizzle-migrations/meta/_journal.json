@@ -57,6 +57,13 @@
       "when": 1776470000000,
       "tag": "0007_courses",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776471000000,
+      "tag": "0008_content_section_slug_history",
+      "breakpoints": true
     }
   ]
 }

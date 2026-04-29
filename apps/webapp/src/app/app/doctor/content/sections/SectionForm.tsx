@@ -1,11 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
+import { cn } from "@/lib/utils";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { saveContentSection, type SaveContentSectionState } from "./actions";
+import { SectionSlugRenameDialog } from "./SectionSlugRenameDialog";
 
 type SectionRow = {
   slug: string;
@@ -16,7 +20,16 @@ type SectionRow = {
   requiresAuth: boolean;
 };
 
-export function SectionForm({ section }: { section?: SectionRow }) {
+export function SectionForm({
+  section,
+  pagesInSection = 0,
+  patientHomeContext,
+}: {
+  section?: SectionRow;
+  pagesInSection?: number;
+  /** Query с экрана настройки блоков главной (Phase 5/6 FIX): после сохранения нового раздела — ссылка «вернуться». */
+  patientHomeContext?: PatientHomeCmsReturnQuery | null;
+}) {
   const [state, formAction, pending] = useActionState(saveContentSection, null as SaveContentSectionState | null);
   const isEdit = Boolean(section);
   const [titleValue, setTitleValue] = useState(section?.title ?? "");
@@ -24,29 +37,46 @@ export function SectionForm({ section }: { section?: SectionRow }) {
   const slugManualRef = useRef(false);
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      {state?.error ? (
-        <p role="alert" className="text-destructive">
-          {state.error}
-        </p>
-      ) : null}
-      {state?.ok ? (
-        <p role="status" className="text-sm text-green-700">
-          Сохранено
-        </p>
-      ) : null}
+    <>
+      <form action={formAction} className="flex flex-col gap-4">
+        {state && !state.ok && "error" in state ? (
+          <p role="alert" className="text-destructive">
+            {state.error}
+          </p>
+        ) : null}
+        {state?.ok === true && patientHomeContext ? (
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+            <p className="font-medium text-foreground">Раздел сохранён</p>
+            <p className="mt-1 text-muted-foreground">
+              Вернитесь к настройке блока и добавьте раздел{" "}
+              <span className="font-mono">{state.savedSlug}</span> в блок «{patientHomeContext.patientHomeBlock}» через
+              «Настроить».
+            </p>
+            <Link
+              href={patientHomeContext.returnTo}
+              className={cn(buttonVariants({ variant: "secondary" }), "mt-3 inline-flex")}
+            >
+              Открыть экран «Главная пациента»
+            </Link>
+          </div>
+        ) : null}
+        {state?.ok === true && !patientHomeContext ? (
+          <p role="status" className="text-sm text-green-700">
+            Сохранено
+          </p>
+        ) : null}
 
-      {isEdit ? (
+        {isEdit ? (
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>
+            <>
+              <input type="hidden" name="slug" value={section!.slug} />
+              <Input type="text" value={section!.slug} disabled readOnly />
+            </>
+          </label>
+        ) : null}
+
         <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Slug</span>
-          <>
-            <input type="hidden" name="slug" value={section!.slug} />
-            <Input type="text" value={section!.slug} disabled readOnly />
-          </>
-        </label>
-      ) : null}
-
-      <label className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Заголовок</span>
         {isEdit ? (
           <Input
@@ -153,5 +183,9 @@ export function SectionForm({ section }: { section?: SectionRow }) {
         {pending ? "Сохранение…" : "Сохранить"}
       </Button>
     </form>
+    {isEdit ? (
+      <SectionSlugRenameDialog oldSlug={section!.slug} pagesAffectedCount={pagesInSection} />
+    ) : null}
+    </>
   );
 }

@@ -9,6 +9,8 @@ export const routePaths = {
   loginContactSupport: LOGIN_CONTACT_SUPPORT_PATH,
   patient: "/app/patient",
   doctor: "/app/doctor",
+  /** Настройка блоков главной пациента (doctor/admin). */
+  doctorPatientHome: "/app/doctor/patient-home",
   settings: "/app/settings",
   /** Каталог разделов CMS (публичные + при tier patient). */
   patientSectionsIndex: "/app/patient/sections",

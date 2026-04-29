@@ -17,20 +17,24 @@
 
 ## Final Manual QA Checklist
 
-- [ ] Empty `situations` block -> create section inline -> appears in block.
-- [ ] Visible empty block warning shown in settings.
-- [ ] Missing target repair path works.
-- [ ] Section slug rename updates home links.
-- [ ] Old section URL redirects to new slug.
-- [ ] Mixed block candidate grouping clear.
-- [ ] Course/material create return flow preserves context.
+> **Phase 6 EXEC (2026-04-29):** пункты ниже не прогонялись в headless CI; это операторский gate перед push/release. Индикативное покрытие автотестами см. примечания.
+
+- [ ] Empty `situations` block -> create section inline -> appears in block. *(см. `actions.test.ts` / `patientHomeBlockEditor.test.tsx` для action и UI-фрагментов)*
+- [ ] Visible empty block warning shown in settings. *(см. превью/копирайт в `patientHomeBlockEditor.test.tsx`, `blockEditorMetadata.test.ts`)*
+- [ ] Missing target repair path works. *(Phase 2: repair UI/заглушки; полный персистентный repair — вне закрытия Phase 6 EXEC)*
+- [ ] Section slug rename updates home links. *(см. `pgContentSections.test.ts`, `actions.test.ts` разделов)*
+- [ ] Old section URL redirects to new slug. *(см. `page.slugRedirect.test.tsx`, `resolvePatientContentSectionSlug.test.ts`)*
+- [ ] Mixed block candidate grouping clear. *(см. `patientHomeBlockEditor.test.tsx`)*
+- [ ] Course/material create return flow preserves context. *(см. `patientHomeCmsReturnUrls.test.ts`, `ContentForm.test.tsx`; зазор `sections/new` без return-context — `AUDIT_PHASE_5.md` §5.1)*
 
 ## Documentation Checklist
 
-- [ ] `LOG.md` has entries for each phase.
-- [ ] audit docs exist for executed phases.
-- [ ] rollback docs updated if migrations exist.
-- [ ] `docs/README.md` has initiative link.
+Закрыто в **Phase 6 EXEC (2026-04-29)**.
+
+- [x] `LOG.md` has entries for each phase.
+- [x] audit docs exist for executed phases (`AUDIT_PHASE_0.md` … `AUDIT_PHASE_6.md`; см. **Phase 6 — AUDIT** в `LOG.md`).
+- [x] rollback docs updated if migrations exist (`ROLLBACK_SQL.md` для миграции `0008` / rename slug).
+- [x] `docs/README.md` has initiative link (блок Patient Home CMS Workflow).
 
 ## Gate Strategy
 
@@ -66,4 +70,6 @@ pnpm run ci
 - All mandatory fixes closed.
 - Checks green at required level.
 - Final summary is ready for user decision (continue/push/release).
+
+**Phase 6 EXEC (2026-04-29):** документированный статус — см. `LOG.md` §Phase 6 — EXEC; full root CI **не** запускался (не запрошен пользователем, не перед push, не release rehearsal). Перед push: `pnpm install --frozen-lockfile && pnpm run ci` по §Gate Strategy.
 

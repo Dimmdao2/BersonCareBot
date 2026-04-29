@@ -32,9 +32,11 @@ vi.mock("@/app-layer/di/buildAppDeps", () => ({
               description: "",
               sortOrder: 0,
               isVisible: true,
+              requiresAuth: false,
             }
           : null,
       ),
+      getRedirectNewSlugForOldSlug: vi.fn(async () => null),
     },
     contentPages: {
       listBySection: vi.fn(async () => []),

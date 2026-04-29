@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownEditorToastUi } from "@/shared/ui/markdown/MarkdownEditorToastUi";
 import type { ContentSectionRow } from "@/infra/repos/pgContentSections";
+import type { PatientHomeCmsReturnQuery } from "@/modules/patient-home/patientHomeCmsReturnUrls";
+import { cn } from "@/lib/utils";
 import { fallbackSlug, slugFromTitle } from "@/shared/lib/slugify";
 import { MediaLibraryPickerDialog } from "./MediaLibraryPickerDialog";
 import { ContentPreview } from "./ContentPreview";
@@ -29,16 +31,25 @@ type ContentPage = {
   deletedAt?: string | null;
 };
 
-export function ContentForm({ page, sections }: { page?: ContentPage; sections: ContentSectionRow[] }) {
+export function ContentForm({
+  page,
+  sections,
+  patientHomeContext,
+}: {
+  page?: ContentPage;
+  sections: ContentSectionRow[];
+  /** Query с экрана настройки блоков главной (Phase 5): после сохранения — ссылка «вернуться». */
+  patientHomeContext?: PatientHomeCmsReturnQuery | null;
+}) {
   const [state, formAction, pending] = useActionState(saveContentPage, null as SaveContentPageState | null);
   const isNew = !page;
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [titleValue, setTitleValue] = useState(page?.title ?? "");
+  const [titleValue, setTitleValue] = useState(page?.title ?? patientHomeContext?.suggestedTitle ?? "");
   const [summaryValue, setSummaryValue] = useState(page?.summary ?? "");
   const [bodyMdValue, setBodyMdValue] = useState(
     page ? (page.bodyMd.trim().length > 0 ? page.bodyMd : page.bodyHtml) : "",
   );
-  const [slugValue, setSlugValue] = useState(page?.slug ?? "");
+  const [slugValue, setSlugValue] = useState(page?.slug ?? patientHomeContext?.suggestedSlug ?? "");
   const [imageUrlValue, setImageUrlValue] = useState(page?.imageUrl ?? "");
   const [videoUrlValue, setVideoUrlValue] = useState(page?.videoUrl ?? "");
   const slugManualRef = useRef(false);
@@ -69,12 +80,29 @@ export function ContentForm({ page, sections }: { page?: ContentPage; sections: 
         if (target.name === "body_md") setBodyMdValue(target.value);
       }}
     >
-      {state?.error ? (
+      {state?.ok === true && patientHomeContext ? (
+        <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+          <p className="font-medium text-foreground">Материал сохранён</p>
+          <p className="mt-1 text-muted-foreground">
+            Вернитесь к настройке блока и добавьте материал{" "}
+            <span className="font-mono">{state.savedSlug}</span> в блок «{patientHomeContext.patientHomeBlock}» через
+            «Настроить».
+          </p>
+          <Link
+            href={patientHomeContext.returnTo}
+            className={cn(buttonVariants({ variant: "secondary" }), "mt-3 inline-flex")}
+          >
+            Открыть экран «Главная пациента»
+          </Link>
+        </div>
+      ) : null}
+
+      {state && "error" in state && state.error ? (
         <p role="alert" className="text-destructive">
           {state.error}
         </p>
       ) : null}
-      {state?.ok ? (
+      {state?.ok === true && !patientHomeContext ? (
         <p role="status" className="text-sm text-green-700">
           Сохранено
         </p>

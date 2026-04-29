@@ -54,13 +54,13 @@
 
 ## Phase Checklist
 
-- [ ] Server action implemented with strict validation.
-- [ ] UI inline form integrated into block editor.
-- [ ] Successful create auto-adds item.
-- [ ] Duplicate/invalid slug failures handled.
-- [ ] Media URL policy reused.
-- [ ] Tests for action + UI added/updated.
-- [ ] `LOG.md` updated.
+- [x] Server action implemented with strict validation.
+- [x] UI inline form integrated into block editor.
+- [x] Successful create auto-adds item.
+- [x] Duplicate/invalid slug failures handled.
+- [x] Media URL policy reused.
+- [x] Tests for action + UI added/updated.
+- [x] `LOG.md` updated.
 
 ## Test Gate (phase-level)
 

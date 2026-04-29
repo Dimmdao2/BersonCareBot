@@ -54,12 +54,12 @@
 
 ## Phase Checklist
 
-- [ ] Metadata helper added with full block coverage.
-- [ ] Settings copy uses metadata helper.
-- [ ] Empty-state warnings implemented.
-- [ ] No functional regression in existing add/edit/reorder/repair actions.
-- [ ] Tests for metadata and UI copy added/updated.
-- [ ] `LOG.md` updated.
+- [x] Metadata helper added with full block coverage.
+- [x] Settings copy uses metadata helper.
+- [x] Empty-state warnings implemented.
+- [x] No functional regression in existing add/edit/reorder/repair actions.
+- [x] Tests for metadata and UI copy added/updated.
+- [x] `LOG.md` updated.
 
 ## Test Gate (phase-level)
 
