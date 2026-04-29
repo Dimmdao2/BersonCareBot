@@ -38,6 +38,9 @@ export default async function globalSetup() {
         cause: e,
       });
     }
-    console.warn("vitest globalSetup: migrations failed (DB may be down). Tests may use in-memory.", e);
+    const short = e instanceof Error ? e.message : String(e);
+    console.warn(
+      "vitest globalSetup: migrations failed (DB may be down). Tests may use in-memory. " + short,
+    );
   }
 }

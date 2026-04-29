@@ -559,7 +559,7 @@
   - `apps/webapp/src/app/app/settings/patient-home/PatientHomeBlocksSettingsPageClient.test.tsx`
   - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md`
 - Checks:
-  - Phase 5 targeted (`CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md` §Phase 5): `pnpm --dir apps/webapp exec vitest run` по списку из 13 файлов — **pass** (13 files, 95 tests); в логе vitest — предупреждение globalSetup о неудачном Drizzle migrate (локальная БД), тесты прошли.
+  - Phase 5 targeted (`CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md` §Phase 5): `pnpm --dir apps/webapp exec vitest run` по **14** тестовым файлам (включая `PatientHomeBlocksSettingsPageClient.test.tsx` — проброс runtime status) — **pass** (14 files, 96 tests). В dev `vitest.globalSetup` при сбое migrate: `console.warn` — одна краткая строка (без dump объекта `Error`); дочерний `pnpm run migrate` всё ещё может печатать своё сообщение; тесты green.
   - `pnpm --dir apps/webapp exec tsc --noEmit` — pass
   - `pnpm --dir apps/webapp lint` — pass
   - `pnpm install --frozen-lockfile && pnpm run ci` (корень) — pass
@@ -567,3 +567,24 @@
   - pass
 - Next:
   - ручной smoke по `CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md` §Manual smoke; push по явной команде.
+
+---
+
+## 2026-04-29 — CMS editor UX lift (GPT55) — FIX (сверка gate + log)
+
+- Branch: `feat/patient-home-cms-editor-uxlift-2026-04-29`
+- Scope:
+  - Устранение расхождения счёта **13/95** vs **14/96**: нормативный Phase 5 gate в `CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md` расширен `PatientHomeBlocksSettingsPageClient.test.tsx` (проброс runtime status); **14 test files, 96 tests** при полном наборе.
+  - `apps/webapp/vitest.globalSetup.ts`: при optional failure migrate `console.warn` печатает краткую строку (без полного dump `Error` во втором аргументе); stderr дочернего `pnpm run migrate` при локальной БД может остаться.
+  - Повторная проверка pre-push: `pnpm install --frozen-lockfile && pnpm run ci` (корень) — **pass**.
+- Changed files:
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md`
+  - `docs/PATIENT_HOME_CMS_WORKFLOW_INITIATIVE/LOG.md` (также обновлён предыдущий блок «Phases 1–4 + Phase 5 gate»)
+  - `apps/webapp/vitest.globalSetup.ts`
+- Checks:
+  - Phase 5 vitest (14 файлов из задачи) — 14 passed, 96 passed
+  - `pnpm run ci` (корень) — pass
+- Result:
+  - pass
+- Next:
+  - commit при необходимости; ручной smoke `CMS_EDITOR_UX_LIFT_TASK_FOR_GPT55.md` §Manual smoke
