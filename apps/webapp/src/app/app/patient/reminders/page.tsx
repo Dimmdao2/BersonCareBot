@@ -33,7 +33,6 @@ async function resolvePersonalReminderLabel(
     return (id && complexTitleById[id]) || "Комплекс ЛФК";
   }
   if (lo === "content_section") {
-    if (id === "warmups") return "Разминки";
     if (id) {
       const sec = await deps.contentSections.getBySlug(id);
       return sec?.title ?? id;

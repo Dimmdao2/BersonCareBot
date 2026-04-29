@@ -97,6 +97,13 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
       return rows[0]?.id ?? "";
     },
 
+    async getItemById(id) {
+      const db = getDrizzle();
+      const rows = await db.select().from(patientHomeBlockItems).where(eq(patientHomeBlockItems.id, id)).limit(1);
+      const row = rows[0];
+      return row ? mapItem(row) : null;
+    },
+
     async updateItem(id, patch: PatientHomeBlockItemPatch) {
       const db = getDrizzle();
       const setPayload: Partial<typeof patientHomeBlockItems.$inferInsert> = {
@@ -108,12 +115,27 @@ export function createPgPatientHomeBlocksPort(): PatientHomeBlocksPort {
       if (patch.badgeLabel !== undefined) setPayload.badgeLabel = patch.badgeLabel;
       if (patch.isVisible !== undefined) setPayload.isVisible = patch.isVisible;
       if (patch.sortOrder !== undefined) setPayload.sortOrder = patch.sortOrder;
-      await db.update(patientHomeBlockItems).set(setPayload).where(eq(patientHomeBlockItems.id, id));
+      if (patch.targetRef !== undefined) setPayload.targetRef = patch.targetRef;
+      if (patch.targetType !== undefined) setPayload.targetType = patch.targetType;
+      const updated = await db
+        .update(patientHomeBlockItems)
+        .set(setPayload)
+        .where(eq(patientHomeBlockItems.id, id))
+        .returning({ id: patientHomeBlockItems.id });
+      if (updated.length === 0) {
+        throw new Error("unknown_item");
+      }
     },
 
     async deleteItem(id) {
       const db = getDrizzle();
-      await db.delete(patientHomeBlockItems).where(eq(patientHomeBlockItems.id, id));
+      const deleted = await db
+        .delete(patientHomeBlockItems)
+        .where(eq(patientHomeBlockItems.id, id))
+        .returning({ id: patientHomeBlockItems.id });
+      if (deleted.length === 0) {
+        throw new Error("unknown_item");
+      }
     },
 
     async reorderItems(blockCode, orderedItemIds) {

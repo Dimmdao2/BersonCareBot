@@ -1,26 +1,20 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import type { PatientHomeBlockItem } from "@/modules/patient-home/ports";
-
-type KnownRefs = {
-  contentPages: string[];
-  contentSections: string[];
-  courses: string[];
-};
-
-function isResolved(item: PatientHomeBlockItem, refs: KnownRefs): boolean {
-  if (item.targetType === "static_action") return true;
-  if (item.targetType === "content_page") return refs.contentPages.includes(item.targetRef);
-  if (item.targetType === "content_section") return refs.contentSections.includes(item.targetRef);
-  return refs.courses.includes(item.targetRef);
-}
+import {
+  type KnownPatientHomeRefs,
+  isPatientHomeItemResolved,
+} from "@/modules/patient-home/patientHomeUnresolvedRefs";
 
 export function PatientHomeBlockPreview({
   items,
   knownRefs,
+  onRepairClick,
 }: {
   items: PatientHomeBlockItem[];
-  knownRefs: KnownRefs;
+  knownRefs: KnownPatientHomeRefs;
+  onRepairClick?: () => void;
 }) {
   const visibleItems = items.filter((item) => item.isVisible).sort((a, b) => a.sortOrder - b.sortOrder);
   if (visibleItems.length === 0) {
@@ -33,7 +27,7 @@ export function PatientHomeBlockPreview({
   return (
     <div className="flex flex-col gap-2">
       {visibleItems.map((item) => {
-        const resolved = isResolved(item, knownRefs);
+        const resolved = isPatientHomeItemResolved(item, knownRefs);
         const title = item.titleOverride ?? item.targetRef;
         return (
           <div
@@ -46,8 +40,15 @@ export function PatientHomeBlockPreview({
               <div className="mt-1 text-xs text-muted-foreground">{item.subtitleOverride}</div>
             ) : null}
             {!resolved ? (
-              <div className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-                Warning: target не найден и не будет показан на клиентской главной.
+              <div className="mt-2 flex flex-col gap-2 text-xs text-amber-700 dark:text-amber-400">
+                <span>Цель не найдена в CMS и не будет показана на главной пациента.</span>
+                {onRepairClick ?
+                  <div>
+                    <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={onRepairClick}>
+                      Исправить связь CMS…
+                    </Button>
+                  </div>
+                : null}
               </div>
             ) : null}
           </div>

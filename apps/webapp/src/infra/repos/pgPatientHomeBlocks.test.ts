@@ -37,6 +37,11 @@ describe("patient home blocks port (in-memory)", () => {
     expect(blocks.find((block) => block.code === "daily_warmup")?.items).toEqual([]);
   });
 
+  it("deleteItem throws unknown_item when id missing", async () => {
+    const port = createInMemoryPatientHomeBlocksPort();
+    await expect(port.deleteItem("00000000-0000-0000-0000-000000000099")).rejects.toThrow("unknown_item");
+  });
+
   it("reorders blocks and items", async () => {
     const port = createInMemoryPatientHomeBlocksPort();
     await port.reorderBlocks([
@@ -69,5 +74,19 @@ describe("patient home blocks port (in-memory)", () => {
     await port.reorderItems("sos", [b, a]);
     const items = (await port.listBlocksWithItems()).find((block) => block.code === "sos")?.items ?? [];
     expect(items.map((item) => item.id)).toEqual([b, a]);
+  });
+
+  it("getItemById and updateItem targetRef", async () => {
+    const port = createInMemoryPatientHomeBlocksPort();
+    const id = await port.addItem({
+      blockCode: "daily_warmup",
+      targetType: "content_page",
+      targetRef: "a",
+      isVisible: true,
+    });
+    expect(await port.getItemById(id)).toMatchObject({ id, targetRef: "a" });
+    expect(await port.getItemById("missing")).toBeNull();
+    await port.updateItem(id, { targetRef: "b" });
+    expect((await port.getItemById(id))?.targetRef).toBe("b");
   });
 });

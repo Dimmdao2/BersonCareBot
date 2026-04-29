@@ -42,4 +42,10 @@ describe("SectionForm", () => {
     expect((document.querySelector('input[name="cover_image_url"]') as HTMLInputElement).value).toContain("/api/media/");
     expect((document.querySelector('input[name="icon_image_url"]') as HTMLInputElement).value).toContain("/api/media/");
   });
+
+  it("prefills slug from initialSuggestedSlug", () => {
+    render(<SectionForm initialSuggestedSlug="office-work" />);
+    const slugInput = document.querySelector('input[name="slug"]') as HTMLInputElement;
+    expect(slugInput.value).toBe("office-work");
+  });
 });

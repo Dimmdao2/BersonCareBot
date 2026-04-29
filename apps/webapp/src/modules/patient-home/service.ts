@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   PATIENT_HOME_BLOCK_CODES,
   allowedTargetTypesForBlock,
@@ -25,12 +26,15 @@ type PatientHomeServiceDeps = {
   port: PatientHomeBlocksPort;
   contentPages: {
     listAll(): Promise<Array<{ slug: string; title: string; summary: string; imageUrl: string | null }>>;
+    getBySlug(slug: string): Promise<{ slug: string } | null>;
   };
   contentSections: {
     listAll(): Promise<Array<{ slug: string; title: string; description: string; iconImageUrl?: string | null; coverImageUrl?: string | null }>>;
+    getBySlug(slug: string): Promise<{ slug: string } | null>;
   };
   courses: {
     listCoursesForDoctor(filter?: { includeArchived?: boolean }): Promise<Array<{ id: string; title: string; description: string | null }>>;
+    getCourseForDoctor(id: string): Promise<{ id: string; status: string } | null>;
   };
 };
 
@@ -54,6 +58,34 @@ function sanitizeNullable(value?: string | null): string | null {
   if (value == null) return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function assertCourseTargetRef(ref: string): void {
+  if (!z.string().uuid().safeParse(ref).success) {
+    throw new Error("invalid_course_id");
+  }
+}
+
+async function assertCmsTargetExists(
+  deps: PatientHomeServiceDeps,
+  targetType: PatientHomeBlockItemTargetType,
+  targetRef: string,
+): Promise<void> {
+  if (targetType === "content_page") {
+    const row = await deps.contentPages.getBySlug(targetRef);
+    if (!row) throw new Error("target_content_page_not_found");
+    return;
+  }
+  if (targetType === "content_section") {
+    const row = await deps.contentSections.getBySlug(targetRef);
+    if (!row) throw new Error("target_content_section_not_found");
+    return;
+  }
+  if (targetType === "course") {
+    assertCourseTargetRef(targetRef);
+    const row = await deps.courses.getCourseForDoctor(targetRef);
+    if (!row || row.status !== "published") throw new Error("target_course_not_found");
+  }
 }
 
 export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
@@ -88,6 +120,7 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
       }
       const targetRef = input.targetRef.trim();
       if (!targetRef) throw new Error("empty_target_ref");
+      await assertCmsTargetExists(deps, input.targetType, targetRef);
       return deps.port.addItem({
         ...input,
         targetRef,
@@ -101,6 +134,36 @@ export function createPatientHomeBlocksService(deps: PatientHomeServiceDeps) {
     async updateItem(id: string, patch: PatientHomeBlockItemPatch): Promise<void> {
       const itemId = id.trim();
       if (!itemId) throw new Error("empty_item_id");
+
+      const retarget = patch.targetRef !== undefined || patch.targetType !== undefined;
+      if (retarget) {
+        const item = await deps.port.getItemById(itemId);
+        if (!item) throw new Error("unknown_item");
+        assertManageableBlock(item.blockCode);
+
+        const nextType = (patch.targetType ?? item.targetType) as PatientHomeBlockItemTargetType;
+        const nextRefRaw = patch.targetRef ?? item.targetRef;
+        const nextRef = nextRefRaw.trim();
+        if (!nextRef) throw new Error("empty_target_ref");
+
+        if (!isTargetTypeAllowedForBlock(item.blockCode, nextType)) {
+          throw new Error(`invalid_target_type_for_block:${item.blockCode}:${nextType}`);
+        }
+
+        await assertCmsTargetExists(deps, nextType, nextRef);
+
+        await deps.port.updateItem(itemId, {
+          ...patch,
+          targetType: nextType,
+          targetRef: nextRef,
+          titleOverride: patch.titleOverride === undefined ? undefined : sanitizeNullable(patch.titleOverride),
+          subtitleOverride: patch.subtitleOverride === undefined ? undefined : sanitizeNullable(patch.subtitleOverride),
+          imageUrlOverride: patch.imageUrlOverride === undefined ? undefined : sanitizeNullable(patch.imageUrlOverride),
+          badgeLabel: patch.badgeLabel === undefined ? undefined : sanitizeNullable(patch.badgeLabel),
+        });
+        return;
+      }
+
       await deps.port.updateItem(itemId, {
         ...patch,
         titleOverride: patch.titleOverride === undefined ? undefined : sanitizeNullable(patch.titleOverride),

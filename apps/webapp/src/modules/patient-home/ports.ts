@@ -59,6 +59,8 @@ export type PatientHomeBlockItemPatch = Partial<
     | "badgeLabel"
     | "isVisible"
     | "sortOrder"
+    | "targetRef"
+    | "targetType"
   >
 >;
 
@@ -67,6 +69,7 @@ export type PatientHomeBlocksPort = {
   setBlockVisibility(code: PatientHomeBlockCode, visible: boolean): Promise<void>;
   reorderBlocks(orderedCodes: PatientHomeBlockCode[]): Promise<void>;
   addItem(input: PatientHomeBlockItemAddInput): Promise<string>;
+  getItemById(id: string): Promise<PatientHomeBlockItem | null>;
   updateItem(id: string, patch: PatientHomeBlockItemPatch): Promise<void>;
   deleteItem(id: string): Promise<void>;
   reorderItems(blockCode: PatientHomeBlockCode, orderedItemIds: string[]): Promise<void>;

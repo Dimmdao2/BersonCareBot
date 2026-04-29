@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type {
   PatientHomeBlock,
   PatientHomeBlockCode,
@@ -24,7 +25,6 @@ const defaultTitles: Record<PatientHomeBlockCode, string> = {
 export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
   const blocks = new Map<PatientHomeBlockCode, PatientHomeBlock>();
   const items = new Map<string, PatientHomeBlockItem>();
-  let seq = 0;
 
   for (let i = 0; i < PATIENT_HOME_BLOCK_CODES.length; i += 1) {
     const code = PATIENT_HOME_BLOCK_CODES[i]!;
@@ -66,8 +66,7 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
     },
 
     async addItem(input: PatientHomeBlockItemAddInput) {
-      seq += 1;
-      const id = `mem-home-item-${seq}`;
+      const id = randomUUID();
       const sortOrder =
         input.sortOrder ??
         Math.max(
@@ -90,13 +89,19 @@ export function createInMemoryPatientHomeBlocksPort(): PatientHomeBlocksPort {
       return id;
     },
 
+    async getItemById(id: string) {
+      syncItems();
+      return items.get(id) ?? null;
+    },
+
     async updateItem(id: string, patch: PatientHomeBlockItemPatch) {
       const current = items.get(id);
-      if (!current) return;
+      if (!current) throw new Error("unknown_item");
       items.set(id, { ...current, ...patch });
     },
 
     async deleteItem(id: string) {
+      if (!items.has(id)) throw new Error("unknown_item");
       items.delete(id);
     },
 

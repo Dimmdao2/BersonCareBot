@@ -7,14 +7,16 @@ import { Button } from "@/components/ui/button";
 import { ReminderCreateDialog } from "@/modules/reminders/components/ReminderCreateDialog";
 
 /**
- * S4.T05 / S4.T09: напоминание на весь раздел разминок (`content_section` / `warmups`).
+ * Напоминание на весь CMS-раздел разминок: `content_section` и slug канона разминок (см. `warmupsSection.ts`).
  */
 export function SectionWarmupsReminderBar({
   sectionTitle,
   existingRule,
+  linkedObjectId,
 }: {
   sectionTitle: string;
   existingRule: PatientReminderRuleJson | null;
+  linkedObjectId: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -44,7 +46,7 @@ export function SectionWarmupsReminderBar({
         open={open}
         onOpenChange={setOpen}
         linkedObjectType="content_section"
-        linkedObjectId="warmups"
+        linkedObjectId={linkedObjectId}
         contextTitle={sectionTitle}
         existingRule={existingRule}
         onSaved={() => router.refresh()}

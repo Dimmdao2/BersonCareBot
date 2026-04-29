@@ -19,14 +19,29 @@ type SectionRow = {
   iconImageUrl: string | null;
 };
 
-export function SectionForm({ section }: { section?: SectionRow }) {
+export function SectionForm({
+  section,
+  initialSuggestedSlug,
+}: {
+  section?: SectionRow;
+  /** Из query `?suggestedSlug=` при создании раздела (латиница, цифры, дефис). */
+  initialSuggestedSlug?: string | null;
+}) {
   const [state, formAction, pending] = useActionState(saveContentSection, null as SaveContentSectionState | null);
   const isEdit = Boolean(section);
+  const initialCreateSlug =
+    !isEdit && initialSuggestedSlug != null && initialSuggestedSlug.trim() !== ""
+      ? (() => {
+          const raw = initialSuggestedSlug.trim().toLowerCase();
+          if (!/^[a-z0-9-]+$/.test(raw) || /^-+$/.test(raw)) return "";
+          return raw;
+        })()
+      : "";
   const [titleValue, setTitleValue] = useState(section?.title ?? "");
-  const [slugValue, setSlugValue] = useState("");
+  const [slugValue, setSlugValue] = useState(initialCreateSlug);
   const [coverImageUrlValue, setCoverImageUrlValue] = useState(section?.coverImageUrl ?? "");
   const [iconImageUrlValue, setIconImageUrlValue] = useState(section?.iconImageUrl ?? "");
-  const slugManualRef = useRef(false);
+  const slugManualRef = useRef(initialCreateSlug.length > 0);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">

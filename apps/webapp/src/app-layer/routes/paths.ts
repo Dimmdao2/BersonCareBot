@@ -2,6 +2,7 @@ import {
   DEFAULT_PATIENT_SUPPORT_PATH,
   LOGIN_CONTACT_SUPPORT_PATH,
 } from "@/modules/system-settings/supportContactConstants";
+import { patientWarmupsSectionHref } from "@/modules/patient-home/warmupsSection";
 
 export const routePaths = {
   root: "/app",
@@ -58,8 +59,8 @@ export const routePaths = {
   patientTreatmentPrograms: "/app/patient/treatment-programs",
   patientTreatmentProgram: (instanceId: string) =>
     `/app/patient/treatment-programs/${encodeURIComponent(instanceId)}`,
-  /** Раздел CMS «Разминки» (материалы разминок; slug задаётся в CMS). */
-  patientWarmups: "/app/patient/sections/warmups",
+  /** Раздел CMS «Разминки» (канонический slug — см. `warmupsSection.ts`). */
+  patientWarmups: patientWarmupsSectionHref(),
   /** Online intake — Nutrition questionnaire. */
   intakeNutrition: "/app/patient/intake/nutrition",
   /** Doctor online-intake inbox. */

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { EllipsisVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -13,10 +14,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { canManageItemsForBlock } from "@/modules/patient-home/blocks";
 import type { PatientHomeBlock } from "@/modules/patient-home/ports";
+import {
+  listUnresolvedPatientHomeBlockItems,
+  partitionUnresolvedPatientHomeItemsByVisibility,
+} from "@/modules/patient-home/patientHomeUnresolvedRefs";
 import { togglePatientHomeBlockVisibility } from "./actions";
 import { PatientHomeAddItemDialog } from "./PatientHomeAddItemDialog";
 import { PatientHomeBlockItemsDialog } from "./PatientHomeBlockItemsDialog";
 import { PatientHomeBlockPreview } from "./PatientHomeBlockPreview";
+import { PatientHomeRepairTargetsDialog } from "./PatientHomeRepairTargetsDialog";
 
 type KnownRefs = {
   contentPages: string[];
@@ -36,8 +42,16 @@ export function PatientHomeBlockSettingsCard({
   const [isPending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [repairOpen, setRepairOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const canManageItems = canManageItemsForBlock(block.code);
+  const unresolved = useMemo(() => listUnresolvedPatientHomeBlockItems(block, knownRefs), [block, knownRefs]);
+  const { visible: visibleUnresolved, hidden: hiddenUnresolved } = useMemo(
+    () => partitionUnresolvedPatientHomeItemsByVisibility(unresolved),
+    [unresolved],
+  );
+  const repairOnlyHiddenBroken =
+    canManageItems && visibleUnresolved.length === 0 && hiddenUnresolved.length > 0;
 
   const handleToggle = () => {
     setError(null);
@@ -66,25 +80,44 @@ export function PatientHomeBlockSettingsCard({
             <EllipsisVertical className="size-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuLabel>Действия</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleToggle} disabled={isPending}>
-              {block.isVisible ? "Скрыть" : "Показать"}
-            </DropdownMenuItem>
-            {canManageItems ? (
-              <DropdownMenuItem onClick={() => setAddOpen(true)}>
-                Добавить материал
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Действия</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleToggle} disabled={isPending}>
+                {block.isVisible ? "Скрыть" : "Показать"}
               </DropdownMenuItem>
-            ) : null}
-            {canManageItems ? (
-              <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                Изменить
-              </DropdownMenuItem>
-            ) : null}
+              {canManageItems ? (
+                <DropdownMenuItem onClick={() => setAddOpen(true)}>
+                  Добавить материал
+                </DropdownMenuItem>
+              ) : null}
+              {canManageItems ? (
+                <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                  Изменить
+                </DropdownMenuItem>
+              ) : null}
+              {canManageItems && unresolved.length > 0 ? (
+                <DropdownMenuItem onClick={() => setRepairOpen(true)}>
+                  Исправить связи CMS…
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <PatientHomeBlockPreview items={block.items} knownRefs={knownRefs} />
+      <PatientHomeBlockPreview
+        items={block.items}
+        knownRefs={knownRefs}
+        onRepairClick={canManageItems && visibleUnresolved.length > 0 ? () => setRepairOpen(true) : undefined}
+      />
+      {repairOnlyHiddenBroken ? (
+        <div className="mt-3 rounded-lg border border-amber-200/80 bg-amber-50/60 p-3 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+          <p className="mb-2">Есть битые связи CMS у скрытых элементов — на главной пациента они не показываются.</p>
+          <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setRepairOpen(true)}>
+            Исправить связи CMS…
+          </Button>
+        </div>
+      ) : null}
       {error ? <div className="mt-2 text-sm text-destructive">{error}</div> : null}
       {addOpen ? (
         <PatientHomeAddItemDialog
@@ -100,6 +133,15 @@ export function PatientHomeBlockSettingsCard({
           onOpenChange={setEditOpen}
           blockCode={block.code}
           initialItems={block.items}
+          onSaved={onChanged}
+        />
+      ) : null}
+      {repairOpen && unresolved.length > 0 ? (
+        <PatientHomeRepairTargetsDialog
+          open={repairOpen}
+          onOpenChange={setRepairOpen}
+          blockCode={block.code}
+          unresolvedItems={unresolved}
           onSaved={onChanged}
         />
       ) : null}

@@ -15,6 +15,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuLabel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DropdownMenuSeparator: () => <div />,
@@ -23,6 +24,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 vi.mock("./actions", () => ({
   togglePatientHomeBlockVisibility: vi.fn().mockResolvedValue({ ok: true }),
   listPatientHomeCandidates: vi.fn().mockResolvedValue({ ok: true, items: [] }),
+  retargetPatientHomeItem: vi.fn().mockResolvedValue({ ok: true }),
   addPatientHomeItem: vi.fn().mockResolvedValue({ ok: true }),
   updatePatientHomeItemVisibility: vi.fn().mockResolvedValue({ ok: true }),
   deletePatientHomeItem: vi.fn().mockResolvedValue({ ok: true }),

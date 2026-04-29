@@ -8,6 +8,7 @@ import { reminderRuleToPatientJson } from "@/app/api/patient/reminders/reminderP
 import { buildAppDeps } from "@/app-layer/di/buildAppDeps";
 import { getOptionalPatientSession, patientRscPersonalDataGate } from "@/app-layer/guards/requireRole";
 import { getSubscriptionCarouselSectionPresentation } from "@/modules/patient-home/patientHomeResolvers";
+import { DEFAULT_WARMUPS_SECTION_SLUG } from "@/modules/patient-home/warmupsSection";
 import { resolvePatientCanViewAuthOnlyContent } from "@/modules/platform-access";
 import { AppShell } from "@/shared/ui/AppShell";
 import { FeatureCard } from "@/shared/ui/FeatureCard";
@@ -55,7 +56,7 @@ export default async function PatientSectionPage({ params }: Props) {
   }
   let warmupsReminderJson: ReturnType<typeof reminderRuleToPatientJson> | null = null;
   let warmupsPersonalBar = false;
-  if (slug === "warmups" && session) {
+  if (slug === DEFAULT_WARMUPS_SECTION_SLUG && session) {
     const dataGate = await patientRscPersonalDataGate(
       session,
       `/app/patient/sections/${encodeURIComponent(slug)}`,
@@ -64,7 +65,7 @@ export default async function PatientSectionPage({ params }: Props) {
       warmupsPersonalBar = true;
       const rules = await deps.reminders.listRulesByUser(session.user.userId);
       const matches = rules.filter(
-        (r) => r.linkedObjectType === "content_section" && r.linkedObjectId === "warmups",
+        (r) => r.linkedObjectType === "content_section" && r.linkedObjectId === DEFAULT_WARMUPS_SECTION_SLUG,
       );
       matches.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
       const latest = matches[0];
@@ -82,7 +83,11 @@ export default async function PatientSectionPage({ params }: Props) {
       patientTitleBadge={subscriptionSectionPresentation?.badgeLabel}
     >
       {warmupsPersonalBar ? (
-        <SectionWarmupsReminderBar sectionTitle={section.title} existingRule={warmupsReminderJson} />
+        <SectionWarmupsReminderBar
+          sectionTitle={section.title}
+          existingRule={warmupsReminderJson}
+          linkedObjectId={DEFAULT_WARMUPS_SECTION_SLUG}
+        />
       ) : null}
       {subscriptionSectionPresentation ? <PatientSectionSubscriptionCallout /> : null}
       <section id={`patient-section-${slug}-grid`} className="grid gap-4 md:grid-cols-2">
