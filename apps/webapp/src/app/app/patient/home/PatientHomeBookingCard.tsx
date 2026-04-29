@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { Calendar } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientHomeCardClass } from "./patientHomeCardStyles";
+import { patientHomeCardSuccessClass } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
+import { patientButtonSecondaryClass, patientButtonSuccessClass, patientButtonGhostLinkClass } from "@/shared/ui/patientVisual";
+import { cn } from "@/lib/utils";
 
 type Props = {
   /** Полный tier patient — без CTA активации. */
@@ -15,43 +18,50 @@ export function PatientHomeBookingCard({ personalTierOk, anonymousGuest }: Props
 
   return (
     <section aria-labelledby="patient-home-booking-heading">
-      <h2 id="patient-home-booking-heading" className="mb-2 text-base font-semibold">
-        Запись на приём
-      </h2>
-      <div className={`${patientHomeCardClass} flex flex-col gap-3`}>
-        <p className="text-sm text-muted-foreground">
-          Запишитесь на приём или откройте кабинет с вашими визитами.
-        </p>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Link
-            href={bookingHref}
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
+      <article
+        id="patient-home-booking-card"
+        className={cn(
+          patientHomeCardSuccessClass,
+          "flex min-h-[104px] flex-col gap-3 p-4 lg:min-h-[160px] lg:flex-row lg:items-center lg:gap-4 lg:p-6",
+        )}
+      >
+        <div className="flex items-start gap-3 lg:items-center">
+          <div className="inline-flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#dcfce7] text-[var(--patient-color-success)] lg:size-14">
+            <Calendar className="size-6" aria-hidden />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 id="patient-home-booking-heading" className="text-lg font-bold text-[var(--patient-text-primary)] lg:text-xl">
+              Запись на приём
+            </h2>
+            <p className="mt-1 text-sm leading-5 text-[var(--patient-text-secondary)]">
+              {anonymousGuest ? "Войдите, чтобы выбрать время и услугу." : "Выберите удобное время и откройте кабинет с вашими визитами."}
+            </p>
+          </div>
+        </div>
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end lg:w-auto lg:shrink-0">
+          <Link href={bookingHref} prefetch={false} className={cn(patientButtonSuccessClass, "sm:min-w-[12rem]")}>
             {anonymousGuest ? "Войти, чтобы записаться" : "Записаться"}
           </Link>
-          <Link
-            href={cabinetHref}
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-background px-4 text-sm font-medium hover:bg-muted/50"
-          >
+          <Link href={cabinetHref} prefetch={false} className={cn(patientButtonSecondaryClass, "sm:min-w-[12rem]")}>
             {anonymousGuest ? "Войти к записям" : "Мои записи"}
           </Link>
         </div>
         {anonymousGuest ?
-          <p className="text-xs text-muted-foreground">
-            <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
+          <p className="text-xs leading-5 text-[var(--patient-text-secondary)]">
+            <Link href={appLoginWithNextHref(routePaths.patient)} className={patientButtonGhostLinkClass}>
               Войти
             </Link>
             {" — чтобы пользоваться записями и персональными разделами."}
           </p>
         : !personalTierOk ?
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs leading-5 text-[var(--patient-text-secondary)]">
             <Link href={`${routePaths.bindPhone}?next=${encodeURIComponent(routePaths.patient)}`} className="font-medium text-primary underline-offset-4 hover:underline">
               Активировать профиль
             </Link>
             {" — чтобы пользоваться записями и персональными разделами."}
           </p>
         : null}
-      </div>
+      </article>
     </section>
   );
 }
