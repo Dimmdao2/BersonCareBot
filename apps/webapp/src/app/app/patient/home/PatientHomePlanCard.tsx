@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { routePaths } from "@/app-layer/routes/paths";
-import { patientHomeCardClass } from "./patientHomeCardStyles";
+import { patientHomeCardClass, patientIconLeadingClass } from "./patientHomeCardStyles";
+import { patientButtonGhostLinkClass } from "@/shared/ui/patientVisual";
+import { cn } from "@/lib/utils";
 
 export type PatientHomePlanCardInstance = {
   id: string;
@@ -14,17 +17,27 @@ export function PatientHomePlanCard({ instance }: Props) {
 
   return (
     <section aria-labelledby="patient-home-plan-heading">
-      <h2 id="patient-home-plan-heading" className="mb-2 text-base font-semibold">
-        Мой план
-      </h2>
-      <Link
-        href={routePaths.patientTreatmentProgram(instance.id)}
-        className={`${patientHomeCardClass} block transition-colors hover:border-primary/30`}
-      >
-        <h3 className="text-base font-semibold">{instance.title}</h3>
-        <p className="mt-2 text-sm text-muted-foreground">Активная программа лечения</p>
-        <span className="mt-3 inline-flex text-sm font-medium text-primary">Перейти к плану</span>
-      </Link>
+      <article id="patient-home-plan-card" className={cn(patientHomeCardClass, "flex min-h-[112px] flex-col gap-3")}>
+        <p id="patient-home-plan-heading" className="text-xs font-semibold uppercase tracking-wide text-[var(--patient-text-muted)]">
+          Мой план
+        </p>
+        <div className="flex gap-3">
+          <div className={patientIconLeadingClass} aria-hidden>
+            <ClipboardList className="size-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[15px] font-bold leading-[22px] text-[var(--patient-text-primary)]">{instance.title}</h2>
+            <p className="mt-1 text-[13px] leading-5 text-[var(--patient-text-secondary)]">Активная программа лечения</p>
+          </div>
+        </div>
+        <Link
+          href={routePaths.patientTreatmentProgram(instance.id)}
+          prefetch={false}
+          className={cn(patientButtonGhostLinkClass, "w-full sm:w-auto")}
+        >
+          Смотреть план
+        </Link>
+      </article>
     </section>
   );
 }
