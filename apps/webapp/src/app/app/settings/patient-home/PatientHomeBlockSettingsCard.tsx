@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { canManageItemsForBlock } from "@/modules/patient-home/blocks";
 import type { PatientHomeBlock } from "@/modules/patient-home/ports";
+import type { PatientHomeBlockRuntimeStatus } from "@/modules/patient-home/patientHomeRuntimeStatus";
 import {
   listUnresolvedPatientHomeBlockItems,
   partitionUnresolvedPatientHomeItemsByVisibility,
@@ -22,6 +23,7 @@ import { togglePatientHomeBlockVisibility } from "./actions";
 import { PatientHomeAddItemDialog } from "./PatientHomeAddItemDialog";
 import { PatientHomeBlockItemsDialog } from "./PatientHomeBlockItemsDialog";
 import { PatientHomeBlockPreview } from "./PatientHomeBlockPreview";
+import { PatientHomeBlockRuntimeStatusBadge } from "./PatientHomeBlockRuntimeStatusBadge";
 import { PatientHomeRepairTargetsDialog } from "./PatientHomeRepairTargetsDialog";
 
 type KnownRefs = {
@@ -33,10 +35,12 @@ type KnownRefs = {
 export function PatientHomeBlockSettingsCard({
   block,
   knownRefs,
+  runtimeStatus,
   onChanged,
 }: {
   block: PatientHomeBlock;
   knownRefs: KnownRefs;
+  runtimeStatus: PatientHomeBlockRuntimeStatus;
   onChanged(): void;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -68,9 +72,12 @@ export function PatientHomeBlockSettingsCard({
   return (
     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-base font-semibold">{block.title}</div>
-          <div className="text-xs text-muted-foreground">{block.code}</div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <div className="min-w-0">
+            <div className="text-base font-semibold">{block.title}</div>
+            <div className="text-xs text-muted-foreground">{block.code}</div>
+          </div>
+          <PatientHomeBlockRuntimeStatusBadge status={runtimeStatus} />
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger

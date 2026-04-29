@@ -11,6 +11,11 @@ import {
   parsePatientHomeMorningPingEnabled,
   parsePatientHomeMorningPingLocalTime,
 } from "@/modules/patient-home/patientHomeMorningPingSettings";
+import {
+  buildPatientHomeResolverSyncContext,
+  computePatientHomeBlockRuntimeStatus,
+  type PatientHomeBlockRuntimeStatus,
+} from "@/modules/patient-home/patientHomeRuntimeStatus";
 
 export default async function DoctorPatientHomeSettingsPage() {
   const session = await requireDoctorAccess();
@@ -39,6 +44,27 @@ export default async function DoctorPatientHomeSettingsPage() {
     courses: [...new Set(courses.map((c) => c.id))],
   };
 
+  const resolverSync = buildPatientHomeResolverSyncContext({
+    sections: sections.map((s) => ({
+      slug: s.slug,
+      isVisible: s.isVisible,
+      requiresAuth: s.requiresAuth,
+    })),
+    pages: pages.map((p) => ({
+      slug: p.slug,
+      requiresAuth: p.requiresAuth,
+    })),
+    courses: courses.map((c) => ({
+      id: c.id,
+      status: c.status,
+    })),
+  });
+
+  const blockRuntimeStatuses: Record<string, PatientHomeBlockRuntimeStatus> = {};
+  for (const b of blocks) {
+    blockRuntimeStatuses[b.code] = computePatientHomeBlockRuntimeStatus(b, { knownRefs, resolverSync });
+  }
+
   return (
     <div className={DOCTOR_PAGE_CONTAINER_CLASS}>
       <div className="mb-6 flex items-center justify-between gap-3">
@@ -58,7 +84,11 @@ export default async function DoctorPatientHomeSettingsPage() {
           />
         </div>
       ) : null}
-      <PatientHomeBlocksSettingsPageClient initialBlocks={blocks} knownRefs={knownRefs} />
+      <PatientHomeBlocksSettingsPageClient
+        initialBlocks={blocks}
+        knownRefs={knownRefs}
+        blockRuntimeStatuses={blockRuntimeStatuses}
+      />
     </div>
   );
 }
