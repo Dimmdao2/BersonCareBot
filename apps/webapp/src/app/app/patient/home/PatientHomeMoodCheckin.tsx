@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { routePaths } from "@/app-layer/routes/paths";
 import type { PatientMoodToday } from "@/modules/patient-mood/types";
 import type { PatientHomeMoodIconOption } from "@/modules/patient-home/patientHomeMoodIcons";
-import { patientHomeCardClass } from "./patientHomeCardStyles";
+import { patientHomeCardGradientWarmClass } from "./patientHomeCardStyles";
 import { appLoginWithNextHref } from "./patientHomeGuestNav";
 import { cn } from "@/lib/utils";
 
@@ -64,22 +64,27 @@ export function PatientHomeMoodCheckin({
   }
 
   return (
-    <section aria-labelledby="patient-home-mood-heading">
-      <h2 id="patient-home-mood-heading" className="mb-2 text-base font-semibold">
-        Как вы себя чувствуете?
-      </h2>
-      <div className={patientHomeCardClass}>
+    <section
+      id="patient-home-mood-checkin"
+      className={cn(patientHomeCardGradientWarmClass, "relative min-h-[140px] overflow-hidden")}
+      aria-labelledby="patient-home-mood-heading"
+    >
+      <div className="relative z-[1]">
+        <h2 id="patient-home-mood-heading" className="text-lg font-bold text-[var(--patient-text-primary)]">
+          Как вы себя чувствуете?
+        </h2>
+        <p className="mt-1 text-sm text-[var(--patient-text-secondary)]">Отметьте своё состояние одним касанием</p>
         {anonymousGuest ?
-          <p className="text-sm text-muted-foreground">
+          <p className="mt-4 text-sm leading-5 text-[var(--patient-text-secondary)]">
             <Link href={appLoginWithNextHref(routePaths.patient)} className="font-medium text-primary underline-offset-4 hover:underline">
               Войдите
             </Link>
             , чтобы отмечать самочувствие.
           </p>
         : !personalTierOk ?
-          <p className="text-sm text-muted-foreground">Чек-ин самочувствия будет доступен после активации профиля.</p>
-        : <div className="space-y-3">
-            <div className="flex items-center gap-2" role="group" aria-label="Оценка самочувствия">
+          <p className="mt-4 text-sm leading-5 text-[var(--patient-text-secondary)]">Чек-ин самочувствия будет доступен после активации профиля.</p>
+        : <div className="mt-4 space-y-3">
+            <div className="grid grid-cols-5 gap-2" role="group" aria-label="Оценка самочувствия">
               {moodOptions.map((option) => {
                 const active = selectedScore === option.score;
                 return (
@@ -90,24 +95,24 @@ export function PatientHomeMoodCheckin({
                     aria-pressed={active}
                     disabled={submittingScore !== null}
                     className={cn(
-                      "flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border text-xl transition",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                      "flex min-h-[48px] w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-transparent bg-white/50 py-2 text-2xl transition-colors",
+                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--patient-color-primary)]",
                       active ?
-                        "border-primary bg-primary text-primary-foreground shadow-sm"
-                      : "border-border bg-background hover:border-primary/60 hover:bg-muted",
+                        "border-[var(--patient-color-primary)] bg-[#eef2ff] ring-2 ring-[var(--patient-color-primary)]"
+                      : "hover:border-[var(--patient-color-primary)]/40 hover:bg-white/80",
                       submittingScore !== null && "cursor-not-allowed opacity-70",
                     )}
                     onClick={() => void saveScore(option.score)}
                   >
                     {option.imageUrl ?
                       // eslint-disable-next-line @next/next/no-img-element -- CMS URL
-                      <img src={option.imageUrl} alt="" className="h-full w-full object-cover" />
-                    : <span aria-hidden="true">{option.emoji}</span>}
+                      <img src={option.imageUrl} alt="" className="size-10 rounded-full object-contain" loading="lazy" />
+                    : <span aria-hidden="true" className="leading-none">{option.emoji}</span>}
                   </button>
                 );
               })}
             </div>
-            <p className="text-sm text-muted-foreground" aria-live="polite">
+            <p className="text-sm leading-5 text-[var(--patient-text-secondary)]" aria-live="polite">
               {submittingScore !== null ?
                 "Сохраняем..."
               : savedScore && selectedScore !== null ?
